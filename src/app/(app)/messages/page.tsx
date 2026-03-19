@@ -1,5 +1,7 @@
 'use client'
 
+export const dynamic = 'force-dynamic'
+
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useQuery, useAction } from 'convex/react'
 import { api } from '../../../../convex/_generated/api'
