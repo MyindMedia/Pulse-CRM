@@ -73,15 +73,12 @@ describe("agencyStaff — CRUD + scoping", () => {
 
   it("billing-role member cannot invite staff", async () => {
     const owner = await seedAgency();
-    await owner.mutation(api.agencyStaff.invite, {
+    const billingMember = await owner.mutation(api.agencyStaff.invite, {
       email: "b@x", name: "Bookkeeper", role: "billing",
     });
-    // Promote the invited stub to a real clerkUserId so we can act as them
+    // Promote the stub to a real active clerkUserId so we can act as them.
     await t.run(async (ctx) => {
-      const m = (await ctx.db.query("agencyMembers")
-        .withIndex("by_clerk", (q) => q.eq("clerkUserId", "pending_b_x"))
-        .first())!;
-      await ctx.db.patch(m._id, { clerkUserId: "u_billing", status: "active" });
+      await ctx.db.patch(billingMember!._id, { clerkUserId: "u_billing", status: "active" });
     });
     const asBilling = t.withIdentity({
       subject: "u_billing", name: "B", orgId: "org_ag", orgType: "agency",
