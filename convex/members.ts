@@ -1,8 +1,18 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { currentOrg } from "./lib/tenant";
+import { requireCapability } from "./lib/access";
 
-const roleV = v.union(v.literal("owner"), v.literal("manager"), v.literal("engineer"));
+const roleV = v.union(
+  v.literal("owner"),
+  v.literal("manager"),
+  v.literal("engineer"),
+  v.literal("assistant_engineer"),
+  v.literal("artist_relations"),
+  v.literal("producer"),
+  v.literal("intern"),
+  v.literal("accountant"),
+);
 
 export const list = query({
   args: {},
@@ -37,15 +47,18 @@ export const create = mutation({
     email: v.optional(v.string()),
     role: roleV,
     skills: v.optional(v.array(v.string())),
+    capabilityOverrides: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
-    const orgId = await currentOrg(ctx);
+    const viewer = await requireCapability(ctx, "members.invite");
+    const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
     return await ctx.db.insert("members", {
       orgId,
       name: args.name,
       email: args.email,
       role: args.role,
       skills: args.skills ?? [],
+      capabilityOverrides: args.capabilityOverrides,
     });
   },
 });
@@ -56,11 +69,16 @@ export const update = mutation({
     name: v.optional(v.string()),
     role: v.optional(roleV),
     skills: v.optional(v.array(v.string())),
+    capabilityOverrides: v.optional(v.array(v.string())),
   },
   handler: async (ctx, { id, ...patch }) => {
-    const orgId = await currentOrg(ctx);
+    const viewer = await requireCapability(ctx, "members.invite");
+    const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
     const member = await ctx.db.get(id);
     if (!member || member.orgId !== orgId) throw new Error("Not found");
+    if (member.role === "owner" && patch.role && patch.role !== "owner") {
+      throw new Error("cannot demote owner");
+    }
     const clean = Object.fromEntries(Object.entries(patch).filter(([, val]) => val !== undefined));
     await ctx.db.patch(id, clean);
   },
@@ -69,9 +87,11 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("members") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrg(ctx);
+    const viewer = await requireCapability(ctx, "members.remove");
+    const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
     const member = await ctx.db.get(id);
     if (!member || member.orgId !== orgId) throw new Error("Not found");
+    if (member.role === "owner") throw new Error("cannot remove owner");
     await ctx.db.delete(id);
   },
 });

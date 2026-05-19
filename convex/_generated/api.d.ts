@@ -10,9 +10,12 @@
 
 import type * as activity from "../activity.js";
 import type * as agency from "../agency.js";
+import type * as agencyStaff from "../agencyStaff.js";
 import type * as artists from "../artists.js";
+import type * as audit from "../audit.js";
 import type * as automation from "../automation.js";
 import type * as booking from "../booking.js";
+import type * as branding from "../branding.js";
 import type * as dashboard from "../dashboard.js";
 import type * as deliverables from "../deliverables.js";
 import type * as engineeringLogs from "../engineeringLogs.js";
@@ -30,6 +33,7 @@ import type * as lib_starter from "../lib/starter.js";
 import type * as lib_tenant from "../lib/tenant.js";
 import type * as licensing from "../licensing.js";
 import type * as members from "../members.js";
+import type * as migrations from "../migrations.js";
 import type * as notifications from "../notifications.js";
 import type * as opportunities from "../opportunities.js";
 import type * as orgs from "../orgs.js";
@@ -51,9 +55,12 @@ import type {
 declare const fullApi: ApiFromModules<{
   activity: typeof activity;
   agency: typeof agency;
+  agencyStaff: typeof agencyStaff;
   artists: typeof artists;
+  audit: typeof audit;
   automation: typeof automation;
   booking: typeof booking;
+  branding: typeof branding;
   dashboard: typeof dashboard;
   deliverables: typeof deliverables;
   engineeringLogs: typeof engineeringLogs;
@@ -71,6 +78,7 @@ declare const fullApi: ApiFromModules<{
   "lib/tenant": typeof lib_tenant;
   licensing: typeof licensing;
   members: typeof members;
+  migrations: typeof migrations;
   notifications: typeof notifications;
   opportunities: typeof opportunities;
   orgs: typeof orgs;
