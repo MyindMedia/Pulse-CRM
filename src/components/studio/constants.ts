@@ -17,7 +17,15 @@ import {
 } from "lucide-react";
 
 export type RoomStatus = "available" | "in_use" | "maintenance" | "retired";
-export type MemberRole = "owner" | "manager" | "engineer";
+export type MemberRole =
+  | "owner"
+  | "manager"
+  | "engineer"
+  | "assistant_engineer"
+  | "artist_relations"
+  | "producer"
+  | "intern"
+  | "accountant";
 export type EquipmentCategory =
   | "console"
   | "mic"
@@ -118,9 +126,14 @@ export function statusMeta(status: string) {
 
 /** Team role display map — label + Badge tone. */
 export const MEMBER_ROLE: Record<string, { label: string; tone: Tone }> = {
-  owner: { label: "Owner", tone: "solid" },
-  manager: { label: "Manager", tone: "gold" },
-  engineer: { label: "Engineer", tone: "info" },
+  owner:              { label: "Owner",             tone: "solid" },
+  manager:            { label: "Manager",           tone: "gold" },
+  engineer:           { label: "Engineer",          tone: "info" },
+  assistant_engineer: { label: "Asst. engineer",    tone: "info" },
+  artist_relations:   { label: "Artist relations",  tone: "info" },
+  producer:           { label: "Producer",          tone: "gold" },
+  intern:             { label: "Intern",            tone: "neutral" },
+  accountant:         { label: "Accountant",        tone: "caution" },
 };
 
 export const MEMBER_ROLES: { value: MemberRole; label: string; blurb: string }[] = [
@@ -138,5 +151,30 @@ export const MEMBER_ROLES: { value: MemberRole; label: string; blurb: string }[]
     value: "engineer",
     label: "Engineer",
     blurb: "Works the floor — runs sessions, logs takes and updates song progress.",
+  },
+  {
+    value: "assistant_engineer",
+    label: "Assistant engineer",
+    blurb: "Narrower scope — runs assigned sessions and uploads stems, no approvals.",
+  },
+  {
+    value: "artist_relations",
+    label: "Artist relations",
+    blurb: "Front-of-house — books sessions, edits artists, runs the pipeline.",
+  },
+  {
+    value: "producer",
+    label: "Producer",
+    blurb: "In-house producer — runs sessions, signs split sheets, drives a song.",
+  },
+  {
+    value: "intern",
+    label: "Intern",
+    blurb: "Read-only — see everything, change nothing.",
+  },
+  {
+    value: "accountant",
+    label: "Accountant",
+    blurb: "Money only — invoices, payments, refunds, licensing. No creative access.",
   },
 ];
