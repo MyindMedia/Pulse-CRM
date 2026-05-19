@@ -17,7 +17,13 @@ import { ClerkProvider, useAuth } from "@clerk/nextjs";
  */
 
 const CLERK_KEY = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
-const CONVEX_URL = process.env.NEXT_PUBLIC_CONVEX_URL;
+
+/* The Convex deployment URL. `NEXT_PUBLIC_CONVEX_URL` (written by
+ * `npx convex dev` locally) takes precedence; when it is absent — e.g. a
+ * hosting environment where the build var was not configured — we fall back
+ * to the production deployment. A Convex URL is public by design. */
+const CONVEX_URL =
+  process.env.NEXT_PUBLIC_CONVEX_URL ?? "https://pastel-corgi-340.convex.cloud";
 
 function MissingConvex() {
   return (
