@@ -1,10 +1,6 @@
 # Netlify build for Pulse.
-# `convex deploy` pushes the Convex functions to the production deployment
-# and injects NEXT_PUBLIC_CONVEX_URL before running the Next.js build.
-# Requires CONVEX_DEPLOY_KEY (a prod deploy key) set in the Netlify UI.
-
-[build]
-  command = "npx convex deploy --cmd 'npm run build'"
-
+# Convex functions are deployed separately with `npx convex deploy`; this
+# build just compiles the Next.js frontend. It needs NEXT_PUBLIC_CONVEX_URL
+# (the production Convex URL) and the Clerk keys set in the Netlify UI.
 [build.environment]
   NODE_VERSION = "20"
