@@ -1,6 +1,0 @@
-# Netlify build for Pulse.
-# Convex functions are deployed separately with `npx convex deploy`; this
-# build just compiles the Next.js frontend. It needs NEXT_PUBLIC_CONVEX_URL
-# (the production Convex URL) and the Clerk keys set in the Netlify UI.
-[build.environment]
-  NODE_VERSION = "20"
