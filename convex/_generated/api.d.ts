@@ -17,6 +17,7 @@ import type * as dashboard from "../dashboard.js";
 import type * as deliverables from "../deliverables.js";
 import type * as engineeringLogs from "../engineeringLogs.js";
 import type * as equipment from "../equipment.js";
+import type * as grants from "../grants.js";
 import type * as insights from "../insights.js";
 import type * as invoices from "../invoices.js";
 import type * as lib_access from "../lib/access.js";
@@ -57,6 +58,7 @@ declare const fullApi: ApiFromModules<{
   deliverables: typeof deliverables;
   engineeringLogs: typeof engineeringLogs;
   equipment: typeof equipment;
+  grants: typeof grants;
   insights: typeof insights;
   invoices: typeof invoices;
   "lib/access": typeof lib_access;
