@@ -5,7 +5,7 @@ import {
   GUEST_SCOPE_CAPABILITIES,
   SENSITIVE_CAPABILITIES,
   applyOverrides,
-} from "./access-policies";
+} from "./accessPolicies";
 
 describe("access-policies", () => {
   it("agency owner has full surface", () => {

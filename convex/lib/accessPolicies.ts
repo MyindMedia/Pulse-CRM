@@ -1,4 +1,4 @@
-import type { AgencyRole, StudioRole, GrantScope, Capability } from "./access-types";
+import type { AgencyRole, StudioRole, GrantScope, Capability } from "./accessTypes";
 
 /* ============================================================
    Capability policy map — the single source of truth for what

@@ -19,8 +19,12 @@ import type * as engineeringLogs from "../engineeringLogs.js";
 import type * as equipment from "../equipment.js";
 import type * as insights from "../insights.js";
 import type * as invoices from "../invoices.js";
+import type * as lib_access from "../lib/access.js";
+import type * as lib_accessPolicies from "../lib/accessPolicies.js";
+import type * as lib_accessTypes from "../lib/accessTypes.js";
 import type * as lib_money from "../lib/money.js";
 import type * as lib_notify from "../lib/notify.js";
+import type * as lib_plans from "../lib/plans.js";
 import type * as lib_starter from "../lib/starter.js";
 import type * as lib_tenant from "../lib/tenant.js";
 import type * as licensing from "../licensing.js";
@@ -35,6 +39,7 @@ import type * as seed from "../seed.js";
 import type * as sessions from "../sessions.js";
 import type * as songs from "../songs.js";
 import type * as splitSheets from "../splitSheets.js";
+import type * as testHarness from "../testHarness.js";
 
 import type {
   ApiFromModules,
@@ -54,8 +59,12 @@ declare const fullApi: ApiFromModules<{
   equipment: typeof equipment;
   insights: typeof insights;
   invoices: typeof invoices;
+  "lib/access": typeof lib_access;
+  "lib/accessPolicies": typeof lib_accessPolicies;
+  "lib/accessTypes": typeof lib_accessTypes;
   "lib/money": typeof lib_money;
   "lib/notify": typeof lib_notify;
+  "lib/plans": typeof lib_plans;
   "lib/starter": typeof lib_starter;
   "lib/tenant": typeof lib_tenant;
   licensing: typeof licensing;
@@ -70,6 +79,7 @@ declare const fullApi: ApiFromModules<{
   sessions: typeof sessions;
   songs: typeof songs;
   splitSheets: typeof splitSheets;
+  testHarness: typeof testHarness;
 }>;
 
 /**
