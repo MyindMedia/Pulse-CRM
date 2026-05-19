@@ -40,16 +40,14 @@
 - Modify: `/Users/myindsound/SaaS Build Pack/pulse/package.json`
 - Create: `/Users/myindsound/SaaS Build Pack/pulse/vitest.config.ts`
 
-- [ ] **Step 1: Create the implementation branch**
+- [ ] **Step 1: Verify the implementation branch**
 
 ```bash
 cd "/Users/myindsound/SaaS Build Pack/pulse"
-git checkout main
-git pull --ff-only || true
-git checkout -b feat/agency-mode-foundation
+git branch --show-current
 ```
 
-Expected: `Switched to a new branch 'feat/agency-mode-foundation'`
+Expected: `feat/agency-mode-foundation` (already created during planning; spec + plan are first two commits).
 
 - [ ] **Step 2: Install vitest + convex-test + edge-runtime**
 
