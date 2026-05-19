@@ -37,6 +37,12 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
         <header className="sticky top-0 z-30 border-b border-hairline bg-ink-2/90 backdrop-blur-md">
           <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4 lg:px-8">
             <AgencyWordmark />
+            <nav className="hidden items-center gap-4 text-xs font-medium text-ash sm:flex">
+              <Link href="/agency" className="hover:text-bone">Sub-accounts</Link>
+              <Link href="/agency/staff" className="hover:text-bone">Staff</Link>
+              <Link href="/agency/branding" className="hover:text-bone">Branding</Link>
+              <Link href="/agency/audit" className="hover:text-bone">Audit</Link>
+            </nav>
             <div className="ml-auto flex items-center gap-2">
               {access?.demo && (
                 <span className="hidden rounded-sm border border-hairline-2 bg-coal-2 px-2 py-0.5 font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim sm:inline-block">
