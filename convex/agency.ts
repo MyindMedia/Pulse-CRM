@@ -1,7 +1,9 @@
-import { query, mutation, internalMutation, action, QueryCtx } from "./_generated/server";
+import { query, mutation, internalMutation, internalQuery, action, QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { seedStarterWorkspace } from "./lib/starter";
+import { resolveViewer, requireCapability, AccessError } from "./lib/access";
+import { PLAN_LIMITS } from "./lib/plans";
 
 /* ============================================================
    Agency — the super-admin layer. Creates and manages studio
@@ -13,18 +15,26 @@ import { seedStarterWorkspace } from "./lib/starter";
 const planV = v.union(v.literal("solo"), v.literal("studio"), v.literal("label"));
 
 /** Is the caller allowed into the agency console?
-    Demo mode → open. With Clerk → an email allowlist (AGENCY_ADMIN_EMAILS). */
+    Demo mode → open. Real Clerk identity → must be an agency member. */
 export const access = query({
   args: {},
   handler: async (ctx) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) return { allowed: true, demo: true };
-    const allow = (process.env.AGENCY_ADMIN_EMAILS ?? "")
-      .split(",")
-      .map((e) => e.trim().toLowerCase())
-      .filter(Boolean);
-    const email = (identity.email ?? "").toLowerCase();
-    return { allowed: allow.length === 0 || allow.includes(email), demo: false };
+    try {
+      const viewer = await resolveViewer(ctx);
+      // Real agency members always allowed
+      if (viewer.kind === "agency_member") return { allowed: true, demo: false };
+      // Demo path (no Clerk identity) returns true to keep the existing UX
+      const identity = await ctx.auth.getUserIdentity();
+      if (!identity) return { allowed: true, demo: true };
+      // Backwards-compat: email allowlist for projects that still use it
+      const allow = (process.env.AGENCY_ADMIN_EMAILS ?? "")
+        .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+      const email = (identity.email ?? "").toLowerCase();
+      return { allowed: allow.length === 0 || allow.includes(email), demo: false };
+    } catch (e) {
+      if (e instanceof AccessError) return { allowed: false, demo: false };
+      throw e;
+    }
   },
 });
 
@@ -110,6 +120,8 @@ export const provision = internalMutation({
     plan: planV,
     ownerName: v.string(),
     ownerEmail: v.string(),
+    agencyId: v.optional(v.string()),
+    tier: v.optional(v.union(v.literal("studio"), v.literal("pro"), v.literal("agency"))),
   },
   handler: async (ctx, args) => {
     const slugTaken = await ctx.db
@@ -134,6 +146,8 @@ export const provision = internalMutation({
       ownerEmail: args.ownerEmail,
       clerkOrgId: args.clerkOrgId,
       createdByAgency: true,
+      agencyId: args.agencyId,
+      tier: args.tier ?? "studio",
     });
     await seedStarterWorkspace(ctx, args.orgId, {
       ownerName: args.ownerName,
@@ -159,6 +173,22 @@ export const createSubaccount = action({
   },
   handler: async (ctx, args) => {
     const slug = args.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-");
+
+    // Capability + plan-cap check.
+    const self = await ctx.runQuery(internal.agency._resolveSelf, {});
+    if (self && self.kind === "agency_member") {
+      // Real agency tenant — enforce plan cap
+      const ag = await ctx.runQuery(internal.agency._agencyById, { agencyId: self.agencyId! });
+      if (!ag) throw new Error("Agency record not found");
+      const tier: "pro" | "agency" = ag.plan === "pro" ? "pro" : "agency";
+      const cap = PLAN_LIMITS[tier].subAccountCap;
+      const count = await ctx.runQuery(internal.agency._countSubaccounts, { agencyId: self.agencyId! });
+      if (count >= cap) {
+        throw new Error(`Plan cap reached (${count}/${cap}). Upgrade your plan to add more studios.`);
+      }
+    }
+    // Demo / single-tenant path: no cap, no agency required.
+
     let clerkOrgId: string | undefined;
     const secret = process.env.CLERK_SECRET_KEY;
 
@@ -182,6 +212,7 @@ export const createSubaccount = action({
     }
 
     const orgId = clerkOrgId ?? `studio_${slug}`;
+    const agencyId = self?.kind === "agency_member" ? self.agencyId : undefined;
     await ctx.runMutation(internal.agency.provision, {
       orgId,
       clerkOrgId,
@@ -190,6 +221,8 @@ export const createSubaccount = action({
       plan: args.plan,
       ownerName: args.ownerName,
       ownerEmail: args.ownerEmail,
+      agencyId,
+      tier: "studio",
     });
     return { orgId, slug, clerkProvisioned: Boolean(clerkOrgId) };
   },
@@ -201,6 +234,7 @@ export const setStatus = mutation({
     status: v.union(v.literal("active"), v.literal("paused"), v.literal("setup")),
   },
   handler: async (ctx, { orgId, status }) => {
+    await requireCapability(ctx, "agency.subaccount.pause", { orgId });
     const org = await ctx.db
       .query("orgs")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -208,6 +242,32 @@ export const setStatus = mutation({
     if (!org) throw new Error("Subaccount not found");
     await ctx.db.patch(org._id, { status });
   },
+});
+
+// ── Internal helpers used by the createSubaccount cap check ──────
+export const _resolveSelf = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    try {
+      const v = await resolveViewer(ctx);
+      if (v.kind === "agency_member") {
+        return { kind: "agency_member" as const, agencyId: v.agencyId, role: v.role };
+      }
+      return { kind: v.kind };
+    } catch { return null; }
+  },
+});
+
+export const _agencyById = internalQuery({
+  args: { agencyId: v.string() },
+  handler: async (ctx, { agencyId }) =>
+    await ctx.db.query("agencies").withIndex("by_agency", (q) => q.eq("agencyId", agencyId)).first(),
+});
+
+export const _countSubaccounts = internalQuery({
+  args: { agencyId: v.string() },
+  handler: async (ctx, { agencyId }) =>
+    (await ctx.db.query("orgs").withIndex("by_agency", (q) => q.eq("agencyId", agencyId)).collect()).length,
 });
 
 /** Demo-mode "enter as" — point the workspace at a studio. With Clerk you
