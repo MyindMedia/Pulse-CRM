@@ -86,9 +86,17 @@ export default defineSchema({
     ownerEmail: v.optional(v.string()),
     clerkOrgId: v.optional(v.string()), // set once a real Clerk org is created
     createdByAgency: v.optional(v.boolean()),
+    // NEW (agency mode — cycle 1)
+    agencyId: v.optional(v.string()),     // parent agency, null for base tier
+    tier: v.optional(v.union(             // cached for cap-check perf
+      v.literal("studio"),
+      v.literal("pro"),
+      v.literal("agency"),
+    )),
   })
     .index("by_org", ["orgId"])
-    .index("by_slug", ["slug"]),
+    .index("by_slug", ["slug"])
+    .index("by_agency", ["agencyId"]),
 
   users: defineTable({
     clerkUserId: v.string(),
@@ -96,6 +104,117 @@ export default defineSchema({
     name: v.string(),
     imageUrl: v.optional(v.string()),
   }).index("by_clerk_id", ["clerkUserId"]),
+
+  // ── Agency — the SaaS tenant. Only exists for Pro/Agency tier customers.
+  //    Base-tier studios have no agency row. orgs.agencyId is optional. ──
+  agencies: defineTable({
+    agencyId: v.string(),                 // Clerk org_xxx of agency-level Clerk org
+    name: v.string(),
+    slug: v.string(),                     // resolves /a/<slug>
+    plan: v.union(
+      v.literal("pro"),
+      v.literal("agency"),
+      v.literal("agency_plus"),           // RESELL HOOK
+    ),
+    status: v.union(v.literal("active"), v.literal("paused"), v.literal("trial")),
+    // Branding (white-label)
+    logoId: v.optional(v.id("_storage")),
+    faviconId: v.optional(v.id("_storage")),
+    accentColor: v.optional(v.string()),
+    customDomain: v.optional(v.string()),
+    appName: v.optional(v.string()),
+    // Stripe
+    stripeCustomerId: v.optional(v.string()),
+    stripeSubscriptionId: v.optional(v.string()),
+    // Resell hook (Agency Plus / SaaS Mode)
+    resellEnabled: v.optional(v.boolean()),
+    markupCents: v.optional(v.number()),
+    // Provisioning
+    ownerClerkUserId: v.string(),
+    ownerEmail: v.string(),
+  })
+    .index("by_agency", ["agencyId"])
+    .index("by_slug", ["slug"])
+    .index("by_owner", ["ownerClerkUserId"]),
+
+  // ── Agency members — humans with access to the agency console. The owner
+  //    plus zero-or-more agency staff. NOT the same as members inside a sub-account. ──
+  agencyMembers: defineTable({
+    agencyId: v.string(),
+    clerkUserId: v.string(),
+    email: v.string(),
+    name: v.string(),
+    role: v.union(
+      v.literal("owner"),
+      v.literal("admin"),
+      v.literal("staff"),
+      v.literal("billing"),
+    ),
+    capabilityOverrides: v.optional(v.array(v.string())),
+    status: v.union(v.literal("active"), v.literal("invited"), v.literal("suspended")),
+    invitedAt: v.number(),
+    lastActiveAt: v.optional(v.number()),
+  })
+    .index("by_agency", ["agencyId"])
+    .index("by_clerk", ["clerkUserId"])
+    .index("by_agency_clerk", ["agencyId", "clerkUserId"]),
+
+  // ── Agency-member scopes — which sub-accounts a "staff" role can reach.
+  //    Empty for owner/admin (they get all). One row per (agencyMember, subAccountOrgId). ──
+  agencyMemberScopes: defineTable({
+    agencyId: v.string(),
+    agencyMemberId: v.id("agencyMembers"),
+    subAccountOrgId: v.string(),
+    capabilityOverrides: v.optional(v.array(v.string())),
+  })
+    .index("by_member", ["agencyMemberId"])
+    .index("by_subaccount", ["subAccountOrgId"]),
+
+  // ── Magic-link collaborator grants — scoped pass for a non-account user.
+  //    Token-backed, time-bounded. Music-industry-unique pattern. ──
+  collaboratorGrants: defineTable({
+    orgId: v.string(),                    // issuing studio
+    agencyId: v.optional(v.string()),     // denormalized for audit
+    email: v.string(),
+    name: v.string(),
+    scope: v.union(
+      v.literal("session"),
+      v.literal("song"),
+      v.literal("deliverable"),
+      v.literal("splitsheet"),
+      v.literal("artist_portal"),
+    ),
+    entityId: v.string(),                 // sessions._id | songs._id | etc.
+    capabilities: v.array(v.string()),
+    token: v.string(),
+    expiresAt: v.number(),
+    revoked: v.optional(v.boolean()),
+    invitedBy: v.string(),                // clerkUserId of issuer
+    firstUsedAt: v.optional(v.number()),
+    lastUsedAt: v.optional(v.number()),
+    useCount: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_token", ["token"])
+    .index("by_entity", ["entityId"]),
+
+  // ── Audit log — every Access Engine deny/grant for sensitive actions ──
+  auditEvents: defineTable({
+    agencyId: v.optional(v.string()),
+    orgId: v.optional(v.string()),
+    viewerType: v.union(
+      v.literal("agency_member"),
+      v.literal("studio_member"),
+      v.literal("guest"),
+    ),
+    viewerId: v.string(),
+    action: v.string(),
+    resource: v.optional(v.string()),
+    result: v.union(v.literal("allow"), v.literal("deny")),
+    reason: v.optional(v.string()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_agency", ["agencyId"]),
 
   // ── App state — a keyed singleton. In demo mode (no Clerk) it holds the
   //    org the agency console is currently "entered into". ──
@@ -108,7 +227,17 @@ export default defineSchema({
     orgId: v.string(),
     name: v.string(),
     email: v.optional(v.string()),
-    role: v.union(v.literal("owner"), v.literal("manager"), v.literal("engineer")),
+    role: v.union(
+      v.literal("owner"),
+      v.literal("manager"),
+      v.literal("engineer"),
+      v.literal("assistant_engineer"),    // NEW
+      v.literal("artist_relations"),      // NEW
+      v.literal("producer"),              // NEW
+      v.literal("intern"),                // NEW
+      v.literal("accountant"),            // NEW
+    ),
+    capabilityOverrides: v.optional(v.array(v.string())),  // NEW
     clerkUserId: v.optional(v.string()),
     avatarColor: v.optional(v.string()),
     skills: v.array(v.string()), // gear / certifications, e.g. "Neve-certified"
