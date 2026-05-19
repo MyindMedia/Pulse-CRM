@@ -45,6 +45,7 @@
     "react-use-measure": "^2.1.7",
     "recharts": "^3.8.1",
     "sonner": "^2.0.7",
+    "stripe": "^22.1.1",
     "svix": "^1.93.0",
     "tailwind-merge": "^3.6.0",
     "zod": "^4.4.3"
