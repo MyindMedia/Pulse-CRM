@@ -1,0 +1,11 @@
+# Netlify build for Pulse.
+# Convex functions are deployed separately with `npx convex deploy`; this
+# build just compiles the Next.js frontend against NEXT_PUBLIC_CONVEX_URL +
+# the Clerk keys (set in the Netlify UI).
+[build.environment]
+  NODE_VERSION = "20"
+  # NEXT_PUBLIC_* values are inlined into the client bundle by design
+  # (publishable / public keys). Exclude them from Netlify's secret scan so
+  # it does not false-flag the build. CLERK_SECRET_KEY is intentionally NOT
+  # listed here — it is a real secret and must never reach the bundle.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,NEXT_PUBLIC_CONVEX_URL,NEXT_PUBLIC_CONVEX_SITE_URL"
