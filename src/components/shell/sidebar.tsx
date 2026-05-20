@@ -5,19 +5,11 @@ import { usePathname } from "next/navigation";
 import { Building2 } from "lucide-react";
 import { NAV } from "@/lib/nav";
 import { cn } from "@/lib/utils";
+import { PulseLogo } from "@/components/brand/pulse-logo";
 
-/* The Pulse wordmark - a gold pulse glyph + the name. */
+/* The Pulse wordmark - the official gold pulse glyph + "PULSE" lockup. */
 function Wordmark() {
-  return (
-    <Link href="/dashboard" className="flex items-center gap-2.5 px-2">
-      <span className="grid size-8 place-items-center rounded-md bg-gold text-gold-ink">
-        <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={2.5}>
-          <path d="M2 12h4l3-8 6 16 3-8h4" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </span>
-      <span className="font-display text-lg font-bold tracking-tight text-bone">Pulse</span>
-    </Link>
-  );
+  return <PulseLogo size="md" />;
 }
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {

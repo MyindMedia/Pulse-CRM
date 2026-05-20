@@ -4,7 +4,7 @@ import * as React from "react";
 import { useQuery, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { Sparkles, FileText, Clock, Mail } from "lucide-react";
+import { Sparkles, FileText, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { AiDraftCard, NoArtifactsYet } from "./draft-card";

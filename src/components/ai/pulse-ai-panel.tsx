@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Sparkles, RefreshCw, TrendingDown, Calendar as CalendarIcon } from "lucide-react";
+import { Sparkles, TrendingDown, Calendar as CalendarIcon } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
