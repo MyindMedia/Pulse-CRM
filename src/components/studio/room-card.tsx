@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -62,6 +63,7 @@ export function RoomCard({
   room: RoomItem;
   equipment: RoomEquipment[] | undefined;
 }) {
+  const router = useRouter();
   const setStatus = useMutation(api.rooms.setStatus);
   const [pending, setPending] = React.useState(false);
   const status = ROOM_STATUS[room.status] ?? {
@@ -83,18 +85,29 @@ export function RoomCard({
   }
 
   return (
-    <Card className={cn("flex flex-col overflow-hidden", pending && "opacity-60")}>
+    <Card
+      onClick={() => router.push(`/studio/${room._id}`)}
+      className={cn(
+        "group flex flex-col overflow-hidden cursor-pointer",
+        "transition-all duration-200 ease-out",
+        "hover:-translate-y-0.5 hover:border-gold-dim hover:shadow-elev-3",
+        "focus-within:border-gold-dim focus-within:shadow-elev-3",
+        pending && "opacity-60",
+      )}
+    >
       {room.heroImageUrl && (
         <div className="relative aspect-[16/9] w-full overflow-hidden border-b border-hairline bg-coal-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={room.heroImageUrl}
             alt={`${room.name} hero`}
-            className="size-full object-cover"
+            className="size-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
             loading="lazy"
           />
           {/* Gold-tinted bottom fade so the room name reads cleanly on top */}
           <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-ink/85 to-transparent" />
+          {/* Subtle gold sheen on hover */}
+          <div className="pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-300 group-hover:opacity-100 bg-gradient-to-br from-gold/[0.08] via-transparent to-transparent" />
         </div>
       )}
       <CardContent className="flex flex-1 flex-col gap-3 p-4 pt-4">
@@ -115,6 +128,7 @@ export function RoomCard({
                 size="icon-sm"
                 aria-label={`Change status for ${room.name}`}
                 disabled={pending}
+                onClick={(e) => e.stopPropagation()}
               >
                 <MoreHorizontal className="size-4" />
               </Button>
@@ -176,6 +190,7 @@ export function RoomCard({
               No equipment installed.
               <Link
                 href="/inventory"
+                onClick={(e) => e.stopPropagation()}
                 className="inline-flex items-center gap-0.5 text-gold hover:text-gold-bright"
               >
                 Add from Inventory
