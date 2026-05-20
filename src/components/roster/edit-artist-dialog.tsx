@@ -73,9 +73,11 @@ export function EditArtistDialog({
   const [submitting, setSubmitting] = React.useState(false);
 
   // Re-seed the form from the latest artist data each time the dialog opens.
-  React.useEffect(() => {
+  const [prevOpen, setPrevOpen] = React.useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (open) setForm(toForm(artist));
-  }, [open, artist]);
+  }
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));

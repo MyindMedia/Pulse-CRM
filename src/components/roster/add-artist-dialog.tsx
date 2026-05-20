@@ -65,9 +65,11 @@ export function AddArtistDialog({
   const [submitting, setSubmitting] = React.useState(false);
 
   // Reset the form whenever the dialog re-opens.
-  React.useEffect(() => {
+  const [prevOpen, setPrevOpen] = React.useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (open) setForm(BLANK);
-  }, [open]);
+  }
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));

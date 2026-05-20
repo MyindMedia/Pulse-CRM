@@ -73,7 +73,9 @@ export function CreateInvoiceDialog({
   ) as SongOption[] | undefined;
 
   // Reset the form whenever the dialog is freshly opened.
-  React.useEffect(() => {
+  const [prevOpen, setPrevOpen] = React.useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (open) {
       setArtistId("");
       setSongId("");
@@ -81,7 +83,7 @@ export function CreateInvoiceDialog({
       setLines([newLine()]);
       setSubmitting(false);
     }
-  }, [open]);
+  }
 
   const totalCents = lines.reduce((sum, l) => sum + dollarsToCents(l.amount), 0);
   const validLines = lines.filter((l) => l.label.trim() && dollarsToCents(l.amount) > 0);

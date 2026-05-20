@@ -22,12 +22,16 @@ function PaymentsView() {
   const [filter, setFilter] = React.useState<StatusFilterValue>("all");
   const [createOpen, setCreateOpen] = React.useState(false);
 
-  // Auto-open the create dialog when the URL carries ?new=1.
+  // Auto-open the create dialog when the URL carries ?new=1. Split into a
+  // render-time check (state) and an effect that strips the param.
+  const newParam = searchParams.get("new");
+  const [prevNewParam, setPrevNewParam] = React.useState(newParam);
+  if (prevNewParam !== newParam) {
+    setPrevNewParam(newParam);
+    if (newParam === "1") setCreateOpen(true);
+  }
   React.useEffect(() => {
-    if (searchParams.get("new") === "1") {
-      setCreateOpen(true);
-      router.replace("/payments");
-    }
+    if (searchParams.get("new") === "1") router.replace("/payments");
   }, [searchParams, router]);
 
   // Always pull the unfiltered list — filtering + counts happen client-side

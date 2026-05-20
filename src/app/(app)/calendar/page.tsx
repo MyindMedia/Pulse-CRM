@@ -43,13 +43,19 @@ function CalendarView() {
   const [bookOpen, setBookOpen] = useState(false);
   const [bookDate, setBookDate] = useState<number | undefined>(undefined);
 
-  // Auto-open the booking modal when the URL carries ?new=1.
-  useEffect(() => {
-    if (params.get("new") === "1") {
+  // Auto-open the booking modal when the URL carries ?new=1. Split into a
+  // render-time check (state) and an effect that strips the param.
+  const newParam = params.get("new");
+  const [prevNewParam, setPrevNewParam] = useState(newParam);
+  if (prevNewParam !== newParam) {
+    setPrevNewParam(newParam);
+    if (newParam === "1") {
       setBookDate(undefined);
       setBookOpen(true);
-      router.replace("/calendar");
     }
+  }
+  useEffect(() => {
+    if (params.get("new") === "1") router.replace("/calendar");
   }, [params, router]);
 
   const { from, to } = useMemo(() => monthGridRange(year, month), [year, month]);
@@ -62,13 +68,14 @@ function CalendarView() {
       ? (monthSessions as Session[] | undefined)
       : (upcoming as Session[] | undefined);
 
+  // Stable "today" snapshot at mount keeps the render pure.
+  const [today] = useState(() => startOfDay(Date.now()));
   const agendaSessions = useMemo(() => {
     if (!upcoming) return [];
-    const today = startOfDay(Date.now());
     return (upcoming as Session[])
       .filter((s) => startOfDay(s.startTime) >= today)
       .sort((a, b) => a.startTime - b.startTime);
-  }, [upcoming]);
+  }, [upcoming, today]);
 
   function shiftMonth(delta: number) {
     const d = new Date(year, month + delta, 1);

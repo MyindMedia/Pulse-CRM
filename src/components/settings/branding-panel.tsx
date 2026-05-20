@@ -44,22 +44,27 @@ export function BrandingPanel({ org }: { org: Org }) {
   const [deposit, setDeposit] = React.useState(org.depositPolicyText ?? "");
   const [submitting, setSubmitting] = React.useState(false);
 
-  // Re-seed local state if the org record changes underneath us.
-  React.useEffect(() => {
+  // Re-seed local state if the org record changes underneath us. We track a
+  // derived signature of the watched fields so identity-only changes don't
+  // clobber in-progress edits.
+  const orgSig = [
+    org.name,
+    org.tagline,
+    org.accentColor,
+    org.bookingHeadline ?? "",
+    org.bookingIntro ?? "",
+    org.depositPolicyText ?? "",
+  ].join("");
+  const [prevOrgSig, setPrevOrgSig] = React.useState(orgSig);
+  if (prevOrgSig !== orgSig) {
+    setPrevOrgSig(orgSig);
     setName(org.name);
     setTagline(org.tagline);
     setAccent(org.accentColor);
     setHeadline(org.bookingHeadline ?? "");
     setIntro(org.bookingIntro ?? "");
     setDeposit(org.depositPolicyText ?? "");
-  }, [
-    org.name,
-    org.tagline,
-    org.accentColor,
-    org.bookingHeadline,
-    org.bookingIntro,
-    org.depositPolicyText,
-  ]);
+  }
 
   const accentTrim = accent.trim();
   const accentValid = HEX_RE.test(accentTrim);

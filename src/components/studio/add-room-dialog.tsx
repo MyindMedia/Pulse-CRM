@@ -56,12 +56,15 @@ export function AddRoomDialog({
   const [typeMode, setTypeMode] = React.useState<string>(NONE);
   const [submitting, setSubmitting] = React.useState(false);
 
-  React.useEffect(() => {
+  // Reset the form whenever the dialog re-opens.
+  const [prevOpen, setPrevOpen] = React.useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (open) {
       setForm(BLANK);
       setTypeMode(NONE);
     }
-  }, [open]);
+  }
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));

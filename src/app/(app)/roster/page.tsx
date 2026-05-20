@@ -34,12 +34,16 @@ function RosterView() {
   const search = useDebouncedValue(searchInput.trim(), 250);
   const [addOpen, setAddOpen] = React.useState(false);
 
-  // Auto-open the Add Artist dialog when the URL carries ?new=1.
+  // Auto-open the Add Artist dialog when the URL carries ?new=1. Split into
+  // a render-time check (state) and an effect that strips the param.
+  const newParam = searchParams.get("new");
+  const [prevNewParam, setPrevNewParam] = React.useState(newParam);
+  if (prevNewParam !== newParam) {
+    setPrevNewParam(newParam);
+    if (newParam === "1") setAddOpen(true);
+  }
   React.useEffect(() => {
-    if (searchParams.get("new") === "1") {
-      setAddOpen(true);
-      router.replace("/roster");
-    }
+    if (searchParams.get("new") === "1") router.replace("/roster");
   }, [searchParams, router]);
 
   const counts = useQuery(api.artists.counts);

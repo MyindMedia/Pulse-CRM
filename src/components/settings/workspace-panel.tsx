@@ -41,13 +41,18 @@ export function WorkspacePanel({ org }: { org: Org }) {
   const [accent, setAccent] = React.useState(org.accentColor);
   const [submitting, setSubmitting] = React.useState(false);
 
-  // Re-seed local state if the org record changes underneath us.
-  React.useEffect(() => {
+  // Re-seed local state if the org record changes underneath us. We track a
+  // derived signature of the watched fields so identity-only changes don't
+  // clobber in-progress edits.
+  const orgSig = `${org.name}${org.tagline}${org.plan}${org.accentColor}`;
+  const [prevOrgSig, setPrevOrgSig] = React.useState(orgSig);
+  if (prevOrgSig !== orgSig) {
+    setPrevOrgSig(orgSig);
     setName(org.name);
     setTagline(org.tagline);
     setPlan(org.plan);
     setAccent(org.accentColor);
-  }, [org.name, org.tagline, org.plan, org.accentColor]);
+  }
 
   const accentValid = HEX_RE.test(accent.trim());
   const normalizedAccent = accent.trim().startsWith("#")

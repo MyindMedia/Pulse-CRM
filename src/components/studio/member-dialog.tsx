@@ -80,9 +80,11 @@ export function MemberDialog({
   const [submitting, setSubmitting] = React.useState(false);
 
   // Re-seed the form each time the dialog opens.
-  React.useEffect(() => {
+  const [prevOpen, setPrevOpen] = React.useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (open) setForm(member ? toForm(member) : BLANK);
-  }, [open, member]);
+  }
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));

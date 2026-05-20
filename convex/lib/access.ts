@@ -7,7 +7,7 @@ import {
   applyOverrides,
 } from "./accessPolicies";
 import type {
-  Viewer, AgencyViewer, StudioViewer, GuestViewer,
+  Viewer, AgencyViewer, StudioViewer,
   AgencyRole, StudioRole, GrantScope,
   Capability, ResourceRef,
 } from "./accessTypes";

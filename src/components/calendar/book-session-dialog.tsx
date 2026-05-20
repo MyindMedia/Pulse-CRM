@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -99,12 +99,16 @@ export function BookSessionDialog({
     setDeposit("");
   }
 
-  // Seed the date when the modal opens.
-  useEffect(() => {
+  // Seed the date when the modal opens — needs a fresh "now" per open, so
+  // we read Date.now() inside the open-transition branch.
+  const [prevOpen, setPrevOpen] = useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (open) {
+      // eslint-disable-next-line react-hooks/purity -- one-shot "today" snapshot on open transition
       setDate(toDateInputValue(initialDate ?? Date.now()));
     }
-  }, [open, initialDate]);
+  }
 
   const artistName = useMemo(
     () => roster?.find((a) => a._id === artistId)?.name ?? "",

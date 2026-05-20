@@ -30,8 +30,16 @@ export function NotesPanel({
   const [savingTags, setSavingTags] = React.useState(false);
 
   // Keep local state in sync if the server record changes underneath us.
-  React.useEffect(() => setNotes(initialNotes), [initialNotes]);
-  React.useEffect(() => setTags(initialTags), [initialTags]);
+  const [prevNotes, setPrevNotes] = React.useState(initialNotes);
+  if (prevNotes !== initialNotes) {
+    setPrevNotes(initialNotes);
+    setNotes(initialNotes);
+  }
+  const [prevTags, setPrevTags] = React.useState(initialTags);
+  if (prevTags !== initialTags) {
+    setPrevTags(initialTags);
+    setTags(initialTags);
+  }
 
   const notesDirty = notes !== initialNotes;
   const tagsDirty =

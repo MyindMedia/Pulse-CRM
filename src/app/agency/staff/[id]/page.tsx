@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -22,12 +23,16 @@ export default function StaffScopePage() {
   const [overrides, setOverrides] = React.useState<string[]>([]);
   const [saved, setSaved] = React.useState(false);
 
-  React.useEffect(() => {
+  const [prevScopes, setPrevScopes] = React.useState(scopes);
+  if (prevScopes !== scopes) {
+    setPrevScopes(scopes);
     if (scopes) setSelected(scopes.map((s) => s.subAccountOrgId));
-  }, [scopes]);
-  React.useEffect(() => {
+  }
+  const [prevMember, setPrevMember] = React.useState(member);
+  if (prevMember !== member) {
+    setPrevMember(member);
     if (member) setOverrides(member.capabilityOverrides ?? []);
-  }, [member]);
+  }
 
   async function save() {
     await setScopes({ memberId, subAccountOrgIds: selected });
@@ -47,9 +52,9 @@ export default function StaffScopePage() {
   return (
     <div className="space-y-6">
       <header>
-        <a href="/agency/staff" className="text-xs text-ash-dim hover:text-bone">
+        <Link href="/agency/staff" className="text-xs text-ash-dim hover:text-bone">
           ← Back to staff
-        </a>
+        </Link>
         <h1 className="mt-2 font-display text-2xl font-semibold text-bone">{member.name}</h1>
         <p className="text-sm text-ash">
           {member.email} · {member.role}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -75,10 +75,12 @@ export function DealSheet({
   const [valueDraft, setValueDraft] = useState("");
   const [busy, setBusy] = useState(false);
 
-  useEffect(() => {
+  const [prevOppId, setPrevOppId] = useState(oppId);
+  if (prevOppId !== oppId) {
+    setPrevOppId(oppId);
     setEditingValue(false);
     setBusy(false);
-  }, [oppId]);
+  }
 
   async function saveValue() {
     if (!oppId) return;

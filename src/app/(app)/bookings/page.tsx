@@ -64,11 +64,14 @@ export default function BookingsPage() {
 
   // Keep the open drawer in sync with the live query — payment recorded
   // in the sheet updates the underlying row, so re-resolve it.
-  React.useEffect(() => {
-    if (!selected || !sessions) return;
-    const fresh = sessions.find((s) => s._id === selected._id);
-    if (fresh && fresh !== selected) setSelected(fresh);
-  }, [sessions, selected]);
+  const [prevSessions, setPrevSessions] = React.useState(sessions);
+  if (prevSessions !== sessions) {
+    setPrevSessions(sessions);
+    if (selected && sessions) {
+      const fresh = sessions.find((s) => s._id === selected._id);
+      if (fresh && fresh !== selected) setSelected(fresh);
+    }
+  }
 
   async function handleRun() {
     if (running) return;

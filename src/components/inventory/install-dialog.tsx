@@ -50,9 +50,12 @@ export function InstallDialog({
   const [roomId, setRoomId] = React.useState<string>("");
   const [submitting, setSubmitting] = React.useState(false);
 
-  React.useEffect(() => {
+  // Clear the room selection whenever the dialog re-opens.
+  const [prevOpen, setPrevOpen] = React.useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (open) setRoomId("");
-  }, [open]);
+  }
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();

@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { timeOfDay } from "@/lib/format";
 import {
@@ -56,7 +57,8 @@ export function MonthGrid({
   onOpenSession: (id: string) => void;
   onPickDay: (ts: number) => void;
 }) {
-  const today = startOfDay(Date.now());
+  // Stable "today" snapshot at mount keeps the render pure.
+  const [today] = useState(() => startOfDay(Date.now()));
 
   const byDay = new Map<number, Session[]>();
   for (const s of sessions) {

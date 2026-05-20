@@ -8,7 +8,6 @@ import { Music4, Plus, Search, X } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
-import { Badge } from "@/components/ui/badge";
 import { SkeletonCards } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
 import {

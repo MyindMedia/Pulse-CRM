@@ -14,9 +14,11 @@ type Props = {
 export function CapabilityOverrides({ overrides, onChange }: Props) {
   const [open, setOpen] = React.useState(false);
   const [text, setText] = React.useState(overrides.join("\n"));
-  React.useEffect(() => {
+  const [prevOverrides, setPrevOverrides] = React.useState(overrides);
+  if (prevOverrides !== overrides) {
+    setPrevOverrides(overrides);
     setText(overrides.join("\n"));
-  }, [overrides]);
+  }
   function commit() {
     const lines = text.split("\n").map((s) => s.trim()).filter(Boolean);
     onChange(lines);

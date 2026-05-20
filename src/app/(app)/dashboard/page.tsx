@@ -20,7 +20,6 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Avatar } from "@/components/ui/avatar";
 import { Skeleton, SkeletonCards } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
 import { TrendArea, HBars, CategoryDonut } from "@/components/charts";
@@ -34,6 +33,7 @@ export default function DashboardPage() {
   const insights = useQuery(api.insights.open, { limit: 4 });
   const seed = useMutation(api.seed.run);
   const [seeding, setSeeding] = useState(false);
+  const [lastRefreshed] = useState(() => Date.now());
 
   const empty = data && data.kpis.rosterSize === 0;
 
@@ -315,7 +315,7 @@ export default function DashboardPage() {
           <Link href="/songs" className="inline-flex items-center gap-0.5 text-gold hover:underline">
             View catalog <ArrowRight className="size-3" />
           </Link>
-          <span className="text-ash-dim">— last refreshed {shortDate(Date.now())}</span>
+          <span className="text-ash-dim">— last refreshed {shortDate(lastRefreshed)}</span>
         </p>
       )}
     </div>

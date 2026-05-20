@@ -33,16 +33,18 @@ export default function ReleasesPage() {
     [campaigns],
   );
 
+  // Stable "now" snapshot at mount keeps the render pure.
+  const [nowMs] = useState(() => Date.now());
   const stats = useMemo(() => {
     if (!campaigns) return null;
     const active = campaigns.filter((c) => c.status === "active").length;
     const planning = campaigns.filter((c) => c.status === "planning").length;
     const released = campaigns.filter((c) => c.status === "released").length;
     const upcoming = campaigns
-      .filter((c) => c.status !== "released" && c.releaseDate >= Date.now())
+      .filter((c) => c.status !== "released" && c.releaseDate >= nowMs)
       .sort((a, b) => a.releaseDate - b.releaseDate)[0];
     return { active, planning, released, nextRelease: upcoming?.releaseDate ?? null };
-  }, [campaigns]);
+  }, [campaigns, nowMs]);
 
   // Keep the open sheet bound to fresh query data after every mutation.
   const selected = useMemo(

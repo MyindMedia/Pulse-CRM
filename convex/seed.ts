@@ -68,12 +68,11 @@ export const run = mutation({
       avatarColor: string,
     ) => ctx.db.insert("members", { orgId, name, role, skills, avatarColor });
 
-    const marcus = await member("Marcus Vale", "owner", ["A&R", "Mixing"], "#fdb913");
+    await member("Marcus Vale", "owner", ["A&R", "Mixing"], "#fdb913");
     const jada = await member("Jada Brooks", "manager", ["Bookings", "Client care"], "#5db4ff");
     const theo = await member("Theo Park", "engineer", ["Neve-certified", "Tracking"], "#3ddc91");
     const renzo = await member("Renzo Diaz", "engineer", ["Vocal tuning", "Pro Tools"], "#ff5d5d");
     const sienna = await member("Sienna Cole", "engineer", ["Mixing", "Dolby Atmos"], "#c084fc");
-    const engineers = [theo, renzo, sienna];
 
     // ── Rooms — the bookable studios ──
     const room = async (
@@ -100,7 +99,6 @@ export const run = mutation({
     const studioA = await room("Studio A — Live Room", "Live room", 15000, "in_use", 3, 30, "Flagship tracking room");
     const studioB = await room("Studio B — Mix Suite", "Mix suite", 9500, "available", 2, 30, "Atmos-ready");
     const writeRoom = await room("The Loft — Writing Room", "Writing room", 6000, "available", 2, 25);
-    const rooms = [studioA, studioB, writeRoom];
 
     // ── Equipment — gear assets. Some installed in a room (availability
     //    follows the room), some standing alone in storage. Every item
@@ -332,7 +330,7 @@ export const run = mutation({
       title: "Horizonline", artistId: pulsewave, kind: "spec", stage: "demo",
       genre: "EDM", bpm: 128, specStatus: "pitched", moodTags: ["festival", "sync-ready"],
     });
-    const sParadeEP1 = await song({
+    await song({
       title: "Parade — Side A", artistId: crosstown, kind: "ep", stage: "mixing",
       genre: "Multi-genre", moodTags: ["compilation"],
     });
@@ -414,7 +412,7 @@ export const run = mutation({
       startOffsetDays: -1, startHour: 17, durationHours: 1,
       status: "no_show", rateCents: 0, depositPaid: false, intakeCompleted: false,
     });
-    const sessGoldenMix = await session({
+    await session({
       title: "Golden Hour — mix revision", artistId: nova, songId: sGoldenHour,
       serviceType: "mixing", roomId: studioB, engineerId: sienna,
       startOffsetDays: 0, startHour: 14, durationHours: 3,

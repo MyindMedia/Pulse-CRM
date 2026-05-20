@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -98,7 +98,11 @@ export function SessionSheet({
   const completeIntake = useMutation(api.sessions.completeIntake);
 
   const [busy, setBusy] = useState(false);
-  useEffect(() => setBusy(false), [sessionId]);
+  const [prevSessionId, setPrevSessionId] = useState(sessionId);
+  if (prevSessionId !== sessionId) {
+    setPrevSessionId(sessionId);
+    setBusy(false);
+  }
 
   async function run(fn: () => Promise<unknown>, ok: string) {
     setBusy(true);

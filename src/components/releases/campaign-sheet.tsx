@@ -49,12 +49,14 @@ export function CampaignSheet({
   const toggleTask = useMutation(api.releases.toggleTask);
   const setStatus = useMutation(api.releases.setStatus);
   const [advancing, setAdvancing] = useState(false);
+  // Stable "now" snapshot at mount keeps the render pure.
+  const [nowMs] = useState(() => Date.now());
 
   if (!campaign) return null;
 
   const status = meta(CAMPAIGN_STATUS, campaign.status);
   const next = NEXT_STATUS[campaign.status];
-  const days = differenceInCalendarDays(campaign.releaseDate, Date.now());
+  const days = differenceInCalendarDays(campaign.releaseDate, nowMs);
 
   async function handleToggle(index: number) {
     if (!campaign) return;

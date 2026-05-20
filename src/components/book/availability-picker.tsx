@@ -56,9 +56,11 @@ export function AvailabilityPicker({
   const data = useQuery(api.booking.availability, { roomId, dayStart });
 
   // Reset the chosen slot whenever the day changes.
-  React.useEffect(() => {
+  const [prevDayStart, setPrevDayStart] = React.useState(dayStart);
+  if (prevDayStart !== dayStart) {
+    setPrevDayStart(dayStart);
     setStartHour(null);
-  }, [dayStart]);
+  }
 
   // Set of hours that are open for booking on the active day.
   const availableHours = React.useMemo(() => {
@@ -90,9 +92,11 @@ export function AvailabilityPicker({
   }, [startHour, fits, minimumHours]);
 
   // Keep duration valid against the current start slot.
-  React.useEffect(() => {
+  const [prevBounds, setPrevBounds] = React.useState({ maxDuration, minimumHours });
+  if (prevBounds.maxDuration !== maxDuration || prevBounds.minimumHours !== minimumHours) {
+    setPrevBounds({ maxDuration, minimumHours });
     setDurationHours((d) => Math.min(Math.max(d, minimumHours), maxDuration));
-  }, [maxDuration, minimumHours]);
+  }
 
   // Report the resolved selection upward.
   const selectionValid =

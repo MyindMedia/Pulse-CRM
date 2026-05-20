@@ -111,9 +111,12 @@ export function EquipmentDialog({
   const [form, setForm] = React.useState<FormState>(item ? toForm(item) : BLANK);
   const [submitting, setSubmitting] = React.useState(false);
 
-  React.useEffect(() => {
+  // Reset the form whenever the dialog re-opens.
+  const [prevOpen, setPrevOpen] = React.useState(open);
+  if (prevOpen !== open) {
+    setPrevOpen(open);
     if (open) setForm(item ? toForm(item) : BLANK);
-  }, [open, item]);
+  }
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
     setForm((prev) => ({ ...prev, [key]: value }));
