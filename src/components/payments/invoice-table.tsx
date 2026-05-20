@@ -30,6 +30,7 @@ import { money, relativeTime, shortDate } from "@/lib/format";
 import { meta, INVOICE_STATUS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import type { InvoiceRow } from "./types";
+import { categoryMeta } from "./category";
 
 /** Stops a click inside the actions cell from also opening the row link. */
 function swallow(e: React.MouseEvent) {
@@ -69,6 +70,7 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
         <TR>
           <TH>Invoice</TH>
           <TH>Client</TH>
+          <TH>For</TH>
           <TH className="text-right">Amount</TH>
           <TH>Status</TH>
           <TH>Due</TH>
@@ -93,6 +95,18 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
                   <Avatar name={row.artistName} size="sm" />
                   <span className="truncate font-medium text-bone">{row.artistName}</span>
                 </span>
+              </TD>
+              <TD>
+                {(() => {
+                  const c = categoryMeta(row.category);
+                  const Icon = c.icon;
+                  return (
+                    <Badge tone={c.tone}>
+                      <Icon className="size-3" />
+                      {c.label}
+                    </Badge>
+                  );
+                })()}
               </TD>
               <TD className="text-right font-mono tabular-nums text-bone">
                 {money(row.amountCents)}

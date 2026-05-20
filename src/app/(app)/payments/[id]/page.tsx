@@ -14,6 +14,8 @@ import { InvoiceSheet } from "@/components/payments/invoice-sheet";
 import { StatusTimeline } from "@/components/payments/status-timeline";
 import { InvoiceActions } from "@/components/payments/invoice-actions";
 import { InvoiceActivity } from "@/components/payments/invoice-activity";
+import { Badge } from "@/components/ui/badge";
+import { categoryMeta } from "@/components/payments/category";
 import type { InvoiceDetail, ActivityRow } from "@/components/payments/types";
 
 export default function InvoiceDetailPage() {
@@ -77,7 +79,19 @@ export default function InvoiceDetailPage() {
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3">
         {backLink}
-        <p className="font-mono text-xs text-ash-dim">{invoice.number}</p>
+        <div className="flex items-center gap-2">
+          {(() => {
+            const c = categoryMeta(invoice.category);
+            const Icon = c.icon;
+            return (
+              <Badge tone={c.tone}>
+                <Icon className="size-3" />
+                {c.label}
+              </Badge>
+            );
+          })()}
+          <p className="font-mono text-xs text-ash-dim">{invoice.number}</p>
+        </div>
       </div>
 
       <div className="grid gap-5 lg:grid-cols-[1fr_20rem]">
@@ -151,20 +165,23 @@ export default function InvoiceDetailPage() {
                 </Link>
               )}
 
-              {invoice.sessionTitle && (
-                <div className="flex items-center gap-2.5 rounded-md border border-hairline bg-coal-2 px-3 py-2.5">
-                  <span className="grid size-7 place-items-center rounded-md bg-coal-3 text-ash-dim">
+              {invoice.sessionId && invoice.sessionTitle && (
+                <Link
+                  href={`/calendar?session=${invoice.sessionId}`}
+                  className="flex items-center gap-2.5 rounded-md border border-hairline bg-coal-2 px-3 py-2.5 transition-colors hover:border-hairline-2 hover:bg-coal-3"
+                >
+                  <span className="grid size-7 place-items-center rounded-md bg-coal-3 text-gold-dim">
                     <Receipt className="size-3.5" />
                   </span>
                   <span className="min-w-0">
                     <span className="block text-[0.625rem] font-mono uppercase tracking-wide text-ash-dim">
-                      Session
+                      Session{invoice.serviceType ? ` · ${invoice.serviceType}` : ""}
                     </span>
                     <span className="block truncate text-sm font-medium text-bone">
                       {invoice.sessionTitle}
                     </span>
                   </span>
-                </div>
+                </Link>
               )}
             </CardContent>
           </Card>

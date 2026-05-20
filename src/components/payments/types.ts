@@ -6,7 +6,8 @@ export type LineItem = { label: string; amountCents: number };
 /** Invoice status values mirrored from the Convex schema. */
 export type InvoiceStatus = "draft" | "sent" | "viewed" | "paid" | "overdue" | "void";
 
-/** A row as returned by `api.invoices.list` - invoice + hydrated artist name. */
+/** A row as returned by `api.invoices.list` - invoice + hydrated artist
+ * name + derived category for the table. */
 export type InvoiceRow = {
   _id: Id<"invoices">;
   _creationTime: number;
@@ -20,6 +21,7 @@ export type InvoiceRow = {
   dueDate: number;
   paidAt?: number;
   artistName: string;
+  category: string;
 };
 
 /** Artist shape inside a hydrated invoice (subset of the artists table). */
@@ -47,6 +49,8 @@ export type InvoiceDetail = {
   artist: InvoiceArtist | null;
   songTitle: string | null;
   sessionTitle: string | null;
+  serviceType: string | null;
+  category: string;
 };
 
 /** An activity row scoped to an invoice. */

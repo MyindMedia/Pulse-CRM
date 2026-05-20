@@ -19,6 +19,37 @@ function effectiveStatus(inv: { status: string; dueDate: number }): string {
   return inv.status;
 }
 
+const SERVICE_TO_CATEGORY: Record<string, string> = {
+  recording: "Studio time",
+  rehearsal: "Studio time",
+  consultation: "Consultation",
+  production: "Production",
+  mixing: "Mixing",
+  mastering: "Mastering",
+  writing: "Writing",
+};
+
+/** Decide what an invoice is "for" so the table + detail can show it at
+ * a glance. Prefers the linked session's serviceType; falls back to
+ * keyword-scanning the line item labels. */
+function deriveCategory(
+  serviceType: string | undefined,
+  lineItems: { label: string }[],
+): string {
+  if (serviceType && SERVICE_TO_CATEGORY[serviceType]) {
+    return SERVICE_TO_CATEGORY[serviceType];
+  }
+  const labels = lineItems.map((l) => l.label.toLowerCase()).join(" ");
+  if (labels.includes("license") || labels.includes("lease")) return "License";
+  if (labels.includes("master")) return "Mastering";
+  if (labels.includes("mixing") || labels.includes("mix ")) return "Mixing";
+  if (labels.includes("production") || labels.includes("produce")) return "Production";
+  if (labels.includes("writ")) return "Writing";
+  if (labels.includes("studio") || labels.includes("session") || labels.includes("tracking"))
+    return "Studio time";
+  return "Other";
+}
+
 export const list = query({
   args: { status: v.optional(statusV) },
   handler: async (ctx, { status }) => {
@@ -28,16 +59,26 @@ export const list = query({
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .collect();
     const artistIds = [...new Set(rows.map((r) => r.artistId))];
-    const artists = new Map(
-      (await Promise.all(artistIds.map((id) => ctx.db.get(id))))
-        .filter(Boolean)
-        .map((a) => [a!._id, a!]),
-    );
-    const hydrated = rows.map((r) => ({
-      ...r,
-      status: effectiveStatus(r),
-      artistName: artists.get(r.artistId)?.name ?? "Unknown",
-    }));
+    const sessionIds = [
+      ...new Set(rows.map((r) => r.sessionId).filter((id): id is NonNullable<typeof id> => Boolean(id))),
+    ];
+    const [artists, sessions] = await Promise.all([
+      Promise.all(artistIds.map((id) => ctx.db.get(id))).then(
+        (arr) => new Map(arr.filter(Boolean).map((a) => [a!._id, a!] as const)),
+      ),
+      Promise.all(sessionIds.map((id) => ctx.db.get(id))).then(
+        (arr) => new Map(arr.filter(Boolean).map((s) => [s!._id, s!] as const)),
+      ),
+    ]);
+    const hydrated = rows.map((r) => {
+      const session = r.sessionId ? sessions.get(r.sessionId) : null;
+      return {
+        ...r,
+        status: effectiveStatus(r),
+        artistName: artists.get(r.artistId)?.name ?? "Unknown",
+        category: deriveCategory(session?.serviceType, r.lineItems),
+      };
+    });
     const filtered = status ? hydrated.filter((r) => r.status === status) : hydrated;
     return filtered.sort((a, b) => b._creationTime - a._creationTime);
   },
@@ -60,6 +101,8 @@ export const get = query({
       artist,
       songTitle: song?.title ?? null,
       sessionTitle: session?.title ?? null,
+      serviceType: session?.serviceType ?? null,
+      category: deriveCategory(session?.serviceType, inv.lineItems),
     };
   },
 });
