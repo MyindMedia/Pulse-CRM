@@ -32,6 +32,7 @@ import { meta, SESSION_STATUS, titleCase } from "@/lib/labels";
 import { PaymentPanel } from "@/components/bookings/payment-panel";
 import { statusColor } from "./constants";
 import { ChecklistsPanel } from "./checklists-panel";
+import { SessionAiPanel } from "@/components/ai/session-ai-panel";
 
 type SessionStatus =
   | "tentative"
@@ -201,6 +202,9 @@ export function SessionSheet({
 
               {/* Pre + post session checklists for staff / interns */}
               <ChecklistsPanel sessionId={detail._id} />
+
+              {/* AI artifacts: recap email, prep packet, reminders */}
+              <SessionAiPanel sessionId={detail._id} />
 
               {/* Engineering log - the recall sheet */}
               <div className="space-y-2">

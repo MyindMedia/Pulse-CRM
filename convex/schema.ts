@@ -651,6 +651,48 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"]),
 
+  // ── AI-generated artifacts: session recaps, prep packets, no-show
+  //    reminders, weekly briefings, rate-cut promo emails. Stored so the
+  //    studio owner can review, copy, edit, and (eventually) send. ──
+  aiArtifacts: defineTable({
+    orgId: v.string(),
+    kind: v.union(
+      v.literal("session_recap"),
+      v.literal("prep_packet"),
+      v.literal("reminder_24h"),
+      v.literal("reminder_1h"),
+      v.literal("weekly_briefing"),
+      v.literal("rate_cut_promo"),
+    ),
+    // Entity link (sometimes session, sometimes none for org-level artifacts)
+    sessionId: v.optional(v.id("sessions")),
+    roomId: v.optional(v.id("rooms")),
+    // The artifact body itself
+    title: v.string(),
+    summary: v.string(), // short, plain text (for the dashboard card)
+    body: v.optional(v.string()), // longer markdown / formatted body
+    emailDraft: v.optional(
+      v.object({
+        to: v.optional(v.string()),
+        subject: v.string(),
+        body: v.string(),
+      }),
+    ),
+    // Source = "openai" or "fallback" so the UI can mark which is which
+    source: v.union(v.literal("openai"), v.literal("fallback")),
+    model: v.optional(v.string()),
+    status: v.union(
+      v.literal("ready"),
+      v.literal("acknowledged"),
+      v.literal("dismissed"),
+    ),
+    generatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_kind", ["orgId", "kind"])
+    .index("by_session", ["sessionId"])
+    .index("by_org_status", ["orgId", "status"]),
+
   // ── Pre / post session checklists. One row per (session, kind).
   //    Pre-checklist is staged when the session is created, and pruned if
   //    the session is cancelled before it runs. Post-checklist sticks

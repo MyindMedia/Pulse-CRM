@@ -11,6 +11,9 @@
 import type * as activity from "../activity.js";
 import type * as agency from "../agency.js";
 import type * as agencyStaff from "../agencyStaff.js";
+import type * as aiActions from "../aiActions.js";
+import type * as aiArtifacts from "../aiArtifacts.js";
+import type * as aiContext from "../aiContext.js";
 import type * as artists from "../artists.js";
 import type * as audit from "../audit.js";
 import type * as automation from "../automation.js";
@@ -35,6 +38,7 @@ import type * as lib_accessTypes from "../lib/accessTypes.js";
 import type * as lib_checklistTemplates from "../lib/checklistTemplates.js";
 import type * as lib_money from "../lib/money.js";
 import type * as lib_notify from "../lib/notify.js";
+import type * as lib_openai from "../lib/openai.js";
 import type * as lib_plans from "../lib/plans.js";
 import type * as lib_roomStatus from "../lib/roomStatus.js";
 import type * as lib_starter from "../lib/starter.js";
@@ -66,6 +70,9 @@ declare const fullApi: ApiFromModules<{
   activity: typeof activity;
   agency: typeof agency;
   agencyStaff: typeof agencyStaff;
+  aiActions: typeof aiActions;
+  aiArtifacts: typeof aiArtifacts;
+  aiContext: typeof aiContext;
   artists: typeof artists;
   audit: typeof audit;
   automation: typeof automation;
@@ -90,6 +97,7 @@ declare const fullApi: ApiFromModules<{
   "lib/checklistTemplates": typeof lib_checklistTemplates;
   "lib/money": typeof lib_money;
   "lib/notify": typeof lib_notify;
+  "lib/openai": typeof lib_openai;
   "lib/plans": typeof lib_plans;
   "lib/roomStatus": typeof lib_roomStatus;
   "lib/starter": typeof lib_starter;

@@ -7,6 +7,10 @@ import {
   recomputeRoomStatus,
 } from "./lib/roomStatus";
 import { stageChecklistsFor, dropPreChecklistFor } from "./checklists";
+import { api } from "./_generated/api";
+
+const ONE_HOUR_MS = 60 * 60 * 1000;
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
 const serviceV = v.union(
   v.literal("recording"),
@@ -178,6 +182,20 @@ export const payDeposit = mutation({
       entityId: id,
       status: "new",
     });
+    // Schedule no-show prevention reminders + 1h prep packet.
+    const now = Date.now();
+    const reminder24At = s.startTime - TWENTY_FOUR_HOURS_MS;
+    const reminder1At = s.startTime - ONE_HOUR_MS;
+    const prepAt = s.startTime - ONE_HOUR_MS;
+    if (reminder24At > now) {
+      await ctx.scheduler.runAt(reminder24At, api.aiActions.generateReminder24h, { sessionId: id });
+    }
+    if (reminder1At > now) {
+      await ctx.scheduler.runAt(reminder1At, api.aiActions.generateReminder1h, { sessionId: id });
+    }
+    if (prepAt > now) {
+      await ctx.scheduler.runAt(prepAt, api.aiActions.generatePrepPacket, { sessionId: id });
+    }
   },
 });
 
@@ -244,6 +262,11 @@ export const setStatus = mutation({
         title: `Post-session checklist + recap - ${s.title}`,
         body: `Session complete. Walk the post-session checklist (clean / reset / lock the room) and log the engineering recall sheet for ${artist?.name ?? "the client"}.`,
         entityType: "session", entityId: id, status: "new",
+      });
+      // Kick the recap generator immediately so the artist email is ready
+      // by the time the engineer closes out the recall sheet.
+      await ctx.scheduler.runAfter(0, api.aiActions.generateSessionRecap, {
+        sessionId: id,
       });
       await ctx.db.insert("activity", {
         orgId, kind: "session.completed",

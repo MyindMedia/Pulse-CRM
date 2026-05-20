@@ -2,8 +2,9 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
+import { PulseAiPanel } from "@/components/ai/pulse-ai-panel";
 import {
   DollarSign,
   CalendarCheck,
@@ -257,6 +258,10 @@ export default function DashboardPage() {
               )}
             </CardContent>
           </Card>
+        </Section>
+
+        <Section title="Pulse AI">
+          <PulseAiPanel />
         </Section>
 
         <Section title="Activity">
