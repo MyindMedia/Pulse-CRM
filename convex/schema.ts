@@ -334,6 +334,7 @@ export default defineSchema({
     minimumHours: v.optional(v.number()), // shortest bookable block
     depositPct: v.optional(v.number()), // deposit as a % of the booking total
     bookable: v.optional(v.boolean()), // shown on the public /book page
+    heroImageUrl: v.optional(v.string()), // hero photo shown on the room card
   }).index("by_org", ["orgId"]),
 
   // ── Equipment — gear assets. Installed in a room or sitting in storage.

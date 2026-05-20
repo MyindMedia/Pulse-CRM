@@ -83,6 +83,7 @@ export const run = mutation({
       minimumHours: number,
       depositPct: number,
       condition?: string,
+      heroImageUrl?: string,
     ) =>
       ctx.db.insert("rooms", {
         orgId,
@@ -94,11 +95,12 @@ export const run = mutation({
         depositPct,
         bookable: true,
         condition,
+        heroImageUrl,
       });
 
-    const studioA = await room("Studio A — Live Room", "Live room", 15000, "in_use", 3, 30, "Flagship tracking room");
-    const studioB = await room("Studio B — Mix Suite", "Mix suite", 9500, "available", 2, 30, "Atmos-ready");
-    const writeRoom = await room("The Loft — Writing Room", "Writing room", 6000, "available", 2, 25);
+    const studioA = await room("Studio A — Live Room", "Live room", 15000, "in_use", 3, 30, "Flagship tracking room", "/rooms/studio-a-live-room.png");
+    const studioB = await room("Studio B — Mix Suite", "Mix suite", 9500, "available", 2, 30, "Atmos-ready", "/rooms/studio-b-mix-suite.png");
+    const writeRoom = await room("The Loft — Writing Room", "Writing room", 6000, "available", 2, 25, undefined, "/rooms/the-loft-writing-room.png");
 
     // ── Equipment — gear assets. Some installed in a room (availability
     //    follows the room), some standing alone in storage. Every item
@@ -112,6 +114,7 @@ export const run = mutation({
       status?: "available" | "in_use" | "maintenance" | "retired";
       condition?: string;
       serialNumber?: string;
+      photoSlug?: string;
     }) =>
       ctx.db.insert("equipment", {
         orgId,
@@ -123,26 +126,28 @@ export const run = mutation({
         currentValueCents: cfg.currentValueCents,
         condition: cfg.condition,
         serialNumber: cfg.serialNumber,
-        // Demo gear ships with a category photo; real items upload their own.
-        photoUrl: `/gear/${cfg.category}.png`,
+        // Demo gear ships with a per-item photo; real items upload their own.
+        photoUrl: cfg.photoSlug
+          ? `/gear/items/${cfg.photoSlug}.png`
+          : `/gear/${cfg.category}.png`,
       });
 
     // Installed in Studio A
-    await equip({ name: "Neve 8068 Console", category: "console", purchaseCents: 8_500_000, currentValueCents: 11_200_000, room: studioA, condition: "Recapped 2024", serialNumber: "NV8068-0142" });
-    await equip({ name: "Telefunken U47", category: "mic", purchaseCents: 1_100_000, currentValueCents: 1_450_000, room: studioA, condition: "Vintage, serviced quarterly" });
-    await equip({ name: "Pro Tools HDX Rig", category: "rig", purchaseCents: 1_800_000, currentValueCents: 950_000, room: studioA });
-    await equip({ name: "Yamaha C7 Grand Piano", category: "instrument", purchaseCents: 4_200_000, currentValueCents: 4_600_000, room: studioA, condition: "Tuned monthly" });
+    await equip({ name: "Neve 8068 Console", category: "console", purchaseCents: 8_500_000, currentValueCents: 11_200_000, room: studioA, condition: "Recapped 2024", serialNumber: "NV8068-0142", photoSlug: "neve-8068-console" });
+    await equip({ name: "Telefunken U47", category: "mic", purchaseCents: 1_100_000, currentValueCents: 1_450_000, room: studioA, condition: "Vintage, serviced quarterly", photoSlug: "telefunken-u47" });
+    await equip({ name: "Pro Tools HDX Rig", category: "rig", purchaseCents: 1_800_000, currentValueCents: 950_000, room: studioA, photoSlug: "pro-tools-hdx-rig" });
+    await equip({ name: "Yamaha C7 Grand Piano", category: "instrument", purchaseCents: 4_200_000, currentValueCents: 4_600_000, room: studioA, condition: "Tuned monthly", photoSlug: "yamaha-c7-grand-piano" });
     // Installed in Studio B
-    await equip({ name: "Genelec 8351B Pair", category: "monitor", purchaseCents: 720_000, currentValueCents: 540_000, room: studioB });
-    await equip({ name: "1176 Compressor Pair", category: "outboard", purchaseCents: 560_000, currentValueCents: 620_000, room: studioB, condition: "Channel 2 intermittent" });
-    await equip({ name: "Lavry Gold Converter", category: "outboard", purchaseCents: 480_000, currentValueCents: 300_000, room: studioB });
+    await equip({ name: "Genelec 8351B Pair", category: "monitor", purchaseCents: 720_000, currentValueCents: 540_000, room: studioB, photoSlug: "genelec-8351b-pair" });
+    await equip({ name: "1176 Compressor Pair", category: "outboard", purchaseCents: 560_000, currentValueCents: 620_000, room: studioB, condition: "Channel 2 intermittent", photoSlug: "1176-compressor-pair" });
+    await equip({ name: "Lavry Gold Converter", category: "outboard", purchaseCents: 480_000, currentValueCents: 300_000, room: studioB, photoSlug: "lavry-gold-converter" });
     // Installed in the writing room
-    await equip({ name: "Nord Stage 4", category: "instrument", purchaseCents: 480_000, currentValueCents: 410_000, room: writeRoom });
+    await equip({ name: "Nord Stage 4", category: "instrument", purchaseCents: 480_000, currentValueCents: 410_000, room: writeRoom, photoSlug: "nord-stage-4" });
     // In storage
-    await equip({ name: "AKG C414 (x2)", category: "mic", purchaseCents: 220_000, currentValueCents: 180_000, condition: "Spare pair" });
-    await equip({ name: "Fender Twin Reverb", category: "instrument", purchaseCents: 180_000, currentValueCents: 240_000, condition: "Vintage 1974" });
-    await equip({ name: "Distressor EL8 Pair", category: "outboard", purchaseCents: 360_000, currentValueCents: 340_000, status: "maintenance", condition: "Awaiting service" });
-    await equip({ name: "Shure SM7B (x3)", category: "mic", purchaseCents: 120_000, currentValueCents: 105_000 });
+    await equip({ name: "AKG C414 (x2)", category: "mic", purchaseCents: 220_000, currentValueCents: 180_000, condition: "Spare pair", photoSlug: "akg-c414" });
+    await equip({ name: "Fender Twin Reverb", category: "instrument", purchaseCents: 180_000, currentValueCents: 240_000, condition: "Vintage 1974", photoSlug: "fender-twin-reverb" });
+    await equip({ name: "Distressor EL8 Pair", category: "outboard", purchaseCents: 360_000, currentValueCents: 340_000, status: "maintenance", condition: "Awaiting service", photoSlug: "distressor-el8-pair" });
+    await equip({ name: "Shure SM7B (x3)", category: "mic", purchaseCents: 120_000, currentValueCents: 105_000, photoSlug: "shure-sm7b" });
 
     // ── Artists ──
     const artist = async (cfg: {

@@ -45,6 +45,7 @@ export type RoomItem = {
   lastServicedAt?: number;
   nextServiceAt?: number;
   notes?: string;
+  heroImageUrl?: string;
   equipmentCount: number;
   equipmentValueCents: number;
 };
@@ -82,7 +83,20 @@ export function RoomCard({
   }
 
   return (
-    <Card className={cn("flex flex-col", pending && "opacity-60")}>
+    <Card className={cn("flex flex-col overflow-hidden", pending && "opacity-60")}>
+      {room.heroImageUrl && (
+        <div className="relative aspect-[16/9] w-full overflow-hidden border-b border-hairline bg-coal-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={room.heroImageUrl}
+            alt={`${room.name} hero`}
+            className="size-full object-cover"
+            loading="lazy"
+          />
+          {/* Gold-tinted bottom fade so the room name reads cleanly on top */}
+          <div className="pointer-events-none absolute inset-x-0 bottom-0 h-12 bg-gradient-to-t from-ink/85 to-transparent" />
+        </div>
+      )}
       <CardContent className="flex flex-1 flex-col gap-3 p-4 pt-4">
         {/* Header — name, type, status menu */}
         <div className="flex items-start justify-between gap-2">
