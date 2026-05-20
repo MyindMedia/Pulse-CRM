@@ -86,15 +86,20 @@ export const studioFront = query({
             q.eq("orgId", orgId).eq("installedInRoomId", room._id),
           )
           .collect();
-        const photos = (await Promise.all(gear.map((g) => photoOf(ctx, g)))).filter(
+        const gearPhotos = (await Promise.all(gear.map((g) => photoOf(ctx, g)))).filter(
           (p): p is string => Boolean(p),
         );
+        // Lead with the room hero shot, then gear photos as supporting frames.
+        const photos = [
+          ...(room.heroImageUrl ? [room.heroImageUrl] : []),
+          ...gearPhotos,
+        ].slice(0, 6);
         return {
           ...room,
           ...defaults(room),
           gearCount: gear.length,
           gearPreview: gear.slice(0, 4).map((g) => g.name),
-          photos: photos.slice(0, 5),
+          photos,
         };
       }),
     );

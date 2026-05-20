@@ -115,6 +115,19 @@ export default function RoomDetailPage() {
         All rooms
       </Link>
 
+      {/* Hero band — the actual room shot, if set */}
+      {room.heroImageUrl && (
+        <div className="relative overflow-hidden rounded-xl border border-hairline shadow-elev-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={room.heroImageUrl}
+            alt={`${room.name} interior`}
+            className="aspect-[21/9] w-full object-cover"
+          />
+          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-ink via-ink/20 to-transparent" />
+        </div>
+      )}
+
       {/* Room header */}
       <header className="space-y-4">
         <div className="flex flex-wrap items-start justify-between gap-4">
