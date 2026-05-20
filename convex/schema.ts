@@ -335,6 +335,11 @@ export default defineSchema({
     depositPct: v.optional(v.number()), // deposit as a % of the booking total
     bookable: v.optional(v.boolean()), // shown on the public /book page
     heroImageUrl: v.optional(v.string()), // hero photo shown on the room card
+    // "auto" -> room status is computed from the live calendar (in_use when
+    // a confirmed/in-progress session is happening now). "manual" -> staff
+    // pinned the status and the recomputer leaves it alone. Undefined is
+    // treated as "auto" for back-compat with already-seeded rooms.
+    statusSource: v.optional(v.union(v.literal("auto"), v.literal("manual"))),
   }).index("by_org", ["orgId"]),
 
   // ── Equipment - gear assets. Installed in a room or sitting in storage.

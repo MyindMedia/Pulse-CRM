@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { currentOrg, assertOrg } from "./lib/tenant";
+import { recomputeRoomStatus } from "./lib/roomStatus";
 
 /* Rooms are the bookable studios. Gear lives in the `equipment` table and
    links back here via `installedInRoomId`. */
@@ -115,13 +116,15 @@ export const update = mutation({
   },
 });
 
+/** Staff status override. Pins the room to `status` and switches its
+ * statusSource to "manual" so the auto-recomputer leaves it alone. */
 export const setStatus = mutation({
   args: { id: v.id("rooms"), status: statusV },
   handler: async (ctx, { id, status }) => {
     const orgId = await currentOrg(ctx);
     const room = await ctx.db.get(id);
     assertOrg(room, orgId);
-    await ctx.db.patch(id, { status });
+    await ctx.db.patch(id, { status, statusSource: "manual" });
     if (status === "maintenance") {
       await ctx.db.insert("activity", {
         orgId,
@@ -132,5 +135,18 @@ export const setStatus = mutation({
         accent: "critical",
       });
     }
+  },
+});
+
+/** Release the manual override and let the calendar drive the status
+ * again. Recomputes immediately so the UI updates without a refresh. */
+export const setAutoStatus = mutation({
+  args: { id: v.id("rooms") },
+  handler: async (ctx, { id }) => {
+    const orgId = await currentOrg(ctx);
+    const room = await ctx.db.get(id);
+    assertOrg(room, orgId);
+    await ctx.db.patch(id, { statusSource: "auto" });
+    await recomputeRoomStatus(ctx, id);
   },
 });

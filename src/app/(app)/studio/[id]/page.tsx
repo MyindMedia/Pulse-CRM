@@ -103,6 +103,7 @@ export default function StudioDetailPage() {
   });
 
   const setRoomStatus = useMutation(api.rooms.setStatus);
+  const setRoomAuto = useMutation(api.rooms.setAutoStatus);
   const moveToStorage = useMutation(api.equipment.moveToStorage);
   const setEquipStatus = useMutation(api.equipment.setStatus);
   const removeEquip = useMutation(api.equipment.remove);
@@ -175,12 +176,20 @@ export default function StudioDetailPage() {
   const equipmentValueCents = detail.equipmentValueCents ?? 0;
 
   async function changeRoomStatus(next: RoomStatus) {
-    if (next === room.status) return;
     try {
       await setRoomStatus({ id: room._id, status: next });
-      toast.success(`${room.name} marked ${ROOM_STATUS[next]?.label.toLowerCase()}.`);
+      toast.success(`${room.name} pinned to ${ROOM_STATUS[next]?.label.toLowerCase()}.`);
     } catch {
       toast.error("Could not change room status.");
+    }
+  }
+
+  async function releaseRoomToAuto() {
+    try {
+      await setRoomAuto({ id: room._id });
+      toast.success(`${room.name} back on auto status.`);
+    } catch {
+      toast.error("Could not release override.");
     }
   }
 
@@ -318,6 +327,19 @@ export default function StudioDetailPage() {
               <Badge tone={roomStatus.tone} dot>
                 {roomStatus.label}
               </Badge>
+              <span
+                className={cn(
+                  "font-mono text-[0.6875rem] uppercase tracking-wide",
+                  room.statusSource === "manual" ? "text-gold" : "text-ash",
+                )}
+                title={
+                  room.statusSource === "manual"
+                    ? "Status pinned by staff; the calendar won't change it."
+                    : "Status follows the live calendar."
+                }
+              >
+                {room.statusSource === "manual" ? "Manual" : "Auto"}
+              </span>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button variant="secondary" size="icon-sm" aria-label="Room actions">
@@ -325,12 +347,19 @@ export default function StudioDetailPage() {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="end">
-                  <DropdownMenuLabel>Set room status</DropdownMenuLabel>
+                  <DropdownMenuLabel>
+                    {room.statusSource === "manual" ? "Pinned (manual)" : "Set room status"}
+                  </DropdownMenuLabel>
+                  {room.statusSource === "manual" && (
+                    <DropdownMenuItem onSelect={releaseRoomToAuto}>
+                      Back to auto
+                    </DropdownMenuItem>
+                  )}
                   {ROOM_STATUSES.map((s) => (
                     <DropdownMenuItem
                       key={s.value}
                       onSelect={() => changeRoomStatus(s.value)}
-                      disabled={s.value === room.status}
+                      disabled={s.value === room.status && room.statusSource === "manual"}
                     >
                       {s.label}
                     </DropdownMenuItem>

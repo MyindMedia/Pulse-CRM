@@ -42,6 +42,7 @@ export type RoomItem = {
   roomType?: string;
   hourlyRateCents?: number;
   status: string;
+  statusSource?: "auto" | "manual";
   condition?: string;
   lastServicedAt?: number;
   nextServiceAt?: number;
@@ -65,20 +66,34 @@ export function RoomCard({
 }) {
   const router = useRouter();
   const setStatus = useMutation(api.rooms.setStatus);
+  const setAutoStatus = useMutation(api.rooms.setAutoStatus);
   const [pending, setPending] = React.useState(false);
   const status = ROOM_STATUS[room.status] ?? {
     label: room.status,
     tone: "neutral" as const,
   };
+  const isManual = room.statusSource === "manual";
 
   async function changeStatus(next: RoomStatus) {
-    if (next === room.status) return;
+    if (next === room.status && isManual) return;
     setPending(true);
     try {
       await setStatus({ id: room._id, status: next });
-      toast.success(`${room.name} marked ${ROOM_STATUS[next]?.label.toLowerCase()}.`);
+      toast.success(`${room.name} pinned to ${ROOM_STATUS[next]?.label.toLowerCase()}.`);
     } catch {
       toast.error("Could not change status. Try again.");
+    } finally {
+      setPending(false);
+    }
+  }
+
+  async function releaseToAuto() {
+    setPending(true);
+    try {
+      await setAutoStatus({ id: room._id });
+      toast.success(`${room.name} back on auto status.`);
+    } catch {
+      toast.error("Could not release override.");
     } finally {
       setPending(false);
     }
@@ -134,12 +149,19 @@ export function RoomCard({
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end">
-              <DropdownMenuLabel>Set status</DropdownMenuLabel>
+              <DropdownMenuLabel>
+                {isManual ? "Pinned (manual)" : "Set status"}
+              </DropdownMenuLabel>
+              {isManual && (
+                <DropdownMenuItem onSelect={releaseToAuto}>
+                  Back to auto
+                </DropdownMenuItem>
+              )}
               {ROOM_STATUSES.map((s) => (
                 <DropdownMenuItem
                   key={s.value}
                   onSelect={() => changeStatus(s.value)}
-                  disabled={s.value === room.status}
+                  disabled={s.value === room.status && isManual}
                 >
                   {s.label}
                 </DropdownMenuItem>
@@ -153,6 +175,19 @@ export function RoomCard({
           <Badge tone={status.tone} dot>
             {status.label}
           </Badge>
+          <span
+            className={cn(
+              "font-mono text-[0.625rem] uppercase tracking-wide",
+              isManual ? "text-gold" : "text-ash-dim",
+            )}
+            title={
+              isManual
+                ? "Status is pinned by staff and won't change with the calendar."
+                : "Status follows the calendar automatically."
+            }
+          >
+            {isManual ? "Manual" : "Auto"}
+          </span>
           {room.hourlyRateCents !== undefined && (
             <span className="font-mono text-xs text-ash">
               {money(room.hourlyRateCents)}

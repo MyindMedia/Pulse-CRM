@@ -2,6 +2,10 @@ import { query, mutation, QueryCtx } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { currentOrg } from "./lib/tenant";
+import {
+  assertNoBufferConflict,
+  recomputeRoomStatus,
+} from "./lib/roomStatus";
 
 const serviceV = v.union(
   v.literal("recording"),
@@ -104,6 +108,9 @@ export const create = mutation({
     const artist = await ctx.db.get(args.artistId);
     if (!artist || artist.orgId !== orgId) throw new Error("Artist not found");
 
+    // 15-minute reset buffer between sessions in the same room.
+    await assertNoBufferConflict(ctx, args.roomId, args.startTime, args.endTime);
+
     // Smart-deposit shield: a session is only tentative until the deposit clears.
     const deposit = args.depositCents ?? Math.round(args.rateCents * 0.3);
     const id = await ctx.db.insert("sessions", {
@@ -130,6 +137,8 @@ export const create = mutation({
       entityId: id,
       accent: "info",
     });
+    // Auto-recompute the room's status so the dashboard reflects the change.
+    if (args.roomId) await recomputeRoomStatus(ctx, args.roomId);
     return id;
   },
 });
@@ -141,6 +150,7 @@ export const payDeposit = mutation({
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) throw new Error("Not found");
     await ctx.db.patch(id, { depositPaid: true, status: "confirmed" });
+    if (s.roomId) await recomputeRoomStatus(ctx, s.roomId);
     await ctx.db.insert("activity", {
       orgId,
       kind: "session.confirmed",
@@ -159,6 +169,9 @@ export const setStatus = mutation({
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) throw new Error("Not found");
     await ctx.db.patch(id, { status });
+    // Status change cascades to the room: cancelling an active session
+    // flips the room back to available; starting one flips it to in_use.
+    if (s.roomId) await recomputeRoomStatus(ctx, s.roomId);
 
     if (status === "no_show") {
       const artist = await ctx.db.get(s.artistId);
