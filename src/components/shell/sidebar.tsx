@@ -7,9 +7,10 @@ import { NAV } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { PulseLogo } from "@/components/brand/pulse-logo";
 
-/* The Pulse wordmark - the official gold pulse glyph + "PULSE" lockup. */
+/* The Pulse wordmark - the official gold pulse glyph + "PULSE" lockup.
+ * Stretches across the full sidebar rail. */
 function Wordmark() {
-  return <PulseLogo size="md" />;
+  return <PulseLogo size="full" className="block" />;
 }
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
@@ -17,7 +18,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
 
   return (
     <div className="flex h-full flex-col gap-6 py-5">
-      <div className="px-3">
+      <div className="px-4">
         <Wordmark />
       </div>
 

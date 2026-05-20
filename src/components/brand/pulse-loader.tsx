@@ -39,22 +39,22 @@ export function PulseLoader({
       <div className="relative flex flex-col items-center gap-6">
         {/* Concentric pulse rings behind the logo. The second ring is
             offset by half a cycle for layered emanation. */}
-        <div className="relative grid size-32 place-items-center">
+        <div className="relative grid place-items-center px-8 py-6">
           <span
             aria-hidden
-            className="pulse-ring absolute inset-0 rounded-full"
+            className="pulse-ring pointer-events-none absolute left-1/2 top-1/2 size-24 -translate-x-1/2 -translate-y-1/2 rounded-full"
             style={{ boxShadow: "0 0 0 0 rgba(253,185,19,0.45)" }}
           />
           <span
             aria-hidden
-            className="pulse-ring-2 absolute inset-0 rounded-full"
+            className="pulse-ring-2 pointer-events-none absolute left-1/2 top-1/2 size-24 -translate-x-1/2 -translate-y-1/2 rounded-full"
             style={{ boxShadow: "0 0 0 0 rgba(253,185,19,0.25)" }}
           />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src="/pulse-logo.png"
             alt="Pulse"
-            className="logo-breathe relative z-10 size-24 w-auto select-none"
+            className="logo-breathe relative z-10 h-auto w-64 select-none"
             style={{ filter: "drop-shadow(0 6px 20px rgba(253,185,19,0.25))" }}
             draggable={false}
           />
