@@ -5,7 +5,7 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-/* Pulse buttons — brutalist bones, depth ladder gives them weight.
+/* Pulse buttons - brutalist bones, depth ladder gives them weight.
    Primary glows warm gold; secondaries sit on a soft elevation and
    press into the surface on click. */
 const buttonVariants = cva(

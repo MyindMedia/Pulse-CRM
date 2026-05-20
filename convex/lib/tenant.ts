@@ -7,7 +7,7 @@ export const DEMO_ORG = "pulse-demo";
 type Ctx = QueryCtx | MutationCtx;
 
 /**
- * Resolve the caller's organization. Backed by the Access Engine —
+ * Resolve the caller's organization. Backed by the Access Engine -
  * agency, studio, and guest viewers all expose an `orgId`. orgId is
  * never trusted from client arguments; always derived here.
  */
@@ -19,7 +19,7 @@ export async function currentOrg(ctx: Ctx): Promise<string> {
   return viewer.orgId ?? DEMO_ORG;
 }
 
-/** A human label for the caller — used for activity/comment attribution. */
+/** A human label for the caller - used for activity/comment attribution. */
 export async function currentActor(ctx: Ctx): Promise<string> {
   const identity = await ctx.auth.getUserIdentity();
   return identity?.name ?? identity?.email ?? "Studio";

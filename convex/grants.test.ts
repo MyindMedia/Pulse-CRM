@@ -3,7 +3,7 @@ import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api } from "./_generated/api";
 
-describe("grants — lifecycle", () => {
+describe("grants - lifecycle", () => {
   let t: ReturnType<typeof convexTest>;
   beforeEach(() => { t = convexTest(schema); });
 

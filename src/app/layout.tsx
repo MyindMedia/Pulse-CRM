@@ -9,9 +9,9 @@ const spaceGrotesk = Space_Grotesk({ subsets: ["latin"], variable: "--font-space
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono", display: "swap" });
 
 export const metadata: Metadata = {
-  title: "Pulse — the operating system for music businesses",
+  title: "Pulse - the operating system for music businesses",
   description:
-    "Pulse is the song-centric CRM for recording studios, producers and labels. Sessions, splits, revisions, releases — one unbroken chain from inquiry to royalty.",
+    "Pulse is the song-centric CRM for recording studios, producers and labels. Sessions, splits, revisions, releases - one unbroken chain from inquiry to royalty.",
   applicationName: "Pulse",
   authors: [{ name: "Myind Sound" }],
 };

@@ -1,4 +1,4 @@
-/* Calendar module — shared types, date math and session helpers. */
+/* Calendar module - shared types, date math and session helpers. */
 
 export type Session = {
   _id: string;

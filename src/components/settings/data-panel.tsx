@@ -24,7 +24,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 
-/** Data management — reload the demo workspace and an auth-mode note. */
+/** Data management - reload the demo workspace and an auth-mode note. */
 export function DataPanel() {
   const seedRun = useMutation(api.seed.run);
   const [confirmOpen, setConfirmOpen] = React.useState(false);
@@ -34,7 +34,7 @@ export function DataPanel() {
     setRunning(true);
     try {
       await seedRun();
-      toast.success("Demo workspace rebuilt — Lumen Recording Co. is fresh.");
+      toast.success("Demo workspace rebuilt - Lumen Recording Co. is fresh.");
       setConfirmOpen(false);
     } catch {
       toast.error("Could not reload the demo data. Try again.");
@@ -85,7 +85,7 @@ export function DataPanel() {
           <p className="text-sm text-ash">
             When a Clerk integration is configured, Pulse authenticates every
             member through Clerk and maps them to their team record. With no
-            Clerk keys present the workspace runs in demo mode — a single shared
+            Clerk keys present the workspace runs in demo mode - a single shared
             actor with full access, so the product is fully explorable without
             a sign-in step. This is a read-only status; there is nothing to
             change here.

@@ -32,7 +32,7 @@ import {
 
 const HEX_RE = /^#?[0-9a-fA-F]{6}$/;
 
-/** Workspace identity panel — name, tagline, plan, accent color. */
+/** Workspace identity panel - name, tagline, plan, accent color. */
 export function WorkspacePanel({ org }: { org: Org }) {
   const updateOrg = useMutation(api.orgs.update);
   const [name, setName] = React.useState(org.name);
@@ -122,7 +122,7 @@ export function WorkspacePanel({ org }: { org: Org }) {
             <Field
               label="Workspace slug"
               htmlFor="ws-slug"
-              hint="Read-only — derived from the name when the workspace was created."
+              hint="Read-only - derived from the name when the workspace was created."
             >
               <Input
                 id="ws-slug"
@@ -156,7 +156,7 @@ export function WorkspacePanel({ org }: { org: Org }) {
               <SelectContent>
                 {PLAN_TIERS.map((t) => (
                   <SelectItem key={t.value} value={t.value}>
-                    {t.label} — {t.price}
+                    {t.label} - {t.price}
                   </SelectItem>
                 ))}
               </SelectContent>

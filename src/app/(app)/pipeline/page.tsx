@@ -48,7 +48,7 @@ export default function PipelinePage() {
   const metrics = useQuery(api.opportunities.metrics);
   const moveStage = useMutation(api.opportunities.moveStage);
 
-  /** Local overrides keyed by opp id — drives optimistic kanban moves. */
+  /** Local overrides keyed by opp id - drives optimistic kanban moves. */
   const [optimisticStage, setOptimisticStage] = useState<Record<string, KanbanStage>>({});
   const [activeId, setActiveId] = useState<string | null>(null);
   const [openDealId, setOpenDealId] = useState<string | null>(null);
@@ -118,7 +118,7 @@ export default function PipelinePage() {
         delete next[oppId];
         return next;
       });
-      toast.error("Could not move the deal — reverted");
+      toast.error("Could not move the deal - reverted");
     }
   }
 
@@ -129,7 +129,7 @@ export default function PipelinePage() {
       <PageHeader
         overline="Sales"
         title="Pipeline"
-        description="Every deal in flight — drag a card to advance it through the studio's sales stages."
+        description="Every deal in flight - drag a card to advance it through the studio's sales stages."
         actions={
           <Button onClick={() => setAddOpen(true)}>
             <Plus className="size-4" />
@@ -217,7 +217,7 @@ export default function PipelinePage() {
         </DndContext>
       )}
 
-      {/* Lost deals — collapsed archive strip */}
+      {/* Lost deals - collapsed archive strip */}
       {lostDeals.length > 0 && (
         <div className="rounded-lg border border-hairline bg-coal">
           <button

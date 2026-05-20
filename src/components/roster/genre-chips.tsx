@@ -4,7 +4,7 @@ import { tintFromString } from "@/lib/utils";
 export function GenreChips({
   items,
   max = 3,
-  emptyLabel = "—",
+  emptyLabel = "-",
 }: {
   items: string[];
   max?: number;

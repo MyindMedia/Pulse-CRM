@@ -36,7 +36,7 @@ export default function AgencyOverviewPage() {
       <PageHeader
         overline="Agency"
         title="Studios"
-        description="Every studio subaccount on the platform — usage, status, and provisioning in one command center."
+        description="Every studio subaccount on the platform - usage, status, and provisioning in one command center."
         actions={<CreateSubaccountDialog />}
       />
 

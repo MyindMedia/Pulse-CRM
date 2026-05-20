@@ -8,7 +8,7 @@ import { meta, PIPELINE_STAGE } from "@/lib/labels";
 import { DealCard } from "./deal-card";
 import type { KanbanStage, Opportunity } from "./constants";
 
-/** One pipeline stage — a droppable column holding sortable deal cards. */
+/** One pipeline stage - a droppable column holding sortable deal cards. */
 export function KanbanColumn({
   stage,
   deals,

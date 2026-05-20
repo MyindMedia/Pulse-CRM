@@ -20,7 +20,7 @@ export function CategoryIcon({ category, className }: { category: string; classN
 }
 
 /**
- * Gear thumbnail. `photo` may be null OR a URL that 404s — either way it falls
+ * Gear thumbnail. `photo` may be null OR a URL that 404s - either way it falls
  * back to a tonal block with a category icon. A broken image is never shown.
  */
 export function GearPhoto({

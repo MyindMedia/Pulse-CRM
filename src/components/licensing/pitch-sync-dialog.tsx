@@ -29,7 +29,7 @@ import {
 import { Spinner } from "@/components/ui/feedback";
 import { meta, SONG_STAGE } from "@/lib/labels";
 
-/** Pitch a sync — song, supervisor, outlet and an optional target fee. */
+/** Pitch a sync - song, supervisor, outlet and an optional target fee. */
 export function PitchSyncDialog() {
   const songs = useQuery(api.songs.picker, {});
   const createSync = useMutation(api.licensing.createSync);
@@ -51,7 +51,7 @@ export function PitchSyncDialog() {
   async function handleSubmit() {
     if (!songId) return toast.error("Pick a song to pitch.");
     if (!supervisorName.trim()) return toast.error("Add the music supervisor.");
-    if (!outlet.trim()) return toast.error("Add the outlet — show, film or brand.");
+    if (!outlet.trim()) return toast.error("Add the outlet - show, film or brand.");
 
     const feeNumber = fee.trim() === "" ? undefined : Number(fee);
     if (feeNumber !== undefined && (!Number.isFinite(feeNumber) || feeNumber < 0)) {
@@ -144,7 +144,7 @@ export function PitchSyncDialog() {
           <Field
             label="Target fee"
             htmlFor="sync-fee"
-            hint="Optional — the fee you're aiming for, in dollars."
+            hint="Optional - the fee you're aiming for, in dollars."
           >
             <Input
               id="sync-fee"

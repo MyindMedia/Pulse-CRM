@@ -29,7 +29,7 @@ function reachedIndex(status: InvoiceStatus): number {
   }
 }
 
-/** Vertical lifecycle tracker — reached steps glow, the rest stay dim. */
+/** Vertical lifecycle tracker - reached steps glow, the rest stay dim. */
 export function StatusTimeline({ status }: { status: InvoiceStatus }) {
   if (status === "void") {
     return (

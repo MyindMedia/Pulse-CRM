@@ -3,7 +3,7 @@ import { convexTest } from "convex-test";
 import schema from "../schema";
 import { api } from "../_generated/api";
 
-describe("access engine — audit log", () => {
+describe("access engine - audit log", () => {
   let t: ReturnType<typeof convexTest>;
   beforeEach(() => { t = convexTest(schema); });
 

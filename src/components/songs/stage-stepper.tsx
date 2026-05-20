@@ -22,7 +22,7 @@ const STAGE_ORDER = [
 
 type Stage = (typeof STAGE_ORDER)[number];
 
-/** Horizontal pipeline stepper — click any stage to move the song to it. */
+/** Horizontal pipeline stepper - click any stage to move the song to it. */
 export function StageStepper({
   songId,
   current,

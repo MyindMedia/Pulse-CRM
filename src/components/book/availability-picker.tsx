@@ -216,8 +216,8 @@ export function AvailabilityPicker({
               <p className="text-xs text-ash-dim">
                 {minimumHours}h minimum
                 {maxDuration < minimumHours + 1
-                  ? " — no longer block available from here"
-                  : ` — up to ${maxDuration}h from this slot`}
+                  ? " - no longer block available from here"
+                  : ` - up to ${maxDuration}h from this slot`}
               </p>
             </div>
             <div className="flex items-center gap-2">
@@ -266,7 +266,7 @@ export function AvailabilityPicker({
 
           {!selectionValid && (
             <p className="text-xs text-critical">
-              That length runs past closing or into a booked slot — shorten it or
+              That length runs past closing or into a booked slot - shorten it or
               pick an earlier start.
             </p>
           )}

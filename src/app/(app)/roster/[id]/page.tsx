@@ -227,7 +227,7 @@ export default function ArtistDetailPage() {
         />
         <StatTile
           label="Last contact"
-          value={data.lastContactAt ? relativeTime(data.lastContactAt) : "—"}
+          value={data.lastContactAt ? relativeTime(data.lastContactAt) : "-"}
           icon={Clock}
         />
       </div>

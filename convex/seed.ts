@@ -2,7 +2,7 @@ import { mutation } from "./_generated/server";
 import { DEMO_ORG } from "./lib/tenant";
 
 /* ============================================================
-   PULSE — demo seed
+   PULSE - demo seed
    Populates the "pulse-demo" workspace with one believable
    recording studio's worth of data so the whole app is
    explorable with zero setup. Idempotent: wipes demo rows
@@ -74,7 +74,7 @@ export const run = mutation({
     const renzo = await member("Renzo Diaz", "engineer", ["Vocal tuning", "Pro Tools"], "#ff5d5d");
     const sienna = await member("Sienna Cole", "engineer", ["Mixing", "Dolby Atmos"], "#c084fc");
 
-    // ── Rooms — the bookable studios ──
+    // ── Rooms - the bookable studios ──
     const room = async (
       name: string,
       roomType: string,
@@ -98,11 +98,11 @@ export const run = mutation({
         heroImageUrl,
       });
 
-    const studioA = await room("Studio A — Live Room", "Live room", 15000, "in_use", 3, 30, "Flagship tracking room", "/rooms/studio-a-live-room.png");
-    const studioB = await room("Studio B — Mix Suite", "Mix suite", 9500, "available", 2, 30, "Atmos-ready", "/rooms/studio-b-mix-suite.png");
-    const writeRoom = await room("The Loft — Writing Room", "Writing room", 6000, "available", 2, 25, undefined, "/rooms/the-loft-writing-room.png");
+    const studioA = await room("Studio A - Live Room", "Live room", 15000, "in_use", 3, 30, "Flagship tracking room", "/rooms/studio-a-live-room.png");
+    const studioB = await room("Studio B - Mix Suite", "Mix suite", 9500, "available", 2, 30, "Atmos-ready", "/rooms/studio-b-mix-suite.png");
+    const writeRoom = await room("The Loft - Writing Room", "Writing room", 6000, "available", 2, 25, undefined, "/rooms/the-loft-writing-room.png");
 
-    // ── Equipment — gear assets. Some installed in a room (availability
+    // ── Equipment - gear assets. Some installed in a room (availability
     //    follows the room), some standing alone in storage. Every item
     //    carries a purchase price and a current value. ──
     const equip = async (cfg: {
@@ -285,7 +285,7 @@ export const run = mutation({
       title: "Golden Hour", artistId: nova, kind: "single", stage: "mixing",
       genre: "R&B", bpm: 92, musicalKey: "F#", mode: "Minor",
       moodTags: ["warm", "nocturnal", "intimate"], revisionsIncluded: 4, revisionsUsed: 2,
-      brief: "Late-night R&B single — Anderson .Paak warmth with a modern low end.",
+      brief: "Late-night R&B single - Anderson .Paak warmth with a modern low end.",
     });
     const sNeonRain = await song({
       title: "Neon Rain", artistId: nova, kind: "single", stage: "released",
@@ -312,7 +312,7 @@ export const run = mutation({
       title: "First Light", artistId: lila, kind: "spec", stage: "demo",
       genre: "Pop", bpm: 110, musicalKey: "C", mode: "Major", specStatus: "shopped",
       moodTags: ["uplifting", "sync-ready"],
-      brief: "Optimistic pop topline written on spec — targeting brand sync.",
+      brief: "Optimistic pop topline written on spec - targeting brand sync.",
     });
     const sAfterglow = await song({
       title: "Afterglow", artistId: pulsewave, kind: "single", stage: "mastering",
@@ -336,7 +336,7 @@ export const run = mutation({
       genre: "EDM", bpm: 128, specStatus: "pitched", moodTags: ["festival", "sync-ready"],
     });
     await song({
-      title: "Parade — Side A", artistId: crosstown, kind: "ep", stage: "mixing",
+      title: "Parade - Side A", artistId: crosstown, kind: "ep", stage: "mixing",
       genre: "Multi-genre", moodTags: ["compilation"],
     });
     const sGravity = await song({
@@ -394,73 +394,73 @@ export const run = mutation({
     };
 
     const sessGoldenTrack = await session({
-      title: "Golden Hour — vocal comp", artistId: nova, songId: sGoldenHour,
+      title: "Golden Hour - vocal comp", artistId: nova, songId: sGoldenHour,
       serviceType: "recording", roomId: studioA, engineerId: renzo,
       startOffsetDays: -6, startHour: 13, durationHours: 4,
       status: "completed", rateCents: 60000, depositPaid: true, intakeCompleted: true,
     });
     await session({
-      title: "Paradise Static — drum tracking", artistId: midnight, songId: sParadise,
+      title: "Paradise Static - drum tracking", artistId: midnight, songId: sParadise,
       serviceType: "recording", roomId: studioA, engineerId: theo,
       startOffsetDays: -3, startHour: 11, durationHours: 6,
       status: "completed", rateCents: 90000, depositPaid: true, intakeCompleted: true,
     });
     await session({
-      title: "Carbon — master", artistId: kairo, songId: sCarbon,
+      title: "Carbon - master", artistId: kairo, songId: sCarbon,
       serviceType: "mastering", roomId: studioB, engineerId: sienna,
       startOffsetDays: -2, startHour: 15, durationHours: 2,
       status: "completed", rateCents: 28000, depositPaid: true, intakeCompleted: true,
     });
     await session({
-      title: "Consultation — Bishop Grey", artistId: bishop,
+      title: "Consultation - Bishop Grey", artistId: bishop,
       serviceType: "consultation", roomId: writeRoom, engineerId: jada,
       startOffsetDays: -1, startHour: 17, durationHours: 1,
       status: "no_show", rateCents: 0, depositPaid: false, intakeCompleted: false,
     });
     await session({
-      title: "Golden Hour — mix revision", artistId: nova, songId: sGoldenHour,
+      title: "Golden Hour - mix revision", artistId: nova, songId: sGoldenHour,
       serviceType: "mixing", roomId: studioB, engineerId: sienna,
       startOffsetDays: 0, startHour: 14, durationHours: 3,
       status: "in_progress", rateCents: 45000, depositPaid: true, intakeCompleted: true,
     });
     await session({
-      title: "Velvet Hours — writing session", artistId: sage, songId: sVelvet,
+      title: "Velvet Hours - writing session", artistId: sage, songId: sVelvet,
       serviceType: "writing", roomId: writeRoom, engineerId: theo,
       startOffsetDays: 1, startHour: 12, durationHours: 3,
       status: "confirmed", rateCents: 30000, depositPaid: true, intakeCompleted: true,
     });
     await session({
-      title: "Costa de Noche — mix", artistId: tomas, songId: sCostaNoche,
+      title: "Costa de Noche - mix", artistId: tomas, songId: sCostaNoche,
       serviceType: "mixing", roomId: studioB, engineerId: sienna,
       startOffsetDays: 2, startHour: 13, durationHours: 4,
       status: "confirmed", rateCents: 48000, depositPaid: true, intakeCompleted: false,
     });
     await session({
-      title: "Gravity Well — tracking", artistId: crosstown, songId: sGravity,
+      title: "Gravity Well - tracking", artistId: crosstown, songId: sGravity,
       serviceType: "recording", roomId: studioA, engineerId: theo,
       startOffsetDays: 3, startHour: 11, durationHours: 6,
       status: "confirmed", rateCents: 90000, depositPaid: true, intakeCompleted: true,
     });
     await session({
-      title: "Iridescent — production", artistId: nova, songId: sIridescent,
+      title: "Iridescent - production", artistId: nova, songId: sIridescent,
       serviceType: "production", roomId: studioA, engineerId: renzo,
       startOffsetDays: 5, startHour: 14, durationHours: 5,
       status: "confirmed", rateCents: 75000, depositPaid: true, intakeCompleted: false,
     });
     await session({
-      title: "Echo & the Drift — discovery call", artistId: echo,
+      title: "Echo & the Drift - discovery call", artistId: echo,
       serviceType: "consultation", roomId: writeRoom, engineerId: jada,
       startOffsetDays: 6, startHour: 16, durationHours: 1,
       status: "tentative", rateCents: 0, depositPaid: false, intakeCompleted: false,
     });
     await session({
-      title: "Halflight — vocal edits", artistId: midnight, songId: sHalflight,
+      title: "Halflight - vocal edits", artistId: midnight, songId: sHalflight,
       serviceType: "production", roomId: studioB, engineerId: renzo,
       startOffsetDays: 8, startHour: 13, durationHours: 3,
       status: "confirmed", rateCents: 45000, depositPaid: false, intakeCompleted: false,
     });
     await session({
-      title: "Mira Quartz — first session", artistId: mira,
+      title: "Mira Quartz - first session", artistId: mira,
       serviceType: "recording", roomId: studioA, engineerId: theo,
       startOffsetDays: 9, startHour: 12, durationHours: 4,
       status: "tentative", rateCents: 60000, depositPaid: false, intakeCompleted: false,
@@ -523,7 +523,7 @@ export const run = mutation({
       });
 
     const dGoldenV1 = await deliverable({
-      songId: sGoldenHour, kind: "mix", version: 1, label: "Golden Hour — Mix v1",
+      songId: sGoldenHour, kind: "mix", version: 1, label: "Golden Hour - Mix v1",
       status: "in_review", durationSec: 211,
     });
     await deliverable({
@@ -531,22 +531,22 @@ export const run = mutation({
       status: "delivered", durationSec: 208,
     });
     await deliverable({
-      songId: sCarbon, kind: "master", version: 2, label: "Carbon — Master v2",
+      songId: sCarbon, kind: "master", version: 2, label: "Carbon - Master v2",
       status: "final", durationSec: 174, paymentGated: true, approved: true,
     });
     await deliverable({
-      songId: sLowOrbit, kind: "stems", version: 1, label: "Low Orbit — Trackout",
+      songId: sLowOrbit, kind: "stems", version: 1, label: "Low Orbit - Trackout",
       status: "approved", paymentGated: true, approved: true,
     });
     await deliverable({
-      songId: sAfterglow, kind: "master", version: 1, label: "Afterglow — Master v1",
+      songId: sAfterglow, kind: "master", version: 1, label: "Afterglow - Master v1",
       status: "in_review", durationSec: 235,
     });
 
     // ── Revision comments on Golden Hour mix v1 ──
     await ctx.db.insert("revisionComments", {
       orgId, songId: sGoldenHour, deliverableId: dGoldenV1,
-      timestampSec: 47, body: "Vocal sits a touch behind on the second verse — bring it up ~1dB.",
+      timestampSec: 47, body: "Vocal sits a touch behind on the second verse - bring it up ~1dB.",
       authorName: "Nova Reign", resolved: false,
     });
     await ctx.db.insert("revisionComments", {
@@ -606,45 +606,45 @@ export const run = mutation({
 
     await invoice({
       number: "PLS-100412", artistId: nova, songId: sNeonRain,
-      lineItems: [{ label: "Neon Rain — full production", amountCents: 320000 }],
+      lineItems: [{ label: "Neon Rain - full production", amountCents: 320000 }],
       status: "paid", dueOffsetDays: -34, paidOffsetDays: -38,
     });
     await invoice({
       number: "PLS-100455", artistId: kairo, songId: sCarbon,
-      lineItems: [{ label: "Carbon — master", amountCents: 28000 }],
+      lineItems: [{ label: "Carbon - master", amountCents: 28000 }],
       status: "paid", dueOffsetDays: -8, paidOffsetDays: -5,
     });
     await invoice({
       number: "PLS-100461", artistId: nova, songId: sGoldenHour,
       lineItems: [
-        { label: "Golden Hour — vocal session balance", amountCents: 42000 },
+        { label: "Golden Hour - vocal session balance", amountCents: 42000 },
         { label: "Additional comp hour", amountCents: 12000 },
       ],
       status: "sent", dueOffsetDays: 9,
     });
     await invoice({
       number: "PLS-100468", artistId: midnight, songId: sParadise,
-      lineItems: [{ label: "Paradise Static — drum tracking", amountCents: 63000 }],
+      lineItems: [{ label: "Paradise Static - drum tracking", amountCents: 63000 }],
       status: "viewed", dueOffsetDays: 4,
     });
     await invoice({
       number: "PLS-100390", artistId: aurora, songId: sCircuit,
-      lineItems: [{ label: "Circuit Heart — mix + master", amountCents: 86000 }],
+      lineItems: [{ label: "Circuit Heart - mix + master", amountCents: 86000 }],
       status: "overdue", dueOffsetDays: -19,
     });
     await invoice({
       number: "PLS-100470", artistId: crosstown,
-      lineItems: [{ label: "Studio A block booking — 20 hrs", amountCents: 300000 }],
+      lineItems: [{ label: "Studio A block booking - 20 hrs", amountCents: 300000 }],
       status: "draft", dueOffsetDays: 21,
     });
     await invoice({
       number: "PLS-100358", artistId: pulsewave, songId: sAfterglow,
-      lineItems: [{ label: "Afterglow — production retainer", amountCents: 250000 }],
+      lineItems: [{ label: "Afterglow - production retainer", amountCents: 250000 }],
       status: "paid", dueOffsetDays: -52, paidOffsetDays: -49,
     });
     await invoice({
       number: "PLS-100472", artistId: tomas, songId: sCostaNoche,
-      lineItems: [{ label: "Costa de Noche — mixing", amountCents: 48000 }],
+      lineItems: [{ label: "Costa de Noche - mixing", amountCents: 48000 }],
       status: "sent", dueOffsetDays: 12,
     });
 
@@ -678,42 +678,42 @@ export const run = mutation({
       });
 
     await opp({
-      title: "Bishop Grey — debut EP", artistId: bishop, stage: "inquiry",
+      title: "Bishop Grey - debut EP", artistId: bishop, stage: "inquiry",
       valueCents: 480000, serviceType: "production", probability: 0.1,
       source: "Instagram DM", updatedOffsetDays: -1,
     });
     await opp({
-      title: "Echo & the Drift — album", artistId: echo, stage: "qualified",
+      title: "Echo & the Drift - album", artistId: echo, stage: "qualified",
       valueCents: 1_200_000, serviceType: "recording", probability: 0.25,
-      source: "Referral — Crosstown", updatedOffsetDays: -2,
+      source: "Referral - Crosstown", updatedOffsetDays: -2,
     });
     await opp({
-      title: "Mira Quartz — single package", artistId: mira, stage: "proposal",
+      title: "Mira Quartz - single package", artistId: mira, stage: "proposal",
       valueCents: 320000, serviceType: "recording", probability: 0.45,
       source: "Website form", updatedOffsetDays: -3,
     });
     await opp({
-      title: "Gravity Well — tracking block", artistId: crosstown, stage: "booked",
+      title: "Gravity Well - tracking block", artistId: crosstown, stage: "booked",
       valueCents: 900000, serviceType: "recording", probability: 0.7,
       songId: sGravity, source: "Repeat client", updatedOffsetDays: -1,
     });
     await opp({
-      title: "Costa de Noche — mix", artistId: tomas, stage: "in_progress",
+      title: "Costa de Noche - mix", artistId: tomas, stage: "in_progress",
       valueCents: 48000, serviceType: "mixing", probability: 0.85,
       songId: sCostaNoche, updatedOffsetDays: 0,
     });
     await opp({
-      title: "Iridescent — production", artistId: nova, stage: "in_progress",
+      title: "Iridescent - production", artistId: nova, stage: "in_progress",
       valueCents: 750000, serviceType: "production", probability: 0.85,
       songId: sIridescent, source: "Repeat client", updatedOffsetDays: -1,
     });
     await opp({
-      title: "Velvet Hours — full single", artistId: sage, stage: "delivered",
+      title: "Velvet Hours - full single", artistId: sage, stage: "delivered",
       valueCents: 210000, serviceType: "production", probability: 0.95,
       songId: sVelvet, updatedOffsetDays: -4,
     });
     await opp({
-      title: "Afterglow — production retainer", artistId: pulsewave, stage: "won",
+      title: "Afterglow - production retainer", artistId: pulsewave, stage: "won",
       valueCents: 250000, serviceType: "production", probability: 1,
       songId: sAfterglow, updatedOffsetDays: -49,
     });
@@ -725,19 +725,19 @@ export const run = mutation({
 
     // ── Sync opportunities ──
     await ctx.db.insert("syncOpportunities", {
-      orgId, songId: sFirstLight, supervisorName: "Dana Whitfield", outlet: "National ad — automotive",
+      orgId, songId: sFirstLight, supervisorName: "Dana Whitfield", outlet: "National ad - automotive",
       stage: "shortlisted", feeCents: 1_500_000, updatedAt: now - 5 * DAY,
     });
     await ctx.db.insert("syncOpportunities", {
-      orgId, songId: sHorizonline, supervisorName: "Marco Reyes", outlet: "Streaming series — trailer",
+      orgId, songId: sHorizonline, supervisorName: "Marco Reyes", outlet: "Streaming series - trailer",
       stage: "negotiating", feeCents: 850000, updatedAt: now - 2 * DAY,
     });
     await ctx.db.insert("syncOpportunities", {
-      orgId, songId: sNeonRain, supervisorName: "Priya Anand", outlet: "Indie film — closing scene",
+      orgId, songId: sNeonRain, supervisorName: "Priya Anand", outlet: "Indie film - closing scene",
       stage: "placed", feeCents: 600000, updatedAt: now - 18 * DAY,
     });
     await ctx.db.insert("syncOpportunities", {
-      orgId, songId: sStillframe, supervisorName: "Dana Whitfield", outlet: "Documentary — underscore",
+      orgId, songId: sStillframe, supervisorName: "Dana Whitfield", outlet: "Documentary - underscore",
       stage: "pitched", feeCents: 250000, updatedAt: now - 1 * DAY,
     });
 
@@ -752,7 +752,7 @@ export const run = mutation({
       const labels = [
         "Announce the release date", "Teaser clip #1", "Behind-the-scenes post",
         "Open pre-save / pre-order", "Email the fan list", "Teaser clip #2",
-        "Cover-art reveal", "Release day — all platforms live", "Release-day SMS blast",
+        "Cover-art reveal", "Release day - all platforms live", "Release-day SMS blast",
         "Thank-you + momentum post", "Playlist pitch follow-up", "First-week numbers recap",
       ];
       const offsets = [-14, -12, -9, -7, -6, -4, -2, 0, 0, 2, 5, 7];
@@ -798,12 +798,12 @@ export const run = mutation({
       return id;
     };
     await act("invoice.paid", "PLS-100455 paid in full by Kairo", -2, "positive", "artist", kairo);
-    await act("session.completed", "Carbon — master completed", -5, "positive", "song", sCarbon);
-    await act("session.no_show", "No-show flagged — Bishop Grey marked for review", -20, "critical", "artist", bishop);
-    await act("session.in_progress", "Golden Hour — mix revision underway in Studio B", -1, "info", "song", sGoldenHour);
-    await act("opportunity.created", "New inquiry — Echo & the Drift album", -36, "gold", "artist", echo);
-    await act("license.sold", "EXCLUSIVE license sold — Carbon to Bishop Grey", -96, "positive", "song", sCarbon);
-    await act("sync.placed", "Sync placed — Neon Rain with Priya Anand", -432, "positive", "song", sNeonRain);
+    await act("session.completed", "Carbon - master completed", -5, "positive", "song", sCarbon);
+    await act("session.no_show", "No-show flagged - Bishop Grey marked for review", -20, "critical", "artist", bishop);
+    await act("session.in_progress", "Golden Hour - mix revision underway in Studio B", -1, "info", "song", sGoldenHour);
+    await act("opportunity.created", "New inquiry - Echo & the Drift album", -36, "gold", "artist", echo);
+    await act("license.sold", "EXCLUSIVE license sold - Carbon to Bishop Grey", -96, "positive", "song", sCarbon);
+    await act("sync.placed", "Sync placed - Neon Rain with Priya Anand", -432, "positive", "song", sNeonRain);
     await act("song.stage", "Afterglow moved to mastering", -60, "info", "song", sAfterglow);
 
     // ── AI insights ──
@@ -827,7 +827,7 @@ export const run = mutation({
     });
     await ctx.db.insert("insights", {
       orgId, kind: "recap", severity: "info",
-      title: "Recap ready — Paradise Static drum tracking",
+      title: "Recap ready - Paradise Static drum tracking",
       body: "Log the recall sheet while the room is still set, then invoice the remaining balance.",
       entityType: "song", entityId: sParadise, status: "seen",
     });

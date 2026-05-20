@@ -51,7 +51,7 @@ export const upsert = mutation({
     const publishingTotal = contributors.reduce((s, c) => s + c.publishingPct, 0);
     if (masterTotal !== 100 || publishingTotal !== 100) {
       throw new Error(
-        `Splits must total 100% — master is ${masterTotal}%, publishing is ${publishingTotal}%`,
+        `Splits must total 100% - master is ${masterTotal}%, publishing is ${publishingTotal}%`,
       );
     }
 
@@ -101,7 +101,7 @@ export const setStatus = mutation({
       await ctx.db.insert("activity", {
         orgId,
         kind: "split.executed",
-        summary: `Split sheet fully executed${song ? ` — "${song.title}"` : ""}`,
+        summary: `Split sheet fully executed${song ? ` - "${song.title}"` : ""}`,
         entityType: "song",
         entityId: sheet.songId,
         accent: "positive",

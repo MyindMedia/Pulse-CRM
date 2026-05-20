@@ -125,7 +125,7 @@ export const create = mutation({
     await ctx.db.insert("activity", {
       orgId,
       kind: "session.created",
-      summary: `${args.title} held for ${artist.name} — awaiting deposit`,
+      summary: `${args.title} held for ${artist.name} - awaiting deposit`,
       entityType: "session",
       entityId: id,
       accent: "info",
@@ -144,7 +144,7 @@ export const payDeposit = mutation({
     await ctx.db.insert("activity", {
       orgId,
       kind: "session.confirmed",
-      summary: `Deposit cleared — ${s.title} is confirmed on the calendar`,
+      summary: `Deposit cleared - ${s.title} is confirmed on the calendar`,
       entityType: "session",
       entityId: id,
       accent: "positive",
@@ -165,7 +165,7 @@ export const setStatus = mutation({
       if (artist) await ctx.db.patch(s.artistId, { reliability: "watch" });
       await ctx.db.insert("activity", {
         orgId, kind: "session.no_show",
-        summary: `No-show flagged — ${artist?.name ?? "client"} marked for review`,
+        summary: `No-show flagged - ${artist?.name ?? "client"} marked for review`,
         entityType: "session", entityId: id, accent: "critical",
       });
     }
@@ -185,20 +185,20 @@ export const setStatus = mutation({
         await ctx.db.insert("invoices", {
           orgId, number: num, artistId: s.artistId, songId: s.songId, sessionId: id,
           status: "draft",
-          lineItems: [{ label: `${s.title} — balance`, amountCents: balance }],
+          lineItems: [{ label: `${s.title} - balance`, amountCents: balance }],
           amountCents: balance,
           dueDate: Date.now() + 14 * 86400000,
         });
       }
       await ctx.db.insert("insights", {
         orgId, kind: "recap", severity: "info",
-        title: `Recap ready — ${s.title}`,
+        title: `Recap ready - ${s.title}`,
         body: `Session complete. Log the engineering recall sheet and confirm deliverables for ${artist?.name ?? "the client"}.`,
         entityType: "session", entityId: id, status: "new",
       });
       await ctx.db.insert("activity", {
         orgId, kind: "session.completed",
-        summary: `${s.title} completed — balance invoiced automatically`,
+        summary: `${s.title} completed - balance invoiced automatically`,
         entityType: "session", entityId: id, accent: "positive",
       });
     }

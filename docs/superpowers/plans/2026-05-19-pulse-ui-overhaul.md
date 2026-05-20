@@ -1,9 +1,9 @@
-# Plan — Pulse UI Overhaul
+# Plan - Pulse UI Overhaul
 
 **Spec:** `docs/superpowers/specs/2026-05-19-pulse-ui-overhaul-design.md`
-**Strategy:** Bottom-up — tokens → primitives → shell → verification. Each step is independently sound; we can stop after any step and still have a usable app.
+**Strategy:** Bottom-up - tokens → primitives → shell → verification. Each step is independently sound; we can stop after any step and still have a usable app.
 
-## Step 1 — Token + utility layer
+## Step 1 - Token + utility layer
 
 Edit `src/app/globals.css`:
 
@@ -12,9 +12,9 @@ Edit `src/app/globals.css`:
 3. Add `.glass-liquid` utility.
 4. Add `.shadow-elev-{1..4}` Tailwind-style utilities that reference the tokens.
 
-**Verification:** typecheck (tokens are CSS only — no TS impact). Build a tiny preview by visiting any page.
+**Verification:** typecheck (tokens are CSS only - no TS impact). Build a tiny preview by visiting any page.
 
-## Step 2 — Card primitive
+## Step 2 - Card primitive
 
 Edit `src/components/ui/card.tsx`:
 
@@ -24,7 +24,7 @@ Edit `src/components/ui/card.tsx`:
 
 **Verification:** every page already using `<Card>` should now visibly elevate. Spot-check dashboard.
 
-## Step 3 — Button primitive
+## Step 3 - Button primitive
 
 Edit `src/components/ui/button.tsx`:
 
@@ -35,27 +35,27 @@ Edit `src/components/ui/button.tsx`:
 
 **Verification:** lint passes; visit any page with buttons.
 
-## Step 4 — Floating layer primitives (parallel-safe)
+## Step 4 - Floating layer primitives (parallel-safe)
 
 Edit in one pass:
-- `dialog.tsx` — `glass-liquid` + `shadow-elev-4`
-- `sheet.tsx` — `glass-liquid` + `shadow-elev-4`
-- `popover.tsx` — `glass-strong` + `shadow-elev-3`
-- `dropdown-menu.tsx` — `glass-strong` + `shadow-elev-3`
-- `select.tsx` (Content only) — `glass-strong` + `shadow-elev-3`
-- `stat-tile.tsx` — `shadow-elev-1`
+- `dialog.tsx` - `glass-liquid` + `shadow-elev-4`
+- `sheet.tsx` - `glass-liquid` + `shadow-elev-4`
+- `popover.tsx` - `glass-strong` + `shadow-elev-3`
+- `dropdown-menu.tsx` - `glass-strong` + `shadow-elev-3`
+- `select.tsx` (Content only) - `glass-strong` + `shadow-elev-3`
+- `stat-tile.tsx` - `shadow-elev-1`
 
 **Verification:** lint; open any modal in the running app (e.g., Add Artist dialog).
 
-## Step 5 — Shell polish
+## Step 5 - Shell polish
 
 Edit:
-- `src/components/shell/topbar.tsx` — sticky + `bg-ink/70` + `backdrop-blur-md`
-- `src/components/shell/command-palette.tsx` — `glass-liquid` + `shadow-elev-4`
+- `src/components/shell/topbar.tsx` - sticky + `bg-ink/70` + `backdrop-blur-md`
+- `src/components/shell/command-palette.tsx` - `glass-liquid` + `shadow-elev-4`
 
 **Verification:** scroll on any long page, watch topbar; ⌘K palette.
 
-## Step 6 — Regression
+## Step 6 - Regression
 
 ```bash
 cd "/Users/myindsound/SaaS Build Pack/pulse" \
@@ -64,7 +64,7 @@ cd "/Users/myindsound/SaaS Build Pack/pulse" \
 
 All four must stay green. If any fail, fix-forward and re-run before commit.
 
-## Step 7 — Commit
+## Step 7 - Commit
 
 Single feature commit on the active branch (`feat/agency-mode-foundation`), following the existing `feat(ui):` / `feat(scope):` style.
 

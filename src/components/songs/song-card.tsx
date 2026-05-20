@@ -26,7 +26,7 @@ type SongCardData = {
   streamCount?: number;
 };
 
-/** Catalog grid card — tonal cover, identity, stage, and revision budget at a glance. */
+/** Catalog grid card - tonal cover, identity, stage, and revision budget at a glance. */
 export function SongCard({ song }: { song: SongCardData }) {
   const stage = meta(SONG_STAGE, song.stage);
   const tint = song.coverColor ?? tintFromString(song.title);

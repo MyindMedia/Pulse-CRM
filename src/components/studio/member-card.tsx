@@ -190,7 +190,7 @@ export function RemoveMemberDialog({
         </DialogHeader>
         <DialogBody>
           <p className="text-sm text-ash">
-            This only removes the team membership — it does not delete any
+            This only removes the team membership - it does not delete any
             session history.
           </p>
         </DialogBody>

@@ -6,7 +6,7 @@ import { api } from "@convex/_generated/api";
 import { Disc3 } from "lucide-react";
 
 /**
- * Public booking chrome — NO app sidebar. A slim wordmark bar and a
+ * Public booking chrome - NO app sidebar. A slim wordmark bar and a
  * minimal footer. The root layout already provides Convex + fonts + Toaster.
  */
 export default function BookLayout({ children }: { children: React.ReactNode }) {
@@ -47,7 +47,7 @@ export default function BookLayout({ children }: { children: React.ReactNode }) 
       <footer className="relative z-10 border-t border-hairline bg-ink-2/60">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 py-6 text-xs text-ash-dim sm:flex-row lg:px-8">
           <span>
-            Powered by <span className="font-medium text-ash">Pulse</span> — the
+            Powered by <span className="font-medium text-ash">Pulse</span> - the
             operating system for music businesses.
           </span>
           <span>{new Date().getFullYear()}</span>

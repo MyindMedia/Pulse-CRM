@@ -14,7 +14,7 @@ import { cn } from "@/lib/utils";
 type UploadResult = { storageId: string };
 
 /**
- * Equipment photo upload control. Only meaningful for an existing item —
+ * Equipment photo upload control. Only meaningful for an existing item -
  * the three-step Convex storage flow: generate a URL, POST the file,
  * then attach the returned storageId to the equipment record.
  *

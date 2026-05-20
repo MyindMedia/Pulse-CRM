@@ -1,7 +1,7 @@
 import { MutationCtx } from "../_generated/server";
 
 /* ============================================================
-   Starter workspace — the initial setup the agency runs when a
+   Starter workspace - the initial setup the agency runs when a
    new studio subaccount is created. Two bookable rooms with sane
    defaults and the owner as the first team member, so the studio
    is usable the moment it is provisioned.
@@ -29,7 +29,7 @@ export async function seedStarterWorkspace(
     bookable: true,
     minimumHours: 2,
     depositPct: 30,
-    condition: "Default room — rename and price it in Studio settings.",
+    condition: "Default room - rename and price it in Studio settings.",
   });
   await ctx.db.insert("rooms", {
     orgId,
@@ -45,7 +45,7 @@ export async function seedStarterWorkspace(
   await ctx.db.insert("activity", {
     orgId,
     kind: "studio.created",
-    summary: "Studio workspace created — add gear, team and branding to get going.",
+    summary: "Studio workspace created - add gear, team and branding to get going.",
     accent: "gold",
   });
 }

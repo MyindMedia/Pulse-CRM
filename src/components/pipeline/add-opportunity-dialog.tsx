@@ -115,7 +115,7 @@ export function AddOpportunityDialog({
               id="opp-title"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
-              placeholder="EP mix package — 4 songs"
+              placeholder="EP mix package - 4 songs"
               autoFocus
             />
           </Field>
@@ -162,7 +162,7 @@ export function AddOpportunityDialog({
             </Field>
           </div>
 
-          <Field label="Source" hint="Where the lead came from — optional.">
+          <Field label="Source" hint="Where the lead came from - optional.">
             <Select value={source} onValueChange={setSource}>
               <SelectTrigger>
                 <SelectValue placeholder="Select a source" />

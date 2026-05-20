@@ -79,7 +79,7 @@ const NEXT_STATUS: Record<DeliverableStatus, DeliverableStatus | null> = {
 };
 
 function fmtDuration(sec?: number) {
-  if (sec == null) return "—";
+  if (sec == null) return "-";
   const m = Math.floor(sec / 60);
   const s = sec % 60;
   return `${m}:${String(s).padStart(2, "0")}`;
@@ -97,7 +97,7 @@ export function DeliverablesTab({ songId }: { songId: Id<"songs"> }) {
     setConsuming(true);
     try {
       const used = await consumeRevision({ songId });
-      toast.success(`Revision logged — ${used} used.`);
+      toast.success(`Revision logged - ${used} used.`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not log the revision.");
     } finally {
@@ -378,7 +378,7 @@ function CommentThread({ deliverableId }: { deliverableId: Id<"deliverables"> })
         <Textarea
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          placeholder="Note the timestamp issue — vocal too dry at 1:24, snare needs more body…"
+          placeholder="Note the timestamp issue - vocal too dry at 1:24, snare needs more body…"
           className="min-h-16"
         />
         <Button size="sm" onClick={submit} disabled={saving}>
@@ -445,7 +445,7 @@ function AddDeliverableDialog({
         <DialogHeader>
           <DialogTitle>Add deliverable</DialogTitle>
           <DialogDescription>
-            The version number is assigned automatically — newest first.
+            The version number is assigned automatically - newest first.
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="space-y-4">
@@ -475,7 +475,7 @@ function AddDeliverableDialog({
             </Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Duration" htmlFor="dl-min" hint="Optional — minutes and seconds.">
+            <Field label="Duration" htmlFor="dl-min" hint="Optional - minutes and seconds.">
               <div className="flex items-center gap-2">
                 <Input
                   id="dl-min"

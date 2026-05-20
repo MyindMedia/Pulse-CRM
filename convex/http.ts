@@ -5,7 +5,7 @@ import { stripeClient } from "./lib/stripe";
 
 const http = httpRouter();
 
-/* Stripe webhook receiver — verifies signature, dispatches to
+/* Stripe webhook receiver - verifies signature, dispatches to
    internal mutation, returns 200 on success. Idempotent inside. */
 http.route({
   path: "/stripe/webhook",

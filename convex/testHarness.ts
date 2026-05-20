@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import { resolveViewer, requireCapability, AccessError } from "./lib/access";
 
 /* ============================================================
-   Test harness — referenced only by *.test.ts files via convex-test.
+   Test harness - referenced only by *.test.ts files via convex-test.
    These run inside the test sandbox; safe to leave deployed.
    ============================================================ */
 

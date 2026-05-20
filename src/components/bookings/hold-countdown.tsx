@@ -4,7 +4,7 @@ import * as React from "react";
 import { Timer } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/** Format a millisecond span as a compact countdown — "1h 12m", "4m 20s". */
+/** Format a millisecond span as a compact countdown - "1h 12m", "4m 20s". */
 function formatSpan(ms: number): string {
   const total = Math.floor(ms / 1000);
   const h = Math.floor(total / 3600);

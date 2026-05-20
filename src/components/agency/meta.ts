@@ -1,6 +1,6 @@
 import type { BadgeProps } from "@/components/ui/badge";
 
-/* Shared subaccount vocabulary — plan + status presentation. */
+/* Shared subaccount vocabulary - plan + status presentation. */
 
 export type Plan = "solo" | "studio" | "label";
 export type SubStatus = "active" | "paused" | "setup";

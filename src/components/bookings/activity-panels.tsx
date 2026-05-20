@@ -88,7 +88,7 @@ export function MessagesPanel() {
       <CardHeader>
         <CardTitle>Messages</CardTitle>
         <CardDescription>
-          Confirmations and reminders are simulated and logged here — not
+          Confirmations and reminders are simulated and logged here - not
           actually emailed yet.
         </CardDescription>
       </CardHeader>

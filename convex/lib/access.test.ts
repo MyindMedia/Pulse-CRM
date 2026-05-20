@@ -3,7 +3,7 @@ import { convexTest } from "convex-test";
 import schema from "../schema";
 import { api } from "../_generated/api";
 
-describe("access engine — resolveViewer", () => {
+describe("access engine - resolveViewer", () => {
   let t: ReturnType<typeof convexTest>;
   beforeEach(() => { t = convexTest(schema); });
 
@@ -61,7 +61,7 @@ describe("access engine — resolveViewer", () => {
   });
 });
 
-describe("access engine — requireCapability", () => {
+describe("access engine - requireCapability", () => {
   let t: ReturnType<typeof convexTest>;
   beforeEach(() => { t = convexTest(schema); });
 

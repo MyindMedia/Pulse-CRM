@@ -19,7 +19,7 @@ export default function LicensingPage() {
       <PageHeader
         overline="Revenue"
         title="Licensing"
-        description="Sync placements pitched to supervisors and beat licenses sold to artists — every deal on one board."
+        description="Sync placements pitched to supervisors and beat licenses sold to artists - every deal on one board."
         actions={tab === "sync" ? <PitchSyncDialog /> : <SellLicenseDialog />}
       />
 

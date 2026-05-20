@@ -6,7 +6,7 @@ import type { TierKey } from "./lib/plans";
 
 const tierV = v.union(v.literal("studio"), v.literal("pro"), v.literal("agency"));
 
-/** Public action — start a Stripe Checkout session for the chosen tier. */
+/** Public action - start a Stripe Checkout session for the chosen tier. */
 export const beginCheckout = action({
   args: { tier: tierV, agencyName: v.optional(v.string()) },
   handler: async (ctx, args) => {
@@ -39,7 +39,7 @@ export const beginCheckout = action({
   },
 });
 
-/** Public action — open the Stripe Customer Portal for the caller. */
+/** Public action - open the Stripe Customer Portal for the caller. */
 export const openCustomerPortal = action({
   args: {},
   handler: async (ctx) => {
@@ -60,7 +60,7 @@ export const openCustomerPortal = action({
   },
 });
 
-/** Internal — look up a Stripe customer id by Clerk user id. */
+/** Internal - look up a Stripe customer id by Clerk user id. */
 export const _customerIdForUser = internalQuery({
   args: { clerkUserId: v.string() },
   handler: async (ctx, { clerkUserId }) => {
@@ -72,7 +72,7 @@ export const _customerIdForUser = internalQuery({
   },
 });
 
-/** Public query — read the caller's current plan + status. */
+/** Public query - read the caller's current plan + status. */
 export const myPlan = query({
   args: {},
   handler: async (ctx) => {

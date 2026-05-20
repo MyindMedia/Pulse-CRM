@@ -29,7 +29,7 @@ import {
 import { Spinner } from "@/components/ui/feedback";
 import { meta, SONG_STAGE } from "@/lib/labels";
 
-/** Default the release date 28 days out — a realistic rollout runway. */
+/** Default the release date 28 days out - a realistic rollout runway. */
 function defaultReleaseDate(): string {
   const d = new Date();
   d.setDate(d.getDate() + 28);
@@ -37,7 +37,7 @@ function defaultReleaseDate(): string {
 }
 
 /**
- * Builder dialog — pick a song and a release date, then create() builds the
+ * Builder dialog - pick a song and a release date, then create() builds the
  * full 12-step rollout automatically.
  */
 export function BuildCampaignDialog() {
@@ -67,7 +67,7 @@ export function BuildCampaignDialog() {
     setSubmitting(true);
     try {
       await create({ songId: songId as Id<"songs">, releaseDate: ts });
-      toast.success("Campaign built — 12-step rollout scheduled.");
+      toast.success("Campaign built - 12-step rollout scheduled.");
       setOpen(false);
       reset();
     } catch {
@@ -126,7 +126,7 @@ export function BuildCampaignDialog() {
           <Field
             label="Release date"
             htmlFor="release-date"
-            hint="Tasks are offset against this day — D-14, release day, D+7."
+            hint="Tasks are offset against this day - D-14, release day, D+7."
           >
             <Input
               id="release-date"
@@ -140,7 +140,7 @@ export function BuildCampaignDialog() {
             <Rocket className="mt-0.5 size-4 shrink-0 text-gold" />
             <p className="text-xs leading-relaxed text-ash">
               The rollout covers teaser drops, pre-save, DSP pitching, art and
-              release-day promo — twelve tasks in all, ready to check off.
+              release-day promo - twelve tasks in all, ready to check off.
             </p>
           </div>
         </DialogBody>

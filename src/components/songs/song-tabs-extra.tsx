@@ -226,7 +226,7 @@ function ReleaseCampaignCard({ songId }: { songId: Id<"songs"> }) {
         ) : campaign === null ? (
           <div className="space-y-3">
             <p className="text-sm text-ash">
-              Build a rollout plan — a pre-built 12-step checklist anchored to the release date.
+              Build a rollout plan - a pre-built 12-step checklist anchored to the release date.
             </p>
             <div className="flex flex-wrap items-end gap-2">
               <div className="space-y-1">

@@ -2,7 +2,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 
 /* ============================================================
-   PULSE — Convex schema
+   PULSE - Convex schema
    A song-centric CRM. The `songs` table is the spine: one record
    carries from inquiry → session → splits → delivery → release.
    Every business table is scoped by `orgId` (Clerk org id, or the
@@ -62,7 +62,7 @@ const pipelineStage = v.union(
 );
 
 export default defineSchema({
-  // ── Orgs — one row per studio subaccount. orgId is the Clerk org id
+  // ── Orgs - one row per studio subaccount. orgId is the Clerk org id
   //    (org_xxx) or "pulse-demo". The agency console provisions these. ──
   orgs: defineTable({
     orgId: v.string(), // Clerk org_xxx or "pulse-demo"
@@ -86,7 +86,7 @@ export default defineSchema({
     ownerEmail: v.optional(v.string()),
     clerkOrgId: v.optional(v.string()), // set once a real Clerk org is created
     createdByAgency: v.optional(v.boolean()),
-    // NEW (agency mode — cycle 1)
+    // NEW (agency mode - cycle 1)
     agencyId: v.optional(v.string()),     // parent agency, null for base tier
     tier: v.optional(v.union(             // cached for cap-check perf
       v.literal("studio"),
@@ -105,7 +105,7 @@ export default defineSchema({
     imageUrl: v.optional(v.string()),
   }).index("by_clerk_id", ["clerkUserId"]),
 
-  // ── Agency — the SaaS tenant. Only exists for Pro/Agency tier customers.
+  // ── Agency - the SaaS tenant. Only exists for Pro/Agency tier customers.
   //    Base-tier studios have no agency row. orgs.agencyId is optional. ──
   agencies: defineTable({
     agencyId: v.string(),                 // Clerk org_xxx of agency-level Clerk org
@@ -137,7 +137,7 @@ export default defineSchema({
     .index("by_slug", ["slug"])
     .index("by_owner", ["ownerClerkUserId"]),
 
-  // ── Agency members — humans with access to the agency console. The owner
+  // ── Agency members - humans with access to the agency console. The owner
   //    plus zero-or-more agency staff. NOT the same as members inside a sub-account. ──
   agencyMembers: defineTable({
     agencyId: v.string(),
@@ -159,7 +159,7 @@ export default defineSchema({
     .index("by_clerk", ["clerkUserId"])
     .index("by_agency_clerk", ["agencyId", "clerkUserId"]),
 
-  // ── Agency-member scopes — which sub-accounts a "staff" role can reach.
+  // ── Agency-member scopes - which sub-accounts a "staff" role can reach.
   //    Empty for owner/admin (they get all). One row per (agencyMember, subAccountOrgId). ──
   agencyMemberScopes: defineTable({
     agencyId: v.string(),
@@ -170,7 +170,7 @@ export default defineSchema({
     .index("by_member", ["agencyMemberId"])
     .index("by_subaccount", ["subAccountOrgId"]),
 
-  // ── Magic-link collaborator grants — scoped pass for a non-account user.
+  // ── Magic-link collaborator grants - scoped pass for a non-account user.
   //    Token-backed, time-bounded. Music-industry-unique pattern. ──
   collaboratorGrants: defineTable({
     orgId: v.string(),                    // issuing studio
@@ -198,7 +198,7 @@ export default defineSchema({
     .index("by_token", ["token"])
     .index("by_entity", ["entityId"]),
 
-  // ── Audit log — every Access Engine deny/grant for sensitive actions ──
+  // ── Audit log - every Access Engine deny/grant for sensitive actions ──
   auditEvents: defineTable({
     agencyId: v.optional(v.string()),
     orgId: v.optional(v.string()),
@@ -216,7 +216,7 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_agency", ["agencyId"]),
 
-  // ── App state — a keyed singleton. In demo mode (no Clerk) it holds the
+  // ── App state - a keyed singleton. In demo mode (no Clerk) it holds the
   //    org the agency console is currently "entered into". ──
   appState: defineTable({
     key: v.string(), // "demo"
@@ -245,7 +245,7 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_org_clerk", ["orgId", "clerkUserId"]),
 
-  // ── Artists / clients — the CRM contacts ──
+  // ── Artists / clients - the CRM contacts ──
   artists: defineTable({
     orgId: v.string(),
     name: v.string(),
@@ -271,7 +271,7 @@ export default defineSchema({
     .index("by_org_status", ["orgId", "status"])
     .searchIndex("search_name", { searchField: "name", filterFields: ["orgId"] }),
 
-  // ── Songs — the spine of the product ──
+  // ── Songs - the spine of the product ──
   songs: defineTable({
     orgId: v.string(),
     title: v.string(),
@@ -314,7 +314,7 @@ export default defineSchema({
     .index("by_parent", ["parentSongId"])
     .searchIndex("search_title", { searchField: "title", filterFields: ["orgId"] }),
 
-  // ── Rooms — the bookable studios / spaces ──
+  // ── Rooms - the bookable studios / spaces ──
   rooms: defineTable({
     orgId: v.string(),
     name: v.string(),
@@ -337,7 +337,7 @@ export default defineSchema({
     heroImageUrl: v.optional(v.string()), // hero photo shown on the room card
   }).index("by_org", ["orgId"]),
 
-  // ── Equipment — gear assets. Installed in a room or sitting in storage.
+  // ── Equipment - gear assets. Installed in a room or sitting in storage.
   //    Installed gear inherits its room's availability; storage gear owns its
   //    own status. Every item carries a purchase price and a current value. ──
   equipment: defineTable({
@@ -369,7 +369,7 @@ export default defineSchema({
     lastServicedAt: v.optional(v.number()),
     nextServiceAt: v.optional(v.number()),
     photoId: v.optional(v.id("_storage")), // uploaded photo (Convex file storage)
-    photoUrl: v.optional(v.string()), // fallback URL — seeded demo gear
+    photoUrl: v.optional(v.string()), // fallback URL - seeded demo gear
   })
     .index("by_org", ["orgId"])
     .index("by_org_room", ["orgId", "installedInRoomId"]),
@@ -403,7 +403,7 @@ export default defineSchema({
     .index("by_song", ["songId"])
     .index("by_artist", ["artistId"]),
 
-  // ── Payments — the booking-payment ledger and the provider seam.
+  // ── Payments - the booking-payment ledger and the provider seam.
   //    Simulated today; real Stripe records land in the same shape. ──
   payments: defineTable({
     orgId: v.string(),
@@ -424,7 +424,7 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_session", ["sessionId"]),
 
-  // ── Notifications — confirmation / reminder messages. The notify() seam
+  // ── Notifications - confirmation / reminder messages. The notify() seam
   //    logs them here; real email/SMS delivery drops in behind it later. ──
   notifications: defineTable({
     orgId: v.string(),
@@ -439,7 +439,7 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_session", ["sessionId"]),
 
-  // ── Engineering log — "Recall Sheet 2.0" ──
+  // ── Engineering log - "Recall Sheet 2.0" ──
   engineeringLogs: defineTable({
     orgId: v.string(),
     sessionId: v.id("sessions"),
@@ -466,7 +466,7 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_session", ["sessionId"]),
 
-  // ── Deliverables — versioned files with approval + payment gate ──
+  // ── Deliverables - versioned files with approval + payment gate ──
   deliverables: defineTable({
     orgId: v.string(),
     songId: v.id("songs"),
@@ -489,7 +489,7 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_song", ["songId"]),
 
-  // ── Revision comments — timestamped, version-anchored ──
+  // ── Revision comments - timestamped, version-anchored ──
   revisionComments: defineTable({
     orgId: v.string(),
     songId: v.id("songs"),
@@ -503,7 +503,7 @@ export default defineSchema({
     .index("by_deliverable", ["deliverableId"])
     .index("by_song", ["songId"]),
 
-  // ── Split sheets — composition + master, an enforced gate ──
+  // ── Split sheets - composition + master, an enforced gate ──
   splitSheets: defineTable({
     orgId: v.string(),
     songId: v.id("songs"),
@@ -626,7 +626,7 @@ export default defineSchema({
     accent: v.optional(v.string()), // gold | positive | critical | info
   }).index("by_org", ["orgId"]),
 
-  // ── AI insights — recaps, nudges, intelligence ──
+  // ── AI insights - recaps, nudges, intelligence ──
   insights: defineTable({
     orgId: v.string(),
     kind: v.union(

@@ -2,7 +2,7 @@ import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
 /*
- * Clerk middleware — only enforced when Clerk is configured.
+ * Clerk middleware - only enforced when Clerk is configured.
  * In demo mode (no publishable key) requests pass straight through so the
  * app is fully explorable against seeded data.
  */
@@ -14,7 +14,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",
-  "/book(.*)", // public studio booking — no login
+  "/book(.*)", // public studio booking - no login
 ]);
 
 const handler = CLERK_ENABLED

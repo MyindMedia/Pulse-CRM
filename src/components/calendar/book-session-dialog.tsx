@@ -99,7 +99,7 @@ export function BookSessionDialog({
     setDeposit("");
   }
 
-  // Seed the date when the modal opens — needs a fresh "now" per open, so
+  // Seed the date when the modal opens - needs a fresh "now" per open, so
   // we read Date.now() inside the open-transition branch.
   const [prevOpen, setPrevOpen] = useState(open);
   if (prevOpen !== open) {
@@ -152,7 +152,7 @@ export function BookSessionDialog({
         rateCents,
         depositCents: depositCents > 0 ? depositCents : undefined,
       });
-      toast.success("Session booked — held as tentative");
+      toast.success("Session booked - held as tentative");
       reset();
       onOpenChange(false);
     } catch {
@@ -174,7 +174,7 @@ export function BookSessionDialog({
         <DialogHeader>
           <DialogTitle>Book a session</DialogTitle>
           <DialogDescription>
-            Step {step + 1} of 4 — {STEP_LABELS[step]}
+            Step {step + 1} of 4 - {STEP_LABELS[step]}
           </DialogDescription>
         </DialogHeader>
 
@@ -205,7 +205,7 @@ export function BookSessionDialog({
         </div>
 
         <DialogBody className="space-y-4">
-          {/* Step 1 — Artist + song */}
+          {/* Step 1 - Artist + song */}
           {step === 0 && (
             <>
               <Field label="Artist">
@@ -226,7 +226,7 @@ export function BookSessionDialog({
                 </Select>
               </Field>
 
-              <Field label="Song" hint="Link a catalog song — optional.">
+              <Field label="Song" hint="Link a catalog song - optional.">
                 <Select
                   value={songId}
                   onValueChange={setSongId}
@@ -255,7 +255,7 @@ export function BookSessionDialog({
             </>
           )}
 
-          {/* Step 2 — Service / room / engineer */}
+          {/* Step 2 - Service / room / engineer */}
           {step === 1 && (
             <>
               <Field label="Service type">
@@ -273,7 +273,7 @@ export function BookSessionDialog({
                 </Select>
               </Field>
 
-              <Field label="Room" hint="Where the session runs — optional.">
+              <Field label="Room" hint="Where the session runs - optional.">
                 <Select value={roomId} onValueChange={setRoomId}>
                   <SelectTrigger>
                     <SelectValue placeholder={rooms ? "Select a room" : "Loading rooms…"} />
@@ -288,7 +288,7 @@ export function BookSessionDialog({
                 </Select>
               </Field>
 
-              <Field label="Engineer" hint="Assigned engineer — optional.">
+              <Field label="Engineer" hint="Assigned engineer - optional.">
                 <Select value={engineerId} onValueChange={setEngineerId}>
                   <SelectTrigger>
                     <SelectValue
@@ -307,7 +307,7 @@ export function BookSessionDialog({
             </>
           )}
 
-          {/* Step 3 — Date / time / duration */}
+          {/* Step 3 - Date / time / duration */}
           {step === 2 && (
             <>
               <div className="grid grid-cols-2 gap-3">
@@ -361,7 +361,7 @@ export function BookSessionDialog({
             </>
           )}
 
-          {/* Step 4 — Title / rate / deposit */}
+          {/* Step 4 - Title / rate / deposit */}
           {step === 3 && (
             <>
               <Field label="Session title" htmlFor="sess-title">
@@ -387,7 +387,7 @@ export function BookSessionDialog({
                 <Field
                   label="Deposit (USD)"
                   htmlFor="sess-deposit"
-                  hint="Optional — cannot exceed the rate."
+                  hint="Optional - cannot exceed the rate."
                 >
                   <Input
                     id="sess-deposit"

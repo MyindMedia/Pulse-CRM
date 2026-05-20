@@ -6,7 +6,7 @@ import { Building2 } from "lucide-react";
 import { NAV } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
-/* The Pulse wordmark — a gold pulse glyph + the name. */
+/* The Pulse wordmark - a gold pulse glyph + the name. */
 function Wordmark() {
   return (
     <Link href="/dashboard" className="flex items-center gap-2.5 px-2">
@@ -70,7 +70,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
           <p className="text-[0.625rem] font-mono uppercase tracking-[0.18em] text-ash-dim">
             Pulse by Myind Sound
           </p>
-          <p className="mt-0.5 text-[0.625rem] text-ash-dim">v1.0 — Studio edition</p>
+          <p className="mt-0.5 text-[0.625rem] text-ash-dim">v1.0 - Studio edition</p>
         </div>
       </div>
     </div>

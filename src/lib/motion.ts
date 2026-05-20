@@ -1,6 +1,6 @@
 import type { Transition, Variants } from "motion/react";
 
-/* ── Spring presets — the "Skiper feel": springs, never linear ── */
+/* ── Spring presets - the "Skiper feel": springs, never linear ── */
 export const springSmooth: Transition = { type: "spring", stiffness: 400, damping: 35 };
 export const springBouncy: Transition = { type: "spring", stiffness: 500, damping: 26, mass: 0.8 };
 export const springGentle: Transition = { type: "spring", stiffness: 240, damping: 30 };

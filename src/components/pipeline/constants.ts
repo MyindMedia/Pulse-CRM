@@ -1,4 +1,4 @@
-/* Pipeline module — shared constants, types and small helpers. */
+/* Pipeline module - shared constants, types and small helpers. */
 
 export const KANBAN_STAGES = [
   "inquiry",
@@ -13,7 +13,7 @@ export const KANBAN_STAGES = [
 export type KanbanStage = (typeof KANBAN_STAGES)[number];
 export type OppStage = KanbanStage | "lost";
 
-/** Service-type color hint — drives the left rail tint on each deal card. */
+/** Service-type color hint - drives the left rail tint on each deal card. */
 export const SERVICE_TINT: Record<string, string> = {
   recording: "var(--color-info)",
   mixing: "var(--color-caution)",
@@ -28,7 +28,7 @@ export function serviceTint(service: string): string {
   return SERVICE_TINT[service] ?? "var(--color-ash-dim)";
 }
 
-/** Whole days elapsed since a timestamp — used for "stale deal" hints. */
+/** Whole days elapsed since a timestamp - used for "stale deal" hints. */
 export function daysSince(ts: number): number {
   return Math.max(0, Math.floor((Date.now() - ts) / 86_400_000));
 }

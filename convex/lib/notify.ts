@@ -2,7 +2,7 @@ import { MutationCtx } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
 
 /* ============================================================
-   notify() — the messaging seam.
+   notify() - the messaging seam.
    Confirmations and reminders are written to the `notifications`
    table and marked "simulated". Nothing is actually delivered yet;
    a real provider (Resend for email, Twilio for SMS) drops in here

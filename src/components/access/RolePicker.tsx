@@ -17,7 +17,7 @@ const STUDIO_ROLES = [
   { value: "artist_relations",   label: "Artist Relations",   desc: "Booker / front-of-house; CRM access" },
   { value: "producer",           label: "Producer",           desc: "Runs sessions; signs split sheets" },
   { value: "intern",             label: "Intern",             desc: "Read-only across the board" },
-  { value: "accountant",         label: "Accountant",         desc: "Invoices, payments, refunds — no creative" },
+  { value: "accountant",         label: "Accountant",         desc: "Invoices, payments, refunds - no creative" },
 ] as const;
 
 type Props = {

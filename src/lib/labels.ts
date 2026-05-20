@@ -1,5 +1,5 @@
 /* ============================================================
-   Display maps — one source of truth for how every enum value
+   Display maps - one source of truth for how every enum value
    reads and which Badge tone it carries. Keeps modules consistent.
    ============================================================ */
 
@@ -102,9 +102,9 @@ export const ACCENT_TONE: Record<string, Tone> = {
   info: "info",
 };
 
-/** Safe lookup — falls back to a title-cased neutral badge. */
+/** Safe lookup - falls back to a title-cased neutral badge. */
 export function meta(map: Record<string, Meta>, key?: string): Meta {
-  if (!key) return { label: "—", tone: "neutral" };
+  if (!key) return { label: "-", tone: "neutral" };
   return map[key] ?? { label: titleCase(key), tone: "neutral" };
 }
 

@@ -23,7 +23,7 @@ export type Org = {
   configured: boolean;
 };
 
-/** Plan tiers — presentational billing config (no real Stripe). */
+/** Plan tiers - presentational billing config (no real Stripe). */
 export const PLAN_TIERS: {
   value: OrgPlan;
   label: string;

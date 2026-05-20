@@ -30,7 +30,7 @@ export function priceIdForTier(tier: TierKey): string {
   return v;
 }
 
-/** Reverse lookup — used by the webhook to flip agencies.plan. */
+/** Reverse lookup - used by the webhook to flip agencies.plan. */
 export function tierForPriceId(priceId: string): TierKey | null {
   for (const tier of ["studio", "pro", "agency"] as TierKey[]) {
     if (process.env[TIER_PRICE_ENV[tier]] === priceId) return tier;

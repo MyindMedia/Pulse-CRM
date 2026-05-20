@@ -1,4 +1,4 @@
-# Pulse — Agency Mode + Granular RBAC Design
+# Pulse - Agency Mode + Granular RBAC Design
 
 **Status:** Approved design, ready for implementation planning
 **Date:** 2026-05-19
@@ -212,7 +212,7 @@ auditEvents: defineTable({
 ### 6.2 Changes to existing tables
 
 ```ts
-// orgs — add the optional parent agency link + cached tier
+// orgs - add the optional parent agency link + cached tier
 orgs: defineTable({
   ...existing fields,
   agencyId: v.optional(v.string()),     // NEW: parent agency, null for base tier
@@ -227,7 +227,7 @@ orgs: defineTable({
 ```
 
 ```ts
-// members — extend the role enum to cover music-vertical personas
+// members - extend the role enum to cover music-vertical personas
 members: defineTable({
   ...existing fields,
   role: v.union(
@@ -429,7 +429,7 @@ Each scope is a fixed capability bundle. Studios pick one scope per grant.
 | `splitsheet` | `splitsheet.read+sign` (one) | 30 days |
 | `artist_portal` | `songs.read` (theirs), `sessions.read` (theirs), `deliverables.read+approve` (theirs), `invoices.read` (theirs), `revisionComments.write` | 1 year, renewable |
 
-### 8.4 Capability overrides — the escape hatch
+### 8.4 Capability overrides - the escape hatch
 
 `members.capabilityOverrides` accepts tokens like `["+finance.read", "-deliverables.approve"]`. The engine applies these on top of the role default. Surfaced in the UI as a "Customize permissions" disclosure under the role picker.
 
@@ -462,11 +462,11 @@ Each scope is a fixed capability bundle. Studios pick one scope per grant.
 
 Separate route tree, no shared shell with studio app. Skinned per studio.
 
-- `/portal/[token]` — Hub: artist's songs, sessions, invoices at a glance
-- `/portal/[token]/songs/[songId]` — Song detail, deliverable list, comment thread
-- `/portal/[token]/deliverables/[id]` — Player with waveform, approve, leave timestamped comment
-- `/portal/[token]/invoices` — Invoice list, pay button
-- `/portal/[token]/splits/[id]` — Sign split sheet
+- `/portal/[token]` - Hub: artist's songs, sessions, invoices at a glance
+- `/portal/[token]/songs/[songId]` - Song detail, deliverable list, comment thread
+- `/portal/[token]/deliverables/[id]` - Player with waveform, approve, leave timestamped comment
+- `/portal/[token]/invoices` - Invoice list, pay button
+- `/portal/[token]/splits/[id]` - Sign split sheet
 
 ### 9.4 Guest Magic-Link (`src/app/g/[token]/*`)
 
@@ -580,11 +580,11 @@ Schema fields exist (`agencies.resellEnabled`, `agencies.markupCents`). Activati
 
 ## 11. Testing
 
-### 11.1 Access Engine unit tests — `convex/lib/access.test.ts`
+### 11.1 Access Engine unit tests - `convex/lib/access.test.ts`
 
 One file. ~80 cases. Table-driven `[viewer, action, resource, expected]`. Mocked `ctx`. Capability matrix from Section 8 IS the fixture. Target: 100% branch coverage on `requireCapability`.
 
-### 11.2 Integration tests — `convex/agency.test.ts`, `convex/billing.test.ts`, `convex/grants.test.ts`
+### 11.2 Integration tests - `convex/agency.test.ts`, `convex/billing.test.ts`, `convex/grants.test.ts`
 
 `convex-test` harness (existing pattern). Critical flows:
 
@@ -594,7 +594,7 @@ One file. ~80 cases. Table-driven `[viewer, action, resource, expected]`. Mocked
 - Stripe webhook idempotency (replay same event, single state change)
 - Tier downgrade with sub-accounts over cap is blocked
 
-### 11.3 End-to-end — `e2e/agency-rbac.spec.ts`, `e2e/portal.spec.ts`, `e2e/guest-link.spec.ts`
+### 11.3 End-to-end - `e2e/agency-rbac.spec.ts`, `e2e/portal.spec.ts`, `e2e/guest-link.spec.ts`
 
 Playwright. One happy-path test per persona:
 
@@ -612,7 +612,7 @@ Access Engine 100%, integrations ≥ 90%, E2E happy paths green.
 
 All migrations idempotent and runnable on every deploy.
 
-### 12.1 `agencies` backfill — zero-impact
+### 12.1 `agencies` backfill - zero-impact
 
 Existing `orgs` rows work with no `agencyId`. They are base-tier studios. No data move.
 

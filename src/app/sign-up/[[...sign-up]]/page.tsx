@@ -17,7 +17,7 @@ export default function SignUpPage() {
           <p className="overline">Pulse · demo mode</p>
           <h1 className="font-display text-2xl font-bold text-bone">No sign-up required</h1>
           <p className="text-sm text-ash">
-            Clerk is not configured. Add your Clerk keys to enable studio accounts — see
+            Clerk is not configured. Add your Clerk keys to enable studio accounts - see
             CLERK-SETUP.md.
           </p>
           <Link href="/dashboard" className="inline-block text-sm font-medium text-gold hover:underline">

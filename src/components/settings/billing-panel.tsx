@@ -45,7 +45,7 @@ function UsageRow({
   );
 }
 
-/** Billing surface — current plan, tier comparison, usage. Presentational only. */
+/** Billing surface - current plan, tier comparison, usage. Presentational only. */
 export function BillingPanel({ org }: { org: Org }) {
   const updateOrg = useMutation(api.orgs.update);
   const members = useQuery(api.members.list) as { _id: string }[] | undefined;
@@ -173,7 +173,7 @@ export function BillingPanel({ org }: { org: Org }) {
             <Info className="mt-0.5 size-3.5 shrink-0 text-info" />
             <p className="text-[0.6875rem] text-ash-dim">
               Billing is a configuration surface in demo mode. Switching a plan
-              updates the workspace record only — no payment method is charged
+              updates the workspace record only - no payment method is charged
               and no Stripe account is connected.
             </p>
           </div>

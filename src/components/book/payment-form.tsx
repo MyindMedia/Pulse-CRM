@@ -7,7 +7,7 @@ import { Input, Field } from "@/components/ui/field";
 import { money } from "@/lib/format";
 
 /**
- * Simulated card form. No card is charged — the backend `payments.record`
+ * Simulated card form. No card is charged - the backend `payments.record`
  * mutation clears the payment instantly. The form exists for realism.
  */
 export function PaymentForm({
@@ -44,7 +44,7 @@ export function PaymentForm({
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="flex items-center gap-2 rounded-md border border-info/30 bg-info/10 px-3 py-2 text-xs text-info">
         <Lock className="size-3.5 shrink-0" />
-        Simulated payment — no card is charged. Enter any values to continue.
+        Simulated payment - no card is charged. Enter any values to continue.
       </div>
 
       <Field label="Name on card" htmlFor="pay-name">
@@ -103,7 +103,7 @@ export function PaymentForm({
         ) : (
           <>
             <CreditCard className="size-4" />
-            {actionLabel} — {money(amountCents)}
+            {actionLabel} - {money(amountCents)}
           </>
         )}
       </Button>

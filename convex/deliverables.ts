@@ -98,7 +98,7 @@ export const setStatus = mutation({
       await ctx.db.insert("activity", {
         orgId,
         kind: "deliverable.approved",
-        summary: `${d.label} v${d.version} approved${song ? ` — "${song.title}"` : ""}`,
+        summary: `${d.label} v${d.version} approved${song ? ` - "${song.title}"` : ""}`,
         entityType: "song",
         entityId: d.songId,
         accent: "positive",
@@ -107,7 +107,7 @@ export const setStatus = mutation({
   },
 });
 
-/** Revision comments — timestamped against a deliverable version. */
+/** Revision comments - timestamped against a deliverable version. */
 export const comments = query({
   args: { deliverableId: v.id("deliverables") },
   handler: async (ctx, { deliverableId }) => {
@@ -174,7 +174,7 @@ export const consumeRevision = mutation({
         orgId,
         kind: "revenue",
         severity: "opportunity",
-        title: `Revision overage — "${song.title}"`,
+        title: `Revision overage - "${song.title}"`,
         body: `This song has used ${used} of ${song.revisionsIncluded} included revisions. Bill the overage or upsell a revision pack.`,
         entityType: "song",
         entityId: songId,

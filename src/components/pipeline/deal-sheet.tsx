@@ -49,7 +49,7 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
   );
 }
 
-/** Full opportunity detail drawer — edit, restage, activity, destructive actions. */
+/** Full opportunity detail drawer - edit, restage, activity, destructive actions. */
 export function DealSheet({
   oppId,
   onClose,
@@ -262,7 +262,7 @@ export function DealSheet({
                   </span>
                 </Row>
 
-                <Row label="Source">{detail.source ?? <span className="text-ash-dim">—</span>}</Row>
+                <Row label="Source">{detail.source ?? <span className="text-ash-dim">-</span>}</Row>
               </div>
 
               {/* Stage control */}

@@ -8,12 +8,20 @@ import {
   CalendarRange,
   ChevronLeft,
   ChevronRight,
+  DoorOpen,
   LayoutGrid,
   List,
   Plus,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
 import { cn } from "@/lib/utils";
@@ -62,20 +70,32 @@ function CalendarView() {
   const days = useMemo(() => monthGridDays(year, month), [year, month]);
   const monthSessions = useQuery(api.sessions.inRange, { from, to });
   const upcoming = useQuery(api.sessions.list, {});
+  const rooms = useQuery(api.rooms.list);
 
-  const sessions: Session[] | undefined =
+  // Room filter: "all" = every room. Otherwise an Id<"rooms"> string.
+  const [filterRoomId, setFilterRoomId] = useState<string>("all");
+
+  const rawSessions: Session[] | undefined =
     view === "month"
       ? (monthSessions as Session[] | undefined)
       : (upcoming as Session[] | undefined);
+
+  const sessions: Session[] | undefined = useMemo(() => {
+    if (!rawSessions) return rawSessions;
+    if (filterRoomId === "all") return rawSessions;
+    return rawSessions.filter((s) => s.roomId === filterRoomId);
+  }, [rawSessions, filterRoomId]);
 
   // Stable "today" snapshot at mount keeps the render pure.
   const [today] = useState(() => startOfDay(Date.now()));
   const agendaSessions = useMemo(() => {
     if (!upcoming) return [];
-    return (upcoming as Session[])
+    let rows = (upcoming as Session[])
       .filter((s) => startOfDay(s.startTime) >= today)
       .sort((a, b) => a.startTime - b.startTime);
-  }, [upcoming, today]);
+    if (filterRoomId !== "all") rows = rows.filter((s) => s.roomId === filterRoomId);
+    return rows;
+  }, [upcoming, today, filterRoomId]);
 
   function shiftMonth(delta: number) {
     const d = new Date(year, month + delta, 1);
@@ -102,7 +122,7 @@ function CalendarView() {
       <PageHeader
         overline="Bookings"
         title="Calendar"
-        description="Studio sessions across the month — book, confirm and run every date on the books."
+        description="Studio sessions across the month - book, confirm and run every date on the books."
         actions={
           <Button
             onClick={() => {
@@ -141,6 +161,24 @@ function CalendarView() {
           <Button variant="secondary" size="sm" onClick={goToday}>
             Today
           </Button>
+        </div>
+
+        {/* Room filter */}
+        <div className="ml-auto flex items-center gap-2 sm:ml-0">
+          <Select value={filterRoomId} onValueChange={setFilterRoomId}>
+            <SelectTrigger className="h-8 w-44 text-xs">
+              <DoorOpen className="size-3.5 text-ash-dim" />
+              <SelectValue placeholder="All rooms" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All rooms</SelectItem>
+              {(rooms ?? []).map((r) => (
+                <SelectItem key={r._id} value={r._id}>
+                  {r.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {/* View toggle */}

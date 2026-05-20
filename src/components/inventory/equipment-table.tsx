@@ -35,7 +35,7 @@ import {
   type EquipmentStatus,
 } from "@/components/studio/constants";
 
-/** One row of the inventory table — `api.equipment.list` item shape. */
+/** One row of the inventory table - `api.equipment.list` item shape. */
 export type EquipmentRow = {
   _id: Id<"equipment">;
   name: string;
@@ -70,10 +70,10 @@ function PhotoThumb({ photo, name }: { photo: string | null; name: string }) {
   );
 }
 
-/** A signed Δ value cell — current minus purchase, tinted by direction. */
+/** A signed Δ value cell - current minus purchase, tinted by direction. */
 function DeltaCell({ delta }: { delta: number }) {
   if (delta === 0) {
-    return <span className="font-mono tabular-nums text-ash-dim">—</span>;
+    return <span className="font-mono tabular-nums text-ash-dim">-</span>;
   }
   const up = delta > 0;
   return (

@@ -61,7 +61,7 @@ function RosterView() {
       <PageHeader
         overline="CRM"
         title="Roster"
-        description="Every artist, producer and label the studio works with — ranked by lifetime value."
+        description="Every artist, producer and label the studio works with - ranked by lifetime value."
         actions={
           <Button onClick={() => setAddOpen(true)}>
             <UserPlus className="size-4" />
@@ -229,7 +229,7 @@ function RosterView() {
                         {money(artist.lifetimeValueCents, { compact: true })}
                       </TD>
                       <TD className="text-right text-ash-dim">
-                        {artist.lastContactAt ? relativeTime(artist.lastContactAt) : "—"}
+                        {artist.lastContactAt ? relativeTime(artist.lastContactAt) : "-"}
                       </TD>
                     </TR>
                   );

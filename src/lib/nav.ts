@@ -18,15 +18,15 @@ export type NavItem = {
   label: string;
   href: string;
   icon: LucideIcon;
-  /** Short description — used in the command palette. */
+  /** Short description - used in the command palette. */
   blurb: string;
 };
 
 /* The primary navigation. Songs is listed first under Dashboard because the
-   song record is the spine of Pulse — everything else hangs off it. */
+   song record is the spine of Pulse - everything else hangs off it. */
 export const NAV: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, blurb: "Studio at a glance" },
-  { label: "Songs", href: "/songs", icon: Music2, blurb: "The catalog — every record in flight" },
+  { label: "Songs", href: "/songs", icon: Music2, blurb: "The catalog - every record in flight" },
   { label: "Roster", href: "/roster", icon: Users, blurb: "Artists, producers and labels" },
   { label: "Pipeline", href: "/pipeline", icon: KanbanSquare, blurb: "Inquiries to booked work" },
   { label: "Calendar", href: "/calendar", icon: CalendarDays, blurb: "Sessions and room bookings" },

@@ -8,7 +8,7 @@ import { longDate, timeOfDay, duration } from "@/lib/format";
 import { meta, SESSION_STATUS, titleCase } from "@/lib/labels";
 import { startOfDay, statusColor, type Session } from "./constants";
 
-/** Upcoming sessions grouped by day — the agenda alternative to the grid. */
+/** Upcoming sessions grouped by day - the agenda alternative to the grid. */
 export function AgendaList({
   sessions,
   onOpenSession,

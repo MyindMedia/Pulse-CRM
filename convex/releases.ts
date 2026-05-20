@@ -2,7 +2,7 @@ import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { currentOrg, assertOrg } from "./lib/tenant";
 
-/** The standard pre-built rollout — offsets are days relative to release day. */
+/** The standard pre-built rollout - offsets are days relative to release day. */
 const DEFAULT_TASKS = [
   { label: "Announce the release date", offsetDays: -14, done: false },
   { label: "Teaser clip #1", offsetDays: -12, done: false },
@@ -11,7 +11,7 @@ const DEFAULT_TASKS = [
   { label: "Email the fan list", offsetDays: -6, done: false },
   { label: "Teaser clip #2", offsetDays: -4, done: false },
   { label: "Cover-art reveal", offsetDays: -2, done: false },
-  { label: "Release day — all platforms live", offsetDays: 0, done: false },
+  { label: "Release day - all platforms live", offsetDays: 0, done: false },
   { label: "Release-day SMS blast", offsetDays: 0, done: false },
   { label: "Thank-you + momentum post", offsetDays: 2, done: false },
   { label: "Playlist pitch follow-up", offsetDays: 5, done: false },
@@ -120,7 +120,7 @@ export const setStatus = mutation({
       await ctx.db.insert("activity", {
         orgId,
         kind: "campaign.released",
-        summary: `"${song?.title ?? "Track"}" is live — campaign moved to released`,
+        summary: `"${song?.title ?? "Track"}" is live - campaign moved to released`,
         entityType: "song",
         entityId: campaign.songId,
         accent: "positive",

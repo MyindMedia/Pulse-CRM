@@ -93,7 +93,7 @@ export const lookupByToken = query({
   },
 });
 
-/** Internal — bumped on every successful guest-token use. */
+/** Internal - bumped on every successful guest-token use. */
 export const markUsed = internalMutation({
   args: { grantId: v.id("collaboratorGrants") },
   handler: async (ctx, { grantId }) => {

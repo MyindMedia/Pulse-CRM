@@ -2,7 +2,7 @@ import * as React from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/** Empty state — icon, headline, supporting line, optional action. */
+/** Empty state - icon, headline, supporting line, optional action. */
 export function EmptyState({
   icon: Icon,
   title,

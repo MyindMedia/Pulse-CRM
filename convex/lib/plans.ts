@@ -1,5 +1,5 @@
 /* ============================================================
-   Plan limits — single source of truth for what each tier gets.
+   Plan limits - single source of truth for what each tier gets.
    Used by createSubaccount, grants.issue, branding writes, and
    the billing webhook. Cycle 3 wires Stripe price IDs to these.
    ============================================================ */
@@ -11,7 +11,7 @@ export type TierLimits = {
   magicLinkGrantsPerMonth: number;
   whitelabel: false | "studio_level" | "agency_level";
   customDomain: boolean;
-  /** Monthly USD price in cents — wired to Stripe in cycle 3. */
+  /** Monthly USD price in cents - wired to Stripe in cycle 3. */
   priceCents: number;
 };
 

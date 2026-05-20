@@ -45,7 +45,7 @@ export type SubaccountRow = {
   _creationTime: number;
 };
 
-/** Shared row-action menu — reused on the list and detail pages. */
+/** Shared row-action menu - reused on the list and detail pages. */
 export function SubaccountActions({
   orgId,
   slug,

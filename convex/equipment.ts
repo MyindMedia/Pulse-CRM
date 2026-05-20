@@ -4,7 +4,7 @@ import { v } from "convex/values";
 import { currentOrg, assertOrg } from "./lib/tenant";
 
 /* ============================================================
-   Equipment — gear assets. Each item is either installed in a
+   Equipment - gear assets. Each item is either installed in a
    room or sitting in storage. Installed gear inherits its room's
    availability; storage gear owns its status. Every item carries
    a purchase price and a current value (money in cents).
@@ -26,7 +26,7 @@ const statusV = v.union(
   v.literal("retired"),
 );
 
-/** An item's display photo — an uploaded file wins over the seeded URL. */
+/** An item's display photo - an uploaded file wins over the seeded URL. */
 async function photoOf(ctx: QueryCtx, item: Doc<"equipment">): Promise<string | null> {
   if (item.photoId) return await ctx.storage.getUrl(item.photoId);
   return item.photoUrl ?? null;
@@ -184,7 +184,7 @@ export const update = mutation({
   },
 });
 
-/** Install an item into a room — its availability now follows that room. */
+/** Install an item into a room - its availability now follows that room. */
 export const install = mutation({
   args: { id: v.id("equipment"), roomId: v.id("rooms") },
   handler: async (ctx, { id, roomId }) => {
@@ -205,7 +205,7 @@ export const install = mutation({
   },
 });
 
-/** Pull an item back to storage — it regains its own status. */
+/** Pull an item back to storage - it regains its own status. */
 export const moveToStorage = mutation({
   args: { id: v.id("equipment") },
   handler: async (ctx, { id }) => {
@@ -224,7 +224,7 @@ export const moveToStorage = mutation({
   },
 });
 
-/** Set the storage status. Only meaningful while the item is in storage —
+/** Set the storage status. Only meaningful while the item is in storage -
     installed gear follows its room regardless of this value. */
 export const setStatus = mutation({
   args: { id: v.id("equipment"), status: statusV },
@@ -246,7 +246,7 @@ export const remove = mutation({
   },
 });
 
-/** Step 1 of a photo upload — a short-lived Convex storage upload URL. */
+/** Step 1 of a photo upload - a short-lived Convex storage upload URL. */
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
@@ -255,7 +255,7 @@ export const generateUploadUrl = mutation({
   },
 });
 
-/** Step 2 — attach the uploaded file to an equipment item. */
+/** Step 2 - attach the uploaded file to an equipment item. */
 export const setPhoto = mutation({
   args: { id: v.id("equipment"), storageId: v.id("_storage") },
   handler: async (ctx, { id, storageId }) => {

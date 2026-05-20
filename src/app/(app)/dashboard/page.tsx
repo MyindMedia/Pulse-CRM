@@ -42,7 +42,7 @@ export default function DashboardPage() {
       <PageHeader
         overline="Studio"
         title="Dashboard"
-        description="Everything moving through the studio today — bookings, cash, catalog and the deals in flight."
+        description="Everything moving through the studio today - bookings, cash, catalog and the deals in flight."
       />
 
       {empty && (
@@ -54,7 +54,7 @@ export default function DashboardPage() {
             <div className="min-w-0 flex-1">
               <p className="font-display font-semibold text-bone">Load the demo studio</p>
               <p className="text-sm text-ash">
-                Populate Pulse with Lumen Recording Co. — a full studio of artists, songs,
+                Populate Pulse with Lumen Recording Co. - a full studio of artists, songs,
                 sessions, invoices and deals so every screen is explorable.
               </p>
             </div>
@@ -121,7 +121,7 @@ export default function DashboardPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>Revenue — last 12 months</CardTitle>
+            <CardTitle>Revenue - last 12 months</CardTitle>
             <Badge tone="gold">Collected</Badge>
           </CardHeader>
           <CardContent>
@@ -315,7 +315,7 @@ export default function DashboardPage() {
           <Link href="/songs" className="inline-flex items-center gap-0.5 text-gold hover:underline">
             View catalog <ArrowRight className="size-3" />
           </Link>
-          <span className="text-ash-dim">— last refreshed {shortDate(lastRefreshed)}</span>
+          <span className="text-ash-dim">- last refreshed {shortDate(lastRefreshed)}</span>
         </p>
       )}
     </div>

@@ -1,7 +1,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-/* Lightweight table shell — no ink dividers, tone-shifted header,
+/* Lightweight table shell - no ink dividers, tone-shifted header,
    rows lift on hover. Compose columns per module. */
 export function Table({ className, ...props }: React.TableHTMLAttributes<HTMLTableElement>) {
   return (

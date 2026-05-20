@@ -110,7 +110,7 @@ export function SessionSheet({
       await fn();
       toast.success(ok);
     } catch {
-      toast.error("Action failed — please retry");
+      toast.error("Action failed - please retry");
     } finally {
       setBusy(false);
     }
@@ -198,7 +198,7 @@ export function SessionSheet({
                 </div>
               )}
 
-              {/* Engineering log — the recall sheet */}
+              {/* Engineering log - the recall sheet */}
               <div className="space-y-2">
                 <p className="text-xs font-medium text-ash">Engineering log</p>
                 {!detail.engineeringLog ? (
@@ -236,7 +236,7 @@ export function SessionSheet({
                           <p key={i} className="text-xs text-ash">
                             <span className="text-bone">{chain.track}</span>
                             {chain.mic || chain.preamp || chain.outboard
-                              ? ` — ${[chain.mic, chain.preamp, chain.outboard]
+                              ? ` - ${[chain.mic, chain.preamp, chain.outboard]
                                   .filter(Boolean)
                                   .join(" / ")}`
                               : ""}
@@ -253,7 +253,7 @@ export function SessionSheet({
                 )}
               </div>
 
-              {/* Payment — booking ledger and staff record-a-payment */}
+              {/* Payment - booking ledger and staff record-a-payment */}
               <PaymentPanel
                 sessionId={detail._id}
                 rateCents={detail.rateCents}
@@ -272,7 +272,7 @@ export function SessionSheet({
                   onClick={() =>
                     run(
                       () => payDeposit({ id: detail._id }),
-                      "Deposit recorded — session confirmed",
+                      "Deposit recorded - session confirmed",
                     )
                   }
                 >

@@ -60,7 +60,7 @@ function DeactivateAction({ license }: { license: BeatLicense }) {
           <DialogDescription>
             Deactivate the {meta(LICENSE_TIER, license.tier).label} sold to{" "}
             {license.buyerName} on “{license.songTitle}”? The sale stays on
-            record — it just stops counting as active.
+            record - it just stops counting as active.
           </DialogDescription>
         </DialogHeader>
         <DialogFooter>
@@ -167,7 +167,7 @@ export function LicenseTable() {
                   </TD>
                   <TD className="text-right font-mono text-gold">{money(license.priceCents)}</TD>
                   <TD className="text-right font-mono text-ash">
-                    {license.termMonths ? `${license.termMonths} mo` : "—"}
+                    {license.termMonths ? `${license.termMonths} mo` : "-"}
                   </TD>
                   <TD className="text-right font-mono text-ash">
                     {license.streamCap !== undefined
@@ -189,7 +189,7 @@ export function LicenseTable() {
                       <DeactivateAction license={license} />
                     ) : (
                       <span className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
-                        —
+                        -
                       </span>
                     )}
                   </TD>

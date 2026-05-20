@@ -33,7 +33,7 @@ import type { LicenseTier, RosterArtist, SongOption } from "./types";
 const TIERS: LicenseTier[] = ["mp3", "wav", "trackout", "exclusive"];
 const NO_ARTIST = "__none__";
 
-/** Sell a beat license — song, buyer, optional roster artist, tier and terms. */
+/** Sell a beat license - song, buyer, optional roster artist, tier and terms. */
 export function SellLicenseDialog() {
   const songs = useQuery(api.songs.picker, {}) as SongOption[] | undefined;
   const roster = useQuery(api.artists.roster) as RosterArtist[] | undefined;
@@ -94,7 +94,7 @@ export function SellLicenseDialog() {
       });
       toast.success(
         isExclusive
-          ? "Exclusive sold — other licenses on this beat deactivated."
+          ? "Exclusive sold - other licenses on this beat deactivated."
           : "License sold.",
       );
       setOpen(false);
@@ -163,7 +163,7 @@ export function SellLicenseDialog() {
             </Field>
             <Field
               label="Roster artist"
-              hint="Optional — link the buyer to a roster artist."
+              hint="Optional - link the buyer to a roster artist."
             >
               <Select value={buyerArtistId} onValueChange={setBuyerArtistId}>
                 <SelectTrigger>
@@ -213,7 +213,7 @@ export function SellLicenseDialog() {
             <Field
               label="Term"
               htmlFor="license-term"
-              hint="Optional — license length in months."
+              hint="Optional - license length in months."
             >
               <Input
                 id="license-term"
@@ -228,7 +228,7 @@ export function SellLicenseDialog() {
             <Field
               label="Stream cap"
               htmlFor="license-cap"
-              hint="Optional — max streams allowed."
+              hint="Optional - max streams allowed."
             >
               <Input
                 id="license-cap"
@@ -246,7 +246,7 @@ export function SellLicenseDialog() {
             <div className="flex items-start gap-2.5 rounded-md border border-caution/40 bg-caution/10 px-3 py-2.5">
               <AlertTriangle className="mt-0.5 size-4 shrink-0 text-caution" />
               <p className="text-xs leading-relaxed text-caution">
-                Heads up — selling an exclusive automatically deactivates every
+                Heads up - selling an exclusive automatically deactivates every
                 other active license on this beat. This cannot be undone from
                 here.
               </p>

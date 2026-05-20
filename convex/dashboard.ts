@@ -9,7 +9,7 @@ function monthKey(ts: number) {
 }
 
 /* ============================================================
-   Dashboard — every KPI and chart series the home screen needs,
+   Dashboard - every KPI and chart series the home screen needs,
    computed in one pass so the page makes a single round trip.
    ============================================================ */
 export const overview = query({
@@ -67,7 +67,7 @@ export const overview = query({
 
     // ── Invoices ──
     // A raw "sent"/"viewed" invoice past its due date still carries that
-    // status in the row — so these three cover every outstanding invoice.
+    // status in the row - so these three cover every outstanding invoice.
     const outstanding = invoices.filter(
       (i) => i.status === "sent" || i.status === "viewed" || i.status === "overdue",
     );

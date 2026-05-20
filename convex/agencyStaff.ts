@@ -4,7 +4,7 @@ import { requireCapability } from "./lib/access";
 
 /* ============================================================
    Agency staff CRUD + scope assignment. All mutations gated by
-   agency.staff.* capabilities — see access-policies.
+   agency.staff.* capabilities - see access-policies.
    ============================================================ */
 
 const agencyRoleV = v.union(

@@ -1,7 +1,7 @@
 import { cn } from "@/lib/utils";
 import { clamp } from "@/lib/utils";
 
-/** Slim progress meter — release campaigns, revision budgets, agent quotas. */
+/** Slim progress meter - release campaigns, revision budgets, agent quotas. */
 export function Progress({
   value,
   max = 1,

@@ -86,7 +86,7 @@ export default function InvoiceDetailPage() {
           <InvoiceSheet invoice={invoice} />
         </div>
 
-        {/* Side panel — timeline, actions, links, activity */}
+        {/* Side panel - timeline, actions, links, activity */}
         <aside className="space-y-4">
           <Card>
             <CardHeader>

@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import { currentOrg, assertOrg } from "./lib/tenant";
 
 /* ============================================================
-   Licensing — two revenue streams off the song catalog:
+   Licensing - two revenue streams off the song catalog:
    sync placements (film/TV/ad/game) and beat licenses.
    ============================================================ */
 
@@ -87,7 +87,7 @@ export const moveSyncStage = mutation({
       await ctx.db.insert("activity", {
         orgId,
         kind: "sync.placed",
-        summary: `Sync placed — "${song?.title ?? "Track"}" with ${row.supervisorName}`,
+        summary: `Sync placed - "${song?.title ?? "Track"}" with ${row.supervisorName}`,
         entityType: "song",
         entityId: row.songId,
         accent: "positive",
@@ -168,7 +168,7 @@ export const sellLicense = mutation({
     await ctx.db.insert("activity", {
       orgId,
       kind: "license.sold",
-      summary: `${args.tier.toUpperCase()} license sold — "${song.title}" to ${args.buyerName}`,
+      summary: `${args.tier.toUpperCase()} license sold - "${song.title}" to ${args.buyerName}`,
       entityType: "song",
       entityId: args.songId,
       accent: "positive",

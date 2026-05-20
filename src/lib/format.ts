@@ -1,4 +1,4 @@
-/** Currency — Pulse stores money as integer cents. */
+/** Currency - Pulse stores money as integer cents. */
 export function money(cents: number, opts?: { compact?: boolean }) {
   const dollars = cents / 100;
   return new Intl.NumberFormat("en-US", {
@@ -19,7 +19,7 @@ export function percent(n: number, digits = 0) {
 
 const DAY = 86_400_000;
 
-/** Human relative time — "2h ago", "in 3d", "just now". */
+/** Human relative time - "2h ago", "in 3d", "just now". */
 export function relativeTime(ts: number) {
   const diff = ts - Date.now();
   const abs = Math.abs(diff);
@@ -54,6 +54,6 @@ export function duration(startTs: number, endTs: number) {
 
 /** Musical key display, e.g. "F# Minor". */
 export function musicalKey(key?: string, mode?: string) {
-  if (!key) return "—";
+  if (!key) return "-";
   return `${key}${mode ? ` ${mode}` : ""}`;
 }

@@ -1,8 +1,8 @@
-# Agency Mode Surfaces — Implementation Plan (Cycle 2 of 3)
+# Agency Mode Surfaces - Implementation Plan (Cycle 2 of 3)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build the UI + backend surfaces that let agency operators *actually use* the engine shipped in Cycle 1 — agency staff management, scoped sub-account access, studio member role + override editing, branding, audit log viewer, and the guest magic-link landing pages.
+**Goal:** Build the UI + backend surfaces that let agency operators *actually use* the engine shipped in Cycle 1 - agency staff management, scoped sub-account access, studio member role + override editing, branding, audit log viewer, and the guest magic-link landing pages.
 
 **Architecture:** Backend mutations for agencyMembers + agencyMemberScopes CRUD (`convex/agencyStaff.ts`) and members.ts expansion. Shared access UI components in `src/components/access/`. New Next routes under `(agency)` and `(studio)`. Magic-link guests resolve via an HTTP action that exchanges a token for a guest session cookie. Demo persona switcher extended to browse all four agency roles + guest scopes.
 
@@ -42,9 +42,9 @@
 
 ---
 
-## Phase A — Backend mutations (Tasks 1-4)
+## Phase A - Backend mutations (Tasks 1-4)
 
-## Task 1: agencyStaff module — invite + setRole + remove
+## Task 1: agencyStaff module - invite + setRole + remove
 
 **Files:**
 - Create: `convex/agencyStaff.ts`
@@ -411,7 +411,7 @@ git add convex/audit.ts convex/_generated/api.d.ts
 git commit -m "feat(audit): list query with action + result filters"
 ```
 
-## Phase B — Integration tests (Tasks 5-6)
+## Phase B - Integration tests (Tasks 5-6)
 
 ## Task 5: agencyStaff + members tests
 
@@ -426,7 +426,7 @@ import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api } from "./_generated/api";
 
-describe("agencyStaff — CRUD + scoping", () => {
+describe("agencyStaff - CRUD + scoping", () => {
   let t: ReturnType<typeof convexTest>;
   beforeEach(() => { t = convexTest(schema); });
 
@@ -614,7 +614,7 @@ git add convex/branding.test.ts
 git commit -m "test(branding): plan-tier gate for custom domain + cap-gated writes"
 ```
 
-## Phase C — Shared access components (Tasks 7-9)
+## Phase C - Shared access components (Tasks 7-9)
 
 ## Task 7: RolePicker component
 
@@ -643,7 +643,7 @@ const STUDIO_ROLES = [
   { value: "artist_relations",   label: "Artist Relations",   desc: "Booker / front-of-house; CRM access" },
   { value: "producer",           label: "Producer",           desc: "Runs sessions; signs split sheets" },
   { value: "intern",             label: "Intern",             desc: "Read-only across the board" },
-  { value: "accountant",         label: "Accountant",         desc: "Invoices, payments, refunds — no creative" },
+  { value: "accountant",         label: "Accountant",         desc: "Invoices, payments, refunds - no creative" },
 ] as const;
 
 type Props = {
@@ -757,7 +757,7 @@ type Props = {
 
 /**
  * Override tokens are "+cap" or "-cap" strings; the engine applies them
- * on top of the role default. UI is a simple textarea — power-user.
+ * on top of the role default. UI is a simple textarea - power-user.
  */
 export function CapabilityOverrides({ overrides, onChange }: Props) {
   const [open, setOpen] = React.useState(false);
@@ -851,7 +851,7 @@ git add src/components/access/CapGuard.tsx
 git commit -m "feat(ui): CapGuard client component for hiding UI by capability"
 ```
 
-## Phase D — Agency console pages (Tasks 10-12)
+## Phase D - Agency console pages (Tasks 10-12)
 
 ## Task 10: /agency/staff page
 
@@ -865,7 +865,7 @@ cd "/Users/myindsound/SaaS Build Pack/pulse"
 ls src/app/agency 2>/dev/null || ls "src/app/(agency)/agency"
 ```
 
-(Pick whichever path actually exists — Next 16 may use grouped routes.)
+(Pick whichever path actually exists - Next 16 may use grouped routes.)
 
 - [ ] **Step 2: Write the page**
 
@@ -960,13 +960,13 @@ export default function StaffPage() {
 }
 ```
 
-- [ ] **Step 3: Verify it loads — typecheck + commit**
+- [ ] **Step 3: Verify it loads - typecheck + commit**
 
 ```bash
 cd "/Users/myindsound/SaaS Build Pack/pulse"
 npm run typecheck
 git add src/app
-git commit -m "feat(ui): /agency/staff page — invite + list + role + remove"
+git commit -m "feat(ui): /agency/staff page - invite + list + role + remove"
 ```
 
 ## Task 11: /agency/branding page
@@ -1046,7 +1046,7 @@ export default function BrandingPage() {
 cd "/Users/myindsound/SaaS Build Pack/pulse"
 npm run typecheck
 git add src/app
-git commit -m "feat(ui): /agency/branding page — accent + app name + custom domain"
+git commit -m "feat(ui): /agency/branding page - accent + app name + custom domain"
 ```
 
 ## Task 12: /agency/audit page
@@ -1115,7 +1115,7 @@ export default function AuditPage() {
               </td>
               <td className="p-2 text-xs">{r.viewerId}</td>
               <td className="p-2 font-mono text-xs">{r.action}</td>
-              <td className="p-2 text-xs text-white/50">{r.orgId ?? "—"}</td>
+              <td className="p-2 text-xs text-white/50">{r.orgId ?? "-"}</td>
               <td className="p-2 text-xs">
                 <span className={r.result === "allow" ? "text-emerald-400" : "text-red-400"}>
                   {r.result}
@@ -1137,10 +1137,10 @@ export default function AuditPage() {
 cd "/Users/myindsound/SaaS Build Pack/pulse"
 npm run typecheck
 git add src/app
-git commit -m "feat(ui): /agency/audit page — filterable audit log table"
+git commit -m "feat(ui): /agency/audit page - filterable audit log table"
 ```
 
-## Phase E — Studio members surface (Task 13)
+## Phase E - Studio members surface (Task 13)
 
 ## Task 13: Expand /settings/members
 
@@ -1172,7 +1172,7 @@ Studio members now pick from 8 roles. Power users can customize
 permissions with +cap / -cap tokens."
 ```
 
-## Phase F — Final smoke (Task 14)
+## Phase F - Final smoke (Task 14)
 
 ## Task 14: Full smoke check
 
@@ -1209,11 +1209,11 @@ These are functionally lighter than the cycle 1 + 2 work and form a coherent thi
 
 After Task 14:
 
-1. **Agency Owner** can invite, role-edit, and remove agency staff — covered by `agencyStaff.test.ts`.
-2. **Agency Staff** can be scoped to a subset of sub-accounts — covered by `agencyStaff.test.ts` (`setScopes` + the Cycle-1 scope test).
-3. **Studio Owner** can invite + role-edit studio members across 8 roles — covered by member-related tests.
-4. **Studio Intern** is blocked from branding edits — covered by `branding.test.ts`.
-5. **Plan-tier gates** (custom domain requires Agency) — covered by `branding.test.ts`.
-6. **Audit log** rolls up by agency — covered by Cycle-1 `access-audit.test.ts` + the `/agency/audit` UI exercises the same query.
+1. **Agency Owner** can invite, role-edit, and remove agency staff - covered by `agencyStaff.test.ts`.
+2. **Agency Staff** can be scoped to a subset of sub-accounts - covered by `agencyStaff.test.ts` (`setScopes` + the Cycle-1 scope test).
+3. **Studio Owner** can invite + role-edit studio members across 8 roles - covered by member-related tests.
+4. **Studio Intern** is blocked from branding edits - covered by `branding.test.ts`.
+5. **Plan-tier gates** (custom domain requires Agency) - covered by `branding.test.ts`.
+6. **Audit log** rolls up by agency - covered by Cycle-1 `access-audit.test.ts` + the `/agency/audit` UI exercises the same query.
 
 All six verifiable via `npm test`.

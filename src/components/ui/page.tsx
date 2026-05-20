@@ -1,7 +1,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-/** Standard page header — overline, title, optional description + actions. */
+/** Standard page header - overline, title, optional description + actions. */
 export function PageHeader({
   overline,
   title,

@@ -76,7 +76,7 @@ export default function StudioDetailPage() {
   const detail = useQuery(api.rooms.get, { id: roomId });
   const storage = useQuery(api.equipment.storage);
 
-  // Stable "now" snapshot for the week range — keeps render pure.
+  // Stable "now" snapshot for the week range - keeps render pure.
   const [nowMs] = React.useState(() => Date.now());
   const weekStart = React.useMemo(() => startOfWeek(nowMs), [nowMs]);
   const weekEnd = weekStart + 7 * DAY_MS - 1;
@@ -257,7 +257,7 @@ export default function StudioDetailPage() {
         />
         <StatTile
           label="Hourly rate"
-          value={room.hourlyRateCents !== undefined ? money(room.hourlyRateCents) : "—"}
+          value={room.hourlyRateCents !== undefined ? money(room.hourlyRateCents) : "-"}
           icon={DollarSign}
           hint={room.minimumHours ? `${room.minimumHours}h minimum` : undefined}
         />
@@ -269,7 +269,7 @@ export default function StudioDetailPage() {
         />
         <StatTile
           label="Deposit"
-          value={room.depositPct !== undefined ? `${room.depositPct}%` : "—"}
+          value={room.depositPct !== undefined ? `${room.depositPct}%` : "-"}
           icon={Wrench}
           hint={room.condition ?? undefined}
         />
@@ -522,7 +522,7 @@ export default function StudioDetailPage() {
         )}
       </section>
 
-      {/* Add new equipment — the dialog already has a "install in" picker;
+      {/* Add new equipment - the dialog already has a "install in" picker;
           we just preselect this room as a default via its initial form. */}
       <EquipmentDialog open={addOpen} onOpenChange={setAddOpen} />
 

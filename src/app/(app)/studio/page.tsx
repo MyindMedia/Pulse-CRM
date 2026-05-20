@@ -57,7 +57,7 @@ export default function StudioPage() {
       <PageHeader
         overline="Operations"
         title="Studio"
-        description="Every room and the people who run them — the physical backbone behind the catalog. Gear lives in Inventory."
+        description="Every room and the people who run them - the physical backbone behind the catalog. Gear lives in Inventory."
         actions={
           <>
             <Button variant="outline" onClick={() => setAddMemberOpen(true)}>

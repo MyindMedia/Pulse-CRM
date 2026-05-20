@@ -9,7 +9,7 @@ const statusV = v.union(
   v.literal("dismissed"),
 );
 
-/** Open insights — the AI nudge feed. */
+/** Open insights - the AI nudge feed. */
 export const open = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, { limit }) => {
@@ -53,7 +53,7 @@ export const setStatus = mutation({
   },
 });
 
-/** Bulk-mark every "new" insight as seen — used when the panel opens. */
+/** Bulk-mark every "new" insight as seen - used when the panel opens. */
 export const markAllSeen = mutation({
   args: {},
   handler: async (ctx) => {

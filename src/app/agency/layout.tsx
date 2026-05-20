@@ -8,7 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadingPanel } from "@/components/ui/feedback";
 
-/* The Pulse Agency wordmark — a command-center variant of the studio mark. */
+/* The Pulse Agency wordmark - a command-center variant of the studio mark. */
 function AgencyWordmark() {
   return (
     <Link href="/agency" className="flex items-center gap-2.5">
@@ -33,7 +33,7 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
   return (
     <TooltipProvider delayDuration={300}>
       <div className="min-h-dvh bg-ink">
-        {/* Slim console top bar — distinct from the studio chrome, no sidebar. */}
+        {/* Slim console top bar - distinct from the studio chrome, no sidebar. */}
         <header className="sticky top-0 z-30 border-b border-hairline bg-ink-2/90 backdrop-blur-md">
           <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4 lg:px-8">
             <AgencyWordmark />

@@ -6,7 +6,7 @@ import { cn } from "@/lib/utils";
 
 export const TooltipProvider = TooltipPrimitive.Provider;
 
-/** Self-contained tooltip — wraps trigger + content in one component. */
+/** Self-contained tooltip - wraps trigger + content in one component. */
 export function Tooltip({
   children,
   label,

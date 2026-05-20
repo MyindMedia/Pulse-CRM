@@ -52,7 +52,7 @@ export type RoomItem = {
 };
 
 /**
- * A single bookable room — status, rate, condition, a status menu, and the
+ * A single bookable room - status, rate, condition, a status menu, and the
  * inventory of equipment installed inside it. Pass `equipment` from a per-room
  * `api.rooms.get` / `api.equipment.forRoom` query; `undefined` shows a skeleton.
  */
@@ -111,7 +111,7 @@ export function RoomCard({
         </div>
       )}
       <CardContent className="flex flex-1 flex-col gap-3 p-4 pt-4">
-        {/* Header — name, type, status menu */}
+        {/* Header - name, type, status menu */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="truncate font-display text-sm font-semibold text-bone">

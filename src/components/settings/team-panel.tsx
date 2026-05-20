@@ -33,7 +33,7 @@ import {
   type TeamMember,
 } from "@/components/studio/member-card";
 
-/** Role explainer — owner / manager / engineer access summary. */
+/** Role explainer - owner / manager / engineer access summary. */
 function RoleExplainer() {
   return (
     <Card>
@@ -66,7 +66,7 @@ function RoleExplainer() {
   );
 }
 
-/** Team administration — invite, edit role, remove members. */
+/** Team administration - invite, edit role, remove members. */
 export function TeamPanel() {
   const members = useQuery(api.members.list) as TeamMember[] | undefined;
   const updateMember = useMutation(api.members.update);
@@ -156,7 +156,7 @@ export function TeamPanel() {
                       </TD>
                       <TD className="text-ash">
                         {member.email ?? (
-                          <span className="text-ash-dim">—</span>
+                          <span className="text-ash-dim">-</span>
                         )}
                       </TD>
                       <TD>
@@ -170,7 +170,7 @@ export function TeamPanel() {
                               ` +${member.skills.length - 3}`}
                           </span>
                         ) : (
-                          <span className="text-xs text-ash-dim">—</span>
+                          <span className="text-xs text-ash-dim">-</span>
                         )}
                       </TD>
                       <TD className="text-right">

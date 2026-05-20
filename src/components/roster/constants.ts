@@ -1,4 +1,4 @@
-/** Shared roster enums — kept here so dialogs and filters agree. */
+/** Shared roster enums - kept here so dialogs and filters agree. */
 
 export const ARTIST_TYPES = [
   { value: "artist", label: "Artist" },

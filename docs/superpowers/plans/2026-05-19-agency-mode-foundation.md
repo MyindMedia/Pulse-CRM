@@ -1,8 +1,8 @@
-# Agency Mode Foundation — Implementation Plan (Cycle 1 of 3)
+# Agency Mode Foundation - Implementation Plan (Cycle 1 of 3)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Land the schema additions, central Access Engine, capability policies, and capability checks across the existing Convex surface — every existing function keeps working via a compat shim; new tables and the Access Engine are tested green; UI surfaces and billing come in Cycles 2 & 3.
+**Goal:** Land the schema additions, central Access Engine, capability policies, and capability checks across the existing Convex surface - every existing function keeps working via a compat shim; new tables and the Access Engine are tested green; UI surfaces and billing come in Cycles 2 & 3.
 
 **Architecture:** One central `requireCapability(ctx, cap, resource?)` resolver lives at `convex/lib/access.ts`. It looks up a `Viewer` (agency_member | studio_member | guest) from Clerk identity or a magic-link token, checks the static capability map in `convex/lib/access-policies.ts`, audits sensitive actions to `auditEvents`, and either returns the viewer or throws. The existing `currentOrg(ctx)` helper becomes a thin wrapper around `resolveViewer().orgId` so all 25 existing Convex files keep working unchanged.
 
@@ -91,7 +91,7 @@ Modify `/Users/myindsound/SaaS Build Pack/pulse/package.json` `"scripts"` to:
 }
 ```
 
-(The `prebuild` line is the gotcha from cross-project memory `gotcha_convex_deploy_cmd_order` — Netlify builds need codegen before `next build`.)
+(The `prebuild` line is the gotcha from cross-project memory `gotcha_convex_deploy_cmd_order` - Netlify builds need codegen before `next build`.)
 
 - [ ] **Step 5: Smoke check**
 
@@ -114,7 +114,7 @@ Follow-up tasks introduce real tests."
 
 ---
 
-## Task 2: Schema — add `agencies` table
+## Task 2: Schema - add `agencies` table
 
 **Files:**
 - Modify: `convex/schema.ts`
@@ -124,7 +124,7 @@ Follow-up tasks introduce real tests."
 In `convex/schema.ts`, after the closing brace of the `users` table and before `appState`, insert:
 
 ```ts
-  // ── Agency — the SaaS tenant. Only exists for Pro/Agency tier customers.
+  // ── Agency - the SaaS tenant. Only exists for Pro/Agency tier customers.
   //    Base-tier studios have no agency row. orgs.agencyId is optional. ──
   agencies: defineTable({
     agencyId: v.string(),                 // Clerk org_xxx of agency-level Clerk org
@@ -178,7 +178,7 @@ studios have no agency row; orgs.agencyId stays optional."
 
 ---
 
-## Task 3: Schema — add `agencyMembers` + `agencyMemberScopes`
+## Task 3: Schema - add `agencyMembers` + `agencyMemberScopes`
 
 **Files:**
 - Modify: `convex/schema.ts`
@@ -188,7 +188,7 @@ studios have no agency row; orgs.agencyId stays optional."
 After the `agencies` table block in `convex/schema.ts`, insert:
 
 ```ts
-  // ── Agency members — humans with access to the agency console. The owner
+  // ── Agency members - humans with access to the agency console. The owner
   //    plus zero-or-more agency staff. NOT the same as members inside a sub-account. ──
   agencyMembers: defineTable({
     agencyId: v.string(),
@@ -210,7 +210,7 @@ After the `agencies` table block in `convex/schema.ts`, insert:
     .index("by_clerk", ["clerkUserId"])
     .index("by_agency_clerk", ["agencyId", "clerkUserId"]),
 
-  // ── Agency-member scopes — which sub-accounts a "staff" role can reach.
+  // ── Agency-member scopes - which sub-accounts a "staff" role can reach.
   //    Empty for owner/admin (they get all). One row per (agencyMember, subAccountOrgId). ──
   agencyMemberScopes: defineTable({
     agencyId: v.string(),
@@ -233,7 +233,7 @@ git commit -m "feat(schema): add agencyMembers + agencyMemberScopes tables"
 
 ---
 
-## Task 4: Schema — add `collaboratorGrants`
+## Task 4: Schema - add `collaboratorGrants`
 
 **Files:**
 - Modify: `convex/schema.ts`
@@ -243,7 +243,7 @@ git commit -m "feat(schema): add agencyMembers + agencyMemberScopes tables"
 After `agencyMemberScopes`, insert:
 
 ```ts
-  // ── Magic-link collaborator grants — scoped pass for a non-account user.
+  // ── Magic-link collaborator grants - scoped pass for a non-account user.
   //    Token-backed, time-bounded. Music-industry-unique pattern. ──
   collaboratorGrants: defineTable({
     orgId: v.string(),                    // issuing studio
@@ -283,7 +283,7 @@ git commit -m "feat(schema): add collaboratorGrants table"
 
 ---
 
-## Task 5: Schema — add `auditEvents`
+## Task 5: Schema - add `auditEvents`
 
 **Files:**
 - Modify: `convex/schema.ts`
@@ -293,7 +293,7 @@ git commit -m "feat(schema): add collaboratorGrants table"
 After `collaboratorGrants`, insert:
 
 ```ts
-  // ── Audit log — every Access Engine deny/grant for sensitive actions ──
+  // ── Audit log - every Access Engine deny/grant for sensitive actions ──
   auditEvents: defineTable({
     agencyId: v.optional(v.string()),
     orgId: v.optional(v.string()),
@@ -323,7 +323,7 @@ git commit -m "feat(schema): add auditEvents table"
 
 ---
 
-## Task 6: Schema — modify `orgs` (agencyId, tier, by_agency index)
+## Task 6: Schema - modify `orgs` (agencyId, tier, by_agency index)
 
 **Files:**
 - Modify: `convex/schema.ts`
@@ -333,7 +333,7 @@ git commit -m "feat(schema): add auditEvents table"
 In `convex/schema.ts` find the existing `orgs` table definition. Inside the `defineTable({...})` object, after the existing `createdByAgency` line, add:
 
 ```ts
-    // NEW (cycle 1 — agency mode)
+    // NEW (cycle 1 - agency mode)
     agencyId: v.optional(v.string()),     // parent agency, null for base tier
     tier: v.optional(v.union(             // cached for cap-check perf
       v.literal("studio"),
@@ -359,7 +359,7 @@ git commit -m "feat(schema): add orgs.agencyId + orgs.tier + by_agency index"
 
 ---
 
-## Task 7: Schema — extend `members.role` enum + add `capabilityOverrides`
+## Task 7: Schema - extend `members.role` enum + add `capabilityOverrides`
 
 **Files:**
 - Modify: `convex/schema.ts`
@@ -500,7 +500,7 @@ Create `/Users/myindsound/SaaS Build Pack/pulse/convex/lib/plans.ts`:
 
 ```ts
 /* ============================================================
-   Plan limits — single source of truth for what each tier gets.
+   Plan limits - single source of truth for what each tier gets.
    Used by createSubaccount, grants.issue, branding writes, and
    the billing webhook. Cycle 3 wires Stripe price IDs to these.
    ============================================================ */
@@ -512,7 +512,7 @@ export type TierLimits = {
   magicLinkGrantsPerMonth: number;
   whitelabel: false | "studio_level" | "agency_level";
   customDomain: boolean;
-  /** Monthly USD price in cents — wired to Stripe in cycle 3. */
+  /** Monthly USD price in cents - wired to Stripe in cycle 3. */
   priceCents: number;
 };
 
@@ -569,7 +569,7 @@ Create `/Users/myindsound/SaaS Build Pack/pulse/convex/lib/access-policies.ts`:
 import type { AgencyRole, StudioRole, GrantScope, Capability } from "./access-types";
 
 /* ============================================================
-   Capability policy map — the single source of truth for what
+   Capability policy map - the single source of truth for what
    each role can do. Edits here = behavior change everywhere.
    Capability strings are <module>.<action>; "own" qualifier is
    handled by the engine (viewer.scopedSubAccountOrgIds, etc.).
@@ -602,8 +602,8 @@ export const AGENCY_ROLE_CAPABILITIES: Record<AgencyRole, ReadonlyArray<Capabili
     "audit.read",
   ],
   staff: [
-    "agency.subaccount.pause",       // scoped — engine enforces by sub-account list
-    "act_as_studio",                  // scoped — same
+    "agency.subaccount.pause",       // scoped - engine enforces by sub-account list
+    "act_as_studio",                  // scoped - same
   ],
   billing: [
     "billing.read",
@@ -959,7 +959,7 @@ git commit -m "test(access): cover policy map + override merging"
 
 ---
 
-## Task 12: Create `convex/lib/access.ts` — types + audit helper
+## Task 12: Create `convex/lib/access.ts` - types + audit helper
 
 **Files:**
 - Create: `convex/lib/access.ts`
@@ -984,7 +984,7 @@ import type {
 } from "./access-types";
 
 /* ============================================================
-   Access Engine — one resolver, one require, one audit hook.
+   Access Engine - one resolver, one require, one audit hook.
    Every Convex business function should either:
      • call requireCapability(ctx, "<cap>", { orgId, entityId })
      • or accept the legacy currentOrg() compat shim (read paths)
@@ -1063,7 +1063,7 @@ git commit -m "feat(access): scaffold engine with audit helper + cap builders"
 
 - [ ] **Step 1: Append resolveViewer**
 
-Append to `/Users/myindsound/SaaS Build Pack/pulse/convex/lib/access.ts` (just before the `export { audit, ... }` line — move that export to the bottom):
+Append to `/Users/myindsound/SaaS Build Pack/pulse/convex/lib/access.ts` (just before the `export { audit, ... }` line - move that export to the bottom):
 
 ```ts
 // ── resolveViewer ───────────────────────────────────────────
@@ -1234,7 +1234,7 @@ export async function requireCapability(
 // ── systemViewer ────────────────────────────────────────────
 /**
  * Trusted internal viewer for system actions (Stripe webhooks, scheduled jobs).
- * Only callable from internalMutation / internalAction code paths — there is
+ * Only callable from internalMutation / internalAction code paths - there is
  * no client surface to obtain this; it's a constructor helper.
  */
 export function systemViewer(orgId?: string): StudioViewer {
@@ -1293,7 +1293,7 @@ export const DEMO_ORG = "pulse-demo";
 type Ctx = QueryCtx | MutationCtx;
 
 /**
- * Resolve the caller's organization. Backed by the Access Engine —
+ * Resolve the caller's organization. Backed by the Access Engine -
  * agency, studio, and guest viewers all expose an `orgId`. orgId is
  * never trusted from client arguments; always derived here.
  */
@@ -1302,7 +1302,7 @@ export async function currentOrg(ctx: Ctx): Promise<string> {
   return viewer.orgId ?? DEMO_ORG;
 }
 
-/** A human label for the caller — used for activity/comment attribution. */
+/** A human label for the caller - used for activity/comment attribution. */
 export async function currentActor(ctx: Ctx): Promise<string> {
   const identity = await ctx.auth.getUserIdentity();
   return identity?.name ?? identity?.email ?? "Studio";
@@ -1332,7 +1332,7 @@ export type AgencyViewer = {
   role: AgencyRole;
   scopedSubAccountOrgIds: string[] | "all";
   capabilities: Set<Capability>;
-  orgId?: string; // NEW — active sub-account (from appState.activeOrgId)
+  orgId?: string; // NEW - active sub-account (from appState.activeOrgId)
 };
 ```
 
@@ -1378,7 +1378,7 @@ import { v } from "convex/values";
 import { resolveViewer, requireCapability, AccessError } from "./lib/access";
 
 /* ============================================================
-   Test harness — these are referenced only by *.test.ts files.
+   Test harness - these are referenced only by *.test.ts files.
    In production Convex they sit unused; safe to leave deployed.
    ============================================================ */
 
@@ -1421,7 +1421,7 @@ import { convexTest } from "convex-test";
 import schema from "../schema";
 import { api } from "../_generated/api";
 
-describe("access engine — resolveViewer", () => {
+describe("access engine - resolveViewer", () => {
   let t: ReturnType<typeof convexTest>;
   beforeEach(() => { t = convexTest(schema); });
 
@@ -1476,7 +1476,7 @@ describe("access engine — resolveViewer", () => {
   });
 });
 
-describe("access engine — requireCapability", () => {
+describe("access engine - requireCapability", () => {
   let t: ReturnType<typeof convexTest>;
   beforeEach(() => { t = convexTest(schema); });
 
@@ -1586,7 +1586,7 @@ denial, and capability-denied paths."
 
 ---
 
-## Task 17: Create `convex/grants.ts` — magic-link grant CRUD
+## Task 17: Create `convex/grants.ts` - magic-link grant CRUD
 
 **Files:**
 - Create: `convex/grants.ts`
@@ -1692,7 +1692,7 @@ export const lookupByToken = query({
   },
 });
 
-/** Internal — bumped on every successful guest-token use. */
+/** Internal - bumped on every successful guest-token use. */
 export const markUsed = internalMutation({
   args: { grantId: v.id("collaboratorGrants") },
   handler: async (ctx, { grantId }) => {
@@ -1737,7 +1737,7 @@ import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api } from "./_generated/api";
 
-describe("grants — lifecycle", () => {
+describe("grants - lifecycle", () => {
   let t: ReturnType<typeof convexTest>;
   beforeEach(() => { t = convexTest(schema); });
 
@@ -1976,7 +1976,7 @@ import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api } from "./_generated/api";
 
-describe("agency — plan-cap enforcement", () => {
+describe("agency - plan-cap enforcement", () => {
   let t: ReturnType<typeof convexTest>;
   beforeEach(() => { t = convexTest(schema); });
 
@@ -2063,7 +2063,7 @@ git commit -m "test(agency): pro cap blocks 3rd sub-account; setStatus gated"
 
 ---
 
-## Task 21: Migration mutation — `backfillOrgTier`
+## Task 21: Migration mutation - `backfillOrgTier`
 
 **Files:**
 - Create: `convex/migrations.ts`
@@ -2111,7 +2111,7 @@ export const runBackfillOrgTier = mutation({
   handler: async (ctx) => {
     await requireCapability(ctx, "agency.viewAll");
     return await ctx.runMutation(
-      // @ts-ignore — runMutation typing on internal ref
+      // @ts-ignore - runMutation typing on internal ref
       "migrations:backfillOrgTier" as any,
       {},
     );
@@ -2145,7 +2145,7 @@ import { convexTest } from "convex-test";
 import schema from "../schema";
 import { api } from "../_generated/api";
 
-describe("access engine — audit log", () => {
+describe("access engine - audit log", () => {
   let t: ReturnType<typeof convexTest>;
   beforeEach(() => { t = convexTest(schema); });
 
@@ -2214,7 +2214,7 @@ git commit -m "test(access): audit log allow + deny + non-sensitive skip"
 ## Task 23: Final cycle-1 smoke check
 
 **Files:**
-- (none — verification only)
+- (none - verification only)
 
 - [ ] **Step 1: Run the full quality bar**
 
@@ -2245,7 +2245,7 @@ git tag agency-mode-foundation-complete
 git log --oneline -25
 ```
 
-Show the last 25 commits — every task should produce one.
+Show the last 25 commits - every task should produce one.
 
 ---
 
@@ -2264,7 +2264,7 @@ All six of these are covered by automated tests committed in this cycle.
 
 ---
 
-## Out of scope (deliberately — cycles 2 and 3 own this)
+## Out of scope (deliberately - cycles 2 and 3 own this)
 
 - Any UI surface (agency console expansion, studio settings, guest pages, artist portal)
 - Magic-link HTTP action that stamps a guest token into a sessionless context

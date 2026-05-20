@@ -62,7 +62,7 @@ export default function ReleasesPage() {
       <PageHeader
         overline="Marketing"
         title="Releases"
-        description="Every rollout in flight — from teaser drop to release-day promo. Build a campaign and Pulse schedules the twelve steps."
+        description="Every rollout in flight - from teaser drop to release-day promo. Build a campaign and Pulse schedules the twelve steps."
         actions={<BuildCampaignDialog />}
       />
 
@@ -81,7 +81,7 @@ export default function ReleasesPage() {
           <StatTile label="Released" value={String(stats.released)} icon={CheckCircle2} />
           <StatTile
             label="Next release"
-            value={stats.nextRelease ? shortDate(stats.nextRelease) : "—"}
+            value={stats.nextRelease ? shortDate(stats.nextRelease) : "-"}
             icon={CalendarClock}
             hint={stats.nextRelease ? "soonest scheduled" : "nothing on the books"}
           />

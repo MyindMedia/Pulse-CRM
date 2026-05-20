@@ -9,7 +9,7 @@ type Props = {
 
 /**
  * Override tokens are "+cap" or "-cap" strings; the engine applies them
- * on top of the role default. UI is a simple textarea — power-user.
+ * on top of the role default. UI is a simple textarea - power-user.
  */
 export function CapabilityOverrides({ overrides, onChange }: Props) {
   const [open, setOpen] = React.useState(false);

@@ -4,7 +4,7 @@ import { requireCapability } from "./lib/access";
 import { PLAN_LIMITS } from "./lib/plans";
 
 /* ============================================================
-   Branding mutations — both agency-level (white-label) and
+   Branding mutations - both agency-level (white-label) and
    per-sub-account. All gated by branding.edit + a plan-tier
    check for premium features (custom domain → Agency tier).
    ============================================================ */

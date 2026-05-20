@@ -49,7 +49,7 @@ function Row({
   );
 }
 
-/** The message log for one booking — read-only, simulated sends. */
+/** The message log for one booking - read-only, simulated sends. */
 function MessageLog({ sessionId }: { sessionId: BookingRow["_id"] }) {
   const messages = useQuery(api.notifications.forSession, { sessionId }) as
     | NotificationRow[]
@@ -99,7 +99,7 @@ function MessageLog({ sessionId }: { sessionId: BookingRow["_id"] }) {
         </ul>
       )}
       <p className="text-[0.625rem] text-ash-dim">
-        Confirmations are simulated and logged — not actually emailed yet.
+        Confirmations are simulated and logged - not actually emailed yet.
       </p>
     </div>
   );

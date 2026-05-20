@@ -30,7 +30,7 @@ import { ACCENT_SWATCHES, type Org } from "@/components/settings/types";
 const HEX_RE = /^#?[0-9a-fA-F]{6}$/;
 const DEFAULT_HEADLINE = "Book studio time";
 
-/** Branding settings — logo, accent color, identity and booking-page theming. */
+/** Branding settings - logo, accent color, identity and booking-page theming. */
 export function BrandingPanel({ org }: { org: Org }) {
   const updateOrg = useMutation(api.orgs.update);
   const setLogo = useMutation(api.orgs.setLogo);
@@ -163,7 +163,7 @@ export function BrandingPanel({ org }: { org: Org }) {
                 <p className="text-[0.6875rem] text-ash-dim">
                   {org.logoUrl
                     ? "Uploading replaces the current logo immediately."
-                    : "No logo yet — Pulse falls back to a disc mark."}
+                    : "No logo yet - Pulse falls back to a disc mark."}
                 </p>
               </div>
             </div>

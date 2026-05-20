@@ -19,7 +19,7 @@ export default function SignInPage() {
           <h1 className="font-display text-2xl font-bold text-bone">No sign-in required</h1>
           <p className="text-sm text-ash">
             Clerk is not configured, so Pulse is running in demo mode. Add your Clerk keys to
-            enable real studio logins — see CLERK-SETUP.md.
+            enable real studio logins - see CLERK-SETUP.md.
           </p>
           <Link href="/dashboard" className="inline-block text-sm font-medium text-gold hover:underline">
             Continue to the dashboard

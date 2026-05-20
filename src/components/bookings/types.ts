@@ -1,5 +1,5 @@
 /* ============================================================
-   Bookings module — shared types and money math for the staff
+   Bookings module - shared types and money math for the staff
    command center over online bookings, holds and deposits.
    ============================================================ */
 
@@ -68,7 +68,7 @@ export type BookingMoney = {
   deposit: number;
   balance: number;
   fullyPaid: boolean;
-  /** 0..1 — paid over total. */
+  /** 0..1 - paid over total. */
   ratio: number;
 };
 

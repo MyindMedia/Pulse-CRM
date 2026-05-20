@@ -1,5 +1,5 @@
 /* ============================================================
-   Studio module enums — room status, member roles, and the
+   Studio module enums - room status, member roles, and the
    equipment category / status display maps shared by the
    Studio room cards and the Inventory page. One source of
    truth for both modules; kept DRY and type-correct.
@@ -42,7 +42,7 @@ type Tone = "neutral" | "gold" | "positive" | "caution" | "critical" | "info" | 
    Rooms
    ------------------------------------------------------------ */
 
-/** Status display map — label + Badge tone. Used for both rooms and gear. */
+/** Status display map - label + Badge tone. Used for both rooms and gear. */
 export const ROOM_STATUS: Record<string, { label: string; tone: Tone }> = {
   available: { label: "Available", tone: "positive" },
   in_use: { label: "In use", tone: "info" },
@@ -57,7 +57,7 @@ export const ROOM_STATUSES: { value: RoomStatus; label: string }[] = [
   { value: "retired", label: "Retired" },
 ];
 
-/** Common room types — offered in the Add room picker, free text still allowed. */
+/** Common room types - offered in the Add room picker, free text still allowed. */
 export const ROOM_TYPES: string[] = [
   "Live room",
   "Mix suite",
@@ -67,10 +67,10 @@ export const ROOM_TYPES: string[] = [
 ];
 
 /* ------------------------------------------------------------
-   Equipment — category metadata + status display
+   Equipment - category metadata + status display
    ------------------------------------------------------------ */
 
-/** Category metadata — label, plural, and the lucide icon per category. */
+/** Category metadata - label, plural, and the lucide icon per category. */
 export const EQUIPMENT_CATEGORIES: {
   value: EquipmentCategory;
   label: string;
@@ -100,7 +100,7 @@ export function categoryMeta(category: string) {
   );
 }
 
-/** Equipment status display map — label + Badge tone. */
+/** Equipment status display map - label + Badge tone. */
 export const EQUIPMENT_STATUS: Record<string, { label: string; tone: Tone }> = {
   available: { label: "Available", tone: "positive" },
   in_use: { label: "In use", tone: "info" },
@@ -124,7 +124,7 @@ export function statusMeta(status: string) {
    Team roles
    ------------------------------------------------------------ */
 
-/** Team role display map — label + Badge tone. */
+/** Team role display map - label + Badge tone. */
 export const MEMBER_ROLE: Record<string, { label: string; tone: Tone }> = {
   owner:              { label: "Owner",             tone: "solid" },
   manager:            { label: "Manager",           tone: "gold" },
@@ -140,7 +140,7 @@ export const MEMBER_ROLES: { value: MemberRole; label: string; blurb: string }[]
   {
     value: "owner",
     label: "Owner",
-    blurb: "Full access — workspace settings, billing, the team and every record.",
+    blurb: "Full access - workspace settings, billing, the team and every record.",
   },
   {
     value: "manager",
@@ -150,31 +150,31 @@ export const MEMBER_ROLES: { value: MemberRole; label: string; blurb: string }[]
   {
     value: "engineer",
     label: "Engineer",
-    blurb: "Works the floor — runs sessions, logs takes and updates song progress.",
+    blurb: "Works the floor - runs sessions, logs takes and updates song progress.",
   },
   {
     value: "assistant_engineer",
     label: "Assistant engineer",
-    blurb: "Narrower scope — runs assigned sessions and uploads stems, no approvals.",
+    blurb: "Narrower scope - runs assigned sessions and uploads stems, no approvals.",
   },
   {
     value: "artist_relations",
     label: "Artist relations",
-    blurb: "Front-of-house — books sessions, edits artists, runs the pipeline.",
+    blurb: "Front-of-house - books sessions, edits artists, runs the pipeline.",
   },
   {
     value: "producer",
     label: "Producer",
-    blurb: "In-house producer — runs sessions, signs split sheets, drives a song.",
+    blurb: "In-house producer - runs sessions, signs split sheets, drives a song.",
   },
   {
     value: "intern",
     label: "Intern",
-    blurb: "Read-only — see everything, change nothing.",
+    blurb: "Read-only - see everything, change nothing.",
   },
   {
     value: "accountant",
     label: "Accountant",
-    blurb: "Money only — invoices, payments, refunds, licensing. No creative access.",
+    blurb: "Money only - invoices, payments, refunds, licensing. No creative access.",
   },
 ];

@@ -1,4 +1,4 @@
-# Agency Mode Billing & Onboarding — Implementation Plan (Cycle 3 of 3)
+# Agency Mode Billing & Onboarding - Implementation Plan (Cycle 3 of 3)
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans. Steps use checkbox (`- [ ]`) syntax.
 
@@ -84,7 +84,7 @@ export function priceIdForTier(tier: TierKey): string {
   return v;
 }
 
-/** Reverse lookup — used by the webhook to flip agencies.plan. */
+/** Reverse lookup - used by the webhook to flip agencies.plan. */
 export function tierForPriceId(priceId: string): TierKey | null {
   for (const tier of ["studio", "pro", "agency"] as TierKey[]) {
     if (process.env[TIER_PRICE_ENV[tier]] === priceId) return tier;
@@ -118,7 +118,7 @@ import type { TierKey } from "./lib/plans";
 
 const tierV = v.union(v.literal("studio"), v.literal("pro"), v.literal("agency"));
 
-/** Public action — start a Stripe Checkout session for the chosen tier. */
+/** Public action - start a Stripe Checkout session for the chosen tier. */
 export const beginCheckout = action({
   args: { tier: tierV, agencyName: v.optional(v.string()) },
   handler: async (ctx, args) => {
@@ -151,7 +151,7 @@ export const beginCheckout = action({
   },
 });
 
-/** Public action — open the Stripe Customer Portal for the caller. */
+/** Public action - open the Stripe Customer Portal for the caller. */
 export const openCustomerPortal = action({
   args: {},
   handler: async (ctx) => {
@@ -172,7 +172,7 @@ export const openCustomerPortal = action({
   },
 });
 
-/** Internal — look up a Stripe customer id by Clerk user id (via agencies/orgs). */
+/** Internal - look up a Stripe customer id by Clerk user id (via agencies/orgs). */
 export const _customerIdForUser = internalMutation({
   args: { clerkUserId: v.string() },
   handler: async (ctx, { clerkUserId }) => {
@@ -185,7 +185,7 @@ export const _customerIdForUser = internalMutation({
   },
 });
 
-/** Public query — read the caller's current plan + status. */
+/** Public query - read the caller's current plan + status. */
 export const myPlan = query({
   args: {},
   handler: async (ctx) => {
@@ -237,7 +237,7 @@ const eventV = v.object({
   data: v.any(),
 });
 
-/** Idempotent event ledger — drop duplicate Stripe webhook deliveries. */
+/** Idempotent event ledger - drop duplicate Stripe webhook deliveries. */
 async function alreadyProcessed(ctx: any, eventId: string): Promise<boolean> {
   // We piggyback on auditEvents with viewerType=guest, action=stripe.event.
   const existing = await ctx.db

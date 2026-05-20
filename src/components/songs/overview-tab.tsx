@@ -39,7 +39,7 @@ export function OverviewTab({ song }: { song: OverviewSong }) {
   );
 }
 
-/* ── Creative brief — inline editable ── */
+/* ── Creative brief - inline editable ── */
 function BriefCard({ song }: { song: OverviewSong }) {
   const update = useMutation(api.songs.update);
   const [editing, setEditing] = useState(false);
@@ -214,7 +214,7 @@ function ReferenceTracksCard({ song }: { song: OverviewSong }) {
                 />
               </Field>
             </div>
-            <Field label="Note" htmlFor="ref-note" hint="Optional — what to listen for.">
+            <Field label="Note" htmlFor="ref-note" hint="Optional - what to listen for.">
               <Input
                 id="ref-note"
                 value={note}
@@ -242,7 +242,7 @@ function ReferenceTracksCard({ song }: { song: OverviewSong }) {
   );
 }
 
-/* ── Metadata vault — ISRC / ISWC inline editable ── */
+/* ── Metadata vault - ISRC / ISWC inline editable ── */
 function MetadataVaultCard({ song }: { song: OverviewSong }) {
   const update = useMutation(api.songs.update);
   const [editing, setEditing] = useState(false);
@@ -292,7 +292,7 @@ function MetadataVaultCard({ song }: { song: OverviewSong }) {
       <CardContent className="space-y-3">
         {editing ? (
           <>
-            <Field label="ISRC" htmlFor="meta-isrc" hint="Recording code — unique per song.">
+            <Field label="ISRC" htmlFor="meta-isrc" hint="Recording code - unique per song.">
               <Input
                 id="meta-isrc"
                 value={isrc}
@@ -383,7 +383,7 @@ function RevisionBudgetCard({ song }: { song: OverviewSong }) {
         />
         <p className="text-xs leading-relaxed text-ash-dim">
           {over
-            ? "This song is past its included revisions — bill the overage or upsell a revision pack."
+            ? "This song is past its included revisions - bill the overage or upsell a revision pack."
             : "Each revision round is consumed from the Deliverables tab."}
         </p>
       </CardContent>

@@ -49,8 +49,8 @@ function summarizeRun(out: {
   add(out.started, "session started", "sessions started");
   add(out.completed, "session completed", "sessions completed");
   return parts.length > 0
-    ? `Automation ran — ${parts.join(", ")}.`
-    : "Automation ran — nothing needed attention.";
+    ? `Automation ran - ${parts.join(", ")}.`
+    : "Automation ran - nothing needed attention.";
 }
 
 export default function BookingsPage() {
@@ -62,7 +62,7 @@ export default function BookingsPage() {
   const [selected, setSelected] = React.useState<BookingRow | null>(null);
   const [running, setRunning] = React.useState(false);
 
-  // Keep the open drawer in sync with the live query — payment recorded
+  // Keep the open drawer in sync with the live query - payment recorded
   // in the sheet updates the underlying row, so re-resolve it.
   const [prevSessions, setPrevSessions] = React.useState(sessions);
   if (prevSessions !== sessions) {
@@ -131,7 +131,7 @@ export default function BookingsPage() {
       <PageHeader
         overline="Operations"
         title="Bookings"
-        description="The command center for online bookings — holds, deposits, balances and the automation that keeps the calendar honest."
+        description="The command center for online bookings - holds, deposits, balances and the automation that keeps the calendar honest."
         actions={
           <Button onClick={handleRun} disabled={running}>
             {running ? (
@@ -206,7 +206,7 @@ export default function BookingsPage() {
                 onSelect={setSelected}
               />
               <BookingLane
-                title="Confirmed — balance due"
+                title="Confirmed - balance due"
                 description="No confirmed bookings are waiting on a balance."
                 bookings={lanes.balanceDue}
                 accent="info"

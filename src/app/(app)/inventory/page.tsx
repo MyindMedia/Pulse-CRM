@@ -94,7 +94,7 @@ export default function InventoryPage() {
       <PageHeader
         overline="Assets"
         title="Inventory"
-        description="Every console, mic, instrument and rig the studio owns — what it cost, what it is worth, and where it lives."
+        description="Every console, mic, instrument and rig the studio owns - what it cost, what it is worth, and where it lives."
         actions={
           <Button onClick={() => setAddOpen(true)}>
             <Plus className="size-4" />
@@ -202,7 +202,7 @@ export default function InventoryPage() {
         <EmptyState
           icon={Package}
           title="No equipment tracked yet"
-          description="Add the studio's gear — each console, mic, instrument and rig — so you can see what it cost and what it is worth."
+          description="Add the studio's gear - each console, mic, instrument and rig - so you can see what it cost and what it is worth."
           action={
             <Button onClick={() => setAddOpen(true)}>
               <Plus className="size-4" />

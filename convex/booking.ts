@@ -6,7 +6,7 @@ import { notify } from "./lib/notify";
 import { money } from "./lib/money";
 
 /* ============================================================
-   Booking — the public studio-booking backend (the /book pages).
+   Booking - the public studio-booking backend (the /book pages).
    No auth required. These functions derive the org from the slug
    or from the entity itself (room / session) rather than from the
    caller, so any studio's booking page is publicly viewable.
@@ -182,7 +182,7 @@ export const availability = query({
   },
 });
 
-/** Session + payment state — drives the checkout / confirmation page. */
+/** Session + payment state - drives the checkout / confirmation page. */
 export const booking = query({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
@@ -250,7 +250,7 @@ export const createBooking = mutation({
         s.startTime < endTime &&
         s.endTime > args.startTime,
     );
-    if (clash) throw new Error("That time was just taken — pick another slot.");
+    if (clash) throw new Error("That time was just taken - pick another slot.");
 
     const email = args.clientEmail.trim().toLowerCase();
     const existing = (
@@ -284,7 +284,7 @@ export const createBooking = mutation({
     const depositCents = Math.round((rateCents * cfg.depositPct) / 100);
     const sessionId = await ctx.db.insert("sessions", {
       orgId,
-      title: `${args.clientName.trim()} — ${room.name}`,
+      title: `${args.clientName.trim()} - ${room.name}`,
       artistId,
       serviceType: args.serviceType ?? "recording",
       roomId: args.roomId,
@@ -304,7 +304,7 @@ export const createBooking = mutation({
     await ctx.db.insert("activity", {
       orgId,
       kind: "booking.created",
-      summary: `Online booking held — ${room.name} for ${args.clientName.trim()}`,
+      summary: `Online booking held - ${room.name} for ${args.clientName.trim()}`,
       entityType: "session",
       entityId: sessionId,
       accent: "gold",
@@ -313,7 +313,7 @@ export const createBooking = mutation({
       orgId,
       kind: "opportunity",
       severity: "opportunity",
-      title: `New online booking — ${room.name}`,
+      title: `New online booking - ${room.name}`,
       body: `${args.clientName.trim()} held ${args.durationHours}h. The ${money(
         depositCents,
       )} deposit holds it for ${HOLD_MINUTES} minutes.`,
@@ -325,7 +325,7 @@ export const createBooking = mutation({
       orgId,
       channel: "email",
       recipient: args.clientEmail.trim(),
-      subject: `Hold started — ${room.name}`,
+      subject: `Hold started - ${room.name}`,
       body: `Your ${args.durationHours}-hour session is held. Pay the ${money(
         depositCents,
       )} deposit within ${HOLD_MINUTES} minutes to confirm it.`,

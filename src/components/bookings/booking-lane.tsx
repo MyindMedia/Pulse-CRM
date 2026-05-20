@@ -8,7 +8,7 @@ import type { BookingRow } from "./types";
 
 /**
  * One state group in the booking pipeline. Renders a labelled header
- * with a count and a stack of booking cards. Optionally collapsible —
+ * with a count and a stack of booking cards. Optionally collapsible -
  * used for the Released / Cancelled lane which starts closed.
  */
 export function BookingLane({

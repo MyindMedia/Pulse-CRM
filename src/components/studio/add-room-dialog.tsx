@@ -115,7 +115,7 @@ export function AddRoomDialog({
           <DialogTitle>Add room</DialogTitle>
           <DialogDescription>
             Track a bookable space in the studio. Type, rate and condition are
-            optional — install gear into rooms from the Inventory page.
+            optional - install gear into rooms from the Inventory page.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>

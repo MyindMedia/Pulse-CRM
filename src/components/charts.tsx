@@ -79,7 +79,7 @@ export function TrendArea({
   );
 }
 
-/** Horizontal bar chart — pipeline stages, lead sources. */
+/** Horizontal bar chart - pipeline stages, lead sources. */
 export function HBars({
   data,
   labelKey,
@@ -113,7 +113,7 @@ export function HBars({
   );
 }
 
-/** Donut — bookings by service type, etc. */
+/** Donut - bookings by service type, etc. */
 export function CategoryDonut({
   data,
   labelKey,

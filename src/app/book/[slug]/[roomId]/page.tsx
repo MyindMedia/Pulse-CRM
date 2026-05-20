@@ -95,7 +95,7 @@ export default function RoomDetailPage() {
         serviceType: form.serviceType,
         notes: form.notes.trim() || undefined,
       });
-      toast.success("Booking held — finish payment to confirm.");
+      toast.success("Booking held - finish payment to confirm.");
       router.push(`/book/${slug}/checkout/${result.sessionId}`);
     } catch (err) {
       const message =
@@ -115,7 +115,7 @@ export default function RoomDetailPage() {
         All rooms
       </Link>
 
-      {/* Hero band — the actual room shot, if set */}
+      {/* Hero band - the actual room shot, if set */}
       {room.heroImageUrl && (
         <div className="relative overflow-hidden rounded-xl border border-hairline shadow-elev-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -206,13 +206,13 @@ export default function RoomDetailPage() {
               <div className="flex items-center justify-between text-sm">
                 <span className="text-ash">Session total</span>
                 <span className="font-mono text-bone">
-                  {selection ? money(liveRateCents) : "—"}
+                  {selection ? money(liveRateCents) : "-"}
                 </span>
               </div>
               <div className="flex items-center justify-between text-sm">
                 <span className="text-ash">Deposit to hold</span>
                 <span className="font-mono text-gold-bright">
-                  {selection ? money(liveDepositCents) : "—"}
+                  {selection ? money(liveDepositCents) : "-"}
                 </span>
               </div>
 

@@ -34,7 +34,7 @@ function PaymentsView() {
     if (searchParams.get("new") === "1") router.replace("/payments");
   }, [searchParams, router]);
 
-  // Always pull the unfiltered list — filtering + counts happen client-side
+  // Always pull the unfiltered list - filtering + counts happen client-side
   // so the segmented control can show live per-status counts.
   const invoices = useQuery(api.invoices.list, {}) as InvoiceRow[] | undefined;
   const summary = useQuery(api.invoices.summary) as InvoiceSummary | undefined;
@@ -58,7 +58,7 @@ function PaymentsView() {
       <PageHeader
         overline="Finance"
         title="Payments"
-        description="Every invoice the studio has raised — what is collected, what is outstanding, and what still needs chasing."
+        description="Every invoice the studio has raised - what is collected, what is outstanding, and what still needs chasing."
         actions={
           <Button onClick={() => setCreateOpen(true)}>
             <Plus className="size-4" />

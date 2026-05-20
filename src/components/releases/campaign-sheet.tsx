@@ -36,7 +36,7 @@ const ADVANCE_LABEL: Record<Campaign["status"], string> = {
   released: "Released",
 };
 
-/** Detail drawer — rollout timeline plus the status advance control. */
+/** Detail drawer - rollout timeline plus the status advance control. */
 export function CampaignSheet({
   campaign,
   open,
@@ -74,7 +74,7 @@ export function CampaignSheet({
       await setStatus({ id: campaign._id, status: next });
       toast.success(
         next === "released"
-          ? "Campaign released — song moved to released stage."
+          ? "Campaign released - song moved to released stage."
           : "Campaign is now active.",
       );
     } catch {

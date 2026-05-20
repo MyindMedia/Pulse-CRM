@@ -58,7 +58,7 @@ export default function AuditPage() {
                 </td>
                 <td className="p-3 text-xs text-ash">{r.viewerId}</td>
                 <td className="p-3 font-mono text-xs text-bone">{r.action}</td>
-                <td className="p-3 text-xs text-ash-dim">{r.orgId ?? "—"}</td>
+                <td className="p-3 text-xs text-ash-dim">{r.orgId ?? "-"}</td>
                 <td className="p-3 text-xs">
                   <span className={r.result === "allow" ? "text-positive" : "text-critical"}>
                     {r.result}

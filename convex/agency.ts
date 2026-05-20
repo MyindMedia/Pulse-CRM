@@ -6,7 +6,7 @@ import { resolveViewer, requireCapability, AccessError } from "./lib/access";
 import { PLAN_LIMITS } from "./lib/plans";
 
 /* ============================================================
-   Agency — the super-admin layer. Creates and manages studio
+   Agency - the super-admin layer. Creates and manages studio
    subaccounts (one Convex orgId / one Clerk Organization each).
    These functions are deliberately cross-org: they are not
    scoped by currentOrg().
@@ -110,7 +110,7 @@ export const subaccount = query({
   },
 });
 
-/** Internal — create the org record and run the starter setup. */
+/** Internal - create the org record and run the starter setup. */
 export const provision = internalMutation({
   args: {
     orgId: v.string(),
@@ -177,7 +177,7 @@ export const createSubaccount = action({
     // Capability + plan-cap check.
     const self = await ctx.runQuery(internal.agency._resolveSelf, {});
     if (self && self.kind === "agency_member") {
-      // Real agency tenant — enforce plan cap
+      // Real agency tenant - enforce plan cap
       const ag = await ctx.runQuery(internal.agency._agencyById, { agencyId: self.agencyId! });
       if (!ag) throw new Error("Agency record not found");
       const tier: "pro" | "agency" = ag.plan === "pro" ? "pro" : "agency";
@@ -203,7 +203,7 @@ export const createSubaccount = action({
       }
       const org = (await orgRes.json()) as { id: string };
       clerkOrgId = org.id;
-      // Invite the studio owner — non-fatal if it fails.
+      // Invite the studio owner - non-fatal if it fails.
       await fetch(`https://api.clerk.com/v1/organizations/${clerkOrgId}/invitations`, {
         method: "POST",
         headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
@@ -270,7 +270,7 @@ export const _countSubaccounts = internalQuery({
     (await ctx.db.query("orgs").withIndex("by_agency", (q) => q.eq("agencyId", agencyId)).collect()).length,
 });
 
-/** Demo-mode "enter as" — point the workspace at a studio. With Clerk you
+/** Demo-mode "enter as" - point the workspace at a studio. With Clerk you
     switch organizations through Clerk instead. */
 export const enterAs = mutation({
   args: { orgId: v.optional(v.string()) },

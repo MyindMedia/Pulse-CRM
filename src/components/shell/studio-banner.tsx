@@ -10,7 +10,7 @@ import { Spinner } from "@/components/ui/feedback";
 
 const DEMO_ORG_ID = "pulse-demo";
 
-/** Thin "entered as" strip — shown when the active workspace is a real
+/** Thin "entered as" strip - shown when the active workspace is a real
     studio subaccount the agency operator stepped into. */
 export function StudioBanner() {
   const router = useRouter();

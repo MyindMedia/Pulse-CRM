@@ -2,7 +2,7 @@ import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { currentOrg } from "./lib/tenant";
 
-/* Notifications — the confirmation / reminder log. Written by the notify()
+/* Notifications - the confirmation / reminder log. Written by the notify()
    seam; surfaced read-only in the internal Bookings view. */
 
 export const recent = query({

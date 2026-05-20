@@ -8,9 +8,9 @@ import { ClerkProvider, useAuth } from "@clerk/nextjs";
 /*
  * Pulse boots in two modes so it runs whether or not Clerk is configured yet:
  *
- *  - AUTH MODE   — NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY present → real Clerk auth,
+ *  - AUTH MODE   - NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY present → real Clerk auth,
  *                  multi-tenant organizations, ConvexProviderWithClerk.
- *  - DEMO MODE   — no Clerk key → plain ConvexProvider. Convex `requireOrg`
+ *  - DEMO MODE   - no Clerk key → plain ConvexProvider. Convex `requireOrg`
  *                  falls back to the seeded "pulse-demo" workspace.
  *
  * Either way you only need `npx convex dev` to see the app come alive.
@@ -19,8 +19,8 @@ import { ClerkProvider, useAuth } from "@clerk/nextjs";
 const CLERK_KEY = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 /* The Convex deployment URL. `NEXT_PUBLIC_CONVEX_URL` (written by
- * `npx convex dev` locally) takes precedence; when it is absent — e.g. a
- * hosting environment where the build var was not configured — we fall back
+ * `npx convex dev` locally) takes precedence; when it is absent - e.g. a
+ * hosting environment where the build var was not configured - we fall back
  * to the production deployment. A Convex URL is public by design. */
 const CONVEX_URL =
   process.env.NEXT_PUBLIC_CONVEX_URL ?? "https://pastel-corgi-340.convex.cloud";

@@ -1,7 +1,7 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-/* Surface stack — depth via elevation ladder, hierarchy via tone + hairline. */
+/* Surface stack - depth via elevation ladder, hierarchy via tone + hairline. */
 export function Card({
   className,
   interactive,

@@ -5,7 +5,7 @@ import { notify } from "./lib/notify";
 import { money } from "./lib/money";
 
 /* ============================================================
-   Payments — the booking-payment ledger and the provider seam.
+   Payments - the booking-payment ledger and the provider seam.
    `record` is simulated today: it clears the payment instantly.
    Real Stripe = a createCheckout that returns a Checkout URL and a
    webhook that calls this same settle path. Booking logic is unchanged.
@@ -13,7 +13,7 @@ import { money } from "./lib/money";
 
 const kindV = v.union(v.literal("deposit"), v.literal("balance"), v.literal("full"));
 
-/** Every payment recorded against a session, oldest first. Public — the
+/** Every payment recorded against a session, oldest first. Public - the
     session id is the capability; payments belong to it regardless of org. */
 export const forSession = query({
   args: { sessionId: v.id("sessions") },
@@ -26,7 +26,7 @@ export const forSession = query({
   },
 });
 
-/** Recent cleared payments across the workspace — internal money view. */
+/** Recent cleared payments across the workspace - internal money view. */
 export const recent = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, { limit }) => {
@@ -109,7 +109,7 @@ export const record = mutation({
     await ctx.db.insert("activity", {
       orgId,
       kind: "payment.received",
-      summary: `${money(amountCents)} ${kind} payment cleared — ${session.title}`,
+      summary: `${money(amountCents)} ${kind} payment cleared - ${session.title}`,
       entityType: "session",
       entityId: sessionId,
       accent: "positive",
@@ -120,8 +120,8 @@ export const record = mutation({
         channel: "email",
         recipient: artist.email,
         subject: fullyPaid
-          ? `Paid in full — ${session.title}`
-          : `Deposit received — ${session.title}`,
+          ? `Paid in full - ${session.title}`
+          : `Deposit received - ${session.title}`,
         body: fullyPaid
           ? `We received ${money(amountCents)}. Your session is fully paid and locked in. See you in the studio.`
           : `We received your ${money(amountCents)} deposit. Your session is held. The ${money(

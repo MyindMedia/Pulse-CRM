@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/field";
 import { cn, tintFromString } from "@/lib/utils";
 
 /**
- * Free-form tag/chip input — type a value, press Enter or comma to commit.
+ * Free-form tag/chip input - type a value, press Enter or comma to commit.
  * Backspace on an empty field removes the last chip. Fully controlled.
  */
 export function TagInput({

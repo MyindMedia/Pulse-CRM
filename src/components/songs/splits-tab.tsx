@@ -93,7 +93,7 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
   async function save() {
     if (!balanced) {
       toast.error(
-        `Splits must total 100% — master ${masterTotal}%, publishing ${pubTotal}%.`,
+        `Splits must total 100% - master ${masterTotal}%, publishing ${pubTotal}%.`,
       );
       return;
     }
@@ -182,7 +182,7 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
               )}
             >
               {balanced
-                ? "Splits balanced — ready to execute."
+                ? "Splits balanced - ready to execute."
                 : "Splits must total exactly 100% on both columns."}
             </p>
           </div>

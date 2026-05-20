@@ -2,7 +2,7 @@ import * as React from "react";
 import { ArrowDownRight, ArrowUpRight, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/** Headline metric tile — value, label, optional delta vs prior period. */
+/** Headline metric tile - value, label, optional delta vs prior period. */
 export function StatTile({
   label,
   value,

@@ -95,7 +95,7 @@ function SongsCatalog() {
       <PageHeader
         overline="Catalog"
         title="Songs"
-        description="Every track in the studio — from a working title in writing to a released record. The catalog is the spine of the whole product."
+        description="Every track in the studio - from a working title in writing to a released record. The catalog is the spine of the whole product."
         actions={
           <Button onClick={() => setDialogOpen(true)}>
             <Plus className="size-4" />
@@ -171,7 +171,7 @@ function SongsCatalog() {
           description={
             filtersActive
               ? "Adjust the stage, kind, or search to widen the catalog."
-              : "Start the catalog with your first track — it carries sessions, deliverables, splits and the release plan."
+              : "Start the catalog with your first track - it carries sessions, deliverables, splits and the release plan."
           }
           action={
             filtersActive ? (

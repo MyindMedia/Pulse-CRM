@@ -29,7 +29,7 @@ import {
 import { Spinner } from "@/components/ui/feedback";
 import { type Plan, PLAN_LABEL, slugify } from "@/components/agency/meta";
 
-/** "New subaccount" — provisions a studio org (Clerk org when configured). */
+/** "New subaccount" - provisions a studio org (Clerk org when configured). */
 export function CreateSubaccountDialog({ triggerSize = "md" }: { triggerSize?: "sm" | "md" }) {
   const router = useRouter();
   const createSubaccount = useAction(api.agency.createSubaccount);
@@ -74,7 +74,7 @@ export function CreateSubaccountDialog({ triggerSize = "md" }: { triggerSize?: "
       });
       toast.success(
         res.clerkProvisioned
-          ? `${name.trim()} created — a Clerk organization was provisioned and the owner was invited.`
+          ? `${name.trim()} created - a Clerk organization was provisioned and the owner was invited.`
           : `${name.trim()} created as a demo workspace (no real login until CLERK_SECRET_KEY is set).`,
       );
       setOpen(false);
@@ -105,7 +105,7 @@ export function CreateSubaccountDialog({ triggerSize = "md" }: { triggerSize?: "
         <DialogHeader>
           <DialogTitle>New studio subaccount</DialogTitle>
           <DialogDescription>
-            Provision a studio workspace — its own org, two starter rooms, and an owner member.
+            Provision a studio workspace - its own org, two starter rooms, and an owner member.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -123,7 +123,7 @@ export function CreateSubaccountDialog({ triggerSize = "md" }: { triggerSize?: "
             <Field
               label="Slug"
               htmlFor="sub-slug"
-              hint={`Public booking page — /book/${effectiveSlug || "your-studio"}`}
+              hint={`Public booking page - /book/${effectiveSlug || "your-studio"}`}
             >
               <Input
                 id="sub-slug"

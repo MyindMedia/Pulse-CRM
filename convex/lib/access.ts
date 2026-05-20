@@ -13,7 +13,7 @@ import type {
 } from "./accessTypes";
 
 /* ============================================================
-   Access Engine — one resolver, one require, one audit hook.
+   Access Engine - one resolver, one require, one audit hook.
    Every Convex business function should either:
      - call requireCapability(ctx, "<cap>", { orgId, entityId })
      - or accept the legacy currentOrg() compat shim (read paths)

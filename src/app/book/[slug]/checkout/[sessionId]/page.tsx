@@ -75,8 +75,8 @@ export default function CheckoutPage() {
       });
       toast.success(
         result.fullyPaid
-          ? "Paid in full — your session is locked in."
-          : `${money(result.paidTotal)} received — your booking is held.`,
+          ? "Paid in full - your session is locked in."
+          : `${money(result.paidTotal)} received - your booking is held.`,
       );
     } catch (err) {
       const message =
@@ -114,7 +114,7 @@ export default function CheckoutPage() {
             </h1>
             <p className="text-sm text-ash">
               {booking.fullyPaid
-                ? "Paid in full. We've emailed your confirmation — see you in the studio."
+                ? "Paid in full. We've emailed your confirmation - see you in the studio."
                 : "Your deposit cleared and the room is held. The balance is due up to 2 hours before your session."}
             </p>
           </div>

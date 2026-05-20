@@ -81,8 +81,8 @@ export function PaymentPanel({
       const res = await record({ sessionId, kind, payerName: "Front desk" });
       toast.success(
         res.fullyPaid
-          ? "Payment recorded — booking paid in full"
-          : `Payment recorded — ${money(res.balance)} balance remaining`,
+          ? "Payment recorded - booking paid in full"
+          : `Payment recorded - ${money(res.balance)} balance remaining`,
       );
     } catch (err) {
       toast.error(
@@ -133,7 +133,7 @@ export function PaymentPanel({
           <p className="overline">Record a payment</p>
           <p className="text-[0.6875rem] text-ash-dim">
             Take a payment on the client&apos;s behalf. Amounts are derived
-            from the booking — recorded as a simulated provider.
+            from the booking - recorded as a simulated provider.
           </p>
           <div className="flex flex-wrap gap-2 pt-1">
             {depositOutstanding > 0 && (

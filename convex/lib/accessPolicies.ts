@@ -1,7 +1,7 @@
 import type { AgencyRole, StudioRole, GrantScope, Capability } from "./accessTypes";
 
 /* ============================================================
-   Capability policy map — the single source of truth for what
+   Capability policy map - the single source of truth for what
    each role can do. Edits here = behavior change everywhere.
    Capability strings are <module>.<action>; "own" qualifier is
    handled by the engine (viewer.scopedSubAccountOrgIds, etc.).
@@ -34,8 +34,8 @@ export const AGENCY_ROLE_CAPABILITIES: Record<AgencyRole, ReadonlyArray<Capabili
     "audit.read",
   ],
   staff: [
-    "agency.subaccount.pause",       // scoped — engine enforces by sub-account list
-    "act_as_studio",                  // scoped — same
+    "agency.subaccount.pause",       // scoped - engine enforces by sub-account list
+    "act_as_studio",                  // scoped - same
   ],
   billing: [
     "billing.read",

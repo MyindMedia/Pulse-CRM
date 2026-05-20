@@ -123,7 +123,7 @@ export const create = mutation({
     await ctx.db.insert("activity", {
       orgId,
       kind: "opportunity.created",
-      summary: `New inquiry — ${args.title}`,
+      summary: `New inquiry - ${args.title}`,
       entityType: "opportunity",
       entityId: id,
       accent: "gold",
@@ -132,7 +132,7 @@ export const create = mutation({
   },
 });
 
-/** Default win-probability per stage — used on stage moves. */
+/** Default win-probability per stage - used on stage moves. */
 const STAGE_PROBABILITY: Record<string, number> = {
   inquiry: 0.1,
   qualified: 0.25,
@@ -161,9 +161,9 @@ export const moveStage = mutation({
       kind: "opportunity.stage",
       summary:
         stage === "won"
-          ? `Deal won — ${opp.title} (${artist?.name ?? "client"})`
+          ? `Deal won - ${opp.title} (${artist?.name ?? "client"})`
           : stage === "lost"
-            ? `Deal lost — ${opp.title}`
+            ? `Deal lost - ${opp.title}`
             : `${opp.title} moved to ${stage.replace("_", " ")}`,
       entityType: "opportunity",
       entityId: id,

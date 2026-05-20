@@ -35,7 +35,7 @@ const KIND_OPTIONS: { value: string; label: string }[] = [
 
 const MODE_OPTIONS = ["Major", "Minor"];
 
-/** New-song creation dialog — controlled open state, routes to the new song on submit. */
+/** New-song creation dialog - controlled open state, routes to the new song on submit. */
 export function NewSongDialog({
   open,
   onOpenChange,
@@ -119,7 +119,7 @@ export function NewSongDialog({
         <DialogHeader>
           <DialogTitle>New song</DialogTitle>
           <DialogDescription>
-            Start a track in the writing stage — you can fill in the rest from its detail page.
+            Start a track in the writing stage - you can fill in the rest from its detail page.
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="space-y-4">
@@ -218,7 +218,7 @@ export function NewSongDialog({
             </Field>
           </div>
 
-          <Field label="Creative brief" htmlFor="ns-brief" hint="Optional — the vision in a sentence or two.">
+          <Field label="Creative brief" htmlFor="ns-brief" hint="Optional - the vision in a sentence or two.">
             <Textarea
               id="ns-brief"
               value={brief}

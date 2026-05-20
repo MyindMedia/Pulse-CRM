@@ -1,12 +1,12 @@
 import type { Id } from "@convex/_generated/dataModel";
 
-/** A single billable line on an invoice — money stored in integer cents. */
+/** A single billable line on an invoice - money stored in integer cents. */
 export type LineItem = { label: string; amountCents: number };
 
 /** Invoice status values mirrored from the Convex schema. */
 export type InvoiceStatus = "draft" | "sent" | "viewed" | "paid" | "overdue" | "void";
 
-/** A row as returned by `api.invoices.list` — invoice + hydrated artist name. */
+/** A row as returned by `api.invoices.list` - invoice + hydrated artist name. */
 export type InvoiceRow = {
   _id: Id<"invoices">;
   _creationTime: number;

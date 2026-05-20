@@ -9,7 +9,7 @@ import { meta, INVOICE_STATUS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import type { InvoiceDetail } from "./types";
 
-/** A document-styled rendering of an invoice — header, bill-to, line items, total. */
+/** A document-styled rendering of an invoice - header, bill-to, line items, total. */
 export function InvoiceSheet({ invoice }: { invoice: InvoiceDetail }) {
   const st = meta(INVOICE_STATUS, invoice.status);
   const paid = invoice.status === "paid";

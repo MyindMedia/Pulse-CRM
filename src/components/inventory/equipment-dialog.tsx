@@ -55,7 +55,7 @@ type FormState = {
   notes: string;
 };
 
-/** Sentinel select value for "not installed — sits in storage". */
+/** Sentinel select value for "not installed - sits in storage". */
 const STORAGE = "__storage__";
 
 const BLANK: FormState = {
@@ -185,7 +185,7 @@ export function EquipmentDialog({
           <DialogDescription>
             {isEdit
               ? `Update the asset details for ${item?.name}.`
-              : "Track a new gear asset. Purchase and current value are required — install it into a room or leave it in storage."}
+              : "Track a new gear asset. Purchase and current value are required - install it into a room or leave it in storage."}
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -201,7 +201,7 @@ export function EquipmentDialog({
               />
             </Field>
 
-            {/* A photo can only attach to a saved item — edit mode only. */}
+            {/* A photo can only attach to a saved item - edit mode only. */}
             {isEdit && item && (
               <PhotoUploader equipmentId={item._id} photo={item.photo} />
             )}

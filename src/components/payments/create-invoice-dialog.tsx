@@ -30,7 +30,7 @@ import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { RosterEntry, SongOption } from "./types";
 
-/** A line-item draft — amount kept as a raw dollar string until submit. */
+/** A line-item draft - amount kept as a raw dollar string until submit. */
 type DraftLine = { id: number; label: string; amount: string };
 
 let lineCounter = 0;
@@ -45,7 +45,7 @@ function dollarsToCents(raw: string): number {
   return Math.round(n * 100);
 }
 
-/** Default due date input value — 14 days out, yyyy-mm-dd. */
+/** Default due date input value - 14 days out, yyyy-mm-dd. */
 function defaultDueDate(): string {
   const d = new Date(Date.now() + 14 * 86_400_000);
   return d.toISOString().slice(0, 10);
@@ -156,7 +156,7 @@ export function CreateInvoiceDialog({
                   <SelectValue
                     placeholder={
                       !artistId
-                        ? "—"
+                        ? "-"
                         : songs === undefined
                           ? "Loading songs…"
                           : songs.length === 0
@@ -196,7 +196,7 @@ export function CreateInvoiceDialog({
                   <Input
                     value={line.label}
                     onChange={(e) => patchLine(line.id, { label: e.target.value })}
-                    placeholder={i === 0 ? "Tracking session — 4 hrs" : "Description"}
+                    placeholder={i === 0 ? "Tracking session - 4 hrs" : "Description"}
                     className="flex-1"
                   />
                   <div className="relative w-36 shrink-0">

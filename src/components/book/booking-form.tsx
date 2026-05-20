@@ -75,7 +75,7 @@ export function BookingForm({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Phone" htmlFor="bk-phone" hint="Optional — for session reminders.">
+        <Field label="Phone" htmlFor="bk-phone" hint="Optional - for session reminders.">
           <Input
             id="bk-phone"
             type="tel"
@@ -104,7 +104,7 @@ export function BookingForm({
         </Field>
       </div>
 
-      <Field label="Notes" htmlFor="bk-notes" hint="Optional — tell the studio anything useful.">
+      <Field label="Notes" htmlFor="bk-notes" hint="Optional - tell the studio anything useful.">
         <Textarea
           id="bk-notes"
           value={values.notes}

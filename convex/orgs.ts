@@ -3,7 +3,7 @@ import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { currentOrg, currentActor } from "./lib/tenant";
 
-/* Orgs — one row per studio subaccount. `current` is the active workspace;
+/* Orgs - one row per studio subaccount. `current` is the active workspace;
    `getBySlug` powers the public /book/<slug> page. Branding (logo, accent,
    booking-page theming) lives here and flows into the app + booking site. */
 
@@ -42,7 +42,7 @@ export const current = query({
   },
 });
 
-/** Public — resolve a studio by its slug for the /book/<slug> page. */
+/** Public - resolve a studio by its slug for the /book/<slug> page. */
 export const getBySlug = query({
   args: { slug: v.string() },
   handler: async (ctx, { slug }) => {

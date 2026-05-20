@@ -93,7 +93,7 @@ export function DealCard({
           <Clock className="size-3" />
           <span>
             {age === 0 ? "Updated today" : `${age}d since update`}
-            {stale ? " — going stale" : ""}
+            {stale ? " - going stale" : ""}
           </span>
         </div>
       </button>
