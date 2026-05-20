@@ -3,22 +3,28 @@
 import * as React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import {
   ArrowLeft,
   Boxes,
+  Calendar as CalendarIcon,
   CalendarClock,
+  CalendarPlus,
+  CheckCircle2,
   DollarSign,
   DoorOpen,
   MoreHorizontal,
   Music4,
   Package,
   Pencil,
+  Plug,
   Plus,
+  RefreshCw,
   Trash2,
+  Unplug,
   Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -53,6 +59,17 @@ import {
   InstallDialog,
   type InstallTarget,
 } from "@/components/inventory/install-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogBody,
+  DialogFooter,
+} from "@/components/ui/dialog";
+import { Field, Input } from "@/components/ui/field";
+import { relativeTime } from "@/lib/format";
 
 const DAY_MS = 86_400_000;
 
@@ -90,6 +107,23 @@ export default function StudioDetailPage() {
   const setEquipStatus = useMutation(api.equipment.setStatus);
   const removeEquip = useMutation(api.equipment.remove);
   const installEquip = useMutation(api.equipment.install);
+
+  // External calendar sync (read-only iCal / Google / Apple / Outlook)
+  const calendars = useQuery(api.externalCalendars.listForRoom, { roomId });
+  const externalWeekEvents = useQuery(api.externalCalendars.eventsInRange, {
+    roomId,
+    from: weekStart,
+    to: weekEnd,
+  });
+  const addCalendar = useMutation(api.externalCalendars.add);
+  const removeCalendar = useMutation(api.externalCalendars.remove);
+  const syncCalendar = useAction(api.externalCalendarsActions.sync);
+  const [connectOpen, setConnectOpen] = React.useState(false);
+  const [icalUrl, setIcalUrl] = React.useState("");
+  const [icalLabel, setIcalLabel] = React.useState("");
+  const [connectSubmitting, setConnectSubmitting] = React.useState(false);
+  const [syncingCalendarId, setSyncingCalendarId] =
+    React.useState<Id<"externalCalendars"> | null>(null);
 
   const [addOpen, setAddOpen] = React.useState(false);
   const [installOpen, setInstallOpen] = React.useState(false);
@@ -189,6 +223,67 @@ export default function StudioDetailPage() {
   function openInstallFor(item: InstallTarget) {
     setInstallTarget(item);
     setInstallOpen(true);
+  }
+
+  async function handleConnectCalendar(e: React.FormEvent) {
+    e.preventDefault();
+    const url = icalUrl.trim();
+    if (!url) {
+      toast.error("Paste an iCal URL first.");
+      return;
+    }
+    setConnectSubmitting(true);
+    try {
+      const id = await addCalendar({
+        roomId: room._id,
+        icalUrl: url,
+        label: icalLabel.trim() || undefined,
+      });
+      setIcalUrl("");
+      setIcalLabel("");
+      setConnectOpen(false);
+      // Kick off the initial sync; non-blocking, fires + forgets.
+      setSyncingCalendarId(id);
+      const result = await syncCalendar({ id });
+      setSyncingCalendarId(null);
+      if (result.ok) {
+        toast.success(
+          `Calendar connected. Imported ${"count" in result ? result.count : 0} events.`,
+        );
+      } else {
+        toast.error(`Connected, but sync failed: ${result.error ?? "unknown"}`);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not connect.");
+    } finally {
+      setConnectSubmitting(false);
+    }
+  }
+
+  async function handleSync(id: Id<"externalCalendars">) {
+    setSyncingCalendarId(id);
+    try {
+      const result = await syncCalendar({ id });
+      if (result.ok) {
+        toast.success(
+          `Synced. Imported ${"count" in result ? result.count : 0} events.`,
+        );
+      } else {
+        toast.error(`Sync failed: ${result.error ?? "unknown"}`);
+      }
+    } finally {
+      setSyncingCalendarId(null);
+    }
+  }
+
+  async function handleRemoveCalendar(id: Id<"externalCalendars">, label: string) {
+    if (!confirm(`Remove "${label}" feed? Its imported events will be deleted.`)) return;
+    try {
+      await removeCalendar({ id });
+      toast.success(`Removed ${label}.`);
+    } catch {
+      toast.error("Could not remove.");
+    }
   }
 
   return (
@@ -294,7 +389,7 @@ export default function StudioDetailPage() {
               <Skeleton key={i} className="h-16 w-full rounded-lg" />
             ))}
           </div>
-        ) : roomSessions.length === 0 ? (
+        ) : roomSessions.length === 0 && (externalWeekEvents ?? []).length === 0 ? (
           <EmptyState
             icon={CalendarClock}
             title="No sessions booked this week"
@@ -302,6 +397,30 @@ export default function StudioDetailPage() {
           />
         ) : (
           <ul className="grid gap-2 sm:grid-cols-2">
+            {/* External (synced) events render first, visually muted */}
+            {(externalWeekEvents ?? [])
+              .slice()
+              .sort((a, b) => a.startTime - b.startTime)
+              .map((e) => (
+                <li
+                  key={e._id}
+                  className="rounded-lg border border-dashed border-hairline-2 bg-coal-2/40 p-3 shadow-elev-1"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-bone">{e.title}</p>
+                      <p className="flex items-center gap-1 font-mono text-[0.6875rem] uppercase tracking-wide text-ash-dim">
+                        <Plug className="size-3" />
+                        external · blocked
+                      </p>
+                    </div>
+                    <Badge tone="neutral">SYNC</Badge>
+                  </div>
+                  <p className="mt-2 font-mono text-xs text-ash">
+                    {longDate(e.startTime)} · {timeOfDay(e.startTime)}
+                  </p>
+                </li>
+              ))}
             {roomSessions
               .sort((a, b) => a.startTime - b.startTime)
               .map((s) => (
@@ -521,6 +640,151 @@ export default function StudioDetailPage() {
           </ul>
         )}
       </section>
+
+      {/* Synced external calendars (Google / Apple / Outlook / .ics) */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between gap-2">
+          <div>
+            <h2 className="font-display text-lg font-semibold tracking-tight text-bone">
+              Synced calendars
+            </h2>
+            <p className="text-xs text-ash-dim">
+              Import an outside calendar so Pulse won&apos;t double-book against it.
+            </p>
+          </div>
+          <Button size="sm" onClick={() => setConnectOpen(true)}>
+            <CalendarPlus className="size-4" />
+            Connect calendar
+          </Button>
+        </div>
+        {calendars === undefined ? (
+          <Skeleton className="h-20 w-full rounded-lg" />
+        ) : calendars.length === 0 ? (
+          <EmptyState
+            icon={CalendarIcon}
+            title="No external calendars yet"
+            description="Paste a Google / Apple / Outlook iCal URL to block out external bookings."
+          />
+        ) : (
+          <ul className="grid gap-3 sm:grid-cols-2">
+            {calendars.map((cal) => {
+              const syncing = syncingCalendarId === cal._id;
+              return (
+                <li
+                  key={cal._id}
+                  className="rounded-lg border border-hairline bg-coal p-4 shadow-elev-1"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex items-center gap-2">
+                      <Plug className="size-4 text-gold" />
+                      <p className="truncate text-sm font-medium text-bone">{cal.label}</p>
+                    </div>
+                    <Badge tone="neutral">{cal.source}</Badge>
+                  </div>
+                  <p className="mt-2 truncate font-mono text-[0.6875rem] text-ash-dim">
+                    {cal.icalUrl}
+                  </p>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                    <div className="font-mono text-[0.6875rem] text-ash">
+                      {cal.lastSyncAt ? (
+                        <span className="inline-flex items-center gap-1">
+                          <CheckCircle2 className="size-3 text-positive" />
+                          Synced {relativeTime(cal.lastSyncAt)}
+                          {typeof cal.eventCount === "number" && (
+                            <span className="text-ash-dim">
+                              {" · "}
+                              {cal.eventCount} events
+                            </span>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-ash-dim">Not synced yet</span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => handleSync(cal._id)}
+                        disabled={syncing}
+                        aria-label="Refresh"
+                      >
+                        <RefreshCw
+                          className={cn("size-4", syncing && "animate-spin")}
+                        />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => handleRemoveCalendar(cal._id, cal.label)}
+                        aria-label="Remove"
+                      >
+                        <Unplug className="size-4" />
+                      </Button>
+                    </div>
+                  </div>
+                  {cal.lastError && (
+                    <p className="mt-2 text-[0.6875rem] text-critical">{cal.lastError}</p>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
+
+      {/* Connect-iCal dialog */}
+      <Dialog open={connectOpen} onOpenChange={setConnectOpen}>
+        <DialogContent size="md">
+          <DialogHeader>
+            <DialogTitle>Connect an external calendar</DialogTitle>
+            <DialogDescription>
+              Paste an iCal URL. Google Calendar: Settings &rarr; &quot;Integrate calendar&quot;
+              &rarr; &quot;Secret address in iCal format&quot;. Apple, Outlook, Calendly all
+              expose a similar URL.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <form onSubmit={handleConnectCalendar} className="space-y-4" id="connect-cal-form">
+              <Field label="iCal URL">
+                <Input
+                  type="url"
+                  required
+                  placeholder="https://calendar.google.com/calendar/ical/.../basic.ics"
+                  value={icalUrl}
+                  onChange={(e) => setIcalUrl(e.target.value)}
+                  autoFocus
+                />
+              </Field>
+              <Field label="Label (optional)">
+                <Input
+                  type="text"
+                  placeholder="Studio A bookings"
+                  value={icalLabel}
+                  onChange={(e) => setIcalLabel(e.target.value)}
+                />
+              </Field>
+            </form>
+          </DialogBody>
+          <DialogFooter>
+            <Button
+              variant="ghost"
+              type="button"
+              onClick={() => setConnectOpen(false)}
+              disabled={connectSubmitting}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="submit"
+              form="connect-cal-form"
+              disabled={connectSubmitting || !icalUrl.trim()}
+            >
+              {connectSubmitting ? "Connecting..." : "Connect + sync"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add new equipment - the dialog already has a "install in" picker;
           we just preselect this room as a default via its initial form. */}

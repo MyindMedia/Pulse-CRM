@@ -22,6 +22,8 @@ import type * as dashboard from "../dashboard.js";
 import type * as deliverables from "../deliverables.js";
 import type * as engineeringLogs from "../engineeringLogs.js";
 import type * as equipment from "../equipment.js";
+import type * as externalCalendars from "../externalCalendars.js";
+import type * as externalCalendarsActions from "../externalCalendarsActions.js";
 import type * as grants from "../grants.js";
 import type * as http from "../http.js";
 import type * as insights from "../insights.js";
@@ -71,6 +73,8 @@ declare const fullApi: ApiFromModules<{
   deliverables: typeof deliverables;
   engineeringLogs: typeof engineeringLogs;
   equipment: typeof equipment;
+  externalCalendars: typeof externalCalendars;
+  externalCalendarsActions: typeof externalCalendarsActions;
   grants: typeof grants;
   http: typeof http;
   insights: typeof insights;

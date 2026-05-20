@@ -645,4 +645,45 @@ export default defineSchema({
   })
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"]),
+
+  // ── External calendars (read-only iCal feeds — Google, Apple, Outlook,
+  //    any source that exposes an .ics URL). One row per (room, feed). ──
+  externalCalendars: defineTable({
+    orgId: v.string(),
+    roomId: v.id("rooms"),
+    label: v.string(),
+    source: v.union(
+      v.literal("google"),
+      v.literal("ical"),
+      v.literal("outlook"),
+      v.literal("apple"),
+      v.literal("other"),
+    ),
+    icalUrl: v.string(),
+    lastSyncAt: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    eventCount: v.optional(v.number()),
+    active: v.boolean(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_room", ["roomId"]),
+
+  // ── Imported external events. Block times so the studio doesn't get
+  //    double-booked against an outside calendar. Idempotent on externalUid. ──
+  externalCalendarEvents: defineTable({
+    orgId: v.string(),
+    calendarId: v.id("externalCalendars"),
+    roomId: v.id("rooms"),
+    externalUid: v.string(),
+    title: v.string(),
+    startTime: v.number(),
+    endTime: v.number(),
+    allDay: v.optional(v.boolean()),
+    location: v.optional(v.string()),
+    description: v.optional(v.string()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_calendar", ["calendarId"])
+    .index("by_org_room_start", ["orgId", "roomId", "startTime"])
+    .index("by_uid", ["calendarId", "externalUid"]),
 });
