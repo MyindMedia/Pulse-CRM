@@ -1,6 +1,6 @@
 "use node";
 /* ============================================================
-   External calendar sync — Node.js runtime actions.
+   External calendar sync - Node.js runtime actions.
    Split out from externalCalendars.ts because node-ical needs
    Node's native deps and Convex's default V8 runtime can't run it.
    ============================================================ */

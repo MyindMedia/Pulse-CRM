@@ -6,6 +6,7 @@ import {
   assertNoBufferConflict,
   recomputeRoomStatus,
 } from "./lib/roomStatus";
+import { stageChecklistsFor, dropPreChecklistFor } from "./checklists";
 
 const serviceV = v.union(
   v.literal("recording"),
@@ -137,6 +138,13 @@ export const create = mutation({
       entityId: id,
       accent: "info",
     });
+    // Stage the pre + post checklists so engineers and interns can tick
+    // through them before / after the session.
+    await stageChecklistsFor(ctx, {
+      orgId,
+      sessionId: id,
+      roomId: args.roomId,
+    });
     // Auto-recompute the room's status so the dashboard reflects the change.
     if (args.roomId) await recomputeRoomStatus(ctx, args.roomId);
     return id;
@@ -159,8 +167,30 @@ export const payDeposit = mutation({
       entityId: id,
       accent: "positive",
     });
+    // Surface a pre-session checklist alert via the existing insights bell.
+    await ctx.db.insert("insights", {
+      orgId,
+      kind: "recap",
+      severity: "info",
+      title: `Pre-session checklist ready - ${s.title}`,
+      body: `Confirmed for ${longDateLite(s.startTime)}. Walk the pre-session checklist before the artist arrives.`,
+      entityType: "session",
+      entityId: id,
+      status: "new",
+    });
   },
 });
+
+/** Local one-liner to avoid importing the whole format lib server-side. */
+function longDateLite(ts: number): string {
+  return new Date(ts).toLocaleString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
+}
 
 export const setStatus = mutation({
   args: { id: v.id("sessions"), status: statusV },
@@ -172,6 +202,12 @@ export const setStatus = mutation({
     // Status change cascades to the room: cancelling an active session
     // flips the room back to available; starting one flips it to in_use.
     if (s.roomId) await recomputeRoomStatus(ctx, s.roomId);
+
+    // Cancelled / no-show before-it-ran -> drop the unused pre-checklist
+    // so we don't keep alerting staff for a session that won't happen.
+    if (status === "cancelled" || status === "no_show") {
+      await dropPreChecklistFor(ctx, id);
+    }
 
     if (status === "no_show") {
       const artist = await ctx.db.get(s.artistId);
@@ -205,8 +241,8 @@ export const setStatus = mutation({
       }
       await ctx.db.insert("insights", {
         orgId, kind: "recap", severity: "info",
-        title: `Recap ready - ${s.title}`,
-        body: `Session complete. Log the engineering recall sheet and confirm deliverables for ${artist?.name ?? "the client"}.`,
+        title: `Post-session checklist + recap - ${s.title}`,
+        body: `Session complete. Walk the post-session checklist (clean / reset / lock the room) and log the engineering recall sheet for ${artist?.name ?? "the client"}.`,
         entityType: "session", entityId: id, status: "new",
       });
       await ctx.db.insert("activity", {

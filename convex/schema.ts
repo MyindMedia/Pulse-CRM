@@ -651,7 +651,29 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"]),
 
-  // ── External calendars (read-only iCal feeds — Google, Apple, Outlook,
+  // ── Pre / post session checklists. One row per (session, kind).
+  //    Pre-checklist is staged when the session is created, and pruned if
+  //    the session is cancelled before it runs. Post-checklist sticks
+  //    around as a record of what was done after a completed session. ──
+  sessionChecklists: defineTable({
+    orgId: v.string(),
+    sessionId: v.id("sessions"),
+    roomId: v.optional(v.id("rooms")),
+    kind: v.union(v.literal("pre"), v.literal("post")),
+    items: v.array(
+      v.object({
+        label: v.string(),
+        done: v.boolean(),
+        doneByName: v.optional(v.string()),
+        doneAt: v.optional(v.number()),
+      }),
+    ),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_session", ["sessionId"])
+    .index("by_session_kind", ["sessionId", "kind"]),
+
+  // ── External calendars (read-only iCal feeds - Google, Apple, Outlook,
   //    any source that exposes an .ics URL). One row per (room, feed). ──
   externalCalendars: defineTable({
     orgId: v.string(),

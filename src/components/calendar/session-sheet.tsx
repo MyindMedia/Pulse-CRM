@@ -31,6 +31,7 @@ import { money, longDate, timeOfDay, duration } from "@/lib/format";
 import { meta, SESSION_STATUS, titleCase } from "@/lib/labels";
 import { PaymentPanel } from "@/components/bookings/payment-panel";
 import { statusColor } from "./constants";
+import { ChecklistsPanel } from "./checklists-panel";
 
 type SessionStatus =
   | "tentative"
@@ -197,6 +198,9 @@ export function SessionSheet({
                   </p>
                 </div>
               )}
+
+              {/* Pre + post session checklists for staff / interns */}
+              <ChecklistsPanel sessionId={detail._id} />
 
               {/* Engineering log - the recall sheet */}
               <div className="space-y-2">
