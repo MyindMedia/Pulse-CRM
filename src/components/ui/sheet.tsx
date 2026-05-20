@@ -24,7 +24,7 @@ export function SheetContent({
       <DialogPrimitive.Overlay className="anim-overlay fixed inset-0 z-50 bg-ink/80 backdrop-blur-sm" />
       <DialogPrimitive.Content
         className={cn(
-          "anim-sheet fixed right-0 top-0 z-50 flex h-dvh w-full flex-col border-l border-hairline-2 bg-coal shadow-pop",
+          "anim-sheet fixed right-0 top-0 z-50 flex h-dvh w-full flex-col glass-liquid shadow-elev-4 text-bone",
           w,
           className,
         )}

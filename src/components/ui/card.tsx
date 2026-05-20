@@ -1,18 +1,25 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-/* Surface stack — depth via tone, not borders. */
+/* Surface stack — depth via elevation ladder, hierarchy via tone + hairline. */
 export function Card({
   className,
   interactive,
+  elevation = 1,
   ...props
-}: React.HTMLAttributes<HTMLDivElement> & { interactive?: boolean }) {
+}: React.HTMLAttributes<HTMLDivElement> & {
+  interactive?: boolean;
+  elevation?: 0 | 1 | 2;
+}) {
+  const elev =
+    elevation === 0 ? "" : elevation === 2 ? "shadow-elev-2" : "shadow-elev-1";
   return (
     <div
       className={cn(
         "rounded-lg border border-hairline bg-coal text-bone",
+        elev,
         interactive &&
-          "transition-all duration-150 hover:border-hairline-2 hover:bg-coal-2 cursor-pointer",
+          "transition-all duration-150 hover:border-hairline-2 hover:bg-coal-2 hover:shadow-elev-2 cursor-pointer",
         className,
       )}
       {...props}

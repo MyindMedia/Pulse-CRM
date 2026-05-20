@@ -25,7 +25,7 @@ export function StatTile({
   return (
     <div
       className={cn(
-        "rounded-lg border bg-coal p-4",
+        "rounded-lg border bg-coal p-4 shadow-elev-1",
         accent ? "border-gold-dim/50 bg-gold/[0.04]" : "border-hairline",
         className,
       )}

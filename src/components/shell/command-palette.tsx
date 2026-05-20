@@ -53,7 +53,7 @@ export function CommandPalette() {
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="anim-overlay fixed inset-0 z-50 bg-ink/80 backdrop-blur-sm" />
         <DialogPrimitive.Content
-          className="anim-pop fixed left-1/2 top-[12vh] z-50 w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-xl border border-hairline-2 bg-coal shadow-pop"
+          className="anim-pop fixed left-1/2 top-[12vh] z-50 w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-xl glass-liquid shadow-elev-4 text-bone"
           aria-label="Command palette"
         >
           <DialogPrimitive.Title className="sr-only">Command palette</DialogPrimitive.Title>

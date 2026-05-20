@@ -36,7 +36,7 @@ export function DialogContent({
       <DialogPrimitive.Content
         className={cn(
           "anim-pop fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2",
-          "rounded-xl border border-hairline-2 bg-coal shadow-pop",
+          "rounded-xl glass-liquid shadow-elev-4 text-bone",
           width,
           className,
         )}
