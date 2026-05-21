@@ -7,16 +7,24 @@ import { mutation, query, internalMutation } from "./_generated/server";
 import { currentOrg } from "./lib/tenant";
 
 /** Newest-first list, optionally filtered by kind. Used by the dashboard
- * "Pulse AI" feed. */
+ * "Pulse AI" feed. Dismissed artifacts are hidden by default; pass
+ * includeDismissed: true to surface them again. */
 export const list = query({
-  args: { kind: v.optional(v.string()), limit: v.optional(v.number()) },
-  handler: async (ctx, { kind, limit }) => {
+  args: {
+    kind: v.optional(v.string()),
+    limit: v.optional(v.number()),
+    includeDismissed: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { kind, limit, includeDismissed }) => {
     const orgId = await currentOrg(ctx);
     const rows = await ctx.db
       .query("aiArtifacts")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .collect();
-    const filtered = kind ? rows.filter((r) => r.kind === kind) : rows;
+    let filtered = kind ? rows.filter((r) => r.kind === kind) : rows;
+    if (!includeDismissed) {
+      filtered = filtered.filter((r) => r.status !== "dismissed");
+    }
     return filtered.sort((a, b) => b.generatedAt - a.generatedAt).slice(0, limit ?? 20);
   },
 });
@@ -53,6 +61,34 @@ export const setStatus = mutation({
     const a = await ctx.db.get(id);
     if (!a || a.orgId !== orgId) throw new Error("Not found");
     await ctx.db.patch(id, { status });
+  },
+});
+
+/** Delete every artifact of a kind. Useful when the prompt template
+ * changes and the stale rows would otherwise clutter the dashboard. */
+export const removeByKind = mutation({
+  args: {
+    kind: v.union(
+      v.literal("session_recap"),
+      v.literal("prep_packet"),
+      v.literal("reminder_24h"),
+      v.literal("reminder_1h"),
+      v.literal("weekly_briefing"),
+      v.literal("rate_cut_promo"),
+    ),
+  },
+  handler: async (ctx, { kind }) => {
+    const orgId = await currentOrg(ctx);
+    const rows = await ctx.db
+      .query("aiArtifacts")
+      .withIndex("by_org_kind", (q) => q.eq("orgId", orgId).eq("kind", kind))
+      .collect();
+    let deleted = 0;
+    for (const r of rows) {
+      await ctx.db.delete(r._id);
+      deleted++;
+    }
+    return { deleted };
   },
 });
 
