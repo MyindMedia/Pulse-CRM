@@ -8,7 +8,6 @@ import {
   CalendarCheck,
   CircleDollarSign,
   KanbanSquare,
-  Power,
   Receipt,
   Send,
   TrendingUp,
