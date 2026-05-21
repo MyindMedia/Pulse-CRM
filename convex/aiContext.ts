@@ -271,11 +271,15 @@ export const rateCutContext = query({
     type Rec = {
       roomId: Id<"rooms">;
       roomName: string;
+      roomSlug: string;
       windowLabel: string;
       currentRateCents: number;
       newRateCents: number;
       cutPct: number;
       lowUtilHours: number;
+      minimumHours: number;
+      discountCode: string;
+      minBlockCents: number;
     };
     const recs: Rec[] = [];
 
@@ -305,14 +309,25 @@ export const rateCutContext = query({
             const rateCents = room.hourlyRateCents ?? 0;
             const cutPct = utilization < 0.2 ? 20 : 15;
             const newRateCents = Math.round((rateCents * (100 - cutPct)) / 100);
+            const minimumHours = room.minimumHours ?? 2;
+            const minBlockCents = newRateCents * minimumHours;
+            // Deterministic code: ROOM-DAYPART-PCT. Short + memorable.
+            const roomKey = room.name.replace(/[^A-Za-z]/g, "").slice(0, 5).toUpperCase();
+            const dayKey = weekdays[wd].slice(0, 3).toUpperCase();
+            const partKey = part.id.slice(0, 3).toUpperCase();
+            const discountCode = `${roomKey}${dayKey}${partKey}${cutPct}`;
             recs.push({
               roomId: room._id,
               roomName: room.name,
+              roomSlug: room.name.toLowerCase().replace(/[^a-z0-9]+/g, "-"),
               windowLabel: `${weekdays[wd]} ${part.label}`,
               currentRateCents: rateCents,
               newRateCents,
               cutPct,
               lowUtilHours: Math.round(bucketHours - bookedHours),
+              minimumHours,
+              discountCode,
+              minBlockCents,
             });
           }
         }
@@ -333,6 +348,7 @@ export const rateCutContext = query({
     return {
       orgId,
       orgName,
+      orgSlug: org?.slug ?? null,
       recommendations,
       audienceSize,
     };

@@ -69,21 +69,150 @@ export const subaccounts = query({
   },
 });
 
-/** Cross-studio totals for the agency overview. */
+/** Cross-studio totals for the agency overview. Now includes a 12-month
+ * revenue rollup, subscriber-tier breakdown, cross-tenant pipeline
+ * stages, outreach activity, and a top-studios leaderboard. */
 export const overview = query({
   args: {},
   handler: async (ctx) => {
     const orgs = await ctx.db.query("orgs").collect();
     const sessions = await ctx.db.query("sessions").collect();
     const payments = await ctx.db.query("payments").collect();
+    const invoices = await ctx.db.query("invoices").collect();
+    const opportunities = await ctx.db.query("opportunities").collect();
+    const activity = await ctx.db.query("activity").collect();
+
+    const now = Date.now();
+    const monthStart = new Date();
+    monthStart.setDate(1);
+    monthStart.setHours(0, 0, 0, 0);
+
     const collected = payments
       .filter((p) => p.status === "paid")
       .reduce((s, p) => s + p.amountCents, 0);
+    const collectedThisMonth = payments
+      .filter((p) => p.status === "paid" && p._creationTime >= monthStart.getTime())
+      .reduce((s, p) => s + p.amountCents, 0);
+
+    // 12-month revenue chart - bucket payments by their creation month.
+    const months: { month: string; ts: number; revenue: number }[] = [];
+    const ref = new Date();
+    ref.setDate(1);
+    ref.setHours(0, 0, 0, 0);
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(ref);
+      d.setMonth(d.getMonth() - i);
+      months.push({
+        month: d.toLocaleString("en-US", { month: "short" }),
+        ts: d.getTime(),
+        revenue: 0,
+      });
+    }
+    for (const p of payments) {
+      if (p.status !== "paid") continue;
+      for (let i = months.length - 1; i >= 0; i--) {
+        if (p._creationTime >= months[i].ts) {
+          months[i].revenue += p.amountCents / 100;
+          break;
+        }
+      }
+    }
+
+    // Subscriber breakdown by plan tier.
+    const tiers = new Map<string, number>();
+    for (const o of orgs) {
+      const plan = o.plan ?? "solo";
+      tiers.set(plan, (tiers.get(plan) ?? 0) + 1);
+    }
+    const subscribersByPlan = Array.from(tiers.entries()).map(([plan, count]) => ({
+      plan,
+      count,
+    }));
+
+    // Cross-tenant pipeline rollup by stage.
+    const stageCounts = new Map<string, number>();
+    const stageValue = new Map<string, number>();
+    for (const opp of opportunities) {
+      const stage = opp.stage ?? "inquiry";
+      stageCounts.set(stage, (stageCounts.get(stage) ?? 0) + 1);
+      stageValue.set(stage, (stageValue.get(stage) ?? 0) + (opp.valueCents ?? 0));
+    }
+    const pipelineByStage = Array.from(stageCounts.entries()).map(([stage, count]) => ({
+      stage,
+      count,
+      valueCents: stageValue.get(stage) ?? 0,
+    }));
+    const pipelineValueCents = Array.from(stageValue.values()).reduce((s, v) => s + v, 0);
+
+    // Outreach: aggregate activity events in the last 30 days, grouped by kind prefix.
+    const THIRTY = now - 30 * 86_400_000;
+    const recentTouches = activity.filter((a) => a._creationTime >= THIRTY).length;
+    const outreachByKind = new Map<string, number>();
+    for (const a of activity) {
+      if (a._creationTime < THIRTY) continue;
+      const key = a.kind.split(".")[0];
+      outreachByKind.set(key, (outreachByKind.get(key) ?? 0) + 1);
+    }
+    const outreachBreakdown = Array.from(outreachByKind.entries())
+      .map(([kind, count]) => ({ kind, count }))
+      .sort((a, b) => b.count - a.count);
+
+    // Top studios by lifetime collected revenue.
+    const studioRollups = new Map<string, { collected: number; sessions: number }>();
+    for (const p of payments) {
+      if (p.status !== "paid") continue;
+      const r = studioRollups.get(p.orgId) ?? { collected: 0, sessions: 0 };
+      r.collected += p.amountCents;
+      studioRollups.set(p.orgId, r);
+    }
+    for (const s of sessions) {
+      const r = studioRollups.get(s.orgId) ?? { collected: 0, sessions: 0 };
+      r.sessions += 1;
+      studioRollups.set(s.orgId, r);
+    }
+    const topStudios = orgs
+      .map((o) => ({
+        orgId: o.orgId,
+        name: o.name,
+        plan: o.plan ?? "solo",
+        slug: o.slug,
+        collectedCents: studioRollups.get(o.orgId)?.collected ?? 0,
+        sessions: studioRollups.get(o.orgId)?.sessions ?? 0,
+      }))
+      .sort((a, b) => b.collectedCents - a.collectedCents)
+      .slice(0, 5);
+
+    // Outstanding + overdue cash across all studios.
+    const outstandingCents = invoices
+      .filter((i) => i.status !== "paid" && i.status !== "void")
+      .reduce((s, i) => s + i.amountCents, 0);
+    const overdueCents = invoices
+      .filter(
+        (i) =>
+          (i.status === "sent" || i.status === "viewed" || i.status === "overdue") &&
+          i.dueDate < now,
+      )
+      .reduce((s, i) => s + i.amountCents, 0);
+
     return {
+      // Headline KPIs
       studioCount: orgs.length,
       activeCount: orgs.filter((o) => (o.status ?? "active") === "active").length,
       bookingCount: sessions.length,
       collectedCents: collected,
+      collectedThisMonthCents: collectedThisMonth,
+      pipelineValueCents,
+      pipelineCount: opportunities.length,
+      outstandingCents,
+      overdueCents,
+      recentTouches,
+      // Charts
+      revenueTrend: months.map((m) => ({ month: m.month, revenue: m.revenue })),
+      subscribersByPlan,
+      pipelineByStage,
+      outreachBreakdown,
+      // Lists
+      topStudios,
       recent: orgs
         .sort((a, b) => b._creationTime - a._creationTime)
         .slice(0, 5)

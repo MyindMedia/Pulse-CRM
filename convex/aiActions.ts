@@ -65,20 +65,24 @@ export const generateSessionRecap = action({
 
     const prompt = `You are the in-house communications voice for an indie recording studio. Write a friendly, warm post-session recap email to the artist. Use the facts below. 3-4 short sentences. Mention what got done, sound generous about their work, and end with a soft next step (mixing? mastering? another tracking date?).
 
-FACTS:
+PERSONALIZATION TOKENS - use these EXACTLY where appropriate:
+- {{user_FirstName}} for the artist's first name (do not substitute with a literal name)
+- {{room_name}} for the studio room
+
+FACTS (the room and song are NOT tokens, but the recipient first name IS):
 ${baseFacts}
 
-Output ONLY the email body. Do not include a subject line. Sign off with the engineer's first name when given.`;
+Output ONLY the email body. Do not include a subject line. Sign off with the engineer's first name when given. Use {{user_FirstName}} in the greeting.`;
 
     const ai = await complete(prompt, {
       system:
-        "You write polished, human, never-corny session recap emails for a recording studio.",
+        "You write polished, human, never-corny session recap emails for a recording studio. Use {{user_FirstName}} for the artist's name so the downstream blast system can personalize per recipient.",
       maxOutputTokens: 400,
     });
 
-    const fallbackBody = `Hey ${artistName.split(" ")[0]},
+    const fallbackBody = `Hey {{user_FirstName}},
 
-Great session today on ${session.title}. We tracked clean takes${songTitle ? ` for "${songTitle}"` : ""} in ${roomName ?? "the room"} and everything is saved + backed up.
+Great session today on ${session.title}. We tracked clean takes${songTitle ? ` for "${songTitle}"` : ""} in ${roomName ?? "{{room_name}}"} and everything is saved + backed up.
 
 When you're ready, let me know if you want to slot in a mix date.
 
@@ -198,14 +202,14 @@ async function generateReminder(
 
   const fallback =
     kind === "reminder_24h"
-      ? `Hey ${artistName.split(" ")[0]},
+      ? `Hey {{user_FirstName}},
 
-Quick confirm for ${horizon}: ${session.title} at ${fmt(session.startTime)} in ${roomName ?? "the studio"}. Reply YES if you're locked in - we'll release the slot if we don't hear back 12 hours before.
+Quick confirm for ${horizon}: ${session.title} at ${fmt(session.startTime)} in ${roomName ?? "{{room_name}}"}. Reply YES if you're locked in - we'll release the slot if we don't hear back 12 hours before.
 
 - The studio`
-      : `Hey ${artistName.split(" ")[0]},
+      : `Hey {{user_FirstName}},
 
-Just a heads-up - we're set up and ready for you in ${roomName ?? "the studio"} at ${fmt(session.startTime)}. The door code is on the booking page. Drive safe.
+Just a heads-up - we're set up and ready for you in ${roomName ?? "{{room_name}}"} at ${fmt(session.startTime)}. The door code is on the booking page. Drive safe.
 
 - The studio`;
 
@@ -213,21 +217,30 @@ Just a heads-up - we're set up and ready for you in ${roomName ?? "the studio"} 
     kind === "reminder_24h"
       ? `You write friendly studio confirmation messages. Write the artist a 2-3 sentence note asking them to confirm tomorrow's session. Be warm but make the ask clear. Mention the time + room. End with a soft hold-release note.
 
+PERSONALIZATION TOKENS - use EXACTLY:
+- {{user_FirstName}} for the recipient (artist) first name; do NOT substitute their literal name
+
 FACTS:
-Artist: ${artistName}
 Session: ${session.title}
 Time: ${fmt(session.startTime)}
-Room: ${roomName ?? "the studio"}`
+Room: ${roomName ?? "the studio"}
+
+Greet the artist with {{user_FirstName}}.`
       : `You write friendly studio 1-hour-out reminders. Write the artist a 2-sentence note that we're set up and ready, includes the address / room, and reassures them.
 
+PERSONALIZATION TOKENS - use EXACTLY:
+- {{user_FirstName}} for the recipient (artist) first name; do NOT substitute their literal name
+
 FACTS:
-Artist: ${artistName}
 Session: ${session.title}
 Time: ${fmt(session.startTime)}
-Room: ${roomName ?? "the studio"}`;
+Room: ${roomName ?? "the studio"}
+
+Greet the artist with {{user_FirstName}}.`;
 
   const ai = await complete(prompt, {
-    system: "You write SMS-friendly, warm, brief studio reminders. Two to three sentences max.",
+    system:
+      "You write SMS-friendly, warm, brief studio reminders. Two to three sentences max. Always use {{user_FirstName}} for the recipient's first name.",
     maxOutputTokens: 200,
   });
 
@@ -348,16 +361,37 @@ export const generateRateCutPromos = action({
     const data = await ctx.runQuery(api.aiContext.rateCutContext, {});
     if (!data || data.recommendations.length === 0) return;
 
+    // Booking-link helper: studios have a public slug at /book/<slug>.
+    // We build a real URL with the discount code pre-applied so the
+    // recipient lands on a discounted booking flow.
+    const baseBookingUrl =
+      data.orgSlug
+        ? `https://pulse-dash-kit.netlify.app/book/${data.orgSlug}`
+        : "https://pulse-dash-kit.netlify.app/book";
+
     for (const rec of data.recommendations) {
+      const bookingLink = `${baseBookingUrl}/${rec.roomId}?code=${rec.discountCode}`;
+      const minBlockLabel = `${fmtCents(rec.minBlockCents)} for the ${rec.minimumHours}h minimum`;
       const facts = `Studio: ${data.orgName}
 Room: ${rec.roomName}
 Underused window: ${rec.windowLabel}
 Current rate: ${fmtCents(rec.currentRateCents)}/hr
 Recommended cut: ${rec.cutPct}% (new rate ${fmtCents(rec.newRateCents)}/hr)
+Minimum block (auto-applied): ${minBlockLabel}
+Discount code: ${rec.discountCode}
+Booking link: ${bookingLink}
 Hours below 40% utilization over the last 8 weeks: ${rec.lowUtilHours}
 Past audience for this room: ${data.audienceSize} artists`;
 
-      const prompt = `You are the studio's marketing voice. Write a short promotional email blast that drives bookings into an underused window in one specific room. Be warm, specific, and slightly playful. Mention the room, the window, the rate cut, and a clear call to action with a booking link placeholder {{booking_link}}. 100-150 words max.
+      const prompt = `You are the studio's marketing voice. Write a short promotional email blast that drives bookings into an underused window in one specific room. Be warm, specific, and slightly playful. 100-150 words max.
+
+REQUIRED CONTENT (every email MUST include these literally):
+- Greeting using {{user_FirstName}} (this is a merge token; DO NOT substitute a real name)
+- The room name: ${rec.roomName}
+- The exact window: ${rec.windowLabel}
+- The discount code (verbatim, so the recipient can use it): ${rec.discountCode}
+- The discounted minimum-block price (what they'd actually pay if they book the smallest block): ${minBlockLabel}
+- The booking link as a clickable URL: ${bookingLink}
 
 DETAILS:
 ${facts}
@@ -368,16 +402,17 @@ BODY: <the email body>`;
 
       const ai = await complete(prompt, {
         system:
-          "You are the marketing voice of an indie recording studio. Warm, specific, never desperate.",
-        maxOutputTokens: 500,
+          "You are the marketing voice of an indie recording studio. Warm, specific, never desperate. ALWAYS use {{user_FirstName}} as the recipient greeting merge token; never substitute a literal name.",
+        maxOutputTokens: 600,
       });
 
       let subject = `${rec.cutPct}% off ${rec.roomName} - ${rec.windowLabel}`;
-      let body = `Hey,
+      let body = `Hey {{user_FirstName}},
 
-We have ${rec.windowLabel} availability open in ${rec.roomName} and we'd love to fill it. Sessions in that window are ${rec.cutPct}% off this month - ${fmtCents(rec.newRateCents)}/hr instead of ${fmtCents(rec.currentRateCents)}/hr.
+We have ${rec.windowLabel} availability open in ${rec.roomName} and we'd love to fill it. Sessions in that window are ${rec.cutPct}% off this month - ${fmtCents(rec.newRateCents)}/hr instead of ${fmtCents(rec.currentRateCents)}/hr. That works out to ${minBlockLabel}.
 
-Book here: {{booking_link}}
+Use code ${rec.discountCode} - it's already baked into this link so you can book in one tap:
+${bookingLink}
 
 - ${data.orgName}`;
 
@@ -399,7 +434,7 @@ Book here: {{booking_link}}
         kind: "rate_cut_promo",
         roomId: rec.roomId,
         title: `Rate-cut promo - ${rec.roomName} ${rec.windowLabel}`,
-        summary: `${rec.lowUtilHours}h underused in the last 8 weeks. Suggested ${rec.cutPct}% off.`,
+        summary: `${rec.lowUtilHours}h underused. ${rec.cutPct}% off - ${minBlockLabel}. Code ${rec.discountCode}.`,
         body,
         emailDraft: { subject, body },
         source: ai ? "openai" : "fallback",
