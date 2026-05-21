@@ -4,6 +4,23 @@ import type { Id } from "@convex/_generated/dataModel";
 
 export type OrgPlan = "solo" | "studio" | "label";
 
+export type ServicePricing = {
+  recording?: number;
+  mixing?: number;
+  mastering?: number;
+  production?: number;
+  consultation?: number;
+  rehearsal?: number;
+  writing?: number;
+};
+
+export type DiscountCode = {
+  code: string;
+  pct: number;
+  label?: string;
+  active: boolean;
+};
+
 export type Org = {
   orgId: Id<"orgs">;
   actor: string;
@@ -21,7 +38,24 @@ export type Org = {
   ownerName: string | null;
   ownerEmail: string | null;
   configured: boolean;
+  servicePricing: ServicePricing | null;
+  discountCodes: DiscountCode[];
+  defaultRateCutPct: number | null;
+  taxState: string | null;
+  taxRate: number | null;
+  taxApply: boolean;
 };
+
+/** Service keys mirror sessions.serviceType. */
+export const SERVICES: { key: keyof ServicePricing; label: string }[] = [
+  { key: "recording", label: "Recording" },
+  { key: "mixing", label: "Mixing" },
+  { key: "mastering", label: "Mastering" },
+  { key: "production", label: "Production" },
+  { key: "writing", label: "Writing" },
+  { key: "consultation", label: "Consultation" },
+  { key: "rehearsal", label: "Rehearsal" },
+];
 
 /** Plan tiers - presentational billing config (no real Stripe). */
 export const PLAN_TIERS: {

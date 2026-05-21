@@ -93,6 +93,42 @@ export default defineSchema({
       v.literal("pro"),
       v.literal("agency"),
     )),
+    // Per-service hourly rates (cents). Service keys mirror sessions.serviceType.
+    // When unset, the room's hourlyRateCents is the source of truth.
+    servicePricing: v.optional(
+      v.object({
+        recording: v.optional(v.number()),
+        mixing: v.optional(v.number()),
+        mastering: v.optional(v.number()),
+        production: v.optional(v.number()),
+        consultation: v.optional(v.number()),
+        rehearsal: v.optional(v.number()),
+        writing: v.optional(v.number()),
+      }),
+    ),
+    // Custom discount codes the owner issues themselves (separate from
+    // the AI rate-cut generator's deterministic codes). Stored on the
+    // org so they're tenant-scoped and reusable across surfaces.
+    discountCodes: v.optional(
+      v.array(
+        v.object({
+          code: v.string(),
+          pct: v.number(),
+          label: v.optional(v.string()),
+          active: v.boolean(),
+        }),
+      ),
+    ),
+    // Default cut % the AI rate-cut recommender suggests when it finds
+    // an underused window. When unset the recommender uses its rule-based
+    // default (15% / 20%).
+    defaultRateCutPct: v.optional(v.number()),
+    // US sales tax config. State drives a default rate; the owner can
+    // override `taxRate` manually. `taxApply` toggles whether invoices
+    // automatically add tax on top of the subtotal.
+    taxState: v.optional(v.string()),
+    taxRate: v.optional(v.number()),
+    taxApply: v.optional(v.boolean()),
   })
     .index("by_org", ["orgId"])
     .index("by_slug", ["slug"])

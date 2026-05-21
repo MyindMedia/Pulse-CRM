@@ -44,6 +44,7 @@ import type * as lib_roomStatus from "../lib/roomStatus.js";
 import type * as lib_starter from "../lib/starter.js";
 import type * as lib_stripe from "../lib/stripe.js";
 import type * as lib_tenant from "../lib/tenant.js";
+import type * as lib_usTaxRates from "../lib/usTaxRates.js";
 import type * as licensing from "../licensing.js";
 import type * as maintenance from "../maintenance.js";
 import type * as members from "../members.js";
@@ -103,6 +104,7 @@ declare const fullApi: ApiFromModules<{
   "lib/starter": typeof lib_starter;
   "lib/stripe": typeof lib_stripe;
   "lib/tenant": typeof lib_tenant;
+  "lib/usTaxRates": typeof lib_usTaxRates;
   licensing: typeof licensing;
   maintenance: typeof maintenance;
   members: typeof members;

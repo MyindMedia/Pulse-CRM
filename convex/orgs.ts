@@ -2,6 +2,7 @@ import { query, mutation, QueryCtx } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { currentOrg, currentActor } from "./lib/tenant";
+import { US_STATES, findState } from "./lib/usTaxRates";
 
 /* Orgs - one row per studio subaccount. `current` is the active workspace;
    `getBySlug` powers the public /book/<slug> page. Branding (logo, accent,
@@ -25,6 +26,13 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     ownerName: org?.ownerName ?? null,
     ownerEmail: org?.ownerEmail ?? null,
     configured: Boolean(org),
+    // Pricing / discount / tax config (cycle: Pricing settings)
+    servicePricing: org?.servicePricing ?? null,
+    discountCodes: org?.discountCodes ?? [],
+    defaultRateCutPct: org?.defaultRateCutPct ?? null,
+    taxState: org?.taxState ?? null,
+    taxRate: org?.taxRate ?? null,
+    taxApply: org?.taxApply ?? false,
   };
 }
 
@@ -138,5 +146,102 @@ export const setBookingHero = mutation({
         status: "active",
         bookingHeroId: storageId,
       });
+  },
+});
+
+/* ============================================================
+   Pricing / discounts / tax config
+   ============================================================ */
+
+/** Public list of US states with default tax rates for the settings UI. */
+export const stateTaxRates = query({
+  args: {},
+  handler: async () => US_STATES,
+});
+
+/** Update per-service pricing (cents/hr). Pass only the fields you want
+ * to change; pass null to clear a field. */
+export const setServicePricing = mutation({
+  args: {
+    pricing: v.object({
+      recording: v.optional(v.number()),
+      mixing: v.optional(v.number()),
+      mastering: v.optional(v.number()),
+      production: v.optional(v.number()),
+      consultation: v.optional(v.number()),
+      rehearsal: v.optional(v.number()),
+      writing: v.optional(v.number()),
+    }),
+  },
+  handler: async (ctx, { pricing }) => {
+    const orgId = await currentOrg(ctx);
+    const org = await ensureOrg(ctx, orgId);
+    if (!org) throw new Error("Org not found");
+    await ctx.db.patch(org._id, { servicePricing: pricing });
+  },
+});
+
+/** Replace the studio's discount-code list. Each code stores its percent
+ * and active flag so the owner can pause one without deleting it. */
+export const setDiscountCodes = mutation({
+  args: {
+    codes: v.array(
+      v.object({
+        code: v.string(),
+        pct: v.number(),
+        label: v.optional(v.string()),
+        active: v.boolean(),
+      }),
+    ),
+  },
+  handler: async (ctx, { codes }) => {
+    const orgId = await currentOrg(ctx);
+    const org = await ensureOrg(ctx, orgId);
+    if (!org) throw new Error("Org not found");
+    // Normalize codes to uppercase + dedupe; drop empty rows.
+    const seen = new Set<string>();
+    const clean = codes
+      .map((c) => ({ ...c, code: c.code.trim().toUpperCase() }))
+      .filter((c) => c.code && !seen.has(c.code) && (seen.add(c.code), true));
+    await ctx.db.patch(org._id, { discountCodes: clean });
+  },
+});
+
+/** Set the default cut % used by the AI rate-cut recommender when it
+ * finds an underused window. */
+export const setDefaultRateCutPct = mutation({
+  args: { pct: v.number() },
+  handler: async (ctx, { pct }) => {
+    if (pct < 1 || pct > 90) throw new Error("Cut % must be between 1 and 90");
+    const orgId = await currentOrg(ctx);
+    const org = await ensureOrg(ctx, orgId);
+    if (!org) throw new Error("Org not found");
+    await ctx.db.patch(org._id, { defaultRateCutPct: pct });
+  },
+});
+
+/** Set the tax config. Picking a state auto-fills `taxRate` from the
+ * built-in lookup; the owner can pass `taxRate` to override (e.g. for
+ * city/county add-ons). `apply` toggles whether invoices auto-add tax. */
+export const setTaxConfig = mutation({
+  args: {
+    state: v.optional(v.string()),
+    taxRate: v.optional(v.number()),
+    apply: v.boolean(),
+  },
+  handler: async (ctx, { state, taxRate, apply }) => {
+    const orgId = await currentOrg(ctx);
+    const org = await ensureOrg(ctx, orgId);
+    if (!org) throw new Error("Org not found");
+    // Resolve the rate: explicit value wins, else look up from the state.
+    let rate = taxRate;
+    if (rate === undefined && state) {
+      rate = findState(state)?.rate ?? 0;
+    }
+    await ctx.db.patch(org._id, {
+      taxState: state,
+      taxRate: rate,
+      taxApply: apply,
+    });
   },
 });

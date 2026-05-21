@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Building2, CreditCard, Database, Palette, Users } from "lucide-react";
+import { Building2, CreditCard, Database, Palette, Receipt, Users } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -11,6 +11,7 @@ import { WorkspacePanel } from "@/components/settings/workspace-panel";
 import { TeamPanel } from "@/components/settings/team-panel";
 import { BillingPanel } from "@/components/settings/billing-panel";
 import { BrandingPanel } from "@/components/settings/branding-panel";
+import { PricingPanel } from "@/components/settings/pricing-panel";
 import { DataPanel } from "@/components/settings/data-panel";
 import type { Org } from "@/components/settings/types";
 
@@ -48,6 +49,10 @@ export default function SettingsPage() {
               <Palette className="size-4" />
               Branding
             </TabsTrigger>
+            <TabsTrigger value="pricing">
+              <Receipt className="size-4" />
+              Pricing
+            </TabsTrigger>
             <TabsTrigger value="team">
               <Users className="size-4" />
               Team
@@ -67,6 +72,9 @@ export default function SettingsPage() {
           </TabsContent>
           <TabsContent value="branding">
             <BrandingPanel org={org} />
+          </TabsContent>
+          <TabsContent value="pricing">
+            <PricingPanel org={org} />
           </TabsContent>
           <TabsContent value="team">
             <TeamPanel />
