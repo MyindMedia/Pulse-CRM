@@ -125,4 +125,21 @@ describe("invites - resend", () => {
     const forZ = invites.filter((i) => i.orgId === "studio_z");
     expect(forZ.some((i) => i.status === "pending")).toBe(true);
   });
+
+  it("resend is capability-gated when Clerk is configured", async () => {
+    const t = convexTest(schema);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: "studio_g", name: "G", slug: "g", plan: "studio", status: "active", ownerName: "O", ownerEmail: "o@g.com" });
+    });
+    process.env.CLERK_SECRET_KEY = "sk_test";
+    try {
+      // No agency identity -> resolves to a studio viewer lacking the agency
+      // sub-account capability -> the guard must reject.
+      await expect(t.action(api.invites.resend, { orgId: "studio_g" })).rejects.toThrow();
+      const invites = await t.run(async (ctx) => await ctx.db.query("invites").collect());
+      expect(invites.filter((i) => i.orgId === "studio_g").length).toBe(0);
+    } finally {
+      delete process.env.CLERK_SECRET_KEY;
+    }
+  });
 });

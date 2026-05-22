@@ -202,13 +202,23 @@ export const revoke = mutation({
 export const resend = action({
   args: { orgId: v.string() },
   handler: async (ctx, { orgId }): Promise<{ inviteSent: boolean }> => {
+    // Authorize: in a Clerk-configured (non-demo) deployment, only a caller who
+    // can manage this sub-account may trigger a resend (prevents anyone from
+    // spamming an org owner via the public action). Demo mode runs open, matching
+    // the rest of the app (see resolveViewer's demo synthesis + createSubaccount).
+    if (process.env.CLERK_SECRET_KEY) {
+      await ctx.runQuery(internal.invites._assertCanResend, { orgId });
+    }
+    const identity = await ctx.auth.getUserIdentity();
+    const issuer = identity?.subject ?? "system";
+
     const org = await ctx.runQuery(internal.invites._orgForResend, { orgId });
     if (!org) throw new Error("sub-account not found");
     const appUrl = process.env.APP_URL ?? "http://localhost:3000";
     const token = await ctx.runMutation(internal.invites.record, {
       orgId, clerkOrgId: org.clerkOrgId, agencyId: org.agencyId,
       email: org.ownerEmail, ownerName: org.ownerName, studioName: org.name,
-      invitedBy: "system", emailStatus: "simulated",
+      invitedBy: issuer, emailStatus: "simulated",
     });
     const status = await sendEmail({
       to: org.ownerEmail,
@@ -221,6 +231,15 @@ export const resend = action({
     });
     await ctx.runMutation(internal.invites.setEmailStatus, { token, emailStatus: status });
     return { inviteSent: status === "sent" };
+  },
+});
+
+/** Internal - throws unless the caller can manage this sub-account. Gates resend. */
+export const _assertCanResend = internalQuery({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    await requireCapability(ctx, "agency.subaccount.pause", { orgId });
+    return null;
   },
 });
 
