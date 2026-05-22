@@ -95,9 +95,17 @@ export const markAccepted = internalMutation({
 
 /** Public action - create the Clerk user, add to the org, attach the member.
  *  Called by the invite screen with the password the user chose. */
+type AcceptResult =
+  | { ok: true; email: string }
+  | {
+      ok: false;
+      reason: "invalid" | "accepted" | "expired" | "not_configured" | "exists" | "clerk_error";
+      detail?: string;
+    };
+
 export const accept = action({
   args: { token: v.string(), name: v.string(), password: v.string() },
-  handler: async (ctx, args) => {
+  handler: async (ctx, args): Promise<AcceptResult> => {
     const inv = await ctx.runQuery(internal.invites._byToken, { token: args.token });
     if (!inv || inv.status === "revoked") return { ok: false as const, reason: "invalid" as const };
     if (inv.status === "accepted") return { ok: false as const, reason: "accepted" as const };
@@ -121,9 +129,22 @@ export const accept = action({
       }),
     });
     if (!userRes.ok) {
+      // Parse Clerk's structured error; never return the raw body (it can echo
+      // the email / internal codes back to an unauthenticated caller).
       const body = await userRes.text();
-      if (/already exists|taken|duplicate/i.test(body)) return { ok: false as const, reason: "exists" as const };
-      return { ok: false as const, reason: "clerk_error" as const, detail: body };
+      let code = "";
+      let safeMsg = "Account creation failed.";
+      try {
+        const parsed = JSON.parse(body) as { errors?: { code?: string; message?: string }[] };
+        code = parsed.errors?.[0]?.code ?? "";
+        safeMsg = parsed.errors?.[0]?.message ?? safeMsg;
+      } catch {
+        // non-JSON body; keep the generic message
+      }
+      if (code === "form_identifier_exists" || /already exists|taken|duplicate/i.test(body)) {
+        return { ok: false as const, reason: "exists" as const };
+      }
+      return { ok: false as const, reason: "clerk_error" as const, detail: safeMsg };
     }
     const user = (await userRes.json()) as { id: string };
 

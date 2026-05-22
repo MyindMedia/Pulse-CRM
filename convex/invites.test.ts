@@ -1,5 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
-import { vi } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
@@ -59,28 +58,36 @@ describe("invites - accept + revoke", () => {
     });
   }
 
+  // Find an invite row by token without a custom index (t.run's ctx is typed
+  // with system indexes only); collect + filter in JS instead.
+  async function inviteIdByToken(token: string) {
+    return await t.run(async (ctx) => {
+      const rows = await ctx.db.query("invites").collect();
+      return rows.find((r) => r.token === token)?._id;
+    });
+  }
+
   it("markAccepted attaches clerkUserId to owner member + flips status", async () => {
     const token = await seed();
     const inv = await t.query(api.invites.lookupByToken, { token });
     expect(inv.state).toBe("valid");
-    await t.run(async (ctx) => {
-      const row = await ctx.db.query("invites").withIndex("by_token", (q) => q.eq("token", token)).first();
-      await ctx.runMutation(internal.invites.markAccepted, { inviteId: row!._id, clerkUserId: "user_new" });
-    });
+    const inviteId = await inviteIdByToken(token);
+    await t.mutation(internal.invites.markAccepted, { inviteId: inviteId!, clerkUserId: "user_new" });
     const after = await t.query(api.invites.lookupByToken, { token });
     expect(after.state).toBe("accepted");
-    const member = await t.run(async (ctx) =>
-      await ctx.db.query("members").withIndex("by_org_clerk", (q) => q.eq("orgId", "studio_x").eq("clerkUserId", "user_new")).first());
-    expect(member).not.toBeNull();
+    const member = await t.run(async (ctx) => {
+      const members = await ctx.db.query("members").collect();
+      return members.find((m) => m.clerkUserId === "user_new");
+    });
+    expect(member).toBeTruthy();
   });
 
-  it("markAccepted twice is a no-op the second time (guard)", async () => {
+  it("markAccepted twice throws on the second call (idempotency guard)", async () => {
     const token = await seed();
-    const row = await t.run(async (ctx) =>
-      await ctx.db.query("invites").withIndex("by_token", (q) => q.eq("token", token)).first());
-    await t.run(async (ctx) => ctx.runMutation(internal.invites.markAccepted, { inviteId: row!._id, clerkUserId: "u1" }));
+    const inviteId = await inviteIdByToken(token);
+    await t.mutation(internal.invites.markAccepted, { inviteId: inviteId!, clerkUserId: "u1" });
     await expect(
-      t.run(async (ctx) => ctx.runMutation(internal.invites.markAccepted, { inviteId: row!._id, clerkUserId: "u2" })),
+      t.mutation(internal.invites.markAccepted, { inviteId: inviteId!, clerkUserId: "u2" }),
     ).rejects.toThrow(/already accepted/i);
   });
 });
