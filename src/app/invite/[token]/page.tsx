@@ -84,21 +84,21 @@ export default function InvitePage() {
       <div className="relative w-full max-w-sm text-center">
         <PulseLogo size="md" asLink={false} />
 
-        {invite === undefined && (
+        {token !== "" && invite === undefined && (
           <p className="mt-8 text-sm text-ash">Loading your invitation&hellip;</p>
         )}
 
-        {invite && invite.state !== "valid" && (
+        {(token === "" || (invite && invite.state !== "valid")) && (
           <div className="mt-8 space-y-3">
             <h1 className="font-display text-2xl font-bold text-bone">
-              {invite.state === "accepted"
+              {invite?.state === "accepted"
                 ? "Already claimed"
-                : invite.state === "expired"
+                : invite?.state === "expired"
                   ? "Invitation expired"
                   : "Invalid invitation"}
             </h1>
             <p className="text-sm text-ash">
-              {invite.state === "accepted"
+              {invite?.state === "accepted"
                 ? "This invitation has already been used. Sign in to continue."
                 : "This link is no longer valid. Ask your administrator to resend your invite."}
             </p>
@@ -129,17 +129,19 @@ export default function InvitePage() {
               <span className="text-xs text-gold">locked</span>
             </div>
 
-            <label className="mb-1.5 block text-xs font-semibold text-ash">Full name</label>
+            <label htmlFor="invite-name" className="mb-1.5 block text-xs font-semibold text-ash">Full name</label>
             <input
+              id="invite-name"
               value={name}
               onChange={(e) => setNameOverride(e.target.value)}
               placeholder="Jordan Rivera"
               className="mb-3.5 w-full rounded-[10px] border border-hairline-2 bg-[#0a0a0d] px-3 py-3 text-sm text-bone outline-none focus:border-gold"
             />
 
-            <label className="mb-1.5 block text-xs font-semibold text-ash">Password</label>
+            <label htmlFor="invite-password" className="mb-1.5 block text-xs font-semibold text-ash">Password</label>
             <div className="mb-1 flex items-center rounded-[10px] border border-hairline-2 bg-[#0a0a0d] focus-within:border-gold">
               <input
+                id="invite-password"
                 type={show ? "text" : "password"}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
@@ -149,6 +151,8 @@ export default function InvitePage() {
               <button
                 type="button"
                 onClick={() => setShow((s) => !s)}
+                aria-label={show ? "Hide password" : "Show password"}
+                aria-controls="invite-password"
                 className="px-3 text-ash-dim"
               >
                 {show ? "hide" : "show"}
