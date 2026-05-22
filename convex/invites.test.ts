@@ -1,4 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
+import { vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
@@ -40,5 +41,46 @@ describe("invites - record + lookup", () => {
     });
     const got = await t.query(api.invites.lookupByToken, { token });
     expect(got).toEqual({ state: "expired" });
+  });
+});
+
+describe("invites - accept + revoke", () => {
+  let t: ReturnType<typeof convexTest>;
+  beforeEach(() => { t = convexTest(schema); vi.restoreAllMocks(); });
+
+  async function seed() {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: "studio_x", name: "X", slug: "x", plan: "studio", status: "active", clerkOrgId: "org_c" });
+      await ctx.db.insert("members", { orgId: "studio_x", name: "Jordan", email: "o@x.com", role: "owner", skills: [] });
+    });
+    return await t.mutation(internal.invites.record, {
+      orgId: "studio_x", clerkOrgId: "org_c", email: "o@x.com",
+      ownerName: "Jordan", studioName: "X", invitedBy: "system", emailStatus: "sent",
+    });
+  }
+
+  it("markAccepted attaches clerkUserId to owner member + flips status", async () => {
+    const token = await seed();
+    const inv = await t.query(api.invites.lookupByToken, { token });
+    expect(inv.state).toBe("valid");
+    await t.run(async (ctx) => {
+      const row = await ctx.db.query("invites").withIndex("by_token", (q) => q.eq("token", token)).first();
+      await ctx.runMutation(internal.invites.markAccepted, { inviteId: row!._id, clerkUserId: "user_new" });
+    });
+    const after = await t.query(api.invites.lookupByToken, { token });
+    expect(after.state).toBe("accepted");
+    const member = await t.run(async (ctx) =>
+      await ctx.db.query("members").withIndex("by_org_clerk", (q) => q.eq("orgId", "studio_x").eq("clerkUserId", "user_new")).first());
+    expect(member).not.toBeNull();
+  });
+
+  it("markAccepted twice is a no-op the second time (guard)", async () => {
+    const token = await seed();
+    const row = await t.run(async (ctx) =>
+      await ctx.db.query("invites").withIndex("by_token", (q) => q.eq("token", token)).first());
+    await t.run(async (ctx) => ctx.runMutation(internal.invites.markAccepted, { inviteId: row!._id, clerkUserId: "u1" }));
+    await expect(
+      t.run(async (ctx) => ctx.runMutation(internal.invites.markAccepted, { inviteId: row!._id, clerkUserId: "u2" })),
+    ).rejects.toThrow(/already accepted/i);
   });
 });

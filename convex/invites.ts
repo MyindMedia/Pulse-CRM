@@ -1,5 +1,7 @@
-import { query, internalMutation, internalQuery } from "./_generated/server";
+import { mutation, query, action, internalMutation, internalQuery } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
+import { requireCapability } from "./lib/access";
 
 /* ============================================================
    Beta studio-owner invitations. A token-backed row maps to an
@@ -69,5 +71,94 @@ export const lookupByToken = query({
       ownerName: inv.ownerName,
       studioName: inv.studioName,
     };
+  },
+});
+
+/** Internal - attach the new Clerk user to the seeded owner member + flip status. */
+export const markAccepted = internalMutation({
+  args: { inviteId: v.id("invites"), clerkUserId: v.string() },
+  handler: async (ctx, { inviteId, clerkUserId }) => {
+    const inv = await ctx.db.get(inviteId);
+    if (!inv) throw new Error("invite not found");
+    if (inv.status === "accepted") throw new Error("invite already accepted");
+
+    const member = await ctx.db
+      .query("members")
+      .withIndex("by_org", (q) => q.eq("orgId", inv.orgId))
+      .filter((q) => q.eq(q.field("email"), inv.email))
+      .first();
+    if (member) await ctx.db.patch(member._id, { clerkUserId });
+
+    await ctx.db.patch(inviteId, { status: "accepted", acceptedAt: Date.now() });
+  },
+});
+
+/** Public action - create the Clerk user, add to the org, attach the member.
+ *  Called by the invite screen with the password the user chose. */
+export const accept = action({
+  args: { token: v.string(), name: v.string(), password: v.string() },
+  handler: async (ctx, args) => {
+    const inv = await ctx.runQuery(internal.invites._byToken, { token: args.token });
+    if (!inv || inv.status === "revoked") return { ok: false as const, reason: "invalid" as const };
+    if (inv.status === "accepted") return { ok: false as const, reason: "accepted" as const };
+    if (inv.expiresAt < Date.now()) return { ok: false as const, reason: "expired" as const };
+
+    const secret = process.env.CLERK_SECRET_KEY;
+    if (!secret) return { ok: false as const, reason: "not_configured" as const };
+
+    const [firstName, ...rest] = args.name.trim().split(" ");
+    const lastName = rest.join(" ");
+
+    // 1. Create the user (backend-created emails are verified - no code step).
+    const userRes = await fetch("https://api.clerk.com/v1/users", {
+      method: "POST",
+      headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        email_address: [inv.email],
+        password: args.password,
+        first_name: firstName || undefined,
+        last_name: lastName || undefined,
+      }),
+    });
+    if (!userRes.ok) {
+      const body = await userRes.text();
+      if (/already exists|taken|duplicate/i.test(body)) return { ok: false as const, reason: "exists" as const };
+      return { ok: false as const, reason: "clerk_error" as const, detail: body };
+    }
+    const user = (await userRes.json()) as { id: string };
+
+    // 2. Add to the Clerk org as admin (non-fatal if no clerk org).
+    if (inv.clerkOrgId) {
+      await fetch(`https://api.clerk.com/v1/organizations/${inv.clerkOrgId}/memberships`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: user.id, role: "org:admin" }),
+      }).catch(() => undefined);
+    }
+
+    // 3. Attach to the Convex member row + flip status.
+    await ctx.runMutation(internal.invites.markAccepted, { inviteId: inv._id, clerkUserId: user.id });
+
+    return { ok: true as const, email: inv.email };
+  },
+});
+
+/** Agency console - list invites for a sub-account. */
+export const list = query({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    await requireCapability(ctx, "agency.subaccount.pause", { orgId });
+    return await ctx.db.query("invites").withIndex("by_org", (q) => q.eq("orgId", orgId)).order("desc").take(20);
+  },
+});
+
+/** Agency console - revoke a pending invite. */
+export const revoke = mutation({
+  args: { inviteId: v.id("invites") },
+  handler: async (ctx, { inviteId }) => {
+    const inv = await ctx.db.get(inviteId);
+    if (!inv) throw new Error("invite not found");
+    await requireCapability(ctx, "agency.subaccount.pause", { orgId: inv.orgId });
+    await ctx.db.patch(inviteId, { status: "revoked" });
   },
 });
