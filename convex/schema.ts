@@ -234,6 +234,37 @@ export default defineSchema({
     .index("by_token", ["token"])
     .index("by_entity", ["entityId"]),
 
+  // ── Invites - beta studio-owner invitation flow. One row per outbound
+  //    invite. Token-backed, time-bounded, single-use. The invite email
+  //    links to /accept-invite?token=<token> where the recipient creates
+  //    their Pulse account. ──
+  invites: defineTable({
+    orgId: v.string(),                       // Convex org being joined
+    clerkOrgId: v.optional(v.string()),      // Clerk org id (for membership)
+    agencyId: v.optional(v.string()),        // denormalized for console/audit
+    email: v.string(),                       // invited owner email (lowercased)
+    ownerName: v.string(),
+    studioName: v.string(),                  // shown on the screen + email
+    role: v.literal("owner"),                // beta: studio owners only
+    token: v.string(),                       // URL-safe random
+    status: v.union(
+      v.literal("pending"),
+      v.literal("accepted"),
+      v.literal("revoked"),
+    ),
+    expiresAt: v.number(),
+    invitedBy: v.string(),                   // clerkUserId of issuer, or "system"
+    emailStatus: v.union(
+      v.literal("sent"),
+      v.literal("failed"),
+      v.literal("simulated"),
+    ),
+    acceptedAt: v.optional(v.number()),
+  })
+    .index("by_token", ["token"])
+    .index("by_org", ["orgId"])
+    .index("by_email", ["email"]),
+
   // ── Audit log - every Access Engine deny/grant for sensitive actions ──
   auditEvents: defineTable({
     agencyId: v.optional(v.string()),
