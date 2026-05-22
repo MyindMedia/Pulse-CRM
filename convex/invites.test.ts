@@ -112,3 +112,17 @@ describe("createSubaccount records an invite", () => {
     expect(mine[0].emailStatus).toBe("simulated");
   });
 });
+
+describe("invites - resend", () => {
+  it("resend re-issues a fresh pending invite for the org owner", async () => {
+    const t = convexTest(schema);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: "studio_z", name: "Z", slug: "z", plan: "studio", status: "active", ownerName: "Owner", ownerEmail: "o@z.com", clerkOrgId: "org_z" });
+      await ctx.db.insert("members", { orgId: "studio_z", name: "Owner", email: "o@z.com", role: "owner", skills: [] });
+    });
+    await t.action(api.invites.resend, { orgId: "studio_z" });
+    const invites = await t.run(async (ctx) => await ctx.db.query("invites").collect());
+    const forZ = invites.filter((i) => i.orgId === "studio_z");
+    expect(forZ.some((i) => i.status === "pending")).toBe(true);
+  });
+});

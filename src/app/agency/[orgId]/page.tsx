@@ -30,10 +30,13 @@ import {
 } from "@/components/agency/meta";
 import { DetailActions } from "@/components/agency/detail-actions";
 import { ActivityFeed } from "@/components/agency/activity-feed";
+import { ResendInviteButton } from "@/components/agency/resend-invite-button";
 
 export default function SubaccountDetailPage() {
   const { orgId } = useParams<{ orgId: string }>();
   const subaccount = useQuery(api.agency.subaccount, { orgId });
+  const invites = useQuery(api.invites.list, subaccount ? { orgId } : "skip");
+  const hasPendingInvite = invites?.some((i) => i.status === "pending") ?? false;
 
   const backLink = (
     <Link
@@ -110,6 +113,12 @@ export default function SubaccountDetailPage() {
                 <span className="inline-flex items-center gap-1.5">
                   <Mail className="size-3.5 text-ash-dim" />
                   {subaccount.ownerEmail}
+                </span>
+              )}
+              {hasPendingInvite && (
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="text-warning text-xs font-medium">Invite pending</span>
+                  <ResendInviteButton orgId={orgId} />
                 </span>
               )}
               <span className="inline-flex items-center gap-1.5">

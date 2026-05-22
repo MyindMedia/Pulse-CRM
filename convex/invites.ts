@@ -2,6 +2,8 @@ import { mutation, query, action, internalMutation, internalQuery } from "./_gen
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { requireCapability } from "./lib/access";
+import { sendEmail } from "./lib/email";
+import { inviteEmailHtml, inviteEmailSubject } from "./lib/emailTemplates/invite";
 
 /* ============================================================
    Beta studio-owner invitations. A token-backed row maps to an
@@ -193,5 +195,41 @@ export const revoke = mutation({
     if (!inv) throw new Error("invite not found");
     await requireCapability(ctx, "agency.subaccount.pause", { orgId: inv.orgId });
     await ctx.db.patch(inviteId, { status: "revoked" });
+  },
+});
+
+/** Agency console - re-issue + re-send the branded invite for a sub-account owner. */
+export const resend = action({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }): Promise<{ inviteSent: boolean }> => {
+    const org = await ctx.runQuery(internal.invites._orgForResend, { orgId });
+    if (!org) throw new Error("sub-account not found");
+    const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+    const token = await ctx.runMutation(internal.invites.record, {
+      orgId, clerkOrgId: org.clerkOrgId, agencyId: org.agencyId,
+      email: org.ownerEmail, ownerName: org.ownerName, studioName: org.name,
+      invitedBy: "system", emailStatus: "simulated",
+    });
+    const status = await sendEmail({
+      to: org.ownerEmail,
+      subject: inviteEmailSubject(org.name),
+      html: inviteEmailHtml({
+        ownerName: org.ownerName, studioName: org.name,
+        inviterName: "your Pulse administrator", acceptUrl: `${appUrl}/invite/${token}`,
+        logoUrl: `${appUrl}/pulse-logo.png`,
+      }),
+    });
+    await ctx.runMutation(internal.invites.setEmailStatus, { token, emailStatus: status });
+    return { inviteSent: status === "sent" };
+  },
+});
+
+/** Internal - fetch org owner details needed by the resend action. */
+export const _orgForResend = internalQuery({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+    if (!org || !org.ownerEmail || !org.ownerName) return null;
+    return { name: org.name, ownerEmail: org.ownerEmail, ownerName: org.ownerName, clerkOrgId: org.clerkOrgId, agencyId: org.agencyId };
   },
 });
