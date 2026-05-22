@@ -91,3 +91,24 @@ describe("invites - accept + revoke", () => {
     ).rejects.toThrow(/already accepted/i);
   });
 });
+
+describe("createSubaccount records an invite", () => {
+  let t: ReturnType<typeof convexTest>;
+  beforeEach(() => { t = convexTest(schema); });
+
+  it("records a pending invite row for the owner email", async () => {
+    // Demo path: no CLERK_SECRET_KEY, single-tenant (no agency).
+    await t.action(api.agency.createSubaccount, {
+      name: "Skyline", slug: "skyline", plan: "studio",
+      ownerName: "Jordan", ownerEmail: "Owner@Skyline.com",
+    });
+    const invites = await t.run(async (ctx) =>
+      await ctx.db.query("invites").collect());
+    const mine = invites.filter((i) => i.email === "owner@skyline.com");
+    expect(mine.length).toBe(1);
+    expect(mine[0].status).toBe("pending");
+    expect(mine[0].studioName).toBe("Skyline");
+    // No RESEND_API_KEY in test -> simulated.
+    expect(mine[0].emailStatus).toBe("simulated");
+  });
+});

@@ -4,6 +4,8 @@ import { v } from "convex/values";
 import { seedStarterWorkspace } from "./lib/starter";
 import { resolveViewer, requireCapability, AccessError } from "./lib/access";
 import { PLAN_LIMITS } from "./lib/plans";
+import { sendEmail } from "./lib/email";
+import { inviteEmailHtml, inviteEmailSubject } from "./lib/emailTemplates/invite";
 
 /* ============================================================
    Agency - the super-admin layer. Creates and manages studio
@@ -332,12 +334,6 @@ export const createSubaccount = action({
       }
       const org = (await orgRes.json()) as { id: string };
       clerkOrgId = org.id;
-      // Invite the studio owner - non-fatal if it fails.
-      await fetch(`https://api.clerk.com/v1/organizations/${clerkOrgId}/invitations`, {
-        method: "POST",
-        headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ email_address: args.ownerEmail, role: "org:admin" }),
-      }).catch(() => undefined);
     }
 
     const orgId = clerkOrgId ?? `studio_${slug}`;
@@ -353,7 +349,38 @@ export const createSubaccount = action({
       agencyId,
       tier: "studio",
     });
-    return { orgId, slug, clerkProvisioned: Boolean(clerkOrgId) };
+
+    // Branded beta invite: record token + send our own Resend email.
+    const issuer =
+      self?.kind === "agency_member" && "clerkUserId" in (self as object)
+        ? ((self as { clerkUserId?: string }).clerkUserId ?? "system")
+        : "system";
+    const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+    const token = await ctx.runMutation(internal.invites.record, {
+      orgId,
+      clerkOrgId,
+      agencyId,
+      email: args.ownerEmail,
+      ownerName: args.ownerName,
+      studioName: args.name,
+      invitedBy: issuer,
+      emailStatus: "simulated", // updated below after send
+    });
+    const acceptUrl = `${appUrl}/invite/${token}`;
+    const status = await sendEmail({
+      to: args.ownerEmail,
+      subject: inviteEmailSubject(args.name),
+      html: inviteEmailHtml({
+        ownerName: args.ownerName,
+        studioName: args.name,
+        inviterName: "your Pulse administrator",
+        acceptUrl,
+        logoUrl: `${appUrl}/pulse-logo.png`,
+      }),
+    });
+    await ctx.runMutation(internal.invites.setEmailStatus, { token, emailStatus: status });
+
+    return { orgId, slug, clerkProvisioned: Boolean(clerkOrgId), inviteSent: status === "sent" };
   },
 });
 

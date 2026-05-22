@@ -164,6 +164,18 @@ export const accept = action({
   },
 });
 
+/** Internal - update the emailStatus field after a send attempt. */
+export const setEmailStatus = internalMutation({
+  args: {
+    token: v.string(),
+    emailStatus: v.union(v.literal("sent"), v.literal("failed"), v.literal("simulated")),
+  },
+  handler: async (ctx, { token, emailStatus }) => {
+    const inv = await ctx.db.query("invites").withIndex("by_token", (q) => q.eq("token", token)).first();
+    if (inv) await ctx.db.patch(inv._id, { emailStatus });
+  },
+});
+
 /** Agency console - list invites for a sub-account. */
 export const list = query({
   args: { orgId: v.string() },
