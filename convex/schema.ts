@@ -236,14 +236,14 @@ export default defineSchema({
 
   // ── Invites - beta studio-owner invitation flow. One row per outbound
   //    invite. Token-backed, time-bounded, single-use. The invite email
-  //    links to /accept-invite?token=<token> where the recipient creates
-  //    their Pulse account. ──
+  //    links to /invite/<token> where the recipient creates their Pulse
+  //    account. ──
   invites: defineTable({
-    orgId: v.string(),                       // Convex org being joined
-    clerkOrgId: v.optional(v.string()),      // Clerk org id (for membership)
+    orgId: v.string(),                       // org string key (== clerkOrgId when Clerk is on, else synthetic "studio_<slug>"); matches orgs.orgId
+    clerkOrgId: v.optional(v.string()),      // real Clerk org id, used for the Clerk membership API call
     agencyId: v.optional(v.string()),        // denormalized for console/audit
     email: v.string(),                       // invited owner email (lowercased)
-    ownerName: v.string(),
+    ownerName: v.string(),                   // shown on the screen + email
     studioName: v.string(),                  // shown on the screen + email
     role: v.literal("owner"),                // beta: studio owners only
     token: v.string(),                       // URL-safe random
