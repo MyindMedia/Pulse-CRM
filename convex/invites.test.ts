@@ -36,9 +36,8 @@ describe("invites - record + lookup", () => {
     const orgId = await seedOrg();
     const token = await t.mutation(internal.invites.record, {
       orgId, email: "owner@skyline.com", ownerName: "Jordan",
-      studioName: "Skyline", invitedBy: "system", emailStatus: "sent", ttlMs: 1,
+      studioName: "Skyline", invitedBy: "system", emailStatus: "sent", ttlMs: -1000, // already past
     });
-    await new Promise((r) => setTimeout(r, 5));
     const got = await t.query(api.invites.lookupByToken, { token });
     expect(got).toEqual({ state: "expired" });
   });

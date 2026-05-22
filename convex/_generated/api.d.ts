@@ -31,6 +31,7 @@ import type * as externalCalendarsActions from "../externalCalendarsActions.js";
 import type * as grants from "../grants.js";
 import type * as http from "../http.js";
 import type * as insights from "../insights.js";
+import type * as invites from "../invites.js";
 import type * as invoices from "../invoices.js";
 import type * as lib_access from "../lib/access.js";
 import type * as lib_accessPolicies from "../lib/accessPolicies.js";
@@ -91,6 +92,7 @@ declare const fullApi: ApiFromModules<{
   grants: typeof grants;
   http: typeof http;
   insights: typeof insights;
+  invites: typeof invites;
   invoices: typeof invoices;
   "lib/access": typeof lib_access;
   "lib/accessPolicies": typeof lib_accessPolicies;
