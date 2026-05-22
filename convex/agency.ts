@@ -453,3 +453,61 @@ export const enterAs = mutation({
     }
   },
 });
+
+/**
+ * Operator bootstrap - promote a signed-up Clerk user to agency owner of an
+ * existing Clerk organization. Idempotent. Internal: run by an operator via
+ *   npx convex run agency:seedAgencyOwner '{"agencyId":"org_...", ...}'
+ *
+ * Prerequisites for the user to actually resolve as an agency_member (see
+ * resolveViewer): the Clerk org must have publicMetadata.type="agency" and the
+ * user must be a member of that Clerk org with it as their active org. This
+ * mutation seeds only the Convex side (agencies + agencyMembers owner rows);
+ * the Clerk-side org type + membership are set via the Clerk API.
+ */
+export const seedAgencyOwner = internalMutation({
+  args: {
+    agencyId: v.string(), // Clerk org id (org_...)
+    name: v.string(),
+    slug: v.string(),
+    ownerClerkUserId: v.string(),
+    ownerEmail: v.string(),
+    plan: v.optional(v.union(v.literal("pro"), v.literal("agency"), v.literal("agency_plus"))),
+  },
+  handler: async (ctx, args) => {
+    const plan = args.plan ?? "agency";
+    const existingAg = await ctx.db
+      .query("agencies")
+      .withIndex("by_agency", (q) => q.eq("agencyId", args.agencyId))
+      .first();
+    if (existingAg) {
+      await ctx.db.patch(existingAg._id, {
+        name: args.name, slug: args.slug, plan, status: "active",
+        ownerClerkUserId: args.ownerClerkUserId, ownerEmail: args.ownerEmail,
+      });
+    } else {
+      await ctx.db.insert("agencies", {
+        agencyId: args.agencyId, name: args.name, slug: args.slug, plan,
+        status: "active", ownerClerkUserId: args.ownerClerkUserId, ownerEmail: args.ownerEmail,
+      });
+    }
+
+    const existingMem = await ctx.db
+      .query("agencyMembers")
+      .withIndex("by_agency_clerk", (q) =>
+        q.eq("agencyId", args.agencyId).eq("clerkUserId", args.ownerClerkUserId))
+      .first();
+    if (existingMem) {
+      await ctx.db.patch(existingMem._id, {
+        role: "owner", status: "active", email: args.ownerEmail, name: args.ownerEmail,
+      });
+    } else {
+      await ctx.db.insert("agencyMembers", {
+        agencyId: args.agencyId, clerkUserId: args.ownerClerkUserId,
+        email: args.ownerEmail, name: args.ownerEmail, role: "owner",
+        status: "active", invitedAt: Date.now(),
+      });
+    }
+    return { agencyId: args.agencyId, ownerClerkUserId: args.ownerClerkUserId, plan };
+  },
+});
