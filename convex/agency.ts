@@ -324,13 +324,25 @@ export const createSubaccount = action({
     const secret = process.env.CLERK_SECRET_KEY;
 
     if (secret) {
+      // Note: we do NOT send `slug` to Clerk. Some instances disable
+      // organization slugs (error: organization_slugs_disabled); Clerk
+      // auto-generates one. Our own routing slug lives on the Convex org.
       const orgRes = await fetch("https://api.clerk.com/v1/organizations", {
         method: "POST",
         headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ name: args.name, slug }),
+        body: JSON.stringify({ name: args.name }),
       });
       if (!orgRes.ok) {
-        throw new Error(`Clerk organization create failed (${orgRes.status}).`);
+        const detail = await orgRes.text().catch(() => "");
+        let msg = `Clerk organization create failed (${orgRes.status}).`;
+        try {
+          const parsed = JSON.parse(detail) as { errors?: { long_message?: string; message?: string }[] };
+          const m = parsed.errors?.[0]?.long_message ?? parsed.errors?.[0]?.message;
+          if (m) msg = `Clerk organization create failed: ${m}`;
+        } catch {
+          // non-JSON body; keep the status-only message
+        }
+        throw new Error(msg);
       }
       const org = (await orgRes.json()) as { id: string };
       clerkOrgId = org.id;
