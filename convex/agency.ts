@@ -351,10 +351,9 @@ export const createSubaccount = action({
     });
 
     // Branded beta invite: record token + send our own Resend email.
-    const issuer =
-      self?.kind === "agency_member" && "clerkUserId" in (self as object)
-        ? ((self as { clerkUserId?: string }).clerkUserId ?? "system")
-        : "system";
+    // invitedBy = the Clerk user who created the subaccount (or "system" in demo).
+    const inviteIdentity = await ctx.auth.getUserIdentity();
+    const issuer = inviteIdentity?.subject ?? "system";
     const appUrl = process.env.APP_URL ?? "http://localhost:3000";
     const token = await ctx.runMutation(internal.invites.record, {
       orgId,
