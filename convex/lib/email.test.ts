@@ -27,4 +27,11 @@ describe("sendEmail", () => {
     const status = await sendEmail({ to: "a@b.com", subject: "Hi", html: "<p>x</p>" });
     expect(status).toBe("failed");
   });
+
+  it("returns 'failed' when the network call throws", async () => {
+    process.env.RESEND_API_KEY = "re_test";
+    vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("network error"));
+    const status = await sendEmail({ to: "a@b.com", subject: "Hi", html: "<p>x</p>" });
+    expect(status).toBe("failed");
+  });
 });
