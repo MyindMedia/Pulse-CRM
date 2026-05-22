@@ -15,6 +15,7 @@ const isPublicRoute = createRouteMatcher([
   "/sign-up(.*)",
   "/api/webhooks(.*)",
   "/book(.*)", // public studio booking - no login
+  "/invite(.*)", // beta invite account-creation screen - no auth required
 ]);
 
 const handler = CLERK_ENABLED
