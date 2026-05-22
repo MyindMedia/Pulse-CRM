@@ -1,3 +1,15 @@
+/** Escape a value before interpolating it into the email HTML. Inputs
+ *  (studio name, owner name, inviter, accept URL) come from semi-trusted
+ *  admin input; escaping prevents HTML/layout injection in the inbox. */
+function esc(s: string): string {
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#x27;");
+}
+
 export function inviteEmailSubject(studioName: string): string {
   return `You're invited to ${studioName} on Pulse`;
 }
@@ -9,13 +21,18 @@ export function inviteEmailHtml(args: {
   acceptUrl: string;
   logoUrl: string;
 }): string {
-  const { ownerName, studioName, inviterName, acceptUrl, logoUrl } = args;
-  const initials = studioName
-    .split(" ")
-    .map((w) => w[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const ownerName = esc(args.ownerName);
+  const studioName = esc(args.studioName);
+  const inviterName = esc(args.inviterName);
+  const acceptUrl = esc(args.acceptUrl);
+  const logoUrl = esc(args.logoUrl);
+  const initials =
+    args.studioName
+      .split(" ")
+      .map((w) => w[0])
+      .join("")
+      .slice(0, 2)
+      .toUpperCase() || "?";
   return `<!doctype html>
 <html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
 <body style="margin:0;background:#f1f1f3;font-family:Inter,Segoe UI,Arial,sans-serif;color:#1a1a1f">
@@ -41,7 +58,7 @@ export function inviteEmailHtml(args: {
           <a href="${acceptUrl}" style="display:inline-block;background:#fdb913;color:#1a1405;font-weight:800;font-size:15px;text-decoration:none;padding:15px 28px;border-radius:11px">Accept invitation &amp; create account &rarr;</a>
         </td></tr>
         <tr><td align="center" style="padding:18px 40px 30px">
-          <p style="margin:0;font-size:12px;color:#9a9aa2;line-height:1.6">Button not working? Paste this link:<br><a href="${acceptUrl}" style="color:#6a6a72">${acceptUrl}</a></p>
+          <p style="margin:0;font-size:12px;color:#9a9aa2;line-height:1.6">Button not working? Paste this link:<br><a href="${acceptUrl}" style="color:#6a6a72;word-break:break-all">${acceptUrl}</a></p>
         </td></tr>
         <tr><td align="center" style="background:#f1f1f3;border-top:1px solid #e7e7ea;padding:20px 40px">
           <p style="margin:0;font-size:11.5px;color:#9a9aa2;line-height:1.6">You received this because ${studioName} was added to Pulse.<br>Pulse - Myind Media</p>
