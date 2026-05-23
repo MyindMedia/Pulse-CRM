@@ -10,6 +10,7 @@
 
 import type * as activity from "../activity.js";
 import type * as agency from "../agency.js";
+import type * as agencyOps from "../agencyOps.js";
 import type * as agencyStaff from "../agencyStaff.js";
 import type * as aiActions from "../aiActions.js";
 import type * as aiArtifacts from "../aiArtifacts.js";
@@ -22,6 +23,7 @@ import type * as billingWebhooks from "../billingWebhooks.js";
 import type * as booking from "../booking.js";
 import type * as branding from "../branding.js";
 import type * as checklists from "../checklists.js";
+import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
 import type * as deliverables from "../deliverables.js";
 import type * as engineeringLogs from "../engineeringLogs.js";
@@ -54,6 +56,8 @@ import type * as members from "../members.js";
 import type * as migrations from "../migrations.js";
 import type * as notifications from "../notifications.js";
 import type * as opportunities from "../opportunities.js";
+import type * as opsActions from "../opsActions.js";
+import type * as opsBrain from "../opsBrain.js";
 import type * as orgs from "../orgs.js";
 import type * as payments from "../payments.js";
 import type * as releases from "../releases.js";
@@ -73,6 +77,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   activity: typeof activity;
   agency: typeof agency;
+  agencyOps: typeof agencyOps;
   agencyStaff: typeof agencyStaff;
   aiActions: typeof aiActions;
   aiArtifacts: typeof aiArtifacts;
@@ -85,6 +90,7 @@ declare const fullApi: ApiFromModules<{
   booking: typeof booking;
   branding: typeof branding;
   checklists: typeof checklists;
+  crons: typeof crons;
   dashboard: typeof dashboard;
   deliverables: typeof deliverables;
   engineeringLogs: typeof engineeringLogs;
@@ -117,6 +123,8 @@ declare const fullApi: ApiFromModules<{
   migrations: typeof migrations;
   notifications: typeof notifications;
   opportunities: typeof opportunities;
+  opsActions: typeof opsActions;
+  opsBrain: typeof opsBrain;
   orgs: typeof orgs;
   payments: typeof payments;
   releases: typeof releases;

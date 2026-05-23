@@ -39,6 +39,7 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
             <AgencyWordmark />
             <nav className="hidden items-center gap-4 text-xs font-medium text-ash sm:flex">
               <Link href="/agency" className="hover:text-bone">Sub-accounts</Link>
+              <Link href="/agency/autopilot" className="hover:text-bone">Autopilot</Link>
               <Link href="/agency/staff" className="hover:text-bone">Staff</Link>
               <Link href="/agency/branding" className="hover:text-bone">Branding</Link>
               <Link href="/agency/audit" className="hover:text-bone">Audit</Link>

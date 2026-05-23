@@ -1,8 +1,21 @@
-import { query, mutation, QueryCtx } from "./_generated/server";
+import { query, mutation, internalQuery, QueryCtx } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { currentOrg, currentActor } from "./lib/tenant";
 import { US_STATES, findState } from "./lib/usTaxRates";
+
+/** Internal: every active, non-demo studio subaccount's orgId. The cron
+ * fan-outs (weekly briefing, rate-cut sweep, ops-brain scan) iterate this
+ * to run per-org work without an auth context. */
+export const listActiveOrgIds = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const orgs = await ctx.db.query("orgs").collect();
+    return orgs
+      .filter((o) => (o.status ?? "active") === "active" && o.orgId !== "pulse-demo")
+      .map((o) => o.orgId);
+  },
+});
 
 /* Orgs - one row per studio subaccount. `current` is the active workspace;
    `getBySlug` powers the public /book/<slug> page. Branding (logo, accent,

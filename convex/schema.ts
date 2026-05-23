@@ -822,4 +822,77 @@ export default defineSchema({
     .index("by_calendar", ["calendarId"])
     .index("by_org_room_start", ["orgId", "roomId", "startTime"])
     .index("by_uid", ["calendarId", "externalUid"]),
+
+  // ── Ops Autopilot - proposed (or executed) operational actions. Unlike
+  //    `insights` (read-only nudges), each row carries an executable payload
+  //    and an approval lifecycle. The ops brain writes these; the owner
+  //    approves/dismisses, or trusted types auto-execute. ──
+  opsActions: defineTable({
+    orgId: v.string(),
+    type: v.union(
+      v.literal("reengage_quiet_artist"),
+      v.literal("payment_reminder"),
+      v.literal("confirm_unconfirmed_session"),
+      v.literal("promote_underused_room"),
+      v.literal("resolve_revision_overflow"),
+      v.literal("chase_split_sheet"),
+      v.literal("deposit_unpaid_nudge"),
+    ),
+    priority: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
+    title: v.string(),
+    rationale: v.string(),
+    entityType: v.optional(v.string()),
+    entityId: v.optional(v.string()),
+    // What executing the action actually does.
+    payload: v.union(
+      v.object({
+        kind: v.literal("email"),
+        to: v.optional(v.string()),
+        subject: v.string(),
+        body: v.string(),
+        notifyKind: v.string(),
+      }),
+      v.object({
+        kind: v.literal("session_status"),
+        sessionId: v.id("sessions"),
+        newStatus: v.union(v.literal("confirmed"), v.literal("cancelled")),
+      }),
+      v.object({ kind: v.literal("note_only") }),
+    ),
+    status: v.union(
+      v.literal("proposed"),
+      v.literal("approved"),
+      v.literal("executing"),
+      v.literal("executed"),
+      v.literal("failed"),
+      v.literal("dismissed"),
+      v.literal("snoozed"),
+    ),
+    autonomy: v.boolean(), // true when auto-executed (Phase 3)
+    source: v.union(v.literal("openai"), v.literal("rule")),
+    model: v.optional(v.string()),
+    dedupeKey: v.string(), // `${type}:${entityId}` - open-row dedupe
+    snoozeUntil: v.optional(v.number()),
+    decidedBy: v.optional(v.string()),
+    createdAt: v.number(),
+    decidedAt: v.optional(v.number()),
+    executedAt: v.optional(v.number()),
+    result: v.optional(v.string()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_status", ["orgId", "status"])
+    .index("by_org_dedupe", ["orgId", "dedupeKey"])
+    .index("by_entity", ["entityId"]),
+
+  // ── Ops Autopilot autonomy policy + trust stats, per (org, actionType).
+  //    mode "auto" graduates an action type to auto-execute. ──
+  opsAutonomy: defineTable({
+    orgId: v.string(),
+    actionType: v.string(),
+    mode: v.union(v.literal("manual"), v.literal("auto")),
+    approvedCount: v.number(),
+    dismissedCount: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_type", ["orgId", "actionType"]),
 });

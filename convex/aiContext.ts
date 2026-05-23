@@ -4,7 +4,8 @@
    prompts stay close to the data layout they assume.
    ============================================================ */
 import { v } from "convex/values";
-import { query } from "./_generated/server";
+import { query, internalQuery } from "./_generated/server";
+import type { QueryCtx } from "./_generated/server";
 import { currentOrg } from "./lib/tenant";
 import type { Id } from "./_generated/dataModel";
 
@@ -111,11 +112,11 @@ export const reminderContext = query({
   },
 });
 
-/** Aggregated weekly stats for the AI briefing. Sunday-anchored week. */
-export const weeklyBriefingContext = query({
-  args: {},
-  handler: async (ctx) => {
-    const orgId = await currentOrg(ctx);
+/** Aggregated weekly stats for the AI briefing, for an explicit org.
+ * Sunday-anchored week. Shared by the public query (current org) and the
+ * internal cron variant (explicit org). */
+async function weeklyBriefingFor(ctx: QueryCtx, orgId: string) {
+  {
     const now = Date.now();
     const today = new Date(now);
     today.setHours(0, 0, 0, 0);
@@ -219,15 +220,25 @@ export const weeklyBriefingContext = query({
       topRooms,
       churnRisk,
     };
-  },
+  }
+}
+
+/** Public: weekly briefing context for the caller's active org. */
+export const weeklyBriefingContext = query({
+  args: {},
+  handler: async (ctx) => weeklyBriefingFor(ctx, await currentOrg(ctx)),
+});
+
+/** Internal: weekly briefing context for an explicit org (cron fan-out). */
+export const weeklyBriefingContextForOrg = internalQuery({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => weeklyBriefingFor(ctx, orgId),
 });
 
 /** Find underused (room, weekday, hour-window) combinations over the last
- * 8 weeks. Rule-based; the AI just writes the copy. */
-export const rateCutContext = query({
-  args: {},
-  handler: async (ctx) => {
-    const orgId = await currentOrg(ctx);
+ * 8 weeks, for an explicit org. Rule-based; the AI just writes the copy. */
+async function rateCutFor(ctx: QueryCtx, orgId: string) {
+  {
     const now = Date.now();
     const WEEKS = 8;
     const windowStart = now - WEEKS * 7 * 86_400_000;
@@ -352,5 +363,21 @@ export const rateCutContext = query({
       recommendations,
       audienceSize,
     };
-  },
+  }
+}
+
+/** Public: rate-cut context for the caller's active org. */
+export const rateCutContext = query({
+  args: {},
+  handler: async (ctx) => rateCutFor(ctx, await currentOrg(ctx)),
 });
+
+/** Internal: rate-cut context for an explicit org (cron fan-out). */
+export const rateCutContextForOrg = internalQuery({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => rateCutFor(ctx, orgId),
+});
+
+// Shared data shapes so the AI actions can type their writer helpers.
+export type WeeklyBriefingData = Awaited<ReturnType<typeof weeklyBriefingFor>>;
+export type RateCutData = Awaited<ReturnType<typeof rateCutFor>>;

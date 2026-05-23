@@ -21,6 +21,7 @@ export const AGENCY_ROLE_CAPABILITIES: Record<AgencyRole, ReadonlyArray<Capabili
     "branding.edit",
     "act_as_studio",
     "audit.read",
+    "ops.portfolio.view",
   ],
   admin: [
     "agency.subaccount.create",
@@ -32,6 +33,7 @@ export const AGENCY_ROLE_CAPABILITIES: Record<AgencyRole, ReadonlyArray<Capabili
     "branding.edit",
     "act_as_studio",
     "audit.read",
+    "ops.portfolio.view",
   ],
   staff: [
     "agency.subaccount.pause",       // scoped - engine enforces by sub-account list
@@ -67,6 +69,8 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "opportunities.read", "opportunities.edit",
     "releases.read", "releases.edit",
     "insights.read",
+    "ops.action.approve",
+    "ops.autonomy.manage",
     "activity.read",
   ],
   manager: [
@@ -88,6 +92,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "opportunities.read", "opportunities.edit",
     "releases.read", "releases.edit",
     "insights.read",
+    "ops.action.approve",
     "activity.read",
   ],
   engineer: [
@@ -212,6 +217,8 @@ export const SENSITIVE_CAPABILITIES = new Set<Capability>([
   "finance.refund",
   "grants.issue",
   "grants.revoke",
+  "ops.action.approve",
+  "ops.autonomy.manage",
 ]);
 
 /** Default magic-link expiry windows per scope, in ms. */

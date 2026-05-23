@@ -13,10 +13,11 @@
    OPENAI_API_KEY set on the deployment.
    ============================================================ */
 import { v } from "convex/values";
-import { action } from "./_generated/server";
+import { action, internalAction } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import type { WeeklyBriefingData, RateCutData } from "./aiContext";
 import { complete, DEFAULT_MODEL } from "./lib/openai";
 
 /** Format a Date for human-readable display. */
@@ -280,12 +281,8 @@ export const generateReminder1h = action({
 /* ============================================================
    Feature 2: Weekly briefing (manual trigger or scheduled)
    ============================================================ */
-export const generateWeeklyBriefing = action({
-  args: {},
-  handler: async (ctx) => {
-    const data = await ctx.runQuery(api.aiContext.weeklyBriefingContext, {});
-    if (!data) return;
-
+async function writeWeeklyBriefing(ctx: ActionCtx, data: NonNullable<WeeklyBriefingData>) {
+  {
     const facts = `Org: ${data.orgName}
 Week of: ${fmt(data.weekStart)} - ${fmt(data.weekEnd)}
 
@@ -349,17 +346,47 @@ ${facts}`;
       source: ai ? "openai" : "fallback",
       model: ai?.model ?? undefined,
     });
+  }
+}
+
+/** Public: generate the weekly briefing for the caller's active org. */
+export const generateWeeklyBriefing = action({
+  args: {},
+  handler: async (ctx) => {
+    const data = await ctx.runQuery(api.aiContext.weeklyBriefingContext, {});
+    if (!data) return;
+    await writeWeeklyBriefing(ctx, data);
+  },
+});
+
+/** Internal: weekly briefing for an explicit org (cron fan-out). */
+export const generateWeeklyBriefingForOrg = internalAction({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const data = await ctx.runQuery(internal.aiContext.weeklyBriefingContextForOrg, { orgId });
+    if (!data) return;
+    await writeWeeklyBriefing(ctx, data);
+  },
+});
+
+/** Internal: fan the weekly briefing across every active subaccount. */
+export const runWeeklyForAllOrgs = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ scheduled: number }> => {
+    const ids: string[] = await ctx.runQuery(internal.orgs.listActiveOrgIds, {});
+    for (const orgId of ids) {
+      await ctx.scheduler.runAfter(0, internal.aiActions.generateWeeklyBriefingForOrg, { orgId });
+    }
+    return { scheduled: ids.length };
   },
 });
 
 /* ============================================================
    Feature 3: Rate-cut recommender + promo email draft
    ============================================================ */
-export const generateRateCutPromos = action({
-  args: {},
-  handler: async (ctx) => {
-    const data = await ctx.runQuery(api.aiContext.rateCutContext, {});
-    if (!data || data.recommendations.length === 0) return;
+async function writeRateCutPromos(ctx: ActionCtx, data: NonNullable<RateCutData>) {
+  {
+    if (data.recommendations.length === 0) return;
 
     // Booking-link helper: studios have a public slug at /book/<slug>.
     // We build a real URL with the discount code pre-applied so the
@@ -441,5 +468,37 @@ ${bookingLink}
         model: ai?.model ?? DEFAULT_MODEL,
       });
     }
+  }
+}
+
+/** Public: generate rate-cut promos for the caller's active org. */
+export const generateRateCutPromos = action({
+  args: {},
+  handler: async (ctx) => {
+    const data = await ctx.runQuery(api.aiContext.rateCutContext, {});
+    if (!data) return;
+    await writeRateCutPromos(ctx, data);
+  },
+});
+
+/** Internal: rate-cut promos for an explicit org (cron fan-out). */
+export const generateRateCutPromosForOrg = internalAction({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const data = await ctx.runQuery(internal.aiContext.rateCutContextForOrg, { orgId });
+    if (!data) return;
+    await writeRateCutPromos(ctx, data);
+  },
+});
+
+/** Internal: fan the rate-cut sweep across every active subaccount. */
+export const runRateCutForAllOrgs = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ scheduled: number }> => {
+    const ids: string[] = await ctx.runQuery(internal.orgs.listActiveOrgIds, {});
+    for (const orgId of ids) {
+      await ctx.scheduler.runAfter(0, internal.aiActions.generateRateCutPromosForOrg, { orgId });
+    }
+    return { scheduled: ids.length };
   },
 });
