@@ -1,13 +1,10 @@
 import { AbsoluteFill, Audio, getStaticFiles, staticFile } from "remotion";
-import { linearTiming, TransitionSeries, TransitionPresentation } from "@remotion/transitions";
-import { fade } from "@remotion/transitions/fade";
-import { slide } from "@remotion/transitions/slide";
-import { wipe } from "@remotion/transitions/wipe";
-import { clockWipe } from "@remotion/transitions/clock-wipe";
-import { flip } from "@remotion/transitions/flip";
+import { linearTiming, TransitionSeries } from "@remotion/transitions";
 import { CUTS, CutId, SceneKey, TRANSITION } from "./cuts";
 import { MUSIC, SCENE_VO } from "./audio";
+import { appleScale } from "./transitions/appleScale";
 import { GradientBG } from "./components/GradientBG";
+import { Particles } from "./components/Particles";
 import { Hook } from "./scenes/Hook";
 import { Chaos } from "./scenes/Chaos";
 import { Turn } from "./scenes/Turn";
@@ -29,21 +26,6 @@ const SCENES: Record<SceneKey, React.FC<{ data?: number[] }>> = {
   payoff: Payoff,
   cta: CTA,
 };
-
-// Varied, motivated transitions cycle through scene boundaries for dynamism.
-function presentationFor(i: number, w: number, h: number): TransitionPresentation<Record<string, unknown>> {
-  const seq = [
-    slide({ direction: "from-right" }),
-    wipe({ direction: "from-bottom-right" }),
-    clockWipe({ width: w, height: h }),
-    slide({ direction: "from-left" }),
-    flip(),
-    wipe({ direction: "from-top-left" }),
-    slide({ direction: "from-bottom" }),
-    fade(),
-  ];
-  return seq[i % seq.length] as TransitionPresentation<Record<string, unknown>>;
-}
 
 export type AdProps = { cut: CutId };
 
@@ -68,7 +50,7 @@ export const Ad: React.FC<AdProps> = ({ cut }) => {
       children.push(
         <TransitionSeries.Transition
           key={`t${i}`}
-          presentation={presentationFor(i, config.width, config.height)}
+          presentation={appleScale()}
           timing={linearTiming({ durationInFrames: TRANSITION })}
         />
       );
@@ -77,7 +59,9 @@ export const Ad: React.FC<AdProps> = ({ cut }) => {
 
   return (
     <AbsoluteFill>
+      {/* Animated gradient + drifting gold particles — the only backdrop. */}
       <GradientBG />
+      <Particles />
       {hasMusic ? <Audio src={staticFile(MUSIC)} volume={0.16} /> : null}
       <TransitionSeries>{children}</TransitionSeries>
     </AbsoluteFill>
