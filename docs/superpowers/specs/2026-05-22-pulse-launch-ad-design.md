@@ -25,7 +25,11 @@ Pulse's name is the device: a recurring **gold pulse-line / heartbeat** that bea
 1. **ColdOpen** — ~36-frame held breath (brand-dna principle 5), black, one gold pulse-line draws across, then `"Your studio runs on chaos."` fades in (fade + 2px rise).
 2. **Chaos** — fast, desaturated flashes of the pain: spreadsheets, unpaid invoices, scattered DM threads, lost files. Cold, **no gold** (gold is withheld to make the turn land).
 3. **Turn** — the flat pulse-line snaps into a heartbeat; gold floods in; **Pulse logo hits on the beat**.
-4. **ValueBeats** — real UI screenshots framed in glass with parallax; gold-accented labels. Hype-led glimpses (dashboard → song pipeline → sessions → releases → payments). No fabricated KPI numbers; labels only (honesty rule).
+4. **AugmentedShowcase** — the product made tactile in 3D, not flat glimpses:
+   - **Augmented windows:** real Pulse UI screenshots as glass panels floating in perspective 3D space (CSS `perspective` + `rotateX/Y` + `translateZ`), multiple panels at different depths, slow camera-style drift and parallax.
+   - **3D menu:** a Pulse nav/menu panel tilted in 3D with items that stagger-pop forward on `translateZ`.
+   - **Button clicks:** an animated cursor glides to controls and clicks them — gold press ripple + the target button lights up / a panel responds — so the app feels alive and interactive.
+   - **Data visualizations:** animated gold charts (bars grow, an area/line path draws, numbers count up) for the "every dollar / catalog growth" beat. Directional/illustrative labels only — no fabricated precise KPIs (honesty rule).
 5. **Payoff** — `"One place. Every song. Every session. Every dollar."`
 6. **CTA** — held 1s: Pulse logo + `"The studio CRM built for producers, not spreadsheets"` + URL.
 
@@ -63,13 +67,21 @@ pulse/marketing/remotion/
     theme.ts              # tokens + pacing constants (FPS=30, BREATH=36, beatFrames(bpm))
     cuts.ts               # per-cut config: {aspect,w,h,durationInFrames, scenes:[{key,frames}]}
     Ad.tsx                # composes scenes for a given cut via <Series>/<TransitionSeries>
-    scenes/{ColdOpen,Chaos,Turn,ValueBeats,Payoff,CTA}.tsx   # responsive via useVideoConfig
+    scenes/{ColdOpen,Chaos,Turn,AugmentedShowcase,DataViz,Payoff,CTA}.tsx  # responsive via useVideoConfig
     components/
       PulseLine.tsx       # animated gold heartbeat/waveform (SVG path draw + beat pulse)
-      GlassFrame.tsx      # frames a screenshot in Pulse glass + parallax drift
+      Stage3D.tsx         # perspective container + slow camera drift for 3D scenes
+      Window3D.tsx        # screenshot as a glass panel posed in 3D (rotateX/Y, translateZ)
+      Menu3D.tsx          # tilted Pulse nav panel; items stagger-pop on translateZ
+      ClickCursor.tsx     # cursor that glides to a target + gold press ripple
+      BarChart.tsx        # animated gold bars (grow via interpolate)
+      LineChart.tsx       # gold area/line path that draws (stroke-dashoffset)
+      GlassFrame.tsx      # 2D glass frame (used in compact cuts where 3D is overkill)
       KineticText.tsx     # fade + 2px rise; gold key-word emphasis
-      CountUp.tsx         # gold count-up (used sparingly, no fake KPIs)
+      CountUp.tsx         # gold count-up for chart numbers (illustrative, no fake KPIs)
 ```
+
+**3D approach:** CSS 3D transforms (`perspective`, `rotateX/Y`, `translateZ`) for augmented windows + menu — real depth, renders deterministically, no heavy dependency. (React-Three-Fiber via `@remotion/three` is a possible later upgrade for volumetric/orbit shots; out of scope for v1.)
 
 **Prop type rule (Remotion ≥4.0.46x gotcha):** all Composition prop types declared as `type`, never `interface` (interfaces fail the `Record<string, unknown>` constraint). See `reference_remotion_setup` memory.
 
