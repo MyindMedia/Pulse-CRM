@@ -48,7 +48,8 @@ export const handle = internalMutation({
       const customerId = obj.customer as string;
       const subscriptionId = obj.subscription as string;
       const meta = (obj.metadata as Record<string, string>) ?? {};
-      const intendedTier = (meta.intendedTier as "studio" | "pro" | "agency") ?? "studio";
+      const intendedTier =
+        (meta.intendedTier as "studio" | "pro" | "growth" | "enterprise" | "agency") ?? "studio";
       const clerkUserId = meta.clerkUserId as string;
       const agencyName = (meta.intendedAgencyName as string) || "My Agency";
       const ownerEmail = (obj.customer_email as string) ?? "";
@@ -90,7 +91,7 @@ export const handle = internalMutation({
         .query("agencies")
         .filter((q) => q.eq(q.field("stripeCustomerId"), stripeCustomerId))
         .first();
-      if (ag && tier && (tier === "pro" || tier === "agency")) {
+      if (ag && tier && tier !== "studio") {
         await ctx.db.patch(ag._id, {
           plan: tier,
           status: obj.status === "active" ? "active" : "trial",

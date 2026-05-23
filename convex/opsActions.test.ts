@@ -58,6 +58,21 @@ describe("opsActions queue + execution", () => {
     expect(notes2).toHaveLength(1);
   });
 
+  it("approve with editedBody persists the edit and sends the edited version", async () => {
+    const id = await t.run(async (ctx) => ctx.db.insert("opsActions", emailAction(ORG)));
+
+    await t.mutation(api.opsActions.approve, { id, editedBody: "  Hand-tuned copy.  " });
+    await drain(t);
+
+    const res = await t.run(async (ctx) => ({
+      action: await ctx.db.get(id),
+      notes: (await ctx.db.query("notifications").collect()).filter((n) => n.orgId === ORG),
+    }));
+    expect(res.action?.editedBody).toBe("Hand-tuned copy.");
+    expect(res.action?.payload.kind === "email" && res.action.payload.body).toBe("Hand-tuned copy.");
+    expect(res.notes[0].body).toBe("Hand-tuned copy.");
+  });
+
   it("dismiss sets dismissed and bumps the dismiss counter", async () => {
     const id = await t.run(async (ctx) => ctx.db.insert("opsActions", emailAction(ORG)));
     await t.mutation(api.opsActions.dismiss, { id });

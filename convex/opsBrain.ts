@@ -17,12 +17,36 @@ import { internalMutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import {
+  leadCandidates,
+  prepCandidates,
+  recapCandidates,
+  revisionTriageCandidates,
+  pricingCandidates,
+  noShowCandidates,
+  weakLeadSourceCandidates,
+  type LeadSignal,
+  type PrepSessionSignal,
+  type RecapSessionSignal,
+  type RevisionTriageSignal,
+  type PricingOppSignal,
+  type NoShowRiskSignal,
+  type WeakLeadSourceSignal,
+} from "./agents/generators";
 
 const DAY = 86_400_000;
 const QUIET_DAYS = 90;
 const CONFIRM_HORIZON = 3 * DAY;
 const UPCOMING_WINDOW = 7 * DAY;
 const DAILY_AUTO_CAP = 20;
+
+// Named-agent gather windows.
+const PREP_HORIZON = 2 * DAY; // sessions starting within 48h get a prep packet
+const RECAP_LOOKBACK = 2 * DAY; // sessions completed in the last 48h get a recap
+const NOSHOW_HORIZON = 2 * DAY; // upcoming sessions at no-show risk
+const REVISION_MIN_OPEN = 3; // open notes before we triage
+const PRICING_WINDOW = 8 * 7 * DAY; // 8 weeks for utilization
+const PRICING_BOOKABLE_HOURS = 12 * 7 * 8; // 12h/day * 7 days * 8 weeks
 
 function fmtCents(cents: number): string {
   return `$${Math.round(cents / 100)}`;
@@ -38,7 +62,16 @@ export type ActionType =
   | "promote_underused_room"
   | "resolve_revision_overflow"
   | "chase_split_sheet"
-  | "deposit_unpaid_nudge";
+  | "deposit_unpaid_nudge"
+  // Named-agent action types (unified approval inbox)
+  | "convert_lead"
+  | "session_prep_packet"
+  | "post_session_recap"
+  | "revision_triage"
+  | "complete_rights_metadata"
+  | "pricing_opportunity"
+  | "no_show_risk"
+  | "weak_lead_source";
 
 export type Priority = "low" | "medium" | "high";
 
@@ -69,6 +102,15 @@ export type Signals = {
   revisionOverflow: { id: Id<"songs">; title: string }[];
   splitSheetChase: { id: Id<"songs">; title: string }[];
   underusedRooms: { id: Id<"rooms">; name: string }[];
+  // Named-agent signals.
+  newLeads: LeadSignal[];
+  upcomingPrep: PrepSessionSignal[];
+  recentlyCompleted: RecapSessionSignal[];
+  revisionTriage: RevisionTriageSignal[];
+  rightsMetadataGaps: { id: Id<"songs">; title: string; missing: string[] }[];
+  pricingRooms: PricingOppSignal[];
+  noShowRisks: NoShowRiskSignal[];
+  weakLeadSources: WeakLeadSourceSignal[];
 };
 
 /** Pure rule layer: operational signals -> candidate actions. */
@@ -183,6 +225,27 @@ export function candidatesFor(s: Signals): ProposedAction[] {
     });
   }
 
+  for (const song of s.rightsMetadataGaps) {
+    out.push({
+      type: "complete_rights_metadata",
+      priority: "high",
+      title: `Rights metadata incomplete - ${song.title}`,
+      rationale: `${song.title} is near release but is missing ${song.missing.join(", ")}. Lock the rights metadata before distribution.`,
+      entityType: "song",
+      entityId: song.id,
+      payload: { kind: "note_only" },
+    });
+  }
+
+  // Named agents (deterministic fallbacks; OpenAI enriches the bodies later).
+  out.push(...leadCandidates(s.newLeads, s.now));
+  out.push(...prepCandidates(s.upcomingPrep));
+  out.push(...recapCandidates(s.recentlyCompleted));
+  out.push(...revisionTriageCandidates(s.revisionTriage));
+  out.push(...pricingCandidates(s.pricingRooms));
+  out.push(...noShowCandidates(s.noShowRisks));
+  out.push(...weakLeadSourceCandidates(s.weakLeadSources));
+
   return out;
 }
 
@@ -248,11 +311,176 @@ export async function gatherSignals(ctx: MutationCtx, orgId: string): Promise<Si
     .slice(0, 10)
     .map((song) => ({ id: song._id, title: song.title }));
 
-  return { now, orgName, quietArtists, overdueInvoices, unconfirmedSessions, depositUnpaid, revisionOverflow, splitSheetChase, underusedRooms };
+  // ── Named agents ──────────────────────────────────────────────
+
+  // Booking Conversion: artists still in "lead" status with no session yet.
+  const sessionsByArtist = new Set(sessions.map((sess) => sess.artistId));
+  const newLeads: LeadSignal[] = artists
+    .filter((a) => a.status === "lead" && !sessionsByArtist.has(a._id))
+    .slice(0, 10)
+    .map((a) => ({ id: a._id, name: a.name, email: a.email, source: a.source, genres: a.genres ?? [], createdAt: a._creationTime }));
+
+  // Session Prep: confirmed/tentative sessions starting within the prep horizon.
+  const roomById = new Map(rooms.map((r) => [r._id, r] as const));
+  const engineers = await ctx.db.query("members").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
+  const engineerById = new Map(engineers.map((m) => [m._id, m] as const));
+  const upcomingPrep: PrepSessionSignal[] = sessions
+    .filter((sess) => (sess.status === "confirmed" || sess.status === "tentative") && sess.startTime > now && sess.startTime <= now + PREP_HORIZON)
+    .slice(0, 10)
+    .map((sess) => ({
+      id: sess._id,
+      title: sess.title,
+      startTime: sess.startTime,
+      artistName: artistMap.get(sess.artistId)?.name ?? "the artist",
+      serviceType: sess.serviceType,
+      roomName: sess.roomId ? roomById.get(sess.roomId)?.name : undefined,
+      engineerName: sess.engineerId ? engineerById.get(sess.engineerId)?.name : undefined,
+    }));
+
+  // Post-Session Recap: sessions that completed within the lookback window.
+  const songById = new Map(songs.map((song) => [song._id, song] as const));
+  const recentlyCompleted: RecapSessionSignal[] = sessions
+    .filter((sess) => sess.status === "completed" && sess.endTime <= now && sess.endTime > now - RECAP_LOOKBACK)
+    .slice(0, 10)
+    .map((sess) => ({
+      id: sess._id,
+      title: sess.title,
+      endTime: sess.endTime,
+      artistName: artistMap.get(sess.artistId)?.name ?? "the artist",
+      artistEmail: artistMap.get(sess.artistId)?.email,
+      songTitle: sess.songId ? songById.get(sess.songId)?.title : undefined,
+    }));
+
+  // Revision Triage: deliverables with many open (unresolved) timestamped notes.
+  const comments = await ctx.db.query("revisionComments").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
+  const openByDeliverable = new Map<string, typeof comments>();
+  for (const c of comments) {
+    if (c.resolved) continue;
+    const list = openByDeliverable.get(c.deliverableId) ?? [];
+    list.push(c);
+    openByDeliverable.set(c.deliverableId, list);
+  }
+  const revisionTriage: RevisionTriageSignal[] = [];
+  for (const [deliverableId, list] of openByDeliverable) {
+    if (list.length < REVISION_MIN_OPEN) continue;
+    const deliverable = await ctx.db.get(deliverableId as Id<"deliverables">);
+    if (!deliverable || deliverable.orgId !== orgId) continue;
+    const song = songById.get(deliverable.songId);
+    revisionTriage.push({
+      id: deliverable.songId,
+      title: song?.title ?? "Untitled",
+      deliverableId: deliverable._id,
+      deliverableLabel: deliverable.label,
+      openComments: list
+        .sort((a, b) => a.timestampSec - b.timestampSec)
+        .slice(0, 30)
+        .map((c) => ({ timestampSec: c.timestampSec, body: c.body, authorName: c.authorName })),
+    });
+    if (revisionTriage.length >= 10) break;
+  }
+
+  // Revenue Ops: complete_rights_metadata - songs near release missing ISRC/ISWC or an executed split sheet.
+  const RIGHTS_NEAR = new Set(["mastering", "delivered", "released"]);
+  const rightsMetadataGaps = songs
+    .filter((song) => RIGHTS_NEAR.has(song.stage))
+    .map((song) => {
+      const missing: string[] = [];
+      if (!song.isrc) missing.push("ISRC");
+      if (!song.iswc) missing.push("ISWC");
+      if (sheetBySong.get(song._id)?.status !== "fully_executed") missing.push("an executed split sheet");
+      return { id: song._id, title: song.title, missing };
+    })
+    .filter((g) => g.missing.length > 0)
+    .slice(0, 10);
+
+  // Revenue Ops: pricing_opportunity - rooms running hot over the last 8 weeks.
+  const pricingWindowStart = now - PRICING_WINDOW;
+  const bookedHoursByRoom = new Map<string, number>();
+  for (const sess of sessions) {
+    if (!sess.roomId) continue;
+    if (sess.status === "cancelled" || sess.status === "no_show") continue;
+    if (sess.startTime < pricingWindowStart || sess.startTime > now) continue;
+    const hours = (sess.endTime - sess.startTime) / 3_600_000;
+    bookedHoursByRoom.set(sess.roomId, (bookedHoursByRoom.get(sess.roomId) ?? 0) + hours);
+  }
+  const pricingRooms: PricingOppSignal[] = rooms
+    .filter((r) => r.bookable !== false && r.status !== "retired" && (r.hourlyRateCents ?? 0) > 0)
+    .map((r) => ({
+      id: r._id,
+      name: r.name,
+      hourlyRateCents: r.hourlyRateCents ?? 0,
+      utilizationPct: Math.round(((bookedHoursByRoom.get(r._id) ?? 0) / PRICING_BOOKABLE_HOURS) * 100),
+    }))
+    .slice(0, 10);
+
+  // Revenue Ops: no_show_risk - upcoming sessions with a flagged artist or unpaid deposit.
+  const noShowRisks: NoShowRiskSignal[] = sessions
+    .filter((sess) => (sess.status === "confirmed" || sess.status === "tentative") && sess.startTime > now && sess.startTime <= now + NOSHOW_HORIZON)
+    .slice(0, 10)
+    .map((sess) => {
+      const artist = artistMap.get(sess.artistId);
+      return {
+        id: sess._id,
+        title: sess.title,
+        startTime: sess.startTime,
+        artistName: artist?.name ?? "the artist",
+        artistEmail: artist?.email,
+        reliability: artist?.reliability ?? "solid",
+        depositPaid: sess.depositPaid,
+      };
+    });
+
+  // Revenue Ops: weak_lead_source - sources with poor lead->booking conversion.
+  const leadCountBySource = new Map<string, number>();
+  const bookedCountBySource = new Map<string, number>();
+  for (const a of artists) {
+    const src = a.source;
+    if (!src) continue;
+    leadCountBySource.set(src, (leadCountBySource.get(src) ?? 0) + 1);
+    if (sessionsByArtist.has(a._id)) bookedCountBySource.set(src, (bookedCountBySource.get(src) ?? 0) + 1);
+  }
+  const weakLeadSources: WeakLeadSourceSignal[] = Array.from(leadCountBySource.entries())
+    .map(([source, leadCount]) => ({ source, leadCount, bookedCount: bookedCountBySource.get(source) ?? 0 }))
+    .slice(0, 10);
+
+  return {
+    now,
+    orgName,
+    quietArtists,
+    overdueInvoices,
+    unconfirmedSessions,
+    depositUnpaid,
+    revisionOverflow,
+    splitSheetChase,
+    underusedRooms,
+    newLeads,
+    upcomingPrep,
+    recentlyCompleted,
+    revisionTriage,
+    rightsMetadataGaps,
+    pricingRooms,
+    noShowRisks,
+    weakLeadSources,
+  };
 }
 
+/** Action types whose draft body OpenAI rewrites after the rule layer
+ * seeds a fallback. The deterministic body is always present first so
+ * nothing breaks without an API key. */
+const ENRICHABLE = new Set<ActionType>([
+  "convert_lead",
+  "session_prep_packet",
+  "post_session_recap",
+  "revision_triage",
+  "payment_reminder",
+  "reengage_quiet_artist",
+  "chase_split_sheet",
+  "complete_rights_metadata",
+  "no_show_risk",
+]);
+
 /** Upsert candidate actions with open-row dedupe + Phase-3 autonomy. */
-export async function upsertProposed(ctx: MutationCtx, orgId: string, candidates: ProposedAction[]): Promise<{ inserted: number; autoExecuted: number }> {
+export async function upsertProposed(ctx: MutationCtx, orgId: string, candidates: ProposedAction[]): Promise<{ inserted: number; autoExecuted: number; enrichIds: Id<"opsActions">[] }> {
   const now = Date.now();
   const todayStart = now - (now % DAY);
 
@@ -263,6 +491,7 @@ export async function upsertProposed(ctx: MutationCtx, orgId: string, candidates
   const OPEN = new Set(["proposed", "approved", "snoozed", "executing"]);
   let inserted = 0;
   let autoExecuted = 0;
+  const enrichIds: Id<"opsActions">[] = [];
 
   for (const c of candidates) {
     const dedupeKey = `${c.type}:${c.entityId ?? "org"}`;
@@ -295,6 +524,10 @@ export async function upsertProposed(ctx: MutationCtx, orgId: string, candidates
       ...(auto ? { decidedAt: now, decidedBy: "autopilot" } : {}),
     });
     inserted++;
+    // Non-auto rows of an enrichable type get an OpenAI-written body before
+    // a human ever sees them. Auto rows skip enrichment to avoid sending a
+    // half-written body before the action fires.
+    if (!auto && ENRICHABLE.has(c.type)) enrichIds.push(id);
 
     if (auto) {
       autoToday++;
@@ -303,27 +536,51 @@ export async function upsertProposed(ctx: MutationCtx, orgId: string, candidates
     }
   }
 
-  return { inserted, autoExecuted };
+  return { inserted, autoExecuted, enrichIds };
 }
 
-/** Scan one org: gather -> candidates -> upsert. */
+/** Scan one org: gather -> candidates -> upsert -> schedule LLM enrichment. */
 export const scanOrg = internalMutation({
   args: { orgId: v.string() },
   handler: async (ctx, { orgId }) => {
     const signals = await gatherSignals(ctx, orgId);
     const candidates = candidatesFor(signals);
-    return upsertProposed(ctx, orgId, candidates);
+    const res = await upsertProposed(ctx, orgId, candidates);
+    if (res.enrichIds.length > 0) {
+      await ctx.scheduler.runAfter(0, internal.aiActions.enrichOpsActions, { ids: res.enrichIds });
+    }
+    return { inserted: res.inserted, autoExecuted: res.autoExecuted };
   },
 });
+
+/** Active subaccount ids, excluding the seeded demo org. */
+async function activeOrgIds(ctx: MutationCtx): Promise<string[]> {
+  const orgs = await ctx.db.query("orgs").collect();
+  return orgs
+    .filter((o) => (o.status ?? "active") === "active" && o.orgId !== "pulse-demo")
+    .map((o) => o.orgId);
+}
 
 /** Fan the scan across every active subaccount (cron entry point). */
 export const scanAllOrgs = internalMutation({
   args: {},
   handler: async (ctx) => {
-    const orgs = await ctx.db.query("orgs").collect();
-    const ids = orgs
-      .filter((o) => (o.status ?? "active") === "active" && o.orgId !== "pulse-demo")
-      .map((o) => o.orgId);
+    const ids = await activeOrgIds(ctx);
+    for (const orgId of ids) {
+      await ctx.scheduler.runAfter(0, internal.opsBrain.scanOrg, { orgId });
+    }
+    return { scheduled: ids.length };
+  },
+});
+
+/** Fan the named-agent scan across every active subaccount. Shares scanOrg
+ * (dedupe-safe), so the time-sensitive agents - booking conversion, session
+ * prep, post-session recap, no-show risk - can run on a tighter cadence than
+ * the daily ops-brain sweep without producing duplicate actions. */
+export const scanAgentsAllOrgs = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const ids = await activeOrgIds(ctx);
     for (const orgId of ids) {
       await ctx.scheduler.runAfter(0, internal.opsBrain.scanOrg, { orgId });
     }

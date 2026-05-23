@@ -4,7 +4,13 @@ import { v } from "convex/values";
 import { stripeClient, priceIdForTier } from "./lib/stripe";
 import type { TierKey } from "./lib/plans";
 
-const tierV = v.union(v.literal("studio"), v.literal("pro"), v.literal("agency"));
+const tierV = v.union(
+  v.literal("studio"),
+  v.literal("pro"),
+  v.literal("growth"),
+  v.literal("enterprise"),
+  v.literal("agency"),
+);
 
 /** Public action - start a Stripe Checkout session for the chosen tier. */
 export const beginCheckout = action({

@@ -6,6 +6,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import {
+  CalendarPlus,
   Check,
   Music2,
   Pencil,
@@ -32,7 +33,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
-import { Input } from "@/components/ui/field";
+import { Field, Input } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/feedback";
 import { Progress } from "@/components/ui/progress";
@@ -70,16 +71,58 @@ export function DealSheet({
   const update = useMutation(api.opportunities.update);
   const moveStage = useMutation(api.opportunities.moveStage);
   const remove = useMutation(api.opportunities.remove);
+  const convertToBooking = useMutation(api.opportunities.convertToBooking);
+
+  // Rooms for the convert-to-booking picker. Only fetched while the deal
+  // sheet is open and the user is converting.
+  const [converting, setConverting] = useState(false);
+  const rooms = useQuery(api.rooms.bookable, converting ? {} : "skip");
 
   const [editingValue, setEditingValue] = useState(false);
   const [valueDraft, setValueDraft] = useState("");
   const [busy, setBusy] = useState(false);
+  const [roomId, setRoomId] = useState("");
+  const [startAt, setStartAt] = useState("");
+  const [durationHours, setDurationHours] = useState("3");
 
   const [prevOppId, setPrevOppId] = useState(oppId);
   if (prevOppId !== oppId) {
     setPrevOppId(oppId);
     setEditingValue(false);
+    setConverting(false);
     setBusy(false);
+    setRoomId("");
+    setStartAt("");
+    setDurationHours("3");
+  }
+
+  async function convert() {
+    if (!oppId) return;
+    const startTime = startAt ? new Date(startAt).getTime() : NaN;
+    const hours = parseFloat(durationHours);
+    if (!Number.isFinite(startTime) || startTime <= Date.now()) {
+      toast.error("Pick a start time in the future");
+      return;
+    }
+    if (!Number.isFinite(hours) || hours <= 0) {
+      toast.error("Enter a session length");
+      return;
+    }
+    setBusy(true);
+    try {
+      await convertToBooking({
+        id: oppId as Id<"opportunities">,
+        roomId: roomId ? (roomId as Id<"rooms">) : undefined,
+        startTime,
+        durationHours: hours,
+      });
+      toast.success("Session booked - deal moved to booked");
+      setConverting(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not convert the deal");
+    } finally {
+      setBusy(false);
+    }
   }
 
   async function saveValue() {
@@ -285,6 +328,80 @@ export function DealSheet({
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+
+              {/* Convert to booking */}
+              <div className="space-y-2">
+                {!converting ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full"
+                    disabled={detail.stage === "won" || detail.stage === "lost"}
+                    onClick={() => setConverting(true)}
+                  >
+                    <CalendarPlus className="size-3.5" />
+                    Convert to booking
+                  </Button>
+                ) : (
+                  <div className="space-y-3 rounded-md border border-hairline bg-coal-2 p-3">
+                    <p className="text-xs font-medium text-ash">Book a session for this deal</p>
+                    <Field label="Room" hint="Optional - leave blank to assign later.">
+                      <Select value={roomId} onValueChange={setRoomId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder={rooms ? "Select a room" : "Loading rooms…"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {(rooms ?? []).map((r) => (
+                            <SelectItem key={r._id} value={r._id}>
+                              {r.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </Field>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Start time" htmlFor="conv-start">
+                        <Input
+                          id="conv-start"
+                          type="datetime-local"
+                          value={startAt}
+                          onChange={(e) => setStartAt(e.target.value)}
+                        />
+                      </Field>
+                      <Field label="Hours" htmlFor="conv-hours">
+                        <Input
+                          id="conv-hours"
+                          inputMode="decimal"
+                          value={durationHours}
+                          onChange={(e) =>
+                            setDurationHours(e.target.value.replace(/[^0-9.]/g, ""))
+                          }
+                        />
+                      </Field>
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        className="flex-1"
+                        onClick={convert}
+                        disabled={busy}
+                      >
+                        {busy ? <Spinner /> : <CalendarPlus className="size-3.5" />}
+                        Book session
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => setConverting(false)}
+                        disabled={busy}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Activity timeline */}

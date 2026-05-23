@@ -103,6 +103,151 @@ export const get = query({
   },
 });
 
+/**
+ * Aggregate snapshot for the Song Workspace overview card: stage, owner,
+ * deadline, linked client, the open balance across the song's sessions, and a
+ * derived next-action heuristic. Returns null when the song is out of org.
+ */
+export const overview = query({
+  args: { songId: v.id("songs") },
+  handler: async (ctx, { songId }) => {
+    const orgId = await currentOrg(ctx);
+    const song = await ctx.db.get(songId);
+    if (!song || song.orgId !== orgId) return null;
+
+    const [artist, owner, sessions, split] = await Promise.all([
+      ctx.db.get(song.artistId),
+      song.ownerMemberId ? ctx.db.get(song.ownerMemberId) : Promise.resolve(null),
+      ctx.db.query("sessions").withIndex("by_song", (q) => q.eq("songId", songId)).collect(),
+      ctx.db.query("splitSheets").withIndex("by_song", (q) => q.eq("songId", songId)).first(),
+    ]);
+
+    // Open balance = sum of what's still owed across the song's sessions.
+    // Outstanding mirrors payments.ts: rateCents - amountPaidCents, floored at 0.
+    let openBalanceCents = 0;
+    for (const s of sessions) {
+      openBalanceCents += Math.max(0, s.rateCents - (s.amountPaidCents ?? 0));
+    }
+
+    // Has any completed session that has not yet produced a recap artifact?
+    const completed = sessions.filter((s) => s.status === "completed");
+    let completedAwaitingRecap = false;
+    for (const s of completed) {
+      const recap = await ctx.db
+        .query("aiArtifacts")
+        .withIndex("by_session", (q) => q.eq("sessionId", s._id))
+        .filter((q) => q.eq(q.field("kind"), "session_recap"))
+        .first();
+      if (!recap) {
+        completedAwaitingRecap = true;
+        break;
+      }
+    }
+
+    const splitIncomplete = !split || split.status === "draft";
+
+    // Next-action heuristic, in priority order.
+    let nextAction: string;
+    if (openBalanceCents > 0) nextAction = "Collect balance";
+    else if (completedAwaitingRecap) nextAction = "Send recap";
+    else if (splitIncomplete) nextAction = "Complete split sheet";
+    else nextAction = "On track";
+
+    return {
+      songId,
+      stage: song.stage,
+      deadline: song.deadline,
+      ownerMemberId: song.ownerMemberId ?? null,
+      ownerName: owner?.name ?? null,
+      clientId: artist?._id ?? null,
+      clientName: artist?.name ?? null,
+      openBalanceCents,
+      sessionCount: sessions.length,
+      splitStatus: split?.status ?? null,
+      nextAction,
+    };
+  },
+});
+
+/**
+ * AI activity for a song: artifacts generated against the song's sessions,
+ * org-level artifacts (no session link), and insights pinned to the song or
+ * one of its sessions. Newest-first, with the source tag preserved so the UI
+ * can badge openai vs fallback. Dismissed items are hidden.
+ */
+export const aiActivity = query({
+  args: { songId: v.id("songs") },
+  handler: async (ctx, { songId }) => {
+    const orgId = await currentOrg(ctx);
+    const song = await ctx.db.get(songId);
+    if (!song || song.orgId !== orgId) return { artifacts: [], insights: [] };
+
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_song", (q) => q.eq("songId", songId))
+      .collect();
+    const sessionIds = new Set(sessions.map((s) => s._id as string));
+
+    // Per-session artifacts.
+    const sessionArtifacts = (
+      await Promise.all(
+        sessions.map((s) =>
+          ctx.db
+            .query("aiArtifacts")
+            .withIndex("by_session", (q) => q.eq("sessionId", s._id))
+            .collect(),
+        ),
+      )
+    ).flat();
+
+    // Org-level artifacts that aren't tied to a specific session (weekly
+    // briefings, reactivation campaigns, etc.) - relevant context for the song.
+    const orgArtifacts = (
+      await ctx.db.query("aiArtifacts").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
+    ).filter((a) => a.sessionId == null);
+
+    const seen = new Set<string>();
+    const artifacts = [...sessionArtifacts, ...orgArtifacts]
+      .filter((a) => a.orgId === orgId && a.status !== "dismissed")
+      .filter((a) => (seen.has(a._id) ? false : (seen.add(a._id), true)))
+      .sort((a, b) => b.generatedAt - a.generatedAt)
+      .map((a) => ({
+        _id: a._id,
+        kind: a.kind,
+        title: a.title,
+        summary: a.summary,
+        source: a.source,
+        model: a.model ?? null,
+        status: a.status,
+        generatedAt: a.generatedAt,
+        scope: a.sessionId ? ("session" as const) : ("org" as const),
+      }));
+
+    // Insights pinned to this song or one of its sessions.
+    const insights = (
+      await ctx.db.query("insights").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
+    )
+      .filter((i) => {
+        if (i.status === "dismissed") return false;
+        if (i.entityType === "song" && i.entityId === (songId as string)) return true;
+        if (i.entityType === "session" && i.entityId && sessionIds.has(i.entityId)) return true;
+        return false;
+      })
+      .sort((a, b) => b._creationTime - a._creationTime)
+      .map((i) => ({
+        _id: i._id,
+        kind: i.kind,
+        title: i.title,
+        body: i.body,
+        severity: i.severity,
+        status: i.status,
+        createdAt: i._creationTime,
+      }));
+
+    return { artifacts, insights };
+  },
+});
+
 export const picker = query({
   args: { artistId: v.optional(v.id("artists")) },
   handler: async (ctx, { artistId }) => {
@@ -189,11 +334,19 @@ export const update = mutation({
     iswc: v.optional(v.string()),
     moodTags: v.optional(v.array(v.string())),
     revisionsIncluded: v.optional(v.number()),
+    deadline: v.optional(v.union(v.number(), v.null())),
+    ownerMemberId: v.optional(v.union(v.id("members"), v.null())),
   },
   handler: async (ctx, { id, ...patch }) => {
     const orgId = await currentOrg(ctx);
     const song = await ctx.db.get(id);
     if (!song || song.orgId !== orgId) throw new Error("Not found");
+
+    // Owner must be a member of this org (when set).
+    if (patch.ownerMemberId) {
+      const owner = await ctx.db.get(patch.ownerMemberId);
+      if (!owner || owner.orgId !== orgId) throw new Error("Owner not found");
+    }
 
     // Metadata vault: enforce ISRC uniqueness within the org.
     if (patch.isrc) {
@@ -202,7 +355,13 @@ export const update = mutation({
       ).find((s) => s._id !== id && s.isrc === patch.isrc);
       if (dupe) throw new Error(`ISRC ${patch.isrc} is already assigned to "${dupe.title}"`);
     }
-    const clean = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
+    // Drop keys the caller did not send (undefined). A passed `null` is an
+    // explicit clear -> map to `undefined` so db.patch removes the field.
+    const clean = Object.fromEntries(
+      Object.entries(patch)
+        .filter(([, val]) => val !== undefined)
+        .map(([k, val]) => [k, val === null ? undefined : val]),
+    );
     await ctx.db.patch(id, clean);
   },
 });

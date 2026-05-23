@@ -502,3 +502,201 @@ export const runRateCutForAllOrgs = internalAction({
     return { scheduled: ids.length };
   },
 });
+
+/* ============================================================
+   Named-agent LLM enrichment.
+
+   opsBrain seeds every action with a deterministic fallback body, then
+   schedules this action with the ids of the just-created rows whose
+   draft an LLM should upgrade. For email actions we rewrite the body in
+   place; for the rich-body agents (session prep, post-session recap,
+   revision triage) we write an aiArtifacts row and link it back via
+   opsActions.artifactId. Without an OPENAI_API_KEY, complete() returns
+   null and we leave the deterministic fallback untouched - nothing breaks.
+   ============================================================ */
+
+/** kind label used on the linked artifact, per action type. */
+type ArtifactKind = "lead_followup" | "revision_triage" | "reactivation_campaign" | "rights_alert" | "prep_packet" | "session_recap";
+
+function maskTokens(s: string): string {
+  // Keep the {{user_FirstName}} merge token intact for the blast system.
+  return s;
+}
+
+export const enrichOpsActions = internalAction({
+  args: { ids: v.array(v.id("opsActions")) },
+  handler: async (ctx, { ids }) => {
+    let enriched = 0;
+    for (const id of ids) {
+      const c = await ctx.runQuery(internal.opsActions.enrichmentContext, { id });
+      if (!c) continue; // gone or already decided
+
+      const firstNameToken = "{{user_FirstName}}";
+
+      // ── Email-body agents: rewrite the payload body in place. ──
+      if (
+        c.type === "convert_lead" ||
+        c.type === "reengage_quiet_artist" ||
+        c.type === "payment_reminder" ||
+        c.type === "post_session_recap" ||
+        c.type === "no_show_risk"
+      ) {
+        const persona =
+          c.type === "convert_lead"
+            ? `You are the booking voice of ${c.orgName}, an indie recording studio. A new lead just came in. Write a warm, concrete reply that offers two specific time options and asks for a deposit to hold the slot. 90-130 words.`
+            : c.type === "reengage_quiet_artist"
+              ? `You are the relationship voice of ${c.orgName}. Win back a client who has gone quiet for 90+ days. Warm, no guilt, one soft call to book. 70-110 words.`
+              : c.type === "payment_reminder"
+                ? `You are the billing voice of ${c.orgName}. Nudge a past-due invoice. Friendly, clear, easy to act on. 60-90 words.`
+                : c.type === "post_session_recap"
+                  ? `You are the studio's communications voice for ${c.orgName}. Write a warm post-session recap to the artist and propose the next stage. 3-4 sentences.`
+                  : `You are the front desk of ${c.orgName}. Send a confirm-or-release nudge for an at-risk upcoming session. Warm, clear, 2-3 sentences.`;
+
+        const facts = [
+          c.artistName ? `Artist: ${c.artistName}` : null,
+          c.genres?.length ? `Genres: ${c.genres.join(", ")}` : null,
+          c.artistGenres?.length ? `Genres: ${c.artistGenres.join(", ")}` : null,
+          c.songTitle ? `Song: ${c.songTitle}` : null,
+          c.session ? `Session: ${c.session.title} (${c.session.serviceType})` : null,
+          c.roomName ? `Room: ${c.roomName}` : null,
+          c.subject ? `Working subject: ${c.subject}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n");
+
+        const prompt = `${persona}
+
+Use ${firstNameToken} for the recipient's first name in the greeting - it is a merge token, do NOT substitute a literal name.
+
+FACTS:
+${facts || "(no extra facts)"}
+
+Output ONLY the email body. No subject line.`;
+
+        const ai = await complete(prompt, {
+          system: `You write warm, human, on-brand studio emails. Always greet with ${firstNameToken}. Never corny, never corporate.`,
+          maxOutputTokens: 400,
+        });
+        if (ai?.text) {
+          await ctx.runMutation(internal.usage.record, {
+            orgId: c.orgId,
+            metric: "ai_credits",
+            amount: 1,
+          });
+        }
+        if (ai?.text?.trim()) {
+          await ctx.runMutation(internal.opsActions.applyEnrichment, {
+            id,
+            body: maskTokens(ai.text.trim()),
+            model: ai.model,
+          });
+          enriched++;
+        }
+        continue;
+      }
+
+      // ── Rich-body agents: write an aiArtifact + link it. ──
+      let artifactKind: ArtifactKind | null = null;
+      let prompt = "";
+      let system = "";
+      let title = c.title;
+      let summary = "";
+      let fallback = "";
+      const maxOut = 600;
+
+      if (c.type === "session_prep_packet") {
+        artifactKind = "prep_packet";
+        const facts = [
+          c.session ? `Session: ${c.session.title} (${c.session.serviceType})` : null,
+          c.artistName ? `Artist: ${c.artistName}${c.artistGenres?.length ? ` (${c.artistGenres.join(", ")})` : ""}` : null,
+          c.songTitle ? `Song: ${c.songTitle}` : null,
+          c.roomName ? `Room: ${c.roomName}` : null,
+          c.engineerName ? `Engineer: ${c.engineerName}` : null,
+          c.gear?.length ? `Installed gear: ${c.gear.join(", ")}` : null,
+          c.session?.notes ? `Notes: ${c.session.notes}` : null,
+        ]
+          .filter(Boolean)
+          .join("\n");
+        prompt = `You are the session prep AI for ${c.orgName}. Write a tight, scannable engineer prep brief (markdown headings + bullets): who the artist is, what they're working on, what to set up, anything to remember. Under 180 words.
+
+FACTS:
+${facts}`;
+        system = "You write crisp engineer-facing prep packets for a recording studio. Markdown only. No fluff.";
+        summary = `Engineer brief for ${c.artistName ?? "the artist"}.`;
+        fallback = `# Prep packet - ${c.session?.title ?? c.title}
+
+**Artist:** ${c.artistName ?? "n/a"}
+**Room:** ${c.roomName ?? "Unassigned"}
+**Engineer:** ${c.engineerName ?? "Unassigned"}
+
+## Setup
+- Patch + line check the room
+- Confirm the session is loaded
+- Stage refreshments`;
+      } else if (c.type === "revision_triage") {
+        artifactKind = "revision_triage";
+        const notes = (c.openNotes ?? [])
+          .map((n) => `- [${Math.floor(n.timestampSec / 60)}:${String(Math.floor(n.timestampSec % 60)).padStart(2, "0")}] ${n.body} (${n.authorName})`)
+          .join("\n");
+        prompt = `You are the studio's revision-triage AI for ${c.orgName}. Cluster these timestamped revision notes on "${c.songTitle ?? "the deliverable"}" into a scoped, ordered task list the engineer can knock out in one mix pass. Group related notes, drop duplicates, flag anything out of scope. Markdown. Under 200 words.
+
+NOTES:
+${notes || "(no open notes)"}`;
+        system = "You turn scattered revision comments into a tight, scoped task list for a mix engineer. Markdown only.";
+        summary = `${(c.openNotes ?? []).length} open notes clustered into a scoped task list.`;
+        fallback = `# Revision triage - ${c.songTitle ?? c.title}
+
+${(c.openNotes ?? []).map((n) => `- [${Math.floor(n.timestampSec / 60)}:${String(Math.floor(n.timestampSec % 60)).padStart(2, "0")}] ${n.body}`).join("\n") || "- No open notes."}`;
+      } else if (c.type === "chase_split_sheet" || c.type === "complete_rights_metadata") {
+        artifactKind = "rights_alert";
+        const missing = [
+          c.isrc ? null : "ISRC",
+          c.iswc ? null : "ISWC",
+          c.splitStatus !== "fully_executed" ? "an executed split sheet" : null,
+        ]
+          .filter(Boolean)
+          .join(", ");
+        prompt = `You are the rights + metadata AI for ${c.orgName}. "${c.songTitle ?? "This song"}" is at the ${c.stage ?? "release"} stage and is missing: ${missing || "some rights data"}. Write a short internal action note: what's missing, why it blocks release/distribution, and the exact next steps to lock it. Markdown. Under 150 words.`;
+        system = "You write concise rights/metadata action notes for a recording studio. Markdown only.";
+        summary = `Missing: ${missing || "rights data"}.`;
+        title = `Rights alert - ${c.songTitle ?? c.title}`;
+        fallback = `# Rights alert - ${c.songTitle ?? c.title}
+
+Missing before release: ${missing || "rights data"}.
+
+## Next steps
+- Pull/assign the missing identifiers
+- Send the split sheet for signature
+- Confirm all contributors are executed before distribution`;
+      }
+
+      if (!artifactKind) continue;
+
+      const ai = await complete(prompt, { system, maxOutputTokens: maxOut });
+      if (ai?.text) {
+        await ctx.runMutation(internal.usage.record, {
+          orgId: c.orgId,
+          metric: "ai_credits",
+          amount: 1,
+        });
+      }
+      const body = ai?.text?.trim() || fallback;
+      const artifactId = await ctx.runMutation(internal.aiArtifacts.insertInternal, {
+        orgId: c.orgId,
+        kind: artifactKind,
+        title,
+        summary,
+        body,
+        source: ai ? "openai" : "fallback",
+        model: ai?.model ?? undefined,
+      });
+      await ctx.runMutation(internal.opsActions.applyEnrichment, {
+        id,
+        artifactId,
+        model: ai?.model ?? undefined,
+      });
+      enriched++;
+    }
+    return { enriched };
+  },
+});

@@ -1,6 +1,8 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
+import { Doc, Id } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
+import { insertSession } from "./sessions";
 
 const stageV = v.union(
   v.literal("inquiry"),
@@ -132,6 +134,67 @@ export const create = mutation({
   },
 });
 
+/**
+ * Lead→booking funnel entry point. Called from the public-booking creation
+ * path when a web visitor holds a session: it opens an `inquiry`
+ * opportunity for the (already found-or-created) lead artist so the deal
+ * shows up on the pipeline board. Idempotent-ish: if the artist already has
+ * an open opportunity for the same service it reuses it rather than spawning
+ * a duplicate every time the same lead books again.
+ */
+export async function ensureInquiryFromBooking(
+  ctx: MutationCtx,
+  args: {
+    orgId: string;
+    artistId: Id<"artists">;
+    artistName: string;
+    serviceType: Doc<"opportunities">["serviceType"];
+    valueCents: number;
+    source: string;
+    songId?: Id<"songs">;
+  },
+): Promise<Id<"opportunities">> {
+  const existingOpen = (
+    await ctx.db
+      .query("opportunities")
+      .withIndex("by_artist", (q) => q.eq("artistId", args.artistId))
+      .collect()
+  ).find(
+    (o) =>
+      o.orgId === args.orgId &&
+      o.serviceType === args.serviceType &&
+      o.stage !== "won" &&
+      o.stage !== "lost",
+  );
+  if (existingOpen) return existingOpen._id;
+
+  const id = await ctx.db.insert("opportunities", {
+    orgId: args.orgId,
+    title: `${args.artistName} - ${titleCaseService(args.serviceType)}`,
+    artistId: args.artistId,
+    stage: "inquiry",
+    valueCents: args.valueCents,
+    serviceType: args.serviceType,
+    probability: 0.1,
+    source: args.source,
+    songId: args.songId,
+    updatedAt: Date.now(),
+  });
+  await ctx.db.insert("activity", {
+    orgId: args.orgId,
+    kind: "opportunity.created",
+    summary: `New inquiry - ${args.artistName} (${titleCaseService(args.serviceType)})`,
+    entityType: "opportunity",
+    entityId: id,
+    accent: "gold",
+  });
+  return id;
+}
+
+function titleCaseService(s: string): string {
+  return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
 /** Default win-probability per stage - used on stage moves. */
 const STAGE_PROBABILITY: Record<string, number> = {
   inquiry: 0.1,
@@ -169,6 +232,86 @@ export const moveStage = mutation({
       entityId: id,
       accent: stage === "won" ? "positive" : stage === "lost" ? "critical" : "info",
     });
+  },
+});
+
+/**
+ * Convert an open opportunity into a held studio session and advance the deal
+ * to "booked". Reuses the shared `insertSession` helper so the session lands
+ * with the same tentative-hold / deposit / checklist behaviour as every other
+ * booking. The opp value carries over as the session rate unless overridden.
+ */
+export const convertToBooking = mutation({
+  args: {
+    id: v.id("opportunities"),
+    roomId: v.optional(v.id("rooms")),
+    engineerId: v.optional(v.id("members")),
+    startTime: v.number(),
+    durationHours: v.number(),
+    rateCents: v.optional(v.number()),
+  },
+  handler: async (ctx, args) => {
+    const orgId = await currentOrg(ctx);
+    const opp = await ctx.db.get(args.id);
+    if (!opp || opp.orgId !== orgId) throw new Error("Opportunity not found");
+    if (opp.stage === "won" || opp.stage === "lost") {
+      throw new Error("This deal is already closed.");
+    }
+    const artist = await ctx.db.get(opp.artistId);
+    if (!artist || artist.orgId !== orgId) throw new Error("Artist not found");
+    if (args.durationHours <= 0) throw new Error("Pick a session length.");
+
+    if (args.roomId) {
+      const room = await ctx.db.get(args.roomId);
+      if (!room || room.orgId !== orgId) throw new Error("Room not found");
+    }
+
+    const HOUR = 60 * 60 * 1000;
+    const endTime = args.startTime + args.durationHours * HOUR;
+    const rateCents = args.rateCents ?? opp.valueCents;
+
+    const sessionId = await insertSession(ctx, {
+      orgId,
+      title: `${artist.name} - ${titleCaseService(opp.serviceType)}`,
+      artistId: opp.artistId,
+      artistName: artist.name,
+      songId: opp.songId,
+      serviceType: opp.serviceType,
+      roomId: args.roomId,
+      engineerId: args.engineerId,
+      startTime: args.startTime,
+      endTime,
+      rateCents,
+    });
+
+    // Move the deal to "booked" and bump its win-probability.
+    await ctx.db.patch(args.id, {
+      stage: "booked",
+      probability: STAGE_PROBABILITY.booked,
+      updatedAt: Date.now(),
+    });
+
+    // Link the two records through the activity timeline (the schema has no
+    // direct FK between opportunities and sessions). Both entries point at the
+    // partner record so either drawer surfaces the conversion.
+    await ctx.db.insert("activity", {
+      orgId,
+      kind: "opportunity.converted",
+      summary: `${opp.title} converted to a booking for ${artist.name}`,
+      entityType: "opportunity",
+      entityId: args.id,
+      accent: "positive",
+    });
+    await ctx.db.insert("activity", {
+      orgId,
+      kind: "session.from_deal",
+      summary: `Session booked from deal "${opp.title}"`,
+      entityType: "session",
+      entityId: sessionId,
+      accent: "gold",
+    });
+
+    return { sessionId, opportunityId: args.id };
   },
 });
 

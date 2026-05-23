@@ -1,9 +1,11 @@
 import { mutation, query, action, internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { requireCapability } from "./lib/access";
 import { sendEmail } from "./lib/email";
 import { inviteEmailHtml, inviteEmailSubject } from "./lib/emailTemplates/invite";
+import { PLAN_LIMITS } from "./lib/plans";
+import { periodFor, tierForPlan } from "./usage";
 
 /* ============================================================
    Beta studio-owner invitations. A token-backed row maps to an
@@ -32,6 +34,39 @@ export const record = internalMutation({
     ttlMs: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
+    // ── Grant-quota enforcement. Each invite issued this calendar month counts
+    //    against the plan's magicLinkGrantsPerMonth cap. The "email" usage
+    //    counter is the issuance ledger; block before inserting if it would
+    //    exceed the cap, then meter the send on success. ──
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+      .first();
+    let planString: string | undefined = org?.tier;
+    if (org?.agencyId) {
+      const agency = await ctx.db
+        .query("agencies")
+        .withIndex("by_agency", (q) => q.eq("agencyId", org.agencyId!))
+        .first();
+      if (agency?.plan) planString = agency.plan;
+    }
+    const tier = tierForPlan(planString);
+    const cap = PLAN_LIMITS[tier].magicLinkGrantsPerMonth;
+
+    const period = periodFor("email");
+    const counter = await ctx.db
+      .query("usageCounters")
+      .withIndex("by_org_period_metric", (q) =>
+        q.eq("orgId", args.orgId).eq("period", period).eq("metric", "email"),
+      )
+      .first();
+    const used = counter?.value ?? 0;
+    if (used >= cap) {
+      throw new ConvexError(
+        `Magic-link grant limit reached (${used}/${cap} this month). Upgrade your plan to send more invites.`,
+      );
+    }
+
     const token = makeToken();
     await ctx.db.insert("invites", {
       orgId: args.orgId,
@@ -47,6 +82,20 @@ export const record = internalMutation({
       invitedBy: args.invitedBy,
       emailStatus: args.emailStatus,
     });
+
+    // Meter the send (metric "email") on successful issuance.
+    if (counter) {
+      await ctx.db.patch(counter._id, { value: counter.value + 1, updatedAt: Date.now() });
+    } else {
+      await ctx.db.insert("usageCounters", {
+        orgId: args.orgId,
+        period,
+        metric: "email",
+        value: 1,
+        updatedAt: Date.now(),
+      });
+    }
+
     return token;
   },
 });

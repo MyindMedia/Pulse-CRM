@@ -16,10 +16,13 @@ export function stripeClient(): Stripe {
   return _stripe;
 }
 
-/** Tier → Stripe price ID env var name. */
+/** Tier → Stripe price ID env var name. enterprise is custom (no self-serve
+    checkout); agency is legacy. */
 export const TIER_PRICE_ENV: Record<TierKey, string> = {
   studio: "STRIPE_PRICE_STUDIO",
   pro: "STRIPE_PRICE_PRO",
+  growth: "STRIPE_PRICE_GROWTH",
+  enterprise: "STRIPE_PRICE_ENTERPRISE",
   agency: "STRIPE_PRICE_AGENCY",
 };
 
@@ -32,7 +35,7 @@ export function priceIdForTier(tier: TierKey): string {
 
 /** Reverse lookup - used by the webhook to flip agencies.plan. */
 export function tierForPriceId(priceId: string): TierKey | null {
-  for (const tier of ["studio", "pro", "agency"] as TierKey[]) {
+  for (const tier of ["studio", "pro", "growth", "enterprise", "agency"] as TierKey[]) {
     if (process.env[TIER_PRICE_ENV[tier]] === priceId) return tier;
   }
   return null;

@@ -12,6 +12,7 @@ import type * as activity from "../activity.js";
 import type * as agency from "../agency.js";
 import type * as agencyOps from "../agencyOps.js";
 import type * as agencyStaff from "../agencyStaff.js";
+import type * as agents_generators from "../agents/generators.js";
 import type * as aiActions from "../aiActions.js";
 import type * as aiArtifacts from "../aiArtifacts.js";
 import type * as aiContext from "../aiContext.js";
@@ -28,8 +29,10 @@ import type * as dashboard from "../dashboard.js";
 import type * as deliverables from "../deliverables.js";
 import type * as engineeringLogs from "../engineeringLogs.js";
 import type * as equipment from "../equipment.js";
+import type * as exports from "../exports.js";
 import type * as externalCalendars from "../externalCalendars.js";
 import type * as externalCalendarsActions from "../externalCalendarsActions.js";
+import type * as files from "../files.js";
 import type * as grants from "../grants.js";
 import type * as http from "../http.js";
 import type * as insights from "../insights.js";
@@ -61,12 +64,14 @@ import type * as opsBrain from "../opsBrain.js";
 import type * as orgs from "../orgs.js";
 import type * as payments from "../payments.js";
 import type * as releases from "../releases.js";
+import type * as reports from "../reports.js";
 import type * as rooms from "../rooms.js";
 import type * as seed from "../seed.js";
 import type * as sessions from "../sessions.js";
 import type * as songs from "../songs.js";
 import type * as splitSheets from "../splitSheets.js";
 import type * as testHarness from "../testHarness.js";
+import type * as usage from "../usage.js";
 
 import type {
   ApiFromModules,
@@ -79,6 +84,7 @@ declare const fullApi: ApiFromModules<{
   agency: typeof agency;
   agencyOps: typeof agencyOps;
   agencyStaff: typeof agencyStaff;
+  "agents/generators": typeof agents_generators;
   aiActions: typeof aiActions;
   aiArtifacts: typeof aiArtifacts;
   aiContext: typeof aiContext;
@@ -95,8 +101,10 @@ declare const fullApi: ApiFromModules<{
   deliverables: typeof deliverables;
   engineeringLogs: typeof engineeringLogs;
   equipment: typeof equipment;
+  exports: typeof exports;
   externalCalendars: typeof externalCalendars;
   externalCalendarsActions: typeof externalCalendarsActions;
+  files: typeof files;
   grants: typeof grants;
   http: typeof http;
   insights: typeof insights;
@@ -128,12 +136,14 @@ declare const fullApi: ApiFromModules<{
   orgs: typeof orgs;
   payments: typeof payments;
   releases: typeof releases;
+  reports: typeof reports;
   rooms: typeof rooms;
   seed: typeof seed;
   sessions: typeof sessions;
   songs: typeof songs;
   splitSheets: typeof splitSheets;
   testHarness: typeof testHarness;
+  usage: typeof usage;
 }>;
 
 /**

@@ -96,6 +96,7 @@ export const create = mutation({
     location: v.optional(v.string()),
     genres: v.optional(v.array(v.string())),
     status: v.optional(statusV),
+    source: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const orgId = await currentOrg(ctx);
@@ -109,6 +110,7 @@ export const create = mutation({
       genres: args.genres ?? [],
       tags: [],
       status: args.status ?? "lead",
+      source: args.source,
       lifetimeValueCents: 0,
       sessionCount: 0,
       reliability: "solid",

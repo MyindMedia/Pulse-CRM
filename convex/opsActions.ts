@@ -10,6 +10,7 @@
 import { v } from "convex/values";
 import { query, mutation, internalQuery, internalMutation, internalAction } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { currentOrg, currentActor } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
@@ -59,6 +60,175 @@ export const getInternal = internalQuery({
   handler: async (ctx, { id }) => ctx.db.get(id),
 });
 
+/** Internal: apply an OpenAI-written draft to a still-open action. The rule
+ * layer always seeds a deterministic fallback first; this upgrades the body
+ * in place once the LLM responds. Skips actions a human has already acted on.
+ *  - `body` rewrites an email payload's body (and subject when given).
+ *  - `artifactId` links a rich aiArtifacts row (prep packet / recap / triage). */
+export const applyEnrichment = internalMutation({
+  args: {
+    id: v.id("opsActions"),
+    body: v.optional(v.string()),
+    subject: v.optional(v.string()),
+    rationale: v.optional(v.string()),
+    artifactId: v.optional(v.id("aiArtifacts")),
+    model: v.optional(v.string()),
+  },
+  handler: async (ctx, { id, body, subject, rationale, artifactId, model }) => {
+    const action = await ctx.db.get(id);
+    if (!action) return;
+    if (action.status !== "proposed" && action.status !== "snoozed") return; // human already acted
+    const patch: Record<string, unknown> = { source: "openai" };
+    if (model) patch.model = model;
+    if (rationale) patch.rationale = rationale;
+    if (artifactId) patch.artifactId = artifactId;
+    if (body && action.payload.kind === "email") {
+      patch.payload = { ...action.payload, body, ...(subject ? { subject } : {}) };
+    }
+    await ctx.db.patch(id, patch);
+  },
+});
+
+/** Internal: gather the entity facts the LLM enricher needs for one action.
+ * Returns null when the action is gone or already decided so the enricher can
+ * cheaply skip it. Kept here (not aiContext) to respect file ownership. */
+/** Uniform (all-optional) context shape so the Node enricher can read any
+ * field without TS narrowing the union away. */
+export type EnrichmentContext = {
+  id: Id<"opsActions">;
+  orgId: string;
+  orgName: string;
+  type: string;
+  title: string;
+  payloadKind: string;
+  to?: string;
+  subject?: string;
+  fallbackBody?: string;
+  // artist
+  artistName?: string;
+  artistEmail?: string;
+  genres?: string[];
+  source?: string;
+  // session
+  session?: { title: string; serviceType: string; startTime: number; endTime: number; notes?: string };
+  artistGenres?: string[];
+  roomName?: string;
+  engineerName?: string;
+  gear?: string[];
+  sampleRate?: string;
+  bitDepth?: string;
+  monitoring?: string;
+  // song
+  songTitle?: string;
+  stage?: string;
+  isrc?: string;
+  iswc?: string;
+  splitStatus?: string;
+  openNotes?: { timestampSec: number; body: string; authorName: string }[];
+};
+
+export const enrichmentContext = internalQuery({
+  args: { id: v.id("opsActions") },
+  handler: async (ctx, { id }): Promise<EnrichmentContext | null> => {
+    const action = await ctx.db.get(id);
+    if (!action) return null;
+    if (action.status !== "proposed" && action.status !== "snoozed") return null;
+
+    const orgRow = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", action.orgId))
+      .first();
+
+    const out: EnrichmentContext = {
+      id,
+      orgId: action.orgId,
+      orgName: orgRow?.name ?? "the studio",
+      type: action.type,
+      title: action.title,
+      payloadKind: action.payload.kind,
+      to: action.payload.kind === "email" ? action.payload.to : undefined,
+      subject: action.payload.kind === "email" ? action.payload.subject : undefined,
+      fallbackBody: action.payload.kind === "email" ? action.payload.body : undefined,
+    };
+
+    // Artist-anchored actions.
+    if (action.entityType === "artist" && action.entityId) {
+      const artist = await ctx.db.get(action.entityId as Id<"artists">);
+      out.artistName = artist?.name;
+      out.artistEmail = artist?.email;
+      out.genres = artist?.genres ?? [];
+      out.source = artist?.source;
+      return out;
+    }
+
+    // Session-anchored actions (prep packet, recap, no-show).
+    if (action.entityType === "session" && action.entityId) {
+      const session = await ctx.db.get(action.entityId as Id<"sessions">);
+      if (!session) return out;
+      const [artist, song, room, engineer, log] = await Promise.all([
+        ctx.db.get(session.artistId),
+        session.songId ? ctx.db.get(session.songId) : null,
+        session.roomId ? ctx.db.get(session.roomId) : null,
+        session.engineerId ? ctx.db.get(session.engineerId) : null,
+        ctx.db.query("engineeringLogs").withIndex("by_session", (q) => q.eq("sessionId", session._id)).first(),
+      ]);
+      let gear: string[] = [];
+      if (session.roomId) {
+        const rows = await ctx.db
+          .query("equipment")
+          .withIndex("by_org_room", (q) => q.eq("orgId", action.orgId).eq("installedInRoomId", session.roomId))
+          .collect();
+        gear = rows.map((g) => g.name).slice(0, 8);
+      }
+      out.session = {
+        title: session.title,
+        serviceType: session.serviceType,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        notes: session.notes,
+      };
+      out.artistName = artist?.name;
+      out.artistEmail = artist?.email;
+      out.artistGenres = artist?.genres ?? [];
+      out.songTitle = song?.title;
+      out.roomName = room?.name;
+      out.engineerName = engineer?.name;
+      out.gear = gear;
+      out.sampleRate = log?.sampleRate;
+      out.bitDepth = log?.bitDepth;
+      out.monitoring = log?.monitoring;
+      return out;
+    }
+
+    // Song-anchored actions (revision triage, rights metadata, split sheet).
+    if (action.entityType === "song" && action.entityId) {
+      const song = await ctx.db.get(action.entityId as Id<"songs">);
+      if (!song) return out;
+      const comments = await ctx.db
+        .query("revisionComments")
+        .withIndex("by_song", (q) => q.eq("songId", song._id))
+        .collect();
+      out.openNotes = comments
+        .filter((c) => !c.resolved)
+        .sort((a, b) => a.timestampSec - b.timestampSec)
+        .slice(0, 30)
+        .map((c) => ({ timestampSec: c.timestampSec, body: c.body, authorName: c.authorName }));
+      const sheet = await ctx.db
+        .query("splitSheets")
+        .withIndex("by_song", (q) => q.eq("songId", song._id))
+        .first();
+      out.songTitle = song.title;
+      out.stage = song.stage;
+      out.isrc = song.isrc;
+      out.iswc = song.iswc;
+      out.splitStatus = sheet?.status;
+      return out;
+    }
+
+    return out;
+  },
+});
+
 /** Bump the per-type trust counters that drive autonomy graduation. */
 async function bumpTrust(ctx: MutationCtx, orgId: string, actionType: string, kind: "approved" | "dismissed") {
   const row = await ctx.db
@@ -81,10 +251,12 @@ async function bumpTrust(ctx: MutationCtx, orgId: string, actionType: string, ki
   });
 }
 
-/** Approve a queued action -> schedule execution. */
+/** Approve a queued action -> schedule execution. Accepts an optional
+ * user-edited body: the inbox lets staff tweak the AI draft before it sends.
+ * The edit is persisted to `editedBody` and used as the sent email body. */
 export const approve = mutation({
-  args: { id: v.id("opsActions") },
-  handler: async (ctx, { id }) => {
+  args: { id: v.id("opsActions"), editedBody: v.optional(v.string()) },
+  handler: async (ctx, { id, editedBody }) => {
     const action = await ctx.db.get(id);
     if (!action) throw new Error("Not found");
     await requireCapability(ctx, "ops.action.approve", { orgId: action.orgId, entityId: id });
@@ -92,7 +264,19 @@ export const approve = mutation({
       throw new Error(`Cannot approve an action that is ${action.status}`);
     }
     const actor = await currentActor(ctx);
-    await ctx.db.patch(id, { status: "approved", decidedAt: Date.now(), decidedBy: actor });
+
+    // If the user edited the draft, persist it and fold it into the payload so
+    // the executor sends exactly what they approved.
+    const trimmed = editedBody?.trim();
+    const patch: Record<string, unknown> = { status: "approved", decidedAt: Date.now(), decidedBy: actor };
+    if (trimmed) {
+      patch.editedBody = trimmed;
+      if (action.payload.kind === "email" && trimmed !== action.payload.body) {
+        patch.payload = { ...action.payload, body: trimmed };
+      }
+    }
+
+    await ctx.db.patch(id, patch);
     await bumpTrust(ctx, action.orgId, action.type, "approved");
     await ctx.scheduler.runAfter(0, internal.opsActions.execute, { id });
   },

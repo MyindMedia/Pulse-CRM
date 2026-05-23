@@ -25,20 +25,16 @@ describe("agency - plan-cap enforcement", () => {
     } as { subject: string; name: string; orgId: string; orgType: string });
   }
 
-  it("pro tier blocks the 3rd sub-account", async () => {
+  it("pro tier blocks the 2nd sub-account (cap = 1)", async () => {
     const owner = await seedAgency("pro");
     await owner.action(api.agency.createSubaccount, {
       name: "Studio 1", slug: "s1", plan: "studio",
       ownerName: "X", ownerEmail: "x@x",
     });
-    await owner.action(api.agency.createSubaccount, {
-      name: "Studio 2", slug: "s2", plan: "studio",
-      ownerName: "Y", ownerEmail: "y@x",
-    });
     await expect(
       owner.action(api.agency.createSubaccount, {
-        name: "Studio 3", slug: "s3", plan: "studio",
-        ownerName: "Z", ownerEmail: "z@x",
+        name: "Studio 2", slug: "s2", plan: "studio",
+        ownerName: "Y", ownerEmail: "y@x",
       }),
     ).rejects.toThrow(/Plan cap reached/);
   });
@@ -58,7 +54,7 @@ describe("agency - plan-cap enforcement", () => {
   it("setStatus is gated by agency.subaccount.pause", async () => {
     const owner = await seedAgency("agency");
     await owner.action(api.agency.createSubaccount, {
-      name: "S", slug: "s", plan: "studio", ownerName: "X", ownerEmail: "x@x",
+      name: "S", slug: "sx", plan: "studio", ownerName: "X", ownerEmail: "x@x",
     });
     const sub = (await owner.query(api.agency.subaccounts, {}))[0];
     // Owner can pause

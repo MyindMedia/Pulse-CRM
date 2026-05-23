@@ -13,6 +13,8 @@ import { BillingPanel } from "@/components/settings/billing-panel";
 import { BrandingPanel } from "@/components/settings/branding-panel";
 import { PricingPanel } from "@/components/settings/pricing-panel";
 import { DataPanel } from "@/components/settings/data-panel";
+import { UsagePanel } from "@/components/settings/usage-panel";
+import { ExportPanel } from "@/components/settings/export-panel";
 import type { Org } from "@/components/settings/types";
 
 /** Shimmer block while the org record loads. */
@@ -83,7 +85,11 @@ export default function SettingsPage() {
             <BillingPanel org={org} />
           </TabsContent>
           <TabsContent value="data">
-            <DataPanel />
+            <div className="space-y-4">
+              <UsagePanel />
+              <ExportPanel />
+              <DataPanel />
+            </div>
           </TabsContent>
         </Tabs>
       )}

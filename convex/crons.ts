@@ -21,6 +21,11 @@ crons.interval("room-status", { minutes: 15 }, internal.maintenance.recomputeAll
 // Ops brain: per-org operational scan that proposes/auto-executes actions.
 crons.daily("ops-brain", { hourUTC: 13, minuteUTC: 0 }, internal.opsBrain.scanAllOrgs);
 
+// Named AI agents (booking conversion, session prep, post-session recap,
+// revision triage, no-show risk, ...): time-sensitive, so run every 2h.
+// Shares scanOrg with the daily sweep; dedupe keeps it from duplicating rows.
+crons.interval("ai-agents-scan", { hours: 2 }, internal.opsBrain.scanAgentsAllOrgs);
+
 // Monday-morning AI artifacts across every active subaccount.
 crons.weekly(
   "weekly-briefing",

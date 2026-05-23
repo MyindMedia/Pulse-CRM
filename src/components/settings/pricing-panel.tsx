@@ -4,12 +4,13 @@ import * as React from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
-import { Plus, Trash2, Save } from "lucide-react";
+import { Plus, Trash2, Save, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/toggle";
+import { PLAN_LIMITS, PUBLIC_TIERS, type TierKey } from "@convex/lib/plans";
 import {
   Select,
   SelectTrigger,
@@ -33,10 +34,107 @@ function centsToDollars(cents: number | undefined): string {
 export function PricingPanel({ org }: { org: Org }) {
   return (
     <div className="space-y-5">
+      <PublicTiersCard org={org} />
       <ServicePricingCard org={org} />
       <DiscountCodesCard org={org} />
       <TaxConfigCard org={org} />
     </div>
+  );
+}
+
+/* ============================================================ */
+/** Short, hand-written inclusions per public tier (limits come from PLAN_LIMITS). */
+const TIER_BULLETS: Record<Exclude<TierKey, "agency">, string[]> = {
+  studio: [
+    "1 studio workspace",
+    "5 magic-link client grants / mo",
+    "100 AI credits · 5 GB storage",
+    "Booking, sessions, invoicing",
+  ],
+  pro: [
+    "Studio-level white-label",
+    "25 magic-link grants / mo",
+    "500 AI credits · 50 GB storage",
+    "Repeat-client tools + AI agents",
+  ],
+  growth: [
+    "Up to 3 sub-accounts",
+    "Custom domain + white-label",
+    "2,000 AI credits · 250 GB storage",
+    "100 magic-link grants / mo",
+  ],
+  enterprise: [
+    "Studio networks + schools",
+    "Unlimited AI credits · 2 TB storage",
+    "Agency-level white-label + domain",
+    "Dedicated onboarding & support",
+  ],
+};
+
+function priceLabel(tier: TierKey): string {
+  const limits = PLAN_LIMITS[tier];
+  if (limits.custom || limits.priceCents === 0) return "Custom";
+  return `$${Math.round(limits.priceCents / 100)} / mo`;
+}
+
+/**
+ * Maps the legacy workspace plan flag to a public billing tier so we can mark
+ * one tier as the current plan. solo/studio -> studio, label -> growth.
+ */
+function currentPublicTier(plan: Org["plan"]): TierKey {
+  if (plan === "label") return "growth";
+  return "studio";
+}
+
+/** Public subscription tiers - synced from PLAN_LIMITS / PUBLIC_TIERS. */
+function PublicTiersCard({ org }: { org: Org }) {
+  const current = currentPublicTier(org.plan);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Subscription plan</CardTitle>
+        <CardDescription>
+          Your Pulse subscription tier. Prices reflect the public plans; the
+          highlighted card is your current workspace plan.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {PUBLIC_TIERS.map((key) => {
+            const limits = PLAN_LIMITS[key];
+            const isCurrent = key === current;
+            return (
+              <div
+                key={key}
+                className={cn(
+                  "flex flex-col rounded-lg border p-4",
+                  isCurrent
+                    ? "border-gold bg-gold/[0.06]"
+                    : "border-hairline bg-coal-2",
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <p className="font-display text-sm font-semibold text-bone">
+                    {limits.label}
+                  </p>
+                  {isCurrent && <Badge tone="gold">Current</Badge>}
+                </div>
+                <p className="mt-1 font-mono text-sm text-gold">{priceLabel(key)}</p>
+                <p className="mt-2 text-xs text-ash">{limits.tagline}</p>
+                <ul className="mt-3 flex-1 space-y-1.5">
+                  {TIER_BULLETS[key as Exclude<TierKey, "agency">].map((b) => (
+                    <li key={b} className="flex items-start gap-1.5 text-xs text-ash">
+                      <Check className="mt-0.5 size-3 shrink-0 text-positive" />
+                      {b}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 

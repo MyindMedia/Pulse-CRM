@@ -1,5 +1,5 @@
-import { query, mutation, QueryCtx } from "./_generated/server";
-import { Doc } from "./_generated/dataModel";
+import { query, mutation, QueryCtx, MutationCtx } from "./_generated/server";
+import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { currentOrg } from "./lib/tenant";
 import {
@@ -95,6 +95,70 @@ export const get = query({
   },
 });
 
+/**
+ * Shared session-creation helper. Inserts a tentative session, logs the
+ * activity, stages checklists and recomputes the room status. Both the
+ * internal `create` mutation and `opportunities.convertToBooking` route
+ * through here so the hold/deposit behaviour stays identical everywhere.
+ */
+export async function insertSession(
+  ctx: MutationCtx,
+  args: {
+    orgId: string;
+    title: string;
+    artistId: Id<"artists">;
+    artistName: string;
+    songId?: Id<"songs">;
+    serviceType: Doc<"sessions">["serviceType"];
+    roomId?: Id<"rooms">;
+    engineerId?: Id<"members">;
+    startTime: number;
+    endTime: number;
+    rateCents: number;
+    depositCents?: number;
+  },
+): Promise<Id<"sessions">> {
+  // 15-minute reset buffer between sessions in the same room.
+  await assertNoBufferConflict(ctx, args.roomId, args.startTime, args.endTime);
+
+  // Smart-deposit shield: a session is only tentative until the deposit clears.
+  const deposit = args.depositCents ?? Math.round(args.rateCents * 0.3);
+  const id = await ctx.db.insert("sessions", {
+    orgId: args.orgId,
+    title: args.title,
+    artistId: args.artistId,
+    songId: args.songId,
+    serviceType: args.serviceType,
+    roomId: args.roomId,
+    engineerId: args.engineerId,
+    startTime: args.startTime,
+    endTime: args.endTime,
+    status: "tentative",
+    rateCents: args.rateCents,
+    depositCents: deposit,
+    depositPaid: false,
+    intakeCompleted: false,
+  });
+  await ctx.db.insert("activity", {
+    orgId: args.orgId,
+    kind: "session.created",
+    summary: `${args.title} held for ${args.artistName} - awaiting deposit`,
+    entityType: "session",
+    entityId: id,
+    accent: "info",
+  });
+  // Stage the pre + post checklists so engineers and interns can tick
+  // through them before / after the session.
+  await stageChecklistsFor(ctx, {
+    orgId: args.orgId,
+    sessionId: id,
+    roomId: args.roomId,
+  });
+  // Auto-recompute the room's status so the dashboard reflects the change.
+  if (args.roomId) await recomputeRoomStatus(ctx, args.roomId);
+  return id;
+}
+
 export const create = mutation({
   args: {
     title: v.string(),
@@ -113,45 +177,20 @@ export const create = mutation({
     const artist = await ctx.db.get(args.artistId);
     if (!artist || artist.orgId !== orgId) throw new Error("Artist not found");
 
-    // 15-minute reset buffer between sessions in the same room.
-    await assertNoBufferConflict(ctx, args.roomId, args.startTime, args.endTime);
-
-    // Smart-deposit shield: a session is only tentative until the deposit clears.
-    const deposit = args.depositCents ?? Math.round(args.rateCents * 0.3);
-    const id = await ctx.db.insert("sessions", {
+    return insertSession(ctx, {
       orgId,
       title: args.title,
       artistId: args.artistId,
+      artistName: artist.name,
       songId: args.songId,
       serviceType: args.serviceType,
       roomId: args.roomId,
       engineerId: args.engineerId,
       startTime: args.startTime,
       endTime: args.endTime,
-      status: "tentative",
       rateCents: args.rateCents,
-      depositCents: deposit,
-      depositPaid: false,
-      intakeCompleted: false,
+      depositCents: args.depositCents,
     });
-    await ctx.db.insert("activity", {
-      orgId,
-      kind: "session.created",
-      summary: `${args.title} held for ${artist.name} - awaiting deposit`,
-      entityType: "session",
-      entityId: id,
-      accent: "info",
-    });
-    // Stage the pre + post checklists so engineers and interns can tick
-    // through them before / after the session.
-    await stageChecklistsFor(ctx, {
-      orgId,
-      sessionId: id,
-      roomId: args.roomId,
-    });
-    // Auto-recompute the room's status so the dashboard reflects the change.
-    if (args.roomId) await recomputeRoomStatus(ctx, args.roomId);
-    return id;
   },
 });
 

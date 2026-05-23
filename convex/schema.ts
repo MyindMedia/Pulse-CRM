@@ -148,8 +148,11 @@ export default defineSchema({
     name: v.string(),
     slug: v.string(),                     // resolves /a/<slug>
     plan: v.union(
+      v.literal("studio"),
       v.literal("pro"),
-      v.literal("agency"),
+      v.literal("growth"),
+      v.literal("enterprise"),
+      v.literal("agency"),                // legacy
       v.literal("agency_plus"),           // RESELL HOOK
     ),
     status: v.union(v.literal("active"), v.literal("paused"), v.literal("trial")),
@@ -333,6 +336,9 @@ export default defineSchema({
     preferredEngineerId: v.optional(v.id("members")),
     referredByArtistId: v.optional(v.id("artists")),
     lastContactAt: v.optional(v.number()),
+    // Lead-source attribution (web booking form, referral, instagram, etc.) -
+    // powers the lead-source ROI report + the lead→booking funnel.
+    source: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])
@@ -374,6 +380,9 @@ export default defineSchema({
       v.union(v.literal("idea"), v.literal("demo"), v.literal("shopped"), v.literal("pitched"), v.literal("picked_up"), v.literal("shelved")),
     ),
     streamCount: v.optional(v.number()),
+    // Song Workspace overview signals
+    deadline: v.optional(v.number()),
+    ownerMemberId: v.optional(v.id("members")),
   })
     .index("by_org", ["orgId"])
     .index("by_org_stage", ["orgId", "stage"])
@@ -557,6 +566,12 @@ export default defineSchema({
     paymentGated: v.boolean(),
     approvedAt: v.optional(v.number()),
     approvedBy: v.optional(v.string()),
+    // Stored file (Convex storage). Download is gated server-side when
+    // paymentGated is true and the song's balance is unpaid.
+    fileId: v.optional(v.id("_storage")),
+    fileName: v.optional(v.string()),
+    fileSize: v.optional(v.number()),
+    mimeType: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
     .index("by_song", ["songId"]),
@@ -730,6 +745,11 @@ export default defineSchema({
       v.literal("reminder_1h"),
       v.literal("weekly_briefing"),
       v.literal("rate_cut_promo"),
+      // Agentic drafts (created by the named AI agents -> approval inbox)
+      v.literal("lead_followup"),
+      v.literal("revision_triage"),
+      v.literal("reactivation_campaign"),
+      v.literal("rights_alert"),
     ),
     // Entity link (sometimes session, sometimes none for org-level artifacts)
     sessionId: v.optional(v.id("sessions")),
@@ -837,6 +857,15 @@ export default defineSchema({
       v.literal("resolve_revision_overflow"),
       v.literal("chase_split_sheet"),
       v.literal("deposit_unpaid_nudge"),
+      // Named-agent action types (unified approval inbox)
+      v.literal("convert_lead"),
+      v.literal("session_prep_packet"),
+      v.literal("post_session_recap"),
+      v.literal("revision_triage"),
+      v.literal("complete_rights_metadata"),
+      v.literal("pricing_opportunity"),
+      v.literal("no_show_risk"),
+      v.literal("weak_lead_source"),
     ),
     priority: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
     title: v.string(),
@@ -878,6 +907,10 @@ export default defineSchema({
     decidedAt: v.optional(v.number()),
     executedAt: v.optional(v.number()),
     result: v.optional(v.string()),
+    // Unified inbox: link to the rich AI draft (body lives in aiArtifacts) and
+    // the user-edited body captured before approve/send.
+    artifactId: v.optional(v.id("aiArtifacts")),
+    editedBody: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])
@@ -895,4 +928,18 @@ export default defineSchema({
   })
     .index("by_org", ["orgId"])
     .index("by_org_type", ["orgId", "actionType"]),
+
+  // ── Usage metering - one aggregate counter per (org, period, metric).
+  //    period is "YYYY-MM" (or "all" for non-resetting totals like storage).
+  //    Drives plan-limit enforcement + the usage panel. Aggregate counters
+  //    (not event rows) keep reads cheap. ──
+  usageCounters: defineTable({
+    orgId: v.string(),
+    period: v.string(), // "YYYY-MM" | "all"
+    metric: v.string(), // "ai_credits" | "storage_bytes" | "email" | "sms" | "exports" | "subaccounts"
+    value: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_period_metric", ["orgId", "period", "metric"]),
 });

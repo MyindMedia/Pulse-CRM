@@ -18,6 +18,14 @@ function emptySignals(over: Partial<Signals>): Signals {
     revisionOverflow: [],
     splitSheetChase: [],
     underusedRooms: [],
+    newLeads: [],
+    upcomingPrep: [],
+    recentlyCompleted: [],
+    revisionTriage: [],
+    rightsMetadataGaps: [],
+    pricingRooms: [],
+    noShowRisks: [],
+    weakLeadSources: [],
     ...over,
   };
 }
@@ -100,5 +108,111 @@ describe("scanOrg (gather -> candidates -> upsert + dedupe)", () => {
       (await ctx.db.query("opsActions").collect()).filter((r) => r.orgId === ORG),
     );
     expect(rows).toHaveLength(2);
+  });
+});
+
+describe("scanOrg - named agents end-to-end", () => {
+  let t: ReturnType<typeof convexTest>;
+  const AGENT_ORG = "org_agents";
+  beforeEach(() => { t = convexTest(schema); });
+
+  function rowOf(rows: { type: string; dedupeKey: string; entityId?: string }[], type: string) {
+    return rows.find((r) => r.type === type);
+  }
+
+  it("Booking Conversion: a never-booked lead yields a convert_lead row", async () => {
+    const leadId = await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: AGENT_ORG, name: "Agents Co", slug: "agents", plan: "studio", status: "active" });
+      return ctx.db.insert("artists", {
+        orgId: AGENT_ORG, name: "Fresh Lead", type: "artist", genres: ["pop"], tags: [],
+        status: "lead", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
+        email: "lead@x.com", source: "instagram",
+      });
+    });
+    await t.mutation(internal.opsBrain.scanOrg, { orgId: AGENT_ORG });
+    const rows = await t.run(async (ctx) =>
+      (await ctx.db.query("opsActions").collect()).filter((r) => r.orgId === AGENT_ORG),
+    );
+    const r = rowOf(rows, "convert_lead");
+    expect(r).toBeTruthy();
+    expect(r!.entityId).toBe(leadId);
+    expect(r!.dedupeKey).toBe(`convert_lead:${leadId}`);
+  });
+
+  it("Post-Session Recap: a just-completed session yields a post_session_recap row", async () => {
+    const sessionId = await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: AGENT_ORG, name: "Agents Co", slug: "agents", plan: "studio", status: "active" });
+      const artistId = await ctx.db.insert("artists", {
+        orgId: AGENT_ORG, name: "Recap Artist", type: "artist", genres: [], tags: [],
+        status: "active", lifetimeValueCents: 0, sessionCount: 1, reliability: "solid", email: "r@x.com",
+      });
+      return ctx.db.insert("sessions", {
+        orgId: AGENT_ORG, title: "Tracking", artistId, serviceType: "recording",
+        startTime: Date.now() - 7200_000, endTime: Date.now() - 3600_000, status: "completed",
+        rateCents: 20000, depositCents: 5000, depositPaid: true, intakeCompleted: true,
+      });
+    });
+    await t.mutation(internal.opsBrain.scanOrg, { orgId: AGENT_ORG });
+    const rows = await t.run(async (ctx) =>
+      (await ctx.db.query("opsActions").collect()).filter((r) => r.orgId === AGENT_ORG),
+    );
+    const r = rowOf(rows, "post_session_recap");
+    expect(r).toBeTruthy();
+    expect(r!.entityId).toBe(sessionId);
+    expect(r!.dedupeKey).toBe(`post_session_recap:${sessionId}`);
+  });
+
+  it("Session Prep + No-show: an upcoming flagged-artist session yields both rows", async () => {
+    const sessionId = await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: AGENT_ORG, name: "Agents Co", slug: "agents", plan: "studio", status: "active" });
+      const artistId = await ctx.db.insert("artists", {
+        orgId: AGENT_ORG, name: "Flaky", type: "artist", genres: [], tags: [],
+        status: "active", lifetimeValueCents: 0, sessionCount: 1, reliability: "flagged", email: "f@x.com",
+      });
+      return ctx.db.insert("sessions", {
+        orgId: AGENT_ORG, title: "Upcoming", artistId, serviceType: "mixing",
+        startTime: Date.now() + 3600_000, endTime: Date.now() + 7200_000, status: "confirmed",
+        rateCents: 20000, depositCents: 5000, depositPaid: false, intakeCompleted: true,
+      });
+    });
+    await t.mutation(internal.opsBrain.scanOrg, { orgId: AGENT_ORG });
+    const rows = await t.run(async (ctx) =>
+      (await ctx.db.query("opsActions").collect()).filter((r) => r.orgId === AGENT_ORG),
+    );
+    expect(rowOf(rows, "session_prep_packet")?.entityId).toBe(sessionId);
+    expect(rowOf(rows, "no_show_risk")?.entityId).toBe(sessionId);
+  });
+
+  it("Revision Triage: a deliverable with 3+ open notes yields a revision_triage row", async () => {
+    const songId = await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: AGENT_ORG, name: "Agents Co", slug: "agents", plan: "studio", status: "active" });
+      const artistId = await ctx.db.insert("artists", {
+        orgId: AGENT_ORG, name: "Writer", type: "artist", genres: [], tags: [],
+        status: "active", lifetimeValueCents: 0, sessionCount: 1, reliability: "solid",
+      });
+      const sId = await ctx.db.insert("songs", {
+        orgId: AGENT_ORG, title: "Skyline", artistId, kind: "single", stage: "mixing",
+        moodTags: [], referenceTracks: [], revisionsIncluded: 3, revisionsUsed: 1,
+      });
+      const dId = await ctx.db.insert("deliverables", {
+        orgId: AGENT_ORG, songId: sId, kind: "mix", version: 3, label: "Mix v3",
+        status: "in_review", paymentGated: false,
+      });
+      for (let i = 0; i < 3; i++) {
+        await ctx.db.insert("revisionComments", {
+          orgId: AGENT_ORG, songId: sId, deliverableId: dId, timestampSec: i * 30,
+          body: `note ${i}`, authorName: "Lee", resolved: false,
+        });
+      }
+      return sId;
+    });
+    await t.mutation(internal.opsBrain.scanOrg, { orgId: AGENT_ORG });
+    const rows = await t.run(async (ctx) =>
+      (await ctx.db.query("opsActions").collect()).filter((r) => r.orgId === AGENT_ORG),
+    );
+    const r = rowOf(rows, "revision_triage");
+    expect(r).toBeTruthy();
+    expect(r!.entityId).toBe(songId);
+    expect(r!.dedupeKey).toBe(`revision_triage:${songId}`);
   });
 });

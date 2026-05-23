@@ -43,7 +43,9 @@ import { meta, SONG_STAGE, titleCase } from "@/lib/labels";
 import { musicalKey, compactNumber } from "@/lib/format";
 import { tintFromString } from "@/lib/utils";
 import { StageStepper } from "@/components/songs/stage-stepper";
+import { OverviewCard } from "@/components/songs/overview-card";
 import { OverviewTab } from "@/components/songs/overview-tab";
+import { AiActivityTab } from "@/components/songs/ai-activity-tab";
 import { DeliverablesTab } from "@/components/songs/deliverables-tab";
 import { SplitsTab } from "@/components/songs/splits-tab";
 import {
@@ -83,6 +85,7 @@ export default function SongDetailPage() {
     <div className="space-y-6">
       <BackLink />
       <SongHero song={song} />
+      <OverviewCard songId={songId} />
       <StageStepper songId={songId} current={song.stage} />
 
       <Tabs defaultValue="overview" className="space-y-4">
@@ -107,6 +110,7 @@ export default function SongDetailPage() {
               )}
             </TabsTrigger>
             <TabsTrigger value="sync">Sync &amp; Release</TabsTrigger>
+            <TabsTrigger value="ai">AI</TabsTrigger>
             <TabsTrigger value="activity">Activity</TabsTrigger>
           </TabsList>
         </div>
@@ -125,6 +129,9 @@ export default function SongDetailPage() {
         </TabsContent>
         <TabsContent value="sync">
           <SyncReleaseTab songId={songId} syncs={song.syncs} />
+        </TabsContent>
+        <TabsContent value="ai">
+          <AiActivityTab songId={songId} />
         </TabsContent>
         <TabsContent value="activity">
           <ActivityTab songId={songId} />

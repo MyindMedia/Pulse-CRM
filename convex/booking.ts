@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { currentOrg } from "./lib/tenant";
 import { notify } from "./lib/notify";
 import { money } from "./lib/money";
+import { ensureInquiryFromBooking } from "./opportunities";
 
 /* ============================================================
    Booking - the public studio-booking backend (the /book pages).
@@ -221,6 +222,7 @@ export const createBooking = mutation({
     durationHours: v.number(),
     serviceType: v.optional(serviceV),
     notes: v.optional(v.string()),
+    source: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const room = await ctx.db.get(args.roomId);
@@ -252,21 +254,25 @@ export const createBooking = mutation({
     );
     if (clash) throw new Error("That time was just taken - pick another slot.");
 
+    const leadSource = args.source ?? "web_booking";
     const email = args.clientEmail.trim().toLowerCase();
     const existing = (
       await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
     ).find((a) => a.email?.toLowerCase() === email);
     let artistId;
+    const clientName = args.clientName.trim();
     if (existing) {
       artistId = existing._id;
       await ctx.db.patch(existing._id, {
         phone: args.clientPhone ?? existing.phone,
         lastContactAt: Date.now(),
+        // Only stamp the lead-source if this artist had none (first touch wins).
+        source: existing.source ?? leadSource,
       });
     } else {
       artistId = await ctx.db.insert("artists", {
         orgId,
-        name: args.clientName.trim(),
+        name: clientName,
         type: "artist",
         email: args.clientEmail.trim(),
         phone: args.clientPhone,
@@ -277,6 +283,7 @@ export const createBooking = mutation({
         sessionCount: 0,
         reliability: "solid",
         lastContactAt: Date.now(),
+        source: leadSource,
       });
     }
 
@@ -299,6 +306,17 @@ export const createBooking = mutation({
       amountPaidCents: 0,
       source: "public_booking",
       holdExpiresAt: Date.now() + HOLD_MINUTES * 60_000,
+    });
+
+    // Lead→booking funnel: open an `inquiry` opportunity for this lead so the
+    // deal lands on the pipeline board alongside the held session.
+    await ensureInquiryFromBooking(ctx, {
+      orgId,
+      artistId,
+      artistName: clientName,
+      serviceType: args.serviceType ?? "recording",
+      valueCents: rateCents,
+      source: leadSource,
     });
 
     await ctx.db.insert("activity", {

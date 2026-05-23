@@ -1,18 +1,20 @@
 "use client";
 
-import { useState } from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useRef, useState } from "react";
+import { useQuery, useMutation, useConvex } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import {
   ChevronDown,
+  Download,
   Lock,
   MessageSquare,
   Music2,
   PackagePlus,
   Plus,
   RotateCcw,
+  Upload,
 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -166,9 +168,20 @@ type DeliverableRowData = {
   status: string;
   durationSec?: number;
   paymentGated: boolean;
+  fileId?: Id<"_storage">;
+  fileName?: string;
+  fileSize?: number;
+  mimeType?: string;
   commentCount: number;
   openCommentCount: number;
 };
+
+function fmtBytes(bytes?: number) {
+  if (bytes == null) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
 
 function DeliverableRow({
   deliverable: d,
@@ -180,7 +193,14 @@ function DeliverableRow({
   onToggle: () => void;
 }) {
   const setStatus = useMutation(api.deliverables.setStatus);
+  const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+  const attachFile = useMutation(api.files.attachFile);
+  const convex = useConvex();
   const [advancing, setAdvancing] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [downloading, setDownloading] = useState(false);
+  const [locked, setLocked] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const status = DELIVERABLE_STATUS[d.status] ?? { label: d.status, tone: "neutral" as const };
   const next = NEXT_STATUS[d.status as DeliverableStatus];
@@ -195,6 +215,50 @@ function DeliverableRow({
       toast.error(err instanceof Error ? err.message : "Could not update status.");
     } finally {
       setAdvancing(false);
+    }
+  }
+
+  async function onFilePicked(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    setUploading(true);
+    try {
+      const uploadUrl = await generateUploadUrl();
+      const res = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type || "application/octet-stream" },
+        body: file,
+      });
+      if (!res.ok) throw new Error("Upload failed.");
+      const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
+      await attachFile({
+        deliverableId: d._id,
+        storageId,
+        fileName: file.name,
+        fileSize: file.size,
+        mimeType: file.type || "application/octet-stream",
+      });
+      toast.success(`${file.name} attached.`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not upload the file.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function download() {
+    setDownloading(true);
+    setLocked(null);
+    try {
+      const { url } = await convex.query(api.files.downloadUrl, { deliverableId: d._id });
+      window.open(url, "_blank", "noopener,noreferrer");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Could not get the download.";
+      setLocked(msg);
+      toast.error(msg);
+    } finally {
+      setDownloading(false);
     }
   }
 
@@ -249,6 +313,51 @@ function DeliverableRow({
             className={cn("size-3.5 transition-transform", expanded && "rotate-180")}
           />
         </button>
+      </div>
+
+      {/* File row - upload (staff) + gated download */}
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-hairline bg-ink-2 px-3 py-2">
+        <div className="min-w-0">
+          {d.fileId ? (
+            <p className="truncate font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+              {d.fileName ?? "Attached file"}
+              {d.fileSize != null && ` · ${fmtBytes(d.fileSize)}`}
+            </p>
+          ) : (
+            <p className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+              No file attached
+            </p>
+          )}
+          {locked && (
+            <p className="mt-0.5 inline-flex items-center gap-1 text-[0.625rem] font-medium text-caution">
+              <Lock className="size-3" />
+              {locked}
+            </p>
+          )}
+        </div>
+        <div className="flex shrink-0 items-center gap-2">
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={onFilePicked}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+          >
+            <Upload className="size-3.5" />
+            {uploading ? "Uploading…" : d.fileId ? "Replace" : "Upload"}
+          </Button>
+          {d.fileId && (
+            <Button size="sm" onClick={download} disabled={downloading}>
+              {locked ? <Lock className="size-3.5" /> : <Download className="size-3.5" />}
+              {downloading ? "…" : locked ? "Locked" : "Download"}
+            </Button>
+          )}
+        </div>
       </div>
 
       {expanded && <CommentThread deliverableId={d._id} />}
