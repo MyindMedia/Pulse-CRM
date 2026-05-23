@@ -30,7 +30,7 @@ const LINES = {
   growth: "Watch your catalog grow. And your revenue with it.",
   scale: "From one room to an empire. The same calm control.",
   payoff: "Less chaos. More music.",
-  cta: "Pulse. Run your studio like a hit. Pulse dot studio.",
+  cta: "Pulse. Run your studio like a hit.",
 };
 
 const args = process.argv.slice(2);

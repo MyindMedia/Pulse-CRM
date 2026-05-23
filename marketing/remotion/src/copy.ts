@@ -4,7 +4,7 @@ export const COPY = {
   hook: { text: "You didn't get into music to babysit spreadsheets.", gold: ["music"] },
   payoff: { text: "Less chaos. More music.", gold: ["music"] },
   ctaTagline: { text: "Run your studio like a hit.", gold: ["hit"] },
-  ctaUrl: "pulse.studio",
+  ctaUrl: "pulse.myindsound.com",
   turn: "Pulse changes that.",
 
   // 3D nav menu (shown in the augmented windows).
