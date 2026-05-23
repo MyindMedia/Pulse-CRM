@@ -1,6 +1,15 @@
 import { FPS } from "./theme";
 
-export type SceneKey = "coldOpen" | "chaos" | "turn" | "augmentedShowcase" | "dataViz" | "payoff" | "cta";
+export type SceneKey =
+  | "hook"
+  | "chaos"
+  | "turn"
+  | "songs"
+  | "automate"
+  | "growth"
+  | "scale"
+  | "payoff"
+  | "cta";
 export type CutId = "hook" | "social" | "hero";
 
 export type SceneSpec = { key: SceneKey; frames: number; data?: number[] };
@@ -14,7 +23,7 @@ export type CutConfig = {
 
 const s = (sec: number) => Math.round(sec * FPS);
 
-// data on augmentedShowcase = indices into COPY.windows to feature.
+// Per-scene min duration must clear that scene's VO clip across every cut.
 export const CUTS: Record<CutId, CutConfig> = {
   hook: {
     id: "hook",
@@ -22,10 +31,10 @@ export const CUTS: Record<CutId, CutConfig> = {
     height: 1920,
     fps: FPS,
     scenes: [
-      { key: "coldOpen", frames: s(3) },
+      { key: "hook", frames: s(3.5) },
       { key: "turn", frames: s(2.5) },
-      { key: "augmentedShowcase", frames: s(6.5), data: [0] },
-      { key: "cta", frames: s(3) },
+      { key: "songs", frames: s(5) },
+      { key: "cta", frames: s(4.5) },
     ],
   },
   social: {
@@ -34,13 +43,13 @@ export const CUTS: Record<CutId, CutConfig> = {
     height: 1080,
     fps: FPS,
     scenes: [
-      { key: "coldOpen", frames: s(3.5) },
-      { key: "chaos", frames: s(3.5) },
-      { key: "turn", frames: s(3.5) },
-      { key: "augmentedShowcase", frames: s(9), data: [0, 1, 3] },
-      { key: "dataViz", frames: s(3.5) },
+      { key: "hook", frames: s(4) },
+      { key: "chaos", frames: s(5) },
+      { key: "turn", frames: s(3) },
+      { key: "automate", frames: s(6), data: [1, 3] },
+      { key: "growth", frames: s(4.5) },
       { key: "payoff", frames: s(3) },
-      { key: "cta", frames: s(4) },
+      { key: "cta", frames: s(4.5) },
     ],
   },
   hero: {
@@ -49,23 +58,24 @@ export const CUTS: Record<CutId, CutConfig> = {
     height: 1080,
     fps: FPS,
     scenes: [
-      { key: "coldOpen", frames: s(6) },
-      { key: "chaos", frames: s(8) },
-      { key: "turn", frames: s(6) },
-      { key: "augmentedShowcase", frames: s(28), data: [0, 1, 2, 3, 4] },
-      { key: "dataViz", frames: s(9) },
-      { key: "payoff", frames: s(7) },
-      { key: "cta", frames: s(11) },
+      { key: "hook", frames: s(5.5) },
+      { key: "chaos", frames: s(6.5) },
+      { key: "turn", frames: s(4) },
+      { key: "songs", frames: s(6.5) },
+      { key: "automate", frames: s(7), data: [1, 3] },
+      { key: "growth", frames: s(7) },
+      { key: "scale", frames: s(6) },
+      { key: "payoff", frames: s(4.5) },
+      { key: "cta", frames: s(6.5) },
     ],
   },
 };
 
-// Crossfade length between scenes (frames). Shared by Ad.tsx + duration math.
-export const TRANSITION = 8;
+// Crossfade/transition length between scenes (frames). Constant so the
+// composition-duration math stays exact regardless of transition type.
+export const TRANSITION = 12;
 
 export const totalFrames = (c: CutConfig) => c.scenes.reduce((n, sc) => n + sc.frames, 0);
 
-// TransitionSeries overlaps each transition, so the real timeline is shorter
-// than the sum of sequence durations. Use this for the Composition length.
 export const seriesFrames = (c: CutConfig) =>
   totalFrames(c) - TRANSITION * Math.max(0, c.scenes.length - 1);

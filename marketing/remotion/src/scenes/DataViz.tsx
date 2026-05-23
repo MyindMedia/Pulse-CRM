@@ -3,27 +3,43 @@ import { C } from "../theme";
 import { Stage3D } from "../components/Stage3D";
 import { BarChart } from "../components/BarChart";
 import { LineChart } from "../components/LineChart";
-import { Text3D } from "../components/Text3D";
+import { StatCounter } from "../components/StatCounter";
 import { COPY } from "../copy";
-import { SHOW_CAPTIONS } from "../config";
 
-// A 3D-tilted data panel: gold bars grow + a gold area/line draws in.
+// Growth: count-up stats up top, a 3D-tilted chart panel below.
 export const DataViz: React.FC<{ data?: number[] }> = () => {
   const { width, height } = useVideoConfig();
   const portrait = height > width;
   return (
     <AbsoluteFill>
-      {SHOW_CAPTIONS ? (
-        <AbsoluteFill style={{ alignItems: "center", justifyContent: "flex-start", paddingTop: portrait ? "16%" : "9%" }}>
-          <Text3D text={COPY.dataViz.headline} sizeVw={portrait ? 5 : 3.2} gold depth={12} />
-        </AbsoluteFill>
-      ) : null}
+      <AbsoluteFill
+        style={{
+          flexDirection: "row",
+          alignItems: "flex-start",
+          justifyContent: "center",
+          flexWrap: "wrap",
+          gap: portrait ? "8%" : "6%",
+          paddingTop: portrait ? "13%" : "8%",
+        }}
+      >
+        {COPY.growth.stats.map((s, i) => (
+          <StatCounter
+            key={s.label}
+            value={s.value}
+            prefix={s.prefix}
+            suffix={s.suffix}
+            label={s.label}
+            delay={8 + i * 8}
+            sizeVw={portrait ? 7 : 4}
+          />
+        ))}
+      </AbsoluteFill>
       <Stage3D drift={4} perspective={1800}>
         <div
           style={{
             position: "absolute",
             left: "50%",
-            top: portrait ? "58%" : "62%",
+            top: portrait ? "62%" : "66%",
             transform: "translate(-50%,-50%) rotateY(-14deg) rotateX(6deg)",
             transformStyle: "preserve-3d",
             display: "flex",
@@ -36,8 +52,8 @@ export const DataViz: React.FC<{ data?: number[] }> = () => {
             padding: 28,
           }}
         >
-          <BarChart values={[...COPY.dataViz.bars]} delay={6} />
-          <LineChart values={[...COPY.dataViz.line]} delay={10} />
+          <BarChart values={[...COPY.growth.bars]} delay={6} />
+          <LineChart values={[...COPY.growth.line]} delay={10} />
         </div>
       </Stage3D>
     </AbsoluteFill>

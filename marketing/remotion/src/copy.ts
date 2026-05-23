@@ -1,11 +1,22 @@
-// All on-screen copy in one place.
+// All on-screen copy + infographic data in one place.
 export const COPY = {
-  coldOpen: "Your studio runs on chaos.",
-  chaos: ["Spreadsheets.", "Unpaid invoices.", "Lost files.", "Endless DMs."],
-  turn: "Meet Pulse.",
-  // 3D nav menu shown in the augmented showcase.
+  // Kinetic-typography moments (gold words emphasized). VO speaks all lines.
+  hook: { text: "You didn't get into music to babysit spreadsheets.", gold: ["music"] },
+  payoff: { text: "Less chaos. More music.", gold: ["music"] },
+  ctaTagline: { text: "Run your studio like a hit.", gold: ["hit"] },
+  ctaUrl: "pulse.studio",
+  turn: "Pulse changes that.",
+
+  // 3D nav menu (shown in the augmented windows).
   menu: ["Songs", "Sessions", "Releases", "Payments", "Roster"],
-  // Augmented windows: which screenshot floats, + its label.
+
+  // Chaos -> converge infographic: scattered sources pulled into the Pulse hub.
+  chaosNodes: ["Texts", "Splits", "Invoices", "Files", "DMs"],
+
+  // Song-journey pipeline (lights up along the gold line).
+  journey: ["Idea", "Demo", "Session", "Mix", "Master", "Release"],
+
+  // Augmented windows featured per value beat.
   windows: [
     { shot: "dashboard.png", label: "Every song, one pipeline." },
     { shot: "bookings.png", label: "Every session, booked." },
@@ -13,12 +24,15 @@ export const COPY = {
     { shot: "inventory.png", label: "Every dollar, accounted for." },
     { shot: "agency.png", label: "Every studio, one roof." },
   ],
-  dataViz: {
-    headline: "Watch the catalog grow.",
-    bars: [3, 5, 4, 7, 6, 9, 8, 11], // illustrative, not a real KPI
+
+  // Growth infographic — illustrative figures, not real KPIs.
+  growth: {
+    bars: [3, 5, 4, 7, 6, 9, 8, 11],
     line: [2, 3, 3, 5, 6, 6, 8, 10, 12],
+    stats: [
+      { value: 312, prefix: "", suffix: "", label: "songs tracked" },
+      { value: 48, prefix: "$", suffix: "k", label: "revenue routed" },
+      { value: 27, prefix: "", suffix: "", label: "sessions / week" },
+    ],
   },
-  payoff: "One place. Every song. Every session. Every dollar.",
-  ctaTagline: "The studio CRM built for producers, not spreadsheets.",
-  ctaUrl: "pulse.studio",
 } as const;

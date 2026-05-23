@@ -22,13 +22,15 @@ const VOICE_ID = "IKne3meq5aSn9XLyUdCD";
 const MODEL = "eleven_multilingual_v2";
 
 const LINES = {
-  coldopen: "Your studio runs on chaos.",
-  chaos: "Spreadsheets. Invoices. Lost files.",
-  turn: "Meet Pulse.",
-  showcase: "Every song, every session, every dollar. In one place.",
-  dataviz: "Watch your catalog grow.",
-  payoff: "One place for everything.",
-  cta: "Pulse dot studio.",
+  hook: "You didn't get into music to babysit spreadsheets.",
+  chaos: "Sessions in your texts. Splits in your head. Money you can't track.",
+  turn: "Pulse changes that.",
+  songs: "One home for every song. From first idea to final master.",
+  automate: "Bookings, deposits, splits. Handled while you sleep.",
+  growth: "Watch your catalog grow. And your revenue with it.",
+  scale: "From one room to an empire. The same calm control.",
+  payoff: "Less chaos. More music.",
+  cta: "Pulse. Run your studio like a hit. Pulse dot studio.",
 };
 
 const args = process.argv.slice(2);

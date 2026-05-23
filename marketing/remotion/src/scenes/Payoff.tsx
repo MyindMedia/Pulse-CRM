@@ -1,17 +1,16 @@
 import { AbsoluteFill } from "remotion";
+import { ImageLayer } from "../components/ImageLayer";
 import { PulseLine } from "../components/PulseLine";
-import { Text3D } from "../components/Text3D";
+import { KineticHeadline } from "../components/KineticHeadline";
 import { COPY } from "../copy";
-import { SHOW_CAPTIONS } from "../config";
 
-// The summary line in 3D over a calm heartbeat (line hidden when captions off).
+// Payoff: kinetic "Less chaos. More music." over the studio, calm heartbeat.
 export const Payoff: React.FC<{ data?: number[] }> = () => (
   <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
+    <ImageLayer src="studio-2am.png" zoom={1.14} pan={[20, 0]} overlay={0.64} />
     <PulseLine mode="beat" strokeWidth={3} />
-    {SHOW_CAPTIONS ? (
-      <AbsoluteFill style={{ alignItems: "center", justifyContent: "center" }}>
-        <Text3D text={COPY.payoff} delay={8} sizeVw={5} gold depth={12} />
-      </AbsoluteFill>
-    ) : null}
+    <AbsoluteFill style={{ alignItems: "center", justifyContent: "center", padding: "8%" }}>
+      <KineticHeadline text={COPY.payoff.text} gold={[...COPY.payoff.gold]} delay={6} sizeVw={6.5} />
+    </AbsoluteFill>
   </AbsoluteFill>
 );

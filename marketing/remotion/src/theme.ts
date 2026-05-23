@@ -17,6 +17,8 @@ export const C = {
   goldInk: "#241900",
   bone: "#f6f6f5",
   ash: "#a3a3ad",
+  ashDim: "#6c6c76",
+  positive: "#3ddc91",
   critical: "#ff5d5d",
 } as const;
 
