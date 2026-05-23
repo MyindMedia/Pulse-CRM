@@ -1,11 +1,23 @@
 import { Composition } from "remotion";
 import { Ad } from "./Ad";
 import { EndCard } from "./EndCard";
+import { ProductShot } from "./ProductShot";
+import { Promo, promoDuration } from "./promo/Promo";
 import { CUTS, seriesFrames } from "./cuts";
 
 export const Root: React.FC = () => (
   <>
+    <Composition id="Promo" component={Promo} durationInFrames={promoDuration()} fps={30} width={1920} height={1080} />
     <Composition id="EndCard" component={EndCard} durationInFrames={105} fps={30} width={1920} height={1080} />
+    <Composition
+      id="ProductShot"
+      component={ProductShot}
+      durationInFrames={120}
+      fps={30}
+      width={1920}
+      height={1080}
+      defaultProps={{ shot: "dashboard.png", plate: "cine1.mp4" }}
+    />
     <Composition
       id="Hook"
       component={Ad}
