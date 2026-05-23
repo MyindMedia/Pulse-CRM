@@ -15,7 +15,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const current = activeNav(pathname);
 
   return (
-    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-hairline bg-ink/70 px-4 backdrop-blur-xl backdrop-saturate-150 lg:px-6">
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-hairline/0 material-ultrathin px-4 lg:px-6">
       <button
         onClick={onOpenMenu}
         className="grid size-9 place-items-center rounded-md text-ash hover:bg-coal-2 hover:text-bone lg:hidden"

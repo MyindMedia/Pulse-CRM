@@ -5,38 +5,38 @@ import { Slot } from "@radix-ui/react-slot";
 import { cva, type VariantProps } from "class-variance-authority";
 import { cn } from "@/lib/utils";
 
-/* Pulse buttons - brutalist bones, depth ladder gives them weight.
-   Primary glows warm gold; secondaries sit on a soft elevation and
-   press into the surface on click. */
+/* Pulse buttons - Liquid Glass Studio. Depth ladder gives weight, a gold
+   sheen sweeps across on hover, and they spring-press into the surface on
+   click. Primary glows warm gold; `glass` is a translucent toolbar variant;
+   `brutal` keeps the original hard-edged stamp. */
 const buttonVariants = cva(
-  "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md text-sm font-medium " +
-    "transition-[transform,box-shadow,background-color,border-color,color] duration-150 ease-out " +
+  "sheen inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium " +
+    "transition-[transform,box-shadow,background-color,border-color,color] duration-200 ease-out " +
     "outline-none disabled:pointer-events-none disabled:opacity-40 disabled:shadow-none " +
     "focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2 " +
-    "[&_svg]:size-4 [&_svg]:shrink-0 select-none",
+    "[&_svg]:relative [&_svg]:z-[2] [&_svg]:size-4 [&_svg]:shrink-0 select-none " +
+    "active:scale-[var(--press-scale)]",
   {
     variants: {
       variant: {
         primary:
           "bg-gold text-gold-ink font-semibold shadow-gold-soft " +
-          "hover:bg-gold-bright hover:shadow-gold-strong hover:-translate-y-px " +
-          "active:translate-y-px active:shadow-elev-1",
+          "hover:bg-gold-bright hover:shadow-gold-strong hover:-translate-y-0.5",
         secondary:
-          "bg-coal-2 text-bone border border-hairline-2 shadow-elev-1 " +
-          "hover:bg-coal-3 hover:border-hairline-2 hover:shadow-elev-2 hover:-translate-y-px " +
-          "active:translate-y-px active:shadow-elev-1",
+          "material-ultrathin text-bone shadow-elev-1 " +
+          "hover:bg-coal-3/70 hover:border-hairline-2 hover:shadow-elev-2 hover:-translate-y-0.5",
         ghost:
           "text-ash " +
-          "hover:bg-coal-2 hover:text-bone hover:shadow-elev-1 " +
-          "active:translate-y-px active:shadow-none",
+          "hover:bg-coal-2/70 hover:text-bone hover:shadow-elev-1",
         outline:
           "border border-hairline-2 text-bone shadow-elev-1 " +
-          "hover:bg-coal-2 hover:border-gold-dim hover:shadow-elev-2 hover:-translate-y-px " +
-          "active:translate-y-px active:shadow-elev-1",
+          "hover:bg-coal-2/60 hover:border-gold-dim hover:shadow-elev-2 hover:-translate-y-0.5",
+        glass:
+          "material-thin text-bone " +
+          "hover:border-gold-dim/60 hover:-translate-y-0.5 hover:shadow-elev-3",
         danger:
           "bg-critical/15 text-critical border border-critical/30 shadow-elev-1 " +
-          "hover:bg-critical/25 hover:shadow-elev-2 hover:-translate-y-px " +
-          "active:translate-y-px active:shadow-elev-1",
+          "hover:bg-critical/25 hover:shadow-elev-2 hover:-translate-y-0.5",
         brutal:
           "bg-bone text-ink font-semibold border-2 border-bone shadow-brutal " +
           "hover:-translate-x-px hover:-translate-y-px hover:shadow-[7px_7px_0_0_#000]",

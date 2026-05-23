@@ -1,25 +1,38 @@
 import * as React from "react";
 import { cn } from "@/lib/utils";
 
-/* Surface stack - depth via elevation ladder, hierarchy via tone + hairline. */
+/* Surface stack - Liquid Glass Studio. `material` picks the translucency
+   tier: "thin" (default, glass) for elevated content blocks, "regular" for
+   heavier panels, "solid" for dense/perf-sensitive grids. Interactive cards
+   lift, warm their border, and grow their ambient shadow on hover. */
 export function Card({
   className,
   interactive,
   elevation = 1,
+  material = "thin",
   ...props
 }: React.HTMLAttributes<HTMLDivElement> & {
   interactive?: boolean;
   elevation?: 0 | 1 | 2;
+  material?: "solid" | "thin" | "regular";
 }) {
-  const elev =
-    elevation === 0 ? "" : elevation === 2 ? "shadow-elev-2" : "shadow-elev-1";
+  const surface =
+    material === "solid"
+      ? cn(
+          "border border-hairline bg-coal",
+          elevation === 0 ? "" : elevation === 2 ? "shadow-elev-2" : "shadow-elev-1",
+        )
+      : material === "regular"
+        ? "material-regular"
+        : "material-thin";
   return (
     <div
       className={cn(
-        "rounded-lg border border-hairline bg-coal text-bone",
-        elev,
+        "rounded-xl text-bone",
+        surface,
         interactive &&
-          "transition-all duration-150 hover:border-hairline-2 hover:bg-coal-2 hover:shadow-elev-2 cursor-pointer",
+          "transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out " +
+            "hover:border-hairline-2 hover:-translate-y-0.5 hover:shadow-elev-3 cursor-pointer",
         className,
       )}
       {...props}

@@ -25,8 +25,8 @@ export function StatTile({
   return (
     <div
       className={cn(
-        "rounded-lg border bg-coal p-4 shadow-elev-1",
-        accent ? "border-gold-dim/50 bg-gold/[0.04]" : "border-hairline",
+        "sheen group rounded-xl p-4 transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-elev-3",
+        accent ? "material-thin border-gold-dim/50 bg-gold/[0.05]" : "material-thin",
         className,
       )}
     >

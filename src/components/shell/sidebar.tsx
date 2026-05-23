@@ -31,9 +31,10 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
               href={item.href}
               onClick={onNavigate}
               className={cn(
-                "group flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors",
+                "group flex min-h-11 items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium " +
+                  "transition-[background-color,color,box-shadow,transform] duration-200 ease-out active:scale-[0.98]",
                 active
-                  ? "bg-coal-2 text-bone"
+                  ? "material-ultrathin border-gold-dim/50 bg-gold/12 text-bone shadow-elev-1"
                   : "text-ash hover:bg-coal/60 hover:text-bone",
               )}
             >

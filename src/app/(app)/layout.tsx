@@ -13,21 +13,24 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="min-h-dvh bg-ink">
+      <div className="relative min-h-dvh bg-ink">
+        {/* Studio-light bloom — warm backdrop for the glass to refract */}
+        <div className="app-bloom" aria-hidden />
+
         {/* Desktop rail */}
-        <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 border-r border-hairline bg-ink-2 lg:block">
+        <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 material-regular lg:block">
           <Sidebar />
         </aside>
 
         {/* Mobile nav drawer */}
         <Sheet open={mobileNav} onOpenChange={setMobileNav}>
-          <SheetContent width="sm" className="bg-ink-2 lg:hidden">
+          <SheetContent width="sm" className="material-regular lg:hidden">
             <Sidebar onNavigate={() => setMobileNav(false)} />
           </SheetContent>
         </Sheet>
 
         {/* Main column */}
-        <div className="flex min-h-dvh flex-col lg:pl-64">
+        <div className="relative z-10 flex min-h-dvh flex-col lg:pl-64">
           <StudioBanner />
           <Topbar onOpenMenu={() => setMobileNav(true)} />
           <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">{children}</main>

@@ -5,14 +5,22 @@ import { cn } from "@/lib/utils";
    rows lift on hover. Compose columns per module. */
 export function Table({ className, ...props }: React.TableHTMLAttributes<HTMLTableElement>) {
   return (
-    <div className="overflow-x-auto rounded-lg border border-hairline">
+    <div className="overflow-x-auto rounded-xl border border-hairline shadow-elev-1">
       <table className={cn("w-full border-collapse text-sm", className)} {...props} />
     </div>
   );
 }
 
 export function THead({ className, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) {
-  return <thead className={cn("bg-ink-2", className)} {...props} />;
+  return (
+    <thead
+      className={cn(
+        "sticky top-0 z-10 material-ultrathin [&_th]:border-b [&_th]:border-hairline",
+        className,
+      )}
+      {...props}
+    />
+  );
 }
 
 export function TBody({ className, ...props }: React.HTMLAttributes<HTMLTableSectionElement>) {

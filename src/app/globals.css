@@ -87,6 +87,19 @@
   --ease-spring: cubic-bezier(.34,1.56,.64,1);
   --ease-out: cubic-bezier(.16,1,.3,1);
 
+  /* - Interaction motion (Liquid Glass) - */
+  --press-scale: 0.97;
+  --hover-lift: -2px;
+  --dur-press: 120ms;
+  --dur-hover: 220ms;
+  --dur-sheen: 520ms;
+
+  /* - Glass material blur tiers (iOS-2026 material scale) - */
+  --glass-blur-ultrathin: 16px;
+  --glass-blur-thin: 22px;
+  --glass-blur-regular: 28px;
+  --glass-blur-thick: 36px;
+
   /* - Animations - */
   --animate-pulse-ring: pulse-ring 2.4s cubic-bezier(.16,1,.3,1) infinite;
   --animate-shimmer: shimmer 1.6s linear infinite;
@@ -195,6 +208,93 @@
       inset 0 0 0 1px color-mix(in oklab, white 4%, transparent);
   }
 
+  /* ── Liquid Glass material scale (iOS-2026). Each tier = backdrop blur +
+     saturate, 1px hairline, top-edge specular rim, and an elevation-ladder
+     drop. ultrathin→chrome/chips, thin→cards/tiles, regular→sidebar/panels,
+     thick→dialogs/sheets/palette. This is the canonical system; the older
+     .glass / .glass-strong / .glass-liquid remain as aliases. ── */
+  .material-ultrathin {
+    background: color-mix(in oklab, var(--color-coal) 52%, transparent);
+    backdrop-filter: blur(var(--glass-blur-ultrathin)) saturate(170%);
+    -webkit-backdrop-filter: blur(var(--glass-blur-ultrathin)) saturate(170%);
+    border: 1px solid color-mix(in oklab, white 7%, transparent);
+    box-shadow: inset 0 1px 0 0 color-mix(in oklab, white 7%, transparent);
+  }
+  .material-thin {
+    background: color-mix(in oklab, var(--color-coal) 66%, transparent);
+    backdrop-filter: blur(var(--glass-blur-thin)) saturate(185%);
+    -webkit-backdrop-filter: blur(var(--glass-blur-thin)) saturate(185%);
+    border: 1px solid color-mix(in oklab, white 9%, transparent);
+    box-shadow:
+      var(--shadow-elev-2),
+      inset 0 1px 0 0 color-mix(in oklab, white 9%, transparent);
+  }
+  .material-regular {
+    background: color-mix(in oklab, var(--color-coal-2) 76%, transparent);
+    backdrop-filter: blur(var(--glass-blur-regular)) saturate(200%);
+    -webkit-backdrop-filter: blur(var(--glass-blur-regular)) saturate(200%);
+    border: 1px solid color-mix(in oklab, white 10%, transparent);
+    box-shadow:
+      var(--shadow-elev-3),
+      inset 0 1px 0 0 color-mix(in oklab, white 11%, transparent);
+  }
+  .material-thick {
+    background: linear-gradient(
+      to bottom,
+      color-mix(in oklab, var(--color-coal-2) 58%, transparent) 0%,
+      color-mix(in oklab, var(--color-coal) 84%, transparent) 100%
+    );
+    backdrop-filter: blur(var(--glass-blur-thick)) saturate(220%);
+    -webkit-backdrop-filter: blur(var(--glass-blur-thick)) saturate(220%);
+    border: 1px solid color-mix(in oklab, white 12%, transparent);
+    box-shadow:
+      var(--shadow-elev-4),
+      inset 0 1px 0 0 color-mix(in oklab, white 14%, transparent),
+      inset 0 0 0 1px color-mix(in oklab, white 4%, transparent);
+  }
+
+  /* Specular hover sheen — a gold-tinted diagonal sweep across a surface.
+     Pair with overflow-hidden + relative (the .sheen base handles both). */
+  .sheen { position: relative; overflow: hidden; isolation: isolate; }
+  .sheen::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    background: linear-gradient(
+      105deg,
+      transparent 30%,
+      color-mix(in oklab, var(--color-gold-bright) 22%, transparent) 48%,
+      transparent 66%
+    );
+    transform: translateX(-130%);
+    transition: transform var(--dur-sheen) var(--ease-out);
+  }
+  .sheen:hover::after { transform: translateX(130%); }
+
+  /* Physical press — spring scale-down on active, glassy settle. */
+  .press {
+    transition:
+      transform var(--dur-press) var(--ease-spring),
+      box-shadow var(--dur-hover) var(--ease-out),
+      background-color var(--dur-hover) var(--ease-out),
+      border-color var(--dur-hover) var(--ease-out);
+  }
+  .press:active { transform: scale(var(--press-scale)); }
+
+  /* Fixed studio-light bloom — gives the glass something warm to refract.
+     Drop one <div class="app-bloom" /> behind the app content. */
+  .app-bloom {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(58% 40% at 50% -8%, color-mix(in oklab, var(--color-gold) 12%, transparent), transparent 70%),
+      radial-gradient(46% 38% at 90% 4%, color-mix(in oklab, var(--color-gold-deep) 8%, transparent), transparent 72%);
+  }
+
   /* - Elevation utilities (mapped to the token ladder) - */
   .shadow-elev-1 { box-shadow: var(--shadow-elev-1); }
   .shadow-elev-2 { box-shadow: var(--shadow-elev-2); }
@@ -291,4 +391,20 @@
     animation-iteration-count: 1 !important;
     transition-duration: .01ms !important;
   }
+  .press:active { transform: none; }
+  .sheen::after { display: none; }
+}
+
+/* Accessibility: collapse translucency to solid surfaces when the OS asks
+   for reduced transparency (HIG). Keeps borders + elevation; drops blur. */
+@media (prefers-reduced-transparency: reduce) {
+  .material-ultrathin, .material-thin, .material-regular, .material-thick,
+  .glass, .glass-strong, .glass-liquid {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+  .material-ultrathin, .glass { background: var(--color-coal) !important; }
+  .material-thin { background: var(--color-coal) !important; }
+  .material-regular, .glass-strong { background: var(--color-coal-2) !important; }
+  .material-thick, .glass-liquid { background: var(--color-coal-2) !important; }
 }
