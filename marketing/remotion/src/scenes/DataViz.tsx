@@ -5,6 +5,7 @@ import { BarChart } from "../components/BarChart";
 import { LineChart } from "../components/LineChart";
 import { Text3D } from "../components/Text3D";
 import { COPY } from "../copy";
+import { SHOW_CAPTIONS } from "../config";
 
 // A 3D-tilted data panel: gold bars grow + a gold area/line draws in.
 export const DataViz: React.FC<{ data?: number[] }> = () => {
@@ -12,9 +13,11 @@ export const DataViz: React.FC<{ data?: number[] }> = () => {
   const portrait = height > width;
   return (
     <AbsoluteFill>
-      <AbsoluteFill style={{ alignItems: "center", justifyContent: "flex-start", paddingTop: portrait ? "16%" : "9%" }}>
-        <Text3D text={COPY.dataViz.headline} sizeVw={portrait ? 5 : 3.2} gold depth={12} />
-      </AbsoluteFill>
+      {SHOW_CAPTIONS ? (
+        <AbsoluteFill style={{ alignItems: "center", justifyContent: "flex-start", paddingTop: portrait ? "16%" : "9%" }}>
+          <Text3D text={COPY.dataViz.headline} sizeVw={portrait ? 5 : 3.2} gold depth={12} />
+        </AbsoluteFill>
+      ) : null}
       <Stage3D drift={4} perspective={1800}>
         <div
           style={{

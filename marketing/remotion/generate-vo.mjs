@@ -16,9 +16,9 @@ if (!KEY) {
   process.exit(1);
 }
 
-// Eric — "Smooth, Trustworthy" (premade): a classic SaaS sales/explainer read.
+// Charlie — "Deep, Confident, Energetic" (premade): deep brand-narrator read.
 // Premade voices work on all plans; the ThaMyind instant-clone does not.
-const VOICE_ID = "cjVigY5qzO86Huf0OWal";
+const VOICE_ID = "IKne3meq5aSn9XLyUdCD";
 const MODEL = "eleven_multilingual_v2";
 
 const LINES = {

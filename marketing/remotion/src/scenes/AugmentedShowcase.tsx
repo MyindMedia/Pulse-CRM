@@ -5,6 +5,7 @@ import { Menu3D } from "../components/Menu3D";
 import { ClickCursor } from "../components/ClickCursor";
 import { Text3D } from "../components/Text3D";
 import { COPY } from "../copy";
+import { SHOW_CAPTIONS } from "../config";
 
 // Each beat: a smaller focal UI window floats in front of a dimmed back-stack
 // of two deeper windows (depth), the 3D menu shows the matching item active,
@@ -47,9 +48,11 @@ export const AugmentedShowcase: React.FC<{ data?: number[] }> = ({ data = [0] })
                 clickAt={clickAt}
               />
             </Stage3D>
-            <AbsoluteFill style={{ alignItems: "center", justifyContent: "flex-end", padding: portrait ? "12% 7%" : "6% 7%" }}>
-              <Text3D text={win.label} delay={clickAt + 4} sizeVw={portrait ? 4.4 : 2.7} gold depth={10} />
-            </AbsoluteFill>
+            {SHOW_CAPTIONS ? (
+              <AbsoluteFill style={{ alignItems: "center", justifyContent: "flex-end", padding: portrait ? "12% 7%" : "6% 7%" }}>
+                <Text3D text={win.label} delay={clickAt + 4} sizeVw={portrait ? 4.4 : 2.7} gold depth={10} />
+              </AbsoluteFill>
+            ) : null}
           </Sequence>
         );
       })}
