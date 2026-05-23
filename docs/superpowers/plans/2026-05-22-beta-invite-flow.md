@@ -1061,6 +1061,13 @@ git commit -m "test(invite): e2e invalid-token + regression green"
 
 ---
 
+## Completion Status (2026-05-22)
+
+- **Tasks 1-8:** implemented + committed (see `git log` `e180e25`…`fa221ec`), plus follow-up fixes (resend authorization, real-inviter recording, a11y label, Clerk slug guard, `seedAgencyOwner` bootstrap).
+- **Task 9 e2e:** Playwright is **not** part of this project's test stack (no `playwright.config`, package not installed; all Pulse testing is vitest). Per this plan's own self-review fallback, invite coverage stays at the Convex/vitest layer (`convex/invites.test.ts`, `convex/lib/email.test.ts`, `convex/lib/emailTemplates/invite.test.ts`) rather than standing up a new harness. Revisit if/when Pulse adopts Playwright.
+- **Full regression (green):** `vitest` 65/65 · `tsc --noEmit` clean · `eslint` 0 errors (1 pre-existing unrelated warning in `pricing-panel.tsx`) · `next build` passes. Build/codegen requires Node 22 on PATH (`/opt/homebrew/opt/node@22/bin`) — system Node 25 is unsupported by the Convex CLI.
+- **Deferred:** post-merge env/deploy checklist below (Resend domain verify, real send test); Google SSO deferred post-beta (header scope note).
+
 ## Self-Review
 
 - **Spec coverage:** branded HTML email (Tasks 4-6), Pulse-native screen (Task 7), token model + lifecycle (Tasks 1-3), invalid/expired/accepted/already-registered states (Tasks 3, 7), invite-only sign-up + agency resend (Task 8), tests (Tasks 2-9), env carry-overs (checklist). Google SSO explicitly deferred (header scope note) — the one intentional deviation from the spec, flagged for user sign-off.
