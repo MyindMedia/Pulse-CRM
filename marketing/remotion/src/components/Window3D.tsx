@@ -11,6 +11,7 @@ export type Window3DProps = {
   rotateY?: number;
   rotateX?: number;
   widthFrac?: number;
+  dim?: number; // multiplies final opacity (for back-stack depth layers)
 };
 
 export const Window3D: React.FC<Window3DProps> = ({
@@ -22,6 +23,7 @@ export const Window3D: React.FC<Window3DProps> = ({
   rotateY = 0,
   rotateX = 0,
   widthFrac = 0.5,
+  dim = 1,
 }) => {
   const frame = useCurrentFrame();
   const t = frame - delay;
@@ -34,7 +36,7 @@ export const Window3D: React.FC<Window3DProps> = ({
         position: "absolute",
         width: `${widthFrac * 100}%`,
         transform: `translate3d(${x}px, ${y + float}px, ${z * enter}px) rotateY(${rotateY}deg) rotateX(${rotateX}deg) scale(${scale})`,
-        opacity: enter,
+        opacity: enter * dim,
         borderRadius: 16,
         overflow: "hidden",
         border: `1px solid ${C.hairline2}`,

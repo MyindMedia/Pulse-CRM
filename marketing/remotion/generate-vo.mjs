@@ -1,0 +1,68 @@
+// Generates per-scene voiceover clips via ElevenLabs into public/vo/.
+// Usage:
+//   ELEVENLABS_API_KEY=... node generate-vo.mjs [--list] [--force]
+// Lines are short + scene-keyed so the same clip syncs across all three cuts.
+import { mkdirSync, existsSync, writeFileSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const here = dirname(fileURLToPath(import.meta.url));
+const outDir = join(here, "public", "vo");
+mkdirSync(outDir, { recursive: true });
+
+const KEY = process.env.ELEVENLABS_API_KEY;
+if (!KEY) {
+  console.error("Missing ELEVENLABS_API_KEY");
+  process.exit(1);
+}
+
+// Eric — "Smooth, Trustworthy" (premade): a classic SaaS sales/explainer read.
+// Premade voices work on all plans; the ThaMyind instant-clone does not.
+const VOICE_ID = "cjVigY5qzO86Huf0OWal";
+const MODEL = "eleven_multilingual_v2";
+
+const LINES = {
+  coldopen: "Your studio runs on chaos.",
+  chaos: "Spreadsheets. Invoices. Lost files.",
+  turn: "Meet Pulse.",
+  showcase: "Every song, every session, every dollar. In one place.",
+  dataviz: "Watch your catalog grow.",
+  payoff: "One place for everything.",
+  cta: "Pulse dot studio.",
+};
+
+const args = process.argv.slice(2);
+
+if (args.includes("--list")) {
+  const res = await fetch("https://api.elevenlabs.io/v1/voices", { headers: { "xi-api-key": KEY } });
+  const json = await res.json();
+  for (const v of json.voices ?? []) console.log(v.voice_id, "-", v.name);
+  process.exit(0);
+}
+
+const force = args.includes("--force");
+
+for (const [key, text] of Object.entries(LINES)) {
+  const dest = join(outDir, `${key}.mp3`);
+  if (existsSync(dest) && !force) {
+    console.log(`skip ${key} (exists)`);
+    continue;
+  }
+  const res = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${VOICE_ID}`, {
+    method: "POST",
+    headers: { "xi-api-key": KEY, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      text,
+      model_id: MODEL,
+      voice_settings: { stability: 0.45, similarity_boost: 0.8, style: 0.3, use_speaker_boost: true },
+    }),
+  });
+  if (!res.ok) {
+    console.error(`FAIL ${key}: ${res.status} ${await res.text()}`);
+    process.exit(1);
+  }
+  const buf = Buffer.from(await res.arrayBuffer());
+  writeFileSync(dest, buf);
+  console.log(`wrote ${key}.mp3 (${buf.length} bytes)`);
+}
+console.log("done");

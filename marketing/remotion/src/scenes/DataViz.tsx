@@ -3,7 +3,7 @@ import { C } from "../theme";
 import { Stage3D } from "../components/Stage3D";
 import { BarChart } from "../components/BarChart";
 import { LineChart } from "../components/LineChart";
-import { KineticText } from "../components/KineticText";
+import { Text3D } from "../components/Text3D";
 import { COPY } from "../copy";
 
 // A 3D-tilted data panel: gold bars grow + a gold area/line draws in.
@@ -11,9 +11,9 @@ export const DataViz: React.FC<{ data?: number[] }> = () => {
   const { width, height } = useVideoConfig();
   const portrait = height > width;
   return (
-    <AbsoluteFill style={{ backgroundColor: C.ink }}>
+    <AbsoluteFill>
       <AbsoluteFill style={{ alignItems: "center", justifyContent: "flex-start", paddingTop: portrait ? "16%" : "9%" }}>
-        <KineticText text={COPY.dataViz.headline} sizeVw={portrait ? 5.4 : 3.4} gold />
+        <Text3D text={COPY.dataViz.headline} sizeVw={portrait ? 5 : 3.2} gold depth={12} />
       </AbsoluteFill>
       <Stage3D drift={4} perspective={1800}>
         <div
