@@ -12,7 +12,10 @@ mkdirSync(shotsOut, { recursive: true });
 
 copyFileSync(join(repo, "public", "pulse-logo.png"), join(pub, "pulse-logo.png"));
 
-const shots = ["dashboard", "bookings", "inventory", "studio", "agency", "book", "live"];
+const shots = [
+  "dashboard", "songs", "studio", "calendar", "bookings", "pipeline",
+  "payments", "roster", "releases", "licensing", "inventory", "agency", "settings",
+];
 for (const s of shots) {
   const src = join(repo, ".shots", `${s}.png`);
   if (existsSync(src)) copyFileSync(src, join(shotsOut, `${s}.png`));

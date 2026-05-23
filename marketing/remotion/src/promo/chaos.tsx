@@ -6,7 +6,7 @@ import { C, body, display } from "../theme";
 const COLD_BG = "#0b0b0e";
 
 // Cold grey title line, fades + rises, faint nervous jitter.
-const ColdLine: React.FC<{ text: string; delay?: number; sizeVw?: number; danger?: boolean }> = ({ text, delay = 0, sizeVw = 4, danger = false }) => {
+export const ColdLine: React.FC<{ text: string; delay?: number; sizeVw?: number; danger?: boolean }> = ({ text, delay = 0, sizeVw = 4, danger = false }) => {
   const f = useCurrentFrame();
   const t = f - delay;
   const o = interpolate(t, [0, 10], [0, 1], { extrapolateLeft: "clamp", extrapolateRight: "clamp" });
@@ -20,7 +20,7 @@ const ColdLine: React.FC<{ text: string; delay?: number; sizeVw?: number; danger
 };
 
 // A scattered labeled chip with per-index drift + jitter.
-const Chip: React.FC<{ label: string; x: number; y: number; delay?: number; tone?: string; flag?: string }> = ({ label, x, y, delay = 0, tone = C.ash, flag }) => {
+export const Chip: React.FC<{ label: string; x: number; y: number; delay?: number; tone?: string; flag?: string }> = ({ label, x, y, delay = 0, tone = C.ash, flag }) => {
   const f = useCurrentFrame();
   const { fps } = useVideoConfig();
   const p = spring({ frame: f - delay, fps, config: { damping: 18, stiffness: 120 } });
@@ -50,7 +50,7 @@ const Chip: React.FC<{ label: string; x: number; y: number; delay?: number; tone
   );
 };
 
-const ColdBase: React.FC<{ children: React.ReactNode }> = ({ children }) => (
+export const ColdBase: React.FC<{ children: React.ReactNode }> = ({ children }) => (
   <AbsoluteFill style={{ backgroundColor: COLD_BG }}>
     <AbsoluteFill style={{ background: "radial-gradient(120% 120% at 50% 50%, rgba(40,44,55,0.25), transparent 60%)" }} />
     {children}
