@@ -37,6 +37,8 @@ import type * as lib_access from "../lib/access.js";
 import type * as lib_accessPolicies from "../lib/accessPolicies.js";
 import type * as lib_accessTypes from "../lib/accessTypes.js";
 import type * as lib_checklistTemplates from "../lib/checklistTemplates.js";
+import type * as lib_email from "../lib/email.js";
+import type * as lib_emailTemplates_invite from "../lib/emailTemplates/invite.js";
 import type * as lib_money from "../lib/money.js";
 import type * as lib_notify from "../lib/notify.js";
 import type * as lib_openai from "../lib/openai.js";
@@ -98,6 +100,8 @@ declare const fullApi: ApiFromModules<{
   "lib/accessPolicies": typeof lib_accessPolicies;
   "lib/accessTypes": typeof lib_accessTypes;
   "lib/checklistTemplates": typeof lib_checklistTemplates;
+  "lib/email": typeof lib_email;
+  "lib/emailTemplates/invite": typeof lib_emailTemplates_invite;
   "lib/money": typeof lib_money;
   "lib/notify": typeof lib_notify;
   "lib/openai": typeof lib_openai;
