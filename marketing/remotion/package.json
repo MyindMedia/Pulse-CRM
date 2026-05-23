@@ -1,0 +1,28 @@
+{
+  "name": "pulse-launch-ad",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Brand-hype launch ad for Pulse, three cuts, Remotion.",
+  "scripts": {
+    "copy-assets": "node copy-assets.mjs",
+    "studio": "remotion studio",
+    "still": "remotion still",
+    "render:hook": "remotion render src/index.ts Hook out/pulse-hook.mp4",
+    "render:social": "remotion render src/index.ts Social out/pulse-social.mp4",
+    "render:hero": "remotion render src/index.ts Hero out/pulse-hero.mp4",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@remotion/cli": "4.0.465",
+    "@remotion/google-fonts": "4.0.465",
+    "@remotion/media": "4.0.465",
+    "@remotion/transitions": "4.0.465",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "remotion": "4.0.465"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.0",
+    "typescript": "^5.5.0"
+  }
+}
