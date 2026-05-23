@@ -1,9 +1,9 @@
 import { query, mutation, internalMutation, internalQuery, action, QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { seedStarterWorkspace } from "./lib/starter";
 import { resolveViewer, requireCapability, AccessError } from "./lib/access";
-import { PLAN_LIMITS } from "./lib/plans";
+import { PLAN_LIMITS, type TierKey } from "./lib/plans";
 import { sendEmail } from "./lib/email";
 import { inviteEmailHtml, inviteEmailSubject } from "./lib/emailTemplates/invite";
 
@@ -259,7 +259,7 @@ export const provision = internalMutation({
       .query("orgs")
       .withIndex("by_slug", (q) => q.eq("slug", args.slug))
       .first();
-    if (slugTaken) throw new Error(`The slug "${args.slug}" is already in use.`);
+    if (slugTaken) throw new ConvexError(`The slug "${args.slug}" is already in use.`);
 
     await ctx.db.insert("orgs", {
       orgId: args.orgId,
@@ -304,18 +304,35 @@ export const createSubaccount = action({
   },
   handler: async (ctx, args) => {
     const slug = args.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-");
+    if (slug.length < 2) {
+      throw new ConvexError("Pick a slug with at least 2 characters.");
+    }
+
+    // Validate slug uniqueness FIRST - before creating any external (Clerk)
+    // resource. Otherwise a late failure (e.g. duplicate slug caught in
+    // provision) orphans a freshly created Clerk organization.
+    if (await ctx.runQuery(internal.agency._slugTaken, { slug })) {
+      throw new ConvexError(`The slug "${slug}" is already in use. Pick another.`);
+    }
 
     // Capability + plan-cap check.
     const self = await ctx.runQuery(internal.agency._resolveSelf, {});
     if (self && self.kind === "agency_member") {
-      // Real agency tenant - enforce plan cap
+      // Real agency tenant - enforce the plan cap. If the agencies row is
+      // missing (a known provisioning gap) we do NOT block creation; we just
+      // skip the cap rather than throwing an opaque "record not found".
       const ag = await ctx.runQuery(internal.agency._agencyById, { agencyId: self.agencyId! });
-      if (!ag) throw new Error("Agency record not found");
-      const tier: "pro" | "agency" = ag.plan === "pro" ? "pro" : "agency";
-      const cap = PLAN_LIMITS[tier].subAccountCap;
-      const count = await ctx.runQuery(internal.agency._countSubaccounts, { agencyId: self.agencyId! });
-      if (count >= cap) {
-        throw new Error(`Plan cap reached (${count}/${cap}). Upgrade your plan to add more studios.`);
+      if (ag) {
+        const tier: TierKey = ag.plan in PLAN_LIMITS ? (ag.plan as TierKey) : "agency";
+        const cap = PLAN_LIMITS[tier].subAccountCap;
+        const count = await ctx.runQuery(internal.agency._countSubaccounts, {
+          agencyId: self.agencyId!,
+        });
+        if (count >= cap) {
+          throw new ConvexError(
+            `Plan cap reached (${count}/${cap} studios). Upgrade your plan to add more.`,
+          );
+        }
       }
     }
     // Demo / single-tenant path: no cap, no agency required.
@@ -342,7 +359,7 @@ export const createSubaccount = action({
         } catch {
           // non-JSON body; keep the status-only message
         }
-        throw new Error(msg);
+        throw new ConvexError(msg);
       }
       const org = (await orgRes.json()) as { id: string };
       clerkOrgId = org.id;
@@ -435,6 +452,14 @@ export const _countSubaccounts = internalQuery({
   args: { agencyId: v.string() },
   handler: async (ctx, { agencyId }) =>
     (await ctx.db.query("orgs").withIndex("by_agency", (q) => q.eq("agencyId", agencyId)).collect()).length,
+});
+
+export const _slugTaken = internalQuery({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) =>
+    Boolean(
+      await ctx.db.query("orgs").withIndex("by_slug", (q) => q.eq("slug", slug)).first(),
+    ),
 });
 
 /** Demo-mode "enter as" - point the workspace at a studio. With Clerk you

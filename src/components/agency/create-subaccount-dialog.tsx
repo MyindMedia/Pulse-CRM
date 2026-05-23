@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useAction } from "convex/react";
+import { ConvexError } from "convex/values";
 import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
 import { Plus } from "lucide-react";
@@ -81,7 +82,15 @@ export function CreateSubaccountDialog({ triggerSize = "md" }: { triggerSize?: "
       reset();
       router.push(`/agency/${res.orgId}`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not create the subaccount.");
+      // ConvexError carries the user-facing reason in `.data`; plain errors
+      // get redacted to "Server Error" by Convex, so fall back to a hint.
+      const msg =
+        err instanceof ConvexError
+          ? String(err.data)
+          : err instanceof Error && !/Server Error/i.test(err.message)
+            ? err.message
+            : "Could not create the subaccount - check the slug isn't already taken.";
+      toast.error(msg);
     } finally {
       setSubmitting(false);
     }
