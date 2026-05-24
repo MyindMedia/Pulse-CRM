@@ -303,112 +303,140 @@ export const createSubaccount = action({
     ownerEmail: v.string(),
   },
   handler: async (ctx, args) => {
-    const slug = args.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-");
-    if (slug.length < 2) {
-      throw new ConvexError("Pick a slug with at least 2 characters.");
-    }
+    try {
+      const slug = args.slug.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-");
+      if (slug.length < 2) {
+        throw new ConvexError("Pick a slug with at least 2 characters.");
+      }
 
-    // Validate slug uniqueness FIRST - before creating any external (Clerk)
-    // resource. Otherwise a late failure (e.g. duplicate slug caught in
-    // provision) orphans a freshly created Clerk organization.
-    if (await ctx.runQuery(internal.agency._slugTaken, { slug })) {
-      throw new ConvexError(`The slug "${slug}" is already in use. Pick another.`);
-    }
+      // Validate slug uniqueness FIRST - before creating any external (Clerk)
+      // resource. Otherwise a late failure (e.g. duplicate slug caught in
+      // provision) orphans a freshly created Clerk organization.
+      if (await ctx.runQuery(internal.agency._slugTaken, { slug })) {
+        throw new ConvexError(`The slug "${slug}" is already in use. Pick another.`);
+      }
 
-    // Capability + plan-cap check.
-    const self = await ctx.runQuery(internal.agency._resolveSelf, {});
-    if (self && self.kind === "agency_member") {
-      // Real agency tenant - enforce the plan cap. If the agencies row is
-      // missing (a known provisioning gap) we do NOT block creation; we just
-      // skip the cap rather than throwing an opaque "record not found".
-      const ag = await ctx.runQuery(internal.agency._agencyById, { agencyId: self.agencyId! });
-      if (ag) {
-        const tier: TierKey = ag.plan in PLAN_LIMITS ? (ag.plan as TierKey) : "agency";
-        const cap = PLAN_LIMITS[tier].subAccountCap;
-        const count = await ctx.runQuery(internal.agency._countSubaccounts, {
-          agencyId: self.agencyId!,
-        });
-        if (count >= cap) {
+      // Capability + plan-cap check.
+      const self = await ctx.runQuery(internal.agency._resolveSelf, {});
+      if (self && self.kind === "agency_member") {
+        // Real agency tenant - enforce the plan cap. If the agencies row is
+        // missing (a known provisioning gap) we do NOT block creation; we just
+        // skip the cap rather than throwing an opaque "record not found".
+        const ag = await ctx.runQuery(internal.agency._agencyById, { agencyId: self.agencyId! });
+        if (ag) {
+          const tier: TierKey = ag.plan in PLAN_LIMITS ? (ag.plan as TierKey) : "agency";
+          const cap = PLAN_LIMITS[tier].subAccountCap;
+          const count = await ctx.runQuery(internal.agency._countSubaccounts, {
+            agencyId: self.agencyId!,
+          });
+          if (count >= cap) {
+            throw new ConvexError(
+              `Plan cap reached (${count}/${cap} studios). Upgrade your plan to add more.`,
+            );
+          }
+        }
+      }
+      // Demo / single-tenant path: no cap, no agency required.
+
+      let clerkOrgId: string | undefined;
+      const secret = process.env.CLERK_SECRET_KEY;
+
+      if (secret) {
+        // Note: we do NOT send `slug` to Clerk. Some instances disable
+        // organization slugs (error: organization_slugs_disabled); Clerk
+        // auto-generates one. Our own routing slug lives on the Convex org.
+        let orgRes: Response;
+        try {
+          orgRes = await fetch("https://api.clerk.com/v1/organizations", {
+            method: "POST",
+            headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
+            body: JSON.stringify({ name: args.name }),
+          });
+        } catch (netErr) {
           throw new ConvexError(
-            `Plan cap reached (${count}/${cap} studios). Upgrade your plan to add more.`,
+            `Could not reach Clerk to create the organization: ${
+              netErr instanceof Error ? netErr.message : "network error"
+            }`,
           );
         }
-      }
-    }
-    // Demo / single-tenant path: no cap, no agency required.
-
-    let clerkOrgId: string | undefined;
-    const secret = process.env.CLERK_SECRET_KEY;
-
-    if (secret) {
-      // Note: we do NOT send `slug` to Clerk. Some instances disable
-      // organization slugs (error: organization_slugs_disabled); Clerk
-      // auto-generates one. Our own routing slug lives on the Convex org.
-      const orgRes = await fetch("https://api.clerk.com/v1/organizations", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ name: args.name }),
-      });
-      if (!orgRes.ok) {
-        const detail = await orgRes.text().catch(() => "");
-        let msg = `Clerk organization create failed (${orgRes.status}).`;
-        try {
-          const parsed = JSON.parse(detail) as { errors?: { long_message?: string; message?: string }[] };
-          const m = parsed.errors?.[0]?.long_message ?? parsed.errors?.[0]?.message;
-          if (m) msg = `Clerk organization create failed: ${m}`;
-        } catch {
-          // non-JSON body; keep the status-only message
+        if (!orgRes.ok) {
+          const detail = await orgRes.text().catch(() => "");
+          let msg = `Clerk organization create failed (${orgRes.status}).`;
+          try {
+            const parsed = JSON.parse(detail) as { errors?: { long_message?: string; message?: string }[] };
+            const m = parsed.errors?.[0]?.long_message ?? parsed.errors?.[0]?.message;
+            if (m) msg = `Clerk organization create failed: ${m}`;
+          } catch {
+            // non-JSON body; keep the status-only message
+          }
+          throw new ConvexError(msg);
         }
-        throw new ConvexError(msg);
+        const org = (await orgRes.json()) as { id: string };
+        clerkOrgId = org.id;
       }
-      const org = (await orgRes.json()) as { id: string };
-      clerkOrgId = org.id;
-    }
 
-    const orgId = clerkOrgId ?? `studio_${slug}`;
-    const agencyId = self?.kind === "agency_member" ? self.agencyId : undefined;
-    await ctx.runMutation(internal.agency.provision, {
-      orgId,
-      clerkOrgId,
-      name: args.name,
-      slug,
-      plan: args.plan,
-      ownerName: args.ownerName,
-      ownerEmail: args.ownerEmail,
-      agencyId,
-      tier: "studio",
-    });
-
-    // Branded beta invite: record token + send our own Resend email.
-    // invitedBy = the Clerk user who created the subaccount (or "system" in demo).
-    const inviteIdentity = await ctx.auth.getUserIdentity();
-    const issuer = inviteIdentity?.subject ?? "system";
-    const appUrl = process.env.APP_URL ?? "http://localhost:3000";
-    const token = await ctx.runMutation(internal.invites.record, {
-      orgId,
-      clerkOrgId,
-      agencyId,
-      email: args.ownerEmail,
-      ownerName: args.ownerName,
-      studioName: args.name,
-      invitedBy: issuer,
-      emailStatus: "simulated", // updated below after send
-    });
-    const acceptUrl = `${appUrl}/invite/${token}`;
-    const status = await sendEmail({
-      to: args.ownerEmail,
-      subject: inviteEmailSubject(args.name),
-      html: inviteEmailHtml({
+      const orgId = clerkOrgId ?? `studio_${slug}`;
+      const agencyId = self?.kind === "agency_member" ? self.agencyId : undefined;
+      await ctx.runMutation(internal.agency.provision, {
+        orgId,
+        clerkOrgId,
+        name: args.name,
+        slug,
+        plan: args.plan,
         ownerName: args.ownerName,
-        studioName: args.name,
-        inviterName: "your Pulse administrator",
-        acceptUrl,
-        logoUrl: `${appUrl}/pulse-logo.png`,
-      }),
-    });
-    await ctx.runMutation(internal.invites.setEmailStatus, { token, emailStatus: status });
+        ownerEmail: args.ownerEmail,
+        agencyId,
+        tier: "studio",
+      });
 
-    return { orgId, slug, clerkProvisioned: Boolean(clerkOrgId), inviteSent: status === "sent" };
+      // Branded beta invite (NON-FATAL): the subaccount is already provisioned,
+      // so an invite/email hiccup must never fail the whole action.
+      let inviteSent = false;
+      try {
+        const inviteIdentity = await ctx.auth.getUserIdentity();
+        const issuer = inviteIdentity?.subject ?? "system";
+        const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+        const token = await ctx.runMutation(internal.invites.record, {
+          orgId,
+          clerkOrgId,
+          agencyId,
+          email: args.ownerEmail,
+          ownerName: args.ownerName,
+          studioName: args.name,
+          invitedBy: issuer,
+          emailStatus: "simulated", // updated below after send
+        });
+        const acceptUrl = `${appUrl}/invite/${token}`;
+        const status = await sendEmail({
+          to: args.ownerEmail,
+          subject: inviteEmailSubject(args.name),
+          html: inviteEmailHtml({
+            ownerName: args.ownerName,
+            studioName: args.name,
+            inviterName: "your Pulse administrator",
+            acceptUrl,
+            logoUrl: `${appUrl}/pulse-logo.png`,
+          }),
+        });
+        await ctx.runMutation(internal.invites.setEmailStatus, { token, emailStatus: status });
+        inviteSent = status === "sent";
+      } catch (inviteErr) {
+        console.error("[createSubaccount] invite step failed (non-fatal):", inviteErr);
+      }
+
+      return { orgId, slug, clerkProvisioned: Boolean(clerkOrgId), inviteSent };
+    } catch (err) {
+      // Surface the REAL reason to the client. Convex redacts plain Error
+      // messages to a generic "Server Error"; ConvexError data always reaches
+      // the caller. Anything unexpected is also logged for the deployment logs.
+      if (err instanceof ConvexError) throw err;
+      console.error("[createSubaccount] unexpected failure:", err);
+      throw new ConvexError(
+        err instanceof Error
+          ? `Subaccount creation failed: ${err.message}`
+          : "Subaccount creation failed.",
+      );
+    }
   },
 });
 
