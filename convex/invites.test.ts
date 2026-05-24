@@ -143,3 +143,59 @@ describe("invites - resend", () => {
     }
   });
 });
+
+describe("invites - list never crashes the detail page", () => {
+  let t: ReturnType<typeof convexTest>;
+  beforeEach(() => { t = convexTest(schema); });
+
+  it("returns [] (does NOT throw) when the viewer lacks the capability", async () => {
+    // Regression: the agency sub-account detail page calls invites.list. A
+    // demo/studio viewer lacks agency.subaccount.pause, and a thrown AccessError
+    // (no error boundary) blanked the whole route with "page couldn't load".
+    // The query must now degrade to [] instead of throwing.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: "org_orphan", name: "Orphan Studio", slug: "orphan",
+        plan: "studio", status: "active", createdByAgency: true,
+      });
+      await ctx.db.insert("invites", {
+        orgId: "org_orphan", email: "o@orphan.com", ownerName: "O",
+        studioName: "Orphan Studio", role: "owner", token: "tok_x",
+        status: "pending", expiresAt: Date.now() + 1000, invitedBy: "system",
+        emailStatus: "sent",
+      });
+    });
+    const rows = await t.query(api.invites.list, { orgId: "org_orphan" });
+    expect(rows).toEqual([]);
+  });
+
+  it("returns the invite rows for an authorized agency owner", async () => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencies", {
+        agencyId: "org_ag", name: "Acme", slug: "acme",
+        plan: "agency", status: "active",
+        ownerClerkUserId: "user_owner", ownerEmail: "o@acme.com",
+      });
+      await ctx.db.insert("agencyMembers", {
+        agencyId: "org_ag", clerkUserId: "user_owner", email: "o@acme.com",
+        name: "Owner", role: "owner", status: "active", invitedAt: 0,
+      });
+      await ctx.db.insert("orgs", {
+        orgId: "org_sub", name: "Sub", slug: "sub", plan: "studio",
+        status: "active", createdByAgency: true, agencyId: "org_ag",
+      });
+      await ctx.db.insert("invites", {
+        orgId: "org_sub", email: "o@sub.com", ownerName: "O",
+        studioName: "Sub", role: "owner", token: "tok_y",
+        status: "pending", expiresAt: Date.now() + 1000, invitedBy: "system",
+        emailStatus: "sent",
+      });
+    });
+    const asOwner = t.withIdentity({
+      subject: "user_owner", name: "Owner", orgId: "org_ag", orgType: "agency",
+    } as { subject: string; name: string; orgId: string; orgType: string });
+    const rows = await asOwner.query(api.invites.list, { orgId: "org_sub" });
+    expect(rows.length).toBe(1);
+    expect(rows[0].email).toBe("o@sub.com");
+  });
+});

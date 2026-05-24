@@ -58,6 +58,7 @@ import type * as maintenance from "../maintenance.js";
 import type * as members from "../members.js";
 import type * as migrations from "../migrations.js";
 import type * as notifications from "../notifications.js";
+import type * as onboarding from "../onboarding.js";
 import type * as opportunities from "../opportunities.js";
 import type * as opsActions from "../opsActions.js";
 import type * as opsBrain from "../opsBrain.js";
@@ -130,6 +131,7 @@ declare const fullApi: ApiFromModules<{
   members: typeof members;
   migrations: typeof migrations;
   notifications: typeof notifications;
+  onboarding: typeof onboarding;
   opportunities: typeof opportunities;
   opsActions: typeof opsActions;
   opsBrain: typeof opsBrain;

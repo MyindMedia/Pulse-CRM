@@ -21,6 +21,7 @@ import { EmptyState } from "@/components/ui/feedback";
 import { money } from "@/lib/format";
 import { TrendArea, HBars, CategoryDonut } from "@/components/charts";
 import { CreateSubaccountDialog } from "@/components/agency/create-subaccount-dialog";
+import { InviteStudioDialog } from "@/components/agency/invite-studio-dialog";
 import {
   SubaccountTable,
   type SubaccountRow,
@@ -49,7 +50,12 @@ export default function AgencyOverviewPage() {
         overline="Agency"
         title="System overview"
         description="The whole network in one place - revenue, subscribers, pipelines, outreach, and the studios that drive it all."
-        actions={<CreateSubaccountDialog />}
+        actions={
+          <div className="flex items-center gap-2">
+            <CreateSubaccountDialog />
+            <InviteStudioDialog />
+          </div>
+        }
       />
 
       {/* Headline KPIs */}

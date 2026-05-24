@@ -57,7 +57,9 @@ export default function InvitePage() {
         // decorated URL for Safari ITP cookie refresh.
         await signIn.finalize({
           navigate: ({ decorateUrl }) => {
-            router.push(decorateUrl("/dashboard"));
+            // New owners land in the branded onboarding wizard, not the bare
+            // dashboard, so they set up their studio (logo, info, first room).
+            router.push(decorateUrl("/welcome"));
           },
         });
       } else {

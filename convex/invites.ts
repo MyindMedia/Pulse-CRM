@@ -1,7 +1,7 @@
 import { mutation, query, action, internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
-import { requireCapability } from "./lib/access";
+import { requireCapability, AccessError } from "./lib/access";
 import { sendEmail } from "./lib/email";
 import { inviteEmailHtml, inviteEmailSubject } from "./lib/emailTemplates/invite";
 import { PLAN_LIMITS } from "./lib/plans";
@@ -227,11 +227,22 @@ export const setEmailStatus = internalMutation({
   },
 });
 
-/** Agency console - list invites for a sub-account. */
+/** Agency console - list invites for a sub-account.
+ *  This drives a cosmetic "invite pending" badge on the sub-account detail page.
+ *  A viewer who can see the sub-account but lacks invite-management capability
+ *  (e.g. a demo/studio viewer, or before an orphan sub-account is adopted into
+ *  the agency) should still get the page — just without the badge. So we degrade
+ *  to [] on an access denial rather than throwing, which (with no error boundary)
+ *  would otherwise blank the whole route. */
 export const list = query({
   args: { orgId: v.string() },
   handler: async (ctx, { orgId }) => {
-    await requireCapability(ctx, "agency.subaccount.pause", { orgId });
+    try {
+      await requireCapability(ctx, "agency.subaccount.pause", { orgId });
+    } catch (e) {
+      if (e instanceof AccessError) return [];
+      throw e;
+    }
     return await ctx.db.query("invites").withIndex("by_org", (q) => q.eq("orgId", orgId)).order("desc").take(20);
   },
 });

@@ -1,4 +1,5 @@
 import { QueryCtx, MutationCtx } from "../_generated/server";
+import { ConvexError } from "convex/values";
 import {
   AGENCY_ROLE_CAPABILITIES,
   STUDIO_ROLE_CAPABILITIES,
@@ -21,10 +22,16 @@ import type {
 
 type Ctx = QueryCtx | MutationCtx;
 
-export class AccessError extends Error {
-  constructor(public readonly code: string, message: string) {
-    super(message);
+// Extends ConvexError (not plain Error) so denials propagate to the client with
+// a real, readable payload instead of Convex redacting them to "[Server Error]".
+// `data` carries the structured { code, message }; `code` stays readable for the
+// many `e instanceof AccessError` / `e.code` checks across the codebase.
+export class AccessError extends ConvexError<{ code: string; message: string }> {
+  public readonly code: string;
+  constructor(code: string, message: string) {
+    super({ code, message });
     this.name = "AccessError";
+    this.code = code;
   }
 }
 

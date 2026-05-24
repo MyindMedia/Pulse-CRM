@@ -129,6 +129,20 @@ export default defineSchema({
     taxState: v.optional(v.string()),
     taxRate: v.optional(v.number()),
     taxApply: v.optional(v.boolean()),
+    // ── Studio onboarding (agency invite flow) ──
+    // Company / contact info captured during the new-owner onboarding wizard.
+    contact: v.optional(
+      v.object({
+        legalName: v.optional(v.string()),
+        contactEmail: v.optional(v.string()),
+        phone: v.optional(v.string()),
+        address: v.optional(v.string()),
+        website: v.optional(v.string()),
+      }),
+    ),
+    // Set once the owner finishes (or explicitly skips to the end of) the
+    // branded onboarding wizard. Unset => the dashboard nudges them to finish.
+    onboardingCompletedAt: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])
     .index("by_slug", ["slug"])

@@ -6,6 +6,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { PulseAiPanel } from "@/components/ai/pulse-ai-panel";
 import { OpsAutopilotPanel } from "@/components/ai/ops-autopilot-panel";
+import { OnboardingNudge } from "@/components/onboarding/onboarding-nudge";
 import {
   DollarSign,
   CalendarCheck,
@@ -41,6 +42,7 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-7">
+      <OnboardingNudge />
       <PageHeader
         overline="Studio"
         title="Dashboard"

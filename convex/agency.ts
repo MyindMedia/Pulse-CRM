@@ -376,7 +376,13 @@ export const createSubaccount = action({
       }
 
       const orgId = clerkOrgId ?? `studio_${slug}`;
-      const agencyId = self?.kind === "agency_member" ? self.agencyId : undefined;
+      // Prefer the resolved agency; otherwise fall back to the sole agency (so a
+      // sub-account created outside a fully-resolved agency session is still
+      // linked, not orphaned — which would scope-deny the owner later).
+      const agencyId =
+        self?.kind === "agency_member"
+          ? self.agencyId
+          : (await ctx.runQuery(internal.agency._soleAgencyId, {})) ?? undefined;
       await ctx.runMutation(internal.agency.provision, {
         orgId,
         clerkOrgId,
@@ -440,6 +446,112 @@ export const createSubaccount = action({
   },
 });
 
+/**
+ * Invite portal (email-first). The agency types just an email (and optionally a
+ * studio name); we provision the sub-account immediately (active, so it's
+ * resumable) and email the owner a branded invite. The owner names/brands the
+ * studio in the onboarding wizard if no name was provided. Thin wrapper over the
+ * same provisioning + invite path as createSubaccount, with a generated slug.
+ */
+export const inviteStudio = action({
+  args: {
+    email: v.string(),
+    studioName: v.optional(v.string()),
+    plan: v.optional(planV),
+  },
+  handler: async (ctx, args): Promise<{ orgId: string; slug: string; inviteSent: boolean }> => {
+    try {
+      const email = args.email.trim().toLowerCase();
+      if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+        throw new ConvexError("Enter a valid email address.");
+      }
+      const name = args.studioName?.trim() || "New studio";
+      const plan = args.plan ?? "studio";
+
+      // Generate a unique slug from the name (or a random one), so the agency
+      // never has to think about slugs. The owner can rename it in onboarding.
+      const base =
+        name.toLowerCase().replace(/[^a-z0-9-]/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "") ||
+        "studio";
+      let slug = base;
+      for (let i = 0; i < 25; i++) {
+        if (!(await ctx.runQuery(internal.agency._slugTaken, { slug }))) break;
+        slug = `${base}-${Math.random().toString(36).slice(2, 6)}`;
+      }
+
+      const self = await ctx.runQuery(internal.agency._resolveSelf, {});
+      const agencyId =
+        self?.kind === "agency_member"
+          ? self.agencyId
+          : (await ctx.runQuery(internal.agency._soleAgencyId, {})) ?? undefined;
+
+      // Real Clerk org when configured (same rationale as createSubaccount: no
+      // slug sent to Clerk; our routing slug lives on the Convex org).
+      let clerkOrgId: string | undefined;
+      const secret = process.env.CLERK_SECRET_KEY;
+      if (secret) {
+        const orgRes = await fetch("https://api.clerk.com/v1/organizations", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ name }),
+        }).catch((netErr) => {
+          throw new ConvexError(
+            `Could not reach Clerk: ${netErr instanceof Error ? netErr.message : "network error"}`,
+          );
+        });
+        if (!orgRes.ok) {
+          const detail = await orgRes.text().catch(() => "");
+          let msg = `Clerk organization create failed (${orgRes.status}).`;
+          try {
+            const parsed = JSON.parse(detail) as { errors?: { long_message?: string; message?: string }[] };
+            const m = parsed.errors?.[0]?.long_message ?? parsed.errors?.[0]?.message;
+            if (m) msg = `Clerk organization create failed: ${m}`;
+          } catch { /* keep status-only message */ }
+          throw new ConvexError(msg);
+        }
+        clerkOrgId = ((await orgRes.json()) as { id: string }).id;
+      }
+
+      const orgId = clerkOrgId ?? `studio_${slug}`;
+      await ctx.runMutation(internal.agency.provision, {
+        orgId, clerkOrgId, name, slug, plan,
+        ownerName: name, ownerEmail: email, agencyId, tier: "studio",
+      });
+
+      // Branded invite (non-fatal — the studio is already provisioned).
+      let inviteSent = false;
+      try {
+        const identity = await ctx.auth.getUserIdentity();
+        const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+        const token = await ctx.runMutation(internal.invites.record, {
+          orgId, clerkOrgId, agencyId, email, ownerName: name, studioName: name,
+          invitedBy: identity?.subject ?? "system", emailStatus: "simulated",
+        });
+        const status = await sendEmail({
+          to: email,
+          subject: inviteEmailSubject(name),
+          html: inviteEmailHtml({
+            ownerName: name, studioName: name, inviterName: "your Pulse administrator",
+            acceptUrl: `${appUrl}/invite/${token}`, logoUrl: `${appUrl}/pulse-logo.png`,
+          }),
+        });
+        await ctx.runMutation(internal.invites.setEmailStatus, { token, emailStatus: status });
+        inviteSent = status === "sent";
+      } catch (inviteErr) {
+        console.error("[inviteStudio] invite step failed (non-fatal):", inviteErr);
+      }
+
+      return { orgId, slug, inviteSent };
+    } catch (err) {
+      if (err instanceof ConvexError) throw err;
+      console.error("[inviteStudio] unexpected failure:", err);
+      throw new ConvexError(
+        err instanceof Error ? `Invite failed: ${err.message}` : "Invite failed.",
+      );
+    }
+  },
+});
+
 export const setStatus = mutation({
   args: {
     orgId: v.string(),
@@ -488,6 +600,42 @@ export const _slugTaken = internalQuery({
     Boolean(
       await ctx.db.query("orgs").withIndex("by_slug", (q) => q.eq("slug", slug)).first(),
     ),
+});
+
+/** The agencyId if exactly one agency exists, else null. Used as a safe
+ *  single-tenant fallback so a sub-account created outside a fully-resolved
+ *  agency session still gets linked to the (only) agency rather than orphaned. */
+export const _soleAgencyId = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const agencies = await ctx.db.query("agencies").take(2);
+    return agencies.length === 1 ? agencies[0].agencyId : null;
+  },
+});
+
+/**
+ * Repair: adopt orphaned agency-created sub-accounts (createdByAgency === true
+ * but agencyId unset) into the sole agency. Without this, the agency owner is
+ * scope-denied on those orgs (can't resend invites / pause), because
+ * requireCapability checks org.agencyId === viewer.agencyId. Idempotent; only
+ * runs when exactly one agency exists, and never touches a studio's own org
+ * (createdByAgency is only set by provision()).
+ *   npx convex run agency:adoptOrphanSubaccounts
+ */
+export const adoptOrphanSubaccounts = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const agencies = await ctx.db.query("agencies").take(2);
+    if (agencies.length !== 1) {
+      return { adopted: 0, reason: agencies.length === 0 ? "no agency" : "multiple agencies" };
+    }
+    const agencyId = agencies[0].agencyId;
+    const orphans = (await ctx.db.query("orgs").collect()).filter(
+      (o) => o.createdByAgency === true && !o.agencyId,
+    );
+    for (const o of orphans) await ctx.db.patch(o._id, { agencyId });
+    return { adopted: orphans.length, agencyId };
+  },
 });
 
 /** Demo-mode "enter as" - point the workspace at a studio. With Clerk you
