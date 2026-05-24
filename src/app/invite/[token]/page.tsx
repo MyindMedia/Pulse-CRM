@@ -43,11 +43,20 @@ export default function InvitePage() {
     try {
       const res = await accept({ token, name: name.trim(), password });
       if (!res.ok) {
-        if (res.reason === "exists") {
-          setErr("You already have a Pulse account. Please sign in.");
-          return;
-        }
-        setErr("This invitation could not be completed. Ask your admin to resend it.");
+        const msg: Record<string, string> = {
+          exists: "You already have a Pulse account. Please sign in.",
+          expired: "This invite has expired. Ask your admin to resend it.",
+          invalid: "This invite link is no longer valid. Ask your admin to resend it.",
+          not_configured: "Sign-up isn’t configured yet. Please contact your admin.",
+        };
+        // For Clerk validation failures (e.g. a weak password) surface the real,
+        // actionable reason instead of a generic dead-end.
+        setErr(
+          msg[res.reason] ??
+            (res.reason === "clerk_error" && res.detail
+              ? res.detail
+              : "This invitation could not be completed. Ask your admin to resend it."),
+        );
         return;
       }
       // Establish a browser session using the Clerk v7 Signals password flow.
@@ -160,6 +169,10 @@ export default function InvitePage() {
                 {show ? "hide" : "show"}
               </button>
             </div>
+
+            <p className="mt-1.5 text-[11px] text-ash-dim">
+              At least 8 characters. Avoid common or reused passwords — use a few words or a passphrase.
+            </p>
 
             {err && <p className="mt-3 text-sm text-critical">{err}</p>}
 
