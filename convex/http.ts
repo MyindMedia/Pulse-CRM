@@ -58,4 +58,37 @@ http.route({
   }),
 });
 
+/* Inbound SMS receiver - handles client replies + STOP/START opt-outs. Accepts
+   Twilio's form-encoded payload (From/Body) or Telnyx's JSON. Returns empty
+   TwiML so Twilio doesn't auto-reply. */
+http.route({
+  path: "/sms/inbound",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    let from = "";
+    let body = "";
+    const contentType = req.headers.get("content-type") ?? "";
+    try {
+      if (contentType.includes("application/json")) {
+        const json = (await req.json()) as {
+          data?: { payload?: { from?: { phone_number?: string }; text?: string } };
+        };
+        from = json.data?.payload?.from?.phone_number ?? "";
+        body = json.data?.payload?.text ?? "";
+      } else {
+        const form = new URLSearchParams(await req.text());
+        from = form.get("From") ?? "";
+        body = form.get("Body") ?? "";
+      }
+    } catch {
+      return new Response("bad request", { status: 400 });
+    }
+    if (from) await ctx.runMutation(internal.sms._handleInbound, { from, body });
+    return new Response('<?xml version="1.0" encoding="UTF-8"?><Response></Response>', {
+      status: 200,
+      headers: { "Content-Type": "text/xml" },
+    });
+  }),
+});
+
 export default http;

@@ -152,6 +152,7 @@ export default defineSchema({
     googleEmail: v.optional(v.string()),            // connected Gmail address
     googleConnectedAt: v.optional(v.number()),
     googleRefreshToken: v.optional(v.string()),     // OAuth refresh token (server-only; never returned to client)
+    smsRemindersEnabled: v.optional(v.boolean()),   // automated session SMS reminders (default on when unset)
   })
     .index("by_org", ["orgId"])
     .index("by_slug", ["slug"])
@@ -301,6 +302,14 @@ export default defineSchema({
     .index("by_token", ["token"])
     .index("by_org", ["orgId"])
     .index("by_email", ["email"]),
+
+  // ── SMS opt-outs - one row per phone that texted STOP. Checked before every
+  //    send (A2P 10DLC compliance). Keyed globally by E.164 phone. ──
+  smsOptOuts: defineTable({
+    phone: v.string(),       // E.164
+    optedOut: v.boolean(),
+    updatedAt: v.number(),
+  }).index("by_phone", ["phone"]),
 
   // ── Audit log - every Access Engine deny/grant for sensitive actions ──
   auditEvents: defineTable({
@@ -514,6 +523,7 @@ export default defineSchema({
     source: v.optional(v.string()), // "public_booking" | "internal"
     holdExpiresAt: v.optional(v.number()), // unpaid hold auto-releases at this time
     balanceRemindedAt: v.optional(v.number()), // set once the "pay in full" nudge fires
+    smsRemindersSent: v.optional(v.array(v.string())), // which SMS reminders fired: "24h" | "2h"
   })
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])
@@ -1031,11 +1041,11 @@ export default defineSchema({
   clientMessages: defineTable({
     orgId: v.string(),
     artistId: v.id("artists"),
-    direction: v.union(v.literal("out")),
+    direction: v.union(v.literal("out"), v.literal("in")),
     subject: v.string(),
     body: v.string(),
-    channel: v.union(v.literal("google"), v.literal("internal")),
-    status: v.union(v.literal("sent"), v.literal("failed"), v.literal("simulated")),
+    channel: v.union(v.literal("google"), v.literal("internal"), v.literal("sms")),
+    status: v.union(v.literal("sent"), v.literal("failed"), v.literal("simulated"), v.literal("received")),
     sentBy: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])

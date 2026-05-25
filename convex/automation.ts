@@ -1,4 +1,5 @@
 import { mutation, internalMutation, MutationCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { notify } from "./lib/notify";
 import { money } from "./lib/money";
 
@@ -146,10 +147,15 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
   return out;
 }
 
-/** Cron entry point - every 15 minutes (see crons.ts). */
+/** Cron entry point - every 15 minutes (see crons.ts). Also kicks the SMS
+ *  session-reminder sweep (an action — scheduled from here so reminders ride
+ *  the existing 15-min cadence without a separate cron entry). */
 export const tick = internalMutation({
   args: {},
-  handler: async (ctx) => runAutomation(ctx),
+  handler: async (ctx) => {
+    await runAutomation(ctx);
+    await ctx.scheduler.runAfter(0, internal.sms.sendDueReminders, {});
+  },
 });
 
 /** Manual trigger - the internal Bookings view exposes this as a button. */

@@ -1,0 +1,266 @@
+import { action, internalQuery, internalMutation, internalAction } from "./_generated/server";
+import { v, ConvexError } from "convex/values";
+import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
+import { currentOrg } from "./lib/tenant";
+import { requireCapability } from "./lib/access";
+import { sendSms, type SmsStatus } from "./lib/sms";
+import { normalizePhone } from "./lib/phone";
+
+/* SMS: automated session reminders (cron), manual studio→client texts, and
+   inbound replies + STOP/START opt-out handling (A2P 10DLC compliance).
+   Outbound runs in "simulated" mode until a provider is configured. */
+
+const TWO_HOURS = 2 * 60 * 60 * 1000;
+const DAY = 24 * 60 * 60 * 1000;
+
+// ── Opt-out (compliance) ────────────────────────────────────────────────
+
+export const _isOptedOut = internalQuery({
+  args: { phone: v.string() },
+  handler: async (ctx, { phone }) => {
+    const row = await ctx.db
+      .query("smsOptOuts")
+      .withIndex("by_phone", (q) => q.eq("phone", phone))
+      .first();
+    return row?.optedOut ?? false;
+  },
+});
+
+export const _recordOptOut = internalMutation({
+  args: { phone: v.string(), optedOut: v.boolean() },
+  handler: async (ctx, { phone, optedOut }) => {
+    const existing = await ctx.db
+      .query("smsOptOuts")
+      .withIndex("by_phone", (q) => q.eq("phone", phone))
+      .first();
+    if (existing) await ctx.db.patch(existing._id, { optedOut, updatedAt: Date.now() });
+    else await ctx.db.insert("smsOptOuts", { phone, optedOut, updatedAt: Date.now() });
+  },
+});
+
+// ── Manual studio → client text ─────────────────────────────────────────
+
+export const _smsContext = internalQuery({
+  args: { artistId: v.id("artists") },
+  handler: async (ctx, { artistId }) => {
+    const orgId = await currentOrg(ctx);
+    const artist = await ctx.db.get(artistId);
+    if (!artist || artist.orgId !== orgId) throw new ConvexError("Client not found.");
+    await requireCapability(ctx, "artists.edit", { orgId });
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+    return {
+      orgId,
+      phone: artist.phone ? normalizePhone(artist.phone) : null,
+      studioName: org?.name ?? "Studio",
+    };
+  },
+});
+
+export const _logSms = internalMutation({
+  args: {
+    artistId: v.id("artists"),
+    direction: v.union(v.literal("out"), v.literal("in")),
+    body: v.string(),
+    status: v.union(v.literal("sent"), v.literal("failed"), v.literal("simulated"), v.literal("received")),
+    sentBy: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const artist = await ctx.db.get(args.artistId);
+    if (!artist) return;
+    await ctx.db.insert("clientMessages", {
+      orgId: artist.orgId,
+      artistId: args.artistId,
+      direction: args.direction,
+      subject: "Text message",
+      body: args.body,
+      channel: "sms",
+      status: args.status,
+      sentBy: args.sentBy,
+    });
+  },
+});
+
+/** Send an SMS to a client (artist) and log it to their thread. */
+export const sendClientSms = action({
+  args: { artistId: v.id("artists"), body: v.string() },
+  handler: async (ctx, { artistId, body }): Promise<{ ok: boolean; status: SmsStatus | "opted_out" }> => {
+    const c = await ctx.runQuery(internal.sms._smsContext, { artistId });
+    if (!c.phone) throw new ConvexError("This client has no cell phone on file.");
+
+    if (await ctx.runQuery(internal.sms._isOptedOut, { phone: c.phone })) {
+      return { ok: false, status: "opted_out" };
+    }
+    const text = `${c.studioName}: ${body}`;
+    const status = await sendSms({ to: c.phone, body: text });
+    const identity = await ctx.auth.getUserIdentity();
+    await ctx.runMutation(internal.sms._logSms, {
+      artistId,
+      direction: "out",
+      body,
+      status,
+      sentBy: identity?.subject,
+    });
+    return { ok: status !== "failed", status };
+  },
+});
+
+// ── Automated session reminders (cron) ──────────────────────────────────
+
+/** Reminders due for one org's upcoming sessions, recipients pre-filtered for
+ *  opt-outs. Returns at most one kind ("24h"|"2h") per session per tick. */
+export const _dueReminders = internalQuery({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+    if (!org || org.smsRemindersEnabled === false) return [];
+    const studio = org.name ?? "Studio";
+    const now = Date.now();
+
+    const upcoming = await ctx.db
+      .query("sessions")
+      .withIndex("by_org_start", (q) =>
+        q.eq("orgId", orgId).gt("startTime", now).lt("startTime", now + DAY + TWO_HOURS),
+      )
+      .collect();
+
+    const out: {
+      sessionId: Id<"sessions">;
+      kind: "24h" | "2h";
+      artistId: Id<"artists">;
+      recipients: { phone: string; body: string; isClient: boolean }[];
+    }[] = [];
+
+    for (const s of upcoming) {
+      if (s.status !== "tentative" && s.status !== "confirmed") continue;
+      const sent = s.smsRemindersSent ?? [];
+      const ms = s.startTime - now;
+      let kind: "24h" | "2h" | null = null;
+      if (ms <= TWO_HOURS && !sent.includes("2h")) kind = "2h";
+      else if (ms <= DAY && ms > TWO_HOURS && !sent.includes("24h")) kind = "24h";
+      if (!kind) continue;
+
+      const dateStr = new Date(s.startTime).toLocaleDateString("en-US", {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+      });
+      const soon = kind === "2h" ? "in about 2 hours" : "in about a day";
+
+      const artist = await ctx.db.get(s.artistId);
+      const recipients: { phone: string; body: string; isClient: boolean }[] = [];
+
+      const clientPhone = artist?.phone ? normalizePhone(artist.phone) : null;
+      if (clientPhone) {
+        recipients.push({
+          phone: clientPhone,
+          isClient: true,
+          body: `${studio}: Reminder — your session "${s.title}" starts ${soon} (${dateStr}). Reply STOP to opt out.`,
+        });
+      }
+      if (s.engineerId) {
+        const eng = await ctx.db.get(s.engineerId);
+        const engPhone = eng?.phone ? normalizePhone(eng.phone) : null;
+        if (engPhone) {
+          recipients.push({
+            phone: engPhone,
+            isClient: false,
+            body: `${studio}: You're booked — "${s.title}" ${soon} (${dateStr}).`,
+          });
+        }
+      }
+
+      // Drop opted-out numbers.
+      const filtered: typeof recipients = [];
+      for (const r of recipients) {
+        const off = await ctx.db
+          .query("smsOptOuts")
+          .withIndex("by_phone", (q) => q.eq("phone", r.phone))
+          .first();
+        if (!off?.optedOut) filtered.push(r);
+      }
+      if (filtered.length === 0) {
+        // Nothing to send, but still mark so we don't re-scan this session forever.
+        out.push({ sessionId: s._id, kind, artistId: s.artistId, recipients: [] });
+        continue;
+      }
+      out.push({ sessionId: s._id, kind, artistId: s.artistId, recipients: filtered });
+    }
+    return out;
+  },
+});
+
+export const _markReminderSent = internalMutation({
+  args: { sessionId: v.id("sessions"), kind: v.string() },
+  handler: async (ctx, { sessionId, kind }) => {
+    const s = await ctx.db.get(sessionId);
+    if (!s) return;
+    const sent = s.smsRemindersSent ?? [];
+    if (!sent.includes(kind)) await ctx.db.patch(sessionId, { smsRemindersSent: [...sent, kind] });
+  },
+});
+
+/** Cron entry: scan every active org for due reminders and send them. */
+export const sendDueReminders = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    const orgIds: string[] = await ctx.runQuery(internal.orgs.listActiveOrgIds, {});
+    for (const orgId of orgIds) {
+      const due = await ctx.runQuery(internal.sms._dueReminders, { orgId });
+      for (const item of due) {
+        for (const r of item.recipients) {
+          const status = await sendSms({ to: r.phone, body: r.body });
+          if (r.isClient) {
+            await ctx.runMutation(internal.sms._logSms, {
+              artistId: item.artistId,
+              direction: "out",
+              body: r.body,
+              status,
+            });
+          }
+        }
+        await ctx.runMutation(internal.sms._markReminderSent, { sessionId: item.sessionId, kind: item.kind });
+      }
+    }
+  },
+});
+
+// ── Inbound (replies + STOP/START) ──────────────────────────────────────
+
+/** Handle an inbound SMS: honor STOP/START keywords, else log the reply to the
+ *  matching client's thread (best-effort phone match across artists). */
+export const _handleInbound = internalMutation({
+  args: { from: v.string(), body: v.string() },
+  handler: async (ctx, { from, body }) => {
+    const phone = normalizePhone(from);
+    if (!phone) return;
+    const keyword = body.trim().toUpperCase();
+
+    if (/^(STOP|STOPALL|UNSUBSCRIBE|CANCEL|END|QUIT)$/.test(keyword)) {
+      const existing = await ctx.db.query("smsOptOuts").withIndex("by_phone", (q) => q.eq("phone", phone)).first();
+      if (existing) await ctx.db.patch(existing._id, { optedOut: true, updatedAt: Date.now() });
+      else await ctx.db.insert("smsOptOuts", { phone, optedOut: true, updatedAt: Date.now() });
+      return;
+    }
+    if (/^(START|UNSTOP|YES)$/.test(keyword)) {
+      const existing = await ctx.db.query("smsOptOuts").withIndex("by_phone", (q) => q.eq("phone", phone)).first();
+      if (existing) await ctx.db.patch(existing._id, { optedOut: false, updatedAt: Date.now() });
+      return;
+    }
+
+    // Best-effort: route the reply into the thread of an artist with this phone.
+    const artists = await ctx.db.query("artists").collect();
+    const match = artists.find((a) => a.phone && normalizePhone(a.phone) === phone);
+    if (match) {
+      await ctx.db.insert("clientMessages", {
+        orgId: match.orgId,
+        artistId: match._id,
+        direction: "in",
+        subject: "Text message",
+        body,
+        channel: "sms",
+        status: "received",
+      });
+    }
+  },
+});
