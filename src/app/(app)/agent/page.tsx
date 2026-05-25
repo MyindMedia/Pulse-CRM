@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
-import { Sparkles, Send, Loader2, Check, X, Lightbulb, ShieldCheck, Gauge, Brain, Trash2, Plus } from "lucide-react";
+import { Sparkles, Send, Loader2, Check, X, Lightbulb, ShieldCheck, Gauge, Brain, Trash2, Plus, Repeat } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -42,6 +42,7 @@ export default function AgentPage() {
         <div className="space-y-5">
           <CommandBar />
           <Insights />
+          <AutomationsPanel />
         </div>
         <div className="space-y-5">
           <ApprovalInbox />
@@ -86,6 +87,73 @@ function HealthPanel() {
             ))}
           </div>
         </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AutomationsPanel() {
+  const list = useQuery(api.agentAutomations.list, {});
+  const create = useMutation(api.agentAutomations.create);
+  const toggle = useMutation(api.agentAutomations.toggle);
+  const remove = useMutation(api.agentAutomations.remove);
+  const [open, setOpen] = React.useState(false);
+  const [name, setName] = React.useState("");
+  const [prompt, setPrompt] = React.useState("");
+  const [cadence, setCadence] = React.useState<"daily" | "weekly">("weekly");
+
+  async function save() {
+    if (!name.trim() || !prompt.trim()) return;
+    try {
+      await create({ name: name.trim(), prompt: prompt.trim(), cadence });
+      setName(""); setPrompt(""); setOpen(false);
+      toast.success("Automation saved - it runs on schedule.");
+    } catch {
+      toast.error("Could not save the automation.");
+    }
+  }
+  if (list === undefined) return null;
+
+  return (
+    <Card>
+      <CardHeader className="flex-row items-center justify-between">
+        <CardTitle className="flex items-center gap-2 text-sm"><Repeat className="size-4 text-gold" />Automations</CardTitle>
+        <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)}><Plus className="size-3.5" />New</Button>
+      </CardHeader>
+      <CardContent className="space-y-2 pt-1">
+        <p className="text-[0.6875rem] text-ash-dim">Save a recurring agent task. It runs daily or weekly and surfaces insights + approvals automatically.</p>
+        {open && (
+          <div className="space-y-2 rounded-md border border-hairline bg-coal/40 p-3">
+            <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (e.g. Weekly collections sweep)" />
+            <Textarea rows={2} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="What should it do? e.g. Find overdue invoices and draft reminders." />
+            <div className="flex items-center gap-2">
+              <Select value={cadence} onValueChange={(v) => setCadence(v as "daily" | "weekly")}>
+                <SelectTrigger className="w-32"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="daily">Daily</SelectItem>
+                  <SelectItem value="weekly">Weekly</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button size="sm" className="ml-auto" onClick={save} disabled={!name.trim() || !prompt.trim()}>Save</Button>
+            </div>
+          </div>
+        )}
+        {list.length === 0 && !open ? (
+          <p className="py-2 text-xs text-ash-dim">No automations yet.</p>
+        ) : (
+          list.map((a) => (
+            <div key={a._id} className="flex items-center justify-between gap-2 rounded-md border border-hairline bg-coal-2 px-3 py-2">
+              <div className="min-w-0">
+                <p className="truncate font-display text-sm font-semibold text-bone">{a.name}</p>
+                <p className="text-[0.625rem] text-ash-dim">{a.cadence} · {a.runCount} run{a.runCount === 1 ? "" : "s"}</p>
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <Switch checked={a.enabled} onCheckedChange={(v) => toggle({ id: a._id, enabled: v })} aria-label="Toggle automation" />
+                <button onClick={() => remove({ id: a._id })} aria-label="Delete" className="text-ash-dim hover:text-critical"><Trash2 className="size-3.5" /></button>
+              </div>
+            </div>
+          ))
+        )}
       </CardContent>
     </Card>
   );

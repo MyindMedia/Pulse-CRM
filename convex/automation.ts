@@ -156,6 +156,7 @@ export const tick = internalMutation({
     await runAutomation(ctx);
     await ctx.scheduler.runAfter(0, internal.sms.sendDueReminders, {});
     await ctx.scheduler.runAfter(0, internal.agent.sweepDigests, {});
+    await ctx.scheduler.runAfter(0, internal.agentAutomations.sweep, {});
   },
 });
 

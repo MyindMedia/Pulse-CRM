@@ -69,6 +69,29 @@ describe("Pulse Agent", () => {
     expect(list.find((m) => m._id === id)).toBeUndefined();
   });
 
+  it("automations: create, toggle, due-detection, start-run advances schedule", async () => {
+    const id = await t.mutation(api.agentAutomations.create, { name: "Weekly sweep", prompt: "Find overdue invoices.", cadence: "weekly" });
+    let list = await t.query(api.agentAutomations.list, {});
+    expect(list.find((a) => a._id === id)?.enabled).toBe(true);
+
+    // Never run -> due.
+    let due = await t.query(internal.agentAutomations._due, { orgId: ORG });
+    expect(due.some((a) => a._id === id)).toBe(true);
+
+    // Start a run -> lastRunAt set, runCount bumped, no longer due.
+    const runId = await t.mutation(internal.agentAutomations._startRun, { id });
+    expect(runId).toBeTruthy();
+    list = await t.query(api.agentAutomations.list, {});
+    expect(list.find((a) => a._id === id)?.runCount).toBe(1);
+    due = await t.query(internal.agentAutomations._due, { orgId: ORG });
+    expect(due.some((a) => a._id === id)).toBe(false);
+
+    // Disable -> excluded from due.
+    await t.mutation(api.agentAutomations.toggle, { id, enabled: false });
+    due = await t.query(internal.agentAutomations._due, { orgId: ORG });
+    expect(due.some((a) => a._id === id)).toBe(false);
+  });
+
   it("autonomy: auto_trusted auto-approves a low-risk send; medium-risk still waits", async () => {
     const runId = await t.run((ctx) => ctx.db.insert("agentRuns", { orgId: ORG, initiatedBy: "system", runType: "analytics_review", status: "running" }));
     await t.mutation(internal.agent._finalize, {

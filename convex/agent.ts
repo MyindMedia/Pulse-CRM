@@ -424,6 +424,9 @@ export const executeApproval = internalAction({
       } else if (ap.actionType === "send_sms" && p.to) {
         const status = await sendSms({ to: p.to, body: p.body ?? "" });
         ok = status !== "failed"; result = `sms ${status}`;
+      } else if (ap.actionType === "enable_automation") {
+        const created = await ctx.runMutation(internal.agentAutomations._fromApproval, { orgId: ap.orgId, payload: ap.proposedPayload });
+        ok = created; result = created ? "automation created" : "automation payload missing a prompt";
       } else {
         // Other action types are recorded as approved but executed by their own
         // modules / a future executor; mark executed with a note.

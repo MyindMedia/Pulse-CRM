@@ -420,6 +420,23 @@ export default defineSchema({
     at: v.number(),
   }).index("by_org", ["orgId"]),
 
+  // Recurring agent task (spec 12). A saved prompt the agent runs on a schedule
+  // - the deterministic side of "convert a suggestion into an automation".
+  agentAutomations: defineTable({
+    orgId: v.string(),
+    name: v.string(),
+    prompt: v.string(),
+    cadence: v.union(v.literal("daily"), v.literal("weekly")),
+    weekday: v.optional(v.number()),   // 0-6 for weekly
+    enabled: v.boolean(),
+    lastRunAt: v.optional(v.number()),
+    runCount: v.number(),
+    createdBy: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_enabled", ["orgId", "enabled"]),
+
   // Per-workspace long-term agent memory. Never shared across orgs; explicit,
   // auditable, editable, deletable (spec 14).
   agentMemories: defineTable({

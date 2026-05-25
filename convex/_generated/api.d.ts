@@ -13,6 +13,7 @@ import type * as agency from "../agency.js";
 import type * as agencyOps from "../agencyOps.js";
 import type * as agencyStaff from "../agencyStaff.js";
 import type * as agent from "../agent.js";
+import type * as agentAutomations from "../agentAutomations.js";
 import type * as agentFleet from "../agentFleet.js";
 import type * as agentHealth from "../agentHealth.js";
 import type * as agents_generators from "../agents/generators.js";
@@ -99,6 +100,7 @@ declare const fullApi: ApiFromModules<{
   agencyOps: typeof agencyOps;
   agencyStaff: typeof agencyStaff;
   agent: typeof agent;
+  agentAutomations: typeof agentAutomations;
   agentFleet: typeof agentFleet;
   agentHealth: typeof agentHealth;
   "agents/generators": typeof agents_generators;
