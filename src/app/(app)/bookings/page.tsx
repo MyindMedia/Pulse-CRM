@@ -8,10 +8,12 @@ import {
   CalendarClock,
   CheckCircle2,
   CircleDollarSign,
+  Plus,
   RefreshCw,
   Ticket,
   Timer,
 } from "lucide-react";
+import { BookSessionDialog } from "@/components/calendar/book-session-dialog";
 import { PageHeader, Section } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -60,6 +62,7 @@ export default function BookingsPage() {
   const runNow = useMutation(api.automation.runNow);
 
   const [selected, setSelected] = React.useState<BookingRow | null>(null);
+  const [bookOpen, setBookOpen] = React.useState(false);
   const [running, setRunning] = React.useState(false);
 
   // Keep the open drawer in sync with the live query - payment recorded
@@ -133,16 +136,20 @@ export default function BookingsPage() {
         title="Bookings"
         description="The command center for online bookings - holds, deposits, balances and the automation that keeps the calendar honest."
         actions={
-          <Button onClick={handleRun} disabled={running}>
-            {running ? (
-              <Spinner className="text-gold-ink" />
-            ) : (
-              <RefreshCw className="size-4" />
-            )}
-            Run automation
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={handleRun} disabled={running}>
+              {running ? <Spinner className="text-bone" /> : <RefreshCw className="size-4" />}
+              Run automation
+            </Button>
+            <Button onClick={() => setBookOpen(true)}>
+              <Plus className="size-4" />
+              New booking
+            </Button>
+          </div>
         }
       />
+
+      <BookSessionDialog open={bookOpen} onOpenChange={setBookOpen} />
 
       {/* Stat tiles */}
       {stats === null ? (
