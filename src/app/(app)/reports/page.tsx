@@ -7,10 +7,12 @@ import { RoomUtilizationReport } from "@/components/reports/room-utilization";
 import { DormantClientsReport } from "@/components/reports/dormant-clients";
 import { NoShowRiskReport } from "@/components/reports/no-show-risk";
 import { LeadSourceRoiReport } from "@/components/reports/lead-source-roi";
+import { StaffingReport } from "@/components/reports/staffing";
 
 const TABS = [
   { value: "aging", label: "Aging" },
   { value: "utilization", label: "Utilization" },
+  { value: "staffing", label: "Staffing" },
   { value: "dormant", label: "Dormant" },
   { value: "risk", label: "No-show risk" },
   { value: "sources", label: "Lead ROI" },
@@ -39,6 +41,9 @@ export default function ReportsPage() {
         </TabsContent>
         <TabsContent value="utilization">
           <RoomUtilizationReport />
+        </TabsContent>
+        <TabsContent value="staffing">
+          <StaffingReport />
         </TabsContent>
         <TabsContent value="dormant">
           <DormantClientsReport />

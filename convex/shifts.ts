@@ -122,6 +122,40 @@ export const mine = query({
   },
 });
 
+/** Per-staff scheduled hours + shift/session counts in a window. Reports view. */
+export const staffingSummary = query({
+  args: { from: v.number(), to: v.number() },
+  handler: async (ctx, { from, to }) => {
+    const orgId = await currentOrg(ctx);
+    const rows = await ctx.db
+      .query("shifts")
+      .withIndex("by_org_start", (q) => q.eq("orgId", orgId).gte("startTime", from).lte("startTime", to))
+      .collect();
+    const agg = new Map<string, { hours: number; shifts: number; sessions: number }>();
+    for (const s of rows) {
+      if (s.status === "cancelled") continue;
+      const e = agg.get(s.memberId) ?? { hours: 0, shifts: 0, sessions: 0 };
+      e.hours += (s.endTime - s.startTime) / 3_600_000;
+      e.shifts += 1;
+      if (s.kind === "session") e.sessions += 1;
+      agg.set(s.memberId, e);
+    }
+    const out = [];
+    for (const [memberId, e] of agg) {
+      const m = await ctx.db.get(memberId as Id<"members">);
+      out.push({
+        memberId,
+        name: m?.name ?? "—",
+        role: m?.role ?? null,
+        hours: Math.round(e.hours * 10) / 10,
+        shifts: e.shifts,
+        sessions: e.sessions,
+      });
+    }
+    return out.sort((a, b) => b.hours - a.hours);
+  },
+});
+
 // ── Writes (manager) ────────────────────────────────────────
 
 export const create = mutation({

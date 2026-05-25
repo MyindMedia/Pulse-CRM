@@ -46,6 +46,20 @@ describe("staff scheduling — shifts", () => {
     expect(w.now[0].memberName).toBe("Eng Ellis");
   });
 
+  it("staffingSummary rolls up scheduled hours per member", async () => {
+    const now = Date.now();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("shifts", { orgId: "pulse-demo", memberId: memberId as never, startTime: now, endTime: now + 3 * HOUR, kind: "scheduled", status: "scheduled" });
+      await ctx.db.insert("shifts", { orgId: "pulse-demo", memberId: memberId as never, startTime: now + 4 * HOUR, endTime: now + 6 * HOUR, kind: "session", status: "scheduled" });
+      await ctx.db.insert("shifts", { orgId: "pulse-demo", memberId: memberId as never, startTime: now + 7 * HOUR, endTime: now + 9 * HOUR, kind: "scheduled", status: "cancelled" });
+    });
+    const sum = await t.query(api.shifts.staffingSummary, { from: now - HOUR, to: now + 24 * HOUR });
+    expect(sum.length).toBe(1);
+    expect(sum[0].hours).toBe(5); // 3 + 2 (cancelled excluded)
+    expect(sum[0].shifts).toBe(2);
+    expect(sum[0].sessions).toBe(1);
+  });
+
   it("booking a session auto-creates the engineer's shift; double-booking warns", async () => {
     const now = Date.now();
     const base = {
