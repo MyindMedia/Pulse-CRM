@@ -40,7 +40,7 @@ export const run = mutation({
   // orgId optional: defaults to the seed demo workspace. Pass a real
   // sub-account's orgId to turn IT into a populated demo while KEEPING its Clerk
   // org + agency link intact (so prospects can actually log in).
-  args: { orgId: v.optional(v.string()) },
+  args: { orgId: v.optional(v.string()), studioName: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const orgId = args.orgId ?? DEMO_ORG;
     const preserveOrg = orgId !== DEMO_ORG; // keep the real org's identity fields
@@ -57,8 +57,9 @@ export const run = mutation({
       for (const r of rows) await ctx.db.delete(r._id);
     }
 
-    // ── Org ── for a real sub-account, patch the demo branding onto the
-    //    existing row (preserving clerkOrgId/agencyId/slug); otherwise insert.
+    // ── Org ── for a real sub-account, KEEP its own branding (name, accent,
+    //    tagline, logo, clerkOrgId, agencyId, slug) — only mark onboarding done
+    //    so the nudge doesn't show. A studioName may be passed to rename it.
     if (preserveOrg) {
       const existing = await ctx.db
         .query("orgs")
@@ -66,15 +67,15 @@ export const run = mutation({
         .first();
       if (existing) {
         await ctx.db.patch(existing._id, {
-          name: "Lumen Recording Co.",
-          accentColor: "#fdb913",
-          tagline: "Where the record gets made.",
           onboardingCompletedAt: now,
+          // studioName = set this org's demo identity (name + drop any seed
+          // tagline); without it, the org keeps its own branding untouched.
+          ...(args.studioName ? { name: args.studioName, tagline: "" } : {}),
         });
       } else {
         await ctx.db.insert("orgs", {
-          orgId, name: "Lumen Recording Co.", slug: "lumen-recording",
-          plan: "studio", accentColor: "#fdb913", tagline: "Where the record gets made.",
+          orgId, name: args.studioName ?? "Lumen Recording Co.", slug: "lumen-recording",
+          plan: "studio", accentColor: "#fdb913",
         });
       }
     } else {
