@@ -13,11 +13,8 @@ Live: **https://pulse.myindsound.com** · Convex: `pastel-corgi-340` · Netlify:
 
 ## ⏳ Manual steps to finish (console/dashboard only — not API-automatable)
 
-### 1. Google OAuth (client email "Connect Google")
-1. console.cloud.google.com → project → **APIs & Services → Library → Gmail API → Enable**
-2. **OAuth consent screen** → External; add your email as a Test user
-3. **Credentials → OAuth client ID → Web app** → Authorized redirect URI: `https://pastel-corgi-340.convex.site/google/callback`
-4. Give Claude the **Client ID + secret** → it sets `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` on Convex. Done.
+### 1. Google OAuth (client email "Connect Google") — ✅ DONE 2026-05-24
+`GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` set on Convex (1Password `op://Security/google Console Pulse/*`). OAuth client redirect `https://pastel-corgi-340.convex.site/google/callback`, **Testing** mode. To let non-test studios connect Google later, **publish** the app (triggers Google verification for the `gmail.send` restricted scope).
 
 ### 2. Branding (Stripe + Clerk dashboards)
 Brand gold `#FDB913`, ink `#141417`, logo `https://pulse.myindsound.com/pulse-logo.png`.
