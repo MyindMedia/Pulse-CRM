@@ -31,7 +31,7 @@ export const status = query({
   },
 });
 
-/** Internal — the caller's org connect fields (auth propagates into runQuery). */
+/** Internal - the caller's org connect fields (auth propagates into runQuery). */
 export const _orgForConnect = internalQuery({
   args: {},
   handler: async (ctx) => {
@@ -55,7 +55,7 @@ export const _setAccount = internalMutation({
   },
 });
 
-/** Internal — flip charge/detail flags from a retrieved account or webhook. */
+/** Internal - flip charge/detail flags from a retrieved account or webhook. */
 export const _setStatusByAccount = internalMutation({
   args: {
     stripeAccountId: v.string(),
@@ -135,7 +135,7 @@ export const refreshStatus = action({
   },
 });
 
-/** Internal — session + org payment context for a deposit checkout. */
+/** Internal - session + org payment context for a deposit checkout. */
 export const _depositContext = internalQuery({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
@@ -177,7 +177,7 @@ export const createDepositCheckout = action({
           {
             price_data: {
               currency: "usd",
-              product_data: { name: `Deposit — ${ctxData.title}` },
+              product_data: { name: `Deposit - ${ctxData.title}` },
               unit_amount: ctxData.depositCents,
             },
             quantity: 1,

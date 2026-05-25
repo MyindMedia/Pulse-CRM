@@ -23,7 +23,7 @@ async function hydrate(ctx: QueryCtx | MutationCtx, shift: Doc<"shifts">) {
   const room = shift.roomId ? await ctx.db.get(shift.roomId) : null;
   return {
     ...shift,
-    memberName: member?.name ?? "—",
+    memberName: member?.name ?? "-",
     memberRole: member?.role ?? null,
     memberPhotoId: member?.photoId ?? null,
     roomName: room?.name ?? null,
@@ -122,7 +122,7 @@ export const mine = query({
   },
 });
 
-/** Upcoming engineering sessions (next 14 days) with NO engineer assigned —
+/** Upcoming engineering sessions (next 14 days) with NO engineer assigned -
  *  coverage gaps to fill. "Engineering" = recording/mixing/mastering/production. */
 export const unstaffedSessions = query({
   args: {},
@@ -185,7 +185,7 @@ export const staffingSummary = query({
       const m = await ctx.db.get(memberId as Id<"members">);
       out.push({
         memberId,
-        name: m?.name ?? "—",
+        name: m?.name ?? "-",
         role: m?.role ?? null,
         hours: Math.round(e.hours * 10) / 10,
         shifts: e.shifts,
@@ -288,7 +288,7 @@ export const cancel = mutation({
 
 /**
  * Auto-create / sync the "session" shift for a session's engineer and return a
- * soft-warning if the engineer is double-booked. Never throws — staffing is a
+ * soft-warning if the engineer is double-booked. Never throws - staffing is a
  * nudge, not a gate. Safe to call when there's no engineer/room/time.
  */
 export async function ensureSessionShift(
@@ -352,7 +352,7 @@ export async function ensureSessionShift(
 
   return {
     warning: conflicts.length
-      ? `Heads up — ${engineer.name} is already booked in that window (${conflicts.length} overlap${conflicts.length > 1 ? "s" : ""}).`
+      ? `Heads up - ${engineer.name} is already booked in that window (${conflicts.length} overlap${conflicts.length > 1 ? "s" : ""}).`
       : null,
   };
 }

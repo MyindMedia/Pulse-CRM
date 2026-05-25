@@ -97,7 +97,7 @@ export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
     const orgType = (identity as { orgType?: string }).orgType; // publicMetadata.type
 
     // Robust agency resolution: if this Clerk user has an active agencyMembers
-    // row, they ARE an agency member — even when the token doesn't carry orgType
+    // row, they ARE an agency member - even when the token doesn't carry orgType
     // (e.g. no custom JWT template configured). This is the source of truth for
     // agency membership; the orgType check below is a legacy fast-path.
     const agMembership = (

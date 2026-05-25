@@ -6,7 +6,7 @@ import { api } from "./_generated/api";
 /* P1 photo uploads + the tenant-isolation guarantee: a studio can attach photos
    to its OWN rooms/members, and is hard-denied on any other org's rows. (No Clerk
    identity → resolveViewer synthesizes a demo studio owner on "pulse-demo".) */
-describe("photo uploads — tenant isolation", () => {
+describe("photo uploads - tenant isolation", () => {
   let t: ReturnType<typeof convexTest>;
   beforeEach(() => { t = convexTest(schema); });
 

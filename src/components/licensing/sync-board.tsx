@@ -25,7 +25,7 @@ import { SyncColumn } from "./sync-column";
 import { SyncSheet } from "./sync-sheet";
 import { SYNC_STAGE_ORDER, type SyncOpportunity, type SyncStage } from "./types";
 
-/** Drag-and-drop board for sync opportunities — drag cards between stages,
+/** Drag-and-drop board for sync opportunities - drag cards between stages,
  *  click a card to drill into its details. */
 export function SyncBoard() {
   const board = useQuery(api.licensing.syncBoard) as SyncOpportunity[] | undefined;
@@ -85,7 +85,7 @@ export function SyncBoard() {
         delete next[id];
         return next;
       });
-      toast.error("Could not move that placement — reverted.");
+      toast.error("Could not move that placement - reverted.");
     }
   }
 

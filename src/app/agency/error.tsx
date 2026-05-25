@@ -34,7 +34,7 @@ export default function AgencyError({
           </h1>
           <p className="text-sm text-ash">
             Something failed while loading this part of the console. It is usually
-            transient — try again, or head back to your studios.
+            transient - try again, or head back to your studios.
           </p>
         </div>
         <div className="flex items-center justify-center gap-2">

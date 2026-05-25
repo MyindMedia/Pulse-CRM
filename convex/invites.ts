@@ -263,7 +263,7 @@ export const setEmailStatus = internalMutation({
  *  This drives a cosmetic "invite pending" badge on the sub-account detail page.
  *  A viewer who can see the sub-account but lacks invite-management capability
  *  (e.g. a demo/studio viewer, or before an orphan sub-account is adopted into
- *  the agency) should still get the page — just without the badge. So we degrade
+ *  the agency) should still get the page - just without the badge. So we degrade
  *  to [] on an access denial rather than throwing, which (with no error boundary)
  *  would otherwise blank the whole route. */
 export const list = query({

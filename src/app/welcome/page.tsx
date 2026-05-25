@@ -55,7 +55,7 @@ export default function WelcomePage() {
           <PulseLogo className="mx-auto h-7" />
           <p className="text-sm text-ash">
             We couldn’t find a studio for your account yet. If you just accepted an invite, give it
-            a moment and refresh — or ask your agency to resend the invite.
+            a moment and refresh - or ask your agency to resend the invite.
           </p>
           <Button variant="secondary" size="sm" onClick={() => router.push("/dashboard")}>
             Go to dashboard
@@ -85,7 +85,7 @@ function Wizard({ initial }: { initial: Mine }) {
   const [uploading, setUploading] = React.useState(false);
   const [logoUrl, setLogoUrl] = React.useState<string | null>(initial.logoUrl);
 
-  // Seeded once from props (lazy initializers — no effect, no cascade).
+  // Seeded once from props (lazy initializers - no effect, no cascade).
   const [name, setName] = React.useState(initial.name === "New studio" ? "" : initial.name);
   const [slug, setSlug] = React.useState(initial.slug === "new-studio" ? "" : initial.slug);
   const [slugDirty, setSlugDirty] = React.useState(false);
@@ -147,7 +147,7 @@ function Wizard({ initial }: { initial: Mine }) {
           });
         }
       }
-      // "logo" step persists immediately on upload — nothing to save here.
+      // "logo" step persists immediately on upload - nothing to save here.
       return true;
     } catch (err) {
       toast.error(errMsg(err, "Could not save that step."));
@@ -298,7 +298,7 @@ function Wizard({ initial }: { initial: Mine }) {
               <div className="space-y-3">
                 <StripeConnectCard />
                 <p className="text-xs text-ash-dim">
-                  Optional now — you can connect Stripe later from Settings. Until then you can still
+                  Optional now - you can connect Stripe later from Settings. Until then you can still
                   take bookings and record payments manually.
                 </p>
               </div>
@@ -316,10 +316,10 @@ function Wizard({ initial }: { initial: Mine }) {
             {STEPS[step].key === "rooms" && (
               <>
                 <p className="rounded-md border border-hairline bg-coal/40 px-3 py-2 text-xs text-ash-dim">
-                  Optional — you can add rooms later in Settings. Adding one now lets you take bookings today.
+                  Optional - you can add rooms later in Settings. Adding one now lets you take bookings today.
                 </p>
                 <Field label="Room name" htmlFor="w-room">
-                  <Input id="w-room" value={roomName} placeholder="Studio A — Live Room"
+                  <Input id="w-room" value={roomName} placeholder="Studio A - Live Room"
                     onChange={(e) => setRoomName(e.target.value)} />
                 </Field>
                 <div className="grid gap-4 sm:grid-cols-3">

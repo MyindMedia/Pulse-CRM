@@ -105,7 +105,7 @@ export default function SchedulePage() {
         )}
       </div>
 
-      {/* Coverage gaps — engineering sessions with no engineer */}
+      {/* Coverage gaps - engineering sessions with no engineer */}
       <UnstaffedSessions />
 
       {/* Week nav */}

@@ -16,7 +16,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <TooltipProvider delayDuration={300}>
       <MemberSync />
       <div className="relative min-h-dvh bg-ink">
-        {/* Studio-light bloom — warm backdrop for the glass to refract */}
+        {/* Studio-light bloom - warm backdrop for the glass to refract */}
         <div className="app-bloom" aria-hidden />
 
         {/* Desktop rail */}

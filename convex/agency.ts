@@ -404,7 +404,7 @@ export const createSubaccount = action({
       const orgId = clerkOrgId ?? `studio_${slug}`;
       // Prefer the resolved agency; otherwise fall back to the sole agency (so a
       // sub-account created outside a fully-resolved agency session is still
-      // linked, not orphaned — which would scope-deny the owner later).
+      // linked, not orphaned - which would scope-deny the owner later).
       const agencyId =
         self?.kind === "agency_member"
           ? self.agencyId
@@ -544,7 +544,7 @@ export const inviteStudio = action({
         ownerName: name, ownerEmail: email, agencyId, tier: "studio",
       });
 
-      // Branded invite (non-fatal — the studio is already provisioned).
+      // Branded invite (non-fatal - the studio is already provisioned).
       let inviteSent = false;
       try {
         const identity = await ctx.auth.getUserIdentity();
@@ -632,7 +632,7 @@ export const _slugTaken = internalQuery({
  *  single-tenant fallback so a sub-account created outside a fully-resolved
  *  agency session still gets linked to the (only) agency rather than orphaned. */
 /**
- * Hard-delete a sub-account and its seeded child data. Internal + destructive —
+ * Hard-delete a sub-account and its seeded child data. Internal + destructive -
  * used to purge test studios. Deletes the org row + rows in the per-org tables.
  *   npx convex run agency:_deleteSubaccount '{"orgId":"org_..."}'
  */
@@ -701,7 +701,7 @@ export const adoptOrphanSubaccounts = internalMutation({
 export const enterAs = mutation({
   args: { orgId: v.optional(v.string()) },
   handler: async (ctx, { orgId }) => {
-    // "View as client" — an agency member may only step into a sub-account that
+    // "View as client" - an agency member may only step into a sub-account that
     // belongs to their own agency. (orgId omitted = exit back to the console.)
     if (orgId) {
       const viewer = await resolveViewer(ctx).catch(() => null);

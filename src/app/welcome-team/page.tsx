@@ -46,7 +46,7 @@ export default function WelcomeTeamPage() {
           <PulseLogo className="mx-auto h-7" />
           <p className="text-sm text-ash">
             We couldn&apos;t link your profile to your login yet. If you just accepted an invite, give
-            it a moment and refresh — or ask your studio to re-send your invite.
+            it a moment and refresh - or ask your studio to re-send your invite.
           </p>
           <WelcomeTeamSkip />
         </div>
@@ -179,7 +179,7 @@ function Wizard({
               <div className="space-y-2">
                 {editable.length === 0 && (
                   <p className="rounded-md border border-hairline bg-coal/40 px-3 py-2 text-xs text-ash-dim">
-                    No hours yet. Add the days you usually work — you can change this anytime from the Schedule page.
+                    No hours yet. Add the days you usually work - you can change this anytime from the Schedule page.
                   </p>
                 )}
                 {editable.map((s, i) => (

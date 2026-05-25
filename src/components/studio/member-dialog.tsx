@@ -129,7 +129,7 @@ export function MemberDialog({
           toast.success(
             res.inviteSent
               ? `Invite sent to ${email}.`
-              : `${name} added — invite email couldn't send, you can resend it.`,
+              : `${name} added - invite email couldn't send, you can resend it.`,
           );
         } else {
           await createMember({ name, phone, role: form.role, skills });

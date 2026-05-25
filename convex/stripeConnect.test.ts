@@ -3,7 +3,7 @@ import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
 
-/* Stripe Connect (P3) — the parts that don't need a live Stripe key:
+/* Stripe Connect (P3) - the parts that don't need a live Stripe key:
    status, the webhook flag-flip, and the not-configured guards. */
 describe("stripe connect", () => {
   let t: ReturnType<typeof convexTest>;

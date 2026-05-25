@@ -17,7 +17,7 @@ const DOT: Record<string, string> = {
   solid: "bg-gold",
 };
 
-/** One sync stage — a droppable column of sortable sync cards. */
+/** One sync stage - a droppable column of sortable sync cards. */
 export function SyncColumn({
   stage,
   cards,

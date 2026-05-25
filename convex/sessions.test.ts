@@ -4,7 +4,7 @@ import schema from "./schema";
 import { api } from "./_generated/api";
 
 /* Booking must work for first-time clients, not just existing artists. */
-describe("sessions.create — client name vs existing artist", () => {
+describe("sessions.create - client name vs existing artist", () => {
   let t: ReturnType<typeof convexTest>;
   beforeEach(async () => {
     t = convexTest(schema);

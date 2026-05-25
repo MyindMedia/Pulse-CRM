@@ -3,7 +3,7 @@ import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api } from "./_generated/api";
 
-/* P4 email — provider choice + internal send + Google connect guards.
+/* P4 email - provider choice + internal send + Google connect guards.
    (No GOOGLE_CLIENT_ID / RESEND_API_KEY in tests → internal send is simulated.) */
 describe("client email + google connect", () => {
   let t: ReturnType<typeof convexTest>;

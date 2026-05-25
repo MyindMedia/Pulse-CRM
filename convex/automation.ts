@@ -148,7 +148,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
 }
 
 /** Cron entry point - every 15 minutes (see crons.ts). Also kicks the SMS
- *  session-reminder sweep (an action — scheduled from here so reminders ride
+ *  session-reminder sweep (an action - scheduled from here so reminders ride
  *  the existing 15-min cadence without a separate cron entry). */
 export const tick = internalMutation({
   args: {},

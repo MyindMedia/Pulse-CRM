@@ -63,11 +63,11 @@ export function StripeConnectCard({ compact = false }: { compact?: boolean }) {
             {status === undefined
               ? "Checking…"
               : !status.configured
-                ? "Payments aren’t enabled on this workspace yet — your admin needs to configure Stripe."
+                ? "Payments aren’t enabled on this workspace yet - your admin needs to configure Stripe."
                 : connected
                   ? "Your studio collects client deposits directly into your own Stripe account."
                   : pending
-                    ? "Almost there — finish your Stripe details to start accepting deposits."
+                    ? "Almost there - finish your Stripe details to start accepting deposits."
                     : "Connect your Stripe account so clients pay deposits straight to you. Takes ~2 minutes."}
           </p>
           {!compact && connected && (

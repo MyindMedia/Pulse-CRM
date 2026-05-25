@@ -36,7 +36,7 @@ export function StudioBanner() {
     <div className="flex items-center gap-3 border-b border-gold-dim/40 bg-gold/[0.08] px-4 py-2 lg:px-6">
       <Eye className="size-4 shrink-0 text-gold" />
       <p className="min-w-0 truncate text-xs text-bone">
-        Viewing <span className="font-semibold text-gold-bright">{org.name}</span> as client — edits save to their studio
+        Viewing <span className="font-semibold text-gold-bright">{org.name}</span> as client - edits save to their studio
       </p>
       <button
         onClick={() => void exit()}

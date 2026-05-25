@@ -181,7 +181,7 @@ export const _dueReminders = internalQuery({
         recipients.push({
           phone: clientPhone,
           isClient: true,
-          body: `${studio}: Reminder — your session "${s.title}" starts ${soon} (${dateStr}). Reply STOP to opt out.`,
+          body: `${studio}: Reminder - your session "${s.title}" starts ${soon} (${dateStr}). Reply STOP to opt out.`,
         });
       }
       if (s.engineerId) {
@@ -191,7 +191,7 @@ export const _dueReminders = internalQuery({
           recipients.push({
             phone: engPhone,
             isClient: false,
-            body: `${studio}: You're booked — "${s.title}" ${soon} (${dateStr}).`,
+            body: `${studio}: You're booked - "${s.title}" ${soon} (${dateStr}).`,
           });
         }
       }

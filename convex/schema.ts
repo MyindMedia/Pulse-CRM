@@ -143,11 +143,11 @@ export default defineSchema({
     // Set once the owner finishes (or explicitly skips to the end of) the
     // branded onboarding wizard. Unset => the dashboard nudges them to finish.
     onboardingCompletedAt: v.optional(v.number()),
-    // ── Stripe Connect (P3) — studio collects deposits via its OWN account ──
+    // ── Stripe Connect (P3) - studio collects deposits via its OWN account ──
     stripeAccountId: v.optional(v.string()),        // acct_… (Express connected account)
     stripeChargesEnabled: v.optional(v.boolean()),  // can accept charges
     stripeDetailsSubmitted: v.optional(v.boolean()), // finished Stripe onboarding
-    // ── Email (P4) — per-account client-comms channel ──
+    // ── Email (P4) - per-account client-comms channel ──
     emailProvider: v.optional(v.union(v.literal("google"), v.literal("internal"))),
     googleEmail: v.optional(v.string()),            // connected Gmail address
     googleConnectedAt: v.optional(v.number()),
@@ -340,7 +340,7 @@ export default defineSchema({
     orgId: v.string(),
     name: v.string(),
     email: v.optional(v.string()),
-    phone: v.optional(v.string()),         // E.164 cell — studio record + future SMS
+    phone: v.optional(v.string()),         // E.164 cell - studio record + future SMS
     role: v.union(
       v.literal("owner"),
       v.literal("manager"),
@@ -991,7 +991,7 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_org_period_metric", ["orgId", "period", "metric"]),
 
-  // ── Staff scheduling — shifts assign a team member to a time window and
+  // ── Staff scheduling - shifts assign a team member to a time window and
   //    (optionally) a studio/room. kind "session" shifts are auto-created when
   //    an engineer is booked onto a session and link back via sessionId. ──
   shifts: defineTable({
@@ -1036,7 +1036,7 @@ export default defineSchema({
     .index("by_org_member", ["orgId", "memberId"])
     .index("by_org_status", ["orgId", "status"]),
 
-  // ── Client email log — outbound messages sent to a client (artist), so the
+  // ── Client email log - outbound messages sent to a client (artist), so the
   //    studio sees a per-client history. Channel = google (their Gmail) or
   //    internal (Resend via Pulse). ──
   clientMessages: defineTable({

@@ -197,7 +197,7 @@ export default function InvitePage() {
             </div>
 
             <p className="mt-1.5 text-[11px] text-ash-dim">
-              At least 8 characters. Avoid common or reused passwords — use a few words or a passphrase.
+              At least 8 characters. Avoid common or reused passwords - use a few words or a passphrase.
             </p>
 
             {err && <p className="mt-3 text-sm text-critical">{err}</p>}

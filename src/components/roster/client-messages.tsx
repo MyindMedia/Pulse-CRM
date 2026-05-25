@@ -44,7 +44,7 @@ export function ClientMessages({ artistId }: { artistId: Id<"artists"> }) {
       if (mode === "text") {
         const res = await sendText({ artistId, body: body.trim() });
         if (res.status === "opted_out") toast.error("This client has opted out of SMS.");
-        else if (res.status === "simulated") toast.success("Text queued — SMS isn't connected yet.");
+        else if (res.status === "simulated") toast.success("Text queued - SMS isn't connected yet.");
         else if (res.status === "sent") toast.success("Text sent.");
         else toast.error("Could not send the text.");
       } else {
@@ -94,7 +94,7 @@ export function ClientMessages({ artistId }: { artistId: Id<"artists"> }) {
               htmlFor="msg-body"
               hint={mode === "text" ? "Sent as an SMS from your studio. Standard rates apply." : undefined}
             >
-              <Textarea id="msg-body" rows={mode === "text" ? 3 : 4} value={body} onChange={(e) => setBody(e.target.value)} placeholder={mode === "text" ? "Hey — quick heads up about your session…" : "Hi — just confirming…"} />
+              <Textarea id="msg-body" rows={mode === "text" ? 3 : 4} value={body} onChange={(e) => setBody(e.target.value)} placeholder={mode === "text" ? "Hey - quick heads up about your session…" : "Hi - just confirming…"} />
             </Field>
             <div className="flex justify-end">
               <Button type="submit" size="sm" disabled={!canSend}>

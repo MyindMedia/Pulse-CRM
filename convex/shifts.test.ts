@@ -5,7 +5,7 @@ import { api } from "./_generated/api";
 
 const HOUR = 3_600_000;
 
-describe("staff scheduling — shifts", () => {
+describe("staff scheduling - shifts", () => {
   let t: ReturnType<typeof convexTest>;
   let memberId: string;
   beforeEach(async () => {

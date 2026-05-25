@@ -41,7 +41,7 @@ export function MySchedulePanel() {
     return (
       <Card>
         <CardContent className="py-6 text-center text-sm text-ash-dim">
-          Your staff profile isn’t linked to your login yet — ask an owner to add your email to the team.
+          Your staff profile isn’t linked to your login yet - ask an owner to add your email to the team.
         </CardContent>
       </Card>
     );

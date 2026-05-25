@@ -22,7 +22,7 @@ export const AGENCY_ROLE_CAPABILITIES: Record<AgencyRole, ReadonlyArray<Capabili
     "act_as_studio",
     "audit.read",
     "ops.portfolio.view",
-    // Acting as a studio (act_as_studio) — full studio operations on their own
+    // Acting as a studio (act_as_studio) - full studio operations on their own
     // sub-accounts (scope enforced by requireCapability's agency org check).
     "songs.read", "songs.edit", "songs.delete",
     "sessions.read", "sessions.edit", "sessions.cancel",
@@ -56,7 +56,7 @@ export const AGENCY_ROLE_CAPABILITIES: Record<AgencyRole, ReadonlyArray<Capabili
     "act_as_studio",
     "audit.read",
     "ops.portfolio.view",
-    // Acting as a studio — full studio operations on their own sub-accounts.
+    // Acting as a studio - full studio operations on their own sub-accounts.
     "songs.read", "songs.edit", "songs.delete",
     "sessions.read", "sessions.edit", "sessions.cancel",
     "deliverables.read", "deliverables.upload", "deliverables.approve",

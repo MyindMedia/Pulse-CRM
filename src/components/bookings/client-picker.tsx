@@ -15,7 +15,7 @@ export type ClientValue = {
 };
 
 /**
- * Client / booker selector for booking screens. Type a name freely — first-time
+ * Client / booker selector for booking screens. Type a name freely - first-time
  * bookers don't need to exist yet. As you type, matching existing artists
  * surface in a dropdown; picking one links the booking to that artist. If the
  * name doesn't match, it's treated as a NEW client (with optional contact),
@@ -47,7 +47,7 @@ export function ClientPicker({
       <Field
         label="Client"
         htmlFor="client-name"
-        hint="Type a name — pick an existing client below, or it'll be added as a new one."
+        hint="Type a name - pick an existing client below, or it'll be added as a new one."
       >
         <div className="relative">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-3.5 -translate-y-1/2 text-ash-dim" />
@@ -97,7 +97,7 @@ export function ClientPicker({
               {isNew && (
                 <div className="flex items-center gap-2 border-t border-hairline px-3 py-2 text-xs text-ash">
                   <UserPlus className="size-3.5 text-gold" />
-                  New client — “{value.name.trim()}” will be added to your roster.
+                  New client - “{value.name.trim()}” will be added to your roster.
                 </div>
               )}
             </div>

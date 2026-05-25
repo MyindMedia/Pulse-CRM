@@ -31,7 +31,7 @@ import { Spinner } from "@/components/ui/feedback";
 import { type Plan, PLAN_LABEL } from "@/components/agency/meta";
 
 /**
- * Invite portal — the email-first way to bring a studio onto Pulse. The agency
+ * Invite portal - the email-first way to bring a studio onto Pulse. The agency
  * types just an email (and optionally a studio name); the studio is provisioned
  * immediately and the owner gets a branded invite to create their account and
  * run the onboarding wizard. The studio name + branding are theirs to set, so
@@ -68,7 +68,7 @@ export function InviteStudioDialog({ triggerSize = "md" }: { triggerSize?: "sm" 
       toast.success(
         res.inviteSent
           ? `Invite sent to ${email.trim()}. They’ll set up the studio from the link.`
-          : `Studio created. Invite email is simulated until Resend is configured — the owner can still use the invite link.`,
+          : `Studio created. Invite email is simulated until Resend is configured - the owner can still use the invite link.`,
       );
       setOpen(false);
       reset();
@@ -105,7 +105,7 @@ export function InviteStudioDialog({ triggerSize = "md" }: { triggerSize?: "sm" 
           <DialogTitle>Invite a studio</DialogTitle>
           <DialogDescription>
             Enter the owner’s email. They’ll get a branded invite to create their account and
-            set up their studio — logo, details, rooms — in a guided onboarding.
+            set up their studio - logo, details, rooms - in a guided onboarding.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>
@@ -124,7 +124,7 @@ export function InviteStudioDialog({ triggerSize = "md" }: { triggerSize?: "sm" 
             <Field
               label="Studio name"
               htmlFor="inv-name"
-              hint="Optional — the owner can name it during onboarding."
+              hint="Optional - the owner can name it during onboarding."
             >
               <Input
                 id="inv-name"

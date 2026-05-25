@@ -9,7 +9,7 @@ import * as React from "react";
 /**
  * Resumable-onboarding nudge. Shows until the owner finishes the /welcome
  * wizard (onboardingCompletedAt set). Dismissible per-session (the studio is
- * active either way — this is a gentle prompt, not a gate).
+ * active either way - this is a gentle prompt, not a gate).
  */
 export function OnboardingNudge() {
   const mine = useQuery(api.onboarding.mine, {});
@@ -30,7 +30,7 @@ export function OnboardingNudge() {
           Finish setting up your studio
         </p>
         <p className="truncate text-xs text-ash">
-          {done} of {total} steps done — add your logo, details, and first room to start taking bookings.
+          {done} of {total} steps done - add your logo, details, and first room to start taking bookings.
         </p>
       </div>
       <Link

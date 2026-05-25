@@ -10,7 +10,7 @@ import { PulseLogo } from "@/components/brand/pulse-logo";
 /* The Pulse wordmark - the official gold pulse glyph + "PULSE" lockup.
  * Stretches across the full sidebar rail. */
 function Wordmark() {
-  // Two-thirds of the rail width — the source PNG is tightly cropped, so the
+  // Two-thirds of the rail width - the source PNG is tightly cropped, so the
   // height follows automatically (h-auto on the img).
   return (
     <div className="w-2/3">

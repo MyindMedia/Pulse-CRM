@@ -4,7 +4,7 @@ import { StripeConnectCard } from "@/components/payments/stripe-connect-card";
 import { EmailConnectCard } from "@/components/email/email-connect-card";
 import { SmsRemindersCard } from "@/components/sms/sms-reminders-card";
 
-/** Studio integrations — connect Stripe to collect deposits, choose how client
+/** Studio integrations - connect Stripe to collect deposits, choose how client
  *  email is sent, and control automated text reminders. */
 export function IntegrationsPanel() {
   return (

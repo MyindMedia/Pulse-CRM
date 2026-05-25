@@ -447,7 +447,7 @@ export const clearMyPhoto = mutation({
 /**
  * Link the signed-in Clerk user to their pre-created member row by verified
  * email, and flip their pending invite to "accepted". Called once on app mount
- * (see MemberSync). Works straight off the Clerk identity — NOT resolveViewer —
+ * (see MemberSync). Works straight off the Clerk identity - NOT resolveViewer -
  * because resolveViewer throws NO_STUDIO_MEMBER until this link exists, so this
  * is what breaks that chicken-and-egg the first time a teammate logs in. Safe:
  * a user can only claim a member that carries their own Clerk-verified email in

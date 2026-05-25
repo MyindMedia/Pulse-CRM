@@ -1,15 +1,19 @@
 /* Outbound SMS. Provider-agnostic: SMS_PROVIDER picks the driver ("twilio" by
    default, "telnyx" supported). Returns a status string so callers can record
-   it. No-ops to "simulated" when unconfigured — so the whole SMS layer ships
+   it. No-ops to "simulated" when unconfigured - so the whole SMS layer ships
    and runs before any provider account / A2P registration exists (mirrors the
    Resend email + Stripe rollout). */
+import { stripEmDashes } from "./text";
+
 export type SmsStatus = "sent" | "failed" | "simulated";
 
 export async function sendSms(args: { to: string; body: string }): Promise<SmsStatus> {
   const provider = (process.env.SMS_PROVIDER ?? "twilio").toLowerCase();
-  if (provider === "loopmessage") return sendLoopMessage(args);
-  if (provider === "telnyx") return sendTelnyx(args);
-  return sendTwilio(args);
+  // Egress guard: no em dashes in any outbound message, whatever the source.
+  const payload = { to: args.to, body: stripEmDashes(args.body) };
+  if (provider === "loopmessage") return sendLoopMessage(payload);
+  if (provider === "telnyx") return sendTelnyx(payload);
+  return sendTwilio(payload);
 }
 
 /** LoopMessage: blue-bubble iMessage with automatic SMS fallback (no A2P 10DLC
@@ -22,7 +26,7 @@ async function sendLoopMessage({ to, body }: { to: string; body: string }): Prom
   const sender = process.env.LOOPMESSAGE_SENDER; // sender-name id, or the sandbox sender
   if (!key) return "simulated";
   // A sandbox-only account (no production sender ordered yet) routes through
-  // sandbox automatically — no flag needed. Endpoint override lets us point at
+  // sandbox automatically - no flag needed. Endpoint override lets us point at
   // a dedicated sandbox URL if the account requires one.
   const endpoint = process.env.LOOPMESSAGE_ENDPOINT ?? "https://a.loopmessage.com/api/v1/message/send/";
   try {

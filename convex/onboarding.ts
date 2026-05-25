@@ -7,7 +7,7 @@ import { requireCapability } from "./lib/access";
    Branded studio onboarding. Drives the /welcome wizard a new
    sub-account owner walks after accepting their invite:
    basics + logo, company/contact, branding, first room.
-   "Active immediately, resumable" — the org is already live; the
+   "Active immediately, resumable" - the org is already live; the
    dashboard nudges until onboardingCompletedAt is set.
    ============================================================ */
 

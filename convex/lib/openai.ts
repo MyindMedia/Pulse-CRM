@@ -10,8 +10,14 @@
    family rather than Claude.
    ============================================================ */
 import OpenAI from "openai";
+import { stripEmDashes } from "./text";
 
 export const DEFAULT_MODEL = "gpt-5-mini";
+
+/* Brand voice: never emit em dashes or en dashes. Injected into every system
+   prompt; the output is sanitized too as a belt-and-suspenders. */
+const NO_EM_DASH_RULE =
+  "Never use em dashes or en dashes in your output. Use a hyphen, comma, colon, or rewrite into separate sentences instead.";
 
 /** Build a client lazily so missing-key environments don't crash module load. */
 function client(): OpenAI | null {
@@ -38,20 +44,18 @@ export async function complete(
   const c = client();
   if (!c) return null;
   const model = opts?.model ?? DEFAULT_MODEL;
+  const system = opts?.system ? `${opts.system}\n\n${NO_EM_DASH_RULE}` : NO_EM_DASH_RULE;
   try {
     const res = await c.responses.create({
       model,
       input: [
-        ...(opts?.system
-          ? ([
-              { role: "system" as const, content: opts.system },
-            ] satisfies OpenAI.Responses.ResponseInputItem[])
-          : []),
+        { role: "system" as const, content: system },
         { role: "user" as const, content: prompt },
       ],
       max_output_tokens: opts?.maxOutputTokens ?? 800,
     });
-    const text = res.output_text ?? "";
+    // Sanitize: strip any em/en dashes the model emits anyway.
+    const text = stripEmDashes(res.output_text ?? "");
     return { source: "openai", model, text };
   } catch (err) {
     // Don't bubble up to the caller -- log and fall back.

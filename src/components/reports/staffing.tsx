@@ -42,7 +42,7 @@ export function StaffingReport() {
           <EmptyState
             icon={CalendarClock}
             title="No shifts scheduled this week"
-            description="Build the roster on the Schedule page — hours will roll up here."
+            description="Build the roster on the Schedule page - hours will roll up here."
           />
         ) : (
           <div className="space-y-3">

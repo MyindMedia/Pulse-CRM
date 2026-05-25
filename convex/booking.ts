@@ -358,7 +358,7 @@ export const createBooking = mutation({
 });
 
 /* ── Public deposit/balance payment via the studio's connected Stripe ──
-   Resolves the org from the SESSION (no auth — public bookers). Returns a
+   Resolves the org from the SESSION (no auth - public bookers). Returns a
    hosted Checkout URL, or { url: null } when the studio hasn't connected
    Stripe, so the page falls back to the simulated record path. The webhook
    (billingWebhooks: checkout.session.completed) settles the payment. */
@@ -409,7 +409,7 @@ export const payViaStripe = action({
           {
             price_data: {
               currency: "usd",
-              product_data: { name: `${kind === "deposit" ? "Deposit" : "Balance"} — ${c.title}` },
+              product_data: { name: `${kind === "deposit" ? "Deposit" : "Balance"} - ${c.title}` },
               unit_amount: amount,
             },
             quantity: 1,

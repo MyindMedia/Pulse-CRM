@@ -40,7 +40,7 @@ export function ShiftDialog({
   const [note, setNote] = React.useState("");
   const [saving, setSaving] = React.useState(false);
 
-  // Reset on the open transition (render-time, matching the codebase pattern —
+  // Reset on the open transition (render-time, matching the codebase pattern -
   // avoids a setState-in-effect cascade).
   const [prevOpen, setPrevOpen] = React.useState(open);
   if (prevOpen !== open) {
@@ -71,7 +71,7 @@ export function ShiftDialog({
         note: note.trim() || undefined,
       });
       toast.success("Shift scheduled.");
-      if (res.conflict) toast.warning("Heads up — this overlaps another shift for that person.");
+      if (res.conflict) toast.warning("Heads up - this overlaps another shift for that person.");
       onOpenChange(false);
     } catch {
       toast.error("Could not schedule the shift.");
@@ -85,7 +85,7 @@ export function ShiftDialog({
       <DialogContent size="md">
         <DialogHeader>
           <DialogTitle>Schedule a shift</DialogTitle>
-          <DialogDescription>Assign a team member to a time — and a studio if they’re staffing one.</DialogDescription>
+          <DialogDescription>Assign a team member to a time - and a studio if they’re staffing one.</DialogDescription>
         </DialogHeader>
         <form onSubmit={submit}>
           <DialogBody className="space-y-4">
@@ -108,7 +108,7 @@ export function ShiftDialog({
                 <Input id="shift-end" type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
               </Field>
             </div>
-            <Field label="Studio / room" hint="Optional — which room they're staffing.">
+            <Field label="Studio / room" hint="Optional - which room they're staffing.">
               <Select value={roomId} onValueChange={setRoomId}>
                 <SelectTrigger><SelectValue placeholder="No specific room" /></SelectTrigger>
                 <SelectContent>

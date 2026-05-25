@@ -63,7 +63,7 @@ export function BookSessionDialog({
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
 
-  // Step 1 — client is either an existing artist (artistId set) or a new name.
+  // Step 1 - client is either an existing artist (artistId set) or a new name.
   const [client, setClient] = useState<ClientValue>({ name: "" });
   const [songId, setSongId] = useState("");
   // Step 2

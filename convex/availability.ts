@@ -105,7 +105,7 @@ export const pendingTimeOff = query({
   args: {},
   handler: async (ctx) => {
     const orgId = await currentOrg(ctx);
-    // Managers only — degrade to [] for everyone else so the inbox simply
+    // Managers only - degrade to [] for everyone else so the inbox simply
     // doesn't render (no throw into a boundary-less page).
     try {
       await requireCapability(ctx, "schedule.manage");
@@ -122,7 +122,7 @@ export const pendingTimeOff = query({
         .sort((a, b) => a.startTime - b.startTime)
         .map(async (r) => {
           const m = await ctx.db.get(r.memberId);
-          return { ...r, memberName: m?.name ?? "—" };
+          return { ...r, memberName: m?.name ?? "-" };
         }),
     );
   },

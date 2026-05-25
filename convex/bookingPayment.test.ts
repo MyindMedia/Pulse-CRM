@@ -5,7 +5,7 @@ import { api, internal } from "./_generated/api";
 
 /* Public booking payment via Stripe Connect: action falls back when no
    connected Stripe; webhook settles the payment + confirms the session. */
-describe("public booking — stripe deposit", () => {
+describe("public booking - stripe deposit", () => {
   let t: ReturnType<typeof convexTest>;
   let sessionId: string;
   beforeEach(async () => {

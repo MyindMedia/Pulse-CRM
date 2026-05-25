@@ -39,7 +39,7 @@ export const setProvider = mutation({
   },
 });
 
-/** Internal — context to route + send a client email. */
+/** Internal - context to route + send a client email. */
 export const _sendContext = internalQuery({
   args: { artistId: v.id("artists") },
   handler: async (ctx, { artistId }) => {
@@ -103,7 +103,7 @@ export const sendToClient = action({
   },
 });
 
-/** Internal — persist a sent message to the per-client thread. */
+/** Internal - persist a sent message to the per-client thread. */
 export const _logMessage = internalMutation({
   args: {
     artistId: v.id("artists"),
@@ -142,7 +142,7 @@ export const thread = query({
   },
 });
 
-/** Internal — capability gate for client email (reuses artist edit rights). */
+/** Internal - capability gate for client email (reuses artist edit rights). */
 export const _assertCanEmail = internalQuery({
   args: { artistId: v.id("artists") },
   handler: async (ctx, { artistId }) => {

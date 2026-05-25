@@ -13,7 +13,7 @@ function when(ts: number) {
   return new Date(ts).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
-/** Upcoming engineering sessions with no engineer assigned — assign one inline.
+/** Upcoming engineering sessions with no engineer assigned - assign one inline.
  *  Renders nothing when fully staffed. */
 export function UnstaffedSessions() {
   const gaps = useQuery(api.shifts.unstaffedSessions, {});

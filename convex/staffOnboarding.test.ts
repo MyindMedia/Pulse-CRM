@@ -6,7 +6,7 @@ import { normalizePhone } from "./lib/phone";
 
 /* Invited team-member (staff) onboarding: a teammate joins an EXISTING studio.
    The demo viewer (no Clerk identity) resolves to a studio owner on
-   "pulse-demo" with clerkUserId "demo-user" — used for both the inviter
+   "pulse-demo" with clerkUserId "demo-user" - used for both the inviter
    (has members.invite) and, when seeded as a member, the self-service paths. */
 describe("staff onboarding", () => {
   let t: ReturnType<typeof convexTest>;

@@ -67,7 +67,7 @@ describe("access engine - resolveViewer", () => {
         name: "NoOrgType", role: "owner", status: "active", invitedAt: 0,
       });
     });
-    // No orgId / orgType claims (no custom JWT template) — just the subject.
+    // No orgId / orgType claims (no custom JWT template) - just the subject.
     const asOwner = t.withIdentity({ subject: "user_noorg", name: "NoOrgType" });
     const result = await asOwner.query(api.testHarness.resolve, {});
     expect(result.kind).toBe("agency_member");

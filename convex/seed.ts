@@ -58,7 +58,7 @@ export const run = mutation({
     }
 
     // ── Org ── for a real sub-account, KEEP its own branding (name, accent,
-    //    tagline, logo, clerkOrgId, agencyId, slug) — only mark onboarding done
+    //    tagline, logo, clerkOrgId, agencyId, slug) - only mark onboarding done
     //    so the nudge doesn't show. A studioName may be passed to rename it.
     if (preserveOrg) {
       const existing = await ctx.db

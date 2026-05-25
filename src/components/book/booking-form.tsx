@@ -78,7 +78,7 @@ export function BookingForm({
         <Field
           label="Phone"
           htmlFor="bk-phone"
-          hint="Optional — we'll text session reminders & updates. Msg/data rates may apply; reply STOP to opt out."
+          hint="Optional - we'll text session reminders & updates. Msg/data rates may apply; reply STOP to opt out."
         >
           <Input
             id="bk-phone"

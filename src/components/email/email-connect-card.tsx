@@ -115,7 +115,7 @@ export function EmailConnectCard() {
         ) : status.googleConnected ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm text-ash">
-              Google connected{status.googleEmail ? ` — ${status.googleEmail}` : ""}.
+              Google connected{status.googleEmail ? ` - ${status.googleEmail}` : ""}.
             </p>
             <Button size="sm" variant="ghost" onClick={() => disconnect({})}>
               Disconnect
@@ -123,7 +123,7 @@ export function EmailConnectCard() {
           </div>
         ) : !status.googleConfigured ? (
           <p className="text-xs text-ash-dim">
-            Google connect isn’t enabled on this workspace yet — your admin needs to configure it.
+            Google connect isn’t enabled on this workspace yet - your admin needs to configure it.
           </p>
         ) : (
           <Button size="sm" variant="secondary" disabled={busy} onClick={connectGoogle}>

@@ -6,7 +6,7 @@ import { exchangeCode, emailFromIdToken } from "./lib/google";
 
 const http = httpRouter();
 
-/* Google OAuth callback — exchanges the code, stores the studio's refresh token
+/* Google OAuth callback - exchanges the code, stores the studio's refresh token
    (state carries the orgId), then bounces back to the app settings. */
 http.route({
   path: "/google/callback",
@@ -61,7 +61,7 @@ http.route({
 /* Inbound SMS/iMessage receiver - client replies + STOP/START opt-outs.
    Accepts Twilio (form From/Body), Telnyx (JSON data.payload), and LoopMessage
    (JSON {event, contact, text}). LoopMessage also posts outbound status events
-   (message_sent/failed/...) here — we ack those without processing. Returns 200
+   (message_sent/failed/...) here - we ack those without processing. Returns 200
    (empty TwiML) so providers don't auto-retry or auto-reply. */
 http.route({
   path: "/sms/inbound",

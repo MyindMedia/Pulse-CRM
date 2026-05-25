@@ -20,13 +20,13 @@ export const status = query({
   },
 });
 
-/** Internal — caller's orgId (auth propagates into runQuery). Used as OAuth state. */
+/** Internal - caller's orgId (auth propagates into runQuery). Used as OAuth state. */
 export const _myOrgId = internalQuery({
   args: {},
   handler: async (ctx) => await currentOrg(ctx),
 });
 
-/** Internal — store the refresh token + connected email after OAuth callback. */
+/** Internal - store the refresh token + connected email after OAuth callback. */
 export const _storeTokens = internalMutation({
   args: { orgId: v.string(), refreshToken: v.string(), email: v.optional(v.string()) },
   handler: async (ctx, { orgId, refreshToken, email }) => {
