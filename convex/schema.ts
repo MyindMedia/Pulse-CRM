@@ -715,6 +715,7 @@ export default defineSchema({
       v.literal("passed"),
     ),
     feeCents: v.optional(v.number()),
+    notes: v.optional(v.string()),
     updatedAt: v.number(),
   })
     .index("by_org", ["orgId"])

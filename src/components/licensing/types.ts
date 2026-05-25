@@ -27,6 +27,7 @@ export type SyncOpportunity = {
   outlet: string;
   stage: SyncStage;
   feeCents?: number;
+  notes?: string;
   updatedAt: number;
 };
 

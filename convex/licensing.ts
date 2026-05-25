@@ -75,6 +75,24 @@ export const createSync = mutation({
   },
 });
 
+/** Edit a sync opportunity's details from the drill-down sheet. */
+export const updateSync = mutation({
+  args: {
+    id: v.id("syncOpportunities"),
+    supervisorName: v.optional(v.string()),
+    outlet: v.optional(v.string()),
+    feeCents: v.optional(v.number()),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, { id, ...patch }) => {
+    const orgId = await currentOrg(ctx);
+    const row = await ctx.db.get(id);
+    assertOrg(row, orgId);
+    const clean = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
+    await ctx.db.patch(id, { ...clean, updatedAt: Date.now() });
+  },
+});
+
 export const moveSyncStage = mutation({
   args: { id: v.id("syncOpportunities"), stage: syncStageV },
   handler: async (ctx, { id, stage }) => {
