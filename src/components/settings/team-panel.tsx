@@ -1,10 +1,11 @@
 "use client";
 
 import * as React from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
+import { ConvexError } from "convex/values";
 import { toast } from "sonner";
-import { MoreHorizontal, Pencil, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
+import { Mail, MoreHorizontal, Pencil, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -66,14 +67,38 @@ function RoleExplainer() {
   );
 }
 
+/** Invitation-status badge for the team table. */
+function InviteStatusCell({ member }: { member: TeamMember }) {
+  const status = member.inviteStatus ?? "none";
+  if (status === "active") return <Badge tone="positive">Active</Badge>;
+  if (!member.email) return <span className="text-ash-dim">-</span>;
+  if (status === "pending") return <Badge tone="caution">Invited</Badge>;
+  if (status === "expired") return <Badge tone="critical">Expired</Badge>;
+  return <Badge tone="neutral">Not invited</Badge>;
+}
+
 /** Team administration - invite, edit role, remove members. */
 export function TeamPanel() {
   const members = useQuery(api.members.list) as TeamMember[] | undefined;
   const updateMember = useMutation(api.members.update);
+  const resendInvite = useAction(api.members.resendInvite);
 
   const [inviteOpen, setInviteOpen] = React.useState(false);
   const [editMember, setEditMember] = React.useState<TeamMember | null>(null);
   const [removeMember, setRemoveMember] = React.useState<TeamMember | null>(null);
+
+  async function resend(member: TeamMember) {
+    try {
+      const res = await resendInvite({ memberId: member._id });
+      toast.success(
+        res.inviteSent
+          ? `Invitation re-sent to ${member.email}.`
+          : "Re-sent, but the email couldn't deliver. Check the address.",
+      );
+    } catch (e) {
+      toast.error(e instanceof ConvexError ? String(e.data) : "Could not resend the invitation.");
+    }
+  }
 
   async function changeRole(member: TeamMember, role: MemberRole) {
     if (role === member.role) return;
@@ -129,6 +154,7 @@ export function TeamPanel() {
                   <TH>Member</TH>
                   <TH>Email</TH>
                   <TH>Role</TH>
+                  <TH>Invitation</TH>
                   <TH>Skills</TH>
                   <TH className="text-right">Actions</TH>
                 </TR>
@@ -163,6 +189,9 @@ export function TeamPanel() {
                         <Badge tone={role.tone}>{role.label}</Badge>
                       </TD>
                       <TD>
+                        <InviteStatusCell member={member} />
+                      </TD>
+                      <TD>
                         {member.skills.length > 0 ? (
                           <span className="text-xs text-ash">
                             {member.skills.slice(0, 3).join(", ")}
@@ -191,6 +220,17 @@ export function TeamPanel() {
                               <Pencil className="size-4" />
                               Edit member
                             </DropdownMenuItem>
+                            {member.email &&
+                              (member.inviteStatus ?? "none") !== "active" && (
+                                <DropdownMenuItem onSelect={() => resend(member)}>
+                                  <Mail className="size-4" />
+                                  {member.inviteStatus === "pending"
+                                    ? "Resend invitation"
+                                    : member.inviteStatus === "expired"
+                                      ? "Resend (expired)"
+                                      : "Send invitation"}
+                                </DropdownMenuItem>
+                              )}
                             <DropdownMenuSeparator />
                             <DropdownMenuLabel>Set role</DropdownMenuLabel>
                             {MEMBER_ROLES.map((r) => (

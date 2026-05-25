@@ -1,5 +1,5 @@
-import { query, mutation, action, internalMutation, QueryCtx, MutationCtx } from "./_generated/server";
-import { v } from "convex/values";
+import { query, mutation, action, internalMutation, QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
+import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { currentOrg, currentActor } from "./lib/tenant";
 import { requireCapability, resolveViewer } from "./lib/access";
@@ -20,6 +20,65 @@ const roleV = v.union(
   v.literal("accountant"),
 );
 
+type StaffRole =
+  | "owner" | "manager" | "engineer" | "assistant_engineer"
+  | "artist_relations" | "producer" | "intern" | "accountant";
+
+type InviteContext = {
+  email: string;
+  name: string;
+  role: StaffRole;
+  orgId: string;
+  clerkOrgId?: string;
+  agencyId?: string;
+  studioName: string;
+  inviterName: string;
+};
+
+/** Record a fresh invite token + send the branded staff email. Shared by the
+ *  first invite (`inviteTeammate`) and `resendInvite`. Non-fatal: returns
+ *  whether the email actually sent; never throws on a send hiccup. */
+async function sendTeammateInvite(ctx: ActionCtx, c: InviteContext): Promise<boolean> {
+  try {
+    const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+    const token = await ctx.runMutation(internal.invites.record, {
+      orgId: c.orgId,
+      clerkOrgId: c.clerkOrgId,
+      agencyId: c.agencyId,
+      email: c.email,
+      ownerName: c.name,
+      studioName: c.studioName,
+      invitedBy: c.inviterName,
+      emailStatus: "simulated",
+      role: c.role,
+    });
+    const status = await sendEmail({
+      to: c.email,
+      subject: teammateEmailSubject(c.studioName),
+      html: teammateEmailHtml({
+        memberName: c.name,
+        studioName: c.studioName,
+        inviterName: c.inviterName,
+        role: c.role,
+        acceptUrl: `${appUrl}/invite/${token}`,
+        logoUrl: `${appUrl}/pulse-logo.png`,
+      }),
+    });
+    await ctx.runMutation(internal.invites.setEmailStatus, { token, emailStatus: status });
+    return status === "sent";
+  } catch (err) {
+    console.error("[sendTeammateInvite] failed (non-fatal):", err);
+    return false;
+  }
+}
+
+/** Per-member invitation state for the team table.
+ *  active  = they've joined (Clerk account linked, or invite accepted)
+ *  pending = invite sent, not yet accepted, still valid
+ *  expired = invite sent, link lapsed (resend to refresh)
+ *  none    = no live invite (has an email → can be invited/resent)         */
+export type InviteStatus = "active" | "pending" | "expired" | "none";
+
 export const list = query({
   args: {},
   handler: async (ctx) => {
@@ -28,13 +87,44 @@ export const list = query({
       .query("members")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .collect();
-    const withPhotos = await Promise.all(
-      rows.map(async (r) => ({
-        ...r,
-        photoUrl: r.photoId ? await ctx.storage.getUrl(r.photoId) : null,
-      })),
+
+    // One pass over the org's invites → latest invite per (lowercased) email.
+    const invites = await ctx.db
+      .query("invites")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect();
+    const latestByEmail = new Map<string, (typeof invites)[number]>();
+    for (const inv of invites) {
+      const key = inv.email.toLowerCase();
+      const prev = latestByEmail.get(key);
+      if (!prev || inv._creationTime > prev._creationTime) latestByEmail.set(key, inv);
+    }
+    const now = Date.now();
+
+    const annotated = await Promise.all(
+      rows.map(async (r) => {
+        let inviteStatus: InviteStatus = "none";
+        let invitedAt: number | undefined;
+        if (r.clerkUserId) {
+          inviteStatus = "active";
+        } else if (r.email) {
+          const inv = latestByEmail.get(r.email.toLowerCase());
+          if (inv) {
+            invitedAt = inv._creationTime;
+            if (inv.status === "accepted") inviteStatus = "active";
+            else if (inv.status === "pending") inviteStatus = inv.expiresAt > now ? "pending" : "expired";
+            else inviteStatus = "none"; // revoked
+          }
+        }
+        return {
+          ...r,
+          photoUrl: r.photoId ? await ctx.storage.getUrl(r.photoId) : null,
+          inviteStatus,
+          invitedAt,
+        };
+      }),
     );
-    return withPhotos.sort((a, b) => a.name.localeCompare(b.name));
+    return annotated.sort((a, b) => a.name.localeCompare(b.name));
   },
 });
 
@@ -183,39 +273,59 @@ export const inviteTeammate = action({
       skills: args.skills,
     });
 
-    let inviteSent = false;
-    try {
-      const appUrl = process.env.APP_URL ?? "http://localhost:3000";
-      const token = await ctx.runMutation(internal.invites.record, {
-        orgId: prep.orgId,
-        clerkOrgId: prep.clerkOrgId,
-        agencyId: prep.agencyId,
-        email,
-        ownerName: name,
-        studioName: prep.studioName,
-        invitedBy: prep.inviterName,
-        emailStatus: "simulated",
-        role: args.role,
-      });
-      const status = await sendEmail({
-        to: email,
-        subject: teammateEmailSubject(prep.studioName),
-        html: teammateEmailHtml({
-          memberName: name,
-          studioName: prep.studioName,
-          inviterName: prep.inviterName,
-          role: args.role,
-          acceptUrl: `${appUrl}/invite/${token}`,
-          logoUrl: `${appUrl}/pulse-logo.png`,
-        }),
-      });
-      await ctx.runMutation(internal.invites.setEmailStatus, { token, emailStatus: status });
-      inviteSent = status === "sent";
-    } catch (err) {
-      console.error("[inviteTeammate] invite step failed (non-fatal):", err);
-    }
+    const inviteSent = await sendTeammateInvite(ctx, {
+      email,
+      name,
+      role: args.role,
+      orgId: prep.orgId,
+      clerkOrgId: prep.clerkOrgId,
+      agencyId: prep.agencyId,
+      studioName: prep.studioName,
+      inviterName: prep.inviterName,
+    });
 
     return { memberId: prep.memberId, inviteSent };
+  },
+});
+
+/**
+ * Internal: resolve the invite context for an EXISTING member row. Enforces
+ * the invite capability, and refuses members with no email or who've already
+ * joined (those throws surface to the resend caller as friendly messages).
+ */
+export const _inviteContextForMember = internalMutation({
+  args: { memberId: v.id("members") },
+  handler: async (ctx, { memberId }): Promise<InviteContext> => {
+    const viewer = await requireCapability(ctx, "members.invite");
+    const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
+    const member = await ctx.db.get(memberId);
+    if (!member || member.orgId !== orgId) throw new ConvexError("Member not found.");
+    if (!member.email) throw new ConvexError("This member has no email to send an invite to.");
+    if (member.clerkUserId) throw new ConvexError("This member has already joined.");
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    return {
+      email: member.email.toLowerCase(),
+      name: member.name,
+      role: member.role as StaffRole,
+      orgId,
+      clerkOrgId: org?.clerkOrgId,
+      agencyId: org?.agencyId,
+      studioName: org?.name ?? "the studio",
+      inviterName: await currentActor(ctx),
+    };
+  },
+});
+
+/** Re-send a teammate's invitation (fresh token + email) from the team table. */
+export const resendInvite = action({
+  args: { memberId: v.id("members") },
+  handler: async (ctx, { memberId }): Promise<{ inviteSent: boolean }> => {
+    const c = await ctx.runMutation(internal.members._inviteContextForMember, { memberId });
+    const inviteSent = await sendTeammateInvite(ctx, c);
+    return { inviteSent };
   },
 });
 

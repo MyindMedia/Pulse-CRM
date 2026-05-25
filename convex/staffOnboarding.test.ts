@@ -83,4 +83,40 @@ describe("staff onboarding", () => {
     const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["png"], { type: "image/png" })));
     await expect(t.mutation(api.members.setMyPhoto, { storageId })).rejects.toThrow(/team members/i);
   });
+
+  it("members.list surfaces inviteStatus: none → pending → expired → active", async () => {
+    // No email → none; member with a clerk id → active.
+    const { pendingId, expiredId } = await t.run(async (ctx) => {
+      await ctx.db.insert("members", { orgId: "pulse-demo", name: "No Email", role: "intern", skills: [] });
+      await ctx.db.insert("members", { orgId: "pulse-demo", name: "Joined", role: "engineer", email: "joined@demo.com", clerkUserId: "u_joined", skills: [] });
+      const pendingId = await ctx.db.insert("members", { orgId: "pulse-demo", name: "Pending Pat", role: "engineer", email: "pat@demo.com", skills: [] });
+      const expiredId = await ctx.db.insert("members", { orgId: "pulse-demo", name: "Lapsed Lee", role: "engineer", email: "lee@demo.com", skills: [] });
+      const now = Date.now();
+      await ctx.db.insert("invites", { orgId: "pulse-demo", email: "pat@demo.com", ownerName: "Pat", studioName: "Skyline Sound", role: "engineer", token: "tok-pat", status: "pending", expiresAt: now + 86400000, invitedBy: "owner", emailStatus: "sent" });
+      await ctx.db.insert("invites", { orgId: "pulse-demo", email: "lee@demo.com", ownerName: "Lee", studioName: "Skyline Sound", role: "engineer", token: "tok-lee", status: "pending", expiresAt: now - 1000, invitedBy: "owner", emailStatus: "sent" });
+      return { pendingId, expiredId };
+    });
+    const list = await t.query(api.members.list, {});
+    const byId = (id: string) => list.find((m) => m._id === id);
+    expect(byId(pendingId)?.inviteStatus).toBe("pending");
+    expect(byId(expiredId)?.inviteStatus).toBe("expired");
+    expect(list.find((m) => m.name === "No Email")?.inviteStatus).toBe("none");
+    expect(list.find((m) => m.name === "Joined")?.inviteStatus).toBe("active");
+  });
+
+  it("resendInvite records a fresh token; refuses members with no email or already joined", async () => {
+    const { patId, noEmailId, joinedId } = await t.run(async (ctx) => {
+      const patId = await ctx.db.insert("members", { orgId: "pulse-demo", name: "Pat", role: "engineer", email: "pat@demo.com", skills: [] });
+      const noEmailId = await ctx.db.insert("members", { orgId: "pulse-demo", name: "No Email", role: "intern", skills: [] });
+      const joinedId = await ctx.db.insert("members", { orgId: "pulse-demo", name: "Joined", role: "engineer", email: "joined@demo.com", clerkUserId: "u_joined", skills: [] });
+      return { patId, noEmailId, joinedId };
+    });
+    const res = await t.action(api.members.resendInvite, { memberId: patId });
+    expect(res).toHaveProperty("inviteSent");
+    const invites = await t.run((ctx) => ctx.db.query("invites").collect());
+    expect(invites.some((i) => i.email === "pat@demo.com")).toBe(true);
+
+    await expect(t.action(api.members.resendInvite, { memberId: noEmailId })).rejects.toThrow(/no email/i);
+    await expect(t.action(api.members.resendInvite, { memberId: joinedId })).rejects.toThrow(/already joined/i);
+  });
 });

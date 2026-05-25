@@ -42,6 +42,8 @@ export type TeamMember = {
   avatarColor?: string;
   clerkUserId?: string;
   photoUrl?: string | null;
+  inviteStatus?: "active" | "pending" | "expired" | "none";
+  invitedAt?: number;
 };
 
 function toEditable(member: TeamMember): EditableMember {
