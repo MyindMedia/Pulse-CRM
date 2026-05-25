@@ -35,31 +35,77 @@ export type CompletionResult =
   | { source: "openai"; model: string; text: string }
   | { source: "fallback"; text: string };
 
-/** Single round-trip completion. Returns either OpenAI output or null
- * if no key is set (the caller then provides its own fallback string). */
+export const GEMINI_MODEL = "gemini-2.5-flash";
+
+/** Single round-trip completion. Prefers OpenAI (gpt-5 family per the
+ * cross-project rule); falls back to Gemini when OpenAI has no key or errors
+ * (e.g. no quota). Returns null only if neither provider is available, so the
+ * caller can use its own templated fallback. Output is always em-dash-stripped. */
 export async function complete(
   prompt: string,
   opts?: { model?: string; system?: string; maxOutputTokens?: number },
-): Promise<{ source: "openai"; model: string; text: string } | null> {
-  const c = client();
-  if (!c) return null;
+): Promise<{ source: string; model: string; text: string } | null> {
   const model = opts?.model ?? DEFAULT_MODEL;
   const system = opts?.system ? `${opts.system}\n\n${NO_EM_DASH_RULE}` : NO_EM_DASH_RULE;
+  const maxTokens = opts?.maxOutputTokens ?? 800;
+
+  // 1. OpenAI (preferred).
+  const c = client();
+  if (c) {
+    try {
+      const res = await c.responses.create({
+        model,
+        input: [
+          { role: "system" as const, content: system },
+          { role: "user" as const, content: prompt },
+        ],
+        max_output_tokens: maxTokens,
+      });
+      const text = stripEmDashes(res.output_text ?? "");
+      if (text.trim()) return { source: "openai", model, text };
+    } catch (err) {
+      console.error("[openai.complete] error, trying Gemini", err);
+    }
+  }
+
+  // 2. Gemini fallback (funded Pulse Google key).
+  const g = await completeGemini(prompt, system, maxTokens);
+  if (g) return g;
+  return null;
+}
+
+async function completeGemini(
+  prompt: string,
+  system: string,
+  maxTokens: number,
+): Promise<{ source: string; model: string; text: string } | null> {
+  const key = process.env.GEMINI_API_KEY;
+  if (!key) return null;
   try {
-    const res = await c.responses.create({
-      model,
-      input: [
-        { role: "system" as const, content: system },
-        { role: "user" as const, content: prompt },
-      ],
-      max_output_tokens: opts?.maxOutputTokens ?? 800,
-    });
-    // Sanitize: strip any em/en dashes the model emits anyway.
-    const text = stripEmDashes(res.output_text ?? "");
-    return { source: "openai", model, text };
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/${GEMINI_MODEL}:generateContent?key=${key}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: system }] },
+          contents: [{ parts: [{ text: prompt }] }],
+          // thinkingBudget 0 keeps 2.5-flash's reasoning tokens from eating the
+          // output budget (which was truncating structured JSON responses).
+          generationConfig: { maxOutputTokens: maxTokens, thinkingConfig: { thinkingBudget: 0 } },
+        }),
+      },
+    );
+    if (!res.ok) return null;
+    const json = (await res.json()) as {
+      candidates?: { content?: { parts?: { text?: string }[] } }[];
+    };
+    const text = stripEmDashes(
+      (json.candidates?.[0]?.content?.parts ?? []).map((p) => p.text ?? "").join(""),
+    );
+    return text.trim() ? { source: "gemini", model: GEMINI_MODEL, text } : null;
   } catch (err) {
-    // Don't bubble up to the caller -- log and fall back.
-    console.error("[openai.complete] error", err);
+    console.error("[gemini.complete] error", err);
     return null;
   }
 }
