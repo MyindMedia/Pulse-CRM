@@ -22,6 +22,44 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
 import { Textarea } from "@/components/ui/field";
+import {
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter,
+} from "@/components/ui/dialog";
+
+/** Popup editor for a draft body. Mounted only while open so it seeds cleanly. */
+function DraftEditModal({
+  title, initial, onSave, onClose,
+}: {
+  title: string;
+  initial: string;
+  onSave: (value: string) => Promise<void> | void;
+  onClose: () => void;
+}) {
+  const [text, setText] = React.useState(initial);
+  const [saving, setSaving] = React.useState(false);
+  async function save() {
+    setSaving(true);
+    try { await onSave(text.trim()); onClose(); }
+    finally { setSaving(false); }
+  }
+  return (
+    <Dialog open onOpenChange={(o) => !o && onClose()}>
+      <DialogContent size="lg">
+        <DialogHeader>
+          <DialogTitle>Edit message</DialogTitle>
+          <DialogDescription>{title}</DialogDescription>
+        </DialogHeader>
+        <DialogBody>
+          <Textarea className="min-h-64 text-sm" value={text} onChange={(e) => setText(e.target.value)} autoFocus />
+        </DialogBody>
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>
+          <Button onClick={save} disabled={saving || !text.trim()}>{saving ? "Saving..." : "Save"}</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
 
 const DAY = 86_400_000;
 
@@ -62,26 +100,10 @@ function ArtifactDraft({ artifactId }: { artifactId: Id<"aiArtifacts"> }) {
   const art = useQuery(api.aiArtifacts.get, { id: artifactId });
   const updateBody = useMutation(api.aiArtifacts.updateBody);
   const [editing, setEditing] = React.useState(false);
-  const [override, setOverride] = React.useState<string | null>(null);
-  const [saving, setSaving] = React.useState(false);
 
   if (art === undefined) return <div className="mt-3 skeleton h-16 w-full rounded-md" />;
   if (art === null) return null;
-  const body = override ?? art.body ?? "";
-  const edited = body.trim() !== (art.body ?? "").trim();
-
-  async function save() {
-    setSaving(true);
-    try {
-      await updateBody({ id: artifactId, body: body.trim() });
-      toast.success("Draft saved.");
-      setEditing(false);
-    } catch {
-      toast.error("Could not save the draft.");
-    } finally {
-      setSaving(false);
-    }
-  }
+  const body = art.body ?? "";
 
   return (
     <div className="mt-3 rounded-md border border-hairline bg-coal-2 p-3">
@@ -89,25 +111,23 @@ function ArtifactDraft({ artifactId }: { artifactId: Id<"aiArtifacts"> }) {
         <span className="inline-flex items-center gap-1 font-mono text-[0.625rem] uppercase text-ash-dim">
           <Sparkles className="size-3.5 text-gold" /> {art.title || "AI draft"}
         </span>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => { if (!editing && override === null) setOverride(art.body ?? ""); setEditing((v) => !v); }}
-        >
-          <Pencil className="size-3.5" /> {editing ? "Preview" : "Edit"}
+        <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+          <Pencil className="size-3.5" /> Edit
         </Button>
       </div>
-      {editing ? (
-        <Textarea className="mt-2 min-h-40 text-xs" value={body} onChange={(e) => setOverride(e.target.value)} />
-      ) : (
-        <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap font-sans text-xs leading-relaxed text-ash">
-          {body || art.summary || "(no draft content)"}
-        </pre>
-      )}
-      {edited && (
-        <Button size="sm" className="mt-2" onClick={save} disabled={saving}>
-          {saving ? "Saving..." : "Save draft"}
-        </Button>
+      <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap font-sans text-xs leading-relaxed text-ash">
+        {body || art.summary || "(no draft content)"}
+      </pre>
+      {editing && (
+        <DraftEditModal
+          title={art.title || "AI draft"}
+          initial={body}
+          onClose={() => setEditing(false)}
+          onSave={async (v) => {
+            try { await updateBody({ id: artifactId, body: v }); toast.success("Draft saved."); }
+            catch { toast.error("Could not save the draft."); }
+          }}
+        />
       )}
     </div>
   );
@@ -165,42 +185,31 @@ function InboxCard({ action }: { action: Doc<"opsActions"> }) {
         </div>
       </div>
 
-      {/* Draft body - editable for email actions, read-only preview otherwise. */}
+      {/* Email draft - read-only preview on the card; Edit opens a modal. */}
       {p.kind === "email" && (
         <div className="mt-3 rounded-md border border-hairline bg-coal-2 p-3">
           <div className="flex items-center justify-between gap-2">
             <span className="inline-flex items-center gap-1 font-mono text-[0.625rem] uppercase text-ash-dim">
               <PayloadIcon kind={p.kind} /> {p.to ?? "no recipient"}
             </span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setEditing((v) => {
-                  // Seed the editable buffer from the current draft on open.
-                  if (!v && override === null) setOverride(draft);
-                  return !v;
-                });
-              }}
-              disabled={pending}
-            >
-              <Pencil className="size-3.5" /> {editing ? "Done" : "Edit"}
+            <Button variant="ghost" size="sm" onClick={() => setEditing(true)} disabled={pending}>
+              <Pencil className="size-3.5" /> Edit
             </Button>
           </div>
           <p className="mt-1 text-xs font-medium text-bone">{p.subject}</p>
-          {editing ? (
-            <Textarea
-              className="mt-2 min-h-32 text-xs"
-              value={body}
-              onChange={(e) => setOverride(e.target.value)}
-            />
-          ) : (
-            <pre className="mt-2 whitespace-pre-wrap font-sans text-xs leading-relaxed text-ash">
-              {body || "(no draft body)"}
-            </pre>
-          )}
+          <pre className="mt-2 whitespace-pre-wrap font-sans text-xs leading-relaxed text-ash">
+            {body || "(no draft body)"}
+          </pre>
           {editedDiffers && (
             <p className="mt-1 font-mono text-[0.5625rem] uppercase text-gold">edited - will send your version</p>
+          )}
+          {editing && (
+            <DraftEditModal
+              title={p.subject ?? "Email draft"}
+              initial={body}
+              onClose={() => setEditing(false)}
+              onSave={(v) => setOverride(v)}
+            />
           )}
         </div>
       )}
