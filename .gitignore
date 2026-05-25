@@ -46,3 +46,6 @@ next-env.d.ts
 
 # Brainstorming visual companion (local mockups)
 .superpowers/
+
+# Vendored skills toolkit (heygen hyperframes) — re-fetchable from skills-lock.json
+.agents/
