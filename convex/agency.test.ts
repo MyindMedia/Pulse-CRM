@@ -88,3 +88,26 @@ describe("agency - enterAs (view as client) ownership guard", () => {
     await expect(asOwner.mutation(api.agency.enterAs, { orgId: "sub_other" })).rejects.toThrow(/your agency/i);
   });
 });
+
+describe("agency - console scoping (multi-tenant isolation)", () => {
+  let t: ReturnType<typeof convexTest>;
+  beforeEach(() => { t = convexTest(schema); });
+
+  it("subaccounts lists only the viewer's agency, hiding the demo seed + other agencies", async () => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencies", { agencyId: "org_ag", name: "Mine", slug: "mine", plan: "agency", status: "active", ownerClerkUserId: "u_owner", ownerEmail: "o@x" });
+      await ctx.db.insert("agencyMembers", { agencyId: "org_ag", clerkUserId: "u_owner", email: "o@x", name: "Owner", role: "owner", status: "active", invitedAt: 0 });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Slang City (Demo)", slug: "demo", plan: "studio", status: "active" }); // seed, no agency
+      await ctx.db.insert("orgs", { orgId: "sub_mine", name: "Mine Studio", slug: "ms", plan: "studio", status: "active", agencyId: "org_ag" });
+      await ctx.db.insert("orgs", { orgId: "sub_other", name: "Other Studio", slug: "os", plan: "studio", status: "active", agencyId: "org_other" });
+    });
+    const owner = t.withIdentity({ subject: "u_owner", name: "Owner", orgId: "org_ag", orgType: "agency" } as { subject: string; name: string; orgId: string; orgType: string });
+    const list = await owner.query(api.agency.subaccounts, {});
+    expect(list.map((o) => o.orgId).sort()).toEqual(["sub_mine"]);
+
+    // The single-subaccount query refuses the demo + another agency's org.
+    expect(await owner.query(api.agency.subaccount, { orgId: "pulse-demo" })).toBeNull();
+    expect(await owner.query(api.agency.subaccount, { orgId: "sub_other" })).toBeNull();
+    expect((await owner.query(api.agency.subaccount, { orgId: "sub_mine" }))?.orgId).toBe("sub_mine");
+  });
+});

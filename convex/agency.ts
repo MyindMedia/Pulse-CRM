@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import { seedStarterWorkspace } from "./lib/starter";
 import { resolveViewer, requireCapability, AccessError } from "./lib/access";
+import { DEMO_ORG } from "./lib/tenant";
 import { PLAN_LIMITS, type TierKey } from "./lib/plans";
 import { sendEmail } from "./lib/email";
 import { inviteEmailHtml, inviteEmailSubject } from "./lib/emailTemplates/invite";
@@ -15,6 +16,23 @@ import { inviteEmailHtml, inviteEmailSubject } from "./lib/emailTemplates/invite
    ============================================================ */
 
 const planV = v.union(v.literal("solo"), v.literal("studio"), v.literal("label"));
+
+/** Orgs the caller's agency console should see: scoped to their own agency,
+ *  with the seed demo workspace hidden, and staff limited to their scoped
+ *  sub-accounts. Prevents one agency's console from listing another agency's
+ *  (or the demo's) studios. */
+async function visibleOrgs(ctx: QueryCtx) {
+  const viewer = await resolveViewer(ctx).catch(() => null);
+  let orgs = (await ctx.db.query("orgs").collect()).filter((o) => o.orgId !== DEMO_ORG);
+  if (viewer?.kind === "agency_member") {
+    orgs = orgs.filter((o) => o.agencyId === viewer.agencyId);
+    if (viewer.scopedSubAccountOrgIds !== "all") {
+      const scoped = new Set(viewer.scopedSubAccountOrgIds);
+      orgs = orgs.filter((o) => scoped.has(o.orgId));
+    }
+  }
+  return orgs;
+}
 
 /** Is the caller allowed into the agency console?
     Demo mode → open. Real Clerk identity → must be an agency member. */
@@ -60,7 +78,7 @@ async function rollup(ctx: QueryCtx, orgId: string) {
 export const subaccounts = query({
   args: {},
   handler: async (ctx) => {
-    const orgs = await ctx.db.query("orgs").collect();
+    const orgs = await visibleOrgs(ctx);
     return Promise.all(
       orgs.map(async (org) => ({
         ...org,
@@ -77,12 +95,14 @@ export const subaccounts = query({
 export const overview = query({
   args: {},
   handler: async (ctx) => {
-    const orgs = await ctx.db.query("orgs").collect();
-    const sessions = await ctx.db.query("sessions").collect();
-    const payments = await ctx.db.query("payments").collect();
-    const invoices = await ctx.db.query("invoices").collect();
-    const opportunities = await ctx.db.query("opportunities").collect();
-    const activity = await ctx.db.query("activity").collect();
+    const orgs = await visibleOrgs(ctx);
+    const orgIdSet = new Set(orgs.map((o) => o.orgId));
+    const inScope = <T extends { orgId: string }>(rows: T[]) => rows.filter((r) => orgIdSet.has(r.orgId));
+    const sessions = inScope(await ctx.db.query("sessions").collect());
+    const payments = inScope(await ctx.db.query("payments").collect());
+    const invoices = inScope(await ctx.db.query("invoices").collect());
+    const opportunities = inScope(await ctx.db.query("opportunities").collect());
+    const activity = inScope(await ctx.db.query("activity").collect());
 
     const now = Date.now();
     const monthStart = new Date();
@@ -232,6 +252,12 @@ export const subaccount = query({
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .first();
     if (!org) return null;
+    // An agency member may only inspect a sub-account under their own agency
+    // (and never the seed demo workspace from a real console).
+    const viewer = await resolveViewer(ctx).catch(() => null);
+    if (viewer?.kind === "agency_member" && (orgId === DEMO_ORG || org.agencyId !== viewer.agencyId)) {
+      return null;
+    }
     const activity = await ctx.db
       .query("activity")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
