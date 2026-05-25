@@ -10,6 +10,7 @@
 import { v } from "convex/values";
 import { query, mutation, internalQuery, internalMutation, internalAction } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
+import { invoicePayUrl } from "./lib/links";
 import type { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { currentOrg, currentActor } from "./lib/tenant";
@@ -104,6 +105,7 @@ export type EnrichmentContext = {
   to?: string;
   subject?: string;
   fallbackBody?: string;
+  payLink?: string; // direct invoice payment URL (payment_reminder)
   // artist
   artistName?: string;
   artistEmail?: string;
@@ -158,6 +160,12 @@ export const enrichmentContext = internalQuery({
       out.artistEmail = artist?.email;
       out.genres = artist?.genres ?? [];
       out.source = artist?.source;
+      return out;
+    }
+
+    // Invoice-anchored actions (payment reminders) - attach the pay link.
+    if (action.entityType === "invoice" && action.entityId) {
+      out.payLink = invoicePayUrl(action.entityId);
       return out;
     }
 

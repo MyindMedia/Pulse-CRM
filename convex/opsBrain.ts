@@ -17,6 +17,7 @@ import { internalMutation } from "./_generated/server";
 import type { MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { invoicePayUrl } from "./lib/links";
 import {
   leadCandidates,
   prepCandidates,
@@ -150,7 +151,7 @@ export function candidatesFor(s: Signals): ProposedAction[] {
             kind: "email",
             to: inv.email,
             subject: `Friendly reminder: invoice ${inv.number} is past due`,
-            body: `Hi ${firstName(inv.artistName)}, just a quick nudge that invoice ${inv.number} for ${fmtCents(inv.amountCents)} is now past due. You can settle it any time - reply here if you need a hand.`,
+            body: `Hi ${firstName(inv.artistName)}, just a quick nudge that invoice ${inv.number} for ${fmtCents(inv.amountCents)} is now past due.\n\nYou can pay it securely right here: ${invoicePayUrl(inv.id)}\n\nAlready paid? Please disregard. Questions? Just reply here.`,
             notifyKind: "invoice.reminder",
           }
         : { kind: "note_only" },

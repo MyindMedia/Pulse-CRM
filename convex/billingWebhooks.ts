@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { tierForPriceId } from "./lib/stripe";
 import { settlePayment } from "./payments";
+import { settleInvoice } from "./invoicePay";
 
 /* ============================================================
    Stripe webhook handlers. Idempotent via auditEvents-keyed
@@ -62,6 +63,16 @@ export const handle = internalMutation({
         } catch (err) {
           // Already-paid / released bookings settle to a no-op; don't 500 the webhook.
           console.error("[webhook] settlePayment skipped:", (err as Error).message);
+        }
+        return { ok: true };
+      }
+
+      // Public invoice paid on a studio's connected account.
+      if (meta.invoiceId) {
+        try {
+          await settleInvoice(ctx, meta.invoiceId as Id<"invoices">);
+        } catch (err) {
+          console.error("[webhook] invoice settle skipped:", (err as Error).message);
         }
         return { ok: true };
       }

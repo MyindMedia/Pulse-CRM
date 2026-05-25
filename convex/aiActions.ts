@@ -523,6 +523,15 @@ function maskTokens(s: string): string {
   return s;
 }
 
+/** Guarantee the real pay URL ends up in the body: swap any bracketed
+ *  placeholder ("[payment link]", "[link to portal]"…) for it, and append it
+ *  if the model omitted the link entirely. */
+function ensurePayLink(body: string, url: string): string {
+  let out = body.replace(/\[[^\]]*(?:link|pay|portal|url|invoice)[^\]]*\]/gi, url);
+  if (!out.includes(url)) out = `${out.trimEnd()}\n\nPay it here: ${url}`;
+  return out;
+}
+
 export const enrichOpsActions = internalAction({
   args: { ids: v.array(v.id("opsActions")) },
   handler: async (ctx, { ids }) => {
@@ -564,17 +573,21 @@ export const enrichOpsActions = internalAction({
           .filter(Boolean)
           .join("\n");
 
+        const payLine = c.payLink
+          ? `\nPAYMENT LINK (include this EXACT url on its own line as a clickable link so they can pay now - never write a placeholder like "[payment link]"): ${c.payLink}`
+          : "";
+
         const prompt = `${persona}
 
 Use ${firstNameToken} for the recipient's first name in the greeting - it is a merge token, do NOT substitute a literal name.
 
 FACTS:
-${facts || "(no extra facts)"}
+${facts || "(no extra facts)"}${payLine}
 
 Output ONLY the email body. No subject line.`;
 
         const ai = await complete(prompt, {
-          system: `You write warm, human, on-brand studio emails. Always greet with ${firstNameToken}. Never corny, never corporate.`,
+          system: `You write warm, human, on-brand studio emails. Always greet with ${firstNameToken}. Never corny, never corporate. Never invent placeholder links - only use URLs you are given.`,
           maxOutputTokens: 400,
         });
         if (ai?.text) {
@@ -585,9 +598,10 @@ Output ONLY the email body. No subject line.`;
           });
         }
         if (ai?.text?.trim()) {
+          const masked = maskTokens(ai.text.trim());
           await ctx.runMutation(internal.opsActions.applyEnrichment, {
             id,
-            body: maskTokens(ai.text.trim()),
+            body: c.payLink ? ensurePayLink(masked, c.payLink) : masked,
             model: ai.model,
           });
           enriched++;

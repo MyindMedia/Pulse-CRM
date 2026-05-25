@@ -285,6 +285,7 @@ export const runAgentLLM = internalAction({
         "For client-facing, financial, calendar, file-delivery, or automation-enabling actions, propose an approval (do not send).",
         `Tone: ${tone}. Write for a busy studio owner in plain, natural language.`,
         "Money: always write amounts in plain US dollars like $5,510 or $360. NEVER write cents or the word 'cents', and never show raw numbers like 551000.",
+        "Never invent placeholder links or fake URLs (e.g. '[payment link]'). Only include a link if you were given a real one; otherwise tell the user where to find the action in Pulse.",
         "Do not quote internal metric numbers (e.g. 'a score of 24'). Describe health qualitatively (strong, steady, watch, at risk) and explain it in real business terms.",
         "Be specific and concise. No filler.",
         "Respond with ONLY a JSON object matching: { summary: string, findings: [{title, severity: info|opportunity|warning|critical, explanation}], recommendedActions: [{title, actionType, riskLevel: low|medium|high|critical, approvalRequired: boolean, explanation, proposedPayload}], draft?: string }",
