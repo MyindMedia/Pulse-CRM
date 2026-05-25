@@ -33,7 +33,7 @@ export function DataPanel() {
   async function handleReload() {
     setRunning(true);
     try {
-      await seedRun();
+      await seedRun({});
       toast.success("Demo workspace rebuilt - Lumen Recording Co. is fresh.");
       setConfirmOpen(false);
     } catch {

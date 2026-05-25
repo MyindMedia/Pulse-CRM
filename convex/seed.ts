@@ -1,4 +1,5 @@
 import { mutation } from "./_generated/server";
+import { v } from "convex/values";
 import { DEMO_ORG } from "./lib/tenant";
 
 /* ============================================================
@@ -36,13 +37,19 @@ const TABLES = [
 ] as const;
 
 export const run = mutation({
-  args: {},
-  handler: async (ctx) => {
-    const orgId = DEMO_ORG;
+  // orgId optional: defaults to the seed demo workspace. Pass a real
+  // sub-account's orgId to turn IT into a populated demo while KEEPING its Clerk
+  // org + agency link intact (so prospects can actually log in).
+  args: { orgId: v.optional(v.string()) },
+  handler: async (ctx, args) => {
+    const orgId = args.orgId ?? DEMO_ORG;
+    const preserveOrg = orgId !== DEMO_ORG; // keep the real org's identity fields
     const now = Date.now();
 
-    // ── Wipe existing demo data ──
+    // ── Wipe existing data for this org (content only; keep the real org row so
+    //    clerkOrgId/agencyId/slug survive). ──
     for (const table of TABLES) {
+      if (table === "orgs" && preserveOrg) continue;
       const rows = await ctx.db
         .query(table)
         .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -50,15 +57,36 @@ export const run = mutation({
       for (const r of rows) await ctx.db.delete(r._id);
     }
 
-    // ── Org ──
-    await ctx.db.insert("orgs", {
-      orgId,
-      name: "Lumen Recording Co.",
-      slug: "lumen-recording",
-      plan: "studio",
-      accentColor: "#fdb913",
-      tagline: "Where the record gets made.",
-    });
+    // ── Org ── for a real sub-account, patch the demo branding onto the
+    //    existing row (preserving clerkOrgId/agencyId/slug); otherwise insert.
+    if (preserveOrg) {
+      const existing = await ctx.db
+        .query("orgs")
+        .withIndex("by_org", (q) => q.eq("orgId", orgId))
+        .first();
+      if (existing) {
+        await ctx.db.patch(existing._id, {
+          name: "Lumen Recording Co.",
+          accentColor: "#fdb913",
+          tagline: "Where the record gets made.",
+          onboardingCompletedAt: now,
+        });
+      } else {
+        await ctx.db.insert("orgs", {
+          orgId, name: "Lumen Recording Co.", slug: "lumen-recording",
+          plan: "studio", accentColor: "#fdb913", tagline: "Where the record gets made.",
+        });
+      }
+    } else {
+      await ctx.db.insert("orgs", {
+        orgId,
+        name: "Lumen Recording Co.",
+        slug: "lumen-recording",
+        plan: "studio",
+        accentColor: "#fdb913",
+        tagline: "Where the record gets made.",
+      });
+    }
 
     // ── Members ──
     const member = async (
