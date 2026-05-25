@@ -147,7 +147,7 @@ export default function SchedulePage() {
                               <button
                                 aria-label="Cancel shift"
                                 onClick={() => cancelShift({ shiftId: s._id as Id<"shifts"> }).then(() => toast.success("Shift cancelled.")).catch(() => toast.error("Couldn't cancel."))}
-                                className="absolute -right-1 -top-1 hidden rounded-full bg-coal p-0.5 text-ash-dim hover:text-critical group-hover/chip:block"
+                                className="absolute -right-1 -top-1 block rounded-full bg-coal p-0.5 text-ash-dim transition-opacity hover:text-critical md:opacity-0 md:group-hover/chip:opacity-100"
                               >
                                 <X className="size-2.5" />
                               </button>
@@ -155,7 +155,7 @@ export default function SchedulePage() {
                           ))}
                           <button
                             onClick={() => openAdd(weekStart + di * DAY + 10 * 3_600_000, m._id)}
-                            className="hidden items-center justify-center rounded-md border border-dashed border-hairline-2 py-1 text-ash-dim hover:border-gold-dim hover:text-gold group-hover/cell:flex"
+                            className="flex items-center justify-center rounded-md border border-dashed border-hairline-2 py-1 text-ash-dim transition-opacity hover:border-gold-dim hover:text-gold md:opacity-0 md:group-hover/cell:opacity-100"
                             aria-label="Add shift"
                           >
                             <Plus className="size-3" />
