@@ -22,7 +22,13 @@ export const list = query({
       .query("members")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .collect();
-    return rows.sort((a, b) => a.name.localeCompare(b.name));
+    const withPhotos = await Promise.all(
+      rows.map(async (r) => ({
+        ...r,
+        photoUrl: r.photoId ? await ctx.storage.getUrl(r.photoId) : null,
+      })),
+    );
+    return withPhotos.sort((a, b) => a.name.localeCompare(b.name));
   },
 });
 
@@ -93,5 +99,38 @@ export const remove = mutation({
     if (!member || member.orgId !== orgId) throw new Error("Not found");
     if (member.role === "owner") throw new Error("cannot remove owner");
     await ctx.db.delete(id);
+  },
+});
+
+/** Signed URL for uploading a team member's profile photo (org-gated). */
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await currentOrg(ctx);
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+/** Attach an uploaded profile photo to a team member (same org only). */
+export const setPhoto = mutation({
+  args: { id: v.id("members"), storageId: v.id("_storage") },
+  handler: async (ctx, { id, storageId }) => {
+    const viewer = await requireCapability(ctx, "members.invite");
+    const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
+    const member = await ctx.db.get(id);
+    if (!member || member.orgId !== orgId) throw new Error("Not found");
+    await ctx.db.patch(id, { photoId: storageId });
+  },
+});
+
+/** Remove a team member's uploaded photo. */
+export const clearPhoto = mutation({
+  args: { id: v.id("members") },
+  handler: async (ctx, { id }) => {
+    const viewer = await requireCapability(ctx, "members.invite");
+    const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
+    const member = await ctx.db.get(id);
+    if (!member || member.orgId !== orgId) throw new Error("Not found");
+    await ctx.db.patch(id, { photoId: undefined });
   },
 });

@@ -324,6 +324,7 @@ export default defineSchema({
     capabilityOverrides: v.optional(v.array(v.string())),  // NEW
     clerkUserId: v.optional(v.string()),
     avatarColor: v.optional(v.string()),
+    photoId: v.optional(v.id("_storage")), // uploaded profile photo (Convex storage)
     skills: v.array(v.string()), // gear / certifications, e.g. "Neve-certified"
   })
     .index("by_org", ["orgId"])
@@ -424,7 +425,8 @@ export default defineSchema({
     minimumHours: v.optional(v.number()), // shortest bookable block
     depositPct: v.optional(v.number()), // deposit as a % of the booking total
     bookable: v.optional(v.boolean()), // shown on the public /book page
-    heroImageUrl: v.optional(v.string()), // hero photo shown on the room card
+    heroImageUrl: v.optional(v.string()), // hero photo shown on the room card (seeded URL)
+    heroImageId: v.optional(v.id("_storage")), // uploaded hero photo (Convex storage)
     // "auto" -> room status is computed from the live calendar (in_use when
     // a confirmed/in-progress session is happening now). "manual" -> staff
     // pinned the status and the recomputer leaves it alone. Undefined is

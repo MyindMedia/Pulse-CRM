@@ -32,6 +32,7 @@ export const list = query({
           .collect();
         return {
           ...room,
+          heroUrl: room.heroImageId ? await ctx.storage.getUrl(room.heroImageId) : (room.heroImageUrl ?? null),
           equipmentCount: gear.length,
           equipmentValueCents: gear.reduce((s, g) => s + g.currentValueCents, 0),
         };
@@ -53,6 +54,7 @@ export const get = query({
       .collect();
     return {
       ...room,
+      heroUrl: room.heroImageId ? await ctx.storage.getUrl(room.heroImageId) : (room.heroImageUrl ?? null),
       equipment: equipment.sort((a, b) => b.currentValueCents - a.currentValueCents),
       equipmentValueCents: equipment.reduce((s, g) => s + g.currentValueCents, 0),
     };
@@ -113,6 +115,37 @@ export const update = mutation({
     assertOrg(room, orgId);
     const clean = Object.fromEntries(Object.entries(patch).filter(([, val]) => val !== undefined));
     await ctx.db.patch(id, clean);
+  },
+});
+
+/** Signed URL for uploading a room photo (org-gated). */
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await currentOrg(ctx);
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+/** Attach an uploaded photo to a room. assertOrg keeps it tenant-scoped. */
+export const setPhoto = mutation({
+  args: { id: v.id("rooms"), storageId: v.id("_storage") },
+  handler: async (ctx, { id, storageId }) => {
+    const orgId = await currentOrg(ctx);
+    const room = await ctx.db.get(id);
+    assertOrg(room, orgId);
+    await ctx.db.patch(id, { heroImageId: storageId });
+  },
+});
+
+/** Remove a room's uploaded photo. */
+export const clearPhoto = mutation({
+  args: { id: v.id("rooms") },
+  handler: async (ctx, { id }) => {
+    const orgId = await currentOrg(ctx);
+    const room = await ctx.db.get(id);
+    assertOrg(room, orgId);
+    await ctx.db.patch(id, { heroImageId: undefined });
   },
 });
 

@@ -29,6 +29,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { PhotoUpload } from "@/components/ui/photo-upload";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Skeleton, SkeletonCards } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
@@ -104,6 +105,9 @@ export default function StudioDetailPage() {
 
   const setRoomStatus = useMutation(api.rooms.setStatus);
   const setRoomAuto = useMutation(api.rooms.setAutoStatus);
+  const genRoomPhotoUrl = useMutation(api.rooms.generateUploadUrl);
+  const setRoomPhoto = useMutation(api.rooms.setPhoto);
+  const clearRoomPhoto = useMutation(api.rooms.clearPhoto);
   const moveToStorage = useMutation(api.equipment.moveToStorage);
   const setEquipStatus = useMutation(api.equipment.setStatus);
   const removeEquip = useMutation(api.equipment.remove);
@@ -306,12 +310,21 @@ export default function StudioDetailPage() {
         All studios
       </Link>
 
+      {/* Room photo upload (camera / library) */}
+      <PhotoUpload
+        photo={room.heroUrl}
+        generateUploadUrl={genRoomPhotoUrl}
+        onStorageId={(storageId) => setRoomPhoto({ id: room._id, storageId })}
+        onClear={() => clearRoomPhoto({ id: room._id })}
+        hint="Shown on the room card and your public booking page. Camera or library on mobile."
+      />
+
       {/* Hero band */}
-      {room.heroImageUrl && (
+      {room.heroUrl && (
         <div className="relative overflow-hidden rounded-xl border border-hairline shadow-elev-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={room.heroImageUrl}
+            src={room.heroUrl}
             alt={`${room.name} interior`}
             className="aspect-[21/9] w-full object-cover"
           />

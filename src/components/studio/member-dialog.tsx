@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
+import { PhotoUpload } from "@/components/ui/photo-upload";
 import {
   Select,
   SelectTrigger,
@@ -33,6 +34,7 @@ export type EditableMember = {
   email?: string;
   role: string;
   skills: string[];
+  photoUrl?: string | null;
 };
 
 type FormState = {
@@ -74,6 +76,9 @@ export function MemberDialog({
   const isEdit = member !== undefined;
   const createMember = useMutation(api.members.create);
   const updateMember = useMutation(api.members.update);
+  const genPhotoUrl = useMutation(api.members.generateUploadUrl);
+  const setPhoto = useMutation(api.members.setPhoto);
+  const clearPhoto = useMutation(api.members.clearPhoto);
   const [form, setForm] = React.useState<FormState>(
     member ? toForm(member) : BLANK,
   );
@@ -137,6 +142,18 @@ export function MemberDialog({
         </DialogHeader>
         <form onSubmit={handleSubmit}>
           <DialogBody className="space-y-4">
+            {isEdit && member && (
+              <Field label="Profile photo">
+                <PhotoUpload
+                  shape="circle"
+                  photo={member.photoUrl}
+                  generateUploadUrl={genPhotoUrl}
+                  onStorageId={(storageId) => setPhoto({ id: member._id, storageId })}
+                  onClear={() => clearPhoto({ id: member._id })}
+                  hint="Use your camera or photo library."
+                />
+              </Field>
+            )}
             <Field label="Name" htmlFor="member-name">
               <Input
                 id="member-name"

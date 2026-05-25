@@ -26,5 +26,23 @@ Live site: `pulse-dash-kit.netlify.app`. **Deploy topology:** local repo Convex 
 - Frontend: `InviteStudioDialog` on `/agency`; branded 5-step `/welcome` wizard (basics → logo+accent → company → booking copy → first room; resumable, "Finish later"); `OnboardingNudge` banner on `/dashboard`; `/invite/[token]` now redirects new owners to `/welcome`.
 - **Deploy pending:** backend needs `CONVEX_DEPLOY_KEY npx convex deploy` to the cloud deployment; frontend needs a Netlify build (git push to the connected branch). The agent env can't reach the cloud Convex (anonymous local only).
 
+## Epic: full studio platform (grilled 2026-05-24)
+
+Owner wants new sub-account owners to have a complete "enter onboarding" experience + multi-tenant data isolation. Decisions (grilled):
+- **Build order:** isolation hardening (foundation) → **P1 photo uploads everywhere** (chosen first) → Stripe Connect → email.
+- **Payments: Stripe Connect** — each studio connects its OWN Stripe during onboarding and gets paid directly; Pulse facilitates (not platform-collected).
+- **Email (both):** **connect Google (OAuth)** to send/receive as their real Gmail, AND an **internal Pulse email** system (Resend-backed) for client comms. Studio chooses per-account.
+- **Photo uploads:** camera (phone) or library/upload on **team/member profiles, inventory (equipment), and rooms**. Reuse Convex `_storage`.
+- **Tenant isolation (security, must-have):** each sub-account's data + files are private; no cross-account visibility.
+
+**Isolation audit (2026-05-24, preliminary):** Solid foundation — all data access goes through the access engine (`resolveViewer`→`requireCapability`, orgId-scoped, cross-org hard-denied); files served only via the caller's own org/record; storage IDs unguessable. Hardening TODO: (1) verify upload provenance on `setLogo`/`setBookingHero`/equipment-photo mutations (they trust a client-supplied `storageId`); (2) sweep for any unscoped `db.query(...).collect()`; (3) per-org tag on uploaded files.
+
+**Phased plan:**
+- **P0** Tenant-isolation hardening (provenance check + unscoped-query sweep + per-org file tag).
+- **P1** Photo uploads: reusable uploader (camera/library) → wire into rooms, equipment (has partial), member/team profiles; per-org storage.
+- **P2** Onboarding expansion: Business → Payment → Email steps added to `/welcome`.
+- **P3** Stripe Connect: connect-account onboarding, store acct id per org, deposits via studio's account.
+- **P4** Email: Google OAuth (Gmail send/receive) + internal Resend-backed threads; per-account choice.
+
 ## Standing context / prior fix
 - **Crash fixed (2026-05-23):** `/agency/[orgId]` showed "page couldn't load" because `invites.list` threw `AccessError` (a plain `Error` → redacted by Convex) with no `error.tsx` boundary. Fixes: `invites.list` degrades to `[]` on access denial; `AccessError extends ConvexError`; `/agency/error.tsx` boundary; `createSubaccount` + `adoptOrphanSubaccounts` stamp/repair `agencyId` so the owner isn't scope-denied. 128 vitest green.

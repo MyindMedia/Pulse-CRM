@@ -231,6 +231,7 @@ export function TeamPanel() {
             email: editMember.email,
             role: editMember.role,
             skills: editMember.skills ?? [],
+            photoUrl: editMember.photoUrl,
           }}
           open
           onOpenChange={(open) => {

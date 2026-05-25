@@ -41,6 +41,7 @@ export type TeamMember = {
   skills: string[];
   avatarColor?: string;
   clerkUserId?: string;
+  photoUrl?: string | null;
 };
 
 function toEditable(member: TeamMember): EditableMember {
@@ -50,6 +51,7 @@ function toEditable(member: TeamMember): EditableMember {
     email: member.email,
     role: member.role,
     skills: member.skills ?? [],
+    photoUrl: member.photoUrl,
   };
 }
 
