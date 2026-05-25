@@ -1,9 +1,11 @@
-import { query, mutation, QueryCtx } from "./_generated/server";
+import { query, mutation, action, internalQuery, QueryCtx } from "./_generated/server";
 import { Doc } from "./_generated/dataModel";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
+import { internal } from "./_generated/api";
 import { currentOrg } from "./lib/tenant";
 import { notify } from "./lib/notify";
 import { money } from "./lib/money";
+import { stripeClient } from "./lib/stripe";
 import { ensureInquiryFromBooking } from "./opportunities";
 
 /* ============================================================
@@ -352,5 +354,73 @@ export const createBooking = mutation({
     });
 
     return { sessionId, rateCents, depositCents, depositPct: cfg.depositPct };
+  },
+});
+
+/* ── Public deposit/balance payment via the studio's connected Stripe ──
+   Resolves the org from the SESSION (no auth — public bookers). Returns a
+   hosted Checkout URL, or { url: null } when the studio hasn't connected
+   Stripe, so the page falls back to the simulated record path. The webhook
+   (billingWebhooks: checkout.session.completed) settles the payment. */
+
+export const _chargeContext = internalQuery({
+  args: { sessionId: v.id("sessions") },
+  handler: async (ctx, { sessionId }) => {
+    const session = await ctx.db.get(sessionId);
+    if (!session) return null;
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", session.orgId))
+      .first();
+    const paid = session.amountPaidCents ?? 0;
+    return {
+      title: session.title,
+      slug: org?.slug ?? "",
+      depositCents: session.depositCents,
+      balanceCents: Math.max(0, session.rateCents - paid),
+      stripeAccountId: org?.stripeAccountId ?? null,
+      chargesEnabled: Boolean(org?.stripeChargesEnabled),
+      configured: Boolean(process.env.STRIPE_SECRET_KEY),
+    };
+  },
+});
+
+export const payViaStripe = action({
+  args: {
+    sessionId: v.id("sessions"),
+    kind: v.union(v.literal("deposit"), v.literal("balance"), v.literal("full")),
+  },
+  handler: async (ctx, { sessionId, kind }): Promise<{ url: string | null }> => {
+    const c = await ctx.runQuery(internal.booking._chargeContext, { sessionId });
+    if (!c) throw new ConvexError("Booking not found.");
+    // No connected Stripe (or platform Stripe unconfigured) → caller falls back
+    // to the simulated path.
+    if (!c.configured || !c.stripeAccountId || !c.chargesEnabled) return { url: null };
+
+    const amount = kind === "deposit" ? Math.min(c.depositCents, c.balanceCents) : c.balanceCents;
+    if (amount <= 0) return { url: null };
+
+    const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+    const back = `${appUrl}/book/${c.slug}/checkout/${sessionId}`;
+    const checkout = await stripeClient().checkout.sessions.create(
+      {
+        mode: "payment",
+        line_items: [
+          {
+            price_data: {
+              currency: "usd",
+              product_data: { name: `${kind === "deposit" ? "Deposit" : "Balance"} — ${c.title}` },
+              unit_amount: amount,
+            },
+            quantity: 1,
+          },
+        ],
+        success_url: `${back}?paid=1`,
+        cancel_url: back,
+        metadata: { sessionId, kind },
+      },
+      { stripeAccount: c.stripeAccountId }, // charge on the studio's own account
+    );
+    return { url: checkout.url ?? null };
   },
 });

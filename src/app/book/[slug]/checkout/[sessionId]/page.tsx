@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion } from "motion/react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -35,6 +35,7 @@ export default function CheckoutPage() {
     sessionId: sessionId as Id<"sessions">,
   });
   const recordPayment = useMutation(api.payments.record);
+  const payViaStripe = useAction(api.booking.payViaStripe);
 
   const [choice, setChoice] = React.useState<PayChoice>("deposit");
   const [busy, setBusy] = React.useState(false);
@@ -68,6 +69,13 @@ export default function CheckoutPage() {
   async function pay(kind: "deposit" | "balance" | "full", payerName: string) {
     setBusy(true);
     try {
+      // If the studio has connected Stripe, collect the card payment on their
+      // own account via hosted Checkout; otherwise fall back to recording it.
+      const stripe = await payViaStripe({ sessionId: sessionId as Id<"sessions">, kind });
+      if (stripe.url) {
+        window.location.href = stripe.url;
+        return;
+      }
       const result = await recordPayment({
         sessionId: sessionId as Id<"sessions">,
         kind,

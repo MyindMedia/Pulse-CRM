@@ -1,5 +1,6 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
+import { Id } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
 import { notify } from "./lib/notify";
 import { money } from "./lib/money";
@@ -62,6 +63,82 @@ function outstanding(session: {
  *  - balance → everything still owed
  *  - full    → everything still owed (deposit + balance in one)
  */
+/**
+ * Settle a booking payment (insert the ledger row, advance the session, confirm
+ * a held booking, notify). Shared by the simulated `record` mutation and the
+ * Stripe webhook (provider "stripe"). Returns the settlement summary.
+ */
+export async function settlePayment(
+  ctx: MutationCtx,
+  { sessionId, kind, payerName, provider, reference }: {
+    sessionId: Id<"sessions">;
+    kind: "deposit" | "balance" | "full";
+    payerName?: string;
+    provider?: "simulated" | "stripe";
+    reference?: string;
+  },
+) {
+  const session = await ctx.db.get(sessionId);
+  if (!session) throw new Error("Booking not found.");
+  const orgId = session.orgId;
+  if (session.status === "cancelled") throw new Error("This booking was released.");
+
+  const o = outstanding(session);
+  const amountCents = kind === "deposit" ? Math.min(session.depositCents, o.balance) : o.balance;
+  if (amountCents <= 0) throw new Error("This booking is already paid in full.");
+
+  const paymentId = await ctx.db.insert("payments", {
+    orgId,
+    sessionId,
+    kind,
+    amountCents,
+    provider: provider ?? "simulated",
+    status: "paid",
+    reference: reference ?? `SIM-${String(Date.now()).slice(-8)}`,
+    payerName,
+    paidAt: Date.now(),
+  });
+
+  const paidTotal = o.paid + amountCents;
+  const fullyPaid = paidTotal >= session.rateCents;
+  const patch: Record<string, unknown> = {
+    amountPaidCents: paidTotal,
+    depositPaid: paidTotal >= session.depositCents,
+  };
+  if (session.status === "tentative" && paidTotal >= session.depositCents) {
+    patch.status = "confirmed";
+    patch.holdExpiresAt = undefined;
+  }
+  await ctx.db.patch(sessionId, patch);
+
+  const artist = await ctx.db.get(session.artistId);
+  await ctx.db.insert("activity", {
+    orgId,
+    kind: "payment.received",
+    summary: `${money(amountCents)} ${kind} payment cleared - ${session.title}`,
+    entityType: "session",
+    entityId: sessionId,
+    accent: "positive",
+  });
+  if (artist?.email) {
+    await notify(ctx, {
+      orgId,
+      channel: "email",
+      recipient: artist.email,
+      subject: fullyPaid ? `Paid in full - ${session.title}` : `Deposit received - ${session.title}`,
+      body: fullyPaid
+        ? `We received ${money(amountCents)}. Your session is fully paid and locked in. See you in the studio.`
+        : `We received your ${money(amountCents)} deposit. Your session is held. The ${money(
+            session.rateCents - paidTotal,
+          )} balance is due up to 2 hours before your start time.`,
+      kind: fullyPaid ? "payment.full" : "payment.deposit",
+      sessionId,
+    });
+  }
+
+  return { paymentId, paidTotal, fullyPaid, balance: Math.max(0, session.rateCents - paidTotal) };
+}
+
 export const record = mutation({
   args: {
     sessionId: v.id("sessions"),
@@ -70,68 +147,7 @@ export const record = mutation({
     provider: v.optional(v.union(v.literal("simulated"), v.literal("stripe"))),
   },
   handler: async (ctx, { sessionId, kind, payerName, provider }) => {
-    const session = await ctx.db.get(sessionId);
-    if (!session) throw new Error("Booking not found.");
-    const orgId = session.orgId;
-    if (session.status === "cancelled") throw new Error("This booking was released.");
-
-    const o = outstanding(session);
-    const amountCents =
-      kind === "deposit" ? Math.min(session.depositCents, o.balance) : o.balance;
-    if (amountCents <= 0) throw new Error("This booking is already paid in full.");
-
-    const paymentId = await ctx.db.insert("payments", {
-      orgId,
-      sessionId,
-      kind,
-      amountCents,
-      provider: provider ?? "simulated",
-      status: "paid",
-      reference: `SIM-${String(Date.now()).slice(-8)}`,
-      payerName,
-      paidAt: Date.now(),
-    });
-
-    const paidTotal = o.paid + amountCents;
-    const fullyPaid = paidTotal >= session.rateCents;
-    const patch: Record<string, unknown> = {
-      amountPaidCents: paidTotal,
-      depositPaid: paidTotal >= session.depositCents,
-    };
-    // A paid deposit promotes a held booking to confirmed and ends the hold.
-    if (session.status === "tentative" && paidTotal >= session.depositCents) {
-      patch.status = "confirmed";
-      patch.holdExpiresAt = undefined;
-    }
-    await ctx.db.patch(sessionId, patch);
-
-    const artist = await ctx.db.get(session.artistId);
-    await ctx.db.insert("activity", {
-      orgId,
-      kind: "payment.received",
-      summary: `${money(amountCents)} ${kind} payment cleared - ${session.title}`,
-      entityType: "session",
-      entityId: sessionId,
-      accent: "positive",
-    });
-    if (artist?.email) {
-      await notify(ctx, {
-        orgId,
-        channel: "email",
-        recipient: artist.email,
-        subject: fullyPaid
-          ? `Paid in full - ${session.title}`
-          : `Deposit received - ${session.title}`,
-        body: fullyPaid
-          ? `We received ${money(amountCents)}. Your session is fully paid and locked in. See you in the studio.`
-          : `We received your ${money(amountCents)} deposit. Your session is held. The ${money(
-              session.rateCents - paidTotal,
-            )} balance is due up to 2 hours before your start time.`,
-        kind: fullyPaid ? "payment.full" : "payment.deposit",
-        sessionId,
-      });
-    }
-
-    return { paymentId, paidTotal, fullyPaid, balance: Math.max(0, session.rateCents - paidTotal) };
+    return settlePayment(ctx, { sessionId, kind, payerName, provider });
   },
 });
+

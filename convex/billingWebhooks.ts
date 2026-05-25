@@ -1,6 +1,8 @@
 import { internalMutation, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
+import { Id } from "./_generated/dataModel";
 import { tierForPriceId } from "./lib/stripe";
+import { settlePayment } from "./payments";
 
 /* ============================================================
    Stripe webhook handlers. Idempotent via auditEvents-keyed
@@ -45,9 +47,29 @@ export const handle = internalMutation({
     const obj = e.data.object;
 
     if (e.type === "checkout.session.completed") {
+      const meta = (obj.metadata as Record<string, string>) ?? {};
+
+      // Public booking deposit/balance paid on a studio's connected account.
+      if (meta.sessionId) {
+        const kind = (meta.kind as "deposit" | "balance" | "full") ?? "deposit";
+        try {
+          await settlePayment(ctx, {
+            sessionId: meta.sessionId as Id<"sessions">,
+            kind,
+            provider: "stripe",
+            reference: (obj.payment_intent as string) ?? (obj.id as string),
+          });
+        } catch (err) {
+          // Already-paid / released bookings settle to a no-op; don't 500 the webhook.
+          console.error("[webhook] settlePayment skipped:", (err as Error).message);
+        }
+        return { ok: true };
+      }
+
       const customerId = obj.customer as string;
       const subscriptionId = obj.subscription as string;
-      const meta = (obj.metadata as Record<string, string>) ?? {};
+      // Only platform subscription checkouts go past here.
+      if (!subscriptionId) return { ok: true };
       const intendedTier =
         (meta.intendedTier as "studio" | "pro" | "growth" | "enterprise" | "agency") ?? "studio";
       const clerkUserId = meta.clerkUserId as string;
