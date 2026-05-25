@@ -18,6 +18,7 @@ import {
 import { relativeTime } from "@/lib/format";
 
 const RISK_TONE = { low: "neutral", medium: "caution", high: "critical", critical: "critical" } as const;
+const BAND_TONE = { strong: "positive", steady: "info", watch: "caution", "at risk": "critical" } as const;
 
 export default function AgencyAgentsPage() {
   const fleet = useQuery(api.agentFleet.fleet, {});
@@ -70,6 +71,7 @@ export default function AgencyAgentsPage() {
                     </p>
                   </div>
 
+                  <Badge tone={BAND_TONE[s.healthBand as keyof typeof BAND_TONE]}>{s.healthScore} {s.healthBand}</Badge>
                   {s.pendingApprovals > 0 && (
                     <Badge tone="caution"><Inbox className="size-3" />{s.pendingApprovals} pending</Badge>
                   )}

@@ -420,6 +420,24 @@ export default defineSchema({
     at: v.number(),
   }).index("by_org", ["orgId"]),
 
+  // Per-workspace long-term agent memory. Never shared across orgs; explicit,
+  // auditable, editable, deletable (spec 14).
+  agentMemories: defineTable({
+    orgId: v.string(),
+    memoryType: v.union(
+      v.literal("studio_profile"), v.literal("tone_preferences"), v.literal("business_rules"),
+      v.literal("client_patterns"), v.literal("risk_notes"), v.literal("automation_history"),
+    ),
+    summary: v.string(),
+    confidence: v.number(),
+    source: v.union(v.literal("user"), v.literal("agent")),
+    status: v.union(v.literal("active"), v.literal("pending"), v.literal("dismissed")),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_status", ["orgId", "status"]),
+
   // ── Audit log - every Access Engine deny/grant for sensitive actions ──
   auditEvents: defineTable({
     agencyId: v.optional(v.string()),

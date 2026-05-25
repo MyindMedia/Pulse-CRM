@@ -52,6 +52,23 @@ describe("Pulse Agent", () => {
     expect(got?.messages.some((m) => m.role === "assistant")).toBe(true);
   });
 
+  it("studioHealth returns six weighted components + an overall band", async () => {
+    const h = await t.query(api.agentHealth.studioHealth, {});
+    expect(h.overall).toBeGreaterThanOrEqual(0);
+    expect(h.overall).toBeLessThanOrEqual(100);
+    expect(h.components).toHaveLength(6);
+    expect(["strong", "steady", "watch", "at risk"]).toContain(h.band);
+  });
+
+  it("memory: add, list, delete (per-org)", async () => {
+    const id = await t.mutation(api.agent.addMemory, { memoryType: "business_rules", summary: "Require 50% deposit before confirming." });
+    let list = await t.query(api.agent.listMemories, {});
+    expect(list.find((m) => m._id === id)?.summary).toMatch(/50%/);
+    await t.mutation(api.agent.deleteMemory, { id });
+    list = await t.query(api.agent.listMemories, {});
+    expect(list.find((m) => m._id === id)).toBeUndefined();
+  });
+
   it("approval: approve schedules execution; reject closes it", async () => {
     const { approveId, rejectId } = await t.run(async (ctx) => {
       const approveId = await ctx.db.insert("agentApprovals", { orgId: ORG, actionType: "send_email", title: "Follow up", explanation: "x", proposedPayload: { to: "x@y.com", subject: "Hi", body: "Hello" }, riskLevel: "low", status: "pending", createdAt: Date.now() });

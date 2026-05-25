@@ -14,6 +14,7 @@ import type * as agencyOps from "../agencyOps.js";
 import type * as agencyStaff from "../agencyStaff.js";
 import type * as agent from "../agent.js";
 import type * as agentFleet from "../agentFleet.js";
+import type * as agentHealth from "../agentHealth.js";
 import type * as agents_generators from "../agents/generators.js";
 import type * as aiActions from "../aiActions.js";
 import type * as aiArtifacts from "../aiArtifacts.js";
@@ -99,6 +100,7 @@ declare const fullApi: ApiFromModules<{
   agencyStaff: typeof agencyStaff;
   agent: typeof agent;
   agentFleet: typeof agentFleet;
+  agentHealth: typeof agentHealth;
   "agents/generators": typeof agents_generators;
   aiActions: typeof aiActions;
   aiArtifacts: typeof aiArtifacts;

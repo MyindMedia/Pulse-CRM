@@ -3,6 +3,7 @@ import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { resolveViewer } from "./lib/access";
 import { DEMO_ORG } from "./lib/tenant";
+import { studioHealthFor } from "./agentHealth";
 
 /* ============================================================
    Agency control plane for Pulse Agent. Lets an agency owner run
@@ -41,6 +42,7 @@ export const fleet = query({
           .withIndex("by_org_status", (q) => q.eq("orgId", o.orgId).eq("status", "active"))
           .collect();
         const lastRun = await ctx.db.query("agentRuns").withIndex("by_org", (q) => q.eq("orgId", o.orgId)).order("desc").first();
+        const health = await studioHealthFor(ctx, o.orgId);
         return {
           orgId: o.orgId,
           name: o.name,
@@ -50,6 +52,8 @@ export const fleet = query({
           digestEnabled: policy?.digestEnabled ?? true,
           pendingApprovals: pending.length,
           activeInsights: insights.length,
+          healthScore: health.overall,
+          healthBand: health.band,
           lastRunAt: lastRun?._creationTime ?? null,
           lastRunStatus: lastRun?.status ?? null,
         };

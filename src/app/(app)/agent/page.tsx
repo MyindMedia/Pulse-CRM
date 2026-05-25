@@ -5,19 +5,22 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
-import { Sparkles, Send, Loader2, Check, X, Lightbulb, ShieldCheck } from "lucide-react";
+import { Sparkles, Send, Loader2, Check, X, Lightbulb, ShieldCheck, Gauge, Brain, Trash2, Plus } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Textarea } from "@/components/ui/field";
+import { Textarea, Input } from "@/components/ui/field";
 import { Switch } from "@/components/ui/toggle";
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from "@/components/ui/select";
+import { cn } from "@/lib/utils";
 
 const SEV_TONE = { info: "neutral", opportunity: "positive", warning: "caution", critical: "critical" } as const;
 const RISK_TONE = { low: "neutral", medium: "caution", high: "critical", critical: "critical" } as const;
+const BAND_TONE = { strong: "positive", steady: "info", watch: "caution", "at risk": "critical" } as const;
+const MEMORY_TYPES = ["studio_profile", "tone_preferences", "business_rules", "client_patterns", "risk_notes", "automation_history"] as const;
 
 const SUGGESTED = [
   "How is my studio doing right now?",
@@ -34,6 +37,7 @@ export default function AgentPage() {
         title="Pulse Agent"
         description="Your AI studio operations manager. It reads this studio's data, flags what matters, and prepares actions for your approval - it never sends anything on its own."
       />
+      <HealthPanel />
       <div className="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
         <div className="space-y-5">
           <CommandBar />
@@ -42,9 +46,104 @@ export default function AgentPage() {
         <div className="space-y-5">
           <ApprovalInbox />
           <AgentSettings />
+          <MemoryPanel />
         </div>
       </div>
     </div>
+  );
+}
+
+function HealthPanel() {
+  const health = useQuery(api.agentHealth.studioHealth, {});
+  if (health === undefined) return null;
+  return (
+    <Card>
+      <CardContent className="pt-5">
+        <div className="flex flex-wrap items-center gap-5">
+          <div className="flex items-center gap-3">
+            <span className="grid size-12 place-items-center rounded-xl bg-gold/12 text-gold"><Gauge className="size-6" /></span>
+            <div>
+              <div className="flex items-baseline gap-2">
+                <span className="font-display text-3xl font-bold text-bone">{health.overall}</span>
+                <span className="text-sm text-ash-dim">/100</span>
+                <Badge tone={BAND_TONE[health.band as keyof typeof BAND_TONE]}>{health.band}</Badge>
+              </div>
+              <p className="text-xs text-ash-dim">Studio health</p>
+            </div>
+          </div>
+          <div className="grid flex-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
+            {health.components.map((c) => (
+              <div key={c.key}>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-ash">{c.label}</span>
+                  <span className="font-mono text-ash-dim">{c.score}</span>
+                </div>
+                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-coal-3">
+                  <div className={cn("h-full rounded-full", c.score >= 70 ? "bg-positive" : c.score >= 45 ? "bg-gold" : "bg-critical")} style={{ width: `${c.score}%` }} />
+                </div>
+                <p className="mt-0.5 text-[0.625rem] text-ash-dim">{c.signal}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function MemoryPanel() {
+  const memories = useQuery(api.agent.listMemories, {});
+  const add = useMutation(api.agent.addMemory);
+  const del = useMutation(api.agent.deleteMemory);
+  const [type, setType] = React.useState<string>("business_rules");
+  const [text, setText] = React.useState("");
+
+  async function save() {
+    if (!text.trim()) return;
+    try {
+      await add({ memoryType: type as never, summary: text.trim() });
+      setText("");
+      toast.success("Saved to the agent's memory.");
+    } catch {
+      toast.error("Could not save that memory.");
+    }
+  }
+  if (memories === undefined) return null;
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Brain className="size-4 text-gold" />Agent memory</CardTitle></CardHeader>
+      <CardContent className="space-y-3 pt-1">
+        <p className="text-[0.6875rem] text-ash-dim">What the agent should always remember about this studio. Per-studio only, never shared.</p>
+        <div className="space-y-2">
+          <Select value={type} onValueChange={setType}>
+            <SelectTrigger><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {MEMORY_TYPES.map((t) => <SelectItem key={t} value={t}>{t.replace(/_/g, " ")}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <div className="flex gap-2">
+            <Input value={text} onChange={(e) => setText(e.target.value)} placeholder="e.g. Require 50% deposit before confirming sessions." />
+            <Button size="sm" onClick={save} disabled={!text.trim()}><Plus className="size-3.5" /></Button>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          {memories.length === 0 ? (
+            <p className="text-xs text-ash-dim">No memories yet.</p>
+          ) : (
+            memories.map((m) => (
+              <div key={m._id} className="flex items-start justify-between gap-2 rounded-md border border-hairline bg-coal-2 px-2.5 py-2">
+                <div className="min-w-0">
+                  <p className="font-mono text-[0.5625rem] uppercase tracking-wide text-ash-dim">{m.memoryType.replace(/_/g, " ")}</p>
+                  <p className="text-xs text-ash">{m.summary}</p>
+                </div>
+                <button onClick={() => del({ id: m._id })} aria-label="Delete memory" className="shrink-0 text-ash-dim hover:text-critical"><Trash2 className="size-3.5" /></button>
+              </div>
+            ))
+          )}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
