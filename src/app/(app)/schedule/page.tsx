@@ -10,6 +10,8 @@ import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { ShiftDialog } from "@/components/schedule/shift-dialog";
+import { TimeOffInbox } from "@/components/schedule/time-off-inbox";
+import { MySchedulePanel } from "@/components/schedule/my-schedule-panel";
 import { cn } from "@/lib/utils";
 
 const DAY = 86_400_000;
@@ -173,6 +175,12 @@ export default function SchedulePage() {
         <CalendarClock className="size-3.5" />
         Gold chips are auto-scheduled from session bookings; grey are manual shifts.
       </p>
+
+      {/* Manager: pending time-off (renders only with schedule.manage) */}
+      <TimeOffInbox />
+
+      {/* Staff self-service: my upcoming work, availability, time off */}
+      <MySchedulePanel />
 
       <ShiftDialog
         open={dialogOpen}

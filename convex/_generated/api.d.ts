@@ -19,6 +19,7 @@ import type * as aiContext from "../aiContext.js";
 import type * as artists from "../artists.js";
 import type * as audit from "../audit.js";
 import type * as automation from "../automation.js";
+import type * as availability from "../availability.js";
 import type * as billing from "../billing.js";
 import type * as billingWebhooks from "../billingWebhooks.js";
 import type * as booking from "../booking.js";
@@ -97,6 +98,7 @@ declare const fullApi: ApiFromModules<{
   artists: typeof artists;
   audit: typeof audit;
   automation: typeof automation;
+  availability: typeof availability;
   billing: typeof billing;
   billingWebhooks: typeof billingWebhooks;
   booking: typeof booking;
