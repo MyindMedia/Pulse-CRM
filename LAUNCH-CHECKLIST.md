@@ -11,6 +11,8 @@ Live: **https://pulse.myindsound.com** · Convex: `pastel-corgi-340` · Netlify:
 - Clerk **in-app UI** themed (dark + gold) globally. Favicon set.
 - Test studios purged.
 
+- Public **deposit collection wired** — `/book` checkout charges the deposit/balance on the studio's *own connected Stripe* (hosted Checkout); `checkout.session.completed` webhook settles + confirms the session. Falls back to simulated record for studios without Stripe connected.
+
 ## ⏳ Manual steps to finish (console/dashboard only — not API-automatable)
 
 ### 1. Google OAuth (client email "Connect Google") — ✅ DONE 2026-05-24
