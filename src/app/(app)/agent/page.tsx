@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
-import { Sparkles, Send, Loader2, Check, X, Lightbulb, ShieldCheck, Gauge, Brain, Trash2, Plus, Repeat } from "lucide-react";
+import { Sparkles, Send, Loader2, X, Lightbulb, ShieldCheck, Gauge, Brain, Trash2, Plus, Repeat } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -15,6 +15,7 @@ import { Switch } from "@/components/ui/toggle";
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from "@/components/ui/select";
+import { ApprovalEditDialog, type ApprovalItem } from "@/components/agent/approval-edit-dialog";
 import { cn } from "@/lib/utils";
 
 const SEV_TONE = { info: "neutral", opportunity: "positive", warning: "caution", critical: "critical" } as const;
@@ -320,8 +321,7 @@ function Insights() {
 
 function ApprovalInbox() {
   const approvals = useQuery(api.agent.listApprovals, {});
-  const approve = useMutation(api.agent.approveRequest);
-  const reject = useMutation(api.agent.rejectRequest);
+  const [editing, setEditing] = React.useState<ApprovalItem | null>(null);
   if (approvals === undefined) return null;
   const pending = approvals.filter((a) => a.status === "pending");
 
@@ -330,26 +330,25 @@ function ApprovalInbox() {
       <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><ShieldCheck className="size-4 text-gold" />Approval inbox</CardTitle></CardHeader>
       <CardContent className="space-y-2 pt-1">
         {pending.length === 0 ? (
-          <p className="py-4 text-center text-sm text-ash-dim">Nothing waiting. Actions the agent prepares show up here for one-tap approval.</p>
+          <p className="py-4 text-center text-sm text-ash-dim">Nothing waiting. Actions the agent prepares show up here to review, edit and approve.</p>
         ) : (
           pending.map((a) => (
-            <div key={a._id} className="rounded-md border border-hairline bg-coal-2 p-3">
+            <button
+              key={a._id}
+              onClick={() => setEditing(a as ApprovalItem)}
+              className="block w-full rounded-md border border-hairline bg-coal-2 p-3 text-left transition-colors hover:border-gold-dim focus-visible:ring-2 focus-visible:ring-gold/30"
+            >
               <div className="flex items-start justify-between gap-2">
                 <p className="font-display text-sm font-semibold text-bone">{a.title}</p>
                 <Badge tone={RISK_TONE[a.riskLevel]}>{a.riskLevel}</Badge>
               </div>
-              <p className="mt-1 text-xs text-ash">{a.explanation}</p>
-              <p className="mt-1 font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">{a.actionType.replace(/_/g, " ")}</p>
-              <div className="mt-2.5 flex gap-2">
-                <Button size="sm" className="flex-1" onClick={() => approve({ id: a._id }).then(() => toast.success("Approved + executing.")).catch(() => toast.error("Could not approve."))}>
-                  <Check className="size-3.5" />Approve
-                </Button>
-                <Button size="sm" variant="ghost" onClick={() => reject({ id: a._id })}><X className="size-3.5" />Reject</Button>
-              </div>
-            </div>
+              <p className="mt-1 line-clamp-2 text-xs text-ash">{a.explanation}</p>
+              <p className="mt-1.5 font-mono text-[0.625rem] uppercase tracking-wide text-gold">Tap to review &amp; edit · {a.actionType.replace(/_/g, " ")}</p>
+            </button>
           ))
         )}
       </CardContent>
+      <ApprovalEditDialog item={editing} onClose={() => setEditing(null)} />
     </Card>
   );
 }

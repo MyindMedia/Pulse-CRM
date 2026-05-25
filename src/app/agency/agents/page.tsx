@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/ui/feedback";
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from "@/components/ui/select";
+import { ApprovalEditDialog, type ApprovalItem } from "@/components/agent/approval-edit-dialog";
 import { relativeTime } from "@/lib/format";
 
 const RISK_TONE = { low: "neutral", medium: "caution", high: "critical", critical: "critical" } as const;
@@ -26,9 +27,8 @@ export default function AgencyAgentsPage() {
   const setEnabled = useMutation(api.agentFleet.setEnabled);
   const setAutonomy = useMutation(api.agentFleet.setAutonomy);
   const runNow = useMutation(api.agentFleet.runNow);
-  const approve = useMutation(api.agent.approveRequest);
-  const reject = useMutation(api.agent.rejectRequest);
   const [running, setRunning] = React.useState<string | null>(null);
+  const [editing, setEditing] = React.useState<ApprovalItem | null>(null);
 
   async function run(orgId: string, name: string) {
     setRunning(orgId);
@@ -109,25 +109,25 @@ export default function AgencyAgentsPage() {
           <div className="space-y-2">
             {approvals.map((a) => (
               <Card key={a._id as string}>
-                <CardContent className="flex flex-wrap items-center gap-3 p-4">
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2">
-                      <Badge tone="neutral">{a.studioName as string}</Badge>
-                      <p className="truncate font-display text-sm font-semibold text-bone">{a.title as string}</p>
-                      <Badge tone={RISK_TONE[a.riskLevel as keyof typeof RISK_TONE]}>{a.riskLevel as string}</Badge>
-                    </div>
-                    <p className="mt-1 text-xs text-ash">{a.explanation as string}</p>
+                <button
+                  onClick={() => setEditing(a as unknown as ApprovalItem)}
+                  className="block w-full p-4 text-left outline-none transition-colors hover:bg-coal/40 focus-visible:ring-2 focus-visible:ring-gold/30"
+                >
+                  <div className="flex items-center gap-2">
+                    <Badge tone="neutral">{a.studioName as string}</Badge>
+                    <p className="truncate font-display text-sm font-semibold text-bone">{a.title as string}</p>
+                    <Badge tone={RISK_TONE[a.riskLevel as keyof typeof RISK_TONE]}>{a.riskLevel as string}</Badge>
                   </div>
-                  <div className="flex gap-2">
-                    <Button size="sm" onClick={() => approve({ id: a._id as never }).then(() => toast.success("Approved.")).catch(() => toast.error("Failed"))}>Approve</Button>
-                    <Button size="sm" variant="ghost" onClick={() => reject({ id: a._id as never }).catch(() => toast.error("Failed"))}>Reject</Button>
-                  </div>
-                </CardContent>
+                  <p className="mt-1 text-xs text-ash">{a.explanation as string}</p>
+                  <p className="mt-1.5 font-mono text-[0.625rem] uppercase tracking-wide text-gold">Tap to review &amp; edit</p>
+                </button>
               </Card>
             ))}
           </div>
         )}
       </Section>
+
+      <ApprovalEditDialog item={editing} onClose={() => setEditing(null)} />
     </div>
   );
 }
