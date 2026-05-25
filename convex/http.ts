@@ -58,23 +58,45 @@ http.route({
   }),
 });
 
-/* Inbound SMS receiver - handles client replies + STOP/START opt-outs. Accepts
-   Twilio's form-encoded payload (From/Body) or Telnyx's JSON. Returns empty
-   TwiML so Twilio doesn't auto-reply. */
+/* Inbound SMS/iMessage receiver - client replies + STOP/START opt-outs.
+   Accepts Twilio (form From/Body), Telnyx (JSON data.payload), and LoopMessage
+   (JSON {event, contact, text}). LoopMessage also posts outbound status events
+   (message_sent/failed/...) here — we ack those without processing. Returns 200
+   (empty TwiML) so providers don't auto-retry or auto-reply. */
 http.route({
   path: "/sms/inbound",
   method: "POST",
   handler: httpAction(async (ctx, req) => {
+    // LoopMessage: verify the configurable webhook authorization header.
+    const loopSecret = process.env.LOOPMESSAGE_WEBHOOK_SECRET;
+    if (loopSecret && (req.headers.get("authorization") ?? "") !== loopSecret) {
+      // Only reject when the request actually looks like LoopMessage (carries an
+      // auth header attempt); Twilio/Telnyx have their own paths and no header.
+      const auth = req.headers.get("authorization");
+      if (auth !== null) return new Response("unauthorized", { status: 401 });
+    }
+
     let from = "";
     let body = "";
     const contentType = req.headers.get("content-type") ?? "";
     try {
       if (contentType.includes("application/json")) {
         const json = (await req.json()) as {
+          event?: string;
+          contact?: string;
+          text?: string;
           data?: { payload?: { from?: { phone_number?: string }; text?: string } };
         };
-        from = json.data?.payload?.from?.phone_number ?? "";
-        body = json.data?.payload?.text ?? "";
+        if (json.event !== undefined) {
+          // LoopMessage: only inbound messages are replies; ack everything else.
+          if (json.event !== "message_inbound") return new Response("ok", { status: 200 });
+          from = json.contact ?? "";
+          body = json.text ?? "";
+        } else {
+          // Telnyx
+          from = json.data?.payload?.from?.phone_number ?? "";
+          body = json.data?.payload?.text ?? "";
+        }
       } else {
         const form = new URLSearchParams(await req.text());
         from = form.get("From") ?? "";

@@ -7,7 +7,37 @@ export type SmsStatus = "sent" | "failed" | "simulated";
 
 export async function sendSms(args: { to: string; body: string }): Promise<SmsStatus> {
   const provider = (process.env.SMS_PROVIDER ?? "twilio").toLowerCase();
-  return provider === "telnyx" ? sendTelnyx(args) : sendTwilio(args);
+  if (provider === "loopmessage") return sendLoopMessage(args);
+  if (provider === "telnyx") return sendTelnyx(args);
+  return sendTwilio(args);
+}
+
+/** LoopMessage: blue-bubble iMessage with automatic SMS fallback (no A2P 10DLC
+ *  for the iMessage path). We omit `channel` so Loop picks iMessage when the
+ *  contact supports it and falls back to SMS otherwise. Set LOOPMESSAGE_SANDBOX
+ *  to send test messages (simulated webhooks, no charge). */
+async function sendLoopMessage({ to, body }: { to: string; body: string }): Promise<SmsStatus> {
+  const key = process.env.LOOPMESSAGE_API_KEY;
+  const sender = process.env.LOOPMESSAGE_SENDER; // your sender-name id (e.g. xxx.imsg.co)
+  if (!key) return "simulated";
+  const sandbox = ["1", "true", "yes"].includes((process.env.LOOPMESSAGE_SANDBOX ?? "").toLowerCase());
+  try {
+    const res = await fetch("https://a.loopmessage.com/api/v1/message/send/", {
+      method: "POST",
+      headers: { Authorization: key, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        contact: to,
+        text: body,
+        ...(sender ? { sender } : {}),
+        ...(sandbox ? { test: true } : {}),
+      }),
+    });
+    if (!res.ok) return "failed";
+    const json = (await res.json().catch(() => ({}))) as { success?: boolean };
+    return json.success === false ? "failed" : "sent";
+  } catch {
+    return "failed";
+  }
 }
 
 async function sendTwilio({ to, body }: { to: string; body: string }): Promise<SmsStatus> {

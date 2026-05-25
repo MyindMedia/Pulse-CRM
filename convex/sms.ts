@@ -114,7 +114,9 @@ export const remindersStatus = query({
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     return {
       enabled: org?.smsRemindersEnabled !== false, // default on when unset
-      providerConfigured: Boolean(process.env.TWILIO_ACCOUNT_SID || process.env.TELNYX_API_KEY),
+      providerConfigured: Boolean(
+        process.env.TWILIO_ACCOUNT_SID || process.env.TELNYX_API_KEY || process.env.LOOPMESSAGE_API_KEY,
+      ),
     };
   },
 });
