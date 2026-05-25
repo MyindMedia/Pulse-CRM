@@ -605,6 +605,38 @@ export const _slugTaken = internalQuery({
 /** The agencyId if exactly one agency exists, else null. Used as a safe
  *  single-tenant fallback so a sub-account created outside a fully-resolved
  *  agency session still gets linked to the (only) agency rather than orphaned. */
+/**
+ * Hard-delete a sub-account and its seeded child data. Internal + destructive —
+ * used to purge test studios. Deletes the org row + rows in the per-org tables.
+ *   npx convex run agency:_deleteSubaccount '{"orgId":"org_..."}'
+ */
+export const _deleteSubaccount = internalMutation({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const childTables = [
+      "rooms", "sessions", "members", "artists", "songs", "invites", "shifts",
+      "availability", "timeOff", "equipment", "activity",
+    ] as const;
+    let deleted = 0;
+    for (const table of childTables) {
+      const rows = await ctx.db
+        .query(table)
+        .withIndex("by_org", (q) => q.eq("orgId", orgId))
+        .collect();
+      for (const r of rows) {
+        await ctx.db.delete(r._id);
+        deleted++;
+      }
+    }
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+    if (org) {
+      await ctx.db.delete(org._id);
+      deleted++;
+    }
+    return { orgId, deleted };
+  },
+});
+
 export const _soleAgencyId = internalQuery({
   args: {},
   handler: async (ctx) => {
