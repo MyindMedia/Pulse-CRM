@@ -65,5 +65,16 @@ Distinct from the studio-OWNER invite. A studio owner (or agency owner in view-a
 
 Decision: collect a **cell phone** in the invite flow. Two wins — (1) it satisfies Clerk's "phone number Required" instance setting that was breaking account creation ("missing data" / `form_data_missing`), so we send `phone_number` to Clerk and leave phone ENABLED there (do NOT disable it); (2) gives the studio a contact record for **SMS later**. Phone stored on the `members` row (our record, for future SMS) AND on the Clerk user (auto-verified). Owner can pre-fill the phone when adding a teammate (optional in the dialog); the invitee enters/confirms it at the portal (required there, normalized to E.164). Carried invite→accept via the `invites.phone` field.
 
+## Epic: Pulse Agent (dedicated AI ops manager per sub-account + agency control plane) (grilled 2026-05-25)
+
+Source spec: `SaaS Build Pack/Pulse Agent Convex Technical Specification.md` (5-phase, approval-first, tool-calling, tenant-isolated AI ops layer). Decisions (grilled):
+- **Build all 3 surfaces:** (1) agency control plane to automate sub-accounts + per-sub agent policy, (2) conversational Agent per sub, (3) per-sub Daily Brief + Studio Health.
+- **New parallel agent tables per the spec** (agentPolicies/agentRuns/agentMessages/agentApprovals/agentInsights/agentUsage/agentAuditLogs) — NOT folded into the existing opsActions.
+- **Key adaptation:** spec `workspace`/`workspaceId` maps to Pulse's existing **`org`/`orgId: v.string()`** (the entire app + access engine is orgId-scoped; a separate `workspaces` table would fork the tenant model). New agent tables are orgId-scoped and gated by the existing `resolveViewer`/`requireCapability` access engine.
+- **LLM:** reuse `convex/lib/openai.ts` `complete()` (gpt-5-mini, already carries the no-em-dash rule + output sanitizer). Approval-first: client-facing/financial/file/automation actions create `agentApprovals`; execution reuses existing send paths (clientEmail/sms). Audit + usage metering from day one.
+- Existing `opsBrain`/`opsActions`/`agents/generators`/`agencyOps` stay as the deterministic automation layer; the Agent is the reasoning/chat/insight layer on top.
+
+Build order this epic: schema → policy + runtime (createRun→runAgentLLM→finalize, audit, usage) → approvals (approve/reject/execute) → daily brief (scheduled, policy-gated) → agency fleet (list subs + toggle/autonomy/run-now + cross-sub approvals) → UI (studio `/agent` page + agency Agents surface).
+
 ## Standing context / prior fix
 - **Crash fixed (2026-05-23):** `/agency/[orgId]` showed "page couldn't load" because `invites.list` threw `AccessError` (a plain `Error` → redacted by Convex) with no `error.tsx` boundary. Fixes: `invites.list` degrades to `[]` on access denial; `AccessError extends ConvexError`; `/agency/error.tsx` boundary; `createSubaccount` + `adoptOrphanSubaccounts` stamp/repair `agencyId` so the owner isn't scope-denied. 128 vitest green.

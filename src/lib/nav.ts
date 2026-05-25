@@ -1,5 +1,6 @@
 import {
   LayoutDashboard,
+  Sparkles,
   Music2,
   Users,
   KanbanSquare,
@@ -29,6 +30,7 @@ export type NavItem = {
    song record is the spine of Pulse - everything else hangs off it. */
 export const NAV: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, blurb: "Studio at a glance" },
+  { label: "Agent", href: "/agent", icon: Sparkles, blurb: "Your AI studio operations manager" },
   { label: "Songs", href: "/songs", icon: Music2, blurb: "The catalog - every record in flight" },
   { label: "Roster", href: "/roster", icon: Users, blurb: "Artists, producers and labels" },
   { label: "Pipeline", href: "/pipeline", icon: KanbanSquare, blurb: "Inquiries to booked work" },

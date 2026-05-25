@@ -311,6 +311,115 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_phone", ["phone"]),
 
+  // ── Pulse Agent — tenant-isolated AI ops layer. Spec "workspace" == orgId.
+  //    New tables per the Agent spec; gated by the access engine; the model
+  //    reasons/drafts while Convex authorizes, executes, meters, and audits. ──
+  agentPolicies: defineTable({
+    orgId: v.string(),
+    enabled: v.boolean(),
+    defaultTone: v.union(
+      v.literal("professional"), v.literal("friendly"), v.literal("luxury"),
+      v.literal("direct"), v.literal("custom"),
+    ),
+    customToneInstructions: v.optional(v.string()),
+    // Autonomy: approval-first by default. "suggest" = drafts/approvals only;
+    // "auto_low" = low-risk internal actions auto; "auto_trusted" = trusted sends auto.
+    autonomy: v.union(v.literal("suggest"), v.literal("auto_low"), v.literal("auto_trusted")),
+    digestEnabled: v.boolean(),
+    digestHourLocal: v.optional(v.number()), // 0-23, studio-local morning brief
+    lastDigestAt: v.optional(v.number()),
+    updatedAt: v.number(),
+  }).index("by_org", ["orgId"]),
+
+  agentRuns: defineTable({
+    orgId: v.string(),
+    clerkUserId: v.optional(v.string()),
+    initiatedBy: v.union(v.literal("user"), v.literal("system"), v.literal("automation")),
+    runType: v.union(
+      v.literal("chat"), v.literal("daily_digest"), v.literal("analytics_review"),
+      v.literal("automation_recommendation"), v.literal("client_outreach_draft"),
+      v.literal("session_prep"),
+    ),
+    status: v.union(
+      v.literal("queued"), v.literal("running"), v.literal("needs_approval"),
+      v.literal("completed"), v.literal("failed"), v.literal("cancelled"),
+    ),
+    prompt: v.optional(v.string()),
+    summary: v.optional(v.string()),
+    modelName: v.optional(v.string()),
+    source: v.optional(v.string()),       // "openai" | "fallback"
+    inputTokens: v.optional(v.number()),
+    outputTokens: v.optional(v.number()),
+    error: v.optional(v.string()),
+    completedAt: v.optional(v.number()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_status", ["orgId", "status"]),
+
+  agentMessages: defineTable({
+    orgId: v.string(),
+    runId: v.id("agentRuns"),
+    role: v.union(v.literal("user"), v.literal("assistant")),
+    body: v.string(),
+  }).index("by_run", ["runId"]),
+
+  agentInsights: defineTable({
+    orgId: v.string(),
+    runId: v.optional(v.id("agentRuns")),
+    title: v.string(),
+    severity: v.union(v.literal("info"), v.literal("opportunity"), v.literal("warning"), v.literal("critical")),
+    explanation: v.string(),
+    status: v.union(v.literal("active"), v.literal("dismissed")),
+    createdAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_status", ["orgId", "status"]),
+
+  agentApprovals: defineTable({
+    orgId: v.string(),
+    runId: v.optional(v.id("agentRuns")),
+    actionType: v.union(
+      v.literal("send_email"), v.literal("send_sms"), v.literal("create_invoice"),
+      v.literal("update_invoice"), v.literal("schedule_session"), v.literal("enable_automation"),
+      v.literal("deliver_files"), v.literal("update_client_record"),
+    ),
+    title: v.string(),
+    explanation: v.string(),
+    proposedPayload: v.any(),
+    riskLevel: v.union(v.literal("low"), v.literal("medium"), v.literal("high"), v.literal("critical")),
+    status: v.union(
+      v.literal("pending"), v.literal("approved"), v.literal("rejected"),
+      v.literal("executed"), v.literal("failed"), v.literal("expired"),
+    ),
+    decidedBy: v.optional(v.string()),
+    decidedAt: v.optional(v.number()),
+    executedAt: v.optional(v.number()),
+    result: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_status", ["orgId", "status"]),
+
+  agentUsage: defineTable({
+    orgId: v.string(),
+    period: v.string(),        // YYYY-MM
+    runs: v.number(),
+    drafts: v.number(),
+    sends: v.number(),
+    inputTokens: v.number(),
+    outputTokens: v.number(),
+    updatedAt: v.number(),
+  }).index("by_org_period", ["orgId", "period"]),
+
+  agentAuditLogs: defineTable({
+    orgId: v.string(),
+    runId: v.optional(v.id("agentRuns")),
+    event: v.string(),         // run.created, llm.called, insight.created, approval.created/decided/executed, ...
+    detail: v.optional(v.string()),
+    actor: v.optional(v.string()),
+    at: v.number(),
+  }).index("by_org", ["orgId"]),
+
   // ── Audit log - every Access Engine deny/grant for sensitive actions ──
   auditEvents: defineTable({
     agencyId: v.optional(v.string()),

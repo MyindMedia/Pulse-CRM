@@ -12,6 +12,8 @@ import type * as activity from "../activity.js";
 import type * as agency from "../agency.js";
 import type * as agencyOps from "../agencyOps.js";
 import type * as agencyStaff from "../agencyStaff.js";
+import type * as agent from "../agent.js";
+import type * as agentFleet from "../agentFleet.js";
 import type * as agents_generators from "../agents/generators.js";
 import type * as aiActions from "../aiActions.js";
 import type * as aiArtifacts from "../aiArtifacts.js";
@@ -95,6 +97,8 @@ declare const fullApi: ApiFromModules<{
   agency: typeof agency;
   agencyOps: typeof agencyOps;
   agencyStaff: typeof agencyStaff;
+  agent: typeof agent;
+  agentFleet: typeof agentFleet;
   "agents/generators": typeof agents_generators;
   aiActions: typeof aiActions;
   aiArtifacts: typeof aiArtifacts;

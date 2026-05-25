@@ -1,0 +1,71 @@
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
+import { convexTest } from "convex-test";
+import schema from "./schema";
+import { api, internal } from "./_generated/api";
+
+const ORG = "pulse-demo"; // demo viewer resolves to an owner on this org
+
+async function drain(t: ReturnType<typeof convexTest>) {
+  await t.finishAllScheduledFunctions(vi.runAllTimers);
+}
+
+describe("Pulse Agent", () => {
+  let t: ReturnType<typeof convexTest>;
+  beforeEach(async () => {
+    vi.useFakeTimers();
+    t = convexTest(schema);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: ORG, name: "Skyline", slug: "demo", plan: "studio", status: "active" });
+    });
+  });
+  afterEach(() => vi.useRealTimers());
+
+  it("policy: defaults, then upsert + read back", async () => {
+    const d = await t.query(api.agent.getPolicy, {});
+    expect(d.enabled).toBe(true);
+    expect(d.autonomy).toBe("suggest");
+    await t.mutation(api.agent.updatePolicy, { autonomy: "auto_low", defaultTone: "friendly", digestEnabled: false });
+    const p = await t.query(api.agent.getPolicy, {});
+    expect(p.autonomy).toBe("auto_low");
+    expect(p.defaultTone).toBe("friendly");
+    expect(p.digestEnabled).toBe(false);
+  });
+
+  it("_context summarizes only this org's data", async () => {
+    await t.run(async (ctx) => {
+      const artistId = await ctx.db.insert("artists", { orgId: ORG, name: "Nova", type: "artist", genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
+      await ctx.db.insert("sessions", { orgId: ORG, title: "Mix", artistId, serviceType: "mixing", startTime: Date.now() + 86400000, endTime: Date.now() + 90000000, status: "confirmed", rateCents: 20000, depositCents: 0, depositPaid: true, intakeCompleted: true });
+      await ctx.db.insert("invoices", { orgId: ORG, artistId, number: "PLS-1", status: "sent", amountCents: 50000, dueDate: Date.now() - 86400000, lineItems: [] });
+    });
+    const cx = await t.query(internal.agent._context, { orgId: ORG });
+    expect(cx.summary.upcomingSessions).toBe(1);
+    expect(cx.summary.unpaidInvoices).toBe(1);
+    expect(cx.summary.overdueInvoices).toBe(1);
+  });
+
+  it("createRun completes via deterministic fallback (no LLM key) + stores an assistant message", async () => {
+    const runId = await t.mutation(api.agent.createRun, { prompt: "How is my studio doing?" });
+    await drain(t);
+    const got = await t.query(api.agent.getRun, { id: runId });
+    expect(got?.run.status).toBe("completed");
+    expect(got?.run.source).toBe("fallback");
+    expect(got?.messages.some((m) => m.role === "assistant")).toBe(true);
+  });
+
+  it("approval: approve schedules execution; reject closes it", async () => {
+    const { approveId, rejectId } = await t.run(async (ctx) => {
+      const approveId = await ctx.db.insert("agentApprovals", { orgId: ORG, actionType: "send_email", title: "Follow up", explanation: "x", proposedPayload: { to: "x@y.com", subject: "Hi", body: "Hello" }, riskLevel: "low", status: "pending", createdAt: Date.now() });
+      const rejectId = await ctx.db.insert("agentApprovals", { orgId: ORG, actionType: "send_sms", title: "Nudge", explanation: "x", proposedPayload: { to: "+14045550000", body: "yo" }, riskLevel: "low", status: "pending", createdAt: Date.now() });
+      return { approveId, rejectId };
+    });
+    await t.mutation(api.agent.approveRequest, { id: approveId });
+    await t.mutation(api.agent.rejectRequest, { id: rejectId });
+    await drain(t);
+    const list = await t.query(api.agent.listApprovals, {});
+    const approved = list.find((a) => a._id === approveId);
+    const rejected = list.find((a) => a._id === rejectId);
+    // send_email with no Resend key simulates -> executed; reject -> rejected.
+    expect(["executed", "approved"]).toContain(approved?.status);
+    expect(rejected?.status).toBe("rejected");
+  });
+});
