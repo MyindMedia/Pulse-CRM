@@ -56,7 +56,7 @@ export function DetailActions({
     <div className="flex flex-wrap items-center gap-2">
       <Button onClick={() => void enter()} disabled={entering}>
         {entering ? <Spinner className="text-gold-ink" /> : <LogIn />}
-        Enter studio
+        View as client
       </Button>
       <Button variant="secondary" onClick={() => void toggleStatus()} disabled={toggling}>
         {toggling ? (

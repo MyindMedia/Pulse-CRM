@@ -3,13 +3,14 @@
 import * as React from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Building2, CreditCard, Database, Palette, Receipt, Users } from "lucide-react";
+import { Building2, CreditCard, Database, Palette, Receipt, Users, Plug } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WorkspacePanel } from "@/components/settings/workspace-panel";
 import { TeamPanel } from "@/components/settings/team-panel";
 import { BillingPanel } from "@/components/settings/billing-panel";
+import { IntegrationsPanel } from "@/components/settings/integrations-panel";
 import { BrandingPanel } from "@/components/settings/branding-panel";
 import { PricingPanel } from "@/components/settings/pricing-panel";
 import { DataPanel } from "@/components/settings/data-panel";
@@ -59,6 +60,10 @@ export default function SettingsPage() {
               <Users className="size-4" />
               Team
             </TabsTrigger>
+            <TabsTrigger value="integrations">
+              <Plug className="size-4" />
+              Integrations
+            </TabsTrigger>
             <TabsTrigger value="billing">
               <CreditCard className="size-4" />
               Billing
@@ -80,6 +85,9 @@ export default function SettingsPage() {
           </TabsContent>
           <TabsContent value="team">
             <TeamPanel />
+          </TabsContent>
+          <TabsContent value="integrations">
+            <IntegrationsPanel />
           </TabsContent>
           <TabsContent value="billing">
             <BillingPanel org={org} />

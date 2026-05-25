@@ -71,3 +71,20 @@ describe("agency - plan-cap enforcement", () => {
     ).rejects.toThrow();
   });
 });
+
+describe("agency - enterAs (view as client) ownership guard", () => {
+  it("an agency owner can enter their own studio but not a foreign one", async () => {
+    const t = convexTest(schema);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencyMembers", {
+        agencyId: "org_mine", clerkUserId: "user_ag", email: "a@x.com",
+        name: "Owner", role: "owner", status: "active", invitedAt: 0,
+      });
+      await ctx.db.insert("orgs", { orgId: "sub_mine", name: "Mine", slug: "mine", plan: "studio", status: "active", agencyId: "org_mine" });
+      await ctx.db.insert("orgs", { orgId: "sub_other", name: "Other", slug: "other", plan: "studio", status: "active", agencyId: "org_other" });
+    });
+    const asOwner = t.withIdentity({ subject: "user_ag", name: "Owner" });
+    await asOwner.mutation(api.agency.enterAs, { orgId: "sub_mine" }); // ok
+    await expect(asOwner.mutation(api.agency.enterAs, { orgId: "sub_other" })).rejects.toThrow(/your agency/i);
+  });
+});

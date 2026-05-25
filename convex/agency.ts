@@ -675,6 +675,20 @@ export const adoptOrphanSubaccounts = internalMutation({
 export const enterAs = mutation({
   args: { orgId: v.optional(v.string()) },
   handler: async (ctx, { orgId }) => {
+    // "View as client" — an agency member may only step into a sub-account that
+    // belongs to their own agency. (orgId omitted = exit back to the console.)
+    if (orgId) {
+      const viewer = await resolveViewer(ctx).catch(() => null);
+      if (viewer?.kind === "agency_member") {
+        const target = await ctx.db
+          .query("orgs")
+          .withIndex("by_org", (q) => q.eq("orgId", orgId))
+          .first();
+        if (!target || target.agencyId !== viewer.agencyId) {
+          throw new Error("That studio isn't under your agency.");
+        }
+      }
+    }
     const state = await ctx.db
       .query("appState")
       .withIndex("by_key", (q) => q.eq("key", "demo"))
