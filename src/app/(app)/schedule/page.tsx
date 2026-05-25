@@ -62,6 +62,18 @@ export default function SchedulePage() {
     return m;
   }, [shifts, weekStart]);
 
+  // Mobile shows one day at a time. Default to today's weekday.
+  const [selectedDay, setSelectedDay] = React.useState(() =>
+    Math.min(6, Math.max(0, Math.floor((Date.now() - startOfWeek(Date.now())) / DAY))),
+  );
+  const dayShifts = React.useMemo(
+    () =>
+      (shifts ?? [])
+        .filter((s) => Math.floor((s.startTime - weekStart) / DAY) === selectedDay)
+        .sort((a, b) => a.startTime - b.startTime),
+    [shifts, weekStart, selectedDay],
+  );
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -110,7 +122,62 @@ export default function SchedulePage() {
           Add team members in Settings → Team to start scheduling.
         </p>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-hairline">
+        <>
+        {/* Mobile: one-day view with a day picker */}
+        <div className="space-y-3 md:hidden">
+          <div className="flex gap-1.5 overflow-x-auto pb-1">
+            {DAY_LABELS.map((d, i) => {
+              const active = i === selectedDay;
+              return (
+                <button
+                  key={d}
+                  onClick={() => setSelectedDay(i)}
+                  className={cn(
+                    "flex shrink-0 flex-col items-center rounded-lg border px-3 py-1.5 text-xs",
+                    active ? "border-gold-dim bg-gold/10 text-gold" : "border-hairline-2 bg-coal/40 text-ash",
+                  )}
+                >
+                  <span>{d}</span>
+                  <span className={cn("font-mono text-sm", active ? "text-gold" : "text-bone")}>
+                    {new Date(weekStart + i * DAY).getDate()}
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+          {dayShifts.length === 0 ? (
+            <p className="rounded-lg border border-hairline bg-coal/40 px-4 py-6 text-center text-sm text-ash-dim">
+              No shifts scheduled this day.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {dayShifts.map((s) => (
+                <div key={s._id} className="flex items-center gap-3 rounded-lg border border-hairline bg-coal/40 px-3 py-2.5">
+                  <span className="font-mono text-xs text-ash-dim">{fmtTime(s.startTime)}–{fmtTime(s.endTime)}</span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-bone">{s.memberName}</p>
+                    {s.roomName && <p className="flex items-center gap-1 text-xs text-ash-dim"><DoorOpen className="size-3" />{s.roomName}</p>}
+                  </div>
+                  {s.kind === "session" && <span className="rounded bg-gold/10 px-1.5 py-0.5 text-[0.625rem] text-gold">session</span>}
+                  <button
+                    aria-label="Cancel shift"
+                    onClick={() => cancelShift({ shiftId: s._id as Id<"shifts"> }).then(() => toast.success("Shift cancelled.")).catch(() => toast.error("Couldn't cancel."))}
+                    className="text-ash-dim hover:text-critical"
+                  >
+                    <X className="size-4" />
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          <Button variant="secondary" size="sm" className="w-full"
+            onClick={() => openAdd(weekStart + selectedDay * DAY + 10 * 3_600_000)}>
+            <Plus className="size-3.5" />Add shift this day
+          </Button>
+        </div>
+
+        {/* Desktop: week grid */}
+        <div className="hidden overflow-x-auto rounded-xl border border-hairline md:block">
           <table className="w-full min-w-[760px] border-collapse">
             <thead>
               <tr className="border-b border-hairline bg-coal/60">
@@ -169,6 +236,7 @@ export default function SchedulePage() {
             </tbody>
           </table>
         </div>
+        </>
       )}
 
       <p className="flex items-center gap-1.5 text-xs text-ash-dim">
