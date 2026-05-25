@@ -143,10 +143,20 @@ export default defineSchema({
     // Set once the owner finishes (or explicitly skips to the end of) the
     // branded onboarding wizard. Unset => the dashboard nudges them to finish.
     onboardingCompletedAt: v.optional(v.number()),
+    // ── Stripe Connect (P3) — studio collects deposits via its OWN account ──
+    stripeAccountId: v.optional(v.string()),        // acct_… (Express connected account)
+    stripeChargesEnabled: v.optional(v.boolean()),  // can accept charges
+    stripeDetailsSubmitted: v.optional(v.boolean()), // finished Stripe onboarding
+    // ── Email (P4) — per-account client-comms channel ──
+    emailProvider: v.optional(v.union(v.literal("google"), v.literal("internal"))),
+    googleEmail: v.optional(v.string()),            // connected Gmail address
+    googleConnectedAt: v.optional(v.number()),
+    googleRefreshToken: v.optional(v.string()),     // OAuth refresh token (server-only; never returned to client)
   })
     .index("by_org", ["orgId"])
     .index("by_slug", ["slug"])
-    .index("by_agency", ["agencyId"]),
+    .index("by_agency", ["agencyId"])
+    .index("by_stripe_account", ["stripeAccountId"]),
 
   users: defineTable({
     clerkUserId: v.string(),

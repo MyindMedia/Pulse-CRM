@@ -17,6 +17,8 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { cn } from "@/lib/utils";
 import { PLAN_TIERS, type Org, type OrgPlan } from "@/components/settings/types";
+import { StripeConnectCard } from "@/components/payments/stripe-connect-card";
+import { EmailConnectCard } from "@/components/email/email-connect-card";
 
 /** A single usage row with a progress bar. */
 function UsageRow({
@@ -71,6 +73,10 @@ export function BillingPanel({ org }: { org: Org }) {
 
   return (
     <div className="space-y-4">
+      {/* Connections — collect deposits (Stripe) + client email channel */}
+      <StripeConnectCard />
+      <EmailConnectCard />
+
       {/* Current plan */}
       <Card className="border-gold-dim/50 bg-gold/[0.04]">
         <CardContent className="flex flex-wrap items-center justify-between gap-4 p-5">

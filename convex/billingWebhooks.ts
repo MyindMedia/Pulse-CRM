@@ -82,6 +82,24 @@ export const handle = internalMutation({
       }
     }
 
+    // Stripe Connect: a studio's connected account changed (finished onboarding,
+    // charges enabled, etc.). Mirror the flags onto the owning org.
+    if (e.type === "account.updated") {
+      const acct = obj as { id?: string; charges_enabled?: boolean; details_submitted?: boolean };
+      if (acct.id) {
+        const org = await ctx.db
+          .query("orgs")
+          .withIndex("by_stripe_account", (q) => q.eq("stripeAccountId", acct.id!))
+          .first();
+        if (org) {
+          await ctx.db.patch(org._id, {
+            stripeChargesEnabled: Boolean(acct.charges_enabled),
+            stripeDetailsSubmitted: Boolean(acct.details_submitted),
+          });
+        }
+      }
+    }
+
     if (e.type === "customer.subscription.updated") {
       const stripeCustomerId = obj.customer as string;
       const items = (obj.items as { data?: Array<{ price?: { id?: string } }> } | undefined)?.data ?? [];

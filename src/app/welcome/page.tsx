@@ -14,13 +14,17 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/field";
 import { Progress } from "@/components/ui/progress";
 import { slugify } from "@/components/agency/meta";
+import { StripeConnectCard } from "@/components/payments/stripe-connect-card";
+import { EmailConnectCard } from "@/components/email/email-connect-card";
 
-type StepKey = "basics" | "logo" | "contact" | "branding" | "rooms";
+type StepKey = "basics" | "logo" | "contact" | "branding" | "payment" | "email" | "rooms";
 const STEPS: { key: StepKey; title: string; blurb: string }[] = [
   { key: "basics", title: "Studio basics", blurb: "Name your studio and its booking-page address." },
   { key: "logo", title: "Logo & color", blurb: "Upload your logo and pick an accent color." },
-  { key: "contact", title: "Company info", blurb: "Contact details for invoices and your booking page." },
+  { key: "contact", title: "Business info", blurb: "Company + contact details for invoices and your booking page." },
   { key: "branding", title: "Booking page", blurb: "The words clients see when they book you." },
+  { key: "payment", title: "Payments", blurb: "Connect Stripe so clients pay deposits straight to you." },
+  { key: "email", title: "Client email", blurb: "Choose how you send booking + client messages." },
   { key: "rooms", title: "First room", blurb: "Add a room so you can take bookings today." },
 ];
 
@@ -288,6 +292,25 @@ function Wizard({ initial }: { initial: Mine }) {
                     onChange={(e) => setDepositPolicyText(e.target.value)} />
                 </Field>
               </>
+            )}
+
+            {STEPS[step].key === "payment" && (
+              <div className="space-y-3">
+                <StripeConnectCard />
+                <p className="text-xs text-ash-dim">
+                  Optional now — you can connect Stripe later from Settings. Until then you can still
+                  take bookings and record payments manually.
+                </p>
+              </div>
+            )}
+
+            {STEPS[step].key === "email" && (
+              <div className="space-y-3">
+                <EmailConnectCard />
+                <p className="text-xs text-ash-dim">
+                  You can change this anytime in Settings.
+                </p>
+              </div>
             )}
 
             {STEPS[step].key === "rooms" && (

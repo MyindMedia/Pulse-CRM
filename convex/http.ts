@@ -2,8 +2,38 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { stripeClient } from "./lib/stripe";
+import { exchangeCode, emailFromIdToken } from "./lib/google";
 
 const http = httpRouter();
+
+/* Google OAuth callback — exchanges the code, stores the studio's refresh token
+   (state carries the orgId), then bounces back to the app settings. */
+http.route({
+  path: "/google/callback",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const url = new URL(req.url);
+    const code = url.searchParams.get("code");
+    const orgId = url.searchParams.get("state");
+    const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+    if (!code || !orgId) {
+      return Response.redirect(`${appUrl}/settings?google=error`, 302);
+    }
+    try {
+      const tokens = await exchangeCode(code);
+      if (tokens.refresh_token) {
+        await ctx.runMutation(internal.googleAuth._storeTokens, {
+          orgId,
+          refreshToken: tokens.refresh_token,
+          email: emailFromIdToken(tokens.id_token) ?? undefined,
+        });
+      }
+      return Response.redirect(`${appUrl}/settings?google=connected`, 302);
+    } catch {
+      return Response.redirect(`${appUrl}/settings?google=error`, 302);
+    }
+  }),
+});
 
 /* Stripe webhook receiver - verifies signature, dispatches to
    internal mutation, returns 200 on success. Idempotent inside. */
