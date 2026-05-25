@@ -270,6 +270,7 @@ export default defineSchema({
     clerkOrgId: v.optional(v.string()),      // real Clerk org id, used for the Clerk membership API call
     agencyId: v.optional(v.string()),        // denormalized for console/audit
     email: v.string(),                       // invited owner email (lowercased)
+    phone: v.optional(v.string()),           // optional pre-filled cell (E.164), carried invite→accept
     ownerName: v.string(),                   // shown on the screen + email
     studioName: v.string(),                  // shown on the screen + email
     role: v.union(                           // owner invite, or a staff role
@@ -330,6 +331,7 @@ export default defineSchema({
     orgId: v.string(),
     name: v.string(),
     email: v.optional(v.string()),
+    phone: v.optional(v.string()),         // E.164 cell — studio record + future SMS
     role: v.union(
       v.literal("owner"),
       v.literal("manager"),

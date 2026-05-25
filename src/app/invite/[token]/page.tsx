@@ -30,6 +30,12 @@ export default function InvitePage() {
   const [nameOverride, setNameOverride] = React.useState<string | null>(null);
   const name = nameOverride ?? suggestedName;
 
+  // Phone is seeded from any pre-filled invite value, then freely editable.
+  const suggestedPhone = invite?.state === "valid" ? (invite.phone ?? "") : "";
+  const [phoneOverride, setPhoneOverride] = React.useState<string | null>(null);
+  const phone = phoneOverride ?? suggestedPhone;
+  const phoneDigits = phone.replace(/\D/g, "").length;
+
   const [password, setPassword] = React.useState("");
   const [show, setShow] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -41,7 +47,7 @@ export default function InvitePage() {
     setErr("");
     setBusy(true);
     try {
-      const res = await accept({ token, name: name.trim(), password });
+      const res = await accept({ token, name: name.trim(), password, phone: phone.trim() });
       if (!res.ok) {
         const msg: Record<string, string> = {
           exists: "You already have a Pulse account. Please sign in.",
@@ -154,6 +160,21 @@ export default function InvitePage() {
               className="mb-3.5 w-full rounded-[10px] border border-hairline-2 bg-[#0a0a0d] px-3 py-3 text-sm text-bone outline-none focus:border-gold"
             />
 
+            <label htmlFor="invite-phone" className="mb-1.5 block text-xs font-semibold text-ash">Cell phone</label>
+            <input
+              id="invite-phone"
+              type="tel"
+              inputMode="tel"
+              autoComplete="tel"
+              value={phone}
+              onChange={(e) => setPhoneOverride(e.target.value)}
+              placeholder="(404) 555-0134"
+              className="mb-1 w-full rounded-[10px] border border-hairline-2 bg-[#0a0a0d] px-3 py-3 text-sm text-bone outline-none focus:border-gold"
+            />
+            <p className="mb-3.5 text-[11px] text-ash-dim">
+              Your studio keeps this on file for scheduling and text updates.
+            </p>
+
             <label htmlFor="invite-password" className="mb-1.5 block text-xs font-semibold text-ash">Password</label>
             <div className="mb-1 flex items-center rounded-[10px] border border-hairline-2 bg-[#0a0a0d] focus-within:border-gold">
               <input
@@ -183,7 +204,7 @@ export default function InvitePage() {
 
             <button
               type="submit"
-              disabled={busy || password.length < 8 || name.trim().length < 2}
+              disabled={busy || password.length < 8 || name.trim().length < 2 || phoneDigits < 10}
               className="mt-4 w-full rounded-[11px] bg-gold py-3.5 text-sm font-extrabold text-gold-ink disabled:opacity-50"
             >
               {busy ? "Creating account..." : "Create account & enter Pulse"}

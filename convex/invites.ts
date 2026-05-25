@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import { requireCapability, AccessError } from "./lib/access";
 import { sendEmail } from "./lib/email";
+import { normalizePhone } from "./lib/phone";
 import { inviteEmailHtml, inviteEmailSubject } from "./lib/emailTemplates/invite";
 import { PLAN_LIMITS } from "./lib/plans";
 import { periodFor, tierForPlan } from "./usage";
@@ -32,6 +33,7 @@ export const record = internalMutation({
     invitedBy: v.string(),
     emailStatus: v.union(v.literal("sent"), v.literal("failed"), v.literal("simulated")),
     ttlMs: v.optional(v.number()),
+    phone: v.optional(v.string()),
     role: v.optional(
       v.union(
         v.literal("owner"), v.literal("manager"), v.literal("engineer"),
@@ -80,6 +82,7 @@ export const record = internalMutation({
       clerkOrgId: args.clerkOrgId,
       agencyId: args.agencyId,
       email: args.email.toLowerCase(),
+      phone: args.phone ? (normalizePhone(args.phone) ?? undefined) : undefined,
       ownerName: args.ownerName,
       studioName: args.studioName,
       role: args.role ?? "owner",
@@ -126,6 +129,7 @@ export const lookupByToken = query({
     return {
       state: "valid" as const,
       email: inv.email,
+      phone: inv.phone,
       ownerName: inv.ownerName,
       studioName: inv.studioName,
       role: inv.role,
@@ -135,8 +139,8 @@ export const lookupByToken = query({
 
 /** Internal - attach the new Clerk user to the seeded owner member + flip status. */
 export const markAccepted = internalMutation({
-  args: { inviteId: v.id("invites"), clerkUserId: v.string() },
-  handler: async (ctx, { inviteId, clerkUserId }) => {
+  args: { inviteId: v.id("invites"), clerkUserId: v.string(), phone: v.optional(v.string()) },
+  handler: async (ctx, { inviteId, clerkUserId, phone }) => {
     const inv = await ctx.db.get(inviteId);
     if (!inv) throw new Error("invite not found");
     if (inv.status === "accepted") throw new Error("invite already accepted");
@@ -146,7 +150,12 @@ export const markAccepted = internalMutation({
       .withIndex("by_org", (q) => q.eq("orgId", inv.orgId))
       .filter((q) => q.eq(q.field("email"), inv.email))
       .first();
-    if (member) await ctx.db.patch(member._id, { clerkUserId });
+    if (member) {
+      await ctx.db.patch(member._id, {
+        clerkUserId,
+        ...(phone ? { phone } : {}),
+      });
+    }
 
     await ctx.db.patch(inviteId, { status: "accepted", acceptedAt: Date.now() });
   },
@@ -163,7 +172,7 @@ type AcceptResult =
     };
 
 export const accept = action({
-  args: { token: v.string(), name: v.string(), password: v.string() },
+  args: { token: v.string(), name: v.string(), password: v.string(), phone: v.optional(v.string()) },
   handler: async (ctx, args): Promise<AcceptResult> => {
     const inv = await ctx.runQuery(internal.invites._byToken, { token: args.token });
     if (!inv || inv.status === "revoked") return { ok: false as const, reason: "invalid" as const };
@@ -176,12 +185,19 @@ export const accept = action({
     const [firstName, ...rest] = args.name.trim().split(" ");
     const lastName = rest.join(" ");
 
-    // 1. Create the user (backend-created emails are verified - no code step).
+    // Phone: prefer what the invitee typed, fall back to any pre-filled value.
+    // Normalized to E.164 for Clerk + our SMS record.
+    const phone = normalizePhone(args.phone || inv.phone || "");
+
+    // 1. Create the user (backend-created emails/phones are verified - no code
+    //    step). phone_number is sent when present, which also satisfies a Clerk
+    //    instance that Requires a phone number.
     const userRes = await fetch("https://api.clerk.com/v1/users", {
       method: "POST",
       headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         email_address: [inv.email],
+        phone_number: phone ? [phone] : undefined,
         password: args.password,
         first_name: firstName || undefined,
         last_name: lastName || undefined,
@@ -219,8 +235,13 @@ export const accept = action({
       }).catch(() => undefined);
     }
 
-    // 3. Attach to the Convex member row + flip status.
-    await ctx.runMutation(internal.invites.markAccepted, { inviteId: inv._id, clerkUserId: user.id });
+    // 3. Attach to the Convex member row + flip status (storing the phone on
+    //    the member for the studio record + future SMS).
+    await ctx.runMutation(internal.invites.markAccepted, {
+      inviteId: inv._id,
+      clerkUserId: user.id,
+      phone: phone ?? undefined,
+    });
 
     return { ok: true as const, email: inv.email, role: inv.role };
   },

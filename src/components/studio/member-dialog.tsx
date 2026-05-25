@@ -32,6 +32,7 @@ export type EditableMember = {
   _id: Id<"members">;
   name: string;
   email?: string;
+  phone?: string;
   role: string;
   skills: string[];
   photoUrl?: string | null;
@@ -40,6 +41,7 @@ export type EditableMember = {
 type FormState = {
   name: string;
   email: string;
+  phone: string;
   role: MemberRole;
   skills: string[];
 };
@@ -47,6 +49,7 @@ type FormState = {
 const BLANK: FormState = {
   name: "",
   email: "",
+  phone: "",
   role: "engineer",
   skills: [],
 };
@@ -55,6 +58,7 @@ function toForm(member: EditableMember): FormState {
   return {
     name: member.name,
     email: member.email ?? "",
+    phone: member.phone ?? "",
     role: member.role as MemberRole,
     skills: member.skills ?? [],
   };
@@ -105,10 +109,12 @@ export function MemberDialog({
     }
     setSubmitting(true);
     try {
+      const phone = form.phone.trim() || undefined;
       if (isEdit && member) {
         await updateMember({
           id: member._id,
           name,
+          phone: form.phone.trim(),
           role: form.role,
           skills: form.skills,
         });
@@ -119,14 +125,14 @@ export function MemberDialog({
         if (email) {
           // Email present → create the member AND email them a branded invite
           // with their role, so they can claim an account and onboard.
-          const res = await inviteTeammate({ name, email, role: form.role, skills });
+          const res = await inviteTeammate({ name, email, phone, role: form.role, skills });
           toast.success(
             res.inviteSent
               ? `Invite sent to ${email}.`
               : `${name} added — invite email couldn't send, you can resend it.`,
           );
         } else {
-          await createMember({ name, role: form.role, skills });
+          await createMember({ name, phone, role: form.role, skills });
           toast.success(`${name} added to the team.`);
         }
       }
@@ -192,6 +198,21 @@ export function MemberDialog({
                   placeholder="name@studio.com"
                   autoComplete="off"
                   disabled={isEdit}
+                />
+              </Field>
+              <Field
+                label="Cell phone"
+                htmlFor="member-phone"
+                hint="On file for scheduling + SMS."
+              >
+                <Input
+                  id="member-phone"
+                  type="tel"
+                  inputMode="tel"
+                  value={form.phone}
+                  onChange={(e) => set("phone", e.target.value)}
+                  placeholder="(404) 555-0134"
+                  autoComplete="off"
                 />
               </Field>
               <Field label="Role" htmlFor="member-role">

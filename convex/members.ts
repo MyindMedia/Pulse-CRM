@@ -4,6 +4,7 @@ import { internal } from "./_generated/api";
 import { currentOrg, currentActor } from "./lib/tenant";
 import { requireCapability, resolveViewer } from "./lib/access";
 import { sendEmail } from "./lib/email";
+import { normalizePhone } from "./lib/phone";
 import {
   teammateEmailHtml,
   teammateEmailSubject,
@@ -27,6 +28,7 @@ type StaffRole =
 type InviteContext = {
   email: string;
   name: string;
+  phone?: string;
   role: StaffRole;
   orgId: string;
   clerkOrgId?: string;
@@ -46,6 +48,7 @@ async function sendTeammateInvite(ctx: ActionCtx, c: InviteContext): Promise<boo
       clerkOrgId: c.clerkOrgId,
       agencyId: c.agencyId,
       email: c.email,
+      phone: c.phone,
       ownerName: c.name,
       studioName: c.studioName,
       invitedBy: c.inviterName,
@@ -147,6 +150,7 @@ export const create = mutation({
   args: {
     name: v.string(),
     email: v.optional(v.string()),
+    phone: v.optional(v.string()),
     role: roleV,
     skills: v.optional(v.array(v.string())),
     capabilityOverrides: v.optional(v.array(v.string())),
@@ -158,6 +162,7 @@ export const create = mutation({
       orgId,
       name: args.name,
       email: args.email,
+      phone: args.phone ? (normalizePhone(args.phone) ?? undefined) : undefined,
       role: args.role,
       skills: args.skills ?? [],
       capabilityOverrides: args.capabilityOverrides,
@@ -169,11 +174,12 @@ export const update = mutation({
   args: {
     id: v.id("members"),
     name: v.optional(v.string()),
+    phone: v.optional(v.string()),
     role: v.optional(roleV),
     skills: v.optional(v.array(v.string())),
     capabilityOverrides: v.optional(v.array(v.string())),
   },
-  handler: async (ctx, { id, ...patch }) => {
+  handler: async (ctx, { id, phone, ...patch }) => {
     const viewer = await requireCapability(ctx, "members.invite");
     const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
     const member = await ctx.db.get(id);
@@ -181,7 +187,11 @@ export const update = mutation({
     if (member.role === "owner" && patch.role && patch.role !== "owner") {
       throw new Error("cannot demote owner");
     }
-    const clean = Object.fromEntries(Object.entries(patch).filter(([, val]) => val !== undefined));
+    const clean: Record<string, unknown> = Object.fromEntries(
+      Object.entries(patch).filter(([, val]) => val !== undefined),
+    );
+    // Empty string clears the phone; a value is normalized to E.164.
+    if (phone !== undefined) clean.phone = phone.trim() ? (normalizePhone(phone) ?? undefined) : undefined;
     await ctx.db.patch(id, clean);
   },
 });
@@ -204,7 +214,13 @@ export const remove = mutation({
  * enforce the `members.invite` capability and read the org/inviter.
  */
 export const _prepareTeammate = internalMutation({
-  args: { name: v.string(), email: v.string(), role: roleV, skills: v.optional(v.array(v.string())) },
+  args: {
+    name: v.string(),
+    email: v.string(),
+    phone: v.optional(v.string()),
+    role: roleV,
+    skills: v.optional(v.array(v.string())),
+  },
   handler: async (ctx, args) => {
     const viewer = await requireCapability(ctx, "members.invite");
     const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
@@ -214,6 +230,7 @@ export const _prepareTeammate = internalMutation({
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .first();
     const inviterName = await currentActor(ctx);
+    const phone = args.phone ? (normalizePhone(args.phone) ?? undefined) : undefined;
 
     // Reuse an existing un-claimed member with the same email (avoids dupes if
     // the inviter re-sends); otherwise create the row.
@@ -226,12 +243,18 @@ export const _prepareTeammate = internalMutation({
 
     let memberId = existing?._id;
     if (existing) {
-      await ctx.db.patch(existing._id, { name: args.name, role: args.role, skills: args.skills ?? existing.skills });
+      await ctx.db.patch(existing._id, {
+        name: args.name,
+        role: args.role,
+        skills: args.skills ?? existing.skills,
+        ...(phone ? { phone } : {}),
+      });
     } else {
       memberId = await ctx.db.insert("members", {
         orgId,
         name: args.name,
         email: args.email,
+        phone,
         role: args.role,
         skills: args.skills ?? [],
       });
@@ -244,6 +267,7 @@ export const _prepareTeammate = internalMutation({
       agencyId: org?.agencyId,
       studioName: org?.name ?? "the studio",
       inviterName,
+      phone,
     };
   },
 });
@@ -255,7 +279,13 @@ export const _prepareTeammate = internalMutation({
  * created regardless so they can be scheduled even if the send hiccups.
  */
 export const inviteTeammate = action({
-  args: { name: v.string(), email: v.string(), role: roleV, skills: v.optional(v.array(v.string())) },
+  args: {
+    name: v.string(),
+    email: v.string(),
+    phone: v.optional(v.string()),
+    role: roleV,
+    skills: v.optional(v.array(v.string())),
+  },
   handler: async (
     ctx,
     args,
@@ -269,6 +299,7 @@ export const inviteTeammate = action({
     const prep = await ctx.runMutation(internal.members._prepareTeammate, {
       name,
       email,
+      phone: args.phone,
       role: args.role,
       skills: args.skills,
     });
@@ -276,6 +307,7 @@ export const inviteTeammate = action({
     const inviteSent = await sendTeammateInvite(ctx, {
       email,
       name,
+      phone: prep.phone,
       role: args.role,
       orgId: prep.orgId,
       clerkOrgId: prep.clerkOrgId,
@@ -309,6 +341,7 @@ export const _inviteContextForMember = internalMutation({
     return {
       email: member.email.toLowerCase(),
       name: member.name,
+      phone: member.phone,
       role: member.role as StaffRole,
       orgId,
       clerkOrgId: org?.clerkOrgId,

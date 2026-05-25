@@ -37,6 +37,7 @@ export type TeamMember = {
   _id: Id<"members">;
   name: string;
   email?: string;
+  phone?: string;
   role: string;
   skills: string[];
   avatarColor?: string;
@@ -51,6 +52,7 @@ function toEditable(member: TeamMember): EditableMember {
     _id: member._id,
     name: member.name,
     email: member.email,
+    phone: member.phone,
     role: member.role,
     skills: member.skills ?? [],
     photoUrl: member.photoUrl,

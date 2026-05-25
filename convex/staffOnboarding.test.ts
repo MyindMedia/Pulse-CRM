@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
+import { normalizePhone } from "./lib/phone";
 
 /* Invited team-member (staff) onboarding: a teammate joins an EXISTING studio.
    The demo viewer (no Clerk identity) resolves to a studio owner on
@@ -102,6 +103,31 @@ describe("staff onboarding", () => {
     expect(byId(expiredId)?.inviteStatus).toBe("expired");
     expect(list.find((m) => m.name === "No Email")?.inviteStatus).toBe("none");
     expect(list.find((m) => m.name === "Joined")?.inviteStatus).toBe("active");
+  });
+
+  it("normalizePhone coerces common inputs to E.164 (and rejects junk)", () => {
+    expect(normalizePhone("(404) 555-0134")).toBe("+14045550134");
+    expect(normalizePhone("404.555.0134")).toBe("+14045550134");
+    expect(normalizePhone("14045550134")).toBe("+14045550134");
+    expect(normalizePhone("+44 20 7946 0958")).toBe("+442079460958");
+    expect(normalizePhone("123")).toBeNull();
+    expect(normalizePhone("")).toBeNull();
+  });
+
+  it("_prepareTeammate stores a normalized phone on the member + invite carries it", async () => {
+    const prep = await t.mutation(internal.members._prepareTeammate, {
+      name: "Jordan", email: "jordan@demo.com", phone: "(404) 555-0134", role: "engineer",
+    });
+    expect(prep.phone).toBe("+14045550134");
+    const list = await t.query(api.members.list, {});
+    expect(list.find((m) => m.email === "jordan@demo.com")?.phone).toBe("+14045550134");
+
+    const token = await t.mutation(internal.invites.record, {
+      orgId: "pulse-demo", email: "jordan@demo.com", phone: "404-555-0134", ownerName: "Jordan",
+      studioName: "Skyline Sound", invitedBy: "owner", emailStatus: "simulated", role: "engineer",
+    });
+    const inv = await t.query(api.invites.lookupByToken, { token });
+    if (inv.state === "valid") expect(inv.phone).toBe("+14045550134");
   });
 
   it("resendInvite records a fresh token; refuses members with no email or already joined", async () => {

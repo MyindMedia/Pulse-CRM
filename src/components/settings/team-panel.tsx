@@ -181,7 +181,14 @@ export function TeamPanel() {
                         </div>
                       </TD>
                       <TD className="text-ash">
-                        {member.email ?? (
+                        {member.email || member.phone ? (
+                          <div className="leading-tight">
+                            {member.email && <div>{member.email}</div>}
+                            {member.phone && (
+                              <div className="text-xs text-ash-dim">{member.phone}</div>
+                            )}
+                          </div>
+                        ) : (
                           <span className="text-ash-dim">-</span>
                         )}
                       </TD>
@@ -269,6 +276,7 @@ export function TeamPanel() {
             _id: editMember._id,
             name: editMember.name,
             email: editMember.email,
+            phone: editMember.phone,
             role: editMember.role,
             skills: editMember.skills ?? [],
             photoUrl: editMember.photoUrl,
