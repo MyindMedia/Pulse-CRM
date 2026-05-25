@@ -3,10 +3,11 @@
 import * as React from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Bot, Check, X, Clock, Mail, CalendarCheck, StickyNote, Zap } from "lucide-react";
+import { Bot, Check, X, Clock, Mail, CalendarCheck, StickyNote, Zap, ChevronRight } from "lucide-react";
 import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { OpsActionSheet } from "@/components/ai/ops-action-sheet";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 
 const PRIORITY_TONE: Record<string, string> = {
@@ -23,7 +24,7 @@ function PayloadIcon({ kind }: { kind: string }) {
   return <StickyNote className="size-3.5" />;
 }
 
-function ActionCard({ action }: { action: Doc<"opsActions"> }) {
+function ActionCard({ action, onOpen }: { action: Doc<"opsActions">; onOpen: (a: Doc<"opsActions">) => void }) {
   const approve = useMutation(api.opsActions.approve);
   const dismiss = useMutation(api.opsActions.dismiss);
   const snooze = useMutation(api.opsActions.snooze);
@@ -44,31 +45,44 @@ function ActionCard({ action }: { action: Doc<"opsActions"> }) {
   const p = action.payload;
   return (
     <div className="rounded-md border border-bone/10 bg-bone/[0.02] p-3.5">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <span className={`rounded-full border px-1.5 py-0.5 font-mono text-[0.5625rem] uppercase ${PRIORITY_TONE[action.priority]}`}>
-              {action.priority}
-            </span>
-            <p className="truncate font-display text-sm font-semibold text-bone">{action.title}</p>
-          </div>
-          <p className="mt-1 text-xs leading-relaxed text-ash">{action.rationale}</p>
-          {p.kind === "email" && (
-            <div className="mt-2 rounded border border-bone/10 bg-ink/40 p-2 text-xs text-ash-dim">
-              <span className="inline-flex items-center gap-1 font-mono text-[0.625rem] uppercase text-ash">
-                <PayloadIcon kind={p.kind} /> {p.to ?? "no recipient"}
+      <button
+        type="button"
+        onClick={() => onOpen(action)}
+        className="block w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-gold/30"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <span className={`rounded-full border px-1.5 py-0.5 font-mono text-[0.5625rem] uppercase ${PRIORITY_TONE[action.priority]}`}>
+                {action.priority}
               </span>
-              <p className="mt-1 font-medium text-bone">{p.subject}</p>
-              <p className="mt-0.5 line-clamp-2">{p.body}</p>
+              <p className="truncate font-display text-sm font-semibold text-bone">{action.title}</p>
             </div>
-          )}
-          {p.kind === "session_status" && (
-            <p className="mt-2 inline-flex items-center gap-1 font-mono text-[0.625rem] uppercase text-ash">
-              <PayloadIcon kind={p.kind} /> will set session → {p.newStatus}
-            </p>
-          )}
+            <p className="mt-1 text-xs leading-relaxed text-ash">{action.rationale}</p>
+            {p.kind === "email" && (
+              <div className="mt-2 rounded border border-bone/10 bg-ink/40 p-2 text-xs text-ash-dim">
+                <span className="inline-flex items-center gap-1 font-mono text-[0.625rem] uppercase text-ash">
+                  <PayloadIcon kind={p.kind} /> {p.to ?? "no recipient"}
+                </span>
+                <p className="mt-1 font-medium text-bone">{p.subject}</p>
+                <p className="mt-0.5 line-clamp-2">{p.body}</p>
+              </div>
+            )}
+            {p.kind === "session_status" && (
+              <p className="mt-2 inline-flex items-center gap-1 font-mono text-[0.625rem] uppercase text-ash">
+                <PayloadIcon kind={p.kind} /> will set session → {p.newStatus}
+              </p>
+            )}
+            {action.artifactId && (
+              <p className="mt-2 inline-flex items-center gap-1 font-mono text-[0.625rem] uppercase text-gold">
+                <StickyNote className="size-3" /> draft attached
+              </p>
+            )}
+          </div>
+          <ChevronRight className="mt-0.5 size-4 shrink-0 text-ash-dim" />
         </div>
-      </div>
+        <span className="mt-2 block font-mono text-[0.5625rem] uppercase tracking-wide text-gold">Tap to view &amp; edit</span>
+      </button>
       <div className="mt-3 flex items-center gap-2">
         <Button size="sm" disabled={pending} onClick={() => run(() => approve({ id: action._id }), "Approved + executed.")}>
           <Check className="size-3.5" /> Approve
@@ -90,6 +104,7 @@ export function OpsAutopilotPanel() {
   const counts = useQuery(api.opsActions.counts, {});
   const suggestions = useQuery(api.opsActions.suggestions, {});
   const setMode = useMutation(api.opsActions.setMode);
+  const [openAction, setOpenAction] = React.useState<Doc<"opsActions"> | null>(null);
 
   return (
     <Card>
@@ -147,11 +162,13 @@ export function OpsAutopilotPanel() {
         ) : (
           <div className="space-y-2">
             {queue.map((a: Doc<"opsActions">) => (
-              <ActionCard key={a._id as Id<"opsActions">} action={a} />
+              <ActionCard key={a._id as Id<"opsActions">} action={a} onOpen={setOpenAction} />
             ))}
           </div>
         )}
       </CardContent>
+
+      <OpsActionSheet action={openAction} onClose={() => setOpenAction(null)} />
     </Card>
   );
 }
