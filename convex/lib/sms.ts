@@ -18,18 +18,25 @@ export async function sendSms(args: { to: string; body: string }): Promise<SmsSt
  *  to send test messages (simulated webhooks, no charge). */
 async function sendLoopMessage({ to, body }: { to: string; body: string }): Promise<SmsStatus> {
   const key = process.env.LOOPMESSAGE_API_KEY;
-  const sender = process.env.LOOPMESSAGE_SENDER; // your sender-name id (e.g. xxx.imsg.co)
+  const secret = process.env.LOOPMESSAGE_SECRET_KEY; // some accounts require a 2nd key
+  const sender = process.env.LOOPMESSAGE_SENDER; // sender-name id, or the sandbox sender
   if (!key) return "simulated";
-  const sandbox = ["1", "true", "yes"].includes((process.env.LOOPMESSAGE_SANDBOX ?? "").toLowerCase());
+  // A sandbox-only account (no production sender ordered yet) routes through
+  // sandbox automatically — no flag needed. Endpoint override lets us point at
+  // a dedicated sandbox URL if the account requires one.
+  const endpoint = process.env.LOOPMESSAGE_ENDPOINT ?? "https://a.loopmessage.com/api/v1/message/send/";
   try {
-    const res = await fetch("https://a.loopmessage.com/api/v1/message/send/", {
+    const res = await fetch(endpoint, {
       method: "POST",
-      headers: { Authorization: key, "Content-Type": "application/json" },
+      headers: {
+        Authorization: key,
+        ...(secret ? { "Loop-Secret-Key": secret } : {}),
+        "Content-Type": "application/json",
+      },
       body: JSON.stringify({
         contact: to,
         text: body,
         ...(sender ? { sender } : {}),
-        ...(sandbox ? { test: true } : {}),
       }),
     });
     if (!res.ok) return "failed";

@@ -251,6 +251,17 @@ export const sendDueReminders = internalAction({
   },
 });
 
+/** Internal: fire a one-off SMS/iMessage for connectivity testing. Run via
+ *  `npx convex run sms:_testSend '{"to":"+1...","body":"..."}'`. Not exposed
+ *  to clients. Returns the provider status. */
+export const _testSend = internalAction({
+  args: { to: v.string(), body: v.string() },
+  handler: async (_ctx, { to, body }): Promise<{ status: SmsStatus }> => {
+    const status = await sendSms({ to, body });
+    return { status };
+  },
+});
+
 // ── Inbound (replies + STOP/START) ──────────────────────────────────────
 
 /** Handle an inbound SMS: honor STOP/START keywords, else log the reply to the
