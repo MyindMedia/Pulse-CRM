@@ -50,12 +50,12 @@ export const run = mutation({
       }
     }
 
-    // ── Shifts across the next 14 days: 2-3 crew per working day, rotating
-    //    rooms. Today + near future are "confirmed", further out "scheduled". ──
+    // ── Shifts across the next ~3 months: 2-3 crew per working day, rotating
+    //    rooms. The next week is "confirmed", further out "scheduled". ──
     const midnight = new Date(now); midnight.setHours(0, 0, 0, 0);
     const base = midnight.getTime();
     let shiftCount = 0;
-    for (let d = 0; d < 14; d++) {
+    for (let d = 0; d < 92; d++) {
       const dayStart = base + d * DAY;
       const weekday = new Date(dayStart).getDay();
       if (weekday === 0) continue; // closed Sundays
@@ -68,7 +68,7 @@ export const run = mutation({
         await ctx.db.insert("shifts", {
           orgId, memberId: m._id, startTime, endTime,
           roomId: room(d + k), kind: "scheduled",
-          status: d <= 3 ? "confirmed" : "scheduled",
+          status: d <= 7 ? "confirmed" : "scheduled",
           note: k === 0 ? "Front desk + tracking" : undefined,
         });
         shiftCount++;
