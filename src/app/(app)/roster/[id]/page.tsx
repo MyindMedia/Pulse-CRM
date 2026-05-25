@@ -42,6 +42,7 @@ import {
 } from "@/lib/labels";
 import { GenreChips } from "@/components/roster/genre-chips";
 import { ActivityTimeline } from "@/components/roster/activity-timeline";
+import { ClientMessages } from "@/components/roster/client-messages";
 import { NotesPanel } from "@/components/roster/notes-panel";
 import { EditArtistDialog, type EditableArtist } from "@/components/roster/edit-artist-dialog";
 import { artistTypeLabel } from "@/components/roster/constants";
@@ -239,6 +240,7 @@ export default function ArtistDetailPage() {
           <TabsTrigger value="songs">Songs ({data.songs.length})</TabsTrigger>
           <TabsTrigger value="sessions">Sessions ({data.sessions.length})</TabsTrigger>
           <TabsTrigger value="invoices">Invoices ({data.invoices.length})</TabsTrigger>
+          <TabsTrigger value="messages">Messages</TabsTrigger>
           <TabsTrigger value="notes">Notes</TabsTrigger>
         </TabsList>
 
@@ -249,6 +251,11 @@ export default function ArtistDetailPage() {
               <ActivityTimeline artistId={artistId} />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Messages */}
+        <TabsContent value="messages">
+          <ClientMessages artistId={artistId} />
         </TabsContent>
 
         {/* Songs */}

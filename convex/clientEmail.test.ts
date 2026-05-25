@@ -52,6 +52,20 @@ describe("client email + google connect", () => {
       .rejects.toThrow(/no email/i);
   });
 
+  it("sendToClient logs the message to the client's thread", async () => {
+    const artistId = await t.run(async (ctx) =>
+      ctx.db.insert("artists", {
+        orgId: "pulse-demo", name: "Nova", type: "artist", email: "nova@client.com",
+        genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
+      }));
+    await t.action(api.clientEmail.sendToClient, { artistId, subject: "Hi", body: "See you Friday." });
+    const thread = await t.query(api.clientEmail.thread, { artistId });
+    expect(thread.length).toBe(1);
+    expect(thread[0].subject).toBe("Hi");
+    expect(thread[0].channel).toBe("internal");
+    expect(thread[0].direction).toBe("out");
+  });
+
   it("google status is not-configured + authUrl throws without OAuth creds", async () => {
     const s = await t.query(api.googleAuth.status, {});
     expect(s).toMatchObject({ configured: false, connected: false });

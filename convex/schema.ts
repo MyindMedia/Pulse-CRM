@@ -1013,4 +1013,20 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_org_member", ["orgId", "memberId"])
     .index("by_org_status", ["orgId", "status"]),
+
+  // ── Client email log — outbound messages sent to a client (artist), so the
+  //    studio sees a per-client history. Channel = google (their Gmail) or
+  //    internal (Resend via Pulse). ──
+  clientMessages: defineTable({
+    orgId: v.string(),
+    artistId: v.id("artists"),
+    direction: v.union(v.literal("out")),
+    subject: v.string(),
+    body: v.string(),
+    channel: v.union(v.literal("google"), v.literal("internal")),
+    status: v.union(v.literal("sent"), v.literal("failed"), v.literal("simulated")),
+    sentBy: v.optional(v.string()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_artist", ["artistId"]),
 });

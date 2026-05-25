@@ -1,4 +1,4 @@
-import { action, query, mutation, internalQuery } from "./_generated/server";
+import { action, query, mutation, internalQuery, internalMutation } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { currentOrg } from "./lib/tenant";
@@ -75,23 +75,70 @@ export const sendToClient = action({
       .map((l) => l.trim())
       .join("<br/>")}</div>`;
 
+    let channel: "google" | "internal";
+    let status: "sent" | "failed" | "simulated";
     if (c.provider === "google" && c.googleRefreshToken && googleConfigured()) {
-      await gmailSend(c.googleRefreshToken, {
-        from: c.googleEmail ?? "me",
+      channel = "google";
+      try {
+        await gmailSend(c.googleRefreshToken, { from: c.googleEmail ?? "me", to: c.to, subject, html });
+        status = "sent";
+      } catch {
+        status = "failed";
+      }
+    } else {
+      channel = "internal";
+      status = await sendEmail({
         to: c.to,
         subject,
         html,
+        from: `${c.studioName} via Pulse <support@myindsound.com>`,
       });
-      return { ok: true, channel: "google" };
     }
 
-    const status = await sendEmail({
-      to: c.to,
-      subject,
-      html,
-      from: `${c.studioName} via Pulse <support@myindsound.com>`,
+    const identity = await ctx.auth.getUserIdentity();
+    await ctx.runMutation(internal.clientEmail._logMessage, {
+      artistId, subject, body, channel, status, sentBy: identity?.subject,
     });
-    return { ok: status !== "failed", channel: "internal" };
+    return { ok: status !== "failed", channel };
+  },
+});
+
+/** Internal — persist a sent message to the per-client thread. */
+export const _logMessage = internalMutation({
+  args: {
+    artistId: v.id("artists"),
+    subject: v.string(),
+    body: v.string(),
+    channel: v.union(v.literal("google"), v.literal("internal")),
+    status: v.union(v.literal("sent"), v.literal("failed"), v.literal("simulated")),
+    sentBy: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const artist = await ctx.db.get(args.artistId);
+    if (!artist) return;
+    await ctx.db.insert("clientMessages", {
+      orgId: artist.orgId,
+      artistId: args.artistId,
+      direction: "out",
+      subject: args.subject,
+      body: args.body,
+      channel: args.channel,
+      status: args.status,
+      sentBy: args.sentBy,
+    });
+  },
+});
+
+/** Per-client message history (newest first). */
+export const thread = query({
+  args: { artistId: v.id("artists") },
+  handler: async (ctx, { artistId }) => {
+    const orgId = await currentOrg(ctx);
+    const artist = await ctx.db.get(artistId);
+    if (!artist || artist.orgId !== orgId) return [];
+    return (
+      await ctx.db.query("clientMessages").withIndex("by_artist", (q) => q.eq("artistId", artistId)).collect()
+    ).sort((a, b) => b._creationTime - a._creationTime);
   },
 });
 
