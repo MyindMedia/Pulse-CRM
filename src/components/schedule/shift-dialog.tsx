@@ -5,7 +5,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, Trash2 } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
   DialogBody, DialogFooter, DialogClose,
@@ -19,10 +19,24 @@ import { Spinner } from "@/components/ui/feedback";
 import { combineDateTime, toDateInputValue } from "@/components/calendar/constants";
 
 type Opt = { _id: string; name: string };
+export type EditableShift = {
+  _id: string;
+  memberId: string;
+  startTime: number;
+  endTime: number;
+  roomId?: string;
+  note?: string;
+  status: "scheduled" | "confirmed" | "cancelled";
+};
 
-/** Schedule a staff shift (manager). Optional studio/room assignment. */
+const hhmm = (ts: number) => {
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+};
+
+/** Schedule a new shift, or drill into an existing one to edit / cancel it. */
 export function ShiftDialog({
-  open, onOpenChange, members, rooms, defaultDate, defaultMemberId,
+  open, onOpenChange, members, rooms, defaultDate, defaultMemberId, shift,
 }: {
   open: boolean;
   onOpenChange: (o: boolean) => void;
@@ -30,29 +44,45 @@ export function ShiftDialog({
   rooms: Opt[];
   defaultDate?: number;
   defaultMemberId?: string;
+  shift?: EditableShift | null;
 }) {
   const create = useMutation(api.shifts.create);
-  const [memberId, setMemberId] = React.useState(defaultMemberId ?? "");
-  const [date, setDate] = React.useState(toDateInputValue(defaultDate ?? Date.now()));
+  const update = useMutation(api.shifts.update);
+  const cancelShift = useMutation(api.shifts.cancel);
+  const editing = !!shift;
+
+  const [memberId, setMemberId] = React.useState("");
+  const [date, setDate] = React.useState(() => toDateInputValue(Date.now()));
   const [start, setStart] = React.useState("10:00");
   const [end, setEnd] = React.useState("18:00");
   const [roomId, setRoomId] = React.useState("");
   const [note, setNote] = React.useState("");
+  const [status, setStatus] = React.useState<EditableShift["status"]>("scheduled");
   const [saving, setSaving] = React.useState(false);
 
-  // Reset on the open transition (render-time, matching the codebase pattern -
-  // avoids a setState-in-effect cascade).
+  // Reset on the open transition (render-time pattern - no setState-in-effect).
   const [prevOpen, setPrevOpen] = React.useState(open);
   if (prevOpen !== open) {
     setPrevOpen(open);
     if (open) {
-      setMemberId(defaultMemberId ?? "");
-      // eslint-disable-next-line react-hooks/purity -- one-shot "today" snapshot on open transition
-      setDate(toDateInputValue(defaultDate ?? Date.now()));
-      setStart("10:00");
-      setEnd("18:00");
-      setRoomId("");
-      setNote("");
+      if (shift) {
+        setMemberId(shift.memberId);
+        setDate(toDateInputValue(shift.startTime));
+        setStart(hhmm(shift.startTime));
+        setEnd(hhmm(shift.endTime));
+        setRoomId(shift.roomId ?? "");
+        setNote(shift.note ?? "");
+        setStatus(shift.status);
+      } else {
+        setMemberId(defaultMemberId ?? "");
+        // eslint-disable-next-line react-hooks/purity -- one-shot snapshot on open
+        setDate(toDateInputValue(defaultDate ?? Date.now()));
+        setStart("10:00");
+        setEnd("18:00");
+        setRoomId("");
+        setNote("");
+        setStatus("scheduled");
+      }
     }
   }
 
@@ -63,18 +93,45 @@ export function ShiftDialog({
     if (!valid || saving) return;
     setSaving(true);
     try {
-      const res = await create({
-        memberId: memberId as Id<"members">,
-        startTime: combineDateTime(date, start),
-        endTime: combineDateTime(date, end),
-        roomId: roomId ? (roomId as Id<"rooms">) : undefined,
-        note: note.trim() || undefined,
-      });
-      toast.success("Shift scheduled.");
-      if (res.conflict) toast.warning("Heads up - this overlaps another shift for that person.");
+      if (editing && shift) {
+        const res = await update({
+          shiftId: shift._id as Id<"shifts">,
+          startTime: combineDateTime(date, start),
+          endTime: combineDateTime(date, end),
+          roomId: roomId ? (roomId as Id<"rooms">) : undefined,
+          note: note.trim() || undefined,
+          status,
+        });
+        toast.success("Shift updated. The team member was notified.");
+        if (res.conflict) toast.warning("Heads up - this overlaps another shift for that person.");
+      } else {
+        const res = await create({
+          memberId: memberId as Id<"members">,
+          startTime: combineDateTime(date, start),
+          endTime: combineDateTime(date, end),
+          roomId: roomId ? (roomId as Id<"rooms">) : undefined,
+          note: note.trim() || undefined,
+        });
+        toast.success("Shift scheduled. The team member was notified.");
+        if (res.conflict) toast.warning("Heads up - this overlaps another shift for that person.");
+      }
       onOpenChange(false);
     } catch {
-      toast.error("Could not schedule the shift.");
+      toast.error("Could not save the shift.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function doCancel() {
+    if (!shift || saving) return;
+    setSaving(true);
+    try {
+      await cancelShift({ shiftId: shift._id as Id<"shifts"> });
+      toast.success("Shift cancelled. The team member was notified.");
+      onOpenChange(false);
+    } catch {
+      toast.error("Could not cancel the shift.");
     } finally {
       setSaving(false);
     }
@@ -84,8 +141,12 @@ export function ShiftDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent size="md">
         <DialogHeader>
-          <DialogTitle>Schedule a shift</DialogTitle>
-          <DialogDescription>Assign a team member to a time - and a studio if they’re staffing one.</DialogDescription>
+          <DialogTitle>{editing ? "Edit shift" : "Schedule a shift"}</DialogTitle>
+          <DialogDescription>
+            {editing
+              ? "Reassign, reschedule, or cancel this shift. The team member is notified of any change."
+              : "Assign a team member to a time - and a studio if they're staffing one."}
+          </DialogDescription>
         </DialogHeader>
         <form onSubmit={submit}>
           <DialogBody className="space-y-4">
@@ -116,15 +177,33 @@ export function ShiftDialog({
                 </SelectContent>
               </Select>
             </Field>
+            {editing && (
+              <Field label="Status">
+                <Select value={status} onValueChange={(v) => setStatus(v as EditableShift["status"])}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="scheduled">Scheduled</SelectItem>
+                    <SelectItem value="confirmed">Confirmed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            )}
             <Field label="Note" htmlFor="shift-note">
               <Input id="shift-note" value={note} onChange={(e) => setNote(e.target.value)} placeholder="Optional" />
             </Field>
           </DialogBody>
           <DialogFooter>
-            <DialogClose asChild><Button type="button" variant="ghost" disabled={saving}>Cancel</Button></DialogClose>
+            {editing ? (
+              <Button type="button" variant="ghost" className="mr-auto text-critical" disabled={saving} onClick={doCancel}>
+                <Trash2 className="size-3.5" /> Cancel shift
+              </Button>
+            ) : (
+              <DialogClose asChild><Button type="button" variant="ghost" disabled={saving}>Cancel</Button></DialogClose>
+            )}
             <Button type="submit" disabled={!valid || saving}>
               {saving ? <Spinner className="text-gold-ink" /> : <CalendarClock className="size-3.5" />}
-              {saving ? "Scheduling" : "Schedule shift"}
+              {saving ? "Saving" : editing ? "Save changes" : "Schedule shift"}
             </Button>
           </DialogFooter>
         </form>

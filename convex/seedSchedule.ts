@@ -1,6 +1,7 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { DEMO_ORG } from "./lib/tenant";
+import { HOLIDAYS, ymd } from "./lib/holidays";
 
 /* ============================================================
    Demo top-up: fills the modules the main seed leaves empty so
@@ -13,26 +14,6 @@ import { DEMO_ORG } from "./lib/tenant";
 
 const DAY = 86_400_000;
 const MIN = 60_000;
-
-/** US public holidays (the studio closes). Dated; only those inside the seeded
- *  window get used. Extend per year as needed. */
-const HOLIDAYS: { name: string; ymd: string }[] = [
-  { name: "New Year's Day", ymd: "2026-01-01" },
-  { name: "MLK Day", ymd: "2026-01-19" },
-  { name: "Presidents' Day", ymd: "2026-02-16" },
-  { name: "Memorial Day", ymd: "2026-05-25" },
-  { name: "Juneteenth", ymd: "2026-06-19" },
-  { name: "Independence Day", ymd: "2026-07-04" },
-  { name: "Labor Day", ymd: "2026-09-07" },
-  { name: "Thanksgiving", ymd: "2026-11-26" },
-  { name: "Christmas Day", ymd: "2026-12-25" },
-];
-
-/** Local YYYY-MM-DD for a timestamp. */
-function ymd(ts: number): string {
-  const d = new Date(ts);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
 
 export const run = mutation({
   args: { orgId: v.optional(v.string()) },

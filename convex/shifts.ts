@@ -4,6 +4,14 @@ import { Doc, Id } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
 import { requireCapability, resolveViewer } from "./lib/access";
 import { notify } from "./lib/notify";
+import { closureReason } from "./lib/holidays";
+
+/** Friendly shift time, e.g. "Tue, Jun 2, 10:00 AM". */
+function shiftWhen(startTime: number): string {
+  return new Date(startTime).toLocaleString("en-US", {
+    weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+  });
+}
 
 /* ============================================================
    Staff scheduling. A shift assigns a team member to a time
@@ -269,6 +277,27 @@ export const update = mutation({
     const start = (patch.startTime ?? shift.startTime) as number;
     const end = (patch.endTime ?? shift.endTime) as number;
     const conflicts = await memberConflicts(ctx, orgId, shift.memberId, start, end, shiftId);
+
+    // Notify the team member their shift changed, and log it for the owner.
+    const member = await ctx.db.get(shift.memberId);
+    const cancelled = patch.status === "cancelled";
+    const when = shiftWhen(start);
+    if (member?.email) {
+      await notify(ctx, {
+        orgId, channel: "email", recipient: member.email,
+        subject: cancelled ? "Your shift was cancelled" : "Your shift was updated",
+        body: cancelled
+          ? `Your shift on ${shiftWhen(shift.startTime)} was cancelled. Check Pulse for your latest schedule.`
+          : `Your shift was updated to ${when}. Check Pulse for the details.`,
+        kind: cancelled ? "shift.cancelled" : "shift.updated",
+      });
+    }
+    await ctx.db.insert("activity", {
+      orgId,
+      kind: cancelled ? "shift.cancelled" : "shift.updated",
+      summary: `${member?.name ?? "A team member"}'s shift ${cancelled ? "cancelled" : `updated to ${when}`}`,
+      accent: cancelled ? "caution" : "neutral",
+    });
     return { conflict: conflicts.length > 0 };
   },
 });
@@ -281,6 +310,36 @@ export const cancel = mutation({
     const shift = await ctx.db.get(shiftId);
     if (!shift || shift.orgId !== orgId) throw new Error("Shift not found");
     await ctx.db.patch(shiftId, { status: "cancelled" });
+
+    const member = await ctx.db.get(shift.memberId);
+    if (member?.email) {
+      await notify(ctx, {
+        orgId, channel: "email", recipient: member.email,
+        subject: "Your shift was cancelled",
+        body: `Your shift on ${shiftWhen(shift.startTime)} was cancelled. Check Pulse for your latest schedule.`,
+        kind: "shift.cancelled",
+      });
+    }
+    await ctx.db.insert("activity", {
+      orgId, kind: "shift.cancelled",
+      summary: `${member?.name ?? "A team member"}'s shift on ${shiftWhen(shift.startTime)} was cancelled`,
+      accent: "caution",
+    });
+  },
+});
+
+/** Closed days (Sundays + holidays) within a range, for the schedule grid. */
+export const closedDaysInRange = query({
+  args: { from: v.number(), to: v.number() },
+  handler: async (_ctx, { from, to }) => {
+    const DAY = 86_400_000;
+    const out: { date: number; reason: string }[] = [];
+    const start = new Date(from); start.setHours(0, 0, 0, 0);
+    for (let t = start.getTime(); t <= to; t += DAY) {
+      const reason = closureReason(t);
+      if (reason) out.push({ date: t, reason });
+    }
+    return out;
   },
 });
 
