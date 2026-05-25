@@ -80,6 +80,33 @@ describe("staff onboarding", () => {
     expect(after?.photoUrl).toBeNull();
   });
 
+  it("syncMyClerkLink links a logged-in user to their member by email + accepts the invite", async () => {
+    const memberId = await t.run(async (ctx) => {
+      const id = await ctx.db.insert("members", { orgId: "pulse-demo", name: "Pat", role: "engineer", email: "pat@demo.com", skills: [] });
+      await ctx.db.insert("invites", { orgId: "pulse-demo", email: "pat@demo.com", ownerName: "Pat", studioName: "Skyline Sound", role: "engineer", token: "tok-sync", status: "pending", expiresAt: Date.now() + 86400000, invitedBy: "owner", emailStatus: "sent" });
+      return id;
+    });
+    const asPat = t.withIdentity({ subject: "u_pat", email: "pat@demo.com", orgId: "pulse-demo" });
+    const res = await asPat.mutation(api.members.syncMyClerkLink, {});
+    expect(res.linked).toBe(true);
+
+    const linked = await t.run((ctx) => ctx.db.get(memberId));
+    expect(linked?.clerkUserId).toBe("u_pat");
+    const invites = await t.run((ctx) => ctx.db.query("invites").collect());
+    expect(invites.find((i) => i.email === "pat@demo.com")?.status).toBe("accepted");
+
+    // Idempotent: a second call is a no-op that still reports linked.
+    const again = await asPat.mutation(api.members.syncMyClerkLink, {});
+    expect(again.linked).toBe(true);
+  });
+
+  it("syncMyClerkLink won't claim a member whose email differs from the caller's", async () => {
+    await t.run((ctx) => ctx.db.insert("members", { orgId: "pulse-demo", name: "Pat", role: "engineer", email: "pat@demo.com", skills: [] }));
+    const asImposter = t.withIdentity({ subject: "u_x", email: "someone-else@demo.com", orgId: "pulse-demo" });
+    const res = await asImposter.mutation(api.members.syncMyClerkLink, {});
+    expect(res.linked).toBe(false);
+  });
+
   it("setMyPhoto fails when the caller has no linked member row", async () => {
     const storageId = await t.run((ctx) => ctx.storage.store(new Blob(["png"], { type: "image/png" })));
     await expect(t.mutation(api.members.setMyPhoto, { storageId })).rejects.toThrow(/team members/i);

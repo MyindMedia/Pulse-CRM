@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Sidebar } from "@/components/shell/sidebar";
 import { Topbar } from "@/components/shell/topbar";
 import { StudioBanner } from "@/components/shell/studio-banner";
+import { MemberSync } from "@/components/shell/member-sync";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,6 +14,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <TooltipProvider delayDuration={300}>
+      <MemberSync />
       <div className="relative min-h-dvh bg-ink">
         {/* Studio-light bloom — warm backdrop for the glass to refract */}
         <div className="app-bloom" aria-hidden />

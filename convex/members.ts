@@ -443,3 +443,48 @@ export const clearMyPhoto = mutation({
     await ctx.db.patch(me._id, { photoId: undefined });
   },
 });
+
+/**
+ * Link the signed-in Clerk user to their pre-created member row by verified
+ * email, and flip their pending invite to "accepted". Called once on app mount
+ * (see MemberSync). Works straight off the Clerk identity — NOT resolveViewer —
+ * because resolveViewer throws NO_STUDIO_MEMBER until this link exists, so this
+ * is what breaks that chicken-and-egg the first time a teammate logs in. Safe:
+ * a user can only claim a member that carries their own Clerk-verified email in
+ * their own Clerk org. Idempotent.
+ */
+export const syncMyClerkLink = mutation({
+  args: {},
+  handler: async (ctx): Promise<{ linked: boolean }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) return { linked: false };
+    const clerkUserId = identity.subject;
+    const orgId = (identity as { orgId?: string }).orgId;
+    const email = identity.email?.toLowerCase();
+    if (!orgId || !email) return { linked: false };
+
+    // Already linked in this org → nothing to do.
+    const already = await ctx.db
+      .query("members")
+      .withIndex("by_org_clerk", (q) => q.eq("orgId", orgId).eq("clerkUserId", clerkUserId))
+      .first();
+    if (already) return { linked: true };
+
+    // Claim an un-linked member row that carries this verified email.
+    const member = (
+      await ctx.db.query("members").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
+    ).find((m) => m.email?.toLowerCase() === email && !m.clerkUserId);
+    if (!member) return { linked: false };
+    await ctx.db.patch(member._id, { clerkUserId });
+
+    // Flip the latest pending invite for this email to accepted.
+    const invite = (
+      await ctx.db.query("invites").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
+    )
+      .filter((i) => i.email.toLowerCase() === email && i.status === "pending")
+      .sort((a, b) => b._creationTime - a._creationTime)[0];
+    if (invite) await ctx.db.patch(invite._id, { status: "accepted", acceptedAt: Date.now() });
+
+    return { linked: true };
+  },
+});
