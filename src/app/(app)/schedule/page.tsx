@@ -12,6 +12,7 @@ import { SkeletonRows } from "@/components/ui/skeleton";
 import { ShiftDialog } from "@/components/schedule/shift-dialog";
 import { TimeOffInbox } from "@/components/schedule/time-off-inbox";
 import { MySchedulePanel } from "@/components/schedule/my-schedule-panel";
+import { UnstaffedSessions } from "@/components/schedule/unstaffed-sessions";
 import { cn } from "@/lib/utils";
 
 const DAY = 86_400_000;
@@ -103,6 +104,9 @@ export default function SchedulePage() {
           </div>
         )}
       </div>
+
+      {/* Coverage gaps — engineering sessions with no engineer */}
+      <UnstaffedSessions />
 
       {/* Week nav */}
       <div className="flex items-center justify-between">

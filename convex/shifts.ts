@@ -122,6 +122,46 @@ export const mine = query({
   },
 });
 
+/** Upcoming engineering sessions (next 14 days) with NO engineer assigned —
+ *  coverage gaps to fill. "Engineering" = recording/mixing/mastering/production. */
+export const unstaffedSessions = query({
+  args: {},
+  handler: async (ctx) => {
+    const orgId = await currentOrg(ctx);
+    const now = Date.now();
+    const horizon = now + 14 * DAY;
+    const NEEDS = new Set(["recording", "mixing", "mastering", "production"]);
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect();
+    const gaps = sessions.filter(
+      (s) =>
+        !s.engineerId &&
+        s.status !== "cancelled" &&
+        s.startTime >= now &&
+        s.startTime <= horizon &&
+        NEEDS.has(s.serviceType),
+    );
+    return Promise.all(
+      gaps
+        .sort((a, b) => a.startTime - b.startTime)
+        .map(async (s) => {
+          const room = s.roomId ? await ctx.db.get(s.roomId) : null;
+          const artist = await ctx.db.get(s.artistId);
+          return {
+            _id: s._id,
+            title: s.title,
+            startTime: s.startTime,
+            serviceType: s.serviceType,
+            roomName: room?.name ?? null,
+            clientName: artist?.name ?? "Client",
+          };
+        }),
+    );
+  },
+});
+
 /** Per-staff scheduled hours + shift/session counts in a window. Reports view. */
 export const staffingSummary = query({
   args: { from: v.number(), to: v.number() },

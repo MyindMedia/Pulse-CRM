@@ -238,6 +238,31 @@ export const create = mutation({
   },
 });
 
+/** Assign (or clear) the engineer on a session; keeps the auto-shift in sync and
+ *  returns a soft warning if the engineer is double-booked. */
+export const assignEngineer = mutation({
+  args: { sessionId: v.id("sessions"), engineerId: v.optional(v.id("members")) },
+  handler: async (ctx, { sessionId, engineerId }) => {
+    const orgId = await currentOrg(ctx);
+    const session = await ctx.db.get(sessionId);
+    if (!session || session.orgId !== orgId) throw new Error("Session not found");
+    if (engineerId) {
+      const eng = await ctx.db.get(engineerId);
+      if (!eng || eng.orgId !== orgId) throw new Error("Engineer not found");
+    }
+    await ctx.db.patch(sessionId, { engineerId });
+    const { warning } = await ensureSessionShift(ctx, {
+      _id: sessionId,
+      orgId,
+      engineerId: engineerId ?? null,
+      roomId: session.roomId ?? null,
+      startTime: session.startTime,
+      endTime: session.endTime,
+    });
+    return { staffingWarning: warning };
+  },
+});
+
 export const payDeposit = mutation({
   args: { id: v.id("sessions") },
   handler: async (ctx, { id }) => {

@@ -46,6 +46,29 @@ describe("staff scheduling — shifts", () => {
     expect(w.now[0].memberName).toBe("Eng Ellis");
   });
 
+  it("unstaffedSessions lists engineering gaps; assignEngineer clears them + auto-shifts", async () => {
+    const now = Date.now();
+    const sid = await t.run(async (ctx) => {
+      const artistId = await ctx.db.insert("artists", {
+        orgId: "pulse-demo", name: "Nova", type: "artist", genres: [], tags: [],
+        status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
+      });
+      return ctx.db.insert("sessions", {
+        orgId: "pulse-demo", title: "Tracking", artistId, serviceType: "recording",
+        startTime: now + 2 * HOUR, endTime: now + 5 * HOUR, status: "tentative",
+        rateCents: 20000, depositCents: 6000, depositPaid: false, intakeCompleted: false,
+      });
+    });
+    expect((await t.query(api.shifts.unstaffedSessions, {})).length).toBe(1);
+
+    const res = await t.mutation(api.sessions.assignEngineer, { sessionId: sid as never, engineerId: memberId as never });
+    expect(res.staffingWarning).toBeNull();
+    expect((await t.query(api.shifts.unstaffedSessions, {})).length).toBe(0);
+    const shift = await t.run(async (ctx) =>
+      (await ctx.db.query("shifts").collect()).find((s) => s.kind === "session"));
+    expect(shift?.memberId).toBe(memberId);
+  });
+
   it("staffingSummary rolls up scheduled hours per member", async () => {
     const now = Date.now();
     await t.run(async (ctx) => {
