@@ -22,7 +22,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         <Wordmark />
       </div>
 
-      <nav className="flex-1 space-y-0.5 px-3">
+      <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3">
         {NAV.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
