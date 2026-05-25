@@ -162,7 +162,11 @@ export async function insertSession(
 export const create = mutation({
   args: {
     title: v.string(),
-    artistId: v.id("artists"),
+    // Either an existing artist OR a brand-new client (name + optional contact).
+    artistId: v.optional(v.id("artists")),
+    clientName: v.optional(v.string()),
+    clientEmail: v.optional(v.string()),
+    clientPhone: v.optional(v.string()),
     songId: v.optional(v.id("songs")),
     serviceType: serviceV,
     roomId: v.optional(v.id("rooms")),
@@ -174,14 +178,40 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const orgId = await currentOrg(ctx);
-    const artist = await ctx.db.get(args.artistId);
-    if (!artist || artist.orgId !== orgId) throw new Error("Artist not found");
+
+    // Resolve the booker: an existing artist, or create a new "lead" client
+    // on the fly from a typed name so walk-in / first-time bookers work too.
+    let artistId = args.artistId;
+    let artistName: string;
+    if (artistId) {
+      const artist = await ctx.db.get(artistId);
+      if (!artist || artist.orgId !== orgId) throw new Error("Artist not found");
+      artistName = artist.name;
+    } else {
+      const name = args.clientName?.trim();
+      if (!name) throw new Error("A client name (or existing artist) is required");
+      artistId = await ctx.db.insert("artists", {
+        orgId,
+        name,
+        type: "artist",
+        email: args.clientEmail?.trim() || undefined,
+        phone: args.clientPhone?.trim() || undefined,
+        genres: [],
+        tags: [],
+        status: "lead",
+        lifetimeValueCents: 0,
+        sessionCount: 0,
+        reliability: "solid",
+        source: "booking",
+      });
+      artistName = name;
+    }
 
     return insertSession(ctx, {
       orgId,
       title: args.title,
-      artistId: args.artistId,
-      artistName: artist.name,
+      artistId,
+      artistName,
       songId: args.songId,
       serviceType: args.serviceType,
       roomId: args.roomId,

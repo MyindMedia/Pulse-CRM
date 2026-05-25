@@ -1,11 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
+import { ClientPicker, type ClientValue } from "@/components/bookings/client-picker";
 import {
   Dialog,
   DialogContent,
@@ -55,7 +56,6 @@ export function BookSessionDialog({
   onOpenChange: (open: boolean) => void;
   initialDate?: number;
 }) {
-  const roster = useQuery(api.artists.roster);
   const rooms = useQuery(api.rooms.bookable);
   const engineers = useQuery(api.members.engineers);
   const create = useMutation(api.sessions.create);
@@ -63,8 +63,8 @@ export function BookSessionDialog({
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
 
-  // Step 1
-  const [artistId, setArtistId] = useState("");
+  // Step 1 — client is either an existing artist (artistId set) or a new name.
+  const [client, setClient] = useState<ClientValue>({ name: "" });
   const [songId, setSongId] = useState("");
   // Step 2
   const [serviceType, setServiceType] = useState<string>("recording");
@@ -81,12 +81,12 @@ export function BookSessionDialog({
 
   const songs = useQuery(
     api.songs.picker,
-    artistId ? { artistId: artistId as Id<"artists"> } : {},
+    client.artistId ? { artistId: client.artistId as Id<"artists"> } : {},
   );
 
   function reset() {
     setStep(0);
-    setArtistId("");
+    setClient({ name: "" });
     setSongId("");
     setServiceType("recording");
     setRoomId("");
@@ -110,16 +110,13 @@ export function BookSessionDialog({
     }
   }
 
-  const artistName = useMemo(
-    () => roster?.find((a) => a._id === artistId)?.name ?? "",
-    [roster, artistId],
-  );
+  const artistName = client.name;
 
   const rateCents = Math.round((parseFloat(rate) || 0) * 100);
   const depositCents = Math.round((parseFloat(deposit) || 0) * 100);
 
   const stepValid: boolean[] = [
-    artistId !== "",
+    client.name.trim() !== "",
     serviceType !== "",
     date !== "" && time !== "" && durationMins > 0,
     title.trim().length > 0 && rateCents > 0 && depositCents <= rateCents,
@@ -135,7 +132,10 @@ export function BookSessionDialog({
     try {
       await create({
         title: title.trim(),
-        artistId: artistId as Id<"artists">,
+        artistId: client.artistId ? (client.artistId as Id<"artists">) : undefined,
+        clientName: client.artistId ? undefined : client.name.trim(),
+        clientEmail: client.artistId ? undefined : client.email?.trim() || undefined,
+        clientPhone: client.artistId ? undefined : client.phone?.trim() || undefined,
         songId: songId ? (songId as Id<"songs">) : undefined,
         serviceType: serviceType as
           | "recording"
@@ -208,35 +208,26 @@ export function BookSessionDialog({
           {/* Step 1 - Artist + song */}
           {step === 0 && (
             <>
-              <Field label="Artist">
-                <Select value={artistId} onValueChange={(v) => {
-                  setArtistId(v);
-                  setSongId("");
-                }}>
-                  <SelectTrigger>
-                    <SelectValue placeholder={roster ? "Select an artist" : "Loading roster…"} />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {(roster ?? []).map((a) => (
-                      <SelectItem key={a._id} value={a._id}>
-                        {a.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
+              <ClientPicker
+                value={client}
+                autoFocus
+                onChange={(v) => {
+                  if (v.artistId !== client.artistId) setSongId("");
+                  setClient(v);
+                }}
+              />
 
               <Field label="Song" hint="Link a catalog song - optional.">
                 <Select
                   value={songId}
                   onValueChange={setSongId}
-                  disabled={!artistId}
+                  disabled={!client.artistId}
                 >
                   <SelectTrigger>
                     <SelectValue
                       placeholder={
-                        !artistId
-                          ? "Pick an artist first"
+                        !client.artistId
+                          ? "Existing clients only"
                           : songs && songs.length === 0
                             ? "No songs for this artist"
                             : "Select a song"
