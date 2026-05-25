@@ -69,6 +69,23 @@ describe("Pulse Agent", () => {
     expect(list.find((m) => m._id === id)).toBeUndefined();
   });
 
+  it("autonomy: auto_trusted auto-approves a low-risk send; medium-risk still waits", async () => {
+    const runId = await t.run((ctx) => ctx.db.insert("agentRuns", { orgId: ORG, initiatedBy: "system", runType: "analytics_review", status: "running" }));
+    await t.mutation(internal.agent._finalize, {
+      runId, orgId: ORG, status: "needs_approval", summary: "x", autonomy: "auto_trusted",
+      approvals: [
+        { actionType: "send_email", title: "Low reminder", explanation: "x", riskLevel: "low", proposedPayload: { to: "a@b.com", body: "hi" } },
+        { actionType: "send_sms", title: "Medium nudge", explanation: "x", riskLevel: "medium", proposedPayload: { to: "+1", body: "hi" } },
+      ],
+    });
+    await drain(t);
+    const list = await t.query(api.agent.listApprovals, {});
+    const low = list.find((a) => a.title === "Low reminder");
+    const med = list.find((a) => a.title === "Medium nudge");
+    expect(["approved", "executed"]).toContain(low?.status); // auto-ran
+    expect(med?.status).toBe("pending"); // still gated
+  });
+
   it("approval: approve schedules execution; reject closes it", async () => {
     const { approveId, rejectId } = await t.run(async (ctx) => {
       const approveId = await ctx.db.insert("agentApprovals", { orgId: ORG, actionType: "send_email", title: "Follow up", explanation: "x", proposedPayload: { to: "x@y.com", subject: "Hi", body: "Hello" }, riskLevel: "low", status: "pending", createdAt: Date.now() });

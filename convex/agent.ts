@@ -217,6 +217,7 @@ export const _finalize = internalMutation({
       severity: v.union(v.literal("info"), v.literal("opportunity"), v.literal("warning"), v.literal("critical")),
       explanation: v.string(),
     }))),
+    autonomy: v.optional(v.union(v.literal("suggest"), v.literal("auto_low"), v.literal("auto_trusted"))),
     approvals: v.optional(v.array(v.object({
       actionType: v.string(),
       title: v.string(),
@@ -233,14 +234,21 @@ export const _finalize = internalMutation({
       await ctx.db.insert("agentAuditLogs", { orgId: a.orgId, runId: a.runId, event: "insight.created", detail: f.title, at: now });
     }
     const validTypes = new Set(["send_email", "send_sms", "create_invoice", "update_invoice", "schedule_session", "enable_automation", "deliver_files", "update_client_record"]);
+    // Controlled autonomy: only "auto_trusted" auto-runs, and only low-risk
+    // client reminders (send_email/send_sms). Everything else always waits.
+    const autoOk = new Set(["send_email", "send_sms"]);
     for (const ap of a.approvals ?? []) {
       if (!validTypes.has(ap.actionType)) continue;
-      await ctx.db.insert("agentApprovals", {
+      const auto = a.autonomy === "auto_trusted" && ap.riskLevel === "low" && autoOk.has(ap.actionType);
+      const approvalId = await ctx.db.insert("agentApprovals", {
         orgId: a.orgId, runId: a.runId, actionType: ap.actionType as never,
         title: ap.title, explanation: ap.explanation, proposedPayload: ap.proposedPayload,
-        riskLevel: ap.riskLevel, status: "pending", createdAt: now,
+        riskLevel: ap.riskLevel, status: auto ? "approved" : "pending",
+        decidedBy: auto ? "agent:auto" : undefined, decidedAt: auto ? now : undefined,
+        createdAt: now,
       });
-      await ctx.db.insert("agentAuditLogs", { orgId: a.orgId, runId: a.runId, event: "approval.created", detail: ap.title, at: now });
+      await ctx.db.insert("agentAuditLogs", { orgId: a.orgId, runId: a.runId, event: auto ? "approval.auto_approved" : "approval.created", detail: ap.title, at: now });
+      if (auto) await ctx.scheduler.runAfter(0, internal.agent.executeApproval, { id: approvalId });
     }
     await ctx.db.patch(a.runId, {
       status: a.status, summary: a.summary, source: a.source, modelName: a.modelName,
@@ -324,6 +332,7 @@ export const runAgentLLM = internalAction({
         assistant,
         source: ai.source,
         modelName: ai.model,
+        autonomy: policy.autonomy,
         findings,
         approvals,
       });
