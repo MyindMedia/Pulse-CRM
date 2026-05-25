@@ -131,6 +131,7 @@ export const create = mutation({
     serialNumber: v.optional(v.string()),
     condition: v.optional(v.string()),
     notes: v.optional(v.string()),
+    photoId: v.optional(v.id("_storage")),
   },
   handler: async (ctx, args) => {
     const orgId = await currentOrg(ctx);
@@ -150,6 +151,7 @@ export const create = mutation({
       serialNumber: args.serialNumber,
       condition: args.condition,
       notes: args.notes,
+      photoId: args.photoId,
     });
     await ctx.db.insert("activity", {
       orgId,

@@ -29,6 +29,7 @@ import {
   type EquipmentCategory,
 } from "@/components/studio/constants";
 import { PhotoUploader } from "./photo-uploader";
+import { PhotoUpload } from "@/components/ui/photo-upload";
 
 /** An equipment record in an editable shape. Pass to edit; omit to create. */
 export type EditableEquipment = {
@@ -106,16 +107,22 @@ export function EquipmentDialog({
   const isEdit = item !== undefined;
   const createEquipment = useMutation(api.equipment.create);
   const updateEquipment = useMutation(api.equipment.update);
+  const genPhotoUrl = useMutation(api.equipment.generateUploadUrl);
   const rooms = useQuery(api.rooms.bookable);
 
   const [form, setForm] = React.useState<FormState>(item ? toForm(item) : BLANK);
   const [submitting, setSubmitting] = React.useState(false);
+  // Photo uploaded during the create flow (edit uses PhotoUploader + the item id).
+  const [photoId, setPhotoId] = React.useState<string | null>(null);
 
   // Reset the form whenever the dialog re-opens.
   const [prevOpen, setPrevOpen] = React.useState(open);
   if (prevOpen !== open) {
     setPrevOpen(open);
-    if (open) setForm(item ? toForm(item) : BLANK);
+    if (open) {
+      setForm(item ? toForm(item) : BLANK);
+      setPhotoId(null);
+    }
   }
 
   function set<K extends keyof FormState>(key: K, value: FormState[K]) {
@@ -166,6 +173,7 @@ export function EquipmentDialog({
           serialNumber: form.serialNumber.trim() || undefined,
           condition: form.condition.trim() || undefined,
           notes: form.notes.trim() || undefined,
+          photoId: photoId ? (photoId as Id<"_storage">) : undefined,
         });
         toast.success(`${name} added to inventory.`);
       }
@@ -201,9 +209,20 @@ export function EquipmentDialog({
               />
             </Field>
 
-            {/* A photo can only attach to a saved item - edit mode only. */}
-            {isEdit && item && (
+            {/* Photo — edit uses the saved item id; create uploads now and
+                attaches the storageId when the item is saved. */}
+            {isEdit && item ? (
               <PhotoUploader equipmentId={item._id} photo={item.photo} />
+            ) : (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium text-ash">Photo</p>
+                <PhotoUpload
+                  photo={null}
+                  generateUploadUrl={genPhotoUrl}
+                  onStorageId={async (id) => setPhotoId(id)}
+                  hint="Optional. Camera or library on mobile."
+                />
+              </div>
             )}
 
             <div className="grid gap-4 sm:grid-cols-2">

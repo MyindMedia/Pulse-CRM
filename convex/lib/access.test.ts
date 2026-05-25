@@ -72,6 +72,9 @@ describe("access engine - resolveViewer", () => {
     const result = await asOwner.query(api.testHarness.resolve, {});
     expect(result.kind).toBe("agency_member");
     expect(result.caps).toContain("agency.viewAll");
+    // Agency owners act as a studio → must carry studio caps too.
+    expect(result.caps).toContain("schedule.manage");
+    expect(result.caps).toContain("sessions.edit");
   });
 });
 
