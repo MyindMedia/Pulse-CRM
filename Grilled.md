@@ -45,5 +45,15 @@ Owner wants new sub-account owners to have a complete "enter onboarding" experie
 - **P4 ✅ DONE (code)** Email — `convex/lib/google.ts` + `googleAuth.ts` + `/google/callback` http route + `clientEmail.ts` (provider choice; `sendToClient` routes Gmail vs Resend) + `EmailConnectCard`. Internal channel works now (Resend live). **Go-live config (Google):** create a Google Cloud OAuth client, set `GOOGLE_CLIENT_ID`/`GOOGLE_CLIENT_SECRET` on Convex, add authorized redirect `https://<CONVEX_SITE_URL>/google/callback`, scopes gmail.send + userinfo.email.
 - All shipped on `feat/ops-autopilot`→`main`, deployed to `pastel-corgi-340` + Netlify; 150 vitest green.
 
+## Epic: staff scheduling / shift management (grilled + BUILT 2026-05-24)
+
+Decisions: auto-shift + soft-warn on session engineers; shifts tied to a studio/room; dedicated Schedule page; who's-working dashboard widget; notify staff; "/goal do it all" → full self-service too.
+
+**Built + deployed (commits `72b1ca5` + `d712af0`):**
+- Schema: `shifts` (memberId, start/end, roomId, kind scheduled|session, sessionId, status), `availability` (weekly slots), `timeOff` (request/approve). New cap `schedule.manage` (owner+manager).
+- `convex/shifts.ts`: create/update/cancel (manager), `listRange` (week grid), `whosWorking` (dashboard), `mine` (staff), conflict detection, staff email notify; `ensureSessionShift` auto-creates the engineer's "session" shift from `sessions.create` + returns a soft staffing warning on double-book (never blocks).
+- `convex/availability.ts`: my availability get/set, time-off request/list, manager pending-list (graceful) + decide (notify).
+- Frontend: `/schedule` week grid (staff × day, room-tagged chips, inline add/cancel, week nav, who's-working strip) + `ShiftDialog`; `WhosWorkingCard` on dashboard; `MySchedulePanel` (my upcoming + availability editor + time-off) + `TimeOffInbox` (manager) on the Schedule page; "Schedule" nav item. Tenant-scoped. 159 vitest green.
+
 ## Standing context / prior fix
 - **Crash fixed (2026-05-23):** `/agency/[orgId]` showed "page couldn't load" because `invites.list` threw `AccessError` (a plain `Error` → redacted by Convex) with no `error.tsx` boundary. Fixes: `invites.list` degrades to `[]` on access denial; `AccessError extends ConvexError`; `/agency/error.tsx` boundary; `createSubaccount` + `adoptOrphanSubaccounts` stamp/repair `agencyId` so the owner isn't scope-denied. 128 vitest green.
