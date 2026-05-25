@@ -72,6 +72,7 @@ import type * as reports from "../reports.js";
 import type * as rooms from "../rooms.js";
 import type * as seed from "../seed.js";
 import type * as sessions from "../sessions.js";
+import type * as shifts from "../shifts.js";
 import type * as songs from "../songs.js";
 import type * as splitSheets from "../splitSheets.js";
 import type * as stripeConnect from "../stripeConnect.js";
@@ -149,6 +150,7 @@ declare const fullApi: ApiFromModules<{
   rooms: typeof rooms;
   seed: typeof seed;
   sessions: typeof sessions;
+  shifts: typeof shifts;
   songs: typeof songs;
   splitSheets: typeof splitSheets;
   stripeConnect: typeof stripeConnect;

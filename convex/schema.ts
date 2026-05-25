@@ -968,4 +968,49 @@ export default defineSchema({
   })
     .index("by_org", ["orgId"])
     .index("by_org_period_metric", ["orgId", "period", "metric"]),
+
+  // ── Staff scheduling — shifts assign a team member to a time window and
+  //    (optionally) a studio/room. kind "session" shifts are auto-created when
+  //    an engineer is booked onto a session and link back via sessionId. ──
+  shifts: defineTable({
+    orgId: v.string(),
+    memberId: v.id("members"),
+    startTime: v.number(),
+    endTime: v.number(),
+    roomId: v.optional(v.id("rooms")),       // studio/room they're staffing
+    kind: v.union(v.literal("scheduled"), v.literal("session")),
+    sessionId: v.optional(v.id("sessions")), // set for kind "session"
+    status: v.union(v.literal("scheduled"), v.literal("confirmed"), v.literal("cancelled")),
+    note: v.optional(v.string()),
+    createdBy: v.optional(v.string()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_member", ["orgId", "memberId"])
+    .index("by_org_start", ["orgId", "startTime"])
+    .index("by_session", ["sessionId"]),
+
+  // ── Recurring weekly availability a staff member sets for themselves. ──
+  availability: defineTable({
+    orgId: v.string(),
+    memberId: v.id("members"),
+    weekday: v.number(),        // 0=Sun … 6=Sat
+    startMinutes: v.number(),   // minutes from midnight, local
+    endMinutes: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_member", ["orgId", "memberId"]),
+
+  // ── Time-off requests with a simple approval flow. ──
+  timeOff: defineTable({
+    orgId: v.string(),
+    memberId: v.id("members"),
+    startTime: v.number(),
+    endTime: v.number(),
+    reason: v.optional(v.string()),
+    status: v.union(v.literal("pending"), v.literal("approved"), v.literal("denied")),
+    decidedBy: v.optional(v.string()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_member", ["orgId", "memberId"])
+    .index("by_org_status", ["orgId", "status"]),
 });

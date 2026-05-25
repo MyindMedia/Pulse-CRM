@@ -7,6 +7,7 @@ import {
   recomputeRoomStatus,
 } from "./lib/roomStatus";
 import { stageChecklistsFor, dropPreChecklistFor } from "./checklists";
+import { ensureSessionShift } from "./shifts";
 import { api } from "./_generated/api";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -207,7 +208,7 @@ export const create = mutation({
       artistName = name;
     }
 
-    return insertSession(ctx, {
+    const sessionId = await insertSession(ctx, {
       orgId,
       title: args.title,
       artistId,
@@ -221,6 +222,19 @@ export const create = mutation({
       rateCents: args.rateCents,
       depositCents: args.depositCents,
     });
+
+    // Staff scheduling: auto-create the engineer's shift for this session and
+    // surface a soft warning if they're double-booked (never blocks).
+    const { warning } = await ensureSessionShift(ctx, {
+      _id: sessionId,
+      orgId,
+      engineerId: args.engineerId ?? null,
+      roomId: args.roomId ?? null,
+      startTime: args.startTime,
+      endTime: args.endTime,
+    });
+
+    return { sessionId, staffingWarning: warning };
   },
 });
 

@@ -7,6 +7,7 @@ import { api } from "@convex/_generated/api";
 import { PulseAiPanel } from "@/components/ai/pulse-ai-panel";
 import { OpsAutopilotPanel } from "@/components/ai/ops-autopilot-panel";
 import { OnboardingNudge } from "@/components/onboarding/onboarding-nudge";
+import { WhosWorkingCard } from "@/components/schedule/whos-working-card";
 import {
   DollarSign,
   CalendarCheck,
@@ -158,6 +159,8 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      <WhosWorkingCard />
 
       {/* Chart trio */}
       <div className="grid gap-4 lg:grid-cols-3">
