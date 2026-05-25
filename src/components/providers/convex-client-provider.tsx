@@ -4,6 +4,7 @@ import { ReactNode, useMemo } from "react";
 import { ConvexReactClient, ConvexProvider } from "convex/react";
 import { ConvexProviderWithClerk } from "convex/react-clerk";
 import { ClerkProvider, useAuth } from "@clerk/nextjs";
+import { clerkAppearance } from "@/lib/clerk-appearance";
 
 /*
  * Pulse boots in two modes so it runs whether or not Clerk is configured yet:
@@ -51,7 +52,7 @@ export function ConvexClientProvider({ children }: { children: ReactNode }) {
 
   if (CLERK_KEY) {
     return (
-      <ClerkProvider publishableKey={CLERK_KEY}>
+      <ClerkProvider publishableKey={CLERK_KEY} appearance={clerkAppearance}>
         <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
           {children}
         </ConvexProviderWithClerk>
