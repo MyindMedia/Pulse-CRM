@@ -1,7 +1,13 @@
-import { query, mutation } from "./_generated/server";
+import { query, mutation, action, internalMutation, QueryCtx, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
-import { currentOrg } from "./lib/tenant";
-import { requireCapability } from "./lib/access";
+import { internal } from "./_generated/api";
+import { currentOrg, currentActor } from "./lib/tenant";
+import { requireCapability, resolveViewer } from "./lib/access";
+import { sendEmail } from "./lib/email";
+import {
+  teammateEmailHtml,
+  teammateEmailSubject,
+} from "./lib/emailTemplates/invite";
 
 const roleV = v.union(
   v.literal("owner"),
@@ -102,6 +108,117 @@ export const remove = mutation({
   },
 });
 
+/**
+ * Internal: create (or reuse) the member row for an invited teammate and
+ * surface the context the invite email needs. Runs in a mutation so it can
+ * enforce the `members.invite` capability and read the org/inviter.
+ */
+export const _prepareTeammate = internalMutation({
+  args: { name: v.string(), email: v.string(), role: roleV, skills: v.optional(v.array(v.string())) },
+  handler: async (ctx, args) => {
+    const viewer = await requireCapability(ctx, "members.invite");
+    const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
+
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    const inviterName = await currentActor(ctx);
+
+    // Reuse an existing un-claimed member with the same email (avoids dupes if
+    // the inviter re-sends); otherwise create the row.
+    const existing = (
+      await ctx.db
+        .query("members")
+        .withIndex("by_org", (q) => q.eq("orgId", orgId))
+        .collect()
+    ).find((m) => m.email && m.email.toLowerCase() === args.email.toLowerCase());
+
+    let memberId = existing?._id;
+    if (existing) {
+      await ctx.db.patch(existing._id, { name: args.name, role: args.role, skills: args.skills ?? existing.skills });
+    } else {
+      memberId = await ctx.db.insert("members", {
+        orgId,
+        name: args.name,
+        email: args.email,
+        role: args.role,
+        skills: args.skills ?? [],
+      });
+    }
+
+    return {
+      memberId: memberId!,
+      orgId,
+      clerkOrgId: org?.clerkOrgId,
+      agencyId: org?.agencyId,
+      studioName: org?.name ?? "the studio",
+      inviterName,
+    };
+  },
+});
+
+/**
+ * Invite a teammate by email. Creates their member row, records a role-scoped
+ * invite token, and sends a branded staff invitation. Called automatically by
+ * the team dialog whenever an email is supplied. Non-fatal email: the member is
+ * created regardless so they can be scheduled even if the send hiccups.
+ */
+export const inviteTeammate = action({
+  args: { name: v.string(), email: v.string(), role: roleV, skills: v.optional(v.array(v.string())) },
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ memberId: string; inviteSent: boolean }> => {
+    const email = args.email.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) {
+      throw new Error("Enter a valid email address.");
+    }
+    const name = args.name.trim() || email;
+
+    const prep = await ctx.runMutation(internal.members._prepareTeammate, {
+      name,
+      email,
+      role: args.role,
+      skills: args.skills,
+    });
+
+    let inviteSent = false;
+    try {
+      const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+      const token = await ctx.runMutation(internal.invites.record, {
+        orgId: prep.orgId,
+        clerkOrgId: prep.clerkOrgId,
+        agencyId: prep.agencyId,
+        email,
+        ownerName: name,
+        studioName: prep.studioName,
+        invitedBy: prep.inviterName,
+        emailStatus: "simulated",
+        role: args.role,
+      });
+      const status = await sendEmail({
+        to: email,
+        subject: teammateEmailSubject(prep.studioName),
+        html: teammateEmailHtml({
+          memberName: name,
+          studioName: prep.studioName,
+          inviterName: prep.inviterName,
+          role: args.role,
+          acceptUrl: `${appUrl}/invite/${token}`,
+          logoUrl: `${appUrl}/pulse-logo.png`,
+        }),
+      });
+      await ctx.runMutation(internal.invites.setEmailStatus, { token, emailStatus: status });
+      inviteSent = status === "sent";
+    } catch (err) {
+      console.error("[inviteTeammate] invite step failed (non-fatal):", err);
+    }
+
+    return { memberId: prep.memberId, inviteSent };
+  },
+});
+
 /** Signed URL for uploading a team member's profile photo (org-gated). */
 export const generateUploadUrl = mutation({
   args: {},
@@ -132,5 +249,54 @@ export const clearPhoto = mutation({
     const member = await ctx.db.get(id);
     if (!member || member.orgId !== orgId) throw new Error("Not found");
     await ctx.db.patch(id, { photoId: undefined });
+  },
+});
+
+// ── Self-service (a teammate acting on their OWN member row) ──────────────
+
+/** The signed-in teammate's own member row (mapped via Clerk id), or null. */
+async function myMemberRow(ctx: QueryCtx | MutationCtx) {
+  const orgId = await currentOrg(ctx);
+  const viewer = await resolveViewer(ctx).catch(() => null);
+  const clerkUserId = viewer && "clerkUserId" in viewer ? viewer.clerkUserId : null;
+  if (!clerkUserId) return null;
+  return await ctx.db
+    .query("members")
+    .withIndex("by_org_clerk", (q) => q.eq("orgId", orgId).eq("clerkUserId", clerkUserId))
+    .first();
+}
+
+/** The caller's own profile - powers the staff onboarding wizard. */
+export const myProfile = query({
+  args: {},
+  handler: async (ctx) => {
+    const me = await myMemberRow(ctx);
+    if (!me) return null;
+    return {
+      _id: me._id,
+      name: me.name,
+      role: me.role,
+      photoUrl: me.photoId ? await ctx.storage.getUrl(me.photoId) : null,
+    };
+  },
+});
+
+/** A teammate attaches a photo to their OWN member row (no invite cap needed). */
+export const setMyPhoto = mutation({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, { storageId }) => {
+    const me = await myMemberRow(ctx);
+    if (!me) throw new Error("Only team members can set their own photo.");
+    await ctx.db.patch(me._id, { photoId: storageId });
+  },
+});
+
+/** A teammate removes their OWN photo. */
+export const clearMyPhoto = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const me = await myMemberRow(ctx);
+    if (!me) throw new Error("Only team members can clear their own photo.");
+    await ctx.db.patch(me._id, { photoId: undefined });
   },
 });

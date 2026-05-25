@@ -272,7 +272,16 @@ export default defineSchema({
     email: v.string(),                       // invited owner email (lowercased)
     ownerName: v.string(),                   // shown on the screen + email
     studioName: v.string(),                  // shown on the screen + email
-    role: v.literal("owner"),                // beta: studio owners only
+    role: v.union(                           // owner invite, or a staff role
+      v.literal("owner"),
+      v.literal("manager"),
+      v.literal("engineer"),
+      v.literal("assistant_engineer"),
+      v.literal("artist_relations"),
+      v.literal("producer"),
+      v.literal("intern"),
+      v.literal("accountant"),
+    ),
     token: v.string(),                       // URL-safe random
     status: v.union(
       v.literal("pending"),

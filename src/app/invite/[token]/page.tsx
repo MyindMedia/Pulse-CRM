@@ -62,13 +62,14 @@ export default function InvitePage() {
       // Establish a browser session using the Clerk v7 Signals password flow.
       await signIn.password({ identifier: res.email, password });
       if (signIn.status === "complete") {
+        // Owners set up their studio (logo, info, first room); invited staff
+        // get a lighter onboarding (photo + availability). Route accordingly.
+        const dest = res.role && res.role !== "owner" ? "/welcome-team" : "/welcome";
         // finalize() sets the active session; navigate callback receives a
         // decorated URL for Safari ITP cookie refresh.
         await signIn.finalize({
           navigate: ({ decorateUrl }) => {
-            // New owners land in the branded onboarding wizard, not the bare
-            // dashboard, so they set up their studio (logo, info, first room).
-            router.push(decorateUrl("/welcome"));
+            router.push(decorateUrl(dest));
           },
         });
       } else {
@@ -125,7 +126,11 @@ export default function InvitePage() {
         {invite?.state === "valid" && (
           <form onSubmit={submit} className="mt-6 text-left">
             <p className="mb-1 text-center text-sm text-ash">
-              Joining <b className="text-bone">{invite.studioName}</b> as Owner
+              Joining <b className="text-bone">{invite.studioName}</b> as{" "}
+              {(invite.role ?? "owner")
+                .split("_")
+                .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+                .join(" ")}
             </p>
             <h1 className="mb-1 text-center font-display text-2xl font-bold text-bone">
               Create your account

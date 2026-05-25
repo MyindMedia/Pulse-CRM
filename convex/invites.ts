@@ -32,6 +32,13 @@ export const record = internalMutation({
     invitedBy: v.string(),
     emailStatus: v.union(v.literal("sent"), v.literal("failed"), v.literal("simulated")),
     ttlMs: v.optional(v.number()),
+    role: v.optional(
+      v.union(
+        v.literal("owner"), v.literal("manager"), v.literal("engineer"),
+        v.literal("assistant_engineer"), v.literal("artist_relations"),
+        v.literal("producer"), v.literal("intern"), v.literal("accountant"),
+      ),
+    ),
   },
   handler: async (ctx, args) => {
     // ── Grant-quota enforcement. Each invite issued this calendar month counts
@@ -75,7 +82,7 @@ export const record = internalMutation({
       email: args.email.toLowerCase(),
       ownerName: args.ownerName,
       studioName: args.studioName,
-      role: "owner",
+      role: args.role ?? "owner",
       token,
       status: "pending",
       expiresAt: Date.now() + (args.ttlMs ?? DEFAULT_TTL_MS),
@@ -121,6 +128,7 @@ export const lookupByToken = query({
       email: inv.email,
       ownerName: inv.ownerName,
       studioName: inv.studioName,
+      role: inv.role,
     };
   },
 });
@@ -147,7 +155,7 @@ export const markAccepted = internalMutation({
 /** Public action - create the Clerk user, add to the org, attach the member.
  *  Called by the invite screen with the password the user chose. */
 type AcceptResult =
-  | { ok: true; email: string }
+  | { ok: true; email: string; role: string }
   | {
       ok: false;
       reason: "invalid" | "accepted" | "expired" | "not_configured" | "exists" | "clerk_error";
@@ -199,19 +207,22 @@ export const accept = action({
     }
     const user = (await userRes.json()) as { id: string };
 
-    // 2. Add to the Clerk org as admin (non-fatal if no clerk org).
+    // 2. Add to the Clerk org (non-fatal if no clerk org). Owners + managers
+    //    get org:admin; other staff roles join as org:member.
+    const clerkRole =
+      inv.role === "owner" || inv.role === "manager" ? "org:admin" : "org:member";
     if (inv.clerkOrgId) {
       await fetch(`https://api.clerk.com/v1/organizations/${inv.clerkOrgId}/memberships`, {
         method: "POST",
         headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ user_id: user.id, role: "org:admin" }),
+        body: JSON.stringify({ user_id: user.id, role: clerkRole }),
       }).catch(() => undefined);
     }
 
     // 3. Attach to the Convex member row + flip status.
     await ctx.runMutation(internal.invites.markAccepted, { inviteId: inv._id, clerkUserId: user.id });
 
-    return { ok: true as const, email: inv.email };
+    return { ok: true as const, email: inv.email, role: inv.role };
   },
 });
 

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
@@ -75,6 +75,7 @@ export function MemberDialog({
 }) {
   const isEdit = member !== undefined;
   const createMember = useMutation(api.members.create);
+  const inviteTeammate = useAction(api.members.inviteTeammate);
   const updateMember = useMutation(api.members.update);
   const genPhotoUrl = useMutation(api.members.generateUploadUrl);
   const setPhoto = useMutation(api.members.setPhoto);
@@ -113,13 +114,21 @@ export function MemberDialog({
         });
         toast.success("Team member updated.");
       } else {
-        await createMember({
-          name,
-          email: form.email.trim() || undefined,
-          role: form.role,
-          skills: form.skills.length ? form.skills : undefined,
-        });
-        toast.success(`${name} added to the team.`);
+        const email = form.email.trim();
+        const skills = form.skills.length ? form.skills : undefined;
+        if (email) {
+          // Email present → create the member AND email them a branded invite
+          // with their role, so they can claim an account and onboard.
+          const res = await inviteTeammate({ name, email, role: form.role, skills });
+          toast.success(
+            res.inviteSent
+              ? `Invite sent to ${email}.`
+              : `${name} added — invite email couldn't send, you can resend it.`,
+          );
+        } else {
+          await createMember({ name, role: form.role, skills });
+          toast.success(`${name} added to the team.`);
+        }
       }
       onOpenChange(false);
     } catch {
@@ -166,7 +175,15 @@ export function MemberDialog({
             </Field>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Email" htmlFor="member-email">
+              <Field
+                label="Email"
+                htmlFor="member-email"
+                hint={
+                  !isEdit && form.email.trim()
+                    ? "We'll email them a branded invite to join and set up their profile."
+                    : undefined
+                }
+              >
                 <Input
                   id="member-email"
                   type="email"
@@ -228,7 +245,9 @@ export function MemberDialog({
                 ? "Saving…"
                 : isEdit
                   ? "Save changes"
-                  : "Add to team"}
+                  : form.email.trim()
+                    ? "Send invite"
+                    : "Add to team"}
             </Button>
           </DialogFooter>
         </form>

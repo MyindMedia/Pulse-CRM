@@ -55,5 +55,11 @@ Decisions: auto-shift + soft-warn on session engineers; shifts tied to a studio/
 - `convex/availability.ts`: my availability get/set, time-off request/list, manager pending-list (graceful) + decide (notify).
 - Frontend: `/schedule` week grid (staff × day, room-tagged chips, inline add/cancel, week nav, who's-working strip) + `ShiftDialog`; `WhosWorkingCard` on dashboard; `MySchedulePanel` (my upcoming + availability editor + time-off) + `TimeOffInbox` (manager) on the Schedule page; "Schedule" nav item. Tenant-scoped. 159 vitest green.
 
+## Feature: invited team-member (staff) onboarding (grilled 2026-05-24)
+
+Distinct from the studio-OWNER invite. A studio owner (or agency owner in view-as) invites staff by email; the teammate gets a branded email, creates their account, joins the studio's Clerk org as a member, and runs a lightweight onboarding. Decisions: **auto-send invite when a teammate is added with an email**; staff onboarding = **role/access intro → profile photo → weekly availability** (then dashboard).
+
+**Build:** `invites.role` widened from `"owner"` literal → studio-role union; `invites.record` takes a role; `invites.accept` adds owner/manager as `org:admin` else `org:member` and returns the role; new `members.inviteTeammate` action (create member + record invite + branded staff email); `members.setMyPhoto` (a member sets their OWN photo — staff lack `members.invite`); MemberDialog auto-invites when an email is present; `/invite` accept routes owner→`/welcome`, staff→`/welcome-team`; new `/welcome-team` onboarding page (intro → photo → availability).
+
 ## Standing context / prior fix
 - **Crash fixed (2026-05-23):** `/agency/[orgId]` showed "page couldn't load" because `invites.list` threw `AccessError` (a plain `Error` → redacted by Convex) with no `error.tsx` boundary. Fixes: `invites.list` degrades to `[]` on access denial; `AccessError extends ConvexError`; `/agency/error.tsx` boundary; `createSubaccount` + `adoptOrphanSubaccounts` stamp/repair `agencyId` so the owner isn't scope-denied. 128 vitest green.
