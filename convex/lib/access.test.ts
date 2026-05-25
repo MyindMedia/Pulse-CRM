@@ -59,6 +59,20 @@ describe("access engine - resolveViewer", () => {
     expect(result.role).toBe("owner");
     expect(result.caps).toContain("billing.edit");
   });
+
+  it("agency owner resolves as agency_member even WITHOUT orgType in the token", async () => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencyMembers", {
+        agencyId: "org_ag2", clerkUserId: "user_noorg", email: "n@x.com",
+        name: "NoOrgType", role: "owner", status: "active", invitedAt: 0,
+      });
+    });
+    // No orgId / orgType claims (no custom JWT template) — just the subject.
+    const asOwner = t.withIdentity({ subject: "user_noorg", name: "NoOrgType" });
+    const result = await asOwner.query(api.testHarness.resolve, {});
+    expect(result.kind).toBe("agency_member");
+    expect(result.caps).toContain("agency.viewAll");
+  });
 });
 
 describe("access engine - requireCapability", () => {

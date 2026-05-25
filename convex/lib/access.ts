@@ -96,7 +96,43 @@ export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
     const orgId = (identity as { orgId?: string }).orgId;
     const orgType = (identity as { orgType?: string }).orgType; // publicMetadata.type
 
-    // Agency-tier Clerk org
+    // Robust agency resolution: if this Clerk user has an active agencyMembers
+    // row, they ARE an agency member — even when the token doesn't carry orgType
+    // (e.g. no custom JWT template configured). This is the source of truth for
+    // agency membership; the orgType check below is a legacy fast-path.
+    const agMembership = (
+      await ctx.db
+        .query("agencyMembers")
+        .withIndex("by_clerk", (q) => q.eq("clerkUserId", clerkUserId))
+        .collect()
+    ).find((m) => m.status === "active");
+    if (agMembership) {
+      let scoped: string[] | "all" = "all";
+      if (agMembership.role === "staff") {
+        const scopes = await ctx.db
+          .query("agencyMemberScopes")
+          .withIndex("by_member", (q) => q.eq("agencyMemberId", agMembership._id))
+          .collect();
+        scoped = scopes.map((s) => s.subAccountOrgId);
+      }
+      const state = await ctx.db
+        .query("appState")
+        .withIndex("by_key", (q) => q.eq("key", "demo"))
+        .first();
+      return {
+        kind: "agency_member",
+        agencyId: agMembership.agencyId,
+        agencyMemberId: agMembership._id,
+        clerkUserId,
+        role: agMembership.role,
+        scopedSubAccountOrgIds: scoped,
+        capabilities: buildAgencyCaps(agMembership.role, agMembership.capabilityOverrides),
+        // An agency member "acts as" a studio via appState.activeOrgId.
+        orgId: state?.activeOrgId,
+      };
+    }
+
+    // Agency-tier Clerk org (legacy fast-path; requires orgType in the JWT)
     if (orgId && orgType === "agency") {
       const member = await ctx.db
         .query("agencyMembers")
