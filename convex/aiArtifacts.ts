@@ -45,6 +45,32 @@ export const forSession = query({
   },
 });
 
+/** One artifact by id (org-scoped). Powers inbox draft review + edit. */
+export const get = query({
+  args: { id: v.id("aiArtifacts") },
+  handler: async (ctx, { id }) => {
+    const orgId = await currentOrg(ctx);
+    const a = await ctx.db.get(id);
+    if (!a || a.orgId !== orgId) return null;
+    return a;
+  },
+});
+
+/** Edit an artifact's body (and optionally the email draft body) before it's
+ * actioned from the inbox. Org-scoped. */
+export const updateBody = mutation({
+  args: { id: v.id("aiArtifacts"), body: v.string() },
+  handler: async (ctx, { id, body }) => {
+    const orgId = await currentOrg(ctx);
+    const a = await ctx.db.get(id);
+    if (!a || a.orgId !== orgId) throw new Error("Not found");
+    const patch: Record<string, unknown> = { body };
+    // Keep the email draft body in sync if this artifact carries one.
+    if (a.emailDraft) patch.emailDraft = { ...a.emailDraft, body };
+    await ctx.db.patch(id, patch);
+  },
+});
+
 /** Flip an artifact's status (acknowledged means staff read it; dismissed
  * means it's hidden from the unread feed). */
 export const setStatus = mutation({

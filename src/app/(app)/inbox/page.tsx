@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import type { Doc } from "@convex/_generated/dataModel";
+import type { Doc, Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import {
   Inbox as InboxIcon,
@@ -54,6 +54,63 @@ function PayloadIcon({ kind }: { kind: string }) {
   if (kind === "email") return <Mail className="size-3.5" />;
   if (kind === "session_status") return <CalendarCheck className="size-3.5" />;
   return <StickyNote className="size-3.5" />;
+}
+
+/** Rich AI draft (prep packet, recap, etc.) attached to an action - viewable
+ *  and editable inline before the action is approved. */
+function ArtifactDraft({ artifactId }: { artifactId: Id<"aiArtifacts"> }) {
+  const art = useQuery(api.aiArtifacts.get, { id: artifactId });
+  const updateBody = useMutation(api.aiArtifacts.updateBody);
+  const [editing, setEditing] = React.useState(false);
+  const [override, setOverride] = React.useState<string | null>(null);
+  const [saving, setSaving] = React.useState(false);
+
+  if (art === undefined) return <div className="mt-3 skeleton h-16 w-full rounded-md" />;
+  if (art === null) return null;
+  const body = override ?? art.body ?? "";
+  const edited = body.trim() !== (art.body ?? "").trim();
+
+  async function save() {
+    setSaving(true);
+    try {
+      await updateBody({ id: artifactId, body: body.trim() });
+      toast.success("Draft saved.");
+      setEditing(false);
+    } catch {
+      toast.error("Could not save the draft.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-3 rounded-md border border-hairline bg-coal-2 p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="inline-flex items-center gap-1 font-mono text-[0.625rem] uppercase text-ash-dim">
+          <Sparkles className="size-3.5 text-gold" /> {art.title || "AI draft"}
+        </span>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => { if (!editing && override === null) setOverride(art.body ?? ""); setEditing((v) => !v); }}
+        >
+          <Pencil className="size-3.5" /> {editing ? "Preview" : "Edit"}
+        </Button>
+      </div>
+      {editing ? (
+        <Textarea className="mt-2 min-h-40 text-xs" value={body} onChange={(e) => setOverride(e.target.value)} />
+      ) : (
+        <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap font-sans text-xs leading-relaxed text-ash">
+          {body || art.summary || "(no draft content)"}
+        </pre>
+      )}
+      {edited && (
+        <Button size="sm" className="mt-2" onClick={save} disabled={saving}>
+          {saving ? "Saving..." : "Save draft"}
+        </Button>
+      )}
+    </div>
+  );
 }
 
 /** A single queued action with an inline-editable draft body. */
@@ -155,9 +212,7 @@ function InboxCard({ action }: { action: Doc<"opsActions"> }) {
       )}
 
       {p.kind === "note_only" && action.artifactId && (
-        <p className="mt-3 inline-flex items-center gap-1 font-mono text-[0.625rem] uppercase text-ash-dim">
-          <Sparkles className="size-3.5 text-gold" /> rich draft attached - approve to action it
-        </p>
+        <ArtifactDraft artifactId={action.artifactId} />
       )}
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
