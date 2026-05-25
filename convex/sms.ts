@@ -1,4 +1,4 @@
-import { action, internalQuery, internalMutation, internalAction } from "./_generated/server";
+import { action, query, mutation, internalQuery, internalMutation, internalAction } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -102,6 +102,30 @@ export const sendClientSms = action({
       sentBy: identity?.subject,
     });
     return { ok: status !== "failed", status };
+  },
+});
+
+// ── Settings: the per-studio reminders toggle ───────────────────────────
+
+export const remindersStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    const orgId = await currentOrg(ctx);
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+    return {
+      enabled: org?.smsRemindersEnabled !== false, // default on when unset
+      providerConfigured: Boolean(process.env.TWILIO_ACCOUNT_SID || process.env.TELNYX_API_KEY),
+    };
+  },
+});
+
+export const setRemindersEnabled = mutation({
+  args: { enabled: v.boolean() },
+  handler: async (ctx, { enabled }) => {
+    const orgId = await currentOrg(ctx);
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+    if (!org) throw new ConvexError("No studio.");
+    await ctx.db.patch(org._id, { smsRemindersEnabled: enabled });
   },
 });
 

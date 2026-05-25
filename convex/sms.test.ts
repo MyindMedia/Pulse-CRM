@@ -75,8 +75,8 @@ describe("sms", () => {
   it("_dueReminders honors the org opt-out toggle", async () => {
     const a = await addArtist("404-555-0103");
     await t.run(async (ctx) => {
-      const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", "pulse-demo")).first();
-      await ctx.db.patch(org!._id, { smsRemindersEnabled: false });
+      const org = (await ctx.db.query("orgs").collect())[0];
+      await ctx.db.patch(org._id, { smsRemindersEnabled: false });
       await ctx.db.insert("sessions", {
         orgId: "pulse-demo", title: "Mix", artistId: a, serviceType: "mixing",
         startTime: Date.now() + 60 * 60 * 1000, endTime: Date.now() + 2 * 60 * 60 * 1000,

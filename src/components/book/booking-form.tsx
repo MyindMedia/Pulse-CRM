@@ -75,7 +75,11 @@ export function BookingForm({
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Phone" htmlFor="bk-phone" hint="Optional - for session reminders.">
+        <Field
+          label="Phone"
+          htmlFor="bk-phone"
+          hint="Optional — we'll text session reminders & updates. Msg/data rates may apply; reply STOP to opt out."
+        >
           <Input
             id="bk-phone"
             type="tel"
