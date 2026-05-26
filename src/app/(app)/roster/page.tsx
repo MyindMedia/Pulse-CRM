@@ -25,10 +25,36 @@ import { useDebouncedValue } from "@/components/roster/use-debounced-value";
 
 const COLUMN_COUNT = 7;
 
+type ArtistRow = {
+  type: string;
+  status: string;
+  sessionCount: number;
+  lifetimeValueCents: number;
+};
+
+/** Top-level lenses over the one contacts table. Artists = creative talent you
+ *  work with; Clients = anyone who has booked or paid; Leads = prospects. They
+ *  intentionally overlap (a booked artist shows in both Artists and Clients). */
+const SEGMENTS: { key: string; label: string; match: (a: ArtistRow) => boolean }[] = [
+  { key: "all", label: "All", match: () => true },
+  { key: "artists", label: "Artists", match: (a) => ["artist", "band", "songwriter", "producer"].includes(a.type) },
+  { key: "clients", label: "Clients", match: (a) => a.sessionCount > 0 || a.lifetimeValueCents > 0 },
+  { key: "leads", label: "Leads", match: (a) => a.status === "lead" },
+];
+
 function RosterView() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
+  const segParam = searchParams.get("segment") ?? "all";
+  const [segment, setSegment] = React.useState(SEGMENTS.some((s) => s.key === segParam) ? segParam : "all");
+  // Follow the URL param (e.g. the "Roster" nav shortcut → ?segment=artists)
+  // even when already on this page (render-time sync, no effect cascade).
+  const [prevSeg, setPrevSeg] = React.useState(segParam);
+  if (prevSeg !== segParam) {
+    setPrevSeg(segParam);
+    if (SEGMENTS.some((s) => s.key === segParam)) setSegment(segParam);
+  }
   const [status, setStatus] = React.useState<StatusFilterValue>("all");
   const [searchInput, setSearchInput] = React.useState("");
   const search = useDebouncedValue(searchInput.trim(), 250);
@@ -52,9 +78,14 @@ function RosterView() {
     search: search || undefined,
   });
 
-  const filtering = status !== "all" || search.length > 0;
+  const visible = React.useMemo(() => {
+    const m = SEGMENTS.find((s) => s.key === segment)?.match ?? (() => true);
+    return (artists ?? []).filter(m);
+  }, [artists, segment]);
+
+  const filtering = status !== "all" || search.length > 0 || segment !== "all";
   const loading = artists === undefined;
-  const empty = !loading && artists.length === 0;
+  const empty = !loading && visible.length === 0;
 
   return (
     <div className="space-y-7">
@@ -86,6 +117,27 @@ function RosterView() {
           <StatTile label="Dormant" value={String(counts.dormant)} />
         </div>
       )}
+
+      {/* Segment lenses over the one contacts table */}
+      <div className="flex flex-wrap gap-1 border-b border-hairline">
+        {SEGMENTS.map((s) => {
+          const active = segment === s.key;
+          const n = (artists ?? []).filter(s.match).length;
+          return (
+            <button
+              key={s.key}
+              onClick={() => setSegment(s.key)}
+              className={
+                "relative -mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors " +
+                (active ? "border-gold text-bone" : "border-transparent text-ash-dim hover:text-ash")
+              }
+            >
+              {s.label}
+              {artists !== undefined && <span className="ml-1.5 font-mono text-[0.6875rem] text-ash-dim">{n}</span>}
+            </button>
+          );
+        })}
+      </div>
 
       {/* Filters */}
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -141,6 +193,7 @@ function RosterView() {
                 onClick={() => {
                   setStatus("all");
                   setSearchInput("");
+                  setSegment("all");
                 }}
               >
                 Clear filters
@@ -186,7 +239,7 @@ function RosterView() {
                     ))}
                   </TR>
                 ))
-              : artists.map((artist) => {
+              : visible.map((artist) => {
                   const st = meta(ARTIST_STATUS, artist.status);
                   const rel = meta(RELIABILITY, artist.reliability);
                   return (
@@ -240,7 +293,7 @@ function RosterView() {
 
       {!loading && !empty && (
         <p className="text-xs text-ash-dim">
-          Showing {artists.length} {artists.length === 1 ? "artist" : "artists"}
+          Showing {visible.length} {visible.length === 1 ? "contact" : "contacts"}
           {filtering ? " for the current filters" : ""}.
         </p>
       )}
