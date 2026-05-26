@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/field";
 import { Progress } from "@/components/ui/progress";
 import { slugify } from "@/components/agency/meta";
-import { StripeConnectCard } from "@/components/payments/stripe-connect-card";
+import { PaymentsSetupWalkthrough } from "@/components/payments/payments-setup-walkthrough";
 import { EmailConnectCard } from "@/components/email/email-connect-card";
 
 type StepKey = "basics" | "logo" | "contact" | "branding" | "payment" | "email" | "rooms";
@@ -296,7 +296,7 @@ function Wizard({ initial }: { initial: Mine }) {
 
             {STEPS[step].key === "payment" && (
               <div className="space-y-3">
-                <StripeConnectCard />
+                <PaymentsSetupWalkthrough />
                 <p className="text-xs text-ash-dim">
                   Optional now - you can connect Stripe later from Settings. Until then you can still
                   take bookings and record payments manually.

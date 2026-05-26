@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
 import { MoneySummary, type InvoiceSummary } from "@/components/payments/money-summary";
+import { PaymentsSetupWalkthrough } from "@/components/payments/payments-setup-walkthrough";
 import { StatusFilter, type StatusFilterValue } from "@/components/payments/status-filter";
 import { InvoiceTable } from "@/components/payments/invoice-table";
 import { CreateInvoiceDialog } from "@/components/payments/create-invoice-dialog";
@@ -66,6 +67,8 @@ function PaymentsView() {
           </Button>
         }
       />
+
+      <PaymentsSetupWalkthrough />
 
       <MoneySummary summary={summary} />
 

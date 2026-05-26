@@ -7,6 +7,7 @@ import { api } from "@convex/_generated/api";
 import { PulseAiPanel } from "@/components/ai/pulse-ai-panel";
 import { OpsAutopilotPanel } from "@/components/ai/ops-autopilot-panel";
 import { OnboardingNudge } from "@/components/onboarding/onboarding-nudge";
+import { GetPaidBanner } from "@/components/payments/get-paid-banner";
 import { WhosWorkingCard } from "@/components/schedule/whos-working-card";
 import {
   DollarSign,
@@ -44,6 +45,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-7">
       <OnboardingNudge />
+      <GetPaidBanner />
       <PageHeader
         overline="Studio"
         title="Dashboard"
