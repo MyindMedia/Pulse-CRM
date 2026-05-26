@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
-import type { Doc, Id } from "@convex/_generated/dataModel";
+import type { Doc } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import {
   Inbox as InboxIcon,
@@ -13,53 +13,15 @@ import {
   Mail,
   CalendarCheck,
   StickyNote,
-  Pencil,
   Sparkles,
+  ChevronRight,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
-import { Textarea } from "@/components/ui/field";
-import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter,
-} from "@/components/ui/dialog";
-
-/** Popup editor for a draft body. Mounted only while open so it seeds cleanly. */
-function DraftEditModal({
-  title, initial, onSave, onClose,
-}: {
-  title: string;
-  initial: string;
-  onSave: (value: string) => Promise<void> | void;
-  onClose: () => void;
-}) {
-  const [text, setText] = React.useState(initial);
-  const [saving, setSaving] = React.useState(false);
-  async function save() {
-    setSaving(true);
-    try { await onSave(text.trim()); onClose(); }
-    finally { setSaving(false); }
-  }
-  return (
-    <Dialog open onOpenChange={(o) => !o && onClose()}>
-      <DialogContent size="lg">
-        <DialogHeader>
-          <DialogTitle>Edit message</DialogTitle>
-          <DialogDescription>{title}</DialogDescription>
-        </DialogHeader>
-        <DialogBody>
-          <Textarea className="min-h-64 text-sm" value={text} onChange={(e) => setText(e.target.value)} autoFocus />
-        </DialogBody>
-        <DialogFooter>
-          <Button variant="ghost" onClick={onClose} disabled={saving}>Cancel</Button>
-          <Button onClick={save} disabled={saving || !text.trim()}>{saving ? "Saving..." : "Save"}</Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
+import { OpsActionSheet } from "@/components/ai/ops-action-sheet";
 
 const DAY = 86_400_000;
 
@@ -94,163 +56,61 @@ function PayloadIcon({ kind }: { kind: string }) {
   return <StickyNote className="size-3.5" />;
 }
 
-/** Rich AI draft (prep packet, recap, etc.) attached to an action - viewable
- *  and editable inline before the action is approved. */
-function ArtifactDraft({ artifactId }: { artifactId: Id<"aiArtifacts"> }) {
-  const art = useQuery(api.aiArtifacts.get, { id: artifactId });
-  const updateBody = useMutation(api.aiArtifacts.updateBody);
-  const [editing, setEditing] = React.useState(false);
-
-  if (art === undefined) return <div className="mt-3 skeleton h-16 w-full rounded-md" />;
-  if (art === null) return null;
-  const body = art.body ?? "";
-
-  return (
-    <div className="mt-3 rounded-md border border-hairline bg-coal-2 p-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="inline-flex items-center gap-1 font-mono text-[0.625rem] uppercase text-ash-dim">
-          <Sparkles className="size-3.5 text-gold" /> {art.title || "AI draft"}
-        </span>
-        <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
-          <Pencil className="size-3.5" /> Edit
-        </Button>
-      </div>
-      <pre className="mt-2 max-h-56 overflow-auto whitespace-pre-wrap font-sans text-xs leading-relaxed text-ash">
-        {body || art.summary || "(no draft content)"}
-      </pre>
-      {editing && (
-        <DraftEditModal
-          title={art.title || "AI draft"}
-          initial={body}
-          onClose={() => setEditing(false)}
-          onSave={async (v) => {
-            try { await updateBody({ id: artifactId, body: v }); toast.success("Draft saved."); }
-            catch { toast.error("Could not save the draft."); }
-          }}
-        />
-      )}
-    </div>
-  );
-}
-
-/** A single queued action with an inline-editable draft body. */
-function InboxCard({ action }: { action: Doc<"opsActions"> }) {
+/** A queued action - click to open the detail + edit modal; quick actions below. */
+function InboxCard({ action, onOpen }: { action: Doc<"opsActions">; onOpen: (a: Doc<"opsActions">) => void }) {
   const approve = useMutation(api.opsActions.approve);
   const dismiss = useMutation(api.opsActions.dismiss);
   const snooze = useMutation(api.opsActions.snooze);
-
-  const p = action.payload;
-  const draft = action.editedBody ?? (p.kind === "email" ? p.body : "");
-  const [editing, setEditing] = React.useState(false);
-  // Local edits live here only while editing; null means "show the server
-  // draft" so late-arriving LLM enrichment surfaces without a sync effect.
-  const [override, setOverride] = React.useState<string | null>(null);
   const [pending, setPending] = React.useState(false);
-
-  const body = override ?? draft;
-
-  const meta = AGENT_META[action.type] ?? { label: action.type, group: "Other", order: 99 };
 
   async function run(fn: () => Promise<unknown>, ok: string) {
     setPending(true);
-    try {
-      await fn();
-      toast.success(ok);
-    } catch {
-      toast.error("Action failed.");
-    } finally {
-      setPending(false);
-    }
+    try { await fn(); toast.success(ok); }
+    catch { toast.error("Action failed."); }
+    finally { setPending(false); }
   }
 
-  const editedDiffers = body.trim() !== draft.trim();
+  const p = action.payload;
+  const meta = AGENT_META[action.type] ?? { label: action.type, group: "Other", order: 99 };
 
   return (
     <div className="rounded-lg border border-hairline bg-coal p-4 shadow-elev-1">
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2">
-            <Badge tone={PRIORITY_TONE[action.priority]}>{action.priority}</Badge>
-            <span className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
-              {meta.label}
-            </span>
-            {action.source === "openai" && (
-              <span className="inline-flex items-center gap-1 font-mono text-[0.5625rem] uppercase text-gold">
-                <Sparkles className="size-3" /> AI
-              </span>
-            )}
+      <button
+        type="button"
+        onClick={() => onOpen(action)}
+        className="block w-full text-left outline-none focus-visible:ring-2 focus-visible:ring-gold/30"
+      >
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2">
+              <Badge tone={PRIORITY_TONE[action.priority]}>{action.priority}</Badge>
+              <span className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">{meta.label}</span>
+              {action.source === "openai" && (
+                <span className="inline-flex items-center gap-1 font-mono text-[0.5625rem] uppercase text-gold"><Sparkles className="size-3" /> AI</span>
+              )}
+            </div>
+            <p className="mt-1 truncate font-display text-sm font-semibold text-bone">{action.title}</p>
+            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ash">{action.rationale}</p>
+            <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+              <PayloadIcon kind={p.kind} />
+              {p.kind === "email" && <span className="truncate">{p.to ?? "no recipient"}</span>}
+              {p.kind === "session_status" && <span>will set → {p.newStatus}</span>}
+              {p.kind === "note_only" && <span>{action.artifactId ? "draft attached" : "internal note"}</span>}
+            </div>
           </div>
-          <p className="mt-1 truncate font-display text-sm font-semibold text-bone">{action.title}</p>
-          <p className="mt-1 text-xs leading-relaxed text-ash">{action.rationale}</p>
+          <ChevronRight className="mt-0.5 size-4 shrink-0 text-ash-dim" />
         </div>
-      </div>
-
-      {/* Email draft - read-only preview on the card; Edit opens a modal. */}
-      {p.kind === "email" && (
-        <div className="mt-3 rounded-md border border-hairline bg-coal-2 p-3">
-          <div className="flex items-center justify-between gap-2">
-            <span className="inline-flex items-center gap-1 font-mono text-[0.625rem] uppercase text-ash-dim">
-              <PayloadIcon kind={p.kind} /> {p.to ?? "no recipient"}
-            </span>
-            <Button variant="ghost" size="sm" onClick={() => setEditing(true)} disabled={pending}>
-              <Pencil className="size-3.5" /> Edit
-            </Button>
-          </div>
-          <p className="mt-1 text-xs font-medium text-bone">{p.subject}</p>
-          <pre className="mt-2 whitespace-pre-wrap font-sans text-xs leading-relaxed text-ash">
-            {body || "(no draft body)"}
-          </pre>
-          {editedDiffers && (
-            <p className="mt-1 font-mono text-[0.5625rem] uppercase text-gold">edited - will send your version</p>
-          )}
-          {editing && (
-            <DraftEditModal
-              title={p.subject ?? "Email draft"}
-              initial={body}
-              onClose={() => setEditing(false)}
-              onSave={(v) => setOverride(v)}
-            />
-          )}
-        </div>
-      )}
-
-      {p.kind === "session_status" && (
-        <p className="mt-3 inline-flex items-center gap-1 font-mono text-[0.625rem] uppercase text-ash">
-          <PayloadIcon kind={p.kind} /> will set session to {p.newStatus}
-        </p>
-      )}
-
-      {p.kind === "note_only" && action.artifactId && (
-        <ArtifactDraft artifactId={action.artifactId} />
-      )}
+        <span className="mt-2 block font-mono text-[0.5625rem] uppercase tracking-wide text-gold">Tap to view &amp; edit</span>
+      </button>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Button
-          size="sm"
-          disabled={pending}
-          onClick={() =>
-            run(
-              () =>
-                approve(
-                  p.kind === "email" && editedDiffers
-                    ? { id: action._id, editedBody: body.trim() }
-                    : { id: action._id },
-                ),
-              "Approved + sent.",
-            )
-          }
-        >
-          <Check className="size-3.5" /> {editedDiffers ? "Approve edited" : "Approve"}
+        <Button size="sm" disabled={pending} onClick={() => run(() => approve({ id: action._id }), "Approved + sent.")}>
+          <Check className="size-3.5" /> Approve
         </Button>
         <Button variant="outline" size="sm" disabled={pending} onClick={() => run(() => dismiss({ id: action._id }), "Dismissed.")}>
           <X className="size-3.5" /> Dismiss
         </Button>
-        <Button
-          variant="ghost"
-          size="sm"
-          disabled={pending}
-          onClick={() => run(() => snooze({ id: action._id, until: Date.now() + DAY }), "Snoozed 24h.")}
-        >
+        <Button variant="ghost" size="sm" disabled={pending} onClick={() => run(() => snooze({ id: action._id, until: Date.now() + DAY }), "Snoozed 24h.")}>
           <Clock className="size-3.5" /> Snooze 24h
         </Button>
       </div>
@@ -261,8 +121,8 @@ function InboxCard({ action }: { action: Doc<"opsActions"> }) {
 export default function InboxPage() {
   const queue = useQuery(api.opsActions.list, { limit: 100 });
   const counts = useQuery(api.opsActions.counts, {});
+  const [openAction, setOpenAction] = React.useState<Doc<"opsActions"> | null>(null);
 
-  // Group the open queue by agent, in a stable display order.
   const groups = React.useMemo(() => {
     if (!queue) return [];
     const byGroup = new Map<string, { order: number; rows: Doc<"opsActions">[] }>();
@@ -282,7 +142,7 @@ export default function InboxPage() {
       <PageHeader
         overline="AI Agents"
         title="Approval Inbox"
-        description="Every AI agent drops its drafts here. Review, edit the copy, and approve to send - or dismiss / snooze. Trusted action types graduate to autopilot."
+        description="Every AI agent drops its drafts here. Click an item to review and edit the details, then approve to send - or dismiss / snooze."
         actions={
           counts ? (
             <Badge tone={counts.high ? "critical" : "gold"}>
@@ -294,9 +154,7 @@ export default function InboxPage() {
 
       {queue === undefined ? (
         <div className="space-y-3">
-          {[0, 1, 2].map((i) => (
-            <Skeleton key={i} className="h-40 w-full" />
-          ))}
+          {[0, 1, 2].map((i) => <Skeleton key={i} className="h-40 w-full" />)}
         </div>
       ) : queue.length === 0 ? (
         <EmptyState
@@ -314,13 +172,15 @@ export default function InboxPage() {
               </div>
               <div className="grid gap-3 lg:grid-cols-2">
                 {group.rows.map((a) => (
-                  <InboxCard key={a._id} action={a} />
+                  <InboxCard key={a._id} action={a} onOpen={setOpenAction} />
                 ))}
               </div>
             </section>
           ))}
         </div>
       )}
+
+      <OpsActionSheet action={openAction} onClose={() => setOpenAction(null)} />
     </div>
   );
 }
