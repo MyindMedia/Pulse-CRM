@@ -60,8 +60,8 @@ function RosterView() {
     <div className="space-y-7">
       <PageHeader
         overline="CRM"
-        title="Roster"
-        description="Every artist, producer and label the studio works with - ranked by lifetime value."
+        title="Clients"
+        description="Every client - artist, producer and label - the studio works with, ranked by lifetime value."
         actions={
           <Button onClick={() => setAddOpen(true)}>
             <UserPlus className="size-4" />
@@ -128,11 +128,11 @@ function RosterView() {
       {empty ? (
         <EmptyState
           icon={Users}
-          title={filtering ? "No artists match" : "The roster is empty"}
+          title={filtering ? "No clients match" : "No clients yet"}
           description={
             filtering
               ? "Try a different status or clear the search to see everyone."
-              : "Add your first artist to start building the studio's CRM."
+              : "Add your first client to start building the studio's CRM."
           }
           action={
             filtering ? (

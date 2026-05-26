@@ -109,7 +109,7 @@ export function CommandPalette() {
               )}
 
               {roster.length > 0 && (
-                <Command.Group heading="Roster">
+                <Command.Group heading="Clients">
                   {roster.slice(0, 8).map((a) => (
                     <Item
                       key={a._id}

@@ -162,15 +162,15 @@ export function SellLicenseDialog() {
               />
             </Field>
             <Field
-              label="Roster artist"
-              hint="Optional - link the buyer to a roster artist."
+              label="Client"
+              hint="Optional - link the buyer to an existing client."
             >
               <Select value={buyerArtistId} onValueChange={setBuyerArtistId}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Not on roster" />
+                  <SelectValue placeholder="Not a client" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value={NO_ARTIST}>Not on roster</SelectItem>
+                  <SelectItem value={NO_ARTIST}>Not a client</SelectItem>
                   {(roster ?? []).map((a) => (
                     <SelectItem key={a._id} value={a._id}>
                       {a.name}

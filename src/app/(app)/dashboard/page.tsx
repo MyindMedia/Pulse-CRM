@@ -328,7 +328,7 @@ export default function DashboardPage() {
       {data && (
         <p className="flex items-center gap-1.5 text-xs text-ash-dim">
           {compactNumber(data.kpis.activeSongs)} songs in production ·{" "}
-          {compactNumber(data.kpis.rosterSize)} on the roster
+          {compactNumber(data.kpis.rosterSize)} clients
           <Link href="/songs" className="inline-flex items-center gap-0.5 text-gold hover:underline">
             View catalog <ArrowRight className="size-3" />
           </Link>

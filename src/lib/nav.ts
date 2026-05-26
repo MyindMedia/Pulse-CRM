@@ -32,7 +32,7 @@ export const NAV: NavItem[] = [
   { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, blurb: "Studio at a glance" },
   { label: "Agent", href: "/agent", icon: Sparkles, blurb: "Your AI studio operations manager" },
   { label: "Songs", href: "/songs", icon: Music2, blurb: "The catalog - every record in flight" },
-  { label: "Roster", href: "/roster", icon: Users, blurb: "Artists, producers and labels" },
+  { label: "Clients", href: "/roster", icon: Users, blurb: "Clients - artists, producers and labels" },
   { label: "Pipeline", href: "/pipeline", icon: KanbanSquare, blurb: "Inquiries to booked work" },
   { label: "Inbox", href: "/inbox", icon: Inbox, blurb: "AI agent drafts awaiting your approval" },
   { label: "Calendar", href: "/calendar", icon: CalendarDays, blurb: "Sessions and room bookings" },
