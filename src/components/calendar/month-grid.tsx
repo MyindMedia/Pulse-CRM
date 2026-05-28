@@ -95,12 +95,22 @@ export function MonthGrid({
           const overflow = dayList.length - visible.length;
 
           return (
-            <button
+            // The day cell can't be a <button> because it contains <SessionPill>
+            // buttons - nested buttons are invalid HTML and trip React's hydration
+            // checker. Use a div with role + keyboard handling to keep a11y.
+            <div
               key={dayTs}
-              type="button"
+              role="button"
+              tabIndex={0}
               onClick={() => onPickDay(dayTs)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onPickDay(dayTs);
+                }
+              }}
               className={cn(
-                "flex min-h-28 flex-col gap-1 border-b border-r border-hairline p-1.5 text-left outline-none transition-colors last:border-r-0 hover:bg-coal-2 focus-visible:ring-2 focus-visible:ring-gold/30",
+                "flex min-h-28 cursor-pointer flex-col gap-1 border-b border-r border-hairline p-1.5 text-left outline-none transition-colors last:border-r-0 hover:bg-coal-2 focus-visible:ring-2 focus-visible:ring-gold/30",
                 !inMonth && "bg-ink-2/40",
               )}
             >
@@ -125,7 +135,7 @@ export function MonthGrid({
                   </span>
                 )}
               </div>
-            </button>
+            </div>
           );
         })}
       </div>
