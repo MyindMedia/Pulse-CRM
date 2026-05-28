@@ -4,6 +4,7 @@ import { Id } from "./_generated/dataModel";
 import { tierForPriceId } from "./lib/stripe";
 import { settlePayment } from "./payments";
 import { settleInvoice } from "./invoicePay";
+import { internal } from "./_generated/api";
 
 /* ============================================================
    Stripe webhook handlers. Idempotent via auditEvents-keyed
@@ -14,8 +15,20 @@ import { settleInvoice } from "./invoicePay";
 const eventV = v.object({
   id: v.string(),
   type: v.string(),
+  // Populated by Stripe on events originating from a connected (studio) account.
+  account: v.optional(v.string()),
   data: v.any(),
 });
+
+/** Map Stripe's subscription status -> our membership status. */
+function mapSubStatus(s: string): "active" | "past_due" | "cancelled" | "trialing" | "pending" {
+  if (s === "active") return "active";
+  if (s === "trialing") return "trialing";
+  if (s === "past_due") return "past_due";
+  if (s === "canceled" || s === "cancelled") return "cancelled";
+  if (s === "unpaid") return "past_due";
+  return "pending";
+}
 
 async function alreadyProcessed(ctx: MutationCtx, eventId: string): Promise<boolean> {
   const existing = await ctx.db
@@ -77,6 +90,22 @@ export const handle = internalMutation({
         return { ok: true };
       }
 
+      // Studio membership subscription completed checkout on a Connect account.
+      if (meta.membershipId) {
+        const subscriptionId = obj.subscription as string | undefined;
+        const customerId = obj.customer as string | undefined;
+        if (subscriptionId) {
+          await ctx.scheduler.runAfter(0, internal.memberships._applySubscriptionEvent, {
+            stripeSubscriptionId: subscriptionId,
+            stripeCustomerId: customerId,
+            status: "active",
+            membershipIdHint: meta.membershipId as Id<"memberships">,
+          });
+        }
+        await markProcessed(ctx, event.id, e.type);
+        return { ok: true };
+      }
+
       const customerId = obj.customer as string;
       const subscriptionId = obj.subscription as string;
       // Only platform subscription checkouts go past here.
@@ -134,6 +163,21 @@ export const handle = internalMutation({
     }
 
     if (e.type === "customer.subscription.updated") {
+      // Connect-account event: a studio's client subscription. Route to memberships.
+      if (event.account) {
+        const subId = obj.id as string;
+        const periodStart = obj.current_period_start as number | undefined;
+        const periodEnd = obj.current_period_end as number | undefined;
+        await ctx.scheduler.runAfter(0, internal.memberships._applySubscriptionEvent, {
+          stripeSubscriptionId: subId,
+          stripeCustomerId: obj.customer as string | undefined,
+          status: mapSubStatus(obj.status as string),
+          currentPeriodStart: periodStart ? periodStart * 1000 : undefined,
+          currentPeriodEnd: periodEnd ? periodEnd * 1000 : undefined,
+        });
+        await markProcessed(ctx, event.id, e.type);
+        return { ok: true };
+      }
       const stripeCustomerId = obj.customer as string;
       const items = (obj.items as { data?: Array<{ price?: { id?: string } }> } | undefined)?.data ?? [];
       const priceId = items[0]?.price?.id;
@@ -151,6 +195,16 @@ export const handle = internalMutation({
     }
 
     if (e.type === "customer.subscription.deleted") {
+      // Connect-account event: a studio's client subscription was cancelled.
+      if (event.account) {
+        const subId = obj.id as string;
+        await ctx.scheduler.runAfter(0, internal.memberships._applySubscriptionEvent, {
+          stripeSubscriptionId: subId,
+          status: "cancelled",
+        });
+        await markProcessed(ctx, event.id, e.type);
+        return { ok: true };
+      }
       const stripeCustomerId = obj.customer as string;
       const ag = await ctx.db
         .query("agencies")

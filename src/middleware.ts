@@ -18,6 +18,7 @@ const isPublicRoute = createRouteMatcher([
   "/pay(.*)", // public invoice payment link - no login
   "/invite(.*)", // beta invite account-creation screen - no auth required
   "/portal(.*)", // client concierge magic-link portal - token-authed, no login
+  "/sign(.*)", // split-sheet e-signature magic-link - token-authed, no login
 ]);
 
 const handler = CLERK_ENABLED

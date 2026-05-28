@@ -58,9 +58,14 @@ is verified, Resend will reject sends to addresses other than the account owner.
    - `GOOGLE_CLIENT_ID`
    - `GOOGLE_CLIENT_SECRET`
 3. Add authorized redirect URI: `https://<CONVEX_SITE_URL>/google/callback`.
-4. Enable scopes: `gmail.send` and `userinfo.email`.
+4. Enable scopes: `gmail.send`, `calendar.events`, and `userinfo.email`.
 5. Studio connects Google on `/settings`; `clientEmail.sendToClient` then routes
-   through their Gmail instead of the internal channel.
+   through their Gmail instead of the internal channel, and Pulse sessions are
+   mirrored onto their Google primary calendar in real time.
+6. **Existing connected studios:** the new `calendar.events` scope was added
+   after their first connect, so they must disconnect + reconnect once to
+   re-consent. Gmail send continues working in the meantime; only calendar
+   push waits on the re-auth.
 
 ## 4. SMS (currently logged/simulated)
 

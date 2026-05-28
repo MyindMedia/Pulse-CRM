@@ -668,6 +668,9 @@ export default defineSchema({
     holdExpiresAt: v.optional(v.number()), // unpaid hold auto-releases at this time
     balanceRemindedAt: v.optional(v.number()), // set once the "pay in full" nudge fires
     smsRemindersSent: v.optional(v.array(v.string())), // which SMS reminders fired: "24h" | "2h"
+    // Two-way Google Calendar sync: when the studio is connected, this is the
+    // Google event id we created for this session so we can patch / delete it.
+    googleCalendarEventId: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])
@@ -796,6 +799,11 @@ export default defineSchema({
         ipi: v.optional(v.string()),
         email: v.optional(v.string()),
         signed: v.boolean(),
+        // Captured at signing time via the public /sign/[token] page so the
+        // `signed` flag is legally backed rather than a bare checkbox.
+        signedAt: v.optional(v.number()),
+        signature: v.optional(v.string()), // typed full name or drawn data URI
+        signedFromUa: v.optional(v.string()), // user-agent at signing time
       }),
     ),
     updatedAt: v.number(),
@@ -1221,4 +1229,47 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])
     .index("by_artist", ["artistId"]),
+
+  // ── Membership plans - studio-defined monthly/yearly tiers (priority booking,
+  //    bundled hours, member discount) billed via Stripe Connect. ──
+  membershipPlans: defineTable({
+    orgId: v.string(),
+    name: v.string(),
+    description: v.optional(v.string()),
+    priceCents: v.number(),
+    billingInterval: v.union(v.literal("month"), v.literal("year")),
+    // Perks (any combination).
+    bundledHoursPerPeriod: v.optional(v.number()),
+    memberDiscountPct: v.optional(v.number()), // 0-100, applied to session rate
+    priorityBooking: v.optional(v.boolean()),
+    active: v.boolean(),
+    // The studio creates a recurring Price in its own Stripe dashboard and
+    // pastes the price id here; we never create products on their behalf.
+    stripePriceId: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_active", ["orgId", "active"]),
+
+  memberships: defineTable({
+    orgId: v.string(),
+    artistId: v.id("artists"),
+    planId: v.id("membershipPlans"),
+    status: v.union(
+      v.literal("pending"), // checkout created, not yet confirmed
+      v.literal("active"),
+      v.literal("past_due"),
+      v.literal("cancelled"),
+      v.literal("trialing"),
+    ),
+    currentPeriodStart: v.optional(v.number()),
+    currentPeriodEnd: v.optional(v.number()),
+    hoursUsedThisPeriod: v.number(),
+    stripeSubscriptionId: v.optional(v.string()),
+    stripeCustomerId: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_artist", ["artistId"])
+    .index("by_stripe_subscription", ["stripeSubscriptionId"]),
 });

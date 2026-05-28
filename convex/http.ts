@@ -52,7 +52,14 @@ http.route({
       return new Response(`invalid signature: ${(e as Error).message}`, { status: 400 });
     }
     await ctx.runMutation(internal.billingWebhooks.handle, {
-      event: { id: event.id, type: event.type, data: event.data },
+      event: {
+        id: event.id,
+        type: event.type,
+        // Pass the connected-account id through so studio-level (Connect) events
+        // are routed differently from platform events.
+        account: event.account ?? undefined,
+        data: event.data,
+      },
     });
     return new Response("ok", { status: 200 });
   }),

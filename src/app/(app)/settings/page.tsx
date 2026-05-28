@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Building2, CreditCard, Database, Palette, Receipt, Users, Plug } from "lucide-react";
+import { Building2, CreditCard, Crown, Database, Palette, Receipt, Users, Plug } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -16,6 +16,7 @@ import { PricingPanel } from "@/components/settings/pricing-panel";
 import { DataPanel } from "@/components/settings/data-panel";
 import { UsagePanel } from "@/components/settings/usage-panel";
 import { ExportPanel } from "@/components/settings/export-panel";
+import { MembershipsPanel } from "@/components/settings/memberships-panel";
 import type { Org } from "@/components/settings/types";
 
 /** Shimmer block while the org record loads. */
@@ -64,6 +65,10 @@ export default function SettingsPage() {
               <Plug className="size-4" />
               Integrations
             </TabsTrigger>
+            <TabsTrigger value="memberships">
+              <Crown className="size-4" />
+              Memberships
+            </TabsTrigger>
             <TabsTrigger value="billing">
               <CreditCard className="size-4" />
               Billing
@@ -88,6 +93,9 @@ export default function SettingsPage() {
           </TabsContent>
           <TabsContent value="integrations">
             <IntegrationsPanel />
+          </TabsContent>
+          <TabsContent value="memberships">
+            <MembershipsPanel />
           </TabsContent>
           <TabsContent value="billing">
             <BillingPanel org={org} />

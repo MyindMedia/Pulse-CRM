@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import {
   ChevronDown,
   Download,
+  Headphones,
   Lock,
   MessageSquare,
   Music2,
@@ -43,6 +44,7 @@ import {
 } from "@/components/ui/select";
 import { titleCase } from "@/lib/labels";
 import { cn } from "@/lib/utils";
+import { DeliverableReviewDialog } from "./deliverable-review-dialog";
 
 const DELIVERABLE_STATUS: Record<string, { label: string; tone: "neutral" | "info" | "positive" | "gold" }> = {
   delivered: { label: "Delivered", tone: "info" },
@@ -200,6 +202,7 @@ function DeliverableRow({
   const [uploading, setUploading] = useState(false);
   const [downloading, setDownloading] = useState(false);
   const [locked, setLocked] = useState<string | null>(null);
+  const [reviewOpen, setReviewOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const status = DELIVERABLE_STATUS[d.status] ?? { label: d.status, tone: "neutral" as const };
@@ -352,6 +355,12 @@ function DeliverableRow({
             {uploading ? "Uploading…" : d.fileId ? "Replace" : "Upload"}
           </Button>
           {d.fileId && (
+            <Button size="sm" variant="outline" onClick={() => setReviewOpen(true)}>
+              <Headphones className="size-3.5" />
+              Review
+            </Button>
+          )}
+          {d.fileId && (
             <Button size="sm" onClick={download} disabled={downloading}>
               {locked ? <Lock className="size-3.5" /> : <Download className="size-3.5" />}
               {downloading ? "…" : locked ? "Locked" : "Download"}
@@ -361,6 +370,14 @@ function DeliverableRow({
       </div>
 
       {expanded && <CommentThread deliverableId={d._id} />}
+
+      <DeliverableReviewDialog
+        deliverableId={d._id}
+        label={`${d.label} v${d.version}`}
+        authorName="Studio"
+        open={reviewOpen}
+        onOpenChange={setReviewOpen}
+      />
     </Card>
   );
 }

@@ -8,6 +8,7 @@
 
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.send",
+  "https://www.googleapis.com/auth/calendar.events", // two-way studio calendar sync
   "https://www.googleapis.com/auth/userinfo.email",
   "openid",
 ];
@@ -110,4 +111,53 @@ export async function gmailSend(
     body: JSON.stringify({ raw: base64url(mime) }),
   });
   if (!res.ok) throw new Error(`Gmail send failed (${res.status})`);
+}
+
+/* ============================================================
+   Google Calendar - two-way session sync.
+   ============================================================ */
+
+export type GoogleCalendarEventBody = {
+  summary: string;
+  description?: string;
+  start: { dateTime: string };
+  end: { dateTime: string };
+  status?: "confirmed" | "tentative" | "cancelled";
+};
+
+/** Create (POST) or patch (PATCH) an event on the connected account's primary
+ *  calendar. Returns the Google event id so the caller can persist it for
+ *  future patches/deletes. */
+export async function googleCalendarUpsertEvent(
+  refreshToken: string,
+  body: GoogleCalendarEventBody,
+  eventId?: string,
+): Promise<{ eventId: string }> {
+  const accessToken = await accessTokenFromRefresh(refreshToken);
+  const base = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+  const url = eventId ? `${base}/${encodeURIComponent(eventId)}` : base;
+  const method = eventId ? "PATCH" : "POST";
+  const res = await fetch(url, {
+    method,
+    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`Google Calendar upsert failed (${res.status})`);
+  const data = (await res.json()) as { id: string };
+  return { eventId: data.id };
+}
+
+/** Best-effort delete - 404/410 are treated as already-gone (success). */
+export async function googleCalendarDeleteEvent(
+  refreshToken: string,
+  eventId: string,
+): Promise<void> {
+  const accessToken = await accessTokenFromRefresh(refreshToken);
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`,
+    { method: "DELETE", headers: { Authorization: `Bearer ${accessToken}` } },
+  );
+  if (!res.ok && res.status !== 404 && res.status !== 410) {
+    throw new Error(`Google Calendar delete failed (${res.status})`);
+  }
 }

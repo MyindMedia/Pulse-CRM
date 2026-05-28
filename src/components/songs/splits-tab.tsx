@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { AlertTriangle, CheckCircle2, FileDown, Plus, Send, Trash2, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RightsExportDialog } from "@/components/songs/rights-export-dialog";
+import { SigningLinksDialog, type SigningLink } from "@/components/songs/signing-links-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/field";
@@ -51,11 +52,14 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
   const split = useQuery(api.splitSheets.forSong, { songId });
   const upsert = useMutation(api.splitSheets.upsert);
   const setStatusMut = useMutation(api.splitSheets.setStatus);
+  const issueSigning = useMutation(api.splitSignatures.issue);
 
   const [rows, setRows] = useState<Contributor[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
   const [exportOpen, setExportOpen] = useState(false);
+  const [issuedLinks, setIssuedLinks] = useState<SigningLink[] | null>(null);
+  const [linksOpen, setLinksOpen] = useState(false);
 
   if (split === undefined) {
     return <Skeleton className="h-72 w-full" />;
@@ -124,6 +128,25 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
       toast.error(err instanceof Error ? err.message : "Could not save the split sheet.");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function sendForSignature() {
+    if (!split) return;
+    setStatusUpdating(true);
+    try {
+      const links = await issueSigning({ splitSheetId: split._id });
+      setIssuedLinks(links);
+      setLinksOpen(true);
+      if (links.length > 0) {
+        toast.success(`Signing links issued to ${links.length} contributor${links.length === 1 ? "" : "s"}.`);
+      } else {
+        toast.message("Everyone with an email has already signed.");
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not issue signing links.");
+    } finally {
+      setStatusUpdating(false);
     }
   }
 
@@ -281,14 +304,14 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
         <Button onClick={save} disabled={saving || !dirty}>
           {saving ? "Saving…" : dirty ? "Save split sheet" : "No changes"}
         </Button>
-        {split && currentStatus === "draft" && (
+        {split && currentStatus !== "fully_executed" && (
           <Button
             variant="outline"
-            onClick={() => changeStatus("sent")}
+            onClick={sendForSignature}
             disabled={statusUpdating || dirty}
           >
             <Send className="size-4" />
-            Send for signature
+            {currentStatus === "draft" ? "Send for signature" : "Re-send signing links"}
           </Button>
         )}
         {split && currentStatus !== "fully_executed" && (
@@ -315,6 +338,7 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
       </div>
 
       <RightsExportDialog songId={songId} open={exportOpen} onOpenChange={setExportOpen} />
+      <SigningLinksDialog links={issuedLinks} open={linksOpen} onOpenChange={setLinksOpen} />
     </div>
   );
 }

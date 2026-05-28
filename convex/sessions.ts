@@ -9,6 +9,7 @@ import {
 import { stageChecklistsFor, dropPreChecklistFor } from "./checklists";
 import { ensureSessionShift } from "./shifts";
 import { proposeWaitlistFill } from "./waitlist";
+import { scheduleGoogleCalendarPush, scheduleGoogleCalendarRemove } from "./googleCalendar";
 import { api } from "./_generated/api";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -235,6 +236,10 @@ export const create = mutation({
       endTime: args.endTime,
     });
 
+    // Two-way calendar: mirror the new session onto the studio's Google
+    // primary calendar (silent no-op when not connected).
+    await scheduleGoogleCalendarPush(ctx, sessionId);
+
     return { sessionId, staffingWarning: warning };
   },
 });
@@ -340,6 +345,14 @@ export const setStatus = mutation({
     // the best-matched waitlisted artist (proposed into the approval inbox).
     if (status === "cancelled" && s.status !== "cancelled") {
       await proposeWaitlistFill(ctx, s);
+    }
+
+    // Two-way calendar: cancellations pull the Google event; any other status
+    // change is mirrored as a patch (so Google reflects the new state).
+    if (status === "cancelled" && s.status !== "cancelled") {
+      await scheduleGoogleCalendarRemove(ctx, id);
+    } else if (status !== s.status) {
+      await scheduleGoogleCalendarPush(ctx, id);
     }
 
     if (status === "no_show") {
