@@ -32,6 +32,7 @@ import {
   MessagesPanel,
   RecentPaymentsPanel,
 } from "@/components/bookings/activity-panels";
+import { WaitlistPanel } from "@/components/bookings/waitlist-panel";
 
 /** Build a human summary line from an automation run outcome. */
 function summarizeRun(out: {
@@ -241,6 +242,7 @@ export default function BookingsPage() {
 
         {/* Side panels */}
         <div className="space-y-4">
+          <WaitlistPanel />
           <RecentPaymentsPanel />
           <MessagesPanel />
         </div>

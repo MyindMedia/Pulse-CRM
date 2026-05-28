@@ -2,6 +2,7 @@ import { mutation, internalMutation, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { notify } from "./lib/notify";
 import { money } from "./lib/money";
+import { proposeWaitlistFill } from "./waitlist";
 
 /* ============================================================
    Booking automation - runs on a 15-minute cron (see crons.ts)
@@ -66,6 +67,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
           sessionId: s._id,
         });
       }
+      await proposeWaitlistFill(ctx, s);
       out.holdsReleased++;
       continue;
     }
@@ -121,6 +123,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
           sessionId: s._id,
         });
       }
+      await proposeWaitlistFill(ctx, s);
       out.forfeited++;
       continue;
     }

@@ -7,8 +7,8 @@ import type { Doc } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import { Check, X, Clock, Mail, CalendarCheck, Sparkles, Loader2 } from "lucide-react";
 import {
-  Sheet, SheetContent, SheetHeader, SheetTitle, SheetDescription, SheetBody, SheetFooter,
-} from "@/components/ui/sheet";
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter,
+} from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Field, Input, Textarea } from "@/components/ui/field";
@@ -16,14 +16,14 @@ import { Field, Input, Textarea } from "@/components/ui/field";
 const DAY = 86_400_000;
 const PRIORITY_TONE: Record<string, "critical" | "gold" | "neutral"> = { high: "critical", medium: "gold", low: "neutral" };
 
-/** Drill-in detail + edit for one Ops Autopilot action. */
+/** Centered modal: drill-in detail + edit for one Ops Autopilot action. */
 export function OpsActionSheet({ action, onClose }: { action: Doc<"opsActions"> | null; onClose: () => void }) {
   return (
-    <Sheet open={!!action} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent width="md">
+    <Dialog open={!!action} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent size="lg">
         {action && <Inner key={action._id} action={action} onClose={onClose} />}
-      </SheetContent>
-    </Sheet>
+      </DialogContent>
+    </Dialog>
   );
 }
 
@@ -70,15 +70,15 @@ function Inner({ action, onClose }: { action: Doc<"opsActions">; onClose: () => 
 
   return (
     <>
-      <SheetHeader>
-        <div className="flex items-center gap-2">
-          <SheetTitle className="truncate">{action.title}</SheetTitle>
+      <DialogHeader>
+        <div className="flex items-center gap-2 pr-8">
+          <DialogTitle className="truncate">{action.title}</DialogTitle>
           <Badge tone={PRIORITY_TONE[action.priority] ?? "neutral"}>{action.priority}</Badge>
         </div>
-        <SheetDescription>{action.type.replace(/_/g, " ")}</SheetDescription>
-      </SheetHeader>
+        <DialogDescription>{action.type.replace(/_/g, " ")}</DialogDescription>
+      </DialogHeader>
 
-      <SheetBody className="space-y-4">
+      <DialogBody className="space-y-4">
         <div className="rounded-md border border-hairline bg-coal/40 px-3 py-2.5">
           <p className="text-xs font-semibold uppercase tracking-wide text-ash-dim">Why the autopilot suggests this</p>
           <p className="mt-1 text-sm text-ash">{action.rationale}</p>
@@ -115,9 +115,9 @@ function Inner({ action, onClose }: { action: Doc<"opsActions">; onClose: () => 
             <Sparkles className="size-3.5 text-gold" /> Internal note - approving logs it.
           </p>
         )}
-      </SheetBody>
+      </DialogBody>
 
-      <SheetFooter className="flex-wrap gap-2">
+      <DialogFooter className="flex-wrap justify-end gap-2">
         <Button variant="ghost" disabled={busy} onClick={() => run(() => snooze({ id: action._id, until: Date.now() + DAY }), "Snoozed 24h.")}>
           <Clock className="size-4" /> Snooze 24h
         </Button>
@@ -128,7 +128,7 @@ function Inner({ action, onClose }: { action: Doc<"opsActions">; onClose: () => 
           {busy ? <Loader2 className="size-4 animate-spin" /> : (isEmail ? <Mail className="size-4" /> : <Check className="size-4" />)}
           Approve
         </Button>
-      </SheetFooter>
+      </DialogFooter>
     </>
   );
 }

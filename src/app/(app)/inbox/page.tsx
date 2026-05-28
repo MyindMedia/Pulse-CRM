@@ -27,6 +27,7 @@ const DAY = 86_400_000;
 
 /** Human label + grouping order for each agent / action type. */
 const AGENT_META: Record<string, { label: string; group: string; order: number }> = {
+  waitlist_fill: { label: "Waitlist Fill", group: "Waitlist", order: -1 },
   convert_lead: { label: "Booking Conversion", group: "Booking Conversion", order: 0 },
   no_show_risk: { label: "No-show Risk", group: "No-show Risk", order: 1 },
   confirm_unconfirmed_session: { label: "Confirm Session", group: "Confirm Session", order: 2 },

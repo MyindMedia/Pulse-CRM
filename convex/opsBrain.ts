@@ -72,7 +72,8 @@ export type ActionType =
   | "complete_rights_metadata"
   | "pricing_opportunity"
   | "no_show_risk"
-  | "weak_lead_source";
+  | "weak_lead_source"
+  | "waitlist_fill";
 
 export type Priority = "low" | "medium" | "high";
 

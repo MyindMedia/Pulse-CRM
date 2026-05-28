@@ -8,6 +8,7 @@ import {
 } from "./lib/roomStatus";
 import { stageChecklistsFor, dropPreChecklistFor } from "./checklists";
 import { ensureSessionShift } from "./shifts";
+import { proposeWaitlistFill } from "./waitlist";
 import { api } from "./_generated/api";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
@@ -333,6 +334,12 @@ export const setStatus = mutation({
     // so we don't keep alerting staff for a session that won't happen.
     if (status === "cancelled" || status === "no_show") {
       await dropPreChecklistFor(ctx, id);
+    }
+
+    // A freshly cancelled future slot is a smart-fill opportunity: offer it to
+    // the best-matched waitlisted artist (proposed into the approval inbox).
+    if (status === "cancelled" && s.status !== "cancelled") {
+      await proposeWaitlistFill(ctx, s);
     }
 
     if (status === "no_show") {

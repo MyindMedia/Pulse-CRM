@@ -5,8 +5,9 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, Plus, Send, Trash2, Users } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileDown, Plus, Send, Trash2, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { RightsExportDialog } from "@/components/songs/rights-export-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/field";
@@ -54,6 +55,7 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
   const [rows, setRows] = useState<Contributor[] | null>(null);
   const [saving, setSaving] = useState(false);
   const [statusUpdating, setStatusUpdating] = useState(false);
+  const [exportOpen, setExportOpen] = useState(false);
 
   if (split === undefined) {
     return <Skeleton className="h-72 w-full" />;
@@ -304,7 +306,15 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
             Not all contributors have signed yet.
           </span>
         )}
+        {split && (
+          <Button variant="outline" className="ml-auto" onClick={() => setExportOpen(true)} disabled={dirty}>
+            <FileDown className="size-4" />
+            Rights export
+          </Button>
+        )}
       </div>
+
+      <RightsExportDialog songId={songId} open={exportOpen} onOpenChange={setExportOpen} />
     </div>
   );
 }

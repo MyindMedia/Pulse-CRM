@@ -8,6 +8,7 @@ import { DormantClientsReport } from "@/components/reports/dormant-clients";
 import { NoShowRiskReport } from "@/components/reports/no-show-risk";
 import { LeadSourceRoiReport } from "@/components/reports/lead-source-roi";
 import { StaffingReport } from "@/components/reports/staffing";
+import { AtRiskSessionsReport, PricingRecommendationsReport } from "@/components/reports/predictive-insights";
 
 const TABS = [
   { value: "aging", label: "Aging" },
@@ -15,6 +16,7 @@ const TABS = [
   { value: "staffing", label: "Staffing" },
   { value: "dormant", label: "Dormant" },
   { value: "risk", label: "No-show risk" },
+  { value: "predict", label: "Pricing & risk" },
   { value: "sources", label: "Lead ROI" },
 ];
 
@@ -50,6 +52,12 @@ export default function ReportsPage() {
         </TabsContent>
         <TabsContent value="risk">
           <NoShowRiskReport />
+        </TabsContent>
+        <TabsContent value="predict">
+          <div className="space-y-5">
+            <AtRiskSessionsReport />
+            <PricingRecommendationsReport />
+          </div>
         </TabsContent>
         <TabsContent value="sources">
           <LeadSourceRoiReport />

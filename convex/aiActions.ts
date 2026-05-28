@@ -577,12 +577,17 @@ export const enrichOpsActions = internalAction({
           ? `\nPAYMENT LINK (include this EXACT url on its own line as a clickable link so they can pay now - never write a placeholder like "[payment link]"): ${c.payLink}`
           : "";
 
+        const guide = await ctx.runQuery(internal.predictions.styleGuidance, {
+          orgId: c.orgId,
+          actionType: c.type,
+        });
+
         const prompt = `${persona}
 
 Use ${firstNameToken} for the recipient's first name in the greeting - it is a merge token, do NOT substitute a literal name.
 
 FACTS:
-${facts || "(no extra facts)"}${payLine}
+${facts || "(no extra facts)"}${payLine}${guide ? `\n\n${guide}` : ""}
 
 Output ONLY the email body. No subject line.`;
 

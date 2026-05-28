@@ -16,6 +16,7 @@ import { internal } from "./_generated/api";
 import { currentOrg, currentActor } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { sendEmail } from "./lib/email";
+import { recordApprovalLearning, recordDismissLearning } from "./predictions";
 
 const PRIORITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
@@ -286,6 +287,8 @@ export const approve = mutation({
 
     await ctx.db.patch(id, patch);
     await bumpTrust(ctx, action.orgId, action.type, "approved");
+    // Learning loop: an owner edit becomes a style note the enricher reuses.
+    await recordApprovalLearning(ctx, action, trimmed);
     await ctx.scheduler.runAfter(0, internal.opsActions.execute, { id });
   },
 });
@@ -300,6 +303,7 @@ export const dismiss = mutation({
     const actor = await currentActor(ctx);
     await ctx.db.patch(id, { status: "dismissed", decidedAt: Date.now(), decidedBy: actor });
     await bumpTrust(ctx, action.orgId, action.type, "dismissed");
+    await recordDismissLearning(ctx, action);
   },
 });
 
@@ -354,6 +358,24 @@ export const finalize = internalMutation({
         kind: p.notifyKind,
         status: emailStatus ?? "simulated",
       });
+      // Mirror an autopilot email onto the client's own Messages thread so the
+      // record shows every email - human-sent or AI-sent - in one place.
+      if (action.entityType === "artist" && action.entityId) {
+        const artistId = ctx.db.normalizeId("artists", action.entityId);
+        const artist = artistId ? await ctx.db.get(artistId) : null;
+        if (artist && artist.orgId === action.orgId) {
+          await ctx.db.insert("clientMessages", {
+            orgId: action.orgId,
+            artistId: artist._id,
+            direction: "out",
+            subject: p.subject,
+            body: p.body,
+            channel: "internal",
+            status: emailStatus ?? "simulated",
+            sentBy: action.decidedBy ?? "Autopilot",
+          });
+        }
+      }
       result = `email ${emailStatus ?? "simulated"} to ${p.to ?? "n/a"}`;
     } else if (p.kind === "session_status") {
       const session = await ctx.db.get(p.sessionId);

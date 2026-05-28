@@ -126,6 +126,16 @@ export const _logMessage = internalMutation({
       status: args.status,
       sentBy: args.sentBy,
     });
+    // Surface the email on the client's unified Timeline too (not just the
+    // Messages thread), so the record shows every touch in one place.
+    await ctx.db.insert("activity", {
+      orgId: artist.orgId,
+      kind: "client.email",
+      summary: `Emailed: ${args.subject}`,
+      entityType: "artist",
+      entityId: args.artistId,
+      accent: args.status === "failed" ? "critical" : "info",
+    });
   },
 });
 

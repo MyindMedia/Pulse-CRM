@@ -78,8 +78,11 @@ import type * as opsActions from "../opsActions.js";
 import type * as opsBrain from "../opsBrain.js";
 import type * as orgs from "../orgs.js";
 import type * as payments from "../payments.js";
+import type * as portal from "../portal.js";
+import type * as predictions from "../predictions.js";
 import type * as releases from "../releases.js";
 import type * as reports from "../reports.js";
+import type * as rightsExport from "../rightsExport.js";
 import type * as rooms from "../rooms.js";
 import type * as seed from "../seed.js";
 import type * as seedSchedule from "../seedSchedule.js";
@@ -91,6 +94,7 @@ import type * as splitSheets from "../splitSheets.js";
 import type * as stripeConnect from "../stripeConnect.js";
 import type * as testHarness from "../testHarness.js";
 import type * as usage from "../usage.js";
+import type * as waitlist from "../waitlist.js";
 
 import type {
   ApiFromModules,
@@ -169,8 +173,11 @@ declare const fullApi: ApiFromModules<{
   opsBrain: typeof opsBrain;
   orgs: typeof orgs;
   payments: typeof payments;
+  portal: typeof portal;
+  predictions: typeof predictions;
   releases: typeof releases;
   reports: typeof reports;
+  rightsExport: typeof rightsExport;
   rooms: typeof rooms;
   seed: typeof seed;
   seedSchedule: typeof seedSchedule;
@@ -182,6 +189,7 @@ declare const fullApi: ApiFromModules<{
   stripeConnect: typeof stripeConnect;
   testHarness: typeof testHarness;
   usage: typeof usage;
+  waitlist: typeof waitlist;
 }>;
 
 /**

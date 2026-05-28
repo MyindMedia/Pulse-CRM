@@ -3,6 +3,7 @@
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import {
+  AlertTriangle,
   Clock,
   DoorOpen,
   Globe,
@@ -46,6 +47,20 @@ function Row({
       </span>
       <div className="min-w-0 text-right text-sm text-bone">{children}</div>
     </div>
+  );
+}
+
+/** Learned no-show risk badge for one upcoming booking. Renders nothing for
+ *  past, cancelled, or low-risk slots so it stays signal, never noise. */
+function SessionRiskBadge({ sessionId }: { sessionId: BookingRow["_id"] }) {
+  const risk = useQuery(api.predictions.sessionRisk, { sessionId });
+  if (!risk || risk.band === "low") return null;
+  const tone = risk.band === "high" ? "critical" : "gold";
+  return (
+    <Badge tone={tone}>
+      <AlertTriangle className="size-2.5" />
+      {risk.band === "high" ? "High no-show risk" : "Elevated no-show risk"} · suggest {risk.suggestedDepositPct}% deposit
+    </Badge>
   );
 }
 
@@ -130,6 +145,9 @@ export function BookingSheet({
                     <Globe className="size-2.5" />
                     Online booking
                   </Badge>
+                )}
+                {booking.startTime > Date.now() && booking.status !== "cancelled" && (
+                  <SessionRiskBadge sessionId={booking._id} />
                 )}
               </div>
               <SheetTitle>{booking.title}</SheetTitle>

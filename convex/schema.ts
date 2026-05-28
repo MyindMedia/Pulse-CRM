@@ -1058,6 +1058,7 @@ export default defineSchema({
       v.literal("pricing_opportunity"),
       v.literal("no_show_risk"),
       v.literal("weak_lead_source"),
+      v.literal("waitlist_fill"),
     ),
     priority: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
     title: v.string(),
@@ -1194,5 +1195,30 @@ export default defineSchema({
     sentBy: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
+    .index("by_artist", ["artistId"]),
+
+  // ── Waitlist - artists waiting for an open slot. When a hold expires or a
+  //    booking is cancelled, smart-fill ranks matching entries and proposes a
+  //    `waitlist_fill` action (notify the best match) into the approval inbox. ──
+  waitlistEntries: defineTable({
+    orgId: v.string(),
+    artistId: v.id("artists"),
+    roomId: v.optional(v.id("rooms")), // preferred room; absent = any room
+    serviceType: v.optional(serviceType), // preferred service; absent = any
+    note: v.optional(v.string()),
+    priority: v.union(v.literal("standard"), v.literal("high")), // manual VIP bump
+    status: v.union(
+      v.literal("waiting"),
+      v.literal("notified"),
+      v.literal("booked"),
+      v.literal("removed"),
+    ),
+    preferredFrom: v.optional(v.number()), // earliest desired start (epoch ms)
+    preferredTo: v.optional(v.number()), // latest desired start (epoch ms)
+    lastNotifiedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_status", ["orgId", "status"])
     .index("by_artist", ["artistId"]),
 });
