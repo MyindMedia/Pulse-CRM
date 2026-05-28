@@ -14,15 +14,17 @@ describe("shifts - closures + change notifications", () => {
     });
   });
 
-  it("closedDaysInRange flags Sundays + holidays", async () => {
+  it("closedDaysInRange flags holidays but treats Sundays as working days", async () => {
     const from = new Date("2026-05-24T00:00:00").getTime(); // Sunday
     const to = new Date("2026-05-26T00:00:00").getTime();   // through Tue
     const res = await t.query(api.shifts.closedDaysInRange, { from, to });
     const reasons = res.map((r) => r.reason);
-    expect(reasons).toContain("Sunday");
+    expect(reasons).not.toContain("Sunday"); // studios run Sundays
     expect(reasons).toContain("Memorial Day");
     // Tuesday the 26th is a working day - not listed.
     expect(res.some((r) => new Date(r.date).getDate() === 26)).toBe(false);
+    // Sunday the 24th is now a working day - not listed.
+    expect(res.some((r) => new Date(r.date).getDate() === 24)).toBe(false);
   });
 
   it("editing a shift notifies the team member; cancelling does too", async () => {

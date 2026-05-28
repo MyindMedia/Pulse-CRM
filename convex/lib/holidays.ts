@@ -1,5 +1,6 @@
-/* Studio closures: Sundays + US public holidays. Shared by the demo seeder and
-   the schedule grid so both agree on what's a closed day. */
+/* Studio closures: US public holidays only. Shared by the demo seeder and
+   the schedule grid so both agree on what's a closed day. Sundays are
+   working days - studios run sessions seven days a week. */
 
 export const HOLIDAYS: { name: string; ymd: string }[] = [
   { name: "New Year's Day", ymd: "2026-01-01" },
@@ -28,6 +29,5 @@ export function holidayName(ts: number): string | null {
 
 /** Why the studio is closed that day, or null if it's a working day. */
 export function closureReason(ts: number): string | null {
-  if (new Date(ts).getDay() === 0) return "Sunday";
   return holidayName(ts);
 }
