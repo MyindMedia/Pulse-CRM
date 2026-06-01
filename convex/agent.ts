@@ -343,18 +343,24 @@ export const runAgentLLM = internalAction({
 
       // Full inventory detail so the Agent can answer value / state / depreciation
       // questions directly instead of deflecting.
+      const valueDelta =
+        inv.depreciationCents > 0
+          ? `net depreciation of ${usd(inv.depreciationCents)} below purchase`
+          : inv.depreciationCents < 0
+            ? `net gain of ${usd(-inv.depreciationCents)} above purchase`
+            : `unchanged from purchase`;
       const inventoryBlock =
         inv.count > 0
           ? `\n\nInventory / equipment detail:\n` +
             [
               `- Items: ${inv.count} (${inv.installed} installed in rooms, ${inv.inStorage} in storage)`,
-              `- Current value: ${usd(inv.currentValueCents)}; purchased for ${usd(inv.purchaseTotalCents)}; total depreciation ${usd(inv.depreciationCents)}`,
+              `- Current value: ${usd(inv.currentValueCents)}; purchased for ${usd(inv.purchaseTotalCents)} (${valueDelta})`,
               `- State: ${inv.available} available, ${inv.inUse} in use, ${inv.maintenance} in maintenance, ${inv.retired} retired`,
               inv.depreciatedItems.length
-                ? `- Most-depreciated items: ${inv.depreciatedItems
-                    .map((d) => `${d.name} (${d.category}, ${d.condition ?? "condition n/a"}): ${usd(d.purchaseCents)} -> ${usd(d.currentValueCents)})`)
+                ? `- Items that have lost value: ${inv.depreciatedItems
+                    .map((d) => `${d.name} (${d.category}, ${d.condition ?? "condition n/a"}): ${usd(d.purchaseCents)} -> ${usd(d.currentValueCents)}`)
                     .join("; ")}`
-                : `- No item has lost value (nothing depreciated).`,
+                : `- No individual item has lost value.`,
             ].join("\n")
           : "";
 
