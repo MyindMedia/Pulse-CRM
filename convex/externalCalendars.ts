@@ -63,7 +63,10 @@ export const listForRoom = query({
   },
 });
 
-/** External events for one room (or every room) in a date range. */
+/** External blocks for one room (or every room) in a date range. Returns both
+ *  per-room iCal-feed events and the org-wide busy blocks pulled from a
+ *  connected Google account (those block every room, so they're always
+ *  included). Normalised to the shape the calendar grid reads. */
 export const eventsInRange = query({
   args: {
     roomId: v.optional(v.id("rooms")),
@@ -72,20 +75,45 @@ export const eventsInRange = query({
   },
   handler: async (ctx, { roomId, from, to }) => {
     const orgId = await currentOrg(ctx);
-    if (roomId) {
-      const rows = await ctx.db
-        .query("externalCalendarEvents")
-        .withIndex("by_org_room_start", (q) =>
-          q.eq("orgId", orgId).eq("roomId", roomId).gte("startTime", from).lte("startTime", to),
-        )
-        .collect();
-      return rows;
-    }
-    const all = await ctx.db
-      .query("externalCalendarEvents")
-      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+
+    const icalRows = roomId
+      ? await ctx.db
+          .query("externalCalendarEvents")
+          .withIndex("by_org_room_start", (q) =>
+            q.eq("orgId", orgId).eq("roomId", roomId).gte("startTime", from).lte("startTime", to),
+          )
+          .collect()
+      : (
+          await ctx.db
+            .query("externalCalendarEvents")
+            .withIndex("by_org", (q) => q.eq("orgId", orgId))
+            .collect()
+        ).filter((e) => e.startTime >= from && e.startTime <= to);
+
+    const ical = icalRows.map((e) => ({
+      _id: e._id,
+      title: e.title,
+      startTime: e.startTime,
+      endTime: e.endTime,
+      allDay: e.allDay ?? false,
+      source: "ical" as const,
+    }));
+
+    // Org-wide Google busy blocks (connected-account primary calendar).
+    const blocks = await ctx.db
+      .query("googleBusyBlocks")
+      .withIndex("by_org_start", (q) => q.eq("orgId", orgId).gte("startTime", from).lte("startTime", to))
       .collect();
-    return all.filter((e) => e.startTime >= from && e.startTime <= to);
+    const google = blocks.map((b) => ({
+      _id: b._id,
+      title: b.title,
+      startTime: b.startTime,
+      endTime: b.endTime,
+      allDay: b.allDay ?? false,
+      source: "google" as const,
+    }));
+
+    return [...ical, ...google];
   },
 });
 

@@ -123,7 +123,63 @@ export type GoogleCalendarEventBody = {
   start: { dateTime: string };
   end: { dateTime: string };
   status?: "confirmed" | "tentative" | "cancelled";
+  // Tags events Pulse creates so the inbound pull can skip them (no loop).
+  extendedProperties?: { private?: Record<string, string> };
 };
+
+/** Marker written onto every Pulse-pushed event's private extended props, and
+ *  read back during the inbound pull to skip our own events. */
+export const PULSE_ORIGIN_TAG = "pulse";
+
+export type GoogleCalendarListEvent = {
+  id: string;
+  status?: string; // "confirmed" | "tentative" | "cancelled"
+  summary?: string;
+  start?: { dateTime?: string; date?: string };
+  end?: { dateTime?: string; date?: string };
+  extendedProperties?: { private?: Record<string, string> };
+};
+
+/** Incremental list of the connected account's primary-calendar events.
+ *  Pass `syncToken` for a delta pull; omit it (with `timeMin`) for a full pull.
+ *  Returns the page of events plus the `nextSyncToken` to persist for next time.
+ *  Throws `GoogleSyncTokenExpired` on a 410 so the caller can reset + full-pull. */
+export class GoogleSyncTokenExpired extends Error {}
+
+export async function googleCalendarListEvents(
+  refreshToken: string,
+  opts: { syncToken?: string; timeMin?: string },
+): Promise<{ events: GoogleCalendarListEvent[]; nextSyncToken: string | null }> {
+  const accessToken = await accessTokenFromRefresh(refreshToken);
+  const events: GoogleCalendarListEvent[] = [];
+  let pageToken: string | undefined;
+  let nextSyncToken: string | null = null;
+
+  // Google paginates; a full sync may span several pages before the syncToken.
+  do {
+    const params = new URLSearchParams({ singleEvents: "true", maxResults: "250" });
+    if (opts.syncToken) params.set("syncToken", opts.syncToken);
+    else if (opts.timeMin) params.set("timeMin", opts.timeMin);
+    if (pageToken) params.set("pageToken", pageToken);
+
+    const res = await fetch(
+      `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`,
+      { headers: { Authorization: `Bearer ${accessToken}` } },
+    );
+    if (res.status === 410) throw new GoogleSyncTokenExpired("syncToken expired");
+    if (!res.ok) throw new Error(`Google Calendar list failed (${res.status})`);
+    const data = (await res.json()) as {
+      items?: GoogleCalendarListEvent[];
+      nextPageToken?: string;
+      nextSyncToken?: string;
+    };
+    if (data.items) events.push(...data.items);
+    pageToken = data.nextPageToken;
+    if (data.nextSyncToken) nextSyncToken = data.nextSyncToken;
+  } while (pageToken);
+
+  return { events, nextSyncToken };
+}
 
 /** Create (POST) or patch (PATCH) an event on the connected account's primary
  *  calendar. Returns the Google event id so the caller can persist it for

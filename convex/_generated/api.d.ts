@@ -41,6 +41,7 @@ import type * as externalCalendarsActions from "../externalCalendarsActions.js";
 import type * as files from "../files.js";
 import type * as googleAuth from "../googleAuth.js";
 import type * as googleCalendar from "../googleCalendar.js";
+import type * as googleCalendarSync from "../googleCalendarSync.js";
 import type * as grants from "../grants.js";
 import type * as http from "../http.js";
 import type * as insights from "../insights.js";
@@ -139,6 +140,7 @@ declare const fullApi: ApiFromModules<{
   files: typeof files;
   googleAuth: typeof googleAuth;
   googleCalendar: typeof googleCalendar;
+  googleCalendarSync: typeof googleCalendarSync;
   grants: typeof grants;
   http: typeof http;
   insights: typeof insights;

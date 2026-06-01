@@ -152,6 +152,10 @@ export default defineSchema({
     googleEmail: v.optional(v.string()),            // connected Gmail address
     googleConnectedAt: v.optional(v.number()),
     googleRefreshToken: v.optional(v.string()),     // OAuth refresh token (server-only; never returned to client)
+    // ── Inbound Google Calendar sync (Google -> Pulse busy blocks) ──
+    googleCalendarSyncToken: v.optional(v.string()),  // Google incremental syncToken; undefined = full pull next
+    googleCalendarSyncedAt: v.optional(v.number()),   // last successful inbound pull
+    googleCalendarSyncError: v.optional(v.string()),  // last pull error (cleared on success)
     smsRemindersEnabled: v.optional(v.boolean()),   // automated session SMS reminders (default on when unset)
   })
     .index("by_org", ["orgId"])
@@ -1042,6 +1046,24 @@ export default defineSchema({
     .index("by_calendar", ["calendarId"])
     .index("by_org_room_start", ["orgId", "roomId", "startTime"])
     .index("by_uid", ["calendarId", "externalUid"]),
+
+  // ── Busy blocks pulled from the studio's CONNECTED Google primary calendar
+  //    (OAuth, not iCal). Org-wide (the primary calendar isn't room-specific):
+  //    they give conflict awareness on the schedule without fabricating
+  //    sessions. Pulse-origin events are skipped on pull so nothing loops.
+  //    Idempotent on (orgId, googleEventId). ──
+  googleBusyBlocks: defineTable({
+    orgId: v.string(),
+    googleEventId: v.string(),
+    title: v.string(),
+    startTime: v.number(),
+    endTime: v.number(),
+    allDay: v.optional(v.boolean()),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_start", ["orgId", "startTime"])
+    .index("by_event", ["orgId", "googleEventId"]),
 
   // ── Ops Autopilot - proposed (or executed) operational actions. Unlike
   //    `insights` (read-only nudges), each row carries an executable payload

@@ -6,6 +6,7 @@ import {
   googleCalendarUpsertEvent,
   googleCalendarDeleteEvent,
   googleConfigured,
+  PULSE_ORIGIN_TAG,
   type GoogleCalendarEventBody,
 } from "./lib/google";
 
@@ -18,9 +19,10 @@ import {
    bookings. Cancellations remove the Google event. The mapper layer
    is pure so its serialisation is unit-tested without the network.
 
-   Read-direction (Google -> Pulse) is left to the existing iCal
-   feed in externalCalendars.ts - a studio can paste their Google
-   calendar's iCal URL there to pull blocks back into Pulse.
+   Read-direction (Google -> Pulse) lives in googleCalendarSync.ts:
+   a cron pulls the connected primary calendar's events in as org-wide
+   busy blocks (Pulse-origin events skipped). The legacy iCal feed in
+   externalCalendars.ts still works for studios who paste a URL.
    ============================================================ */
 
 export type SessionForCalendar = {
@@ -53,6 +55,9 @@ export function sessionToCalendarEvent(
     start: { dateTime: new Date(session.startTime).toISOString() },
     end: { dateTime: new Date(session.endTime).toISOString() },
     status: googleStatus,
+    // Tag so the inbound pull recognises this as a Pulse-origin event and
+    // skips it (prevents the session looping back in as a busy block).
+    extendedProperties: { private: { [PULSE_ORIGIN_TAG]: "1" } },
   };
 }
 

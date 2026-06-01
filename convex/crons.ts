@@ -18,6 +18,10 @@ crons.interval("booking-automation", { minutes: 15 }, internal.automation.tick);
 // Recompute every room's auto status from the live calendar.
 crons.interval("room-status", { minutes: 15 }, internal.maintenance.recomputeAllRoomStatuses);
 
+// Inbound Google Calendar sync: pull every connected studio's primary calendar
+// into busy blocks (incremental via syncToken). The read half of two-way sync.
+crons.interval("google-calendar-pull", { minutes: 10 }, internal.googleCalendarSync.pullAllOrgs);
+
 // Ops brain: per-org operational scan that proposes/auto-executes actions.
 crons.daily("ops-brain", { hourUTC: 13, minuteUTC: 0 }, internal.opsBrain.scanAllOrgs);
 

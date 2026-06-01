@@ -78,5 +78,49 @@ Build order this epic: schema → policy + runtime (createRun→runAgentLLM→fi
 
 **BUILT + deployed 2026-05-25 (commits `662af6d`→`359fbb4`):** Phases 1-3 + 5 + memory, all live. Schema (agentPolicies/Runs/Messages/Insights/Approvals/Usage/AuditLogs/Memories); `convex/agent.ts` (policy, createRun→runAgentLLM→_finalize, approvals approve/reject/execute via email+sms, daily-brief sweepDigests on automation.tick, memory CRUD, usage + append-only audit); `convex/agentHealth.ts` (deterministic 6-component Studio Health, fed into context + agency fleet); `convex/agentFleet.ts` (agency control plane); UI `/agent` (command bar, health panel, insights, approval inbox, settings, memory) + `/agency/agents` (fleet toggles/autonomy/run-now + cross-sub approvals). Controlled autonomy: auto_trusted auto-runs low-risk reminders only. 195 tests. **Remaining:** (a) set `OPENAI_API_KEY` on Convex to leave fallback mode (user credential choice); (b) Phase-4 full "suggestion → deterministic automation rule" builder (overlaps existing opsBrain; not yet built).
 
+## Feature: inbound Google Calendar sync — true two-way (grilled 2026-06-01)
+
+Owner wants studios that still run their schedule in Google to get a real
+two-way sync the moment they connect their Google account (no iCal paste).
+Push (Pulse -> Google primary) already ships in `googleCalendar.ts`; this adds
+the read direction (Google -> Pulse).
+
+**Decisions (grilled, all "recommended"):**
+- **Import target = lightweight busy blocks**, NOT full sessions. Pulse
+  sessions require artist + room + rate; raw Google events have none. Blocks
+  show on the calendar and give conflict awareness without fabricating
+  artists/revenue. (Mirrors the existing iCal block model.)
+- **Source = the connected account's PRIMARY calendar, skipping Pulse-origin
+  events** so nothing loops. Loop-skip is belt-and-suspenders: (1) every event
+  Pulse pushes is tagged `extendedProperties.private.pulse = "1"`, and (2) the
+  pull also filters out any id present in this org's `sessions.googleCalendarEventId`.
+- **Freshness = incremental poll via a Convex cron** (every 10 min) using
+  Google `syncToken` (only changed events). No public webhook infra; a 410 GONE
+  on the token triggers a full re-pull.
+- **Soft, never hard-block.** Following the established shift pattern
+  (soft-warn, never blocks) and the fact that the primary calendar may hold
+  personal events, blocks are display + awareness only. `assertNoBufferConflict`
+  is left untouched (it still hard-checks session-vs-session in a room).
+- **Org-wide blocks** (no room). The primary calendar isn't room-specific, so
+  blocks live in a dedicated `googleBusyBlocks` table (org-scoped) rather than
+  overloading the room-bound `externalCalendars`. They surface wherever iCal
+  blocks already do (the per-room grid) by being merged into
+  `externalCalendars.eventsInRange`, so existing consumers inherit them.
+
+**Non-goals (this pass):** Outlook/MS inbound, turning blocks into real
+sessions, real-time webhooks, importing across non-primary calendars.
+
+**Build surface:** `orgs` += `googleCalendarSyncToken?` + `googleCalendarSyncedAt?`
++ `googleCalendarSyncError?`; new `googleBusyBlocks` table; `lib/google.ts` +=
+`googleCalendarListEvents` (incremental) and a `pulse` extendedProperty on push;
+new `convex/googleCalendarSync.ts` (pure `mapGoogleEvent` + `pullOrg`/`pullAllOrgs`
+actions + `syncNow`/`status` + `blocksInRange`); `crons.ts` += 10-min
+`google-calendar-pull`; `eventsInRange` merges blocks; Settings calendar-sync card.
+
+**Also (2026-06-01):** OpenAI key for enrichment = `op://Security/OpenAI/GCM AGENTS`
+(same key as GCM). Set as `OPENAI_API_KEY` on Pulse's cloud Convex (`pastel-corgi-340`)
+to leave Gemini/template fallback. Scratched this pass per owner: the AI voice
+booking agent.
+
 ## Standing context / prior fix
 - **Crash fixed (2026-05-23):** `/agency/[orgId]` showed "page couldn't load" because `invites.list` threw `AccessError` (a plain `Error` → redacted by Convex) with no `error.tsx` boundary. Fixes: `invites.list` degrades to `[]` on access denial; `AccessError extends ConvexError`; `/agency/error.tsx` boundary; `createSubaccount` + `adoptOrphanSubaccounts` stamp/repair `agencyId` so the owner isn't scope-denied. 128 vitest green.

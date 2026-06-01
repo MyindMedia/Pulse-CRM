@@ -2,6 +2,7 @@
 
 import { StripeConnectCard } from "@/components/payments/stripe-connect-card";
 import { EmailConnectCard } from "@/components/email/email-connect-card";
+import { CalendarSyncCard } from "@/components/calendar/calendar-sync-card";
 import { SmsRemindersCard } from "@/components/sms/sms-reminders-card";
 
 /** Studio integrations - connect Stripe to collect deposits, choose how client
@@ -20,6 +21,12 @@ export function IntegrationsPanel() {
         <p className="text-sm text-ash">Send booking + client messages from Pulse, or from your own Gmail.</p>
       </div>
       <EmailConnectCard />
+
+      <div className="pt-2">
+        <h2 className="font-display text-base font-semibold text-bone">Calendar</h2>
+        <p className="text-sm text-ash">Two-way sync with your Google calendar once your account is connected.</p>
+      </div>
+      <CalendarSyncCard />
 
       <div className="pt-2">
         <h2 className="font-display text-base font-semibold text-bone">Text messages</h2>
