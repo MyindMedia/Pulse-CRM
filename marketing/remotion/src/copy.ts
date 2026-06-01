@@ -7,6 +7,10 @@ export const COPY = {
   ctaUrl: "pulse.myindsound.com",
   turn: "Pulse changes that.",
 
+  // End-card "options" — the studio functions the platform runs. Leads with
+  // studio operations (sessions, bookings, money, roster) over the song angle.
+  endCardOptions: ["Sessions", "Bookings", "Roster", "Payments", "Releases", "Licensing"],
+
   // 3D nav menu (shown in the augmented windows).
   menu: ["Songs", "Sessions", "Releases", "Payments", "Roster"],
 

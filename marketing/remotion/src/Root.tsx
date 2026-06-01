@@ -1,6 +1,7 @@
 import { Composition } from "remotion";
 import { Ad } from "./Ad";
 import { EndCard } from "./EndCard";
+import { Hype, hypeDuration } from "./Hype";
 import { ProductShot } from "./ProductShot";
 import { Promo, promoDuration } from "./promo/Promo";
 import { TreatmentPromo, treatmentDuration } from "./promo/TreatmentPromo";
@@ -11,6 +12,7 @@ export const Root: React.FC = () => (
     <Composition id="TreatmentPromo" component={TreatmentPromo} durationInFrames={treatmentDuration()} fps={30} width={1920} height={1080} />
     <Composition id="Promo" component={Promo} durationInFrames={promoDuration()} fps={30} width={1920} height={1080} />
     <Composition id="EndCard" component={EndCard} durationInFrames={105} fps={30} width={1920} height={1080} />
+    <Composition id="Hype" component={Hype} durationInFrames={hypeDuration()} fps={30} width={1920} height={1080} />
     <Composition
       id="ProductShot"
       component={ProductShot}
