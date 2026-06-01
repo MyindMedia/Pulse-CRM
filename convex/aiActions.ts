@@ -19,6 +19,7 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import type { WeeklyBriefingData, RateCutData } from "./aiContext";
 import { complete, DEFAULT_MODEL } from "./lib/openai";
+import { tenantGuard, fenceUntrusted } from "./lib/aiGuard";
 
 /** Format a Date for human-readable display. */
 function fmt(ts: number): string {
@@ -586,13 +587,12 @@ export const enrichOpsActions = internalAction({
 
 Use ${firstNameToken} for the recipient's first name in the greeting - it is a merge token, do NOT substitute a literal name.
 
-FACTS:
-${facts || "(no extra facts)"}${payLine}${guide ? `\n\n${guide}` : ""}
+${fenceUntrusted("FACTS", facts || "(no extra facts)")}${payLine}${guide ? `\n\n${guide}` : ""}
 
 Output ONLY the email body. No subject line.`;
 
         const ai = await complete(prompt, {
-          system: `You write warm, human, on-brand studio emails. Always greet with ${firstNameToken}. Never corny, never corporate. Never invent placeholder links - only use URLs you are given.`,
+          system: `You write warm, human, on-brand studio emails for ${c.orgName}. ${tenantGuard(c.orgName)} Always greet with ${firstNameToken}. Never corny, never corporate. Never invent placeholder links - only use URLs you are given.`,
           maxOutputTokens: 400,
         });
         if (ai?.text) {

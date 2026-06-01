@@ -122,5 +122,34 @@ actions + `syncNow`/`status` + `blocksInRange`); `crons.ts` += 10-min
 to leave Gemini/template fallback. Scratched this pass per owner: the AI voice
 booking agent.
 
+## Feature: AI tenant-binding + prompt-injection guardrails (2026-06-01)
+
+Owner: keep every AI response tied to the subaccount it's responding from, and
+defend against prompt-injection. AI booking voice agent is permanently
+scratched.
+
+**Defense model (layered):** the access engine already loads ONLY the current
+org's data into any prompt's context, so a successful injection still can't
+reach another tenant's data. These are prompt-layer defenses on top.
+
+- **One chokepoint:** `lib/openai.complete()` now appends a global
+  `INJECTION_GUARD` to EVERY system prompt (alongside the no-em-dash rule), so
+  all AI surfaces inherit it (Agent, concierge portal, email enrichment).
+- **New `convex/lib/aiGuard.ts`:** `INJECTION_GUARD`, `tenantGuard(studioName)`
+  (binds the model to one studio, refuses cross-tenant talk), `fenceUntrusted`
+  (wraps client-controlled free text as data, not instructions),
+  `detectInjection` (phrase-based heuristic, tuned to avoid false positives on
+  normal questions).
+- **Concierge portal (`portal.ask`, public/free-text = top risk):** detect +
+  REFUSE obvious injection attempts (returns `source: "blocked"`, logs them),
+  bind via `tenantGuard`, fence the client question.
+- **Agent (`agent.ts`):** inline tenant line replaced with `tenantGuard`;
+  studio-memory block fenced as untrusted.
+- **Email enrichment (`aiActions.ts`):** `tenantGuard` in the system prompt;
+  client-influenced FACTS fenced.
+
+Validated: tsc clean, 282/282 vitest (23 new aiGuard tests + portal), lint 0
+errors, build green.
+
 ## Standing context / prior fix
 - **Crash fixed (2026-05-23):** `/agency/[orgId]` showed "page couldn't load" because `invites.list` threw `AccessError` (a plain `Error` → redacted by Convex) with no `error.tsx` boundary. Fixes: `invites.list` degrades to `[]` on access denial; `AccessError extends ConvexError`; `/agency/error.tsx` boundary; `createSubaccount` + `adoptOrphanSubaccounts` stamp/repair `agencyId` so the owner isn't scope-denied. 128 vitest green.

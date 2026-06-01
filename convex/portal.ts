@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import type { QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { complete } from "./lib/openai";
+import { tenantGuard, fenceUntrusted, detectInjection } from "./lib/aiGuard";
 
 /* ============================================================
    Client concierge portal.
@@ -113,6 +114,18 @@ export const ask = action({
 
     await ctx.runMutation(internal.grants.markUsed, { grantId: c.grantId });
 
+    // This surface is public + takes free text, so it is the prime injection
+    // target. Tenant data isolation already prevents any cross-studio leak
+    // (only this artist's facts are ever in context); on top of that, refuse
+    // obvious injection / jailbreak attempts outright and log them.
+    if (detectInjection(question)) {
+      console.warn(`[portal.ask] injection attempt blocked studio="${c.studioName}" artist="${c.artistName}"`);
+      return {
+        answer: `I can only help with your songs, sessions, and invoices at ${c.studioName}. I'll pass anything else along to the studio.`,
+        source: "blocked",
+      };
+    }
+
     const facts = [
       `Artist: ${c.artistName}`,
       `Studio: ${c.studioName}`,
@@ -126,9 +139,14 @@ export const ask = action({
     ].join("\n");
 
     const ai = await complete(
-      `FACTS ABOUT THIS ARTIST:\n${facts}\n\nQUESTION: ${question}\n\nAnswer in 2-4 warm, concise sentences.`,
+      `FACTS ABOUT THIS ARTIST:\n${facts}\n\n${fenceUntrusted("CLIENT QUESTION", question)}\n\nAnswer the question in 2-4 warm, concise sentences, using only the facts above.`,
       {
-        system: `You are the client concierge for ${c.studioName}, helping the artist ${c.artistName}. Answer ONLY from the facts provided about their songs, sessions, and invoices. If the question is outside that, say you will pass it along to the studio. Never invent sessions, dates, or amounts.`,
+        system: [
+          `You are the client concierge for ${c.studioName}, helping the artist ${c.artistName}.`,
+          tenantGuard(c.studioName),
+          "Answer ONLY from the facts provided about this artist's songs, sessions, and invoices.",
+          "If the question is outside that, say you will pass it along to the studio. Never invent sessions, dates, or amounts.",
+        ].join(" "),
         maxOutputTokens: 300,
       },
     );

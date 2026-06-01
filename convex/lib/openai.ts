@@ -11,6 +11,7 @@
    ============================================================ */
 import OpenAI from "openai";
 import { stripEmDashes } from "./text";
+import { INJECTION_GUARD } from "./aiGuard";
 
 export const DEFAULT_MODEL = "gpt-5-mini";
 
@@ -46,7 +47,10 @@ export async function complete(
   opts?: { model?: string; system?: string; maxOutputTokens?: number },
 ): Promise<{ source: string; model: string; text: string } | null> {
   const model = opts?.model ?? DEFAULT_MODEL;
-  const system = opts?.system ? `${opts.system}\n\n${NO_EM_DASH_RULE}` : NO_EM_DASH_RULE;
+  // Every system prompt carries the injection guard + brand-voice rule, so all
+  // AI surfaces (Agent, concierge, enrichment) are hardened at one chokepoint.
+  const base = opts?.system ? `${opts.system}\n\n${INJECTION_GUARD}` : INJECTION_GUARD;
+  const system = `${base}\n\n${NO_EM_DASH_RULE}`;
   const maxTokens = opts?.maxOutputTokens ?? 800;
 
   // 1. OpenAI (preferred).
