@@ -3,7 +3,7 @@ import { v } from "convex/values";
 import type { MutationCtx } from "./_generated/server";
 import type { Doc, Id } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
-import { requireCapability } from "./lib/access";
+import { requireCapability, AccessError } from "./lib/access";
 import { upsertProposed, type ProposedAction } from "./opsBrain";
 
 /* ============================================================
@@ -178,7 +178,16 @@ export const list = query({
   args: {},
   handler: async (ctx) => {
     const orgId = await currentOrg(ctx);
-    await requireCapability(ctx, "sessions.read", { orgId });
+    // Degrade to an empty list when the viewer can't read sessions (e.g. an
+    // agency admin viewing a sub-account without the studio-level cap) instead
+    // of throwing - a thrown read query white-screens the whole page since the
+    // app route has no error boundary. Same pattern as invites.list.
+    try {
+      await requireCapability(ctx, "sessions.read", { orgId });
+    } catch (e) {
+      if (e instanceof AccessError) return [];
+      throw e;
+    }
     const rows = await ctx.db
       .query("waitlistEntries")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
