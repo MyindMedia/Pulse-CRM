@@ -43,6 +43,34 @@ describe("Pulse Agent", () => {
     expect(cx.summary.overdueInvoices).toBe(1);
   });
 
+  it("_context carries inventory value, state, and depreciation", async () => {
+    await t.run(async (ctx) => {
+      // Two items: one depreciated (5000 -> 3000), one holding value (2000 -> 2000).
+      await ctx.db.insert("equipment", {
+        orgId: ORG, name: "SSL Console", category: "console", status: "in_use",
+        purchaseCents: 5000_00, currentValueCents: 3000_00, condition: "good",
+      });
+      await ctx.db.insert("equipment", {
+        orgId: ORG, name: "U87 Mic", category: "mic", status: "available",
+        purchaseCents: 2000_00, currentValueCents: 2000_00,
+      });
+      // Another org's gear must NOT leak in.
+      await ctx.db.insert("equipment", {
+        orgId: "other-studio", name: "Decoy", category: "other", status: "available",
+        purchaseCents: 9999_00, currentValueCents: 1_00,
+      });
+    });
+    const cx = await t.query(internal.agent._context, { orgId: ORG });
+    expect(cx.inventory.count).toBe(2);
+    expect(cx.inventory.currentValueCents).toBe(5000_00);
+    expect(cx.inventory.purchaseTotalCents).toBe(7000_00);
+    expect(cx.inventory.depreciationCents).toBe(2000_00);
+    expect(cx.inventory.inUse).toBe(1);
+    expect(cx.inventory.available).toBe(1);
+    expect(cx.inventory.depreciatedItems).toHaveLength(1);
+    expect(cx.inventory.depreciatedItems[0].name).toBe("SSL Console");
+  });
+
   it("createRun completes via deterministic fallback (no LLM key) + stores an assistant message", async () => {
     const runId = await t.mutation(api.agent.createRun, { prompt: "How is my studio doing?" });
     await drain(t);

@@ -166,6 +166,8 @@ export const _context = internalQuery({
     const payments = await ctx.db.query("payments").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
     const opps = await ctx.db.query("opportunities").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
     const songs = await ctx.db.query("songs").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
+    const equipment = await ctx.db.query("equipment").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
+    const rooms = await ctx.db.query("rooms").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
 
     const unpaid = invoices.filter((i) => i.status !== "paid" && i.status !== "void");
     const overdue = unpaid.filter((i) => (i.dueDate ?? Infinity) < now);
@@ -175,6 +177,24 @@ export const _context = internalQuery({
     const revenueThisMonth = payments
       .filter((p) => p.status === "paid" && p._creationTime >= monthStart.getTime())
       .reduce((s, p) => s + (p.amountCents ?? 0), 0);
+
+    // Inventory / equipment: value, state, and depreciation (purchase vs current).
+    const eqPurchase = equipment.reduce((s, e) => s + e.purchaseCents, 0);
+    const eqCurrent = equipment.reduce((s, e) => s + e.currentValueCents, 0);
+    const eqInstalled = equipment.filter((e) => e.installedInRoomId).length;
+    const eqStatus = (st: string) => equipment.filter((e) => e.status === st).length;
+    const depreciatedItems = equipment
+      .filter((e) => e.currentValueCents < e.purchaseCents)
+      .sort((a, b) => (b.purchaseCents - b.currentValueCents) - (a.purchaseCents - a.currentValueCents))
+      .slice(0, 8)
+      .map((e) => ({
+        name: e.name,
+        category: e.category,
+        status: e.status,
+        condition: e.condition ?? null,
+        purchaseCents: e.purchaseCents,
+        currentValueCents: e.currentValueCents,
+      }));
 
     const health = await studioHealthFor(ctx, orgId);
     const memories = await ctx.db
@@ -187,6 +207,20 @@ export const _context = internalQuery({
       plan: org?.plan ?? "studio",
       health: { overall: health.overall, band: health.band, components: health.components },
       memory: memories.map((m) => ({ type: m.memoryType, summary: m.summary })),
+      rooms: rooms.length,
+      inventory: {
+        count: equipment.length,
+        installed: eqInstalled,
+        inStorage: equipment.length - eqInstalled,
+        purchaseTotalCents: eqPurchase,
+        currentValueCents: eqCurrent,
+        depreciationCents: eqPurchase - eqCurrent,
+        available: eqStatus("available"),
+        inUse: eqStatus("in_use"),
+        maintenance: eqStatus("maintenance"),
+        retired: eqStatus("retired"),
+        depreciatedItems,
+      },
       summary: {
         revenueThisMonthCents: revenueThisMonth,
         unpaidInvoices: unpaid.length,
@@ -282,6 +316,7 @@ export const runAgentLLM = internalAction({
         "You are Pulse Agent, an AI studio operations manager inside the Pulse platform.",
         tenantGuard(cx.orgName),
         "You may analyze data, explain patterns, and recommend actions. You may NOT claim any external action was performed.",
+        "You can see this studio's full operating picture: revenue, invoices, sessions, leads, songs, rooms, and its equipment/inventory (purchase value, current value, depreciation, condition, and state - available/in use/maintenance/retired). Answer questions about any of it directly from the data provided. Only say something is not tracked when the data explicitly shows zero of it.",
         "For client-facing, financial, calendar, file-delivery, or automation-enabling actions, propose an approval (do not send).",
         `Tone: ${tone}. Write for a busy studio owner in plain, natural language.`,
         "Money: always write amounts in plain US dollars like $5,510 or $360. NEVER write cents or the word 'cents', and never show raw numbers like 551000.",
@@ -293,13 +328,36 @@ export const runAgentLLM = internalAction({
       ].join("\n");
 
       const s = cx.summary;
+      const inv = cx.inventory;
       const snapshot = [
         `- Revenue this month: ${usd(s.revenueThisMonthCents)}`,
         `- Unpaid invoices: ${s.unpaidInvoices} (${usd(s.unpaidCents)} outstanding, ${s.overdueInvoices} overdue)`,
         `- Upcoming sessions: ${s.upcomingSessions}`,
         `- Open leads: ${s.openLeads} (${s.staleLeads} stale)`,
         `- Active songs: ${s.activeSongs}`,
+        `- Rooms: ${cx.rooms}`,
+        inv.count > 0
+          ? `- Inventory: ${inv.count} equipment items, ${usd(inv.currentValueCents)} current value`
+          : `- Inventory: no equipment tracked`,
       ].join("\n");
+
+      // Full inventory detail so the Agent can answer value / state / depreciation
+      // questions directly instead of deflecting.
+      const inventoryBlock =
+        inv.count > 0
+          ? `\n\nInventory / equipment detail:\n` +
+            [
+              `- Items: ${inv.count} (${inv.installed} installed in rooms, ${inv.inStorage} in storage)`,
+              `- Current value: ${usd(inv.currentValueCents)}; purchased for ${usd(inv.purchaseTotalCents)}; total depreciation ${usd(inv.depreciationCents)}`,
+              `- State: ${inv.available} available, ${inv.inUse} in use, ${inv.maintenance} in maintenance, ${inv.retired} retired`,
+              inv.depreciatedItems.length
+                ? `- Most-depreciated items: ${inv.depreciatedItems
+                    .map((d) => `${d.name} (${d.category}, ${d.condition ?? "condition n/a"}): ${usd(d.purchaseCents)} -> ${usd(d.currentValueCents)})`)
+                    .join("; ")}`
+                : `- No item has lost value (nothing depreciated).`,
+            ].join("\n")
+          : "";
+
       const memoryBlock = cx.memory.length
         ? `\n\n${fenceUntrusted("STUDIO MEMORY", cx.memory.map((m) => `- [${m.type}] ${m.summary}`).join("\n"))}`
         : "";
@@ -307,7 +365,7 @@ export const runAgentLLM = internalAction({
         `Studio: ${cx.orgName} (plan: ${cx.plan}).`,
         `Overall studio health is ${cx.health.band} (the weakest areas are ${weakestAreas(cx.health.components)}).`,
         `Current snapshot:\n${snapshot}`,
-        `User request: ${prompt}${memoryBlock}`,
+        `User request: ${prompt}${inventoryBlock}${memoryBlock}`,
       ].join("\n\n");
 
       const ai = await complete(userPrompt, { system, model: DEFAULT_MODEL, maxOutputTokens: 1200 });
