@@ -142,6 +142,157 @@ export const listMemberships = query({
   },
 });
 
+/* ── Auto-provision the recurring Stripe Price on the studio's Connect account ──
+   So a studio never has to touch the Stripe dashboard: when they save a package
+   we create the recurring Price on THEIR connected account and link it. If they
+   haven't connected Stripe yet the plan is saved "unlinked" and they can press
+   "Sync to Stripe" once connected. ───────────────────────────────────────── */
+
+/** Org-scoped Stripe-connection context + (optional) one plan, for the studio. */
+export const _planStripeContext = internalQuery({
+  args: { planId: v.optional(v.id("membershipPlans")) },
+  handler: async (ctx, { planId }) => {
+    const orgId = await currentOrg(ctx);
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+    let plan: Doc<"membershipPlans"> | null = null;
+    if (planId) {
+      const p = await ctx.db.get(planId);
+      plan = p && p.orgId === orgId ? p : null;
+    }
+    return {
+      orgId,
+      stripeAccountId: org?.stripeAccountId ?? null,
+      chargesEnabled: Boolean(org?.stripeChargesEnabled),
+      plan: plan
+        ? { id: plan._id, name: plan.name, priceCents: plan.priceCents, billingInterval: plan.billingInterval, stripePriceId: plan.stripePriceId ?? null }
+        : null,
+    };
+  },
+});
+
+/** Insert a plan row from an action (auth identity flows through runMutation). */
+export const _insertPlan = internalMutation({
+  args: {
+    name: v.string(),
+    description: v.optional(v.string()),
+    priceCents: v.number(),
+    billingInterval: intervalV,
+    bundledHoursPerPeriod: v.optional(v.number()),
+    memberDiscountPct: v.optional(v.number()),
+    priorityBooking: v.optional(v.boolean()),
+    stripePriceId: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    const orgId = await currentOrg(ctx);
+    await requireCapability(ctx, "sessions.edit", { orgId });
+    return ctx.db.insert("membershipPlans", {
+      orgId,
+      name: args.name,
+      description: args.description,
+      priceCents: args.priceCents,
+      billingInterval: args.billingInterval,
+      bundledHoursPerPeriod: args.bundledHoursPerPeriod,
+      memberDiscountPct: args.memberDiscountPct,
+      priorityBooking: args.priorityBooking,
+      active: true,
+      stripePriceId: args.stripePriceId,
+      createdAt: Date.now(),
+    });
+  },
+});
+
+/** Link a freshly-created Stripe price id onto an existing plan (org-checked). */
+export const _setPlanPrice = internalMutation({
+  args: { planId: v.id("membershipPlans"), stripePriceId: v.string() },
+  handler: async (ctx, { planId, stripePriceId }) => {
+    const orgId = await currentOrg(ctx);
+    await requireCapability(ctx, "sessions.edit", { orgId });
+    const row = await ctx.db.get(planId);
+    if (!row || row.orgId !== orgId) throw new ConvexError("Plan not found.");
+    await ctx.db.patch(planId, { stripePriceId });
+  },
+});
+
+/** Create a recurring Price on the studio's connected account. Returns the id. */
+async function createConnectPrice(
+  stripeAccountId: string,
+  opts: { name: string; priceCents: number; billingInterval: "month" | "year" },
+): Promise<string> {
+  const price = await stripeClient().prices.create(
+    {
+      currency: "usd",
+      unit_amount: opts.priceCents,
+      recurring: { interval: opts.billingInterval },
+      product_data: { name: opts.name },
+    },
+    { stripeAccount: stripeAccountId },
+  );
+  return price.id;
+}
+
+/** Studio creates a package. Auto-provisions the recurring Stripe Price on their
+ *  connected account when possible; otherwise saves it unlinked. */
+export const createPlanWithStripe = action({
+  args: {
+    name: v.string(),
+    description: v.optional(v.string()),
+    priceCents: v.number(),
+    billingInterval: intervalV,
+    bundledHoursPerPeriod: v.optional(v.number()),
+    memberDiscountPct: v.optional(v.number()),
+    priorityBooking: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args): Promise<{ planId: Id<"membershipPlans">; linked: boolean }> => {
+    if (args.priceCents <= 0) throw new ConvexError("Price must be positive.");
+    if (args.memberDiscountPct != null && (args.memberDiscountPct < 0 || args.memberDiscountPct > 100)) {
+      throw new ConvexError("Member discount must be between 0 and 100.");
+    }
+    const c = await ctx.runQuery(internal.memberships._planStripeContext, {});
+
+    let stripePriceId: string | undefined;
+    if (process.env.STRIPE_SECRET_KEY && c.stripeAccountId && c.chargesEnabled) {
+      stripePriceId = await createConnectPrice(c.stripeAccountId, {
+        name: args.name.trim(),
+        priceCents: args.priceCents,
+        billingInterval: args.billingInterval,
+      });
+    }
+
+    const planId: Id<"membershipPlans"> = await ctx.runMutation(internal.memberships._insertPlan, {
+      name: args.name.trim(),
+      description: args.description?.trim() || undefined,
+      priceCents: args.priceCents,
+      billingInterval: args.billingInterval,
+      bundledHoursPerPeriod: args.bundledHoursPerPeriod,
+      memberDiscountPct: args.memberDiscountPct,
+      priorityBooking: args.priorityBooking,
+      stripePriceId,
+    });
+    return { planId, linked: Boolean(stripePriceId) };
+  },
+});
+
+/** Provision the recurring Price for a plan saved before Stripe was connected. */
+export const syncPlanToStripe = action({
+  args: { planId: v.id("membershipPlans") },
+  handler: async (ctx, { planId }): Promise<{ linked: boolean }> => {
+    if (!process.env.STRIPE_SECRET_KEY) throw new ConvexError("Payments aren't configured yet.");
+    const c = await ctx.runQuery(internal.memberships._planStripeContext, { planId });
+    if (!c.plan) throw new ConvexError("Plan not found.");
+    if (c.plan.stripePriceId) return { linked: true }; // already linked
+    if (!c.stripeAccountId || !c.chargesEnabled) {
+      throw new ConvexError("Connect your Stripe account first (Settings → Integrations).");
+    }
+    const stripePriceId = await createConnectPrice(c.stripeAccountId, {
+      name: c.plan.name,
+      priceCents: c.plan.priceCents,
+      billingInterval: c.plan.billingInterval,
+    });
+    await ctx.runMutation(internal.memberships._setPlanPrice, { planId, stripePriceId });
+    return { linked: true };
+  },
+});
+
 /** Active membership for one artist (with the plan for perk lookup). */
 export const forArtist = query({
   args: { artistId: v.id("artists") },
@@ -265,5 +416,131 @@ export const _applySubscriptionEvent = internalMutation({
       hoursUsedThisPeriod:
         args.currentPeriodStart && args.currentPeriodStart !== m.currentPeriodStart ? 0 : m.hoursUsedThisPeriod,
     });
+  },
+});
+
+/* ── Public membership subscribe (from /book/<slug>, no auth) ────────────────
+   A visiting client picks a package and subscribes directly. Org is resolved
+   from the slug (never trusted from the caller); the artist is found-or-created
+   by email, mirroring booking.createBooking. ──────────────────────────────── */
+
+/** Active, subscribable (Stripe-linked) packages for a public booking page. */
+export const publicPlans = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    const org = await ctx.db.query("orgs").withIndex("by_slug", (q) => q.eq("slug", slug)).first();
+    if (!org) return [];
+    const rows = await ctx.db
+      .query("membershipPlans")
+      .withIndex("by_org", (q) => q.eq("orgId", org.orgId))
+      .collect();
+    return rows
+      .filter((p) => p.active && p.stripePriceId)
+      .sort((a, b) => a.priceCents - b.priceCents)
+      .map((p) => ({
+        _id: p._id,
+        name: p.name,
+        description: p.description ?? null,
+        priceCents: p.priceCents,
+        billingInterval: p.billingInterval,
+        bundledHoursPerPeriod: p.bundledHoursPerPeriod ?? null,
+        memberDiscountPct: p.memberDiscountPct ?? null,
+        priorityBooking: Boolean(p.priorityBooking),
+      }));
+  },
+});
+
+export const _publicSubscribeContext = internalQuery({
+  args: { slug: v.string(), planId: v.id("membershipPlans") },
+  handler: async (ctx, { slug, planId }) => {
+    const org = await ctx.db.query("orgs").withIndex("by_slug", (q) => q.eq("slug", slug)).first();
+    if (!org) return null;
+    const plan = await ctx.db.get(planId);
+    if (!plan || plan.orgId !== org.orgId) return null;
+    return {
+      orgId: org.orgId,
+      stripeAccountId: org.stripeAccountId ?? null,
+      chargesEnabled: Boolean(org.stripeChargesEnabled),
+      plan: { id: plan._id, name: plan.name, active: plan.active, stripePriceId: plan.stripePriceId ?? null },
+    };
+  },
+});
+
+/** Find an artist by email within an org, or create a lead. Returns the id. */
+export const _findOrCreateArtistForSub = internalMutation({
+  args: { orgId: v.string(), name: v.string(), email: v.string() },
+  handler: async (ctx, { orgId, name, email }) => {
+    const lower = email.toLowerCase();
+    const existing = (
+      await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
+    ).find((a) => a.email?.toLowerCase() === lower);
+    if (existing) return existing._id;
+    return ctx.db.insert("artists", {
+      orgId,
+      name: name.trim() || email,
+      type: "artist",
+      email: email.trim(),
+      genres: [],
+      tags: [],
+      status: "lead",
+      lifetimeValueCents: 0,
+      sessionCount: 0,
+      reliability: "solid",
+      source: "membership_signup",
+    });
+  },
+});
+
+/** Public: subscribe a visiting client to a studio package. Opens a Stripe
+ *  Checkout subscription on the studio's connected account. */
+export const subscribePublic = action({
+  args: {
+    slug: v.string(),
+    planId: v.id("membershipPlans"),
+    clientName: v.string(),
+    clientEmail: v.string(),
+  },
+  handler: async (ctx, args): Promise<{ url: string }> => {
+    if (!process.env.STRIPE_SECRET_KEY) throw new ConvexError("Payments aren't configured yet.");
+    const email = args.clientEmail.trim().toLowerCase();
+    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new ConvexError("Enter a valid email address.");
+    if (!args.clientName.trim()) throw new ConvexError("Enter your name.");
+
+    const c = await ctx.runQuery(internal.memberships._publicSubscribeContext, {
+      slug: args.slug,
+      planId: args.planId,
+    });
+    if (!c) throw new ConvexError("This package is not available.");
+    if (!c.plan.active) throw new ConvexError("This package is no longer active.");
+    if (!c.plan.stripePriceId) throw new ConvexError("This package can't be subscribed to yet.");
+    if (!c.stripeAccountId || !c.chargesEnabled) {
+      throw new ConvexError("This studio has not finished connecting Stripe yet.");
+    }
+
+    const artistId: Id<"artists"> = await ctx.runMutation(internal.memberships._findOrCreateArtistForSub, {
+      orgId: c.orgId,
+      name: args.clientName,
+      email: args.clientEmail,
+    });
+    const membershipId: Id<"memberships"> = await ctx.runMutation(
+      internal.memberships._createMembershipRow,
+      { orgId: c.orgId, artistId, planId: args.planId },
+    );
+
+    const stripe = stripeClient();
+    const checkout = await stripe.checkout.sessions.create(
+      {
+        mode: "subscription",
+        line_items: [{ price: c.plan.stripePriceId, quantity: 1 }],
+        customer_email: email,
+        success_url: `${appUrl()}/book/${args.slug}?membership=active`,
+        cancel_url: `${appUrl()}/book/${args.slug}?membership=cancelled`,
+        metadata: { orgId: c.orgId, artistId, planId: args.planId, membershipId },
+        subscription_data: { metadata: { orgId: c.orgId, artistId, planId: args.planId, membershipId } },
+      },
+      { stripeAccount: c.stripeAccountId },
+    );
+    if (!checkout.url) throw new ConvexError("Stripe did not return a checkout URL.");
+    return { url: checkout.url };
   },
 });

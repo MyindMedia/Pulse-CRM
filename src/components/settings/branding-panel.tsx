@@ -24,6 +24,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/field";
 import { AssetUploader } from "@/components/settings/asset-uploader";
+import { BookingLinkShare } from "@/components/settings/booking-link-share";
 import { cn } from "@/lib/utils";
 import { ACCENT_SWATCHES, type Org } from "@/components/settings/types";
 
@@ -130,6 +131,9 @@ export function BrandingPanel({ org }: { org: Org }) {
 
   return (
     <form onSubmit={handleSave} className="space-y-5">
+      {/* Shareable booking link */}
+      <BookingLinkShare slug={org.slug} studioName={org.name} />
+
       {/* Logo + accent */}
       <Card>
         <CardHeader>

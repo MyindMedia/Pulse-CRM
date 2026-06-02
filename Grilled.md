@@ -151,5 +151,79 @@ reach another tenant's data. These are prompt-layer defenses on top.
 Validated: tsc clean, 282/282 vitest (23 new aiGuard tests + portal), lint 0
 errors, build green.
 
+## Feature: auto-recurring membership packages + public subscribe + booking-link share kit (grilled 2026-06-01)
+
+Owner, from the agency command center: (1) the per-studio booking link must be
+unique + shareable (it already is — `/book/<slug>`, slug-unique, real rooms /
+pricing / availability); (2) "build out a recurring charge function in Stripe"
+so studios with monthly memberships can create the packages in their settings.
+
+**State of play before this pass:** booking links ARE unique per sub-account and
+resolve real data. Memberships are ~80% built — `convex/memberships.ts` +
+`settings → memberships-panel.tsx` + the Connect subscription webhook routing
+all exist. The ONE real gap: a studio had to create the recurring Price in their
+Stripe dashboard and paste the `price_…` id (plans were dead until then), and
+there was no public way for a client to subscribe.
+
+**Decisions (grilled, all "recommended"):**
+- **Auto-create the recurring Stripe Price** on the studio's CONNECTED account
+  when they save a package — no dashboard trip, no pasting ids. If Stripe isn't
+  connected yet, the plan saves "unlinked" with a one-click "Sync to Stripe"
+  once they connect (graceful, non-blocking — matches the existing unlinked UI).
+- **Public self-subscribe** on `/book/<slug>`: active+linked packages show with
+  pricing + perks; a visitor enters name+email and is sent to a Connect
+  subscription Checkout. Find-or-create the artist by email (mirrors
+  `booking.createBooking`), source `membership_signup`.
+- **Share kit** for the owner in Settings → Branding: the full live booking URL,
+  Copy, Open, and "Send to a client" (prefilled mailto), with a "live & unique
+  to this studio" confirmation. (QR deferred — needs a `qrcode` dep we can't
+  install in-agent; one-package follow-up.)
+
+**Non-goals (this pass):** editing an existing plan's price (archive + recreate),
+proration UI, member portal/self-cancel (Stripe handles via webhook), QR image,
+non-USD currency.
+
+**Build surface (no schema changes — membershipPlans/memberships/artists already
+suffice):**
+- `convex/memberships.ts` += `createPlanWithStripe` action (auto-creates Price on
+  the connected account, falls back to unlinked), `syncPlanToStripe` action,
+  `subscribePublic` action (slug-resolved, find-or-create artist, Connect
+  subscription checkout), `publicPlans` query (active+linked, by slug,
+  tenant-scoped), internal helpers `_planStripeContext` / `_insertPlan` /
+  `_publicSubscribeContext` / `_findOrCreateArtistForSub`. Existing `createPlan`
+  mutation kept (back-compat + tests + no-Stripe path).
+- `src/components/settings/memberships-panel.tsx` — dialog calls the action,
+  drops the manual price-id field, surfaces Stripe-connection state + "Sync to
+  Stripe".
+- `src/components/book/membership-plans.tsx` (new) + `book/[slug]/page.tsx` — a
+  Memberships section with a subscribe dialog.
+- `src/components/settings/branding-panel.tsx` — booking-link share card.
+- Tests in `convex/memberships.test.ts` (unlinked-save path, public-subscribe
+  context, find-or-create dedupe, publicPlans tenant isolation).
+
+**BACKEND DEPLOYED + Stripe webhooks wired 2026-06-01 (prod `pastel-corgi-340`,
+TEST mode):**
+- Convex functions deployed (createPlanWithStripe / syncPlanToStripe /
+  subscribePublic / publicPlans + helpers; verified `publicPlans` callable).
+- `convex/http.ts` `/stripe/webhook` now uses `constructEventAsync` (correct for
+  the Convex Web-Crypto runtime — the old sync `constructEvent` was a latent bug)
+  and verifies against BOTH `STRIPE_WEBHOOK_SECRET` (platform) and the new
+  `STRIPE_CONNECT_WEBHOOK_SECRET` (connected accounts). Liveness + signature
+  rejection verified against the live URL.
+- Stripe endpoints (same URL `…convex.site/stripe/webhook`):
+  - Platform `we_1TanQG…`: account.updated, checkout.session.completed,
+    customer.subscription.updated, customer.subscription.deleted (the last two
+    newly added — also fixes agency-tier plan tracking).
+  - Connect `we_1TdkXj…` (new): checkout.session.completed,
+    customer.subscription.created/updated/deleted (studio connected-account
+    deposits, invoices, memberships). Idempotent dedup (auditEvents by event.id)
+    makes the checkout.session.completed overlap harmless.
+  - `STRIPE_CONNECT_WEBHOOK_SECRET` set on Convex prod.
+- **Still owned by the user:** (1) FRONTEND deploy — the settings panel, booking
+  page Memberships section and share card need a Netlify build (git push the
+  connected branch) to appear. (2) GO-LIVE for real money — prod currently holds
+  Stripe TEST keys; to charge live, swap to live `STRIPE_SECRET_KEY`, recreate
+  BOTH webhook endpoints in live mode, and set the live signing secrets.
+
 ## Standing context / prior fix
 - **Crash fixed (2026-05-23):** `/agency/[orgId]` showed "page couldn't load" because `invites.list` threw `AccessError` (a plain `Error` → redacted by Convex) with no `error.tsx` boundary. Fixes: `invites.list` degrades to `[]` on access denial; `AccessError extends ConvexError`; `/agency/error.tsx` boundary; `createSubaccount` + `adoptOrphanSubaccounts` stamp/repair `agencyId` so the owner isn't scope-denied. 128 vitest green.

@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
-import { Plus, Star, Clock, Percent, Crown } from "lucide-react";
+import { Plus, Clock, Percent, Crown, RefreshCw, CreditCard, CheckCircle2 } from "lucide-react";
 import {
   Card, CardHeader, CardTitle, CardDescription, CardContent,
 } from "@/components/ui/card";
@@ -24,11 +24,17 @@ import { money } from "@/lib/format";
 const intervalLabel: Record<string, string> = { month: "/ mo", year: "/ yr" };
 
 /** Membership plans surface - studio-defined recurring tiers (priority booking,
- *  bundled hours, member discount), billed via the studio's Stripe Connect. */
+ *  bundled hours, member discount), billed via the studio's Stripe Connect. The
+ *  recurring Stripe Price is created automatically on the connected account. */
 export function MembershipsPanel() {
   const plans = useQuery(api.memberships.listPlans, {});
+  const connect = useQuery(api.stripeConnect.status, {});
   const setActive = useMutation(api.memberships.setPlanActive);
+  const sync = useAction(api.memberships.syncPlanToStripe);
   const [addOpen, setAddOpen] = React.useState(false);
+  const [syncing, setSyncing] = React.useState<string | null>(null);
+
+  const connected = Boolean(connect?.connected && connect?.chargesEnabled);
 
   async function toggle(id: string, active: boolean) {
     try {
@@ -39,14 +45,27 @@ export function MembershipsPanel() {
     }
   }
 
+  async function syncPlan(id: string) {
+    setSyncing(id);
+    try {
+      await sync({ planId: id as never });
+      toast.success("Recurring price created in Stripe.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not sync to Stripe.");
+    } finally {
+      setSyncing(null);
+    }
+  }
+
   return (
     <Card>
       <CardHeader className="flex-row items-start justify-between gap-3">
         <div>
           <CardTitle>Membership plans</CardTitle>
           <CardDescription>
-            Monthly or yearly tiers your clients subscribe to, billed via your connected Stripe.
-            Create the recurring Price in your Stripe dashboard, then paste its price id below.
+            Monthly or yearly packages your clients subscribe to. When you save a package
+            we create the recurring price in your connected Stripe automatically, and clients
+            can subscribe right from your booking page.
           </CardDescription>
         </div>
         <Button onClick={() => setAddOpen(true)}>
@@ -55,6 +74,16 @@ export function MembershipsPanel() {
         </Button>
       </CardHeader>
       <CardContent>
+        {!connected && (
+          <div className="mb-3 flex items-start gap-2 rounded-md border border-hairline bg-coal-2 px-3 py-2.5">
+            <CreditCard className="mt-0.5 size-3.5 shrink-0 text-caution" />
+            <p className="text-[0.6875rem] text-ash-dim">
+              Connect your Stripe account in <span className="text-bone">Settings → Integrations</span> to
+              start charging. You can still define packages now; we will create their recurring
+              prices the moment Stripe is connected.
+            </p>
+          </div>
+        )}
         {plans === undefined ? (
           <div className="space-y-2">
             {[0, 1].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
@@ -78,6 +107,9 @@ export function MembershipsPanel() {
                       {p.priorityBooking && (
                         <Badge tone="gold"><Crown className="size-2.5" /> Priority</Badge>
                       )}
+                      {p.stripePriceId && (
+                        <Badge tone="positive"><CheckCircle2 className="size-2.5" /> Live</Badge>
+                      )}
                     </div>
                     {p.description && <p className="mt-1 text-xs text-ash">{p.description}</p>}
                     <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-ash">
@@ -88,7 +120,15 @@ export function MembershipsPanel() {
                         <span className="inline-flex items-center gap-1"><Percent className="size-3 text-ash-dim" /> {p.memberDiscountPct}% member discount</span>
                       ) : null}
                       {!p.stripePriceId && (
-                        <span className="inline-flex items-center gap-1 text-caution"><Star className="size-3" /> No Stripe price linked yet</span>
+                        <button
+                          type="button"
+                          onClick={() => void syncPlan(p._id)}
+                          disabled={syncing === p._id}
+                          className="inline-flex items-center gap-1 rounded text-caution hover:text-bone disabled:opacity-60"
+                        >
+                          <RefreshCw className={`size-3 ${syncing === p._id ? "animate-spin" : ""}`} />
+                          {syncing === p._id ? "Creating price..." : "Sync to Stripe to go live"}
+                        </button>
                       )}
                     </div>
                   </div>
@@ -111,13 +151,21 @@ export function MembershipsPanel() {
         )}
       </CardContent>
 
-      <AddPlanDialog open={addOpen} onOpenChange={setAddOpen} />
+      <AddPlanDialog open={addOpen} onOpenChange={setAddOpen} connected={connected} />
     </Card>
   );
 }
 
-function AddPlanDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const create = useMutation(api.memberships.createPlan);
+function AddPlanDialog({
+  open,
+  onOpenChange,
+  connected,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  connected: boolean;
+}) {
+  const create = useAction(api.memberships.createPlanWithStripe);
   const [name, setName] = React.useState("");
   const [description, setDescription] = React.useState("");
   const [price, setPrice] = React.useState("");
@@ -125,12 +173,11 @@ function AddPlanDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
   const [hours, setHours] = React.useState("");
   const [discount, setDiscount] = React.useState("");
   const [priority, setPriority] = React.useState(false);
-  const [stripePriceId, setStripePriceId] = React.useState("");
   const [busy, setBusy] = React.useState(false);
 
   function reset() {
     setName(""); setDescription(""); setPrice(""); setInterval("month");
-    setHours(""); setDiscount(""); setPriority(false); setStripePriceId("");
+    setHours(""); setDiscount(""); setPriority(false);
   }
 
   async function submit() {
@@ -139,7 +186,7 @@ function AddPlanDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
     if (!Number.isFinite(priceCents) || priceCents <= 0) { toast.error("Enter a positive price."); return; }
     setBusy(true);
     try {
-      await create({
+      const res = await create({
         name: name.trim(),
         description: description.trim() || undefined,
         priceCents,
@@ -147,9 +194,12 @@ function AddPlanDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
         bundledHoursPerPeriod: hours ? Math.max(0, Number(hours)) : undefined,
         memberDiscountPct: discount ? Math.max(0, Math.min(100, Number(discount))) : undefined,
         priorityBooking: priority || undefined,
-        stripePriceId: stripePriceId.trim() || undefined,
       });
-      toast.success("Plan created.");
+      toast.success(
+        res.linked
+          ? "Plan created and live in Stripe."
+          : "Plan saved. Connect Stripe to start charging.",
+      );
       reset();
       onOpenChange(false);
     } catch (err) {
@@ -164,13 +214,16 @@ function AddPlanDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
       <DialogContent size="md">
         <DialogHeader>
           <DialogTitle>New membership plan</DialogTitle>
-          <DialogDescription>Define what a paying member gets each period. Paste the recurring Stripe price id from your dashboard.</DialogDescription>
+          <DialogDescription>
+            Define what a paying member gets each period. We create the recurring price in
+            your connected Stripe automatically.
+          </DialogDescription>
         </DialogHeader>
         <DialogBody className="space-y-3">
           <Field label="Name">
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Producer Pass" />
           </Field>
-          <Field label="Description" hint="Optional pitch shown on the member's portal.">
+          <Field label="Description" hint="Optional pitch shown on your booking page.">
             <Textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} />
           </Field>
           <div className="grid grid-cols-2 gap-3">
@@ -195,9 +248,12 @@ function AddPlanDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
               <Input value={discount} onChange={(e) => setDiscount(e.target.value)} placeholder="10" inputMode="numeric" />
             </Field>
           </div>
-          <Field label="Stripe recurring price id" hint="Create the Price in your Stripe dashboard; paste the id (price_...).">
-            <Input value={stripePriceId} onChange={(e) => setStripePriceId(e.target.value)} placeholder="price_1AB..." />
-          </Field>
+          {!connected && (
+            <p className="rounded-md border border-hairline bg-coal-2 px-3 py-2 text-[0.6875rem] text-ash-dim">
+              Stripe isn&apos;t connected yet, so this plan will save as a draft. Connect Stripe in
+              Integrations and press &ldquo;Sync to Stripe&rdquo; to make it live.
+            </p>
+          )}
           <label className="flex items-center justify-between rounded-md border border-hairline bg-coal-2 px-3 py-2">
             <span className="text-sm text-bone">Priority booking</span>
             <Switch checked={priority} onCheckedChange={setPriority} />
@@ -205,7 +261,7 @@ function AddPlanDialog({ open, onOpenChange }: { open: boolean; onOpenChange: (o
         </DialogBody>
         <DialogFooter>
           <Button variant="ghost" disabled={busy} onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button disabled={busy} onClick={submit}>Create plan</Button>
+          <Button disabled={busy} onClick={submit}>{busy ? "Saving..." : "Create plan"}</Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>

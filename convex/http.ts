@@ -42,14 +42,29 @@ http.route({
   method: "POST",
   handler: httpAction(async (ctx, req) => {
     const sig = req.headers.get("stripe-signature");
-    const secret = process.env.STRIPE_WEBHOOK_SECRET;
+    // Two endpoints share this URL: the platform endpoint (account events) and
+    // the Connect endpoint (events on studios' connected accounts, e.g. deposit
+    // checkouts + membership subscriptions). Each has its own signing secret, so
+    // we try both. Verify with the async (SubtleCrypto) API for the Convex runtime.
+    const secrets = [
+      process.env.STRIPE_WEBHOOK_SECRET,
+      process.env.STRIPE_CONNECT_WEBHOOK_SECRET,
+    ].filter((s): s is string => Boolean(s));
     const body = await req.text();
-    if (!sig || !secret) return new Response("missing signature", { status: 400 });
+    if (!sig || secrets.length === 0) return new Response("missing signature", { status: 400 });
+    const stripe = stripeClient();
     let event;
-    try {
-      event = stripeClient().webhooks.constructEvent(body, sig, secret);
-    } catch (e) {
-      return new Response(`invalid signature: ${(e as Error).message}`, { status: 400 });
+    let lastErr: unknown;
+    for (const secret of secrets) {
+      try {
+        event = await stripe.webhooks.constructEventAsync(body, sig, secret);
+        break;
+      } catch (e) {
+        lastErr = e;
+      }
+    }
+    if (!event) {
+      return new Response(`invalid signature: ${(lastErr as Error)?.message}`, { status: 400 });
     }
     await ctx.runMutation(internal.billingWebhooks.handle, {
       event: {

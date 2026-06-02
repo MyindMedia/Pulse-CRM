@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Disc3 } from "lucide-react";
@@ -8,9 +9,16 @@ import { Disc3 } from "lucide-react";
 /**
  * Public booking chrome - NO app sidebar. A slim wordmark bar and a
  * minimal footer. The root layout already provides Convex + fonts + Toaster.
+ *
+ * The header wordmark must reflect the studio in the URL (`/book/<slug>`), NOT
+ * the demo org. studioFront with no slug resolves to the seeded demo workspace
+ * for public visitors, so we always pass the route slug when there is one.
  */
 export default function BookLayout({ children }: { children: React.ReactNode }) {
-  const front = useQuery(api.booking.studioFront, {});
+  const params = useParams<{ slug?: string | string[] }>();
+  const raw = params?.slug;
+  const slug = Array.isArray(raw) ? raw[0] : raw;
+  const front = useQuery(api.booking.studioFront, slug ? { slug } : {});
   const studioName = front?.org.name ?? "Pulse";
 
   return (
@@ -23,7 +31,7 @@ export default function BookLayout({ children }: { children: React.ReactNode }) 
 
       <header className="relative z-10 border-b border-hairline bg-ink-2/80 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 lg:px-8">
-          <Link href="/book" className="group flex items-center gap-2.5">
+          <Link href={slug ? `/book/${slug}` : "/book"} className="group flex items-center gap-2.5">
             <span className="grid size-9 place-items-center rounded-md bg-gold text-gold-ink shadow-[0_1px_0_0_rgba(255,255,255,.25)_inset]">
               <Disc3 className="size-5" />
             </span>

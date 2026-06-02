@@ -17,6 +17,7 @@ import { EmptyState } from "@/components/ui/feedback";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fadeUp, staggerChildren } from "@/lib/motion";
 import { RoomCard } from "@/components/book/room-card";
+import { MembershipPlans } from "@/components/book/membership-plans";
 
 const STEPS = [
   { icon: MousePointerClick, label: "Pick a room", note: "Browse rooms and gear." },
@@ -245,6 +246,9 @@ export default function StudioSlugFrontPage() {
           </div>
         )}
       </section>
+
+      {/* Memberships (hidden until the studio publishes a subscribable package) */}
+      <MembershipPlans slug={slug} accent={accent} />
     </div>
   );
 }
