@@ -225,5 +225,33 @@ TEST mode):**
   Stripe TEST keys; to charge live, swap to live `STRIPE_SECRET_KEY`, recreate
   BOTH webhook endpoints in live mode, and set the live signing secrets.
 
+## Feature: per-studio inventory import from Excel/CSV (built + shipped 2026-06-02)
+
+Owner: each sub-account needs to bulk-import its gear inventory from a
+spreadsheet, auto-discovering "any row and column configuration by using the top
+level" (the header row), plus a template that captures every component of the
+assets screen.
+
+**Decisions/build:**
+- New **Settings → Inventory** tab (`InventoryImportPanel`). Upload .xlsx/.xls/
+  .csv; reads the header row and auto-maps columns in any order/naming via a
+  synonyms + fuzzy matcher; owner confirms the mapping in a per-column dropdown,
+  sees a live preview, then imports. Serial-number dedupe toggle (default on).
+- **Client-side parsing only** (xlsx/SheetJS) — uploaded files never hit the
+  server (keeps SheetJS parse-path CVEs off the backend / other tenants). The
+  server gets clean, validated rows.
+- `src/lib/inventory-import.ts` = single source of truth (column spec, header
+  auto-map, value coercion for category/status aliases + money + dates). Drives
+  both the importer and the downloadable .xlsx **template** (Inventory sheet +
+  Instructions sheet listing required fields + allowed values).
+- `equipment.importBulk` mutation: validates, maps room names → rooms in the
+  caller's org (case-insensitive, unknown → storage), optional serial dedupe,
+  ONE summary activity row (not per-item), tenant-scoped via currentOrg.
+- Added `xlsx@0.18.5` dep (npm advisory vulns are parse-path; mitigated by
+  client-only first-party parsing — a SheetJS-CDN pin is the clean-audit
+  follow-up). vitest include now also covers `src/**/*.test.ts`.
+- **DEPLOYED:** importBulk live on prod `pastel-corgi-340` (verified callable);
+  frontend pushed to `main` (Netlify building). 301 vitest green, build clean.
+
 ## Standing context / prior fix
 - **Crash fixed (2026-05-23):** `/agency/[orgId]` showed "page couldn't load" because `invites.list` threw `AccessError` (a plain `Error` → redacted by Convex) with no `error.tsx` boundary. Fixes: `invites.list` degrades to `[]` on access denial; `AccessError extends ConvexError`; `/agency/error.tsx` boundary; `createSubaccount` + `adoptOrphanSubaccounts` stamp/repair `agencyId` so the owner isn't scope-denied. 128 vitest green.
