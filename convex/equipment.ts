@@ -165,6 +165,97 @@ export const create = mutation({
   },
 });
 
+/** Bulk import from a spreadsheet. Rows are parsed + coerced client-side into
+ *  this clean shape; the server validates, maps room names to rooms in the
+ *  caller's org, optionally skips serial-number duplicates, and inserts. One
+ *  activity row summarizes the import (not one per item). Tenant-scoped. */
+export const importBulk = mutation({
+  args: {
+    items: v.array(
+      v.object({
+        name: v.string(),
+        category: categoryV,
+        purchaseCents: v.number(),
+        currentValueCents: v.number(),
+        serialNumber: v.optional(v.string()),
+        condition: v.optional(v.string()),
+        notes: v.optional(v.string()),
+        status: v.optional(statusV),
+        purchaseDate: v.optional(v.number()),
+        roomName: v.optional(v.string()),
+      }),
+    ),
+    skipDuplicateSerials: v.optional(v.boolean()),
+  },
+  handler: async (ctx, { items, skipDuplicateSerials }) => {
+    const orgId = await currentOrg(ctx);
+
+    // Map room names -> ids once (case-insensitive), for the location column.
+    const rooms = await ctx.db
+      .query("rooms")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect();
+    const roomByName = new Map(rooms.map((r) => [r.name.trim().toLowerCase(), r._id]));
+
+    // Existing serials for dedupe (only loaded when needed).
+    const seenSerials = new Set<string>();
+    if (skipDuplicateSerials) {
+      const existing = await ctx.db
+        .query("equipment")
+        .withIndex("by_org", (q) => q.eq("orgId", orgId))
+        .collect();
+      for (const e of existing) {
+        if (e.serialNumber) seenSerials.add(e.serialNumber.trim().toLowerCase());
+      }
+    }
+
+    let inserted = 0;
+    let skipped = 0;
+    for (const item of items) {
+      const name = item.name.trim();
+      if (!name) { skipped++; continue; }
+
+      const serialKey = item.serialNumber?.trim().toLowerCase();
+      if (skipDuplicateSerials && serialKey && seenSerials.has(serialKey)) {
+        skipped++;
+        continue;
+      }
+      if (serialKey) seenSerials.add(serialKey);
+
+      const roomId = item.roomName
+        ? roomByName.get(item.roomName.trim().toLowerCase())
+        : undefined;
+
+      await ctx.db.insert("equipment", {
+        orgId,
+        name,
+        category: item.category,
+        installedInRoomId: roomId,
+        status: item.status ?? "available",
+        purchaseCents: item.purchaseCents,
+        currentValueCents: item.currentValueCents,
+        purchaseDate: item.purchaseDate,
+        serialNumber: item.serialNumber?.trim() || undefined,
+        condition: item.condition?.trim() || undefined,
+        notes: item.notes?.trim() || undefined,
+      });
+      inserted++;
+    }
+
+    if (inserted > 0) {
+      await ctx.db.insert("activity", {
+        orgId,
+        kind: "equipment.added",
+        summary: `${inserted} item${inserted === 1 ? "" : "s"} imported into inventory`,
+        entityType: "equipment",
+        accent: "info",
+      });
+    }
+
+    return { inserted, skipped };
+  },
+});
+
 export const update = mutation({
   args: {
     id: v.id("equipment"),

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Building2, CreditCard, Crown, Database, Palette, Receipt, Users, Plug } from "lucide-react";
+import { Boxes, Building2, CreditCard, Crown, Database, Palette, Receipt, Users, Plug } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,6 +17,7 @@ import { DataPanel } from "@/components/settings/data-panel";
 import { UsagePanel } from "@/components/settings/usage-panel";
 import { ExportPanel } from "@/components/settings/export-panel";
 import { MembershipsPanel } from "@/components/settings/memberships-panel";
+import { InventoryImportPanel } from "@/components/settings/inventory-import-panel";
 import type { Org } from "@/components/settings/types";
 
 /** Shimmer block while the org record loads. */
@@ -73,6 +74,10 @@ export default function SettingsPage() {
               <CreditCard className="size-4" />
               Billing
             </TabsTrigger>
+            <TabsTrigger value="inventory">
+              <Boxes className="size-4" />
+              Inventory
+            </TabsTrigger>
             <TabsTrigger value="data">
               <Database className="size-4" />
               Data
@@ -99,6 +104,9 @@ export default function SettingsPage() {
           </TabsContent>
           <TabsContent value="billing">
             <BillingPanel org={org} />
+          </TabsContent>
+          <TabsContent value="inventory">
+            <InventoryImportPanel />
           </TabsContent>
           <TabsContent value="data">
             <div className="space-y-4">
