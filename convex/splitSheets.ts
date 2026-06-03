@@ -13,6 +13,30 @@ const contributorV = v.object({
   signed: v.boolean(),
 });
 
+type Contributor = {
+  name: string;
+  role: string;
+  masterPct: number;
+  publishingPct: number;
+};
+
+/** A compact, human-readable snapshot of the allocation, e.g.
+    "Alice 50/50, Bob 50/50" (master/publishing). Captured into the activity
+    feed so every change is an on-the-record account of who held what. */
+function splitSnapshot(contributors: Contributor[]): string {
+  const parts = contributors.map(
+    (c) => `${c.name || "Unnamed"} ${c.masterPct}/${c.publishingPct}`,
+  );
+  const shown = parts.slice(0, 4).join(", ");
+  return parts.length > 4 ? `${shown} +${parts.length - 4} more` : shown;
+}
+
+/** True when the recorded allocation differs (names/roles/percentages/ids/
+    signed) - i.e. there's an actual change worth logging. */
+function contributorsChanged(a: Contributor[], b: Contributor[]): boolean {
+  return JSON.stringify(a) !== JSON.stringify(b);
+}
+
 export const forSong = query({
   args: { songId: v.id("songs") },
   handler: async (ctx, { songId }) => {
@@ -60,11 +84,24 @@ export const upsert = mutation({
       .withIndex("by_song", (q) => q.eq("songId", songId))
       .first();
     if (existing && existing.orgId === orgId) {
+      // Log the change BEFORE patching so the activity feed keeps an account of
+      // each revision's allocation - the "for future records" trail.
+      const changed = contributorsChanged(existing.contributors, contributors);
       await ctx.db.patch(existing._id, {
         contributors,
         status: status ?? existing.status,
         updatedAt: Date.now(),
       });
+      if (changed) {
+        await ctx.db.insert("activity", {
+          orgId,
+          kind: "split.updated",
+          summary: `Split sheet updated for "${song.title}" - ${splitSnapshot(contributors)}`,
+          entityType: "song",
+          entityId: songId,
+          accent: "gold",
+        });
+      }
       return existing._id;
     }
     const id = await ctx.db.insert("splitSheets", {
@@ -77,7 +114,7 @@ export const upsert = mutation({
     await ctx.db.insert("activity", {
       orgId,
       kind: "split.created",
-      summary: `Split sheet drafted for "${song.title}"`,
+      summary: `Split sheet drafted for "${song.title}" - ${splitSnapshot(contributors)}`,
       entityType: "song",
       entityId: songId,
       accent: "gold",

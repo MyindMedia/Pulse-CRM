@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
-import { AlertTriangle, CheckCircle2, FileDown, Plus, Send, Trash2, Users } from "lucide-react";
+import { AlertTriangle, CheckCircle2, FileDown, Plus, Scale, Send, Trash2, Users } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RightsExportDialog } from "@/components/songs/rights-export-dialog";
 import { SigningLinksDialog, type SigningLink } from "@/components/songs/signing-links-dialog";
@@ -94,6 +94,21 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
   }
   function removeRow(index: number) {
     setRows(working.filter((_, i) => i !== index));
+  }
+  /** Standard even split: distribute 100% across every contributor on both
+      columns, pushing any rounding remainder onto the first so totals hit
+      exactly 100. */
+  function splitEvenly() {
+    const n = working.length;
+    if (n === 0) return;
+    const base = Math.floor((100 / n) * 100) / 100; // 2dp floor
+    const remainder = Math.round((100 - base * n) * 100) / 100;
+    setRows(
+      working.map((c, i) => {
+        const pct = i === 0 ? Math.round((base + remainder) * 100) / 100 : base;
+        return { ...c, masterPct: pct, publishingPct: pct };
+      }),
+    );
   }
 
   async function save() {
@@ -292,10 +307,18 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
             ))}
           </div>
 
-          <Button variant="outline" size="sm" onClick={addRow}>
-            <Plus className="size-3.5" />
-            Add contributor
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onClick={addRow}>
+              <Plus className="size-3.5" />
+              Add contributor
+            </Button>
+            {working.length > 1 && (
+              <Button variant="ghost" size="sm" onClick={splitEvenly}>
+                <Scale className="size-3.5" />
+                Split evenly
+              </Button>
+            )}
+          </div>
         </CardContent>
       </Card>
 
