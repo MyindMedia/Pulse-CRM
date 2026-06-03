@@ -193,3 +193,76 @@ export const createDepositCheckout = action({
     return { url: checkout.url };
   },
 });
+
+/* ============================================================
+   Go-live migration (test -> live). Test-mode acct_/cus_/sub_/price_
+   ids do NOT exist under a live Stripe key, so any stored connected-
+   account state goes stale the moment STRIPE_SECRET_KEY is swapped to
+   sk_live_. This one-shot internal mutation clears that state so studios
+   get a clean "Connect Stripe" prompt and re-onboard in live mode.
+
+   Scope is the CONNECTED-account (studio) surface only:
+     - orgs:           stripeAccountId, stripeChargesEnabled, stripeDetailsSubmitted
+     - membershipPlans: stripePriceId (a Price on the studio's own account)
+     - memberships:    stripeCustomerId, stripeSubscriptionId (+ cancel, since
+                       the live subscription that granted access doesn't exist)
+   It deliberately does NOT touch the `agencies` table - that holds Pulse's own
+   platform billing of agencies, a separate go-live concern.
+
+   Run from the Convex dashboard (or CLI) with { dryRun: true } first to see the
+   counts, then { dryRun: false } to apply. Internal-only: never client-callable.
+   ============================================================ */
+export const _resetTestConnectStateForGoLive = internalMutation({
+  args: { dryRun: v.optional(v.boolean()) },
+  handler: async (ctx, { dryRun }) => {
+    const apply = dryRun === false; // default (undefined/true) = report only
+    let orgsCleared = 0;
+    let plansCleared = 0;
+    let membershipsCancelled = 0;
+
+    for (const org of await ctx.db.query("orgs").collect()) {
+      if (org.stripeAccountId || org.stripeChargesEnabled || org.stripeDetailsSubmitted) {
+        orgsCleared++;
+        if (apply) {
+          await ctx.db.patch(org._id, {
+            stripeAccountId: undefined,
+            stripeChargesEnabled: undefined,
+            stripeDetailsSubmitted: undefined,
+          });
+        }
+      }
+    }
+
+    for (const plan of await ctx.db.query("membershipPlans").collect()) {
+      if (plan.stripePriceId) {
+        plansCleared++;
+        if (apply) await ctx.db.patch(plan._id, { stripePriceId: undefined });
+      }
+    }
+
+    for (const m of await ctx.db.query("memberships").collect()) {
+      if (m.stripeSubscriptionId || m.stripeCustomerId) {
+        membershipsCancelled++;
+        if (apply) {
+          await ctx.db.patch(m._id, {
+            stripeSubscriptionId: undefined,
+            stripeCustomerId: undefined,
+            // A membership backed by a now-dead test subscription must not keep
+            // granting access; force re-subscribe under live.
+            status: "cancelled",
+          });
+        }
+      }
+    }
+
+    return {
+      applied: apply,
+      orgsCleared,
+      plansCleared,
+      membershipsCancelled,
+      note: apply
+        ? "Stale test Connect state cleared; studios must re-connect Stripe in live mode."
+        : "DRY RUN - nothing written. Re-run with { dryRun: false } to apply.",
+    };
+  },
+});
