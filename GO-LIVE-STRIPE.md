@@ -38,6 +38,27 @@ keys against prod Convex `pastel-corgi-340`. This flips it to **live**.
 
 ---
 
+## Fast path (automated)
+
+`scripts/stripe-go-live.mjs` does steps 3 + 4 for you — creates both live webhook
+endpoints (correct events, Connect vs Platform) via the Stripe API and sets all
+three Convex prod vars. Rehearsed in test mode (webhook-create + env-set both
+verified). After you've done steps 1–2 below (enable Connect live + get the live
+key):
+
+```
+export CONVEX_DEPLOY_KEY="$(op read 'op://Security/Convex PULSE CRM/deploy key')"
+STRIPE_SECRET_KEY=sk_live_…  node scripts/stripe-go-live.mjs --apply
+```
+
+It prints the remaining manual items (data cleanup, branding, studio re-connect).
+Dry rehearsal anytime (safe, deletes its throwaways, no env changes):
+`STRIPE_SECRET_KEY=sk_test_… node scripts/stripe-go-live.mjs --rehearse`.
+
+The manual breakdown below is the same sequence done by hand.
+
+---
+
 ## Steps (Stripe dashboard is in LIVE mode for all of this)
 
 ### 1. Enable Connect in live mode
