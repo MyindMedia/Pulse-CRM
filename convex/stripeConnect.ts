@@ -116,6 +116,26 @@ export const createAccountLink = action({
   },
 });
 
+/**
+ * One-time login link to the studio's OWN Stripe Express dashboard, where they
+ * manage bank details, payouts, refunds, and tax. Express accounts can't sign in
+ * at stripe.com directly - the platform must mint this link.
+ */
+export const createDashboardLink = action({
+  args: {},
+  handler: async (ctx): Promise<{ url: string }> => {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new ConvexError("Payments aren’t configured yet. Ask your admin to set up Stripe.");
+    }
+    const self = await ctx.runQuery(internal.stripeConnect._orgForConnect, {});
+    if (!self?.stripeAccountId) {
+      throw new ConvexError("Connect your Stripe account first.");
+    }
+    const link = await stripeClient().accounts.createLoginLink(self.stripeAccountId);
+    return { url: link.url };
+  },
+});
+
 /** Pull the latest account state from Stripe and persist charge/detail flags. */
 export const refreshStatus = action({
   args: {},

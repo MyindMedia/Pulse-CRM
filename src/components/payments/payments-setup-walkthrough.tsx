@@ -17,9 +17,11 @@ import { cn } from "@/lib/utils";
 export function PaymentsSetupWalkthrough() {
   const status = useQuery(api.stripeConnect.status, {});
   const createAccountLink = useAction(api.stripeConnect.createAccountLink);
+  const createDashboardLink = useAction(api.stripeConnect.createDashboardLink);
   const refreshStatus = useAction(api.stripeConnect.refreshStatus);
   const [busy, setBusy] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
+  const [opening, setOpening] = React.useState(false);
 
   // Returning from Stripe → pull the latest account state.
   React.useEffect(() => {
@@ -57,6 +59,17 @@ export function PaymentsSetupWalkthrough() {
       setRefreshing(false);
     }
   }
+  async function openDashboard() {
+    setOpening(true);
+    try {
+      const { url } = await createDashboardLink({});
+      window.open(url, "_blank", "noopener");
+    } catch (err) {
+      toast.error(err instanceof ConvexError ? String(err.data) : "Could not open your Stripe dashboard.");
+    } finally {
+      setOpening(false);
+    }
+  }
 
   // Live → slim confirmation.
   if (live) {
@@ -67,7 +80,11 @@ export function PaymentsSetupWalkthrough() {
           <p className="font-display text-sm font-semibold text-bone">Payments are live</p>
           <p className="truncate text-xs text-ash">Deposits, balances and invoice pay links deposit straight to your bank.</p>
         </div>
-        <Button variant="ghost" size="sm" onClick={refresh} disabled={refreshing}>
+        <Button variant="ghost" size="sm" onClick={openDashboard} disabled={opening}>
+          {opening ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowUpRight className="size-3.5" />}
+          Stripe dashboard
+        </Button>
+        <Button variant="ghost" size="icon-sm" onClick={refresh} disabled={refreshing} aria-label="Refresh status">
           {refreshing ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
         </Button>
       </div>

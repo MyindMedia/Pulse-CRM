@@ -38,6 +38,21 @@ describe("stripe connect", () => {
     await expect(t.action(api.stripeConnect.createAccountLink, {})).rejects.toThrow(/configured/i);
   });
 
+  it("createDashboardLink throws when Stripe isn't configured", async () => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+    });
+    await expect(t.action(api.stripeConnect.createDashboardLink, {})).rejects.toThrow(/configured/i);
+  });
+
+  it("createDashboardLink tells an unconnected studio to connect first", async () => {
+    process.env.STRIPE_SECRET_KEY = "sk_test_dummy"; // configured, but org has no account → guard fires before any Stripe call
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+    });
+    await expect(t.action(api.stripeConnect.createDashboardLink, {})).rejects.toThrow(/connect/i);
+  });
+
   it("webhook account.updated flips the owning org's charge flags", async () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {

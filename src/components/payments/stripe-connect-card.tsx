@@ -16,8 +16,10 @@ import { Button } from "@/components/ui/button";
 export function StripeConnectCard({ compact = false }: { compact?: boolean }) {
   const status = useQuery(api.stripeConnect.status, {});
   const createAccountLink = useAction(api.stripeConnect.createAccountLink);
+  const createDashboardLink = useAction(api.stripeConnect.createDashboardLink);
   const refreshStatus = useAction(api.stripeConnect.refreshStatus);
   const [busy, setBusy] = React.useState(false);
+  const [opening, setOpening] = React.useState(false);
 
   // Coming back from Stripe → pull the latest account state.
   React.useEffect(() => {
@@ -38,6 +40,20 @@ export function StripeConnectCard({ compact = false }: { compact?: boolean }) {
         err instanceof ConvexError ? String(err.data) : "Could not start Stripe setup.",
       );
       setBusy(false);
+    }
+  }
+
+  async function openDashboard() {
+    setOpening(true);
+    try {
+      const { url } = await createDashboardLink({});
+      window.open(url, "_blank", "noopener");
+    } catch (err) {
+      toast.error(
+        err instanceof ConvexError ? String(err.data) : "Could not open your Stripe dashboard.",
+      );
+    } finally {
+      setOpening(false);
     }
   }
 
@@ -84,6 +100,15 @@ export function StripeConnectCard({ compact = false }: { compact?: boolean }) {
             {busy ? <Loader2 className="size-3.5 animate-spin" /> : <CreditCard className="size-3.5" />}
             {pending ? "Finish Stripe setup" : "Connect Stripe"}
             {!busy && <ArrowUpRight className="size-3.5" />}
+          </Button>
+        </div>
+      )}
+
+      {connected && (
+        <div className="mt-4">
+          <Button variant="outline" size="sm" disabled={opening} onClick={openDashboard}>
+            {opening ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowUpRight className="size-3.5" />}
+            Open Stripe dashboard
           </Button>
         </div>
       )}
