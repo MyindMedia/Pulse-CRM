@@ -164,6 +164,39 @@ export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
       };
     }
 
+    // Operator allowlist (AGENCY_ADMIN_EMAILS) - converge with agency.access.
+    // The agency console admits operators by this env allowlist; historically
+    // resolveViewer granted agency caps ONLY from the agencyMembers table, so an
+    // allowlisted operator without a row passed the console gate yet was
+    // cap-denied on every studio read of a sub-account (silently emptying
+    // waitlist + other cap-gated panels). A non-empty allowlist + matching email
+    // now elevates the caller to OWNER of the SOLE agency, mirroring the
+    // table-backed owner path. Gated to the single-agency case so it can never
+    // escalate across agencies; an empty allowlist elevates nobody (the
+    // console-only "allow all when list is empty" rule stays out of here).
+    const email = ((identity as { email?: string }).email ?? "").toLowerCase();
+    const allow = (process.env.AGENCY_ADMIN_EMAILS ?? "")
+      .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
+    if (email && allow.includes(email)) {
+      const agencies = await ctx.db.query("agencies").take(2);
+      if (agencies.length === 1) {
+        const state = await ctx.db
+          .query("appState")
+          .withIndex("by_key", (q) => q.eq("key", "demo"))
+          .first();
+        return {
+          kind: "agency_member",
+          agencyId: agencies[0].agencyId,
+          agencyMemberId: "allowlist" as unknown as AgencyViewer["agencyMemberId"],
+          clerkUserId,
+          role: "owner",
+          scopedSubAccountOrgIds: "all",
+          capabilities: buildAgencyCaps("owner"),
+          orgId: state?.activeOrgId,
+        };
+      }
+    }
+
     // Studio-tier Clerk org (default)
     if (orgId) {
       const member = await ctx.db

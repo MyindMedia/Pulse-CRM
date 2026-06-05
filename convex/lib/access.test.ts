@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "../schema";
 import { api } from "../_generated/api";
@@ -75,6 +75,103 @@ describe("access engine - resolveViewer", () => {
     // Agency owners act as a studio → must carry studio caps too.
     expect(result.caps).toContain("schedule.manage");
     expect(result.caps).toContain("sessions.edit");
+  });
+});
+
+// ── AGENCY_ADMIN_EMAILS allowlist convergence ───────────────────
+// The agency console (agency.access) lets an operator in by email allowlist,
+// but resolveViewer historically only granted agency caps from the
+// agencyMembers table. A user allowlisted but lacking a row passed the console
+// gate yet was cap-denied on every studio read of a sub-account, silently
+// emptying cap-gated panels (waitlist, etc.). These tests pin the convergence:
+// an allowlisted operator resolves as the sole agency's owner.
+describe("access engine - AGENCY_ADMIN_EMAILS allowlist", () => {
+  let t: ReturnType<typeof convexTest>;
+  const prevEnv = process.env.AGENCY_ADMIN_EMAILS;
+  beforeEach(() => { t = convexTest(schema); });
+  afterEach(() => {
+    if (prevEnv === undefined) delete process.env.AGENCY_ADMIN_EMAILS;
+    else process.env.AGENCY_ADMIN_EMAILS = prevEnv;
+  });
+
+  async function seedSoleAgencyWithSub() {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencies", {
+        agencyId: "org_sole", name: "Sole", slug: "sole",
+        plan: "agency", status: "active",
+        ownerClerkUserId: "someone_else", ownerEmail: "founder@studio.com",
+      });
+      await ctx.db.insert("orgs", {
+        orgId: "org_sub", name: "Sub", slug: "sub", plan: "studio",
+        status: "active", agencyId: "org_sole",
+      });
+      // The operator is "entered into" the sub-account (global active org).
+      await ctx.db.insert("appState", { key: "demo", activeOrgId: "org_sub" });
+    });
+  }
+
+  it("allowlisted operator with NO agencyMembers row resolves as sole-agency owner", async () => {
+    process.env.AGENCY_ADMIN_EMAILS = "ADMIN@x.com"; // case-insensitive
+    await seedSoleAgencyWithSub();
+    const asAdmin = t.withIdentity({ subject: "user_admin", name: "Admin", email: "admin@x.com" });
+    const result = await asAdmin.query(api.testHarness.resolve, {});
+    expect(result.kind).toBe("agency_member");
+    expect(result.role).toBe("owner");
+    expect(result.orgId).toBe("org_sub"); // acts-as the entered sub-account
+    expect(result.caps).toContain("sessions.read");
+  });
+
+  it("allowlisted operator can read sub-account sessions (the empty-panel bug)", async () => {
+    process.env.AGENCY_ADMIN_EMAILS = "admin@x.com";
+    await seedSoleAgencyWithSub();
+    const asAdmin = t.withIdentity({ subject: "user_admin", name: "Admin", email: "admin@x.com" });
+    const r = await asAdmin.mutation(api.testHarness.require_, { cap: "sessions.read", orgId: "org_sub" });
+    expect(r).toEqual({ ok: true, kind: "agency_member" });
+  });
+
+  it("does NOT elevate a user whose email is not on the allowlist", async () => {
+    process.env.AGENCY_ADMIN_EMAILS = "admin@x.com";
+    await seedSoleAgencyWithSub();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("members", {
+        orgId: "org_sub", name: "Stranger", role: "engineer",
+        clerkUserId: "user_stranger", skills: [],
+      });
+    });
+    const asStranger = t.withIdentity({
+      subject: "user_stranger", name: "Stranger", email: "stranger@x.com", orgId: "org_sub",
+    });
+    const result = await asStranger.query(api.testHarness.resolve, {});
+    expect(result.kind).toBe("studio_member");
+    expect(result.role).toBe("engineer");
+  });
+
+  it("does NOT elevate via allowlist when multiple agencies exist (safety gate)", async () => {
+    process.env.AGENCY_ADMIN_EMAILS = "admin@x.com";
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencies", {
+        agencyId: "org_a1", name: "A1", slug: "a1", plan: "agency", status: "active",
+        ownerClerkUserId: "x", ownerEmail: "x@x",
+      });
+      await ctx.db.insert("agencies", {
+        agencyId: "org_a2", name: "A2", slug: "a2", plan: "agency", status: "active",
+        ownerClerkUserId: "y", ownerEmail: "y@y",
+      });
+      await ctx.db.insert("orgs", {
+        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "solo", status: "active",
+      });
+    });
+    const asAdmin = t.withIdentity({ subject: "user_admin", name: "Admin", email: "admin@x.com" });
+    const result = await asAdmin.query(api.testHarness.resolve, {});
+    expect(result.kind).not.toBe("agency_member");
+  });
+
+  it("empty AGENCY_ADMIN_EMAILS elevates nobody (console-only 'allow all' stays out of resolveViewer)", async () => {
+    process.env.AGENCY_ADMIN_EMAILS = "";
+    await seedSoleAgencyWithSub();
+    const asAnyone = t.withIdentity({ subject: "user_any", name: "Any", email: "any@x.com" });
+    const result = await asAnyone.query(api.testHarness.resolve, {});
+    expect(result.kind).not.toBe("agency_member");
   });
 });
 

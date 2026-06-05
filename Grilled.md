@@ -253,5 +253,44 @@ assets screen.
 - **DEPLOYED:** importBulk live on prod `pastel-corgi-340` (verified callable);
   frontend pushed to `main` (Netlify building). 301 vitest green, build clean.
 
+## Fix: agency-admin cap convergence (empty cap-gated panels) (2026-06-05)
+
+Closes the open follow-up from the 2026-06-01 `/bookings` incident: an
+agency admin entering a sub-account silently emptied cap-gated panels
+(waitlist etc.). **Root cause = two divergent definitions of "agency admin":**
+`agency.access` admits operators by the `AGENCY_ADMIN_EMAILS` env allowlist,
+but `resolveViewer` granted agency caps ONLY from the `agencyMembers` table.
+An allowlisted operator without a table row passed the console gate yet
+resolved as a studio/demo viewer when acting as a studio, so studio-cap reads
+of the sub-account threw `AccessError` (caught → `[]` → empty panels). The
+demo-fallback also meant any authed user with no Clerk org became a de-facto
+owner of the global `activeOrgId` (latent hole).
+
+**Fix (Option A, approved):** `resolveViewer` now has a third agency path -
+after the two `agencyMembers`-table lookups, a non-empty `AGENCY_ADMIN_EMAILS`
++ matching (lowercased) email elevates the caller to **owner of the SOLE
+agency** (gated to the single-agency case; empty list elevates nobody; the
+console-only "allow all when empty" rule stays out of `resolveViewer`).
+`agencyMemberId` is a synthetic cast (only ever read from fn args, never
+DB-queried - same pattern as the `demo`/`system` viewers). 6 new tests in
+`access.test.ts`. tsc clean, 316/316 vitest, lint clean, next build green.
+
+**Deploy + config (owned by user - agent env can't reach cloud Convex):**
+1. Backend change → needs `CONVEX_DEPLOY_KEY npx convex deploy` to prod
+   `pastel-corgi-340` (+ Netlify build via git push) to go live.
+2. For the fix to actually elevate Lawrence on prod, `AGENCY_ADMIN_EMAILS`
+   must be SET on prod Convex with his email AND exactly one agency must exist.
+   Check: `npx convex env get AGENCY_ADMIN_EMAILS --prod`.
+3. If the live issue is instead the data mode (he has an `agencyMembers` row but
+   a sub-account's `org.agencyId` is unset → `SCOPE_DENIED`), repair with
+   `npx convex run agency:adoptOrphanSubaccounts` (sole-agency only). If he has
+   NO row at all, bootstrap with `npx convex run agency:seedAgencyOwner '{...}'`.
+
+**Follow-ups (not this pass):** (a) `appState.activeOrgId` is a single GLOBAL
+row shared by all viewers (demo-era artifact) - two agency staff can't view
+different sub-accounts at once, and an authed user with no Clerk org falls into
+demo-owner of whatever is globally active. Needs per-viewer active-org scoping.
+(b) Broader `org.agencyId` integrity sweep beyond `createdByAgency` orphans.
+
 ## Standing context / prior fix
 - **Crash fixed (2026-05-23):** `/agency/[orgId]` showed "page couldn't load" because `invites.list` threw `AccessError` (a plain `Error` → redacted by Convex) with no `error.tsx` boundary. Fixes: `invites.list` degrades to `[]` on access denial; `AccessError extends ConvexError`; `/agency/error.tsx` boundary; `createSubaccount` + `adoptOrphanSubaccounts` stamp/repair `agencyId` so the owner isn't scope-denied. 128 vitest green.
