@@ -839,6 +839,19 @@ export default defineSchema({
     .index("by_org_status", ["orgId", "status"])
     .index("by_artist", ["artistId"]),
 
+  // ── Reusable invoice fee templates - flat one-off charges (mix/master
+  //    per song, annual maintenance, etc.) a studio can quick-add to an
+  //    invoice. Invoice lines stay plain {label, amountCents}; these are
+  //    just the saved presets. ──
+  feeTemplates: defineTable({
+    orgId: v.string(),
+    label: v.string(),
+    amountCents: v.number(),
+    description: v.optional(v.string()),
+    active: v.boolean(),
+    createdAt: v.number(),
+  }).index("by_org", ["orgId"]),
+
   // ── Pipeline / opportunities ──
   opportunities: defineTable({
     orgId: v.string(),

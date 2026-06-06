@@ -5,7 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
-import { Plus, Trash2, Receipt } from "lucide-react";
+import { Plus, Trash2, Receipt, BookmarkPlus } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -60,6 +60,10 @@ export function CreateInvoiceDialog({
 }) {
   const roster = useQuery(api.artists.roster) as RosterEntry[] | undefined;
   const create = useMutation(api.invoices.create);
+  const savedFees = useQuery(api.feeTemplates.list, { activeOnly: true }) as
+    | { _id: string; label: string; amountCents: number }[]
+    | undefined;
+  const saveFee = useMutation(api.feeTemplates.create);
 
   const [artistId, setArtistId] = React.useState<string>("");
   const [songId, setSongId] = React.useState<string>("");
@@ -95,6 +99,31 @@ export function CreateInvoiceDialog({
 
   function removeLine(id: number) {
     setLines((prev) => (prev.length > 1 ? prev.filter((l) => l.id !== id) : prev));
+  }
+
+  /** Append a line prefilled from a saved fee (still editable). Reuses the
+   *  first line if it's still blank so the picker doesn't leave an empty row. */
+  function addFromTemplate(label: string, amountCents: number) {
+    const amount = (amountCents / 100).toFixed(2);
+    setLines((prev) => {
+      const blank = prev.find((l) => !l.label.trim() && !l.amount.trim());
+      if (blank) {
+        return prev.map((l) => (l.id === blank.id ? { ...l, label, amount } : l));
+      }
+      return [...prev, { id: ++lineCounter, label, amount }];
+    });
+  }
+
+  /** Save a one-off line as a reusable fee template. */
+  async function saveLineAsFee(line: DraftLine) {
+    const cents = dollarsToCents(line.amount);
+    if (!line.label.trim() || cents <= 0) return;
+    try {
+      await saveFee({ label: line.label.trim(), amountCents: cents });
+      toast.success(`Saved "${line.label.trim()}" as a fee`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save fee");
+    }
   }
 
   async function handleSubmit() {
@@ -178,16 +207,38 @@ export function CreateInvoiceDialog({
 
           {/* Line items editor */}
           <div className="space-y-2">
-            <div className="flex items-center justify-between">
+            <div className="flex items-center justify-between gap-2">
               <p className="text-xs font-medium text-ash">Line items</p>
-              <button
-                type="button"
-                onClick={() => setLines((prev) => [...prev, newLine()])}
-                className="inline-flex items-center gap-1 text-xs font-medium text-gold hover:underline"
-              >
-                <Plus className="size-3.5" />
-                Add line
-              </button>
+              <div className="flex items-center gap-3">
+                {savedFees && savedFees.length > 0 && (
+                  <Select
+                    value=""
+                    onValueChange={(id) => {
+                      const fee = savedFees.find((f) => f._id === id);
+                      if (fee) addFromTemplate(fee.label, fee.amountCents);
+                    }}
+                  >
+                    <SelectTrigger className="h-7 w-auto gap-1 border-hairline-2 px-2 text-xs text-gold">
+                      <SelectValue placeholder="Add saved fee" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {savedFees.map((f) => (
+                        <SelectItem key={f._id} value={f._id}>
+                          {f.label} · {money(f.amountCents)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setLines((prev) => [...prev, newLine()])}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-gold hover:underline"
+                >
+                  <Plus className="size-3.5" />
+                  Add line
+                </button>
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -215,6 +266,18 @@ export function CreateInvoiceDialog({
                       className="pl-6 text-right font-mono"
                     />
                   </div>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => saveLineAsFee(line)}
+                    disabled={!line.label.trim() || dollarsToCents(line.amount) <= 0}
+                    aria-label="Save as reusable fee"
+                    title="Save as reusable fee"
+                    className="shrink-0"
+                  >
+                    <BookmarkPlus className="size-4" />
+                  </Button>
                   <Button
                     type="button"
                     variant="ghost"

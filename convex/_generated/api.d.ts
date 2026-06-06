@@ -38,6 +38,7 @@ import type * as equipment from "../equipment.js";
 import type * as exports from "../exports.js";
 import type * as externalCalendars from "../externalCalendars.js";
 import type * as externalCalendarsActions from "../externalCalendarsActions.js";
+import type * as feeTemplates from "../feeTemplates.js";
 import type * as files from "../files.js";
 import type * as googleAuth from "../googleAuth.js";
 import type * as googleCalendar from "../googleCalendar.js";
@@ -138,6 +139,7 @@ declare const fullApi: ApiFromModules<{
   exports: typeof exports;
   externalCalendars: typeof externalCalendars;
   externalCalendarsActions: typeof externalCalendarsActions;
+  feeTemplates: typeof feeTemplates;
   files: typeof files;
   googleAuth: typeof googleAuth;
   googleCalendar: typeof googleCalendar;

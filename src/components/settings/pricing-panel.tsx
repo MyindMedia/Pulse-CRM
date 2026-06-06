@@ -36,9 +36,189 @@ export function PricingPanel({ org }: { org: Org }) {
     <div className="space-y-5">
       <PublicTiersCard org={org} />
       <ServicePricingCard org={org} />
+      <SavedFeesCard />
       <DiscountCodesCard org={org} />
       <TaxConfigCard org={org} />
     </div>
+  );
+}
+
+/* ============================================================ */
+type FeeTemplate = {
+  _id: string;
+  label: string;
+  amountCents: number;
+  description?: string;
+  active: boolean;
+};
+
+/** Reusable flat fees a studio can quick-add to invoices (mix/master per song,
+ *  annual maintenance, etc.). Each fee is its own record, edited inline. */
+function SavedFeesCard() {
+  const fees = useQuery(api.feeTemplates.list, {}) as FeeTemplate[] | undefined;
+  const create = useMutation(api.feeTemplates.create);
+
+  const [label, setLabel] = React.useState("");
+  const [amount, setAmount] = React.useState("");
+  const [adding, setAdding] = React.useState(false);
+
+  const canAdd = label.trim().length > 0 && (dollarsToCents(amount) ?? 0) > 0 && !adding;
+
+  async function add() {
+    if (!canAdd) return;
+    setAdding(true);
+    try {
+      await create({ label: label.trim(), amountCents: dollarsToCents(amount)! });
+      setLabel("");
+      setAmount("");
+      toast.success("Fee saved.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not save fee.");
+    } finally {
+      setAdding(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Saved fees</CardTitle>
+        <CardDescription>
+          Reusable flat charges (mixing &amp; mastering per song, annual
+          maintenance, rush fees) you can one-click add to any invoice. Toggle a
+          fee off to hide it from the invoice picker without deleting it.
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {fees === undefined ? (
+          <p className="py-6 text-center text-xs text-ash-dim">Loading…</p>
+        ) : fees.length === 0 ? (
+          <p className="rounded-md border border-dashed border-hairline-2 py-6 text-center text-xs text-ash-dim">
+            No saved fees yet. Add one below.
+          </p>
+        ) : (
+          <ul className="space-y-2">
+            {fees.map((fee) => (
+              <FeeRow key={fee._id} fee={fee} />
+            ))}
+          </ul>
+        )}
+
+        <div className="grid grid-cols-[1fr_8rem_auto] items-end gap-2 border-t border-hairline-2 pt-4">
+          <Field label="New fee">
+            <Input
+              type="text"
+              placeholder="Mixing & Mastering"
+              value={label}
+              onChange={(e) => setLabel(e.target.value)}
+            />
+          </Field>
+          <Field label="Amount">
+            <div className="relative">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ash-dim">
+                $
+              </span>
+              <Input
+                type="number"
+                inputMode="decimal"
+                min="0"
+                step="5"
+                placeholder="0.00"
+                value={amount}
+                onChange={(e) => setAmount(e.target.value)}
+                className="pl-7"
+              />
+            </div>
+          </Field>
+          <Button size="sm" onClick={add} disabled={!canAdd}>
+            <Plus className="size-3.5" />
+            Add fee
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+function FeeRow({ fee }: { fee: FeeTemplate }) {
+  const update = useMutation(api.feeTemplates.update);
+  const remove = useMutation(api.feeTemplates.remove);
+
+  const [label, setLabel] = React.useState(fee.label);
+  const [amount, setAmount] = React.useState(centsToDollars(fee.amountCents));
+  const [saving, setSaving] = React.useState(false);
+
+  // Re-seed when the underlying record changes.
+  const key = `${fee.label}|${fee.amountCents}`;
+  const [prevKey, setPrevKey] = React.useState(key);
+  if (prevKey !== key) {
+    setPrevKey(key);
+    setLabel(fee.label);
+    setAmount(centsToDollars(fee.amountCents));
+  }
+
+  const cents = dollarsToCents(amount);
+  const dirty = label.trim() !== fee.label || (cents !== undefined && cents !== fee.amountCents);
+  const canSave = label.trim().length > 0 && (cents ?? 0) > 0 && dirty && !saving;
+
+  const id = fee._id as unknown as Parameters<typeof update>[0]["id"];
+
+  async function save() {
+    if (!canSave) return;
+    setSaving(true);
+    try {
+      await update({ id, label: label.trim(), amountCents: cents! });
+      toast.success("Fee updated.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not update.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <li
+      className={cn(
+        "grid grid-cols-[1fr_8rem_auto_auto] items-center gap-2 rounded-md border border-hairline bg-coal-2 p-2",
+        !fee.active && "opacity-60",
+      )}
+    >
+      <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Fee name" />
+      <div className="relative">
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ash-dim">
+          $
+        </span>
+        <Input
+          type="number"
+          inputMode="decimal"
+          min="0"
+          step="5"
+          value={amount}
+          onChange={(e) => setAmount(e.target.value)}
+          className="pl-7 text-right font-mono"
+        />
+      </div>
+      <div className="flex items-center gap-1.5 px-1">
+        <Switch
+          checked={fee.active}
+          onCheckedChange={(v) => update({ id, active: v })}
+          aria-label={`Toggle ${fee.label}`}
+        />
+        {dirty ? (
+          <Button variant="ghost" size="icon-sm" onClick={save} disabled={!canSave} aria-label="Save fee">
+            <Save className="size-3.5" />
+          </Button>
+        ) : null}
+      </div>
+      <Button
+        variant="ghost"
+        size="icon-sm"
+        onClick={() => remove({ id })}
+        aria-label={`Remove ${fee.label}`}
+      >
+        <Trash2 className="size-3.5" />
+      </Button>
+    </li>
   );
 }
 
