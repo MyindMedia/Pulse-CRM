@@ -2,6 +2,7 @@ import { query, mutation, QueryCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { currentOrg, assertOrg } from "./lib/tenant";
+import { searchGearCatalog } from "./lib/gearCatalog";
 
 /* ============================================================
    Equipment - gear assets. Each item is either installed in a
@@ -13,9 +14,15 @@ import { currentOrg, assertOrg } from "./lib/tenant";
 const categoryV = v.union(
   v.literal("console"),
   v.literal("mic"),
+  v.literal("preamp"),
+  v.literal("interface"),
   v.literal("outboard"),
-  v.literal("instrument"),
   v.literal("monitor"),
+  v.literal("monitor_controller"),
+  v.literal("headphones"),
+  v.literal("synth"),
+  v.literal("midi"),
+  v.literal("instrument"),
   v.literal("rig"),
   v.literal("other"),
 );
@@ -120,6 +127,17 @@ export const summary = query({
   },
 });
 
+/** Search the curated gear catalog for the Add-equipment dropdown. Reference
+ *  data (not org-scoped); we still resolve the caller's org for tenancy hygiene
+ *  and to keep it inside an authenticated workspace context. */
+export const searchCatalog = query({
+  args: { q: v.string(), category: v.optional(v.string()), limit: v.optional(v.number()) },
+  handler: async (ctx, { q, category, limit }) => {
+    await currentOrg(ctx);
+    return searchGearCatalog(q, category, limit ?? 20);
+  },
+});
+
 export const create = mutation({
   args: {
     name: v.string(),
@@ -132,6 +150,7 @@ export const create = mutation({
     condition: v.optional(v.string()),
     notes: v.optional(v.string()),
     photoId: v.optional(v.id("_storage")),
+    photoUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const orgId = await currentOrg(ctx);
@@ -152,6 +171,7 @@ export const create = mutation({
       condition: args.condition,
       notes: args.notes,
       photoId: args.photoId,
+      photoUrl: args.photoUrl,
     });
     await ctx.db.insert("activity", {
       orgId,

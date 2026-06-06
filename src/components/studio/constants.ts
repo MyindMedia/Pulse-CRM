@@ -8,11 +8,16 @@
 import {
   Boxes,
   Cable,
+  Gauge,
+  Headphones,
   Mic,
   Music,
   Package,
+  Piano,
+  Radio,
   SlidersHorizontal,
   Speaker,
+  Usb,
   type LucideIcon,
 } from "lucide-react";
 
@@ -29,9 +34,15 @@ export type MemberRole =
 export type EquipmentCategory =
   | "console"
   | "mic"
+  | "preamp"
+  | "interface"
   | "outboard"
-  | "instrument"
   | "monitor"
+  | "monitor_controller"
+  | "headphones"
+  | "synth"
+  | "midi"
+  | "instrument"
   | "rig"
   | "other";
 export type EquipmentStatus = "available" | "in_use" | "maintenance" | "retired";
@@ -79,9 +90,15 @@ export const EQUIPMENT_CATEGORIES: {
 }[] = [
   { value: "console", label: "Console", plural: "Consoles", icon: SlidersHorizontal },
   { value: "mic", label: "Microphone", plural: "Microphones", icon: Mic },
+  { value: "preamp", label: "Preamp", plural: "Preamps", icon: Gauge },
+  { value: "interface", label: "Interface", plural: "Interfaces", icon: Usb },
   { value: "outboard", label: "Outboard", plural: "Outboard", icon: Boxes },
-  { value: "instrument", label: "Instrument", plural: "Instruments", icon: Music },
   { value: "monitor", label: "Monitor", plural: "Monitors", icon: Speaker },
+  { value: "monitor_controller", label: "Monitor controller", plural: "Monitor controllers", icon: Radio },
+  { value: "headphones", label: "Headphones", plural: "Headphones", icon: Headphones },
+  { value: "synth", label: "Synth / keyboard", plural: "Synths & keyboards", icon: Piano },
+  { value: "midi", label: "MIDI controller", plural: "MIDI controllers", icon: Music },
+  { value: "instrument", label: "Instrument", plural: "Instruments", icon: Music },
   { value: "rig", label: "Rig", plural: "Rigs", icon: Cable },
   { value: "other", label: "Other", plural: "Other", icon: Package },
 ];
