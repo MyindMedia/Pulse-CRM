@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { currentOrg, assertOrg } from "./lib/tenant";
+import { requireCapability } from "./lib/access";
 import { recomputeRoomStatus } from "./lib/roomStatus";
 
 /* Rooms are the bookable studios. Gear lives in the `equipment` table and
@@ -115,6 +116,71 @@ export const update = mutation({
     assertOrg(room, orgId);
     const clean = Object.fromEntries(Object.entries(patch).filter(([, val]) => val !== undefined));
     await ctx.db.patch(id, clean);
+  },
+});
+
+/**
+ * Permanently delete a RETIRED room. History is preserved: sessions, shifts and
+ * waitlist entries are detached (roomId cleared) and installed gear returns to
+ * storage; only the room-bound iCal feeds (whose roomId is required) are removed
+ * with it. Guarded to retired rooms so an active room can't be deleted by
+ * accident - retire it first.
+ */
+export const remove = mutation({
+  args: { id: v.id("rooms") },
+  handler: async (ctx, { id }) => {
+    const orgId = await currentOrg(ctx);
+    await requireCapability(ctx, "rooms.edit", { orgId });
+    const room = await ctx.db.get(id);
+    assertOrg(room, orgId);
+    if (room.status !== "retired") {
+      throw new ConvexError("Retire the room before deleting it.");
+    }
+
+    // Detach optional references - keep the history, just unlink the room.
+    const gear = await ctx.db
+      .query("equipment")
+      .withIndex("by_org_room", (q) => q.eq("orgId", orgId).eq("installedInRoomId", id))
+      .collect();
+    for (const e of gear) await ctx.db.patch(e._id, { installedInRoomId: undefined });
+
+    const sessions = (
+      await ctx.db.query("sessions").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
+    ).filter((s) => s.roomId === id);
+    for (const s of sessions) await ctx.db.patch(s._id, { roomId: undefined });
+
+    const shifts = (
+      await ctx.db.query("shifts").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
+    ).filter((s) => s.roomId === id);
+    for (const s of shifts) await ctx.db.patch(s._id, { roomId: undefined });
+
+    const waits = (
+      await ctx.db.query("waitlistEntries").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
+    ).filter((w) => w.roomId === id);
+    for (const w of waits) await ctx.db.patch(w._id, { roomId: undefined });
+
+    // Delete the room-bound iCal feeds + their events (roomId is required there).
+    const events = await ctx.db
+      .query("externalCalendarEvents")
+      .withIndex("by_org_room_start", (q) => q.eq("orgId", orgId).eq("roomId", id))
+      .collect();
+    for (const ev of events) await ctx.db.delete(ev._id);
+    const cals = await ctx.db
+      .query("externalCalendars")
+      .withIndex("by_room", (q) => q.eq("roomId", id))
+      .collect();
+    for (const c of cals) await ctx.db.delete(c._id);
+
+    await ctx.db.delete(id);
+    await ctx.db.insert("activity", {
+      orgId,
+      kind: "room.deleted",
+      summary: `${room.name} deleted`,
+      entityType: "room",
+      entityId: id,
+      accent: "info",
+    });
+    return { deleted: true };
   },
 });
 

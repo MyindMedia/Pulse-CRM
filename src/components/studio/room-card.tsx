@@ -7,7 +7,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
-import { ArrowUpRight, MoreHorizontal, Package, Wrench } from "lucide-react";
+import { ArrowUpRight, MoreHorizontal, Package, Wrench, Trash2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,6 +17,7 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuLabel,
+  DropdownMenuSeparator,
 } from "@/components/ui/dropdown-menu";
 import { money, shortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -67,7 +68,9 @@ export function RoomCard({
   const router = useRouter();
   const setStatus = useMutation(api.rooms.setStatus);
   const setAutoStatus = useMutation(api.rooms.setAutoStatus);
+  const removeRoom = useMutation(api.rooms.remove);
   const [pending, setPending] = React.useState(false);
+  const isRetired = room.status === "retired";
   const status = ROOM_STATUS[room.status] ?? {
     label: room.status,
     tone: "neutral" as const,
@@ -95,6 +98,24 @@ export function RoomCard({
     } catch {
       toast.error("Could not release override.");
     } finally {
+      setPending(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (
+      !window.confirm(
+        `Delete ${room.name}? This can't be undone. Past sessions are kept but unlinked, and installed gear returns to storage.`,
+      )
+    )
+      return;
+    setPending(true);
+    try {
+      await removeRoom({ id: room._id });
+      toast.success(`${room.name} deleted.`);
+      // Card unmounts when the list refreshes; no need to clear pending.
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not delete room.");
       setPending(false);
     }
   }
@@ -166,6 +187,18 @@ export function RoomCard({
                   {s.label}
                 </DropdownMenuItem>
               ))}
+              {isRetired && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={handleDelete}
+                    className="text-critical focus:text-critical"
+                  >
+                    <Trash2 className="size-3.5" />
+                    Delete room
+                  </DropdownMenuItem>
+                </>
+              )}
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
