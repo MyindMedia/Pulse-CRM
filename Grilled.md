@@ -292,5 +292,25 @@ different sub-accounts at once, and an authed user with no Clerk org falls into
 demo-owner of whatever is globally active. Needs per-viewer active-org scoping.
 (b) Broader `org.agencyId` integrity sweep beyond `createdByAgency` orphans.
 
+## Feature: per-sub-account nav feature toggles (built + shipped 2026-06-07)
+**Goal:** let the agency turn individual nav features on/off per sub-account, so
+new tools (Agent, Songs, Licensing, etc.) can ship dark and be enabled per
+studio when ready.
+**Scope:** Dashboard + Settings are always on; all other nav items are
+toggleable. Disabling hides the item from the sidebar AND command palette, and
+blocks direct-URL access (redirect to /dashboard).
+**Stack/where:**
+- `orgs.disabledFeatures: string[]` (unset = everything enabled).
+- `agency.setFeatures` mutation — `agency.subaccount.pause` cap (so only the
+  owning agency can toggle), dedupes the list.
+- `src/lib/features.ts` — `FeatureKey` union, `TOGGLEABLE_FEATURES` registry,
+  `featureForPath()` route→feature map (roster keys to "clients").
+- `nav.ts` carries `feature` keys; `sidebar.tsx` + `command-palette.tsx` filter
+  by `orgs.current.disabledFeatures`; `feature-guard.tsx` enforces route gating.
+- Agency console: Features section on `/agency/[orgId]` (`FeatureToggles`).
+- Tests: `convex/agencyFeatures.test.ts` (dedupe/reflect + cross-agency reject).
+**Non-goals:** per-user feature overrides; feature flags unrelated to nav.
+**Deployed:** prod `pastel-corgi-340`; pushed `main` (cc37dbf, d8f560b).
+
 ## Standing context / prior fix
 - **Crash fixed (2026-05-23):** `/agency/[orgId]` showed "page couldn't load" because `invites.list` threw `AccessError` (a plain `Error` → redacted by Convex) with no `error.tsx` boundary. Fixes: `invites.list` degrades to `[]` on access denial; `AccessError extends ConvexError`; `/agency/error.tsx` boundary; `createSubaccount` + `adoptOrphanSubaccounts` stamp/repair `agencyId` so the owner isn't scope-denied. 128 vitest green.
