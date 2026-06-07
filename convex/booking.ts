@@ -7,6 +7,7 @@ import { notify } from "./lib/notify";
 import { money } from "./lib/money";
 import { stripeClient } from "./lib/stripe";
 import { ensureInquiryFromBooking } from "./opportunities";
+import { whitelabelFor } from "./usage";
 
 /* ============================================================
    Booking - the public studio-booking backend (the /book pages).
@@ -109,6 +110,7 @@ export const studioFront = query({
     return {
       orgId,
       org: await brand(ctx, org),
+      whitelabel: await whitelabelFor(ctx, orgId),
       openHour: OPEN_HOUR,
       closeHour: CLOSE_HOUR,
       rooms: cards.sort((a, b) => b.hourlyRateCents - a.hourlyRateCents),

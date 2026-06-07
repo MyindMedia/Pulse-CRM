@@ -3,6 +3,7 @@ import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { currentOrg, currentActor } from "./lib/tenant";
 import { US_STATES, findState } from "./lib/usTaxRates";
+import { meterStorageUpload } from "./usage";
 
 /** Internal: every active, non-demo studio subaccount's orgId. The cron
  * fan-outs (weekly briefing, rate-cut sweep, ops-brain scan) iterate this
@@ -133,6 +134,7 @@ export const setLogo = mutation({
   handler: async (ctx, { storageId }) => {
     const orgId = await currentOrg(ctx);
     const org = await ensureOrg(ctx, orgId);
+    await meterStorageUpload(ctx, orgId, storageId, org?.logoId ?? null);
     if (org) await ctx.db.patch(org._id, { logoId: storageId });
     else
       await ctx.db.insert("orgs", {
@@ -151,6 +153,7 @@ export const setBookingHero = mutation({
   handler: async (ctx, { storageId }) => {
     const orgId = await currentOrg(ctx);
     const org = await ensureOrg(ctx, orgId);
+    await meterStorageUpload(ctx, orgId, storageId, org?.bookingHeroId ?? null);
     if (org) await ctx.db.patch(org._id, { bookingHeroId: storageId });
     else
       await ctx.db.insert("orgs", {

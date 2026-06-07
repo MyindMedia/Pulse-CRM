@@ -2,6 +2,7 @@ import { mutation, query, internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { requireCapability } from "./lib/access";
 import { GUEST_SCOPE_CAPABILITIES, GUEST_SCOPE_DEFAULT_TTL_MS } from "./lib/accessPolicies";
+import { assertWithinLimit, recordUsage } from "./usage";
 
 /* ============================================================
    Magic-link guest grants. The studio issues a token-backed
@@ -51,6 +52,8 @@ export const issue = mutation({
     const viewer = await requireCapability(ctx, "grants.issue");
     const orgId = "orgId" in viewer ? viewer.orgId : undefined;
     if (!orgId) throw new Error("issuing requires an active org");
+    // Enforce the plan's monthly magic-link grant cap.
+    await assertWithinLimit(ctx, orgId, "magic_links", 1);
     const ttl = args.ttlMs ?? GUEST_SCOPE_DEFAULT_TTL_MS[args.scope];
     const caps = [...GUEST_SCOPE_CAPABILITIES[args.scope], ...(args.extraCapabilities ?? [])];
     const id = await ctx.db.insert("collaboratorGrants", {
@@ -66,6 +69,7 @@ export const issue = mutation({
       invitedBy: "clerkUserId" in viewer ? viewer.clerkUserId : "system",
       useCount: 0,
     });
+    await recordUsage(ctx, orgId, "magic_links", 1);
     return await ctx.db.get(id);
   },
 });

@@ -3,6 +3,7 @@ import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { currentOrg, assertOrg } from "./lib/tenant";
 import { searchGearCatalog } from "./lib/gearCatalog";
+import { meterStorageUpload } from "./usage";
 
 /* ============================================================
    Equipment - gear assets. Each item is either installed in a
@@ -502,6 +503,7 @@ export const setPhoto = mutation({
     const orgId = await currentOrg(ctx);
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
+    await meterStorageUpload(ctx, orgId, storageId, item.photoId ?? null);
     await ctx.db.patch(id, { photoId: storageId });
   },
 });

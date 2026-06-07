@@ -3,6 +3,7 @@ import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { currentOrg, currentActor } from "./lib/tenant";
 import { requireCapability, resolveViewer } from "./lib/access";
+import { meterStorageUpload } from "./usage";
 import { sendEmail } from "./lib/email";
 import { normalizePhone } from "./lib/phone";
 import {
@@ -379,6 +380,7 @@ export const setPhoto = mutation({
     const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
     const member = await ctx.db.get(id);
     if (!member || member.orgId !== orgId) throw new Error("Not found");
+    await meterStorageUpload(ctx, orgId, storageId, member.photoId ?? null);
     await ctx.db.patch(id, { photoId: storageId });
   },
 });
@@ -430,6 +432,7 @@ export const setMyPhoto = mutation({
   handler: async (ctx, { storageId }) => {
     const me = await myMemberRow(ctx);
     if (!me) throw new Error("Only team members can set their own photo.");
+    await meterStorageUpload(ctx, me.orgId, storageId, me.photoId ?? null);
     await ctx.db.patch(me._id, { photoId: storageId });
   },
 });

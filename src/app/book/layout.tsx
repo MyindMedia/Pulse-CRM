@@ -20,6 +20,7 @@ export default function BookLayout({ children }: { children: React.ReactNode }) 
   const slug = Array.isArray(raw) ? raw[0] : raw;
   const front = useQuery(api.booking.studioFront, slug ? { slug } : {});
   const studioName = front?.org.name ?? "Pulse";
+  const whitelabel = front?.whitelabel ?? false;
 
   return (
     <div className="grain relative flex min-h-dvh flex-col bg-ink text-bone">
@@ -42,9 +43,11 @@ export default function BookLayout({ children }: { children: React.ReactNode }) 
               <span className="overline mt-0.5">Studio booking</span>
             </span>
           </Link>
-          <span className="hidden text-xs text-ash-dim sm:block">
-            Secured by Pulse
-          </span>
+          {!whitelabel && (
+            <span className="hidden text-xs text-ash-dim sm:block">
+              Secured by Pulse
+            </span>
+          )}
         </div>
       </header>
 
@@ -54,10 +57,14 @@ export default function BookLayout({ children }: { children: React.ReactNode }) 
 
       <footer className="relative z-10 border-t border-hairline bg-ink-2/60">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 py-6 text-xs text-ash-dim sm:flex-row lg:px-8">
-          <span>
-            Powered by <span className="font-medium text-ash">Pulse</span> - the
-            operating system for music businesses.
-          </span>
+          {whitelabel ? (
+            <span>{studioName}</span>
+          ) : (
+            <span>
+              Powered by <span className="font-medium text-ash">Pulse</span> - the
+              operating system for recording studios.
+            </span>
+          )}
           <span>{new Date().getFullYear()}</span>
         </div>
       </footer>

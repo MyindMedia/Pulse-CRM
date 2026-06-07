@@ -114,7 +114,9 @@ export default function ClientPortalPage() {
               items={data.invoices.map((i) => ({ key: i.number, primary: i.number, secondary: i.status, trailing: usd(i.amountCents) }))}
             />
 
-            <p className="pb-4 text-center text-[0.625rem] text-ash-dim">Powered by Pulse</p>
+            {!data.whitelabel && (
+              <p className="pb-4 text-center text-[0.625rem] text-ash-dim">Powered by Pulse</p>
+            )}
           </>
         )}
       </div>

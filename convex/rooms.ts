@@ -3,6 +3,7 @@ import { v, ConvexError } from "convex/values";
 import { currentOrg, assertOrg } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { recomputeRoomStatus } from "./lib/roomStatus";
+import { meterStorageUpload } from "./usage";
 
 /* Rooms are the bookable studios. Gear lives in the `equipment` table and
    links back here via `installedInRoomId`. */
@@ -200,6 +201,7 @@ export const setPhoto = mutation({
     const orgId = await currentOrg(ctx);
     const room = await ctx.db.get(id);
     assertOrg(room, orgId);
+    await meterStorageUpload(ctx, orgId, storageId, room.heroImageId ?? null);
     await ctx.db.patch(id, { heroImageId: storageId });
   },
 });

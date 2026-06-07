@@ -591,25 +591,37 @@ ${fenceUntrusted("FACTS", facts || "(no extra facts)")}${payLine}${guide ? `\n\n
 
 Output ONLY the email body. No subject line.`;
 
-        const ai = await complete(prompt, {
-          system: `You write warm, human, on-brand studio emails for ${c.orgName}. ${tenantGuard(c.orgName)} Always greet with ${firstNameToken}. Never corny, never corporate. Never invent placeholder links - only use URLs you are given.`,
-          maxOutputTokens: 400,
-        });
-        if (ai?.text) {
-          await ctx.runMutation(internal.usage.record, {
+        let withinAiCap = true;
+        try {
+          await ctx.runQuery(internal.usage.checkLimit, {
             orgId: c.orgId,
             metric: "ai_credits",
-            amount: 1,
+            add: 1,
           });
+        } catch {
+          withinAiCap = false;
         }
-        if (ai?.text?.trim()) {
-          const masked = maskTokens(ai.text.trim());
-          await ctx.runMutation(internal.opsActions.applyEnrichment, {
-            id,
-            body: c.payLink ? ensurePayLink(masked, c.payLink) : masked,
-            model: ai.model,
+        if (withinAiCap) {
+          const ai = await complete(prompt, {
+            system: `You write warm, human, on-brand studio emails for ${c.orgName}. ${tenantGuard(c.orgName)} Always greet with ${firstNameToken}. Never corny, never corporate. Never invent placeholder links - only use URLs you are given.`,
+            maxOutputTokens: 400,
           });
-          enriched++;
+          if (ai?.text) {
+            await ctx.runMutation(internal.usage.record, {
+              orgId: c.orgId,
+              metric: "ai_credits",
+              amount: 1,
+            });
+          }
+          if (ai?.text?.trim()) {
+            const masked = maskTokens(ai.text.trim());
+            await ctx.runMutation(internal.opsActions.applyEnrichment, {
+              id,
+              body: c.payLink ? ensurePayLink(masked, c.payLink) : masked,
+              model: ai.model,
+            });
+            enriched++;
+          }
         }
         continue;
       }
@@ -691,7 +703,19 @@ Missing before release: ${missing || "rights data"}.
 
       if (!artifactKind) continue;
 
-      const ai = await complete(prompt, { system, maxOutputTokens: maxOut });
+      let withinAiCap = true;
+      try {
+        await ctx.runQuery(internal.usage.checkLimit, {
+          orgId: c.orgId,
+          metric: "ai_credits",
+          add: 1,
+        });
+      } catch {
+        withinAiCap = false;
+      }
+      const ai = withinAiCap
+        ? await complete(prompt, { system, maxOutputTokens: maxOut })
+        : null;
       if (ai?.text) {
         await ctx.runMutation(internal.usage.record, {
           orgId: c.orgId,

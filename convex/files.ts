@@ -3,7 +3,7 @@ import { v, ConvexError } from "convex/values";
 import { Doc } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
 import { resolveViewer } from "./lib/access";
-import { recordUsage } from "./usage";
+import { meterStorageUpload } from "./usage";
 
 /* ============================================================
    Files - Convex storage seam for payment-gated deliverables.
@@ -79,14 +79,16 @@ export const attachFile = mutation({
     if (!isStaff(viewer.kind)) throw new ConvexError("Only studio staff can upload files.");
     const d = await ctx.db.get(deliverableId);
     if (!d || d.orgId !== orgId) throw new ConvexError("Deliverable not found.");
+    // Meter storage delta + enforce the plan cap BEFORE patching. Uses the
+    // actual stored size; replacing a file nets to the size delta. Throws
+    // (and deletes the just-uploaded file) if the org would exceed its cap.
+    await meterStorageUpload(ctx, orgId, storageId, d.fileId ?? null);
     await ctx.db.patch(deliverableId, {
       fileId: storageId,
       fileName,
       fileSize,
       mimeType,
     });
-    // Meter storage delta (replacing a file adjusts by the difference).
-    await recordUsage(ctx, orgId, "storage_bytes", fileSize - (d.fileSize ?? 0));
     return deliverableId;
   },
 });

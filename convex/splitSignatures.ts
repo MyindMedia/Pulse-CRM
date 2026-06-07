@@ -3,6 +3,7 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { currentOrg, currentActor } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
+import { whitelabelFor } from "./usage";
 
 /* ============================================================
    Split-sheet e-signature.
@@ -112,6 +113,7 @@ export const lookup = query({
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", sheet.orgId)).first();
     return {
       studioName: org?.name ?? "the studio",
+      whitelabel: await whitelabelFor(ctx, sheet.orgId),
       song: song ? { title: song.title, artist: artist?.name ?? "Unknown" } : null,
       sheet: { _id: sheet._id, status: sheet.status, contributors: sheet.contributors },
       signer: { name: grant.name, email: grant.email, contributorIndex: idx },

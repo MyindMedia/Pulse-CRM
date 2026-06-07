@@ -4,6 +4,7 @@ import type { QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { complete } from "./lib/openai";
 import { tenantGuard, fenceUntrusted, detectInjection } from "./lib/aiGuard";
+import { whitelabelFor } from "./usage";
 
 /* ============================================================
    Client concierge portal.
@@ -72,7 +73,12 @@ export const summary = query({
     const outstandingCents = ctxData.invoices
       .filter((i) => i.status !== "paid")
       .reduce((s, i) => s + i.amountCents, 0);
-    return { ...ctxData, outstandingCents, expiresAt: grant.expiresAt };
+    return {
+      ...ctxData,
+      outstandingCents,
+      expiresAt: grant.expiresAt,
+      whitelabel: await whitelabelFor(ctx, grant.orgId),
+    };
   },
 });
 
