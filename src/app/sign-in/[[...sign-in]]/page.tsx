@@ -21,7 +21,12 @@ export default function SignInPage() {
         }}
       />
       <div className="relative flex w-full max-w-md flex-col items-center gap-6">
-        <PulseLogo size="lg" asLink={false} />
+        <div className="flex flex-col items-center gap-2">
+          <PulseLogo size="lg" asLink={false} />
+          <p className="font-mono text-[0.6875rem] uppercase tracking-[0.2em] text-ash-dim">
+            The studio operating system
+          </p>
+        </div>
         {CLERK_ENABLED ? (
           <SignIn
             appearance={clerkAppearance}

@@ -46,10 +46,8 @@ export const clerkAppearance = {
     formFieldErrorText: "text-critical",
     alertText: "text-ash",
     badge: "bg-gold/10 text-gold",
-    // Clerk branding ("Secured by Clerk" / dev badge): hidden here, but note
-    // that legitimately removing it requires Clerk's paid plan toggle (see
-    // CLERK-SETUP.md). On the dev instance this CSS hide is best-effort only.
-    logoImage: "hidden",
+    // "Secured by Clerk" badge is intentionally kept (compliant on the free
+    // plan). The rest of the card is fully Pulse-themed.
     // User button + org switcher popovers
     userButtonPopoverCard: "bg-coal border border-hairline-2 shadow-pop",
     userButtonPopoverActionButton: "text-ash hover:text-bone hover:bg-ink-2",
