@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { Check } from "lucide-react";
+import { Check, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Reveal } from "./reveal";
@@ -32,7 +32,7 @@ const TIERS = [
       "Staff scheduling",
       "Splits and licensing",
       "Inventory and assets",
-      "The AI Agent",
+      "The AI Agent (coming soon)",
     ],
     cta: "Start free",
     featured: true,
@@ -98,12 +98,25 @@ export function Pricing() {
                 </div>
 
                 <ul className="mt-6 space-y-3">
-                  {t.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2.5 text-sm text-ash">
-                      <Check className="mt-0.5 size-4 shrink-0 text-gold" />
-                      <span>{f}</span>
-                    </li>
-                  ))}
+                  {t.features.map((f) => {
+                    const soon = f.includes("(coming soon)");
+                    return (
+                      <li
+                        key={f}
+                        className={cn(
+                          "flex items-start gap-2.5 text-sm",
+                          soon ? "text-ash-dim" : "text-ash",
+                        )}
+                      >
+                        {soon ? (
+                          <Clock className="mt-0.5 size-4 shrink-0 text-ash-dim" />
+                        ) : (
+                          <Check className="mt-0.5 size-4 shrink-0 text-gold" />
+                        )}
+                        <span>{f}</span>
+                      </li>
+                    );
+                  })}
                 </ul>
 
                 <div className="mt-8 pt-2">
