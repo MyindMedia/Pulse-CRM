@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { HeroReel } from "./hero-reel";
+import { HlsVideo } from "./hls-video";
 import { Reveal } from "./reveal";
 
-/* Studio montage reel shown framed in the hero (separate from the global gold
-   backdrop). Empty until the generated montage lands - set this to its path
-   (e.g. "/studio-montage.webm") and the framed reel appears automatically.
+/* Full-bleed studio montage that backs the HERO section only. Scrolling past the
+   hero reveals the global gold loop (SiteBackdrop) behind the rest of the site.
+   Empty string => the gold loop shows through the hero too.
    Prompt: docs/seedance-bg-loop-prompt.md (hero studio montage). */
 const STUDIO_MONTAGE_SRC = "/studio-montage.mp4";
 
@@ -46,14 +46,24 @@ function CenterGlow() {
 export function Hero() {
   return (
     <section className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-4 pb-24 pt-28 lg:px-8">
-      {/* The animated loop lives in the global SiteBackdrop. The hero adds a
-          bottom-up fade so the headline always has a dark base under it. */}
+      {/* Hero background: full-bleed studio montage (covers the global gold loop
+          within the hero only). Falls back to the gold loop when no src. */}
+      {STUDIO_MONTAGE_SRC && (
+        <HlsVideo
+          src={STUDIO_MONTAGE_SRC}
+          className="absolute inset-0 -z-20 h-full w-full object-cover"
+        />
+      )}
+
+      {/* Readability scrim over the footage: darkened edges + a darker top and
+          bottom so the nav, headline and marquee stay legible, fading to ink at
+          the very bottom to meet the gold-loop sections below. */}
       <div
         aria-hidden
         className="absolute inset-0 -z-10"
         style={{
           background:
-            "linear-gradient(to top, #08080a 2%, rgba(8,8,10,0.25) 42%, transparent 78%)",
+            "radial-gradient(120% 95% at 50% 32%, rgba(8,8,10,0.18) 0%, rgba(8,8,10,0.62) 100%), linear-gradient(to bottom, rgba(8,8,10,0.82) 0%, rgba(8,8,10,0.5) 36%, rgba(8,8,10,0.66) 66%, #08080a 100%)",
         }}
       />
 
@@ -102,12 +112,6 @@ export function Hero() {
             </Link>
           </div>
         </Reveal>
-
-        {STUDIO_MONTAGE_SRC && (
-          <Reveal immediate delay={400} className="w-full">
-            <HeroReel src={STUDIO_MONTAGE_SRC} />
-          </Reveal>
-        )}
       </div>
 
       {/* Capability ticker - a slow marquee of what Pulse runs, edge-faded. */}
