@@ -79,6 +79,7 @@ export default function InventoryPage() {
       _id: item._id,
       name: item.name,
       category: item.category,
+      quantity: item.quantity,
       purchaseCents: item.purchaseCents,
       currentValueCents: item.currentValueCents,
       serialNumber: item.serialNumber,

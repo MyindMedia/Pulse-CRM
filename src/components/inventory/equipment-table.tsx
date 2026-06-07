@@ -41,6 +41,7 @@ export type EquipmentRow = {
   name: string;
   category: string;
   status: string;
+  quantity?: number;
   installedInRoomId?: Id<"rooms">;
   purchaseCents: number;
   currentValueCents: number;
@@ -54,7 +55,7 @@ export type EquipmentRow = {
   photo: string | null;
 };
 
-const COLUMN_COUNT = 8;
+const COLUMN_COUNT = 9;
 
 /** A small square equipment thumbnail with a graceful fallback. */
 function PhotoThumb({ photo, name }: { photo: string | null; name: string }) {
@@ -157,6 +158,7 @@ export function EquipmentTable({
         <TR>
           <TH>Name</TH>
           <TH>Category</TH>
+          <TH className="text-center">Qty</TH>
           <TH>Location</TH>
           <TH className="text-right">Purchase</TH>
           <TH className="text-right">Current</TH>
@@ -214,6 +216,9 @@ export function EquipmentTable({
                     <Badge tone="neutral">{meta.label}</Badge>
                   </span>
                 </TD>
+                <TD className="text-center font-mono tabular-nums text-ash">
+                  {item.quantity ?? 1}
+                </TD>
                 <TD>
                   {inStorage ? (
                     <Badge tone="caution">
@@ -242,7 +247,7 @@ export function EquipmentTable({
                   </Badge>
                   {!inStorage && (
                     <p className="mt-0.5 font-mono text-[0.5625rem] uppercase tracking-wide text-ash-dim">
-                      follows room
+                      assigned to room
                     </p>
                   )}
                 </TD>

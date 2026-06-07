@@ -34,4 +34,28 @@ describe("inventory gear/furniture cost separation", () => {
     const furn = await o.query(api.equipment.list, { assetClass: "furniture" });
     expect(furn.length).toBe(3);
   });
+
+  it("quantity multiplies value in the summary", async () => {
+    const o = await ownerOf(t, "org_a", "u_a");
+    await o.mutation(api.equipment.create, { name: "XLR Cable", category: "cable", quantity: 6, purchaseCents: 1200, currentValueCents: 1000 });
+    const s = await o.query(api.equipment.summary, {});
+    expect(s.count).toBe(1);
+    expect(s.units).toBe(6);
+    expect(s.currentTotal).toBe(6000); // 1000 * 6
+    expect(s.furnitureCurrent).toBe(6000);
+  });
+
+  it("assigning to a room flips status to in use; storage restores available", async () => {
+    const o = await ownerOf(t, "org_a", "u_a");
+    const roomId = await o.mutation(api.rooms.create, { name: "Studio A" });
+    const eqId = await o.mutation(api.equipment.create, { name: "SSL Console", category: "console", purchaseCents: 100000, currentValueCents: 100000 });
+    await o.mutation(api.equipment.install, { id: eqId, roomId });
+    let rows = await o.query(api.equipment.list, {});
+    expect(rows[0].effectiveStatus).toBe("in_use");
+    expect(rows[0].status).toBe("in_use");
+    await o.mutation(api.equipment.moveToStorage, { id: eqId });
+    rows = await o.query(api.equipment.list, {});
+    expect(rows[0].effectiveStatus).toBe("available");
+    expect(rows[0].status).toBe("available");
+  });
 });

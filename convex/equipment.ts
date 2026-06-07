@@ -51,7 +51,8 @@ async function hydrate(ctx: QueryCtx, item: Doc<"equipment">) {
     ...item,
     roomName: room?.name ?? null,
     location: room ? "installed" : "storage",
-    effectiveStatus: room ? room.status : item.status,
+    // Gear assigned to a room reads as "in use"; storage gear keeps its status.
+    effectiveStatus: room ? "in_use" : item.status,
     photo: await photoOf(ctx, item),
   };
 }
@@ -127,15 +128,18 @@ export const summary = query({
       .query("equipment")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .collect();
-    const purchaseTotal = rows.reduce((s, r) => s + r.purchaseCents, 0);
-    const currentTotal = rows.reduce((s, r) => s + r.currentValueCents, 0);
+    const qty = (r: { quantity?: number }) => (r.quantity && r.quantity > 0 ? r.quantity : 1);
+    const purchaseTotal = rows.reduce((s, r) => s + r.purchaseCents * qty(r), 0);
+    const currentTotal = rows.reduce((s, r) => s + r.currentValueCents * qty(r), 0);
     const installed = rows.filter((r) => r.installedInRoomId).length;
     const gear = rows.filter((r) => !isFurniture(r.category));
     const furniture = rows.filter((r) => isFurniture(r.category));
     const sum = (arr: typeof rows, k: "purchaseCents" | "currentValueCents") =>
-      arr.reduce((s, r) => s + r[k], 0);
+      arr.reduce((s, r) => s + r[k] * qty(r), 0);
+    const units = rows.reduce((s, r) => s + qty(r), 0);
     return {
       count: rows.length,
+      units,
       installed,
       inStorage: rows.length - installed,
       purchaseTotal,
@@ -171,6 +175,7 @@ export const create = mutation({
     purchaseCents: v.number(),
     currentValueCents: v.number(),
     installedInRoomId: v.optional(v.id("rooms")),
+    quantity: v.optional(v.number()),
     purchaseDate: v.optional(v.number()),
     serialNumber: v.optional(v.string()),
     condition: v.optional(v.string()),
@@ -189,7 +194,9 @@ export const create = mutation({
       name: args.name,
       category: args.category,
       installedInRoomId: args.installedInRoomId,
-      status: "available",
+      // Assigned to a room on creation => in use; otherwise available.
+      status: args.installedInRoomId ? "in_use" : "available",
+      quantity: args.quantity && args.quantity > 0 ? Math.round(args.quantity) : 1,
       purchaseCents: args.purchaseCents,
       currentValueCents: args.currentValueCents,
       purchaseDate: args.purchaseDate,
@@ -227,6 +234,7 @@ export const importBulk = mutation({
         condition: v.optional(v.string()),
         notes: v.optional(v.string()),
         status: v.optional(statusV),
+        quantity: v.optional(v.number()),
         purchaseDate: v.optional(v.number()),
         roomName: v.optional(v.string()),
       }),
@@ -277,7 +285,8 @@ export const importBulk = mutation({
         name,
         category: item.category,
         installedInRoomId: roomId,
-        status: item.status ?? "available",
+        status: item.status ?? (roomId ? "in_use" : "available"),
+        quantity: item.quantity && item.quantity > 0 ? Math.round(item.quantity) : 1,
         purchaseCents: item.purchaseCents,
         currentValueCents: item.currentValueCents,
         purchaseDate: item.purchaseDate,
@@ -307,6 +316,7 @@ export const update = mutation({
     id: v.id("equipment"),
     name: v.optional(v.string()),
     category: v.optional(categoryV),
+    quantity: v.optional(v.number()),
     purchaseCents: v.optional(v.number()),
     currentValueCents: v.optional(v.number()),
     purchaseDate: v.optional(v.number()),
@@ -332,7 +342,9 @@ export const install = mutation({
     assertOrg(item, orgId);
     const room = await ctx.db.get(roomId);
     assertOrg(room, orgId);
-    await ctx.db.patch(id, { installedInRoomId: roomId });
+    // Assigning to a room marks the item in use (leave maintenance/retired as-is).
+    const status = item.status === "available" ? "in_use" : item.status;
+    await ctx.db.patch(id, { installedInRoomId: roomId, status });
     await ctx.db.insert("activity", {
       orgId,
       kind: "equipment.installed",
@@ -351,7 +363,9 @@ export const moveToStorage = mutation({
     const orgId = await currentOrg(ctx);
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
-    await ctx.db.patch(id, { installedInRoomId: undefined, status: "available" });
+    // Back to storage => available again (preserve maintenance/retired flags).
+    const status = item.status === "in_use" ? "available" : item.status;
+    await ctx.db.patch(id, { installedInRoomId: undefined, status });
     await ctx.db.insert("activity", {
       orgId,
       kind: "equipment.storage",

@@ -646,8 +646,9 @@ export default defineSchema({
       v.literal("maintenance"),
       v.literal("retired"),
     ),
-    purchaseCents: v.number(), // what was paid
-    currentValueCents: v.number(), // current worth
+    quantity: v.optional(v.number()), // units of this item (default 1); values are per-unit
+    purchaseCents: v.number(), // what was paid (per unit)
+    currentValueCents: v.number(), // current worth (per unit)
     purchaseDate: v.optional(v.number()),
     serialNumber: v.optional(v.string()),
     condition: v.optional(v.string()),

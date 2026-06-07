@@ -37,6 +37,7 @@ export type EditableEquipment = {
   _id: Id<"equipment">;
   name: string;
   category: string;
+  quantity?: number;
   purchaseCents: number;
   currentValueCents: number;
   serialNumber?: string;
@@ -49,6 +50,7 @@ export type EditableEquipment = {
 type FormState = {
   name: string;
   category: EquipmentCategory;
+  quantity: string;
   purchase: string;
   currentValue: string;
   roomId: string;
@@ -63,6 +65,7 @@ const STORAGE = "__storage__";
 const BLANK: FormState = {
   name: "",
   category: "console",
+  quantity: "1",
   purchase: "",
   currentValue: "",
   roomId: STORAGE,
@@ -75,6 +78,7 @@ function toForm(item: EditableEquipment): FormState {
   return {
     name: item.name,
     category: item.category as EquipmentCategory,
+    quantity: item.quantity && item.quantity > 0 ? String(item.quantity) : "1",
     purchase: (item.purchaseCents / 100).toString(),
     currentValue: (item.currentValueCents / 100).toString(),
     roomId: STORAGE,
@@ -218,6 +222,7 @@ export function EquipmentDialog({
           id: item._id,
           name,
           category: form.category,
+          quantity: Math.max(1, parseInt(form.quantity, 10) || 1),
           purchaseCents,
           currentValueCents,
           serialNumber: form.serialNumber.trim() || undefined,
@@ -229,6 +234,7 @@ export function EquipmentDialog({
         await createEquipment({
           name,
           category: form.category,
+          quantity: Math.max(1, parseInt(form.quantity, 10) || 1),
           purchaseCents,
           currentValueCents,
           installedInRoomId:
@@ -462,11 +468,28 @@ export function EquipmentDialog({
               )}
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field
+                label="Quantity"
+                htmlFor="equip-qty"
+                hint="How many you own"
+              >
+                <Input
+                  id="equip-qty"
+                  type="number"
+                  min={1}
+                  step="1"
+                  inputMode="numeric"
+                  value={form.quantity}
+                  onChange={(e) => set("quantity", e.target.value)}
+                  placeholder="1"
+                  autoComplete="off"
+                />
+              </Field>
               <Field
                 label="Purchase value"
                 htmlFor="equip-purchase"
-                hint="In dollars. What it cost new."
+                hint="Per unit, cost new"
               >
                 <Input
                   id="equip-purchase"
@@ -484,7 +507,7 @@ export function EquipmentDialog({
               <Field
                 label="Current value"
                 htmlFor="equip-current"
-                hint="In dollars. What it is worth now."
+                hint="Per unit, worth now"
               >
                 <Input
                   id="equip-current"
