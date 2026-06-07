@@ -4,6 +4,7 @@ import { Hero } from "./hero";
 import { Chain } from "./chain";
 import { Features } from "./features";
 import { Pricing } from "./pricing";
+import { Faq } from "./faq";
 import { FinalCta } from "./cta";
 import { Footer } from "./footer";
 
@@ -23,6 +24,7 @@ export function LandingPage() {
         <Chain />
         <Features />
         <Pricing />
+        <Faq />
         <FinalCta />
       </main>
       <Footer />
