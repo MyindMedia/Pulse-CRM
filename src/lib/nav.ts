@@ -15,6 +15,7 @@ import {
   ScrollText,
   SlidersHorizontal,
   Boxes,
+  AppWindow,
   Settings,
   type LucideIcon,
 } from "lucide-react";
@@ -46,6 +47,7 @@ export const NAV: NavItem[] = [
   { label: "Licensing", href: "/licensing", icon: ScrollText, blurb: "Sync placements and beat licenses" },
   { label: "Studio", href: "/studio", icon: SlidersHorizontal, blurb: "Rooms and the team" },
   { label: "Inventory", href: "/inventory", icon: Boxes, blurb: "Equipment assets and their value" },
+  { label: "Software", href: "/software", icon: AppWindow, blurb: "DAWs, plugins and license management" },
   { label: "Settings", href: "/settings", icon: Settings, blurb: "Workspace configuration" },
 ];
 

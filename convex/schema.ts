@@ -859,6 +859,42 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_org", ["orgId"]),
 
+  // ── Software + license management - DAWs, plugins, sample libraries and
+  //    subscriptions the studio owns. Tracks cost, seats, renewal, and the
+  //    license key. Tenant-scoped. ──
+  softwareLicenses: defineTable({
+    orgId: v.string(),
+    name: v.string(),                  // "Pro Tools", "FabFilter Pro-Q 3"
+    vendor: v.optional(v.string()),    // "Avid", "FabFilter"
+    category: v.union(
+      v.literal("daw"),
+      v.literal("plugin"),
+      v.literal("sample_library"),
+      v.literal("subscription"),
+      v.literal("utility"),
+      v.literal("other"),
+    ),
+    licenseType: v.union(v.literal("perpetual"), v.literal("subscription")),
+    seats: v.optional(v.number()),
+    costCents: v.number(),
+    billingInterval: v.union(
+      v.literal("one_time"),
+      v.literal("monthly"),
+      v.literal("annual"),
+    ),
+    purchaseDate: v.optional(v.number()),
+    renewalDate: v.optional(v.number()),   // next charge / expiry (subscriptions)
+    licenseKey: v.optional(v.string()),    // serial / auth code (sensitive)
+    seatHolder: v.optional(v.string()),    // machine or person it's installed on
+    status: v.union(
+      v.literal("active"),
+      v.literal("expired"),
+      v.literal("unused"),
+    ),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_org", ["orgId"]),
+
   // ── Pipeline / opportunities ──
   opportunities: defineTable({
     orgId: v.string(),
