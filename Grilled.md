@@ -361,5 +361,28 @@ stream as placeholder bg video; whole landing restyled.
 **Verified:** tsc + lint + build green; video confirmed playing (readyState 4)
 via agent-browser; hero + full page captured. Brand kept gold/black throughout.
 
+## Feature: animated site-background loop + hover pass (2026-06-07)
+**Goal:** an animated video loop as the whole-site background + richer hover
+interactions across the landing. (User said "use higgsfield skill" - in this
+setup "Higgsfield" = the `seedance-*` skill pack; there is no separate
+Higgsfield tool, and AI gen needs a MUAPI key that is not in the vault.)
+**What shipped:**
+- `site-backdrop.tsx`: fixed full-viewport looping video behind the WHOLE page
+  (not just hero). Video is grayscaled + gold color-blended + dark wash so it
+  reads molten-gold-on-black and keeps every section readable. Landing wrapper
+  made transparent so it shows through.
+- `hls-video.tsx` (renamed from hero-video): generic `HlsVideo` - hls.js for
+  `.m3u8` (enableWorker:false, native-HLS fallback), direct src for plain files.
+  `DEFAULT_SRC` = the Mux placeholder; swap to `/bg-loop.webm` when the real loop
+  lands. Hero no longer carries its own video.
+- Hover pass: `.link-underline` (animated gold underline) on nav + footer links;
+  `.hover-glow` (gold bloom) + icon scale on chain/features/pricing cards.
+- Seedance/Higgsfield loop PROMPT authored via `seedance-director` skill, saved
+  to `docs/seedance-bg-loop-prompt.md` (loopable, gold/black, text-safe).
+**To finish (user):** generate the loop (give a MUAPI key OR run the prompt in
+Higgsfield Motion with Loop on), drop `public/bg-loop.webm`, flip `DEFAULT_SRC`.
+**Verified:** tsc + lint + build green; backdrop confirmed playing + gold-tinted
+via agent-browser. **Brand:** gold/black kept throughout (no green).
+
 ## Standing context / prior fix
 - **Crash fixed (2026-05-23):** `/agency/[orgId]` showed "page couldn't load" because `invites.list` threw `AccessError` (a plain `Error` → redacted by Convex) with no `error.tsx` boundary. Fixes: `invites.list` degrades to `[]` on access denial; `AccessError extends ConvexError`; `/agency/error.tsx` boundary; `createSubaccount` + `adoptOrphanSubaccounts` stamp/repair `agencyId` so the owner isn't scope-denied. 128 vitest green.

@@ -67,8 +67,8 @@ export function Features() {
         <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((f, i) => (
             <Reveal key={f.title} delay={(i % 3) * 80}>
-              <div className="group h-full rounded-2xl border border-hairline bg-coal/40 p-6 transition-all duration-300 hover:-translate-y-1 hover:border-gold-dim hover:bg-coal-2/60 hover:shadow-elev-3">
-                <span className="grid size-11 place-items-center rounded-xl border border-hairline-2 bg-coal-2 text-gold transition-colors group-hover:border-gold-dim group-hover:text-gold-bright">
+              <div className="hover-glow group h-full rounded-2xl border border-hairline bg-coal/40 p-6 hover:-translate-y-1 hover:border-gold-dim hover:bg-coal-2/60">
+                <span className="grid size-11 place-items-center rounded-xl border border-hairline-2 bg-coal-2 text-gold transition-all duration-300 group-hover:scale-110 group-hover:border-gold-dim group-hover:text-gold-bright">
                   <f.icon className="size-5" />
                 </span>
                 <h3 className="mt-5 font-display text-lg font-semibold text-bone">{f.title}</h3>

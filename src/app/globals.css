@@ -270,6 +270,42 @@
     );
   }
 
+  /* Animated gold underline that sweeps in from the left on hover. */
+  .link-underline {
+    position: relative;
+  }
+  .link-underline::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    bottom: -4px;
+    height: 1.5px;
+    width: 100%;
+    background: var(--color-gold);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .link-underline:hover::after {
+    transform: scaleX(1);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .link-underline::after {
+      transition: none;
+    }
+  }
+
+  /* Soft gold bloom for cards on hover (pairs with a lift + border shift). */
+  .hover-glow {
+    transition:
+      transform 0.3s cubic-bezier(0.16, 1, 0.3, 1),
+      box-shadow 0.3s ease,
+      border-color 0.3s ease;
+  }
+  .hover-glow:hover {
+    box-shadow: 0 0 44px -12px rgba(253, 185, 19, 0.35);
+  }
+
   /* ── Liquid Glass material scale (iOS-2026). Each tier = backdrop blur +
      saturate, 1px hairline, top-edge specular rim, and an elevation-ladder
      drop. ultrathin→chrome/chips, thin→cards/tiles, regular→sidebar/panels,

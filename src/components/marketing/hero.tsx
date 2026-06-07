@@ -1,6 +1,5 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { HeroVideo } from "./hero-video";
 import { LiquidCard } from "./liquid-card";
 import { Reveal } from "./reveal";
 
@@ -28,24 +27,14 @@ function CenterGlow() {
 export function Hero() {
   return (
     <section className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden px-4 pb-24 pt-28 lg:px-8">
-      {/* Background video */}
-      <HeroVideo className="absolute inset-0 -z-20 h-full w-full object-cover opacity-60" />
-
-      {/* Readability overlays: left wash + bottom-up fade */}
+      {/* The animated loop lives in the global SiteBackdrop. The hero adds a
+          bottom-up fade so the headline always has a dark base under it. */}
       <div
         aria-hidden
         className="absolute inset-0 -z-10"
         style={{
           background:
-            "linear-gradient(to right, #08080a 0%, rgba(8,8,10,0.4) 38%, transparent 70%)",
-        }}
-      />
-      <div
-        aria-hidden
-        className="absolute inset-0 -z-10"
-        style={{
-          background:
-            "linear-gradient(to top, #08080a 4%, rgba(8,8,10,0.2) 40%, transparent 75%)",
+            "linear-gradient(to top, #08080a 2%, rgba(8,8,10,0.25) 42%, transparent 78%)",
         }}
       />
 

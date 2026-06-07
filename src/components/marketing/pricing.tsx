@@ -76,10 +76,10 @@ export function Pricing() {
             <Reveal key={t.name} delay={i * 90} className="h-full">
               <div
                 className={cn(
-                  "flex h-full flex-col rounded-2xl p-7 transition-all duration-300 hover:-translate-y-1",
+                  "hover-glow flex h-full flex-col rounded-2xl p-7 hover:-translate-y-1",
                   t.featured
                     ? "liquid-frame bg-coal-2/70 shadow-gold-soft hover:shadow-gold-strong"
-                    : "border border-hairline bg-coal/40 hover:border-gold-dim hover:shadow-elev-3",
+                    : "border border-hairline bg-coal/40 hover:border-gold-dim",
                 )}
               >
                 <div className="flex items-center justify-between">

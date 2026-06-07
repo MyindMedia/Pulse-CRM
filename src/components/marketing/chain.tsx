@@ -32,8 +32,8 @@ export function Chain() {
         <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
           {STEPS.map((s, i) => (
             <Reveal key={s.label} delay={i * 70}>
-              <div className="group relative h-full rounded-xl border border-hairline bg-coal/40 p-5 transition-all duration-300 hover:-translate-y-1 hover:border-gold-dim hover:bg-coal-2/60 hover:shadow-elev-2">
-                <span className="grid size-10 place-items-center rounded-lg border border-hairline-2 bg-coal-2 text-gold transition-colors group-hover:border-gold-dim">
+              <div className="hover-glow group relative h-full rounded-xl border border-hairline bg-coal/40 p-5 hover:-translate-y-1 hover:border-gold-dim hover:bg-coal-2/60">
+                <span className="grid size-10 place-items-center rounded-lg border border-hairline-2 bg-coal-2 text-gold transition-all duration-300 group-hover:scale-110 group-hover:border-gold-dim">
                   <s.icon className="size-4" />
                 </span>
                 <p className="mt-4 font-mono text-[0.625rem] uppercase tracking-[0.18em] text-ash-dim">

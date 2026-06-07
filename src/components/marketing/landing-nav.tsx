@@ -85,7 +85,7 @@ export function LandingNav() {
             <a
               key={l.href}
               href={l.href}
-              className="text-sm font-medium text-ash transition-colors hover:text-gold"
+              className="link-underline text-sm font-medium text-ash transition-colors hover:text-gold"
             >
               {l.label}
             </a>
