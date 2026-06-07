@@ -178,9 +178,11 @@ export const _context = internalQuery({
       .filter((p) => p.status === "paid" && p._creationTime >= monthStart.getTime())
       .reduce((s, p) => s + (p.amountCents ?? 0), 0);
 
-    // Inventory / equipment: value, state, and depreciation (purchase vs current).
-    const eqPurchase = equipment.reduce((s, e) => s + e.purchaseCents, 0);
-    const eqCurrent = equipment.reduce((s, e) => s + e.currentValueCents, 0);
+    // Inventory / equipment: value, state, and depreciation (purchase vs
+    // current). Values are PER-UNIT, so multiply by quantity for totals.
+    const qty = (e: { quantity?: number }) => (e.quantity && e.quantity > 0 ? e.quantity : 1);
+    const eqPurchase = equipment.reduce((s, e) => s + e.purchaseCents * qty(e), 0);
+    const eqCurrent = equipment.reduce((s, e) => s + e.currentValueCents * qty(e), 0);
     const eqInstalled = equipment.filter((e) => e.installedInRoomId).length;
     const eqStatus = (st: string) => equipment.filter((e) => e.status === st).length;
     const depreciatedItems = equipment
@@ -195,6 +197,35 @@ export const _context = internalQuery({
         purchaseCents: e.purchaseCents,
         currentValueCents: e.currentValueCents,
       }));
+
+    // Per-room inventory value (so the agent can answer "value of Studio A").
+    // Includes a Storage bucket for unassigned gear. Qty-aware.
+    const roomNameById = new Map(rooms.map((r) => [r._id, r.name]));
+    const roomBuckets = new Map<string, { room: string; count: number; units: number; currentValueCents: number }>();
+    for (const e of equipment) {
+      const key = e.installedInRoomId ?? "__storage__";
+      const room = e.installedInRoomId
+        ? (roomNameById.get(e.installedInRoomId) ?? "Unknown room")
+        : "Storage";
+      const b = roomBuckets.get(key) ?? { room, count: 0, units: 0, currentValueCents: 0 };
+      b.count += 1;
+      b.units += qty(e);
+      b.currentValueCents += e.currentValueCents * qty(e);
+      roomBuckets.set(key, b);
+    }
+    const roomInventory = [...roomBuckets.values()].sort(
+      (a, b) => b.currentValueCents - a.currentValueCents,
+    );
+
+    // Software & licenses (DAWs, plugins, subscriptions).
+    const software = await ctx.db.query("softwareLicenses").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
+    const swAnnualRecurring = software.reduce((s, l) => {
+      if (l.licenseType !== "subscription") return s;
+      if (l.billingInterval === "monthly") return s + l.costCents * 12;
+      if (l.billingInterval === "annual") return s + l.costCents;
+      return s;
+    }, 0);
+    const swPerpetual = software.filter((l) => l.licenseType === "perpetual").reduce((s, l) => s + l.costCents, 0);
 
     const health = await studioHealthFor(ctx, orgId);
     const memories = await ctx.db
@@ -220,6 +251,21 @@ export const _context = internalQuery({
         maintenance: eqStatus("maintenance"),
         retired: eqStatus("retired"),
         depreciatedItems,
+        byRoom: roomInventory,
+      },
+      software: {
+        count: software.length,
+        annualRecurringCents: swAnnualRecurring,
+        perpetualValueCents: swPerpetual,
+        subscriptions: software.filter((l) => l.licenseType === "subscription").length,
+        items: software.slice(0, 30).map((l) => ({
+          name: l.name,
+          vendor: l.vendor ?? null,
+          category: l.category,
+          licenseType: l.licenseType,
+          costCents: l.costCents,
+          billingInterval: l.billingInterval,
+        })),
       },
       summary: {
         revenueThisMonthCents: revenueThisMonth,
@@ -316,7 +362,7 @@ export const runAgentLLM = internalAction({
         "You are Pulse Agent, an AI studio operations manager inside the Pulse platform.",
         tenantGuard(cx.orgName),
         "You may analyze data, explain patterns, and recommend actions. You may NOT claim any external action was performed.",
-        "You can see this studio's full operating picture: revenue, invoices, sessions, leads, songs, rooms, and its equipment/inventory (purchase value, current value, depreciation, condition, and state - available/in use/maintenance/retired). Answer questions about any of it directly from the data provided. Only say something is not tracked when the data explicitly shows zero of it.",
+        "You can see this studio's full operating picture: revenue, invoices, sessions, leads, songs, rooms, equipment/inventory (purchase value, current value, depreciation, condition, state, quantity, AND a per-room value breakdown), and software & licenses. Answer questions about any of it directly from the data provided - including the current value of a specific room (use the 'Value by room' breakdown). Only say something is not tracked when the data explicitly shows zero of it.",
         "For client-facing, financial, calendar, file-delivery, or automation-enabling actions, propose an approval (do not send).",
         `Tone: ${tone}. Write for a busy studio owner in plain, natural language.`,
         "Money: always write amounts in plain US dollars like $5,510 or $360. NEVER write cents or the word 'cents', and never show raw numbers like 551000.",
@@ -339,7 +385,10 @@ export const runAgentLLM = internalAction({
         inv.count > 0
           ? `- Inventory: ${inv.count} equipment items, ${usd(inv.currentValueCents)} current value`
           : `- Inventory: no equipment tracked`,
-      ].join("\n");
+        cx.software.count > 0
+          ? `- Software: ${cx.software.count} licenses, ${usd(cx.software.annualRecurringCents)}/yr recurring`
+          : null,
+      ].filter(Boolean).join("\n");
 
       // Full inventory detail so the Agent can answer value / state / depreciation
       // questions directly instead of deflecting.
@@ -356,12 +405,31 @@ export const runAgentLLM = internalAction({
               `- Items: ${inv.count} (${inv.installed} installed in rooms, ${inv.inStorage} in storage)`,
               `- Current value: ${usd(inv.currentValueCents)}; purchased for ${usd(inv.purchaseTotalCents)} (${valueDelta})`,
               `- State: ${inv.available} available, ${inv.inUse} in use, ${inv.maintenance} in maintenance, ${inv.retired} retired`,
+              inv.byRoom.length
+                ? `- Value by room (current value of gear assigned to each room): ${inv.byRoom
+                    .map((r) => `${r.room}: ${usd(r.currentValueCents)} (${r.count} items)`)
+                    .join("; ")}. When asked for a specific room's value, use this breakdown.`
+                : `- No gear assigned to any room yet (all in storage).`,
               inv.depreciatedItems.length
                 ? `- Items that have lost value: ${inv.depreciatedItems
                     .map((d) => `${d.name} (${d.category}, ${d.condition ?? "condition n/a"}): ${usd(d.purchaseCents)} -> ${usd(d.currentValueCents)}`)
                     .join("; ")}`
                 : `- No individual item has lost value.`,
             ].join("\n")
+          : "";
+
+      const sw = cx.software;
+      const softwareBlock =
+        sw.count > 0
+          ? `\n\nSoftware & licenses:\n` +
+            [
+              `- ${sw.count} licenses (${sw.subscriptions} subscriptions): ${usd(sw.annualRecurringCents)}/yr recurring, ${usd(sw.perpetualValueCents)} one-time/perpetual value.`,
+              sw.items.length
+                ? `- Titles: ${sw.items
+                    .map((i) => `${i.name}${i.vendor ? ` (${i.vendor})` : ""} ${usd(i.costCents)}${i.billingInterval === "monthly" ? "/mo" : i.billingInterval === "annual" ? "/yr" : ""}`)
+                    .join("; ")}`
+                : "",
+            ].filter(Boolean).join("\n")
           : "";
 
       const memoryBlock = cx.memory.length
@@ -371,7 +439,7 @@ export const runAgentLLM = internalAction({
         `Studio: ${cx.orgName} (plan: ${cx.plan}).`,
         `Overall studio health is ${cx.health.band} (the weakest areas are ${weakestAreas(cx.health.components)}).`,
         `Current snapshot:\n${snapshot}`,
-        `User request: ${prompt}${inventoryBlock}${memoryBlock}`,
+        `User request: ${prompt}${inventoryBlock}${softwareBlock}${memoryBlock}`,
       ].join("\n\n");
 
       const ai = await complete(userPrompt, { system, model: DEFAULT_MODEL, maxOutputTokens: 1200 });

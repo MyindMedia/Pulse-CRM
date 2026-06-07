@@ -71,6 +71,27 @@ describe("Pulse Agent", () => {
     expect(cx.inventory.depreciatedItems[0].name).toBe("SSL Console");
   });
 
+  it("_context breaks inventory value down by room (qty-aware)", async () => {
+    const roomId = await t.run(async (ctx) => {
+      const roomId = await ctx.db.insert("rooms", { orgId: ORG, name: "Studio A", status: "available", bookable: true });
+      // Installed in Studio A: $1,000 console + 4x $250 mics = $2,000.
+      await ctx.db.insert("equipment", { orgId: ORG, name: "Console", category: "console", status: "in_use", installedInRoomId: roomId, purchaseCents: 1000_00, currentValueCents: 1000_00 });
+      await ctx.db.insert("equipment", { orgId: ORG, name: "Mics", category: "mic", status: "in_use", installedInRoomId: roomId, quantity: 4, purchaseCents: 250_00, currentValueCents: 250_00 });
+      // In storage: should not count toward Studio A.
+      await ctx.db.insert("equipment", { orgId: ORG, name: "Spare", category: "other", status: "available", purchaseCents: 500_00, currentValueCents: 500_00 });
+      return roomId;
+    });
+    const cx = await t.query(internal.agent._context, { orgId: ORG });
+    const studioA = cx.inventory.byRoom.find((r) => r.room === "Studio A");
+    expect(studioA).toBeTruthy();
+    expect(studioA!.currentValueCents).toBe(2000_00); // 1000 + 4*250
+    expect(studioA!.count).toBe(2);
+    expect(studioA!.units).toBe(5);
+    const storage = cx.inventory.byRoom.find((r) => r.room === "Storage");
+    expect(storage!.currentValueCents).toBe(500_00);
+    expect(roomId).toBeTruthy();
+  });
+
   it("createRun completes via deterministic fallback (no LLM key) + stores an assistant message", async () => {
     const runId = await t.mutation(api.agent.createRun, { prompt: "How is my studio doing?" });
     await drain(t);
