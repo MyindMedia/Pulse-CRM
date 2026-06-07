@@ -63,15 +63,12 @@ export function Hero() {
         className="absolute inset-0 -z-10"
         style={{
           background:
-            "radial-gradient(120% 95% at 50% 32%, rgba(8,8,10,0.18) 0%, rgba(8,8,10,0.62) 100%), linear-gradient(to bottom, rgba(8,8,10,0.82) 0%, rgba(8,8,10,0.5) 36%, rgba(8,8,10,0.66) 66%, #08080a 100%)",
+            "radial-gradient(120% 95% at 50% 32%, rgba(8,8,10,0.45) 0%, rgba(8,8,10,0.78) 100%), linear-gradient(to bottom, rgba(8,8,10,0.9) 0%, rgba(8,8,10,0.66) 38%, rgba(8,8,10,0.8) 68%, #08080a 100%)",
         }}
       />
 
       {/* Center-top gold glow */}
       <CenterGlow />
-
-      {/* Vertical structure lines (desktop only) */}
-      <div aria-hidden className="grid-lines absolute inset-0 -z-0 hidden lg:block" />
 
       {/* Content */}
       <div className="relative z-10 mx-auto flex max-w-3xl flex-col items-center text-center">
