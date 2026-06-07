@@ -36,7 +36,7 @@ export const beginCheckout = action({
       mode: "subscription",
       customer: customer.id,
       line_items: [{ price: priceId, quantity: 1 }],
-      subscription_data: { trial_period_days: 14 },
+      // No trial - charge immediately on subscribe.
       success_url: `${baseUrl}/onboard/done?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/onboard`,
     });

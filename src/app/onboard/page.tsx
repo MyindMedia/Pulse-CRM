@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { PLAN_LIMITS, PUBLIC_TIERS, type TierKey } from "@convex/lib/plans";
@@ -43,9 +44,13 @@ function priceLabel(tier: TierKey): string {
 
 type SelfServeTier = "studio" | "pro" | "growth";
 
-export default function OnboardPage() {
+function OnboardInner() {
   const beginCheckout = useAction(api.billing.beginCheckout);
-  const [tier, setTier] = React.useState<TierKey>("pro");
+  const params = useSearchParams();
+  const requested = params.get("tier");
+  const initialTier: TierKey =
+    requested && PUBLIC_TIERS.includes(requested as TierKey) ? (requested as TierKey) : "pro";
+  const [tier, setTier] = React.useState<TierKey>(initialTier);
   const [agencyName, setAgencyName] = React.useState("");
   const [loading, setLoading] = React.useState(false);
   const [err, setErr] = React.useState("");
@@ -73,7 +78,7 @@ export default function OnboardPage() {
     <main className="mx-auto max-w-5xl space-y-8 p-8">
       <header className="space-y-2 text-center">
         <h1 className="font-display text-3xl font-semibold text-bone">Pick your plan</h1>
-        <p className="text-sm text-ash">14-day free trial. Cancel any time.</p>
+        <p className="text-sm text-ash">Billed monthly. Cancel any time.</p>
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -137,5 +142,13 @@ export default function OnboardPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function OnboardPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <OnboardInner />
+    </React.Suspense>
   );
 }

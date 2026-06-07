@@ -4,27 +4,30 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Reveal } from "./reveal";
 
-/* Placeholder pricing. Edit the amounts and bullets here as the plans firm up;
-   every CTA routes to self-serve sign-up. */
+/* Pricing maps the marketing tiles to the billing tiers in convex/lib/plans.ts.
+   `tier` is the TierKey used at checkout (/onboard?tier=...). Prices here must
+   match PLAN_LIMITS[tier].priceCents. */
 const TIERS = [
   {
     name: "Solo",
-    price: "$29",
+    tier: "studio",
+    price: "$49",
     cadence: "/mo",
     tagline: "For independent producers and engineers.",
     features: [
-      "One studio room",
+      "One studio workspace",
       "Song-centric catalog",
       "Bookings and deposits",
       "Invoices and payments",
       "Core reports",
     ],
-    cta: "Start free",
+    cta: "Subscribe",
     featured: false,
   },
   {
     name: "Studio",
-    price: "$79",
+    tier: "pro",
+    price: "$129",
     cadence: "/mo",
     tagline: "For multi-room studios with a team.",
     features: [
@@ -34,22 +37,23 @@ const TIERS = [
       "Inventory and assets",
       "The AI Agent (coming soon)",
     ],
-    cta: "Start free",
+    cta: "Subscribe",
     featured: true,
   },
   {
     name: "Label",
+    tier: "growth",
     price: "$199",
     cadence: "/mo",
     tagline: "For labels and multi-studio operators.",
     features: [
       "Everything in Studio",
-      "Multi-studio agency console",
+      "Up to 3 studio workspaces",
       "Artist roster management",
       "Release campaigns",
       "Priority support",
     ],
-    cta: "Talk to us",
+    cta: "Subscribe",
     featured: false,
   },
 ];
@@ -125,7 +129,7 @@ export function Pricing() {
                     className="w-full"
                     variant={t.featured ? "primary" : "outline"}
                   >
-                    <Link href="/sign-up">{t.cta}</Link>
+                    <Link href={`/onboard?tier=${t.tier}`}>{t.cta}</Link>
                   </Button>
                 </div>
               </div>
