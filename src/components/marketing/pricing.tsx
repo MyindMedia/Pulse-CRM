@@ -16,7 +16,7 @@ const TIERS = [
     tagline: "For independent producers and engineers.",
     features: [
       "One studio workspace",
-      "Song-centric catalog",
+      "Client and booking CRM",
       "Bookings and deposits",
       "Invoices and payments",
       "Core reports",
@@ -33,8 +33,8 @@ const TIERS = [
     features: [
       "Unlimited rooms",
       "Staff scheduling",
-      "Splits and licensing",
       "Inventory and assets",
+      "Automations and workflows",
       "The AI Agent (coming soon)",
     ],
     cta: "Subscribe",
@@ -49,8 +49,8 @@ const TIERS = [
     features: [
       "Everything in Studio",
       "Up to 3 studio workspaces",
-      "Artist roster management",
-      "Release campaigns",
+      "Multi-studio dashboard",
+      "Cross-studio reporting",
       "Priority support",
     ],
     cta: "Subscribe",

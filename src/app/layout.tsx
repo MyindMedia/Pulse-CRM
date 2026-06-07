@@ -25,9 +25,9 @@ const plusJakarta = Plus_Jakarta_Sans({
 });
 
 const SITE_URL = "https://pulse.myindsound.com";
-const SITE_TITLE = "Pulse - the operating system for music businesses";
+const SITE_TITLE = "Pulse - the operating system for recording studios";
 const SITE_DESCRIPTION =
-  "Pulse is the song-centric CRM for recording studios, producers and labels. Sessions, splits, revisions, releases - one unbroken chain from inquiry to royalty.";
+  "Pulse runs your recording studio: bookings, rooms, staff scheduling, inventory and payments, all in sync and automated.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

@@ -3,7 +3,7 @@ import { ImageResponse } from "next/og";
 // Branded social share card (gold/black) shown when the site is linked on
 // social networks and messaging apps. Generated at build time by next/og,
 // no external assets or fonts required.
-export const alt = "Pulse - the operating system for music businesses";
+export const alt = "Pulse - the operating system for recording studios";
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
 
@@ -71,7 +71,7 @@ export default function Image() {
         >
           <span>The operating system</span>
           <span>
-            for music businesses<span style={{ color: "#fdb913" }}>.</span>
+            for recording studios<span style={{ color: "#fdb913" }}>.</span>
           </span>
         </div>
         {/* tagline */}
@@ -84,7 +84,7 @@ export default function Image() {
             maxWidth: 920,
           }}
         >
-          Sessions, splits, releases: one unbroken chain from inquiry to royalty.
+          Bookings, rooms, staff, inventory and payments, automated.
         </div>
       </div>
     ),

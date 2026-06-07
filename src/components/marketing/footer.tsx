@@ -26,8 +26,8 @@ export function Footer() {
         <div className="space-y-4">
           <PulseLogo size="sm" href="/" />
           <p className="max-w-xs text-sm text-ash">
-            The operating system for music businesses. One unbroken chain from
-            inquiry to royalty.
+            The operating system for recording studios. Bookings, rooms, staff,
+            inventory and payments, automated.
           </p>
         </div>
 

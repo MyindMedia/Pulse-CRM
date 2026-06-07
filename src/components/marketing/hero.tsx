@@ -12,14 +12,14 @@ const STUDIO_MONTAGE_SRC = "/studio-montage.mp4";
 const CAPABILITIES = [
   "Bookings",
   "Deposits",
-  "Sessions",
-  "Splits",
-  "Licensing",
-  "Releases",
-  "Royalties",
-  "Invoices",
+  "Rooms",
+  "Staff",
   "Scheduling",
+  "Sessions",
   "Inventory",
+  "Invoices",
+  "Payments",
+  "Automations",
 ];
 
 /** Large, soft gold ellipse glow for the center-top of the hero. 25px Gaussian
@@ -86,9 +86,9 @@ export function Hero() {
 
         <Reveal immediate delay={240}>
           <p className="mx-auto mt-6 max-w-[512px] text-sm leading-relaxed text-bone/70">
-            The song-centric CRM for recording studios, producers and labels.
-            Sessions, splits, revisions, releases: one unbroken chain from inquiry
-            to royalty.
+            The operating system for recording studios. Bookings, rooms, staff,
+            inventory and payments, all in sync and automated, so the studio runs
+            without the busywork.
           </p>
         </Reveal>
 

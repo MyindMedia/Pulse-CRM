@@ -1,37 +1,37 @@
 import {
-  Music2,
-  CalendarDays,
-  ScrollText,
   Ticket,
+  DoorOpen,
+  CalendarClock,
+  Boxes,
   Receipt,
-  Sparkles,
+  Workflow,
 } from "lucide-react";
 import { Reveal } from "./reveal";
 
 const FEATURES = [
   {
-    icon: Music2,
-    title: "Song-centric catalog",
-    blurb:
-      "Every record in flight, from demo to master, with versions and revisions tracked in one place.",
-  },
-  {
-    icon: CalendarDays,
-    title: "Sessions and scheduling",
-    blurb:
-      "Book rooms, schedule staff and see who is working where. No more double-booked rooms.",
-  },
-  {
-    icon: ScrollText,
-    title: "Splits and licensing",
-    blurb:
-      "Lock split sheets, collect e-signatures and manage sync placements and beat licenses.",
-  },
-  {
     icon: Ticket,
     title: "Bookings and deposits",
     blurb:
       "Public booking pages take deposits straight to your own Stripe account. You keep 100 percent.",
+  },
+  {
+    icon: DoorOpen,
+    title: "Room management",
+    blurb:
+      "Assign and track every room, see what is free at a glance, and never double-book again.",
+  },
+  {
+    icon: CalendarClock,
+    title: "Staff scheduling",
+    blurb:
+      "Schedule engineers and staff to rooms and sessions in one calendar. Everyone knows where to be.",
+  },
+  {
+    icon: Boxes,
+    title: "Inventory and assets",
+    blurb:
+      "Track gear, software and furniture, check items out to rooms, and know the value of every asset.",
   },
   {
     icon: Receipt,
@@ -40,10 +40,10 @@ const FEATURES = [
       "Invoices, deposits and revenue in one command center, so you can see exactly where money leaks.",
   },
   {
-    icon: Sparkles,
-    title: "The AI Agent",
+    icon: Workflow,
+    title: "Automations and workflows",
     blurb:
-      "A studio operations manager that drafts replies, chases leads and keeps the pipeline moving.",
+      "A booking moves itself from deposit to invoice, with room, staff and gear handled automatically.",
   },
 ];
 
@@ -59,7 +59,7 @@ export function Features() {
             studio, not a pile of apps
           </h2>
           <p className="mt-4 text-ash">
-            Pulse replaces the spreadsheet, the booking form, the split sheet and the
+            Pulse replaces the spreadsheet, the booking form, the scheduling app and the
             invoice tool with one connected system.
           </p>
         </Reveal>
