@@ -54,7 +54,9 @@ export function Features() {
         <Reveal className="mx-auto max-w-2xl text-center">
           <p className="overline">Everything in one place</p>
           <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-bone sm:text-4xl">
-            Run the whole studio, not a pile of apps
+            Run the{" "}
+            <span className="font-serif text-[1.15em] font-normal italic text-gold">whole</span>{" "}
+            studio, not a pile of apps
           </h2>
           <p className="mt-4 text-ash">
             Pulse replaces the spreadsheet, the booking form, the split sheet and the

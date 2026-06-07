@@ -61,7 +61,9 @@ export function Pricing() {
         <Reveal className="mx-auto max-w-2xl text-center">
           <p className="overline">Pricing</p>
           <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-bone sm:text-4xl">
-            Simple plans that grow with you
+            Simple plans that{" "}
+            <span className="font-serif text-[1.15em] font-normal italic text-gold">grow</span>{" "}
+            with you
           </h2>
           <p className="mt-4 text-ash">
             Every plan includes hosted booking pages, deposits to your own Stripe and
@@ -74,10 +76,10 @@ export function Pricing() {
             <Reveal key={t.name} delay={i * 90} className="h-full">
               <div
                 className={cn(
-                  "flex h-full flex-col rounded-2xl border p-7 transition-all duration-300 hover:-translate-y-1",
+                  "flex h-full flex-col rounded-2xl p-7 transition-all duration-300 hover:-translate-y-1",
                   t.featured
-                    ? "border-gold-dim bg-coal-2/70 shadow-gold-soft hover:shadow-gold-strong"
-                    : "border-hairline bg-coal/40 hover:border-hairline-2 hover:shadow-elev-3",
+                    ? "liquid-frame bg-coal-2/70 shadow-gold-soft hover:shadow-gold-strong"
+                    : "border border-hairline bg-coal/40 hover:border-gold-dim hover:shadow-elev-3",
                 )}
               >
                 <div className="flex items-center justify-between">

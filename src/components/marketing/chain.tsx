@@ -19,7 +19,9 @@ export function Chain() {
         <Reveal className="mx-auto max-w-2xl text-center">
           <p className="overline">One unbroken chain</p>
           <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-bone sm:text-4xl">
-            From inquiry to royalty, nothing falls through
+            From inquiry to{" "}
+            <span className="font-serif text-[1.15em] font-normal italic text-gold">royalty</span>,
+            nothing falls through
           </h2>
           <p className="mt-4 text-ash">
             Other tools cover one link and drop the rest. Pulse threads the whole

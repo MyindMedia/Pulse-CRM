@@ -18,7 +18,9 @@ export function FinalCta() {
           />
           <div className="relative">
             <h2 className="mx-auto max-w-2xl font-display text-3xl font-bold tracking-tight text-bone sm:text-5xl">
-              Run your whole studio on Pulse
+              Run your{" "}
+              <span className="font-serif text-[1.1em] font-normal italic text-gold">whole</span>{" "}
+              studio on Pulse
             </h2>
             <p className="mx-auto mt-5 max-w-xl text-ash">
               Start free, connect your Stripe, and take your first booking today.

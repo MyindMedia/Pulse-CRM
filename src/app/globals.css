@@ -10,6 +10,8 @@
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, -apple-system, sans-serif;
   --font-display: var(--font-space-grotesk), var(--font-inter), sans-serif;
   --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", monospace;
+  --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
+  --font-jakarta: var(--font-plus-jakarta), var(--font-inter), sans-serif;
 
   /* - Surfaces (near-black → graphite) - */
   --color-ink: #08080a;
@@ -206,6 +208,66 @@
     box-shadow:
       inset 0 1px 0 0 color-mix(in oklab, white 14%, transparent),
       inset 0 0 0 1px color-mix(in oklab, white 4%, transparent);
+  }
+
+  /* ── Liquid-glass frame (landing hero). Whisper-thin fill + 4px backdrop
+     blur, an inset top specular line, and a razor 1.4px gradient border drawn
+     with a masked ::before so the frame stays crisp at any size. Brand-tuned:
+     gold-tinted specular instead of plain white. ── */
+  .liquid-frame {
+    position: relative;
+    background: rgba(255, 255, 255, 0.012);
+    background-blend-mode: luminosity;
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    box-shadow:
+      inset 0 1px 1px rgba(255, 255, 255, 0.1),
+      0 24px 60px rgba(0, 0, 0, 0.45);
+  }
+  .liquid-frame::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    padding: 1.4px;
+    border-radius: inherit;
+    background: linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.55) 0%,
+      color-mix(in oklab, var(--color-gold) 30%, transparent) 45%,
+      rgba(255, 255, 255, 0.04) 100%
+    );
+    -webkit-mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    -webkit-mask-composite: xor;
+    mask:
+      linear-gradient(#000 0 0) content-box,
+      linear-gradient(#000 0 0);
+    mask-composite: exclude;
+    pointer-events: none;
+  }
+
+  /* Three thin vertical structure lines at 25/50/75% (desktop hero). */
+  .grid-lines::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background-image: linear-gradient(
+      to right,
+      transparent calc(25% - 0.5px),
+      rgba(255, 255, 255, 0.06) calc(25% - 0.5px),
+      rgba(255, 255, 255, 0.06) calc(25% + 0.5px),
+      transparent calc(25% + 0.5px),
+      transparent calc(50% - 0.5px),
+      rgba(255, 255, 255, 0.06) calc(50% - 0.5px),
+      rgba(255, 255, 255, 0.06) calc(50% + 0.5px),
+      transparent calc(50% + 0.5px),
+      transparent calc(75% - 0.5px),
+      rgba(255, 255, 255, 0.06) calc(75% - 0.5px),
+      rgba(255, 255, 255, 0.06) calc(75% + 0.5px),
+      transparent calc(75% + 0.5px)
+    );
   }
 
   /* ── Liquid Glass material scale (iOS-2026). Each tier = backdrop blur +

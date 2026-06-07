@@ -336,5 +336,30 @@ above-the-fold hero content.
 **Spec:** `docs/superpowers/specs/2026-06-07-landing-page-design.md`. Verified
 tsc + lint + build + visual (agent-browser). Deploys via Netlify on push.
 
+## Redesign: cinematic landing (liquid-glass + HLS video) (2026-06-07)
+**Goal:** restyle the whole landing in a high-end dark aesthetic (from a
+"CodeNest" reference brief) but KEEP PULSE BRANDING - gold not green, Pulse
+copy/logo/display font. User decisions: Pulse brand + this style; provided Mux
+stream as placeholder bg video; whole landing restyled.
+**Techniques applied (all brand-tuned to gold/black):**
+- Full-bleed HLS background video (`hero-video.tsx`, hls.js dynamic-imported,
+  `enableWorker:false`, native-HLS fallback) at 60% opacity + left/bottom
+  gradient overlays. Placeholder stream is the brief's Mux URL - swappable.
+- Center-top gold ellipse glow (inline SVG, 25px feGaussianBlur).
+- Three vertical structure lines at 25/50/75% (`.grid-lines` util, desktop).
+- Liquid-glass card (`liquid-card.tsx` + `.liquid-frame` util): whisper-thin
+  fill, 4px backdrop blur, inset specular, razor 1.4px gradient border via
+  masked `::before` + `mask-composite: exclude`. Gold-tinted. Pulled up 50px.
+- Hero headline "RUN YOUR WHOLE STUDIO." (Space Grotesk extrabold uppercase,
+  40->72px, gold period). Eyebrow in Plus Jakarta Sans. Rounded-full gold CTA.
+- Instrument Serif italic accent on one word in every section heading
+  (working / royalty / whole / grow). Featured pricing tier uses `.liquid-frame`.
+- Mobile hamburger -> full-screen overlay (`landing-nav.tsx`, Menu/X, body
+  scroll lock). Auth-aware CTAs preserved.
+**Fonts added:** Instrument Serif (italic), Plus Jakarta Sans (layout.tsx +
+`@theme` `--font-serif`/`--font-jakarta`). **Dep added:** hls.js.
+**Verified:** tsc + lint + build green; video confirmed playing (readyState 4)
+via agent-browser; hero + full page captured. Brand kept gold/black throughout.
+
 ## Standing context / prior fix
 - **Crash fixed (2026-05-23):** `/agency/[orgId]` showed "page couldn't load" because `invites.list` threw `AccessError` (a plain `Error` → redacted by Convex) with no `error.tsx` boundary. Fixes: `invites.list` degrades to `[]` on access denial; `AccessError extends ConvexError`; `/agency/error.tsx` boundary; `createSubaccount` + `adoptOrphanSubaccounts` stamp/repair `agencyId` so the owner isn't scope-denied. 128 vitest green.
