@@ -58,4 +58,32 @@ describe("inventory gear/furniture cost separation", () => {
     expect(rows[0].effectiveStatus).toBe("available");
     expect(rows[0].status).toBe("available");
   });
+
+  it("bulk assign / update / remove operate only on own items", async () => {
+    const o = await ownerOf(t, "org_a", "u_a");
+    const room = await o.mutation(api.rooms.create, { name: "Live Room" });
+    const a = await o.mutation(api.equipment.create, { name: "Mic A", category: "mic", purchaseCents: 10000, currentValueCents: 10000 });
+    const b = await o.mutation(api.equipment.create, { name: "Mic B", category: "mic", purchaseCents: 10000, currentValueCents: 10000 });
+
+    // bulk assign to room => both in use + installed
+    await o.mutation(api.equipment.bulkAssign, { ids: [a, b], roomId: room });
+    let rows = await o.query(api.equipment.list, {});
+    expect(rows.every((r) => r.effectiveStatus === "in_use")).toBe(true);
+
+    // bulk update category
+    await o.mutation(api.equipment.bulkUpdate, { ids: [a, b], category: "instrument" });
+    rows = await o.query(api.equipment.list, {});
+    expect(rows.every((r) => r.category === "instrument")).toBe(true);
+
+    // tenant isolation: another org cannot touch them
+    const b2 = await ownerOf(t, "org_b", "u_b");
+    const res = await b2.mutation(api.equipment.bulkRemove, { ids: [a, b] });
+    expect(res.removed).toBe(0);
+    expect(await o.query(api.equipment.list, {})).toHaveLength(2);
+
+    // owner bulk remove
+    const rm = await o.mutation(api.equipment.bulkRemove, { ids: [a, b] });
+    expect(rm.removed).toBe(2);
+    expect(await o.query(api.equipment.list, {})).toHaveLength(0);
+  });
 });

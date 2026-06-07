@@ -55,7 +55,7 @@ export type EquipmentRow = {
   photo: string | null;
 };
 
-const COLUMN_COUNT = 9;
+const COLUMN_COUNT = 10;
 
 /** A small square equipment thumbnail with a graceful fallback. */
 function PhotoThumb({ photo, name }: { photo: string | null; name: string }) {
@@ -101,12 +101,18 @@ export function EquipmentTable({
   filtering,
   onInstall,
   onEdit,
+  selected,
+  onToggle,
+  onToggleAll,
 }: {
   items: EquipmentRow[];
   loading: boolean;
   filtering: boolean;
   onInstall: (item: EquipmentRow) => void;
   onEdit: (item: EquipmentRow) => void;
+  selected: Set<string>;
+  onToggle: (id: string) => void;
+  onToggleAll: (ids: string[], checked: boolean) => void;
 }) {
   const moveToStorage = useMutation(api.equipment.moveToStorage);
   const setStatus = useMutation(api.equipment.setStatus);
@@ -156,6 +162,15 @@ export function EquipmentTable({
     <Table>
       <THead>
         <TR>
+          <TH className="w-8">
+            <input
+              type="checkbox"
+              aria-label="Select all"
+              className="size-4 align-middle accent-gold"
+              checked={items.length > 0 && items.every((i) => selected.has(i._id))}
+              onChange={(e) => onToggleAll(items.map((i) => i._id), e.target.checked)}
+            />
+          </TH>
           <TH>Name</TH>
           <TH>Category</TH>
           <TH className="text-center">Qty</TH>
@@ -194,7 +209,16 @@ export function EquipmentTable({
             const inStorage = item.location === "storage";
             const pending = pendingId === item._id;
             return (
-              <TR key={item._id} className={cn(pending && "opacity-50")}>
+              <TR key={item._id} className={cn(pending && "opacity-50", selected.has(item._id) && "bg-gold/[0.06]")}>
+                <TD className="w-8">
+                  <input
+                    type="checkbox"
+                    aria-label={`Select ${item.name}`}
+                    className="size-4 align-middle accent-gold"
+                    checked={selected.has(item._id)}
+                    onChange={() => onToggle(item._id)}
+                  />
+                </TD>
                 <TD>
                   <div className="flex min-w-0 items-center gap-2.5">
                     <PhotoThumb photo={item.photo} name={item.name} />

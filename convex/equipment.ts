@@ -1,4 +1,4 @@
-import { query, mutation, QueryCtx } from "./_generated/server";
+import { query, mutation, QueryCtx, MutationCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { currentOrg, assertOrg } from "./lib/tenant";
@@ -396,6 +396,93 @@ export const remove = mutation({
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
     await ctx.db.delete(id);
+  },
+});
+
+/* ── Bulk operations (select-many in the inventory) ──────────── */
+
+/** Only operate on the caller's own items; silently skip foreign/missing ids. */
+async function ownItems(ctx: MutationCtx, orgId: string, ids: Id<"equipment">[]) {
+  const rows = await Promise.all(ids.map((id) => ctx.db.get(id)));
+  return rows.filter((r): r is Doc<"equipment"> => !!r && r.orgId === orgId);
+}
+
+/** Assign many items to a room (in use), or pull many back to storage
+ *  (available). Maintenance/retired statuses are preserved. */
+export const bulkAssign = mutation({
+  args: { ids: v.array(v.id("equipment")), roomId: v.optional(v.id("rooms")) },
+  handler: async (ctx, { ids, roomId }) => {
+    const orgId = await currentOrg(ctx);
+    if (roomId) {
+      const room = await ctx.db.get(roomId);
+      assertOrg(room, orgId);
+    }
+    const items = await ownItems(ctx, orgId, ids);
+    for (const it of items) {
+      if (roomId) {
+        await ctx.db.patch(it._id, {
+          installedInRoomId: roomId,
+          status: it.status === "available" ? "in_use" : it.status,
+        });
+      } else {
+        await ctx.db.patch(it._id, {
+          installedInRoomId: undefined,
+          status: it.status === "in_use" ? "available" : it.status,
+        });
+      }
+    }
+    if (items.length > 0) {
+      const room = roomId ? await ctx.db.get(roomId) : null;
+      await ctx.db.insert("activity", {
+        orgId,
+        kind: "equipment.bulk",
+        summary: `${items.length} item${items.length === 1 ? "" : "s"} ${room ? `assigned to ${room.name}` : "moved to storage"}`,
+        entityType: "equipment",
+        accent: "gold",
+      });
+    }
+    return { updated: items.length };
+  },
+});
+
+/** Bulk-edit shared fields (category, status, condition) on many items. */
+export const bulkUpdate = mutation({
+  args: {
+    ids: v.array(v.id("equipment")),
+    category: v.optional(categoryV),
+    status: v.optional(statusV),
+    condition: v.optional(v.string()),
+  },
+  handler: async (ctx, { ids, category, status, condition }) => {
+    const orgId = await currentOrg(ctx);
+    const patch: Record<string, unknown> = {};
+    if (category !== undefined) patch.category = category;
+    if (status !== undefined) patch.status = status;
+    if (condition !== undefined) patch.condition = condition.trim() || undefined;
+    if (Object.keys(patch).length === 0) return { updated: 0 };
+    const items = await ownItems(ctx, orgId, ids);
+    for (const it of items) await ctx.db.patch(it._id, patch);
+    return { updated: items.length };
+  },
+});
+
+/** Delete many items at once. */
+export const bulkRemove = mutation({
+  args: { ids: v.array(v.id("equipment")) },
+  handler: async (ctx, { ids }) => {
+    const orgId = await currentOrg(ctx);
+    const items = await ownItems(ctx, orgId, ids);
+    for (const it of items) await ctx.db.delete(it._id);
+    if (items.length > 0) {
+      await ctx.db.insert("activity", {
+        orgId,
+        kind: "equipment.bulk",
+        summary: `${items.length} item${items.length === 1 ? "" : "s"} removed from inventory`,
+        entityType: "equipment",
+        accent: "critical",
+      });
+    }
+    return { removed: items.length };
   },
 });
 
