@@ -306,6 +306,34 @@
     box-shadow: 0 0 44px -12px rgba(253, 185, 19, 0.35);
   }
 
+  /* Slow horizontal marquee (uses the @keyframes marquee). Track holds two
+     copies of the content side by side; -50% travel = one seamless loop. */
+  .animate-marquee {
+    animation: marquee 32s linear infinite;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .animate-marquee {
+      animation: none;
+    }
+  }
+
+  /* The "unbroken chain" connector: a gold line that draws left-to-right when
+     its section scrolls into view (toggled via the .is-drawn class). */
+  .chain-line {
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 1.1s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+  .chain-line.is-drawn {
+    transform: scaleX(1);
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .chain-line {
+      transition: none;
+      transform: scaleX(1);
+    }
+  }
+
   /* ── Liquid Glass material scale (iOS-2026). Each tier = backdrop blur +
      saturate, 1px hairline, top-edge specular rim, and an elevation-ladder
      drop. ultrathin→chrome/chips, thin→cards/tiles, regular→sidebar/panels,

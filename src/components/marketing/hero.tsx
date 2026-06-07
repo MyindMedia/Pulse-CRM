@@ -9,6 +9,19 @@ import { Reveal } from "./reveal";
    Prompt: docs/seedance-bg-loop-prompt.md (hero studio montage). */
 const STUDIO_MONTAGE_SRC = "";
 
+const CAPABILITIES = [
+  "Bookings",
+  "Deposits",
+  "Sessions",
+  "Splits",
+  "Licensing",
+  "Releases",
+  "Royalties",
+  "Invoices",
+  "Scheduling",
+  "Inventory",
+];
+
 /** Large, soft gold ellipse glow for the center-top of the hero. 25px Gaussian
  *  blur, brand gold instead of the brief's cyan. */
 function CenterGlow() {
@@ -95,6 +108,25 @@ export function Hero() {
             <HeroReel src={STUDIO_MONTAGE_SRC} />
           </Reveal>
         )}
+      </div>
+
+      {/* Capability ticker - a slow marquee of what Pulse runs, edge-faded. */}
+      <div className="pointer-events-none absolute inset-x-0 bottom-10 z-10 overflow-hidden [mask-image:linear-gradient(to_right,transparent,#000_14%,#000_86%,transparent)]">
+        <div className="animate-marquee flex w-max">
+          {[0, 1].map((copy) => (
+            <ul key={copy} className="flex shrink-0 items-center" aria-hidden={copy === 1}>
+              {CAPABILITIES.map((c) => (
+                <li
+                  key={c}
+                  className="flex items-center gap-7 px-7 font-mono text-[0.6875rem] uppercase tracking-[0.22em] text-ash-dim"
+                >
+                  <span className="size-1 rounded-full bg-gold-dim" />
+                  {c}
+                </li>
+              ))}
+            </ul>
+          ))}
+        </div>
       </div>
     </section>
   );

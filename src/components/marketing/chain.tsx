@@ -1,4 +1,5 @@
 import { MessageSquare, CalendarCheck, Mic2, Scissors, Rocket, DollarSign } from "lucide-react";
+import { ChainRail } from "./chain-rail";
 import { Reveal } from "./reveal";
 
 /** The signature differentiator: every other tool drops the thread somewhere
@@ -29,7 +30,12 @@ export function Chain() {
           </p>
         </Reveal>
 
-        <div className="mt-14 grid gap-4 sm:grid-cols-2 lg:grid-cols-6">
+        {/* Signature: the chain literally draws itself in on scroll. */}
+        <div className="mt-14 hidden px-8 lg:block">
+          <ChainRail count={STEPS.length} />
+        </div>
+
+        <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:mt-8 lg:grid-cols-6">
           {STEPS.map((s, i) => (
             <Reveal key={s.label} delay={i * 70}>
               <div className="hover-glow group relative h-full rounded-xl border border-hairline bg-coal/40 p-5 hover:-translate-y-1 hover:border-gold-dim hover:bg-coal-2/60">
