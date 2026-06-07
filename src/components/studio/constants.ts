@@ -8,6 +8,7 @@
 import {
   Boxes,
   Cable,
+  Cpu,
   Gauge,
   Headphones,
   Mic,
@@ -43,6 +44,7 @@ export type EquipmentCategory =
   | "synth"
   | "midi"
   | "instrument"
+  | "computer"
   | "rig"
   | "other";
 export type EquipmentStatus = "available" | "in_use" | "maintenance" | "retired";
@@ -99,6 +101,7 @@ export const EQUIPMENT_CATEGORIES: {
   { value: "synth", label: "Synth / keyboard", plural: "Synths & keyboards", icon: Piano },
   { value: "midi", label: "MIDI controller", plural: "MIDI controllers", icon: Music },
   { value: "instrument", label: "Instrument", plural: "Instruments", icon: Music },
+  { value: "computer", label: "Computer", plural: "Computers", icon: Cpu },
   { value: "rig", label: "Rig", plural: "Rigs", icon: Cable },
   { value: "other", label: "Other", plural: "Other", icon: Package },
 ];

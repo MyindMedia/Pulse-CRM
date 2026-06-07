@@ -23,6 +23,7 @@ const categoryV = v.union(
   v.literal("synth"),
   v.literal("midi"),
   v.literal("instrument"),
+  v.literal("computer"),
   v.literal("rig"),
   v.literal("other"),
 );

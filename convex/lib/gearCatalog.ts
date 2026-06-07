@@ -24,6 +24,7 @@ export type GearCategory =
   | "synth"
   | "midi"
   | "instrument"
+  | "computer"
   | "monitor_controller"
   | "other";
 
@@ -290,6 +291,25 @@ export const GEAR_CATALOG: GearCatalogItem[] = [
   { id: "elektron-digitakt-ii", brand: "Elektron", model: "Digitakt II", category: "instrument", priceCents: D(999), note: "Drum machine/sampler" },
   { id: "akai-mpc-one-plus", brand: "Akai", model: "MPC One+", category: "instrument", priceCents: D(749), note: "Standalone production center" },
   { id: "nord-drum-3p", brand: "Nord", model: "Drum 3P", category: "instrument", priceCents: D(699), note: "Drum synth" },
+
+  // ── Slate (RAVEN consoles + Slate Digital hardware) ──────
+  { id: "slate-raven-mti2", brand: "Steven Slate Audio", model: "RAVEN MTi2", category: "console", priceCents: D(1499), note: "27-inch multi-touch production console" },
+  { id: "slate-raven-mti-max", brand: "Steven Slate Audio", model: "RAVEN MTi MAX", category: "console", priceCents: D(1799), note: "Multi-touch production console" },
+  { id: "slate-raven-mtx", brand: "Slate Media Technology", model: "RAVEN MTX", category: "console", priceCents: D(3499), note: "46-inch multi-touch mixing console" },
+  { id: "slate-vrs8", brand: "Slate Digital", model: "VRS8", category: "interface", priceCents: D(1999), note: "8-ch Thunderbolt interface, ultra-linear preamps" },
+  { id: "slate-vms-ml1", brand: "Slate Digital", model: "VMS ML-1", category: "mic", priceCents: D(799), note: "Large-diaphragm modeling microphone" },
+  { id: "slate-vms-ml2", brand: "Slate Digital", model: "VMS ML-2", category: "mic", priceCents: D(150), note: "Small-diaphragm modeling microphone" },
+
+  // ── Computers (Apple Macs - typical base configs; specs configurable) ──
+  { id: "apple-mac-studio-m4-max", brand: "Apple", model: "Mac Studio (M4 Max)", category: "computer", priceCents: D(1999), note: "M4 Max · 36GB · 512GB SSD (to 64/96GB, up to 16TB)" },
+  { id: "apple-mac-studio-m3-ultra", brand: "Apple", model: "Mac Studio (M3 Ultra)", category: "computer", priceCents: D(3999), note: "M3 Ultra · 96GB · 1TB SSD" },
+  { id: "apple-mac-mini-m4", brand: "Apple", model: "Mac mini (M4)", category: "computer", priceCents: D(599), note: "M4 · 16GB · 256GB SSD" },
+  { id: "apple-mac-mini-m4-pro", brand: "Apple", model: "Mac mini (M4 Pro)", category: "computer", priceCents: D(1399), note: "M4 Pro · 24GB · 512GB SSD (up to 48GB)" },
+  { id: "apple-macbook-pro-14-m5-pro", brand: "Apple", model: "MacBook Pro 14\" (M5 Pro)", category: "computer", priceCents: D(2199), note: "M5 Pro · up to 64GB · Liquid Retina XDR" },
+  { id: "apple-macbook-pro-16-m5-max", brand: "Apple", model: "MacBook Pro 16\" (M5 Max)", category: "computer", priceCents: D(3899), note: "M5 Max · 40-core GPU · up to 128GB" },
+  { id: "apple-macbook-air-13-m5", brand: "Apple", model: "MacBook Air 13\" (M5)", category: "computer", priceCents: D(1099), note: "M5 · 16GB · 512GB SSD" },
+  { id: "apple-imac-24-m4", brand: "Apple", model: "iMac 24\" (M4)", category: "computer", priceCents: D(1299), note: "M4 · 16GB · 256GB SSD · 24-inch 4.5K" },
+  { id: "apple-mac-pro-m2-ultra", brand: "Apple", model: "Mac Pro (M2 Ultra)", category: "computer", priceCents: D(6999), note: "M2 Ultra · 64GB · 1TB SSD · PCIe expansion" },
 ];
 
 /** Lowercase haystack for matching. */

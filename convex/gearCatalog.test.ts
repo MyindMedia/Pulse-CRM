@@ -3,7 +3,8 @@ import { GEAR_CATALOG, searchGearCatalog, type GearCategory } from "./lib/gearCa
 
 const VALID_CATEGORIES: GearCategory[] = [
   "console", "mic", "preamp", "interface", "outboard", "monitor",
-  "monitor_controller", "headphones", "synth", "midi", "instrument", "other",
+  "monitor_controller", "headphones", "synth", "midi", "instrument",
+  "computer", "other",
 ];
 
 describe("gear catalog data integrity", () => {
