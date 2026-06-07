@@ -23,15 +23,20 @@ Stitch to `public/studio-montage.webm` and set `STUDIO_MONTAGE_SRC` in `hero.tsx
 Use this when the tier supports a ~14-15s clip. If duration caps shorter or the
 cuts look rough, fall back to the per-shot prompts below and stitch.
 
+NOTE: filter-safe wording. Higgsfield NSFW false-positives trip on "shaft",
+"diaphragm", "rim light", "shot/shots" - all swapped out below. If it still
+flags, replace the RED line with "Filmed on a cinema camera, RAW, professional
+cinema color science" (the token "RED" can read as blood/violence).
+
 ```
-Photorealistic 15-second cinematic montage of a high-end recording studio, four shots with hard cuts, low-key cinematic lighting throughout, warm amber practicals on a near-black scene with molten-gold highlights, deep textured shadows, gentle haze.
+Photorealistic 15-second cinematic montage of a high-end recording studio, four scenes with hard cuts, low-key cinematic lighting throughout, warm amber practical lights on a near-black scene with molten-gold highlights, deep textured shadows, gentle haze.
 
-[0-4s] Slow dolly forward along a large mixing console, faders and channel lights glinting under a single warm amber key.
-[4-8s] Hard cut to a slow left-to-right pan across a large-diaphragm condenser microphone in a dim vocal booth, gold rim light on the grille, dark acoustic foam behind.
-[8-11s] Hard cut to a slow tilt up a rack of outboard gear with glowing VU meters beside near-field monitors.
-[11-15s] Hard cut to a slow orbit around vintage guitars on a dark wall and a grand piano, dust drifting through one warm light shaft.
+[0-4s] Slow dolly forward along a large mixing console, faders and channel lights glinting under a single warm amber key light.
+[4-8s] Hard cut to a slow left-to-right pan across a classic studio microphone in a dim vocal recording room, warm edge light on the grille, dark acoustic panels behind.
+[8-11s] Hard cut to a slow tilt up a rack of outboard audio gear with glowing meters beside near-field monitor speakers.
+[11-15s] Hard cut to a slow orbit around vintage guitars on a dark wall and a grand piano, dust drifting through one warm beam of light.
 
-Shot on RED V-Raptor 8K, REDCODE RAW, RED IPP2 color science, vintage cine prime lens, fine 35mm film grain and organic texture, shallow depth of field. Slow, smooth camera moves only. No people.
+Filmed on RED V-Raptor 8K, REDCODE RAW, RED IPP2 color science, vintage cine prime lens, fine 35mm film grain and organic texture, shallow depth of field. Slow, smooth camera moves only. No people.
 ```
 
 ### Per-shot prompts (Text-to-Video, 16:9, 4-5s each, slow/low motion) - stitch to ~15s
@@ -41,27 +46,27 @@ reflections, plasticky/CGI look.
 
 **Shot 1 - console (slow dolly in):**
 ```
-Photorealistic cinematic shot of a high-end recording studio mixing console, slow dolly forward along the channel strip, faders and channel lights glinting. Low-key cinematic lighting from a single warm amber practical, deep textured shadows, dark wood and acoustic panels, gentle haze. Shot on RED V-Raptor 8K, REDCODE RAW, RED IPP2 color science, vintage cine prime lens, fine 35mm film grain and organic texture, shallow depth of field, near-black scene with molten-gold highlights. Slow, smooth camera. No people.
+Photorealistic cinematic scene of a high-end recording studio mixing console, slow dolly forward along the channel strip, faders and channel lights glinting. Low-key cinematic lighting from a single warm amber practical, deep textured shadows, dark wood and acoustic panels, gentle haze. Filmed on RED V-Raptor 8K, REDCODE RAW, RED IPP2 color science, vintage cine prime lens, fine 35mm film grain and organic texture, shallow depth of field, near-black scene with molten-gold highlights. Slow, smooth camera. No people.
 ```
 
 **Shot 2 - vocal mic (slow left-to-right pan):**
 ```
-Photorealistic cinematic close-up of a large-diaphragm condenser microphone in a dim vocal booth, slow left-to-right pan across the mic, low-key lighting from a single warm amber source, gold rim light on the grille, dark acoustic foam behind, deep shadows. Shot on RED V-Raptor 8K, REDCODE RAW, RED IPP2 color science, vintage cine prime lens, fine film grain and organic texture, shallow depth of field, near-black background. Slow, smooth camera. No people.
+Photorealistic cinematic close-up of a classic studio microphone in a dim vocal booth, slow left-to-right pan across the mic, low-key lighting from a single warm amber source, warm edge light on the grille, dark acoustic panels behind, deep shadows. Filmed on RED V-Raptor 8K, REDCODE RAW, RED IPP2 color science, vintage cine prime lens, fine film grain and organic texture, shallow depth of field, near-black background. Slow, smooth camera. No people.
 ```
 
 **Shot 3 - outboard rack + monitors (slow tilt up):**
 ```
-Photorealistic cinematic shot of a rack of outboard studio gear with glowing VU meters beside near-field monitors, slow tilt up the rack, low-key cinematic lighting, deep shadows, warm amber glow on the meters, gentle haze, near-black scene with molten-gold highlights. Shot on RED V-Raptor 8K, REDCODE RAW, RED IPP2 color science, vintage cine prime lens, fine 35mm film grain and organic texture, shallow depth of field. Slow, smooth camera. No people.
+Photorealistic cinematic scene of a rack of outboard studio gear with glowing VU meters beside near-field monitor speakers, slow tilt up the rack, low-key cinematic lighting, deep shadows, warm amber glow on the meters, gentle haze, near-black scene with molten-gold highlights. Filmed on RED V-Raptor 8K, REDCODE RAW, RED IPP2 color science, vintage cine prime lens, fine 35mm film grain and organic texture, shallow depth of field. Slow, smooth camera. No people.
 ```
 
 **Shot 4 - instruments (slow orbit):**
 ```
-Photorealistic cinematic shot of vintage guitars on a dark studio wall and a grand piano, slow orbit around the instruments, low-key lighting with one warm light shaft and dust drifting through it, deep textured shadows, molten-gold highlights, near-black background. Shot on RED V-Raptor 8K, REDCODE RAW, RED IPP2 color science, vintage cine prime lens, fine film grain and organic texture, shallow depth of field. Slow, smooth camera. No people.
+Photorealistic cinematic scene of vintage guitars on a dark studio wall and a grand piano, slow orbit around the instruments, low-key lighting with one warm beam of light and dust drifting through it, deep textured shadows, molten-gold highlights, near-black background. Filmed on RED V-Raptor 8K, REDCODE RAW, RED IPP2 color science, vintage cine prime lens, fine film grain and organic texture, shallow depth of field. Slow, smooth camera. No people.
 ```
 
 **Fallback - single clip:**
 ```
-Photorealistic cinematic slow dolly through a dim high-end recording studio: past a large mixing console with glowing faders, toward a condenser microphone in a small pool of warm amber light. Low-key cinematic lighting, deep textured shadows, dark wood and acoustic panels, gentle haze, near-black scene with molten-gold highlights, shallow depth of field. Shot on RED V-Raptor 8K, REDCODE RAW, RED IPP2 color science, vintage cine prime lens, fine 35mm film grain and organic texture. Slow, smooth camera, no cuts. No people.
+Photorealistic cinematic slow dolly through a dim high-end recording studio: past a large mixing console with glowing faders, toward a classic studio microphone in a small pool of warm amber light. Low-key cinematic lighting, deep textured shadows, dark wood and acoustic panels, gentle haze, near-black scene with molten-gold highlights, shallow depth of field. Filmed on RED V-Raptor 8K, REDCODE RAW, RED IPP2 color science, vintage cine prime lens, fine 35mm film grain and organic texture. Slow, smooth camera, no cuts. No people.
 ```
 
 ## How to wire the generated file in
