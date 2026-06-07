@@ -7,7 +7,7 @@ import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
-import { ArrowUpRight, MoreHorizontal, Package, Wrench, Trash2 } from "lucide-react";
+import { ArrowUpRight, MoreHorizontal, Package, Wrench, Trash2, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -65,6 +65,8 @@ export function RoomCard({
   room: RoomItem;
   equipment: RoomEquipment[] | undefined;
 }) {
+  const [gearExpanded, setGearExpanded] = React.useState(false);
+  const PREVIEW = 4;
   const router = useRouter();
   const setStatus = useMutation(api.rooms.setStatus);
   const setAutoStatus = useMutation(api.rooms.setAutoStatus);
@@ -266,29 +268,56 @@ export function RoomCard({
               </Link>
             </p>
           ) : (
-            <ul className="space-y-1">
-              {equipment.map((item) => {
-                const meta = categoryMeta(item.category);
-                const Icon = meta.icon;
-                return (
-                  <li
-                    key={item._id}
-                    className="flex items-center gap-2 rounded-sm bg-coal-2 px-2 py-1.5"
-                  >
-                    <Icon className="size-3.5 shrink-0 text-ash-dim" />
-                    <span className="min-w-0 flex-1 truncate text-xs text-bone">
-                      {item.name}
-                    </span>
-                    <span className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
-                      {meta.label}
-                    </span>
-                    <span className="font-mono text-[0.6875rem] tabular-nums text-ash">
-                      {money(item.currentValueCents, { compact: true })}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
+            <>
+              <ul
+                className={cn(
+                  "space-y-1",
+                  gearExpanded && "max-h-72 overflow-auto pr-0.5",
+                )}
+              >
+                {(gearExpanded ? equipment : equipment.slice(0, PREVIEW)).map((item) => {
+                  const meta = categoryMeta(item.category);
+                  const Icon = meta.icon;
+                  return (
+                    <li
+                      key={item._id}
+                      className="flex items-center gap-2 rounded-sm bg-coal-2 px-2 py-1.5"
+                    >
+                      <Icon className="size-3.5 shrink-0 text-ash-dim" />
+                      <span className="min-w-0 flex-1 truncate text-xs text-bone">
+                        {item.name}
+                      </span>
+                      <span className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                        {meta.label}
+                      </span>
+                      <span className="font-mono text-[0.6875rem] tabular-nums text-ash">
+                        {money(item.currentValueCents, { compact: true })}
+                      </span>
+                    </li>
+                  );
+                })}
+              </ul>
+              {equipment.length > PREVIEW && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setGearExpanded((v) => !v);
+                  }}
+                  className="flex w-full items-center justify-center gap-1 rounded-sm border border-hairline-2 py-1 text-[0.6875rem] font-medium text-ash transition-colors hover:bg-coal/60 hover:text-bone"
+                >
+                  {gearExpanded ? (
+                    <>
+                      <ChevronUp className="size-3" /> Show less
+                    </>
+                  ) : (
+                    <>
+                      <ChevronDown className="size-3" /> Show all {equipment.length}
+                    </>
+                  )}
+                </button>
+              )}
+            </>
           )}
         </div>
 

@@ -19,9 +19,9 @@ import { AddRoomDialog } from "@/components/studio/add-room-dialog";
 import { MemberDialog } from "@/components/studio/member-dialog";
 
 /**
- * One room card backed by a live `api.rooms.get` query so the card can show
- * the room's installed-equipment inventory. `useQuery` must run at the top
- * level of a component, so each room gets its own card component.
+ * One room card backed by a live `api.rooms.get` query so the card can show a
+ * preview of the room's installed gear. `useQuery` must run at the top level of
+ * a component, so each room gets its own card component.
  */
 function StudioRoomCard({ room }: { room: RoomItem }) {
   const detail = useQuery(api.rooms.get, { id: room._id });
