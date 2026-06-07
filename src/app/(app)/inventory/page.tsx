@@ -8,8 +8,9 @@ import {
   DoorOpen,
   Package,
   Plus,
-  TrendingDown,
   Wallet,
+  Cpu,
+  Sofa,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
@@ -26,6 +27,7 @@ import {
 import { money } from "@/lib/format";
 import {
   EQUIPMENT_CATEGORIES,
+  ASSET_CLASSES,
   type EquipmentCategory,
 } from "@/components/studio/constants";
 import {
@@ -48,6 +50,7 @@ const STORAGE = "storage";
 export default function InventoryPage() {
   const [category, setCategory] = React.useState<string>(ALL);
   const [location, setLocation] = React.useState<string>(ALL);
+  const [assetClass, setAssetClass] = React.useState<string>(ALL);
 
   const [addOpen, setAddOpen] = React.useState(false);
   const [editItem, setEditItem] = React.useState<EditableEquipment | undefined>(
@@ -64,10 +67,11 @@ export default function InventoryPage() {
   const items = useQuery(api.equipment.list, {
     category: category === ALL ? undefined : (category as EquipmentCategory),
     location: location === ALL ? undefined : location,
+    assetClass: assetClass === ALL ? undefined : assetClass,
   }) as EquipmentRow[] | undefined;
 
   const loading = items === undefined;
-  const filtering = category !== ALL || location !== ALL;
+  const filtering = category !== ALL || location !== ALL || assetClass !== ALL;
   const empty = !loading && items.length === 0;
 
   function handleEdit(item: EquipmentRow) {
@@ -113,29 +117,29 @@ export default function InventoryPage() {
       ) : (
         <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
           <StatTile
-            label="Current value"
+            label="Total value"
             value={money(summary.currentTotal, { compact: true })}
             icon={Wallet}
             accent
             hint={`${summary.count} ${summary.count === 1 ? "item" : "items"}`}
           />
           <StatTile
-            label="Purchase value"
-            value={money(summary.purchaseTotal, { compact: true })}
-            icon={Package}
-            hint="total cost new"
+            label="Gear value"
+            value={money(summary.gearCurrent, { compact: true })}
+            icon={Cpu}
+            hint={`${summary.gearCount} hardware items`}
           />
           <StatTile
-            label="Depreciation"
-            value={money(summary.depreciation, { compact: true })}
-            icon={TrendingDown}
-            hint="lost since purchase"
+            label="Furniture value"
+            value={money(summary.furnitureCurrent, { compact: true })}
+            icon={Sofa}
+            hint={`${summary.furnitureCount} furniture & space`}
           />
           <StatTile
             label="Installed"
             value={String(summary.installed)}
             icon={DoorOpen}
-            hint="across the rooms"
+            hint="assigned to rooms"
           />
           <StatTile
             label="In storage"
@@ -152,6 +156,21 @@ export default function InventoryPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
+        <div className="w-full sm:w-48">
+          <Select value={assetClass} onValueChange={setAssetClass}>
+            <SelectTrigger aria-label="Filter by class">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>All assets</SelectItem>
+              {ASSET_CLASSES.map((c) => (
+                <SelectItem key={c.value} value={c.value}>
+                  {c.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         <div className="w-full sm:w-48">
           <Select value={category} onValueChange={setCategory}>
             <SelectTrigger aria-label="Filter by category">
@@ -190,6 +209,7 @@ export default function InventoryPage() {
             onClick={() => {
               setCategory(ALL);
               setLocation(ALL);
+              setAssetClass(ALL);
             }}
           >
             Clear filters

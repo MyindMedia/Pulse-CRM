@@ -19,6 +19,10 @@ import {
   SlidersHorizontal,
   Speaker,
   Usb,
+  Sofa,
+  AudioLines,
+  Frame,
+  Plug,
   type LucideIcon,
 } from "lucide-react";
 
@@ -46,6 +50,10 @@ export type EquipmentCategory =
   | "instrument"
   | "computer"
   | "rig"
+  | "furniture"
+  | "acoustic"
+  | "decor"
+  | "cable"
   | "other";
 export type EquipmentStatus = "available" | "in_use" | "maintenance" | "retired";
 
@@ -103,7 +111,26 @@ export const EQUIPMENT_CATEGORIES: {
   { value: "instrument", label: "Instrument", plural: "Instruments", icon: Music },
   { value: "computer", label: "Computer", plural: "Computers", icon: Cpu },
   { value: "rig", label: "Rig", plural: "Rigs", icon: Cable },
+  { value: "furniture", label: "Furniture", plural: "Furniture", icon: Sofa },
+  { value: "acoustic", label: "Acoustic treatment", plural: "Acoustic treatment", icon: AudioLines },
+  { value: "decor", label: "Decor", plural: "Decor", icon: Frame },
+  { value: "cable", label: "Cable / accessory", plural: "Cables & accessories", icon: Plug },
   { value: "other", label: "Other", plural: "Other", icon: Package },
+];
+
+/* ------------------------------------------------------------
+   Asset class - groups categories into Gear vs Furniture for
+   clear cost separation in the inventory (software is its own
+   module). Anything not furniture-class counts as gear.
+   ------------------------------------------------------------ */
+export type AssetClass = "gear" | "furniture";
+const FURNITURE_CATEGORIES = new Set(["furniture", "acoustic", "decor", "cable"]);
+export function assetClass(category: string): AssetClass {
+  return FURNITURE_CATEGORIES.has(category) ? "furniture" : "gear";
+}
+export const ASSET_CLASSES: { value: AssetClass; label: string }[] = [
+  { value: "gear", label: "Gear / hardware" },
+  { value: "furniture", label: "Furniture & space" },
 ];
 
 const CATEGORY_BY_VALUE = new Map(EQUIPMENT_CATEGORIES.map((c) => [c.value, c]));

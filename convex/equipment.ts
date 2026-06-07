@@ -25,6 +25,10 @@ const categoryV = v.union(
   v.literal("instrument"),
   v.literal("computer"),
   v.literal("rig"),
+  v.literal("furniture"),
+  v.literal("acoustic"),
+  v.literal("decor"),
+  v.literal("cable"),
   v.literal("other"),
 );
 const statusV = v.union(
@@ -52,19 +56,29 @@ async function hydrate(ctx: QueryCtx, item: Doc<"equipment">) {
   };
 }
 
+/** Categories that count as "furniture & space" rather than gear/hardware,
+ *  for the inventory cost split (software is tracked separately). Keep in sync
+ *  with assetClass() in src/components/studio/constants.ts. */
+const FURNITURE_CATEGORIES = new Set(["furniture", "acoustic", "decor", "cable"]);
+const isFurniture = (category: string) => FURNITURE_CATEGORIES.has(category);
+
 export const list = query({
   args: {
     category: v.optional(categoryV),
     /** "storage", a room id, or omitted for everything. */
     location: v.optional(v.string()),
+    /** "gear" | "furniture" - filter by asset class. */
+    assetClass: v.optional(v.string()),
   },
-  handler: async (ctx, { category, location }) => {
+  handler: async (ctx, { category, location, assetClass }) => {
     const orgId = await currentOrg(ctx);
     let rows = await ctx.db
       .query("equipment")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .collect();
     if (category) rows = rows.filter((r) => r.category === category);
+    if (assetClass === "furniture") rows = rows.filter((r) => isFurniture(r.category));
+    else if (assetClass === "gear") rows = rows.filter((r) => !isFurniture(r.category));
     if (location === "storage") {
       rows = rows.filter((r) => !r.installedInRoomId);
     } else if (location && location !== "all") {
@@ -116,6 +130,10 @@ export const summary = query({
     const purchaseTotal = rows.reduce((s, r) => s + r.purchaseCents, 0);
     const currentTotal = rows.reduce((s, r) => s + r.currentValueCents, 0);
     const installed = rows.filter((r) => r.installedInRoomId).length;
+    const gear = rows.filter((r) => !isFurniture(r.category));
+    const furniture = rows.filter((r) => isFurniture(r.category));
+    const sum = (arr: typeof rows, k: "purchaseCents" | "currentValueCents") =>
+      arr.reduce((s, r) => s + r[k], 0);
     return {
       count: rows.length,
       installed,
@@ -124,6 +142,13 @@ export const summary = query({
       currentTotal,
       depreciation: purchaseTotal - currentTotal,
       maintenance: rows.filter((r) => !r.installedInRoomId && r.status === "maintenance").length,
+      // Cost separation: gear/hardware vs furniture & space.
+      gearCount: gear.length,
+      gearCurrent: sum(gear, "currentValueCents"),
+      gearPurchase: sum(gear, "purchaseCents"),
+      furnitureCount: furniture.length,
+      furnitureCurrent: sum(furniture, "currentValueCents"),
+      furniturePurchase: sum(furniture, "purchaseCents"),
     };
   },
 });

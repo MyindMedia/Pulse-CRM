@@ -632,6 +632,10 @@ export default defineSchema({
       v.literal("instrument"),
       v.literal("computer"),
       v.literal("rig"),
+      v.literal("furniture"),
+      v.literal("acoustic"),
+      v.literal("decor"),
+      v.literal("cable"),
       v.literal("other"),
     ),
     installedInRoomId: v.optional(v.id("rooms")), // unset → in storage
