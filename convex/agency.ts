@@ -594,6 +594,22 @@ export const setStatus = mutation({
   },
 });
 
+/** Enable/disable nav features for a sub-account. `disabledFeatures` is the
+ *  full list of feature keys to turn OFF (everything else stays on). Agency
+ *  only; the cap check enforces the org is under the caller's agency. */
+export const setFeatures = mutation({
+  args: { orgId: v.string(), disabledFeatures: v.array(v.string()) },
+  handler: async (ctx, { orgId, disabledFeatures }) => {
+    await requireCapability(ctx, "agency.subaccount.pause", { orgId });
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    if (!org) throw new Error("Subaccount not found");
+    await ctx.db.patch(org._id, { disabledFeatures: [...new Set(disabledFeatures)] });
+  },
+});
+
 // ── Internal helpers used by the createSubaccount cap check ──────
 export const _resolveSelf = internalQuery({
   args: {},

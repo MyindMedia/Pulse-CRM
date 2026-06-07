@@ -2,6 +2,8 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
 import { Building2 } from "lucide-react";
 import { NAV } from "@/lib/nav";
 import { cn } from "@/lib/utils";
@@ -21,6 +23,10 @@ function Wordmark() {
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
+  // Hide nav features the agency has disabled for this sub-account.
+  const org = useQuery(api.orgs.current);
+  const disabled = new Set(org?.disabledFeatures ?? []);
+  const items = NAV.filter((item) => !item.feature || !disabled.has(item.feature));
 
   return (
     <div className="flex h-full flex-col gap-6 py-5">
@@ -29,7 +35,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </div>
 
       <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-3">
-        {NAV.map((item) => {
+        {items.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
             <Link

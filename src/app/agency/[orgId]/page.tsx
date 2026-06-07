@@ -29,6 +29,7 @@ import {
   STATUS_TONE,
 } from "@/components/agency/meta";
 import { DetailActions } from "@/components/agency/detail-actions";
+import { FeatureToggles } from "@/components/agency/feature-toggles";
 import { ActivityFeed } from "@/components/agency/activity-feed";
 import { ResendInviteButton } from "@/components/agency/resend-invite-button";
 
@@ -208,6 +209,23 @@ export default function SubaccountDetailPage() {
           </Card>
         </Section>
       </div>
+
+      {/* Feature toggles - enable/disable nav features for this sub-account */}
+      <Section title="Features">
+        <Card>
+          <CardContent className="space-y-4 pt-5">
+            <p className="text-sm text-ash">
+              Show or hide nav features for this studio. Hidden features disappear from
+              their sidebar and stay off until you turn them back on - handy for rolling
+              out new tools (like the Agent) gradually.
+            </p>
+            <FeatureToggles
+              orgId={subaccount.orgId}
+              disabled={subaccount.disabledFeatures ?? []}
+            />
+          </CardContent>
+        </Card>
+      </Section>
     </div>
   );
 }

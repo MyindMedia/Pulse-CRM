@@ -86,6 +86,9 @@ export default defineSchema({
     ownerEmail: v.optional(v.string()),
     clerkOrgId: v.optional(v.string()), // set once a real Clerk org is created
     createdByAgency: v.optional(v.boolean()),
+    // Feature toggles - nav features the agency has DISABLED for this sub-account
+    // (empty/unset = everything enabled). Keys match src/lib/features.ts.
+    disabledFeatures: v.optional(v.array(v.string())),
     // NEW (agency mode - cycle 1)
     agencyId: v.optional(v.string()),     // parent agency, null for base tier
     tier: v.optional(v.union(             // cached for cap-check perf

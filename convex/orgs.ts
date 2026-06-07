@@ -39,6 +39,8 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     ownerName: org?.ownerName ?? null,
     ownerEmail: org?.ownerEmail ?? null,
     configured: Boolean(org),
+    // Feature toggles (nav gating) - keys the agency has disabled for this org.
+    disabledFeatures: org?.disabledFeatures ?? [],
     // Pricing / discount / tax config (cycle: Pricing settings)
     servicePricing: org?.servicePricing ?? null,
     discountCodes: org?.discountCodes ?? [],
