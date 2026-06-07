@@ -18,7 +18,23 @@ the brand. Best made as 4 short clips (one per angle) then stitched, since one
 AI clip = one continuous shot. Plays in the framed `HeroReel` (natural color).
 Stitch to `public/studio-montage.webm` and set `STUDIO_MONTAGE_SRC` in `hero.tsx`.
 
-### Higgsfield per-shot prompts (Text-to-Video, 16:9, 4-5s, slow/low motion)
+### Single 15s multi-shot prompt (Text-to-Video, 16:9, 15s, slow/low motion)
+
+Use this when the tier supports a ~14-15s clip. If duration caps shorter or the
+cuts look rough, fall back to the per-shot prompts below and stitch.
+
+```
+Photorealistic 15-second cinematic montage of a high-end recording studio, four shots with hard cuts, low-key cinematic lighting throughout, warm amber practicals on a near-black scene with molten-gold highlights, deep textured shadows, gentle haze.
+
+[0-4s] Slow dolly forward along a large mixing console, faders and channel lights glinting under a single warm amber key.
+[4-8s] Hard cut to a slow left-to-right pan across a large-diaphragm condenser microphone in a dim vocal booth, gold rim light on the grille, dark acoustic foam behind.
+[8-11s] Hard cut to a slow tilt up a rack of outboard gear with glowing VU meters beside near-field monitors.
+[11-15s] Hard cut to a slow orbit around vintage guitars on a dark wall and a grand piano, dust drifting through one warm light shaft.
+
+Shot on RED V-Raptor 8K, REDCODE RAW, RED IPP2 color science, vintage cine prime lens, fine 35mm film grain and organic texture, shallow depth of field. Slow, smooth camera moves only. No people.
+```
+
+### Per-shot prompts (Text-to-Video, 16:9, 4-5s each, slow/low motion) - stitch to ~15s
 
 Avoid: people, on-screen text, fast motion, flicker, warped gear, glass
 reflections, plasticky/CGI look.
