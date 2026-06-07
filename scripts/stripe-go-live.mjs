@@ -65,12 +65,13 @@ if (!mode) die("Pass --rehearse (test, non-destructive) or --apply (live).");
 
 const key = process.env.STRIPE_SECRET_KEY;
 if (!key) die("STRIPE_SECRET_KEY is required.");
-const keyMode = key.startsWith("sk_live_") ? "live" : key.startsWith("sk_test_") ? "test" : "unknown";
+// Accept secret (sk_) or restricted (rk_) keys, live or test.
+const keyMode = key.includes("_live_") ? "live" : key.includes("_test_") ? "test" : "unknown";
 
 if (mode === "apply" && keyMode !== "live")
-  die(`--apply needs a sk_live_ key; got ${keyMode}. (Use --rehearse for test.)`);
+  die(`--apply needs a live key (sk_live_ or rk_live_); got ${keyMode}. (Use --rehearse for test.)`);
 if (mode === "rehearse" && keyMode !== "test")
-  die(`--rehearse expects a sk_test_ key (safe rehearsal); got ${keyMode}.`);
+  die(`--rehearse expects a test key (sk_test_ or rk_test_); got ${keyMode}.`);
 if (mode === "apply" && !process.env.CONVEX_DEPLOY_KEY)
   die("--apply needs CONVEX_DEPLOY_KEY to set the Convex prod vars.");
 
