@@ -41,7 +41,19 @@ export type GearCatalogItem = {
   note?: string;
   /** Stable product image URL, when known. */
   imageUrl?: string;
+  /** Required attribution for the image (CC sources). Shown wherever the image
+   *  is displayed. */
+  imageCredit?: string;
 };
+
+/* Image credits (Wikimedia Commons) - shown in the catalog picker:
+   - Shure SM57: E bailey, CC BY-SA 4.0
+   - Teletronix LA-2A: Wikimedia Commons, CC BY 4.0
+   - UA 1176: John Tuggle, CC BY 2.0
+   - Minimoog: Krash, public domain
+   - Fender Jazz Bass: BrianReading, CC BY-SA 4.0
+   - Korg Minilogue: Aeternus, CC BY-SA 4.0
+   - Gibson Les Paul: Lightburst, CC BY-SA 4.0 */
 
 const D = (dollars: number): number => Math.round(dollars * 100);
 
@@ -95,7 +107,7 @@ export const GEAR_CATALOG: GearCatalogItem[] = [
   { id: "akg-c214", brand: "AKG", model: "C214", category: "mic", priceCents: D(479) },
   { id: "shure-sm7b", brand: "Shure", model: "SM7B", category: "mic", priceCents: D(399), note: "Dynamic vocal/broadcast" },
   { id: "shure-sm7db", brand: "Shure", model: "SM7dB", category: "mic", priceCents: D(499), note: "SM7B with active preamp" },
-  { id: "shure-sm57", brand: "Shure", model: "SM57", category: "mic", priceCents: D(99), note: "Dynamic instrument" },
+  { id: "shure-sm57", brand: "Shure", model: "SM57", category: "mic", priceCents: D(99), note: "Dynamic instrument", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/4/4a/Shure_SM57_microphone.jpg/960px-Shure_SM57_microphone.jpg", imageCredit: "E bailey / Wikimedia Commons, CC BY-SA 4.0" },
   { id: "shure-sm58", brand: "Shure", model: "SM58", category: "mic", priceCents: D(99), note: "Dynamic vocal" },
   { id: "shure-ksm44a", brand: "Shure", model: "KSM44A", category: "mic", priceCents: D(999) },
   { id: "shure-beta52a", brand: "Shure", model: "Beta 52A", category: "mic", priceCents: D(189), note: "Kick drum dynamic" },
@@ -138,8 +150,8 @@ export const GEAR_CATALOG: GearCatalogItem[] = [
   { id: "chandler-tg2", brand: "Chandler Limited", model: "TG2", category: "preamp", priceCents: D(2799) },
 
   // ── Outboard (compressors / EQ / dynamics) ───────────────
-  { id: "ua-1176ln", brand: "Universal Audio", model: "1176LN", category: "outboard", priceCents: D(1499), note: "FET compressor/limiter" },
-  { id: "ua-la2a", brand: "Universal Audio", model: "Teletronix LA-2A", category: "outboard", priceCents: D(1799), note: "Optical tube leveling amp" },
+  { id: "ua-1176ln", brand: "Universal Audio", model: "1176LN", category: "outboard", priceCents: D(1499), note: "FET compressor/limiter", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/14/UA_LA1176_Rev.A_%28Universal_Audio_Limiting_Amplifier%29_angled_-_1093_Studios%2C_Athens%2C_Georgia_%282010-06-21_03.14.39_by_John_Tuggle%29.jpg/960px-UA_LA1176_Rev.A_%28Universal_Audio_Limiting_Amplifier%29_angled_-_1093_Studios%2C_Athens%2C_Georgia_%282010-06-21_03.14.39_by_John_Tuggle%29.jpg", imageCredit: "John Tuggle / Wikimedia Commons, CC BY 2.0" },
+  { id: "ua-la2a", brand: "Universal Audio", model: "Teletronix LA-2A", category: "outboard", priceCents: D(1799), note: "Optical tube leveling amp", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/ac/Teletronix_LA-2A_Leveling_Amplifier_-_PatchWerk_Recording_Studios%2C_2007_%28edit_%26_clip%29.jpg/960px-Teletronix_LA-2A_Leveling_Amplifier_-_PatchWerk_Recording_Studios%2C_2007_%28edit_%26_clip%29.jpg", imageCredit: "Wikimedia Commons, CC BY 4.0" },
   { id: "ua-la610-mkii", brand: "Universal Audio", model: "LA-610 MkII", category: "outboard", priceCents: D(1499), note: "Channel strip (610 pre + T4 comp)" },
   { id: "ua-6176", brand: "Universal Audio", model: "6176", category: "outboard", priceCents: D(2799), note: "610 preamp + 1176 compressor" },
   { id: "empirical-distressor", brand: "Empirical Labs", model: "Distressor EL8", category: "outboard", priceCents: D(1499), note: "Knee compressor" },
@@ -219,7 +231,7 @@ export const GEAR_CATALOG: GearCatalogItem[] = [
   { id: "moog-subsequent-37", brand: "Moog", model: "Subsequent 37", category: "synth", priceCents: D(1799), note: "Analog mono/paraphonic" },
   { id: "moog-matriarch", brand: "Moog", model: "Matriarch", category: "synth", priceCents: D(2199), note: "Semi-modular paraphonic" },
   { id: "moog-grandmother", brand: "Moog", model: "Grandmother", category: "synth", priceCents: D(999), note: "Semi-modular analog" },
-  { id: "moog-minimoog-model-d", brand: "Moog", model: "Minimoog Model D", category: "synth", priceCents: D(4999) },
+  { id: "moog-minimoog-model-d", brand: "Moog", model: "Minimoog Model D", category: "synth", priceCents: D(4999), imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/2/22/Minimoog.JPG/960px-Minimoog.JPG", imageCredit: "Krash / Wikimedia Commons, public domain" },
   { id: "moog-mother-32", brand: "Moog", model: "Mother-32", category: "synth", priceCents: D(699), note: "Semi-modular eurorack" },
   { id: "sequential-prophet-6", brand: "Sequential", model: "Prophet-6", category: "synth", priceCents: D(3299), note: "6-voice analog" },
   { id: "sequential-prophet-10", brand: "Sequential", model: "Prophet-10", category: "synth", priceCents: D(4499) },
@@ -230,7 +242,7 @@ export const GEAR_CATALOG: GearCatalogItem[] = [
   { id: "roland-jupiter-xm", brand: "Roland", model: "JUPITER-Xm", category: "synth", priceCents: D(1499) },
   { id: "roland-fantom-8", brand: "Roland", model: "FANTOM-8", category: "synth", priceCents: D(3899), note: "88-key workstation" },
   { id: "roland-sh4d", brand: "Roland", model: "SH-4d", category: "synth", priceCents: D(649), note: "Desktop synth" },
-  { id: "korg-minilogue-xd", brand: "Korg", model: "minilogue xd", category: "synth", priceCents: D(649), note: "4-voice analog/digital" },
+  { id: "korg-minilogue-xd", brand: "Korg", model: "minilogue xd", category: "synth", priceCents: D(649), note: "4-voice analog/digital", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/a/a5/Korg_Minilogue.jpg/960px-Korg_Minilogue.jpg", imageCredit: "Aeternus / Wikimedia Commons, CC BY-SA 4.0" },
   { id: "korg-wavestate", brand: "Korg", model: "wavestate", category: "synth", priceCents: D(799) },
   { id: "korg-opsix", brand: "Korg", model: "opsix", category: "synth", priceCents: D(799), note: "FM synth" },
   { id: "korg-nautilus-61", brand: "Korg", model: "Nautilus 61", category: "synth", priceCents: D(2499), note: "Workstation" },
@@ -272,8 +284,8 @@ export const GEAR_CATALOG: GearCatalogItem[] = [
 
   // ── Instruments / other ──────────────────────────────────
   { id: "fender-player-strat", brand: "Fender", model: "Player Stratocaster", category: "instrument", priceCents: D(799), note: "Electric guitar" },
-  { id: "gibson-les-paul-standard", brand: "Gibson", model: "Les Paul Standard '60s", category: "instrument", priceCents: D(2799), note: "Electric guitar" },
-  { id: "fender-player-jazz-bass", brand: "Fender", model: "Player Jazz Bass", category: "instrument", priceCents: D(899), note: "Electric bass" },
+  { id: "gibson-les-paul-standard", brand: "Gibson", model: "Les Paul Standard '60s", category: "instrument", priceCents: D(2799), note: "Electric guitar", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/1/1c/Full_front_R9_Les_Paul.jpg/960px-Full_front_R9_Les_Paul.jpg", imageCredit: "Lightburst / Wikimedia Commons, CC BY-SA 4.0" },
+  { id: "fender-player-jazz-bass", brand: "Fender", model: "Player Jazz Bass", category: "instrument", priceCents: D(899), note: "Electric bass", imageUrl: "https://upload.wikimedia.org/wikipedia/commons/thumb/5/51/Fender_Jazz_Bass.jpg/960px-Fender_Jazz_Bass.jpg", imageCredit: "BrianReading / Wikimedia Commons, CC BY-SA 4.0" },
   { id: "roland-tr-8s", brand: "Roland", model: "TR-8S", category: "instrument", priceCents: D(799), note: "Rhythm/drum machine" },
   { id: "elektron-digitakt-ii", brand: "Elektron", model: "Digitakt II", category: "instrument", priceCents: D(999), note: "Drum machine/sampler" },
   { id: "akai-mpc-one-plus", brand: "Akai", model: "MPC One+", category: "instrument", priceCents: D(749), note: "Standalone production center" },

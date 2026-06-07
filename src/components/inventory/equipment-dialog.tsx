@@ -116,8 +116,9 @@ export function EquipmentDialog({
   const [submitting, setSubmitting] = React.useState(false);
   // Photo uploaded during the create flow (edit uses PhotoUploader + the item id).
   const [photoId, setPhotoId] = React.useState<string | null>(null);
-  // Catalog photo URL prefilled when a catalog item with an image is picked.
+  // Catalog photo prefilled when a catalog item with an image is picked.
   const [catalogPhotoUrl, setCatalogPhotoUrl] = React.useState<string | null>(null);
+  const [catalogPhotoCredit, setCatalogPhotoCredit] = React.useState<string | null>(null);
   // Gear-catalog search (create flow only).
   const [catalogQ, setCatalogQ] = React.useState("");
   const [catalogOpen, setCatalogOpen] = React.useState(false);
@@ -125,7 +126,10 @@ export function EquipmentDialog({
     api.equipment.searchCatalog,
     !isEdit && catalogQ.trim().length >= 1 ? { q: catalogQ, limit: 8 } : "skip",
   ) as
-    | { id: string; brand: string; model: string; category: string; priceCents: number; note?: string; imageUrl?: string }[]
+    | {
+        id: string; brand: string; model: string; category: string;
+        priceCents: number; note?: string; imageUrl?: string; imageCredit?: string;
+      }[]
     | undefined;
 
   // Reset the form whenever the dialog re-opens.
@@ -136,6 +140,7 @@ export function EquipmentDialog({
       setForm(item ? toForm(item) : BLANK);
       setPhotoId(null);
       setCatalogPhotoUrl(null);
+      setCatalogPhotoCredit(null);
       setCatalogQ("");
       setCatalogOpen(false);
     }
@@ -150,6 +155,7 @@ export function EquipmentDialog({
       purchase: (it.priceCents / 100).toString(),
     }));
     setCatalogPhotoUrl(it.imageUrl ?? null);
+    setCatalogPhotoCredit(it.imageCredit ?? null);
     setCatalogQ(`${it.brand} ${it.model}`);
     setCatalogOpen(false);
   }
@@ -262,9 +268,18 @@ export function EquipmentDialog({
                             type="button"
                             onMouseDown={(e) => e.preventDefault()}
                             onClick={() => pickCatalog(it)}
-                            className="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-hairline/40"
+                            className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-hairline/40"
                           >
-                            <span className="min-w-0">
+                            {it.imageUrl ? (
+                              // eslint-disable-next-line @next/next/no-img-element
+                              <img
+                                src={it.imageUrl}
+                                alt=""
+                                className="size-9 shrink-0 rounded border border-hairline object-cover"
+                                loading="lazy"
+                              />
+                            ) : null}
+                            <span className="min-w-0 flex-1">
                               <span className="block truncate text-sm text-bone">
                                 {it.brand} {it.model}
                               </span>
@@ -303,12 +318,39 @@ export function EquipmentDialog({
             ) : (
               <div className="space-y-1.5">
                 <p className="text-xs font-medium text-ash">Photo</p>
-                <PhotoUpload
-                  photo={null}
-                  generateUploadUrl={genPhotoUrl}
-                  onStorageId={async (id) => setPhotoId(id)}
-                  hint="Optional. Camera or library on mobile."
-                />
+                {catalogPhotoUrl && !photoId ? (
+                  <div className="flex items-start gap-3 rounded-md border border-hairline bg-coal-2 p-2">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={catalogPhotoUrl}
+                      alt="Catalog"
+                      className="size-16 shrink-0 rounded border border-hairline object-cover"
+                    />
+                    <div className="min-w-0 flex-1 text-xs">
+                      <p className="text-ash">Using the catalog photo.</p>
+                      {catalogPhotoCredit ? (
+                        <p className="mt-0.5 text-[0.6875rem] text-ash-dim">{catalogPhotoCredit}</p>
+                      ) : null}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCatalogPhotoUrl(null);
+                          setCatalogPhotoCredit(null);
+                        }}
+                        className="mt-1 text-[0.6875rem] font-medium text-gold hover:underline"
+                      >
+                        Remove / upload my own
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <PhotoUpload
+                    photo={null}
+                    generateUploadUrl={genPhotoUrl}
+                    onStorageId={async (id) => setPhotoId(id)}
+                    hint="Optional. Camera or library on mobile."
+                  />
+                )}
               </div>
             )}
 
