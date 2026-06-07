@@ -49,3 +49,6 @@ next-env.d.ts
 
 # Vendored skills toolkit (heygen hyperframes) — re-fetchable from skills-lock.json
 .agents/
+
+# Local Netlify folder
+.netlify
