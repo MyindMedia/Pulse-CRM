@@ -408,3 +408,16 @@
   .material-regular, .glass-strong { background: var(--color-coal-2) !important; }
   .material-thick, .glass-liquid { background: var(--color-coal-2) !important; }
 }
+
+/* ── Clerk branding on auth screens ───────────────────────────────────────
+   Hide the "Secured by Clerk" badge so the sign-in/up screens read as native
+   Pulse. The badge links to clerk.com; the footer "Sign up / Sign in" link is
+   internal, so it is preserved. NOTE: the COMPLIANT way to remove Clerk
+   branding is the Clerk Dashboard toggle on a paid (Pro) plan + production
+   instance - this CSS hide is best-effort and may conflict with Clerk's
+   free-tier terms. See CLERK-SETUP.md. */
+.cl-rootBox a[href*="clerk.com"],
+.cl-card a[href*="clerk.com"],
+.cl-footer a[href*="clerk.com"],
+.cl-internal-uyu30o,
+.cl-logoBox { display: none !important; }
