@@ -5,9 +5,8 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
-import { Check, Plus, Search } from "lucide-react";
+import { Check, Plus, Search, ChevronDown } from "lucide-react";
 import { money } from "@/lib/format";
-import { categoryMeta } from "@/components/studio/constants";
 import {
   Dialog,
   DialogContent,
@@ -124,13 +123,28 @@ export function EquipmentDialog({
   const [catalogOpen, setCatalogOpen] = React.useState(false);
   const catalogResults = useQuery(
     api.equipment.searchCatalog,
-    !isEdit && catalogQ.trim().length >= 1 ? { q: catalogQ, limit: 8 } : "skip",
+    // Open => fetch. Empty query returns the full catalog to browse by type;
+    // a typed query returns ranked matches.
+    !isEdit && catalogOpen ? { q: catalogQ, limit: catalogQ.trim() ? 20 : 300 } : "skip",
   ) as
     | {
         id: string; brand: string; model: string; category: string;
         priceCents: number; note?: string; imageUrl?: string; imageCredit?: string;
       }[]
     | undefined;
+
+  // Group results by category (type), in the canonical category order.
+  const groupedCatalog = React.useMemo(() => {
+    const byCat = new Map<string, NonNullable<typeof catalogResults>>();
+    for (const it of catalogResults ?? []) {
+      const arr = byCat.get(it.category) ?? [];
+      arr.push(it);
+      byCat.set(it.category, arr);
+    }
+    return EQUIPMENT_CATEGORIES
+      .map((c) => ({ category: c.value as string, label: c.plural, items: byCat.get(c.value) ?? [] }))
+      .filter((g) => g.items.length > 0);
+  }, [catalogResults]);
 
   // Reset the form whenever the dialog re-opens.
   const [prevOpen, setPrevOpen] = React.useState(open);
@@ -146,17 +160,33 @@ export function EquipmentDialog({
     }
   }
 
-  /** Prefill the form from a catalog selection (everything stays editable). */
+  /** Prefill ALL sensible fields from a catalog selection (everything stays
+   *  editable). Serial is per-unit so it's left blank. New gear's current value
+   *  defaults to its purchase price. */
   function pickCatalog(it: NonNullable<typeof catalogResults>[number]) {
+    const dollars = (it.priceCents / 100).toString();
     setForm((prev) => ({
       ...prev,
       name: `${it.brand} ${it.model}`,
       category: it.category as EquipmentCategory,
-      purchase: (it.priceCents / 100).toString(),
+      purchase: dollars,
+      currentValue: dollars,
+      condition: prev.condition.trim() || "New",
+      notes: prev.notes.trim() || (it.note ?? ""),
     }));
     setCatalogPhotoUrl(it.imageUrl ?? null);
     setCatalogPhotoCredit(it.imageCredit ?? null);
     setCatalogQ(`${it.brand} ${it.model}`);
+    setCatalogOpen(false);
+  }
+
+  /** Use the typed text as a custom item (not in the catalog). */
+  function applyCustomItem() {
+    const name = catalogQ.trim();
+    if (!name) return;
+    setForm((prev) => ({ ...prev, name }));
+    setCatalogPhotoUrl(null);
+    setCatalogPhotoCredit(null);
     setCatalogOpen(false);
   }
 
@@ -236,8 +266,8 @@ export function EquipmentDialog({
           <DialogBody className="space-y-4">
             {!isEdit && (
               <Field
-                label="Search gear catalog"
-                hint="Pick a model to auto-fill name, category & price. Or just type your own below."
+                label="Gear catalog"
+                hint="Pick a model to auto-fill name, category & price — or add a custom item."
               >
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ash-dim" />
@@ -249,49 +279,80 @@ export function EquipmentDialog({
                     }}
                     onFocus={() => setCatalogOpen(true)}
                     onBlur={() => setTimeout(() => setCatalogOpen(false), 150)}
-                    placeholder="Focusrite Scarlett, Neumann U87, SSL…"
-                    className="pl-9"
+                    placeholder="Search gear, or type a custom name…"
+                    className="pl-9 pr-9"
                     autoComplete="off"
+                    role="combobox"
+                    aria-expanded={catalogOpen}
                   />
-                  {catalogOpen && catalogQ.trim().length >= 1 && (
-                    <div className="absolute z-50 mt-1 max-h-64 w-full overflow-auto rounded-md border border-hairline bg-coal-2 shadow-elev-3">
+                  <ChevronDown
+                    className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-ash-dim"
+                  />
+                  {catalogOpen && (
+                    <div className="absolute z-50 mt-1 max-h-72 w-full overflow-auto rounded-md border border-hairline bg-coal-2 shadow-elev-3">
+                      {/* Custom-item entry - always available when text is typed. */}
+                      {catalogQ.trim().length >= 1 && (
+                        <button
+                          type="button"
+                          onMouseDown={(e) => e.preventDefault()}
+                          onClick={applyCustomItem}
+                          className="flex w-full items-center gap-2 border-b border-hairline-2 px-3 py-2 text-left hover:bg-hairline/40"
+                        >
+                          <Plus className="size-4 shrink-0 text-gold" />
+                          <span className="min-w-0 flex-1 truncate text-sm text-bone">
+                            Add <span className="text-gold">&ldquo;{catalogQ.trim()}&rdquo;</span> as a custom item
+                          </span>
+                        </button>
+                      )}
                       {catalogResults === undefined ? (
-                        <p className="px-3 py-2 text-xs text-ash-dim">Searching…</p>
+                        <p className="px-3 py-2 text-xs text-ash-dim">Loading…</p>
                       ) : catalogResults.length === 0 ? (
-                        <p className="px-3 py-2 text-xs text-ash-dim">
-                          No match. Type the full name below to add it as a custom item.
-                        </p>
+                        catalogQ.trim().length >= 1 ? (
+                          <p className="px-3 py-2 text-xs text-ash-dim">
+                            No catalog match — use the custom-item option above.
+                          </p>
+                        ) : (
+                          <p className="px-3 py-2 text-xs text-ash-dim">Start typing to search the catalog.</p>
+                        )
                       ) : (
-                        catalogResults.map((it) => (
-                          <button
-                            key={it.id}
-                            type="button"
-                            onMouseDown={(e) => e.preventDefault()}
-                            onClick={() => pickCatalog(it)}
-                            className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-hairline/40"
-                          >
-                            {it.imageUrl ? (
-                              // eslint-disable-next-line @next/next/no-img-element
-                              <img
-                                src={it.imageUrl}
-                                alt=""
-                                className="size-9 shrink-0 rounded border border-hairline object-cover"
-                                loading="lazy"
-                              />
-                            ) : null}
-                            <span className="min-w-0 flex-1">
-                              <span className="block truncate text-sm text-bone">
-                                {it.brand} {it.model}
-                              </span>
-                              <span className="block truncate text-[0.6875rem] uppercase tracking-wide text-ash-dim">
-                                {categoryMeta(it.category).label}
-                                {it.note ? ` · ${it.note}` : ""}
-                              </span>
-                            </span>
-                            <span className="shrink-0 font-mono text-xs text-gold">
-                              {money(it.priceCents)}
-                            </span>
-                          </button>
+                        groupedCatalog.map((group) => (
+                          <div key={group.category}>
+                            <p className="sticky top-0 z-10 bg-ink-2 px-3 py-1 text-[0.625rem] font-semibold uppercase tracking-wide text-ash-dim">
+                              {group.label}
+                            </p>
+                            {group.items.map((it) => (
+                              <button
+                                key={it.id}
+                                type="button"
+                                onMouseDown={(e) => e.preventDefault()}
+                                onClick={() => pickCatalog(it)}
+                                className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-hairline/40"
+                              >
+                                {it.imageUrl ? (
+                                  // eslint-disable-next-line @next/next/no-img-element
+                                  <img
+                                    src={it.imageUrl}
+                                    alt=""
+                                    className="size-9 shrink-0 rounded border border-hairline object-cover"
+                                    loading="lazy"
+                                  />
+                                ) : null}
+                                <span className="min-w-0 flex-1">
+                                  <span className="block truncate text-sm text-bone">
+                                    {it.brand} {it.model}
+                                  </span>
+                                  {it.note ? (
+                                    <span className="block truncate text-[0.6875rem] text-ash-dim">
+                                      {it.note}
+                                    </span>
+                                  ) : null}
+                                </span>
+                                <span className="shrink-0 font-mono text-xs text-gold">
+                                  {money(it.priceCents)}
+                                </span>
+                              </button>
+                            ))}
+                          </div>
                         ))
                       )}
                     </div>
