@@ -7,7 +7,7 @@ import { Reveal } from "./reveal";
    backdrop). Empty until the generated montage lands - set this to its path
    (e.g. "/studio-montage.webm") and the framed reel appears automatically.
    Prompt: docs/seedance-bg-loop-prompt.md (hero studio montage). */
-const STUDIO_MONTAGE_SRC = "";
+const STUDIO_MONTAGE_SRC = "/studio-montage.mp4";
 
 const CAPABILITIES = [
   "Bookings",
