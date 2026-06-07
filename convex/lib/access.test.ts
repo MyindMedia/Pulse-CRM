@@ -161,17 +161,54 @@ describe("access engine - AGENCY_ADMIN_EMAILS allowlist", () => {
         orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "solo", status: "active",
       });
     });
+    // Multiple agencies => no single-tenant fallback => not elevated. And with
+    // no org/agency the caller is denied (not dropped into demo).
     const asAdmin = t.withIdentity({ subject: "user_admin", name: "Admin", email: "admin@x.com" });
-    const result = await asAdmin.query(api.testHarness.resolve, {});
-    expect(result.kind).not.toBe("agency_member");
+    await expect(asAdmin.query(api.testHarness.resolve, {})).rejects.toThrow();
   });
 
   it("empty AGENCY_ADMIN_EMAILS elevates nobody (console-only 'allow all' stays out of resolveViewer)", async () => {
     process.env.AGENCY_ADMIN_EMAILS = "";
     await seedSoleAgencyWithSub();
     const asAnyone = t.withIdentity({ subject: "user_any", name: "Any", email: "any@x.com" });
-    const result = await asAnyone.query(api.testHarness.resolve, {});
-    expect(result.kind).not.toBe("agency_member");
+    await expect(asAnyone.query(api.testHarness.resolve, {})).rejects.toThrow();
+  });
+});
+
+describe("access engine - authed-but-no-workspace is denied (not demo-owner)", () => {
+  let t: ReturnType<typeof convexTest>;
+  const prevEnv = process.env.AGENCY_ADMIN_EMAILS;
+  beforeEach(() => { t = convexTest(schema); });
+  afterEach(() => {
+    if (prevEnv === undefined) delete process.env.AGENCY_ADMIN_EMAILS;
+    else process.env.AGENCY_ADMIN_EMAILS = prevEnv;
+  });
+
+  it("an authenticated user with no org/agency does NOT inherit demo-owner access", async () => {
+    process.env.AGENCY_ADMIN_EMAILS = "";
+    // A real sub-account is the globally-active org (what a stranger would have
+    // gotten owner access to via the old demo fallthrough).
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: "org_real", name: "Real Studio", slug: "real", plan: "studio", status: "active",
+      });
+      await ctx.db.insert("appState", { key: "demo", activeOrgId: "org_real" });
+    });
+    // Public sign-up: a stranger with a Clerk session but no org, no membership.
+    const stranger = t.withIdentity({ subject: "rando", name: "Rando", email: "rando@evil.com" });
+    await expect(stranger.query(api.testHarness.resolve, {})).rejects.toThrow();
+    // And they cannot read the active org's sessions.
+    const r = await stranger.mutation(api.testHarness.require_, { cap: "sessions.read", orgId: "org_real" });
+    expect(r.ok).toBe(false);
+  });
+
+  it("demo mode still works for truly unauthenticated callers (no identity)", async () => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "solo", status: "active" });
+    });
+    const result = await t.query(api.testHarness.resolve, {});
+    expect(result.kind).toBe("studio_member");
+    expect(result.role).toBe("owner");
   });
 });
 

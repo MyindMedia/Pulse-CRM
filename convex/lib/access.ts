@@ -215,6 +215,14 @@ export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
         capabilities: buildStudioCaps(member.role, member.capabilityOverrides),
       };
     }
+
+    // Authenticated but not linked to any agency or studio (no org, not an
+    // agency member, not on the operator allowlist). Public Clerk sign-up is
+    // enabled, so we must DENY here rather than fall through to demo mode -
+    // demo would otherwise hand a random signed-up account owner access to
+    // whatever org appState.activeOrgId points to. Demo mode below is reserved
+    // for truly unauthenticated callers (Clerk disabled / logged out).
+    throw new AccessError("NO_WORKSPACE", "Your account isn't linked to a studio yet.");
   }
 
   // 2. No Clerk identity -> demo mode synthesizes an owner-level studio viewer
