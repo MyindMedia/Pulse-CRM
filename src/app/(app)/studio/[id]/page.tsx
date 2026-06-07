@@ -548,7 +548,7 @@ export default function StudioDetailPage() {
             description="Add a new piece of equipment, or install something out of storage."
           />
         ) : (
-          <ul className="grid gap-3 sm:grid-cols-2">
+          <ul className="overflow-hidden rounded-lg border border-hairline">
             {room.equipment.map((item) => {
               const meta = categoryMeta(item.category);
               const Icon = meta.icon;
@@ -558,124 +558,94 @@ export default function StudioDetailPage() {
                 <li
                   key={item._id}
                   className={cn(
-                    "rounded-lg border border-hairline bg-coal p-4 shadow-elev-1 transition-shadow hover:shadow-elev-2",
+                    "flex items-center gap-3 border-b border-hairline-2 bg-coal px-3 py-2.5 last:border-0 hover:bg-coal/50",
                     isPending && "opacity-50",
                   )}
                 >
-                  <div className="flex items-start gap-3">
-                    <span className="grid size-10 shrink-0 place-items-center overflow-hidden rounded-md border border-hairline bg-ink-2">
-                      {item.photoUrl ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img
-                          src={item.photoUrl}
-                          alt={item.name}
-                          className="size-full object-cover"
-                        />
-                      ) : (
-                        <Icon className="size-4 text-ash-dim" />
-                      )}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="truncate text-sm font-medium text-bone">
-                          {item.name}
-                        </p>
-                        <DropdownMenu>
-                          <DropdownMenuTrigger asChild>
-                            <Button
-                              variant="ghost"
-                              size="icon-sm"
-                              aria-label={`Actions for ${item.name}`}
-                              disabled={isPending}
-                            >
-                              <MoreHorizontal className="size-4" />
-                            </Button>
-                          </DropdownMenuTrigger>
-                          <DropdownMenuContent align="end">
-                            <DropdownMenuItem
-                              onSelect={() =>
-                                setEditing({
-                                  _id: item._id,
-                                  name: item.name,
-                                  category: item.category,
-                                  purchaseCents: item.purchaseCents,
-                                  currentValueCents: item.currentValueCents,
-                                  serialNumber: item.serialNumber,
-                                  condition: item.condition,
-                                  notes: item.notes,
-                                })
-                              }
-                            >
-                              <Pencil className="size-4" />
-                              Edit
-                            </DropdownMenuItem>
-                            <DropdownMenuItem
-                              onSelect={() => handleMoveToStorage(item._id, item.name)}
-                            >
-                              <Boxes className="size-4" />
-                              Move to storage
-                            </DropdownMenuItem>
-                            <DropdownMenuSeparator />
-                            <DropdownMenuLabel>Set status</DropdownMenuLabel>
-                            {EQUIPMENT_STATUSES.map((s) => (
-                              <DropdownMenuItem
-                                key={s.value}
-                                onSelect={() =>
-                                  changeEquipStatus(item._id, s.value, item.name)
-                                }
-                                disabled={s.value === item.status}
-                              >
-                                {s.value === item.status
-                                  ? `${s.label} (current)`
-                                  : s.label}
-                              </DropdownMenuItem>
-                            ))}
-                            <DropdownMenuSeparator />
-                            <DropdownMenuItem
-                              destructive
-                              onSelect={() => handleRemove(item._id, item.name)}
-                            >
-                              <Trash2 className="size-4" />
-                              Delete
-                            </DropdownMenuItem>
-                          </DropdownMenuContent>
-                        </DropdownMenu>
-                      </div>
-                      <div className="mt-1 flex flex-wrap items-center gap-2">
-                        <Badge tone="neutral">
-                          <Icon className="size-3" />
-                          {meta.label}
-                        </Badge>
-                        <Badge tone={st.tone} dot>
-                          {st.label}
-                        </Badge>
-                      </div>
-                      <p className="mt-1.5 font-mono text-[0.6875rem] tabular-nums text-ash">
-                        {money(item.currentValueCents)}
-                        <span className="text-ash-dim">
-                          {" · "}
-                          paid {money(item.purchaseCents)}
-                        </span>
-                      </p>
-                      {item.condition && (
-                        <p className="mt-1 text-xs text-ash-dim">{item.condition}</p>
-                      )}
-                    </div>
+                  <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-md border border-hairline bg-ink-2">
+                    {item.photoUrl ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={item.photoUrl} alt={item.name} className="size-full object-cover" />
+                    ) : (
+                      <Icon className="size-4 text-ash-dim" />
+                    )}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-bone">{item.name}</p>
+                    {item.condition && (
+                      <p className="truncate text-[0.6875rem] text-ash-dim">{item.condition}</p>
+                    )}
                   </div>
-                  {/* Hover-quick action: open the install picker if user wants
-                      to move this piece to a different room. */}
-                  {item.installedInRoomId === room._id && (
-                    <button
-                      type="button"
-                      onClick={() =>
-                        openInstallFor({ _id: item._id, name: item.name })
-                      }
-                      className="mt-3 inline-flex items-center gap-1 text-[0.6875rem] text-ash-dim hover:text-gold"
-                    >
-                      <DoorOpen className="size-3" />
-                      Move to another room
-                    </button>
-                  )}
+                  <span className="hidden sm:inline-flex">
+                    <Badge tone="neutral">
+                      <Icon className="size-3" />
+                      {meta.label}
+                    </Badge>
+                  </span>
+                  <Badge tone={st.tone} dot>
+                    {st.label}
+                  </Badge>
+                  <span className="hidden w-24 shrink-0 text-right font-mono text-xs tabular-nums text-bone md:block">
+                    {money(item.currentValueCents)}
+                    <span className="block text-[0.625rem] text-ash-dim">
+                      paid {money(item.purchaseCents)}
+                    </span>
+                  </span>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        aria-label={`Actions for ${item.name}`}
+                        disabled={isPending}
+                      >
+                        <MoreHorizontal className="size-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem
+                        onSelect={() =>
+                          setEditing({
+                            _id: item._id,
+                            name: item.name,
+                            category: item.category,
+                            purchaseCents: item.purchaseCents,
+                            currentValueCents: item.currentValueCents,
+                            serialNumber: item.serialNumber,
+                            condition: item.condition,
+                            notes: item.notes,
+                          })
+                        }
+                      >
+                        <Pencil className="size-4" />
+                        Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => openInstallFor({ _id: item._id, name: item.name })}>
+                        <DoorOpen className="size-4" />
+                        Move to another room
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => handleMoveToStorage(item._id, item.name)}>
+                        <Boxes className="size-4" />
+                        Move to storage
+                      </DropdownMenuItem>
+                      <DropdownMenuSeparator />
+                      <DropdownMenuLabel>Set status</DropdownMenuLabel>
+                      {EQUIPMENT_STATUSES.map((s) => (
+                        <DropdownMenuItem
+                          key={s.value}
+                          onSelect={() => changeEquipStatus(item._id, s.value, item.name)}
+                          disabled={s.value === item.status}
+                        >
+                          {s.value === item.status ? `${s.label} (current)` : s.label}
+                        </DropdownMenuItem>
+                      ))}
+                      <DropdownMenuSeparator />
+                      <DropdownMenuItem destructive onSelect={() => handleRemove(item._id, item.name)}>
+                        <Trash2 className="size-4" />
+                        Delete
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </li>
               );
             })}
