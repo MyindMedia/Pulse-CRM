@@ -15,10 +15,10 @@ export function openCommandPalette() {
 }
 
 const QUICK_ACTIONS = [
-  { label: "New song", href: "/songs?new=1", icon: Plus },
-  { label: "Add artist", href: "/roster?new=1", icon: Plus },
-  { label: "Book a session", href: "/calendar?new=1", icon: Plus },
-  { label: "Create invoice", href: "/payments?new=1", icon: Plus },
+  { label: "New song", href: "/songs?new=1", icon: Plus, feature: "songs" },
+  { label: "Add artist", href: "/roster?new=1", icon: Plus, feature: "clients" },
+  { label: "Book a session", href: "/calendar?new=1", icon: Plus, feature: "calendar" },
+  { label: "Create invoice", href: "/payments?new=1", icon: Plus, feature: "payments" },
 ];
 
 export function CommandPalette() {
@@ -26,6 +26,11 @@ export function CommandPalette() {
   const router = useRouter();
   const roster = useQuery(api.artists.roster) ?? [];
   const songs = useQuery(api.songs.picker, {}) ?? [];
+  // Hide nav features the agency has disabled for this sub-account (matches sidebar).
+  const org = useQuery(api.orgs.current);
+  const disabled = new Set(org?.disabledFeatures ?? []);
+  const navItems = NAV.filter((item) => !item.feature || !disabled.has(item.feature));
+  const quickActions = QUICK_ACTIONS.filter((a) => !disabled.has(a.feature));
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -71,7 +76,7 @@ export function CommandPalette() {
               </Command.Empty>
 
               <Command.Group heading="Quick actions">
-                {QUICK_ACTIONS.map((a) => (
+                {quickActions.map((a) => (
                   <Item key={a.label} onSelect={() => go(a.href)}>
                     <a.icon className="size-4 text-gold" />
                     {a.label}
@@ -80,7 +85,7 @@ export function CommandPalette() {
               </Command.Group>
 
               <Command.Group heading="Navigate">
-                {NAV.map((n) => (
+                {navItems.map((n) => (
                   <Item key={n.href} value={`go ${n.label} ${n.blurb}`} onSelect={() => go(n.href)}>
                     <n.icon className="size-4 text-ash-dim" />
                     <span>{n.label}</span>
