@@ -14,6 +14,7 @@ import {
   CalendarClock,
   CalendarPlus,
   CheckCircle2,
+  ChevronDown,
   DollarSign,
   DoorOpen,
   MoreHorizontal,
@@ -135,6 +136,7 @@ export default function StudioDetailPage() {
   const [installTarget, setInstallTarget] = React.useState<InstallTarget | null>(null);
   const [editing, setEditing] = React.useState<EditableEquipment | undefined>();
   const [pending, setPending] = React.useState<Id<"equipment"> | null>(null);
+  const [gearOpen, setGearOpen] = React.useState(false); // installed gear starts collapsed
 
   if (detail === undefined) {
     return (
@@ -496,9 +498,26 @@ export default function StudioDetailPage() {
       {/* Installed equipment */}
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-2">
-          <h2 className="font-display text-lg font-semibold tracking-tight text-bone">
-            Installed gear
-          </h2>
+          <button
+            type="button"
+            onClick={() => setGearOpen((v) => !v)}
+            className="group flex items-center gap-2 text-left"
+            aria-expanded={gearOpen}
+          >
+            <ChevronDown
+              className={cn(
+                "size-4 text-ash-dim transition-transform group-hover:text-ash",
+                gearOpen ? "rotate-0" : "-rotate-90",
+              )}
+            />
+            <h2 className="font-display text-lg font-semibold tracking-tight text-bone">
+              Installed gear
+            </h2>
+            <span className="font-mono text-xs text-ash-dim">
+              {room.equipment.length}
+              {room.equipment.length > 0 ? ` · ${money(equipmentValueCents)}` : ""}
+            </span>
+          </button>
           <div className="flex items-center gap-2">
             {storage && storage.length > 0 && (
               <DropdownMenu>
@@ -541,7 +560,8 @@ export default function StudioDetailPage() {
             </Button>
           </div>
         </div>
-        {room.equipment.length === 0 ? (
+        {gearOpen &&
+          (room.equipment.length === 0 ? (
           <EmptyState
             icon={Music4}
             title="No gear installed yet"
@@ -650,7 +670,7 @@ export default function StudioDetailPage() {
               );
             })}
           </ul>
-        )}
+          ))}
       </section>
 
       {/* Synced external calendars (Google / Apple / Outlook / .ics) */}
