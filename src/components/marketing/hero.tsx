@@ -1,7 +1,13 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { LiquidCard } from "./liquid-card";
+import { HeroReel } from "./hero-reel";
 import { Reveal } from "./reveal";
+
+/* Studio montage reel shown framed in the hero (separate from the global gold
+   backdrop). Empty until the generated montage lands - set this to its path
+   (e.g. "/studio-montage.webm") and the framed reel appears automatically.
+   Prompt: docs/seedance-bg-loop-prompt.md (hero studio montage). */
+const STUDIO_MONTAGE_SRC = "";
 
 /** Large, soft gold ellipse glow for the center-top of the hero. 25px Gaussian
  *  blur, brand gold instead of the brief's cyan. */
@@ -47,10 +53,6 @@ export function Hero() {
       {/* Content */}
       <div className="relative z-10 mx-auto flex max-w-3xl flex-col items-center text-center">
         <Reveal immediate>
-          <LiquidCard />
-        </Reveal>
-
-        <Reveal immediate delay={80} className="-mt-2">
           <p className="font-jakarta text-[11px] font-bold uppercase tracking-[0.22em] text-gold">
             The studio operating system
           </p>
@@ -87,6 +89,12 @@ export function Hero() {
             </Link>
           </div>
         </Reveal>
+
+        {STUDIO_MONTAGE_SRC && (
+          <Reveal immediate delay={400} className="w-full">
+            <HeroReel src={STUDIO_MONTAGE_SRC} />
+          </Reveal>
+        )}
       </div>
     </section>
   );
