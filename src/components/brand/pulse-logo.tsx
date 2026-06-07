@@ -2,21 +2,24 @@ import * as React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-/** Pulse brand logo. Renders the official PNG (gold pulse glyph +
- * "PULSE" wordmark) at a chosen size.
+/** Pulse brand logo. Two variants:
+ *  - "main" (default): the clean gold pulse glyph + "PULSE" wordmark. Used in
+ *    the site header and app (no "by Myind Sound" subtext).
+ *  - "footer": the lockup that includes "by Myind Sound". Reserved for footers.
  *
- * The source PNG is tightly cropped (~3.16:1 aspect), so sizes here
- * fix the width and let the height adapt naturally. */
+ * Both PNGs are width-cropped, so sizes fix the width and let height adapt. */
 export function PulseLogo({
   size = "md",
   href = "/dashboard",
   className,
   asLink = true,
+  variant = "main",
 }: {
   size?: "sm" | "md" | "lg" | "xl" | "full";
   href?: string;
   className?: string;
   asLink?: boolean;
+  variant?: "main" | "footer";
 }) {
   // Width-based sizing. `full` fills the parent so the sidebar can stretch
   // the lockup across the whole rail.
@@ -28,10 +31,12 @@ export function PulseLogo({
     full: "w-full",
   }[size];
 
+  const src = variant === "footer" ? "/pulse-logo.png" : "/pulse-logo-main.png";
+
   const img = (
     /* eslint-disable-next-line @next/next/no-img-element */
     <img
-      src="/pulse-logo.png"
+      src={src}
       alt="Pulse"
       className={cn("h-auto select-none", sizeCls, className)}
       draggable={false}

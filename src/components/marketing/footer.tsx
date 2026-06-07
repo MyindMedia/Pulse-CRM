@@ -24,7 +24,7 @@ export function Footer() {
     <footer className="relative border-t border-hairline px-4 py-14 lg:px-8">
       <div className="mx-auto grid max-w-6xl gap-10 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-4">
-          <PulseLogo size="sm" href="/" />
+          <PulseLogo size="md" href="/" variant="footer" />
           <p className="max-w-xs text-sm text-ash">
             The operating system for recording studios. Bookings, rooms, staff,
             inventory and payments, automated.
