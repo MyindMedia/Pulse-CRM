@@ -312,5 +312,29 @@ blocks direct-URL access (redirect to /dashboard).
 **Non-goals:** per-user feature overrides; feature flags unrelated to nav.
 **Deployed:** prod `pastel-corgi-340`; pushed `main` (cc37dbf, d8f560b).
 
+## Feature: marketing landing page at root URL (built + shipped 2026-06-07)
+**Goal:** full modern SaaS marketing site at `/` for logged-out visitors, login
+top-right, self-serve sign-up.
+**Decisions (grilled):** cohesive dark-glass look (reuses app tokens); primary
+CTA = self-serve `/sign-up`; signed-in users at `/` auto-redirect to
+`/dashboard`; show 3 pricing tiers (Solo/Studio/Label, placeholder prices); no
+platform fee messaging (studios keep 100%).
+**Stack/where:**
+- `src/app/page.tsx` now an async server component: Clerk `auth()` -> redirect
+  signed-in users to `/dashboard`, else render `<LandingPage/>`. `/` already
+  public in middleware.
+- `src/components/marketing/`: `landing-nav` (client, frosts on scroll), `hero`
+  (CSS faux dashboard preview, no raster dep), `chain` (Inquiry->Royalty),
+  `features` (6 cards), `pricing` (Solo/Studio*/Label), `cta`, `footer`,
+  `landing-page` (composer), `reveal` (client, dependency-free
+  IntersectionObserver; `immediate` mode for above-the-fold).
+- No framer-motion (not a dep); animation = CSS + Reveal. No em dashes.
+**Bug caught + fixed pre-ship:** scroll-reveal `-10%` bottom margin left the
+hero CTA invisible until scroll; added `immediate` reveal mode for all
+above-the-fold hero content.
+**Non-goals:** blog, real logo wall, testimonials, i18n.
+**Spec:** `docs/superpowers/specs/2026-06-07-landing-page-design.md`. Verified
+tsc + lint + build + visual (agent-browser). Deploys via Netlify on push.
+
 ## Standing context / prior fix
 - **Crash fixed (2026-05-23):** `/agency/[orgId]` showed "page couldn't load" because `invites.list` threw `AccessError` (a plain `Error` → redacted by Convex) with no `error.tsx` boundary. Fixes: `invites.list` degrades to `[]` on access denial; `AccessError extends ConvexError`; `/agency/error.tsx` boundary; `createSubaccount` + `adoptOrphanSubaccounts` stamp/repair `agencyId` so the owner isn't scope-denied. 128 vitest green.
