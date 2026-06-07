@@ -98,7 +98,7 @@ export function SoftwareTable({
             const renewSoon = s.renewalDate && s.renewalDate <= soon && s.status === "active";
             const renewPast = s.renewalDate && s.renewalDate < now;
             return (
-              <tr key={s._id} className="border-b border-hairline-2 last:border-0 hover:bg-coal/40">
+              <tr key={s._id} className="border-b border-hairline-2 last:border-0 transition-colors duration-150 hover:bg-coal-2/60">
                 <td className="px-3 py-2.5">
                   <div className="flex items-center gap-2">
                     <cat.icon className="size-4 shrink-0 text-ash-dim" />

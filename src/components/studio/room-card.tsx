@@ -281,9 +281,9 @@ export function RoomCard({
                   return (
                     <li
                       key={item._id}
-                      className="flex items-center gap-2 rounded-sm bg-coal-2 px-2 py-1.5"
+                      className="group/row flex items-center gap-2 rounded-sm bg-coal-2 px-2 py-1.5 transition-colors duration-150 hover:bg-coal-3"
                     >
-                      <Icon className="size-3.5 shrink-0 text-ash-dim" />
+                      <Icon className="size-3.5 shrink-0 text-ash-dim transition-transform duration-200 group-hover/row:scale-110" />
                       <span className="min-w-0 flex-1 truncate text-xs text-bone">
                         {item.name}
                       </span>

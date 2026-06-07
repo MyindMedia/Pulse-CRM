@@ -209,7 +209,7 @@ export function EquipmentTable({
             const inStorage = item.location === "storage";
             const pending = pendingId === item._id;
             return (
-              <TR key={item._id} className={cn(pending && "opacity-50", selected.has(item._id) && "bg-gold/[0.06]")}>
+              <TR key={item._id} className={cn("group transition-colors duration-150 hover:bg-coal-2/60", pending && "opacity-50", selected.has(item._id) && "bg-gold/[0.06]")}>
                 <TD className="w-8">
                   <input
                     type="checkbox"

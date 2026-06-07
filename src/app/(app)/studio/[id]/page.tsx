@@ -497,25 +497,34 @@ export default function StudioDetailPage() {
 
       {/* Installed equipment */}
       <section className="space-y-3">
-        <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
           <button
             type="button"
             onClick={() => setGearOpen((v) => !v)}
-            className="group flex items-center gap-2 text-left"
+            className={cn(
+              "sheen group flex flex-1 items-center gap-3 rounded-xl border bg-coal px-4 py-3 text-left",
+              "transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-elev-3 hover:border-gold-dim",
+              gearOpen ? "border-hairline-2" : "border-gold-dim/40 bg-gold/[0.04]",
+            )}
             aria-expanded={gearOpen}
           >
-            <ChevronDown
-              className={cn(
-                "size-4 text-ash-dim transition-transform group-hover:text-ash",
-                gearOpen ? "rotate-0" : "-rotate-90",
-              )}
-            />
-            <h2 className="font-display text-lg font-semibold tracking-tight text-bone">
-              Installed gear
-            </h2>
-            <span className="font-mono text-xs text-ash-dim">
-              {room.equipment.length}
-              {room.equipment.length > 0 ? ` · ${money(equipmentValueCents)}` : ""}
+            <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-gold/15 text-gold transition-transform duration-200 group-hover:scale-110">
+              <Boxes className="size-5" />
+            </span>
+            <span className="min-w-0 flex-1">
+              <span className="block font-display text-base font-semibold tracking-tight text-bone">
+                Installed gear
+              </span>
+              <span className="block font-mono text-xs text-ash-dim">
+                {room.equipment.length} {room.equipment.length === 1 ? "item" : "items"}
+                {room.equipment.length > 0 ? ` · ${money(equipmentValueCents)} value` : ""}
+              </span>
+            </span>
+            <span className="flex items-center gap-1 font-mono text-[0.6875rem] uppercase tracking-wide text-ash-dim transition-colors group-hover:text-gold">
+              {gearOpen ? "Hide" : "View"}
+              <ChevronDown
+                className={cn("size-4 transition-transform duration-200", gearOpen ? "rotate-180" : "rotate-0")}
+              />
             </span>
           </button>
           <div className="flex items-center gap-2">
@@ -578,11 +587,11 @@ export default function StudioDetailPage() {
                 <li
                   key={item._id}
                   className={cn(
-                    "flex items-center gap-3 border-b border-hairline-2 bg-coal px-3 py-2.5 last:border-0 hover:bg-coal/50",
+                    "group flex items-center gap-3 border-b border-hairline-2 bg-coal px-3 py-2.5 last:border-0 transition-colors duration-150 hover:bg-coal-2",
                     isPending && "opacity-50",
                   )}
                 >
-                  <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-md border border-hairline bg-ink-2">
+                  <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-md border border-hairline bg-ink-2 transition-transform duration-200 group-hover:scale-105">
                     {item.photoUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={item.photoUrl} alt={item.name} className="size-full object-cover" />
