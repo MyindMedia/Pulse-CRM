@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useUser } from "@clerk/nextjs";
 import { PulseLogo } from "@/components/brand/pulse-logo";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -11,6 +12,38 @@ const LINKS = [
   { href: "#workflow", label: "How it works" },
   { href: "#pricing", label: "Pricing" },
 ];
+
+// Clerk is only mounted when configured; in demo mode there is no provider, so
+// the useUser hook would throw. Gate the auth-aware nav behind this flag.
+const CLERK_ENABLED = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+
+function LoggedOutCtas() {
+  return (
+    <>
+      <Button asChild variant="ghost" size="sm">
+        <Link href="/sign-in">Log in</Link>
+      </Button>
+      <Button asChild size="sm">
+        <Link href="/sign-up">Get started</Link>
+      </Button>
+    </>
+  );
+}
+
+/** Auth-aware nav CTAs. Signed-in visitors get "Go to dashboard"; everyone else
+ *  (including while Clerk is still loading) sees Log in / Get started. Only
+ *  rendered when Clerk is configured, so the useUser hook always has a provider. */
+function AuthNav() {
+  const { isLoaded, isSignedIn } = useUser();
+  if (isLoaded && isSignedIn) {
+    return (
+      <Button asChild size="sm">
+        <Link href="/dashboard">Go to dashboard</Link>
+      </Button>
+    );
+  }
+  return <LoggedOutCtas />;
+}
 
 /** Sticky landing-page header. Transparent over the hero, frosts into glass
  *  once the page scrolls. Logo left; nav anchors center (desktop); Log in +
@@ -48,12 +81,7 @@ export function LandingNav() {
         </div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <Button asChild variant="ghost" size="sm">
-            <Link href="/sign-in">Log in</Link>
-          </Button>
-          <Button asChild size="sm">
-            <Link href="/sign-up">Get started</Link>
-          </Button>
+          {CLERK_ENABLED ? <AuthNav /> : <LoggedOutCtas />}
         </div>
       </nav>
     </header>
