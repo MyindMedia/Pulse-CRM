@@ -11,6 +11,8 @@ const CLERK_ENABLED = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
 const isPublicRoute = createRouteMatcher([
   "/",
+  "/opengraph-image(.*)", // social share card - must be scrapeable
+  "/twitter-image(.*)", // social share card - must be scrapeable
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",

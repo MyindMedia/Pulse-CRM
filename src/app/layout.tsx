@@ -26,12 +26,29 @@ const plusJakarta = Plus_Jakarta_Sans({
   display: "swap",
 });
 
+const SITE_URL = "https://pulse.myindsound.com";
+const SITE_TITLE = "Pulse - the operating system for music businesses";
+const SITE_DESCRIPTION =
+  "Pulse is the song-centric CRM for recording studios, producers and labels. Sessions, splits, revisions, releases - one unbroken chain from inquiry to royalty.";
+
 export const metadata: Metadata = {
-  title: "Pulse - the operating system for music businesses",
-  description:
-    "Pulse is the song-centric CRM for recording studios, producers and labels. Sessions, splits, revisions, releases - one unbroken chain from inquiry to royalty.",
+  metadataBase: new URL(SITE_URL),
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
   applicationName: "Pulse",
   authors: [{ name: "Myind Sound" }],
+  openGraph: {
+    type: "website",
+    siteName: "Pulse",
+    url: SITE_URL,
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+  },
 };
 
 export const viewport: Viewport = {
