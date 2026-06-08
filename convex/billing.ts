@@ -1,8 +1,10 @@
-import { action, query, internalQuery, internalMutation } from "./_generated/server";
+import { action, query, internalQuery, internalMutation, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { stripeClient, priceIdForTier } from "./lib/stripe";
 import type { TierKey } from "./lib/plans";
+import { sendEmail } from "./lib/email";
+import { activationEmailSubject, activationEmailHtml } from "./lib/emailTemplates/activation";
 
 const SELF_SERVE_TIERS = new Set(["studio", "pro", "growth"]);
 
@@ -176,6 +178,22 @@ export const claimCheckout = action({
       subscriptionId: (s.subscription as string) ?? "",
     });
     return { ok: true };
+  },
+});
+
+/** Internal - email the buyer their activation link after checkout, so they can
+ *  finish creating their login even if they closed the success page. */
+export const sendActivationEmail = internalAction({
+  args: { email: v.string(), sessionId: v.string() },
+  handler: async (_ctx, { email, sessionId }) => {
+    if (!email) return;
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const activationUrl = `${baseUrl}/welcome/activate?session_id=${sessionId}`;
+    await sendEmail({
+      to: email,
+      subject: activationEmailSubject(),
+      html: activationEmailHtml({ activationUrl }),
+    });
   },
 });
 

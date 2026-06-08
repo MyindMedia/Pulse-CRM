@@ -114,7 +114,19 @@ export const handle = internalMutation({
         (meta.intendedTier as "studio" | "pro" | "growth" | "enterprise" | "agency") ?? "studio";
       const clerkUserId = meta.clerkUserId as string;
       const agencyName = (meta.intendedAgencyName as string) || "My Agency";
-      const ownerEmail = (obj.customer_email as string) ?? "";
+      const ownerEmail =
+        ((obj.customer_details as { email?: string } | undefined)?.email ??
+          (obj.customer_email as string | undefined)) ||
+        "";
+
+      // Pay-first signup: email the buyer their activation link so they can
+      // finish creating their login even if they closed the success page.
+      if (meta.kind === "platform_signup" && ownerEmail) {
+        await ctx.scheduler.runAfter(0, internal.billing.sendActivationEmail, {
+          email: ownerEmail,
+          sessionId: obj.id as string,
+        });
+      }
 
       // Pay-first signups (no clerkUserId yet) are provisioned post-signup by
       // billing.claimCheckout, so skip them here. Only the legacy authed flow
