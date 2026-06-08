@@ -1,8 +1,7 @@
-import Link from "next/link";
 import { Check, Clock } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { Reveal } from "./reveal";
+import { SubscribeButton } from "./subscribe-button";
 
 /* Pricing maps the marketing tiles to the billing tiers in convex/lib/plans.ts.
    `tier` is the TierKey used at checkout (/onboard?tier=...). Prices here must
@@ -124,13 +123,11 @@ export function Pricing() {
                 </ul>
 
                 <div className="mt-8 pt-2">
-                  <Button
-                    asChild
-                    className="w-full"
-                    variant={t.featured ? "primary" : "outline"}
-                  >
-                    <Link href={`/onboard?tier=${t.tier}`}>{t.cta}</Link>
-                  </Button>
+                  <SubscribeButton
+                    tier={t.tier as "studio" | "pro" | "growth"}
+                    label={t.cta}
+                    featured={t.featured}
+                  />
                 </div>
               </div>
             </Reveal>

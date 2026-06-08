@@ -13,6 +13,7 @@ const isPublicRoute = createRouteMatcher([
   "/",
   "/opengraph-image(.*)", // social share card - must be scrapeable
   "/twitter-image(.*)", // social share card - must be scrapeable
+  "/welcome/activate(.*)", // pay-first signup: reached before the account exists
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",

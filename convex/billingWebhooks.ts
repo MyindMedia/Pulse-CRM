@@ -116,7 +116,10 @@ export const handle = internalMutation({
       const agencyName = (meta.intendedAgencyName as string) || "My Agency";
       const ownerEmail = (obj.customer_email as string) ?? "";
 
-      if (intendedTier !== "studio") {
+      // Pay-first signups (no clerkUserId yet) are provisioned post-signup by
+      // billing.claimCheckout, so skip them here. Only the legacy authed flow
+      // (clerkUserId already set) provisions at webhook time.
+      if (intendedTier !== "studio" && clerkUserId) {
         const slug =
           agencyName.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-") ||
           `ag-${Date.now()}`;
