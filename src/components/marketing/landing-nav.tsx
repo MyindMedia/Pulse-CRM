@@ -25,7 +25,7 @@ function LoggedOutCtas({ size = "sm" }: { size?: "sm" | "lg" }) {
         <Link href="/sign-in">Log in</Link>
       </Button>
       <Button asChild size={size}>
-        <Link href="/sign-up">Get started</Link>
+        <Link href="#pricing">Get started</Link>
       </Button>
     </>
   );

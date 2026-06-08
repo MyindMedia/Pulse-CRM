@@ -95,7 +95,7 @@ export function Hero() {
         <Reveal immediate delay={320}>
           <div className="mt-9 flex flex-wrap items-center justify-center gap-4">
             <Link
-              href="/sign-up"
+              href="#pricing"
               className="sheen group inline-flex items-center gap-2 rounded-full bg-gold px-7 py-3 text-sm font-bold uppercase tracking-wide text-gold-ink shadow-gold-soft transition-all duration-200 hover:-translate-y-0.5 hover:bg-gold-bright hover:shadow-gold-strong focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
             >
               Get started
