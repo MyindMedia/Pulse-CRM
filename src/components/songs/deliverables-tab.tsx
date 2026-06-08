@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/select";
 import { titleCase } from "@/lib/labels";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 import { DeliverableReviewDialog } from "./deliverable-review-dialog";
 
 const DELIVERABLE_STATUS: Record<string, { label: string; tone: "neutral" | "info" | "positive" | "gold" }> = {
@@ -244,7 +245,7 @@ function DeliverableRow({
       });
       toast.success(`${file.name} attached.`);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not upload the file.");
+      toast.error(errorMessage(err, "Could not upload the file."));
     } finally {
       setUploading(false);
     }

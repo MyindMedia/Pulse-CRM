@@ -7,6 +7,7 @@ import { ImagePlus, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/feedback";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 
 /**
  * Generic photo upload control over the Convex storage flow: generate URL →
@@ -58,7 +59,7 @@ export function PhotoUpload({
       toast.success("Photo updated.");
     } catch (err) {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
-      toast.error(err instanceof Error ? err.message : "Could not upload the photo.");
+      toast.error(errorMessage(err, "Could not upload the photo."));
     } finally {
       setUploading(false);
     }

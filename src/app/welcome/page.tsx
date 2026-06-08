@@ -4,10 +4,10 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
-import { ConvexError } from "convex/values";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/errors";
 import { Check, ChevronRight, ImagePlus, Loader2 } from "lucide-react";
 import { PulseLogo } from "@/components/brand/pulse-logo";
 import { Button } from "@/components/ui/button";
@@ -27,13 +27,6 @@ const STEPS: { key: StepKey; title: string; blurb: string }[] = [
   { key: "email", title: "Client email", blurb: "Choose how you send booking + client messages." },
   { key: "rooms", title: "First room", blurb: "Add a room so you can take bookings today." },
 ];
-
-function errMsg(err: unknown, fallback: string) {
-  if (err instanceof ConvexError) {
-    return typeof err.data === "string" ? err.data : ((err.data as { message?: string })?.message ?? fallback);
-  }
-  return fallback;
-}
 
 type Mine = NonNullable<FunctionReturnType<typeof api.onboarding.mine>>;
 
@@ -120,7 +113,7 @@ function Wizard({ initial }: { initial: Mine }) {
       setLogoUrl(URL.createObjectURL(file));
       toast.success("Logo uploaded.");
     } catch (err) {
-      toast.error(errMsg(err, "Could not upload that image."));
+      toast.error(errorMessage(err, "Could not upload that image."));
     } finally {
       setUploading(false);
     }
@@ -150,7 +143,7 @@ function Wizard({ initial }: { initial: Mine }) {
       // "logo" step persists immediately on upload - nothing to save here.
       return true;
     } catch (err) {
-      toast.error(errMsg(err, "Could not save that step."));
+      toast.error(errorMessage(err, "Could not save that step."));
       return false;
     } finally {
       setBusy(false);

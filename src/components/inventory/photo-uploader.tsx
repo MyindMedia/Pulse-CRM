@@ -9,6 +9,7 @@ import { ImagePlus, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/feedback";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 
 /** The JSON shape Convex storage returns from an upload URL POST. */
 type UploadResult = { storageId: string };
@@ -63,9 +64,7 @@ export function PhotoUploader({
       toast.success("Photo uploaded.");
     } catch (err) {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
-      toast.error(
-        err instanceof Error ? err.message : "Could not upload the photo.",
-      );
+      toast.error(errorMessage(err, "Could not upload the photo."));
     } finally {
       setUploading(false);
     }

@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { errorMessage } from "@/lib/errors";
 import { AiDraftCard, NoArtifactsYet } from "./draft-card";
 import type { Doc } from "@convex/_generated/dataModel";
 
@@ -36,8 +37,8 @@ export function PulseAiPanel() {
     try {
       await generateBriefing({});
       toast.success("Weekly briefing generated.");
-    } catch {
-      toast.error("Briefing failed.");
+    } catch (err) {
+      toast.error(errorMessage(err, "Briefing failed."));
     } finally {
       setBriefingPending(false);
     }
@@ -48,8 +49,8 @@ export function PulseAiPanel() {
     try {
       await generatePromos({});
       toast.success("Rate-cut promos generated (if any underused windows).");
-    } catch {
-      toast.error("Promo generation failed.");
+    } catch (err) {
+      toast.error(errorMessage(err, "Promo generation failed."));
     } finally {
       setPromoPending(false);
     }

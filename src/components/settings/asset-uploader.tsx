@@ -9,6 +9,7 @@ import { ImageUp } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/feedback";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ACCEPTED = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
@@ -52,8 +53,8 @@ export function AssetUploader({
       const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
       await onUploaded(storageId);
       toast.success(`${label} updated.`);
-    } catch {
-      toast.error(`Could not upload the ${label.toLowerCase()}. Try again.`);
+    } catch (err) {
+      toast.error(errorMessage(err, `Could not upload the ${label.toLowerCase()}. Try again.`));
     } finally {
       setBusy(false);
       if (inputRef.current) inputRef.current.value = "";

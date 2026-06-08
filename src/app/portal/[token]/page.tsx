@@ -4,6 +4,7 @@ import * as React from "react";
 import { useParams } from "next/navigation";
 import { useQuery, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
+import { errorMessage } from "@/lib/errors";
 import { Loader2, Music2, CalendarCheck, Receipt, Sparkles, SendHorizontal } from "lucide-react";
 
 const usd = (c: number) => `$${(c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -27,8 +28,8 @@ export default function ClientPortalPage() {
     try {
       const res = await ask({ token, question: question.trim() });
       setAnswer(res.answer);
-    } catch {
-      setAnswer("Something went wrong. Please try again or reach out to the studio.");
+    } catch (err) {
+      setAnswer(errorMessage(err, "Something went wrong. Please try again or reach out to the studio."));
     } finally {
       setBusy(false);
     }

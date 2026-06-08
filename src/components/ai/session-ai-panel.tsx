@@ -7,6 +7,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import { Sparkles, FileText, Mail } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
+import { errorMessage } from "@/lib/errors";
 import { AiDraftCard, NoArtifactsYet } from "./draft-card";
 
 /** Per-session AI artifacts (recap / prep packet / reminders). Slots into
@@ -23,8 +24,8 @@ export function SessionAiPanel({ sessionId }: { sessionId: Id<"sessions"> }) {
     try {
       await generateRecap({ sessionId });
       toast.success("Recap generated.");
-    } catch {
-      toast.error("Recap failed.");
+    } catch (err) {
+      toast.error(errorMessage(err, "Recap failed."));
     } finally {
       setRecapPending(false);
     }
@@ -34,8 +35,8 @@ export function SessionAiPanel({ sessionId }: { sessionId: Id<"sessions"> }) {
     try {
       await generatePrep({ sessionId });
       toast.success("Prep packet generated.");
-    } catch {
-      toast.error("Prep packet failed.");
+    } catch (err) {
+      toast.error(errorMessage(err, "Prep packet failed."));
     } finally {
       setPrepPending(false);
     }
