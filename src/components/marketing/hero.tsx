@@ -142,7 +142,7 @@ export function Hero() {
                 <span className="chrome-meta ml-3 text-steel/60">pulse · dashboard</span>
               </div>
               {/* Screen — live simulated app navigation. */}
-              <div className="relative aspect-[16/10] w-full overflow-hidden bg-obsidian">
+              <div className="relative aspect-[16/10] w-full overflow-hidden bg-obsidian" style={{ containerType: "inline-size" }}>
                 <DashboardSim />
                 {/* Screen glare + gold edge bloom. */}
                 <div

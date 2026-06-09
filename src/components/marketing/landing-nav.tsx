@@ -69,7 +69,7 @@ export function LandingNav() {
       className={cn(
         "fixed inset-x-0 top-0 z-50 transition-colors duration-300",
         scrolled || menuOpen
-          ? "material-regular border-b border-graphite/50"
+          ? "border-b border-graphite/50 bg-obsidian/92 backdrop-blur-xl"
           : "border-b border-transparent",
       )}
     >

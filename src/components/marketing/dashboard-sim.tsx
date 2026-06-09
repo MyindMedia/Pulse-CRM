@@ -235,9 +235,9 @@ function InboxScreen() {
 
 const SCREENS = [DashboardScreen, PipelineScreen, CalendarScreen, InboxScreen];
 
-export function DashboardSim() {
+export function DashboardSim({ start = 0 }: { start?: number }) {
   const reduce = useReducedMotion();
-  const [i, setI] = React.useState(0);
+  const [i, setI] = React.useState(start % SCREENS.length);
   const [toast, setToast] = React.useState(false);
 
   React.useEffect(() => {
@@ -265,7 +265,7 @@ export function DashboardSim() {
   const cursorTop = `${5.1 + i * 2.5}em`;
 
   return (
-    <div className="absolute inset-0 flex select-none bg-obsidian font-grotesk text-[1.5cqw] leading-tight text-bone [container-type:inline-size]">
+    <div className="absolute inset-0 flex select-none bg-obsidian font-grotesk text-[1.7cqw] leading-tight text-bone">
       {/* Sidebar */}
       <aside className="flex w-[22%] flex-col gap-[0.4em] border-r border-graphite/50 bg-obsidian/90 p-[0.8em]">
         <div className="mb-[0.6em] flex items-center gap-[0.45em]">
