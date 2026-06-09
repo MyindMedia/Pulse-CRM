@@ -4,6 +4,7 @@ import { LandingNav } from "./landing-nav";
 import { Hero } from "./hero";
 import { Chain } from "./chain";
 import { Features } from "./features";
+import { WorkSection } from "./work-section";
 import { Pricing } from "./pricing";
 import { Faq } from "./faq";
 import { FinalCta } from "./cta";
@@ -25,6 +26,7 @@ export function LandingPage() {
         <Hero />
         <Chain />
         <Features />
+        <WorkSection />
         <Pricing />
         <Faq />
         <FinalCta />

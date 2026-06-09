@@ -9,6 +9,7 @@ export function SiteBackdrop() {
     <div aria-hidden className="fixed inset-0 -z-30 overflow-hidden bg-ink">
       {/* Desaturated so the source footage never fights the brand... */}
       <HlsVideo
+        src="/bg-loop.mp4"
         className="absolute inset-0 h-full w-full object-cover opacity-[0.4]"
         style={{ filter: "grayscale(1) brightness(0.8) contrast(1.15)" }}
       />

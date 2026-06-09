@@ -1,12 +1,12 @@
 "use client";
 
 import * as React from "react";
-import Image from "next/image";
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
+import { DashboardSim } from "./dashboard-sim";
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
@@ -141,16 +141,9 @@ export function Hero() {
                 <span className="size-2.5 rounded-full bg-graphite" />
                 <span className="chrome-meta ml-3 text-steel/60">pulse · dashboard</span>
               </div>
-              {/* Screen */}
-              <div className="relative aspect-[16/10] w-full bg-obsidian">
-                <Image
-                  src="/dashboard-screen.png"
-                  alt="The Pulse studio dashboard"
-                  fill
-                  priority
-                  sizes="(max-width: 1024px) 92vw, 820px"
-                  className="object-cover object-top"
-                />
+              {/* Screen — live simulated app navigation. */}
+              <div className="relative aspect-[16/10] w-full overflow-hidden bg-obsidian">
+                <DashboardSim />
                 {/* Screen glare + gold edge bloom. */}
                 <div
                   aria-hidden
