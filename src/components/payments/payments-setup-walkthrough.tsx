@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { CreditCard, CheckCircle2, Circle, Loader2, ArrowUpRight, Landmark, ShieldCheck, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { EmbeddedConnectOnboarding, embeddedConnectAvailable } from "./embedded-connect-onboarding";
 
 /**
  * Clear, guided Stripe setup so a studio can start collecting money ASAP.
@@ -22,6 +23,7 @@ export function PaymentsSetupWalkthrough() {
   const [busy, setBusy] = React.useState(false);
   const [refreshing, setRefreshing] = React.useState(false);
   const [opening, setOpening] = React.useState(false);
+  const [embedOpen, setEmbedOpen] = React.useState(false);
 
   // Returning from Stripe → pull the latest account state.
   React.useEffect(() => {
@@ -32,13 +34,18 @@ export function PaymentsSetupWalkthrough() {
     }
   }, [refreshStatus]);
 
-  if (status === undefined) return <div className="skeleton h-28 w-full rounded-xl" />;
+  if (status === undefined) return <div className="skeleton h-28 w-full rounded-chrome" />;
 
   const connected = Boolean(status.connected);
   const live = connected && Boolean(status.chargesEnabled);
   const pending = connected && !status.chargesEnabled;
 
   async function connect() {
+    // Branded, in-app onboarding when configured; otherwise hosted redirect.
+    if (embeddedConnectAvailable) {
+      setEmbedOpen(true);
+      return;
+    }
     setBusy(true);
     try {
       const { url } = await createAccountLink({});
@@ -74,11 +81,11 @@ export function PaymentsSetupWalkthrough() {
   // Live → slim confirmation.
   if (live) {
     return (
-      <div className="flex items-center gap-3 rounded-xl border border-positive/30 bg-positive/[0.06] px-4 py-3">
+      <div className="flex items-center gap-3 rounded-chrome border border-positive/30 bg-positive/[0.06] px-4 py-3">
         <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-positive/15 text-positive"><CheckCircle2 className="size-5" /></span>
         <div className="min-w-0 flex-1">
-          <p className="font-display text-sm font-semibold text-bone">Payments are live</p>
-          <p className="truncate text-xs text-ash">Deposits, balances and invoice pay links deposit straight to your bank.</p>
+          <p className="font-grotesk text-sm font-semibold text-bone">Payments are live</p>
+          <p className="truncate text-xs text-steel">Deposits, balances and invoice pay links deposit straight to your bank.</p>
         </div>
         <Button variant="ghost" size="sm" onClick={openDashboard} disabled={opening}>
           {opening ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowUpRight className="size-3.5" />}
@@ -98,14 +105,14 @@ export function PaymentsSetupWalkthrough() {
   ];
 
   return (
-    <div className="rounded-xl border border-gold-dim/40 bg-gold/[0.05] p-5">
+    <div className="rounded-chrome border border-gold-dim/40 bg-gold/[0.05] p-5">
       <div className="flex items-start gap-3">
         <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-gold/15 text-gold"><CreditCard className="size-5" /></span>
         <div className="min-w-0">
-          <p className="font-display text-base font-semibold text-bone">
+          <p className="font-grotesk text-base font-semibold text-bone">
             {pending ? "Finish setting up payments" : "Start collecting money"}
           </p>
-          <p className="mt-0.5 text-sm text-ash">
+          <p className="mt-0.5 text-sm text-steel">
             Connect Stripe to take deposits and get invoices paid online. Money goes straight to your bank - Pulse never holds it.
           </p>
         </div>
@@ -120,12 +127,12 @@ export function PaymentsSetupWalkthrough() {
               ) : s.active ? (
                 <span className="grid size-5 place-items-center rounded-full bg-gold text-[0.625rem] font-bold text-gold-ink">{s.n}</span>
               ) : (
-                <Circle className="size-5 text-ash-dim" />
+                <Circle className="size-5 text-steel/70" />
               )}
             </span>
             <div className={cn("min-w-0", s.done && "opacity-70")}>
               <p className="text-sm font-medium text-bone">{s.title}</p>
-              <p className="text-xs text-ash-dim">{s.desc}</p>
+              <p className="text-xs text-steel/70">{s.desc}</p>
             </div>
           </li>
         ))}
@@ -144,10 +151,16 @@ export function PaymentsSetupWalkthrough() {
         )}
       </div>
 
-      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[0.625rem] text-ash-dim">
+      <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-[0.625rem] text-steel/70">
         <span className="inline-flex items-center gap-1"><Landmark className="size-3" /> paid out to your bank</span>
         <span className="inline-flex items-center gap-1"><ShieldCheck className="size-3" /> secured by Stripe</span>
       </div>
+
+      <EmbeddedConnectOnboarding
+        open={embedOpen}
+        onOpenChange={setEmbedOpen}
+        onComplete={() => void refreshStatus({}).catch(() => undefined)}
+      />
     </div>
   );
 }

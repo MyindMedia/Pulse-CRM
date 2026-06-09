@@ -7,6 +7,7 @@ import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
 import { CreditCard, CheckCircle2, ArrowUpRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { EmbeddedConnectOnboarding, embeddedConnectAvailable } from "./embedded-connect-onboarding";
 
 /**
  * Stripe Connect onboarding card. The studio connects its OWN Stripe (Express)
@@ -20,6 +21,7 @@ export function StripeConnectCard({ compact = false }: { compact?: boolean }) {
   const refreshStatus = useAction(api.stripeConnect.refreshStatus);
   const [busy, setBusy] = React.useState(false);
   const [opening, setOpening] = React.useState(false);
+  const [embedOpen, setEmbedOpen] = React.useState(false);
 
   // Coming back from Stripe → pull the latest account state.
   React.useEffect(() => {
@@ -31,6 +33,11 @@ export function StripeConnectCard({ compact = false }: { compact?: boolean }) {
   }, [refreshStatus]);
 
   async function connect() {
+    // Branded, in-app onboarding when configured; otherwise hosted redirect.
+    if (embeddedConnectAvailable) {
+      setEmbedOpen(true);
+      return;
+    }
     setBusy(true);
     try {
       const { url } = await createAccountLink({});
@@ -61,7 +68,7 @@ export function StripeConnectCard({ compact = false }: { compact?: boolean }) {
   const pending = status?.connected && !status?.chargesEnabled;
 
   return (
-    <div className="rounded-xl border border-hairline bg-coal/40 p-5">
+    <div className="rounded-chrome border border-graphite/50 bg-coal/40 p-5">
       <div className="flex items-start gap-4">
         <span
           className={
@@ -72,10 +79,10 @@ export function StripeConnectCard({ compact = false }: { compact?: boolean }) {
           {connected ? <CheckCircle2 className="size-5" /> : <CreditCard className="size-5" />}
         </span>
         <div className="min-w-0 flex-1">
-          <p className="font-display text-sm font-semibold text-bone">
+          <p className="font-grotesk text-sm font-semibold text-bone">
             {connected ? "Stripe connected" : "Collect deposits with Stripe"}
           </p>
-          <p className="mt-0.5 text-sm text-ash">
+          <p className="mt-0.5 text-sm text-steel">
             {status === undefined
               ? "Checking…"
               : !status.configured
@@ -87,7 +94,7 @@ export function StripeConnectCard({ compact = false }: { compact?: boolean }) {
                     : "Connect your Stripe account so clients pay deposits straight to you. Takes ~2 minutes."}
           </p>
           {!compact && connected && (
-            <p className="mt-2 text-[0.6875rem] text-ash-dim">
+            <p className="mt-2 text-[0.6875rem] text-steel/70">
               Payouts, refunds, and tax live in your Stripe dashboard.
             </p>
           )}
@@ -112,6 +119,12 @@ export function StripeConnectCard({ compact = false }: { compact?: boolean }) {
           </Button>
         </div>
       )}
+
+      <EmbeddedConnectOnboarding
+        open={embedOpen}
+        onOpenChange={setEmbedOpen}
+        onComplete={() => void refreshStatus({}).catch(() => undefined)}
+      />
     </div>
   );
 }

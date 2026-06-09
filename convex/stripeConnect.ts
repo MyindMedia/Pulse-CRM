@@ -1,4 +1,5 @@
 import { action, query, internalQuery, internalMutation } from "./_generated/server";
+import type { ActionCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { stripeClient } from "./lib/stripe";
@@ -77,8 +78,35 @@ export const _setStatusByAccount = internalMutation({
 });
 
 /**
+ * Ensure the signed-in studio has an Express connected account, creating one if
+ * needed. Shared by the hosted Account-Link flow and the embedded onboarding
+ * flow so both paths attach to the same account. Returns the account id.
+ */
+async function ensureExpressAccount(
+  ctx: ActionCtx,
+  stripe: ReturnType<typeof stripeClient>,
+): Promise<string> {
+  const self = await ctx.runQuery(internal.stripeConnect._orgForConnect, {});
+  if (!self) throw new ConvexError("No studio to connect.");
+  if (self.stripeAccountId) return self.stripeAccountId;
+  const account = await stripe.accounts.create({
+    type: "express",
+    email: self.ownerEmail ?? undefined,
+    business_profile: { name: self.name },
+    capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+    metadata: { orgId: self.orgId },
+  });
+  await ctx.runMutation(internal.stripeConnect._setAccount, {
+    orgId: self.orgId,
+    stripeAccountId: account.id,
+  });
+  return account.id;
+}
+
+/**
  * Begin (or resume) Stripe Connect onboarding. Creates an Express account for
  * the studio if needed, then returns a one-time Account Link URL to redirect to.
+ * Used as the fallback when embedded onboarding is unavailable.
  */
 export const createAccountLink = action({
   args: {},
@@ -86,26 +114,8 @@ export const createAccountLink = action({
     if (!process.env.STRIPE_SECRET_KEY) {
       throw new ConvexError("Payments aren’t configured yet. Ask your admin to set up Stripe.");
     }
-    const self = await ctx.runQuery(internal.stripeConnect._orgForConnect, {});
-    if (!self) throw new ConvexError("No studio to connect.");
     const stripe = stripeClient();
-
-    let accountId = self.stripeAccountId;
-    if (!accountId) {
-      const account = await stripe.accounts.create({
-        type: "express",
-        email: self.ownerEmail ?? undefined,
-        business_profile: { name: self.name },
-        capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
-        metadata: { orgId: self.orgId },
-      });
-      accountId = account.id;
-      await ctx.runMutation(internal.stripeConnect._setAccount, {
-        orgId: self.orgId,
-        stripeAccountId: accountId,
-      });
-    }
-
+    const accountId = await ensureExpressAccount(ctx, stripe);
     const link = await stripe.accountLinks.create({
       account: accountId,
       refresh_url: `${appUrl()}/settings?stripe=refresh`,
@@ -113,6 +123,29 @@ export const createAccountLink = action({
       type: "account_onboarding",
     });
     return { url: link.url };
+  },
+});
+
+/**
+ * Create an Account Session client secret for Stripe's EMBEDDED Connect
+ * onboarding component, so the studio completes onboarding inside Pulse (themed
+ * gold/black) instead of being redirected to Stripe's hosted flow. Ensures the
+ * Express account exists first. The client pairs this with the publishable key
+ * (NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY) in loadConnectAndInitialize.
+ */
+export const createAccountSession = action({
+  args: {},
+  handler: async (ctx): Promise<{ clientSecret: string }> => {
+    if (!process.env.STRIPE_SECRET_KEY) {
+      throw new ConvexError("Payments aren’t configured yet. Ask your admin to set up Stripe.");
+    }
+    const stripe = stripeClient();
+    const accountId = await ensureExpressAccount(ctx, stripe);
+    const session = await stripe.accountSessions.create({
+      account: accountId,
+      components: { account_onboarding: { enabled: true } },
+    });
+    return { clientSecret: session.client_secret };
   },
 });
 

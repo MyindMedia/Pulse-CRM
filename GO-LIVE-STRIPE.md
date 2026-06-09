@@ -115,19 +115,47 @@ npx convex run stripeConnect:_resetTestConnectStateForGoLive '{"dryRun": false}'
 ```
 (It does NOT touch the `agencies` table — Pulse's own platform billing — by design.)
 
-### 6. Redo Stripe branding in LIVE mode
-Settings → Branding (Checkout) **and** Connect → Branding (onboarding), in Live
-mode: gold `#FDB913`, ink `#141417`, logo
-`https://pulse.myindsound.com/pulse-logo.png`. (Test-mode branding does not carry
-over to live.)
+### 6. Redo Stripe branding in LIVE mode (Dashboard only)
+Stripe forbids setting a platform's own account branding via the API
+(`"You cannot use this method on your own account"`), so this is a one-time
+Dashboard task. Test-mode branding does not carry over to live. Assets are
+prepared in the repo:
+- **Settings → Branding** (drives Checkout):
+  - Icon: `public/stripe-icon.png` (512x512 square)
+  - Logo: `public/pulse-logo-main.png`
+  - Brand color `#FDB913` (gold), Accent color `#141417` (ink)
+- **Settings → Connect → Branding** (drives studio Express onboarding): same
+  icon + brand color `#FDB913`.
+
+`bash scripts/verify-go-live.sh` reports branding as 4 warnings until this is done.
 
 ### 7. Each studio re-connects Stripe (live)
 Studio opens `/settings` → Connect Stripe → completes live Express onboarding.
 `stripeConnect.refreshStatus` flips them to charges-enabled.
 
+### 8. (Optional) Embedded onboarding — branded, in-app connect
+The connect flow uses Stripe's EMBEDDED Connect components (themed to Pulse)
+when a publishable key is present, so studios onboard inside `/payments` instead
+of being redirected to Stripe's hosted page. Set the LIVE publishable key on
+the Netlify site (client-exposed, safe to be public):
+```
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY = pk_live_…
+```
+Add it in Netlify → Site settings → Environment, then redeploy (it is baked at
+build time). Without it, the flow automatically falls back to the hosted Account
+Link redirect — no breakage. Backend powered by `stripeConnect.createAccountSession`.
+
 ---
 
 ## Verify live
+Run the read-only verifier first — it checks the account (live, charges +
+payouts), branding, Connect, all three plan prices, and both webhook endpoints
+in one pass:
+```
+bash scripts/verify-go-live.sh
+```
+0 failures = go-live is healthy; branding shows as warnings until step 6 is done.
+Then spot-check the live behaviour:
 1. `npx convex env list --prod` shows all three as `…live…` / live signing secrets.
 2. A studio finishes live Connect onboarding → `account.updated` lands →
    `stripeChargesEnabled = true`.

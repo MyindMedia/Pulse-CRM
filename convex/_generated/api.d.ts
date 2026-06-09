@@ -55,6 +55,7 @@ import type * as lib_accessTypes from "../lib/accessTypes.js";
 import type * as lib_aiGuard from "../lib/aiGuard.js";
 import type * as lib_checklistTemplates from "../lib/checklistTemplates.js";
 import type * as lib_email from "../lib/email.js";
+import type * as lib_emailTemplates_activation from "../lib/emailTemplates/activation.js";
 import type * as lib_emailTemplates_invite from "../lib/emailTemplates/invite.js";
 import type * as lib_gearCatalog from "../lib/gearCatalog.js";
 import type * as lib_google from "../lib/google.js";
@@ -159,6 +160,7 @@ declare const fullApi: ApiFromModules<{
   "lib/aiGuard": typeof lib_aiGuard;
   "lib/checklistTemplates": typeof lib_checklistTemplates;
   "lib/email": typeof lib_email;
+  "lib/emailTemplates/activation": typeof lib_emailTemplates_activation;
   "lib/emailTemplates/invite": typeof lib_emailTemplates_invite;
   "lib/gearCatalog": typeof lib_gearCatalog;
   "lib/google": typeof lib_google;

@@ -61,6 +61,11 @@
       "skillPath": "skills/remotion-to-hyperframes/SKILL.md",
       "computedHash": "ee04c5eca6113d5a3a8aeee9e78792451da57f06450bd034486950142ee05766"
     },
+    "stripe-best-practices": {
+      "source": "docs.stripe.com",
+      "sourceType": "well-known",
+      "computedHash": "966d0ce005fb82e1a63ead1ec8c5546a9088c0d8f103f88c382c4cda810857cc"
+    },
     "tailwind": {
       "source": "heygen-com/hyperframes",
       "sourceType": "github",

@@ -38,6 +38,13 @@ describe("stripe connect", () => {
     await expect(t.action(api.stripeConnect.createAccountLink, {})).rejects.toThrow(/configured/i);
   });
 
+  it("createAccountSession throws when Stripe isn't configured", async () => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+    });
+    await expect(t.action(api.stripeConnect.createAccountSession, {})).rejects.toThrow(/configured/i);
+  });
+
   it("createDashboardLink throws when Stripe isn't configured", async () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
