@@ -91,9 +91,9 @@ function SavedFeesCard() {
       </CardHeader>
       <CardContent className="space-y-4">
         {fees === undefined ? (
-          <p className="py-6 text-center text-xs text-ash-dim">Loading…</p>
+          <p className="py-6 text-center text-xs text-steel/70">Loading…</p>
         ) : fees.length === 0 ? (
-          <p className="rounded-md border border-dashed border-hairline-2 py-6 text-center text-xs text-ash-dim">
+          <p className="rounded-md border border-dashed border-graphite/60 py-6 text-center text-xs text-steel/70">
             No saved fees yet. Add one below.
           </p>
         ) : (
@@ -104,7 +104,7 @@ function SavedFeesCard() {
           </ul>
         )}
 
-        <div className="grid grid-cols-[1fr_8rem_auto] items-end gap-2 border-t border-hairline-2 pt-4">
+        <div className="grid grid-cols-[1fr_8rem_auto] items-end gap-2 border-t border-graphite/60 pt-4">
           <Field label="New fee">
             <Input
               type="text"
@@ -115,7 +115,7 @@ function SavedFeesCard() {
           </Field>
           <Field label="Amount">
             <div className="relative">
-              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ash-dim">
+              <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-steel/70">
                 $
               </span>
               <Input
@@ -179,13 +179,13 @@ function FeeRow({ fee }: { fee: FeeTemplate }) {
   return (
     <li
       className={cn(
-        "grid grid-cols-[1fr_8rem_auto_auto] items-center gap-2 rounded-md border border-hairline bg-coal-2 p-2",
+        "grid grid-cols-[1fr_8rem_auto_auto] items-center gap-2 rounded-md border border-graphite/50 bg-coal-2 p-2",
         !fee.active && "opacity-60",
       )}
     >
       <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Fee name" />
       <div className="relative">
-        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ash-dim">
+        <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-steel/70">
           $
         </span>
         <Input
@@ -195,7 +195,7 @@ function FeeRow({ fee }: { fee: FeeTemplate }) {
           step="5"
           value={amount}
           onChange={(e) => setAmount(e.target.value)}
-          className="pl-7 text-right font-mono"
+          className="pl-7 text-right font-meta"
         />
       </div>
       <div className="flex items-center gap-1.5 px-1">
@@ -290,20 +290,20 @@ function PublicTiersCard({ org }: { org: Org }) {
                   "flex flex-col rounded-lg border p-4",
                   isCurrent
                     ? "border-gold bg-gold/[0.06]"
-                    : "border-hairline bg-coal-2",
+                    : "border-graphite/50 bg-coal-2",
                 )}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <p className="font-display text-sm font-semibold text-bone">
+                  <p className="font-grotesk text-sm font-semibold text-bone">
                     {limits.label}
                   </p>
                   {isCurrent && <Badge tone="gold">Current</Badge>}
                 </div>
-                <p className="mt-1 font-mono text-sm text-gold">{priceLabel(key)}</p>
-                <p className="mt-2 text-xs text-ash">{limits.tagline}</p>
+                <p className="mt-1 font-meta text-sm text-gold">{priceLabel(key)}</p>
+                <p className="mt-2 text-xs text-steel">{limits.tagline}</p>
                 <ul className="mt-3 flex-1 space-y-1.5">
                   {TIER_BULLETS[key as Exclude<TierKey, "agency">].map((b) => (
-                    <li key={b} className="flex items-start gap-1.5 text-xs text-ash">
+                    <li key={b} className="flex items-start gap-1.5 text-xs text-steel">
                       <Check className="mt-0.5 size-3 shrink-0 text-positive" />
                       {b}
                     </li>
@@ -369,7 +369,7 @@ function ServicePricingCard({ org }: { org: Org }) {
           {SERVICES.map((s) => (
             <Field key={s.key} label={s.label} hint="USD / hour">
               <div className="relative">
-                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ash-dim">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-steel/70">
                   $
                 </span>
                 <Input
@@ -475,7 +475,7 @@ function DiscountCodesCard({ org }: { org: Org }) {
               onChange={(e) => setDefaultPctVal(e.target.value)}
               className="pr-7"
             />
-            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ash-dim">
+            <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-steel/70">
               %
             </span>
           </div>
@@ -484,7 +484,7 @@ function DiscountCodesCard({ org }: { org: Org }) {
         <div className="space-y-2">
           <p className="overline">Custom codes</p>
           {codes.length === 0 ? (
-            <p className="rounded-md border border-dashed border-hairline-2 py-6 text-center text-xs text-ash-dim">
+            <p className="rounded-md border border-dashed border-graphite/60 py-6 text-center text-xs text-steel/70">
               No discount codes yet. Add one below.
             </p>
           ) : (
@@ -493,7 +493,7 @@ function DiscountCodesCard({ org }: { org: Org }) {
                 <li
                   key={i}
                   className={cn(
-                    "grid grid-cols-[1fr_5rem_1fr_auto_auto] items-center gap-2 rounded-md border border-hairline bg-coal-2 p-2",
+                    "grid grid-cols-[1fr_5rem_1fr_auto_auto] items-center gap-2 rounded-md border border-graphite/50 bg-coal-2 p-2",
                     !c.active && "opacity-60",
                   )}
                 >
@@ -502,7 +502,7 @@ function DiscountCodesCard({ org }: { org: Org }) {
                     placeholder="CODE"
                     value={c.code}
                     onChange={(e) => update(i, { code: e.target.value.toUpperCase() })}
-                    className="font-mono uppercase"
+                    className="font-meta uppercase"
                   />
                   <div className="relative">
                     <Input
@@ -517,7 +517,7 @@ function DiscountCodesCard({ org }: { org: Org }) {
                       }
                       className="pr-6"
                     />
-                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-ash-dim">
+                    <span className="pointer-events-none absolute right-2 top-1/2 -translate-y-1/2 text-steel/70">
                       %
                     </span>
                   </div>
@@ -533,7 +533,7 @@ function DiscountCodesCard({ org }: { org: Org }) {
                       onCheckedChange={(v) => update(i, { active: v })}
                       aria-label={`Toggle ${c.code || "code"}`}
                     />
-                    <span className="font-mono text-[0.625rem] uppercase text-ash-dim">
+                    <span className="font-meta text-[0.625rem] uppercase text-steel/70">
                       {c.active ? "on" : "off"}
                     </span>
                   </div>
@@ -679,7 +679,7 @@ function TaxConfigCard({ org }: { org: Org }) {
                 }}
                 className="pr-7"
               />
-              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-ash-dim">
+              <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-steel/70">
                 %
               </span>
             </div>
@@ -690,7 +690,7 @@ function TaxConfigCard({ org }: { org: Org }) {
           </Button>
         </div>
 
-        <label className="flex items-start gap-3 rounded-md border border-hairline bg-coal-2 p-3 cursor-pointer">
+        <label className="flex items-start gap-3 rounded-md border border-graphite/50 bg-coal-2 p-3 cursor-pointer">
           <input
             type="checkbox"
             checked={apply}
@@ -701,7 +701,7 @@ function TaxConfigCard({ org }: { org: Org }) {
             <span className="block text-sm font-medium text-bone">
               Apply tax to new invoices automatically
             </span>
-            <span className="block text-xs text-ash">
+            <span className="block text-xs text-steel">
               When on, every new invoice adds a tax line item at the effective rate.
               Existing invoices are not retroactively recalculated.
             </span>

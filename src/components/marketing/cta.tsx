@@ -1,13 +1,12 @@
 import Link from "next/link";
 import { ArrowRight } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { Reveal } from "./reveal";
 
 export function FinalCta() {
   return (
     <section className="relative px-4 py-24 lg:px-8">
       <Reveal className="mx-auto max-w-4xl">
-        <div className="relative overflow-hidden rounded-3xl border border-gold-dim bg-coal-2/60 px-6 py-16 text-center shadow-gold-soft sm:px-12">
+        <div className="relative overflow-hidden rounded-chrome border border-gold/40 bg-obsidian/70 px-6 py-20 text-center shadow-gold-soft sm:px-12">
           <div
             aria-hidden
             className="pointer-events-none absolute inset-0 opacity-60"
@@ -17,23 +16,26 @@ export function FinalCta() {
             }}
           />
           <div className="relative">
-            <h2 className="mx-auto max-w-2xl font-display text-3xl font-bold tracking-tight text-bone sm:text-5xl">
-              Run your{" "}
-              <span className="font-serif text-[1.1em] font-normal italic text-gold">whole</span>{" "}
-              studio on Pulse
+            <h2 className="chrome-display mx-auto max-w-3xl text-5xl text-bone sm:text-7xl">
+              Run your <span className="text-gold">whole</span> studio on Pulse
             </h2>
-            <p className="mx-auto mt-5 max-w-xl text-ash">
+            <p className="font-grotesk mx-auto mt-6 max-w-xl text-[17px] font-medium tracking-[-0.01em] text-mist/80">
               Pick a plan, connect your Stripe, and take your first booking today.
             </p>
-            <div className="mt-9 flex flex-wrap items-center justify-center gap-3">
-              <Button asChild size="lg">
-                <Link href="#pricing">
-                  Get started <ArrowRight />
-                </Link>
-              </Button>
-              <Button asChild size="lg" variant="outline">
-                <Link href="/sign-in">Log in</Link>
-              </Button>
+            <div className="mt-10 flex flex-wrap items-center justify-center gap-3">
+              <Link
+                href="#pricing"
+                className="group inline-flex items-center gap-2 rounded-chrome bg-gold px-7 py-3 font-grotesk text-sm font-semibold uppercase tracking-[0.04em] text-gold-ink transition-all hover:-translate-y-0.5 hover:bg-gold-bright"
+              >
+                Get started
+                <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+              </Link>
+              <Link
+                href="/sign-in"
+                className="chrome-ghost chrome-ghost-gold inline-flex items-center rounded-chrome px-7 py-3 font-grotesk text-sm font-semibold uppercase tracking-[0.04em] text-mist transition-colors hover:text-gold"
+              >
+                Log in
+              </Link>
             </div>
           </div>
         </div>

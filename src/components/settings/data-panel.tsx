@@ -56,14 +56,14 @@ export function DataPanel() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-ash">
+          <p className="text-sm text-steel">
             This wipes the current records and reseeds songs, sessions, rooms,
             gear, the team and clients to their original demo state. Use it to
             return the workspace to a clean starting point for a walkthrough.
           </p>
         </CardContent>
         <CardFooter className="justify-between">
-          <p className="text-[0.6875rem] text-ash-dim">
+          <p className="text-[0.6875rem] text-steel/70">
             This action cannot be undone.
           </p>
           <Button variant="danger" onClick={() => setConfirmOpen(true)}>
@@ -82,7 +82,7 @@ export function DataPanel() {
           <CardDescription>How sign-in is handled for this workspace.</CardDescription>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-ash">
+          <p className="text-sm text-steel">
             When a Clerk integration is configured, Pulse authenticates every
             member through Clerk and maps them to their team record. With no
             Clerk keys present the workspace runs in demo mode - a single shared
@@ -103,7 +103,7 @@ export function DataPanel() {
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <p className="text-sm text-ash">
+            <p className="text-sm text-steel">
               All songs, sessions, rooms, gear, team members and clients return
               to their seeded state. Anything added or edited since the last
               reload is lost.

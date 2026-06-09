@@ -60,7 +60,7 @@ export function DeliverableReviewDialog({
             {comments === undefined ? (
               <Skeleton className="mt-2 h-24 w-full" />
             ) : comments.length === 0 ? (
-              <p className="mt-2 rounded-md border border-dashed border-hairline-2 py-6 text-center text-xs text-ash-dim">
+              <p className="mt-2 rounded-md border border-dashed border-graphite/60 py-6 text-center text-xs text-steel/70">
                 No notes yet. Double-click the waveform to drop one at that timestamp.
               </p>
             ) : (
@@ -68,18 +68,18 @@ export function DeliverableReviewDialog({
                 {comments.map((c) => (
                   <li
                     key={c._id}
-                    className={`rounded-md border border-hairline bg-coal-2 p-3 ${c.resolved ? "opacity-60" : ""}`}
+                    className={`rounded-md border border-graphite/50 bg-coal-2 p-3 ${c.resolved ? "opacity-60" : ""}`}
                   >
                     <div className="flex items-center justify-between gap-2">
                       <span className="inline-flex items-center gap-1.5 text-xs font-medium text-bone">
-                        <MessageSquare className="size-3.5 text-ash-dim" />
-                        <span className="font-mono text-[0.625rem] uppercase tracking-wide text-gold">
+                        <MessageSquare className="size-3.5 text-steel/70" />
+                        <span className="font-meta text-[0.625rem] uppercase tracking-wide text-gold">
                           {fmtTime(c.timestampSec)}
                         </span>
                         {c.authorName}
                       </span>
                       <Button size="sm" variant="ghost" onClick={() => toggleResolved(c._id, c.resolved)}>
-                        <Check className={`size-3.5 ${c.resolved ? "text-positive" : "text-ash-dim"}`} />
+                        <Check className={`size-3.5 ${c.resolved ? "text-positive" : "text-steel/70"}`} />
                         {c.resolved ? "Resolved" : "Mark resolved"}
                       </Button>
                     </div>

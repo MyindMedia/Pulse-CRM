@@ -36,7 +36,7 @@ export function DialogContent({
       <DialogPrimitive.Content
         className={cn(
           "anim-pop fixed left-1/2 top-1/2 z-50 w-[calc(100vw-2rem)] -translate-x-1/2 -translate-y-1/2",
-          "rounded-xl glass-liquid shadow-elev-4 text-bone",
+          "rounded-chrome glass-liquid shadow-elev-4 text-bone",
           width,
           className,
         )}
@@ -44,7 +44,7 @@ export function DialogContent({
       >
         {children}
         <DialogPrimitive.Close
-          className="absolute right-4 top-4 rounded-sm p-1 text-ash-dim outline-none transition-colors hover:bg-coal-3 hover:text-bone focus-visible:ring-2 focus-visible:ring-gold/30"
+          className="absolute right-4 top-4 rounded-sm p-1 text-steel/70 outline-none transition-colors hover:bg-coal-3 hover:text-bone focus-visible:ring-2 focus-visible:ring-gold/30"
           aria-label="Close"
         >
           <X className="size-4" />
@@ -55,7 +55,7 @@ export function DialogContent({
 }
 
 export function DialogHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
-  return <div className={cn("space-y-1 border-b border-hairline p-5", className)} {...props} />;
+  return <div className={cn("space-y-1 border-b border-graphite/50 p-5", className)} {...props} />;
 }
 
 export function DialogTitle({
@@ -64,7 +64,7 @@ export function DialogTitle({
 }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>) {
   return (
     <DialogPrimitive.Title
-      className={cn("font-display text-lg font-semibold tracking-tight text-bone", className)}
+      className={cn("font-grotesk text-lg font-semibold tracking-tight text-bone", className)}
       {...props}
     />
   );
@@ -74,7 +74,7 @@ export function DialogDescription({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>) {
-  return <DialogPrimitive.Description className={cn("text-sm text-ash", className)} {...props} />;
+  return <DialogPrimitive.Description className={cn("text-sm text-steel", className)} {...props} />;
 }
 
 export function DialogBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
@@ -84,7 +84,7 @@ export function DialogBody({ className, ...props }: React.HTMLAttributes<HTMLDiv
 export function DialogFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("flex items-center justify-end gap-2 border-t border-hairline p-5", className)}
+      className={cn("flex items-center justify-end gap-2 border-t border-graphite/50 p-5", className)}
       {...props}
     />
   );

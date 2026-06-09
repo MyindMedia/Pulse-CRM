@@ -212,7 +212,7 @@ export function SoftwareDialog({
             {!isEdit && (
               <Field label="Software catalog" hint="Pick to auto-fill, or add a custom item.">
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ash-dim" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-steel/70" />
                   <Input
                     value={catQ}
                     onChange={(e) => { setCatQ(e.target.value); setCatOpen(true); }}
@@ -223,30 +223,30 @@ export function SoftwareDialog({
                     autoComplete="off"
                   />
                   {catOpen && (
-                    <div className="absolute z-50 mt-1 max-h-72 w-full overflow-auto rounded-md border border-hairline bg-coal-2 shadow-elev-3">
+                    <div className="absolute z-50 mt-1 max-h-72 w-full overflow-auto rounded-md border border-graphite/50 bg-coal-2 shadow-elev-3">
                       {catQ.trim().length >= 1 && (
                         <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={applyCustom}
-                          className="flex w-full items-center gap-2 border-b border-hairline-2 px-3 py-2 text-left hover:bg-hairline/40">
+                          className="flex w-full items-center gap-2 border-b border-graphite/60 px-3 py-2 text-left hover:bg-hairline/40">
                           <Plus className="size-4 shrink-0 text-gold" />
                           <span className="truncate text-sm text-bone">Add <span className="text-gold">&ldquo;{catQ.trim()}&rdquo;</span> as custom</span>
                         </button>
                       )}
                       {results === undefined ? (
-                        <p className="px-3 py-2 text-xs text-ash-dim">Loading…</p>
+                        <p className="px-3 py-2 text-xs text-steel/70">Loading…</p>
                       ) : grouped.length === 0 ? (
-                        <p className="px-3 py-2 text-xs text-ash-dim">No match — use the custom option.</p>
+                        <p className="px-3 py-2 text-xs text-steel/70">No match — use the custom option.</p>
                       ) : (
                         grouped.map((g) => (
                           <div key={g.label}>
-                            <p className="sticky top-0 z-10 bg-ink-2 px-3 py-1 text-[0.625rem] font-semibold uppercase tracking-wide text-ash-dim">{g.label}</p>
+                            <p className="sticky top-0 z-10 bg-obsidian px-3 py-1 text-[0.625rem] font-semibold uppercase tracking-wide text-steel/70">{g.label}</p>
                             {g.items.map((it) => (
                               <button key={it.id} type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => pick(it)}
                                 className="flex w-full items-center gap-3 px-3 py-2 text-left hover:bg-hairline/40">
                                 <span className="min-w-0 flex-1">
                                   <span className="block truncate text-sm text-bone">{it.name}</span>
-                                  <span className="block truncate text-[0.6875rem] uppercase tracking-wide text-ash-dim">{it.vendor}{it.note ? ` · ${it.note}` : ""}</span>
+                                  <span className="block truncate text-[0.6875rem] uppercase tracking-wide text-steel/70">{it.vendor}{it.note ? ` · ${it.note}` : ""}</span>
                                 </span>
-                                <span className="shrink-0 font-mono text-xs text-gold">{money(it.priceCents)}</span>
+                                <span className="shrink-0 font-meta text-xs text-gold">{money(it.priceCents)}</span>
                               </button>
                             ))}
                           </div>
@@ -289,7 +289,7 @@ export function SoftwareDialog({
             <div className="grid gap-4 sm:grid-cols-3">
               <Field label="Cost" hint="USD">
                 <div className="relative">
-                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ash-dim">$</span>
+                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-steel/70">$</span>
                   <Input type="number" min="0" step="0.01" inputMode="decimal" value={form.cost} onChange={(e) => set("cost", e.target.value)} placeholder="0.00" className="pl-7" />
                 </div>
               </Field>
@@ -308,7 +308,7 @@ export function SoftwareDialog({
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Renewal / expiry" htmlFor="sw-renewal" hint="Subscriptions">
-                <Input id="sw-renewal" type="date" value={form.renewal} onChange={(e) => set("renewal", e.target.value)} className="font-mono" />
+                <Input id="sw-renewal" type="date" value={form.renewal} onChange={(e) => set("renewal", e.target.value)} className="font-meta" />
               </Field>
               <Field label="Status">
                 <Select value={form.status} onValueChange={(v) => set("status", v as SoftwareStatus)}>

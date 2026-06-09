@@ -60,9 +60,9 @@ function MeterRow({ m }: { m: MetricView }) {
     <div className="space-y-1.5">
       <div className="flex items-baseline justify-between gap-3">
         <span className="text-sm text-bone">{m.label}</span>
-        <span className="text-xs tabular-nums text-ash">
+        <span className="text-xs tabular-nums text-steel">
           {fmtValue(m.used, m.unit)}
-          <span className="text-ash-dim"> / {fmtLimit(m.limit, m.unit)}</span>
+          <span className="text-steel/70"> / {fmtLimit(m.limit, m.unit)}</span>
         </span>
       </div>
       <Progress

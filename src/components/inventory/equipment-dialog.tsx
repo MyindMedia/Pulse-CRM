@@ -276,7 +276,7 @@ export function EquipmentDialog({
                 hint="Pick a model to auto-fill name, category & price — or add a custom item."
               >
                 <div className="relative">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ash-dim" />
+                  <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-steel/70" />
                   <Input
                     value={catalogQ}
                     onChange={(e) => {
@@ -292,17 +292,17 @@ export function EquipmentDialog({
                     aria-expanded={catalogOpen}
                   />
                   <ChevronDown
-                    className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-ash-dim"
+                    className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-steel/70"
                   />
                   {catalogOpen && (
-                    <div className="absolute z-50 mt-1 max-h-72 w-full overflow-auto rounded-md border border-hairline bg-coal-2 shadow-elev-3">
+                    <div className="absolute z-50 mt-1 max-h-72 w-full overflow-auto rounded-md border border-graphite/50 bg-coal-2 shadow-elev-3">
                       {/* Custom-item entry - always available when text is typed. */}
                       {catalogQ.trim().length >= 1 && (
                         <button
                           type="button"
                           onMouseDown={(e) => e.preventDefault()}
                           onClick={applyCustomItem}
-                          className="flex w-full items-center gap-2 border-b border-hairline-2 px-3 py-2 text-left hover:bg-hairline/40"
+                          className="flex w-full items-center gap-2 border-b border-graphite/60 px-3 py-2 text-left hover:bg-hairline/40"
                         >
                           <Plus className="size-4 shrink-0 text-gold" />
                           <span className="min-w-0 flex-1 truncate text-sm text-bone">
@@ -311,19 +311,19 @@ export function EquipmentDialog({
                         </button>
                       )}
                       {catalogResults === undefined ? (
-                        <p className="px-3 py-2 text-xs text-ash-dim">Loading…</p>
+                        <p className="px-3 py-2 text-xs text-steel/70">Loading…</p>
                       ) : catalogResults.length === 0 ? (
                         catalogQ.trim().length >= 1 ? (
-                          <p className="px-3 py-2 text-xs text-ash-dim">
+                          <p className="px-3 py-2 text-xs text-steel/70">
                             No catalog match — use the custom-item option above.
                           </p>
                         ) : (
-                          <p className="px-3 py-2 text-xs text-ash-dim">Start typing to search the catalog.</p>
+                          <p className="px-3 py-2 text-xs text-steel/70">Start typing to search the catalog.</p>
                         )
                       ) : (
                         groupedCatalog.map((group) => (
                           <div key={group.category}>
-                            <p className="sticky top-0 z-10 bg-ink-2 px-3 py-1 text-[0.625rem] font-semibold uppercase tracking-wide text-ash-dim">
+                            <p className="sticky top-0 z-10 bg-obsidian px-3 py-1 text-[0.625rem] font-semibold uppercase tracking-wide text-steel/70">
                               {group.label}
                             </p>
                             {group.items.map((it) => (
@@ -339,7 +339,7 @@ export function EquipmentDialog({
                                   <img
                                     src={it.imageUrl}
                                     alt=""
-                                    className="size-9 shrink-0 rounded border border-hairline object-cover"
+                                    className="size-9 shrink-0 rounded border border-graphite/50 object-cover"
                                     loading="lazy"
                                   />
                                 ) : null}
@@ -348,12 +348,12 @@ export function EquipmentDialog({
                                     {it.brand} {it.model}
                                   </span>
                                   {it.note ? (
-                                    <span className="block truncate text-[0.6875rem] text-ash-dim">
+                                    <span className="block truncate text-[0.6875rem] text-steel/70">
                                       {it.note}
                                     </span>
                                   ) : null}
                                 </span>
-                                <span className="shrink-0 font-mono text-xs text-gold">
+                                <span className="shrink-0 font-meta text-xs text-gold">
                                   {money(it.priceCents)}
                                 </span>
                               </button>
@@ -384,19 +384,19 @@ export function EquipmentDialog({
               <PhotoUploader equipmentId={item._id} photo={item.photo} />
             ) : (
               <div className="space-y-1.5">
-                <p className="text-xs font-medium text-ash">Photo</p>
+                <p className="text-xs font-medium text-steel">Photo</p>
                 {catalogPhotoUrl && !photoId ? (
-                  <div className="flex items-start gap-3 rounded-md border border-hairline bg-coal-2 p-2">
+                  <div className="flex items-start gap-3 rounded-md border border-graphite/50 bg-coal-2 p-2">
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={catalogPhotoUrl}
                       alt="Catalog"
-                      className="size-16 shrink-0 rounded border border-hairline object-cover"
+                      className="size-16 shrink-0 rounded border border-graphite/50 object-cover"
                     />
                     <div className="min-w-0 flex-1 text-xs">
-                      <p className="text-ash">Using the catalog photo.</p>
+                      <p className="text-steel">Using the catalog photo.</p>
                       {catalogPhotoCredit ? (
-                        <p className="mt-0.5 text-[0.6875rem] text-ash-dim">{catalogPhotoCredit}</p>
+                        <p className="mt-0.5 text-[0.6875rem] text-steel/70">{catalogPhotoCredit}</p>
                       ) : null}
                       <button
                         type="button"

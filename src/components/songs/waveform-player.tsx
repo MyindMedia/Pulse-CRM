@@ -198,8 +198,8 @@ export function WaveformPlayer({
     else a.pause();
   }
 
-  if (dl === undefined) return <div className="flex items-center gap-2 py-6 text-xs text-ash"><Loader2 className="size-4 animate-spin" /> Loading audio…</div>;
-  if (dl === null) return <p className="py-6 text-center text-xs text-ash-dim">No audio file available.</p>;
+  if (dl === undefined) return <div className="flex items-center gap-2 py-6 text-xs text-steel"><Loader2 className="size-4 animate-spin" /> Loading audio…</div>;
+  if (dl === null) return <p className="py-6 text-center text-xs text-steel/70">No audio file available.</p>;
 
   return (
     <div className="space-y-3">
@@ -214,7 +214,7 @@ export function WaveformPlayer({
         className="hidden"
       />
 
-      <div className="rounded-md border border-hairline bg-ink-2 p-3">
+      <div className="rounded-md border border-graphite/50 bg-obsidian p-3">
         <canvas
           ref={canvasRef}
           onClick={handleSeek}
@@ -227,10 +227,10 @@ export function WaveformPlayer({
             {playing ? <Pause className="size-4" /> : <Play className="size-4" />}
             {playing ? "Pause" : "Play"}
           </Button>
-          <span className="font-mono text-xs tabular-nums text-ash">
+          <span className="font-meta text-xs tabular-nums text-steel">
             {fmtTime(currentTime)} / {fmtTime(duration)}
           </span>
-          <span className="ml-auto inline-flex items-center gap-1.5 text-[0.625rem] text-ash-dim">
+          <span className="ml-auto inline-flex items-center gap-1.5 text-[0.625rem] text-steel/70">
             <MessageSquarePlus className="size-3.5" />
             Double-click the waveform to leave a timestamped note.
           </span>
@@ -239,7 +239,7 @@ export function WaveformPlayer({
 
       {draftAt != null && (
         <div className="rounded-md border border-gold/40 bg-gold/5 p-3">
-          <p className="font-mono text-[0.625rem] uppercase tracking-wide text-gold">
+          <p className="font-meta text-[0.625rem] uppercase tracking-wide text-gold">
             Add note at {fmtTime(draftAt)}
           </p>
           <textarea
@@ -247,7 +247,7 @@ export function WaveformPlayer({
             onChange={(e) => setDraftBody(e.target.value)}
             rows={3}
             placeholder="e.g. tighten the kick at this hit, vox slightly behind the beat..."
-            className="mt-2 w-full rounded-md border border-hairline bg-ink-2 px-3 py-2 text-sm text-bone outline-none focus-visible:ring-2 focus-visible:ring-gold/30"
+            className="mt-2 w-full rounded-md border border-graphite/50 bg-obsidian px-3 py-2 text-sm text-bone outline-none focus-visible:ring-2 focus-visible:ring-gold/30"
           />
           <div className="mt-2 flex items-center justify-end gap-2">
             <Button variant="ghost" size="sm" onClick={() => { setDraftAt(null); setDraftBody(""); }}>Cancel</Button>

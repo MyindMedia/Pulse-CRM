@@ -64,8 +64,8 @@ export default function AgencyAgentsPage() {
                     <Sparkles className="size-5" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-display text-sm font-semibold text-bone">{s.name}</p>
-                    <p className="text-xs text-ash-dim">
+                    <p className="truncate font-grotesk text-sm font-semibold text-bone">{s.name}</p>
+                    <p className="text-xs text-steel/70">
                       {s.lastRunAt ? `Last run ${relativeTime(s.lastRunAt)}` : "Not run yet"}
                       {s.activeInsights > 0 && ` · ${s.activeInsights} insights`}
                     </p>
@@ -90,7 +90,7 @@ export default function AgencyAgentsPage() {
                   </Button>
 
                   <div className="flex items-center gap-2">
-                    <span className="text-[0.6875rem] text-ash-dim">{s.enabled ? "On" : "Off"}</span>
+                    <span className="text-[0.6875rem] text-steel/70">{s.enabled ? "On" : "Off"}</span>
                     <Switch checked={s.enabled} onCheckedChange={(v) => setEnabled({ orgId: s.orgId, enabled: v }).catch(() => toast.error("Failed"))} aria-label={`Toggle agent for ${s.name}`} />
                   </div>
                 </CardContent>
@@ -115,11 +115,11 @@ export default function AgencyAgentsPage() {
                 >
                   <div className="flex items-center gap-2">
                     <Badge tone="neutral">{a.studioName as string}</Badge>
-                    <p className="truncate font-display text-sm font-semibold text-bone">{a.title as string}</p>
+                    <p className="truncate font-grotesk text-sm font-semibold text-bone">{a.title as string}</p>
                     <Badge tone={RISK_TONE[a.riskLevel as keyof typeof RISK_TONE]}>{a.riskLevel as string}</Badge>
                   </div>
-                  <p className="mt-1 text-xs text-ash">{a.explanation as string}</p>
-                  <p className="mt-1.5 font-mono text-[0.625rem] uppercase tracking-wide text-gold">Tap to review &amp; edit</p>
+                  <p className="mt-1 text-xs text-steel">{a.explanation as string}</p>
+                  <p className="mt-1.5 font-meta text-[0.625rem] uppercase tracking-wide text-gold">Tap to review &amp; edit</p>
                 </button>
               </Card>
             ))}

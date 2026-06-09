@@ -90,7 +90,7 @@ export default function InvoiceDetailPage() {
               </Badge>
             );
           })()}
-          <p className="font-mono text-xs text-ash-dim">{invoice.number}</p>
+          <p className="font-meta text-xs text-steel/70">{invoice.number}</p>
         </div>
       </div>
 
@@ -131,13 +131,13 @@ export default function InvoiceDetailPage() {
             <CardContent className="space-y-2">
               <Link
                 href={`/roster/${invoice.artistId}`}
-                className="flex items-center gap-2.5 rounded-md border border-hairline bg-coal-2 px-3 py-2.5 transition-colors hover:border-hairline-2 hover:bg-coal-3"
+                className="flex items-center gap-2.5 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5 transition-colors hover:border-graphite/60 hover:bg-coal-3"
               >
-                <span className="grid size-7 place-items-center rounded-md bg-coal-3 text-ash-dim">
+                <span className="grid size-7 place-items-center rounded-md bg-coal-3 text-steel/70">
                   <User className="size-3.5" />
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-[0.625rem] font-mono uppercase tracking-wide text-ash-dim">
+                  <span className="block text-[0.625rem] font-meta uppercase tracking-wide text-steel/70">
                     Client
                   </span>
                   <span className="block truncate text-sm font-medium text-bone">
@@ -149,13 +149,13 @@ export default function InvoiceDetailPage() {
               {invoice.songId && invoice.songTitle && (
                 <Link
                   href={`/songs/${invoice.songId}`}
-                  className="flex items-center gap-2.5 rounded-md border border-hairline bg-coal-2 px-3 py-2.5 transition-colors hover:border-hairline-2 hover:bg-coal-3"
+                  className="flex items-center gap-2.5 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5 transition-colors hover:border-graphite/60 hover:bg-coal-3"
                 >
                   <span className="grid size-7 place-items-center rounded-md bg-coal-3 text-gold">
                     <Music2 className="size-3.5" />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-[0.625rem] font-mono uppercase tracking-wide text-ash-dim">
+                    <span className="block text-[0.625rem] font-meta uppercase tracking-wide text-steel/70">
                       Song
                     </span>
                     <span className="block truncate text-sm font-medium text-bone">
@@ -168,13 +168,13 @@ export default function InvoiceDetailPage() {
               {invoice.sessionId && invoice.sessionTitle && (
                 <Link
                   href={`/calendar?session=${invoice.sessionId}`}
-                  className="flex items-center gap-2.5 rounded-md border border-hairline bg-coal-2 px-3 py-2.5 transition-colors hover:border-hairline-2 hover:bg-coal-3"
+                  className="flex items-center gap-2.5 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5 transition-colors hover:border-graphite/60 hover:bg-coal-3"
                 >
                   <span className="grid size-7 place-items-center rounded-md bg-coal-3 text-gold-dim">
                     <Receipt className="size-3.5" />
                   </span>
                   <span className="min-w-0">
-                    <span className="block text-[0.625rem] font-mono uppercase tracking-wide text-ash-dim">
+                    <span className="block text-[0.625rem] font-meta uppercase tracking-wide text-steel/70">
                       Session{invoice.serviceType ? ` · ${invoice.serviceType}` : ""}
                     </span>
                     <span className="block truncate text-sm font-medium text-bone">

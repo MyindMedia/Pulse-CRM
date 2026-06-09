@@ -13,7 +13,7 @@ import type { Doc, Id } from "@convex/_generated/dataModel";
 const PRIORITY_TONE: Record<string, string> = {
   high: "bg-red-500/15 text-red-300 border-red-500/30",
   medium: "bg-gold/15 text-gold border-gold-dim/40",
-  low: "bg-bone/10 text-ash border-bone/15",
+  low: "bg-bone/10 text-steel border-bone/15",
 };
 
 const DAY = 86_400_000;
@@ -53,15 +53,15 @@ function ActionCard({ action, onOpen }: { action: Doc<"opsActions">; onOpen: (a:
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <span className={`rounded-full border px-1.5 py-0.5 font-mono text-[0.5625rem] uppercase ${PRIORITY_TONE[action.priority]}`}>
+              <span className={`rounded-full border px-1.5 py-0.5 font-meta text-[0.5625rem] uppercase ${PRIORITY_TONE[action.priority]}`}>
                 {action.priority}
               </span>
-              <p className="truncate font-display text-sm font-semibold text-bone">{action.title}</p>
+              <p className="truncate font-grotesk text-sm font-semibold text-bone">{action.title}</p>
             </div>
-            <p className="mt-1 text-xs leading-relaxed text-ash">{action.rationale}</p>
+            <p className="mt-1 text-xs leading-relaxed text-steel">{action.rationale}</p>
             {p.kind === "email" && (
-              <div className="mt-2 rounded border border-bone/10 bg-ink/40 p-2 text-xs text-ash-dim">
-                <span className="inline-flex items-center gap-1 font-mono text-[0.625rem] uppercase text-ash">
+              <div className="mt-2 rounded border border-bone/10 bg-ink/40 p-2 text-xs text-steel/70">
+                <span className="inline-flex items-center gap-1 font-meta text-[0.625rem] uppercase text-steel">
                   <PayloadIcon kind={p.kind} /> {p.to ?? "no recipient"}
                 </span>
                 <p className="mt-1 font-medium text-bone">{p.subject}</p>
@@ -69,19 +69,19 @@ function ActionCard({ action, onOpen }: { action: Doc<"opsActions">; onOpen: (a:
               </div>
             )}
             {p.kind === "session_status" && (
-              <p className="mt-2 inline-flex items-center gap-1 font-mono text-[0.625rem] uppercase text-ash">
+              <p className="mt-2 inline-flex items-center gap-1 font-meta text-[0.625rem] uppercase text-steel">
                 <PayloadIcon kind={p.kind} /> will set session → {p.newStatus}
               </p>
             )}
             {action.artifactId && (
-              <p className="mt-2 inline-flex items-center gap-1 font-mono text-[0.625rem] uppercase text-gold">
+              <p className="mt-2 inline-flex items-center gap-1 font-meta text-[0.625rem] uppercase text-gold">
                 <StickyNote className="size-3" /> draft attached
               </p>
             )}
           </div>
-          <ChevronRight className="mt-0.5 size-4 shrink-0 text-ash-dim" />
+          <ChevronRight className="mt-0.5 size-4 shrink-0 text-steel/70" />
         </div>
-        <span className="mt-2 block font-mono text-[0.5625rem] uppercase tracking-wide text-gold">Tap to view &amp; edit</span>
+        <span className="mt-2 block font-meta text-[0.5625rem] uppercase tracking-wide text-gold">Tap to view &amp; edit</span>
       </button>
       <div className="mt-3 flex items-center gap-2">
         <Button size="sm" disabled={pending} onClick={() => run(() => approve({ id: action._id }), "Approved + executed.")}>
@@ -112,21 +112,21 @@ export function OpsAutopilotPanel() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Bot className="size-4 text-gold" />
-            <p className="font-display text-sm font-semibold text-bone">Ops Autopilot</p>
-            <span className="font-mono text-[0.625rem] uppercase text-ash-dim">
+            <p className="font-grotesk text-sm font-semibold text-bone">Ops Autopilot</p>
+            <span className="font-meta text-[0.625rem] uppercase text-steel/70">
               {counts?.open ?? 0} open{counts?.high ? ` · ${counts.high} high` : ""}
             </span>
           </div>
         </div>
 
         {suggestions && suggestions.length > 0 && (
-          <div className="rounded-md border border-gold-dim/40 bg-gold/[0.05] p-3 text-xs text-ash">
+          <div className="rounded-md border border-gold-dim/40 bg-gold/[0.05] p-3 text-xs text-steel">
             <p className="font-medium text-bone">Ready for autopilot</p>
             <div className="mt-2 space-y-1.5">
               {suggestions.map((s) => (
                 <div key={s.actionType} className="flex items-center justify-between gap-2">
                   <span>
-                    <span className="font-mono text-[0.625rem] uppercase text-gold">{s.actionType.replace(/_/g, " ")}</span>
+                    <span className="font-meta text-[0.625rem] uppercase text-gold">{s.actionType.replace(/_/g, " ")}</span>
                     {" "}approved {s.approvedCount}× with few dismissals.
                   </span>
                   <Button
@@ -156,7 +156,7 @@ export function OpsAutopilotPanel() {
             ))}
           </div>
         ) : queue.length === 0 ? (
-          <div className="rounded-md border border-dashed border-bone/15 p-6 text-center text-sm text-ash-dim">
+          <div className="rounded-md border border-dashed border-bone/15 p-6 text-center text-sm text-steel/70">
             All clear. The autopilot scans daily and surfaces actions here when something needs attention.
           </div>
         ) : (

@@ -4,11 +4,11 @@ import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
   "inline-flex items-center gap-1.5 rounded-sm border px-2 py-0.5 text-[0.6875rem] font-medium " +
-    "font-mono uppercase tracking-wide whitespace-nowrap",
+    "font-meta uppercase tracking-wide whitespace-nowrap",
   {
     variants: {
       tone: {
-        neutral: "border-hairline-2 bg-coal-2 text-ash",
+        neutral: "border-graphite/60 bg-coal-2 text-steel",
         gold: "border-gold-dim/60 bg-gold/10 text-gold-bright",
         positive: "border-positive/30 bg-positive/10 text-positive",
         caution: "border-caution/30 bg-caution/10 text-caution",

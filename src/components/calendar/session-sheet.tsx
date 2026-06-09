@@ -53,7 +53,7 @@ function Row({
 }) {
   return (
     <div className="flex items-start justify-between gap-4 py-2.5">
-      <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-ash-dim">
+      <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-steel/70">
         {Icon && <Icon className="size-3.5" />}
         {label}
       </span>
@@ -163,22 +163,22 @@ export function SessionSheet({
                   </span>
                 </Row>
                 <Row label="Song" icon={Music2}>
-                  {detail.songTitle ?? <span className="text-ash-dim">Not linked</span>}
+                  {detail.songTitle ?? <span className="text-steel/70">Not linked</span>}
                 </Row>
                 <Row label="Engineer" icon={Headphones}>
-                  {detail.engineerName ?? <span className="text-ash-dim">Unassigned</span>}
+                  {detail.engineerName ?? <span className="text-steel/70">Unassigned</span>}
                 </Row>
                 <Row label="Room" icon={DoorOpen}>
-                  {detail.roomName ?? <span className="text-ash-dim">Unassigned</span>}
+                  {detail.roomName ?? <span className="text-steel/70">Unassigned</span>}
                 </Row>
                 <Row label="Rate" icon={Wallet}>
-                  <span className="font-mono font-semibold text-gold-bright">
+                  <span className="font-meta font-semibold text-gold-bright">
                     {money(detail.rateCents)}
                   </span>
                 </Row>
                 <Row label="Deposit">
                   <span className="inline-flex items-center gap-2">
-                    <span className="font-mono text-ash">{money(detail.depositCents)}</span>
+                    <span className="font-meta text-steel">{money(detail.depositCents)}</span>
                     <Badge tone={detail.depositPaid ? "positive" : "caution"}>
                       {detail.depositPaid ? "Paid" : "Unpaid"}
                     </Badge>
@@ -193,8 +193,8 @@ export function SessionSheet({
 
               {detail.notes && (
                 <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-ash">Notes</p>
-                  <p className="rounded-md border border-hairline bg-coal-2 p-3 text-sm leading-relaxed text-ash">
+                  <p className="text-xs font-medium text-steel">Notes</p>
+                  <p className="rounded-md border border-graphite/50 bg-coal-2 p-3 text-sm leading-relaxed text-steel">
                     {detail.notes}
                   </p>
                 </div>
@@ -208,13 +208,13 @@ export function SessionSheet({
 
               {/* Engineering log - the recall sheet */}
               <div className="space-y-2">
-                <p className="text-xs font-medium text-ash">Engineering log</p>
+                <p className="text-xs font-medium text-steel">Engineering log</p>
                 {!detail.engineeringLog ? (
-                  <p className="rounded-md border border-dashed border-hairline-2 py-6 text-center text-xs text-ash-dim">
+                  <p className="rounded-md border border-dashed border-graphite/60 py-6 text-center text-xs text-steel/70">
                     No recall sheet logged for this session yet.
                   </p>
                 ) : (
-                  <div className="space-y-2 rounded-md border border-hairline bg-coal-2 p-3">
+                  <div className="space-y-2 rounded-md border border-graphite/50 bg-coal-2 p-3">
                     <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
                       {(
                         [
@@ -228,7 +228,7 @@ export function SessionSheet({
                         .filter(([, val]) => Boolean(val))
                         .map(([label, val]) => (
                           <div key={label}>
-                            <p className="font-mono text-[0.5625rem] uppercase tracking-wide text-ash-dim">
+                            <p className="font-meta text-[0.5625rem] uppercase tracking-wide text-steel/70">
                               {label}
                             </p>
                             <p className="text-sm text-bone">{val}</p>
@@ -236,12 +236,12 @@ export function SessionSheet({
                         ))}
                     </div>
                     {detail.engineeringLog.signalChains.length > 0 && (
-                      <div className="space-y-1 border-t border-hairline pt-2">
-                        <p className="font-mono text-[0.5625rem] uppercase tracking-wide text-ash-dim">
+                      <div className="space-y-1 border-t border-graphite/50 pt-2">
+                        <p className="font-meta text-[0.5625rem] uppercase tracking-wide text-steel/70">
                           Signal chains
                         </p>
                         {detail.engineeringLog.signalChains.map((chain, i) => (
-                          <p key={i} className="text-xs text-ash">
+                          <p key={i} className="text-xs text-steel">
                             <span className="text-bone">{chain.track}</span>
                             {chain.mic || chain.preamp || chain.outboard
                               ? ` - ${[chain.mic, chain.preamp, chain.outboard]
@@ -253,7 +253,7 @@ export function SessionSheet({
                       </div>
                     )}
                     {detail.engineeringLog.notes && (
-                      <p className="border-t border-hairline pt-2 text-xs leading-relaxed text-ash">
+                      <p className="border-t border-graphite/50 pt-2 text-xs leading-relaxed text-steel">
                         {detail.engineeringLog.notes}
                       </p>
                     )}

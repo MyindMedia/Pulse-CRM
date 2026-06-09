@@ -185,7 +185,7 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
       <Card>
         <CardHeader className="flex-row items-center justify-between">
           <CardTitle className="flex items-center gap-2">
-            <Users className="size-4 text-ash-dim" />
+            <Users className="size-4 text-steel/70" />
             Split sheet
           </CardTitle>
           {split ? (
@@ -232,7 +232,7 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
             {working.map((c, i) => (
               <div
                 key={i}
-                className="space-y-2 rounded-md border border-hairline bg-coal-2 p-3"
+                className="space-y-2 rounded-md border border-graphite/50 bg-coal-2 p-3"
               >
                 <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   <LabelledInput
@@ -286,7 +286,7 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
                     placeholder="name@email.com"
                   />
                   <div className="flex items-center justify-between gap-2 pt-5">
-                    <label className="flex items-center gap-2 text-xs font-medium text-ash">
+                    <label className="flex items-center gap-2 text-xs font-medium text-steel">
                       <Checkbox
                         checked={c.signed}
                         onCheckedChange={(v) => patch(i, { signed: v === true })}
@@ -348,7 +348,7 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
           </Button>
         )}
         {split && !split.allSigned && currentStatus !== "fully_executed" && (
-          <span className="text-xs text-ash-dim">
+          <span className="text-xs text-steel/70">
             Not all contributors have signed yet.
           </span>
         )}
@@ -370,12 +370,12 @@ function TotalReadout({ label, value }: { label: string; value: number }) {
   const ok = value === 100;
   return (
     <div className="flex items-baseline gap-1.5">
-      <span className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+      <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
         {label}
       </span>
       <span
         className={cn(
-          "font-display text-lg font-bold",
+          "font-grotesk text-lg font-bold",
           ok ? "text-positive" : "text-critical",
         )}
       >
@@ -400,7 +400,7 @@ function LabelledInput({
 }) {
   return (
     <div className="space-y-1">
-      <span className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+      <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
         {label}
       </span>
       <Input

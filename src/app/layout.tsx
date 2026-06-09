@@ -4,6 +4,8 @@ import {
   JetBrains_Mono,
   Instrument_Serif,
   Plus_Jakarta_Sans,
+  Anton,
+  IBM_Plex_Mono,
 } from "next/font/google";
 import { ConvexClientProvider } from "@/components/providers/convex-client-provider";
 import { Toaster } from "sonner";
@@ -21,6 +23,15 @@ const instrumentSerif = Instrument_Serif({
 const plusJakarta = Plus_Jakarta_Sans({
   subsets: ["latin"],
   variable: "--font-plus-jakarta",
+  display: "swap",
+});
+// Chrome redesign: Anton = monolithic display face (ABC Gravity substitute),
+// IBM Plex Mono = system metadata voice.
+const anton = Anton({ subsets: ["latin"], weight: "400", variable: "--font-anton", display: "swap" });
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ["latin"],
+  weight: ["400", "500", "600"],
+  variable: "--font-ibm-plex-mono",
   display: "swap",
 });
 
@@ -60,7 +71,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${jetbrainsMono.variable} ${instrumentSerif.variable} ${plusJakarta.variable} h-full`}
+      className={`${inter.variable} ${jetbrainsMono.variable} ${instrumentSerif.variable} ${plusJakarta.variable} ${anton.variable} ${ibmPlexMono.variable} h-full`}
     >
       <body className="min-h-full antialiased">
         <ConvexClientProvider>{children}</ConvexClientProvider>

@@ -161,15 +161,15 @@ export function LicenseTable() {
               return (
                 <TR key={license._id} className={license.active ? undefined : "opacity-60"}>
                   <TD className="font-medium">{license.songTitle}</TD>
-                  <TD className="text-ash">{license.buyerName}</TD>
+                  <TD className="text-steel">{license.buyerName}</TD>
                   <TD>
                     <Badge tone={tier.tone}>{tier.label}</Badge>
                   </TD>
-                  <TD className="text-right font-mono text-gold">{money(license.priceCents)}</TD>
-                  <TD className="text-right font-mono text-ash">
+                  <TD className="text-right font-meta text-gold">{money(license.priceCents)}</TD>
+                  <TD className="text-right font-meta text-steel">
                     {license.termMonths ? `${license.termMonths} mo` : "-"}
                   </TD>
-                  <TD className="text-right font-mono text-ash">
+                  <TD className="text-right font-meta text-steel">
                     {license.streamCap !== undefined
                       ? compactNumber(license.streamCap)
                       : "Unlimited"}
@@ -181,14 +181,14 @@ export function LicenseTable() {
                       <Badge tone="neutral">Inactive</Badge>
                     )}
                   </TD>
-                  <TD className="font-mono text-xs text-ash-dim">
+                  <TD className="font-meta text-xs text-steel/70">
                     {relativeTime(license.soldAt)}
                   </TD>
                   <TD className="text-right">
                     {license.active ? (
                       <DeactivateAction license={license} />
                     ) : (
-                      <span className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                      <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                         -
                       </span>
                     )}

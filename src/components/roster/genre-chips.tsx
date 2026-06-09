@@ -11,7 +11,7 @@ export function GenreChips({
   emptyLabel?: string;
 }) {
   if (items.length === 0) {
-    return <span className="text-sm text-ash-dim">{emptyLabel}</span>;
+    return <span className="text-sm text-steel/70">{emptyLabel}</span>;
   }
   const shown = items.slice(0, max);
   const extra = items.length - shown.length;
@@ -34,7 +34,7 @@ export function GenreChips({
         );
       })}
       {extra > 0 && (
-        <span className="font-mono text-[0.625rem] text-ash-dim">+{extra}</span>
+        <span className="font-meta text-[0.625rem] text-steel/70">+{extra}</span>
       )}
     </div>
   );

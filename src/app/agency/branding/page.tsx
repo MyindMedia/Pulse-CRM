@@ -29,14 +29,14 @@ export default function BrandingPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="font-display text-2xl font-semibold text-bone">Agency branding</h1>
-        <p className="text-sm text-ash">
+        <h1 className="font-grotesk text-2xl font-semibold text-bone">Agency branding</h1>
+        <p className="text-sm text-steel">
           Logo, accent, and (on Agency tier) your own custom domain.
         </p>
       </header>
       <form
         onSubmit={save}
-        className="max-w-lg space-y-4 rounded-lg border border-hairline bg-coal/40 p-4"
+        className="max-w-lg space-y-4 rounded-lg border border-graphite/50 bg-coal/40 p-4"
       >
         <label className="block space-y-1">
           <span className="text-sm text-bone">Accent color</span>
@@ -44,7 +44,7 @@ export default function BrandingPage() {
             type="color"
             value={accent}
             onChange={(e) => setAccent(e.target.value)}
-            className="block h-10 w-20 rounded border border-hairline-2 bg-ink-2"
+            className="block h-10 w-20 rounded border border-graphite/60 bg-obsidian"
           />
         </label>
         <label className="block space-y-1">
@@ -53,7 +53,7 @@ export default function BrandingPage() {
             value={appName}
             onChange={(e) => setAppName(e.target.value)}
             placeholder="Pulse, AcmeOS, …"
-            className="w-full rounded border border-hairline-2 bg-ink-2 px-3 py-2 text-sm text-bone"
+            className="w-full rounded border border-graphite/60 bg-obsidian px-3 py-2 text-sm text-bone"
           />
         </label>
         <label className="block space-y-1">
@@ -62,7 +62,7 @@ export default function BrandingPage() {
             value={customDomain}
             onChange={(e) => setCustomDomain(e.target.value)}
             placeholder="app.acme.com"
-            className="w-full rounded border border-hairline-2 bg-ink-2 px-3 py-2 text-sm text-bone"
+            className="w-full rounded border border-graphite/60 bg-obsidian px-3 py-2 text-sm text-bone"
           />
         </label>
         <button
@@ -71,7 +71,7 @@ export default function BrandingPage() {
         >
           Save
         </button>
-        {msg && <p className="text-xs text-ash">{msg}</p>}
+        {msg && <p className="text-xs text-steel">{msg}</p>}
       </form>
     </div>
   );

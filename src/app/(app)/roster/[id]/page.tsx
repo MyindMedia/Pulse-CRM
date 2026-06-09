@@ -106,13 +106,13 @@ export default function ArtistDetailPage() {
       <BackLink />
 
       {/* Hero */}
-      <div className="rounded-xl border border-hairline bg-coal p-6">
+      <div className="rounded-chrome border border-graphite/50 bg-coal p-6">
         <div className="flex flex-wrap items-start gap-5">
           <Avatar name={data.name} color={data.avatarColor} size="lg" />
 
           <div className="min-w-0 flex-1 space-y-2.5">
             <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="font-display text-2xl font-bold tracking-tight text-bone">
+              <h1 className="font-grotesk text-2xl font-bold tracking-tight text-bone">
                 {data.name}
               </h1>
               <Badge tone="neutral">{artistTypeLabel(data.type)}</Badge>
@@ -122,10 +122,10 @@ export default function ArtistDetailPage() {
               </Badge>
             </div>
 
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-ash">
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm text-steel">
               {data.location && (
                 <span className="inline-flex items-center gap-1.5">
-                  <MapPin className="size-3.5 text-ash-dim" />
+                  <MapPin className="size-3.5 text-steel/70" />
                   {data.location}
                 </span>
               )}
@@ -134,7 +134,7 @@ export default function ArtistDetailPage() {
                   href={`mailto:${data.email}`}
                   className="inline-flex items-center gap-1.5 transition-colors hover:text-bone"
                 >
-                  <Mail className="size-3.5 text-ash-dim" />
+                  <Mail className="size-3.5 text-steel/70" />
                   {data.email}
                 </a>
               )}
@@ -143,7 +143,7 @@ export default function ArtistDetailPage() {
                   href={`tel:${data.phone}`}
                   className="inline-flex items-center gap-1.5 transition-colors hover:text-bone"
                 >
-                  <Phone className="size-3.5 text-ash-dim" />
+                  <Phone className="size-3.5 text-steel/70" />
                   {data.phone}
                 </a>
               )}
@@ -282,7 +282,7 @@ export default function ArtistDetailPage() {
                       href={`/songs/${song._id}`}
                       className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-coal-2"
                     >
-                      <span className="grid size-9 shrink-0 place-items-center rounded-md border border-hairline bg-ink-2 text-ash-dim">
+                      <span className="grid size-9 shrink-0 place-items-center rounded-md border border-graphite/50 bg-obsidian text-steel/70">
                         <Music2 className="size-4" />
                       </span>
                       <p className="min-w-0 flex-1 truncate text-sm font-medium text-bone">
@@ -327,9 +327,9 @@ export default function ArtistDetailPage() {
                   return (
                     <TR key={session._id}>
                       <TD className="font-medium">{session.title}</TD>
-                      <TD className="text-ash">{shortDate(session.startTime)}</TD>
-                      <TD className="text-ash">{timeOfDay(session.startTime)}</TD>
-                      <TD className="font-mono tabular-nums text-ash-dim">
+                      <TD className="text-steel">{shortDate(session.startTime)}</TD>
+                      <TD className="text-steel">{timeOfDay(session.startTime)}</TD>
+                      <TD className="font-meta tabular-nums text-steel/70">
                         {duration(session.startTime, session.endTime)}
                       </TD>
                       <TD className="text-right">
@@ -373,14 +373,14 @@ export default function ArtistDetailPage() {
                       <TD>
                         <Link
                           href={`/payments/${invoice._id}`}
-                          className="font-mono font-medium text-bone hover:text-gold"
+                          className="font-meta font-medium text-bone hover:text-gold"
                           onClick={(e) => e.stopPropagation()}
                         >
                           {invoice.number}
                         </Link>
                       </TD>
-                      <TD className="text-ash">{shortDate(invoice.dueDate)}</TD>
-                      <TD className="text-right font-mono tabular-nums font-medium text-bone">
+                      <TD className="text-steel">{shortDate(invoice.dueDate)}</TD>
+                      <TD className="text-right font-meta tabular-nums font-medium text-bone">
                         {money(invoice.amountCents)}
                       </TD>
                       <TD className="text-right">
@@ -415,7 +415,7 @@ function BackLink() {
   return (
     <Link
       href="/roster"
-      className="inline-flex items-center gap-1.5 text-xs font-medium text-ash transition-colors hover:text-bone"
+      className="inline-flex items-center gap-1.5 text-xs font-medium text-steel transition-colors hover:text-bone"
     >
       <ArrowLeft className="size-3.5" />
       Back to roster
@@ -427,7 +427,7 @@ function ArtistDetailSkeleton() {
   return (
     <div className="space-y-7">
       <Skeleton className="h-4 w-28" />
-      <div className="rounded-xl border border-hairline bg-coal p-6">
+      <div className="rounded-chrome border border-graphite/50 bg-coal p-6">
         <div className="flex flex-wrap items-start gap-5">
           <Skeleton className="size-14 rounded-md" />
           <div className="flex-1 space-y-3">

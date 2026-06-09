@@ -99,7 +99,7 @@ export default function CheckoutPage() {
     <div className="mx-auto max-w-3xl space-y-8">
       <Link
         href={`/book/${slug}`}
-        className="inline-flex items-center gap-1.5 text-sm text-ash hover:text-gold-bright"
+        className="inline-flex items-center gap-1.5 text-sm text-steel hover:text-gold-bright"
       >
         <ArrowLeft className="size-4" />
         Studio
@@ -117,10 +117,10 @@ export default function CheckoutPage() {
             <CheckCircle2 className="size-8" />
           </span>
           <div className="space-y-1">
-            <h1 className="font-display text-2xl font-semibold tracking-tight text-bone">
+            <h1 className="font-grotesk text-2xl font-semibold tracking-tight text-bone">
               {booking.fullyPaid ? "You're booked" : "Your booking is held"}
             </h1>
-            <p className="text-sm text-ash">
+            <p className="text-sm text-steel">
               {booking.fullyPaid
                 ? "Paid in full. We've emailed your confirmation - see you in the studio."
                 : "Your deposit cleared and the room is held. The balance is due up to 2 hours before your session."}
@@ -140,10 +140,10 @@ export default function CheckoutPage() {
       {notPaid && !released && (
         <div className="space-y-1">
           <p className="overline">Checkout</p>
-          <h1 className="font-display text-3xl font-semibold tracking-tight text-bone">
+          <h1 className="font-grotesk text-3xl font-semibold tracking-tight text-bone">
             Hold your session
           </h1>
-          <p className="text-sm text-ash">
+          <p className="text-sm text-steel">
             Pay a deposit to hold the room, or settle the full amount now.
           </p>
         </div>
@@ -157,11 +157,11 @@ export default function CheckoutPage() {
           initial="hidden"
           animate="show"
           variants={fadeUp}
-          className="space-y-4 rounded-lg border border-hairline bg-coal p-5"
+          className="space-y-4 rounded-lg border border-graphite/50 bg-coal p-5"
         >
           <div className="flex items-center gap-2">
             <Wallet className="size-4 text-gold" />
-            <h2 className="font-display text-base font-semibold text-bone">
+            <h2 className="font-grotesk text-base font-semibold text-bone">
               Choose how to pay
             </h2>
           </div>
@@ -183,13 +183,13 @@ export default function CheckoutPage() {
             />
           </div>
 
-          <div className="flex items-start gap-2 rounded-md border border-hairline-2 bg-coal-2 px-3 py-2.5 text-xs text-ash">
+          <div className="flex items-start gap-2 rounded-md border border-graphite/60 bg-coal-2 px-3 py-2.5 text-xs text-steel">
             <Info className="size-3.5 shrink-0 text-gold-dim" />
             A deposit holds your booking; the balance is due up to 2 hours before
             your session, or the hold is released.
           </div>
 
-          <div className="border-t border-hairline pt-4">
+          <div className="border-t border-graphite/50 pt-4">
             <PaymentForm
               amountCents={
                 choice === "deposit" ? booking.depositCents : booking.rateCents
@@ -211,19 +211,19 @@ export default function CheckoutPage() {
           initial="hidden"
           animate="show"
           variants={fadeUp}
-          className="space-y-4 rounded-lg border border-hairline bg-coal p-5"
+          className="space-y-4 rounded-lg border border-graphite/50 bg-coal p-5"
         >
           <div className="flex items-center gap-2">
             <Wallet className="size-4 text-gold" />
-            <h2 className="font-display text-base font-semibold text-bone">
+            <h2 className="font-grotesk text-base font-semibold text-bone">
               Pay remaining balance
             </h2>
           </div>
-          <p className="text-sm text-ash">
+          <p className="text-sm text-steel">
             {money(booking.balanceCents)} is still due on this session. You can
             settle it now or up to 2 hours before your start time.
           </p>
-          <div className="border-t border-hairline pt-4">
+          <div className="border-t border-graphite/50 pt-4">
             <PaymentForm
               amountCents={booking.balanceCents}
               actionLabel="Pay balance"
@@ -239,12 +239,12 @@ export default function CheckoutPage() {
       {booking.payments.length > 0 && (
         <section className="space-y-3">
           <div className="flex items-center gap-2">
-            <Receipt className="size-4 text-ash-dim" />
-            <h2 className="font-display text-sm font-semibold text-bone">
+            <Receipt className="size-4 text-steel/70" />
+            <h2 className="font-grotesk text-sm font-semibold text-bone">
               Payment history
             </h2>
           </div>
-          <ul className="divide-y divide-hairline overflow-hidden rounded-lg border border-hairline bg-coal">
+          <ul className="divide-y divide-hairline overflow-hidden rounded-lg border border-graphite/50 bg-coal">
             {booking.payments.map((p) => (
               <li
                 key={p._id}
@@ -258,7 +258,7 @@ export default function CheckoutPage() {
                     <p className="text-sm font-medium capitalize text-bone">
                       {p.kind} payment
                     </p>
-                    <p className="text-xs text-ash-dim">
+                    <p className="text-xs text-steel/70">
                       {p.paidAt
                         ? `${shortDate(p.paidAt)} · ${timeOfDay(p.paidAt)}`
                         : "Pending"}
@@ -272,7 +272,7 @@ export default function CheckoutPage() {
                   >
                     {p.status}
                   </Badge>
-                  <span className="font-mono text-sm text-bone">
+                  <span className="font-meta text-sm text-bone">
                     {money(p.amountCents)}
                   </span>
                 </div>
@@ -307,7 +307,7 @@ function ChoiceCard({
         "rounded-lg border p-4 text-left transition-colors",
         active
           ? "border-gold bg-gold/10"
-          : "border-hairline-2 bg-coal-2 hover:border-gold-dim",
+          : "border-graphite/60 bg-coal-2 hover:border-gold-dim",
       )}
     >
       <div className="flex items-center justify-between">
@@ -322,16 +322,16 @@ function ChoiceCard({
         <span
           className={cn(
             "grid size-4 place-items-center rounded-full border",
-            active ? "border-gold bg-gold" : "border-hairline-2",
+            active ? "border-gold bg-gold" : "border-graphite/60",
           )}
         >
           {active && <span className="size-1.5 rounded-full bg-gold-ink" />}
         </span>
       </div>
-      <p className="mt-1 font-display text-xl font-semibold text-bone">
+      <p className="mt-1 font-grotesk text-xl font-semibold text-bone">
         {money(amountCents)}
       </p>
-      <p className="text-xs text-ash-dim">{note}</p>
+      <p className="text-xs text-steel/70">{note}</p>
     </button>
   );
 }
@@ -341,7 +341,7 @@ function CheckoutSkeleton() {
     <div className="mx-auto max-w-3xl space-y-8">
       <Skeleton className="h-5 w-20" />
       <div className="flex flex-col items-center gap-3 py-6">
-        <Loader2 className="size-6 animate-spin text-ash-dim" />
+        <Loader2 className="size-6 animate-spin text-steel/70" />
         <Skeleton className="h-8 w-56" />
       </div>
       <Skeleton className="h-72 w-full" />

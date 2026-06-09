@@ -37,14 +37,14 @@ export function SyncColumn({
           <span className={cn("size-1.5 rounded-full", DOT[m.tone] ?? "bg-ash-dim")} />
           <span className="overline">{m.label}</span>
         </span>
-        <span className="font-mono text-[0.625rem] text-ash-dim">{cards.length}</span>
+        <span className="font-meta text-[0.625rem] text-steel/70">{cards.length}</span>
       </div>
 
       <div
         ref={setNodeRef}
         className={cn(
           "flex min-h-40 flex-1 flex-col gap-2 rounded-lg border p-2 transition-colors",
-          isOver ? "border-gold-dim bg-gold/[0.04]" : "border-hairline bg-coal/60",
+          isOver ? "border-gold-dim bg-gold/[0.04]" : "border-graphite/50 bg-coal/60",
         )}
       >
         <SortableContext items={cards.map((c) => c._id)} strategy={verticalListSortingStrategy}>
@@ -54,8 +54,8 @@ export function SyncColumn({
         </SortableContext>
 
         {cards.length === 0 && (
-          <div className="flex flex-1 items-center justify-center rounded-md border border-dashed border-hairline-2 py-8">
-            <span className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+          <div className="flex flex-1 items-center justify-center rounded-md border border-dashed border-graphite/60 py-8">
+            <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
               Drop here
             </span>
           </div>

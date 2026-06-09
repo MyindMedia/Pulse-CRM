@@ -104,7 +104,7 @@ export function NotesPanel({
         <CardHeader className="flex-row items-center justify-between">
           <CardTitle>Tags</CardTitle>
           {savingTags && (
-            <span className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+            <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
               Saving…
             </span>
           )}
@@ -115,7 +115,7 @@ export function NotesPanel({
             onChange={saveTags}
             placeholder="Add a tag and press Enter"
           />
-          <p className="text-[0.6875rem] text-ash-dim">
+          <p className="text-[0.6875rem] text-steel/70">
             {tagsDirty
               ? "Tags save automatically as you add or remove them."
               : "Tags help segment the roster across the studio."}

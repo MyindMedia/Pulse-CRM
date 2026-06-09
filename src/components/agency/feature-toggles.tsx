@@ -42,11 +42,11 @@ export function FeatureToggles({
         return (
           <label
             key={f.key}
-            className="flex items-center justify-between gap-3 rounded-md border border-hairline bg-coal-2 p-3 transition-colors hover:border-hairline-2"
+            className="flex items-center justify-between gap-3 rounded-md border border-graphite/50 bg-coal-2 p-3 transition-colors hover:border-graphite/60"
           >
             <span className="min-w-0">
               <span className="block text-sm font-medium text-bone">{f.label}</span>
-              <span className="block truncate text-xs text-ash-dim">{f.blurb}</span>
+              <span className="block truncate text-xs text-steel/70">{f.blurb}</span>
             </span>
             <Switch
               checked={enabled}

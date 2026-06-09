@@ -150,7 +150,7 @@ export function BrandingPanel({ org }: { org: Org }) {
             hint="Square works best. PNG, JPG, WEBP or SVG up to 5 MB."
           >
             <div className="flex flex-wrap items-center gap-4">
-              <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-md border border-hairline-2 bg-coal-2">
+              <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-md border border-graphite/60 bg-coal-2">
                 {org.logoUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -159,12 +159,12 @@ export function BrandingPanel({ org }: { org: Org }) {
                     className="h-full w-full object-contain"
                   />
                 ) : (
-                  <ImageIcon className="size-6 text-ash-dim" />
+                  <ImageIcon className="size-6 text-steel/70" />
                 )}
               </div>
               <div className="space-y-1.5">
                 <AssetUploader label="Logo" onUploaded={handleLogo} />
-                <p className="text-[0.6875rem] text-ash-dim">
+                <p className="text-[0.6875rem] text-steel/70">
                   {org.logoUrl
                     ? "Uploading replaces the current logo immediately."
                     : "No logo yet - Pulse falls back to a disc mark."}
@@ -194,7 +194,7 @@ export function BrandingPanel({ org }: { org: Org }) {
                         "grid size-8 place-items-center rounded-md border transition-transform",
                         active
                           ? "border-bone scale-105"
-                          : "border-hairline-2 hover:scale-105",
+                          : "border-graphite/60 hover:scale-105",
                       )}
                       style={{ backgroundColor: s.value }}
                     >
@@ -207,7 +207,7 @@ export function BrandingPanel({ org }: { org: Org }) {
               </div>
               <div className="flex items-center gap-2">
                 <span
-                  className="size-9 shrink-0 rounded-md border border-hairline-2"
+                  className="size-9 shrink-0 rounded-md border border-graphite/60"
                   style={{
                     backgroundColor: accentValid
                       ? normalizedAccent
@@ -220,7 +220,7 @@ export function BrandingPanel({ org }: { org: Org }) {
                   onChange={(e) => setAccent(e.target.value)}
                   placeholder="#E0A226"
                   className={cn(
-                    "max-w-40 font-mono",
+                    "max-w-40 font-meta",
                     !accentValid &&
                       accentTrim !== "" &&
                       "border-critical/50",
@@ -277,7 +277,7 @@ export function BrandingPanel({ org }: { org: Org }) {
             hint="A wide room or console shot. PNG, JPG or WEBP up to 5 MB."
           >
             <div className="space-y-3">
-              <div className="relative aspect-[21/9] w-full overflow-hidden rounded-md border border-hairline-2 bg-coal-2">
+              <div className="relative aspect-[21/9] w-full overflow-hidden rounded-md border border-graphite/60 bg-coal-2">
                 {org.bookingHeroUrl ? (
                   // eslint-disable-next-line @next/next/no-img-element
                   <img
@@ -287,7 +287,7 @@ export function BrandingPanel({ org }: { org: Org }) {
                   />
                 ) : (
                   <div className="grid h-full w-full place-items-center">
-                    <ImageIcon className="size-8 text-ash-dim" />
+                    <ImageIcon className="size-8 text-steel/70" />
                   </div>
                 )}
               </div>
@@ -339,7 +339,7 @@ export function BrandingPanel({ org }: { org: Org }) {
           {/* Live preview */}
           <div className="space-y-2">
             <p className="overline">Preview</p>
-            <div className="overflow-hidden rounded-lg border border-hairline bg-ink-2">
+            <div className="overflow-hidden rounded-lg border border-graphite/50 bg-obsidian">
               <div
                 className="h-1.5 w-full"
                 style={{ backgroundColor: previewAccent }}
@@ -347,7 +347,7 @@ export function BrandingPanel({ org }: { org: Org }) {
               />
               <div className="flex items-start gap-4 p-5">
                 <div
-                  className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-md border border-hairline-2 bg-coal-2"
+                  className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-md border border-graphite/60 bg-coal-2"
                   style={{ boxShadow: `0 0 0 1px ${previewAccent}33` }}
                 >
                   {org.logoUrl ? (
@@ -371,10 +371,10 @@ export function BrandingPanel({ org }: { org: Org }) {
                   >
                     {name.trim() || org.name}
                   </p>
-                  <p className="font-display text-lg font-semibold tracking-tight text-bone">
+                  <p className="font-grotesk text-lg font-semibold tracking-tight text-bone">
                     {previewHeadline}
                   </p>
-                  <p className="line-clamp-2 text-xs text-ash">
+                  <p className="line-clamp-2 text-xs text-steel">
                     {intro.trim() ||
                       tagline.trim() ||
                       "Your booking page intro shows here."}
@@ -396,9 +396,9 @@ export function BrandingPanel({ org }: { org: Org }) {
             </div>
           </div>
 
-          <div className="flex items-start gap-2 rounded-md border border-hairline bg-coal-2 px-3 py-2.5">
+          <div className="flex items-start gap-2 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5">
             <Info className="mt-0.5 size-3.5 shrink-0 text-info" />
-            <p className="text-[0.6875rem] text-ash-dim">
+            <p className="text-[0.6875rem] text-steel/70">
               Logo and hero uploads save immediately. Text and color changes
               save with the button below.
             </p>

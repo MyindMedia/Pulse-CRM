@@ -43,18 +43,18 @@ export function SigningLinksDialog({
         </DialogHeader>
         <DialogBody className="space-y-3">
           {!links || links.length === 0 ? (
-            <p className="rounded-md border border-dashed border-hairline-2 py-6 text-center text-xs text-ash-dim">
+            <p className="rounded-md border border-dashed border-graphite/60 py-6 text-center text-xs text-steel/70">
               No new links were issued. Either everyone has already signed, or no unsigned
               contributor has an email on file.
             </p>
           ) : (
             <ul className="space-y-2">
               {links.map((l) => (
-                <li key={l.token} className="rounded-md border border-hairline bg-coal-2 p-3">
+                <li key={l.token} className="rounded-md border border-graphite/50 bg-coal-2 p-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-bone">{l.name}</p>
-                      <p className="truncate font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                      <p className="truncate font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                         <Mail className="mr-1 inline size-3" /> {l.email}
                       </p>
                     </div>
@@ -62,7 +62,7 @@ export function SigningLinksDialog({
                       <Copy className="size-3.5" /> Copy link
                     </Button>
                   </div>
-                  <p className="mt-2 truncate font-mono text-[0.625rem] text-ash-dim">{urlFor(l.token)}</p>
+                  <p className="mt-2 truncate font-meta text-[0.625rem] text-steel/70">{urlFor(l.token)}</p>
                 </li>
               ))}
             </ul>

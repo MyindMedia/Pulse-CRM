@@ -136,11 +136,11 @@ export function SellLicenseDialog() {
               </SelectTrigger>
               <SelectContent>
                 {songs === undefined ? (
-                  <div className="flex items-center gap-2 px-2 py-3 text-sm text-ash-dim">
+                  <div className="flex items-center gap-2 px-2 py-3 text-sm text-steel/70">
                     <Spinner /> Loading catalog…
                   </div>
                 ) : songs.length === 0 ? (
-                  <div className="px-2 py-3 text-sm text-ash-dim">No songs yet.</div>
+                  <div className="px-2 py-3 text-sm text-steel/70">No songs yet.</div>
                 ) : (
                   songs.map((s) => (
                     <SelectItem key={s._id} value={s._id}>

@@ -77,7 +77,7 @@ export function PhotoUpload({
     <div className={cn("flex items-center gap-3", className)}>
       <div
         className={cn(
-          "relative grid size-20 shrink-0 place-items-center overflow-hidden border border-hairline-2 bg-ink-2",
+          "relative grid size-20 shrink-0 place-items-center overflow-hidden border border-graphite/60 bg-obsidian",
           radius,
         )}
       >
@@ -85,7 +85,7 @@ export function PhotoUpload({
           // eslint-disable-next-line @next/next/no-img-element
           <img src={shown} alt="" className="size-full object-cover" />
         ) : (
-          <ImagePlus className="size-6 text-ash-dim" />
+          <ImagePlus className="size-6 text-steel/70" />
         )}
         {uploading && (
           <div className="absolute inset-0 grid place-items-center bg-ink/70">
@@ -117,14 +117,14 @@ export function PhotoUpload({
                   toast.error("Could not remove the photo.");
                 }
               }}
-              className="inline-flex items-center gap-1 text-xs text-ash-dim transition-colors hover:text-critical"
+              className="inline-flex items-center gap-1 text-xs text-steel/70 transition-colors hover:text-critical"
             >
               <X className="size-3.5" />
               Remove
             </button>
           )}
         </div>
-        <p className="text-[0.6875rem] text-ash-dim">
+        <p className="text-[0.6875rem] text-steel/70">
           {hint ?? "JPG or PNG. Use your camera or photo library on mobile."}
         </p>
       </div>

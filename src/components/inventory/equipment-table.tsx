@@ -60,12 +60,12 @@ const COLUMN_COUNT = 10;
 /** A small square equipment thumbnail with a graceful fallback. */
 function PhotoThumb({ photo, name }: { photo: string | null; name: string }) {
   return (
-    <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-md border border-hairline bg-ink-2">
+    <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-md border border-graphite/50 bg-obsidian">
       {photo ? (
         // eslint-disable-next-line @next/next/no-img-element
         <img src={photo} alt={name} className="size-full object-cover" />
       ) : (
-        <ImageOff className="size-3.5 text-ash-dim" />
+        <ImageOff className="size-3.5 text-steel/70" />
       )}
     </span>
   );
@@ -74,13 +74,13 @@ function PhotoThumb({ photo, name }: { photo: string | null; name: string }) {
 /** A signed Δ value cell - current minus purchase, tinted by direction. */
 function DeltaCell({ delta }: { delta: number }) {
   if (delta === 0) {
-    return <span className="font-mono tabular-nums text-ash-dim">-</span>;
+    return <span className="font-meta tabular-nums text-steel/70">-</span>;
   }
   const up = delta > 0;
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-0.5 font-mono tabular-nums",
+        "inline-flex items-center gap-0.5 font-meta tabular-nums",
         up ? "text-positive" : "text-critical",
       )}
     >
@@ -195,7 +195,7 @@ export function EquipmentTable({
           ))
         ) : items.length === 0 ? (
           <TR>
-            <TD colSpan={COLUMN_COUNT} className="py-10 text-center text-ash-dim">
+            <TD colSpan={COLUMN_COUNT} className="py-10 text-center text-steel/70">
               {filtering
                 ? "No equipment matches the current filters."
                 : "No equipment tracked yet."}
@@ -227,7 +227,7 @@ export function EquipmentTable({
                         {item.name}
                       </p>
                       {item.serialNumber && (
-                        <p className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                        <p className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                           SN {item.serialNumber}
                         </p>
                       )}
@@ -236,11 +236,11 @@ export function EquipmentTable({
                 </TD>
                 <TD>
                   <span className="inline-flex items-center gap-1.5">
-                    <CategoryIcon className="size-3.5 text-ash-dim" />
+                    <CategoryIcon className="size-3.5 text-steel/70" />
                     <Badge tone="neutral">{meta.label}</Badge>
                   </span>
                 </TD>
-                <TD className="text-center font-mono tabular-nums text-ash">
+                <TD className="text-center font-meta tabular-nums text-steel">
                   {item.quantity ?? 1}
                 </TD>
                 <TD>
@@ -250,16 +250,16 @@ export function EquipmentTable({
                       Storage
                     </Badge>
                   ) : (
-                    <span className="inline-flex items-center gap-1.5 text-ash">
-                      <DoorOpen className="size-3.5 text-ash-dim" />
+                    <span className="inline-flex items-center gap-1.5 text-steel">
+                      <DoorOpen className="size-3.5 text-steel/70" />
                       {item.roomName ?? "Room"}
                     </span>
                   )}
                 </TD>
-                <TD className="text-right font-mono tabular-nums text-ash">
+                <TD className="text-right font-meta tabular-nums text-steel">
                   {money(item.purchaseCents)}
                 </TD>
-                <TD className="text-right font-mono tabular-nums font-medium text-bone">
+                <TD className="text-right font-meta tabular-nums font-medium text-bone">
                   {money(item.currentValueCents)}
                 </TD>
                 <TD className="text-right">
@@ -270,7 +270,7 @@ export function EquipmentTable({
                     {st.label}
                   </Badge>
                   {!inStorage && (
-                    <p className="mt-0.5 font-mono text-[0.5625rem] uppercase tracking-wide text-ash-dim">
+                    <p className="mt-0.5 font-meta text-[0.5625rem] uppercase tracking-wide text-steel/70">
                       assigned to room
                     </p>
                   )}

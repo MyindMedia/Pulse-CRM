@@ -89,9 +89,9 @@ function Inner({ item, onClose }: { item: ApprovalItem; onClose: () => void }) {
       </DialogHeader>
 
       <DialogBody className="space-y-4">
-        <div className="rounded-md border border-hairline bg-coal/40 px-3 py-2.5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-ash-dim">Why the agent suggests this</p>
-          <p className="mt-1 text-sm text-ash">{item.explanation}</p>
+        <div className="rounded-md border border-graphite/50 bg-coal/40 px-3 py-2.5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-steel/70">Why the agent suggests this</p>
+          <p className="mt-1 text-sm text-steel">{item.explanation}</p>
         </div>
 
         {structured ? (
@@ -110,7 +110,7 @@ function Inner({ item, onClose }: { item: ApprovalItem; onClose: () => void }) {
           </>
         ) : (
           <Field label="Proposed details">
-            <pre className="max-h-48 overflow-auto rounded-md border border-hairline bg-coal-2 p-3 text-xs text-ash">
+            <pre className="max-h-48 overflow-auto rounded-md border border-graphite/50 bg-coal-2 p-3 text-xs text-steel">
               {JSON.stringify(payload, null, 2)}
             </pre>
           </Field>

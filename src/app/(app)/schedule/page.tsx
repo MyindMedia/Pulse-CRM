@@ -123,20 +123,20 @@ export default function SchedulePage() {
       />
 
       {/* Who's working now */}
-      <div className="rounded-xl border border-hairline bg-coal/40 px-4 py-3">
-        <p className="mb-2 font-mono text-[0.625rem] uppercase tracking-[0.18em] text-ash-dim">On shift now</p>
+      <div className="rounded-chrome border border-graphite/50 bg-coal/40 px-4 py-3">
+        <p className="mb-2 font-meta text-[0.625rem] uppercase tracking-[0.18em] text-steel/70">On shift now</p>
         {working === undefined ? (
-          <p className="text-sm text-ash-dim">Checking…</p>
+          <p className="text-sm text-steel/70">Checking…</p>
         ) : working.now.length === 0 ? (
-          <p className="text-sm text-ash-dim">No one is clocked into a shift right now.</p>
+          <p className="text-sm text-steel/70">No one is clocked into a shift right now.</p>
         ) : (
           <div className="flex flex-wrap gap-2">
             {working.now.map((s) => (
-              <span key={s._id} className="inline-flex items-center gap-1.5 rounded-md border border-hairline-2 bg-ink-2 px-2.5 py-1 text-xs text-bone">
+              <span key={s._id} className="inline-flex items-center gap-1.5 rounded-md border border-graphite/60 bg-obsidian px-2.5 py-1 text-xs text-bone">
                 <span className="size-1.5 rounded-full" style={{ backgroundColor: colorOf(s.memberId) }} />
                 {s.memberName}
-                {s.roomName && <span className="text-ash-dim">· {s.roomName}</span>}
-                <span className="text-ash-dim">until {fmtTime(s.endTime)}</span>
+                {s.roomName && <span className="text-steel/70">· {s.roomName}</span>}
+                <span className="text-steel/70">until {fmtTime(s.endTime)}</span>
               </span>
             ))}
           </div>
@@ -152,13 +152,13 @@ export default function SchedulePage() {
           <Button variant="secondary" size="sm" onClick={() => setWeekStart(startOfWeek(Date.now()))}>This week</Button>
           <Button variant="secondary" size="icon-sm" aria-label="Next week" onClick={() => setWeekStart((w) => w + 7 * DAY)}><ChevronRight className="size-4" /></Button>
         </div>
-        <p className="text-sm font-medium text-ash">{weekLabel}</p>
+        <p className="text-sm font-medium text-steel">{weekLabel}</p>
       </div>
 
       {!members || shifts === undefined ? (
         <SkeletonRows rows={5} />
       ) : members.length === 0 ? (
-        <p className="rounded-xl border border-hairline bg-coal/40 px-4 py-8 text-center text-sm text-ash-dim">
+        <p className="rounded-chrome border border-graphite/50 bg-coal/40 px-4 py-8 text-center text-sm text-steel/70">
           Add team members in Settings → Team to start scheduling.
         </p>
       ) : (
@@ -172,29 +172,29 @@ export default function SchedulePage() {
               return (
                 <button key={d} onClick={() => setSelectedDay(i)}
                   className={cn("flex shrink-0 flex-col items-center rounded-lg border px-3 py-1.5 text-xs",
-                    active ? "border-gold-dim bg-gold/10 text-gold" : closed ? "border-hairline-2 bg-coal-2 text-ash-dim" : "border-hairline-2 bg-coal/40 text-ash")}>
+                    active ? "border-gold-dim bg-gold/10 text-gold" : closed ? "border-graphite/60 bg-coal-2 text-steel/70" : "border-graphite/60 bg-coal/40 text-steel")}>
                   <span>{d}</span>
-                  <span className={cn("font-mono text-sm", active ? "text-gold" : "text-bone")}>{new Date(weekStart + i * DAY).getDate()}</span>
+                  <span className={cn("font-meta text-sm", active ? "text-gold" : "text-bone")}>{new Date(weekStart + i * DAY).getDate()}</span>
                 </button>
               );
             })}
           </div>
           {closedByDay[selectedDay] ? (
-            <p className="flex items-center justify-center gap-1.5 rounded-lg border border-hairline bg-coal-2 px-4 py-6 text-center text-sm text-ash-dim">
+            <p className="flex items-center justify-center gap-1.5 rounded-lg border border-graphite/50 bg-coal-2 px-4 py-6 text-center text-sm text-steel/70">
               <Ban className="size-4" /> Closed - {closedByDay[selectedDay]}
             </p>
           ) : dayShifts.length === 0 ? (
-            <p className="rounded-lg border border-hairline bg-coal/40 px-4 py-6 text-center text-sm text-ash-dim">No shifts scheduled this day.</p>
+            <p className="rounded-lg border border-graphite/50 bg-coal/40 px-4 py-6 text-center text-sm text-steel/70">No shifts scheduled this day.</p>
           ) : (
             <div className="space-y-2">
               {dayShifts.map((s) => (
                 <button key={s._id} onClick={() => openEdit(s)}
                   className="flex w-full items-center gap-3 rounded-lg border bg-coal/40 px-3 py-2.5 text-left"
                   style={{ borderLeftColor: colorOf(s.memberId), borderLeftWidth: 3 }}>
-                  <span className="font-mono text-xs text-ash-dim">{fmtTime(s.startTime)}–{fmtTime(s.endTime)}</span>
+                  <span className="font-meta text-xs text-steel/70">{fmtTime(s.startTime)}–{fmtTime(s.endTime)}</span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-bone">{s.memberName}</p>
-                    {s.roomName && <p className="flex items-center gap-1 text-xs text-ash-dim"><DoorOpen className="size-3" />{s.roomName}</p>}
+                    {s.roomName && <p className="flex items-center gap-1 text-xs text-steel/70"><DoorOpen className="size-3" />{s.roomName}</p>}
                   </div>
                   {s.status === "confirmed" && <Check className="size-3.5 text-positive" />}
                   {s.kind === "session" && <span className="rounded bg-gold/10 px-1.5 py-0.5 text-[0.625rem] text-gold">session</span>}
@@ -210,16 +210,16 @@ export default function SchedulePage() {
         </div>
 
         {/* Desktop: week grid */}
-        <div className="hidden overflow-x-auto rounded-xl border border-hairline md:block">
+        <div className="hidden overflow-x-auto rounded-chrome border border-graphite/50 md:block">
           <table className="w-full min-w-[760px] border-collapse">
             <thead>
-              <tr className="border-b border-hairline bg-coal/60">
-                <th className="sticky left-0 z-10 w-40 bg-coal/60 px-3 py-2 text-left text-xs font-semibold text-ash">Team</th>
+              <tr className="border-b border-graphite/50 bg-coal/60">
+                <th className="sticky left-0 z-10 w-40 bg-coal/60 px-3 py-2 text-left text-xs font-semibold text-steel">Team</th>
                 {DAY_LABELS.map((d, i) => {
                   const closed = closedByDay[i];
                   return (
-                    <th key={d} className={cn("px-2 py-2 text-center text-xs font-semibold", closed ? "bg-coal-2 text-ash-dim" : "text-ash")}>
-                      <div>{d}<span className="ml-1 text-ash-dim">{new Date(weekStart + i * DAY).getDate()}</span></div>
+                    <th key={d} className={cn("px-2 py-2 text-center text-xs font-semibold", closed ? "bg-coal-2 text-steel/70" : "text-steel")}>
+                      <div>{d}<span className="ml-1 text-steel/70">{new Date(weekStart + i * DAY).getDate()}</span></div>
                       {closed && <div className="mt-0.5 truncate text-[0.5625rem] font-normal uppercase tracking-wide text-caution">{closed === "Sunday" ? "Closed" : closed}</div>}
                     </th>
                   );
@@ -228,7 +228,7 @@ export default function SchedulePage() {
             </thead>
             <tbody>
               {members.map((m) => (
-                <tr key={m._id} className="border-b border-hairline last:border-0">
+                <tr key={m._id} className="border-b border-graphite/50 last:border-0">
                   <td className="sticky left-0 z-10 bg-ink px-3 py-2 text-sm font-medium text-bone">
                     <span className="inline-flex items-center gap-2">
                       <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: colorOf(m._id) }} />
@@ -249,7 +249,7 @@ export default function SchedulePage() {
                             return (
                               <button key={s._id} onClick={() => openEdit(s)} style={cp.style}
                                 className={cn("group/chip relative rounded-md border px-1.5 py-1 text-left text-[0.6875rem] leading-tight transition-shadow hover:shadow-elev-1", cp.className)}>
-                                <span className="flex items-center gap-1 font-mono">
+                                <span className="flex items-center gap-1 font-meta">
                                   {fmtTime(s.startTime)}–{fmtTime(s.endTime)}
                                   {s.status === "confirmed" && <Check className="size-2.5 text-positive" />}
                                 </span>
@@ -260,7 +260,7 @@ export default function SchedulePage() {
                                   tabIndex={-1}
                                   aria-label="Cancel shift"
                                   onClick={(e) => { e.stopPropagation(); quickCancel(s); }}
-                                  className="absolute -right-1 -top-1 block rounded-full bg-coal p-0.5 text-ash-dim transition-opacity hover:text-critical md:opacity-0 md:group-hover/chip:opacity-100"
+                                  className="absolute -right-1 -top-1 block rounded-full bg-coal p-0.5 text-steel/70 transition-opacity hover:text-critical md:opacity-0 md:group-hover/chip:opacity-100"
                                 >
                                   <X className="size-2.5" />
                                 </span>
@@ -269,7 +269,7 @@ export default function SchedulePage() {
                           })}
                           <button
                             onClick={() => openAdd(weekStart + di * DAY + 10 * 3_600_000, m._id)}
-                            className="flex items-center justify-center rounded-md border border-dashed border-hairline-2 py-1 text-ash-dim transition-opacity hover:border-gold-dim hover:text-gold md:opacity-0 md:group-hover/cell:opacity-100"
+                            className="flex items-center justify-center rounded-md border border-dashed border-graphite/60 py-1 text-steel/70 transition-opacity hover:border-gold-dim hover:text-gold md:opacity-0 md:group-hover/cell:opacity-100"
                             aria-label="Add shift"
                           >
                             <Plus className="size-3" />
@@ -287,8 +287,8 @@ export default function SchedulePage() {
       )}
 
       {/* Legend */}
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[0.6875rem] text-ash-dim">
-        <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm border border-hairline-2" style={{ backgroundColor: `${FALLBACK_COLOR}1f` }} /> each color = a teammate</span>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-[0.6875rem] text-steel/70">
+        <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm border border-graphite/60" style={{ backgroundColor: `${FALLBACK_COLOR}1f` }} /> each color = a teammate</span>
         <span className="inline-flex items-center gap-1.5"><span className="size-2.5 rounded-sm border border-gold-dim/40 bg-gold/[0.08]" /> session (auto-scheduled)</span>
         <span className="inline-flex items-center gap-1.5"><Check className="size-3 text-positive" /> confirmed</span>
         <span className="inline-flex items-center gap-1.5"><Ban className="size-3 text-caution" /> closed / holiday</span>

@@ -36,7 +36,7 @@ export const DropdownMenuItem = React.forwardRef<
     className={cn(
       "flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm " +
         "outline-none transition-colors data-[highlighted]:bg-coal-3 data-[disabled]:opacity-50 " +
-        "[&_svg]:size-4 [&_svg]:text-ash-dim",
+        "[&_svg]:size-4 [&_svg]:text-steel/70",
       destructive ? "text-critical [&_svg]:text-critical" : "text-bone",
       className,
     )}
@@ -71,7 +71,7 @@ DropdownMenuCheckboxItem.displayName = "DropdownMenuCheckboxItem";
 export function DropdownMenuLabel({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("px-2 py-1.5 text-[0.6875rem] font-mono uppercase tracking-wide text-ash-dim", className)}
+      className={cn("px-2 py-1.5 text-[0.6875rem] font-meta uppercase tracking-wide text-steel/70", className)}
       {...props}
     />
   );

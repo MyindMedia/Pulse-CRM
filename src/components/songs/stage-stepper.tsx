@@ -67,30 +67,30 @@ export function StageStepper({
                   isCurrent
                     ? "border-gold-dim bg-gold/10"
                     : isDone
-                      ? "border-hairline-2 bg-coal-2 hover:border-gold-dim/60"
-                      : "border-hairline bg-coal hover:border-hairline-2",
+                      ? "border-graphite/60 bg-coal-2 hover:border-gold-dim/60"
+                      : "border-graphite/50 bg-coal hover:border-graphite/60",
                 )}
               >
                 <span
                   className={cn(
-                    "grid size-5 shrink-0 place-items-center rounded-full font-mono text-[0.625rem] font-bold",
+                    "grid size-5 shrink-0 place-items-center rounded-full font-meta text-[0.625rem] font-bold",
                     isCurrent
                       ? "bg-gold text-gold-ink"
                       : isDone
                         ? "bg-positive/20 text-positive"
-                        : "bg-coal-3 text-ash-dim",
+                        : "bg-coal-3 text-steel/70",
                   )}
                 >
                   {isDone ? <Check className="size-3" strokeWidth={3} /> : i + 1}
                 </span>
                 <span
                   className={cn(
-                    "whitespace-nowrap font-mono text-[0.6875rem] uppercase tracking-wide",
+                    "whitespace-nowrap font-meta text-[0.6875rem] uppercase tracking-wide",
                     isCurrent
                       ? "font-semibold text-gold-bright"
                       : isDone
-                        ? "text-ash"
-                        : "text-ash-dim group-hover:text-ash",
+                        ? "text-steel"
+                        : "text-steel/70 group-hover:text-steel",
                   )}
                 >
                   {isPending ? "Saving…" : SONG_STAGE[stage].label}

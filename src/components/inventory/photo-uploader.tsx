@@ -86,12 +86,12 @@ export function PhotoUploader({
 
   return (
     <div className="space-y-1.5">
-      <p className="text-xs font-medium text-ash">Photo</p>
+      <p className="text-xs font-medium text-steel">Photo</p>
       <div className="flex items-center gap-3">
         <div
           className={cn(
             "relative grid size-20 shrink-0 place-items-center overflow-hidden",
-            "rounded-md border border-hairline-2 bg-ink-2",
+            "rounded-md border border-graphite/60 bg-obsidian",
           )}
         >
           {shown ? (
@@ -102,7 +102,7 @@ export function PhotoUploader({
               className="size-full object-cover"
             />
           ) : (
-            <ImagePlus className="size-6 text-ash-dim" />
+            <ImagePlus className="size-6 text-steel/70" />
           )}
           {uploading && (
             <div className="absolute inset-0 grid place-items-center bg-ink/70">
@@ -129,7 +129,7 @@ export function PhotoUploader({
                 ? "Replace photo"
                 : "Upload photo"}
           </Button>
-          <p className="text-[0.6875rem] text-ash-dim">
+          <p className="text-[0.6875rem] text-steel/70">
             JPG or PNG. Stored against this equipment item.
           </p>
         </div>

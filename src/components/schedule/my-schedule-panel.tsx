@@ -40,7 +40,7 @@ export function MySchedulePanel() {
   if (mine && mine.member === null) {
     return (
       <Card>
-        <CardContent className="py-6 text-center text-sm text-ash-dim">
+        <CardContent className="py-6 text-center text-sm text-steel/70">
           Your staff profile isn’t linked to your login yet - ask an owner to add your email to the team.
         </CardContent>
       </Card>
@@ -80,15 +80,15 @@ export function MySchedulePanel() {
         <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><CalendarClock className="size-4 text-gold" />My upcoming</CardTitle></CardHeader>
         <CardContent className="space-y-1.5 pt-1">
           {!mine ? (
-            <p className="text-sm text-ash-dim">Loading…</p>
+            <p className="text-sm text-steel/70">Loading…</p>
           ) : mine.shifts.length === 0 && mine.sessions.length === 0 ? (
-            <p className="text-sm text-ash-dim">Nothing scheduled.</p>
+            <p className="text-sm text-steel/70">Nothing scheduled.</p>
           ) : (
             <>
               {mine.shifts.map((s) => (
                 <div key={s._id} className="flex items-center gap-2 text-sm text-bone">
-                  <span className="font-mono text-xs text-ash-dim">{dt(s.startTime)}</span>
-                  {s.roomName && <span className="inline-flex items-center gap-0.5 text-xs text-ash-dim"><DoorOpen className="size-3" />{s.roomName}</span>}
+                  <span className="font-meta text-xs text-steel/70">{dt(s.startTime)}</span>
+                  {s.roomName && <span className="inline-flex items-center gap-0.5 text-xs text-steel/70"><DoorOpen className="size-3" />{s.roomName}</span>}
                   {s.kind === "session" && <Badge tone="gold">session</Badge>}
                 </div>
               ))}
@@ -101,7 +101,7 @@ export function MySchedulePanel() {
       <Card>
         <CardHeader><CardTitle className="text-sm">Weekly availability</CardTitle></CardHeader>
         <CardContent className="space-y-2 pt-1">
-          {editable.length === 0 && <p className="text-sm text-ash-dim">No availability set.</p>}
+          {editable.length === 0 && <p className="text-sm text-steel/70">No availability set.</p>}
           {editable.map((s, i) => (
             <div key={i} className="flex items-center gap-2">
               <Select value={String(s.weekday)} onValueChange={(v) => setSlots(editable.map((x, j) => j === i ? { ...x, weekday: Number(v) } : x))}>
@@ -110,7 +110,7 @@ export function MySchedulePanel() {
               </Select>
               <Input type="time" className="w-28" value={toHM(s.startMinutes)} onChange={(e) => setSlots(editable.map((x, j) => j === i ? { ...x, startMinutes: toMin(e.target.value) } : x))} />
               <Input type="time" className="w-28" value={toHM(s.endMinutes)} onChange={(e) => setSlots(editable.map((x, j) => j === i ? { ...x, endMinutes: toMin(e.target.value) } : x))} />
-              <button aria-label="Remove" onClick={() => setSlots(editable.filter((_, j) => j !== i))} className="text-ash-dim hover:text-critical"><X className="size-4" /></button>
+              <button aria-label="Remove" onClick={() => setSlots(editable.filter((_, j) => j !== i))} className="text-steel/70 hover:text-critical"><X className="size-4" /></button>
             </div>
           ))}
           <div className="flex items-center gap-2 pt-1">
@@ -132,7 +132,7 @@ export function MySchedulePanel() {
           </form>
           <div className="space-y-1">
             {(myTimeOff ?? []).map((r) => (
-              <div key={r._id} className="flex items-center justify-between rounded-md border border-hairline bg-coal-2 px-3 py-1.5 text-sm">
+              <div key={r._id} className="flex items-center justify-between rounded-md border border-graphite/50 bg-coal-2 px-3 py-1.5 text-sm">
                 <span className="text-bone">{new Date(r.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – {new Date(r.endTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
                 <Badge tone={TONE[r.status]}>{r.status}</Badge>
               </div>

@@ -26,7 +26,7 @@ export function Tooltip({
           side={side}
           sideOffset={6}
           className={cn(
-            "anim-rise z-50 rounded-md border border-hairline-2 bg-coal-3 px-2.5 py-1.5 " +
+            "anim-rise z-50 rounded-md border border-graphite/60 bg-coal-3 px-2.5 py-1.5 " +
               "text-xs font-medium text-bone shadow-pop",
             className,
           )}

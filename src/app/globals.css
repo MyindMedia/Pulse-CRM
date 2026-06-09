@@ -13,6 +13,24 @@
   --font-serif: var(--font-instrument-serif), ui-serif, Georgia, serif;
   --font-jakarta: var(--font-plus-jakarta), var(--font-inter), sans-serif;
 
+  /* - Chrome redesign type voices (additive) - */
+  --font-chrome: var(--font-anton), "Druk", "Pangram Sans Condensed", var(--font-inter), sans-serif;
+  --font-grotesk: var(--font-inter), "Sohne", "Suisse Intl", ui-sans-serif, sans-serif;
+  --font-meta: var(--font-ibm-plex-mono), ui-monospace, "SF Mono", monospace;
+
+  /* - Chrome redesign achromatic palette (additive; gold stays the sole accent) - */
+  --color-obsidian: #161616;
+  --color-graphite: #3c3a3e;
+  --color-slate: #7b7a7c;
+  --color-steel: #a2a2a2; /* template "ash" - renamed to avoid clash w/ existing --color-ash */
+  --color-mist: #c9c7cc;
+  --color-fog: #f1f1f1;
+  --color-paper: #f8f8f8;
+  --color-white: #ffffff;
+
+  /* - Chrome redesign radius (single soft token) - */
+  --radius-chrome: 14.4px;
+
   /* - Surfaces (near-black → graphite) - */
   --color-ink: #08080a;
   --color-ink-2: #0d0d10;
@@ -180,6 +198,55 @@
    ============================================================ */
 
 @layer utilities {
+  /* ── Chrome redesign (Dylanbrouwer-style, Pulse gold accent) ──
+     Monolithic display type with a metallic chrome-fade fill, a mono metadata
+     voice, ghost surfaces, and a single 14.4px radius. Achromatic by design;
+     gold is the only chromatic punctuation. */
+
+  /* Monolithic display headline - viewport-scale wordmarks. */
+  .chrome-display {
+    font-family: var(--font-chrome);
+    font-weight: 400;
+    line-height: 0.82;
+    letter-spacing: -0.02em;
+    text-transform: uppercase;
+  }
+  /* Metallic chrome-fade fill for display text (black -> graphite -> fog). */
+  .chrome-fill {
+    background: linear-gradient(180deg, #ffffff 0%, #b9b7bb 42%, #6e6c70 72%, #2a2a2e 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+  /* Same metallic fade but reading dark-on-light (for bright sections). */
+  .chrome-fill-dark {
+    background: linear-gradient(180deg, #161616 0%, #3c3a3e 45%, #7b7a7c 78%, #c9c7cc 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+    -webkit-text-fill-color: transparent;
+  }
+  /* System metadata voice: mono, tracked, uppercase. */
+  .chrome-meta {
+    font-family: var(--font-meta);
+    font-weight: 500;
+    font-size: 0.75rem;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  /* Ghost outline (nav buttons, chips) - no fill, border darkens on hover. */
+  .chrome-ghost {
+    border: 1px solid var(--color-graphite);
+    border-radius: var(--radius-chrome);
+    background: transparent;
+    transition: border-color 0.18s ease, color 0.18s ease;
+  }
+  .chrome-ghost:hover { border-color: var(--color-obsidian); }
+  /* Gold-accent ghost variant for primary-feel ghost actions on dark. */
+  .chrome-ghost-gold { border-color: color-mix(in oklab, var(--color-gold) 55%, transparent); }
+  .chrome-ghost-gold:hover { border-color: var(--color-gold); }
+
   .glass {
     background: color-mix(in oklab, var(--color-coal) 68%, transparent);
     backdrop-filter: blur(22px) saturate(180%);

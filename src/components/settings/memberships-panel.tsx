@@ -75,9 +75,9 @@ export function MembershipsPanel() {
       </CardHeader>
       <CardContent>
         {!connected && (
-          <div className="mb-3 flex items-start gap-2 rounded-md border border-hairline bg-coal-2 px-3 py-2.5">
+          <div className="mb-3 flex items-start gap-2 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5">
             <CreditCard className="mt-0.5 size-3.5 shrink-0 text-caution" />
-            <p className="text-[0.6875rem] text-ash-dim">
+            <p className="text-[0.6875rem] text-steel/70">
               Connect your Stripe account in <span className="text-bone">Settings → Integrations</span> to
               start charging. You can still define packages now; we will create their recurring
               prices the moment Stripe is connected.
@@ -89,7 +89,7 @@ export function MembershipsPanel() {
             {[0, 1].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
           </div>
         ) : plans.length === 0 ? (
-          <p className="rounded-md border border-dashed border-hairline-2 py-10 text-center text-xs text-ash-dim">
+          <p className="rounded-md border border-dashed border-graphite/60 py-10 text-center text-xs text-steel/70">
             No plans yet. Add a Producer Pass, a Member tier, or a Studio Plus to start charging recurring revenue.
           </p>
         ) : (
@@ -97,12 +97,12 @@ export function MembershipsPanel() {
             {plans.map((p) => (
               <li
                 key={p._id}
-                className={`rounded-md border border-hairline bg-coal-2 p-4 ${p.active ? "" : "opacity-60"}`}
+                className={`rounded-md border border-graphite/50 bg-coal-2 p-4 ${p.active ? "" : "opacity-60"}`}
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="font-display text-base font-semibold text-bone">{p.name}</h3>
+                      <h3 className="font-grotesk text-base font-semibold text-bone">{p.name}</h3>
                       {!p.active && <Badge tone="neutral">archived</Badge>}
                       {p.priorityBooking && (
                         <Badge tone="gold"><Crown className="size-2.5" /> Priority</Badge>
@@ -111,13 +111,13 @@ export function MembershipsPanel() {
                         <Badge tone="positive"><CheckCircle2 className="size-2.5" /> Live</Badge>
                       )}
                     </div>
-                    {p.description && <p className="mt-1 text-xs text-ash">{p.description}</p>}
-                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-ash">
+                    {p.description && <p className="mt-1 text-xs text-steel">{p.description}</p>}
+                    <div className="mt-2 flex flex-wrap items-center gap-3 text-xs text-steel">
                       {p.bundledHoursPerPeriod ? (
-                        <span className="inline-flex items-center gap-1"><Clock className="size-3 text-ash-dim" /> {p.bundledHoursPerPeriod}h bundled</span>
+                        <span className="inline-flex items-center gap-1"><Clock className="size-3 text-steel/70" /> {p.bundledHoursPerPeriod}h bundled</span>
                       ) : null}
                       {p.memberDiscountPct ? (
-                        <span className="inline-flex items-center gap-1"><Percent className="size-3 text-ash-dim" /> {p.memberDiscountPct}% member discount</span>
+                        <span className="inline-flex items-center gap-1"><Percent className="size-3 text-steel/70" /> {p.memberDiscountPct}% member discount</span>
                       ) : null}
                       {!p.stripePriceId && (
                         <button
@@ -133,13 +133,13 @@ export function MembershipsPanel() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="font-display text-xl font-bold tabular-nums text-bone">
-                      {money(p.priceCents)}<span className="text-xs text-ash-dim">{intervalLabel[p.billingInterval]}</span>
+                    <p className="font-grotesk text-xl font-bold tabular-nums text-bone">
+                      {money(p.priceCents)}<span className="text-xs text-steel/70">{intervalLabel[p.billingInterval]}</span>
                     </p>
                     <button
                       type="button"
                       onClick={() => toggle(p._id, p.active)}
-                      className="mt-2 text-[0.625rem] font-mono uppercase tracking-wide text-ash-dim hover:text-bone"
+                      className="mt-2 text-[0.625rem] font-meta uppercase tracking-wide text-steel/70 hover:text-bone"
                     >
                       {p.active ? "Archive" : "Re-activate"}
                     </button>
@@ -249,12 +249,12 @@ function AddPlanDialog({
             </Field>
           </div>
           {!connected && (
-            <p className="rounded-md border border-hairline bg-coal-2 px-3 py-2 text-[0.6875rem] text-ash-dim">
+            <p className="rounded-md border border-graphite/50 bg-coal-2 px-3 py-2 text-[0.6875rem] text-steel/70">
               Stripe isn&apos;t connected yet, so this plan will save as a draft. Connect Stripe in
               Integrations and press &ldquo;Sync to Stripe&rdquo; to make it live.
             </p>
           )}
-          <label className="flex items-center justify-between rounded-md border border-hairline bg-coal-2 px-3 py-2">
+          <label className="flex items-center justify-between rounded-md border border-graphite/50 bg-coal-2 px-3 py-2">
             <span className="text-sm text-bone">Priority booking</span>
             <Switch checked={priority} onCheckedChange={setPriority} />
           </label>

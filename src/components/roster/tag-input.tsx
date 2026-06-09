@@ -67,14 +67,14 @@ export function TagInput({
             return (
               <span
                 key={tag}
-                className="inline-flex items-center gap-1 rounded-sm border border-hairline-2 bg-coal-2 py-0.5 pl-2 pr-1 text-[0.6875rem] font-medium text-bone"
+                className="inline-flex items-center gap-1 rounded-sm border border-graphite/60 bg-coal-2 py-0.5 pl-2 pr-1 text-[0.6875rem] font-medium text-bone"
               >
                 <span className="size-1.5 rounded-full" style={{ backgroundColor: tint }} />
                 {tag}
                 <button
                   type="button"
                   onClick={() => remove(tag)}
-                  className="grid size-4 place-items-center rounded-sm text-ash-dim transition-colors hover:bg-coal-3 hover:text-bone"
+                  className="grid size-4 place-items-center rounded-sm text-steel/70 transition-colors hover:bg-coal-3 hover:text-bone"
                   aria-label={`Remove ${tag}`}
                 >
                   <X className="size-3" />

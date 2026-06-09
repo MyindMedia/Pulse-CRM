@@ -63,27 +63,27 @@ function HealthPanel() {
       <CardContent className="pt-5">
         <div className="flex flex-wrap items-center gap-5">
           <div className="flex items-center gap-3">
-            <span className="grid size-12 place-items-center rounded-xl bg-gold/12 text-gold"><Gauge className="size-6" /></span>
+            <span className="grid size-12 place-items-center rounded-chrome bg-gold/12 text-gold"><Gauge className="size-6" /></span>
             <div>
               <div className="flex items-baseline gap-2">
-                <span className="font-display text-3xl font-bold text-bone">{health.overall}</span>
-                <span className="text-sm text-ash-dim">/100</span>
+                <span className="font-grotesk text-3xl font-bold text-bone">{health.overall}</span>
+                <span className="text-sm text-steel/70">/100</span>
                 <Badge tone={BAND_TONE[health.band as keyof typeof BAND_TONE]}>{health.band}</Badge>
               </div>
-              <p className="text-xs text-ash-dim">Studio health</p>
+              <p className="text-xs text-steel/70">Studio health</p>
             </div>
           </div>
           <div className="grid flex-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
             {health.components.map((c) => (
               <div key={c.key}>
                 <div className="flex items-center justify-between text-xs">
-                  <span className="text-ash">{c.label}</span>
-                  <span className="font-mono text-ash-dim">{c.score}</span>
+                  <span className="text-steel">{c.label}</span>
+                  <span className="font-meta text-steel/70">{c.score}</span>
                 </div>
                 <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-coal-3">
                   <div className={cn("h-full rounded-full", c.score >= 70 ? "bg-positive" : c.score >= 45 ? "bg-gold" : "bg-critical")} style={{ width: `${c.score}%` }} />
                 </div>
-                <p className="mt-0.5 text-[0.625rem] text-ash-dim">{c.signal}</p>
+                <p className="mt-0.5 text-[0.625rem] text-steel/70">{c.signal}</p>
               </div>
             ))}
           </div>
@@ -122,9 +122,9 @@ function AutomationsPanel() {
         <Button size="sm" variant="ghost" onClick={() => setOpen((v) => !v)}><Plus className="size-3.5" />New</Button>
       </CardHeader>
       <CardContent className="space-y-2 pt-1">
-        <p className="text-[0.6875rem] text-ash-dim">Save a recurring agent task. It runs daily or weekly and surfaces insights + approvals automatically.</p>
+        <p className="text-[0.6875rem] text-steel/70">Save a recurring agent task. It runs daily or weekly and surfaces insights + approvals automatically.</p>
         {open && (
-          <div className="space-y-2 rounded-md border border-hairline bg-coal/40 p-3">
+          <div className="space-y-2 rounded-md border border-graphite/50 bg-coal/40 p-3">
             <Input value={name} onChange={(e) => setName(e.target.value)} placeholder="Name (e.g. Weekly collections sweep)" />
             <Textarea rows={2} value={prompt} onChange={(e) => setPrompt(e.target.value)} placeholder="What should it do? e.g. Find overdue invoices and draft reminders." />
             <div className="flex items-center gap-2">
@@ -140,17 +140,17 @@ function AutomationsPanel() {
           </div>
         )}
         {list.length === 0 && !open ? (
-          <p className="py-2 text-xs text-ash-dim">No automations yet.</p>
+          <p className="py-2 text-xs text-steel/70">No automations yet.</p>
         ) : (
           list.map((a) => (
-            <div key={a._id} className="flex items-center justify-between gap-2 rounded-md border border-hairline bg-coal-2 px-3 py-2">
+            <div key={a._id} className="flex items-center justify-between gap-2 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2">
               <div className="min-w-0">
-                <p className="truncate font-display text-sm font-semibold text-bone">{a.name}</p>
-                <p className="text-[0.625rem] text-ash-dim">{a.cadence} · {a.runCount} run{a.runCount === 1 ? "" : "s"}</p>
+                <p className="truncate font-grotesk text-sm font-semibold text-bone">{a.name}</p>
+                <p className="text-[0.625rem] text-steel/70">{a.cadence} · {a.runCount} run{a.runCount === 1 ? "" : "s"}</p>
               </div>
               <div className="flex shrink-0 items-center gap-2">
                 <Switch checked={a.enabled} onCheckedChange={(v) => toggle({ id: a._id, enabled: v })} aria-label="Toggle automation" />
-                <button onClick={() => remove({ id: a._id })} aria-label="Delete" className="text-ash-dim hover:text-critical"><Trash2 className="size-3.5" /></button>
+                <button onClick={() => remove({ id: a._id })} aria-label="Delete" className="text-steel/70 hover:text-critical"><Trash2 className="size-3.5" /></button>
               </div>
             </div>
           ))
@@ -183,7 +183,7 @@ function MemoryPanel() {
     <Card>
       <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Brain className="size-4 text-gold" />Agent memory</CardTitle></CardHeader>
       <CardContent className="space-y-3 pt-1">
-        <p className="text-[0.6875rem] text-ash-dim">What the agent should always remember about this studio. Per-studio only, never shared.</p>
+        <p className="text-[0.6875rem] text-steel/70">What the agent should always remember about this studio. Per-studio only, never shared.</p>
         <div className="space-y-2">
           <Select value={type} onValueChange={setType}>
             <SelectTrigger><SelectValue /></SelectTrigger>
@@ -198,15 +198,15 @@ function MemoryPanel() {
         </div>
         <div className="space-y-1.5">
           {memories.length === 0 ? (
-            <p className="text-xs text-ash-dim">No memories yet.</p>
+            <p className="text-xs text-steel/70">No memories yet.</p>
           ) : (
             memories.map((m) => (
-              <div key={m._id} className="flex items-start justify-between gap-2 rounded-md border border-hairline bg-coal-2 px-2.5 py-2">
+              <div key={m._id} className="flex items-start justify-between gap-2 rounded-md border border-graphite/50 bg-coal-2 px-2.5 py-2">
                 <div className="min-w-0">
-                  <p className="font-mono text-[0.5625rem] uppercase tracking-wide text-ash-dim">{m.memoryType.replace(/_/g, " ")}</p>
-                  <p className="text-xs text-ash">{m.summary}</p>
+                  <p className="font-meta text-[0.5625rem] uppercase tracking-wide text-steel/70">{m.memoryType.replace(/_/g, " ")}</p>
+                  <p className="text-xs text-steel">{m.summary}</p>
                 </div>
-                <button onClick={() => del({ id: m._id })} aria-label="Delete memory" className="shrink-0 text-ash-dim hover:text-critical"><Trash2 className="size-3.5" /></button>
+                <button onClick={() => del({ id: m._id })} aria-label="Delete memory" className="shrink-0 text-steel/70 hover:text-critical"><Trash2 className="size-3.5" /></button>
               </div>
             ))
           )}
@@ -247,7 +247,7 @@ function CommandBar() {
       <CardContent className="space-y-3 pt-5">
         <div className="flex items-center gap-2">
           <span className="grid size-8 place-items-center rounded-lg bg-gold/12 text-gold"><Sparkles className="size-4" /></span>
-          <p className="font-display text-sm font-semibold text-bone">Ask the agent</p>
+          <p className="font-grotesk text-sm font-semibold text-bone">Ask the agent</p>
         </div>
         <Textarea
           rows={3}
@@ -259,7 +259,7 @@ function CommandBar() {
         <div className="flex flex-wrap items-center gap-2">
           {SUGGESTED.map((s) => (
             <button key={s} onClick={() => ask(s)} disabled={busy}
-              className="rounded-full border border-hairline-2 bg-coal/60 px-2.5 py-1 text-[0.6875rem] text-ash transition-colors hover:border-gold-dim hover:text-bone disabled:opacity-50">
+              className="rounded-full border border-graphite/60 bg-coal/60 px-2.5 py-1 text-[0.6875rem] text-steel transition-colors hover:border-gold-dim hover:text-bone disabled:opacity-50">
               {s}
             </button>
           ))}
@@ -270,18 +270,18 @@ function CommandBar() {
         </div>
 
         {thinking && (
-          <div className="flex items-center gap-2 rounded-md border border-hairline bg-coal/40 px-3 py-3 text-sm text-ash">
+          <div className="flex items-center gap-2 rounded-md border border-graphite/50 bg-coal/40 px-3 py-3 text-sm text-steel">
             <Loader2 className="size-4 animate-spin text-gold" /> Analyzing your studio...
           </div>
         )}
         {run && run.status !== "queued" && run.status !== "running" && assistant && (
-          <div className="rounded-md border border-hairline bg-coal-2 px-4 py-3.5">
+          <div className="rounded-md border border-graphite/50 bg-coal-2 px-4 py-3.5">
             <p className="whitespace-pre-wrap text-sm leading-relaxed text-bone">{assistant.body}</p>
             {run.status === "needs_approval" && (
               <p className="mt-2 text-xs text-gold">Prepared actions are waiting in your approval inbox.</p>
             )}
             {run.source === "fallback" && (
-              <p className="mt-2 text-[0.6875rem] text-ash-dim">Connect an AI key (OPENAI_API_KEY) for full analysis and drafting.</p>
+              <p className="mt-2 text-[0.6875rem] text-steel/70">Connect an AI key (OPENAI_API_KEY) for full analysis and drafting.</p>
             )}
           </div>
         )}
@@ -299,18 +299,18 @@ function Insights() {
       <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><Lightbulb className="size-4 text-gold" />Insights</CardTitle></CardHeader>
       <CardContent className="space-y-2 pt-1">
         {insights.length === 0 ? (
-          <p className="py-4 text-center text-sm text-ash-dim">No active insights yet. Ask the agent or wait for the daily brief.</p>
+          <p className="py-4 text-center text-sm text-steel/70">No active insights yet. Ask the agent or wait for the daily brief.</p>
         ) : (
           insights.map((i) => (
-            <div key={i._id} className="rounded-md border border-hairline bg-coal-2 p-3">
+            <div key={i._id} className="rounded-md border border-graphite/50 bg-coal-2 p-3">
               <div className="flex items-start justify-between gap-2">
                 <div className="flex items-center gap-2">
                   <Badge tone={SEV_TONE[i.severity]}>{i.severity}</Badge>
-                  <p className="font-display text-sm font-semibold text-bone">{i.title}</p>
+                  <p className="font-grotesk text-sm font-semibold text-bone">{i.title}</p>
                 </div>
-                <button onClick={() => dismiss({ id: i._id })} aria-label="Dismiss" className="text-ash-dim hover:text-bone"><X className="size-3.5" /></button>
+                <button onClick={() => dismiss({ id: i._id })} aria-label="Dismiss" className="text-steel/70 hover:text-bone"><X className="size-3.5" /></button>
               </div>
-              <p className="mt-1.5 text-xs leading-relaxed text-ash">{i.explanation}</p>
+              <p className="mt-1.5 text-xs leading-relaxed text-steel">{i.explanation}</p>
             </div>
           ))
         )}
@@ -330,20 +330,20 @@ function ApprovalInbox() {
       <CardHeader><CardTitle className="flex items-center gap-2 text-sm"><ShieldCheck className="size-4 text-gold" />Approval inbox</CardTitle></CardHeader>
       <CardContent className="space-y-2 pt-1">
         {pending.length === 0 ? (
-          <p className="py-4 text-center text-sm text-ash-dim">Nothing waiting. Actions the agent prepares show up here to review, edit and approve.</p>
+          <p className="py-4 text-center text-sm text-steel/70">Nothing waiting. Actions the agent prepares show up here to review, edit and approve.</p>
         ) : (
           pending.map((a) => (
             <button
               key={a._id}
               onClick={() => setEditing(a as ApprovalItem)}
-              className="block w-full rounded-md border border-hairline bg-coal-2 p-3 text-left transition-colors hover:border-gold-dim focus-visible:ring-2 focus-visible:ring-gold/30"
+              className="block w-full rounded-md border border-graphite/50 bg-coal-2 p-3 text-left transition-colors hover:border-gold-dim focus-visible:ring-2 focus-visible:ring-gold/30"
             >
               <div className="flex items-start justify-between gap-2">
-                <p className="font-display text-sm font-semibold text-bone">{a.title}</p>
+                <p className="font-grotesk text-sm font-semibold text-bone">{a.title}</p>
                 <Badge tone={RISK_TONE[a.riskLevel]}>{a.riskLevel}</Badge>
               </div>
-              <p className="mt-1 line-clamp-2 text-xs text-ash">{a.explanation}</p>
-              <p className="mt-1.5 font-mono text-[0.625rem] uppercase tracking-wide text-gold">Tap to review &amp; edit · {a.actionType.replace(/_/g, " ")}</p>
+              <p className="mt-1 line-clamp-2 text-xs text-steel">{a.explanation}</p>
+              <p className="mt-1.5 font-meta text-[0.625rem] uppercase tracking-wide text-gold">Tap to review &amp; edit · {a.actionType.replace(/_/g, " ")}</p>
             </button>
           ))
         )}
@@ -365,11 +365,11 @@ function AgentSettings() {
       <CardHeader><CardTitle className="text-sm">Agent settings</CardTitle></CardHeader>
       <CardContent className="space-y-3 pt-1 text-sm">
         <div className="flex items-center justify-between">
-          <span className="text-ash">Agent enabled</span>
+          <span className="text-steel">Agent enabled</span>
           <Switch checked={policy.enabled} onCheckedChange={(v) => set({ enabled: v })} aria-label="Toggle agent" />
         </div>
         <div className="flex items-center justify-between gap-3">
-          <span className="text-ash">Tone</span>
+          <span className="text-steel">Tone</span>
           <Select value={policy.defaultTone} onValueChange={(v) => set({ defaultTone: v })}>
             <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -378,7 +378,7 @@ function AgentSettings() {
           </Select>
         </div>
         <div className="flex items-center justify-between gap-3">
-          <span className="text-ash">Autonomy</span>
+          <span className="text-steel">Autonomy</span>
           <Select value={policy.autonomy} onValueChange={(v) => set({ autonomy: v })}>
             <SelectTrigger className="w-40"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -389,10 +389,10 @@ function AgentSettings() {
           </Select>
         </div>
         <div className="flex items-center justify-between">
-          <span className="text-ash">Daily brief</span>
+          <span className="text-steel">Daily brief</span>
           <Switch checked={policy.digestEnabled} onCheckedChange={(v) => set({ digestEnabled: v })} aria-label="Toggle daily brief" />
         </div>
-        <p className="text-[0.6875rem] text-ash-dim">Approval-first: client, money, file, and automation actions always wait for your approval unless you raise autonomy.</p>
+        <p className="text-[0.6875rem] text-steel/70">Approval-first: client, money, file, and automation actions always wait for your approval unless you raise autonomy.</p>
       </CardContent>
     </Card>
   );

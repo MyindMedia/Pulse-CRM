@@ -61,7 +61,7 @@ export function PulseLoader({
         </div>
 
         <div className="flex flex-col items-center gap-1.5">
-          <span className="overline text-ash">
+          <span className="overline text-steel">
             {message ?? "Tuning the room"}
           </span>
           <span className="flex items-center gap-1">

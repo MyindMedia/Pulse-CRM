@@ -63,7 +63,7 @@ export default function StudioSlugFrontPage() {
         >
           <motion.div variants={fadeUp} className="flex items-center gap-3">
             <span
-              className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-md border border-hairline-2 bg-coal-2"
+              className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-md border border-graphite/60 bg-coal-2"
               style={{ boxShadow: `0 0 0 1px color-mix(in srgb, ${accent} 30%, transparent)` }}
             >
               {front?.org.logoUrl ? (
@@ -88,14 +88,14 @@ export default function StudioSlugFrontPage() {
                   <span className="skeleton inline-block h-3 w-32 max-w-full rounded align-middle" />
                 )}
               </span>
-              <span className="block text-xs text-ash-dim">Studio booking</span>
+              <span className="block text-xs text-steel/70">Studio booking</span>
             </span>
           </motion.div>
 
           <div className="max-w-2xl space-y-4">
             <motion.h1
               variants={fadeUp}
-              className="font-display text-4xl font-semibold tracking-tight text-bone sm:text-5xl"
+              className="font-grotesk text-4xl font-semibold tracking-tight text-bone sm:text-5xl"
             >
               {front ? (
                 headline
@@ -103,7 +103,7 @@ export default function StudioSlugFrontPage() {
                 <span className="skeleton inline-block h-12 w-80 max-w-full rounded-md align-middle" />
               )}
             </motion.h1>
-            <motion.p variants={fadeUp} className="text-base text-ash">
+            <motion.p variants={fadeUp} className="text-base text-steel">
               {front ? (
                 front.org.intro?.trim() ||
                 front.org.tagline ||
@@ -128,7 +128,7 @@ export default function StudioSlugFrontPage() {
             initial="hidden"
             animate="show"
             variants={fadeUp}
-            className="relative overflow-hidden rounded-lg border border-hairline"
+            className="relative overflow-hidden rounded-lg border border-graphite/50"
           >
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
@@ -156,7 +156,7 @@ export default function StudioSlugFrontPage() {
             <motion.li
               key={step.label}
               variants={fadeUp}
-              className="glass flex items-start gap-3 rounded-lg border border-hairline p-4"
+              className="glass flex items-start gap-3 rounded-lg border border-graphite/50 p-4"
             >
               <span
                 className="grid size-9 shrink-0 place-items-center rounded-md bg-coal-2"
@@ -166,12 +166,12 @@ export default function StudioSlugFrontPage() {
               </span>
               <div className="min-w-0">
                 <p className="flex items-center gap-1.5 text-sm font-medium text-bone">
-                  <span className="font-mono text-xs text-ash-dim">
+                  <span className="font-meta text-xs text-steel/70">
                     {String(i + 1).padStart(2, "0")}
                   </span>
                   {step.label}
                 </p>
-                <p className="text-xs text-ash-dim">{step.note}</p>
+                <p className="text-xs text-steel/70">{step.note}</p>
               </div>
             </motion.li>
           ))}
@@ -181,11 +181,11 @@ export default function StudioSlugFrontPage() {
       {/* Rooms */}
       <section className="space-y-5">
         <div className="flex items-baseline justify-between">
-          <h2 className="font-display text-lg font-semibold tracking-tight text-bone">
+          <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
             Bookable rooms
           </h2>
           {front && (
-            <span className="text-xs text-ash-dim">
+            <span className="text-xs text-steel/70">
               {front.rooms.length} {front.rooms.length === 1 ? "room" : "rooms"}{" "}
               available
             </span>
@@ -197,7 +197,7 @@ export default function StudioSlugFrontPage() {
             {Array.from({ length: 3 }).map((_, i) => (
               <div
                 key={i}
-                className="overflow-hidden rounded-lg border border-hairline"
+                className="overflow-hidden rounded-lg border border-graphite/50"
               >
                 <Skeleton className="aspect-[16/10] w-full rounded-none" />
                 <div className="space-y-3 p-5">
@@ -230,7 +230,7 @@ export default function StudioSlugFrontPage() {
         {/* Deposit policy */}
         {front && (
           <div
-            className="flex items-start gap-2.5 rounded-md border border-hairline bg-coal-2 px-4 py-3"
+            className="flex items-start gap-2.5 rounded-md border border-graphite/50 bg-coal-2 px-4 py-3"
             style={{
               borderColor: `color-mix(in srgb, ${accent} 28%, transparent)`,
             }}
@@ -239,7 +239,7 @@ export default function StudioSlugFrontPage() {
               className="mt-0.5 size-4 shrink-0"
               style={{ color: accent }}
             />
-            <p className="text-xs text-ash">
+            <p className="text-xs text-steel">
               {front.org.depositPolicy?.trim() ||
                 "A deposit holds your slot and is credited toward the final invoice. You will see the exact amount before you pay."}
             </p>

@@ -40,17 +40,17 @@ export function AtRiskSessionsReport() {
               <TR key={r.sessionId}>
                 <TD className="font-medium">
                   {r.title}
-                  <span className="block text-xs text-ash-dim">{r.artistName}</span>
+                  <span className="block text-xs text-steel/70">{r.artistName}</span>
                 </TD>
-                <TD className="text-ash">
+                <TD className="text-steel">
                   {shortDate(r.startTime)}
-                  <span className="block text-xs text-ash-dim">{timeOfDay(r.startTime)}</span>
+                  <span className="block text-xs text-steel/70">{timeOfDay(r.startTime)}</span>
                 </TD>
-                <TD className="max-w-[18rem] text-xs text-ash">{r.reasons[0]}</TD>
+                <TD className="max-w-[18rem] text-xs text-steel">{r.reasons[0]}</TD>
                 <TD>
                   <div className="flex items-center gap-2.5">
                     <Progress value={r.score} max={100} tone={tone} className="flex-1" />
-                    <span className="w-8 text-right font-mono text-xs tabular-nums text-bone">{r.score}</span>
+                    <span className="w-8 text-right font-meta text-xs tabular-nums text-bone">{r.score}</span>
                   </div>
                 </TD>
                 <TD className="text-right">
@@ -105,19 +105,19 @@ export function PricingRecommendationsReport() {
                 <TD>
                   <div className="flex items-center gap-2.5">
                     <Progress value={r.utilizationPct} max={100} tone={utilTone} className="flex-1" />
-                    <span className="w-9 text-right font-mono text-xs tabular-nums text-bone">{r.utilizationPct}%</span>
+                    <span className="w-9 text-right font-meta text-xs tabular-nums text-bone">{r.utilizationPct}%</span>
                   </div>
                 </TD>
-                <TD className="text-right font-mono tabular-nums text-ash">
+                <TD className="text-right font-meta tabular-nums text-steel">
                   {r.hourlyRateCents > 0 ? `${money(r.hourlyRateCents)}/hr` : "-"}
                 </TD>
                 <TD>
-                  <span className="inline-flex items-center gap-1.5 text-xs text-ash">
-                    <Icon className={`size-3.5 ${tone === "positive" ? "text-positive" : tone === "caution" ? "text-caution" : "text-ash-dim"}`} />
+                  <span className="inline-flex items-center gap-1.5 text-xs text-steel">
+                    <Icon className={`size-3.5 ${tone === "positive" ? "text-positive" : tone === "caution" ? "text-caution" : "text-steel/70"}`} />
                     <span className="max-w-[16rem]">{r.reason}</span>
                   </span>
                 </TD>
-                <TD className="text-right font-mono tabular-nums font-semibold text-bone">
+                <TD className="text-right font-meta tabular-nums font-semibold text-bone">
                   {r.action === "hold" ? "-" : `${money(r.suggestedRateCents)}/hr`}
                 </TD>
               </TR>

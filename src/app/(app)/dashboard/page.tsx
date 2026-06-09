@@ -59,8 +59,8 @@ export default function DashboardPage() {
               <Database className="size-5" />
             </span>
             <div className="min-w-0 flex-1">
-              <p className="font-display font-semibold text-bone">Load the demo studio</p>
-              <p className="text-sm text-ash">
+              <p className="font-grotesk font-semibold text-bone">Load the demo studio</p>
+              <p className="text-sm text-steel">
                 Populate Pulse with Lumen Recording Co. - a full studio of artists, songs,
                 sessions, invoices and deals so every screen is explorable.
               </p>
@@ -149,12 +149,12 @@ export default function DashboardPage() {
             {insights === undefined ? (
               <Skeleton className="h-40 w-full" />
             ) : insights.length === 0 ? (
-              <p className="py-8 text-center text-sm text-ash-dim">No open nudges.</p>
+              <p className="py-8 text-center text-sm text-steel/70">No open nudges.</p>
             ) : (
               insights.map((it) => (
-                <div key={it._id} className="rounded-md border border-hairline bg-coal-2 p-3">
+                <div key={it._id} className="rounded-md border border-graphite/50 bg-coal-2 p-3">
                   <p className="text-sm font-medium text-bone">{it.title}</p>
-                  <p className="mt-0.5 text-xs leading-relaxed text-ash">{it.body}</p>
+                  <p className="mt-0.5 text-xs leading-relaxed text-steel">{it.body}</p>
                 </div>
               ))
             )}
@@ -174,7 +174,7 @@ export default function DashboardPage() {
             {!data ? (
               <Skeleton className="h-[160px] w-full" />
             ) : data.charts.pipelineByStage.length === 0 ? (
-              <p className="py-10 text-center text-sm text-ash-dim">No open opportunities.</p>
+              <p className="py-10 text-center text-sm text-steel/70">No open opportunities.</p>
             ) : (
               <HBars data={data.charts.pipelineByStage} labelKey="stage" valueKey="count" />
             )}
@@ -188,7 +188,7 @@ export default function DashboardPage() {
             {!data ? (
               <Skeleton className="h-[200px] w-full" />
             ) : data.charts.bookingsByService.length === 0 ? (
-              <p className="py-10 text-center text-sm text-ash-dim">No sessions yet.</p>
+              <p className="py-10 text-center text-sm text-steel/70">No sessions yet.</p>
             ) : (
               <CategoryDonut data={data.charts.bookingsByService} labelKey="service" valueKey="count" />
             )}
@@ -202,7 +202,7 @@ export default function DashboardPage() {
             {!data ? (
               <Skeleton className="h-[160px] w-full" />
             ) : data.charts.songsByStage.length === 0 ? (
-              <p className="py-10 text-center text-sm text-ash-dim">No songs yet.</p>
+              <p className="py-10 text-center text-sm text-steel/70">No songs yet.</p>
             ) : (
               <HBars data={data.charts.songsByStage} labelKey="stage" valueKey="count" />
             )}
@@ -244,17 +244,17 @@ export default function DashboardPage() {
                       href="/calendar"
                       className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-coal-2"
                     >
-                      <div className="grid size-11 shrink-0 place-items-center rounded-md border border-hairline bg-ink-2 text-center">
-                        <span className="font-display text-sm font-bold leading-none text-bone">
+                      <div className="grid size-11 shrink-0 place-items-center rounded-md border border-graphite/50 bg-obsidian text-center">
+                        <span className="font-grotesk text-sm font-bold leading-none text-bone">
                           {new Date(s.startTime).getDate()}
                         </span>
-                        <span className="font-mono text-[0.5625rem] uppercase text-ash-dim">
+                        <span className="font-meta text-[0.5625rem] uppercase text-steel/70">
                           {new Date(s.startTime).toLocaleDateString("en-US", { month: "short" })}
                         </span>
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-bone">{s.title}</p>
-                        <p className="truncate text-xs text-ash-dim">
+                        <p className="truncate text-xs text-steel/70">
                           {s.artistName} · {timeOfDay(s.startTime)}
                           {s.roomName ? ` · ${s.roomName}` : ""}
                         </p>
@@ -312,7 +312,7 @@ export default function DashboardPage() {
                       />
                       <div className="min-w-0 flex-1">
                         <p className="text-sm text-bone">{a.summary}</p>
-                        <p className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                        <p className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                           {titleCase(a.kind)} · {relativeTime(a._creationTime)}
                         </p>
                       </div>
@@ -326,13 +326,13 @@ export default function DashboardPage() {
       </div>
 
       {data && (
-        <p className="flex items-center gap-1.5 text-xs text-ash-dim">
+        <p className="flex items-center gap-1.5 text-xs text-steel/70">
           {compactNumber(data.kpis.activeSongs)} songs in production ·{" "}
           {compactNumber(data.kpis.rosterSize)} clients
           <Link href="/songs" className="inline-flex items-center gap-0.5 text-gold hover:underline">
             View catalog <ArrowRight className="size-3" />
           </Link>
-          <span className="text-ash-dim">- last refreshed {shortDate(lastRefreshed)}</span>
+          <span className="text-steel/70">- last refreshed {shortDate(lastRefreshed)}</span>
         </p>
       )}
     </div>

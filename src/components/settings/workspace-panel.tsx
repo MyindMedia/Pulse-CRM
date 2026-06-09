@@ -129,7 +129,7 @@ export function WorkspacePanel({ org }: { org: Org }) {
                 value={org.slug}
                 readOnly
                 disabled
-                className="font-mono"
+                className="font-meta"
               />
             </Field>
           </div>
@@ -183,7 +183,7 @@ export function WorkspacePanel({ org }: { org: Org }) {
                         "grid size-8 place-items-center rounded-md border transition-transform",
                         active
                           ? "border-bone scale-105"
-                          : "border-hairline-2 hover:scale-105",
+                          : "border-graphite/60 hover:scale-105",
                       )}
                       style={{ backgroundColor: s.value }}
                     >
@@ -194,7 +194,7 @@ export function WorkspacePanel({ org }: { org: Org }) {
               </div>
               <div className="flex items-center gap-2">
                 <span
-                  className="size-9 shrink-0 rounded-md border border-hairline-2"
+                  className="size-9 shrink-0 rounded-md border border-graphite/60"
                   style={{
                     backgroundColor: accentValid ? normalizedAccent : "transparent",
                   }}
@@ -205,7 +205,7 @@ export function WorkspacePanel({ org }: { org: Org }) {
                   onChange={(e) => setAccent(e.target.value)}
                   placeholder="#E0A226"
                   className={cn(
-                    "max-w-40 font-mono",
+                    "max-w-40 font-meta",
                     !accentValid && accent.trim() !== "" && "border-critical/50",
                   )}
                   aria-label="Accent color hex"
@@ -219,9 +219,9 @@ export function WorkspacePanel({ org }: { org: Org }) {
             </div>
           </Field>
 
-          <div className="flex items-start gap-2 rounded-md border border-hairline bg-coal-2 px-3 py-2.5">
+          <div className="flex items-start gap-2 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5">
             <Info className="mt-0.5 size-3.5 shrink-0 text-info" />
-            <p className="text-[0.6875rem] text-ash-dim">
+            <p className="text-[0.6875rem] text-steel/70">
               This workspace is running in demo mode. Settings persist to the
               Convex backend but no real billing or external accounts are touched.
             </p>

@@ -23,7 +23,7 @@ export function InvoiceSheet({ invoice }: { invoice: InvoiceDetail }) {
           aria-hidden
           className="pointer-events-none absolute right-6 top-20 -rotate-12 select-none sm:right-12"
         >
-          <span className="rounded-md border-[3px] border-positive px-4 py-1.5 font-display text-2xl font-extrabold uppercase tracking-[0.2em] text-positive opacity-80">
+          <span className="rounded-md border-[3px] border-positive px-4 py-1.5 font-grotesk text-2xl font-extrabold uppercase tracking-[0.2em] text-positive opacity-80">
             Paid
           </span>
         </div>
@@ -40,15 +40,15 @@ export function InvoiceSheet({ invoice }: { invoice: InvoiceDetail }) {
               <Disc3 className="size-6" />
             </span>
             <div>
-              <p className="font-display text-lg font-bold tracking-tight text-bone">
+              <p className="font-grotesk text-lg font-bold tracking-tight text-bone">
                 Pulse Studio
               </p>
-              <p className="text-xs text-ash-dim">Lumen Recording Co.</p>
+              <p className="text-xs text-steel/70">Lumen Recording Co.</p>
             </div>
           </div>
           <div className="text-right">
             <p className="overline">Invoice</p>
-            <p className="font-mono text-base font-semibold text-bone">{invoice.number}</p>
+            <p className="font-meta text-base font-semibold text-bone">{invoice.number}</p>
             <div className="mt-1.5 flex justify-end">
               <Badge tone={st.tone}>{st.label}</Badge>
             </div>
@@ -56,24 +56,24 @@ export function InvoiceSheet({ invoice }: { invoice: InvoiceDetail }) {
         </div>
 
         {/* Bill-to + dates */}
-        <div className="grid gap-6 border-y border-hairline py-6 sm:grid-cols-3">
+        <div className="grid gap-6 border-y border-graphite/50 py-6 sm:grid-cols-3">
           <div>
             <p className="overline mb-1.5">Billed to</p>
             {invoice.artist ? (
               <Link
                 href={`/roster/${invoice.artistId}`}
-                className="font-display text-sm font-semibold text-bone hover:text-gold hover:underline"
+                className="font-grotesk text-sm font-semibold text-bone hover:text-gold hover:underline"
               >
                 {invoice.artist.name}
               </Link>
             ) : (
-              <p className="font-display text-sm font-semibold text-bone">Unknown client</p>
+              <p className="font-grotesk text-sm font-semibold text-bone">Unknown client</p>
             )}
             {invoice.artist?.email && (
-              <p className="font-mono text-xs text-ash-dim">{invoice.artist.email}</p>
+              <p className="font-meta text-xs text-steel/70">{invoice.artist.email}</p>
             )}
             {invoice.songTitle && (
-              <p className="mt-1.5 inline-flex items-center gap-1 text-xs text-ash">
+              <p className="mt-1.5 inline-flex items-center gap-1 text-xs text-steel">
                 <Music2 className="size-3 text-gold" />
                 {invoice.songTitle}
               </p>
@@ -81,13 +81,13 @@ export function InvoiceSheet({ invoice }: { invoice: InvoiceDetail }) {
           </div>
           <div>
             <p className="overline mb-1.5">Issued</p>
-            <p className="font-mono text-sm text-bone">{longDate(invoice._creationTime)}</p>
+            <p className="font-meta text-sm text-bone">{longDate(invoice._creationTime)}</p>
           </div>
           <div>
             <p className="overline mb-1.5">Due</p>
             <p
               className={cn(
-                "font-mono text-sm",
+                "font-meta text-sm",
                 overdue ? "font-semibold text-critical" : "text-bone",
               )}
             >
@@ -106,14 +106,14 @@ export function InvoiceSheet({ invoice }: { invoice: InvoiceDetail }) {
 
         {/* Line items */}
         <div>
-          <div className="overflow-hidden rounded-md border border-hairline">
+          <div className="overflow-hidden rounded-md border border-graphite/50">
             <table className="w-full border-collapse text-sm">
-              <thead className="bg-ink-2">
+              <thead className="bg-obsidian">
                 <tr>
-                  <th className="px-4 py-2.5 text-left font-mono text-[0.625rem] font-medium uppercase tracking-wide text-ash-dim">
+                  <th className="px-4 py-2.5 text-left font-meta text-[0.625rem] font-medium uppercase tracking-wide text-steel/70">
                     Description
                   </th>
-                  <th className="px-4 py-2.5 text-right font-mono text-[0.625rem] font-medium uppercase tracking-wide text-ash-dim">
+                  <th className="px-4 py-2.5 text-right font-meta text-[0.625rem] font-medium uppercase tracking-wide text-steel/70">
                     Amount
                   </th>
                 </tr>
@@ -122,7 +122,7 @@ export function InvoiceSheet({ invoice }: { invoice: InvoiceDetail }) {
                 {invoice.lineItems.map((li, i) => (
                   <tr key={i}>
                     <td className="px-4 py-3 text-bone">{li.label}</td>
-                    <td className="px-4 py-3 text-right font-mono tabular-nums text-bone">
+                    <td className="px-4 py-3 text-right font-meta tabular-nums text-bone">
                       {money(li.amountCents)}
                     </td>
                   </tr>
@@ -131,7 +131,7 @@ export function InvoiceSheet({ invoice }: { invoice: InvoiceDetail }) {
                   <tr>
                     <td
                       colSpan={2}
-                      className="px-4 py-6 text-center text-sm text-ash-dim"
+                      className="px-4 py-6 text-center text-sm text-steel/70"
                     >
                       No line items on this invoice.
                     </td>
@@ -145,16 +145,16 @@ export function InvoiceSheet({ invoice }: { invoice: InvoiceDetail }) {
           <div className="mt-4 flex justify-end">
             <div className="w-full max-w-xs space-y-2">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-ash">Subtotal</span>
-                <span className="font-mono tabular-nums text-ash">
+                <span className="text-steel">Subtotal</span>
+                <span className="font-meta tabular-nums text-steel">
                   {money(invoice.amountCents)}
                 </span>
               </div>
-              <div className="flex items-center justify-between border-t border-hairline pt-2">
-                <span className="font-display text-sm font-semibold text-bone">
+              <div className="flex items-center justify-between border-t border-graphite/50 pt-2">
+                <span className="font-grotesk text-sm font-semibold text-bone">
                   Total due
                 </span>
-                <span className="font-display text-xl font-bold tabular-nums text-gold">
+                <span className="font-grotesk text-xl font-bold tabular-nums text-gold">
                   {money(invoice.amountCents)}
                 </span>
               </div>
@@ -162,7 +162,7 @@ export function InvoiceSheet({ invoice }: { invoice: InvoiceDetail }) {
           </div>
         </div>
 
-        <p className="border-t border-hairline pt-5 text-xs leading-relaxed text-ash-dim">
+        <p className="border-t border-graphite/50 pt-5 text-xs leading-relaxed text-steel/70">
           Payment is due by the date above. Thank you for working with Pulse Studio.
         </p>
       </div>

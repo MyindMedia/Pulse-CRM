@@ -18,13 +18,11 @@ export function Chain() {
     <section id="workflow" className="relative px-4 py-24 lg:px-8">
       <div className="mx-auto max-w-6xl">
         <Reveal className="mx-auto max-w-2xl text-center">
-          <p className="overline">Studio operations, automated</p>
-          <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-bone sm:text-4xl">
-            From booking to{" "}
-            <span className="font-serif text-[1.15em] font-normal italic text-gold">paid</span>,
-            the studio runs itself
+          <p className="chrome-meta text-steel">Studio operations, automated</p>
+          <h2 className="chrome-display mt-4 text-4xl text-bone sm:text-5xl">
+            From booking to <span className="text-gold">paid</span>, the studio runs itself
           </h2>
-          <p className="mt-4 text-ash">
+          <p className="font-grotesk mt-5 text-[17px] font-medium leading-relaxed tracking-[-0.01em] text-mist/80">
             Rooms, staff, gear and invoices stay in sync automatically. Every booking
             flows through the studio on its own, so nothing slips and no one chases
             paperwork.
@@ -39,15 +37,13 @@ export function Chain() {
         <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:mt-8 lg:grid-cols-6">
           {STEPS.map((s, i) => (
             <Reveal key={s.label} delay={i * 70}>
-              <div className="hover-glow group relative h-full rounded-xl border border-hairline bg-coal/40 p-5 hover:-translate-y-1 hover:border-gold-dim hover:bg-coal-2/60">
-                <span className="grid size-10 place-items-center rounded-lg border border-hairline-2 bg-coal-2 text-gold transition-all duration-300 group-hover:scale-110 group-hover:border-gold-dim">
+              <div className="hover-glow group relative h-full rounded-chrome border border-graphite/50 bg-obsidian/50 p-5 transition-all hover:-translate-y-1 hover:border-bone/40">
+                <span className="grid size-10 place-items-center rounded-chrome border border-graphite/60 bg-obsidian text-gold transition-all duration-300 group-hover:scale-110 group-hover:border-gold">
                   <s.icon className="size-4" />
                 </span>
-                <p className="mt-4 font-mono text-[0.625rem] uppercase tracking-[0.18em] text-ash-dim">
-                  Step {i + 1}
-                </p>
-                <p className="mt-1 font-display text-lg font-semibold text-bone">{s.label}</p>
-                <p className="mt-1 text-sm text-ash">{s.note}</p>
+                <p className="chrome-meta mt-4 text-steel/80">Step {i + 1}</p>
+                <p className="font-grotesk mt-1 text-lg font-semibold tracking-[-0.01em] text-bone">{s.label}</p>
+                <p className="font-grotesk mt-1 text-sm text-mist/75">{s.note}</p>
               </div>
             </Reveal>
           ))}

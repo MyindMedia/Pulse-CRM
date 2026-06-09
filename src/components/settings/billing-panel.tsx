@@ -32,8 +32,8 @@ function UsageRow({
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between text-xs">
-        <span className="text-ash">{label}</span>
-        <span className="font-mono text-ash-dim">
+        <span className="text-steel">{label}</span>
+        <span className="font-meta text-steel/70">
           {used} / {cap}
         </span>
       </div>
@@ -80,15 +80,15 @@ export function BillingPanel({ org }: { org: Org }) {
             </span>
             <div>
               <div className="flex items-center gap-2">
-                <p className="font-display text-base font-semibold text-bone">
+                <p className="font-grotesk text-base font-semibold text-bone">
                   {currentTier.label} plan
                 </p>
                 <Badge tone="gold">Current</Badge>
               </div>
-              <p className="text-xs text-ash">{currentTier.blurb}</p>
+              <p className="text-xs text-steel">{currentTier.blurb}</p>
             </div>
           </div>
-          <p className="font-display text-xl font-bold text-bone">
+          <p className="font-grotesk text-xl font-bold text-bone">
             {currentTier.price}
           </p>
         </CardContent>
@@ -111,7 +111,7 @@ export function BillingPanel({ org }: { org: Org }) {
                   <CardTitle>{tier.label}</CardTitle>
                   {isCurrent && <Badge tone="gold">Current</Badge>}
                 </div>
-                <p className="font-display text-lg font-bold text-bone">
+                <p className="font-grotesk text-lg font-bold text-bone">
                   {tier.price}
                 </p>
                 <CardDescription>{tier.blurb}</CardDescription>
@@ -121,7 +121,7 @@ export function BillingPanel({ org }: { org: Org }) {
                   {tier.features.map((feature) => (
                     <li
                       key={feature}
-                      className="flex items-start gap-2 text-xs text-ash"
+                      className="flex items-start gap-2 text-xs text-steel"
                     >
                       <Check className="mt-0.5 size-3.5 shrink-0 text-positive" />
                       {feature}
@@ -169,9 +169,9 @@ export function BillingPanel({ org }: { org: Org }) {
             cap={40}
           />
           <UsageRow label="Storage used" used={12} cap={50} />
-          <div className="flex items-start gap-2 rounded-md border border-hairline bg-coal-2 px-3 py-2.5">
+          <div className="flex items-start gap-2 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5">
             <Info className="mt-0.5 size-3.5 shrink-0 text-info" />
-            <p className="text-[0.6875rem] text-ash-dim">
+            <p className="text-[0.6875rem] text-steel/70">
               Billing is a configuration surface in demo mode. Switching a plan
               updates the workspace record only - no payment method is charged
               and no Stripe account is connected.

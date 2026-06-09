@@ -184,10 +184,10 @@ export function BookSessionDialog({
             <div key={label} className="flex flex-1 items-center gap-1.5">
               <span
                 className={cn(
-                  "grid size-5 shrink-0 place-items-center rounded-full font-mono text-[0.625rem] font-bold",
+                  "grid size-5 shrink-0 place-items-center rounded-full font-meta text-[0.625rem] font-bold",
                   i < step && "bg-positive/20 text-positive",
                   i === step && "bg-gold text-gold-ink",
-                  i > step && "bg-coal-2 text-ash-dim",
+                  i > step && "bg-coal-2 text-steel/70",
                 )}
               >
                 {i < step ? <Check className="size-3" /> : i + 1}
@@ -339,9 +339,9 @@ export function BookSessionDialog({
               </Field>
 
               {date && time && (
-                <p className="rounded-md border border-hairline bg-coal-2 px-3 py-2 text-xs text-ash">
+                <p className="rounded-md border border-graphite/50 bg-coal-2 px-3 py-2 text-xs text-steel">
                   Runs until{" "}
-                  <span className="font-mono text-bone">
+                  <span className="font-meta text-bone">
                     {new Date(
                       combineDateTime(date, time) + durationMins * 60_000,
                     ).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
@@ -397,7 +397,7 @@ export function BookSessionDialog({
               )}
 
               {/* Booking summary */}
-              <div className="space-y-1.5 rounded-md border border-hairline bg-coal-2 p-3">
+              <div className="space-y-1.5 rounded-md border border-graphite/50 bg-coal-2 p-3">
                 <p className="overline">Summary</p>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Badge tone="gold">{artistName || "Artist"}</Badge>
@@ -413,7 +413,7 @@ export function BookSessionDialog({
                   <Badge tone="neutral">{duration(0, durationMins * 60_000)}</Badge>
                 </div>
                 {rateCents > 0 && (
-                  <p className="font-mono text-xs text-ash">
+                  <p className="font-meta text-xs text-steel">
                     Rate {money(rateCents)}
                     {depositCents > 0 ? ` · deposit ${money(depositCents)}` : ""}
                   </p>

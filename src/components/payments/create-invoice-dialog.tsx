@@ -208,7 +208,7 @@ export function CreateInvoiceDialog({
           {/* Line items editor */}
           <div className="space-y-2">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-medium text-ash">Line items</p>
+              <p className="text-xs font-medium text-steel">Line items</p>
               <div className="flex items-center gap-3">
                 {savedFees && savedFees.length > 0 && (
                   <Select
@@ -218,7 +218,7 @@ export function CreateInvoiceDialog({
                       if (fee) addFromTemplate(fee.label, fee.amountCents);
                     }}
                   >
-                    <SelectTrigger className="h-7 w-auto gap-1 border-hairline-2 px-2 text-xs text-gold">
+                    <SelectTrigger className="h-7 w-auto gap-1 border-graphite/60 px-2 text-xs text-gold">
                       <SelectValue placeholder="Add saved fee" />
                     </SelectTrigger>
                     <SelectContent>
@@ -251,7 +251,7 @@ export function CreateInvoiceDialog({
                     className="flex-1"
                   />
                   <div className="relative w-36 shrink-0">
-                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-mono text-sm text-ash-dim">
+                    <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 font-meta text-sm text-steel/70">
                       $
                     </span>
                     <Input
@@ -263,7 +263,7 @@ export function CreateInvoiceDialog({
                       }
                       inputMode="decimal"
                       placeholder="0.00"
-                      className="pl-6 text-right font-mono"
+                      className="pl-6 text-right font-meta"
                     />
                   </div>
                   <Button
@@ -300,19 +300,19 @@ export function CreateInvoiceDialog({
                 type="date"
                 value={dueDate}
                 onChange={(e) => setDueDate(e.target.value)}
-                className="font-mono"
+                className="font-meta"
               />
             </Field>
 
             <div className="flex flex-col justify-end">
               <div
                 className={cn(
-                  "flex items-center justify-between rounded-md border border-hairline-2 bg-ink-2 px-3 py-2.5",
+                  "flex items-center justify-between rounded-md border border-graphite/60 bg-obsidian px-3 py-2.5",
                   totalCents > 0 && "border-gold-dim/50",
                 )}
               >
                 <span className="overline">Invoice total</span>
-                <span className="font-display text-xl font-bold tracking-tight text-bone">
+                <span className="font-grotesk text-xl font-bold tracking-tight text-bone">
                   {money(totalCents)}
                 </span>
               </div>

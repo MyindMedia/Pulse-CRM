@@ -75,7 +75,7 @@ function InboxCard({ action, onOpen }: { action: Doc<"opsActions">; onOpen: (a: 
   const meta = AGENT_META[action.type] ?? { label: action.type, group: "Other", order: 99 };
 
   return (
-    <div className="rounded-lg border border-hairline bg-coal p-4 shadow-elev-1">
+    <div className="rounded-lg border border-graphite/50 bg-coal p-4 shadow-elev-1">
       <button
         type="button"
         onClick={() => onOpen(action)}
@@ -85,23 +85,23 @@ function InboxCard({ action, onOpen }: { action: Doc<"opsActions">; onOpen: (a: 
           <div className="min-w-0">
             <div className="flex items-center gap-2">
               <Badge tone={PRIORITY_TONE[action.priority]}>{action.priority}</Badge>
-              <span className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">{meta.label}</span>
+              <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">{meta.label}</span>
               {action.source === "openai" && (
-                <span className="inline-flex items-center gap-1 font-mono text-[0.5625rem] uppercase text-gold"><Sparkles className="size-3" /> AI</span>
+                <span className="inline-flex items-center gap-1 font-meta text-[0.5625rem] uppercase text-gold"><Sparkles className="size-3" /> AI</span>
               )}
             </div>
-            <p className="mt-1 truncate font-display text-sm font-semibold text-bone">{action.title}</p>
-            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ash">{action.rationale}</p>
-            <div className="mt-1.5 flex items-center gap-1.5 font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+            <p className="mt-1 truncate font-grotesk text-sm font-semibold text-bone">{action.title}</p>
+            <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-steel">{action.rationale}</p>
+            <div className="mt-1.5 flex items-center gap-1.5 font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
               <PayloadIcon kind={p.kind} />
               {p.kind === "email" && <span className="truncate">{p.to ?? "no recipient"}</span>}
               {p.kind === "session_status" && <span>will set → {p.newStatus}</span>}
               {p.kind === "note_only" && <span>{action.artifactId ? "draft attached" : "internal note"}</span>}
             </div>
           </div>
-          <ChevronRight className="mt-0.5 size-4 shrink-0 text-ash-dim" />
+          <ChevronRight className="mt-0.5 size-4 shrink-0 text-steel/70" />
         </div>
-        <span className="mt-2 block font-mono text-[0.5625rem] uppercase tracking-wide text-gold">Tap to view &amp; edit</span>
+        <span className="mt-2 block font-meta text-[0.5625rem] uppercase tracking-wide text-gold">Tap to view &amp; edit</span>
       </button>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">

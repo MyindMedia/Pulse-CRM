@@ -33,11 +33,11 @@ function reachedIndex(status: InvoiceStatus): number {
 export function StatusTimeline({ status }: { status: InvoiceStatus }) {
   if (status === "void") {
     return (
-      <div className="flex items-center gap-2.5 rounded-md border border-hairline bg-coal-2 px-3 py-2.5">
-        <span className="grid size-6 place-items-center rounded-full bg-coal-3 text-ash-dim">
+      <div className="flex items-center gap-2.5 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5">
+        <span className="grid size-6 place-items-center rounded-full bg-coal-3 text-steel/70">
           <Ban className="size-3.5" />
         </span>
-        <span className="text-sm font-medium text-ash">This invoice has been voided</span>
+        <span className="text-sm font-medium text-steel">This invoice has been voided</span>
       </div>
     );
   }
@@ -58,7 +58,7 @@ export function StatusTimeline({ status }: { status: InvoiceStatus }) {
                   "grid size-6 shrink-0 place-items-center rounded-full border text-[0.625rem] font-bold transition-colors",
                   done
                     ? "border-gold bg-gold text-gold-ink"
-                    : "border-hairline-2 bg-coal-2 text-ash-dim",
+                    : "border-graphite/60 bg-coal-2 text-steel/70",
                   current && "ring-2 ring-gold/30",
                 )}
               >
@@ -77,7 +77,7 @@ export function StatusTimeline({ status }: { status: InvoiceStatus }) {
               <p
                 className={cn(
                   "text-sm font-medium leading-6",
-                  done ? "text-bone" : "text-ash-dim",
+                  done ? "text-bone" : "text-steel/70",
                 )}
               >
                 {step.label}

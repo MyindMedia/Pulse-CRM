@@ -41,7 +41,7 @@ function Row({
 }) {
   return (
     <div className="flex items-start justify-between gap-4 py-2.5">
-      <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-ash-dim">
+      <span className="inline-flex shrink-0 items-center gap-1.5 text-xs font-medium text-steel/70">
         {Icon && <Icon className="size-3.5" />}
         {label}
       </span>
@@ -80,7 +80,7 @@ function MessageLog({ sessionId }: { sessionId: BookingRow["_id"] }) {
           ))}
         </div>
       ) : messages.length === 0 ? (
-        <p className="rounded-md border border-dashed border-hairline-2 py-5 text-center text-xs text-ash-dim">
+        <p className="rounded-md border border-dashed border-graphite/60 py-5 text-center text-xs text-steel/70">
           No confirmations or reminders sent for this booking yet.
         </p>
       ) : (
@@ -88,32 +88,32 @@ function MessageLog({ sessionId }: { sessionId: BookingRow["_id"] }) {
           {messages.map((msg) => (
             <li
               key={msg._id}
-              className="rounded-md border border-hairline bg-coal-2 p-2.5"
+              className="rounded-md border border-graphite/50 bg-coal-2 p-2.5"
             >
               <div className="flex items-center justify-between gap-2">
                 <span className="inline-flex items-center gap-1.5 text-xs font-medium text-bone">
                   {msg.channel === "email" ? (
-                    <Mail className="size-3.5 text-ash-dim" />
+                    <Mail className="size-3.5 text-steel/70" />
                   ) : (
-                    <MessageSquare className="size-3.5 text-ash-dim" />
+                    <MessageSquare className="size-3.5 text-steel/70" />
                   )}
                   {msg.subject}
                 </span>
-                <span className="shrink-0 text-[0.625rem] text-ash-dim">
+                <span className="shrink-0 text-[0.625rem] text-steel/70">
                   {relativeTime(msg._creationTime)}
                 </span>
               </div>
-              <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ash">
+              <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-steel">
                 {msg.body}
               </p>
-              <p className="mt-1 font-mono text-[0.5625rem] uppercase tracking-wide text-ash-dim">
+              <p className="mt-1 font-meta text-[0.5625rem] uppercase tracking-wide text-steel/70">
                 {msg.channel} · {msg.recipient}
               </p>
             </li>
           ))}
         </ul>
       )}
-      <p className="text-[0.625rem] text-ash-dim">
+      <p className="text-[0.625rem] text-steel/70">
         Confirmations are simulated and logged - not actually emailed yet.
       </p>
     </div>
@@ -168,17 +168,17 @@ export function BookingSheet({
                 </Row>
                 <Row label="Song" icon={Music2}>
                   {booking.songTitle ?? (
-                    <span className="text-ash-dim">Not linked</span>
+                    <span className="text-steel/70">Not linked</span>
                   )}
                 </Row>
                 <Row label="Room" icon={DoorOpen}>
                   {booking.roomName ?? (
-                    <span className="text-ash-dim">Unassigned</span>
+                    <span className="text-steel/70">Unassigned</span>
                   )}
                 </Row>
                 <Row label="Engineer" icon={Headphones}>
                   {booking.engineerName ?? (
-                    <span className="text-ash-dim">Unassigned</span>
+                    <span className="text-steel/70">Unassigned</span>
                   )}
                 </Row>
                 <Row label="Schedule" icon={Clock}>

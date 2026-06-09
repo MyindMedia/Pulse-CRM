@@ -42,7 +42,7 @@ export function InsightsBell() {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className="relative grid size-9 place-items-center rounded-md text-ash transition-colors hover:bg-coal-2 hover:text-bone"
+          className="relative grid size-9 place-items-center rounded-md text-steel transition-colors hover:bg-coal-2 hover:text-bone"
           aria-label="Insights"
         >
           <Bell className="size-[1.1rem]" />
@@ -54,11 +54,11 @@ export function InsightsBell() {
         </button>
       </PopoverTrigger>
       <PopoverContent align="end" className="w-[22rem] p-0">
-        <div className="flex items-center gap-2 border-b border-hairline px-4 py-3">
+        <div className="flex items-center gap-2 border-b border-graphite/50 px-4 py-3">
           <Sparkles className="size-4 text-gold" />
-          <p className="font-display text-sm font-semibold text-bone">Pulse insights</p>
+          <p className="font-grotesk text-sm font-semibold text-bone">Pulse insights</p>
           {insights && insights.length > 0 && (
-            <span className="ml-auto font-mono text-[0.625rem] uppercase text-ash-dim">
+            <span className="ml-auto font-meta text-[0.625rem] uppercase text-steel/70">
               {insights.length} open
             </span>
           )}
@@ -93,7 +93,7 @@ export function InsightsBell() {
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-medium text-bone">{it.title}</p>
-                      <p className="mt-0.5 text-xs leading-relaxed text-ash">{it.body}</p>
+                      <p className="mt-0.5 text-xs leading-relaxed text-steel">{it.body}</p>
                       <div className="mt-2 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
                         {it.entityType && it.entityId && KIND_ROUTE[it.entityType] && (
                           <Button

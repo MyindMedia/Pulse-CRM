@@ -36,9 +36,9 @@ export function SyncCard({
         transition: overlay ? undefined : transition,
       }}
       className={cn(
-        "group relative rounded-md border border-hairline bg-coal-2 transition-colors hover:border-hairline-2",
+        "group relative rounded-md border border-graphite/50 bg-coal-2 transition-colors hover:border-graphite/60",
         isDragging && !overlay && "opacity-40",
-        overlay && "rotate-1 border-hairline-2 shadow-pop",
+        overlay && "rotate-1 border-graphite/60 shadow-pop",
       )}
     >
       <button
@@ -47,16 +47,16 @@ export function SyncCard({
         className="block w-full cursor-pointer px-3 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-gold/30"
       >
         <div className="flex items-start gap-2">
-          <p className="min-w-0 flex-1 truncate font-display text-sm font-semibold text-bone">
+          <p className="min-w-0 flex-1 truncate font-grotesk text-sm font-semibold text-bone">
             {opp.songTitle}
           </p>
           {opp.feeCents !== undefined && (
-            <span className="shrink-0 font-mono text-xs font-medium text-gold">
+            <span className="shrink-0 font-meta text-xs font-medium text-gold">
               {money(opp.feeCents, { compact: true })}
             </span>
           )}
           <span
-            className="mt-0.5 shrink-0 cursor-grab text-ash-dim opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
+            className="mt-0.5 shrink-0 cursor-grab text-steel/70 opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
             {...attributes}
             {...listeners}
             onClick={(e) => e.stopPropagation()}
@@ -66,19 +66,19 @@ export function SyncCard({
           </span>
         </div>
 
-        <div className="mt-1.5 space-y-0.5 text-xs text-ash">
+        <div className="mt-1.5 space-y-0.5 text-xs text-steel">
           <p className="flex items-center gap-1.5">
-            <UserCog className="size-3 text-ash-dim" />
+            <UserCog className="size-3 text-steel/70" />
             <span className="truncate">{opp.supervisorName}</span>
           </p>
           <p className="flex items-center gap-1.5">
-            <Building2 className="size-3 text-ash-dim" />
+            <Building2 className="size-3 text-steel/70" />
             <span className="truncate">{opp.outlet}</span>
           </p>
         </div>
 
         <div className="mt-2.5 flex items-center justify-between gap-2">
-          <span className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+          <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
             {relativeTime(opp.updatedAt)}
           </span>
           {terminal && (

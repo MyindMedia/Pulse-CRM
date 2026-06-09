@@ -23,15 +23,15 @@ export default function SignUpPage() {
         {CLERK_ENABLED ? (
           <div className="space-y-3 text-center">
             <p className="overline">Pulse · private beta</p>
-            <h1 className="font-display text-2xl font-bold text-bone">Invitation required</h1>
-            <p className="text-sm text-ash">Pulse is in private beta. New studios join from an emailed invitation. If you have one, open the link in that email.</p>
+            <h1 className="font-grotesk text-2xl font-bold text-bone">Invitation required</h1>
+            <p className="text-sm text-steel">Pulse is in private beta. New studios join from an emailed invitation. If you have one, open the link in that email.</p>
             <Link href="/sign-in" className="inline-block text-sm font-medium text-gold hover:underline">Already have an account? Sign in</Link>
           </div>
         ) : (
           <div className="space-y-3 text-center">
             <p className="overline">Pulse · demo mode</p>
-            <h1 className="font-display text-2xl font-bold text-bone">No sign-up required</h1>
-            <p className="text-sm text-ash">
+            <h1 className="font-grotesk text-2xl font-bold text-bone">No sign-up required</h1>
+            <p className="text-sm text-steel">
               Clerk is not configured. Add your Clerk keys to enable studio accounts - see
               CLERK-SETUP.md.
             </p>

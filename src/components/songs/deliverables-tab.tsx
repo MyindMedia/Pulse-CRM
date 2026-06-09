@@ -269,13 +269,13 @@ function DeliverableRow({
   return (
     <Card className="overflow-hidden">
       <div className="flex flex-wrap items-center gap-3 p-3">
-        <span className="grid size-9 shrink-0 place-items-center rounded-md bg-coal-2 text-ash-dim">
+        <span className="grid size-9 shrink-0 place-items-center rounded-md bg-coal-2 text-steel/70">
           <Music2 className="size-4" />
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-2">
             <p className="truncate text-sm font-medium text-bone">{d.label}</p>
-            <span className="shrink-0 rounded-sm border border-hairline bg-coal-2 px-1.5 py-0.5 font-mono text-[0.625rem] uppercase tracking-wide text-ash">
+            <span className="shrink-0 rounded-sm border border-graphite/50 bg-coal-2 px-1.5 py-0.5 font-meta text-[0.625rem] uppercase tracking-wide text-steel">
               v{d.version}
             </span>
             {d.paymentGated && (
@@ -288,7 +288,7 @@ function DeliverableRow({
               </span>
             )}
           </div>
-          <p className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+          <p className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
             {KIND_LABEL[d.kind] ?? titleCase(d.kind)} · {fmtDuration(d.durationSec)}
           </p>
         </div>
@@ -304,12 +304,12 @@ function DeliverableRow({
         <button
           type="button"
           onClick={onToggle}
-          className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-coal-2 px-2.5 py-1.5 text-xs font-medium text-ash transition-colors hover:text-bone"
+          className="inline-flex items-center gap-1.5 rounded-md border border-graphite/50 bg-coal-2 px-2.5 py-1.5 text-xs font-medium text-steel transition-colors hover:text-bone"
         >
           <MessageSquare className="size-3.5" />
           {d.commentCount}
           {d.openCommentCount > 0 && (
-            <span className="font-mono text-[0.625rem] text-caution">
+            <span className="font-meta text-[0.625rem] text-caution">
               · {d.openCommentCount} open
             </span>
           )}
@@ -320,15 +320,15 @@ function DeliverableRow({
       </div>
 
       {/* File row - upload (staff) + gated download */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-hairline bg-ink-2 px-3 py-2">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-t border-graphite/50 bg-obsidian px-3 py-2">
         <div className="min-w-0">
           {d.fileId ? (
-            <p className="truncate font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+            <p className="truncate font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
               {d.fileName ?? "Attached file"}
               {d.fileSize != null && ` · ${fmtBytes(d.fileSize)}`}
             </p>
           ) : (
-            <p className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+            <p className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
               No file attached
             </p>
           )}
@@ -427,38 +427,38 @@ function CommentThread({ deliverableId }: { deliverableId: Id<"deliverables"> })
   }
 
   return (
-    <div className="space-y-3 border-t border-hairline bg-ink-2 p-3">
+    <div className="space-y-3 border-t border-graphite/50 bg-obsidian p-3">
       {comments === undefined ? (
         <Skeleton className="h-20 w-full" />
       ) : comments.length === 0 ? (
-        <p className="text-xs text-ash-dim">No revision notes on this version yet.</p>
+        <p className="text-xs text-steel/70">No revision notes on this version yet.</p>
       ) : (
         <ul className="space-y-1.5">
           {comments.map((c) => (
             <li
               key={c._id}
               className={cn(
-                "flex items-start gap-3 rounded-md border border-hairline px-3 py-2",
+                "flex items-start gap-3 rounded-md border border-graphite/50 px-3 py-2",
                 c.resolved ? "bg-coal/50 opacity-70" : "bg-coal-2",
               )}
             >
-              <span className="mt-0.5 shrink-0 rounded-sm bg-gold/10 px-1.5 py-0.5 font-mono text-[0.625rem] font-medium text-gold-bright">
+              <span className="mt-0.5 shrink-0 rounded-sm bg-gold/10 px-1.5 py-0.5 font-meta text-[0.625rem] font-medium text-gold-bright">
                 {fmtDuration(c.timestampSec)}
               </span>
               <div className="min-w-0 flex-1">
                 <p
                   className={cn(
                     "text-sm leading-snug",
-                    c.resolved ? "text-ash-dim line-through" : "text-bone",
+                    c.resolved ? "text-steel/70 line-through" : "text-bone",
                   )}
                 >
                   {c.body}
                 </p>
-                <p className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                <p className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                   {c.authorName}
                 </p>
               </div>
-              <label className="flex shrink-0 items-center gap-1.5 text-[0.625rem] font-mono uppercase tracking-wide text-ash-dim">
+              <label className="flex shrink-0 items-center gap-1.5 text-[0.625rem] font-meta uppercase tracking-wide text-steel/70">
                 <Checkbox
                   checked={c.resolved}
                   onCheckedChange={(v) => toggleResolved(c._id, v === true)}
@@ -471,7 +471,7 @@ function CommentThread({ deliverableId }: { deliverableId: Id<"deliverables"> })
       )}
 
       {/* Add comment form */}
-      <div className="space-y-2.5 rounded-md border border-hairline-2 bg-coal p-3">
+      <div className="space-y-2.5 rounded-md border border-graphite/60 bg-coal p-3">
         <p className="overline">Add a revision note</p>
         <div className="flex flex-wrap items-end gap-2">
           <Field label="Min" htmlFor="cm-min" className="w-16">
@@ -611,7 +611,7 @@ function AddDeliverableDialog({
                   placeholder="3"
                   inputMode="numeric"
                 />
-                <span className="text-ash-dim">:</span>
+                <span className="text-steel/70">:</span>
                 <Input
                   value={seconds}
                   onChange={(e) => setSeconds(e.target.value.replace(/[^0-9]/g, ""))}

@@ -234,7 +234,7 @@ export function MemberDialog({
               </Field>
             </div>
 
-            <p className="rounded-md border border-hairline bg-coal-2 px-3 py-2 text-[0.6875rem] text-ash-dim">
+            <p className="rounded-md border border-graphite/50 bg-coal-2 px-3 py-2 text-[0.6875rem] text-steel/70">
               {MEMBER_ROLES.find((r) => r.value === form.role)?.blurb}
             </p>
 

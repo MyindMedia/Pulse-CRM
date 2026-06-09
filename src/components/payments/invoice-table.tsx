@@ -89,7 +89,7 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
               onClick={() => router.push(`/payments/${row._id}`)}
               className={cn(overdue && "bg-critical/[0.04]")}
             >
-              <TD className="font-mono text-xs text-bone">{row.number}</TD>
+              <TD className="font-meta text-xs text-bone">{row.number}</TD>
               <TD>
                 <span className="flex items-center gap-2.5">
                   <Avatar name={row.artistName} size="sm" />
@@ -108,7 +108,7 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
                   );
                 })()}
               </TD>
-              <TD className="text-right font-mono tabular-nums text-bone">
+              <TD className="text-right font-meta tabular-nums text-bone">
                 {money(row.amountCents)}
               </TD>
               <TD>
@@ -117,14 +117,14 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
               <TD>
                 <span
                   className={cn(
-                    "font-mono text-xs",
-                    overdue ? "font-medium text-critical" : "text-ash",
+                    "font-meta text-xs",
+                    overdue ? "font-medium text-critical" : "text-steel",
                   )}
                 >
                   {shortDate(row.dueDate)}
                 </span>
               </TD>
-              <TD className="text-xs text-ash-dim">{relativeTime(row._creationTime)}</TD>
+              <TD className="text-xs text-steel/70">{relativeTime(row._creationTime)}</TD>
               <TD onClick={swallow}>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

@@ -102,9 +102,9 @@ function BriefCard({ song }: { song: OverviewSong }) {
             </div>
           </div>
         ) : song.brief ? (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed text-ash">{song.brief}</p>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed text-steel">{song.brief}</p>
         ) : (
-          <p className="text-sm text-ash-dim">
+          <p className="text-sm text-steel/70">
             No brief yet. Capture the vision so every collaborator works to the same target.
           </p>
         )}
@@ -160,24 +160,24 @@ function ReferenceTracksCard({ song }: { song: OverviewSong }) {
       </CardHeader>
       <CardContent className="space-y-3">
         {song.referenceTracks.length === 0 && !adding && (
-          <p className="text-sm text-ash-dim">
+          <p className="text-sm text-steel/70">
             No references attached. Pin the tracks that define the direction.
           </p>
         )}
 
         {song.referenceTracks.length > 0 && (
-          <ul className="divide-y divide-hairline overflow-hidden rounded-md border border-hairline">
+          <ul className="divide-y divide-hairline overflow-hidden rounded-md border border-graphite/50">
             {song.referenceTracks.map((ref, i) => (
               <li
                 key={`${ref.url}-${i}`}
                 className="flex items-start gap-3 bg-coal-2 px-3 py-2.5"
               >
-                <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md bg-coal-3 text-ash-dim">
+                <span className="mt-0.5 grid size-7 shrink-0 place-items-center rounded-md bg-coal-3 text-steel/70">
                   <Link2 className="size-3.5" />
                 </span>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-sm font-medium text-bone">{ref.title}</p>
-                  {ref.note && <p className="truncate text-xs text-ash-dim">{ref.note}</p>}
+                  {ref.note && <p className="truncate text-xs text-steel/70">{ref.note}</p>}
                 </div>
                 <a
                   href={ref.url}
@@ -194,7 +194,7 @@ function ReferenceTracksCard({ song }: { song: OverviewSong }) {
         )}
 
         {adding && (
-          <div className="space-y-3 rounded-md border border-hairline-2 bg-ink-2 p-3">
+          <div className="space-y-3 rounded-md border border-graphite/60 bg-obsidian p-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Title" htmlFor="ref-title">
                 <Input
@@ -271,7 +271,7 @@ function MetadataVaultCard({ song }: { song: OverviewSong }) {
     <Card>
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2">
-          <Hash className="size-4 text-ash-dim" />
+          <Hash className="size-4 text-steel/70" />
           Metadata vault
         </CardTitle>
         {!editing && (
@@ -337,10 +337,10 @@ function MetadataVaultCard({ song }: { song: OverviewSong }) {
 function MetaRow({ label, value }: { label: string; value?: string }) {
   return (
     <div className="flex items-center justify-between gap-3">
-      <dt className="font-mono text-[0.6875rem] uppercase tracking-wide text-ash-dim">{label}</dt>
+      <dt className="font-meta text-[0.6875rem] uppercase tracking-wide text-steel/70">{label}</dt>
       <dd>
         {value ? (
-          <span className="font-mono text-xs text-bone">{value}</span>
+          <span className="font-meta text-xs text-bone">{value}</span>
         ) : (
           <Badge tone="neutral">Unassigned</Badge>
         )}
@@ -358,7 +358,7 @@ function RevisionBudgetCard({ song }: { song: OverviewSong }) {
     <Card>
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2">
-          <FileText className="size-4 text-ash-dim" />
+          <FileText className="size-4 text-steel/70" />
           Revision budget
         </CardTitle>
         <Badge tone={over ? "critical" : remaining <= 1 ? "caution" : "positive"}>
@@ -369,10 +369,10 @@ function RevisionBudgetCard({ song }: { song: OverviewSong }) {
       </CardHeader>
       <CardContent className="space-y-2.5">
         <div className="flex items-baseline justify-between">
-          <span className="font-display text-2xl font-bold text-bone">
+          <span className="font-grotesk text-2xl font-bold text-bone">
             {song.revisionsUsed}
           </span>
-          <span className="font-mono text-xs text-ash-dim">
+          <span className="font-meta text-xs text-steel/70">
             of {song.revisionsIncluded} included
           </span>
         </div>
@@ -381,7 +381,7 @@ function RevisionBudgetCard({ song }: { song: OverviewSong }) {
           max={Math.max(song.revisionsIncluded, song.revisionsUsed, 1)}
           tone={over ? "critical" : remaining <= 1 ? "caution" : "gold"}
         />
-        <p className="text-xs leading-relaxed text-ash-dim">
+        <p className="text-xs leading-relaxed text-steel/70">
           {over
             ? "This song is past its included revisions - bill the overage or upsell a revision pack."
             : "Each revision round is consumed from the Deliverables tab."}

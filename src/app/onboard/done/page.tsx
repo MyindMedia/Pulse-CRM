@@ -33,22 +33,22 @@ export default function OnboardDonePage() {
         {active ? (
           <div className="flex flex-col items-center gap-3">
             <CheckCircle2 className="size-10 text-positive" />
-            <h1 className="font-display text-2xl font-bold text-bone">You&apos;re all set</h1>
-            <p className="text-sm text-ash">
+            <h1 className="font-grotesk text-2xl font-bold text-bone">You&apos;re all set</h1>
+            <p className="text-sm text-steel">
               Subscription confirmed. Taking you to your studio…
             </p>
           </div>
         ) : (
           <div className="flex flex-col items-center gap-3">
             <span className="logo-breathe text-3xl text-gold">●</span>
-            <h1 className="font-display text-2xl font-bold text-bone">Finishing setup</h1>
-            <p className="text-sm text-ash">
+            <h1 className="font-grotesk text-2xl font-bold text-bone">Finishing setup</h1>
+            <p className="text-sm text-steel">
               Confirming your subscription with Stripe. This usually takes a few seconds.
             </p>
           </div>
         )}
 
-        <p className="font-mono text-[0.6875rem] uppercase tracking-[0.16em] text-ash-dim">
+        <p className="font-meta text-[0.6875rem] uppercase tracking-[0.16em] text-steel/70">
           {plan ? `${plan.plan} · ${plan.status}` : "Waiting for Stripe…"}
         </p>
       </div>

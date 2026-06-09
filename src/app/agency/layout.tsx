@@ -18,8 +18,8 @@ function AgencyWordmark() {
         </svg>
       </span>
       <span className="flex flex-col leading-none">
-        <span className="font-display text-base font-bold tracking-tight text-bone">Pulse Agency</span>
-        <span className="font-mono text-[0.5625rem] uppercase tracking-[0.22em] text-ash-dim">
+        <span className="font-grotesk text-base font-bold tracking-tight text-bone">Pulse Agency</span>
+        <span className="font-meta text-[0.5625rem] uppercase tracking-[0.22em] text-steel/70">
           Command center
         </span>
       </span>
@@ -34,10 +34,10 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
     <TooltipProvider delayDuration={300}>
       <div className="min-h-dvh bg-ink">
         {/* Slim console top bar - distinct from the studio chrome, no sidebar. */}
-        <header className="sticky top-0 z-30 border-b border-hairline bg-ink-2/90 backdrop-blur-md">
+        <header className="sticky top-0 z-30 border-b border-graphite/50 bg-obsidian/90 backdrop-blur-md">
           <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4 lg:px-8">
             <AgencyWordmark />
-            <nav className="hidden items-center gap-4 text-xs font-medium text-ash sm:flex">
+            <nav className="hidden items-center gap-4 text-xs font-medium text-steel sm:flex">
               <Link href="/agency" className="hover:text-bone">Sub-accounts</Link>
               <Link href="/agency/agents" className="hover:text-bone">Agents</Link>
               <Link href="/agency/autopilot" className="hover:text-bone">Autopilot</Link>
@@ -47,13 +47,13 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
             </nav>
             <div className="ml-auto flex items-center gap-2">
               {access?.demo && (
-                <span className="hidden rounded-sm border border-hairline-2 bg-coal-2 px-2 py-0.5 font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim sm:inline-block">
+                <span className="hidden rounded-sm border border-graphite/60 bg-coal-2 px-2 py-0.5 font-meta text-[0.625rem] uppercase tracking-wide text-steel/70 sm:inline-block">
                   Demo mode
                 </span>
               )}
               <Link
                 href="/dashboard"
-                className="flex h-8 items-center gap-1.5 rounded-md border border-hairline-2 bg-coal/60 px-3 text-xs font-medium text-ash transition-colors hover:border-gold-dim hover:text-bone"
+                className="flex h-8 items-center gap-1.5 rounded-md border border-graphite/60 bg-coal/60 px-3 text-xs font-medium text-steel transition-colors hover:border-gold-dim hover:text-bone"
               >
                 <ArrowUpLeft className="size-3.5" />
                 Back to studio app
@@ -75,10 +75,10 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
                     <ShieldAlert className="size-6" />
                   </span>
                   <div className="space-y-1">
-                    <p className="font-display text-base font-semibold text-bone">
+                    <p className="font-grotesk text-base font-semibold text-bone">
                       You do not have agency access
                     </p>
-                    <p className="mx-auto max-w-xs text-sm text-ash">
+                    <p className="mx-auto max-w-xs text-sm text-steel">
                       This console is limited to agency administrators. Ask an owner to add your
                       email to the agency allowlist.
                     </p>

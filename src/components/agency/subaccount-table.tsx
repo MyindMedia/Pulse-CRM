@@ -91,7 +91,7 @@ export function SubaccountActions({
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        className="grid size-8 place-items-center rounded-md text-ash-dim outline-none transition-colors hover:bg-coal-2 hover:text-bone focus-visible:ring-2 focus-visible:ring-gold/30"
+        className="grid size-8 place-items-center rounded-md text-steel/70 outline-none transition-colors hover:bg-coal-2 hover:text-bone focus-visible:ring-2 focus-visible:ring-gold/30"
         aria-label="Subaccount actions"
         disabled={busy}
       >
@@ -151,13 +151,13 @@ export function SubaccountTable({ rows }: { rows: SubaccountRow[] }) {
             <TD>
               <div className="flex items-center gap-3">
                 <span
-                  className="size-7 shrink-0 rounded-md border border-hairline-2"
+                  className="size-7 shrink-0 rounded-md border border-graphite/60"
                   style={{ backgroundColor: row.accentColor ?? "#fdb913" }}
                   aria-hidden
                 />
                 <div className="min-w-0">
                   <p className="truncate font-medium text-bone">{row.name}</p>
-                  <p className="truncate font-mono text-[0.6875rem] text-ash-dim">/{row.slug}</p>
+                  <p className="truncate font-meta text-[0.6875rem] text-steel/70">/{row.slug}</p>
                 </div>
               </div>
             </TD>
@@ -169,12 +169,12 @@ export function SubaccountTable({ rows }: { rows: SubaccountRow[] }) {
                 {STATUS_LABEL[row.status]}
               </Badge>
             </TD>
-            <TD className="text-right font-mono text-ash">{row.roomCount}</TD>
-            <TD className="text-right font-mono text-ash">{row.bookingCount}</TD>
-            <TD className="text-right font-mono text-bone">
+            <TD className="text-right font-meta text-steel">{row.roomCount}</TD>
+            <TD className="text-right font-meta text-steel">{row.bookingCount}</TD>
+            <TD className="text-right font-meta text-bone">
               {money(row.collectedCents, { compact: true })}
             </TD>
-            <TD className="whitespace-nowrap text-ash-dim">{relativeTime(row._creationTime)}</TD>
+            <TD className="whitespace-nowrap text-steel/70">{relativeTime(row._creationTime)}</TD>
             <TD onClick={(e) => e.stopPropagation()}>
               <SubaccountActions orgId={row.orgId} slug={row.slug} status={row.status} />
             </TD>

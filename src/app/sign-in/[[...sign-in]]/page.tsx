@@ -23,7 +23,7 @@ export default function SignInPage() {
       <div className="relative flex w-full max-w-md flex-col items-center gap-6">
         <div className="flex flex-col items-center gap-2">
           <PulseLogo size="lg" asLink={false} />
-          <p className="font-mono text-[0.6875rem] uppercase tracking-[0.2em] text-ash-dim">
+          <p className="font-meta text-[0.6875rem] uppercase tracking-[0.2em] text-steel/70">
             The studio operating system
           </p>
         </div>
@@ -36,8 +36,8 @@ export default function SignInPage() {
         ) : (
           <div className="space-y-3 text-center">
             <p className="overline">Pulse · demo mode</p>
-            <h1 className="font-display text-2xl font-bold text-bone">No sign-in required</h1>
-            <p className="text-sm text-ash">
+            <h1 className="font-grotesk text-2xl font-bold text-bone">No sign-in required</h1>
+            <p className="text-sm text-steel">
               Clerk is not configured, so Pulse is running in demo mode. Add your Clerk keys to
               enable real studio logins - see CLERK-SETUP.md.
             </p>

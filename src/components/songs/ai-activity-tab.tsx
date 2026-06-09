@@ -24,7 +24,7 @@ export function AiActivityTab({ songId }: { songId: Id<"songs"> }) {
     return (
       <div className="space-y-2">
         {[0, 1, 2].map((i) => (
-          <Skeleton key={i} className="h-20 w-full rounded-xl" />
+          <Skeleton key={i} className="h-20 w-full rounded-chrome" />
         ))}
       </div>
     );
@@ -48,16 +48,16 @@ export function AiActivityTab({ songId }: { songId: Id<"songs"> }) {
       <Card material="regular">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Bot className="size-4 text-ash-dim" />
+            <Bot className="size-4 text-steel/70" />
             AI artifacts
             {artifacts.length > 0 && (
-              <span className="font-mono text-[0.625rem] text-ash-dim">{artifacts.length}</span>
+              <span className="font-meta text-[0.625rem] text-steel/70">{artifacts.length}</span>
             )}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {artifacts.length === 0 ? (
-            <p className="py-4 text-center text-sm text-ash-dim">
+            <p className="py-4 text-center text-sm text-steel/70">
               No drafts generated for this track yet.
             </p>
           ) : (
@@ -65,7 +65,7 @@ export function AiActivityTab({ songId }: { songId: Id<"songs"> }) {
               {artifacts.map((a) => (
                 <li
                   key={a._id}
-                  className="rounded-md border border-hairline bg-coal-2 px-3 py-2.5"
+                  className="rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <p className="min-w-0 flex-1 truncate text-sm font-medium text-bone">
@@ -76,11 +76,11 @@ export function AiActivityTab({ songId }: { songId: Id<"songs"> }) {
                     </Badge>
                   </div>
                   {a.summary && (
-                    <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ash">
+                    <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-steel">
                       {a.summary}
                     </p>
                   )}
-                  <p className="mt-1.5 font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                  <p className="mt-1.5 font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                     {titleCase(a.kind)} · {a.scope === "org" ? "Workspace" : "Session"} ·{" "}
                     {relativeTime(a.generatedAt)} · {shortDate(a.generatedAt)}
                     {a.model ? ` · ${a.model}` : ""}
@@ -96,16 +96,16 @@ export function AiActivityTab({ songId }: { songId: Id<"songs"> }) {
       <Card material="regular">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
-            <Lightbulb className="size-4 text-ash-dim" />
+            <Lightbulb className="size-4 text-steel/70" />
             Insights
             {insights.length > 0 && (
-              <span className="font-mono text-[0.625rem] text-ash-dim">{insights.length}</span>
+              <span className="font-meta text-[0.625rem] text-steel/70">{insights.length}</span>
             )}
           </CardTitle>
         </CardHeader>
         <CardContent>
           {insights.length === 0 ? (
-            <p className="py-4 text-center text-sm text-ash-dim">
+            <p className="py-4 text-center text-sm text-steel/70">
               No insights pinned to this track.
             </p>
           ) : (
@@ -113,7 +113,7 @@ export function AiActivityTab({ songId }: { songId: Id<"songs"> }) {
               {insights.map((i) => (
                 <li
                   key={i._id}
-                  className="rounded-md border border-hairline bg-coal-2 px-3 py-2.5"
+                  className="rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <p className="min-w-0 flex-1 truncate text-sm font-medium text-bone">
@@ -121,8 +121,8 @@ export function AiActivityTab({ songId }: { songId: Id<"songs"> }) {
                     </p>
                     <Badge tone={INSIGHT_TONE[i.severity] ?? "info"}>{titleCase(i.kind)}</Badge>
                   </div>
-                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ash">{i.body}</p>
-                  <p className="mt-1.5 font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                  <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-steel">{i.body}</p>
+                  <p className="mt-1.5 font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                     {relativeTime(i.createdAt)} · {shortDate(i.createdAt)}
                   </p>
                 </li>

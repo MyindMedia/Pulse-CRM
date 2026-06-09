@@ -219,22 +219,22 @@ export default function PipelinePage() {
 
       {/* Lost deals - collapsed archive strip */}
       {lostDeals.length > 0 && (
-        <div className="rounded-lg border border-hairline bg-coal">
+        <div className="rounded-lg border border-graphite/50 bg-coal">
           <button
             type="button"
             onClick={() => setLostOpen((v) => !v)}
             className="flex w-full items-center gap-2 px-4 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-gold/30"
           >
             {lostOpen ? (
-              <ChevronDown className="size-4 text-ash-dim" />
+              <ChevronDown className="size-4 text-steel/70" />
             ) : (
-              <ChevronRight className="size-4 text-ash-dim" />
+              <ChevronRight className="size-4 text-steel/70" />
             )}
-            <span className="font-display text-sm font-semibold text-bone">Lost deals</span>
+            <span className="font-grotesk text-sm font-semibold text-bone">Lost deals</span>
             <Badge tone={meta(PIPELINE_STAGE, "lost").tone}>{lostDeals.length}</Badge>
           </button>
           {lostOpen && (
-            <div className="grid gap-2 border-t border-hairline p-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-2 border-t border-graphite/50 p-3 sm:grid-cols-2 lg:grid-cols-3">
               {lostDeals.map((d) => (
                 <DealCard key={d._id} opp={d} onOpen={setOpenDealId} />
               ))}

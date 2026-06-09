@@ -56,7 +56,7 @@ export function AiDraftCard({
   return (
     <div
       className={cn(
-        "rounded-lg border border-hairline bg-coal p-4 shadow-elev-1",
+        "rounded-lg border border-graphite/50 bg-coal p-4 shadow-elev-1",
         artifact.status === "acknowledged" && "opacity-70",
         artifact.status === "dismissed" && "opacity-50",
         className,
@@ -69,10 +69,10 @@ export function AiDraftCard({
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="truncate font-display text-sm font-semibold text-bone">
+              <p className="truncate font-grotesk text-sm font-semibold text-bone">
                 {artifact.title}
               </p>
-              <p className="mt-0.5 text-xs leading-relaxed text-ash">
+              <p className="mt-0.5 text-xs leading-relaxed text-steel">
                 {artifact.summary}
               </p>
             </div>
@@ -105,8 +105,8 @@ export function AiDraftCard({
               </Button>
 
               {expanded && artifact.body && (
-                <div className="rounded-md border border-hairline bg-coal-2 p-3">
-                  <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-ash">
+                <div className="rounded-md border border-graphite/50 bg-coal-2 p-3">
+                  <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-steel">
                     {artifact.body}
                   </pre>
                   <div className="mt-2 flex justify-end">
@@ -130,20 +130,20 @@ export function AiDraftCard({
               )}
 
               {expanded && artifact.emailDraft && (
-                <div className="rounded-md border border-hairline bg-coal-2 p-3">
-                  <p className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                <div className="rounded-md border border-graphite/50 bg-coal-2 p-3">
+                  <p className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                     Email draft
                   </p>
                   {artifact.emailDraft.to && (
-                    <p className="mt-1 text-xs text-ash">
-                      <span className="text-ash-dim">To:</span>{" "}
+                    <p className="mt-1 text-xs text-steel">
+                      <span className="text-steel/70">To:</span>{" "}
                       {artifact.emailDraft.to}
                     </p>
                   )}
                   <p className="mt-0.5 text-xs font-medium text-bone">
                     {artifact.emailDraft.subject}
                   </p>
-                  <pre className="mt-2 whitespace-pre-wrap font-sans text-xs leading-relaxed text-ash">
+                  <pre className="mt-2 whitespace-pre-wrap font-sans text-xs leading-relaxed text-steel">
                     {artifact.emailDraft.body}
                   </pre>
                   <div className="mt-2 flex justify-end gap-2">
@@ -201,7 +201,7 @@ export function AiDraftCard({
 /** Empty-list helper. */
 export function NoArtifactsYet({ message }: { message: string }) {
   return (
-    <div className="rounded-md border border-dashed border-hairline-2 py-6 text-center text-xs text-ash-dim">
+    <div className="rounded-md border border-dashed border-graphite/60 py-6 text-center text-xs text-steel/70">
       <Sparkles className="mx-auto mb-2 size-4 text-gold-dim" />
       {message}
     </div>

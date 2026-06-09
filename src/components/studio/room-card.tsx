@@ -134,7 +134,7 @@ export function RoomCard({
       )}
     >
       {room.heroImageUrl && (
-        <div className="relative aspect-[16/9] w-full overflow-hidden border-b border-hairline bg-coal-2">
+        <div className="relative aspect-[16/9] w-full overflow-hidden border-b border-graphite/50 bg-coal-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={room.heroImageUrl}
@@ -152,10 +152,10 @@ export function RoomCard({
         {/* Header - name, type, status menu */}
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
-            <p className="truncate font-display text-sm font-semibold text-bone">
+            <p className="truncate font-grotesk text-sm font-semibold text-bone">
               {room.name}
             </p>
-            <p className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+            <p className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
               {room.roomType ?? "Room"}
             </p>
           </div>
@@ -212,8 +212,8 @@ export function RoomCard({
           </Badge>
           <span
             className={cn(
-              "font-mono text-[0.625rem] uppercase tracking-wide",
-              isManual ? "text-gold" : "text-ash-dim",
+              "font-meta text-[0.625rem] uppercase tracking-wide",
+              isManual ? "text-gold" : "text-steel/70",
             )}
             title={
               isManual
@@ -224,21 +224,21 @@ export function RoomCard({
             {isManual ? "Manual" : "Auto"}
           </span>
           {room.hourlyRateCents !== undefined && (
-            <span className="font-mono text-xs text-ash">
+            <span className="font-meta text-xs text-steel">
               {money(room.hourlyRateCents)}
-              <span className="text-ash-dim"> / hr</span>
+              <span className="text-steel/70"> / hr</span>
             </span>
           )}
         </div>
 
         {/* Installed equipment inventory */}
-        <div className="space-y-2 border-t border-hairline pt-3">
+        <div className="space-y-2 border-t border-graphite/50 pt-3">
           <div className="flex items-center justify-between">
-            <span className="font-mono text-[0.6875rem] uppercase tracking-wide text-ash-dim">
+            <span className="font-meta text-[0.6875rem] uppercase tracking-wide text-steel/70">
               Installed gear
             </span>
             {room.equipmentCount > 0 && (
-              <span className="font-mono text-[0.6875rem] tabular-nums text-ash">
+              <span className="font-meta text-[0.6875rem] tabular-nums text-steel">
                 {room.equipmentCount}
                 {" · "}
                 <span className="text-bone">{money(room.equipmentValueCents)}</span>
@@ -255,7 +255,7 @@ export function RoomCard({
               )}
             </div>
           ) : equipment.length === 0 ? (
-            <p className="flex items-center gap-1.5 text-[0.6875rem] text-ash-dim">
+            <p className="flex items-center gap-1.5 text-[0.6875rem] text-steel/70">
               <Package className="size-3" />
               No equipment installed.
               <Link
@@ -283,14 +283,14 @@ export function RoomCard({
                       key={item._id}
                       className="group/row flex items-center gap-2 rounded-sm bg-coal-2 px-2 py-1.5 transition-colors duration-150 hover:bg-coal-3"
                     >
-                      <Icon className="size-3.5 shrink-0 text-ash-dim transition-transform duration-200 group-hover/row:scale-110" />
+                      <Icon className="size-3.5 shrink-0 text-steel/70 transition-transform duration-200 group-hover/row:scale-110" />
                       <span className="min-w-0 flex-1 truncate text-xs text-bone">
                         {item.name}
                       </span>
-                      <span className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                      <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                         {meta.label}
                       </span>
-                      <span className="font-mono text-[0.6875rem] tabular-nums text-ash">
+                      <span className="font-meta text-[0.6875rem] tabular-nums text-steel">
                         {money(item.currentValueCents, { compact: true })}
                       </span>
                     </li>
@@ -304,7 +304,7 @@ export function RoomCard({
                     e.stopPropagation();
                     setGearExpanded((v) => !v);
                   }}
-                  className="flex w-full items-center justify-center gap-1 rounded-sm border border-hairline-2 py-1 text-[0.6875rem] font-medium text-ash transition-colors hover:bg-coal/60 hover:text-bone"
+                  className="flex w-full items-center justify-center gap-1 rounded-sm border border-graphite/60 py-1 text-[0.6875rem] font-medium text-steel transition-colors hover:bg-coal/60 hover:text-bone"
                 >
                   {gearExpanded ? (
                     <>
@@ -322,21 +322,21 @@ export function RoomCard({
         </div>
 
         {/* Service notes */}
-        <div className="mt-auto space-y-1.5 border-t border-hairline pt-3">
+        <div className="mt-auto space-y-1.5 border-t border-graphite/50 pt-3">
           {room.condition && (
-            <p className="text-xs text-ash">
-              <span className="text-ash-dim">Condition · </span>
+            <p className="text-xs text-steel">
+              <span className="text-steel/70">Condition · </span>
               {room.condition}
             </p>
           )}
           {room.nextServiceAt !== undefined && (
-            <p className="flex items-center gap-1.5 text-[0.6875rem] text-ash-dim">
+            <p className="flex items-center gap-1.5 text-[0.6875rem] text-steel/70">
               <Wrench className="size-3" />
               Next service {shortDate(room.nextServiceAt)}
             </p>
           )}
           {!room.condition && room.nextServiceAt === undefined && (
-            <p className="text-[0.6875rem] text-ash-dim">No service notes.</p>
+            <p className="text-[0.6875rem] text-steel/70">No service notes.</p>
           )}
         </div>
       </CardContent>

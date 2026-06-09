@@ -13,7 +13,7 @@ export const Switch = React.forwardRef<
   <SwitchPrimitive.Root
     ref={ref}
     className={cn(
-      "peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-hairline-2 " +
+      "peer inline-flex h-5 w-9 shrink-0 cursor-pointer items-center rounded-full border border-graphite/60 " +
         "transition-colors outline-none focus-visible:ring-2 focus-visible:ring-gold/30 " +
         "disabled:opacity-50 data-[state=checked]:bg-gold data-[state=unchecked]:bg-coal-3",
       className,
@@ -37,7 +37,7 @@ export const Checkbox = React.forwardRef<
   <CheckboxPrimitive.Root
     ref={ref}
     className={cn(
-      "peer size-4 shrink-0 rounded-sm border border-hairline-2 bg-ink-2 outline-none transition-colors " +
+      "peer size-4 shrink-0 rounded-sm border border-graphite/60 bg-obsidian outline-none transition-colors " +
         "focus-visible:ring-2 focus-visible:ring-gold/30 disabled:opacity-50 " +
         "data-[state=checked]:border-gold data-[state=checked]:bg-gold",
       className,

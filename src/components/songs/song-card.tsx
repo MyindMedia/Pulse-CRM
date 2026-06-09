@@ -64,20 +64,20 @@ export function SongCard({ song }: { song: SongCardData }) {
         <div className="space-y-3 p-4">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="truncate font-display text-sm font-semibold text-bone">
+              <p className="truncate font-grotesk text-sm font-semibold text-bone">
                 {song.title}
               </p>
-              <p className="truncate text-xs text-ash-dim">{song.artistName}</p>
+              <p className="truncate text-xs text-steel/70">{song.artistName}</p>
             </div>
             <Badge tone={stage.tone}>{stage.label}</Badge>
           </div>
 
-          <div className="flex flex-wrap items-center gap-1.5 font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
-            <span className="rounded-sm border border-hairline bg-coal-2 px-1.5 py-0.5 text-ash">
+          <div className="flex flex-wrap items-center gap-1.5 font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
+            <span className="rounded-sm border border-graphite/50 bg-coal-2 px-1.5 py-0.5 text-steel">
               {titleCase(song.kind)}
             </span>
             {song.genre && (
-              <span className="rounded-sm border border-hairline bg-coal-2 px-1.5 py-0.5 text-ash">
+              <span className="rounded-sm border border-graphite/50 bg-coal-2 px-1.5 py-0.5 text-steel">
                 {song.genre}
               </span>
             )}
@@ -101,15 +101,15 @@ export function SongCard({ song }: { song: SongCardData }) {
                 </span>
               ))}
               {song.moodTags.length > 3 && (
-                <span className="text-[0.625rem] text-ash-dim">+{song.moodTags.length - 3}</span>
+                <span className="text-[0.625rem] text-steel/70">+{song.moodTags.length - 3}</span>
               )}
             </div>
           )}
 
-          <div className="space-y-1.5 border-t border-hairline pt-2.5">
-            <div className="flex items-center justify-between font-mono text-[0.625rem] uppercase tracking-wide">
-              <span className="text-ash-dim">Revisions</span>
-              <span className={over ? "text-critical" : "text-ash"}>
+          <div className="space-y-1.5 border-t border-graphite/50 pt-2.5">
+            <div className="flex items-center justify-between font-meta text-[0.625rem] uppercase tracking-wide">
+              <span className="text-steel/70">Revisions</span>
+              <span className={over ? "text-critical" : "text-steel"}>
                 {song.revisionsUsed} / {song.revisionsIncluded}
               </span>
             </div>
@@ -119,7 +119,7 @@ export function SongCard({ song }: { song: SongCardData }) {
               tone={over ? "critical" : revPct >= 0.75 ? "caution" : "gold"}
             />
             {song.stage === "released" && song.streamCount != null && (
-              <p className="pt-0.5 font-mono text-[0.625rem] uppercase tracking-wide text-positive">
+              <p className="pt-0.5 font-meta text-[0.625rem] uppercase tracking-wide text-positive">
                 {compactNumber(song.streamCount)} streams
               </p>
             )}

@@ -5,7 +5,6 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { PulseLogo } from "@/components/brand/pulse-logo";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -18,35 +17,32 @@ const LINKS = [
 // the useUser hook would throw. Gate the auth-aware nav behind this flag.
 const CLERK_ENABLED = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
-function LoggedOutCtas({ size = "sm" }: { size?: "sm" | "lg" }) {
+const ghostCls =
+  "chrome-ghost inline-flex items-center rounded-chrome px-3.5 py-1.5 font-meta text-xs uppercase tracking-[0.04em] text-mist transition-colors hover:text-bone";
+const goldCls =
+  "chrome-ghost chrome-ghost-gold inline-flex items-center rounded-chrome px-3.5 py-1.5 font-meta text-xs uppercase tracking-[0.04em] text-gold transition-colors hover:text-gold-bright";
+
+function LoggedOutCtas() {
   return (
     <>
-      <Button asChild variant="ghost" size={size}>
-        <Link href="/sign-in">Log in</Link>
-      </Button>
-      <Button asChild size={size}>
-        <Link href="#pricing">Get started</Link>
-      </Button>
+      <Link href="/sign-in" className={ghostCls}>Log in</Link>
+      <Link href="#pricing" className={goldCls}>Get started</Link>
     </>
   );
 }
 
 /** Auth-aware nav CTAs. Signed-in visitors get "Go to dashboard"; everyone else
  *  (including while Clerk is still loading) sees Log in / Get started. */
-function AuthCtas({ size = "sm" }: { size?: "sm" | "lg" }) {
+function AuthCtas() {
   const { isLoaded, isSignedIn } = useUser();
   if (isLoaded && isSignedIn) {
-    return (
-      <Button asChild size={size}>
-        <Link href="/dashboard">Go to dashboard</Link>
-      </Button>
-    );
+    return <Link href="/dashboard" className={goldCls}>Go to dashboard</Link>;
   }
-  return <LoggedOutCtas size={size} />;
+  return <LoggedOutCtas />;
 }
 
-function Ctas({ size }: { size?: "sm" | "lg" }) {
-  return CLERK_ENABLED ? <AuthCtas size={size} /> : <LoggedOutCtas size={size} />;
+function Ctas() {
+  return CLERK_ENABLED ? <AuthCtas /> : <LoggedOutCtas />;
 }
 
 export function LandingNav() {
@@ -73,7 +69,7 @@ export function LandingNav() {
       className={cn(
         "fixed inset-x-0 top-0 z-50 transition-colors duration-300",
         scrolled || menuOpen
-          ? "material-regular border-b border-hairline"
+          ? "material-regular border-b border-graphite/50"
           : "border-b border-transparent",
       )}
     >
@@ -85,7 +81,7 @@ export function LandingNav() {
             <a
               key={l.href}
               href={l.href}
-              className="link-underline text-sm font-medium text-ash transition-colors hover:text-gold"
+              className="link-underline font-meta text-xs uppercase tracking-[0.04em] text-steel transition-colors hover:text-gold"
             >
               {l.label}
             </a>
@@ -93,7 +89,7 @@ export function LandingNav() {
         </div>
 
         {/* Desktop CTAs */}
-        <div className="hidden items-center gap-2 sm:gap-3 md:flex">
+        <div className="hidden items-center gap-2 md:flex">
           <Ctas />
         </div>
 
@@ -101,7 +97,7 @@ export function LandingNav() {
         <button
           type="button"
           onClick={() => setMenuOpen((o) => !o)}
-          className="grid size-10 place-items-center rounded-lg text-bone transition-colors hover:bg-coal-2 md:hidden"
+          className="grid size-10 place-items-center rounded-chrome text-bone transition-colors hover:bg-graphite/40 md:hidden"
           aria-label={menuOpen ? "Close menu" : "Open menu"}
           aria-expanded={menuOpen}
         >
@@ -111,21 +107,21 @@ export function LandingNav() {
 
       {/* Mobile full-screen overlay */}
       {menuOpen && (
-        <div className="fixed inset-0 top-16 z-40 flex flex-col bg-ink/98 px-6 py-8 backdrop-blur-sm md:hidden">
+        <div className="fixed inset-0 top-16 z-40 flex flex-col bg-obsidian/98 px-6 py-8 backdrop-blur-sm md:hidden">
           <div className="flex flex-col gap-1">
             {LINKS.map((l) => (
               <a
                 key={l.href}
                 href={l.href}
                 onClick={() => setMenuOpen(false)}
-                className="border-b border-hairline py-4 font-display text-2xl font-semibold text-bone transition-colors hover:text-gold"
+                className="chrome-display border-b border-graphite/50 py-4 text-3xl text-bone transition-colors hover:text-gold"
               >
                 {l.label}
               </a>
             ))}
           </div>
-          <div className="mt-8 flex flex-col gap-3">
-            <Ctas size="lg" />
+          <div className="mt-8 flex items-center gap-3">
+            <Ctas />
           </div>
         </div>
       )}

@@ -41,12 +41,12 @@ export function TimeOffInbox() {
       </CardHeader>
       <CardContent className="space-y-2 pt-1">
         {pending.map((r) => (
-          <div key={r._id} className="flex items-center gap-3 rounded-md border border-hairline bg-coal-2 px-3 py-2">
+          <div key={r._id} className="flex items-center gap-3 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2">
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium text-bone">{r.memberName}</p>
-              <p className="text-xs text-ash">
+              <p className="text-xs text-steel">
                 {range(r.startTime, r.endTime)}
-                {r.reason && <span className="text-ash-dim"> · {r.reason}</span>}
+                {r.reason && <span className="text-steel/70"> · {r.reason}</span>}
               </p>
             </div>
             <Button size="icon-sm" variant="secondary" aria-label="Approve" onClick={() => act(r._id as Id<"timeOff">, "approved")}>

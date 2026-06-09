@@ -58,17 +58,17 @@ export function ClientPicker({
       </Field>
 
       {selected ? (
-        <div className="flex items-center justify-between gap-3 rounded-md border border-hairline-2 bg-ink-2 px-3 py-2.5 text-sm">
+        <div className="flex items-center justify-between gap-3 rounded-md border border-graphite/60 bg-obsidian px-3 py-2.5 text-sm">
           <span className="inline-flex items-center gap-2 text-bone">
             <Check className="size-4 text-positive" /> Booking for <b className="font-semibold">{value.name}</b>
           </span>
-          <button type="button" className="text-xs text-ash transition-colors hover:text-bone" onClick={() => onChange({ name: "" })}>
+          <button type="button" className="text-xs text-steel transition-colors hover:text-bone" onClick={() => onChange({ name: "" })}>
             Add a new client instead
           </button>
         </div>
       ) : (
-        <div className="space-y-4 rounded-md border border-hairline bg-coal/40 p-3">
-          <p className="inline-flex items-center gap-1.5 text-xs text-ash-dim">
+        <div className="space-y-4 rounded-md border border-graphite/50 bg-coal/40 p-3">
+          <p className="inline-flex items-center gap-1.5 text-xs text-steel/70">
             <UserPlus className="size-3.5 text-gold" /> New client - added to your roster on booking.
           </p>
           <Field label="Full name" htmlFor="client-name">

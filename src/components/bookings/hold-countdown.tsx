@@ -40,12 +40,12 @@ export function HoldCountdown({
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 font-mono text-[0.6875rem] tabular-nums",
+        "inline-flex items-center gap-1 font-meta text-[0.6875rem] tabular-nums",
         expired
           ? "text-critical"
           : urgent
             ? "text-caution"
-            : "text-ash-dim",
+            : "text-steel/70",
         className,
       )}
     >

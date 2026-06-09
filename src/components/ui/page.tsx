@@ -19,8 +19,8 @@ export function PageHeader({
     <div className={cn("flex flex-wrap items-end justify-between gap-4", className)}>
       <div className="space-y-1">
         {overline && <p className="overline">{overline}</p>}
-        <h1 className="font-display text-2xl font-bold tracking-tight text-bone">{title}</h1>
-        {description && <p className="max-w-2xl text-sm text-ash">{description}</p>}
+        <h1 className="font-grotesk text-2xl font-bold tracking-tight text-bone">{title}</h1>
+        {description && <p className="max-w-2xl text-sm text-steel">{description}</p>}
       </div>
       {actions && <div className="flex items-center gap-2">{actions}</div>}
     </div>

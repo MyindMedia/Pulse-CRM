@@ -40,8 +40,8 @@ export default function AgencyAutopilotPage() {
                     {s.openHigh > 0 ? <Bot className="size-5" /> : <ShieldCheck className="size-5" />}
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="font-display text-sm font-semibold text-bone">{s.name}</p>
-                    <p className="font-mono text-[0.625rem] uppercase text-ash-dim">
+                    <p className="font-grotesk text-sm font-semibold text-bone">{s.name}</p>
+                    <p className="font-meta text-[0.625rem] uppercase text-steel/70">
                       last scan {s.lastScanAt ? relativeTime(s.lastScanAt) : "never"}
                     </p>
                   </div>
@@ -53,7 +53,7 @@ export default function AgencyAutopilotPage() {
                   </div>
                   <Link
                     href={`/agency/${s.orgId}`}
-                    className="flex h-8 items-center gap-1.5 rounded-md border border-hairline-2 bg-coal/60 px-3 text-xs font-medium text-ash transition-colors hover:border-gold-dim hover:text-bone"
+                    className="flex h-8 items-center gap-1.5 rounded-md border border-graphite/60 bg-coal/60 px-3 text-xs font-medium text-steel transition-colors hover:border-gold-dim hover:text-bone"
                   >
                     Open <ArrowRight className="size-3.5" />
                   </Link>

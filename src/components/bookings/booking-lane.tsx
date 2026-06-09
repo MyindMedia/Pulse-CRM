@@ -42,14 +42,14 @@ export function BookingLane({
       {collapsible && (
         <ChevronRight
           className={cn(
-            "size-3.5 text-ash-dim transition-transform",
+            "size-3.5 text-steel/70 transition-transform",
             open && "rotate-90",
           )}
         />
       )}
       <span aria-hidden className={cn("size-2 rounded-full", dot)} />
       <h2 className="overline">{title}</h2>
-      <span className="font-mono text-[0.6875rem] tabular-nums text-ash-dim">
+      <span className="font-meta text-[0.6875rem] tabular-nums text-steel/70">
         {bookings.length}
       </span>
     </>
@@ -74,7 +74,7 @@ export function BookingLane({
       {open && (
         <>
           {bookings.length === 0 ? (
-            <p className="rounded-lg border border-dashed border-hairline-2 bg-coal/40 py-6 text-center text-xs text-ash-dim">
+            <p className="rounded-lg border border-dashed border-graphite/60 bg-coal/40 py-6 text-center text-xs text-steel/70">
               {description}
             </p>
           ) : (

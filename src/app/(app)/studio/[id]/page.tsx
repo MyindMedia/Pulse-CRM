@@ -143,12 +143,12 @@ export default function StudioDetailPage() {
       <div className="space-y-8">
         <Link
           href="/studio"
-          className="inline-flex items-center gap-1.5 text-sm text-ash hover:text-gold-bright"
+          className="inline-flex items-center gap-1.5 text-sm text-steel hover:text-gold-bright"
         >
           <ArrowLeft className="size-4" />
           All studios
         </Link>
-        <Skeleton className="h-72 w-full rounded-xl" />
+        <Skeleton className="h-72 w-full rounded-chrome" />
         <SkeletonCards cards={4} />
       </div>
     );
@@ -159,7 +159,7 @@ export default function StudioDetailPage() {
       <div className="space-y-6">
         <Link
           href="/studio"
-          className="inline-flex items-center gap-1.5 text-sm text-ash hover:text-gold-bright"
+          className="inline-flex items-center gap-1.5 text-sm text-steel hover:text-gold-bright"
         >
           <ArrowLeft className="size-4" />
           All studios
@@ -306,7 +306,7 @@ export default function StudioDetailPage() {
       {/* Back link */}
       <Link
         href="/studio"
-        className="inline-flex items-center gap-1.5 text-sm text-ash hover:text-gold-bright"
+        className="inline-flex items-center gap-1.5 text-sm text-steel hover:text-gold-bright"
       >
         <ArrowLeft className="size-4" />
         All studios
@@ -323,7 +323,7 @@ export default function StudioDetailPage() {
 
       {/* Hero band */}
       {room.heroUrl && (
-        <div className="relative overflow-hidden rounded-xl border border-hairline shadow-elev-2">
+        <div className="relative overflow-hidden rounded-chrome border border-graphite/50 shadow-elev-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={room.heroUrl}
@@ -334,7 +334,7 @@ export default function StudioDetailPage() {
           <div className="absolute bottom-4 left-6 right-6 flex items-end justify-between gap-4">
             <div className="min-w-0">
               <p className="overline">{room.roomType ?? "Room"}</p>
-              <h1 className="mt-1 truncate font-display text-3xl font-semibold tracking-tight text-bone drop-shadow sm:text-4xl">
+              <h1 className="mt-1 truncate font-grotesk text-3xl font-semibold tracking-tight text-bone drop-shadow sm:text-4xl">
                 {room.name}
               </h1>
             </div>
@@ -344,8 +344,8 @@ export default function StudioDetailPage() {
               </Badge>
               <span
                 className={cn(
-                  "font-mono text-[0.6875rem] uppercase tracking-wide",
-                  room.statusSource === "manual" ? "text-gold" : "text-ash",
+                  "font-meta text-[0.6875rem] uppercase tracking-wide",
+                  room.statusSource === "manual" ? "text-gold" : "text-steel",
                 )}
                 title={
                   room.statusSource === "manual"
@@ -417,12 +417,12 @@ export default function StudioDetailPage() {
       {/* This week's sessions */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
-          <h2 className="font-display text-lg font-semibold tracking-tight text-bone">
+          <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
             This week
           </h2>
           <Link
             href="/calendar"
-            className="text-xs text-ash hover:text-gold-bright"
+            className="text-xs text-steel hover:text-gold-bright"
           >
             Open calendar →
           </Link>
@@ -448,19 +448,19 @@ export default function StudioDetailPage() {
               .map((e) => (
                 <li
                   key={e._id}
-                  className="rounded-lg border border-dashed border-hairline-2 bg-coal-2/40 p-3 shadow-elev-1"
+                  className="rounded-lg border border-dashed border-graphite/60 bg-coal-2/40 p-3 shadow-elev-1"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-bone">{e.title}</p>
-                      <p className="flex items-center gap-1 font-mono text-[0.6875rem] uppercase tracking-wide text-ash-dim">
+                      <p className="flex items-center gap-1 font-meta text-[0.6875rem] uppercase tracking-wide text-steel/70">
                         <Plug className="size-3" />
                         external · blocked
                       </p>
                     </div>
                     <Badge tone="neutral">SYNC</Badge>
                   </div>
-                  <p className="mt-2 font-mono text-xs text-ash">
+                  <p className="mt-2 font-meta text-xs text-steel">
                     {longDate(e.startTime)} · {timeOfDay(e.startTime)}
                   </p>
                 </li>
@@ -470,14 +470,14 @@ export default function StudioDetailPage() {
               .map((s) => (
                 <li
                   key={s._id}
-                  className="rounded-lg border border-hairline bg-coal p-3 shadow-elev-1"
+                  className="rounded-lg border border-graphite/50 bg-coal p-3 shadow-elev-1"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-bone">
                         {s.title ?? s.serviceType}
                       </p>
-                      <p className="font-mono text-[0.6875rem] uppercase tracking-wide text-ash-dim">
+                      <p className="font-meta text-[0.6875rem] uppercase tracking-wide text-steel/70">
                         {s.serviceType}
                         {s.artistName ? ` · ${s.artistName}` : ""}
                       </p>
@@ -486,7 +486,7 @@ export default function StudioDetailPage() {
                       {s.status.replace(/_/g, " ")}
                     </Badge>
                   </div>
-                  <p className="mt-2 font-mono text-xs text-ash">
+                  <p className="mt-2 font-meta text-xs text-steel">
                     {longDate(s.startTime)} · {timeOfDay(s.startTime)}
                   </p>
                 </li>
@@ -502,9 +502,9 @@ export default function StudioDetailPage() {
             type="button"
             onClick={() => setGearOpen((v) => !v)}
             className={cn(
-              "sheen group flex flex-1 items-center gap-3 rounded-xl border bg-coal px-4 py-3 text-left",
+              "sheen group flex flex-1 items-center gap-3 rounded-chrome border bg-coal px-4 py-3 text-left",
               "transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-elev-3 hover:border-gold-dim",
-              gearOpen ? "border-hairline-2" : "border-gold-dim/40 bg-gold/[0.04]",
+              gearOpen ? "border-graphite/60" : "border-gold-dim/40 bg-gold/[0.04]",
             )}
             aria-expanded={gearOpen}
           >
@@ -512,15 +512,15 @@ export default function StudioDetailPage() {
               <Boxes className="size-5" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block font-display text-base font-semibold tracking-tight text-bone">
+              <span className="block font-grotesk text-base font-semibold tracking-tight text-bone">
                 Installed gear
               </span>
-              <span className="block font-mono text-xs text-ash-dim">
+              <span className="block font-meta text-xs text-steel/70">
                 {room.equipment.length} {room.equipment.length === 1 ? "item" : "items"}
                 {room.equipment.length > 0 ? ` · ${money(equipmentValueCents)} value` : ""}
               </span>
             </span>
-            <span className="flex items-center gap-1 font-mono text-[0.6875rem] uppercase tracking-wide text-ash-dim transition-colors group-hover:text-gold">
+            <span className="flex items-center gap-1 font-meta text-[0.6875rem] uppercase tracking-wide text-steel/70 transition-colors group-hover:text-gold">
               {gearOpen ? "Hide" : "View"}
               <ChevronDown
                 className={cn("size-4 transition-transform duration-200", gearOpen ? "rotate-180" : "rotate-0")}
@@ -555,7 +555,7 @@ export default function StudioDetailPage() {
                     >
                       <Package className="size-4" />
                       <span className="flex-1 truncate">{s.name}</span>
-                      <span className="font-mono text-[0.625rem] text-ash-dim">
+                      <span className="font-meta text-[0.625rem] text-steel/70">
                         {categoryMeta(s.category).label}
                       </span>
                     </DropdownMenuItem>
@@ -577,7 +577,7 @@ export default function StudioDetailPage() {
             description="Add a new piece of equipment, or install something out of storage."
           />
         ) : (
-          <ul className="overflow-hidden rounded-lg border border-hairline">
+          <ul className="overflow-hidden rounded-lg border border-graphite/50">
             {room.equipment.map((item) => {
               const meta = categoryMeta(item.category);
               const Icon = meta.icon;
@@ -587,22 +587,22 @@ export default function StudioDetailPage() {
                 <li
                   key={item._id}
                   className={cn(
-                    "group flex items-center gap-3 border-b border-hairline-2 bg-coal px-3 py-2.5 last:border-0 transition-colors duration-150 hover:bg-coal-2",
+                    "group flex items-center gap-3 border-b border-graphite/60 bg-coal px-3 py-2.5 last:border-0 transition-colors duration-150 hover:bg-coal-2",
                     isPending && "opacity-50",
                   )}
                 >
-                  <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-md border border-hairline bg-ink-2 transition-transform duration-200 group-hover:scale-105">
+                  <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-md border border-graphite/50 bg-obsidian transition-transform duration-200 group-hover:scale-105">
                     {item.photoUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={item.photoUrl} alt={item.name} className="size-full object-cover" />
                     ) : (
-                      <Icon className="size-4 text-ash-dim" />
+                      <Icon className="size-4 text-steel/70" />
                     )}
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-bone">{item.name}</p>
                     {item.condition && (
-                      <p className="truncate text-[0.6875rem] text-ash-dim">{item.condition}</p>
+                      <p className="truncate text-[0.6875rem] text-steel/70">{item.condition}</p>
                     )}
                   </div>
                   <span className="hidden sm:inline-flex">
@@ -614,9 +614,9 @@ export default function StudioDetailPage() {
                   <Badge tone={st.tone} dot>
                     {st.label}
                   </Badge>
-                  <span className="hidden w-24 shrink-0 text-right font-mono text-xs tabular-nums text-bone md:block">
+                  <span className="hidden w-24 shrink-0 text-right font-meta text-xs tabular-nums text-bone md:block">
                     {money(item.currentValueCents)}
-                    <span className="block text-[0.625rem] text-ash-dim">
+                    <span className="block text-[0.625rem] text-steel/70">
                       paid {money(item.purchaseCents)}
                     </span>
                   </span>
@@ -686,10 +686,10 @@ export default function StudioDetailPage() {
       <section className="space-y-3">
         <div className="flex items-center justify-between gap-2">
           <div>
-            <h2 className="font-display text-lg font-semibold tracking-tight text-bone">
+            <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
               Synced calendars
             </h2>
-            <p className="text-xs text-ash-dim">
+            <p className="text-xs text-steel/70">
               Import an outside calendar so Pulse won&apos;t double-book against it.
             </p>
           </div>
@@ -713,7 +713,7 @@ export default function StudioDetailPage() {
               return (
                 <li
                   key={cal._id}
-                  className="rounded-lg border border-hairline bg-coal p-4 shadow-elev-1"
+                  className="rounded-lg border border-graphite/50 bg-coal p-4 shadow-elev-1"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0 flex items-center gap-2">
@@ -722,24 +722,24 @@ export default function StudioDetailPage() {
                     </div>
                     <Badge tone="neutral">{cal.source}</Badge>
                   </div>
-                  <p className="mt-2 truncate font-mono text-[0.6875rem] text-ash-dim">
+                  <p className="mt-2 truncate font-meta text-[0.6875rem] text-steel/70">
                     {cal.icalUrl}
                   </p>
                   <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
-                    <div className="font-mono text-[0.6875rem] text-ash">
+                    <div className="font-meta text-[0.6875rem] text-steel">
                       {cal.lastSyncAt ? (
                         <span className="inline-flex items-center gap-1">
                           <CheckCircle2 className="size-3 text-positive" />
                           Synced {relativeTime(cal.lastSyncAt)}
                           {typeof cal.eventCount === "number" && (
-                            <span className="text-ash-dim">
+                            <span className="text-steel/70">
                               {" · "}
                               {cal.eventCount} events
                             </span>
                           )}
                         </span>
                       ) : (
-                        <span className="text-ash-dim">Not synced yet</span>
+                        <span className="text-steel/70">Not synced yet</span>
                       )}
                     </div>
                     <div className="flex items-center gap-1">

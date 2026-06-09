@@ -44,11 +44,11 @@ export function UnpaidAgingReport() {
               {data.rows.map((r) => (
                 <TR key={r.artistId}>
                   <TD className="font-medium">{r.artistName}</TD>
-                  <TD className="text-right tabular-nums text-ash">{r.b0 ? money(r.b0) : "-"}</TD>
-                  <TD className="text-right tabular-nums text-ash">{r.b30 ? money(r.b30) : "-"}</TD>
-                  <TD className="text-right tabular-nums text-ash">{r.b60 ? money(r.b60) : "-"}</TD>
+                  <TD className="text-right tabular-nums text-steel">{r.b0 ? money(r.b0) : "-"}</TD>
+                  <TD className="text-right tabular-nums text-steel">{r.b30 ? money(r.b30) : "-"}</TD>
+                  <TD className="text-right tabular-nums text-steel">{r.b60 ? money(r.b60) : "-"}</TD>
                   <TD className="text-right tabular-nums text-critical">{r.b90 ? money(r.b90) : "-"}</TD>
-                  <TD className="text-right font-mono font-semibold tabular-nums text-gold">{money(r.total)}</TD>
+                  <TD className="text-right font-meta font-semibold tabular-nums text-gold">{money(r.total)}</TD>
                 </TR>
               ))}
             </TBody>

@@ -68,7 +68,7 @@ export function SoftwareTable({
   }
   if (items.length === 0) {
     return (
-      <p className="rounded-md border border-dashed border-hairline-2 py-10 text-center text-sm text-ash-dim">
+      <p className="rounded-md border border-dashed border-graphite/60 py-10 text-center text-sm text-steel/70">
         {filtering ? "No software for the current filters." : "No software tracked yet."}
       </p>
     );
@@ -77,10 +77,10 @@ export function SoftwareTable({
   const soon = now + 30 * 86_400_000;
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-hairline">
+    <div className="overflow-x-auto rounded-lg border border-graphite/50">
       <table className="w-full min-w-[60rem] text-sm">
         <thead>
-          <tr className="border-b border-hairline bg-coal-2 text-left text-[0.6875rem] uppercase tracking-wide text-ash-dim">
+          <tr className="border-b border-graphite/50 bg-coal-2 text-left text-[0.6875rem] uppercase tracking-wide text-steel/70">
             <th className="px-3 py-2 font-medium">Software</th>
             <th className="px-3 py-2 font-medium">Category</th>
             <th className="px-3 py-2 font-medium">Type</th>
@@ -98,28 +98,28 @@ export function SoftwareTable({
             const renewSoon = s.renewalDate && s.renewalDate <= soon && s.status === "active";
             const renewPast = s.renewalDate && s.renewalDate < now;
             return (
-              <tr key={s._id} className="border-b border-hairline-2 last:border-0 transition-colors duration-150 hover:bg-coal-2/60">
+              <tr key={s._id} className="border-b border-graphite/60 last:border-0 transition-colors duration-150 hover:bg-coal-2/60">
                 <td className="px-3 py-2.5">
                   <div className="flex items-center gap-2">
-                    <cat.icon className="size-4 shrink-0 text-ash-dim" />
+                    <cat.icon className="size-4 shrink-0 text-steel/70" />
                     <div className="min-w-0">
                       <p className="truncate font-medium text-bone">{s.name}</p>
-                      <p className="truncate text-[0.6875rem] text-ash-dim">
+                      <p className="truncate text-[0.6875rem] text-steel/70">
                         {s.vendor ?? "—"}
-                        {s.licenseKey ? <KeyRound className="ml-1 inline size-3 text-ash-dim" /> : null}
+                        {s.licenseKey ? <KeyRound className="ml-1 inline size-3 text-steel/70" /> : null}
                         {s.seatHolder ? ` · ${s.seatHolder}` : ""}
                       </p>
                     </div>
                   </div>
                 </td>
-                <td className="px-3 py-2.5 text-ash">{cat.label}</td>
-                <td className="px-3 py-2.5 capitalize text-ash">{s.licenseType}</td>
-                <td className="px-3 py-2.5 text-right font-mono text-bone">
+                <td className="px-3 py-2.5 text-steel">{cat.label}</td>
+                <td className="px-3 py-2.5 capitalize text-steel">{s.licenseType}</td>
+                <td className="px-3 py-2.5 text-right font-meta text-bone">
                   {money(s.costCents)}
-                  <span className="text-ash-dim">{INTERVAL_SUFFIX[s.billingInterval] ?? ""}</span>
+                  <span className="text-steel/70">{INTERVAL_SUFFIX[s.billingInterval] ?? ""}</span>
                 </td>
-                <td className="px-3 py-2.5 text-center text-ash">{s.seats ?? "—"}</td>
-                <td className={cn("px-3 py-2.5 font-mono text-xs", renewPast ? "text-critical" : renewSoon ? "text-caution" : "text-ash-dim")}>
+                <td className="px-3 py-2.5 text-center text-steel">{s.seats ?? "—"}</td>
+                <td className={cn("px-3 py-2.5 font-meta text-xs", renewPast ? "text-critical" : renewSoon ? "text-caution" : "text-steel/70")}>
                   {s.renewalDate ? shortDate(s.renewalDate) : "—"}
                 </td>
                 <td className="px-3 py-2.5"><Badge tone={st.tone} dot>{st.label}</Badge></td>

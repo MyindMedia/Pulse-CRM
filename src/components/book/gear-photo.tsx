@@ -40,13 +40,13 @@ export function GearPhoto({
   return (
     <div
       className={cn(
-        "relative overflow-hidden rounded-md border border-hairline bg-coal-2",
+        "relative overflow-hidden rounded-md border border-graphite/50 bg-coal-2",
         className,
       )}
     >
       {showFallback ? (
         <div className="flex h-full w-full items-center justify-center bg-[radial-gradient(circle_at_50%_30%,var(--color-coal-3),var(--color-coal))]">
-          <CategoryIcon category={category} className="size-7 text-ash-dim" />
+          <CategoryIcon category={category} className="size-7 text-steel/70" />
         </div>
       ) : (
         // eslint-disable-next-line @next/next/no-img-element

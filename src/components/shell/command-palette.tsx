@@ -58,20 +58,20 @@ export function CommandPalette() {
       <DialogPrimitive.Portal>
         <DialogPrimitive.Overlay className="anim-overlay fixed inset-0 z-50 bg-ink/80 backdrop-blur-sm" />
         <DialogPrimitive.Content
-          className="anim-pop fixed left-1/2 top-[12vh] z-50 w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-xl glass-liquid shadow-elev-4 text-bone"
+          className="anim-pop fixed left-1/2 top-[12vh] z-50 w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-chrome glass-liquid shadow-elev-4 text-bone"
           aria-label="Command palette"
         >
           <DialogPrimitive.Title className="sr-only">Command palette</DialogPrimitive.Title>
           <Command loop className="[&_[cmdk-group-heading]]:overline [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5">
-            <div className="border-b border-hairline px-3">
+            <div className="border-b border-graphite/50 px-3">
               <Command.Input
                 autoFocus
                 placeholder="Search songs, artists, or jump to a screen…"
-                className="h-12 w-full bg-transparent text-sm text-bone placeholder:text-ash-dim outline-none"
+                className="h-12 w-full bg-transparent text-sm text-bone placeholder:text-steel/70 outline-none"
               />
             </div>
             <Command.List className="max-h-[56vh] overflow-y-auto p-2">
-              <Command.Empty className="px-3 py-8 text-center text-sm text-ash-dim">
+              <Command.Empty className="px-3 py-8 text-center text-sm text-steel/70">
                 Nothing matches that.
               </Command.Empty>
 
@@ -87,9 +87,9 @@ export function CommandPalette() {
               <Command.Group heading="Navigate">
                 {navItems.map((n) => (
                   <Item key={n.href} value={`go ${n.label} ${n.blurb}`} onSelect={() => go(n.href)}>
-                    <n.icon className="size-4 text-ash-dim" />
+                    <n.icon className="size-4 text-steel/70" />
                     <span>{n.label}</span>
-                    <span className="ml-auto truncate text-xs text-ash-dim">{n.blurb}</span>
+                    <span className="ml-auto truncate text-xs text-steel/70">{n.blurb}</span>
                   </Item>
                 ))}
               </Command.Group>
@@ -102,12 +102,12 @@ export function CommandPalette() {
                       value={`song ${s.title}`}
                       onSelect={() => go(`/songs/${s._id}`)}
                     >
-                      <Music2 className="size-4 text-ash-dim" />
+                      <Music2 className="size-4 text-steel/70" />
                       <span>{s.title}</span>
-                      <span className="ml-auto font-mono text-[0.625rem] uppercase text-ash-dim">
+                      <span className="ml-auto font-meta text-[0.625rem] uppercase text-steel/70">
                         {s.stage}
                       </span>
-                      <ArrowRight className="size-3.5 text-ash-dim" />
+                      <ArrowRight className="size-3.5 text-steel/70" />
                     </Item>
                   ))}
                 </Command.Group>
@@ -121,12 +121,12 @@ export function CommandPalette() {
                       value={`artist ${a.name}`}
                       onSelect={() => go(`/roster/${a._id}`)}
                     >
-                      <Users className="size-4 text-ash-dim" />
+                      <Users className="size-4 text-steel/70" />
                       <span>{a.name}</span>
-                      <span className="ml-auto font-mono text-[0.625rem] uppercase text-ash-dim">
+                      <span className="ml-auto font-meta text-[0.625rem] uppercase text-steel/70">
                         {a.type}
                       </span>
-                      <ArrowRight className="size-3.5 text-ash-dim" />
+                      <ArrowRight className="size-3.5 text-steel/70" />
                     </Item>
                   ))}
                 </Command.Group>

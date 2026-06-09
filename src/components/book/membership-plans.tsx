@@ -39,10 +39,10 @@ export function MembershipPlans({ slug, accent }: { slug: string; accent: string
   return (
     <section className="space-y-5">
       <div className="flex items-baseline justify-between">
-        <h2 className="font-display text-lg font-semibold tracking-tight text-bone">
+        <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
           Memberships
         </h2>
-        <span className="text-xs text-ash-dim">Recurring &mdash; cancel anytime</span>
+        <span className="text-xs text-steel/70">Recurring &mdash; cancel anytime</span>
       </div>
 
       <motion.div
@@ -55,37 +55,37 @@ export function MembershipPlans({ slug, accent }: { slug: string; accent: string
           <motion.div
             key={p._id}
             variants={fadeUp}
-            className="glass flex flex-col rounded-lg border border-hairline p-5"
+            className="glass flex flex-col rounded-lg border border-graphite/50 p-5"
           >
             <div className="flex items-center gap-2">
               <Repeat className="size-4" style={{ color: accent }} />
-              <h3 className="font-display text-base font-semibold text-bone">{p.name}</h3>
+              <h3 className="font-grotesk text-base font-semibold text-bone">{p.name}</h3>
               {p.priorityBooking && (
                 <Crown className="size-3.5" style={{ color: accent }} aria-label="Priority booking" />
               )}
             </div>
 
-            <p className="mt-3 font-display text-2xl font-bold tabular-nums text-bone">
+            <p className="mt-3 font-grotesk text-2xl font-bold tabular-nums text-bone">
               {money(p.priceCents)}
-              <span className="text-sm font-normal text-ash-dim">{intervalLabel[p.billingInterval]}</span>
+              <span className="text-sm font-normal text-steel/70">{intervalLabel[p.billingInterval]}</span>
             </p>
 
-            {p.description && <p className="mt-2 text-xs text-ash">{p.description}</p>}
+            {p.description && <p className="mt-2 text-xs text-steel">{p.description}</p>}
 
-            <ul className="mt-3 space-y-1.5 text-xs text-ash">
+            <ul className="mt-3 space-y-1.5 text-xs text-steel">
               {p.bundledHoursPerPeriod ? (
                 <li className="inline-flex items-center gap-1.5">
-                  <Clock className="size-3 text-ash-dim" /> {p.bundledHoursPerPeriod}h studio time included
+                  <Clock className="size-3 text-steel/70" /> {p.bundledHoursPerPeriod}h studio time included
                 </li>
               ) : null}
               {p.memberDiscountPct ? (
                 <li className="inline-flex items-center gap-1.5">
-                  <Percent className="size-3 text-ash-dim" /> {p.memberDiscountPct}% off every session
+                  <Percent className="size-3 text-steel/70" /> {p.memberDiscountPct}% off every session
                 </li>
               ) : null}
               {p.priorityBooking ? (
                 <li className="inline-flex items-center gap-1.5">
-                  <Crown className="size-3 text-ash-dim" /> Priority booking
+                  <Crown className="size-3 text-steel/70" /> Priority booking
                 </li>
               ) : null}
             </ul>

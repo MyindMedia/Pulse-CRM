@@ -103,19 +103,19 @@ export default function InvitePage() {
         <PulseLogo size="md" asLink={false} />
 
         {token !== "" && invite === undefined && (
-          <p className="mt-8 text-sm text-ash">Loading your invitation&hellip;</p>
+          <p className="mt-8 text-sm text-steel">Loading your invitation&hellip;</p>
         )}
 
         {(token === "" || (invite && invite.state !== "valid")) && (
           <div className="mt-8 space-y-3">
-            <h1 className="font-display text-2xl font-bold text-bone">
+            <h1 className="font-grotesk text-2xl font-bold text-bone">
               {invite?.state === "accepted"
                 ? "Already claimed"
                 : invite?.state === "expired"
                   ? "Invitation expired"
                   : "Invalid invitation"}
             </h1>
-            <p className="text-sm text-ash">
+            <p className="text-sm text-steel">
               {invite?.state === "accepted"
                 ? "This invitation has already been used. Sign in to continue."
                 : "This link is no longer valid. Ask your administrator to resend your invite."}
@@ -131,36 +131,36 @@ export default function InvitePage() {
 
         {invite?.state === "valid" && (
           <form onSubmit={submit} className="mt-6 text-left">
-            <p className="mb-1 text-center text-sm text-ash">
+            <p className="mb-1 text-center text-sm text-steel">
               Joining <b className="text-bone">{invite.studioName}</b> as{" "}
               {(invite.role ?? "owner")
                 .split("_")
                 .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
                 .join(" ")}
             </p>
-            <h1 className="mb-1 text-center font-display text-2xl font-bold text-bone">
+            <h1 className="mb-1 text-center font-grotesk text-2xl font-bold text-bone">
               Create your account
             </h1>
-            <p className="mb-6 text-center text-sm text-ash">
+            <p className="mb-6 text-center text-sm text-steel">
               You&apos;ve been invited to the Pulse beta. Set a password to finish.
             </p>
 
-            <label className="mb-1.5 block text-xs font-semibold text-ash">Email</label>
-            <div className="mb-3.5 flex items-center justify-between rounded-[10px] border border-hairline-2 bg-[#0e0e12] px-3 py-3 text-sm text-ash-dim">
+            <label className="mb-1.5 block text-xs font-semibold text-steel">Email</label>
+            <div className="mb-3.5 flex items-center justify-between rounded-[10px] border border-graphite/60 bg-[#0e0e12] px-3 py-3 text-sm text-steel/70">
               <span>{invite.email}</span>
               <span className="text-xs text-gold">locked</span>
             </div>
 
-            <label htmlFor="invite-name" className="mb-1.5 block text-xs font-semibold text-ash">Full name</label>
+            <label htmlFor="invite-name" className="mb-1.5 block text-xs font-semibold text-steel">Full name</label>
             <input
               id="invite-name"
               value={name}
               onChange={(e) => setNameOverride(e.target.value)}
               placeholder="Jordan Rivera"
-              className="mb-3.5 w-full rounded-[10px] border border-hairline-2 bg-[#0a0a0d] px-3 py-3 text-sm text-bone outline-none focus:border-gold"
+              className="mb-3.5 w-full rounded-[10px] border border-graphite/60 bg-[#0a0a0d] px-3 py-3 text-sm text-bone outline-none focus:border-gold"
             />
 
-            <label htmlFor="invite-phone" className="mb-1.5 block text-xs font-semibold text-ash">Cell phone</label>
+            <label htmlFor="invite-phone" className="mb-1.5 block text-xs font-semibold text-steel">Cell phone</label>
             <input
               id="invite-phone"
               type="tel"
@@ -169,14 +169,14 @@ export default function InvitePage() {
               value={phone}
               onChange={(e) => setPhoneOverride(e.target.value)}
               placeholder="(404) 555-0134"
-              className="mb-1 w-full rounded-[10px] border border-hairline-2 bg-[#0a0a0d] px-3 py-3 text-sm text-bone outline-none focus:border-gold"
+              className="mb-1 w-full rounded-[10px] border border-graphite/60 bg-[#0a0a0d] px-3 py-3 text-sm text-bone outline-none focus:border-gold"
             />
-            <p className="mb-3.5 text-[11px] text-ash-dim">
+            <p className="mb-3.5 text-[11px] text-steel/70">
               Your studio keeps this on file for scheduling and text updates.
             </p>
 
-            <label htmlFor="invite-password" className="mb-1.5 block text-xs font-semibold text-ash">Password</label>
-            <div className="mb-1 flex items-center rounded-[10px] border border-hairline-2 bg-[#0a0a0d] focus-within:border-gold">
+            <label htmlFor="invite-password" className="mb-1.5 block text-xs font-semibold text-steel">Password</label>
+            <div className="mb-1 flex items-center rounded-[10px] border border-graphite/60 bg-[#0a0a0d] focus-within:border-gold">
               <input
                 id="invite-password"
                 type={show ? "text" : "password"}
@@ -190,13 +190,13 @@ export default function InvitePage() {
                 onClick={() => setShow((s) => !s)}
                 aria-label={show ? "Hide password" : "Show password"}
                 aria-controls="invite-password"
-                className="px-3 text-ash-dim"
+                className="px-3 text-steel/70"
               >
                 {show ? "hide" : "show"}
               </button>
             </div>
 
-            <p className="mt-1.5 text-[11px] text-ash-dim">
+            <p className="mt-1.5 text-[11px] text-steel/70">
               At least 8 characters. Avoid common or reused passwords - use a few words or a passphrase.
             </p>
 
@@ -210,18 +210,18 @@ export default function InvitePage() {
               {busy ? "Creating account..." : "Create account & enter Pulse"}
             </button>
 
-            <p className="mt-5 text-center text-[11px] leading-relaxed text-ash-dim">
+            <p className="mt-5 text-center text-[11px] leading-relaxed text-steel/70">
               By continuing you agree to the{" "}
-              <Link href="/legal" className="text-ash">
+              <Link href="/legal" className="text-steel">
                 Terms
               </Link>{" "}
               &amp;{" "}
-              <Link href="/legal" className="text-ash">
+              <Link href="/legal" className="text-steel">
                 Privacy Policy
               </Link>
               .
             </p>
-            <p className="mt-4 text-center text-[10.5px] tracking-wide text-ash-dim">
+            <p className="mt-4 text-center text-[10.5px] tracking-wide text-steel/70">
               Secured by Pulse &middot; powered by Clerk
             </p>
             <div id="clerk-captcha" />

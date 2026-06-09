@@ -52,13 +52,13 @@ export function LeadSourceRoiReport() {
               {data.rows.map((r) => (
                 <TR key={r.source}>
                   <TD className="font-medium capitalize">{titleCase(r.source)}</TD>
-                  <TD className="text-right tabular-nums text-ash">{r.leads}</TD>
-                  <TD className="text-right tabular-nums text-ash">{r.converted}</TD>
-                  <TD className="text-right font-mono tabular-nums text-positive">
+                  <TD className="text-right tabular-nums text-steel">{r.leads}</TD>
+                  <TD className="text-right tabular-nums text-steel">{r.converted}</TD>
+                  <TD className="text-right font-meta tabular-nums text-positive">
                     {r.wonValueCents ? money(r.wonValueCents) : "-"}
                   </TD>
-                  <TD className="text-right font-mono tabular-nums text-bone">{money(r.lifetimeValueCents)}</TD>
-                  <TD className="text-right font-mono tabular-nums text-gold">{percent(r.conversionRate)}</TD>
+                  <TD className="text-right font-meta tabular-nums text-bone">{money(r.lifetimeValueCents)}</TD>
+                  <TD className="text-right font-meta tabular-nums text-gold">{percent(r.conversionRate)}</TD>
                 </TR>
               ))}
             </TBody>

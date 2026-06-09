@@ -47,12 +47,12 @@ function Section({
     return (
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <p className="inline-flex items-center gap-1.5 text-xs font-medium text-ash">
+          <p className="inline-flex items-center gap-1.5 text-xs font-medium text-steel">
             <Icon className="size-3.5 text-gold-dim" />
             {title}
           </p>
         </div>
-        <p className="rounded-md border border-dashed border-hairline-2 py-4 text-center text-[0.6875rem] text-ash-dim">
+        <p className="rounded-md border border-dashed border-graphite/60 py-4 text-center text-[0.6875rem] text-steel/70">
           {emptyHint}
         </p>
       </div>
@@ -62,14 +62,14 @@ function Section({
   return (
     <div className="space-y-2">
       <div className="flex items-center justify-between gap-2">
-        <p className="inline-flex items-center gap-1.5 text-xs font-medium text-ash">
+        <p className="inline-flex items-center gap-1.5 text-xs font-medium text-steel">
           <Icon className="size-3.5 text-gold-dim" />
           {title}
         </p>
         <span
           className={cn(
-            "font-mono text-[0.625rem] uppercase tracking-wide",
-            complete ? "text-positive" : "text-ash-dim",
+            "font-meta text-[0.625rem] uppercase tracking-wide",
+            complete ? "text-positive" : "text-steel/70",
           )}
         >
           {done}/{total} {complete && "✓"}
@@ -85,7 +85,7 @@ function Section({
           style={{ width: `${pct}%` }}
         />
       </div>
-      <ul className="space-y-1 rounded-md border border-hairline bg-coal-2 p-2">
+      <ul className="space-y-1 rounded-md border border-graphite/50 bg-coal-2 p-2">
         {cl.items.map((item, idx) => (
           <li key={idx}>
             <button
@@ -101,7 +101,7 @@ function Section({
                   "mt-0.5 grid size-4 shrink-0 place-items-center rounded-sm border transition-colors",
                   item.done
                     ? "border-positive bg-positive/15 text-positive"
-                    : "border-hairline-2 bg-ink-2",
+                    : "border-graphite/60 bg-obsidian",
                 )}
               >
                 {item.done && <Check className="size-3" strokeWidth={3} />}
@@ -109,7 +109,7 @@ function Section({
               <span
                 className={cn(
                   "flex-1 text-xs leading-relaxed",
-                  item.done ? "text-ash-dim line-through" : "text-bone",
+                  item.done ? "text-steel/70 line-through" : "text-bone",
                 )}
               >
                 {item.label}

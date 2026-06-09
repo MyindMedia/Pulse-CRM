@@ -44,7 +44,7 @@ export function CapabilityOverrides({ overrides, onChange }: Props) {
         onChange={(e) => setText(e.target.value)}
         onBlur={commit}
         rows={4}
-        className="w-full rounded border border-white/15 bg-black/40 p-2 font-mono text-xs"
+        className="w-full rounded border border-white/15 bg-black/40 p-2 font-meta text-xs"
         placeholder="+finance.read&#10;-deliverables.approve"
       />
       <button

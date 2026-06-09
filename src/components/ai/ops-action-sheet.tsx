@@ -79,9 +79,9 @@ function Inner({ action, onClose }: { action: Doc<"opsActions">; onClose: () => 
       </DialogHeader>
 
       <DialogBody className="space-y-4">
-        <div className="rounded-md border border-hairline bg-coal/40 px-3 py-2.5">
-          <p className="text-xs font-semibold uppercase tracking-wide text-ash-dim">Why the autopilot suggests this</p>
-          <p className="mt-1 text-sm text-ash">{action.rationale}</p>
+        <div className="rounded-md border border-graphite/50 bg-coal/40 px-3 py-2.5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-steel/70">Why the autopilot suggests this</p>
+          <p className="mt-1 text-sm text-steel">{action.rationale}</p>
         </div>
 
         {isEmail && (
@@ -105,13 +105,13 @@ function Inner({ action, onClose }: { action: Doc<"opsActions">; onClose: () => 
         )}
 
         {p.kind === "session_status" && (
-          <p className="inline-flex items-center gap-1.5 rounded-md border border-hairline bg-coal-2 px-3 py-2 text-sm text-ash">
+          <p className="inline-flex items-center gap-1.5 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2 text-sm text-steel">
             <CalendarCheck className="size-4 text-gold" /> Approving sets the session to <b className="text-bone">{p.newStatus}</b>.
           </p>
         )}
 
         {p.kind === "note_only" && !action.artifactId && (
-          <p className="inline-flex items-center gap-1.5 text-xs text-ash-dim">
+          <p className="inline-flex items-center gap-1.5 text-xs text-steel/70">
             <Sparkles className="size-3.5 text-gold" /> Internal note - approving logs it.
           </p>
         )}

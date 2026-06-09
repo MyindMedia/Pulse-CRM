@@ -25,7 +25,7 @@ export function StatTile({
   return (
     <div
       className={cn(
-        "sheen group rounded-xl p-4 transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-elev-3",
+        "sheen group rounded-chrome p-4 transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-elev-3",
         accent ? "material-thin border-gold-dim/50 bg-gold/[0.05]" : "material-thin",
         className,
       )}
@@ -36,19 +36,19 @@ export function StatTile({
           <span
             className={cn(
               "grid size-7 place-items-center rounded-md",
-              accent ? "bg-gold/15 text-gold" : "bg-coal-2 text-ash-dim",
+              accent ? "bg-gold/15 text-gold" : "bg-coal-2 text-steel/70",
             )}
           >
             <Icon className="size-3.5" />
           </span>
         )}
       </div>
-      <p className="mt-2 font-display text-2xl font-bold tracking-tight text-bone">{value}</p>
+      <p className="mt-2 font-grotesk text-2xl font-bold tracking-tight text-bone">{value}</p>
       <div className="mt-1 flex items-center gap-1.5">
         {showDelta && (
           <span
             className={cn(
-              "inline-flex items-center gap-0.5 font-mono text-[0.6875rem] font-medium",
+              "inline-flex items-center gap-0.5 font-meta text-[0.6875rem] font-medium",
               up ? "text-positive" : "text-critical",
             )}
           >
@@ -56,7 +56,7 @@ export function StatTile({
             {Math.abs(Math.round((delta ?? 0) * 100))}%
           </span>
         )}
-        {hint && <span className="text-[0.6875rem] text-ash-dim">{hint}</span>}
+        {hint && <span className="text-[0.6875rem] text-steel/70">{hint}</span>}
       </div>
     </div>
   );

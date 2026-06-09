@@ -35,23 +35,21 @@ export function Faq() {
     <section id="faq" className="relative px-4 py-24 lg:px-8">
       <div className="mx-auto max-w-3xl">
         <Reveal className="text-center">
-          <p className="overline">Questions</p>
-          <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-bone sm:text-4xl">
-            Everything you{" "}
-            <span className="font-serif text-[1.15em] font-normal italic text-gold">need</span> to
-            know
+          <p className="chrome-meta text-steel">Questions</p>
+          <h2 className="chrome-display mt-4 text-4xl text-bone sm:text-5xl">
+            Everything you <span className="text-gold">need</span> to know
           </h2>
         </Reveal>
 
         <div className="mt-12 space-y-3">
           {FAQS.map((item, i) => (
             <Reveal key={item.q} delay={i * 60}>
-              <details className="group rounded-xl border border-hairline bg-coal/40 transition-colors open:border-gold-dim hover:border-hairline-2">
-                <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-5 text-left font-display text-base font-semibold text-bone [&::-webkit-details-marker]:hidden">
+              <details className="group rounded-chrome border border-graphite/50 bg-obsidian/50 transition-colors open:border-gold/50 hover:border-bone/40">
+                <summary className="font-grotesk flex cursor-pointer list-none items-center justify-between gap-4 p-5 text-left text-base font-semibold tracking-[-0.01em] text-bone [&::-webkit-details-marker]:hidden">
                   {item.q}
                   <Plus className="size-4 shrink-0 text-gold transition-transform duration-300 group-open:rotate-45" />
                 </summary>
-                <p className="px-5 pb-5 text-sm leading-relaxed text-ash">{item.a}</p>
+                <p className="font-grotesk px-5 pb-5 text-sm leading-relaxed text-mist/75">{item.a}</p>
               </details>
             </Reveal>
           ))}

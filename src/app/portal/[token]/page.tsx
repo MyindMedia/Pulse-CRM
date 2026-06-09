@@ -46,37 +46,37 @@ export default function ClientPortalPage() {
         {data === undefined ? (
           <div className="grid place-items-center py-24"><Loader2 className="size-6 animate-spin text-gold" /></div>
         ) : data === null ? (
-          <div className="rounded-2xl border border-hairline bg-coal/60 p-8 text-center shadow-elev-2">
-            <p className="font-display text-lg font-semibold text-bone">This link is no longer valid</p>
-            <p className="mt-1 text-sm text-ash">Your portal link may have expired. Ask the studio for a fresh one.</p>
+          <div className="rounded-chrome border border-graphite/50 bg-coal/60 p-8 text-center shadow-elev-2">
+            <p className="font-grotesk text-lg font-semibold text-bone">This link is no longer valid</p>
+            <p className="mt-1 text-sm text-steel">Your portal link may have expired. Ask the studio for a fresh one.</p>
           </div>
         ) : (
           <>
             {/* Header */}
-            <header className="rounded-2xl border border-hairline bg-coal/60 p-6 shadow-elev-2">
-              <p className="font-mono text-[0.625rem] uppercase tracking-wide text-gold">{data.studioName}</p>
-              <h1 className="mt-1 font-display text-2xl font-bold tracking-tight text-bone">Hi {data.artistName.split(" ")[0]}</h1>
-              <p className="mt-1 text-sm text-ash">Everything we are working on together, in one place.</p>
+            <header className="rounded-chrome border border-graphite/50 bg-coal/60 p-6 shadow-elev-2">
+              <p className="font-meta text-[0.625rem] uppercase tracking-wide text-gold">{data.studioName}</p>
+              <h1 className="mt-1 font-grotesk text-2xl font-bold tracking-tight text-bone">Hi {data.artistName.split(" ")[0]}</h1>
+              <p className="mt-1 text-sm text-steel">Everything we are working on together, in one place.</p>
               {data.outstandingCents > 0 && (
-                <p className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-hairline bg-ink-2 px-3 py-1.5 text-sm text-bone">
+                <p className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-graphite/50 bg-obsidian px-3 py-1.5 text-sm text-bone">
                   <Receipt className="size-4 text-gold" /> Balance due: <b>{usd(data.outstandingCents)}</b>
                 </p>
               )}
             </header>
 
             {/* Concierge */}
-            <section className="rounded-2xl border border-hairline bg-coal/60 p-5 shadow-elev-2">
+            <section className="rounded-chrome border border-graphite/50 bg-coal/60 p-5 shadow-elev-2">
               <div className="flex items-center gap-2">
                 <Sparkles className="size-4 text-gold" />
-                <h2 className="font-display text-sm font-semibold text-bone">Ask the concierge</h2>
+                <h2 className="font-grotesk text-sm font-semibold text-bone">Ask the concierge</h2>
               </div>
-              <p className="mt-1 text-xs text-ash">When is my mix ready? What do I owe? When is my next session?</p>
+              <p className="mt-1 text-xs text-steel">When is my mix ready? What do I owe? When is my next session?</p>
               <form onSubmit={handleAsk} className="mt-3 flex gap-2">
                 <input
                   value={question}
                   onChange={(e) => setQuestion(e.target.value)}
                   placeholder="Ask a question..."
-                  className="flex-1 rounded-md border border-hairline bg-ink-2 px-3 py-2 text-sm text-bone outline-none placeholder:text-ash-dim focus-visible:ring-2 focus-visible:ring-gold/30"
+                  className="flex-1 rounded-md border border-graphite/50 bg-obsidian px-3 py-2 text-sm text-bone outline-none placeholder:text-steel/70 focus-visible:ring-2 focus-visible:ring-gold/30"
                 />
                 <button
                   type="submit"
@@ -87,13 +87,13 @@ export default function ClientPortalPage() {
                 </button>
               </form>
               {answer && (
-                <p className="mt-3 rounded-md border border-hairline bg-ink-2 p-3 text-sm leading-relaxed text-bone">{answer}</p>
+                <p className="mt-3 rounded-md border border-graphite/50 bg-obsidian p-3 text-sm leading-relaxed text-bone">{answer}</p>
               )}
             </section>
 
             {/* Songs */}
             <PortalList
-              icon={<Music2 className="size-4 text-ash-dim" />}
+              icon={<Music2 className="size-4 text-steel/70" />}
               title="Your songs"
               empty="No songs yet."
               items={data.songs.map((s) => ({ key: s.title, primary: s.title, secondary: s.stage }))}
@@ -101,7 +101,7 @@ export default function ClientPortalPage() {
 
             {/* Sessions */}
             <PortalList
-              icon={<CalendarCheck className="size-4 text-ash-dim" />}
+              icon={<CalendarCheck className="size-4 text-steel/70" />}
               title="Upcoming sessions"
               empty="No sessions booked."
               items={data.upcomingSessions.map((s) => ({ key: s.title + s.startTime, primary: s.title, secondary: when(s.startTime) }))}
@@ -109,14 +109,14 @@ export default function ClientPortalPage() {
 
             {/* Invoices */}
             <PortalList
-              icon={<Receipt className="size-4 text-ash-dim" />}
+              icon={<Receipt className="size-4 text-steel/70" />}
               title="Invoices"
               empty="No invoices."
               items={data.invoices.map((i) => ({ key: i.number, primary: i.number, secondary: i.status, trailing: usd(i.amountCents) }))}
             />
 
             {!data.whitelabel && (
-              <p className="pb-4 text-center text-[0.625rem] text-ash-dim">Powered by Pulse</p>
+              <p className="pb-4 text-center text-[0.625rem] text-steel/70">Powered by Pulse</p>
             )}
           </>
         )}
@@ -134,19 +134,19 @@ function PortalList({
   items: { key: string; primary: string; secondary?: string; trailing?: string }[];
 }) {
   return (
-    <section className="rounded-2xl border border-hairline bg-coal/60 p-5 shadow-elev-2">
-      <div className="flex items-center gap-2">{icon}<h2 className="font-display text-sm font-semibold text-bone">{title}</h2></div>
+    <section className="rounded-chrome border border-graphite/50 bg-coal/60 p-5 shadow-elev-2">
+      <div className="flex items-center gap-2">{icon}<h2 className="font-grotesk text-sm font-semibold text-bone">{title}</h2></div>
       {items.length === 0 ? (
-        <p className="mt-3 text-xs text-ash-dim">{empty}</p>
+        <p className="mt-3 text-xs text-steel/70">{empty}</p>
       ) : (
         <ul className="mt-3 divide-y divide-hairline">
           {items.map((it) => (
             <li key={it.key} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
               <span className="min-w-0">
                 <span className="block truncate text-sm text-bone">{it.primary}</span>
-                {it.secondary && <span className="block truncate font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">{it.secondary}</span>}
+                {it.secondary && <span className="block truncate font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">{it.secondary}</span>}
               </span>
-              {it.trailing && <span className="shrink-0 font-mono text-sm tabular-nums text-bone">{it.trailing}</span>}
+              {it.trailing && <span className="shrink-0 font-meta text-sm tabular-nums text-bone">{it.trailing}</span>}
             </li>
           ))}
         </ul>

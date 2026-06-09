@@ -55,7 +55,7 @@ export function RightsExportDialog({
           {packet === undefined ? (
             <Skeleton className="h-64 w-full" />
           ) : packet === null ? (
-            <p className="text-sm text-ash">This song could not be loaded.</p>
+            <p className="text-sm text-steel">This song could not be loaded.</p>
           ) : (
             <>
               <div
@@ -81,7 +81,7 @@ export function RightsExportDialog({
                   return (
                     <li key={c.key} className="flex items-center gap-2 text-sm">
                       {ok ? <Check className="size-4 text-positive" /> : <X className="size-4 text-critical" />}
-                      <span className={ok ? "text-bone" : "text-ash"}>{c.label}</span>
+                      <span className={ok ? "text-bone" : "text-steel"}>{c.label}</span>
                     </li>
                   );
                 })}
@@ -106,10 +106,10 @@ export function RightsExportDialog({
                   <TBody>
                     {packet.contributors.map((c, i) => (
                       <TR key={`${c.name}-${i}`}>
-                        <TD className="font-medium">{c.name}<span className="block text-xs text-ash-dim">{c.role}</span></TD>
+                        <TD className="font-medium">{c.name}<span className="block text-xs text-steel/70">{c.role}</span></TD>
                         <TD className="text-right tabular-nums">{c.masterPct}%</TD>
                         <TD className="text-right tabular-nums">{c.publishingPct}%</TD>
-                        <TD className="text-ash">{c.pro || "-"}</TD>
+                        <TD className="text-steel">{c.pro || "-"}</TD>
                         <TD className="text-right">
                           {c.signed ? <Badge tone="positive">yes</Badge> : <Badge tone="neutral">no</Badge>}
                         </TD>
@@ -144,9 +144,9 @@ export function RightsExportDialog({
 
 function Meta({ label, value }: { label: string; value: string | null }) {
   return (
-    <div className="rounded-md border border-hairline bg-coal-2 px-3 py-2">
-      <p className="font-mono text-[0.5625rem] uppercase tracking-wide text-ash-dim">{label}</p>
-      <p className={`mt-0.5 font-mono ${value ? "text-bone" : "text-ash-dim"}`}>{value ?? "not set"}</p>
+    <div className="rounded-md border border-graphite/50 bg-coal-2 px-3 py-2">
+      <p className="font-meta text-[0.5625rem] uppercase tracking-wide text-steel/70">{label}</p>
+      <p className={`mt-0.5 font-meta ${value ? "text-bone" : "text-steel/70"}`}>{value ?? "not set"}</p>
     </div>
   );
 }

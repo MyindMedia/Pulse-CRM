@@ -24,7 +24,7 @@ export function Avatar({
   return (
     <span
       className={cn(
-        "inline-grid shrink-0 place-items-center rounded-md font-display font-semibold",
+        "inline-grid shrink-0 place-items-center rounded-md font-grotesk font-semibold",
         SIZES[size],
         className,
       )}
@@ -56,7 +56,7 @@ export function AvatarStack({
       {extra > 0 && (
         <span
           className={cn(
-            "inline-grid place-items-center rounded-md bg-coal-3 font-mono text-ash ring-2 ring-ink",
+            "inline-grid place-items-center rounded-md bg-coal-3 font-meta text-steel ring-2 ring-ink",
             SIZES[size],
           )}
         >

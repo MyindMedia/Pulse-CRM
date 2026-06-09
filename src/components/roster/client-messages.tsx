@@ -66,7 +66,7 @@ export function ClientMessages({ artistId }: { artistId: Id<"artists"> }) {
       <Card>
         <CardContent className="pt-5">
           {/* Channel toggle */}
-          <div className="mb-4 inline-flex rounded-lg border border-hairline-2 bg-coal/40 p-0.5">
+          <div className="mb-4 inline-flex rounded-lg border border-graphite/60 bg-coal/40 p-0.5">
             {(["email", "text"] as const).map((m) => (
               <button
                 key={m}
@@ -74,7 +74,7 @@ export function ClientMessages({ artistId }: { artistId: Id<"artists"> }) {
                 onClick={() => setMode(m)}
                 className={cn(
                   "inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-xs font-medium transition-colors",
-                  mode === m ? "bg-gold/15 text-bone" : "text-ash-dim hover:text-ash",
+                  mode === m ? "bg-gold/15 text-bone" : "text-steel/70 hover:text-steel",
                 )}
               >
                 {m === "email" ? <Mail className="size-3.5" /> : <MessageSquare className="size-3.5" />}
@@ -108,9 +108,9 @@ export function ClientMessages({ artistId }: { artistId: Id<"artists"> }) {
 
       {/* History */}
       {thread === undefined ? (
-        <p className="text-sm text-ash-dim">Loading…</p>
+        <p className="text-sm text-steel/70">Loading…</p>
       ) : thread.length === 0 ? (
-        <div className="flex items-center gap-2 rounded-lg border border-hairline bg-coal/40 px-4 py-6 text-sm text-ash-dim">
+        <div className="flex items-center gap-2 rounded-lg border border-graphite/50 bg-coal/40 px-4 py-6 text-sm text-steel/70">
           <Mail className="size-4" /> No messages with this client yet.
         </div>
       ) : (
@@ -121,7 +121,7 @@ export function ClientMessages({ artistId }: { artistId: Id<"artists"> }) {
               <Card key={m._id} className={cn(inbound && "border-gold-dim/40")}>
                 <CardContent className="space-y-1 pt-4">
                   <div className="flex items-center justify-between gap-2">
-                    <p className="font-display text-sm font-semibold text-bone">
+                    <p className="font-grotesk text-sm font-semibold text-bone">
                       {inbound ? "↩ Client reply" : m.subject}
                     </p>
                     <div className="flex shrink-0 items-center gap-1.5">
@@ -129,8 +129,8 @@ export function ClientMessages({ artistId }: { artistId: Id<"artists"> }) {
                       <Badge tone={STATUS_TONE[m.status as keyof typeof STATUS_TONE] ?? "neutral"}>{m.status}</Badge>
                     </div>
                   </div>
-                  <p className="whitespace-pre-wrap text-sm text-ash">{m.body}</p>
-                  <p className="text-[0.6875rem] text-ash-dim">
+                  <p className="whitespace-pre-wrap text-sm text-steel">{m.body}</p>
+                  <p className="text-[0.6875rem] text-steel/70">
                     {new Date(m._creationTime).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                   </p>
                 </CardContent>

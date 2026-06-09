@@ -59,16 +59,14 @@ const TIERS = [
 
 export function Pricing() {
   return (
-    <section id="pricing" className="relative px-4 py-24 lg:px-8">
+    <section id="pricing" className="relative bg-bone px-4 py-28 text-obsidian lg:px-8">
       <div className="mx-auto max-w-6xl">
         <Reveal className="mx-auto max-w-2xl text-center">
-          <p className="overline">Pricing</p>
-          <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-bone sm:text-4xl">
-            Simple plans that{" "}
-            <span className="font-serif text-[1.15em] font-normal italic text-gold">grow</span>{" "}
-            with you
+          <p className="chrome-meta text-slate">Pricing</p>
+          <h2 className="chrome-display chrome-fill-dark mt-4 text-4xl sm:text-5xl">
+            Simple plans that <span className="not-italic text-gold-deep">grow</span> with you
           </h2>
-          <p className="mt-4 text-ash">
+          <p className="font-grotesk mt-5 text-[17px] font-medium leading-relaxed tracking-[-0.01em] text-slate">
             Every plan includes hosted booking pages, deposits to your own Stripe and
             free updates. No transaction fees on your client payments.
           </p>
@@ -79,25 +77,25 @@ export function Pricing() {
             <Reveal key={t.name} delay={i * 90} className="h-full">
               <div
                 className={cn(
-                  "hover-glow flex h-full flex-col rounded-2xl p-7 hover:-translate-y-1",
+                  "flex h-full flex-col rounded-chrome p-7 transition-all hover:-translate-y-1",
                   t.featured
-                    ? "liquid-frame bg-coal-2/70 shadow-gold-soft hover:shadow-gold-strong"
-                    : "border border-hairline bg-coal/40 hover:border-gold-dim",
+                    ? "border-2 border-gold-deep bg-paper shadow-gold-soft"
+                    : "border border-graphite/20 bg-paper hover:border-obsidian",
                 )}
               >
                 <div className="flex items-center justify-between">
-                  <h3 className="font-display text-xl font-bold text-bone">{t.name}</h3>
+                  <h3 className="font-grotesk text-xl font-semibold tracking-[-0.01em] text-obsidian">{t.name}</h3>
                   {t.featured && (
-                    <span className="rounded-full bg-gold px-2.5 py-0.5 text-[0.625rem] font-semibold uppercase tracking-wide text-gold-ink">
+                    <span className="chrome-meta rounded-chrome bg-gold px-2.5 py-1 text-gold-ink">
                       Most popular
                     </span>
                   )}
                 </div>
-                <p className="mt-2 text-sm text-ash">{t.tagline}</p>
+                <p className="font-grotesk mt-2 text-sm text-slate">{t.tagline}</p>
 
                 <div className="mt-6 flex items-baseline gap-1">
-                  <span className="font-display text-4xl font-bold text-bone">{t.price}</span>
-                  <span className="text-sm text-ash-dim">{t.cadence}</span>
+                  <span className="chrome-display chrome-fill-dark text-5xl">{t.price}</span>
+                  <span className="font-meta text-xs text-slate">{t.cadence}</span>
                 </div>
 
                 <ul className="mt-6 space-y-3">
@@ -107,14 +105,14 @@ export function Pricing() {
                       <li
                         key={f}
                         className={cn(
-                          "flex items-start gap-2.5 text-sm",
-                          soon ? "text-ash-dim" : "text-ash",
+                          "font-grotesk flex items-start gap-2.5 text-sm",
+                          soon ? "text-slate/70" : "text-graphite",
                         )}
                       >
                         {soon ? (
-                          <Clock className="mt-0.5 size-4 shrink-0 text-ash-dim" />
+                          <Clock className="mt-0.5 size-4 shrink-0 text-slate" />
                         ) : (
-                          <Check className="mt-0.5 size-4 shrink-0 text-gold" />
+                          <Check className="mt-0.5 size-4 shrink-0 text-gold-deep" />
                         )}
                         <span>{f}</span>
                       </li>
@@ -134,7 +132,7 @@ export function Pricing() {
           ))}
         </div>
 
-        <p className="mt-8 text-center text-xs text-ash-dim">
+        <p className="font-grotesk mt-8 text-center text-xs text-slate">
           Prices shown are introductory and may change. Questions? Reach the team from
           inside your account.
         </p>

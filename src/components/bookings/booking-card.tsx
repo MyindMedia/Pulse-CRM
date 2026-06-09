@@ -31,9 +31,9 @@ export function BookingCard({
       type="button"
       onClick={onClick}
       className={cn(
-        "group w-full rounded-lg border border-hairline bg-coal p-3.5 text-left",
+        "group w-full rounded-lg border border-graphite/50 bg-coal p-3.5 text-left",
         "transition-all duration-150 outline-none",
-        "hover:border-hairline-2 hover:bg-coal-2",
+        "hover:border-graphite/60 hover:bg-coal-2",
         "focus-visible:ring-2 focus-visible:ring-gold/30",
       )}
     >
@@ -45,7 +45,7 @@ export function BookingCard({
               <p className="truncate text-sm font-medium text-bone">
                 {booking.title}
               </p>
-              <p className="truncate text-xs text-ash-dim">
+              <p className="truncate text-xs text-steel/70">
                 {booking.artistName}
               </p>
             </div>
@@ -60,7 +60,7 @@ export function BookingCard({
             </div>
           </div>
 
-          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.6875rem] text-ash-dim">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[0.6875rem] text-steel/70">
             <span className="inline-flex items-center gap-1">
               <Clock className="size-3" />
               {longDate(booking.startTime)} · {timeOfDay(booking.startTime)}
@@ -76,16 +76,16 @@ export function BookingCard({
 
           <div className="space-y-1">
             <div className="flex items-center justify-between gap-2">
-              <span className="font-mono text-[0.6875rem] tabular-nums text-ash">
+              <span className="font-meta text-[0.6875rem] tabular-nums text-steel">
                 {money(m.paid)}
-                <span className="text-ash-dim"> / {money(m.total)}</span>
+                <span className="text-steel/70"> / {money(m.total)}</span>
               </span>
               {booking.status === "tentative" && booking.holdExpiresAt ? (
                 <HoldCountdown expiresAt={booking.holdExpiresAt} />
               ) : (
                 <span
                   className={cn(
-                    "font-mono text-[0.6875rem] tabular-nums",
+                    "font-meta text-[0.6875rem] tabular-nums",
                     m.fullyPaid ? "text-positive" : "text-caution",
                   )}
                 >

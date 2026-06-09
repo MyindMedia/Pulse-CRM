@@ -39,10 +39,10 @@ export function KanbanColumn({
               info.tone === "solid" && "bg-bone",
             )}
           />
-          <h3 className="font-display text-sm font-semibold text-bone">{info.label}</h3>
-          <span className="font-mono text-[0.6875rem] text-ash-dim">{deals.length}</span>
+          <h3 className="font-grotesk text-sm font-semibold text-bone">{info.label}</h3>
+          <span className="font-meta text-[0.6875rem] text-steel/70">{deals.length}</span>
         </div>
-        <span className="font-mono text-[0.6875rem] font-medium text-ash">
+        <span className="font-meta text-[0.6875rem] font-medium text-steel">
           {money(total, { compact: true })}
         </span>
       </div>
@@ -52,7 +52,7 @@ export function KanbanColumn({
         ref={setNodeRef}
         className={cn(
           "flex min-h-32 flex-1 flex-col gap-2 rounded-lg border p-2 transition-colors",
-          isOver ? "border-gold-dim bg-gold/[0.04]" : "border-hairline bg-ink-2/60",
+          isOver ? "border-gold-dim bg-gold/[0.04]" : "border-graphite/50 bg-obsidian/60",
         )}
       >
         <SortableContext
@@ -65,8 +65,8 @@ export function KanbanColumn({
         </SortableContext>
 
         {deals.length === 0 && (
-          <div className="flex flex-1 items-center justify-center rounded-md border border-dashed border-hairline-2 py-8">
-            <span className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+          <div className="flex flex-1 items-center justify-center rounded-md border border-dashed border-graphite/60 py-8">
+            <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
               Drop deals here
             </span>
           </div>

@@ -25,7 +25,7 @@ export function StatusFilter({
   ];
 
   return (
-    <div className="flex flex-wrap items-center gap-1 rounded-md border border-hairline bg-ink-2 p-1">
+    <div className="flex flex-wrap items-center gap-1 rounded-md border border-graphite/50 bg-obsidian p-1">
       {options.map((opt) => {
         const active = opt.key === value;
         const count = counts?.[opt.key];
@@ -39,15 +39,15 @@ export function StatusFilter({
               "inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium transition-colors",
               active
                 ? "bg-gold text-gold-ink"
-                : "text-ash hover:bg-coal-2 hover:text-bone",
+                : "text-steel hover:bg-coal-2 hover:text-bone",
             )}
           >
             {opt.label}
             {count !== undefined && (
               <span
                 className={cn(
-                  "font-mono text-[0.625rem]",
-                  active ? "text-gold-ink/70" : "text-ash-dim",
+                  "font-meta text-[0.625rem]",
+                  active ? "text-gold-ink/70" : "text-steel/70",
                 )}
               >
                 {count}

@@ -44,7 +44,7 @@ import { KANBAN_STAGES, serviceTint } from "./constants";
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="flex items-start justify-between gap-4 py-2.5">
-      <span className="shrink-0 text-xs font-medium text-ash-dim">{label}</span>
+      <span className="shrink-0 text-xs font-medium text-steel/70">{label}</span>
       <div className="min-w-0 text-right text-sm text-bone">{children}</div>
     </div>
   );
@@ -237,11 +237,11 @@ export function DealSheet({
                 <Row label="Song">
                   {detail.songTitle ? (
                     <span className="inline-flex items-center gap-1.5">
-                      <Music2 className="size-3.5 text-ash-dim" />
+                      <Music2 className="size-3.5 text-steel/70" />
                       {detail.songTitle}
                     </span>
                   ) : (
-                    <span className="text-ash-dim">Not linked</span>
+                    <span className="text-steel/70">Not linked</span>
                   )}
                 </Row>
 
@@ -282,10 +282,10 @@ export function DealSheet({
                         setValueDraft((detail.valueCents / 100).toString());
                         setEditingValue(true);
                       }}
-                      className="inline-flex items-center gap-1.5 font-mono font-semibold text-gold-bright outline-none hover:underline focus-visible:ring-2 focus-visible:ring-gold/30"
+                      className="inline-flex items-center gap-1.5 font-meta font-semibold text-gold-bright outline-none hover:underline focus-visible:ring-2 focus-visible:ring-gold/30"
                     >
                       {money(detail.valueCents)}
-                      <Pencil className="size-3 text-ash-dim" />
+                      <Pencil className="size-3 text-steel/70" />
                     </button>
                   )}
                 </Row>
@@ -293,24 +293,24 @@ export function DealSheet({
                 <Row label="Probability">
                   <span className="inline-flex items-center gap-2">
                     <Progress value={detail.probability} className="w-24" />
-                    <span className="font-mono text-xs text-ash">
+                    <span className="font-meta text-xs text-steel">
                       {percent(detail.probability)}
                     </span>
                   </span>
                 </Row>
 
                 <Row label="Weighted value">
-                  <span className="font-mono text-ash">
+                  <span className="font-meta text-steel">
                     {money(Math.round(detail.valueCents * detail.probability))}
                   </span>
                 </Row>
 
-                <Row label="Source">{detail.source ?? <span className="text-ash-dim">-</span>}</Row>
+                <Row label="Source">{detail.source ?? <span className="text-steel/70">-</span>}</Row>
               </div>
 
               {/* Stage control */}
               <div className="space-y-1.5">
-                <p className="text-xs font-medium text-ash">Stage</p>
+                <p className="text-xs font-medium text-steel">Stage</p>
                 <Select
                   value={KANBAN_STAGES.includes(detail.stage as (typeof KANBAN_STAGES)[number])
                     ? detail.stage
@@ -344,8 +344,8 @@ export function DealSheet({
                     Convert to booking
                   </Button>
                 ) : (
-                  <div className="space-y-3 rounded-md border border-hairline bg-coal-2 p-3">
-                    <p className="text-xs font-medium text-ash">Book a session for this deal</p>
+                  <div className="space-y-3 rounded-md border border-graphite/50 bg-coal-2 p-3">
+                    <p className="text-xs font-medium text-steel">Book a session for this deal</p>
                     <Field label="Room" hint="Optional - leave blank to assign later.">
                       <Select value={roomId} onValueChange={setRoomId}>
                         <SelectTrigger>
@@ -406,7 +406,7 @@ export function DealSheet({
 
               {/* Activity timeline */}
               <div className="space-y-2">
-                <p className="text-xs font-medium text-ash">Activity</p>
+                <p className="text-xs font-medium text-steel">Activity</p>
                 {activity === undefined ? (
                   <div className="space-y-2">
                     {[0, 1, 2].map((i) => (
@@ -414,19 +414,19 @@ export function DealSheet({
                     ))}
                   </div>
                 ) : activity.length === 0 ? (
-                  <p className="rounded-md border border-dashed border-hairline-2 py-6 text-center text-xs text-ash-dim">
+                  <p className="rounded-md border border-dashed border-graphite/60 py-6 text-center text-xs text-steel/70">
                     No activity logged for this deal yet.
                   </p>
                 ) : (
                   <ul className="space-y-0.5">
                     {activity.map((a) => (
                       <li key={a._id} className="flex items-start gap-2.5 rounded-md px-1 py-1.5">
-                        <span className="mt-1 grid size-5 shrink-0 place-items-center rounded-sm bg-coal-2 text-ash-dim">
+                        <span className="mt-1 grid size-5 shrink-0 place-items-center rounded-sm bg-coal-2 text-steel/70">
                           <TrendingUp className="size-3" />
                         </span>
                         <div className="min-w-0 flex-1">
                           <p className="text-sm text-bone">{a.summary}</p>
-                          <p className="font-mono text-[0.5625rem] uppercase tracking-wide text-ash-dim">
+                          <p className="font-meta text-[0.5625rem] uppercase tracking-wide text-steel/70">
                             {titleCase(a.kind)} · {relativeTime(a._creationTime)}
                           </p>
                         </div>

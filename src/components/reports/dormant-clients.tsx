@@ -49,9 +49,9 @@ export function DormantClientsReport() {
                     <TD>
                       <Badge tone={st.tone}>{st.label}</Badge>
                     </TD>
-                    <TD className="text-right tabular-nums text-ash">{r.sessionCount}</TD>
-                    <TD className="text-right font-mono tabular-nums text-bone">{money(r.lifetimeValueCents)}</TD>
-                    <TD className="text-right tabular-nums text-ash-dim">{shortDate(r.lastActivityAt)}</TD>
+                    <TD className="text-right tabular-nums text-steel">{r.sessionCount}</TD>
+                    <TD className="text-right font-meta tabular-nums text-bone">{money(r.lifetimeValueCents)}</TD>
+                    <TD className="text-right tabular-nums text-steel/70">{shortDate(r.lastActivityAt)}</TD>
                     <TD className="text-right">
                       <Badge tone={r.band === "90+" ? "critical" : "caution"}>{r.daysSince}d</Badge>
                     </TD>

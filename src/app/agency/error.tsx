@@ -25,14 +25,14 @@ export default function AgencyError({
   return (
     <div className="grid min-h-[60dvh] place-items-center px-4">
       <div className="max-w-md space-y-5 text-center">
-        <span className="mx-auto grid size-12 place-items-center rounded-xl border border-hairline-2 bg-coal-2 text-warning">
+        <span className="mx-auto grid size-12 place-items-center rounded-chrome border border-graphite/60 bg-coal-2 text-warning">
           <ShieldAlert className="size-5" />
         </span>
         <div className="space-y-2">
-          <h1 className="font-display text-xl font-bold tracking-tight text-bone">
+          <h1 className="font-grotesk text-xl font-bold tracking-tight text-bone">
             This view hit a snag
           </h1>
-          <p className="text-sm text-ash">
+          <p className="text-sm text-steel">
             Something failed while loading this part of the console. It is usually
             transient - try again, or head back to your studios.
           </p>

@@ -49,17 +49,17 @@ export function RoomUtilizationReport() {
                     <TD className="font-medium">
                       {r.roomName}
                       {r.roomType && (
-                        <span className="ml-2 font-mono text-[0.625rem] uppercase text-ash-dim">
+                        <span className="ml-2 font-meta text-[0.625rem] uppercase text-steel/70">
                           {r.roomType}
                         </span>
                       )}
                     </TD>
-                    <TD className="text-right tabular-nums text-ash">{r.bookedHours}h</TD>
-                    <TD className="text-right tabular-nums text-ash-dim">{r.availableHours}h</TD>
+                    <TD className="text-right tabular-nums text-steel">{r.bookedHours}h</TD>
+                    <TD className="text-right tabular-nums text-steel/70">{r.availableHours}h</TD>
                     <TD>
                       <div className="flex items-center gap-2.5">
                         <Progress value={r.utilization} tone={tone} className="flex-1" />
-                        <span className="w-10 text-right font-mono text-xs tabular-nums text-bone">
+                        <span className="w-10 text-right font-meta text-xs tabular-nums text-bone">
                           {percent(r.utilization)}
                         </span>
                       </div>

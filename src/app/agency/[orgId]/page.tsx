@@ -42,7 +42,7 @@ export default function SubaccountDetailPage() {
   const backLink = (
     <Link
       href="/agency"
-      className="inline-flex items-center gap-1.5 text-xs font-medium text-ash transition-colors hover:text-bone"
+      className="inline-flex items-center gap-1.5 text-xs font-medium text-steel transition-colors hover:text-bone"
     >
       <ArrowLeft className="size-3.5" />
       All studios
@@ -88,13 +88,13 @@ export default function SubaccountDetailPage() {
       <div className="flex flex-wrap items-start justify-between gap-5">
         <div className="flex items-start gap-4">
           <span
-            className="mt-0.5 size-12 shrink-0 rounded-lg border border-hairline-2"
+            className="mt-0.5 size-12 shrink-0 rounded-lg border border-graphite/60"
             style={{ backgroundColor: accent }}
             aria-hidden
           />
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-display text-2xl font-bold tracking-tight text-bone">
+              <h1 className="font-grotesk text-2xl font-bold tracking-tight text-bone">
                 {subaccount.name}
               </h1>
               <Badge tone="neutral">{PLAN_LABEL[subaccount.plan]}</Badge>
@@ -102,17 +102,17 @@ export default function SubaccountDetailPage() {
                 {STATUS_LABEL[subaccount.status]}
               </Badge>
             </div>
-            <p className="font-mono text-xs text-ash-dim">/book/{subaccount.slug}</p>
-            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ash">
+            <p className="font-meta text-xs text-steel/70">/book/{subaccount.slug}</p>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-steel">
               {subaccount.ownerName && (
                 <span className="inline-flex items-center gap-1.5">
-                  <User className="size-3.5 text-ash-dim" />
+                  <User className="size-3.5 text-steel/70" />
                   {subaccount.ownerName}
                 </span>
               )}
               {subaccount.ownerEmail && (
                 <span className="inline-flex items-center gap-1.5">
-                  <Mail className="size-3.5 text-ash-dim" />
+                  <Mail className="size-3.5 text-steel/70" />
                   {subaccount.ownerEmail}
                 </span>
               )}
@@ -123,16 +123,16 @@ export default function SubaccountDetailPage() {
                 </span>
               )}
               <span className="inline-flex items-center gap-1.5">
-                <span className="text-ash-dim">Created</span>
+                <span className="text-steel/70">Created</span>
                 {longDate(subaccount._creationTime)}
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <span
-                  className="size-3 rounded-sm border border-hairline-2"
+                  className="size-3 rounded-sm border border-graphite/60"
                   style={{ backgroundColor: accent }}
                   aria-hidden
                 />
-                <span className="font-mono uppercase tracking-wide text-ash-dim">{accent}</span>
+                <span className="font-meta uppercase tracking-wide text-steel/70">{accent}</span>
               </span>
             </div>
           </div>
@@ -172,7 +172,7 @@ export default function SubaccountDetailPage() {
                   "grid size-9 place-items-center rounded-md " +
                   (subaccount.clerkOrgId
                     ? "bg-positive/10 text-positive"
-                    : "bg-coal-2 text-ash-dim")
+                    : "bg-coal-2 text-steel/70")
                 }
               >
                 {subaccount.clerkOrgId ? (
@@ -183,21 +183,21 @@ export default function SubaccountDetailPage() {
               </span>
               {subaccount.clerkOrgId ? (
                 <div className="space-y-1">
-                  <p className="font-display text-sm font-semibold text-bone">
+                  <p className="font-grotesk text-sm font-semibold text-bone">
                     Real Clerk organization
                   </p>
-                  <p className="text-sm text-ash">
+                  <p className="text-sm text-steel">
                     The owner was invited by email and signs in to their own studio workspace.
                   </p>
-                  <p className="font-mono text-[0.6875rem] text-ash-dim">
+                  <p className="font-meta text-[0.6875rem] text-steel/70">
                     {subaccount.clerkOrgId}
                   </p>
                 </div>
               ) : (
                 <div className="space-y-1">
-                  <p className="font-display text-sm font-semibold text-bone">Demo workspace</p>
-                  <p className="text-sm text-ash">
-                    No real login yet. Set <span className="font-mono text-ash-dim">CLERK_SECRET_KEY</span>{" "}
+                  <p className="font-grotesk text-sm font-semibold text-bone">Demo workspace</p>
+                  <p className="text-sm text-steel">
+                    No real login yet. Set <span className="font-meta text-steel/70">CLERK_SECRET_KEY</span>{" "}
                     to provision real Clerk organizations for new subaccounts.
                   </p>
                 </div>
@@ -214,7 +214,7 @@ export default function SubaccountDetailPage() {
       <Section title="Features">
         <Card>
           <CardContent className="space-y-4 pt-5">
-            <p className="text-sm text-ash">
+            <p className="text-sm text-steel">
               Show or hide nav features for this studio. Hidden features disappear from
               their sidebar and stay off until you turn them back on - handy for rolling
               out new tools (like the Agent) gradually.

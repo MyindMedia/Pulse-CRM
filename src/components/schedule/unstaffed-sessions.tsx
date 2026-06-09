@@ -33,17 +33,17 @@ export function UnstaffedSessions() {
   }
 
   return (
-    <div className="rounded-xl border border-caution/40 bg-caution/[0.06] p-4">
+    <div className="rounded-chrome border border-caution/40 bg-caution/[0.06] p-4">
       <p className="mb-2 flex items-center gap-1.5 text-sm font-semibold text-caution">
         <AlertTriangle className="size-4" />
         Needs an engineer ({gaps.length})
       </p>
       <div className="space-y-2">
         {gaps.map((s) => (
-          <div key={s._id} className="flex flex-wrap items-center gap-3 rounded-md border border-hairline bg-coal/40 px-3 py-2">
+          <div key={s._id} className="flex flex-wrap items-center gap-3 rounded-md border border-graphite/50 bg-coal/40 px-3 py-2">
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-bone">{s.title}</p>
-              <p className="flex flex-wrap items-center gap-x-2 text-xs text-ash-dim">
+              <p className="flex flex-wrap items-center gap-x-2 text-xs text-steel/70">
                 <span>{when(s.startTime)}</span>
                 <span className="uppercase tracking-wide">· {s.serviceType}</span>
                 {s.roomName && <span className="inline-flex items-center gap-0.5"><DoorOpen className="size-3" />{s.roomName}</span>}

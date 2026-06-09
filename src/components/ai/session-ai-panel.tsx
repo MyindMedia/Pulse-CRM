@@ -45,7 +45,7 @@ export function SessionAiPanel({ sessionId }: { sessionId: Id<"sessions"> }) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between gap-2">
-        <p className="inline-flex items-center gap-1.5 text-xs font-medium text-ash">
+        <p className="inline-flex items-center gap-1.5 text-xs font-medium text-steel">
           <Sparkles className="size-3.5 text-gold" />
           Pulse AI
         </p>

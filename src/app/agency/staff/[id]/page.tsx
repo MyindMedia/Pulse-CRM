@@ -47,16 +47,16 @@ export default function StaffScopePage() {
     setTimeout(() => setSaved(false), 1500);
   }
 
-  if (!member) return <p className="p-6 text-sm text-ash">Loading…</p>;
+  if (!member) return <p className="p-6 text-sm text-steel">Loading…</p>;
 
   return (
     <div className="space-y-6">
       <header>
-        <Link href="/agency/staff" className="text-xs text-ash-dim hover:text-bone">
+        <Link href="/agency/staff" className="text-xs text-steel/70 hover:text-bone">
           ← Back to staff
         </Link>
-        <h1 className="mt-2 font-display text-2xl font-semibold text-bone">{member.name}</h1>
-        <p className="text-sm text-ash">
+        <h1 className="mt-2 font-grotesk text-2xl font-semibold text-bone">{member.name}</h1>
+        <p className="text-sm text-steel">
           {member.email} · {member.role}
         </p>
       </header>

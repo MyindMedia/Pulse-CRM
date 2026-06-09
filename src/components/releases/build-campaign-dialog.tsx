@@ -107,11 +107,11 @@ export function BuildCampaignDialog() {
               </SelectTrigger>
               <SelectContent>
                 {songs === undefined ? (
-                  <div className="flex items-center gap-2 px-2 py-3 text-sm text-ash-dim">
+                  <div className="flex items-center gap-2 px-2 py-3 text-sm text-steel/70">
                     <Spinner /> Loading catalog…
                   </div>
                 ) : songs.length === 0 ? (
-                  <div className="px-2 py-3 text-sm text-ash-dim">No songs yet.</div>
+                  <div className="px-2 py-3 text-sm text-steel/70">No songs yet.</div>
                 ) : (
                   songs.map((s) => (
                     <SelectItem key={s._id} value={s._id}>
@@ -138,7 +138,7 @@ export function BuildCampaignDialog() {
 
           <div className="flex items-start gap-2.5 rounded-md border border-gold-dim/40 bg-gold/[0.05] px-3 py-2.5">
             <Rocket className="mt-0.5 size-4 shrink-0 text-gold" />
-            <p className="text-xs leading-relaxed text-ash">
+            <p className="text-xs leading-relaxed text-steel">
               The rollout covers teaser drops, pre-save, DSP pitching, art and
               release-day promo - twelve tasks in all, ready to check off.
             </p>

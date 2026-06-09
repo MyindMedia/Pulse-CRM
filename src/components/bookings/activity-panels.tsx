@@ -36,7 +36,7 @@ export function RecentPaymentsPanel() {
             ))}
           </div>
         ) : payments.length === 0 ? (
-          <p className="rounded-md border border-dashed border-hairline-2 py-8 text-center text-xs text-ash-dim">
+          <p className="rounded-md border border-dashed border-graphite/60 py-8 text-center text-xs text-steel/70">
             No payments recorded yet.
           </p>
         ) : (
@@ -47,24 +47,24 @@ export function RecentPaymentsPanel() {
                 className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
               >
                 <span className="inline-flex min-w-0 items-center gap-2">
-                  <span className="grid size-7 shrink-0 place-items-center rounded-md bg-coal-3 text-ash-dim">
+                  <span className="grid size-7 shrink-0 place-items-center rounded-md bg-coal-3 text-steel/70">
                     <Receipt className="size-3.5" />
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate text-sm text-bone">
                       {titleCase(p.kind)} payment
                     </span>
-                    <span className="block truncate font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                    <span className="block truncate font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                       {titleCase(p.provider)}
                       {p.payerName ? ` · ${p.payerName}` : ""}
                     </span>
                   </span>
                 </span>
                 <span className="shrink-0 text-right">
-                  <span className="block font-mono text-sm font-semibold tabular-nums text-positive">
+                  <span className="block font-meta text-sm font-semibold tabular-nums text-positive">
                     {money(p.amountCents)}
                   </span>
-                  <span className="block text-[0.625rem] text-ash-dim">
+                  <span className="block text-[0.625rem] text-steel/70">
                     {relativeTime(p.paidAt ?? p._creationTime)}
                   </span>
                 </span>
@@ -100,7 +100,7 @@ export function MessagesPanel() {
             ))}
           </div>
         ) : messages.length === 0 ? (
-          <p className="rounded-md border border-dashed border-hairline-2 py-8 text-center text-xs text-ash-dim">
+          <p className="rounded-md border border-dashed border-graphite/60 py-8 text-center text-xs text-steel/70">
             No messages logged yet.
           </p>
         ) : (
@@ -108,23 +108,23 @@ export function MessagesPanel() {
             {messages.map((msg) => (
               <li
                 key={msg._id}
-                className="rounded-md border border-hairline bg-coal-2 p-2.5"
+                className="rounded-md border border-graphite/50 bg-coal-2 p-2.5"
               >
                 <div className="flex items-center justify-between gap-2">
                   <span className="inline-flex min-w-0 items-center gap-1.5 text-xs font-medium text-bone">
                     {msg.channel === "email" ? (
-                      <Mail className="size-3.5 shrink-0 text-ash-dim" />
+                      <Mail className="size-3.5 shrink-0 text-steel/70" />
                     ) : (
-                      <MessageSquare className="size-3.5 shrink-0 text-ash-dim" />
+                      <MessageSquare className="size-3.5 shrink-0 text-steel/70" />
                     )}
                     <span className="truncate">{msg.subject}</span>
                   </span>
                   <Badge tone="neutral">{msg.channel}</Badge>
                 </div>
-                <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-ash">
+                <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-steel">
                   {msg.body}
                 </p>
-                <p className="mt-1 font-mono text-[0.5625rem] uppercase tracking-wide text-ash-dim">
+                <p className="mt-1 font-meta text-[0.5625rem] uppercase tracking-wide text-steel/70">
                   {msg.recipient} · {relativeTime(msg._creationTime)}
                 </p>
               </li>

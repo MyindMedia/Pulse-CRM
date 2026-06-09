@@ -37,10 +37,10 @@ export function DealCard({
         transition: overlay ? undefined : transition,
       }}
       className={cn(
-        "group relative overflow-hidden rounded-md border border-hairline bg-coal-2",
+        "group relative overflow-hidden rounded-md border border-graphite/50 bg-coal-2",
         "transition-colors",
         isDragging && !overlay && "opacity-40",
-        overlay && "rotate-1 border-hairline-2 shadow-pop",
+        overlay && "rotate-1 border-graphite/60 shadow-pop",
       )}
     >
       {/* Service-type color rail */}
@@ -56,11 +56,11 @@ export function DealCard({
         className="block w-full cursor-pointer pl-3.5 pr-2 py-3 text-left outline-none focus-visible:ring-2 focus-visible:ring-gold/30"
       >
         <div className="flex items-start gap-2">
-          <p className="min-w-0 flex-1 truncate font-display text-sm font-semibold text-bone">
+          <p className="min-w-0 flex-1 truncate font-grotesk text-sm font-semibold text-bone">
             {opp.title}
           </p>
           <span
-            className="mt-0.5 shrink-0 cursor-grab text-ash-dim opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
+            className="mt-0.5 shrink-0 cursor-grab text-steel/70 opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
             {...attributes}
             {...listeners}
             onClick={(e) => e.stopPropagation()}
@@ -72,14 +72,14 @@ export function DealCard({
 
         <div className="mt-2 flex items-center gap-2">
           <Avatar name={opp.artistName} size="xs" />
-          <span className="min-w-0 flex-1 truncate text-xs text-ash">{opp.artistName}</span>
+          <span className="min-w-0 flex-1 truncate text-xs text-steel">{opp.artistName}</span>
         </div>
 
         <div className="mt-2.5 flex items-center justify-between gap-2">
-          <span className="font-mono text-sm font-semibold tracking-tight text-gold-bright">
+          <span className="font-meta text-sm font-semibold tracking-tight text-gold-bright">
             {money(opp.valueCents, { compact: true })}
           </span>
-          <span className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+          <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
             {percent(opp.probability)} · {titleCase(opp.serviceType)}
           </span>
         </div>
@@ -87,7 +87,7 @@ export function DealCard({
         <div
           className={cn(
             "mt-1.5 flex items-center gap-1 text-[0.625rem]",
-            stale ? "text-caution" : "text-ash-dim",
+            stale ? "text-caution" : "text-steel/70",
           )}
         >
           <Clock className="size-3" />

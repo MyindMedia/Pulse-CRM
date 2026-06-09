@@ -65,7 +65,7 @@ export function ActivityTimeline({ artistId }: { artistId: Id<"artists"> }) {
             />
             <div className="min-w-0 flex-1">
               <p className="text-sm text-bone">{row.summary}</p>
-              <p className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+              <p className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                 {titleCase(row.kind)} · {relativeTime(row._creationTime)}
               </p>
             </div>

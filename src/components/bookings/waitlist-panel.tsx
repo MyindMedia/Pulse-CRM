@@ -56,7 +56,7 @@ export function WaitlistPanel() {
             {[0, 1, 2].map((i) => <Skeleton key={i} className="h-12 w-full" />)}
           </div>
         ) : entries.length === 0 ? (
-          <p className="rounded-md border border-dashed border-hairline-2 py-8 text-center text-xs text-ash-dim">
+          <p className="rounded-md border border-dashed border-graphite/60 py-8 text-center text-xs text-steel/70">
             No one is waiting. Add an artist so they get first pick when a slot opens.
           </p>
         ) : (
@@ -64,12 +64,12 @@ export function WaitlistPanel() {
             {entries.map((e) => (
               <li key={e._id} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
                 <span className="inline-flex min-w-0 items-center gap-2">
-                  <span className="grid size-7 shrink-0 place-items-center rounded-md bg-coal-3 text-ash-dim">
+                  <span className="grid size-7 shrink-0 place-items-center rounded-md bg-coal-3 text-steel/70">
                     {e.priority === "high" ? <Star className="size-3.5 text-gold" /> : <ListPlus className="size-3.5" />}
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate text-sm text-bone">{e.artistName}</span>
-                    <span className="block truncate font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                    <span className="block truncate font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                       {e.roomName ?? "Any room"}{e.serviceType ? ` · ${e.serviceType}` : ""}
                     </span>
                   </span>
@@ -80,7 +80,7 @@ export function WaitlistPanel() {
                     type="button"
                     onClick={() => drop(e._id)}
                     aria-label={`Remove ${e.artistName} from waitlist`}
-                    className="rounded-sm p-1 text-ash-dim transition-colors hover:bg-coal-3 hover:text-bone"
+                    className="rounded-sm p-1 text-steel/70 transition-colors hover:bg-coal-3 hover:text-bone"
                   >
                     <X className="size-4" />
                   </button>

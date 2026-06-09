@@ -178,11 +178,11 @@ export function InventoryImportPanel() {
           <button
             type="button"
             onClick={() => fileRef.current?.click()}
-            className="flex w-full flex-col items-center gap-2 rounded-lg border border-dashed border-hairline-2 bg-coal-2 px-4 py-10 text-center transition hover:border-gold-dim/60"
+            className="flex w-full flex-col items-center gap-2 rounded-lg border border-dashed border-graphite/60 bg-coal-2 px-4 py-10 text-center transition hover:border-gold-dim/60"
           >
-            <Upload className="size-6 text-ash-dim" />
+            <Upload className="size-6 text-steel/70" />
             <span className="text-sm font-medium text-bone">Choose a spreadsheet</span>
-            <span className="text-xs text-ash-dim">.xlsx, .xls or .csv - first sheet, header row on top</span>
+            <span className="text-xs text-steel/70">.xlsx, .xls or .csv - first sheet, header row on top</span>
           </button>
         )}
         <input
@@ -208,9 +208,9 @@ export function InventoryImportPanel() {
         {/* Mapping + preview */}
         {parsed && (
           <div className="space-y-4">
-            <div className="flex flex-wrap items-center gap-2 text-xs text-ash-dim">
+            <div className="flex flex-wrap items-center gap-2 text-xs text-steel/70">
               <FileSpreadsheet className="size-3.5" />
-              <span className="text-ash">{parsed.fileName}</span>
+              <span className="text-steel">{parsed.fileName}</span>
               <span>· {parsed.rows.length} rows · {parsed.headers.length} columns detected</span>
               <Button size="sm" variant="ghost" className="ml-auto" onClick={reset}>Cancel</Button>
             </div>
@@ -224,14 +224,14 @@ export function InventoryImportPanel() {
 
             {/* Column mapping */}
             <div className="space-y-2">
-              <p className="text-xs font-medium text-ash">Column mapping</p>
+              <p className="text-xs font-medium text-steel">Column mapping</p>
               <div className="grid gap-2 sm:grid-cols-2">
                 {parsed.headers.map((header, i) => (
-                  <div key={i} className="flex items-center gap-2 rounded-md border border-hairline bg-coal-2 px-3 py-2">
+                  <div key={i} className="flex items-center gap-2 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2">
                     <span className="min-w-0 flex-1 truncate text-sm text-bone" title={header}>
-                      {header || <span className="text-ash-dim">(unnamed column)</span>}
+                      {header || <span className="text-steel/70">(unnamed column)</span>}
                     </span>
-                    <span className="text-ash-dim">&rarr;</span>
+                    <span className="text-steel/70">&rarr;</span>
                     <Select
                       value={mapping[i] ?? IGNORE}
                       onValueChange={(v) => setColumnField(i, v === IGNORE ? null : (v as AssetField))}
@@ -252,10 +252,10 @@ export function InventoryImportPanel() {
             {/* Preview */}
             {assets.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs font-medium text-ash">Preview · {assets.length} importable</p>
-                <div className="overflow-hidden rounded-md border border-hairline">
+                <p className="text-xs font-medium text-steel">Preview · {assets.length} importable</p>
+                <div className="overflow-hidden rounded-md border border-graphite/50">
                   <table className="w-full text-left text-xs">
-                    <thead className="bg-coal-2 text-ash-dim">
+                    <thead className="bg-coal-2 text-steel/70">
                       <tr>
                         <th className="px-3 py-2 font-medium">Name</th>
                         <th className="px-3 py-2 font-medium">Category</th>
@@ -266,24 +266,24 @@ export function InventoryImportPanel() {
                     </thead>
                     <tbody>
                       {assets.slice(0, 5).map((a, i) => (
-                        <tr key={i} className="border-t border-hairline">
+                        <tr key={i} className="border-t border-graphite/50">
                           <td className="px-3 py-2 text-bone">{a.name}</td>
-                          <td className="px-3 py-2 text-ash">{a.category}</td>
-                          <td className="px-3 py-2 text-ash tabular-nums">{a.currentValueCents ? money(a.currentValueCents) : "-"}</td>
-                          <td className="px-3 py-2 text-ash">{a.roomName ?? "Storage"}</td>
-                          <td className="px-3 py-2 text-ash">{a.status}</td>
+                          <td className="px-3 py-2 text-steel">{a.category}</td>
+                          <td className="px-3 py-2 text-steel tabular-nums">{a.currentValueCents ? money(a.currentValueCents) : "-"}</td>
+                          <td className="px-3 py-2 text-steel">{a.roomName ?? "Storage"}</td>
+                          <td className="px-3 py-2 text-steel">{a.status}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
                 {assets.length > 5 && (
-                  <p className="text-[0.6875rem] text-ash-dim">+ {assets.length - 5} more</p>
+                  <p className="text-[0.6875rem] text-steel/70">+ {assets.length - 5} more</p>
                 )}
               </div>
             )}
 
-            <label className="flex items-center justify-between rounded-md border border-hairline bg-coal-2 px-3 py-2">
+            <label className="flex items-center justify-between rounded-md border border-graphite/50 bg-coal-2 px-3 py-2">
               <span className="text-sm text-bone">Skip rows whose serial number already exists</span>
               <Switch checked={dedupe} onCheckedChange={setDedupe} />
             </label>

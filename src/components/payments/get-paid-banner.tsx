@@ -21,15 +21,15 @@ export function GetPaidBanner() {
   const pending = status.connected && !status.chargesEnabled;
 
   return (
-    <div className="mb-6 flex items-center gap-4 rounded-xl border border-gold-dim/40 bg-gold/[0.06] px-4 py-3">
+    <div className="mb-6 flex items-center gap-4 rounded-chrome border border-gold-dim/40 bg-gold/[0.06] px-4 py-3">
       <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-gold/15 text-gold">
         <CreditCard className="size-4" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="font-display text-sm font-semibold text-bone">
+        <p className="font-grotesk text-sm font-semibold text-bone">
           {pending ? "Finish setting up payments" : "Start collecting payments"}
         </p>
-        <p className="truncate text-xs text-ash">
+        <p className="truncate text-xs text-steel">
           {pending
             ? "Stripe is connected but not verified yet - finish setup to go live."
             : "Connect Stripe to take deposits and get invoices paid online. About 3 minutes."}
@@ -42,7 +42,7 @@ export function GetPaidBanner() {
         {pending ? "Finish setup" : "Set up payments"}
         <ArrowRight className="size-3.5" />
       </Link>
-      <button onClick={() => setDismissed(true)} aria-label="Dismiss" className="text-ash-dim transition-colors hover:text-ash">
+      <button onClick={() => setDismissed(true)} aria-label="Dismiss" className="text-steel/70 transition-colors hover:text-steel">
         <X className="size-4" />
       </button>
     </div>

@@ -21,15 +21,15 @@ export function OnboardingNudge() {
   const total = Object.keys(mine.steps).length;
 
   return (
-    <div className="mb-6 flex items-center gap-4 rounded-xl border border-gold-dim/40 bg-gold/[0.06] px-4 py-3">
+    <div className="mb-6 flex items-center gap-4 rounded-chrome border border-gold-dim/40 bg-gold/[0.06] px-4 py-3">
       <span className="grid size-9 shrink-0 place-items-center rounded-lg bg-gold/15 text-gold">
         <Sparkles className="size-4" />
       </span>
       <div className="min-w-0 flex-1">
-        <p className="font-display text-sm font-semibold text-bone">
+        <p className="font-grotesk text-sm font-semibold text-bone">
           Finish setting up your studio
         </p>
-        <p className="truncate text-xs text-ash">
+        <p className="truncate text-xs text-steel">
           {done} of {total} steps done - add your logo, details, and first room to start taking bookings.
         </p>
       </div>
@@ -43,7 +43,7 @@ export function OnboardingNudge() {
       <button
         onClick={() => setDismissed(true)}
         aria-label="Dismiss"
-        className="text-ash-dim transition-colors hover:text-ash"
+        className="text-steel/70 transition-colors hover:text-steel"
       >
         <X className="size-4" />
       </button>

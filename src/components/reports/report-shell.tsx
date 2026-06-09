@@ -76,9 +76,9 @@ export function ReportStat({
             ? "text-caution"
             : "text-bone";
   return (
-    <div className="rounded-lg border border-hairline bg-coal-2 px-3.5 py-2.5">
+    <div className="rounded-lg border border-graphite/50 bg-coal-2 px-3.5 py-2.5">
       <p className="overline">{label}</p>
-      <p className={`mt-1 font-display text-lg font-bold tabular-nums ${color}`}>{value}</p>
+      <p className={`mt-1 font-grotesk text-lg font-bold tabular-nums ${color}`}>{value}</p>
     </div>
   );
 }

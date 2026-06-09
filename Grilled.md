@@ -384,5 +384,54 @@ Higgsfield Motion with Loop on), drop `public/bg-loop.webm`, flip `DEFAULT_SRC`.
 **Verified:** tsc + lint + build green; backdrop confirmed playing + gold-tinted
 via agent-browser. **Brand:** gold/black kept throughout (no green).
 
+## Feature: branded embedded Stripe Connect onboarding (built 2026-06-09)
+**Goal:** studios connect Stripe inside Pulse (themed gold/black) instead of
+being redirected to Stripe's hosted onboarding. Also added a read-only go-live
+verifier and confirmed branding is Dashboard-only.
+**Build:**
+- `convex/stripeConnect.ts`: `createAccountSession` action (ensures the Express
+  account via shared `ensureExpressAccount`, then `accountSessions.create` with
+  `account_onboarding`). Returns `clientSecret`. `createAccountLink` (hosted)
+  refactored onto the same helper and kept as fallback.
+- `src/components/payments/embedded-connect-onboarding.tsx`: themed
+  `<ConnectAccountOnboarding>` in a Dialog; ConnectJS dynamic-imported in an
+  effect (browser-only, no SSR side effect); `embeddedConnectAvailable` gates on
+  `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY`.
+- `stripe-connect-card.tsx` + `payments-setup-walkthrough.tsx`: open the embedded
+  dialog when the publishable key is present, else fall back to hosted redirect.
+- Deps: `@stripe/connect-js` + `@stripe/react-connect-js`.
+- Go-live tooling: `scripts/verify-go-live.{mjs,sh}` (read-only health check);
+  branding confirmed API-impossible for own platform account (Dashboard only),
+  assets prepped at `public/stripe-icon.png` + `public/pulse-logo-main.png`.
+**Config to go live (user):** set `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_live_…`
+on Netlify + redeploy. Without it the hosted redirect still works.
+**Verified:** tsc + lint + next build green; 351 vitest pass. NOT yet committed/
+deployed (no cloud Convex access in agent env).
+
+## Redesign: chrome/Dylanbrouwer aesthetic, Pulse gold accent (in progress 2026-06-09)
+**Direction (grilled):** restyle the ENTIRE site (landing + full app) to the
+"Dylanbrouwer" style reference (monolithic chrome display type, achromatic
+neutrals, mono metadata, ghost borders, single 14.4px radius, brutalist scale)
+but KEEP Pulse **gold #FDB913** as the sole accent (NOT the template's Ember
+orange). Videos: author Higgsfield/Seedance prompts, user renders (Higgsfield
+MCP now configured; auth pending).
+**Branch:** `feat/chrome-redesign` (keep main clean; user deploys).
+**Foundation (DONE):** additive tokens in `globals.css` @theme - achromatic
+palette (`--color-obsidian/graphite/slate/steel/mist/fog/paper/white`), `--radius-chrome:14.4px`,
+type voices `--font-chrome` (Anton = ABC Gravity sub), `--font-grotesk` (Inter =
+Die Grotesk B sub), `--font-meta` (IBM Plex Mono); utilities `.chrome-display`,
+`.chrome-fill`/`.chrome-fill-dark` (metallic gradient text), `.chrome-meta`,
+`.chrome-ghost`/`.chrome-ghost-gold`. Fonts added in `layout.tsx` (Anton, IBM_Plex_Mono).
+NON-destructive: existing app tokens (ink/coal/gold/bone) untouched.
+**Landing (DONE):** all marketing components restyled (nav, hero, chain,
+features, pricing, faq, cta, footer, subscribe-button). Hero = chrome-fill
+monolithic "RUN YOUR WHOLE STUDIO." over desaturated montage; mono metadata;
+gold + ghost CTAs. Kept the page DARK (cohesive w/ app + SiteBackdrop loop) - the
+template's dark->light "work section" rhythm is OFFERED but not applied (pending
+user call). Verified: tsc + lint + next build green; screenshots captured.
+**Remaining:** (1) app shell + shared UI primitives (button/card/input/dialog/
+table) to chrome tokens; (2) per-surface sweep (~30 pages); (3) video prompts +
+Higgsfield generation; (4) optional dark->light landing register.
+
 ## Standing context / prior fix
 - **Crash fixed (2026-05-23):** `/agency/[orgId]` showed "page couldn't load" because `invites.list` threw `AccessError` (a plain `Error` → redacted by Convex) with no `error.tsx` boundary. Fixes: `invites.list` degrades to `[]` on access denial; `AccessError extends ConvexError`; `/agency/error.tsx` boundary; `createSubaccount` + `adoptOrphanSubaccounts` stamp/repair `agencyId` so the owner isn't scope-denied. 128 vitest green.

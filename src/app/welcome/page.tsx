@@ -36,7 +36,7 @@ export default function WelcomePage() {
 
   if (mine === undefined) {
     return (
-      <div className="grid min-h-dvh place-items-center bg-ink text-ash">
+      <div className="grid min-h-dvh place-items-center bg-ink text-steel">
         <Loader2 className="size-5 animate-spin text-gold" />
       </div>
     );
@@ -46,7 +46,7 @@ export default function WelcomePage() {
       <div className="grid min-h-dvh place-items-center bg-ink px-4 text-center">
         <div className="max-w-sm space-y-4">
           <PulseLogo className="mx-auto h-7" />
-          <p className="text-sm text-ash">
+          <p className="text-sm text-steel">
             We couldn’t find a studio for your account yet. If you just accepted an invite, give it
             a moment and refresh - or ask your agency to resend the invite.
           </p>
@@ -171,24 +171,24 @@ function Wizard({ initial }: { initial: Mine }) {
       <div className="relative z-10 mx-auto flex min-h-dvh max-w-xl flex-col px-5 py-10">
         <div className="flex items-center justify-between">
           <PulseLogo className="h-6" />
-          <button onClick={finishLater} className="text-xs font-medium text-ash transition-colors hover:text-bone">
+          <button onClick={finishLater} className="text-xs font-medium text-steel transition-colors hover:text-bone">
             Finish later
           </button>
         </div>
 
         <div className="mt-8 space-y-3">
           <div className="flex items-center justify-between text-xs">
-            <span className="font-mono uppercase tracking-[0.18em] text-ash-dim">
+            <span className="font-meta uppercase tracking-[0.18em] text-steel/70">
               Step {step + 1} of {STEPS.length}
             </span>
-            <span className="text-ash">{STEPS[step].title}</span>
+            <span className="text-steel">{STEPS[step].title}</span>
           </div>
           <Progress value={step + 1} max={STEPS.length} />
         </div>
 
         <div className="mt-8 flex-1">
-          <h1 className="font-display text-2xl font-bold tracking-tight text-bone">{STEPS[step].title}</h1>
-          <p className="mt-1 text-sm text-ash">{STEPS[step].blurb}</p>
+          <h1 className="font-grotesk text-2xl font-bold tracking-tight text-bone">{STEPS[step].title}</h1>
+          <p className="mt-1 text-sm text-steel">{STEPS[step].blurb}</p>
 
           <div className="mt-6 space-y-4">
             {STEPS[step].key === "basics" && (
@@ -208,17 +208,17 @@ function Wizard({ initial }: { initial: Mine }) {
             {STEPS[step].key === "logo" && (
               <div className="space-y-4">
                 <div className="flex items-center gap-4">
-                  <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-xl border border-hairline-2 bg-coal-2"
+                  <span className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-chrome border border-graphite/60 bg-coal-2"
                     style={{ backgroundColor: logoUrl ? undefined : accent + "22" }}>
                     {logoUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img src={logoUrl} alt="Studio logo" className="size-full object-cover" />
                     ) : (
-                      <ImagePlus className="size-5 text-ash-dim" />
+                      <ImagePlus className="size-5 text-steel/70" />
                     )}
                   </span>
                   <label className="cursor-pointer">
-                    <span className="inline-flex h-9 items-center gap-2 rounded-md border border-hairline-2 bg-coal/60 px-3 text-xs font-medium text-ash transition-colors hover:border-gold-dim hover:text-bone">
+                    <span className="inline-flex h-9 items-center gap-2 rounded-md border border-graphite/60 bg-coal/60 px-3 text-xs font-medium text-steel transition-colors hover:border-gold-dim hover:text-bone">
                       {uploading ? <Loader2 className="size-3.5 animate-spin" /> : <ImagePlus className="size-3.5" />}
                       {logoUrl ? "Replace logo" : "Upload logo"}
                     </span>
@@ -230,8 +230,8 @@ function Wizard({ initial }: { initial: Mine }) {
                   <div className="flex items-center gap-3">
                     <input id="w-accent" type="color" value={accent}
                       onChange={(e) => setAccent(e.target.value)}
-                      className="size-9 cursor-pointer rounded-md border border-hairline-2 bg-transparent" />
-                    <Input value={accent} onChange={(e) => setAccent(e.target.value)} className="font-mono" />
+                      className="size-9 cursor-pointer rounded-md border border-graphite/60 bg-transparent" />
+                    <Input value={accent} onChange={(e) => setAccent(e.target.value)} className="font-meta" />
                   </div>
                 </Field>
               </div>
@@ -290,7 +290,7 @@ function Wizard({ initial }: { initial: Mine }) {
             {STEPS[step].key === "payment" && (
               <div className="space-y-3">
                 <PaymentsSetupWalkthrough />
-                <p className="text-xs text-ash-dim">
+                <p className="text-xs text-steel/70">
                   Optional now - you can connect Stripe later from Settings. Until then you can still
                   take bookings and record payments manually.
                 </p>
@@ -300,7 +300,7 @@ function Wizard({ initial }: { initial: Mine }) {
             {STEPS[step].key === "email" && (
               <div className="space-y-3">
                 <EmailConnectCard />
-                <p className="text-xs text-ash-dim">
+                <p className="text-xs text-steel/70">
                   You can change this anytime in Settings.
                 </p>
               </div>
@@ -308,7 +308,7 @@ function Wizard({ initial }: { initial: Mine }) {
 
             {STEPS[step].key === "rooms" && (
               <>
-                <p className="rounded-md border border-hairline bg-coal/40 px-3 py-2 text-xs text-ash-dim">
+                <p className="rounded-md border border-graphite/50 bg-coal/40 px-3 py-2 text-xs text-steel/70">
                   Optional - you can add rooms later in Settings. Adding one now lets you take bookings today.
                 </p>
                 <Field label="Room name" htmlFor="w-room">
@@ -334,7 +334,7 @@ function Wizard({ initial }: { initial: Mine }) {
           </div>
         </div>
 
-        <div className="mt-8 flex items-center justify-between border-t border-hairline pt-5">
+        <div className="mt-8 flex items-center justify-between border-t border-graphite/50 pt-5">
           <Button variant="ghost" size="sm" disabled={step === 0 || busy}
             onClick={() => setStep((s) => Math.max(0, s - 1))}>
             Back

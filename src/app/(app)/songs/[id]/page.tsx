@@ -95,7 +95,7 @@ export default function SongDetailPage() {
             <TabsTrigger value="deliverables">
               Deliverables
               {song.deliverables.length > 0 && (
-                <span className="font-mono text-[0.625rem] text-ash-dim">
+                <span className="font-meta text-[0.625rem] text-steel/70">
                   {song.deliverables.length}
                 </span>
               )}
@@ -104,7 +104,7 @@ export default function SongDetailPage() {
             <TabsTrigger value="sessions">
               Sessions
               {song.sessions.length > 0 && (
-                <span className="font-mono text-[0.625rem] text-ash-dim">
+                <span className="font-meta text-[0.625rem] text-steel/70">
                   {song.sessions.length}
                 </span>
               )}
@@ -145,7 +145,7 @@ function BackLink() {
   return (
     <Link
       href="/songs"
-      className="inline-flex items-center gap-1.5 text-xs font-medium text-ash transition-colors hover:text-bone"
+      className="inline-flex items-center gap-1.5 text-xs font-medium text-steel transition-colors hover:text-bone"
     >
       <ArrowLeft className="size-3.5" />
       Catalog
@@ -193,7 +193,7 @@ function SongHero({ song }: { song: HeroSong }) {
 
   return (
     <>
-      <div className="overflow-hidden rounded-xl border border-hairline bg-coal">
+      <div className="overflow-hidden rounded-chrome border border-graphite/50 bg-coal">
         <div
           className="flex flex-wrap items-center gap-5 p-5"
           style={{
@@ -221,10 +221,10 @@ function SongHero({ song }: { song: HeroSong }) {
                 </Badge>
               )}
             </div>
-            <h1 className="truncate font-display text-2xl font-bold tracking-tight text-bone">
+            <h1 className="truncate font-grotesk text-2xl font-bold tracking-tight text-bone">
               {song.title}
             </h1>
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-ash">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-steel">
               {song.artist ? (
                 <Link
                   href={`/roster/${song.artist._id}`}
@@ -233,7 +233,7 @@ function SongHero({ song }: { song: HeroSong }) {
                   {song.artist.name}
                 </Link>
               ) : (
-                <span className="text-ash-dim">Unknown artist</span>
+                <span className="text-steel/70">Unknown artist</span>
               )}
               {song.genre && (
                 <>
@@ -245,7 +245,7 @@ function SongHero({ song }: { song: HeroSong }) {
                 <>
                   <Dot />
                   <span className="inline-flex items-center gap-1">
-                    <Gauge className="size-3.5 text-ash-dim" />
+                    <Gauge className="size-3.5 text-steel/70" />
                     {song.bpm} BPM
                   </span>
                 </>
@@ -314,7 +314,7 @@ function SongHero({ song }: { song: HeroSong }) {
             </DialogDescription>
           </DialogHeader>
           <DialogBody>
-            <p className="text-sm text-ash">
+            <p className="text-sm text-steel">
               Deliverables, splits and the release plan attached to this track will no longer be
               reachable.
             </p>
@@ -336,7 +336,7 @@ function SongHero({ song }: { song: HeroSong }) {
 }
 
 function Dot() {
-  return <span className="text-ash-dim">·</span>;
+  return <span className="text-steel/70">·</span>;
 }
 
 /* ── Loading skeleton ── */
@@ -344,7 +344,7 @@ function DetailSkeleton() {
   return (
     <div className="space-y-6">
       <Skeleton className="h-4 w-20" />
-      <Skeleton className="h-36 w-full rounded-xl" />
+      <Skeleton className="h-36 w-full rounded-chrome" />
       <Skeleton className="h-12 w-full" />
       <Skeleton className="h-9 w-96" />
       <div className="grid gap-4 lg:grid-cols-3">

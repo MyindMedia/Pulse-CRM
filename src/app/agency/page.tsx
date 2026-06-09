@@ -220,7 +220,7 @@ export default function AgencyOverviewPage() {
                       href={`/agency/${s.orgId}`}
                       className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-coal-2"
                     >
-                      <span className="font-mono text-[0.6875rem] text-ash-dim w-5">
+                      <span className="font-meta text-[0.6875rem] text-steel/70 w-5">
                         #{idx + 1}
                       </span>
                       <span className="grid size-8 place-items-center rounded-md bg-coal-2 text-gold-dim">
@@ -230,13 +230,13 @@ export default function AgencyOverviewPage() {
                         <p className="truncate text-sm font-medium text-bone">
                           {s.name}
                         </p>
-                        <p className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                        <p className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                           /{s.slug} · {s.sessions} session
                           {s.sessions === 1 ? "" : "s"}
                         </p>
                       </span>
                       <Badge tone="neutral">{s.plan}</Badge>
-                      <span className="font-mono text-sm font-medium tabular-nums text-bone">
+                      <span className="font-meta text-sm font-medium tabular-nums text-bone">
                         {money(s.collectedCents)}
                       </span>
                     </Link>

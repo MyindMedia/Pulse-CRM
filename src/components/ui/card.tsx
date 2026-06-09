@@ -28,7 +28,7 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-xl text-bone",
+        "rounded-chrome text-bone",
         surface,
         interactive &&
           "transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out " +
@@ -47,7 +47,7 @@ export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDiv
 export function CardTitle({ className, ...props }: React.HTMLAttributes<HTMLHeadingElement>) {
   return (
     <h3
-      className={cn("font-display text-base font-semibold tracking-tight text-bone", className)}
+      className={cn("font-grotesk text-base font-semibold tracking-[-0.01em] text-bone", className)}
       {...props}
     />
   );

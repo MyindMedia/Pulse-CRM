@@ -270,7 +270,7 @@ export default function InventoryPage() {
 
       {/* Bulk edit / assign bar */}
       {selected.size > 0 && (
-        <div className="sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-lg border border-gold-dim/50 bg-ink-2/95 px-3 py-2 shadow-elev-2 backdrop-blur">
+        <div className="sticky top-2 z-20 flex flex-wrap items-center gap-2 rounded-lg border border-gold-dim/50 bg-obsidian/95 px-3 py-2 shadow-elev-2 backdrop-blur">
           <span className="text-sm font-medium text-bone">
             {selected.size} selected
           </span>
@@ -393,7 +393,7 @@ export default function InventoryPage() {
       )}
 
       {!loading && !empty && (
-        <p className="text-xs text-ash-dim">
+        <p className="text-xs text-steel/70">
           Showing {items.length} {items.length === 1 ? "item" : "items"}
           {filtering ? " for the current filters" : ""}.
         </p>

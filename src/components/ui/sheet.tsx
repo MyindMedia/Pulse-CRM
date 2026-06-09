@@ -32,7 +32,7 @@ export function SheetContent({
       >
         {children}
         <DialogPrimitive.Close
-          className="absolute right-4 top-4 rounded-sm p-1 text-ash-dim outline-none transition-colors hover:bg-coal-3 hover:text-bone focus-visible:ring-2 focus-visible:ring-gold/30"
+          className="absolute right-4 top-4 rounded-sm p-1 text-steel/70 outline-none transition-colors hover:bg-coal-3 hover:text-bone focus-visible:ring-2 focus-visible:ring-gold/30"
           aria-label="Close"
         >
           <X className="size-4" />
@@ -45,7 +45,7 @@ export function SheetContent({
 export function SheetHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("shrink-0 space-y-1 border-b border-hairline px-6 py-5", className)}
+      className={cn("shrink-0 space-y-1 border-b border-graphite/50 px-6 py-5", className)}
       {...props}
     />
   );
@@ -57,7 +57,7 @@ export function SheetTitle({
 }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Title>) {
   return (
     <DialogPrimitive.Title
-      className={cn("font-display text-lg font-semibold tracking-tight text-bone", className)}
+      className={cn("font-grotesk text-lg font-semibold tracking-tight text-bone", className)}
       {...props}
     />
   );
@@ -67,7 +67,7 @@ export function SheetDescription({
   className,
   ...props
 }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Description>) {
-  return <DialogPrimitive.Description className={cn("text-sm text-ash", className)} {...props} />;
+  return <DialogPrimitive.Description className={cn("text-sm text-steel", className)} {...props} />;
 }
 
 export function SheetBody({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
@@ -77,7 +77,7 @@ export function SheetBody({ className, ...props }: React.HTMLAttributes<HTMLDivE
 export function SheetFooter({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("shrink-0 flex items-center gap-2 border-t border-hairline px-6 py-4", className)}
+      className={cn("shrink-0 flex items-center gap-2 border-t border-graphite/50 px-6 py-4", className)}
       {...props}
     />
   );

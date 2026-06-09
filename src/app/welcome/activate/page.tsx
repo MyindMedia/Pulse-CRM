@@ -69,20 +69,20 @@ function Activate() {
         <PulseLogo size="lg" asLink={false} />
 
         {!sessionId ? (
-          <p className="text-sm text-ash">Missing checkout reference. Please subscribe from the pricing page.</p>
+          <p className="text-sm text-steel">Missing checkout reference. Please subscribe from the pricing page.</p>
         ) : isSignedIn ? (
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="size-8 animate-spin text-gold" />
-            <h1 className="font-display text-2xl font-bold text-bone">Setting up your studio…</h1>
-            <p className="text-sm text-ash">Linking your subscription and getting your workspace ready.</p>
+            <h1 className="font-grotesk text-2xl font-bold text-bone">Setting up your studio…</h1>
+            <p className="text-sm text-steel">Linking your subscription and getting your workspace ready.</p>
             {err && <p className="text-sm text-critical">{err}</p>}
           </div>
         ) : (
           <>
             <div className="flex flex-col items-center gap-2">
               <CheckCircle2 className="size-8 text-positive" />
-              <h1 className="font-display text-2xl font-bold text-bone">Payment received</h1>
-              <p className="text-sm text-ash">
+              <h1 className="font-grotesk text-2xl font-bold text-bone">Payment received</h1>
+              <p className="text-sm text-steel">
                 Create your login to finish setting up
                 {info?.email ? ` (${info.email})` : ""}.
               </p>
@@ -105,7 +105,7 @@ export default function ActivatePage() {
   if (!CLERK_ENABLED) {
     return (
       <div className="grid min-h-dvh place-items-center bg-ink p-6 text-center">
-        <p className="text-sm text-ash">
+        <p className="text-sm text-steel">
           Account activation requires Clerk to be configured.
         </p>
       </div>

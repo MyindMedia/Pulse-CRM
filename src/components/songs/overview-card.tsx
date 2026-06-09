@@ -112,7 +112,7 @@ export function OverviewCard({ songId }: { songId: Id<"songs"> }) {
         {/* Header row: next action + edit */}
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <span className="font-mono text-[0.6875rem] uppercase tracking-wide text-ash-dim">
+            <span className="font-meta text-[0.6875rem] uppercase tracking-wide text-steel/70">
               Next action
             </span>
             <Badge tone={actionTone}>
@@ -162,8 +162,8 @@ export function OverviewCard({ songId }: { songId: Id<"songs"> }) {
         </div>
 
         {/* Linked client */}
-        <div className="flex items-center justify-between gap-3 border-t border-hairline pt-3">
-          <span className="font-mono text-[0.6875rem] uppercase tracking-wide text-ash-dim">
+        <div className="flex items-center justify-between gap-3 border-t border-graphite/50 pt-3">
+          <span className="font-meta text-[0.6875rem] uppercase tracking-wide text-steel/70">
             Client
           </span>
           {overview.clientId ? (
@@ -174,16 +174,16 @@ export function OverviewCard({ songId }: { songId: Id<"songs"> }) {
               {overview.clientName}
             </Link>
           ) : (
-            <span className="text-sm text-ash-dim">No client linked</span>
+            <span className="text-sm text-steel/70">No client linked</span>
           )}
         </div>
 
         {/* Inline editor */}
         {editing && (
-          <div className="space-y-3 rounded-md border border-hairline-2 bg-ink-2 p-3">
+          <div className="space-y-3 rounded-md border border-graphite/60 bg-obsidian p-3">
             <div className="grid gap-3 sm:grid-cols-2">
               <div className="space-y-1">
-                <span className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                   Owner
                 </span>
                 <Select
@@ -204,7 +204,7 @@ export function OverviewCard({ songId }: { songId: Id<"songs"> }) {
                 </Select>
               </div>
               <div className="space-y-1">
-                <span className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                   Deadline
                 </span>
                 <Input

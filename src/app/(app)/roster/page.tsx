@@ -119,7 +119,7 @@ function RosterView() {
       )}
 
       {/* Segment lenses over the one contacts table */}
-      <div className="flex flex-wrap gap-1 border-b border-hairline">
+      <div className="flex flex-wrap gap-1 border-b border-graphite/50">
         {SEGMENTS.map((s) => {
           const active = segment === s.key;
           const n = (artists ?? []).filter(s.match).length;
@@ -129,11 +129,11 @@ function RosterView() {
               onClick={() => setSegment(s.key)}
               className={
                 "relative -mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors " +
-                (active ? "border-gold text-bone" : "border-transparent text-ash-dim hover:text-ash")
+                (active ? "border-gold text-bone" : "border-transparent text-steel/70 hover:text-steel")
               }
             >
               {s.label}
-              {artists !== undefined && <span className="ml-1.5 font-mono text-[0.6875rem] text-ash-dim">{n}</span>}
+              {artists !== undefined && <span className="ml-1.5 font-meta text-[0.6875rem] text-steel/70">{n}</span>}
             </button>
           );
         })}
@@ -155,7 +155,7 @@ function RosterView() {
           }
         />
         <div className="relative w-full sm:w-72">
-          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ash-dim" />
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-steel/70" />
           <Input
             value={searchInput}
             onChange={(e) => setSearchInput(e.target.value)}
@@ -168,7 +168,7 @@ function RosterView() {
               type="button"
               onClick={() => setSearchInput("")}
               aria-label="Clear search"
-              className="absolute right-2.5 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-sm text-ash-dim transition-colors hover:bg-coal-3 hover:text-bone"
+              className="absolute right-2.5 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded-sm text-steel/70 transition-colors hover:bg-coal-3 hover:text-bone"
             >
               <X className="size-3.5" />
             </button>
@@ -257,7 +257,7 @@ function RosterView() {
                           <Avatar name={artist.name} color={artist.avatarColor} size="md" />
                           <div className="min-w-0">
                             <p className="truncate font-medium text-bone">{artist.name}</p>
-                            <p className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                            <p className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                               {artistTypeLabel(artist.type)}
                               {artist.location ? ` · ${artist.location}` : ""}
                             </p>
@@ -275,13 +275,13 @@ function RosterView() {
                       <TD>
                         <GenreChips items={artist.genres} max={3} />
                       </TD>
-                      <TD className="text-right font-mono tabular-nums text-ash">
+                      <TD className="text-right font-meta tabular-nums text-steel">
                         {artist.sessionCount}
                       </TD>
-                      <TD className="text-right font-mono tabular-nums font-medium text-bone">
+                      <TD className="text-right font-meta tabular-nums font-medium text-bone">
                         {money(artist.lifetimeValueCents, { compact: true })}
                       </TD>
-                      <TD className="text-right text-ash-dim">
+                      <TD className="text-right text-steel/70">
                         {artist.lastContactAt ? relativeTime(artist.lastContactAt) : "-"}
                       </TD>
                     </TR>
@@ -292,7 +292,7 @@ function RosterView() {
       )}
 
       {!loading && !empty && (
-        <p className="text-xs text-ash-dim">
+        <p className="text-xs text-steel/70">
           Showing {visible.length} {visible.length === 1 ? "contact" : "contacts"}
           {filtering ? " for the current filters" : ""}.
         </p>

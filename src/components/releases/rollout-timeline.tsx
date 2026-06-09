@@ -48,7 +48,7 @@ export function RolloutTimeline({
                 "relative z-10 mt-0.5 grid size-[1.375rem] shrink-0 place-items-center rounded-full border text-[0.5rem]",
                 task.done
                   ? "border-gold bg-gold text-gold-ink"
-                  : "border-hairline-2 bg-ink-2 text-ash-dim",
+                  : "border-graphite/60 bg-obsidian text-steel/70",
               )}
             >
               {task.done ? (
@@ -60,11 +60,11 @@ export function RolloutTimeline({
 
             <div className="min-w-0 flex-1">
               <div className="flex items-center gap-2">
-                <span className="rounded-sm border border-hairline-2 bg-ink-2 px-1.5 py-0.5 font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                <span className="rounded-sm border border-graphite/60 bg-obsidian px-1.5 py-0.5 font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                   {offsetLabel(task.offsetDays)}
                 </span>
                 {task.owner && (
-                  <span className="inline-flex items-center gap-1 font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                  <span className="inline-flex items-center gap-1 font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                     <User className="size-3" />
                     {task.owner}
                   </span>
@@ -74,7 +74,7 @@ export function RolloutTimeline({
                 htmlFor={checkboxId}
                 className={cn(
                   "mt-1 block cursor-pointer text-sm leading-snug",
-                  task.done ? "text-ash-dim line-through" : "text-bone",
+                  task.done ? "text-steel/70 line-through" : "text-bone",
                 )}
               >
                 {task.label}

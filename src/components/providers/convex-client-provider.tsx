@@ -31,11 +31,11 @@ function MissingConvex() {
     <div className="grid min-h-dvh place-items-center bg-ink p-8 text-center">
       <div className="max-w-md space-y-3">
         <p className="overline">Pulse · setup</p>
-        <h1 className="font-display text-2xl font-bold text-bone">Connect Convex to continue</h1>
-        <p className="text-sm text-ash">
-          Run <code className="rounded bg-coal-2 px-1.5 py-0.5 font-mono text-gold">npx convex dev</code> in the
+        <h1 className="font-grotesk text-2xl font-bold text-bone">Connect Convex to continue</h1>
+        <p className="text-sm text-steel">
+          Run <code className="rounded bg-coal-2 px-1.5 py-0.5 font-meta text-gold">npx convex dev</code> in the
           project root. It provisions a deployment and writes{" "}
-          <code className="font-mono text-ash-dim">NEXT_PUBLIC_CONVEX_URL</code> automatically.
+          <code className="font-meta text-steel/70">NEXT_PUBLIC_CONVEX_URL</code> automatically.
         </p>
       </div>
     </div>

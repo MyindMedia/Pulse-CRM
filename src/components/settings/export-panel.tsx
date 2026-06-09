@@ -51,10 +51,10 @@ function ExportRow({ def }: { def: ExportDef }) {
     }
   }
   return (
-    <div className="flex items-center justify-between gap-4 rounded-lg border border-hairline bg-coal/40 p-3">
+    <div className="flex items-center justify-between gap-4 rounded-lg border border-graphite/50 bg-coal/40 p-3">
       <div className="min-w-0">
         <p className="text-sm font-medium text-bone">{def.label}</p>
-        <p className="truncate text-xs text-ash">{def.description}</p>
+        <p className="truncate text-xs text-steel">{def.description}</p>
       </div>
       <Button variant="ghost" onClick={handle} disabled={busy}>
         <Download className="size-4" />

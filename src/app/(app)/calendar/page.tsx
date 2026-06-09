@@ -147,7 +147,7 @@ function CalendarView() {
           >
             <ChevronLeft className="size-4" />
           </Button>
-          <h2 className="min-w-44 text-center font-display text-lg font-bold tracking-tight text-bone">
+          <h2 className="min-w-44 text-center font-grotesk text-lg font-bold tracking-tight text-bone">
             {MONTH_NAMES[month]} {year}
           </h2>
           <Button
@@ -167,7 +167,7 @@ function CalendarView() {
         <div className="ml-auto flex items-center gap-2 sm:ml-0">
           <Select value={filterRoomId} onValueChange={setFilterRoomId}>
             <SelectTrigger className="h-8 w-44 text-xs">
-              <DoorOpen className="size-3.5 text-ash-dim" />
+              <DoorOpen className="size-3.5 text-steel/70" />
               <SelectValue placeholder="All rooms" />
             </SelectTrigger>
             <SelectContent>
@@ -182,13 +182,13 @@ function CalendarView() {
         </div>
 
         {/* View toggle */}
-        <div className="inline-flex items-center gap-1 rounded-md border border-hairline bg-coal p-1">
+        <div className="inline-flex items-center gap-1 rounded-md border border-graphite/50 bg-coal p-1">
           <button
             type="button"
             onClick={() => setView("month")}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-gold/30",
-              view === "month" ? "bg-coal-3 text-bone" : "text-ash-dim hover:text-bone",
+              view === "month" ? "bg-coal-3 text-bone" : "text-steel/70 hover:text-bone",
             )}
           >
             <LayoutGrid className="size-3.5" />
@@ -199,7 +199,7 @@ function CalendarView() {
             onClick={() => setView("agenda")}
             className={cn(
               "inline-flex items-center gap-1.5 rounded-sm px-2.5 py-1 text-xs font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-gold/30",
-              view === "agenda" ? "bg-coal-3 text-bone" : "text-ash-dim hover:text-bone",
+              view === "agenda" ? "bg-coal-3 text-bone" : "text-steel/70 hover:text-bone",
             )}
           >
             <List className="size-3.5" />

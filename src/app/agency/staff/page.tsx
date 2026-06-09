@@ -33,15 +33,15 @@ export default function StaffPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="font-display text-2xl font-semibold text-bone">Agency staff</h1>
-        <p className="text-sm text-ash">
+        <h1 className="font-grotesk text-2xl font-semibold text-bone">Agency staff</h1>
+        <p className="text-sm text-steel">
           Invite teammates, set their role, and scope them to specific sub-accounts.
         </p>
       </header>
 
       <form
         onSubmit={onInvite}
-        className="space-y-3 rounded-lg border border-hairline bg-coal/40 p-4"
+        className="space-y-3 rounded-lg border border-graphite/50 bg-coal/40 p-4"
       >
         <h2 className="text-base font-medium text-bone">Invite a staff member</h2>
         <div className="grid gap-3 sm:grid-cols-3">
@@ -49,14 +49,14 @@ export default function StaffPage() {
             value={name}
             onChange={(e) => setName(e.target.value)}
             placeholder="Full name"
-            className="rounded border border-hairline-2 bg-ink-2 px-3 py-2 text-sm text-bone"
+            className="rounded border border-graphite/60 bg-obsidian px-3 py-2 text-sm text-bone"
           />
           <input
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             placeholder="email@example.com"
             type="email"
-            className="rounded border border-hairline-2 bg-ink-2 px-3 py-2 text-sm text-bone"
+            className="rounded border border-graphite/60 bg-obsidian px-3 py-2 text-sm text-bone"
           />
           <RolePicker layer="agency" value={role} onChange={setRoleSel} />
         </div>
@@ -69,8 +69,8 @@ export default function StaffPage() {
         </button>
       </form>
 
-      <section className="rounded-lg border border-hairline bg-coal/40">
-        <h2 className="border-b border-hairline p-4 text-base font-medium text-bone">All members</h2>
+      <section className="rounded-lg border border-graphite/50 bg-coal/40">
+        <h2 className="border-b border-graphite/50 p-4 text-base font-medium text-bone">All members</h2>
         <ul className="divide-y divide-hairline">
           {(members ?? []).map((m) => (
             <li
@@ -79,8 +79,8 @@ export default function StaffPage() {
             >
               <div>
                 <p className="text-sm font-medium text-bone">{m.name}</p>
-                <p className="text-xs text-ash-dim">{m.email}</p>
-                <p className="font-mono text-[0.6875rem] uppercase tracking-wide text-ash-dim">
+                <p className="text-xs text-steel/70">{m.email}</p>
+                <p className="font-meta text-[0.6875rem] uppercase tracking-wide text-steel/70">
                   {m.status}
                 </p>
               </div>
@@ -99,7 +99,7 @@ export default function StaffPage() {
                 {m.role === "staff" && (
                   <a
                     href={`/agency/staff/${m._id}`}
-                    className="rounded border border-hairline-2 px-2 py-1 text-xs text-ash hover:text-bone"
+                    className="rounded border border-graphite/60 px-2 py-1 text-xs text-steel hover:text-bone"
                   >
                     Scope…
                   </a>

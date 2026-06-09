@@ -32,9 +32,9 @@ function ChartTooltip({
 }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="rounded-md border border-hairline-2 bg-coal-2 px-3 py-2 shadow-pop">
+    <div className="rounded-md border border-graphite/60 bg-coal-2 px-3 py-2 shadow-pop">
       {label != null && (
-        <p className="mb-1 font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">{label}</p>
+        <p className="mb-1 font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">{label}</p>
       )}
       {payload.map((p, i) => (
         <p key={i} className="text-xs font-medium text-bone">
@@ -160,8 +160,8 @@ export function CategoryDonut({
         </ResponsiveContainer>
         {/* Total in the center of the donut */}
         <div className="pointer-events-none absolute inset-0 flex flex-col items-center justify-center">
-          <p className="font-display text-xl font-bold text-bone">{total}</p>
-          <p className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+          <p className="font-grotesk text-xl font-bold text-bone">{total}</p>
+          <p className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
             total
           </p>
         </div>
@@ -180,11 +180,11 @@ export function CategoryDonut({
                 className="block size-2.5 shrink-0 rounded-sm"
                 style={{ backgroundColor: PALETTE[i % PALETTE.length] }}
               />
-              <span className="min-w-0 flex-1 truncate capitalize text-ash">
+              <span className="min-w-0 flex-1 truncate capitalize text-steel">
                 {label}
               </span>
-              <span className="font-mono text-bone tabular-nums">{value}</span>
-              <span className="font-mono text-[0.6875rem] text-ash-dim tabular-nums">
+              <span className="font-meta text-bone tabular-nums">{value}</span>
+              <span className="font-meta text-[0.6875rem] text-steel/70 tabular-nums">
                 {pct}%
               </span>
             </li>

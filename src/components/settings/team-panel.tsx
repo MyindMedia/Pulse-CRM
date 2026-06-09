@@ -53,10 +53,10 @@ function RoleExplainer() {
           return (
             <div
               key={r.value}
-              className="rounded-md border border-hairline bg-coal-2 p-3"
+              className="rounded-md border border-graphite/50 bg-coal-2 p-3"
             >
               <Badge tone={tone}>{r.label}</Badge>
-              <p className="mt-2 text-[0.6875rem] leading-relaxed text-ash-dim">
+              <p className="mt-2 text-[0.6875rem] leading-relaxed text-steel/70">
                 {r.blurb}
               </p>
             </div>
@@ -71,7 +71,7 @@ function RoleExplainer() {
 function InviteStatusCell({ member }: { member: TeamMember }) {
   const status = member.inviteStatus ?? "none";
   if (status === "active") return <Badge tone="positive">Active</Badge>;
-  if (!member.email) return <span className="text-ash-dim">-</span>;
+  if (!member.email) return <span className="text-steel/70">-</span>;
   if (status === "pending") return <Badge tone="caution">Invited</Badge>;
   if (status === "expired") return <Badge tone="critical">Expired</Badge>;
   return <Badge tone="neutral">Not invited</Badge>;
@@ -180,16 +180,16 @@ export function TeamPanel() {
                           </span>
                         </div>
                       </TD>
-                      <TD className="text-ash">
+                      <TD className="text-steel">
                         {member.email || member.phone ? (
                           <div className="leading-tight">
                             {member.email && <div>{member.email}</div>}
                             {member.phone && (
-                              <div className="text-xs text-ash-dim">{member.phone}</div>
+                              <div className="text-xs text-steel/70">{member.phone}</div>
                             )}
                           </div>
                         ) : (
-                          <span className="text-ash-dim">-</span>
+                          <span className="text-steel/70">-</span>
                         )}
                       </TD>
                       <TD>
@@ -200,13 +200,13 @@ export function TeamPanel() {
                       </TD>
                       <TD>
                         {member.skills.length > 0 ? (
-                          <span className="text-xs text-ash">
+                          <span className="text-xs text-steel">
                             {member.skills.slice(0, 3).join(", ")}
                             {member.skills.length > 3 &&
                               ` +${member.skills.length - 3}`}
                           </span>
                         ) : (
-                          <span className="text-xs text-ash-dim">-</span>
+                          <span className="text-xs text-steel/70">-</span>
                         )}
                       </TD>
                       <TD className="text-right">

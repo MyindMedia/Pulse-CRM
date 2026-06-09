@@ -40,7 +40,7 @@ export function AgendaList({
       {[...groups.entries()].map(([day, list]) => (
         <section key={day} className="space-y-2">
           <h3 className="overline">{longDate(day)}</h3>
-          <div className="overflow-hidden rounded-lg border border-hairline bg-coal">
+          <div className="overflow-hidden rounded-lg border border-graphite/50 bg-coal">
             <ul className="divide-y divide-hairline">
               {list.map((s) => {
                 const st = meta(SESSION_STATUS, s.status);
@@ -57,16 +57,16 @@ export function AgendaList({
                         style={{ backgroundColor: statusColor(s.status) }}
                       />
                       <div className="w-20 shrink-0">
-                        <p className="font-mono text-xs font-medium text-bone">
+                        <p className="font-meta text-xs font-medium text-bone">
                           {timeOfDay(s.startTime)}
                         </p>
-                        <p className="font-mono text-[0.625rem] text-ash-dim">
+                        <p className="font-meta text-[0.625rem] text-steel/70">
                           {duration(s.startTime, s.endTime)}
                         </p>
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-bone">{s.title}</p>
-                        <p className="truncate text-xs text-ash-dim">
+                        <p className="truncate text-xs text-steel/70">
                           {titleCase(s.serviceType)}
                           {s.roomName ? ` · ${s.roomName}` : ""}
                           {s.engineerName ? ` · ${s.engineerName}` : ""}

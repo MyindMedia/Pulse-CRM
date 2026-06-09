@@ -114,7 +114,7 @@ export default function StudioPage() {
         title="Studios"
         trailing={
           rooms !== undefined && rooms.length > 0 ? (
-            <span className="font-mono text-[0.6875rem] uppercase tracking-wide text-ash-dim">
+            <span className="font-meta text-[0.6875rem] uppercase tracking-wide text-steel/70">
               {rooms.length} {rooms.length === 1 ? "room" : "rooms"}
             </span>
           ) : undefined
@@ -148,7 +148,7 @@ export default function StudioPage() {
         title="The team"
         trailing={
           members !== undefined && members.length > 0 ? (
-            <span className="font-mono text-[0.6875rem] uppercase tracking-wide text-ash-dim">
+            <span className="font-meta text-[0.6875rem] uppercase tracking-wide text-steel/70">
               {members.length} {members.length === 1 ? "member" : "members"}
             </span>
           ) : undefined

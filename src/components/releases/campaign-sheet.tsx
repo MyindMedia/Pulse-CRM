@@ -98,7 +98,7 @@ export function CampaignSheet({
           <SheetDescription className="flex items-center gap-1.5">
             <CalendarClock className="size-3.5" />
             {longDate(campaign.releaseDate)}
-            <span className="text-ash-dim">
+            <span className="text-steel/70">
               ·{" "}
               {days > 0
                 ? `in ${days} days`
@@ -110,10 +110,10 @@ export function CampaignSheet({
         </SheetHeader>
 
         <SheetBody className="space-y-6">
-          <div className="space-y-2 rounded-lg border border-hairline bg-coal-2 p-4">
+          <div className="space-y-2 rounded-lg border border-graphite/50 bg-coal-2 p-4">
             <div className="flex items-center justify-between">
               <p className="overline">Rollout progress</p>
-              <span className="font-mono text-xs text-ash-dim">
+              <span className="font-meta text-xs text-steel/70">
                 {campaign.doneCount}/{campaign.taskCount} · {percent(campaign.progress)}
               </span>
             </div>

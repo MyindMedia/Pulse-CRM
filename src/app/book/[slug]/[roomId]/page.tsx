@@ -109,7 +109,7 @@ export default function RoomDetailPage() {
     <div className="space-y-8">
       <Link
         href={`/book/${slug}`}
-        className="inline-flex items-center gap-1.5 text-sm text-ash hover:text-gold-bright"
+        className="inline-flex items-center gap-1.5 text-sm text-steel hover:text-gold-bright"
       >
         <ArrowLeft className="size-4" />
         All rooms
@@ -117,7 +117,7 @@ export default function RoomDetailPage() {
 
       {/* Hero band - the actual room shot, if set */}
       {room.heroImageUrl && (
-        <div className="relative overflow-hidden rounded-xl border border-hairline shadow-elev-2">
+        <div className="relative overflow-hidden rounded-chrome border border-graphite/50 shadow-elev-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={room.heroImageUrl}
@@ -135,14 +135,14 @@ export default function RoomDetailPage() {
             {room.roomType && (
               <p className="overline">{room.roomType}</p>
             )}
-            <h1 className="font-display text-3xl font-semibold tracking-tight text-bone sm:text-4xl">
+            <h1 className="font-grotesk text-3xl font-semibold tracking-tight text-bone sm:text-4xl">
               {room.name}
             </h1>
           </div>
-          <div className="rounded-lg border border-hairline bg-coal-2 px-4 py-3 text-right">
-            <p className="font-display text-2xl font-semibold text-bone">
+          <div className="rounded-lg border border-graphite/50 bg-coal-2 px-4 py-3 text-right">
+            <p className="font-grotesk text-2xl font-semibold text-bone">
               {money(room.hourlyRateCents)}
-              <span className="text-sm font-normal text-ash-dim"> / hr</span>
+              <span className="text-sm font-normal text-steel/70"> / hr</span>
             </p>
           </div>
         </div>
@@ -167,10 +167,10 @@ export default function RoomDetailPage() {
       <section className="space-y-3">
         <div className="flex items-center gap-2">
           <Music4 className="size-4 text-gold" />
-          <h2 className="font-display text-lg font-semibold tracking-tight text-bone">
+          <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
             In this room
           </h2>
-          <span className="text-xs text-ash-dim">
+          <span className="text-xs text-steel/70">
             {room.equipment.length} {room.equipment.length === 1 ? "piece" : "pieces"}
           </span>
         </div>
@@ -180,10 +180,10 @@ export default function RoomDetailPage() {
       {/* Booking */}
       <section className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
         <div className="space-y-3">
-          <h2 className="font-display text-lg font-semibold tracking-tight text-bone">
+          <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
             Pick your time
           </h2>
-          <div className="rounded-lg border border-hairline bg-coal p-5">
+          <div className="rounded-lg border border-graphite/50 bg-coal p-5">
             <AvailabilityPicker
               roomId={room._id}
               minimumHours={room.minimumHours}
@@ -196,22 +196,22 @@ export default function RoomDetailPage() {
         </div>
 
         <div className="space-y-3">
-          <h2 className="font-display text-lg font-semibold tracking-tight text-bone">
+          <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
             Your details
           </h2>
-          <div className="space-y-5 rounded-lg border border-hairline bg-coal p-5">
+          <div className="space-y-5 rounded-lg border border-graphite/50 bg-coal p-5">
             <BookingForm values={form} onChange={setForm} />
 
-            <div className="space-y-3 border-t border-hairline pt-4">
+            <div className="space-y-3 border-t border-graphite/50 pt-4">
               <div className="flex items-center justify-between text-sm">
-                <span className="text-ash">Session total</span>
-                <span className="font-mono text-bone">
+                <span className="text-steel">Session total</span>
+                <span className="font-meta text-bone">
                   {selection ? money(liveRateCents) : "-"}
                 </span>
               </div>
               <div className="flex items-center justify-between text-sm">
-                <span className="text-ash">Deposit to hold</span>
-                <span className="font-mono text-gold-bright">
+                <span className="text-steel">Deposit to hold</span>
+                <span className="font-meta text-gold-bright">
                   {selection ? money(liveDepositCents) : "-"}
                 </span>
               </div>
@@ -237,12 +237,12 @@ export default function RoomDetailPage() {
               </Button>
 
               {!selection && (
-                <p className="text-center text-xs text-ash-dim">
+                <p className="text-center text-xs text-steel/70">
                   Pick a date and time to continue.
                 </p>
               )}
               {selection && !formValid && (
-                <p className="text-center text-xs text-ash-dim">
+                <p className="text-center text-xs text-steel/70">
                   Add your name and a valid email to continue.
                 </p>
               )}

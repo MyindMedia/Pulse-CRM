@@ -108,7 +108,7 @@ function SongsCatalog() {
       <div className="space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <div className="relative min-w-56 flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ash-dim" />
+            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-steel/70" />
             <Input
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
@@ -188,7 +188,7 @@ function SongsCatalog() {
         />
       ) : (
         <>
-          <p className="font-mono text-[0.6875rem] uppercase tracking-wide text-ash-dim">
+          <p className="font-meta text-[0.6875rem] uppercase tracking-wide text-steel/70">
             {songs.length} {songs.length === 1 ? "song" : "songs"}
           </p>
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -223,15 +223,15 @@ function StageChip({
         "inline-flex shrink-0 items-center gap-1.5 rounded-md border px-3 py-1.5 text-xs font-medium transition-colors",
         active
           ? "border-gold-dim bg-gold/10 text-gold-bright"
-          : "border-hairline bg-coal text-ash hover:border-hairline-2 hover:text-bone",
+          : "border-graphite/50 bg-coal text-steel hover:border-graphite/60 hover:text-bone",
       )}
     >
       {label}
       {count !== undefined && (
         <span
           className={cn(
-            "font-mono text-[0.625rem]",
-            active ? "text-gold-bright/70" : "text-ash-dim",
+            "font-meta text-[0.625rem]",
+            active ? "text-gold-bright/70" : "text-steel/70",
           )}
         >
           {count}

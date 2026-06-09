@@ -77,8 +77,8 @@ function OnboardInner() {
   return (
     <main className="mx-auto max-w-5xl space-y-8 p-8">
       <header className="space-y-2 text-center">
-        <h1 className="font-display text-3xl font-semibold text-bone">Pick your plan</h1>
-        <p className="text-sm text-ash">Billed monthly. Cancel any time.</p>
+        <h1 className="font-grotesk text-3xl font-semibold text-bone">Pick your plan</h1>
+        <p className="text-sm text-steel">Billed monthly. Cancel any time.</p>
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -93,13 +93,13 @@ function OnboardInner() {
               className={`flex flex-col rounded-lg border p-5 text-left transition-colors ${
                 selected
                   ? "border-gold bg-gold/10"
-                  : "border-hairline bg-coal/40 hover:border-hairline-2"
+                  : "border-graphite/50 bg-coal/40 hover:border-graphite/60"
               }`}
             >
-              <p className="font-display text-lg font-semibold text-bone">{limits.label}</p>
-              <p className="mt-1 font-mono text-sm text-gold">{priceLabel(key)}</p>
-              <p className="mt-2 text-xs text-ash">{limits.tagline}</p>
-              <ul className="mt-3 space-y-1 text-xs text-ash-dim">
+              <p className="font-grotesk text-lg font-semibold text-bone">{limits.label}</p>
+              <p className="mt-1 font-meta text-sm text-gold">{priceLabel(key)}</p>
+              <p className="mt-2 text-xs text-steel">{limits.tagline}</p>
+              <ul className="mt-3 space-y-1 text-xs text-steel/70">
                 {TIER_BULLETS[key as Exclude<TierKey, "agency">].map((b) => (
                   <li key={b}>• {b}</li>
                 ))}
@@ -116,7 +116,7 @@ function OnboardInner() {
             value={agencyName}
             onChange={(e) => setAgencyName(e.target.value)}
             placeholder="Acme Music Group"
-            className="w-full rounded border border-hairline-2 bg-ink-2 px-3 py-2 text-sm text-bone"
+            className="w-full rounded border border-graphite/60 bg-obsidian px-3 py-2 text-sm text-bone"
           />
         </label>
       )}

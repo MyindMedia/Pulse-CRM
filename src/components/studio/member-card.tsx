@@ -73,7 +73,7 @@ export function MemberCard({ member }: { member: TeamMember }) {
             <div className="flex min-w-0 items-center gap-3">
               <Avatar name={member.name} color={member.avatarColor} size="md" />
               <div className="min-w-0">
-                <p className="truncate font-display text-sm font-semibold text-bone">
+                <p className="truncate font-grotesk text-sm font-semibold text-bone">
                   {member.name}
                 </p>
                 <Badge tone={role.tone} className="mt-1">
@@ -111,14 +111,14 @@ export function MemberCard({ member }: { member: TeamMember }) {
           {member.email && (
             <a
               href={`mailto:${member.email}`}
-              className="flex items-center gap-1.5 truncate text-xs text-ash transition-colors hover:text-gold-bright"
+              className="flex items-center gap-1.5 truncate text-xs text-steel transition-colors hover:text-gold-bright"
             >
-              <Mail className="size-3 shrink-0 text-ash-dim" />
+              <Mail className="size-3 shrink-0 text-steel/70" />
               {member.email}
             </a>
           )}
 
-          <div className="mt-auto border-t border-hairline pt-3">
+          <div className="mt-auto border-t border-graphite/50 pt-3">
             {member.skills.length > 0 ? (
               <div className="flex flex-wrap gap-1.5">
                 {member.skills.map((skill) => {
@@ -126,7 +126,7 @@ export function MemberCard({ member }: { member: TeamMember }) {
                   return (
                     <span
                       key={skill}
-                      className="inline-flex items-center gap-1 rounded-sm border border-hairline-2 bg-coal-2 px-2 py-0.5 text-[0.6875rem] font-medium text-bone"
+                      className="inline-flex items-center gap-1 rounded-sm border border-graphite/60 bg-coal-2 px-2 py-0.5 text-[0.6875rem] font-medium text-bone"
                     >
                       <span
                         className="size-1.5 rounded-full"
@@ -138,7 +138,7 @@ export function MemberCard({ member }: { member: TeamMember }) {
                 })}
               </div>
             ) : (
-              <p className="text-[0.6875rem] text-ash-dim">No skills listed.</p>
+              <p className="text-[0.6875rem] text-steel/70">No skills listed.</p>
             )}
           </div>
         </CardContent>
@@ -195,7 +195,7 @@ export function RemoveMemberDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <p className="text-sm text-ash">
+          <p className="text-sm text-steel">
             This only removes the team membership - it does not delete any
             session history.
           </p>

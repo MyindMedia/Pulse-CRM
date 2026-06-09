@@ -31,14 +31,14 @@ function ChannelOption({
       onClick={onSelect}
       className={cn(
         "flex-1 rounded-lg border px-4 py-3 text-left transition-colors",
-        active ? "border-gold-dim bg-gold/[0.06]" : "border-hairline-2 bg-coal/40 hover:border-hairline",
+        active ? "border-gold-dim bg-gold/[0.06]" : "border-graphite/60 bg-coal/40 hover:border-graphite/50",
       )}
     >
       <div className="flex items-center justify-between">
-        <span className="font-display text-sm font-semibold text-bone">{title}</span>
+        <span className="font-grotesk text-sm font-semibold text-bone">{title}</span>
         {active && <CheckCircle2 className="size-4 text-gold" />}
       </div>
-      <p className="mt-1 text-xs text-ash">{desc}</p>
+      <p className="mt-1 text-xs text-steel">{desc}</p>
     </button>
   );
 }
@@ -80,14 +80,14 @@ export function EmailConnectCard() {
   const provider = status?.provider ?? "internal";
 
   return (
-    <div className="rounded-xl border border-hairline bg-coal/40 p-5">
+    <div className="rounded-chrome border border-graphite/50 bg-coal/40 p-5">
       <div className="flex items-start gap-4">
         <span className="grid size-10 shrink-0 place-items-center rounded-lg bg-gold/10 text-gold">
           <Mail className="size-5" />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="font-display text-sm font-semibold text-bone">Client email</p>
-          <p className="mt-0.5 text-sm text-ash">
+          <p className="font-grotesk text-sm font-semibold text-bone">Client email</p>
+          <p className="mt-0.5 text-sm text-steel">
             Choose how booking confirmations and client messages are sent.
           </p>
         </div>
@@ -109,12 +109,12 @@ export function EmailConnectCard() {
       </div>
 
       {/* Google connection controls */}
-      <div className="mt-4 border-t border-hairline pt-4">
+      <div className="mt-4 border-t border-graphite/50 pt-4">
         {status === undefined ? (
-          <p className="text-xs text-ash-dim">Checking…</p>
+          <p className="text-xs text-steel/70">Checking…</p>
         ) : status.googleConnected ? (
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm text-ash">
+            <p className="text-sm text-steel">
               Google connected{status.googleEmail ? ` - ${status.googleEmail}` : ""}.
             </p>
             <Button size="sm" variant="ghost" onClick={() => disconnect({})}>
@@ -122,7 +122,7 @@ export function EmailConnectCard() {
             </Button>
           </div>
         ) : !status.googleConfigured ? (
-          <p className="text-xs text-ash-dim">
+          <p className="text-xs text-steel/70">
             Google connect isn’t enabled on this workspace yet - your admin needs to configure it.
           </p>
         ) : (

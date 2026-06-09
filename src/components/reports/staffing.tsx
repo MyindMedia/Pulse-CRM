@@ -51,11 +51,11 @@ export function StaffingReport() {
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium text-bone">
                     {r.name}
-                    {r.role && <span className="ml-1.5 text-xs text-ash-dim">{r.role}</span>}
+                    {r.role && <span className="ml-1.5 text-xs text-steel/70">{r.role}</span>}
                   </span>
-                  <span className="font-mono text-ash">
+                  <span className="font-meta text-steel">
                     {r.hours}h
-                    <span className="ml-2 text-ash-dim">
+                    <span className="ml-2 text-steel/70">
                       {r.shifts} shift{r.shifts === 1 ? "" : "s"}
                       {r.sessions > 0 && ` · ${r.sessions} session`}
                     </span>

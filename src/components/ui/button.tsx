@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
    click. Primary glows warm gold; `glass` is a translucent toolbar variant;
    `brutal` keeps the original hard-edged stamp. */
 const buttonVariants = cva(
-  "sheen inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-lg text-sm font-medium " +
+  "sheen inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-chrome text-sm font-medium " +
     "transition-[transform,box-shadow,background-color,border-color,color] duration-200 ease-out " +
     "outline-none disabled:pointer-events-none disabled:opacity-40 disabled:shadow-none " +
     "focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2 " +
@@ -29,8 +29,8 @@ const buttonVariants = cva(
           "text-ash " +
           "hover:bg-coal-2/70 hover:text-bone hover:shadow-elev-1",
         outline:
-          "border border-hairline-2 text-bone shadow-elev-1 " +
-          "hover:bg-coal-2/60 hover:border-gold-dim hover:shadow-elev-2 hover:-translate-y-0.5",
+          "border border-graphite/60 text-bone " +
+          "hover:bg-coal-2/60 hover:border-gold hover:-translate-y-0.5",
         glass:
           "material-thin text-bone " +
           "hover:border-gold-dim/60 hover:-translate-y-0.5 hover:shadow-elev-3",

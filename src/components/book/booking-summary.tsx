@@ -43,9 +43,9 @@ export function BookingSummary({ booking }: { booking: BookingSummaryData }) {
   ];
 
   return (
-    <div className="overflow-hidden rounded-lg border border-hairline bg-coal">
-      <div className="flex items-center justify-between border-b border-hairline px-5 py-3">
-        <span className="font-display text-sm font-semibold text-bone">
+    <div className="overflow-hidden rounded-lg border border-graphite/50 bg-coal">
+      <div className="flex items-center justify-between border-b border-graphite/50 px-5 py-3">
+        <span className="font-grotesk text-sm font-semibold text-bone">
           Booking summary
         </span>
         <Badge tone={STATUS_TONE[booking.status] ?? "neutral"} className="capitalize">
@@ -56,27 +56,27 @@ export function BookingSummary({ booking }: { booking: BookingSummaryData }) {
       <dl className="divide-y divide-hairline">
         {rows.map((row) => (
           <div key={row.label} className="flex items-center gap-3 px-5 py-3">
-            <row.icon className="size-4 shrink-0 text-ash-dim" />
-            <dt className="w-24 shrink-0 text-xs text-ash-dim">{row.label}</dt>
+            <row.icon className="size-4 shrink-0 text-steel/70" />
+            <dt className="w-24 shrink-0 text-xs text-steel/70">{row.label}</dt>
             <dd className="min-w-0 flex-1 truncate text-sm text-bone">{row.value}</dd>
           </div>
         ))}
       </dl>
 
-      <div className="space-y-2 border-t border-hairline bg-coal-2/60 px-5 py-4">
+      <div className="space-y-2 border-t border-graphite/50 bg-coal-2/60 px-5 py-4">
         <div className="flex items-center justify-between text-sm">
-          <span className="text-ash">Session total</span>
-          <span className="font-mono text-bone">{money(booking.rateCents)}</span>
+          <span className="text-steel">Session total</span>
+          <span className="font-meta text-bone">{money(booking.rateCents)}</span>
         </div>
         <div className="flex items-center justify-between text-sm">
-          <span className="text-ash">Paid</span>
-          <span className="font-mono text-positive">{money(booking.paidCents)}</span>
+          <span className="text-steel">Paid</span>
+          <span className="font-meta text-positive">{money(booking.paidCents)}</span>
         </div>
-        <div className="flex items-center justify-between border-t border-hairline pt-2 text-sm">
+        <div className="flex items-center justify-between border-t border-graphite/50 pt-2 text-sm">
           <span className="font-medium text-bone">
             {booking.fullyPaid ? "Balance" : "Balance remaining"}
           </span>
-          <span className="font-mono font-semibold text-bone">
+          <span className="font-meta font-semibold text-bone">
             {money(booking.balanceCents)}
           </span>
         </div>

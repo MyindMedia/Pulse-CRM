@@ -140,16 +140,16 @@ export function AvailabilityPicker({
                   "flex shrink-0 flex-col items-center rounded-md border px-3 py-2 text-center transition-colors",
                   active
                     ? "border-gold bg-gold/10 text-gold-bright"
-                    : "border-hairline-2 bg-coal-2 text-ash hover:border-gold-dim hover:text-bone",
+                    : "border-graphite/60 bg-coal-2 text-steel hover:border-gold-dim hover:text-bone",
                 )}
               >
-                <span className="text-[0.625rem] font-mono uppercase tracking-wide">
+                <span className="text-[0.625rem] font-meta uppercase tracking-wide">
                   {isToday ? "Today" : d.toLocaleDateString("en-US", { weekday: "short" })}
                 </span>
-                <span className="font-display text-base font-semibold leading-tight">
+                <span className="font-grotesk text-base font-semibold leading-tight">
                   {d.getDate()}
                 </span>
-                <span className="text-[0.625rem] text-ash-dim">
+                <span className="text-[0.625rem] text-steel/70">
                   {d.toLocaleDateString("en-US", { month: "short" })}
                 </span>
               </button>
@@ -168,7 +168,7 @@ export function AvailabilityPicker({
             ))}
           </div>
         ) : data.slots.length === 0 ? (
-          <div className="flex items-center gap-2 rounded-md border border-dashed border-hairline-2 bg-coal/40 px-4 py-6 text-sm text-ash-dim">
+          <div className="flex items-center gap-2 rounded-md border border-dashed border-graphite/60 bg-coal/40 px-4 py-6 text-sm text-steel/70">
             <CalendarX2 className="size-4" />
             No open hours on this date.
           </div>
@@ -188,13 +188,13 @@ export function AvailabilityPicker({
                   disabled={!slot.available}
                   onClick={() => selectSlot(slot.hour)}
                   className={cn(
-                    "rounded-md border py-2.5 text-center font-mono text-sm transition-colors",
+                    "rounded-md border py-2.5 text-center font-meta text-sm transition-colors",
                     !slot.available &&
-                      "cursor-not-allowed border-hairline bg-coal/40 text-ash-dim line-through",
+                      "cursor-not-allowed border-graphite/50 bg-coal/40 text-steel/70 line-through",
                     slot.available &&
                       !selected &&
                       !inRange &&
-                      "border-hairline-2 bg-coal-2 text-bone hover:border-gold-dim",
+                      "border-graphite/60 bg-coal-2 text-bone hover:border-gold-dim",
                     selected && "border-gold bg-gold text-gold-ink font-semibold",
                     inRange && "border-gold-dim bg-gold/15 text-gold-bright",
                   )}
@@ -209,11 +209,11 @@ export function AvailabilityPicker({
 
       {/* Duration + price */}
       {startHour !== null && (
-        <div className="space-y-3 rounded-lg border border-hairline bg-coal-2 p-4">
+        <div className="space-y-3 rounded-lg border border-graphite/50 bg-coal-2 p-4">
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-medium text-bone">Session length</p>
-              <p className="text-xs text-ash-dim">
+              <p className="text-xs text-steel/70">
                 {minimumHours}h minimum
                 {maxDuration < minimumHours + 1
                   ? " - no longer block available from here"
@@ -231,7 +231,7 @@ export function AvailabilityPicker({
               >
                 <Minus className="size-4" />
               </Button>
-              <span className="w-14 text-center font-display text-lg font-semibold text-bone">
+              <span className="w-14 text-center font-grotesk text-lg font-semibold text-bone">
                 {durationHours}h
               </span>
               <Button
@@ -247,18 +247,18 @@ export function AvailabilityPicker({
             </div>
           </div>
 
-          <div className="flex items-end justify-between border-t border-hairline pt-3">
+          <div className="flex items-end justify-between border-t border-graphite/50 pt-3">
             <div>
-              <p className="text-xs text-ash-dim">
+              <p className="text-xs text-steel/70">
                 {formatHour(startHour)} – {formatHour(startHour + durationHours)}
               </p>
-              <p className="font-display text-xl font-semibold text-bone">
+              <p className="font-grotesk text-xl font-semibold text-bone">
                 {money(rateCents)}
               </p>
             </div>
-            <p className="text-right text-xs text-ash">
+            <p className="text-right text-xs text-steel">
               Deposit to hold
-              <span className="block font-mono text-sm text-gold-bright">
+              <span className="block font-meta text-sm text-gold-bright">
                 {money(depositCents)}
               </span>
             </p>

@@ -11,7 +11,7 @@ export const Label = React.forwardRef<
   <LabelPrimitive.Root
     ref={ref}
     className={cn(
-      "text-xs font-medium text-ash select-none peer-disabled:opacity-50",
+      "text-xs font-medium text-steel select-none peer-disabled:opacity-50",
       className,
     )}
     {...props}
@@ -20,8 +20,8 @@ export const Label = React.forwardRef<
 Label.displayName = "Label";
 
 const fieldBase =
-  "w-full rounded-md border border-hairline-2 bg-ink-2 px-3 text-sm text-bone " +
-  "placeholder:text-ash-dim transition-colors outline-none " +
+  "w-full rounded-md border border-graphite/60 bg-obsidian px-3 text-sm text-bone " +
+  "placeholder:text-steel/70 transition-colors outline-none " +
   "focus-visible:border-gold-dim focus-visible:ring-2 focus-visible:ring-gold/20 " +
   "disabled:opacity-50 disabled:cursor-not-allowed";
 
@@ -58,7 +58,7 @@ export function Field({
     <div className={cn("space-y-1.5", className)}>
       <Label htmlFor={htmlFor}>{label}</Label>
       {children}
-      {hint && <p className="text-[0.6875rem] text-ash-dim">{hint}</p>}
+      {hint && <p className="text-[0.6875rem] text-steel/70">{hint}</p>}
     </div>
   );
 }

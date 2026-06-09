@@ -32,7 +32,7 @@ function conditionTone(condition?: string) {
 export function GearGallery({ equipment }: { equipment: GearItem[] }) {
   if (equipment.length === 0) {
     return (
-      <p className="rounded-lg border border-dashed border-hairline-2 bg-coal/40 px-5 py-8 text-center text-sm text-ash-dim">
+      <p className="rounded-lg border border-dashed border-graphite/60 bg-coal/40 px-5 py-8 text-center text-sm text-steel/70">
         Gear details for this room are being updated.
       </p>
     );
@@ -50,7 +50,7 @@ export function GearGallery({ equipment }: { equipment: GearItem[] }) {
         <motion.div
           key={item._id}
           variants={fadeUp}
-          className="overflow-hidden rounded-lg border border-hairline bg-coal"
+          className="overflow-hidden rounded-lg border border-graphite/50 bg-coal"
         >
           <GearPhoto
             photo={item.photo}

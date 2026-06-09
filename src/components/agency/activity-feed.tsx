@@ -41,8 +41,8 @@ export function ActivityFeed({ items }: { items: ActivityItem[] }) {
             aria-hidden
           />
           <p className="text-sm text-bone">{item.summary}</p>
-          <p className="mt-0.5 flex items-center gap-2 text-[0.6875rem] text-ash-dim">
-            <span className="font-mono uppercase tracking-wide">{item.kind}</span>
+          <p className="mt-0.5 flex items-center gap-2 text-[0.6875rem] text-steel/70">
+            <span className="font-meta uppercase tracking-wide">{item.kind}</span>
             <span aria-hidden>·</span>
             <span>{relativeTime(item._creationTime)}</span>
           </p>

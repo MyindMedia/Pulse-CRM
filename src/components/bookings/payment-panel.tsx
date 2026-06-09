@@ -29,7 +29,7 @@ function MoneyLine({
   tone?: "ash" | "bone" | "gold" | "positive" | "caution";
 }) {
   const color = {
-    ash: "text-ash",
+    ash: "text-steel",
     bone: "text-bone",
     gold: "text-gold-bright",
     positive: "text-positive",
@@ -37,8 +37,8 @@ function MoneyLine({
   }[tone];
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <span className="text-xs text-ash-dim">{label}</span>
-      <span className={cn("font-mono text-sm font-semibold tabular-nums", color)}>
+      <span className="text-xs text-steel/70">{label}</span>
+      <span className={cn("font-meta text-sm font-semibold tabular-nums", color)}>
         {value}
       </span>
     </div>
@@ -96,9 +96,9 @@ export function PaymentPanel({
   return (
     <div className="space-y-3">
       {/* Money summary */}
-      <div className="space-y-2 rounded-md border border-hairline bg-coal-2 p-3">
+      <div className="space-y-2 rounded-md border border-graphite/50 bg-coal-2 p-3">
         <div className="flex items-center justify-between">
-          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-ash">
+          <span className="inline-flex items-center gap-1.5 text-xs font-medium text-steel">
             <Wallet className="size-3.5" />
             Payment
           </span>
@@ -129,9 +129,9 @@ export function PaymentPanel({
 
       {/* Record-a-payment control */}
       {!cancelled && !m.fullyPaid && (
-        <div className="space-y-1.5 rounded-md border border-dashed border-hairline-2 p-3">
+        <div className="space-y-1.5 rounded-md border border-dashed border-graphite/60 p-3">
           <p className="overline">Record a payment</p>
-          <p className="text-[0.6875rem] text-ash-dim">
+          <p className="text-[0.6875rem] text-steel/70">
             Take a payment on the client&apos;s behalf. Amounts are derived
             from the booking - recorded as a simulated provider.
           </p>
@@ -182,33 +182,33 @@ export function PaymentPanel({
             ))}
           </div>
         ) : payments.length === 0 ? (
-          <p className="rounded-md border border-dashed border-hairline-2 py-5 text-center text-xs text-ash-dim">
+          <p className="rounded-md border border-dashed border-graphite/60 py-5 text-center text-xs text-steel/70">
             No payments recorded against this booking yet.
           </p>
         ) : (
-          <ul className="divide-y divide-hairline overflow-hidden rounded-md border border-hairline">
+          <ul className="divide-y divide-hairline overflow-hidden rounded-md border border-graphite/50">
             {payments.map((p) => (
               <li
                 key={p._id}
                 className="flex items-center justify-between gap-3 bg-coal-2 px-3 py-2"
               >
                 <span className="inline-flex min-w-0 items-center gap-2">
-                  <Receipt className="size-3.5 shrink-0 text-ash-dim" />
+                  <Receipt className="size-3.5 shrink-0 text-steel/70" />
                   <span className="min-w-0">
                     <span className="block truncate text-sm text-bone">
                       {titleCase(p.kind)} payment
                     </span>
-                    <span className="block truncate font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                    <span className="block truncate font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                       {titleCase(p.provider)}
                       {p.payerName ? ` · ${p.payerName}` : ""}
                     </span>
                   </span>
                 </span>
                 <span className="shrink-0 text-right">
-                  <span className="block font-mono text-sm font-semibold tabular-nums text-positive">
+                  <span className="block font-meta text-sm font-semibold tabular-nums text-positive">
                     {money(p.amountCents)}
                   </span>
-                  <span className="block text-[0.625rem] text-ash-dim">
+                  <span className="block text-[0.625rem] text-steel/70">
                     {relativeTime(p.paidAt ?? p._creationTime)}
                   </span>
                 </span>

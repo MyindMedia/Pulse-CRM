@@ -32,8 +32,8 @@ export function SmsRemindersCard() {
               <MessageSquare className="size-4" />
             </span>
             <div>
-              <p className="font-display text-sm font-semibold text-bone">Session reminders</p>
-              <p className="text-xs text-ash">
+              <p className="font-grotesk text-sm font-semibold text-bone">Session reminders</p>
+              <p className="text-xs text-steel">
                 Automatically text clients and the assigned engineer 24 hours and 2 hours before each session.
               </p>
             </div>
@@ -47,9 +47,9 @@ export function SmsRemindersCard() {
         </div>
 
         {status && !status.providerConfigured && (
-          <div className="flex items-center gap-2 rounded-md border border-hairline bg-coal/40 px-3 py-2">
+          <div className="flex items-center gap-2 rounded-md border border-graphite/50 bg-coal/40 px-3 py-2">
             <Badge tone="caution">Not connected</Badge>
-            <p className="text-[0.6875rem] text-ash-dim">
+            <p className="text-[0.6875rem] text-steel/70">
               SMS isn&apos;t connected yet, so reminders are simulated (logged, not sent). They&apos;ll start
               delivering once texting is set up for your studio.
             </p>

@@ -50,12 +50,12 @@ export function NoShowRiskReport() {
                     <TD>
                       <Badge tone={rel.tone}>{rel.label}</Badge>
                     </TD>
-                    <TD className="text-right tabular-nums text-ash">{r.noShows}</TD>
-                    <TD className="text-right tabular-nums text-ash-dim">{r.sessionCount}</TD>
+                    <TD className="text-right tabular-nums text-steel">{r.noShows}</TD>
+                    <TD className="text-right tabular-nums text-steel/70">{r.sessionCount}</TD>
                     <TD>
                       <div className="flex items-center gap-2.5">
                         <Progress value={r.riskScore} max={100} tone={tone} className="flex-1" />
-                        <span className="w-8 text-right font-mono text-xs tabular-nums text-bone">
+                        <span className="w-8 text-right font-meta text-xs tabular-nums text-bone">
                           {r.riskScore}
                         </span>
                       </div>

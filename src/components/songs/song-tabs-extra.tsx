@@ -54,17 +54,17 @@ export function SessionsTab({ sessions }: { sessions: SessionRow[] }) {
           const start = new Date(s.startTime);
           return (
             <div key={s._id} className="flex items-center gap-3 p-4">
-              <div className="grid size-12 shrink-0 place-items-center rounded-md border border-hairline bg-ink-2 text-center">
-                <span className="font-display text-sm font-bold leading-none text-bone">
+              <div className="grid size-12 shrink-0 place-items-center rounded-md border border-graphite/50 bg-obsidian text-center">
+                <span className="font-grotesk text-sm font-bold leading-none text-bone">
                   {start.getDate()}
                 </span>
-                <span className="font-mono text-[0.5625rem] uppercase text-ash-dim">
+                <span className="font-meta text-[0.5625rem] uppercase text-steel/70">
                   {start.toLocaleDateString("en-US", { month: "short" })}
                 </span>
               </div>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-bone">{s.title}</p>
-                <p className="truncate font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                <p className="truncate font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                   {timeOfDay(s.startTime)} · {duration(s.startTime, s.endTime)}
                   {s.serviceType ? ` · ${titleCase(s.serviceType)}` : ""}
                 </p>
@@ -109,13 +109,13 @@ function SyncOpportunitiesCard({ syncs }: { syncs: SyncRow[] }) {
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
-          <Clapperboard className="size-4 text-ash-dim" />
+          <Clapperboard className="size-4 text-steel/70" />
           Sync opportunities
         </CardTitle>
       </CardHeader>
       <CardContent>
         {syncs.length === 0 ? (
-          <p className="py-6 text-center text-sm text-ash-dim">
+          <p className="py-6 text-center text-sm text-steel/70">
             No sync pitches on this track yet.
           </p>
         ) : (
@@ -128,18 +128,18 @@ function SyncOpportunitiesCard({ syncs }: { syncs: SyncRow[] }) {
                 return (
                   <li
                     key={s._id}
-                    className="flex items-center gap-3 rounded-md border border-hairline bg-coal-2 px-3 py-2.5"
+                    className="flex items-center gap-3 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5"
                   >
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-medium text-bone">
                         {s.supervisorName}
                       </p>
-                      <p className="truncate font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                      <p className="truncate font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                         {s.outlet} · {relativeTime(s.updatedAt)}
                       </p>
                     </div>
                     {s.feeCents != null && (
-                      <span className="font-mono text-xs text-gold">
+                      <span className="font-meta text-xs text-gold">
                         {money(s.feeCents, { compact: true })}
                       </span>
                     )}
@@ -211,7 +211,7 @@ function ReleaseCampaignCard({ songId }: { songId: Id<"songs"> }) {
     <Card>
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2">
-          <Rocket className="size-4 text-ash-dim" />
+          <Rocket className="size-4 text-steel/70" />
           Release campaign
         </CardTitle>
         {campaign && (
@@ -225,12 +225,12 @@ function ReleaseCampaignCard({ songId }: { songId: Id<"songs"> }) {
           <Skeleton className="h-40 w-full" />
         ) : campaign === null ? (
           <div className="space-y-3">
-            <p className="text-sm text-ash">
+            <p className="text-sm text-steel">
               Build a rollout plan - a pre-built 12-step checklist anchored to the release date.
             </p>
             <div className="flex flex-wrap items-end gap-2">
               <div className="space-y-1">
-                <span className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                   Release date
                 </span>
                 <Input
@@ -285,10 +285,10 @@ function CampaignChecklist({
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <span className="font-mono text-[0.6875rem] uppercase tracking-wide text-ash-dim">
+        <span className="font-meta text-[0.6875rem] uppercase tracking-wide text-steel/70">
           Releases {longDate(campaign.releaseDate)}
         </span>
-        <span className="font-mono text-xs text-bone">
+        <span className="font-meta text-xs text-bone">
           {done}/{total}
         </span>
       </div>
@@ -305,17 +305,17 @@ function CampaignChecklist({
               {t.done ? (
                 <CheckCircle2 className="size-4 shrink-0 text-positive" />
               ) : (
-                <Circle className="size-4 shrink-0 text-ash-dim" />
+                <Circle className="size-4 shrink-0 text-steel/70" />
               )}
               <span
                 className={cn(
                   "min-w-0 flex-1 truncate text-sm",
-                  t.done ? "text-ash-dim line-through" : "text-bone",
+                  t.done ? "text-steel/70 line-through" : "text-bone",
                 )}
               >
                 {t.label}
               </span>
-              <span className="shrink-0 font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+              <span className="shrink-0 font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                 {t.offsetDays === 0
                   ? "Release day"
                   : t.offsetDays > 0
@@ -327,7 +327,7 @@ function CampaignChecklist({
         ))}
       </ul>
 
-      <div className="flex flex-wrap gap-2 border-t border-hairline pt-3">
+      <div className="flex flex-wrap gap-2 border-t border-graphite/50 pt-3">
         {campaign.status === "planning" && (
           <Button
             variant="outline"
@@ -404,7 +404,7 @@ export function ActivityTab({ songId }: { songId: Id<"songs"> }) {
                 />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm text-bone">{e.summary}</p>
-                  <p className="font-mono text-[0.625rem] uppercase tracking-wide text-ash-dim">
+                  <p className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                     {titleCase(e.kind)} · {relativeTime(e._creationTime)} ·{" "}
                     {shortDate(e._creationTime)}
                   </p>

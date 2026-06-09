@@ -50,7 +50,7 @@ export function CampaignCard({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="overline">{campaign.artistName}</p>
-          <h3 className="mt-0.5 truncate font-display text-base font-semibold tracking-tight text-bone">
+          <h3 className="mt-0.5 truncate font-grotesk text-base font-semibold tracking-tight text-bone">
             {campaign.songTitle}
           </h3>
         </div>
@@ -58,16 +58,16 @@ export function CampaignCard({
       </div>
 
       <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
-        <span className="inline-flex items-center gap-1.5 text-ash">
-          <CalendarClock className="size-3.5 text-ash-dim" />
+        <span className="inline-flex items-center gap-1.5 text-steel">
+          <CalendarClock className="size-3.5 text-steel/70" />
           {longDate(campaign.releaseDate)}
         </span>
         <span
           className={cn(
-            "font-mono text-xs uppercase tracking-wide",
+            "font-meta text-xs uppercase tracking-wide",
             cd.tone === "gold" && "text-gold",
             cd.tone === "positive" && "text-positive",
-            cd.tone === "ash" && "text-ash-dim",
+            cd.tone === "ash" && "text-steel/70",
           )}
         >
           {cd.text}
@@ -76,11 +76,11 @@ export function CampaignCard({
 
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-xs">
-          <span className="inline-flex items-center gap-1.5 text-ash">
-            <ListChecks className="size-3.5 text-ash-dim" />
+          <span className="inline-flex items-center gap-1.5 text-steel">
+            <ListChecks className="size-3.5 text-steel/70" />
             {campaign.doneCount}/{campaign.taskCount} rollout tasks
           </span>
-          <span className="font-mono text-ash-dim">{percent(campaign.progress)}</span>
+          <span className="font-meta text-steel/70">{percent(campaign.progress)}</span>
         </div>
         <Progress
           value={campaign.progress}

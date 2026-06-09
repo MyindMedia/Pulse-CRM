@@ -51,8 +51,8 @@ export function BookingLinkShare({ slug, studioName }: { slug: string; studioNam
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
-        <div className="flex flex-wrap items-center gap-2 rounded-md border border-hairline bg-coal-2 px-3 py-2.5">
-          <code className="min-w-0 flex-1 truncate font-mono text-sm text-bone">{url}</code>
+        <div className="flex flex-wrap items-center gap-2 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5">
+          <code className="min-w-0 flex-1 truncate font-meta text-sm text-bone">{url}</code>
           <Button size="sm" variant={copied ? "secondary" : "primary"} onClick={() => void copy()}>
             {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
             {copied ? "Copied" : "Copy"}
@@ -74,9 +74,9 @@ export function BookingLinkShare({ slug, studioName }: { slug: string; studioNam
           </Button>
         </div>
 
-        <div className="flex items-start gap-2 rounded-md border border-hairline bg-coal-2 px-3 py-2.5">
+        <div className="flex items-start gap-2 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5">
           <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-positive" />
-          <p className="text-[0.6875rem] text-ash-dim">
+          <p className="text-[0.6875rem] text-steel/70">
             Not a demo &mdash; this is your studio&apos;s own page. Renaming your studio can change the
             slug, so re-copy the link if you do.
           </p>

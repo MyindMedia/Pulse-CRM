@@ -16,9 +16,9 @@ export const SelectTrigger = React.forwardRef<
   <SelectPrimitive.Trigger
     ref={ref}
     className={cn(
-      "flex h-10 w-full items-center justify-between gap-2 rounded-md border border-hairline-2 " +
-        "bg-ink-2 px-3 text-sm text-bone outline-none transition-colors " +
-        "data-[placeholder]:text-ash-dim focus-visible:border-gold-dim focus-visible:ring-2 " +
+      "flex h-10 w-full items-center justify-between gap-2 rounded-md border border-graphite/60 " +
+        "bg-obsidian px-3 text-sm text-bone outline-none transition-colors " +
+        "data-[placeholder]:text-steel/70 focus-visible:border-gold-dim focus-visible:ring-2 " +
         "focus-visible:ring-gold/20 disabled:opacity-50 [&>span]:truncate",
       className,
     )}
@@ -26,7 +26,7 @@ export const SelectTrigger = React.forwardRef<
   >
     {children}
     <SelectPrimitive.Icon asChild>
-      <ChevronDown className="size-4 shrink-0 text-ash-dim" />
+      <ChevronDown className="size-4 shrink-0 text-steel/70" />
     </SelectPrimitive.Icon>
   </SelectPrimitive.Trigger>
 ));
@@ -86,7 +86,7 @@ export const SelectLabel = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <SelectPrimitive.Label
     ref={ref}
-    className={cn("px-2 py-1.5 text-[0.6875rem] font-mono uppercase tracking-wide text-ash-dim", className)}
+    className={cn("px-2 py-1.5 text-[0.6875rem] font-meta uppercase tracking-wide text-steel/70", className)}
     {...props}
   />
 ));

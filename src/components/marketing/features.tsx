@@ -49,16 +49,14 @@ const FEATURES = [
 
 export function Features() {
   return (
-    <section id="features" className="relative px-4 py-24 lg:px-8">
+    <section id="features" className="relative bg-bone px-4 py-28 text-obsidian lg:px-8">
       <div className="mx-auto max-w-6xl">
         <Reveal className="mx-auto max-w-2xl text-center">
-          <p className="overline">Everything in one place</p>
-          <h2 className="mt-3 font-display text-3xl font-bold tracking-tight text-bone sm:text-4xl">
-            Run the{" "}
-            <span className="font-serif text-[1.15em] font-normal italic text-gold">whole</span>{" "}
-            studio, not a pile of apps
+          <p className="chrome-meta text-slate">Everything in one place</p>
+          <h2 className="chrome-display chrome-fill-dark mt-4 text-4xl sm:text-5xl">
+            Run the <span className="not-italic text-gold-deep">whole</span> studio, not a pile of apps
           </h2>
-          <p className="mt-4 text-ash">
+          <p className="font-grotesk mt-5 text-[17px] font-medium leading-relaxed tracking-[-0.01em] text-slate">
             Pulse replaces the spreadsheet, the booking form, the scheduling app and the
             invoice tool with one connected system.
           </p>
@@ -67,12 +65,12 @@ export function Features() {
         <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((f, i) => (
             <Reveal key={f.title} delay={(i % 3) * 80}>
-              <div className="hover-glow group h-full rounded-2xl border border-hairline bg-coal/40 p-6 hover:-translate-y-1 hover:border-gold-dim hover:bg-coal-2/60">
-                <span className="grid size-11 place-items-center rounded-xl border border-hairline-2 bg-coal-2 text-gold transition-all duration-300 group-hover:scale-110 group-hover:border-gold-dim group-hover:text-gold-bright">
+              <div className="group h-full rounded-chrome border border-graphite/20 bg-paper p-6 transition-all hover:-translate-y-1 hover:border-obsidian">
+                <span className="grid size-11 place-items-center rounded-chrome border border-graphite/20 bg-fog text-gold-deep transition-all duration-300 group-hover:scale-110 group-hover:border-gold-deep">
                   <f.icon className="size-5" />
                 </span>
-                <h3 className="mt-5 font-display text-lg font-semibold text-bone">{f.title}</h3>
-                <p className="mt-2 text-sm leading-relaxed text-ash">{f.blurb}</p>
+                <h3 className="font-grotesk mt-5 text-xl font-semibold tracking-[-0.01em] text-obsidian">{f.title}</h3>
+                <p className="font-grotesk mt-2 text-sm leading-relaxed text-slate">{f.blurb}</p>
               </div>
             </Reveal>
           ))}

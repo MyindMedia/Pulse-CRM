@@ -24,7 +24,7 @@ export function StatusFilter({
     <div
       role="tablist"
       aria-label="Filter roster by status"
-      className="inline-flex items-center gap-1 rounded-md border border-hairline bg-ink-2 p-1"
+      className="inline-flex items-center gap-1 rounded-md border border-graphite/50 bg-obsidian p-1"
     >
       {OPTIONS.map((opt) => {
         const selected = opt.value === value;
@@ -39,15 +39,15 @@ export function StatusFilter({
             className={cn(
               "inline-flex items-center gap-1.5 rounded-sm px-3 py-1.5 text-sm font-medium",
               "outline-none transition-colors focus-visible:ring-2 focus-visible:ring-gold/30",
-              selected ? "bg-coal-3 text-bone" : "text-ash hover:text-bone",
+              selected ? "bg-coal-3 text-bone" : "text-steel hover:text-bone",
             )}
           >
             {opt.label}
             {count !== undefined && (
               <span
                 className={cn(
-                  "font-mono text-[0.625rem]",
-                  selected ? "text-gold" : "text-ash-dim",
+                  "font-meta text-[0.625rem]",
+                  selected ? "text-gold" : "text-steel/70",
                 )}
               >
                 {count}

@@ -4,8 +4,8 @@ import * as React from "react";
 import { useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
-import { Button } from "@/components/ui/button";
 import { errorMessage } from "@/lib/errors";
+import { cn } from "@/lib/utils";
 
 /** Pay-first subscribe: launches Stripe Checkout (no account needed yet). The
  *  Clerk login is created afterward on /welcome/activate. */
@@ -34,13 +34,17 @@ export function SubscribeButton({
   }
 
   return (
-    <Button
+    <button
       onClick={go}
       disabled={loading}
-      className="w-full"
-      variant={featured ? "primary" : "outline"}
+      className={cn(
+        "w-full rounded-chrome px-5 py-3 font-grotesk text-sm font-semibold uppercase tracking-[0.04em] transition-all disabled:opacity-60",
+        featured
+          ? "bg-gold text-gold-ink hover:-translate-y-0.5 hover:bg-gold-bright"
+          : "chrome-ghost chrome-ghost-gold text-gold hover:text-gold-bright",
+      )}
     >
       {loading ? "Starting…" : label}
-    </Button>
+    </button>
   );
 }
