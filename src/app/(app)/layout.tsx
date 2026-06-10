@@ -7,6 +7,7 @@ import { StudioBanner } from "@/components/shell/studio-banner";
 import { MemberSync } from "@/components/shell/member-sync";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { FeatureGuard } from "@/components/shell/feature-guard";
+import { AppTransition } from "@/components/shell/app-motion";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { TooltipProvider } from "@/components/ui/tooltip";
 
@@ -37,7 +38,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="relative z-10 flex min-h-dvh flex-col lg:pl-64">
           <StudioBanner />
           <Topbar onOpenMenu={() => setMobileNav(true)} />
-          <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">{children}</main>
+          <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">
+            <AppTransition>{children}</AppTransition>
+          </main>
         </div>
 
         <CommandPalette />
