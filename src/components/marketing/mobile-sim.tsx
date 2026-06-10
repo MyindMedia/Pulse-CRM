@@ -2,19 +2,21 @@
 
 import * as React from "react";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
-import { Home, CalendarDays, Inbox, CreditCard, Bell, Plus } from "lucide-react";
+import { Home, CalendarDays, Inbox, Receipt, Bell, Plus } from "lucide-react";
 
-/* Mobile counterpart to DashboardSim — the real Pulse UI in a phone, looping
- * through Home / Bookings / Calendar / Inbox with a live bottom tab bar, a
- * status bar and a booking toast. Built from the chrome palette so it reads as
- * the actual mobile app. em-on-cqw sizing scales with the phone width; reduced
- * motion renders the Home screen, static. */
+/* Mobile counterpart to DashboardSim - the real Pulse UI in a phone, looping
+ * through Home / Calendar / Inbox / Pay with a live bottom tab bar, a status
+ * bar and a booking toast. Screens mirror the real app: the dashboard KPI
+ * labels (dashboard/page.tsx), the day schedule with real rooms, the AI-draft
+ * inbox and the payments money summary with real invoice status chips.
+ * em-on-cqw sizing scales with the phone width; reduced motion renders the
+ * Home screen, static. */
 
 const TABS = [
   { icon: Home, label: "Home" },
   { icon: CalendarDays, label: "Calendar" },
   { icon: Inbox, label: "Inbox" },
-  { icon: CreditCard, label: "Pay" },
+  { icon: Receipt, label: "Pay" },
 ];
 
 const SCREEN_MS = 3000;
@@ -42,31 +44,32 @@ function useCountUp(target: number, run: boolean, ms = 900) {
 
 function MiniKpi({ label, value, prefix = "", suffix = "", run }: { label: string; value: number; prefix?: string; suffix?: string; run: boolean }) {
   const v = useCountUp(value, run);
-  const display = value >= 100 ? Math.round(v).toLocaleString() : v.toFixed(1);
+  const display = Number.isInteger(value) ? Math.round(v).toLocaleString() : v.toFixed(1);
   return (
-    <div className="flex flex-col gap-[0.25em] rounded-[0.7em] border border-graphite/50 bg-coal/70 p-[0.7em]">
-      <span className="font-meta text-[0.62em] uppercase tracking-[0.1em] text-steel/70">{label}</span>
-      <span className="font-grotesk text-[1.35em] font-semibold leading-none text-bone">{prefix}{display}{suffix}</span>
+    <div className="flex min-w-0 flex-col gap-[0.25em] rounded-[0.7em] border border-graphite/50 bg-coal/70 p-[0.7em]">
+      <span className="truncate font-meta text-[0.58em] uppercase tracking-[0.08em] text-steel/70">{label}</span>
+      <span className="truncate font-grotesk text-[1.35em] font-semibold leading-none text-bone">{prefix}{display}{suffix}</span>
     </div>
   );
 }
 
+/* The real dashboard KPIs + upcoming sessions, phone-sized. */
 function HomeScreen({ run }: { run: boolean }) {
   return (
     <div className="flex h-full flex-col gap-[0.7em]">
       <div>
         <p className="font-meta text-[0.6em] uppercase tracking-[0.12em] text-steel/70">Good morning</p>
-        <p className="font-grotesk text-[1.05em] font-semibold text-bone">Lunar Recording Co.</p>
+        <p className="font-grotesk text-[1.05em] font-semibold text-bone">Lumen Recording Co.</p>
       </div>
       <div className="grid grid-cols-2 gap-[0.55em]">
-        <MiniKpi label="Today" value={6} suffix=" sess" run={run} />
-        <MiniKpi label="Revenue" value={28.2} prefix="$" suffix="k" run={run} />
-        <MiniKpi label="Pipeline" value={39.1} prefix="$" suffix="k" run={run} />
-        <MiniKpi label="Util." value={82} suffix="%" run={run} />
+        <MiniKpi label="Revenue MTD" value={28.4} prefix="$" suffix="k" run={run} />
+        <MiniKpi label="Sessions MTD" value={42} run={run} />
+        <MiniKpi label="Pipeline value" value={39.1} prefix="$" suffix="k" run={run} />
+        <MiniKpi label="Outstanding" value={8.6} prefix="$" suffix="k" run={run} />
       </div>
       <div className="flex flex-col gap-[0.4em] rounded-[0.7em] border border-graphite/50 bg-coal/60 p-[0.7em]">
-        <span className="font-meta text-[0.6em] uppercase tracking-[0.12em] text-steel/70">Up next</span>
-        {["Studio A · Mixing · 10:00", "Booth 2 · Vocals · 13:30"].map((r, i) => (
+        <span className="font-meta text-[0.6em] uppercase tracking-[0.12em] text-steel/70">Upcoming sessions</span>
+        {["Studio A · Tracking · 10:00", "Booth 2 · Vocals · 13:30"].map((r, i) => (
           <div key={r} className="flex items-center gap-[0.5em]">
             <span className="size-[0.5em] rounded-full" style={{ background: i === 0 ? "#fdb913" : "#3c3a3e" }} />
             <span className="truncate text-[0.74em] text-mist/80">{r}</span>
@@ -77,17 +80,18 @@ function HomeScreen({ run }: { run: boolean }) {
   );
 }
 
+/* The day's room bookings - real rooms, real session types. */
 function CalendarScreen() {
   const slots = [
     { t: "09:00", b: "Studio A · Setup", g: false },
-    { t: "10:00", b: "Studio A · Mixing", g: true },
-    { t: "12:00", b: "—", g: false, empty: true },
+    { t: "10:00", b: "Studio A · Tracking", g: true },
+    { t: "12:00", b: "Open slot", g: false, empty: true },
     { t: "13:30", b: "Booth 2 · Vocals", g: true },
-    { t: "16:00", b: "Studio A · Master", g: false },
+    { t: "16:00", b: "Studio A · Mastering", g: false },
   ];
   return (
     <div className="flex h-full flex-col gap-[0.45em]">
-      <p className="font-grotesk text-[0.95em] font-semibold text-bone">Today · Tue 9</p>
+      <p className="font-grotesk text-[0.95em] font-semibold text-bone">Today · Wed 10</p>
       {slots.map((s, i) => (
         <motion.div
           key={i}
@@ -98,7 +102,7 @@ function CalendarScreen() {
         >
           <span className="w-[2.6em] shrink-0 pt-[0.35em] font-meta text-[0.6em] text-steel/60">{s.t}</span>
           <div
-            className="flex-1 rounded-[0.5em] border p-[0.5em] text-[0.72em]"
+            className="flex-1 truncate rounded-[0.5em] border p-[0.5em] text-[0.72em]"
             style={{
               background: s.empty ? "transparent" : s.g ? "rgba(253,185,19,0.12)" : "rgba(36,36,42,0.7)",
               borderColor: s.empty ? "rgba(60,58,62,0.4)" : s.g ? "rgba(253,185,19,0.5)" : "rgba(60,58,62,0.6)",
@@ -113,12 +117,13 @@ function CalendarScreen() {
   );
 }
 
+/* The real inbox: AI agent drafts awaiting approval. */
 function InboxScreen() {
   const rows = [
-    { n: "Lauren · Paradise Static", m: "Recap sheet ready", g: true },
-    { n: "Marcus · First Light", m: "Shortlisted for the ad" },
-    { n: "Dana · Golden Hour", m: "Revision 2 of 4" },
-    { n: "Aurora Sky", m: "Re-engagement nudge" },
+    { n: "Lauren Page", m: "Draft reply ready for review", g: true },
+    { n: "Marcus Lee", m: "Deposit reminder approved" },
+    { n: "Dana Cole", m: "Mix v3 notes received" },
+    { n: "Aurora Sky", m: "Re-engagement draft waiting", g: true },
   ];
   return (
     <div className="flex h-full flex-col gap-[0.5em]">
@@ -143,35 +148,60 @@ function InboxScreen() {
   );
 }
 
+/* The real payments page: money-summary labels + invoices with the real
+ * status chips (Sent / Viewed / Paid from labels.ts INVOICE_STATUS). */
 function PayScreen({ run }: { run: boolean }) {
+  const collected = useCountUp(12.4, run);
+  const invoices = [
+    { id: "INV-1041", c: "Lauren Page", a: "$540", s: "Paid" },
+    { id: "INV-1042", c: "Marcus Lee", a: "$380", s: "Viewed" },
+    { id: "INV-1043", c: "Dana Cole", a: "$620", s: "Sent" },
+  ];
+  const chip: Record<string, { fg: string; bg: string; bd: string }> = {
+    Paid: { fg: "#3ddc91", bg: "rgba(61,220,145,0.1)", bd: "rgba(61,220,145,0.4)" },
+    Sent: { fg: "#5db4ff", bg: "rgba(93,180,255,0.1)", bd: "rgba(93,180,255,0.4)" },
+    Viewed: { fg: "#5db4ff", bg: "rgba(93,180,255,0.1)", bd: "rgba(93,180,255,0.4)" },
+  };
   return (
-    <div className="flex h-full flex-col gap-[0.7em]">
+    <div className="flex h-full flex-col gap-[0.55em]">
       <p className="font-grotesk text-[0.95em] font-semibold text-bone">Payments</p>
       <div className="flex flex-col gap-[0.3em] rounded-[0.8em] border border-gold/40 bg-gold/[0.08] p-[0.8em]">
-        <span className="font-meta text-[0.6em] uppercase tracking-[0.1em] text-gold/80">Paid this week</span>
-        <span className="font-grotesk text-[1.6em] font-semibold leading-none text-bone">${useCountUp(12.4, run).toFixed(1)}k</span>
+        <span className="font-meta text-[0.6em] uppercase tracking-[0.1em] text-gold/80">Collected · MTD</span>
+        <span className="font-grotesk text-[1.6em] font-semibold leading-none text-bone">${collected.toFixed(1)}k</span>
       </div>
-      {[
-        { n: "Deposit · Studio A", a: "$300", ok: true },
-        { n: "Session · Booth 2", a: "$180", ok: true },
-        { n: "Invoice #1043", a: "$540", ok: false },
-      ].map((r, i) => (
+      <div className="grid grid-cols-2 gap-[0.55em]">
+        <div className="flex flex-col gap-[0.2em] rounded-[0.6em] border border-graphite/50 bg-coal/70 p-[0.55em]">
+          <span className="font-meta text-[0.55em] uppercase tracking-[0.08em] text-steel/70">Outstanding</span>
+          <span className="font-grotesk text-[0.95em] font-semibold leading-none text-bone">$8.6k</span>
+        </div>
+        <div className="flex flex-col gap-[0.2em] rounded-[0.6em] border border-graphite/50 bg-coal/70 p-[0.55em]">
+          <span className="font-meta text-[0.55em] uppercase tracking-[0.08em] text-steel/70">Overdue</span>
+          <span className="font-grotesk text-[0.95em] font-semibold leading-none text-bone">$2.1k</span>
+        </div>
+      </div>
+      {invoices.map((r, i) => (
         <motion.div
-          key={r.n}
+          key={r.id}
           initial={{ opacity: 0, y: 6 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.05 * i, duration: 0.3 }}
-          className="flex items-center justify-between rounded-[0.6em] border border-graphite/40 bg-coal/60 p-[0.6em]"
+          className="flex items-center gap-[0.5em] rounded-[0.6em] border border-graphite/40 bg-coal/60 px-[0.6em] py-[0.5em]"
         >
-          <span className="truncate text-[0.74em] text-mist/80">{r.n}</span>
-          <span className="font-grotesk text-[0.74em] font-medium" style={{ color: r.ok ? "#3ddc91" : "#fbbf24" }}>{r.a}</span>
+          <span className="min-w-0 flex-1 truncate text-[0.7em] text-mist/80">{r.c}</span>
+          <span className="shrink-0 font-grotesk text-[0.7em] font-medium text-bone">{r.a}</span>
+          <span
+            className="shrink-0 rounded-full border px-[0.5em] py-[0.12em] font-meta text-[0.52em] uppercase tracking-[0.08em]"
+            style={{ color: chip[r.s].fg, background: chip[r.s].bg, borderColor: chip[r.s].bd }}
+          >
+            {r.s}
+          </span>
         </motion.div>
       ))}
     </div>
   );
 }
 
-const SCREENS = [HomeScreen, CalendarScreen, InboxScreen, PayScreen];
+const SCREENS: React.ComponentType<{ run: boolean }>[] = [HomeScreen, CalendarScreen, InboxScreen, PayScreen];
 
 export function MobileSim() {
   const reduce = useReducedMotion();
@@ -229,7 +259,7 @@ export function MobileSim() {
             transition={{ duration: 0.32, ease: "easeOut" }}
             className="h-full"
           >
-            <Active run={i === 0 && !reduce} />
+            <Active run={!reduce} />
           </motion.div>
         </AnimatePresence>
 

@@ -232,16 +232,65 @@ export function Hero() {
                 EQs, tube preamp, reel-to-reel, patchbay). Its marble surface
                 is anchored to the monitor's visual base at the landed scale
                 (0.78). Hidden until the scrub's final phase. */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
+            <div
               data-hero-ledge
-              src="/rack-cabinet.png"
-              alt=""
               aria-hidden
-              draggable={false}
               className="pointer-events-none absolute left-1/2 z-0 w-screen max-w-none -translate-x-1/2 select-none opacity-0 drop-shadow-[0_40px_80px_rgba(0,0,0,0.6)]"
               style={{ top: "calc(100% - 76px)" }}
-            />
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/rack-cabinet.png" alt="" draggable={false} className="block w-full" />
+              {/* Tape reels: circular cutouts of the render, spinning in place. */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/reel-left.png"
+                alt=""
+                draggable={false}
+                className="absolute"
+                style={{ left: "60.35%", top: "26.79%", width: "6%", animation: "reel-spin 2.4s linear infinite" }}
+              />
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src="/reel-right.png"
+                alt=""
+                draggable={false}
+                className="absolute"
+                style={{ left: "66.2%", top: "25.89%", width: "6%", animation: "reel-spin 3.1s linear infinite" }}
+              />
+              {/* EQ lights bouncing like a live signal, overlaid on the EQ unit. */}
+              <div
+                className="absolute flex items-end justify-between"
+                style={{ left: "34.7%", top: "42.5%", width: "10.6%", height: "7.5%" }}
+              >
+                {Array.from({ length: 26 }).map((_, i) => (
+                  <span
+                    key={i}
+                    className="w-[4.5%] origin-bottom rounded-[1px] bg-gold/80"
+                    style={{
+                      height: `${55 + ((i * 37) % 45)}%`,
+                      animation: `eq-bounce ${0.55 + ((i * 13) % 40) / 100}s ease-in-out ${-((i * 29) % 90) / 100}s infinite alternate`,
+                    }}
+                  />
+                ))}
+              </div>
+              {/* LED bargraph on the spectrum meter, same signal feel. */}
+              <div
+                className="absolute flex items-end justify-between"
+                style={{ left: "81.3%", top: "45%", width: "3.9%", height: "11%" }}
+              >
+                {Array.from({ length: 9 }).map((_, i) => (
+                  <span
+                    key={i}
+                    className="w-[8%] origin-bottom rounded-[1px]"
+                    style={{
+                      height: `${60 + ((i * 41) % 40)}%`,
+                      background: "linear-gradient(to top, #6fae5c 55%, #fdb913 85%, #e2574c)",
+                      animation: `eq-bounce ${0.5 + ((i * 17) % 35) / 100}s ease-in-out ${-((i * 23) % 80) / 100}s infinite alternate`,
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
             {/* 3D monitor */}
           <div
             data-hero-monitor

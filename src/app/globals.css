@@ -158,6 +158,9 @@
 /* Slow 3D idle motion for the rendered chrome badge. */
 @keyframes badge-swing { from { transform: rotate3d(0.15, 1, 0.05, -13deg); }
                          to   { transform: rotate3d(0.15, 1, 0.05, 13deg); } }
+/* Hero console gear: tape reels spin, EQ/meter LEDs bounce like a signal. */
+@keyframes reel-spin { to { transform: rotate(360deg); } }
+@keyframes eq-bounce { from { transform: scaleY(0.18); } to { transform: scaleY(1); } }
 
 /* ============================================================
    Base
