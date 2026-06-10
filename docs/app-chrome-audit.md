@@ -39,11 +39,19 @@ currently lacks.
       rises in on mount, grids opt into stagger via `.rise-stagger`.
 
 ### P1 — Shared data components
-- [ ] Charts (`TrendArea` / `HBars` / `CategoryDonut`) → chrome palette + gold accent +
-      draw-in animation (match the hero sparkline feel).
-- [ ] Tables / list rows → staggered reveal, chrome metadata header row.
-- [ ] Sheets / Dialogs / Command palette → consistent chrome motion.
-- [ ] Badge / Skeleton / EmptyState → chrome polish + skeleton→content crossfade.
+- [x] Charts (`TrendArea` / `HBars` / `CategoryDonut`) — already gold-gradient + chrome
+      tooltip + recharts draw-in animation. ✓ (verified on Dashboard/Reports/Agency)
+- [x] Detail + agency pages (9 non-PageHeader surfaces) → chrome-display titles.
+- [ ] Tables / list rows → staggered reveal (optional polish; metadata header rows
+      already mono via the `.overline` change).
+- [x] Sheets / Dialogs / Command palette → already use chrome pop/sheet keyframes.
+- [ ] Skeleton→content crossfade (optional polish).
+
+**SHIPPED LIVE (95c35e9 + 9cfeba9):** verified 6 structurally-different surfaces
+(dashboard, pipeline/kanban, settings/forms, reports/tables, agency/own-shell,
+calendar/grid) all carry the unified chrome look (chrome-display titles, mono
+metadata, gold accents, chrome tiles/cards/tables) + motion (route transition +
+rise-soft + chart/donut draw-in). Verified via demo mode (no Clerk key → seeded data).
 
 ### P2 — Per-surface pass (grouped, in build order)
 1. [ ] **Dashboard** (flagship) — KPI count-ups, chart draw-in, activity stagger.
