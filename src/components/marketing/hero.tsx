@@ -134,7 +134,7 @@ export function Hero() {
         // vacated center, like the reference's landing move.
         .to(
           "[data-hero-stage]",
-          { y: () => -window.innerHeight * 0.38, ease: "none", duration: 0.8 },
+          { y: () => -window.innerHeight * 0.3, ease: "none", duration: 0.8 },
           1.05,
         )
         // Desk ledge rises/fades in under the monitor.
@@ -226,11 +226,12 @@ export function Hero() {
                 </span>
               ),
             )}
-            {/* Walnut rack cabinet (Gemini render, alpha-keyed): black marble
-                top the monitor lands on, three bays of amber-lit gear below.
-                Its marble surface is tuned to meet the monitor's visual base
-                at the landed scale (0.78). Hidden until the scrub's final
-                phase. */}
+            {/* Walnut studio console (Gemini render, alpha-keyed): full
+                viewport width, black marble top the monitor lands on, five
+                bays of distinct amber-lit gear below (compressors, graphic
+                EQs, tube preamp, reel-to-reel, patchbay). Its marble surface
+                is anchored to the monitor's visual base at the landed scale
+                (0.78). Hidden until the scrub's final phase. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               data-hero-ledge
@@ -238,7 +239,8 @@ export function Hero() {
               alt=""
               aria-hidden
               draggable={false}
-              className="pointer-events-none absolute bottom-[-147px] left-1/2 z-0 w-[clamp(380px,46vw,620px)] -translate-x-1/2 select-none opacity-0 drop-shadow-[0_40px_80px_rgba(0,0,0,0.6)]"
+              className="pointer-events-none absolute left-1/2 z-0 w-screen max-w-none -translate-x-1/2 select-none opacity-0 drop-shadow-[0_40px_80px_rgba(0,0,0,0.6)]"
+              style={{ top: "calc(100% - 76px)" }}
             />
             {/* 3D monitor */}
           <div
@@ -253,12 +255,12 @@ export function Hero() {
                 the PNG (the stand starts at ~70% height). */}
             <div
               aria-hidden
-              className="pointer-events-none absolute inset-x-0 top-0 bottom-[30%] rounded-md bg-[#0b0b0c]"
+              className="pointer-events-none absolute inset-x-0 top-0 bottom-[22%] rounded-md bg-[#0b0b0c]"
               style={{ transform: "translateZ(-26px)" }}
             />
             <div
               aria-hidden
-              className="pointer-events-none absolute bottom-[30%] left-0 top-0 w-[26px] rounded-sm"
+              className="pointer-events-none absolute bottom-[22%] left-0 top-0 w-[26px] rounded-sm"
               style={{
                 transform: "rotateY(90deg)",
                 transformOrigin: "left center",
@@ -274,10 +276,11 @@ export function Hero() {
               draggable={false}
               className="block w-full select-none drop-shadow-[0_50px_120px_rgba(0,0,0,0.7)]"
             />
-            {/* Live screen, mapped onto the panel (near-borderless; stand below). */}
+            {/* Live screen, mapped onto the panel (near-borderless; chin bar
+                and stand below). */}
             <div
               className="absolute overflow-hidden bg-obsidian"
-              style={{ top: "1.2%", left: "1.0%", right: "1.1%", bottom: "30.7%", containerType: "inline-size" }}
+              style={{ top: "1.2%", left: "1.0%", right: "1.1%", bottom: "26.5%", containerType: "inline-size" }}
             >
               <DashboardSim />
               {/* Screen glare + gold edge bloom. */}
