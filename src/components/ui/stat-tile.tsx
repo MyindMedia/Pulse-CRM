@@ -13,7 +13,7 @@ export function StatTile({
   className,
 }: {
   label: string;
-  value: string;
+  value: React.ReactNode;
   icon?: LucideIcon;
   delta?: number;
   hint?: string;

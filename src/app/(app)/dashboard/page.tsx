@@ -21,6 +21,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { PageHeader, Section } from "@/components/ui/page";
+import { CountUp } from "@/components/shell/app-motion";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -86,10 +87,10 @@ export default function DashboardPage() {
       {!data ? (
         <SkeletonCards cards={6} />
       ) : (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <div className="rise-stagger grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <StatTile
             label="Revenue · MTD"
-            value={money(data.kpis.revenueThisMonth, { compact: true })}
+            value={<CountUp to={data.kpis.revenueThisMonth} format={(n) => money(n, { compact: true })} />}
             icon={DollarSign}
             delta={data.kpis.revenueDelta}
             hint="vs last month"
@@ -97,28 +98,28 @@ export default function DashboardPage() {
           />
           <StatTile
             label="Sessions · MTD"
-            value={String(data.kpis.sessionsThisMonth)}
+            value={<CountUp to={data.kpis.sessionsThisMonth} />}
             icon={CalendarCheck}
           />
           <StatTile
             label="Pipeline value"
-            value={money(data.kpis.pipelineValue, { compact: true })}
+            value={<CountUp to={data.kpis.pipelineValue} format={(n) => money(n, { compact: true })} />}
             icon={KanbanSquare}
           />
           <StatTile
             label="Outstanding"
-            value={money(data.kpis.outstandingCents, { compact: true })}
+            value={<CountUp to={data.kpis.outstandingCents} format={(n) => money(n, { compact: true })} />}
             icon={AlertCircle}
             hint={data.kpis.overdueCount ? `${data.kpis.overdueCount} overdue` : "all current"}
           />
           <StatTile
             label="New leads · 7d"
-            value={String(data.kpis.newLeadsThisWeek)}
+            value={<CountUp to={data.kpis.newLeadsThisWeek} />}
             icon={UserPlus}
           />
           <StatTile
             label="Avg session"
-            value={money(data.kpis.avgSessionValue, { compact: true })}
+            value={<CountUp to={data.kpis.avgSessionValue} format={(n) => money(n, { compact: true })} />}
             icon={Gauge}
           />
         </div>
@@ -293,7 +294,7 @@ export default function DashboardPage() {
                   className="border-0 bg-transparent"
                 />
               ) : (
-                <ul className="max-h-[22rem] overflow-y-auto p-2">
+                <ul className="rise-stagger max-h-[22rem] overflow-y-auto p-2">
                   {activity.map((a) => (
                     <li key={a._id} className="flex items-start gap-3 rounded-md px-2 py-2">
                       <span

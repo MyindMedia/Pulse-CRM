@@ -29,6 +29,49 @@ export function AppTransition({ children }: { children: React.ReactNode }) {
   );
 }
 
+function useCountUpValue(target: number, run: boolean, ms: number) {
+  const [v, setV] = React.useState(run ? 0 : target);
+  const fromRef = React.useRef(run ? 0 : target);
+  React.useEffect(() => {
+    if (!run) {
+      fromRef.current = target;
+      setV(target);
+      return;
+    }
+    const from = fromRef.current;
+    let raf = 0;
+    let start = 0;
+    const tick = (t: number) => {
+      if (!start) start = t;
+      const p = Math.min(1, (t - start) / ms);
+      const eased = 1 - Math.pow(1 - p, 3);
+      const next = from + (target - from) * eased;
+      fromRef.current = next;
+      setV(next);
+      if (p < 1) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [target, run, ms]);
+  return v;
+}
+
+/** Animated number - eases 0 -> value on mount, previous -> value on refresh.
+ *  Matches the marketing DashboardSim count-up feel. Static under reduced motion. */
+export function CountUp({
+  to,
+  format = (n) => Math.round(n).toLocaleString(),
+  duration = 900,
+}: {
+  to: number;
+  format?: (n: number) => string;
+  duration?: number;
+}) {
+  const reduce = useReducedMotion();
+  const v = useCountUpValue(to, !reduce, duration);
+  return <>{format(v)}</>;
+}
+
 /** Rise + fade content into view on scroll. Drop-in around any block. */
 export function AppReveal({
   children,
