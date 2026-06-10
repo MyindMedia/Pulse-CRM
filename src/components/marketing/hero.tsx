@@ -103,13 +103,27 @@ export function Hero() {
       scrub
         // Phase 1 - sideways monitor swings to front-facing and grows; the
         // stage already starts rising so the monitor stays fully in frame.
-        .to(
+        // Explicit fromTo (no immediateRender): the from values must equal the
+        // entrance SETTLE pose, or scrolling back to the top restores the
+        // monitor to its pre-entrance state (tiny + near-edge-on).
+        .fromTo(
           "[data-hero-monitor]",
-          { rotateY: 0, rotateZ: 0, scale: 0.78, y: 0, ease: "none", duration: 1 },
+          { rotateY: 50, rotateZ: -4, scale: 0.58, y: -16 },
+          { rotateY: 0, rotateZ: 0, scale: 0.78, y: 0, ease: "none", duration: 1, immediateRender: false },
           0,
         )
-        .to("[data-hero-ghost]", { yPercent: 26, ease: "none", duration: 1 }, 0)
-        .to("[data-hero-stage]", { y: () => -window.innerHeight * 0.08, ease: "none", duration: 1 }, 0)
+        .fromTo(
+          "[data-hero-ghost]",
+          { yPercent: 0 },
+          { yPercent: 26, ease: "none", duration: 1, immediateRender: false },
+          0,
+        )
+        .fromTo(
+          "[data-hero-stage]",
+          { y: 0 },
+          { y: () => -window.innerHeight * 0.08, ease: "none", duration: 1, immediateRender: false },
+          0,
+        )
         // Phase 2 - headline + copy exit upward while the monitor holds.
         .to(
           "[data-hero-exit]",
@@ -174,9 +188,12 @@ export function Hero() {
               Run your studio with
             </span>
           </span>
-          <span className="mt-[0.35em] block overflow-hidden">
-            <span data-hero-line className="block motion-safe:[clip-path:inset(0_0_100%_0)]">
-              <span data-hero-ghost className="block whitespace-nowrap">
+          {/* data-hero-ghost sits on the un-clipped outer span: the parallax
+              drift must not move the logo inside the overflow-hidden entrance
+              wrapper or its bottom gets cut off. */}
+          <span data-hero-ghost className="mt-[0.35em] block">
+            <span className="block overflow-hidden">
+              <span data-hero-line className="block whitespace-nowrap motion-safe:[clip-path:inset(0_0_100%_0)]">
                 <span className="sr-only">Pulse</span>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
@@ -209,27 +226,19 @@ export function Hero() {
                 </span>
               ),
             )}
-            {/* Rack-mount gear hanging under the desk ledge - revealed with it.
-                Rendered before the ledge so the table top paints over its top
-                edge (gear reads as recessed under the surface). */}
+            {/* Walnut rack cabinet (Gemini render, alpha-keyed): black marble
+                top the monitor lands on, three bays of amber-lit gear below.
+                Its marble surface is tuned to meet the monitor's visual base
+                at the landed scale (0.78). Hidden until the scrub's final
+                phase. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               data-hero-ledge
-              src="/rack-gear.png"
+              src="/rack-cabinet.png"
               alt=""
               aria-hidden
               draggable={false}
-              className="pointer-events-none absolute bottom-[-150px] left-1/2 z-0 w-[clamp(260px,30vw,400px)] -translate-x-1/2 select-none opacity-0"
-            />
-            {/* Desk ledge: a dark strip the monitor lands on at the end of the
-                pin. Its top edge is tuned to meet the monitor's visual base at
-                the landed scale (0.84), so the stand sits ON it, not above it.
-                Hidden until the scrub's final phase. */}
-            <div
-              data-hero-ledge
-              aria-hidden
-              className="pointer-events-none absolute inset-x-0 bottom-[17px] z-0 h-16 rounded-chrome border-t border-bone/10 opacity-0"
-              style={{ background: "linear-gradient(to bottom, #101010, #1a1a1a 30%, #0c0c0c)" }}
+              className="pointer-events-none absolute bottom-[-147px] left-1/2 z-0 w-[clamp(380px,46vw,620px)] -translate-x-1/2 select-none opacity-0 drop-shadow-[0_40px_80px_rgba(0,0,0,0.6)]"
             />
             {/* 3D monitor */}
           <div
@@ -237,6 +246,25 @@ export function Hero() {
             className="relative z-10 w-[min(90vw,880px)] origin-center will-change-transform [transform-style:preserve-3d] motion-safe:opacity-0"
             style={{ transform: "rotateY(10deg) scale(0.92)" }}
           >
+            {/* 3D body: a back face + left side wall extruded behind the flat
+                render, so the sideways pose reads as a solid monitor with
+                depth instead of a paper cutout. Both rotate with the display
+                (same preserve-3d parent). The body spans the panel region of
+                the PNG (the stand starts at ~70% height). */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 top-0 bottom-[30%] rounded-md bg-[#0b0b0c]"
+              style={{ transform: "translateZ(-26px)" }}
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute bottom-[30%] left-0 top-0 w-[26px] rounded-sm"
+              style={{
+                transform: "rotateY(90deg)",
+                transformOrigin: "left center",
+                background: "linear-gradient(to right, #2e2e31, #101012)",
+              }}
+            />
             {/* Rendered monitor incl. stand (Gemini render, transparent PNG). */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
