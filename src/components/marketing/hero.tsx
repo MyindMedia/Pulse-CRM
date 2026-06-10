@@ -105,7 +105,7 @@ export function Hero() {
       // Final zoom makes the screen fill ~94% of the viewport width, capped
       // so it never overflows the viewport height.
       const zoom = () =>
-        Math.min(0.94 / 0.302, (0.96 * window.innerHeight) / (0.292 * 0.558 * window.innerWidth));
+        Math.min(0.94 / 0.304, (0.96 * window.innerHeight) / (0.234 * 0.563 * window.innerWidth));
 
       scrub
         // Phase 1 - perspective starts flattening and the camera moves in
@@ -138,7 +138,7 @@ export function Hero() {
           1.0,
         )
         .to("[data-hero-scene]", { scale: zoom, rotateX: 0, ease: "none", duration: 0.95 }, 1.05)
-        .to("[data-hero-stage]", { y: () => -window.innerHeight * 0.34, ease: "none", duration: 0.95 }, 1.05);
+        .to("[data-hero-stage]", { y: () => -window.innerHeight * 0.13, ease: "none", duration: 0.95 }, 1.05);
     },
     { scope: root },
   );
@@ -226,34 +226,36 @@ export function Hero() {
             <div
               data-hero-scene
               className="relative w-screen max-w-none will-change-transform motion-safe:opacity-0"
-              style={{ transformOrigin: "50% 40.3%", transform: "scale(0.62) rotateX(6deg)" }}
+              style={{ transformOrigin: "50% 22.6%", transform: "scale(0.62) rotateX(6deg)" }}
             >
-              {/* The rendered scene (dark studio backdrop baked to match the
-                  page #161616, so it blends without keying). */}
+              {/* Dim-lit studio environment: a warm key spotlight on the desk
+                  and a soft floor pool, living INSIDE the scene so the light
+                  zooms with the camera. */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  background:
+                    "radial-gradient(48% 60% at 50% 36%, rgba(255,238,200,0.11), transparent 72%), radial-gradient(75% 30% at 50% 92%, rgba(255,238,200,0.05), transparent 75%)",
+                }}
+              />
+              {/* The desk render (true alpha cutout supplied by the studio). */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/hero-scene.png"
+                src="/hero-scene.webp"
                 alt=""
                 aria-hidden
                 draggable={false}
                 className="block w-full select-none"
-                style={{
-                  maskImage:
-                    "linear-gradient(to bottom, transparent 0%, #000 16%, #000 96%, transparent 100%), linear-gradient(to right, transparent 0%, #000 6%, #000 94%, transparent 100%)",
-                  maskComposite: "intersect",
-                  WebkitMaskImage:
-                    "linear-gradient(to bottom, transparent 0%, #000 16%, #000 96%, transparent 100%), linear-gradient(to right, transparent 0%, #000 6%, #000 94%, transparent 100%)",
-                  WebkitMaskComposite: "source-in",
-                }}
               />
-              {/* Live app UI mapped onto the monitor's screen rectangle. */}
+              {/* Live app UI mapped onto the ultrawide screen rectangle. */}
               <div
                 className="absolute overflow-hidden bg-obsidian"
                 style={{
-                  left: "34.9%",
-                  top: "25.7%",
-                  width: "30.2%",
-                  height: "29.2%",
+                  left: "34.8%",
+                  top: "10.9%",
+                  width: "30.4%",
+                  height: "23.4%",
                   containerType: "inline-size",
                 }}
               >
