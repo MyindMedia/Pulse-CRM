@@ -19,7 +19,7 @@ export function Chain() {
       <div className="mx-auto max-w-6xl">
         <Reveal className="mx-auto max-w-2xl text-center">
           <p className="chrome-meta text-steel">Studio operations, automated</p>
-          <h2 className="chrome-display mt-4 text-4xl text-bone sm:text-5xl">
+          <h2 className="chrome-display mt-4 text-4xl leading-[1.05] text-bone sm:text-5xl">
             From booking to <span className="text-gold">paid</span>, the studio runs itself
           </h2>
           <p className="font-grotesk mt-5 text-[17px] font-medium leading-relaxed tracking-[-0.01em] text-mist/80">

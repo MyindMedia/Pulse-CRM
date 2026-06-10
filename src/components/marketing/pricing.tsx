@@ -63,7 +63,7 @@ export function Pricing() {
       <div className="mx-auto max-w-6xl">
         <Reveal className="mx-auto max-w-2xl text-center">
           <p className="chrome-meta text-slate">Pricing</p>
-          <h2 className="chrome-display chrome-fill-dark mt-4 text-4xl sm:text-5xl">
+          <h2 className="chrome-display chrome-fill-dark mt-4 text-4xl leading-[1.05] sm:text-5xl">
             Simple plans that <span className="not-italic text-gold-deep">grow</span> with you
           </h2>
           <p className="font-grotesk mt-5 text-[17px] font-medium leading-relaxed tracking-[-0.01em] text-slate">
@@ -94,7 +94,7 @@ export function Pricing() {
                 <p className="font-grotesk mt-2 text-sm text-slate">{t.tagline}</p>
 
                 <div className="mt-6 flex items-baseline gap-1">
-                  <span className="chrome-display chrome-fill-dark text-5xl">{t.price}</span>
+                  <span className="chrome-display chrome-fill-dark text-5xl leading-[1.1]">{t.price}</span>
                   <span className="font-meta text-xs text-slate">{t.cadence}</span>
                 </div>
 

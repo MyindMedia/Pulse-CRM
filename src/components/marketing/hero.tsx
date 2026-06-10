@@ -42,8 +42,8 @@ export function Hero() {
       )
         .fromTo(
           "[data-hero-monitor]",
-          { y: 60, scale: 0.9, opacity: 0, rotateX: 26 },
-          { y: 0, scale: 1, opacity: 1, rotateX: 12, duration: 1, ease: "power2.out" },
+          { y: 90, scale: 0.82, opacity: 0, rotateX: 48, rotateZ: -6 },
+          { y: 0, scale: 1, opacity: 1, rotateX: 30, rotateZ: -3, duration: 1.1, ease: "power2.out" },
           "-=0.4",
         )
         .fromTo(
@@ -65,8 +65,8 @@ export function Hero() {
         },
       });
       scrub
-        .to("[data-hero-monitor]", { rotateX: 0, scale: 1.06, y: -28, ease: "none" }, 0)
-        .to("[data-hero-ghost]", { yPercent: 22, ease: "none" }, 0);
+        .to("[data-hero-monitor]", { rotateX: 0, rotateZ: 0, scale: 1.12, y: -44, ease: "none" }, 0)
+        .to("[data-hero-ghost]", { yPercent: 26, ease: "none" }, 0);
     },
     { scope: root },
   );
@@ -125,12 +125,12 @@ export function Hero() {
 
         {/* Stage: the tilted monitor pulled up to overlap the headline's lower
             edge (monitor paints over "Studio." → the word peeks above it). */}
-        <div className="relative z-0 -mt-[clamp(1.25rem,5vw,4rem)] flex w-full justify-center [perspective:1400px]">
+        <div className="relative z-0 -mt-[clamp(1.25rem,5vw,4rem)] flex w-full justify-center [perspective:1050px]">
           {/* 3D monitor */}
           <div
             data-hero-monitor
             className="relative z-10 w-[min(92vw,820px)] origin-top will-change-transform [transform-style:preserve-3d] motion-safe:opacity-0"
-            style={{ transform: "rotateX(12deg)" }}
+            style={{ transform: "rotateX(30deg) rotateZ(-3deg)" }}
           >
             {/* Bezel */}
             <div className="overflow-hidden rounded-chrome border border-graphite/70 bg-coal shadow-[0_40px_120px_-30px_rgba(0,0,0,0.85)] ring-1 ring-white/5">

@@ -214,17 +214,20 @@
   .chrome-display {
     font-family: var(--font-chrome);
     font-weight: 400;
-    line-height: 0.82;
+    line-height: 0.9;
     letter-spacing: -0.02em;
     text-transform: uppercase;
   }
-  /* Metallic chrome-fade fill for display text (black -> graphite -> fog). */
+  /* Metallic chrome-fade fill for display text (black -> graphite -> fog).
+     padding-bottom extends the clipped gradient box so tall caps/descenders
+     keep their fill instead of being cut at the baseline. */
   .chrome-fill {
     background: linear-gradient(180deg, #ffffff 0%, #b9b7bb 42%, #6e6c70 72%, #2a2a2e 100%);
     -webkit-background-clip: text;
     background-clip: text;
     color: transparent;
     -webkit-text-fill-color: transparent;
+    padding-bottom: 0.12em;
   }
   /* Same metallic fade but reading dark-on-light (for bright sections). */
   .chrome-fill-dark {
@@ -233,6 +236,7 @@
     background-clip: text;
     color: transparent;
     -webkit-text-fill-color: transparent;
+    padding-bottom: 0.12em;
   }
   /* System metadata voice: mono, tracked, uppercase. */
   .chrome-meta {
