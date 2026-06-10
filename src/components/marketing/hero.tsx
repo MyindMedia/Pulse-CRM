@@ -79,7 +79,10 @@ export function Hero() {
           { y: 24, opacity: 0 },
           { y: 0, opacity: 1, duration: 0.7, stagger: 0.1 },
           "-=0.6",
-        );
+        )
+        // The studio desk fades up dimly behind everything - the hero
+        // background - before brightening fully at the landing.
+        .fromTo("[data-hero-ledge]", { autoAlpha: 0 }, { autoAlpha: 0.5, duration: 1.0 }, "-=0.9");
 
       // Scroll scrub + pin handoff. The section pins for ~2 viewports of scroll:
       //   Phase 1 (t 0-1): monitor rotates toward flat + grows while the giant
@@ -137,12 +140,12 @@ export function Hero() {
           { y: () => -window.innerHeight * 0.3, ease: "none", duration: 0.8 },
           1.05,
         )
-        // Desk ledge rises/fades in under the monitor.
+        // The desk brightens to full and settles as the monitor lands on it.
         .fromTo(
           "[data-hero-ledge]",
-          { autoAlpha: 0, yPercent: 45 },
-          { autoAlpha: 1, yPercent: 0, ease: "none", duration: 0.6 },
-          1.2,
+          { autoAlpha: 0.5, yPercent: 8 },
+          { autoAlpha: 1, yPercent: 0, ease: "none", duration: 0.6, immediateRender: false },
+          1.1,
         );
     },
     { scope: root },
@@ -235,19 +238,32 @@ export function Hero() {
             <div
               data-hero-ledge
               aria-hidden
-              className="pointer-events-none absolute left-1/2 z-0 w-screen max-w-none -translate-x-1/2 select-none opacity-0"
-              style={{ top: "calc(100% - 76px - 27vw)" }}
+              className="pointer-events-none absolute left-1/2 z-0 w-screen max-w-none -translate-x-1/2 select-none opacity-50 motion-safe:opacity-0"
+              style={{ top: "calc(100% - 76px - 28vw)" }}
             >
               <div
                 aria-hidden
-                className="pointer-events-none absolute inset-0"
+                className="pointer-events-none absolute inset-0 z-10"
                 style={{
                   background:
                     "radial-gradient(48% 60% at 50% 36%, rgba(255,238,200,0.10), transparent 72%), radial-gradient(75% 30% at 50% 92%, rgba(255,238,200,0.05), transparent 75%)",
                 }}
               />
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/hero-scene.webp" alt="" draggable={false} className="block w-full" />
+              <img
+                src="/hero-scene.webp"
+                alt=""
+                draggable={false}
+                className="block w-full"
+                style={{
+                  maskImage:
+                    "linear-gradient(to bottom, transparent 0%, #000 14%, #000 96%, transparent 100%), linear-gradient(to right, transparent 0%, #000 6%, #000 94%, transparent 100%)",
+                  maskComposite: "intersect",
+                  WebkitMaskImage:
+                    "linear-gradient(to bottom, transparent 0%, #000 14%, #000 96%, transparent 100%), linear-gradient(to right, transparent 0%, #000 6%, #000 94%, transparent 100%)",
+                  WebkitMaskComposite: "source-in",
+                }}
+              />
             </div>
             {/* 3D monitor */}
           <div
