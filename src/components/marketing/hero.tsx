@@ -105,7 +105,7 @@ export function Hero() {
         // stage already starts rising so the monitor stays fully in frame.
         .to(
           "[data-hero-monitor]",
-          { rotateY: 0, rotateZ: 0, scale: 0.84, y: 0, ease: "none", duration: 1 },
+          { rotateY: 0, rotateZ: 0, scale: 0.78, y: 0, ease: "none", duration: 1 },
           0,
         )
         .to("[data-hero-ghost]", { yPercent: 26, ease: "none", duration: 1 }, 0)
@@ -120,7 +120,7 @@ export function Hero() {
         // vacated center, like the reference's landing move.
         .to(
           "[data-hero-stage]",
-          { y: () => -window.innerHeight * 0.23, ease: "none", duration: 0.8 },
+          { y: () => -window.innerHeight * 0.38, ease: "none", duration: 0.8 },
           1.05,
         )
         // Desk ledge rises/fades in under the monitor.
@@ -209,6 +209,18 @@ export function Hero() {
                 </span>
               ),
             )}
+            {/* Rack-mount gear hanging under the desk ledge - revealed with it.
+                Rendered before the ledge so the table top paints over its top
+                edge (gear reads as recessed under the surface). */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              data-hero-ledge
+              src="/rack-gear.png"
+              alt=""
+              aria-hidden
+              draggable={false}
+              className="pointer-events-none absolute bottom-[-150px] left-1/2 z-0 w-[clamp(260px,30vw,400px)] -translate-x-1/2 select-none opacity-0"
+            />
             {/* Desk ledge: a dark strip the monitor lands on at the end of the
                 pin. Its top edge is tuned to meet the monitor's visual base at
                 the landed scale (0.84), so the stand sits ON it, not above it.
@@ -216,7 +228,7 @@ export function Hero() {
             <div
               data-hero-ledge
               aria-hidden
-              className="pointer-events-none absolute inset-x-0 bottom-[10px] z-0 h-16 rounded-chrome border-t border-bone/10 opacity-0"
+              className="pointer-events-none absolute inset-x-0 bottom-[17px] z-0 h-16 rounded-chrome border-t border-bone/10 opacity-0"
               style={{ background: "linear-gradient(to bottom, #101010, #1a1a1a 30%, #0c0c0c)" }}
             />
             {/* 3D monitor */}
