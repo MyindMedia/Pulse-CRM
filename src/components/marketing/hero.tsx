@@ -204,7 +204,7 @@ export function Hero() {
                   alt=""
                   aria-hidden
                   draggable={false}
-                  className="mx-auto block w-[clamp(15rem,52vw,46rem)] select-none"
+                  className="mx-auto block w-[clamp(12rem,38vw,34rem)] select-none"
                 />
               </span>
             </span>
@@ -239,7 +239,7 @@ export function Hero() {
               data-hero-ledge
               aria-hidden
               className="pointer-events-none absolute left-1/2 z-0 w-screen max-w-none -translate-x-1/2 select-none opacity-50 motion-safe:opacity-0"
-              style={{ top: "calc(100% - 76px - 28vw)" }}
+              style={{ top: "calc(100% - 76px - 24.5vw)" }}
             >
               <div
                 aria-hidden
