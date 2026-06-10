@@ -94,7 +94,7 @@ export default function SubaccountDetailPage() {
           />
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
-              <h1 className="font-grotesk text-2xl font-bold tracking-tight text-bone">
+              <h1 className="chrome-display text-2xl leading-[0.95] tracking-[-0.01em] text-bone">
                 {subaccount.name}
               </h1>
               <Badge tone="neutral">{PLAN_LABEL[subaccount.plan]}</Badge>

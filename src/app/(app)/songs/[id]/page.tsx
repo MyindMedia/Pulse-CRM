@@ -221,7 +221,7 @@ function SongHero({ song }: { song: HeroSong }) {
                 </Badge>
               )}
             </div>
-            <h1 className="truncate font-grotesk text-2xl font-bold tracking-tight text-bone">
+            <h1 className="truncate chrome-display text-2xl leading-[0.95] tracking-[-0.01em] text-bone">
               {song.title}
             </h1>
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-steel">

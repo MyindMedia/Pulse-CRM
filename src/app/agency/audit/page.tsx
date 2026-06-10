@@ -16,7 +16,7 @@ export default function AuditPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="font-grotesk text-2xl font-semibold text-bone">Audit log</h1>
+        <h1 className="chrome-display text-2xl leading-[0.95] text-bone">Audit log</h1>
         <p className="text-sm text-steel">
           Every sensitive action across your sub-accounts.
         </p>

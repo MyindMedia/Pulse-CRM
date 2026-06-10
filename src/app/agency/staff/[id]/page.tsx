@@ -55,7 +55,7 @@ export default function StaffScopePage() {
         <Link href="/agency/staff" className="text-xs text-steel/70 hover:text-bone">
           ← Back to staff
         </Link>
-        <h1 className="mt-2 font-grotesk text-2xl font-semibold text-bone">{member.name}</h1>
+        <h1 className="mt-2 chrome-display text-2xl leading-[0.95] text-bone">{member.name}</h1>
         <p className="text-sm text-steel">
           {member.email} · {member.role}
         </p>

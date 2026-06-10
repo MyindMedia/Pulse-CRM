@@ -29,7 +29,7 @@ export default function BrandingPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="font-grotesk text-2xl font-semibold text-bone">Agency branding</h1>
+        <h1 className="chrome-display text-2xl leading-[0.95] text-bone">Agency branding</h1>
         <p className="text-sm text-steel">
           Logo, accent, and (on Agency tier) your own custom domain.
         </p>

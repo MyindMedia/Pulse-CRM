@@ -112,7 +112,7 @@ export default function ArtistDetailPage() {
 
           <div className="min-w-0 flex-1 space-y-2.5">
             <div className="flex flex-wrap items-center gap-2.5">
-              <h1 className="font-grotesk text-2xl font-bold tracking-tight text-bone">
+              <h1 className="chrome-display text-2xl leading-[0.95] tracking-[-0.01em] text-bone">
                 {data.name}
               </h1>
               <Badge tone="neutral">{artistTypeLabel(data.type)}</Badge>

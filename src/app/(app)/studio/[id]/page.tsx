@@ -334,7 +334,7 @@ export default function StudioDetailPage() {
           <div className="absolute bottom-4 left-6 right-6 flex items-end justify-between gap-4">
             <div className="min-w-0">
               <p className="overline">{room.roomType ?? "Room"}</p>
-              <h1 className="mt-1 truncate font-grotesk text-3xl font-semibold tracking-tight text-bone drop-shadow sm:text-4xl">
+              <h1 className="mt-1 truncate chrome-display text-3xl leading-[0.95] tracking-[-0.01em] text-bone drop-shadow sm:text-4xl">
                 {room.name}
               </h1>
             </div>

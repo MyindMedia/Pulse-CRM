@@ -33,7 +33,7 @@ export default function StaffPage() {
   return (
     <div className="space-y-6">
       <header>
-        <h1 className="font-grotesk text-2xl font-semibold text-bone">Agency staff</h1>
+        <h1 className="chrome-display text-2xl leading-[0.95] text-bone">Agency staff</h1>
         <p className="text-sm text-steel">
           Invite teammates, set their role, and scope them to specific sub-accounts.
         </p>
