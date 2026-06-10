@@ -54,14 +54,19 @@ metadata, gold accents, chrome tiles/cards/tables) + motion (route transition +
 rise-soft + chart/donut draw-in). Verified via demo mode (no Clerk key → seeded data).
 
 ### P2 — Per-surface pass (grouped, in build order)
-1. [ ] **Dashboard** (flagship) — KPI count-ups, chart draw-in, activity stagger.
-2. [ ] **Pipeline** (kanban) — column reveal, card motion.
-3. [ ] **Calendar / Schedule.**
-4. [ ] **Inbox / conversations.**
-5. [ ] **Bookings / Payments / Invoices.**
-6. [ ] **Roster / Songs / Studio / Releases.**
-7. [ ] **Inventory / Software / Licensing / Reports / Settings / Agent.**
-8. [ ] **Agency** surfaces (branding/agents/[orgId]/audit/staff/autopilot).
+1. [x] **Dashboard** (flagship) — KPI count-ups (CountUp in app-motion), chart
+       draw-in (recharts native), KPI grid + activity feed `.rise-stagger`.
+2. [x] **Pipeline** (kanban) — KPI count-ups + summary stagger + column reveal.
+3. [ ] **Calendar / Schedule.** (no stat tiles; route transition + chrome header
+       from P0 cover these — only bespoke polish left if wanted)
+4. [ ] **Inbox / conversations.** (same as above)
+5. [x] **Bookings / Payments / Invoices** — stat tiles count up + stagger
+       (payments via MoneySummary).
+6. [x] **Roster (+detail) / Studio (+room detail) / Releases** — count-ups + stagger.
+7. [x] **Inventory / Software** — count-ups + stagger. Reports/Settings/Agent have
+       no stat tiles; covered by P0 shell pass.
+8. [x] **Agency** overview + [orgId] rollup — count-ups + stagger (chrome titles
+       on the rest shipped in 9cfeba9).
 9. [ ] **Public/portal/booking** pages (already partly marketing-styled).
 
 ### P3 — Feel depth (polish)

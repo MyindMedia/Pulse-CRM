@@ -1,6 +1,7 @@
 "use client";
 
 import { Wallet, AlertTriangle, BadgeCheck, FileText } from "lucide-react";
+import { CountUp } from "@/components/shell/app-motion";
 import { StatTile } from "@/components/ui/stat-tile";
 import { SkeletonCards } from "@/components/ui/skeleton";
 import { money } from "@/lib/format";
@@ -19,16 +20,16 @@ export function MoneySummary({ summary }: { summary: InvoiceSummary | undefined 
   if (!summary) return <SkeletonCards cards={4} />;
 
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+    <div className="rise-stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
       <StatTile
         label="Outstanding"
-        value={money(summary.outstanding, { compact: true })}
+        value={<CountUp to={summary.outstanding} format={(n) => money(n, { compact: true })} />}
         icon={Wallet}
         hint="sent + viewed + overdue"
       />
       <StatTile
         label="Overdue"
-        value={money(summary.overdue, { compact: true })}
+        value={<CountUp to={summary.overdue} format={(n) => money(n, { compact: true })} />}
         icon={AlertTriangle}
         hint={summary.overdue > 0 ? "needs chasing" : "all current"}
         accent={summary.overdue > 0}
@@ -40,13 +41,13 @@ export function MoneySummary({ summary }: { summary: InvoiceSummary | undefined 
       />
       <StatTile
         label="Collected · MTD"
-        value={money(summary.collectedThisMonth, { compact: true })}
+        value={<CountUp to={summary.collectedThisMonth} format={(n) => money(n, { compact: true })} />}
         icon={BadgeCheck}
         hint="paid this month"
       />
       <StatTile
         label="Draft value"
-        value={money(summary.draftValue, { compact: true })}
+        value={<CountUp to={summary.draftValue} format={(n) => money(n, { compact: true })} />}
         icon={FileText}
         hint="not yet sent"
       />
