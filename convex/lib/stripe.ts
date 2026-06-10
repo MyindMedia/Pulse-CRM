@@ -12,7 +12,11 @@ export function stripeClient(): Stripe {
   if (_stripe) return _stripe;
   const key = process.env.STRIPE_SECRET_KEY;
   if (!key) throw new Error("STRIPE_SECRET_KEY not configured");
-  _stripe = new Stripe(key);
+  // Convex actions run in a V8 (non-Node) runtime, so the SDK must use the
+  // fetch-based HTTP client - the default Node http client has no node:https
+  // and the request dies mid-flight ("Connection lost while action was in
+  // flight"). Webhook signature checks already use constructEventAsync.
+  _stripe = new Stripe(key, { httpClient: Stripe.createFetchHttpClient() });
   return _stripe;
 }
 
