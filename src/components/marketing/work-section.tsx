@@ -100,30 +100,28 @@ export function WorkSection() {
                   {/* Perspective stage: the laptop rests at a slight 3D tilt and
                       straightens + lifts on hover (motion-safe only). */}
                   <div className="[perspective:1000px]">
-                    <div className="relative will-change-transform transition-transform duration-500 ease-out [transform-style:preserve-3d] [transform:rotateY(-7deg)_rotateX(3deg)] motion-safe:group-hover:[transform:rotateY(0deg)_rotateX(0deg)_translateY(-0.25rem)_scale(1.03)] motion-reduce:transition-none">
-                      {/* Extruded right side wall (the tilted-away side), hero.tsx
-                          "3D body" pattern: reads as solid depth, not a paper cutout. */}
-                      <div
+                    <div className="relative will-change-transform transition-transform duration-500 ease-out [transform:rotateY(-7deg)_rotateX(3deg)] motion-safe:group-hover:[transform:rotateY(0deg)_rotateX(0deg)_translateY(-0.25rem)_scale(1.03)] motion-reduce:transition-none">
+                      {/* MacBook Pro style render (alpha-keyed); the live sim is
+                          mapped onto its measured screen rectangle. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src="/macbook.png"
+                        alt=""
                         aria-hidden
-                        className="pointer-events-none absolute right-0 top-1 bottom-3 w-[26px] rounded-sm"
-                        style={{
-                          transform: "rotateY(-90deg)",
-                          transformOrigin: "right center",
-                          background: "linear-gradient(to left, #2e2e31, #101012)",
-                        }}
+                        draggable={false}
+                        className="block w-full select-none drop-shadow-[0_36px_70px_rgba(0,0,0,0.6)]"
                       />
-                      <div className="relative overflow-hidden rounded-chrome rounded-b-none border border-graphite/70 bg-coal ring-1 ring-white/5 transition-shadow duration-300 group-hover:ring-2 group-hover:ring-gold/60 group-hover:shadow-elev-3">
-                        {/* Gold LIVE tag, top-left - echoes the reference's NEW tag. */}
-                        <span className="chrome-meta absolute left-3 top-3 z-10 rounded-chrome bg-gold px-2 py-1 text-[0.625rem] text-gold-ink">
-                          LIVE
-                        </span>
-                        <div className="relative aspect-[16/10] w-full overflow-hidden bg-obsidian" style={{ containerType: "inline-size" }}>
-                          <DashboardSim start={2} />
-                          <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(115deg, rgba(255,255,255,0.06) 0%, transparent 30%)" }} />
-                        </div>
+                      {/* Gold LIVE tag over the screen's top-left corner. */}
+                      <span className="chrome-meta absolute left-[28.5%] top-[9%] z-10 rounded-chrome bg-gold px-2 py-1 text-[0.625rem] text-gold-ink">
+                        LIVE
+                      </span>
+                      <div
+                        className="absolute overflow-hidden bg-obsidian"
+                        style={{ left: "26.4%", top: "6.2%", right: "26.5%", bottom: "33%", containerType: "inline-size" }}
+                      >
+                        <DashboardSim start={2} />
+                        <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(115deg, rgba(255,255,255,0.06) 0%, transparent 30%)" }} />
                       </div>
-                      {/* Laptop base */}
-                      <div className="mx-auto h-3 w-[103%] -translate-x-[1.5%] rounded-b-[1.2rem] border border-t-0 border-graphite/70 bg-coal-2" />
                     </div>
                   </div>
                   <LabelChips name="DASHBOARD" tags={["DESKTOP"]} className="mt-4 justify-start" />
@@ -139,26 +137,37 @@ export function WorkSection() {
                   {/* Perspective stage: the phone rests at a slight 3D tilt and
                       straightens + lifts on hover (motion-safe only). */}
                   <div className="[perspective:1000px]">
-                    <div className="relative will-change-transform transition-transform duration-500 ease-out [transform-style:preserve-3d] [transform:rotateY(9deg)_rotateX(2deg)] motion-safe:group-hover:[transform:rotateY(0deg)_rotateX(0deg)_translateY(-0.25rem)_scale(1.03)] motion-reduce:transition-none">
-                      {/* Extruded left side wall (the tilted-away side), hero.tsx
-                          "3D body" pattern: reads as solid depth, not a paper cutout. */}
+                    <div className="relative will-change-transform transition-transform duration-500 ease-out [transform:rotateY(9deg)_rotateX(2deg)] motion-safe:group-hover:[transform:rotateY(0deg)_rotateX(0deg)_translateY(-0.25rem)_scale(1.03)] motion-reduce:transition-none">
+                      {/* iPhone 17 Pro Max style render (alpha-keyed); the live
+                          sim is mapped onto its rounded screen. */}
+                      {/* eslint-disable-next-line @next/next/no-img-element */}
+                      <img
+                        src="/iphone.png"
+                        alt=""
+                        aria-hidden
+                        draggable={false}
+                        className="block w-full select-none drop-shadow-[0_30px_60px_rgba(0,0,0,0.6)]"
+                      />
+                      <div
+                        className="absolute overflow-hidden bg-obsidian"
+                        style={{
+                          left: "4.2%",
+                          top: "2.0%",
+                          right: "4.4%",
+                          bottom: "3.6%",
+                          borderRadius: "10% / 4.8%",
+                          containerType: "inline-size",
+                        }}
+                      >
+                        <MobileSim />
+                        <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(160deg, rgba(255,255,255,0.06) 0%, transparent 26%)" }} />
+                      </div>
+                      {/* Dynamic island over the sim. */}
                       <div
                         aria-hidden
-                        className="pointer-events-none absolute left-0 top-6 bottom-6 w-[26px] rounded-sm"
-                        style={{
-                          transform: "rotateY(90deg)",
-                          transformOrigin: "left center",
-                          background: "linear-gradient(to right, #2e2e31, #101012)",
-                        }}
+                        className="absolute left-1/2 z-10 -translate-x-1/2 rounded-full bg-[#080808]"
+                        style={{ top: "3.6%", width: "22%", height: "2.3%" }}
                       />
-                      <div className="relative overflow-hidden rounded-[2.2rem] border border-graphite/70 bg-coal p-[0.5rem] ring-1 ring-white/5 transition-shadow duration-300 group-hover:ring-2 group-hover:ring-gold/60 group-hover:shadow-elev-3">
-                        {/* Notch */}
-                        <div className="absolute left-1/2 top-[0.5rem] z-10 h-5 w-24 -translate-x-1/2 rounded-b-2xl bg-coal" />
-                        <div className="relative aspect-[9/19] w-full overflow-hidden rounded-[1.7rem] bg-obsidian" style={{ containerType: "inline-size" }}>
-                          <MobileSim />
-                          <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(160deg, rgba(255,255,255,0.06) 0%, transparent 26%)" }} />
-                        </div>
-                      </div>
                     </div>
                   </div>
                   <LabelChips name="MOBILE" tags={["iOS"]} className="mt-4 justify-center" />
