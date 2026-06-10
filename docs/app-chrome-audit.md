@@ -34,7 +34,7 @@ currently lacks.
 - [x] Unify the `.overline` utility with the `chrome-meta` mono-metadata look.
 - [x] Add `<AppReveal>` (in-view rise+fade, `motion/react`, reduced-motion safe) and a
       route/content transition on the `(app)` layout (AnimatePresence fade/slide).
-- [x] Card / StatTile entrance + hover motion polish (consistent lift/elevation) —
+- [x] Card / StatTile entrance + hover motion polish (consistent lift/elevation):
       `rise-in-soft` keyframe + `.rise-soft` / `.rise-stagger` utilities; StatTile
       rises in on mount, grids opt into stagger via `.rise-stagger`.
 
