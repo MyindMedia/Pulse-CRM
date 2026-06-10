@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
+import { CountUp } from "@/components/shell/app-motion";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
@@ -208,21 +209,21 @@ export default function ArtistDetailPage() {
       </div>
 
       {/* Stat tiles */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <div className="rise-stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile
           label="Lifetime value"
-          value={money(data.lifetimeValueCents, { compact: true })}
+          value={<CountUp to={data.lifetimeValueCents} format={(n) => money(n, { compact: true })} />}
           icon={DollarSign}
           accent
         />
         <StatTile
           label="Sessions"
-          value={String(data.sessionCount)}
+          value={<CountUp to={data.sessionCount} />}
           icon={CalendarCheck}
         />
         <StatTile
           label="Outstanding"
-          value={money(data.outstandingCents, { compact: true })}
+          value={<CountUp to={data.outstandingCents} format={(n) => money(n, { compact: true })} />}
           icon={Wallet}
           hint={data.outstandingCents > 0 ? "balance due" : "all settled"}
         />

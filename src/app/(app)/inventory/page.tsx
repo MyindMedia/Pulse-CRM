@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
+import { CountUp } from "@/components/shell/app-motion";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
@@ -165,35 +166,35 @@ export default function InventoryPage() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        <div className="rise-stagger grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
           <StatTile
             label="Total value"
-            value={money(summary.currentTotal, { compact: true })}
+            value={<CountUp to={summary.currentTotal} format={(n) => money(n, { compact: true })} />}
             icon={Wallet}
             accent
             hint={`${summary.count} ${summary.count === 1 ? "item" : "items"}`}
           />
           <StatTile
             label="Gear value"
-            value={money(summary.gearCurrent, { compact: true })}
+            value={<CountUp to={summary.gearCurrent} format={(n) => money(n, { compact: true })} />}
             icon={Cpu}
             hint={`${summary.gearCount} hardware items`}
           />
           <StatTile
             label="Furniture value"
-            value={money(summary.furnitureCurrent, { compact: true })}
+            value={<CountUp to={summary.furnitureCurrent} format={(n) => money(n, { compact: true })} />}
             icon={Sofa}
             hint={`${summary.furnitureCount} furniture & space`}
           />
           <StatTile
             label="Installed"
-            value={String(summary.installed)}
+            value={<CountUp to={summary.installed} />}
             icon={DoorOpen}
             hint="assigned to rooms"
           />
           <StatTile
             label="In storage"
-            value={String(summary.inStorage)}
+            value={<CountUp to={summary.inStorage} />}
             icon={Boxes}
             hint={
               summary.maintenance > 0

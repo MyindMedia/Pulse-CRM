@@ -18,6 +18,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Section } from "@/components/ui/page";
+import { CountUp } from "@/components/shell/app-motion";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Skeleton, SkeletonCards } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
@@ -141,12 +142,12 @@ export default function SubaccountDetailPage() {
       </div>
 
       {/* Rollup */}
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <StatTile label="Rooms" value={String(subaccount.roomCount)} icon={DoorOpen} />
-        <StatTile label="Bookings" value={String(subaccount.bookingCount)} icon={CalendarCheck} />
+      <div className="rise-stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatTile label="Rooms" value={<CountUp to={subaccount.roomCount} />} icon={DoorOpen} />
+        <StatTile label="Bookings" value={<CountUp to={subaccount.bookingCount} />} icon={CalendarCheck} />
         <StatTile
           label="Collected"
-          value={money(subaccount.collectedCents, { compact: true })}
+          value={<CountUp to={subaccount.collectedCents} format={(n) => money(n, { compact: true })} />}
           icon={CircleDollarSign}
           accent
         />

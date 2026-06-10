@@ -31,6 +31,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { PhotoUpload } from "@/components/ui/photo-upload";
+import { CountUp } from "@/components/shell/app-motion";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Skeleton, SkeletonCards } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
@@ -387,10 +388,10 @@ export default function StudioDetailPage() {
       )}
 
       {/* Stats */}
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="rise-stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile
           label="Installed gear"
-          value={String(room.equipment.length)}
+          value={<CountUp to={room.equipment.length} />}
           icon={Package}
           hint={room.equipment.length === 0 ? "Empty" : `${money(equipmentValueCents)} value`}
         />
@@ -402,7 +403,7 @@ export default function StudioDetailPage() {
         />
         <StatTile
           label="Sessions this week"
-          value={String(roomSessions.length)}
+          value={<CountUp to={roomSessions.length} />}
           icon={CalendarClock}
           hint={roomSessions.length === 0 ? "No bookings" : "Sun – Sat"}
         />

@@ -26,6 +26,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
+import { CountUp } from "@/components/shell/app-motion";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -146,23 +147,23 @@ export default function PipelinePage() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <StatTile label="Open deals" value={String(metrics.openCount)} icon={Layers} />
+        <div className="rise-stagger grid grid-cols-2 gap-3 md:grid-cols-4">
+          <StatTile label="Open deals" value={<CountUp to={metrics.openCount} />} icon={Layers} />
           <StatTile
             label="Pipeline value"
-            value={money(metrics.totalValue, { compact: true })}
+            value={<CountUp to={metrics.totalValue} format={(n) => money(n, { compact: true })} />}
             icon={Wallet}
             accent
           />
           <StatTile
             label="Weighted value"
-            value={money(metrics.weightedValue, { compact: true })}
+            value={<CountUp to={metrics.weightedValue} format={(n) => money(n, { compact: true })} />}
             icon={Percent}
             hint="probability-adjusted"
           />
           <StatTile
             label="Win rate"
-            value={percent(metrics.winRate)}
+            value={<CountUp to={metrics.winRate} format={(n) => percent(n)} />}
             icon={Trophy}
           />
         </div>
@@ -199,7 +200,7 @@ export default function PipelinePage() {
           onDragCancel={() => setActiveId(null)}
         >
           <div className="-mx-4 overflow-x-auto px-4 pb-2 lg:-mx-8 lg:px-8">
-            <div className="flex min-w-0 gap-4">
+            <div className="rise-stagger flex min-w-0 gap-4">
               {KANBAN_STAGES.map((stage) => (
                 <KanbanColumn
                   key={stage}

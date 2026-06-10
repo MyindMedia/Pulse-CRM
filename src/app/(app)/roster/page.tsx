@@ -7,6 +7,7 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Search, UserPlus, Users, X } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
+import { CountUp } from "@/components/shell/app-motion";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -109,12 +110,12 @@ function RosterView() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-          <StatTile label="Total roster" value={String(counts.total)} icon={Users} accent />
-          <StatTile label="Active" value={String(counts.active)} />
-          <StatTile label="VIP" value={String(counts.vip)} />
-          <StatTile label="Leads" value={String(counts.lead)} />
-          <StatTile label="Dormant" value={String(counts.dormant)} />
+        <div className="rise-stagger grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+          <StatTile label="Total roster" value={<CountUp to={counts.total} />} icon={Users} accent />
+          <StatTile label="Active" value={<CountUp to={counts.active} />} />
+          <StatTile label="VIP" value={<CountUp to={counts.vip} />} />
+          <StatTile label="Leads" value={<CountUp to={counts.lead} />} />
+          <StatTile label="Dormant" value={<CountUp to={counts.dormant} />} />
         </div>
       )}
 

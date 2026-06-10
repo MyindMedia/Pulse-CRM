@@ -13,6 +13,7 @@ import {
   TrendingUp,
 } from "lucide-react";
 import { PageHeader, Section } from "@/components/ui/page";
+import { CountUp } from "@/components/shell/app-motion";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -62,34 +63,34 @@ export default function AgencyOverviewPage() {
       {overview === undefined ? (
         <SkeletonCards cards={6} />
       ) : (
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+        <div className="rise-stagger grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
           <StatTile
             label="Studios"
-            value={String(overview.studioCount)}
+            value={<CountUp to={overview.studioCount} />}
             icon={Building2}
             accent
             hint={`${overview.activeCount} active`}
           />
           <StatTile
             label="Bookings"
-            value={String(overview.bookingCount)}
+            value={<CountUp to={overview.bookingCount} />}
             icon={CalendarCheck}
           />
           <StatTile
             label="Collected · MTD"
-            value={money(overview.collectedThisMonthCents, { compact: true })}
+            value={<CountUp to={overview.collectedThisMonthCents} format={(n) => money(n, { compact: true })} />}
             icon={CircleDollarSign}
             hint={`${money(overview.collectedCents, { compact: true })} lifetime`}
           />
           <StatTile
             label="Pipeline value"
-            value={money(overview.pipelineValueCents, { compact: true })}
+            value={<CountUp to={overview.pipelineValueCents} format={(n) => money(n, { compact: true })} />}
             icon={KanbanSquare}
             hint={`${overview.pipelineCount} opps`}
           />
           <StatTile
             label="Outstanding"
-            value={money(overview.outstandingCents, { compact: true })}
+            value={<CountUp to={overview.outstandingCents} format={(n) => money(n, { compact: true })} />}
             icon={Receipt}
             hint={
               overview.overdueCents > 0
@@ -99,7 +100,7 @@ export default function AgencyOverviewPage() {
           />
           <StatTile
             label="Touches · 30d"
-            value={String(overview.recentTouches)}
+            value={<CountUp to={overview.recentTouches} />}
             icon={Send}
             hint="across all studios"
           />

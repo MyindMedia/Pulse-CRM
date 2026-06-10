@@ -6,6 +6,7 @@ import { api } from "@convex/_generated/api";
 import { AppWindow, Plus, RefreshCw, CalendarClock, Infinity as InfinityIcon, Layers } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
+import { CountUp } from "@/components/shell/app-motion";
 import { StatTile } from "@/components/ui/stat-tile";
 import {
   Select,
@@ -61,12 +62,12 @@ export default function SoftwarePage() {
         }
       />
 
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-        <StatTile label="Licenses" value={summary ? String(summary.count) : "—"} icon={AppWindow} accent hint={summary ? `${summary.subscriptions} subscriptions` : ""} />
-        <StatTile label="Recurring / yr" value={summary ? money(summary.annualRecurring, { compact: true }) : "—"} icon={RefreshCw} hint={summary ? `${money(summary.monthlyRecurring)}/mo` : ""} />
-        <StatTile label="Perpetual value" value={summary ? money(summary.perpetualValue, { compact: true }) : "—"} icon={InfinityIcon} hint="one-time licenses" />
-        <StatTile label="Renewals soon" value={summary ? String(summary.upcomingRenewals) : "—"} icon={CalendarClock} hint="next 60 days" />
-        <StatTile label="Expired" value={summary ? String(summary.expired) : "—"} icon={Layers} hint="need attention" />
+      <div className="rise-stagger grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        <StatTile label="Licenses" value={summary ? <CountUp to={summary.count} /> : "-"} icon={AppWindow} accent hint={summary ? `${summary.subscriptions} subscriptions` : ""} />
+        <StatTile label="Recurring / yr" value={summary ? <CountUp to={summary.annualRecurring} format={(n) => money(n, { compact: true })} /> : "-"} icon={RefreshCw} hint={summary ? `${money(summary.monthlyRecurring)}/mo` : ""} />
+        <StatTile label="Perpetual value" value={summary ? <CountUp to={summary.perpetualValue} format={(n) => money(n, { compact: true })} /> : "-"} icon={InfinityIcon} hint="one-time licenses" />
+        <StatTile label="Renewals soon" value={summary ? <CountUp to={summary.upcomingRenewals} /> : "-"} icon={CalendarClock} hint="next 60 days" />
+        <StatTile label="Expired" value={summary ? <CountUp to={summary.expired} /> : "-"} icon={Layers} hint="need attention" />
       </div>
 
       <div className="flex flex-wrap items-center gap-3">

@@ -35,7 +35,6 @@ function useCountUpValue(target: number, run: boolean, ms: number) {
   React.useEffect(() => {
     if (!run) {
       fromRef.current = target;
-      setV(target);
       return;
     }
     const from = fromRef.current;
@@ -53,7 +52,7 @@ function useCountUpValue(target: number, run: boolean, ms: number) {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [target, run, ms]);
-  return v;
+  return run ? v : target;
 }
 
 /** Animated number - eases 0 -> value on mount, previous -> value on refresh.

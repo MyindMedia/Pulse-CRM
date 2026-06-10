@@ -5,6 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Activity, CalendarClock, CheckCircle2, ClipboardList, Rocket } from "lucide-react";
 import { PageHeader, Section } from "@/components/ui/page";
+import { CountUp } from "@/components/shell/app-motion";
 import { StatTile } from "@/components/ui/stat-tile";
 import { SkeletonCards } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
@@ -70,15 +71,15 @@ export default function ReleasesPage() {
       {!stats ? (
         <SkeletonCards cards={4} />
       ) : (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rise-stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatTile
             label="Active campaigns"
-            value={String(stats.active)}
+            value={<CountUp to={stats.active} />}
             icon={Activity}
             accent
           />
-          <StatTile label="In planning" value={String(stats.planning)} icon={ClipboardList} />
-          <StatTile label="Released" value={String(stats.released)} icon={CheckCircle2} />
+          <StatTile label="In planning" value={<CountUp to={stats.planning} />} icon={ClipboardList} />
+          <StatTile label="Released" value={<CountUp to={stats.released} />} icon={CheckCircle2} />
           <StatTile
             label="Next release"
             value={stats.nextRelease ? shortDate(stats.nextRelease) : "-"}

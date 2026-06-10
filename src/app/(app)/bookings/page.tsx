@@ -16,6 +16,7 @@ import {
 import { BookSessionDialog } from "@/components/calendar/book-session-dialog";
 import { PageHeader, Section } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
+import { CountUp } from "@/components/shell/app-motion";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState, Spinner } from "@/components/ui/feedback";
@@ -160,28 +161,28 @@ export default function BookingsPage() {
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <div className="rise-stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
           <StatTile
             label="Active holds"
-            value={String(stats.activeHolds)}
+            value={<CountUp to={stats.activeHolds} />}
             icon={Timer}
             hint="awaiting a deposit"
           />
           <StatTile
             label="Awaiting balance"
-            value={String(stats.awaitingBalance)}
+            value={<CountUp to={stats.awaitingBalance} />}
             icon={CalendarClock}
             hint="confirmed, not paid in full"
           />
           <StatTile
             label="Paid in full"
-            value={String(stats.paidInFull)}
+            value={<CountUp to={stats.paidInFull} />}
             icon={CheckCircle2}
             hint="locked-in bookings"
           />
           <StatTile
             label="Collected"
-            value={money(stats.collected, { compact: true })}
+            value={<CountUp to={stats.collected} format={(n) => money(n, { compact: true })} />}
             icon={CircleDollarSign}
             accent
             hint="from online bookings"
