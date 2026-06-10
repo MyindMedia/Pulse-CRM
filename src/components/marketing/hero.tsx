@@ -70,8 +70,8 @@ export function Hero() {
       )
         .fromTo(
           "[data-hero-monitor]",
-          { y: 80, scale: 0.52, opacity: 0, rotateX: 52 },
-          { y: 0, scale: 0.66, opacity: 1, rotateX: 44, duration: 1.1, ease: "power2.out" },
+          { y: 60, scale: 0.5, opacity: 0, rotateY: 85, rotateZ: -8 },
+          { y: -16, scale: 0.58, opacity: 1, rotateY: 50, rotateZ: -4, duration: 1.1, ease: "power2.out" },
           "-=0.4",
         )
         .fromTo(
@@ -101,9 +101,15 @@ export function Hero() {
         },
       });
       scrub
-        // Phase 1 - original flatten/zoom scrub.
-        .to("[data-hero-monitor]", { rotateX: 0, scale: 0.96, y: 6, ease: "none", duration: 1 }, 0)
+        // Phase 1 - sideways monitor swings to front-facing and grows; the
+        // stage already starts rising so the monitor stays fully in frame.
+        .to(
+          "[data-hero-monitor]",
+          { rotateY: 0, rotateZ: 0, scale: 0.84, y: 0, ease: "none", duration: 1 },
+          0,
+        )
         .to("[data-hero-ghost]", { yPercent: 26, ease: "none", duration: 1 }, 0)
+        .to("[data-hero-stage]", { y: () => -window.innerHeight * 0.08, ease: "none", duration: 1 }, 0)
         // Phase 2 - headline + copy exit upward while the monitor holds.
         .to(
           "[data-hero-exit]",
@@ -114,7 +120,7 @@ export function Hero() {
         // vacated center, like the reference's landing move.
         .to(
           "[data-hero-stage]",
-          { y: () => -window.innerHeight * 0.18, ease: "none", duration: 0.8 },
+          { y: () => -window.innerHeight * 0.23, ease: "none", duration: 0.8 },
           1.05,
         )
         // Desk ledge rises/fades in under the monitor.
@@ -212,7 +218,7 @@ export function Hero() {
           <div
             data-hero-monitor
             className="relative z-10 w-[min(90vw,880px)] origin-center will-change-transform [transform-style:preserve-3d] motion-safe:opacity-0"
-            style={{ transform: "rotateX(8deg) scale(0.95)" }}
+            style={{ transform: "rotateY(10deg) scale(0.92)" }}
           >
             {/* Rendered monitor incl. stand (Gemini render, transparent PNG). */}
             {/* eslint-disable-next-line @next/next/no-img-element */}

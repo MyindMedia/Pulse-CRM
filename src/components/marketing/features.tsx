@@ -48,26 +48,6 @@ const FEATURES = [
   },
 ];
 
-/* Dylanbrouwer-style service pillars: gradient panel + slow-turning rendered
- * chrome icon, titles below. The 6-card grid underneath carries the detail. */
-const PILLARS = [
-  {
-    img: "/icon-wave.png",
-    title: "Run",
-    blurb: "Sessions, rooms and staff in one calendar, always in sync.",
-  },
-  {
-    img: "/icon-coin.png",
-    title: "Get paid",
-    blurb: "Deposits and invoices land straight in your own Stripe account.",
-  },
-  {
-    img: "/icon-spark.png",
-    title: "Automate",
-    blurb: "Bookings move themselves from deposit to invoice to payout.",
-  },
-];
-
 export function Features() {
   return (
     <section id="features" className="relative overflow-hidden bg-bone px-4 py-28 text-obsidian lg:px-8">
@@ -84,33 +64,7 @@ export function Features() {
           </p>
         </Reveal>
 
-        <div className="mt-14 grid gap-5 lg:grid-cols-3">
-          {PILLARS.map((p, i) => (
-            <Reveal key={p.title} delay={i * 90}>
-              <div className="group h-full rounded-chrome border border-graphite/20 bg-paper p-4">
-                <div
-                  className="grid aspect-[4/3] place-items-center overflow-hidden rounded-chrome [perspective:700px]"
-                  style={{ background: "linear-gradient(to bottom, #ececea 0%, #c9c8cb 45%, #46464a 100%)" }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src={p.img}
-                    alt=""
-                    aria-hidden
-                    draggable={false}
-                    className="icon-turn w-2/5 select-none [transform-style:preserve-3d]"
-                  />
-                </div>
-                <h3 className="font-grotesk mt-5 px-2 text-2xl font-semibold tracking-[-0.01em] text-obsidian">
-                  {p.title}
-                </h3>
-                <p className="font-grotesk mt-1.5 px-2 pb-2 text-sm leading-relaxed text-slate">{p.blurb}</p>
-              </div>
-            </Reveal>
-          ))}
-        </div>
-
-        <div className="mt-5 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="mt-14 grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
           {FEATURES.map((f, i) => (
             <Reveal key={f.title} delay={(i % 3) * 80}>
               <div className="group h-full rounded-chrome border border-graphite/20 bg-paper p-6 transition-all hover:-translate-y-1 hover:border-obsidian">
