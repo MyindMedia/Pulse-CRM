@@ -42,8 +42,8 @@ export function Hero() {
       )
         .fromTo(
           "[data-hero-monitor]",
-          { y: 90, scale: 0.82, opacity: 0, rotateX: 48, rotateZ: -6 },
-          { y: 0, scale: 1, opacity: 1, rotateX: 30, rotateZ: -3, duration: 1.1, ease: "power2.out" },
+          { y: 80, scale: 0.52, opacity: 0, rotateX: 52 },
+          { y: 0, scale: 0.66, opacity: 1, rotateX: 44, duration: 1.1, ease: "power2.out" },
           "-=0.4",
         )
         .fromTo(
@@ -65,7 +65,7 @@ export function Hero() {
         },
       });
       scrub
-        .to("[data-hero-monitor]", { rotateX: 0, rotateZ: 0, scale: 1.12, y: -44, ease: "none" }, 0)
+        .to("[data-hero-monitor]", { rotateX: 0, scale: 0.96, y: 6, ease: "none" }, 0)
         .to("[data-hero-ghost]", { yPercent: 26, ease: "none" }, 0);
     },
     { scope: root },
@@ -123,37 +123,41 @@ export function Hero() {
           </span>
         </h1>
 
-        {/* Stage: the tilted monitor pulled up to overlap the headline's lower
-            edge (monitor paints over "Studio." → the word peeks above it). */}
-        <div className="relative z-0 -mt-[clamp(1.25rem,5vw,4rem)] flex w-full justify-center [perspective:1050px]">
+        {/* Stage: a distant, steeply-tilted monitor that zooms forward, centers
+            and flattens to a head-on view as you scroll. The rendered monitor
+            frame (PNG) and the live screen are one transformed unit, so they
+            share the exact same perspective. */}
+        <div className="relative z-0 -mt-[clamp(2.5rem,8vw,6rem)] flex w-full justify-center [perspective:1150px]">
           {/* 3D monitor */}
           <div
             data-hero-monitor
-            className="relative z-10 w-[min(92vw,820px)] origin-top will-change-transform [transform-style:preserve-3d] motion-safe:opacity-0"
-            style={{ transform: "rotateX(30deg) rotateZ(-3deg)" }}
+            className="relative z-10 w-[min(88vw,760px)] origin-center will-change-transform [transform-style:preserve-3d] motion-safe:opacity-0"
+            style={{ transform: "rotateX(8deg) scale(0.95)" }}
           >
-            {/* Bezel */}
-            <div className="overflow-hidden rounded-chrome border border-graphite/70 bg-coal shadow-[0_40px_120px_-30px_rgba(0,0,0,0.85)] ring-1 ring-white/5">
-              {/* Top chrome bar */}
-              <div className="flex items-center gap-1.5 border-b border-graphite/50 bg-obsidian/80 px-4 py-2.5">
-                <span className="size-2.5 rounded-full bg-graphite" />
-                <span className="size-2.5 rounded-full bg-graphite" />
-                <span className="size-2.5 rounded-full bg-graphite" />
-                <span className="chrome-meta ml-3 text-steel/60">pulse · dashboard</span>
-              </div>
-              {/* Screen — live simulated app navigation. */}
-              <div className="relative aspect-[16/10] w-full overflow-hidden bg-obsidian" style={{ containerType: "inline-size" }}>
-                <DashboardSim />
-                {/* Screen glare + gold edge bloom. */}
-                <div
-                  aria-hidden
-                  className="pointer-events-none absolute inset-0"
-                  style={{
-                    background:
-                      "linear-gradient(115deg, rgba(255,255,255,0.10) 0%, transparent 28%), radial-gradient(120% 60% at 50% -10%, rgba(253,185,19,0.10), transparent 60%)",
-                  }}
-                />
-              </div>
+            {/* Rendered monitor frame (Gemini render, transparent PNG). */}
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/monitor-frame.png"
+              alt=""
+              aria-hidden
+              draggable={false}
+              className="block w-full select-none drop-shadow-[0_50px_120px_rgba(0,0,0,0.7)]"
+            />
+            {/* Live screen, mapped onto the frame's screen cutout. */}
+            <div
+              className="absolute overflow-hidden bg-obsidian"
+              style={{ top: "16.4%", left: "15.4%", right: "15.2%", bottom: "10.6%", containerType: "inline-size" }}
+            >
+              <DashboardSim />
+              {/* Screen glare + gold edge bloom. */}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute inset-0"
+                style={{
+                  background:
+                    "linear-gradient(115deg, rgba(255,255,255,0.08) 0%, transparent 30%), radial-gradient(120% 60% at 50% -10%, rgba(253,185,19,0.08), transparent 60%)",
+                }}
+              />
             </div>
           </div>
         </div>
