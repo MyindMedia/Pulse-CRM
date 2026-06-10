@@ -5,6 +5,7 @@ import { Hero } from "./hero";
 import { Chain } from "./chain";
 import { Features } from "./features";
 import { WorkSection } from "./work-section";
+import { LogoMarquee } from "./logo-marquee";
 import { Pricing } from "./pricing";
 import { Faq } from "./faq";
 import { FinalCta } from "./cta";
@@ -27,6 +28,7 @@ export function LandingPage() {
         <Chain />
         <Features />
         <WorkSection />
+        <LogoMarquee />
         <Pricing />
         <Faq />
         <FinalCta />

@@ -15,6 +15,19 @@ export function FinalCta() {
                 "radial-gradient(60% 70% at 50% 0%, rgba(253,185,19,0.14), transparent 70%)",
             }}
           />
+          {/* Rendered chrome badge, idling on a slow 3D swing (desktop only). */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute -right-6 top-1/2 hidden w-44 -translate-y-1/2 [perspective:900px] lg:block"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src="/badge-pulse.png"
+              alt=""
+              draggable={false}
+              className="badge-swing w-full select-none opacity-90 drop-shadow-[0_30px_60px_rgba(0,0,0,0.6)] [transform-style:preserve-3d]"
+            />
+          </div>
           <div className="relative">
             <h2 className="chrome-display mx-auto max-w-3xl text-5xl text-bone sm:text-7xl">
               Run your <span className="text-gold">whole</span> studio on Pulse

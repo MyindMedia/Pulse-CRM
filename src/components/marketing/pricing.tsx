@@ -2,6 +2,7 @@ import { Check, Clock } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Reveal } from "./reveal";
 import { SubscribeButton } from "./subscribe-button";
+import { GhostWord } from "./ghost-word";
 
 /* Pricing maps the marketing tiles to the billing tiers in convex/lib/plans.ts.
    `tier` is the TierKey used at checkout (/onboard?tier=...). Prices here must
@@ -59,8 +60,9 @@ const TIERS = [
 
 export function Pricing() {
   return (
-    <section id="pricing" className="relative bg-bone px-4 py-28 text-obsidian lg:px-8">
-      <div className="mx-auto max-w-6xl">
+    <section id="pricing" className="relative overflow-hidden bg-bone px-4 py-28 text-obsidian lg:px-8">
+      <GhostWord word="PRICING" className="text-obsidian/[0.05]" />
+      <div className="relative z-10 mx-auto max-w-6xl">
         <Reveal className="mx-auto max-w-2xl text-center">
           <p className="chrome-meta text-slate">Pricing</p>
           <h2 className="chrome-display chrome-fill-dark mt-4 text-4xl leading-[1.05] sm:text-5xl">

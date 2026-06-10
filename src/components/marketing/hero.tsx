@@ -7,6 +7,7 @@ import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { DashboardSim } from "./dashboard-sim";
+import { CursorZone } from "./cursor-chip";
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
@@ -26,6 +27,33 @@ const CAPABILITIES = [
 
 export function Hero() {
   const root = React.useRef<HTMLElement>(null);
+
+  // Live locale clock for the mono readout: "<CITY> · HH:MM <TZ>". Initialized
+  // in an effect (server renders a placeholder) so there is no hydration
+  // mismatch; refreshed every 30s.
+  const [clock, setClock] = React.useState<string | null>(null);
+  React.useEffect(() => {
+    const update = () => {
+      try {
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+        const city = (tz.split("/").pop() ?? tz).replace(/_/g, " ").toUpperCase();
+        const parts = new Intl.DateTimeFormat(undefined, {
+          hour: "2-digit",
+          minute: "2-digit",
+          hourCycle: "h23",
+          timeZoneName: "short",
+        }).formatToParts(new Date());
+        const part = (type: Intl.DateTimeFormatPartTypes) =>
+          parts.find((p) => p.type === type)?.value ?? "";
+        setClock(`${city} · ${part("hour")}:${part("minute")} ${part("timeZoneName")}`);
+      } catch {
+        setClock(null);
+      }
+    };
+    update();
+    const id = window.setInterval(update, 30_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   useGSAP(
     () => {
@@ -53,20 +81,49 @@ export function Hero() {
           "-=0.6",
         );
 
-      // Scroll scrub: monitor rotates toward flat + grows and rises; the giant
-      // "Studio." word sinks slower than scroll (parallax) so it tucks further
-      // behind the monitor. Tied to scroll progress, not time.
+      // Scroll scrub + pin handoff. The section pins for ~2 viewports of scroll:
+      //   Phase 1 (t 0-1): monitor rotates toward flat + grows while the giant
+      //     "Studio." word sinks slower than scroll (parallax) - the original scrub.
+      //   Phase 2 (t 1-2): with the monitor held flat + centered, the headline and
+      //     supporting copy exit upward and the dark desk ledge rises in beneath
+      //     the monitor so it visually lands on a surface; then the pin releases.
+      // Lenis runs native scroll (no body transform), so pinType stays "fixed"
+      // and pinning works with the existing ScrollTrigger sync.
       const scrub = gsap.timeline({
         scrollTrigger: {
           trigger: root.current,
           start: "top top",
-          end: "bottom top",
+          end: "+=200%",
           scrub: 0.6,
+          pin: true,
+          pinSpacing: true,
+          anticipatePin: 1,
         },
       });
       scrub
-        .to("[data-hero-monitor]", { rotateX: 0, scale: 0.96, y: 6, ease: "none" }, 0)
-        .to("[data-hero-ghost]", { yPercent: 26, ease: "none" }, 0);
+        // Phase 1 - original flatten/zoom scrub.
+        .to("[data-hero-monitor]", { rotateX: 0, scale: 0.96, y: 6, ease: "none", duration: 1 }, 0)
+        .to("[data-hero-ghost]", { yPercent: 26, ease: "none", duration: 1 }, 0)
+        // Phase 2 - headline + copy exit upward while the monitor holds.
+        .to(
+          "[data-hero-exit]",
+          { yPercent: -160, autoAlpha: 0, ease: "none", duration: 0.7, stagger: 0.05 },
+          1.05,
+        )
+        // The whole stage (monitor + ledge + crosshairs) glides up to take the
+        // vacated center, like the reference's landing move.
+        .to(
+          "[data-hero-stage]",
+          { y: () => -window.innerHeight * 0.18, ease: "none", duration: 0.8 },
+          1.05,
+        )
+        // Desk ledge rises/fades in under the monitor.
+        .fromTo(
+          "[data-hero-ledge]",
+          { autoAlpha: 0, yPercent: 45 },
+          { autoAlpha: 1, yPercent: 0, ease: "none", duration: 0.6 },
+          1.2,
+        );
     },
     { scope: root },
   );
@@ -96,13 +153,13 @@ export function Hero() {
 
       {/* Content stage */}
       <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col items-center text-center">
-        <p data-hero-fade className="chrome-meta text-steel motion-safe:opacity-0">
+        <p data-hero-fade data-hero-exit className="chrome-meta text-steel motion-safe:opacity-0">
           The studio operating system · v1.0
         </p>
 
         {/* Headline: solid "Run your" over a giant "Studio." that the monitor
             rises up to overlap. */}
-        <h1 className="chrome-display mt-6 flex flex-col items-center leading-[0.82]">
+        <h1 data-hero-exit className="chrome-display mt-6 flex flex-col items-center leading-[0.82]">
           <span className="block overflow-hidden">
             <span
               data-hero-line
@@ -126,27 +183,50 @@ export function Hero() {
         {/* Stage: a distant, steeply-tilted monitor that zooms forward, centers
             and flattens to a head-on view as you scroll. The rendered monitor
             frame (PNG) and the live screen are one transformed unit, so they
-            share the exact same perspective. */}
-        <div className="relative z-0 -mt-[clamp(2.5rem,8vw,6rem)] flex w-full justify-center [perspective:1150px]">
-          {/* 3D monitor */}
+            share the exact same perspective. Wrapped in a CursorZone so a mono
+            "Play showreel" chip trails fine pointers across the stage. */}
+        <CursorZone label="Play showreel" className="relative z-0 -mt-[clamp(2.5rem,8vw,6rem)] w-full">
+          <div data-hero-stage className="relative flex w-full justify-center [perspective:1150px]">
+            {/* Crosshair registration marks at the stage corners. */}
+            {(["left-0 top-0", "right-0 top-0", "bottom-0 left-0", "bottom-0 right-0"] as const).map(
+              (pos) => (
+                <span
+                  key={pos}
+                  aria-hidden
+                  className={`chrome-meta pointer-events-none absolute ${pos} z-20 select-none leading-none text-steel/50`}
+                >
+                  +
+                </span>
+              ),
+            )}
+            {/* Desk ledge: a dark strip the monitor lands on at the end of the
+                pin. Plain div (gradient + top hairline) so a rendered PNG can
+                swap in later. Hidden until the scrub's final phase. */}
+            <div
+              data-hero-ledge
+              aria-hidden
+              className="pointer-events-none absolute inset-x-0 -bottom-10 z-0 h-[clamp(3.5rem,9vh,6rem)] rounded-chrome border-t border-bone/10 opacity-0"
+              style={{ background: "linear-gradient(to bottom, #0a0a0a, #161616)" }}
+            />
+            {/* 3D monitor */}
           <div
             data-hero-monitor
-            className="relative z-10 w-[min(88vw,760px)] origin-center will-change-transform [transform-style:preserve-3d] motion-safe:opacity-0"
+            className="relative z-10 w-[min(90vw,880px)] origin-center will-change-transform [transform-style:preserve-3d] motion-safe:opacity-0"
             style={{ transform: "rotateX(8deg) scale(0.95)" }}
           >
-            {/* Rendered monitor frame (Gemini render, transparent PNG). */}
+            {/* Rendered monitor incl. stand (Gemini render, transparent PNG). */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/monitor-frame.png"
+              src="/monitor-stand.png"
               alt=""
               aria-hidden
               draggable={false}
               className="block w-full select-none drop-shadow-[0_50px_120px_rgba(0,0,0,0.7)]"
             />
-            {/* Live screen, mapped onto the frame's screen cutout. */}
+            {/* Live screen, mapped onto the panel (near-borderless; stand below). */}
             <div
               className="absolute overflow-hidden bg-obsidian"
-              style={{ top: "16.4%", left: "15.4%", right: "15.2%", bottom: "10.6%", containerType: "inline-size" }}
+              style={{ top: "1.2%", left: "1.0%", right: "1.1%", bottom: "30.7%", containerType: "inline-size" }}
             >
               <DashboardSim />
               {/* Screen glare + gold edge bloom. */}
@@ -160,17 +240,23 @@ export function Hero() {
               />
             </div>
           </div>
-        </div>
+          </div>
+        </CursorZone>
 
         <p
           data-hero-fade
+          data-hero-exit
           className="font-grotesk mx-auto mt-10 max-w-[540px] text-[17px] font-medium leading-relaxed tracking-[-0.01em] text-mist/85 motion-safe:opacity-0"
         >
           Bookings, rooms, staff, inventory and payments, all in sync and
           automated, so the studio runs without the busywork.
         </p>
 
-        <div data-hero-fade className="mt-9 flex flex-wrap items-center justify-center gap-3 motion-safe:opacity-0">
+        <div
+          data-hero-fade
+          data-hero-exit
+          className="mt-9 flex flex-wrap items-center justify-center gap-3 motion-safe:opacity-0"
+        >
           <Link
             href="#pricing"
             className="group inline-flex items-center gap-2 rounded-chrome bg-gold px-7 py-3 font-grotesk text-sm font-semibold uppercase tracking-[0.04em] text-gold-ink transition-all duration-200 hover:-translate-y-0.5 hover:bg-gold-bright focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
@@ -191,7 +277,8 @@ export function Hero() {
       <div className="chrome-meta pointer-events-none absolute bottom-12 left-8 z-10 hidden flex-col gap-1 text-left text-steel/80 lg:flex">
         <span>Pulse by Myind Sound</span>
         <span>Studio OS</span>
-        <span>Bookings → Royalties</span>
+        {/* Live locale clock - effect-initialized, nbsp placeholder pre-hydration. */}
+        <span suppressHydrationWarning>{clock ?? "\u00A0"}</span>
       </div>
 
       {/* Capability ticker - mono, edge-faded. */}

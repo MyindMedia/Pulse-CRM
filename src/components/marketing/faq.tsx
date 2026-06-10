@@ -1,5 +1,6 @@
 import { Plus } from "lucide-react";
 import { Reveal } from "./reveal";
+import { GhostWord } from "./ghost-word";
 
 /* Native <details> accordion - no client JS, fully accessible. The chevron
    rotates via the open: variant on each details element. */
@@ -32,8 +33,9 @@ const FAQS = [
 
 export function Faq() {
   return (
-    <section id="faq" className="relative px-4 py-24 lg:px-8">
-      <div className="mx-auto max-w-3xl">
+    <section id="faq" className="relative overflow-hidden px-4 py-24 lg:px-8">
+      <GhostWord word="ANSWERS" />
+      <div className="relative z-10 mx-auto max-w-3xl">
         <Reveal className="text-center">
           <p className="chrome-meta text-steel">Questions</p>
           <h2 className="chrome-display mt-4 text-4xl text-bone sm:text-5xl">
