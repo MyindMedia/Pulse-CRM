@@ -36,7 +36,18 @@ export function SmoothScroll() {
     gsap.ticker.add(onTick);
     gsap.ticker.lagSmoothing(0);
 
+    // Keep Lenis' scroll limit in sync with the real page height: pin spacers
+    // (hero) and late-loading images change the document height after init,
+    // and a stale limit makes the bottom of the page unreachable by wheel.
+    const onRefresh = () => lenis.resize();
+    ScrollTrigger.addEventListener("refresh", onRefresh);
+    const lateRefresh = window.setTimeout(() => ScrollTrigger.refresh(), 600);
+    window.addEventListener("load", onRefresh);
+
     return () => {
+      window.clearTimeout(lateRefresh);
+      window.removeEventListener("load", onRefresh);
+      ScrollTrigger.removeEventListener("refresh", onRefresh);
       gsap.ticker.remove(onTick);
       lenis.destroy();
     };

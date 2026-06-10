@@ -36,14 +36,15 @@ const ibmPlexMono = IBM_Plex_Mono({
 });
 
 const SITE_URL = "https://pulse.myindsound.com";
-const SITE_TITLE = "Pulse - the operating system for recording studios";
+const SITE_TITLE = "Pulse: Recording Studio Management Software";
 const SITE_DESCRIPTION =
-  "Pulse runs your recording studio: bookings, rooms, staff scheduling, inventory and payments, all in sync and automated.";
+  "Recording studio management software: online booking with deposits to your own Stripe, room and staff scheduling, gear tracking and invoicing. From $49/mo.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
+  alternates: { canonical: "/" },
   applicationName: "Pulse",
   authors: [{ name: "Myind Sound" }],
   openGraph: {

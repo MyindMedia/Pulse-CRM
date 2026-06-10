@@ -1,4 +1,5 @@
 import { SmoothScroll } from "./smooth-scroll";
+import { SiteReveal } from "./site-reveal";
 import { SiteBackdrop } from "./site-backdrop";
 import { LandingNav } from "./landing-nav";
 import { Hero } from "./hero";
@@ -19,6 +20,7 @@ export function LandingPage() {
   return (
     <div className="relative min-h-dvh overflow-x-hidden text-bone">
       <SmoothScroll />
+      <SiteReveal />
       <SiteBackdrop />
       {/* Film-grain texture over the whole page for depth (reuses .grain). */}
       <div aria-hidden className="grain pointer-events-none fixed inset-0 -z-20" />

@@ -7,7 +7,6 @@ import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { DashboardSim } from "./dashboard-sim";
-import { CursorZone } from "./cursor-chip";
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
@@ -61,8 +60,9 @@ export function Hero() {
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
       // Entrance: headline lines clip + rise, then the monitor settles into its
-      // resting tilt, then the supporting copy/CTAs fade up.
-      const tl = gsap.timeline({ defaults: { ease: "power3.out" } });
+      // resting tilt, then the supporting copy/CTAs fade up. Delayed so it
+      // begins as the SiteReveal columns wipe away.
+      const tl = gsap.timeline({ defaults: { ease: "power3.out" }, delay: 1.35 });
       tl.fromTo(
         "[data-hero-line]",
         { yPercent: 115, clipPath: "inset(0 0 100% 0)" },
@@ -160,38 +160,42 @@ export function Hero() {
       {/* Content stage */}
       <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col items-center text-center">
         <p data-hero-fade data-hero-exit className="chrome-meta text-steel motion-safe:opacity-0">
-          The studio operating system · v1.0
+          The recording studio OS · v1.0
         </p>
 
-        {/* Headline: solid "Run your" over a giant "Studio." that the monitor
-            rises up to overlap. */}
+        {/* Headline: "Run your studio with" over the giant Pulse brand lockup
+            that the monitor rises up to overlap. */}
         <h1 data-hero-exit className="chrome-display mt-6 flex flex-col items-center leading-[0.82]">
           <span className="block overflow-hidden">
             <span
               data-hero-line
-              className="chrome-fill block text-[clamp(2rem,6vw,5rem)] tracking-[0.01em] motion-safe:[clip-path:inset(0_0_100%_0)]"
+              className="chrome-fill block text-[clamp(1.6rem,4.6vw,3.9rem)] tracking-[0.01em] motion-safe:[clip-path:inset(0_0_100%_0)]"
             >
-              Run your
+              Run your studio with
             </span>
           </span>
-          <span className="block overflow-hidden">
+          <span className="mt-[0.35em] block overflow-hidden">
             <span data-hero-line className="block motion-safe:[clip-path:inset(0_0_100%_0)]">
-              <span
-                data-hero-ghost
-                className="chrome-fill block whitespace-nowrap text-[clamp(4.25rem,19vw,15.5rem)] leading-[0.8]"
-              >
-                Studio<span className="text-gold">.</span>
+              <span data-hero-ghost className="block whitespace-nowrap">
+                <span className="sr-only">Pulse</span>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/pulse-logo-main.png"
+                  alt=""
+                  aria-hidden
+                  draggable={false}
+                  className="mx-auto block w-[clamp(15rem,52vw,46rem)] select-none"
+                />
               </span>
             </span>
           </span>
         </h1>
 
-        {/* Stage: a distant, steeply-tilted monitor that zooms forward, centers
-            and flattens to a head-on view as you scroll. The rendered monitor
-            frame (PNG) and the live screen are one transformed unit, so they
-            share the exact same perspective. Wrapped in a CursorZone so a mono
-            "Play showreel" chip trails fine pointers across the stage. */}
-        <CursorZone label="Play showreel" className="relative z-0 -mt-[clamp(2.5rem,8vw,6rem)] w-full">
+        {/* Stage: a distant, sideways monitor that swings forward and centers
+            to a head-on view as you scroll. The rendered monitor frame (PNG)
+            and the live screen are one transformed unit, so they share the
+            exact same perspective. */}
+        <div className="relative z-0 -mt-[clamp(2.5rem,8vw,6rem)] w-full">
           <div data-hero-stage className="relative flex w-full justify-center [perspective:1150px]">
             {/* Crosshair registration marks at the stage corners. */}
             {(["left-0 top-0", "right-0 top-0", "bottom-0 left-0", "bottom-0 right-0"] as const).map(
@@ -206,13 +210,14 @@ export function Hero() {
               ),
             )}
             {/* Desk ledge: a dark strip the monitor lands on at the end of the
-                pin. Plain div (gradient + top hairline) so a rendered PNG can
-                swap in later. Hidden until the scrub's final phase. */}
+                pin. Its top edge is tuned to meet the monitor's visual base at
+                the landed scale (0.84), so the stand sits ON it, not above it.
+                Hidden until the scrub's final phase. */}
             <div
               data-hero-ledge
               aria-hidden
-              className="pointer-events-none absolute inset-x-0 -bottom-10 z-0 h-[clamp(3.5rem,9vh,6rem)] rounded-chrome border-t border-bone/10 opacity-0"
-              style={{ background: "linear-gradient(to bottom, #0a0a0a, #161616)" }}
+              className="pointer-events-none absolute inset-x-0 bottom-[10px] z-0 h-16 rounded-chrome border-t border-bone/10 opacity-0"
+              style={{ background: "linear-gradient(to bottom, #101010, #1a1a1a 30%, #0c0c0c)" }}
             />
             {/* 3D monitor */}
           <div
@@ -247,15 +252,15 @@ export function Hero() {
             </div>
           </div>
           </div>
-        </CursorZone>
+        </div>
 
         <p
           data-hero-fade
           data-hero-exit
           className="font-grotesk mx-auto mt-10 max-w-[540px] text-[17px] font-medium leading-relaxed tracking-[-0.01em] text-mist/85 motion-safe:opacity-0"
         >
-          Bookings, rooms, staff, inventory and payments, all in sync and
-          automated, so the studio runs without the busywork.
+          Bookings, deposits, rooms, staff and gear, all in sync and automated,
+          so the recording studio runs without the busywork.
         </p>
 
         <div

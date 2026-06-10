@@ -212,8 +212,8 @@ export function MobileSim() {
 
       {/* App bar */}
       <header className="flex shrink-0 items-center gap-[0.5em] px-[1em] pb-[0.6em]">
-        <span className="grid size-[1.8em] place-items-center rounded-[0.45em] bg-gold font-grotesk text-[0.8em] font-bold text-gold-ink">P</span>
-        <span className="font-grotesk text-[0.9em] font-semibold tracking-[-0.01em] text-bone">Pulse</span>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/pulse-logo-main.png" alt="" aria-hidden draggable={false} className="h-[1.2em] w-auto select-none" />
         <Bell className="ml-auto size-[1.1em] text-steel/70" />
         <span className="size-[1.7em] rounded-full bg-graphite/70" />
       </header>

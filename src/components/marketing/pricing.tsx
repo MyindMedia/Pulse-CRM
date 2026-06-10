@@ -66,7 +66,7 @@ export function Pricing() {
         <Reveal className="mx-auto max-w-2xl text-center">
           <p className="chrome-meta text-slate">Pricing</p>
           <h2 className="chrome-display chrome-fill-dark mt-4 text-4xl leading-[1.05] sm:text-5xl">
-            Simple plans that <span className="not-italic text-gold-deep">grow</span> with you
+            Plans that <span className="not-italic text-gold-deep">grow</span> with the studio
           </h2>
           <p className="font-grotesk mt-5 text-[17px] font-medium leading-relaxed tracking-[-0.01em] text-slate">
             Every plan includes hosted booking pages, deposits to your own Stripe and

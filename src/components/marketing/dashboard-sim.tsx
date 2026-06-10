@@ -268,9 +268,9 @@ export function DashboardSim({ start = 0 }: { start?: number }) {
     <div className="absolute inset-0 flex select-none bg-obsidian font-grotesk text-[1.7cqw] leading-tight text-bone">
       {/* Sidebar */}
       <aside className="flex w-[22%] flex-col gap-[0.4em] border-r border-graphite/50 bg-obsidian/90 p-[0.8em]">
-        <div className="mb-[0.6em] flex items-center gap-[0.45em]">
-          <span className="grid size-[1.6em] place-items-center rounded-[0.4em] bg-gold font-grotesk text-[0.8em] font-bold text-gold-ink">P</span>
-          <span className="font-grotesk text-[0.95em] font-semibold tracking-[-0.01em] text-bone">Pulse</span>
+        <div className="mb-[0.6em] flex items-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/pulse-logo-main.png" alt="" aria-hidden draggable={false} className="h-[1.15em] w-auto select-none" />
         </div>
         {NAV.map((item, idx) => {
           const active = idx === i;

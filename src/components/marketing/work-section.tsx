@@ -7,7 +7,6 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { DashboardSim } from "./dashboard-sim";
 import { MobileSim } from "./mobile-sim";
 import { Reveal } from "./reveal";
-import { CursorZone } from "./cursor-chip";
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
@@ -96,7 +95,6 @@ export function WorkSection() {
           {/* Laptop column - drifts up on scroll */}
           <div data-work-col-a className="will-change-transform">
             <Reveal>
-              <CursorZone label="Show work">
                 <figure className="group">
                   <div className="relative overflow-hidden rounded-chrome rounded-b-none border border-graphite/70 bg-coal ring-1 ring-white/5 transition-shadow duration-300 group-hover:ring-2 group-hover:ring-gold/60">
                     {/* Gold LIVE tag, top-left - echoes the reference's NEW tag. */}
@@ -113,14 +111,12 @@ export function WorkSection() {
                   <div className="mx-auto h-3 w-[103%] -translate-x-[1.5%] rounded-b-[1.2rem] border border-t-0 border-graphite/70 bg-coal-2" />
                   <figcaption className="chrome-meta mt-6 text-steel/80">Front desk · bookings, rooms, deposits</figcaption>
                 </figure>
-              </CursorZone>
             </Reveal>
           </div>
 
           {/* Phone column - drifts down on scroll, sliding past the laptop */}
           <div data-work-col-b className="will-change-transform">
             <Reveal delay={120}>
-              <CursorZone label="Show work">
                 <figure className="group mx-auto w-[min(72vw,260px)]">
                   <div className="relative overflow-hidden rounded-[2.2rem] border border-graphite/70 bg-coal p-[0.5rem] ring-1 ring-white/5 transition-shadow duration-300 group-hover:ring-2 group-hover:ring-gold/60">
                     {/* Notch */}
@@ -133,7 +129,6 @@ export function WorkSection() {
                   </div>
                   <figcaption className="chrome-meta mt-6 text-center text-steel/80">On the move · the booking just landed</figcaption>
                 </figure>
-              </CursorZone>
             </Reveal>
           </div>
         </div>

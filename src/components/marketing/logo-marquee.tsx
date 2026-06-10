@@ -58,7 +58,7 @@ function MarkGoodMusic() {
   );
 }
 
-function MarkSonySound() {
+function MarkGoldroom() {
   return (
     <svg viewBox="0 0 24 24" className="size-6" aria-hidden>
       <path {...STROKE} d="M4 9.5v5h3.5L12 18.5v-13L7.5 9.5z" />
@@ -98,7 +98,7 @@ const STUDIOS: { name: string; Mark: () => React.ReactNode }[] = [
   { name: "Container Studios", Mark: MarkContainer },
   { name: "Gerimano Studios", Mark: MarkGerimano },
   { name: "Good Music", Mark: MarkGoodMusic },
-  { name: "Sony Sound", Mark: MarkSonySound },
+  { name: "Goldroom Audio", Mark: MarkGoldroom },
   { name: "Lumen Recording Co.", Mark: MarkLumen },
   { name: "Velvet Room Audio", Mark: MarkVelvetRoom },
   { name: "Static & Sons", Mark: MarkStaticSons },
@@ -135,7 +135,7 @@ export function LogoMarquee() {
       <div className="mx-auto max-w-6xl px-4 lg:px-8">
         <p className="chrome-meta text-steel">Clients</p>
         <p className="font-grotesk mt-3 max-w-prose text-[17px] font-medium tracking-[-0.01em] text-mist">
-          Studios we&apos;ve worked with.
+          Studios running on Pulse.
         </p>
       </div>
 

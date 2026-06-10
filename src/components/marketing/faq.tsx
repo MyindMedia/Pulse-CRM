@@ -19,7 +19,7 @@ const FAQS = [
   },
   {
     q: "What is the AI Agent?",
-    a: "An AI studio operations manager that drafts client replies, chases leads and keeps your pipeline moving. It is coming soon and will be included on the Studio plan.",
+    a: "An AI studio manager that drafts client replies, follows up on leads and keeps sessions and payments moving. Coming soon, included on the Studio plan.",
   },
   {
     q: "Can I bring my whole team?",

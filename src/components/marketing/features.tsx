@@ -30,7 +30,7 @@ const FEATURES = [
   },
   {
     icon: Boxes,
-    title: "Inventory and assets",
+    title: "Gear and inventory",
     blurb:
       "Track gear, software and furniture, check items out to rooms, and know the value of every asset.",
   },
@@ -60,7 +60,7 @@ export function Features() {
           </h2>
           <p className="font-grotesk mt-5 text-[17px] font-medium leading-relaxed tracking-[-0.01em] text-slate">
             Pulse replaces the spreadsheet, the booking form, the scheduling app and the
-            invoice tool with one connected system.
+            invoice tool with one recording studio management system.
           </p>
         </Reveal>
 
