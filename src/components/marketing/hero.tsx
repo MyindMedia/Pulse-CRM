@@ -69,9 +69,9 @@ export function Hero() {
         { yPercent: 0, clipPath: "inset(0 0 -10% 0)", duration: 0.9, stagger: 0.12 },
       )
         .fromTo(
-          "[data-hero-monitor]",
-          { y: 60, scale: 0.5, opacity: 0, rotateY: 85, rotateZ: -8 },
-          { y: -16, scale: 0.58, opacity: 1, rotateY: 50, rotateZ: -4, duration: 1.1, ease: "power2.out" },
+          "[data-hero-scene]",
+          { y: 70, scale: 0.55, opacity: 0, rotateX: 12 },
+          { y: 0, scale: 0.62, opacity: 1, rotateX: 6, duration: 1.1, ease: "power2.out" },
           "-=0.4",
         )
         .fromTo(
@@ -100,16 +100,22 @@ export function Hero() {
           anticipatePin: 1,
         },
       });
+      // Camera push-in: the scene scales about the SCREEN's center (the
+      // transform origin), so zooming reads as dollying into the monitor.
+      // Final zoom makes the screen fill ~94% of the viewport width, capped
+      // so it never overflows the viewport height.
+      const zoom = () =>
+        Math.min(0.94 / 0.302, (0.96 * window.innerHeight) / (0.292 * 0.558 * window.innerWidth));
+
       scrub
-        // Phase 1 - sideways monitor swings to front-facing and grows; the
-        // stage already starts rising so the monitor stays fully in frame.
-        // Explicit fromTo (no immediateRender): the from values must equal the
-        // entrance SETTLE pose, or scrolling back to the top restores the
-        // monitor to its pre-entrance state (tiny + near-edge-on).
+        // Phase 1 - perspective starts flattening and the camera moves in
+        // while the headline parallax-drifts. Explicit fromTo (settle-pose
+        // start values, no immediateRender) so scrolling back to the top
+        // restores the rest pose, not the pre-entrance state.
         .fromTo(
-          "[data-hero-monitor]",
-          { rotateY: 50, rotateZ: -4, scale: 0.58, y: -16 },
-          { rotateY: 0, rotateZ: 0, scale: 0.78, y: 0, ease: "none", duration: 1, immediateRender: false },
+          "[data-hero-scene]",
+          { scale: 0.62, rotateX: 6, y: 0 },
+          { scale: 1.25, rotateX: 2, y: 0, ease: "none", duration: 1, immediateRender: false },
           0,
         )
         .fromTo(
@@ -121,29 +127,18 @@ export function Hero() {
         .fromTo(
           "[data-hero-stage]",
           { y: 0 },
-          { y: () => -window.innerHeight * 0.08, ease: "none", duration: 1, immediateRender: false },
+          { y: () => -window.innerHeight * 0.12, ease: "none", duration: 1, immediateRender: false },
           0,
         )
-        // Phase 2 - headline + copy exit upward while the monitor holds.
+        // Phase 2 - headline + copy exit upward while the camera completes
+        // the push: perspective fully flat, the live screen fills the frame.
         .to(
           "[data-hero-exit]",
-          { yPercent: -160, autoAlpha: 0, ease: "none", duration: 0.7, stagger: 0.05 },
-          1.05,
+          { yPercent: -160, autoAlpha: 0, ease: "none", duration: 0.6, stagger: 0.05 },
+          1.0,
         )
-        // The whole stage (monitor + ledge + crosshairs) glides up to take the
-        // vacated center, like the reference's landing move.
-        .to(
-          "[data-hero-stage]",
-          { y: () => -window.innerHeight * 0.3, ease: "none", duration: 0.8 },
-          1.05,
-        )
-        // Desk ledge rises/fades in under the monitor.
-        .fromTo(
-          "[data-hero-ledge]",
-          { autoAlpha: 0, yPercent: 45 },
-          { autoAlpha: 1, yPercent: 0, ease: "none", duration: 0.6 },
-          1.2,
-        );
+        .to("[data-hero-scene]", { scale: zoom, rotateX: 0, ease: "none", duration: 0.95 }, 1.05)
+        .to("[data-hero-stage]", { y: () => -window.innerHeight * 0.34, ease: "none", duration: 0.95 }, 1.05);
     },
     { scope: root },
   );
@@ -208,12 +203,14 @@ export function Hero() {
           </span>
         </h1>
 
-        {/* Stage: a distant, sideways monitor that swings forward and centers
-            to a head-on view as you scroll. The rendered monitor frame (PNG)
-            and the live screen are one transformed unit, so they share the
-            exact same perspective. */}
-        <div className="relative z-0 -mt-[clamp(2.5rem,8vw,6rem)] w-full">
-          <div data-hero-stage className="relative flex w-full justify-center [perspective:1150px]">
+        {/* Stage: ONE perspective-correct rendered scene - the monitor dead
+            center on a full-width walnut console with two rows of gear (three
+            units each side). The live sim is mapped onto the screen rectangle,
+            so scene + UI share the same camera. On scroll the camera pushes
+            in: the scene tilts flat and scales about the screen center until
+            the live app UI fills the frame. */}
+        <div className="relative z-0 -mt-[clamp(1.5rem,5vw,3.5rem)] w-full">
+          <div data-hero-stage className="relative flex w-full justify-center [perspective:1200px]">
             {/* Crosshair registration marks at the stage corners. */}
             {(["left-0 top-0", "right-0 top-0", "bottom-0 left-0", "bottom-0 right-0"] as const).map(
               (pos) => (
@@ -226,123 +223,52 @@ export function Hero() {
                 </span>
               ),
             )}
-            {/* Walnut studio console (Gemini render, alpha-keyed): full
-                viewport width, black marble top the monitor lands on, five
-                bays of distinct amber-lit gear below (compressors, graphic
-                EQs, tube preamp, reel-to-reel, patchbay). Its marble surface
-                is anchored to the monitor's visual base at the landed scale
-                (0.78). Hidden until the scrub's final phase. */}
             <div
-              data-hero-ledge
-              aria-hidden
-              className="pointer-events-none absolute left-1/2 z-0 w-screen max-w-none -translate-x-1/2 select-none opacity-0 drop-shadow-[0_40px_80px_rgba(0,0,0,0.6)]"
-              style={{ top: "calc(100% - 76px)" }}
+              data-hero-scene
+              className="relative w-screen max-w-none will-change-transform motion-safe:opacity-0"
+              style={{ transformOrigin: "50% 40.3%", transform: "scale(0.62) rotateX(6deg)" }}
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/rack-cabinet.png" alt="" draggable={false} className="block w-full" />
-              {/* Tape reels: circular cutouts of the render, spinning in place. */}
+              {/* The rendered scene (dark studio backdrop baked to match the
+                  page #161616, so it blends without keying). */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/reel-left.png"
+                src="/hero-scene.png"
                 alt=""
-                draggable={false}
-                className="absolute"
-                style={{ left: "60.35%", top: "26.79%", width: "6%", animation: "reel-spin 2.4s linear infinite" }}
-              />
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src="/reel-right.png"
-                alt=""
-                draggable={false}
-                className="absolute"
-                style={{ left: "66.2%", top: "25.89%", width: "6%", animation: "reel-spin 3.1s linear infinite" }}
-              />
-              {/* EQ lights bouncing like a live signal, overlaid on the EQ unit. */}
-              <div
-                className="absolute flex items-end justify-between"
-                style={{ left: "34.7%", top: "42.5%", width: "10.6%", height: "7.5%" }}
-              >
-                {Array.from({ length: 26 }).map((_, i) => (
-                  <span
-                    key={i}
-                    className="w-[4.5%] origin-bottom rounded-[1px] bg-gold/80"
-                    style={{
-                      height: `${55 + ((i * 37) % 45)}%`,
-                      animation: `eq-bounce ${0.55 + ((i * 13) % 40) / 100}s ease-in-out ${-((i * 29) % 90) / 100}s infinite alternate`,
-                    }}
-                  />
-                ))}
-              </div>
-              {/* LED bargraph on the spectrum meter, same signal feel. */}
-              <div
-                className="absolute flex items-end justify-between"
-                style={{ left: "81.3%", top: "45%", width: "3.9%", height: "11%" }}
-              >
-                {Array.from({ length: 9 }).map((_, i) => (
-                  <span
-                    key={i}
-                    className="w-[8%] origin-bottom rounded-[1px]"
-                    style={{
-                      height: `${60 + ((i * 41) % 40)}%`,
-                      background: "linear-gradient(to top, #6fae5c 55%, #fdb913 85%, #e2574c)",
-                      animation: `eq-bounce ${0.5 + ((i * 17) % 35) / 100}s ease-in-out ${-((i * 23) % 80) / 100}s infinite alternate`,
-                    }}
-                  />
-                ))}
-              </div>
-            </div>
-            {/* 3D monitor */}
-          <div
-            data-hero-monitor
-            className="relative z-10 w-[min(90vw,880px)] origin-center will-change-transform [transform-style:preserve-3d] motion-safe:opacity-0"
-            style={{ transform: "rotateY(10deg) scale(0.92)" }}
-          >
-            {/* 3D body: a back face + left side wall extruded behind the flat
-                render, so the sideways pose reads as a solid monitor with
-                depth instead of a paper cutout. Both rotate with the display
-                (same preserve-3d parent). The body spans the panel region of
-                the PNG (the stand starts at ~70% height). */}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute inset-x-0 top-0 bottom-[22%] rounded-md bg-[#0b0b0c]"
-              style={{ transform: "translateZ(-26px)" }}
-            />
-            <div
-              aria-hidden
-              className="pointer-events-none absolute bottom-[22%] left-0 top-0 w-[26px] rounded-sm"
-              style={{
-                transform: "rotateY(90deg)",
-                transformOrigin: "left center",
-                background: "linear-gradient(to right, #2e2e31, #101012)",
-              }}
-            />
-            {/* Rendered monitor incl. stand (Gemini render, transparent PNG). */}
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/monitor-stand.png"
-              alt=""
-              aria-hidden
-              draggable={false}
-              className="block w-full select-none drop-shadow-[0_50px_120px_rgba(0,0,0,0.7)]"
-            />
-            {/* Live screen, mapped onto the panel (near-borderless; chin bar
-                and stand below). */}
-            <div
-              className="absolute overflow-hidden bg-obsidian"
-              style={{ top: "1.2%", left: "1.0%", right: "1.1%", bottom: "26.5%", containerType: "inline-size" }}
-            >
-              <DashboardSim />
-              {/* Screen glare + gold edge bloom. */}
-              <div
                 aria-hidden
-                className="pointer-events-none absolute inset-0"
+                draggable={false}
+                className="block w-full select-none"
                 style={{
-                  background:
-                    "linear-gradient(115deg, rgba(255,255,255,0.08) 0%, transparent 30%), radial-gradient(120% 60% at 50% -10%, rgba(253,185,19,0.08), transparent 60%)",
+                  maskImage:
+                    "linear-gradient(to bottom, transparent 0%, #000 16%, #000 96%, transparent 100%), linear-gradient(to right, transparent 0%, #000 6%, #000 94%, transparent 100%)",
+                  maskComposite: "intersect",
+                  WebkitMaskImage:
+                    "linear-gradient(to bottom, transparent 0%, #000 16%, #000 96%, transparent 100%), linear-gradient(to right, transparent 0%, #000 6%, #000 94%, transparent 100%)",
+                  WebkitMaskComposite: "source-in",
                 }}
               />
+              {/* Live app UI mapped onto the monitor's screen rectangle. */}
+              <div
+                className="absolute overflow-hidden bg-obsidian"
+                style={{
+                  left: "34.9%",
+                  top: "25.7%",
+                  width: "30.2%",
+                  height: "29.2%",
+                  containerType: "inline-size",
+                }}
+              >
+                <DashboardSim />
+                {/* Screen glare + gold edge bloom. */}
+                <div
+                  aria-hidden
+                  className="pointer-events-none absolute inset-0"
+                  style={{
+                    background:
+                      "linear-gradient(115deg, rgba(255,255,255,0.07) 0%, transparent 30%), radial-gradient(120% 60% at 50% -10%, rgba(253,185,19,0.07), transparent 60%)",
+                  }}
+                />
+              </div>
             </div>
-          </div>
           </div>
         </div>
 
