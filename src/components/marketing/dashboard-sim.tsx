@@ -413,12 +413,15 @@ export function DashboardSim({ start = 0 }: { start?: number }) {
             the animation driver stalls (seen after heavy pinned-scroll jank).
             CSS animations run on the compositor and cannot strand opacity. */}
         <div className="relative min-h-0 flex-1">
+          {/* Both layers are opaque (bg-obsidian): screen content has
+              transparent gaps, so without a solid background the previous
+              screen bleeds through the active one as a double image. */}
           {!reduce && (
-            <div aria-hidden className="absolute inset-0 p-[0.9em]">
+            <div aria-hidden className="absolute inset-0 bg-obsidian p-[0.9em]">
               <Prev run={false} />
             </div>
           )}
-          <div key={i} className="absolute inset-0 p-[0.9em] motion-safe:animate-sim-screen-in">
+          <div key={i} className="absolute inset-0 bg-obsidian p-[0.9em] motion-safe:animate-sim-screen-in">
             <Active run={!reduce} />
           </div>
 

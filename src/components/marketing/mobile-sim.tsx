@@ -253,12 +253,14 @@ export function MobileSim() {
           top via pure CSS - no JS animation driver in the visibility path
           (see DashboardSim for why). */}
       <div className="relative min-h-0 flex-1">
+        {/* Opaque layers - transparent gaps in screen content would let the
+            previous screen show through as a double image. */}
         {!reduce && (
-          <div aria-hidden className="absolute inset-0 px-[1em] pb-[0.6em]">
+          <div aria-hidden className="absolute inset-0 bg-obsidian px-[1em] pb-[0.6em]">
             <Prev run={false} />
           </div>
         )}
-        <div key={i} className="absolute inset-0 px-[1em] pb-[0.6em] motion-safe:animate-sim-screen-in">
+        <div key={i} className="absolute inset-0 bg-obsidian px-[1em] pb-[0.6em] motion-safe:animate-sim-screen-in">
           <Active run={!reduce} />
         </div>
 

@@ -151,7 +151,7 @@ export function Hero() {
               trigger: root.current,
               start: "top top",
               end: "+=200%",
-              scrub: 0.6,
+              scrub: 0.85,
               pin: true,
               pinSpacing: true,
               anticipatePin: 1,
@@ -170,7 +170,7 @@ export function Hero() {
             .fromTo(
               "[data-hero-monitor]",
               { rotateY: settle.rotateY, scale: settle.scale },
-              { rotateY: 0, scale: 0.8, ease: "none", duration: 1, immediateRender: false },
+              { rotateY: 0, scale: 0.8, ease: "power2.out", duration: 1, immediateRender: false },
               0,
             )
             .fromTo(
@@ -185,7 +185,7 @@ export function Hero() {
               {
                 y: () =>
                   -Math.max(window.innerHeight * 0.08, stageBottom() - window.innerHeight * 0.94),
-                ease: "none",
+                ease: "sine.out",
                 duration: 1,
                 immediateRender: false,
               },
@@ -194,7 +194,7 @@ export function Hero() {
             // Phase 2 - headline + copy exit upward while the monitor holds.
             .to(
               "[data-hero-exit]",
-              { yPercent: -160, autoAlpha: 0, ease: "none", duration: 0.7, stagger: 0.05 },
+              { yPercent: -160, autoAlpha: 0, ease: "power1.in", duration: 0.7, stagger: 0.05 },
               1.05,
             )
             // The whole stage (desk + monitor + crosshairs) glides up together
@@ -204,7 +204,7 @@ export function Hero() {
               {
                 y: () =>
                   -Math.max(window.innerHeight * 0.3, stageBottom() - window.innerHeight * 0.62),
-                ease: "none",
+                ease: "sine.inOut",
                 duration: 0.8,
               },
               1.05,
@@ -219,7 +219,7 @@ export function Hero() {
                 y: () =>
                   -Math.max(window.innerHeight * 0.3, stageBottom() - window.innerHeight * 0.62) *
                   0.5,
-                ease: "none",
+                ease: "sine.inOut",
                 duration: 0.8,
               },
               1.05,
