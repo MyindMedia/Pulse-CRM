@@ -132,6 +132,20 @@ export function Hero() {
             );
           };
 
+          // Once the pin completes, drop the monitor's 3D rendering context
+          // and will-change; restore them when scrolling back into the pin.
+          // Safari's compositor can drop (blank) a large preserve-3d layer
+          // after heavy pinned-scroll churn - the screen looked switched off
+          // past the end of the scroll range. Flattening forces a fresh
+          // rasterization and removes the standing GPU-layer burden. At the
+          // landed pose (rotateY 0) the flattened render is identical.
+          const monitor3d = (on: boolean) => {
+            const m = root.current?.querySelector<HTMLElement>("[data-hero-monitor]");
+            if (!m) return;
+            m.style.transformStyle = on ? "preserve-3d" : "flat";
+            m.style.willChange = on ? "transform" : "auto";
+          };
+
           const scrub = gsap.timeline({
             scrollTrigger: {
               trigger: root.current,
@@ -142,6 +156,8 @@ export function Hero() {
               pinSpacing: true,
               anticipatePin: 1,
               invalidateOnRefresh: true,
+              onLeave: () => monitor3d(false),
+              onEnterBack: () => monitor3d(true),
             },
           });
           scrub
@@ -154,7 +170,7 @@ export function Hero() {
             .fromTo(
               "[data-hero-monitor]",
               { rotateY: settle.rotateY, scale: settle.scale },
-              { rotateY: 4, scale: 0.8, ease: "none", duration: 1, immediateRender: false },
+              { rotateY: 0, scale: 0.8, ease: "none", duration: 1, immediateRender: false },
               0,
             )
             .fromTo(
@@ -208,16 +224,11 @@ export function Hero() {
               },
               1.05,
             )
-            // The swing completes the last few degrees to dead-on
-            // front-facing for the final landed state.
-            .to(
-              "[data-hero-monitor]",
-              { rotateY: 0, ease: "none", duration: 0.8 },
-              1.05,
-            )
             // The gold headline glow dims as the desk rises into its band -
             // otherwise it reads as a lighting haze across the desk.
             .to("[data-hero-glow]", { opacity: 0.12, ease: "none", duration: 0.6 }, 1.05);
+          // The swing reaches dead-on flat (rotateY 0) at the END of phase 1
+          // and holds there - no rotation past flat, none during phase 2.
         },
       );
     },

@@ -353,6 +353,7 @@ export function DashboardSim({ start = 0 }: { start?: number }) {
   }, [reduce]);
 
   const { Screen: Active, nav: navIdx } = SCREENS[i];
+  const { Screen: Prev } = SCREENS[(i + SCREENS.length - 1) % SCREENS.length];
   // Cursor rides to the active nav row (rows are 1.9em tall on a 2.2em pitch,
   // starting below the logo block).
   const cursorTop = `${4.65 + navIdx * 2.2}em`;
@@ -405,23 +406,21 @@ export function DashboardSim({ start = 0 }: { start?: number }) {
           </div>
         </header>
 
-        {/* Screen body. Screens crossfade (default sync AnimatePresence with
-            absolutely-stacked children) - mode="wait" unmounts the old screen
-            before the next mounts, leaving the monitor visibly blank for the
-            transition gap on every cycle. */}
+        {/* Screen body. The previous screen stays mounted underneath while
+            the active one fades in ON TOP via a pure CSS keyframe animation.
+            Deliberately not AnimatePresence/framer for the swap: a JS-driven
+            opacity that starts at 0 leaves the monitor permanently blank if
+            the animation driver stalls (seen after heavy pinned-scroll jank).
+            CSS animations run on the compositor and cannot strand opacity. */}
         <div className="relative min-h-0 flex-1">
-          <AnimatePresence>
-            <motion.div
-              key={i}
-              initial={reduce ? false : { opacity: 0, y: 8 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={reduce ? undefined : { opacity: 0, y: -8 }}
-              transition={{ duration: 0.35, ease: "easeOut" }}
-              className="absolute inset-0 p-[0.9em]"
-            >
-              <Active run={!reduce} />
-            </motion.div>
-          </AnimatePresence>
+          {!reduce && (
+            <div aria-hidden className="absolute inset-0 p-[0.9em]">
+              <Prev run={false} />
+            </div>
+          )}
+          <div key={i} className="absolute inset-0 p-[0.9em] motion-safe:animate-sim-screen-in">
+            <Active run={!reduce} />
+          </div>
 
           {/* Booking toast */}
           <AnimatePresence>

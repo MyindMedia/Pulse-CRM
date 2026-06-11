@@ -228,6 +228,7 @@ export function MobileSim() {
   }, [reduce]);
 
   const Active = SCREENS[i];
+  const Prev = SCREENS[(i + SCREENS.length - 1) % SCREENS.length];
 
   return (
     <div className="absolute inset-0 flex select-none flex-col bg-obsidian font-grotesk text-[5cqw] leading-tight text-bone">
@@ -248,21 +249,18 @@ export function MobileSim() {
         <span className="size-[1.7em] rounded-full bg-graphite/70" />
       </header>
 
-      {/* Screen body. Crossfade (sync AnimatePresence, absolutely-stacked
-          children) - mode="wait" leaves the screen blank between cycles. */}
+      {/* Screen body. Previous screen mounted beneath, active one fades in on
+          top via pure CSS - no JS animation driver in the visibility path
+          (see DashboardSim for why). */}
       <div className="relative min-h-0 flex-1">
-        <AnimatePresence>
-          <motion.div
-            key={i}
-            initial={reduce ? false : { opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={reduce ? undefined : { opacity: 0, y: -10 }}
-            transition={{ duration: 0.32, ease: "easeOut" }}
-            className="absolute inset-0 px-[1em] pb-[0.6em]"
-          >
-            <Active run={!reduce} />
-          </motion.div>
-        </AnimatePresence>
+        {!reduce && (
+          <div aria-hidden className="absolute inset-0 px-[1em] pb-[0.6em]">
+            <Prev run={false} />
+          </div>
+        )}
+        <div key={i} className="absolute inset-0 px-[1em] pb-[0.6em] motion-safe:animate-sim-screen-in">
+          <Active run={!reduce} />
+        </div>
 
         {/* Floating action */}
         <div className="absolute bottom-[0.6em] right-[0.6em] grid size-[2.4em] place-items-center rounded-full bg-gold text-gold-ink shadow-[0_0.4em_1.2em_rgba(253,185,19,0.35)]">
