@@ -104,7 +104,7 @@ export function WorkSection() {
                         sim is mapped onto its measured screen rectangle. */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src="/macbook.png"
+                      src="/macbook-pro-16.png"
                       alt=""
                       aria-hidden
                       draggable={false}
@@ -139,7 +139,7 @@ export function WorkSection() {
                         live sim is mapped onto its rounded screen. */}
                     {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src="/iphone.png"
+                      src="/iphone-17-pro.png"
                       alt=""
                       aria-hidden
                       draggable={false}

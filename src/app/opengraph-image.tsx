@@ -41,7 +41,7 @@ const GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 Â
 
 export default async function Image() {
   const logo = publicAsset("pulse-logo-main.png");
-  const macbook = publicAsset("macbook.png");
+  const macbook = publicAsset("macbook-pro-16.png");
   const dashboard = publicAsset("dashboard-screen.png");
 
   const [anton, plexMono] = await Promise.all([
