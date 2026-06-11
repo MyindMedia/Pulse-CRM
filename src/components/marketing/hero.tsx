@@ -319,7 +319,7 @@ export function Hero() {
                   alt=""
                   aria-hidden
                   draggable={false}
-                  className="mx-auto block w-[clamp(12rem,38vw,34rem)] select-none"
+                  className="mx-auto block w-[clamp(10rem,32vw,28rem)] select-none"
                 />
               </span>
             </span>

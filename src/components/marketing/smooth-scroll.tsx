@@ -19,12 +19,25 @@ export function SmoothScroll() {
 
     // Every load starts at the absolute top: the hero's scroll choreography
     // must always begin from its first frame, never a restored mid-pin
-    // position.
+    // position. A single scrollTo loses the race against the browser's
+    // ASYNC scroll restoration (and Safari's bfcache restore), so re-assert
+    // the top across the first frames and on pageshow.
     window.history.scrollRestoration = "manual";
-    window.scrollTo(0, 0);
+    const toTop = () => window.scrollTo(0, 0);
+    toTop();
+    const raf1 = requestAnimationFrame(toTop);
+    const t1 = window.setTimeout(toTop, 60);
+    const t2 = window.setTimeout(toTop, 200);
+    window.addEventListener("pageshow", toTop);
+    const cleanupTop = () => {
+      cancelAnimationFrame(raf1);
+      window.clearTimeout(t1);
+      window.clearTimeout(t2);
+      window.removeEventListener("pageshow", toTop);
+    };
 
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
-    if (reduced.matches) return;
+    if (reduced.matches) return cleanupTop;
 
     gsap.registerPlugin(ScrollTrigger);
 
@@ -51,7 +64,11 @@ export function SmoothScroll() {
     const lateRefresh = window.setTimeout(() => ScrollTrigger.refresh(), 600);
     window.addEventListener("load", onRefresh);
 
+    // Lenis keeps its own scroll position - pin it to the top too.
+    lenis.scrollTo(0, { immediate: true });
+
     return () => {
+      cleanupTop();
       window.clearTimeout(lateRefresh);
       window.removeEventListener("load", onRefresh);
       ScrollTrigger.removeEventListener("refresh", onRefresh);
