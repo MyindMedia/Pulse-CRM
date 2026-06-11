@@ -338,22 +338,24 @@ export function Hero() {
             {/* The studio's own desk console (true-alpha render): the surface
                 the monitor stands on, visible from the entrance. 230% of the
                 monitor's width so the console clearly outsizes the monitor and
-                its flanking speakers stay in frame; translateY pulls the
-                tabletop line (~55% down the render) up to the monitor's base.
+                its flanking speakers stay in frame; translateY pulls the top
+                of the central gear bridge (~43.5% down the render) up to the
+                monitor's base, so the monitor stands on the console's upper
+                tier at top-center, above the gear and desk layer.
                 A warm key spotlight and floor pool live inside the wrapper so
                 the dim studio look travels with the desk. */}
             <div
               data-hero-ledge
               aria-hidden
               className="pointer-events-none absolute left-1/2 top-full z-0 w-[230%] max-w-none select-none opacity-85 motion-safe:opacity-0"
-              style={{ transform: "translate(-50%, -55%)" }}
+              style={{ transform: "translate(-50%, -43.5%)" }}
             >
               <div
                 aria-hidden
                 className="pointer-events-none absolute inset-0 z-10"
                 style={{
                   background:
-                    "radial-gradient(48% 60% at 50% 36%, rgba(255,238,200,0.13), transparent 72%), radial-gradient(22% 14% at 50% 54%, rgba(255,238,200,0.12), transparent 70%), radial-gradient(75% 30% at 50% 92%, rgba(255,238,200,0.05), transparent 75%)",
+                    "radial-gradient(48% 60% at 50% 36%, rgba(255,238,200,0.13), transparent 72%), radial-gradient(22% 14% at 50% 43%, rgba(255,238,200,0.12), transparent 70%), radial-gradient(75% 30% at 50% 92%, rgba(255,238,200,0.05), transparent 75%)",
                 }}
               />
               {/* eslint-disable-next-line @next/next/no-img-element */}
