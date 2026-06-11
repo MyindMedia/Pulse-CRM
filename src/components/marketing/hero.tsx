@@ -153,7 +153,7 @@ export function Hero() {
             .fromTo(
               "[data-hero-monitor]",
               { rotateY: settle.rotateY, scale: settle.scale },
-              { rotateY: 6, scale: 0.8, ease: "none", duration: 1, immediateRender: false },
+              { rotateY: -6, scale: 0.8, ease: "none", duration: 1, immediateRender: false },
               0,
             )
             .fromTo(
@@ -207,11 +207,11 @@ export function Hero() {
               },
               1.05,
             )
-            // The swing settles back from the overshoot into a held
-            // three-quarter pose - the resting view stays 3D, never flat.
+            // The swing settles back from the slight overshoot to dead-on
+            // front-facing for the final landed state.
             .to(
               "[data-hero-monitor]",
-              { rotateY: 14, ease: "none", duration: 0.8 },
+              { rotateY: 0, ease: "none", duration: 0.8 },
               1.05,
             );
         },
@@ -338,24 +338,25 @@ export function Hero() {
             {/* The studio's own desk console (true-alpha render): the surface
                 the monitor stands on, visible from the entrance. 230% of the
                 monitor's width so the console clearly outsizes the monitor and
-                its flanking speakers stay in frame; translateY pulls the top
-                of the central gear bridge (~43.5% down the render) up to the
-                monitor's base, so the monitor stands on the console's upper
-                tier at top-center, above the gear and desk layer.
+                its flanking speakers stay in frame; translateY pulls the
+                console's top tier (~36% down the render, the shelf the
+                nearfield speakers stand on, above the rack-gear row) up to
+                the monitor's base, so the monitor stands top-center on the
+                topmost tier of the desk.
                 A warm key spotlight and floor pool live inside the wrapper so
                 the dim studio look travels with the desk. */}
             <div
               data-hero-ledge
               aria-hidden
               className="pointer-events-none absolute left-1/2 top-full z-0 w-[230%] max-w-none select-none opacity-85 motion-safe:opacity-0"
-              style={{ transform: "translate(-50%, -43.5%)" }}
+              style={{ transform: "translate(-50%, -36%)" }}
             >
               <div
                 aria-hidden
                 className="pointer-events-none absolute inset-0 z-10"
                 style={{
                   background:
-                    "radial-gradient(48% 60% at 50% 36%, rgba(255,238,200,0.13), transparent 72%), radial-gradient(22% 14% at 50% 43%, rgba(255,238,200,0.12), transparent 70%), radial-gradient(75% 30% at 50% 92%, rgba(255,238,200,0.05), transparent 75%)",
+                    "radial-gradient(48% 60% at 50% 36%, rgba(255,238,200,0.13), transparent 72%), radial-gradient(22% 14% at 50% 36%, rgba(255,238,200,0.12), transparent 70%), radial-gradient(75% 30% at 50% 92%, rgba(255,238,200,0.05), transparent 75%)",
                 }}
               />
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -393,7 +394,7 @@ export function Hero() {
           <div
             data-hero-monitor
             className="relative z-10 w-full will-change-transform [transform-style:preserve-3d] [transform-origin:50%_100%] motion-safe:opacity-0"
-            style={{ transform: "rotateY(14deg) scale(0.8)" }}
+            style={{ transform: "rotateY(0deg) scale(0.8)" }}
           >
             {/* 3D body: a back face + left side wall extruded behind the flat
                 render, so the sideways pose reads as a solid monitor with
