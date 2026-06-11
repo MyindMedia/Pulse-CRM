@@ -64,7 +64,7 @@ export function Pricing() {
       <GhostWord word="PRICING" className="text-obsidian/[0.05]" />
       <div className="relative z-10 mx-auto max-w-6xl">
         <Reveal className="mx-auto max-w-2xl text-center">
-          <p className="chrome-meta text-slate">Pricing</p>
+          <p className="chrome-meta text-slate">Studio management software pricing</p>
           <h2 className="chrome-display chrome-fill-dark mt-4 text-4xl leading-[1.05] sm:text-5xl">
             Plans that <span className="not-italic text-gold-deep">grow</span> with the studio
           </h2>

@@ -54,9 +54,9 @@ export function Features() {
       <GhostWord word="FEATURES" className="text-obsidian/[0.05]" />
       <div className="relative z-10 mx-auto max-w-6xl">
         <Reveal className="mx-auto max-w-2xl text-center">
-          <p className="chrome-meta text-slate">Everything in one place</p>
+          <p className="chrome-meta text-slate">Recording studio management software</p>
           <h2 className="chrome-display chrome-fill-dark mt-4 text-4xl sm:text-5xl">
-            Run the <span className="not-italic text-gold-deep">whole</span> studio, not a pile of apps
+            Run the <span className="not-italic text-gold-deep">whole</span> studio, not ten apps
           </h2>
           <p className="font-grotesk mt-5 text-[17px] font-medium leading-relaxed tracking-[-0.01em] text-slate">
             Pulse replaces the spreadsheet, the booking form, the scheduling app and the

@@ -80,11 +80,11 @@ export function WorkSection() {
 
       <div className="relative mx-auto max-w-6xl">
         <Reveal>
-          <p className="chrome-meta text-steel">In the studio</p>
+          <p className="chrome-meta text-steel">Desktop and mobile studio app</p>
           <h2 className="chrome-display chrome-fill mt-5 max-w-2xl text-[clamp(2.25rem,5.5vw,4.25rem)] leading-[1.04]">
-            Built for the room
+            Your studio, on
             <br />
-            you work in<span className="text-gold">.</span>
+            <span className="text-gold">every</span> screen<span className="text-gold">.</span>
           </h2>
           <p className="font-grotesk mt-6 max-w-xl text-[17px] leading-relaxed tracking-[-0.01em] text-mist/80">
             From the front desk to the live room, Pulse runs on every screen -

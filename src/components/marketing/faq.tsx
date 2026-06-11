@@ -37,9 +37,9 @@ export function Faq() {
       <GhostWord word="ANSWERS" />
       <div className="relative z-10 mx-auto max-w-3xl">
         <Reveal className="text-center">
-          <p className="chrome-meta text-steel">Questions</p>
+          <p className="chrome-meta text-steel">Recording studio software FAQ</p>
           <h2 className="chrome-display mt-4 text-4xl text-bone sm:text-5xl">
-            Everything you <span className="text-gold">need</span> to know
+            Studio software, <span className="text-gold">answered</span>
           </h2>
         </Reveal>
 
