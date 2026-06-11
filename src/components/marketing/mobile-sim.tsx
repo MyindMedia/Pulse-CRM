@@ -248,16 +248,17 @@ export function MobileSim() {
         <span className="size-[1.7em] rounded-full bg-graphite/70" />
       </header>
 
-      {/* Screen body */}
-      <div className="relative min-h-0 flex-1 px-[1em] pb-[0.6em]">
-        <AnimatePresence mode="wait">
+      {/* Screen body. Crossfade (sync AnimatePresence, absolutely-stacked
+          children) - mode="wait" leaves the screen blank between cycles. */}
+      <div className="relative min-h-0 flex-1">
+        <AnimatePresence>
           <motion.div
             key={i}
             initial={reduce ? false : { opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             exit={reduce ? undefined : { opacity: 0, y: -10 }}
             transition={{ duration: 0.32, ease: "easeOut" }}
-            className="h-full"
+            className="absolute inset-0 px-[1em] pb-[0.6em]"
           >
             <Active run={!reduce} />
           </motion.div>

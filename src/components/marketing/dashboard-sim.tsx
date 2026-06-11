@@ -405,16 +405,19 @@ export function DashboardSim({ start = 0 }: { start?: number }) {
           </div>
         </header>
 
-        {/* Screen body */}
-        <div className="relative min-h-0 flex-1 p-[0.9em]">
-          <AnimatePresence mode="wait">
+        {/* Screen body. Screens crossfade (default sync AnimatePresence with
+            absolutely-stacked children) - mode="wait" unmounts the old screen
+            before the next mounts, leaving the monitor visibly blank for the
+            transition gap on every cycle. */}
+        <div className="relative min-h-0 flex-1">
+          <AnimatePresence>
             <motion.div
               key={i}
               initial={reduce ? false : { opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={reduce ? undefined : { opacity: 0, y: -8 }}
               transition={{ duration: 0.35, ease: "easeOut" }}
-              className="h-full"
+              className="absolute inset-0 p-[0.9em]"
             >
               <Active run={!reduce} />
             </motion.div>
