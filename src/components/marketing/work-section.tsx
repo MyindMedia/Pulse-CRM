@@ -110,10 +110,6 @@ export function WorkSection() {
                       draggable={false}
                       className="block w-full select-none drop-shadow-[0_36px_70px_rgba(0,0,0,0.6)]"
                     />
-                    {/* Gold LIVE tag over the screen's top-left corner. */}
-                    <span className="chrome-meta absolute left-[11.5%] top-[2.5%] z-10 rounded-chrome bg-gold px-2 py-1 text-[0.625rem] text-gold-ink">
-                      LIVE
-                    </span>
                     <div
                       className="absolute overflow-hidden bg-obsidian"
                       style={{ left: "12.9%", top: "4.6%", right: "12.9%", bottom: "22.2%", containerType: "inline-size" }}
