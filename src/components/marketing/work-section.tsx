@@ -99,8 +99,28 @@ export function WorkSection() {
                 <figure className="group">
                   {/* Perspective stage: the laptop rests at a slight 3D tilt and
                       straightens + lifts on hover (motion-safe only). */}
-                  <div className="[perspective:1000px]">
-                    <div className="relative will-change-transform transition-transform duration-500 ease-out [transform:rotateY(-7deg)_rotateX(3deg)] motion-safe:group-hover:[transform:rotateY(0deg)_rotateX(0deg)_translateY(-0.25rem)_scale(1.03)] motion-reduce:transition-none">
+                  <div className="[perspective:1100px]">
+                    <div className="relative will-change-transform transition-transform duration-500 ease-out [transform-style:preserve-3d] [transform:rotateY(-4deg)_rotateX(2deg)] motion-safe:group-hover:[transform:rotateY(-16deg)_rotateX(6deg)_translateY(-0.4rem)_scale(1.04)] motion-reduce:transition-none">
+                      {/* Extruded lid body (hero-monitor pattern): a thin back
+                          face + right side wall behind the lid region, so the
+                          hover rotation reveals real thickness. */}
+                      <div
+                        aria-hidden
+                        className="pointer-events-none absolute rounded-md bg-[#0b0b0c]"
+                        style={{ left: "25.2%", right: "25.3%", top: "3.2%", bottom: "34.5%", transform: "translateZ(-14px)" }}
+                      />
+                      <div
+                        aria-hidden
+                        className="pointer-events-none absolute w-[14px]"
+                        style={{
+                          right: "25.3%",
+                          top: "3.2%",
+                          bottom: "34.5%",
+                          transform: "rotateY(-90deg)",
+                          transformOrigin: "right center",
+                          background: "linear-gradient(to left, #2e2e31, #101012)",
+                        }}
+                      />
                       {/* MacBook Pro style render (alpha-keyed); the live sim is
                           mapped onto its measured screen rectangle. */}
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -137,7 +157,27 @@ export function WorkSection() {
                   {/* Perspective stage: the phone rests at a slight 3D tilt and
                       straightens + lifts on hover (motion-safe only). */}
                   <div className="[perspective:1000px]">
-                    <div className="relative will-change-transform transition-transform duration-500 ease-out [transform:rotateY(9deg)_rotateX(2deg)] motion-safe:group-hover:[transform:rotateY(0deg)_rotateX(0deg)_translateY(-0.25rem)_scale(1.03)] motion-reduce:transition-none">
+                    <div className="relative will-change-transform transition-transform duration-500 ease-out [transform-style:preserve-3d] [transform:rotateY(5deg)_rotateX(1deg)] motion-safe:group-hover:[transform:rotateY(18deg)_rotateX(4deg)_translateY(-0.4rem)_scale(1.05)] motion-reduce:transition-none">
+                      {/* Extruded slab body (hero-monitor pattern): back face +
+                          left side wall, so the hover rotation shows the
+                          titanium slab's thickness. */}
+                      <div
+                        aria-hidden
+                        className="pointer-events-none absolute bg-[#0c0c0d]"
+                        style={{ inset: "1.2%", borderRadius: "12% / 5.8%", transform: "translateZ(-18px)" }}
+                      />
+                      <div
+                        aria-hidden
+                        className="pointer-events-none absolute w-[18px]"
+                        style={{
+                          left: "1.2%",
+                          top: "6%",
+                          bottom: "6%",
+                          transform: "rotateY(90deg)",
+                          transformOrigin: "left center",
+                          background: "linear-gradient(to right, #3a3a3e, #131315)",
+                        }}
+                      />
                       {/* iPhone 17 Pro Max style render (alpha-keyed); the live
                           sim is mapped onto its rounded screen. */}
                       {/* eslint-disable-next-line @next/next/no-img-element */}
