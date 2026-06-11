@@ -338,25 +338,24 @@ export function Hero() {
             {/* The studio's own desk console (true-alpha render): the surface
                 the monitor stands on, visible from the entrance. 230% of the
                 monitor's width so the console clearly outsizes the monitor and
-                its flanking speakers stay in frame; translateY pulls the
-                console's top tier (~36% down the render, the shelf the
-                nearfield speakers stand on, above the rack-gear row) up to
-                the monitor's base, so the monitor stands top-center on the
-                topmost tier of the desk.
+                its flanking speakers stay in frame; translateY pulls the flat
+                top of the central console bridge (measured at ~40.5% down the
+                render, just above the rack-module row) up to the monitor's
+                base, so the plate rests on that surface at top-center.
                 A warm key spotlight and floor pool live inside the wrapper so
                 the dim studio look travels with the desk. */}
             <div
               data-hero-ledge
               aria-hidden
               className="pointer-events-none absolute left-1/2 top-full z-0 w-[230%] max-w-none select-none opacity-85 motion-safe:opacity-0"
-              style={{ transform: "translate(-50%, -36%)" }}
+              style={{ transform: "translate(-50%, -40.5%)" }}
             >
               <div
                 aria-hidden
                 className="pointer-events-none absolute inset-0 z-10"
                 style={{
                   background:
-                    "radial-gradient(48% 60% at 50% 36%, rgba(255,238,200,0.13), transparent 72%), radial-gradient(22% 14% at 50% 36%, rgba(255,238,200,0.12), transparent 70%), radial-gradient(75% 30% at 50% 92%, rgba(255,238,200,0.05), transparent 75%)",
+                    "radial-gradient(48% 60% at 50% 36%, rgba(255,238,200,0.13), transparent 72%), radial-gradient(22% 14% at 50% 40%, rgba(255,238,200,0.12), transparent 70%), radial-gradient(75% 30% at 50% 92%, rgba(255,238,200,0.05), transparent 75%)",
                 }}
               />
               {/* eslint-disable-next-line @next/next/no-img-element */}
