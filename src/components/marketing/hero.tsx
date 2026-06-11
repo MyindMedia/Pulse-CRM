@@ -146,14 +146,15 @@ export function Hero() {
           });
           scrub
             // Phase 1 - the monitor swings around in place on the desk: base
-            // anchored, it rotates past front-facing (slight overshoot) while
-            // growing toward the viewer. Explicit fromTo (no immediateRender):
-            // the from values must equal the entrance SETTLE pose, or scrolling
-            // back to the top restores the monitor to its pre-entrance state.
+            // anchored, rotating monotonically toward front-facing (never past
+            // 0 - no overshoot-and-return). Explicit fromTo (no
+            // immediateRender): the from values must equal the entrance SETTLE
+            // pose, or scrolling back to the top restores the monitor to its
+            // pre-entrance state.
             .fromTo(
               "[data-hero-monitor]",
               { rotateY: settle.rotateY, scale: settle.scale },
-              { rotateY: -6, scale: 0.8, ease: "none", duration: 1, immediateRender: false },
+              { rotateY: 4, scale: 0.8, ease: "none", duration: 1, immediateRender: false },
               0,
             )
             .fromTo(
@@ -207,13 +208,16 @@ export function Hero() {
               },
               1.05,
             )
-            // The swing settles back from the slight overshoot to dead-on
+            // The swing completes the last few degrees to dead-on
             // front-facing for the final landed state.
             .to(
               "[data-hero-monitor]",
               { rotateY: 0, ease: "none", duration: 0.8 },
               1.05,
-            );
+            )
+            // The gold headline glow dims as the desk rises into its band -
+            // otherwise it reads as a lighting haze across the desk.
+            .to("[data-hero-glow]", { opacity: 0.12, ease: "none", duration: 0.6 }, 1.05);
         },
       );
     },
@@ -264,10 +268,12 @@ export function Hero() {
           />
         </div>
       ))}
-      {/* Lone gold glow, center-top. */}
+      {/* Lone gold glow, center-top. Faded out during the landing - the desk
+          rises into this band and the glow reads as a lighting haze on it. */}
       <div
+        data-hero-glow
         aria-hidden
-        className="pointer-events-none absolute left-1/2 top-[2%] -z-0 h-[42%] w-[80%] -translate-x-1/2 rounded-full opacity-70 blur-[120px]"
+        className="pointer-events-none absolute left-1/2 top-[2%] -z-0 h-[42%] w-[80%] -translate-x-1/2 rounded-full opacity-60 blur-[120px]"
         style={{ background: "radial-gradient(closest-side, rgba(253,185,19,0.16), transparent)" }}
       />
 
@@ -347,7 +353,7 @@ export function Hero() {
               data-hero-ledge
               aria-hidden
               className="pointer-events-none absolute left-1/2 top-full z-0 w-[230%] max-w-none select-none opacity-85 motion-safe:opacity-0"
-              style={{ transform: "translate(-50%, -41%)" }}
+              style={{ transform: "translate(-50%, -41.6%)" }}
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
@@ -373,10 +379,10 @@ export function Hero() {
               aria-hidden
               className="pointer-events-none absolute left-1/2 z-[1] -translate-x-1/2"
               style={{
-                bottom: "-3%",
-                width: "58%",
-                height: "7%",
-                background: "radial-gradient(50% 50% at 50% 50%, rgba(0,0,0,0.65), transparent 70%)",
+                bottom: "-1.5%",
+                width: "50%",
+                height: "4.5%",
+                background: "radial-gradient(50% 50% at 50% 50%, rgba(0,0,0,0.5), transparent 70%)",
               }}
             />
             {/* 3D monitor. transform-origin is the BASE of the stand (bottom
