@@ -16,6 +16,13 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 export function SmoothScroll() {
   React.useEffect(() => {
     if (typeof window === "undefined") return;
+
+    // Every load starts at the absolute top: the hero's scroll choreography
+    // must always begin from its first frame, never a restored mid-pin
+    // position.
+    window.history.scrollRestoration = "manual";
+    window.scrollTo(0, 0);
+
     const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
     if (reduced.matches) return;
 
