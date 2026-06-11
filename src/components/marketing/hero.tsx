@@ -192,6 +192,21 @@ export function Hero() {
               },
               1.05,
             )
+            // The background mains follow at half rate: nearer desk slides
+            // past them (depth parallax) but their tops stay in frame
+            // flanking the landed scene instead of being swallowed by the
+            // risen desk.
+            .to(
+              "[data-hero-bgspeaker]",
+              {
+                y: () =>
+                  -Math.max(window.innerHeight * 0.3, stageBottom() - window.innerHeight * 0.62) *
+                  0.5,
+                ease: "none",
+                duration: 0.8,
+              },
+              1.05,
+            )
             // The swing settles back from the overshoot into a held
             // three-quarter pose - the resting view stays 3D, never flat.
             .to(
@@ -221,6 +236,34 @@ export function Hero() {
       />
       {/* Thin vertical structure lines (desktop). */}
       <div aria-hidden className="grid-lines pointer-events-none absolute inset-0 -z-0 hidden lg:block" />
+      {/* Large studio mains flanking the scene: partially visible at either
+          edge, standing ~5ft behind the desk in low light. They live on the
+          section (not the stage), so when the stage glides up on scroll the
+          desk moves while they hold still - background parallax that sells
+          the depth. Tagged data-hero-ledge to share the scene's entrance
+          fade. Desktop only: on small screens they would crowd the frame. */}
+      {(["left", "right"] as const).map((side) => (
+        <div
+          key={side}
+          data-hero-ledge
+          data-hero-bgspeaker
+          aria-hidden
+          className="pointer-events-none absolute bottom-[38%] z-0 hidden select-none opacity-85 motion-safe:opacity-0 lg:block"
+          style={{ [side]: "-3.5%" } as React.CSSProperties}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/speaker-main.png"
+            alt=""
+            draggable={false}
+            className="h-[min(64vh,580px)] w-auto"
+            style={{
+              filter: "brightness(0.5) saturate(0.85) blur(1.6px)",
+              transform: side === "right" ? "scaleX(-1)" : undefined,
+            }}
+          />
+        </div>
+      ))}
       {/* Lone gold glow, center-top. */}
       <div
         aria-hidden
