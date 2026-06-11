@@ -210,7 +210,7 @@ export function WorkSection() {
                       />
                     </div>
                   </div>
-                  <LabelChips name="MOBILE" tags={["iOS"]} className="mt-4 justify-center" />
+                  <LabelChips name="MOBILE" tags={["WEBAPP"]} className="mt-4 justify-center" />
                   <figcaption className="chrome-meta mt-3 text-center text-steel/80">On the move · the booking just landed</figcaption>
                 </figure>
             </Reveal>
