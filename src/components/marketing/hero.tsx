@@ -236,6 +236,7 @@ export function Hero() {
   );
 
   return (
+    <>
     <section
       ref={root}
       className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-obsidian px-4 pb-24 pt-28 lg:px-8"
@@ -551,16 +552,23 @@ export function Hero() {
         </div>
       </div>
 
-      {/* Mono metadata readout, lower-left (desktop). */}
-      <div className="chrome-meta pointer-events-none absolute bottom-12 left-8 z-10 hidden flex-col gap-1 text-left text-steel/80 lg:flex">
+    </section>
+
+    {/* Meta strip BELOW the hero scene (normal flow, after the pin spacer):
+        mono brand readout on the left, capability ticker on the right.
+        Previously these were absolute overlays inside the hero and sat on
+        top of the desk image. */}
+    <div className="relative z-10 flex items-center gap-6 border-b border-t border-graphite/40 bg-obsidian px-4 py-4 lg:px-8">
+      <div className="chrome-meta hidden shrink-0 items-center gap-5 text-steel/80 lg:flex">
         <span>Pulse by Myind Sound</span>
+        <span className="text-steel/40">\u00B7</span>
         <span>Studio OS</span>
+        <span className="text-steel/40">\u00B7</span>
         {/* Live locale clock - effect-initialized, nbsp placeholder pre-hydration. */}
         <span suppressHydrationWarning>{clock ?? "\u00A0"}</span>
       </div>
-
       {/* Capability ticker - mono, edge-faded. */}
-      <div className="pointer-events-none absolute inset-x-0 bottom-10 z-10 overflow-hidden [mask-image:linear-gradient(to_right,transparent,#000_14%,#000_86%,transparent)] lg:left-auto lg:right-8 lg:w-[40%]">
+      <div className="pointer-events-none min-w-0 flex-1 overflow-hidden [mask-image:linear-gradient(to_right,transparent,#000_14%,#000_86%,transparent)]">
         <div className="animate-marquee flex w-max">
           {[0, 1].map((copy) => (
             <ul key={copy} className="flex shrink-0 items-center" aria-hidden={copy === 1}>
@@ -574,6 +582,7 @@ export function Hero() {
           ))}
         </div>
       </div>
-    </section>
+    </div>
+    </>
   );
 }
