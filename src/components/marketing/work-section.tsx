@@ -92,7 +92,7 @@ export function WorkSection() {
           </p>
         </Reveal>
 
-        <div className="mt-20 grid items-end gap-10 lg:mt-24 lg:grid-cols-[1.7fr_1fr]">
+        <div className="mt-20 grid items-end gap-10 lg:mt-24 lg:grid-cols-[2.5fr_1fr]">
           {/* Laptop column - drifts up on scroll */}
           <div data-work-col-a className="will-change-transform">
             <Reveal>
@@ -111,12 +111,12 @@ export function WorkSection() {
                       className="block w-full select-none drop-shadow-[0_36px_70px_rgba(0,0,0,0.6)]"
                     />
                     {/* Gold LIVE tag over the screen's top-left corner. */}
-                    <span className="chrome-meta absolute left-[32%] top-[16%] z-10 rounded-chrome bg-gold px-2 py-1 text-[0.625rem] text-gold-ink">
+                    <span className="chrome-meta absolute left-[11.5%] top-[2.5%] z-10 rounded-chrome bg-gold px-2 py-1 text-[0.625rem] text-gold-ink">
                       LIVE
                     </span>
                     <div
                       className="absolute overflow-hidden bg-obsidian"
-                      style={{ left: "29.9%", top: "13.2%", right: "29.2%", bottom: "30.5%", containerType: "inline-size" }}
+                      style={{ left: "12.9%", top: "4.6%", right: "12.9%", bottom: "22.2%", containerType: "inline-size" }}
                     >
                       <DashboardSim start={2} />
                       <div aria-hidden className="pointer-events-none absolute inset-0" style={{ background: "linear-gradient(115deg, rgba(255,255,255,0.06) 0%, transparent 30%)" }} />
@@ -131,7 +131,7 @@ export function WorkSection() {
           {/* Phone column - drifts down on scroll, sliding past the laptop */}
           <div data-work-col-b className="will-change-transform">
             <Reveal delay={120}>
-                <figure className="group mx-auto w-[min(72vw,260px)]">
+                <figure className="group mx-auto w-[min(64vw,200px)] lg:w-[min(17vw,200px)]">
                   {/* Perspective stage: the phone rests at a slight 3D tilt and
                       straightens + lifts on hover (motion-safe only). */}
                   <div className="relative">
@@ -148,11 +148,11 @@ export function WorkSection() {
                     <div
                       className="absolute overflow-hidden bg-obsidian"
                       style={{
-                        left: "6.8%",
-                        top: "2.2%",
-                        right: "7.0%",
-                        bottom: "2.6%",
-                        borderRadius: "12% / 5.5%",
+                        left: "5.0%",
+                        top: "3.3%",
+                        right: "4.9%",
+                        bottom: "3.3%",
+                        borderRadius: "11% / 5.4%",
                         containerType: "inline-size",
                       }}
                     >
@@ -163,7 +163,7 @@ export function WorkSection() {
                     <div
                       aria-hidden
                       className="absolute left-1/2 z-10 -translate-x-1/2 rounded-full bg-[#080808]"
-                      style={{ top: "3.8%", width: "20%", height: "2.2%" }}
+                      style={{ top: "5.4%", width: "25%", height: "3.0%" }}
                     />
                   </div>
                   <LabelChips name="MOBILE" tags={["WEBAPP"]} className="mt-4 justify-center" />

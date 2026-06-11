@@ -59,94 +59,148 @@ export function Hero() {
       if (typeof window === "undefined") return;
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-      // Entrance: headline lines clip + rise, then the monitor settles into its
-      // resting tilt, then the supporting copy/CTAs fade up. Delayed so it
-      // begins as the SiteReveal columns wipe away.
-      const tl = gsap.timeline({ defaults: { ease: "power3.out" }, delay: 1.35 });
-      tl.fromTo(
-        "[data-hero-line]",
-        { yPercent: 115, clipPath: "inset(0 0 100% 0)" },
-        { yPercent: 0, clipPath: "inset(0 0 -10% 0)", duration: 0.9, stagger: 0.12 },
-      )
-        .fromTo(
-          "[data-hero-monitor]",
-          { y: 60, scale: 0.5, opacity: 0, rotateY: 85, rotateZ: -8 },
-          { y: -16, scale: 0.58, opacity: 1, rotateY: 50, rotateZ: -4, duration: 1.1, ease: "power2.out" },
-          "-=0.4",
-        )
-        .fromTo(
-          "[data-hero-fade]",
-          { y: 24, opacity: 0 },
-          { y: 0, opacity: 1, duration: 0.7, stagger: 0.1 },
-          "-=0.6",
-        )
-        // The studio desk fades up dimly behind everything - the hero
-        // background - before brightening fully at the landing.
-        .fromTo("[data-hero-ledge]", { autoAlpha: 0 }, { autoAlpha: 0.5, duration: 1.0 }, "-=0.9");
+      // The monitor's transform-origin is its BASE (bottom center), and the
+      // desk render is sized + welded to that base in the markup, so every
+      // rotateY/scale below swivels the monitor in place on the desk - it
+      // never lifts off the surface.
+      const mm = gsap.matchMedia();
+      mm.add(
+        { desktop: "(min-width: 768px)", mobile: "(max-width: 767px)" },
+        (ctx) => {
+          const desktop = Boolean((ctx.conditions as { desktop?: boolean }).desktop);
+          // Pose the monitor settles into after the entrance. On desktop the
+          // scroll scrub then swings it; on mobile (no pin, no scrub) it lands
+          // directly in its resting three-quarter pose.
+          const settle = desktop
+            ? { rotateY: 52, scale: 0.66 }
+            : { rotateY: 16, scale: 0.84 };
 
-      // Scroll scrub + pin handoff. The section pins for ~2 viewports of scroll:
-      //   Phase 1 (t 0-1): monitor rotates toward flat + grows while the giant
-      //     "Studio." word sinks slower than scroll (parallax) - the original scrub.
-      //   Phase 2 (t 1-2): with the monitor held flat + centered, the headline and
-      //     supporting copy exit upward and the dark desk ledge rises in beneath
-      //     the monitor so it visually lands on a surface; then the pin releases.
-      // Lenis runs native scroll (no body transform), so pinType stays "fixed"
-      // and pinning works with the existing ScrollTrigger sync.
-      const scrub = gsap.timeline({
-        scrollTrigger: {
-          trigger: root.current,
-          start: "top top",
-          end: "+=200%",
-          scrub: 0.6,
-          pin: true,
-          pinSpacing: true,
-          anticipatePin: 1,
+          // Entrance: headline lines clip + rise, the desk fades up, then the
+          // monitor swivels up into its settle pose standing on the desk, then
+          // the supporting copy/CTAs fade up. Delayed so it begins as the
+          // SiteReveal columns wipe away.
+          const tl = gsap.timeline({ defaults: { ease: "power3.out" }, delay: 1.35 });
+          tl.fromTo(
+            "[data-hero-line]",
+            { yPercent: 115, clipPath: "inset(0 0 100% 0)" },
+            { yPercent: 0, clipPath: "inset(0 0 -10% 0)", duration: 0.9, stagger: 0.12 },
+          )
+            // The studio desk is visible from the start - it is the surface
+            // the monitor stands on, not a late-arriving backdrop. This is the
+            // ONLY tween that touches the ledge: a second (scrub) tween on the
+            // same property re-renders the hidden from-state when scrubbing
+            // backwards past it, blinking the desk out.
+            .fromTo(
+              "[data-hero-ledge]",
+              { autoAlpha: 0 },
+              { autoAlpha: 1, duration: 1.0 },
+              "-=0.5",
+            )
+            .fromTo(
+              "[data-hero-monitor]",
+              { scale: 0.55, opacity: 0, rotateY: 84 },
+              { ...settle, opacity: 1, duration: 1.1, ease: "power2.out" },
+              "-=0.7",
+            )
+            .fromTo(
+              "[data-hero-fade]",
+              { y: 24, opacity: 0 },
+              { y: 0, opacity: 1, duration: 0.7, stagger: 0.1 },
+              "-=0.6",
+            );
+
+          if (!desktop) return;
+
+          // Scroll scrub + pin handoff (desktop only - mobile reads the resting
+          // pose with normal scrolling). The section pins for ~2 viewports:
+          //   Phase 1 (t 0-1): the monitor swings around its base toward the
+          //     viewer - past front - while the ghost logo parallaxes.
+          //   Phase 2 (t 1-2): headline + copy exit upward, the stage glides up
+          //     (desk + monitor together, still attached), the swing settles
+          //     back to a held three-quarter pose and the desk brightens fully.
+          // Lenis runs native scroll (no body transform), so pinType stays
+          // "fixed" and pinning works with the existing ScrollTrigger sync.
+          // Bottom of the stage (the stand base / desk contact line) relative
+          // to the pinned section's top - used to size the stage lift so the
+          // base is on screen during the swing even on short/shallow windows,
+          // where a fixed 8vh rise leaves it below the fold ("floating").
+          const stageBottom = () => {
+            const stage = root.current?.querySelector<HTMLElement>("[data-hero-stage]");
+            if (!stage || !root.current) return window.innerHeight;
+            return (
+              stage.getBoundingClientRect().bottom - root.current.getBoundingClientRect().top
+            );
+          };
+
+          const scrub = gsap.timeline({
+            scrollTrigger: {
+              trigger: root.current,
+              start: "top top",
+              end: "+=200%",
+              scrub: 0.6,
+              pin: true,
+              pinSpacing: true,
+              anticipatePin: 1,
+              invalidateOnRefresh: true,
+            },
+          });
+          scrub
+            // Phase 1 - the monitor swings around in place on the desk: base
+            // anchored, it rotates past front-facing (slight overshoot) while
+            // growing toward the viewer. Explicit fromTo (no immediateRender):
+            // the from values must equal the entrance SETTLE pose, or scrolling
+            // back to the top restores the monitor to its pre-entrance state.
+            .fromTo(
+              "[data-hero-monitor]",
+              { rotateY: settle.rotateY, scale: settle.scale },
+              { rotateY: 6, scale: 0.8, ease: "none", duration: 1, immediateRender: false },
+              0,
+            )
+            .fromTo(
+              "[data-hero-ghost]",
+              { yPercent: 0 },
+              { yPercent: 26, ease: "none", duration: 1, immediateRender: false },
+              0,
+            )
+            .fromTo(
+              "[data-hero-stage]",
+              { y: 0 },
+              {
+                y: () =>
+                  -Math.max(window.innerHeight * 0.08, stageBottom() - window.innerHeight * 0.94),
+                ease: "none",
+                duration: 1,
+                immediateRender: false,
+              },
+              0,
+            )
+            // Phase 2 - headline + copy exit upward while the monitor holds.
+            .to(
+              "[data-hero-exit]",
+              { yPercent: -160, autoAlpha: 0, ease: "none", duration: 0.7, stagger: 0.05 },
+              1.05,
+            )
+            // The whole stage (desk + monitor + crosshairs) glides up together
+            // to take the vacated center - the base never leaves the desk.
+            .to(
+              "[data-hero-stage]",
+              {
+                y: () =>
+                  -Math.max(window.innerHeight * 0.3, stageBottom() - window.innerHeight * 0.62),
+                ease: "none",
+                duration: 0.8,
+              },
+              1.05,
+            )
+            // The swing settles back from the overshoot into a held
+            // three-quarter pose - the resting view stays 3D, never flat.
+            .to(
+              "[data-hero-monitor]",
+              { rotateY: 14, ease: "none", duration: 0.8 },
+              1.05,
+            );
         },
-      });
-      scrub
-        // Phase 1 - sideways monitor swings to front-facing and grows; the
-        // stage already starts rising so the monitor stays fully in frame.
-        // Explicit fromTo (no immediateRender): the from values must equal the
-        // entrance SETTLE pose, or scrolling back to the top restores the
-        // monitor to its pre-entrance state (tiny + near-edge-on).
-        .fromTo(
-          "[data-hero-monitor]",
-          { rotateY: 50, rotateZ: -4, scale: 0.58, y: -16 },
-          { rotateY: 0, rotateZ: 0, scale: 0.78, y: 0, ease: "none", duration: 1, immediateRender: false },
-          0,
-        )
-        .fromTo(
-          "[data-hero-ghost]",
-          { yPercent: 0 },
-          { yPercent: 26, ease: "none", duration: 1, immediateRender: false },
-          0,
-        )
-        .fromTo(
-          "[data-hero-stage]",
-          { y: 0 },
-          { y: () => -window.innerHeight * 0.08, ease: "none", duration: 1, immediateRender: false },
-          0,
-        )
-        // Phase 2 - headline + copy exit upward while the monitor holds.
-        .to(
-          "[data-hero-exit]",
-          { yPercent: -160, autoAlpha: 0, ease: "none", duration: 0.7, stagger: 0.05 },
-          1.05,
-        )
-        // The whole stage (monitor + ledge + crosshairs) glides up to take the
-        // vacated center, like the reference's landing move.
-        .to(
-          "[data-hero-stage]",
-          { y: () => -window.innerHeight * 0.3, ease: "none", duration: 0.8 },
-          1.05,
-        )
-        // The desk brightens to full and settles as the monitor lands on it.
-        .fromTo(
-          "[data-hero-ledge]",
-          { autoAlpha: 0.5, yPercent: 8 },
-          { autoAlpha: 1, yPercent: 0, ease: "none", duration: 0.6, immediateRender: false },
-          1.1,
-        );
+      );
     },
     { scope: root },
   );
@@ -216,7 +270,7 @@ export function Hero() {
             and the live screen are one transformed unit, so they share the
             exact same perspective. */}
         <div className="relative z-0 -mt-[clamp(2.5rem,8vw,6rem)] w-full">
-          <div data-hero-stage className="relative flex w-full justify-center [perspective:1150px]">
+          <div data-hero-stage className="relative flex w-full justify-center">
             {/* Crosshair registration marks at the stage corners. */}
             {(["left-0 top-0", "right-0 top-0", "bottom-0 left-0", "bottom-0 right-0"] as const).map(
               (pos) => (
@@ -229,24 +283,34 @@ export function Hero() {
                 </span>
               ),
             )}
+            {/* Sizing context shared by the desk and the monitor: the desk is
+                sized as a multiple of the monitor's width and its tabletop
+                line is translated onto the monitor's base, so the two stay
+                welded at every viewport and every scroll position. Perspective
+                lives here so the monitor (direct child) renders in 3D. */}
+            {/* Width also capped by viewport height: on wide-but-shallow
+                windows an 880px monitor is taller than the viewport and its
+                base (and the desk under it) falls below the fold. */}
+            <div className="relative w-[min(90vw,880px,115vh)] [perspective:1150px]">
             {/* The studio's own desk console (true-alpha render): the surface
-                the monitor lands on. Its center shelf line is anchored to the
-                monitor's visual base at the landed scale (0.78). A warm key
-                spotlight and floor pool live inside the wrapper so the dim
-                studio look travels with the desk. Hidden until the scrub's
-                final phase. */}
+                the monitor stands on, visible from the entrance. 230% of the
+                monitor's width so the console clearly outsizes the monitor and
+                its flanking speakers stay in frame; translateY pulls the
+                tabletop line (~55% down the render) up to the monitor's base.
+                A warm key spotlight and floor pool live inside the wrapper so
+                the dim studio look travels with the desk. */}
             <div
               data-hero-ledge
               aria-hidden
-              className="pointer-events-none absolute left-1/2 z-0 w-screen max-w-none -translate-x-1/2 select-none opacity-50 motion-safe:opacity-0"
-              style={{ top: "calc(100% - 76px - 24.5vw)" }}
+              className="pointer-events-none absolute left-1/2 top-full z-0 w-[230%] max-w-none select-none opacity-85 motion-safe:opacity-0"
+              style={{ transform: "translate(-50%, -55%)" }}
             >
               <div
                 aria-hidden
                 className="pointer-events-none absolute inset-0 z-10"
                 style={{
                   background:
-                    "radial-gradient(48% 60% at 50% 36%, rgba(255,238,200,0.10), transparent 72%), radial-gradient(75% 30% at 50% 92%, rgba(255,238,200,0.05), transparent 75%)",
+                    "radial-gradient(48% 60% at 50% 36%, rgba(255,238,200,0.13), transparent 72%), radial-gradient(22% 14% at 50% 54%, rgba(255,238,200,0.12), transparent 70%), radial-gradient(75% 30% at 50% 92%, rgba(255,238,200,0.05), transparent 75%)",
                 }}
               />
               {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -265,11 +329,26 @@ export function Hero() {
                 }}
               />
             </div>
-            {/* 3D monitor */}
+            {/* Contact shadow welding the stand base to the desk surface. It
+                lives outside the rotating monitor (a ground shadow stays on
+                the desk plane) but inside the sizing wrapper, so it tracks the
+                base across viewports and scroll. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute left-1/2 z-[1] -translate-x-1/2"
+              style={{
+                bottom: "-3%",
+                width: "58%",
+                height: "7%",
+                background: "radial-gradient(50% 50% at 50% 50%, rgba(0,0,0,0.65), transparent 70%)",
+              }}
+            />
+            {/* 3D monitor. transform-origin is the BASE of the stand (bottom
+                center): every rotate/scale swivels it in place on the desk. */}
           <div
             data-hero-monitor
-            className="relative z-10 w-[min(90vw,880px)] origin-center will-change-transform [transform-style:preserve-3d] motion-safe:opacity-0"
-            style={{ transform: "rotateY(10deg) scale(0.92)" }}
+            className="relative z-10 w-full will-change-transform [transform-style:preserve-3d] [transform-origin:50%_100%] motion-safe:opacity-0"
+            style={{ transform: "rotateY(14deg) scale(0.8)" }}
           >
             {/* 3D body: a back face + left side wall extruded behind the flat
                 render, so the sideways pose reads as a solid monitor with
@@ -290,7 +369,10 @@ export function Hero() {
                 background: "linear-gradient(to right, #2e2e31, #101012)",
               }}
             />
-            {/* Rendered monitor incl. stand (Gemini render, transparent PNG). */}
+            {/* Rendered monitor (Gemini render, transparent PNG). The painted
+                stand is clipped off (it is a flat front view that breaks the
+                3D illusion when the monitor rotates) and replaced by the CSS
+                3D stand below, which rotates with the panel. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/monitor-stand.png"
@@ -298,6 +380,70 @@ export function Hero() {
               aria-hidden
               draggable={false}
               className="block w-full select-none drop-shadow-[0_50px_120px_rgba(0,0,0,0.7)]"
+              style={{ clipPath: "inset(0 0 21.6% 0)" }}
+            />
+            {/* CSS 3D stand. Geometry measured from the render: column 5% wide
+                at center from y 78% down; base plate 44.8% wide at the floor.
+                Column: front face on the image plane, back face and side wall
+                extruded 26px like the panel body. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute bottom-[1.6%] left-[47.4%] right-[47.4%] top-[77.5%] [transform-style:preserve-3d]"
+            >
+              <div
+                className="absolute inset-0"
+                style={{ transform: "translateZ(-26px)", background: "#0a0a0b" }}
+              />
+              <div
+                className="absolute bottom-0 left-0 top-0 w-[26px]"
+                style={{
+                  transform: "rotateY(90deg)",
+                  transformOrigin: "left center",
+                  background: "linear-gradient(to right, #232326, #0e0e10)",
+                }}
+              />
+              <div
+                className="absolute inset-0"
+                style={{
+                  background: "linear-gradient(to right, #2c2c30 0%, #1b1b1e 45%, #0f0f11 100%)",
+                }}
+              />
+            </div>
+            {/* Base plate lying on the desk: rear top face, front top face,
+                then the plate's front edge pushed to the front of its depth. */}
+            <div
+              aria-hidden
+              className="pointer-events-none absolute left-[27.6%] right-[27.6%]"
+              style={{
+                bottom: "1.6%",
+                height: "30px",
+                transform: "rotateX(90deg)",
+                transformOrigin: "50% 100%",
+                background: "#0b0b0c",
+                borderRadius: "10px 10px 0 0",
+              }}
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute left-[27.6%] right-[27.6%]"
+              style={{
+                bottom: "1.6%",
+                height: "34px",
+                transform: "rotateX(-90deg)",
+                transformOrigin: "50% 100%",
+                background: "linear-gradient(to bottom, #26262a, #131316)",
+                borderRadius: "0 0 10px 10px",
+              }}
+            />
+            <div
+              aria-hidden
+              className="pointer-events-none absolute bottom-0 left-[27.6%] right-[27.6%]"
+              style={{
+                height: "1.6%",
+                transform: "translateZ(34px)",
+                background: "linear-gradient(to bottom, #2a2a2e, #0d0d0f)",
+                borderRadius: "2px 2px 5px 5px",
+              }}
             />
             {/* Live screen, mapped onto the panel (near-borderless; chin bar
                 and stand below). */}
@@ -317,13 +463,14 @@ export function Hero() {
               />
             </div>
           </div>
+            </div>
           </div>
         </div>
 
         <p
           data-hero-fade
           data-hero-exit
-          className="font-grotesk mx-auto mt-10 max-w-[540px] text-[17px] font-medium leading-relaxed tracking-[-0.01em] text-mist/85 motion-safe:opacity-0"
+          className="font-grotesk mx-auto mt-10 max-w-[540px] text-[17px] font-medium leading-relaxed tracking-[-0.01em] text-mist/85 [text-shadow:0_1px_4px_rgba(0,0,0,0.85),0_2px_18px_rgba(0,0,0,0.7)] motion-safe:opacity-0"
         >
           Bookings, deposits, rooms, staff and gear, all in sync and automated,
           so the recording studio runs without the busywork.
