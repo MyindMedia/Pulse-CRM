@@ -7,9 +7,9 @@ import { money } from "./lib/money";
 
 /* ============================================================
    Payments - the booking-payment ledger and the provider seam.
-   `record` is simulated today: it clears the payment instantly.
-   Real Stripe = a createCheckout that returns a Checkout URL and a
-   webhook that calls this same settle path. Booking logic is unchanged.
+   Public bookers pay through Stripe Checkout (booking.payViaStripe);
+   the webhook settles via this same path. `record` is the staff-only
+   manual entry for money taken outside the app (cash, card reader).
    ============================================================ */
 
 const kindV = v.union(v.literal("deposit"), v.literal("balance"), v.literal("full"));
@@ -94,7 +94,7 @@ export async function settlePayment(
     amountCents,
     provider: provider ?? "simulated",
     status: "paid",
-    reference: reference ?? `SIM-${String(Date.now()).slice(-8)}`,
+    reference: reference ?? `MANUAL-${String(Date.now()).slice(-8)}`,
     payerName,
     paidAt: Date.now(),
   });
@@ -147,6 +147,18 @@ export const record = mutation({
     provider: v.optional(v.union(v.literal("simulated"), v.literal("stripe"))),
   },
   handler: async (ctx, { sessionId, kind, payerName, provider }) => {
+    // Staff-only: manual recording of money taken outside the app (cash,
+    // card reader, Zelle). Public bookers pay through Stripe Checkout
+    // (booking.payViaStripe) - an unauthenticated caller must never be able
+    // to mark a booking paid.
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("Sign in to record a payment.");
+    const session = await ctx.db.get(sessionId);
+    if (!session) throw new Error("Booking not found.");
+    const orgId = await currentOrg(ctx);
+    if (session.orgId !== orgId) {
+      throw new Error("This booking belongs to a different studio.");
+    }
     return settlePayment(ctx, { sessionId, kind, payerName, provider });
   },
 });

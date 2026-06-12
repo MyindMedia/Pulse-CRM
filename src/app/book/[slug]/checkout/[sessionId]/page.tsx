@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion } from "motion/react";
-import { useQuery, useMutation, useAction } from "convex/react";
+import { useQuery, useAction } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -25,7 +25,6 @@ import { money, timeOfDay, shortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { popIn, fadeUp } from "@/lib/motion";
 import { BookingSummary } from "@/components/book/booking-summary";
-import { PaymentForm } from "@/components/book/payment-form";
 
 type PayChoice = "deposit" | "full";
 
@@ -34,7 +33,6 @@ export default function CheckoutPage() {
   const booking = useQuery(api.booking.booking, {
     sessionId: sessionId as Id<"sessions">,
   });
-  const recordPayment = useMutation(api.payments.record);
   const payViaStripe = useAction(api.booking.payViaStripe);
 
   const [choice, setChoice] = React.useState<PayChoice>("deposit");
@@ -66,31 +64,22 @@ export default function CheckoutPage() {
   const notPaid = booking.paidCents === 0;
   const released = booking.status === "cancelled";
 
-  async function pay(kind: "deposit" | "balance" | "full", payerName: string) {
+  // Real money only: every payment goes through hosted Stripe Checkout on the
+  // studio's own connected account. There is no simulated/recorded fallback.
+  async function pay(kind: "deposit" | "balance" | "full") {
     setBusy(true);
     try {
-      // If the studio has connected Stripe, collect the card payment on their
-      // own account via hosted Checkout; otherwise fall back to recording it.
       const stripe = await payViaStripe({ sessionId: sessionId as Id<"sessions">, kind });
-      if (stripe.url) {
-        window.location.href = stripe.url;
-        return;
+      if (!stripe.url) {
+        throw new Error(
+          "Secure checkout could not be started. Please try again or contact the studio.",
+        );
       }
-      const result = await recordPayment({
-        sessionId: sessionId as Id<"sessions">,
-        kind,
-        payerName,
-      });
-      toast.success(
-        result.fullyPaid
-          ? "Paid in full - your session is locked in."
-          : `${money(result.paidTotal)} received - your booking is held.`,
-      );
+      window.location.href = stripe.url;
     } catch (err) {
       const message =
         err instanceof Error ? err.message : "Payment could not be processed.";
       toast.error(message);
-    } finally {
       setBusy(false);
     }
   }
@@ -190,17 +179,18 @@ export default function CheckoutPage() {
           </div>
 
           <div className="border-t border-graphite/50 pt-4">
-            <PaymentForm
-              amountCents={
-                choice === "deposit" ? booking.depositCents : booking.rateCents
-              }
-              actionLabel={choice === "deposit" ? "Pay deposit" : "Pay in full"}
-              defaultName={booking.clientName}
-              busy={busy}
-              onSubmit={(payerName) =>
-                pay(choice === "deposit" ? "deposit" : "full", payerName)
-              }
-            />
+            {booking.stripeCheckout ? (
+              <StripePayButton
+                amountCents={
+                  choice === "deposit" ? booking.depositCents : booking.rateCents
+                }
+                actionLabel={choice === "deposit" ? "Pay deposit" : "Pay in full"}
+                busy={busy}
+                onClick={() => pay(choice === "deposit" ? "deposit" : "full")}
+              />
+            ) : (
+              <NoOnlinePayments />
+            )}
           </div>
         </motion.section>
       )}
@@ -224,13 +214,16 @@ export default function CheckoutPage() {
             settle it now or up to 2 hours before your start time.
           </p>
           <div className="border-t border-graphite/50 pt-4">
-            <PaymentForm
-              amountCents={booking.balanceCents}
-              actionLabel="Pay balance"
-              defaultName={booking.clientName}
-              busy={busy}
-              onSubmit={(payerName) => pay("balance", payerName)}
-            />
+            {booking.stripeCheckout ? (
+              <StripePayButton
+                amountCents={booking.balanceCents}
+                actionLabel="Pay balance"
+                busy={busy}
+                onClick={() => pay("balance")}
+              />
+            ) : (
+              <NoOnlinePayments />
+            )}
           </div>
         </motion.section>
       )}
@@ -281,6 +274,61 @@ export default function CheckoutPage() {
           </ul>
         </section>
       )}
+    </div>
+  );
+}
+
+/* Shown when the studio hasn't finished connecting Stripe: no card form is
+   offered at all - there is no simulated payment path in production. */
+function NoOnlinePayments() {
+  return (
+    <div className="flex items-start gap-2.5 rounded-md border border-caution/30 bg-caution/10 px-4 py-3.5 text-sm text-bone">
+      <Info className="mt-0.5 size-4 shrink-0 text-caution" />
+      <div className="space-y-1">
+        <p className="font-medium">Online payment isn&apos;t available yet</p>
+        <p className="text-xs leading-relaxed text-steel">
+          This studio hasn&apos;t finished setting up card payments. Contact the
+          studio directly to pay your deposit and confirm the session - your
+          request is saved.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+/* Real-money path for Stripe-connected studios: no card fields here - the
+   button hands off to Stripe's hosted Checkout on the studio's own account. */
+function StripePayButton({
+  amountCents,
+  actionLabel,
+  busy,
+  onClick,
+}: {
+  amountCents: number;
+  actionLabel: string;
+  busy: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <div className="space-y-3">
+      <Button
+        type="button"
+        size="lg"
+        className="w-full"
+        disabled={busy || amountCents <= 0}
+        onClick={onClick}
+      >
+        {busy ? (
+          <Loader2 className="size-4 animate-spin" />
+        ) : (
+          <Wallet className="size-4" />
+        )}
+        {busy ? "Starting secure checkout…" : `${actionLabel} - ${money(amountCents)}`}
+      </Button>
+      <p className="text-center text-xs text-steel/70">
+        You&apos;ll be taken to Stripe&apos;s secure checkout to enter card details.
+        Payment goes directly to the studio.
+      </p>
     </div>
   );
 }

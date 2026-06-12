@@ -193,13 +193,17 @@ export const booking = query({
   handler: async (ctx, { sessionId }) => {
     const session = await ctx.db.get(sessionId);
     if (!session) return null;
-    const [room, artist, payments] = await Promise.all([
+    const [room, artist, payments, org] = await Promise.all([
       session.roomId ? ctx.db.get(session.roomId) : null,
       ctx.db.get(session.artistId),
       ctx.db
         .query("payments")
         .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
         .collect(),
+      ctx.db
+        .query("orgs")
+        .withIndex("by_org", (q) => q.eq("orgId", session.orgId))
+        .first(),
     ]);
     const paid = session.amountPaidCents ?? 0;
     return {
@@ -211,6 +215,12 @@ export const booking = query({
       paidCents: paid,
       balanceCents: Math.max(0, session.rateCents - paid),
       fullyPaid: paid >= session.rateCents,
+      // True when this studio collects real card payments on its own
+      // connected Stripe account - the checkout page then routes through
+      // hosted Stripe Checkout and never shows the simulated card form.
+      stripeCheckout: Boolean(
+        process.env.STRIPE_SECRET_KEY && org?.stripeAccountId && org?.stripeChargesEnabled,
+      ),
     };
   },
 });

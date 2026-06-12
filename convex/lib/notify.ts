@@ -1,12 +1,14 @@
 import { MutationCtx } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
+import { internal } from "../_generated/api";
 
 /* ============================================================
    notify() - the messaging seam.
    Confirmations and reminders are written to the `notifications`
-   table and marked "simulated". Nothing is actually delivered yet;
-   a real provider (Resend for email, Twilio for SMS) drops in here
-   without changing any caller.
+   table, then delivered for real by a scheduled internal action
+   (Resend for email, the configured SMS provider for texts). The
+   row's status advances simulated -> sent/failed; it only stays
+   "simulated" when no provider is configured on the deployment.
    ============================================================ */
 
 export async function notify(
@@ -21,5 +23,6 @@ export async function notify(
     sessionId?: Id<"sessions">;
   },
 ): Promise<void> {
-  await ctx.db.insert("notifications", { ...args, status: "simulated" });
+  const id = await ctx.db.insert("notifications", { ...args, status: "simulated" });
+  await ctx.scheduler.runAfter(0, internal.notifications.deliver, { id });
 }

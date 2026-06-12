@@ -114,7 +114,7 @@ function MessageLog({ sessionId }: { sessionId: BookingRow["_id"] }) {
         </ul>
       )}
       <p className="text-[0.625rem] text-steel/70">
-        Confirmations are simulated and logged - not actually emailed yet.
+        Confirmations and reminders are emailed to the client and logged here.
       </p>
     </div>
   );

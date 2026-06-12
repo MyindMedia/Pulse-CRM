@@ -89,13 +89,29 @@ async function ensureExpressAccount(
   const self = await ctx.runQuery(internal.stripeConnect._orgForConnect, {});
   if (!self) throw new ConvexError("No studio to connect.");
   if (self.stripeAccountId) return self.stripeAccountId;
-  const account = await stripe.accounts.create({
-    type: "express",
-    email: self.ownerEmail ?? undefined,
-    business_profile: { name: self.name },
-    capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
-    metadata: { orgId: self.orgId },
-  });
+  let account;
+  try {
+    account = await stripe.accounts.create({
+      type: "express",
+      email: self.ownerEmail ?? undefined,
+      business_profile: { name: self.name },
+      capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+      metadata: { orgId: self.orgId },
+    });
+  } catch (err) {
+    // Surface an actionable message instead of Convex's opaque "Server Error".
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("stripeConnect: accounts.create failed:", msg);
+    if (msg.includes("platform-profile") || msg.includes("managing losses")) {
+      // Live-mode gate: the PLATFORM's Connect profile (loss-liability
+      // questionnaire) is incomplete at
+      // dashboard.stripe.com/settings/connect/platform-profile.
+      throw new ConvexError(
+        "Stripe setup on Pulse's side isn't finished yet (Connect platform profile). The Pulse team has been notified - please try again soon.",
+      );
+    }
+    throw new ConvexError(`Stripe couldn't create your account: ${msg}`);
+  }
   await ctx.runMutation(internal.stripeConnect._setAccount, {
     orgId: self.orgId,
     stripeAccountId: account.id,

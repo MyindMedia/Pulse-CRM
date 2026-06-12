@@ -132,8 +132,8 @@ export function PaymentPanel({
         <div className="space-y-1.5 rounded-md border border-dashed border-graphite/60 p-3">
           <p className="overline">Record a payment</p>
           <p className="text-[0.6875rem] text-steel/70">
-            Take a payment on the client&apos;s behalf. Amounts are derived
-            from the booking - recorded as a simulated provider.
+            Record money taken outside the app (cash, card reader, Zelle).
+            Amounts are derived from the booking and logged to the ledger.
           </p>
           <div className="flex flex-wrap gap-2 pt-1">
             {depositOutstanding > 0 && (
