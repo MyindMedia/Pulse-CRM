@@ -116,11 +116,11 @@ export default function RoomDetailPage() {
       </Link>
 
       {/* Hero band - the actual room shot, if set */}
-      {room.heroImageUrl && (
+      {(room.heroUrl ?? room.heroImageUrl) && (
         <div className="relative overflow-hidden rounded-chrome border border-graphite/50 shadow-elev-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={room.heroImageUrl}
+            src={(room.heroUrl ?? room.heroImageUrl)!}
             alt={`${room.name} interior`}
             className="aspect-[21/9] w-full object-cover"
           />

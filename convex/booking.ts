@@ -149,6 +149,9 @@ export const room = query({
     return {
       ...room,
       ...defaults(room),
+      heroUrl: room.heroImageId
+        ? await ctx.storage.getUrl(room.heroImageId)
+        : (room.heroImageUrl ?? null),
       openHour: OPEN_HOUR,
       closeHour: CLOSE_HOUR,
       studioName: org?.name ?? "Pulse Studio",

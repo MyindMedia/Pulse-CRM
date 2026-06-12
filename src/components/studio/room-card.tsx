@@ -49,6 +49,7 @@ export type RoomItem = {
   nextServiceAt?: number;
   notes?: string;
   heroImageUrl?: string;
+  heroUrl?: string | null; // resolved hero (uploaded storage photo or legacy URL)
   equipmentCount: number;
   equipmentValueCents: number;
 };
@@ -133,11 +134,11 @@ export function RoomCard({
         pending && "opacity-60",
       )}
     >
-      {room.heroImageUrl && (
+      {(room.heroUrl ?? room.heroImageUrl) && (
         <div className="relative aspect-[16/9] w-full overflow-hidden border-b border-graphite/50 bg-coal-2">
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src={room.heroImageUrl}
+            src={room.heroUrl ?? room.heroImageUrl}
             alt={`${room.name} hero`}
             className="size-full object-cover transition-transform duration-500 ease-out group-hover:scale-105"
             loading="lazy"
