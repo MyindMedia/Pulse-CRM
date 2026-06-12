@@ -1,4 +1,5 @@
 import { query, mutation, internalQuery, QueryCtx } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { currentOrg, currentActor } from "./lib/tenant";
@@ -136,6 +137,7 @@ export const setLogo = mutation({
     const orgId = await currentOrg(ctx);
     const org = await ensureOrg(ctx, orgId);
     await meterStorageUpload(ctx, orgId, storageId, org?.logoId ?? null);
+    await ctx.scheduler.runAfter(3000, internal.brandHero.generate, { orgId });
     if (org) await ctx.db.patch(org._id, { logoId: storageId });
     else
       await ctx.db.insert("orgs", {

@@ -79,6 +79,7 @@ export default defineSchema({
     logoId: v.optional(v.id("_storage")),
     // Public booking-page theming
     bookingHeroId: v.optional(v.id("_storage")),
+    generatedHeroId: v.optional(v.id("_storage")),
     bookingHeadline: v.optional(v.string()),
     bookingIntro: v.optional(v.string()),
     depositPolicyText: v.optional(v.string()),

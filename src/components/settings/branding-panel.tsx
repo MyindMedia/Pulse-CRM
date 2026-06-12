@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useMutation } from "convex/react";
+import { useMutation, useAction } from "convex/react";
+import { ConvexError } from "convex/values";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
@@ -36,6 +37,20 @@ const DEFAULT_HEADLINE = "Book studio time";
 export function BrandingPanel({ org }: { org: Org }) {
   const updateOrg = useMutation(api.orgs.update);
   const setLogo = useMutation(api.orgs.setLogo);
+  const generateHero = useAction(api.brandHero.regenerate);
+  const [generatingHero, setGeneratingHero] = React.useState(false);
+
+  async function handleGenerateHero() {
+    setGeneratingHero(true);
+    try {
+      await generateHero({});
+      toast.success("AI hero generated from your brand. It now backs your booking page.");
+    } catch (err) {
+      toast.error(err instanceof ConvexError ? String(err.data) : "Could not generate the hero.");
+    } finally {
+      setGeneratingHero(false);
+    }
+  }
   const setBookingHero = useMutation(api.orgs.setBookingHero);
   const applyBrandFromLogo = useMutation(api.orgs.applyBrandFromLogo);
 
@@ -310,7 +325,7 @@ export function BrandingPanel({ org }: { org: Org }) {
         <CardContent className="space-y-6">
           <Field
             label="Hero image"
-            hint="A wide room or console shot. PNG, JPG or WEBP up to 5 MB."
+            hint="A wide room or console shot - or let AI create one in your brand colors. Uploading your own photo always overrides the generated one."
           >
             <div className="space-y-3">
               <div className="relative aspect-[21/9] w-full overflow-hidden rounded-md border border-graphite/60 bg-coal-2">
@@ -327,7 +342,18 @@ export function BrandingPanel({ org }: { org: Org }) {
                   </div>
                 )}
               </div>
-              <AssetUploader label="Hero image" onUploaded={handleHero} />
+              <div className="flex flex-wrap items-center gap-2">
+                <AssetUploader label="Hero image" onUploaded={handleHero} />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  disabled={generatingHero}
+                  onClick={() => void handleGenerateHero()}
+                >
+                  {generatingHero ? "Generating…" : "Generate with AI"}
+                </Button>
+              </div>
             </div>
           </Field>
 

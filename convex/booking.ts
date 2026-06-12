@@ -52,6 +52,7 @@ async function brand(ctx: QueryCtx, org: Doc<"orgs"> | null) {
     palette: org?.brandPalette ?? null,
     logoUrl: org?.logoId ? await ctx.storage.getUrl(org.logoId) : null,
     heroUrl: org?.bookingHeroId ? await ctx.storage.getUrl(org.bookingHeroId) : null,
+    generatedHeroUrl: org?.generatedHeroId ? await ctx.storage.getUrl(org.generatedHeroId) : null,
     headline: org?.bookingHeadline ?? null,
     intro: org?.bookingIntro ?? null,
     depositPolicy: org?.depositPolicyText ?? null,

@@ -46,25 +46,60 @@ export default function StudioSlugFrontPage() {
 
   const accent = front?.org.accentColor ?? "var(--color-gold)";
   const headline = front?.org.headline?.trim() || DEFAULT_HEADLINE;
+  // Manual hero photo wins; otherwise the AI-generated brand hero; otherwise
+  // a palette gradient. Either way the hero is a full-bleed BACKGROUND under
+  // a dark fade, with the booking copy living on top of it.
+  const heroImage = front?.org.heroUrl ?? front?.org.generatedHeroUrl ?? null;
+  const palette =
+    front?.org.palette && front.org.palette.length > 0
+      ? front.org.palette
+      : [front?.org.accentColor ?? "#fdb913"];
 
   return (
     <div
       className="space-y-12"
       style={{ "--studio-accent": accent } as React.CSSProperties}
     >
-      {/* Hero */}
-      <section className="space-y-6">
-        {/* Studio mark + name */}
+      {/* ── Cinematic hero: full-bleed background + dark faded hue ── */}
+      <section className="relative left-1/2 w-screen -translate-x-1/2 -mt-8 lg:-mt-12 overflow-hidden">
+        {/* Background layer */}
+        <div className="absolute inset-0" aria-hidden>
+          {heroImage ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={heroImage}
+              alt=""
+              className="h-full w-full object-cover"
+            />
+          ) : (
+            <div
+              className="h-full w-full"
+              style={{
+                background: `linear-gradient(120deg, ${palette[0]}33 0%, transparent 55%), radial-gradient(80% 120% at 85% 0%, ${palette[1] ?? palette[0]}26, transparent 60%), radial-gradient(60% 100% at 10% 100%, ${palette[2] ?? palette[0]}1a, transparent 65%), #121212`,
+              }}
+            />
+          )}
+          {/* Dark faded hue: readability fade + brand tint + blend into page */}
+          <div className="absolute inset-0 bg-gradient-to-b from-ink/75 via-ink/40 to-ink" />
+          <div
+            className="absolute inset-0"
+            style={{
+              background: `radial-gradient(90% 70% at 75% 15%, ${palette[0]}14, transparent 60%)`,
+            }}
+          />
+        </div>
+
+        {/* Hero content */}
         <motion.div
           initial="hidden"
           animate="show"
           variants={staggerChildren(0.08)}
-          className="space-y-6"
+          className="relative mx-auto flex min-h-[440px] w-full max-w-6xl flex-col justify-end px-4 pb-14 pt-24 sm:min-h-[520px] lg:px-8"
         >
-          <motion.div variants={fadeUp} className="flex items-center gap-3">
+          <motion.div variants={fadeUp} className="mb-5 flex items-center gap-3">
             <span
-              className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-md border border-graphite/60 bg-coal-2"
-              style={{ boxShadow: `0 0 0 1px color-mix(in srgb, ${accent} 30%, transparent)` }}
+              className="grid size-12 shrink-0 place-items-center overflow-hidden rounded-md border border-white/10 bg-ink/60 backdrop-blur"
+              style={{ boxShadow: `0 0 0 1px color-mix(in srgb, ${accent} 35%, transparent)` }}
             >
               {front?.org.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
@@ -88,109 +123,55 @@ export default function StudioSlugFrontPage() {
                   <span className="skeleton inline-block h-3 w-32 max-w-full rounded align-middle" />
                 )}
               </span>
-              <span className="block text-xs text-steel/70">Studio booking</span>
+              <span className="block text-xs text-mist/60">
+                {front?.org.tagline?.trim() || "Studio booking"}
+              </span>
             </span>
           </motion.div>
 
-          <div className="max-w-2xl space-y-4">
-            <motion.h1
-              variants={fadeUp}
-              className="font-grotesk text-4xl font-semibold tracking-tight text-bone sm:text-5xl"
+          <motion.h1
+            variants={fadeUp}
+            className="max-w-3xl font-grotesk text-4xl font-semibold tracking-tight text-bone sm:text-6xl"
+          >
+            {front ? (
+              headline
+            ) : (
+              <span className="skeleton inline-block h-12 w-80 max-w-full rounded-md align-middle" />
+            )}
+          </motion.h1>
+
+          <motion.p variants={fadeUp} className="mt-4 max-w-xl text-base text-mist/85">
+            {front ? (
+              front.org.intro?.trim() ||
+              front.org.tagline ||
+              "Tracking rooms, vintage gear and an engineer who knows the desk. Pick a room and lock in your time."
+            ) : (
+              <span className="skeleton inline-block h-5 w-96 max-w-full rounded-md align-middle" />
+            )}
+          </motion.p>
+
+          <motion.div variants={fadeUp} className="mt-7 flex flex-wrap items-center gap-4">
+            <a
+              href="#rooms"
+              className="inline-flex items-center gap-2 rounded-md bg-gold px-6 py-3 font-grotesk text-sm font-semibold text-gold-ink transition-all duration-200 hover:-translate-y-0.5 hover:bg-gold-bright"
             >
-              {front ? (
-                headline
-              ) : (
-                <span className="skeleton inline-block h-12 w-80 max-w-full rounded-md align-middle" />
-              )}
-            </motion.h1>
-            <motion.p variants={fadeUp} className="text-base text-steel">
-              {front ? (
-                front.org.intro?.trim() ||
-                front.org.tagline ||
-                "Tracking rooms, vintage gear and an engineer who knows the desk. Pick a room and lock in your time."
-              ) : (
-                <span className="skeleton inline-block h-5 w-96 max-w-full rounded-md align-middle" />
-              )}
-            </motion.p>
-            <motion.p
-              variants={fadeUp}
-              className="text-sm font-medium"
-              style={{ color: front ? accent : undefined }}
-            >
-              Book studio time in three steps.
-            </motion.p>
-          </div>
+              Book a room
+            </a>
+            <span className="text-xs text-mist/60">
+              Live availability · A deposit locks it in
+            </span>
+          </motion.div>
         </motion.div>
 
-        {/* Hero image */}
-        {front?.org.heroUrl && (
-          <motion.div
-            initial="hidden"
-            animate="show"
-            variants={fadeUp}
-            className="relative overflow-hidden rounded-lg border border-graphite/50"
-          >
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src={front.org.heroUrl}
-              alt={`${front.org.name} studio`}
-              className="aspect-[21/9] w-full object-cover"
-            />
-            <div className="absolute inset-0 bg-gradient-to-t from-ink via-ink/20 to-transparent" />
-            <div
-              className="absolute inset-x-0 bottom-0 h-1"
-              style={{ backgroundColor: accent }}
-              aria-hidden
-            />
-          </motion.div>
-        )}
+        {/* Accent base line */}
+        <div
+          className="absolute inset-x-0 bottom-0 h-px opacity-60"
+          style={{ background: `linear-gradient(to right, transparent, ${accent}, transparent)` }}
+          aria-hidden
+        />
+      </section>
 
-        {/* Generated hero - branded gradient fallback when no photo is set */}
-        {front && !front.org.heroUrl && (() => {
-          const palette =
-            front.org.palette && front.org.palette.length > 0
-              ? front.org.palette
-              : [accent];
-          const p0 = palette[0];
-          const p1 = palette[1];
-          const p2 = palette[2];
-          return (
-            <motion.div
-              initial="hidden"
-              animate="show"
-              variants={fadeUp}
-              className="relative flex h-44 flex-col items-center justify-center gap-3 overflow-hidden rounded-lg border border-graphite/50 px-6 text-center sm:h-56"
-              style={{
-                background: `linear-gradient(120deg, ${p0}29 0%, transparent 55%), radial-gradient(80% 120% at 85% 10%, ${p1 ?? p0}1f, transparent 60%), radial-gradient(60% 100% at 15% 90%, ${p2 ?? p0}14, transparent 65%), #161616`,
-              }}
-            >
-              {front.org.logoUrl && (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img
-                  src={front.org.logoUrl}
-                  alt={`${front.org.name} logo`}
-                  className="h-12 w-auto object-contain"
-                />
-              )}
-              <div className="min-w-0 space-y-1">
-                <p className="font-grotesk text-2xl font-semibold tracking-tight text-bone sm:text-3xl">
-                  {front.org.name}
-                </p>
-                {(front.org.tagline?.trim() || front.org.headline?.trim()) && (
-                  <p className="text-xs text-steel">
-                    {front.org.tagline?.trim() || front.org.headline?.trim()}
-                  </p>
-                )}
-              </div>
-              <div
-                className="absolute inset-x-0 bottom-0 h-1"
-                style={{ backgroundColor: accent }}
-                aria-hidden
-              />
-            </motion.div>
-          );
-        })()}
-
+      <section className="space-y-6">
         {/* Steps */}
         <motion.ol
           initial="hidden"
@@ -225,7 +206,7 @@ export default function StudioSlugFrontPage() {
       </section>
 
       {/* Rooms */}
-      <section className="space-y-5">
+      <section id="rooms" className="scroll-mt-24 space-y-5">
         <div className="flex items-baseline justify-between">
           <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
             Bookable rooms

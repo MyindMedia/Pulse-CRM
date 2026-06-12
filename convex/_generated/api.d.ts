@@ -27,6 +27,7 @@ import type * as availability from "../availability.js";
 import type * as billing from "../billing.js";
 import type * as billingWebhooks from "../billingWebhooks.js";
 import type * as booking from "../booking.js";
+import type * as brandHero from "../brandHero.js";
 import type * as branding from "../branding.js";
 import type * as checklists from "../checklists.js";
 import type * as clientEmail from "../clientEmail.js";
@@ -132,6 +133,7 @@ declare const fullApi: ApiFromModules<{
   billing: typeof billing;
   billingWebhooks: typeof billingWebhooks;
   booking: typeof booking;
+  brandHero: typeof brandHero;
   branding: typeof branding;
   checklists: typeof checklists;
   clientEmail: typeof clientEmail;
