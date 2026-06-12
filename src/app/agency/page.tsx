@@ -40,6 +40,7 @@ export default function AgencyOverviewPage() {
     plan: s.plan,
     status: s.status,
     accentColor: s.accentColor,
+    logoUrl: s.logoUrl,
     roomCount: s.roomCount,
     bookingCount: s.bookingCount,
     collectedCents: s.collectedCents,
