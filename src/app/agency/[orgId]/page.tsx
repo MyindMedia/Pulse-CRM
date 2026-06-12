@@ -31,6 +31,7 @@ import {
 } from "@/components/agency/meta";
 import { DetailActions } from "@/components/agency/detail-actions";
 import { DemoModeToggle } from "@/components/agency/demo-mode-toggle";
+import { StageOnboardingButton } from "@/components/agency/stage-onboarding-button";
 import { FeatureToggles } from "@/components/agency/feature-toggles";
 import { ActivityFeed } from "@/components/agency/activity-feed";
 import { ResendInviteButton } from "@/components/agency/resend-invite-button";
@@ -212,11 +213,17 @@ export default function SubaccountDetailPage() {
         </Section>
       </div>
 
-      {/* Demo data - fill or wipe sample rows for walkthroughs */}
+      {/* Demo data - fill or wipe sample rows for walkthroughs, and the
+          stage-for-onboarding hand-off once a deal closes */}
       <Section title="Demo data">
         <Card>
-          <CardContent className="pt-5">
+          <CardContent className="space-y-3 pt-5">
             <DemoModeToggle orgId={subaccount.orgId} />
+            <StageOnboardingButton
+              orgId={subaccount.orgId}
+              slug={subaccount.slug}
+              name={subaccount.name}
+            />
           </CardContent>
         </Card>
       </Section>

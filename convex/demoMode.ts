@@ -77,6 +77,20 @@ export const setDemoMode = mutation({
   },
 });
 
+/** Stage a sub-account for owner onboarding: wipe all demo rows, keep the
+    branded configuration (logo, colors, rooms, team), and reset the
+    onboarding flag so the owner's first login walks the premium /welcome
+    wizard against a clean slate. */
+export const stageForOnboarding = mutation({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const org = await requireAgencyOverOrg(ctx, orgId);
+    const removed = await clearDemo(ctx, orgId);
+    await ctx.db.patch(org._id, { demoMode: false, onboardingCompletedAt: undefined });
+    return { removed };
+  },
+});
+
 /** Internal fill for the staged-demo pipeline (auth handled by the caller). */
 export const fillInternal = internalMutation({
   args: { orgId: v.string() },
