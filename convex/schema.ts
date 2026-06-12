@@ -511,6 +511,7 @@ export default defineSchema({
     photoId: v.optional(v.id("_storage")), // uploaded profile photo (Convex storage)
     clerkImageUrl: v.optional(v.string()), // auto-filled from the Clerk account avatar
     skills: v.array(v.string()), // gear / certifications, e.g. "Neve-certified"
+    notes: v.optional(v.string()), // internal notes about the teammate
   })
     .index("by_org", ["orgId"])
     .index("by_org_clerk", ["orgId", "clerkUserId"]),

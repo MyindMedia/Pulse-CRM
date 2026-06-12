@@ -32,6 +32,7 @@ import {
   MemberDialog,
   type EditableMember,
 } from "@/components/studio/member-dialog";
+import { MemberDetailDialog } from "@/components/studio/member-detail-dialog";
 
 export type TeamMember = {
   _id: Id<"members">;
@@ -43,6 +44,7 @@ export type TeamMember = {
   avatarColor?: string;
   clerkUserId?: string;
   photoUrl?: string | null;
+  notes?: string;
   inviteStatus?: "active" | "pending" | "expired" | "none";
   invitedAt?: number;
 };
@@ -62,12 +64,25 @@ function toEditable(member: TeamMember): EditableMember {
 /** A team member card with an edit/remove menu. */
 export function MemberCard({ member }: { member: TeamMember }) {
   const [editOpen, setEditOpen] = React.useState(false);
+  const [detailOpen, setDetailOpen] = React.useState(false);
   const [confirmOpen, setConfirmOpen] = React.useState(false);
   const role = MEMBER_ROLE[member.role] ?? { label: member.role, tone: "neutral" as const };
 
   return (
     <>
-      <Card className="flex flex-col">
+      <Card
+        className="flex cursor-pointer flex-col transition-colors hover:border-graphite"
+        role="button"
+        tabIndex={0}
+        aria-label={`View ${member.name}`}
+        onClick={() => setDetailOpen(true)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setDetailOpen(true);
+          }
+        }}
+      >
         <CardContent className="flex flex-1 flex-col gap-3 p-4 pt-4">
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 items-center gap-3">
@@ -92,6 +107,7 @@ export function MemberCard({ member }: { member: TeamMember }) {
                   variant="ghost"
                   size="icon-sm"
                   aria-label={`Actions for ${member.name}`}
+                  onClick={(e) => e.stopPropagation()}
                 >
                   <MoreHorizontal className="size-4" />
                 </Button>
@@ -116,6 +132,7 @@ export function MemberCard({ member }: { member: TeamMember }) {
           {member.email && (
             <a
               href={`mailto:${member.email}`}
+              onClick={(e) => e.stopPropagation()}
               className="flex items-center gap-1.5 truncate text-xs text-steel transition-colors hover:text-gold-bright"
             >
               <Mail className="size-3 shrink-0 text-steel/70" />
@@ -148,6 +165,13 @@ export function MemberCard({ member }: { member: TeamMember }) {
           </div>
         </CardContent>
       </Card>
+
+      <MemberDetailDialog
+        member={member}
+        open={detailOpen}
+        onOpenChange={setDetailOpen}
+        onEdit={() => setEditOpen(true)}
+      />
 
       <MemberDialog
         member={toEditable(member)}

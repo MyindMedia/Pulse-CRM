@@ -186,6 +186,7 @@ export const update = mutation({
     role: v.optional(roleV),
     skills: v.optional(v.array(v.string())),
     capabilityOverrides: v.optional(v.array(v.string())),
+    notes: v.optional(v.string()),
   },
   handler: async (ctx, { id, phone, ...patch }) => {
     const viewer = await requireCapability(ctx, "members.invite");
