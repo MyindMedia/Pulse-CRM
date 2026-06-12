@@ -599,3 +599,17 @@ export const importMemberPhoto = internalAction({
     return { stored: true };
   },
 });
+
+/** Ops: seed contact details on a member row (demo accounts). */
+export const _seedMemberContact = internalMutation({
+  args: {
+    id: v.id("members"),
+    email: v.optional(v.string()),
+    phone: v.optional(v.string()),
+    notes: v.optional(v.string()),
+  },
+  handler: async (ctx, { id, ...fields }) => {
+    const clean = Object.fromEntries(Object.entries(fields).filter(([, v2]) => v2 !== undefined));
+    await ctx.db.patch(id, clean);
+  },
+});
