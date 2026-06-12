@@ -8,6 +8,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import { errorMessage } from "@/lib/errors";
+import { extractBrandFromImage } from "@/lib/brand-theme";
 import { Check, ChevronRight, ImagePlus, Loader2 } from "lucide-react";
 import { PulseLogo } from "@/components/brand/pulse-logo";
 import { Button } from "@/components/ui/button";
@@ -72,6 +73,7 @@ function Wizard({ initial }: { initial: Mine }) {
   const complete = useMutation(api.onboarding.complete);
   const generateUploadUrl = useMutation(api.orgs.generateUploadUrl);
   const setLogo = useMutation(api.orgs.setLogo);
+  const applyBrandFromLogo = useMutation(api.orgs.applyBrandFromLogo);
 
   const [step, setStep] = React.useState(0);
   const [busy, setBusy] = React.useState(false);
@@ -112,6 +114,23 @@ function Wizard({ initial }: { initial: Mine }) {
       await setLogo({ storageId });
       setLogoUrl(URL.createObjectURL(file));
       toast.success("Logo uploaded.");
+      // Auto-branding: match the accent + palette to the logo. Non-fatal -
+      // the upload already succeeded, so swallow any extraction failure.
+      try {
+        const extracted = await extractBrandFromImage(file);
+        if (extracted) {
+          await applyBrandFromLogo({
+            accentColor: extracted.accent,
+            palette: extracted.palette,
+          });
+          setAccent(extracted.accent);
+          toast.success(
+            "Brand colors matched to your logo - fine-tune below anytime.",
+          );
+        }
+      } catch {
+        // Keep whatever accent is currently picked.
+      }
     } catch (err) {
       toast.error(errorMessage(err, "Could not upload that image."));
     } finally {

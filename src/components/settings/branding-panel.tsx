@@ -26,6 +26,7 @@ import { Field, Input, Textarea } from "@/components/ui/field";
 import { AssetUploader } from "@/components/settings/asset-uploader";
 import { BookingLinkShare } from "@/components/settings/booking-link-share";
 import { cn } from "@/lib/utils";
+import { extractBrandFromImage } from "@/lib/brand-theme";
 import { ACCENT_SWATCHES, type Org } from "@/components/settings/types";
 
 const HEX_RE = /^#?[0-9a-fA-F]{6}$/;
@@ -36,6 +37,12 @@ export function BrandingPanel({ org }: { org: Org }) {
   const updateOrg = useMutation(api.orgs.update);
   const setLogo = useMutation(api.orgs.setLogo);
   const setBookingHero = useMutation(api.orgs.setBookingHero);
+  const applyBrandFromLogo = useMutation(api.orgs.applyBrandFromLogo);
+
+  // AssetUploader only hands back a storageId; we grab the File itself off
+  // the bubbled change event from its internal <input type="file"> so we can
+  // run client-side color extraction after a successful upload.
+  const pendingLogoFileRef = React.useRef<File | null>(null);
 
   const [name, setName] = React.useState(org.name);
   const [tagline, setTagline] = React.useState(org.tagline);
@@ -85,6 +92,26 @@ export function BrandingPanel({ org }: { org: Org }) {
 
   async function handleLogo(storageId: Id<"_storage">) {
     await setLogo({ storageId });
+    // Auto-branding: pull an accent + palette out of the new logo. Any
+    // failure here is non-fatal - the logo upload already succeeded, so
+    // never let it bubble into AssetUploader's error toast.
+    const file = pendingLogoFileRef.current;
+    pendingLogoFileRef.current = null;
+    if (!file) return;
+    try {
+      const extracted = await extractBrandFromImage(file);
+      if (!extracted) return; // monochrome logo - keep the current accent
+      await applyBrandFromLogo({
+        accentColor: extracted.accent,
+        palette: extracted.palette,
+      });
+      setAccent(extracted.accent);
+      toast.success(
+        "Brand colors matched to your logo - fine-tune below anytime.",
+      );
+    } catch {
+      // Keep the manual accent flow untouched.
+    }
   }
   async function handleHero(storageId: Id<"_storage">) {
     await setBookingHero({ storageId });
@@ -162,7 +189,16 @@ export function BrandingPanel({ org }: { org: Org }) {
                   <ImageIcon className="size-6 text-steel/70" />
                 )}
               </div>
-              <div className="space-y-1.5">
+              <div
+                className="space-y-1.5"
+                onChange={(e) => {
+                  // Capture the picked File from AssetUploader's internal
+                  // input as the change event bubbles, for color extraction.
+                  const target = e.target as HTMLInputElement;
+                  const file = target?.files?.[0];
+                  if (file) pendingLogoFileRef.current = file;
+                }}
+              >
                 <AssetUploader label="Logo" onUploaded={handleLogo} />
                 <p className="text-[0.6875rem] text-steel/70">
                   {org.logoUrl

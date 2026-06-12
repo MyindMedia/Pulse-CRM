@@ -49,6 +49,7 @@ async function brand(ctx: QueryCtx, org: Doc<"orgs"> | null) {
     name: org?.name ?? "Pulse Studio",
     tagline: org?.tagline ?? "Book your session.",
     accentColor: org?.accentColor ?? "#fdb913",
+    palette: org?.brandPalette ?? null,
     logoUrl: org?.logoId ? await ctx.storage.getUrl(org.logoId) : null,
     heroUrl: org?.bookingHeroId ? await ctx.storage.getUrl(org.bookingHeroId) : null,
     headline: org?.bookingHeadline ?? null,

@@ -145,6 +145,52 @@ export default function StudioSlugFrontPage() {
           </motion.div>
         )}
 
+        {/* Generated hero - branded gradient fallback when no photo is set */}
+        {front && !front.org.heroUrl && (() => {
+          const palette =
+            front.org.palette && front.org.palette.length > 0
+              ? front.org.palette
+              : [accent];
+          const p0 = palette[0];
+          const p1 = palette[1];
+          const p2 = palette[2];
+          return (
+            <motion.div
+              initial="hidden"
+              animate="show"
+              variants={fadeUp}
+              className="relative flex h-44 flex-col items-center justify-center gap-3 overflow-hidden rounded-lg border border-graphite/50 px-6 text-center sm:h-56"
+              style={{
+                background: `linear-gradient(120deg, ${p0}29 0%, transparent 55%), radial-gradient(80% 120% at 85% 10%, ${p1 ?? p0}1f, transparent 60%), radial-gradient(60% 100% at 15% 90%, ${p2 ?? p0}14, transparent 65%), #161616`,
+              }}
+            >
+              {front.org.logoUrl && (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img
+                  src={front.org.logoUrl}
+                  alt={`${front.org.name} logo`}
+                  className="h-12 w-auto object-contain"
+                />
+              )}
+              <div className="min-w-0 space-y-1">
+                <p className="font-grotesk text-2xl font-semibold tracking-tight text-bone sm:text-3xl">
+                  {front.org.name}
+                </p>
+                {(front.org.tagline?.trim() || front.org.headline?.trim()) && (
+                  <p className="text-xs text-steel">
+                    {front.org.tagline?.trim() || front.org.headline?.trim()}
+                  </p>
+                )}
+              </div>
+              <div
+                className="absolute inset-x-0 bottom-0 h-1"
+                style={{ backgroundColor: accent }}
+                aria-hidden
+              />
+            </motion.div>
+          );
+        })()}
+
         {/* Steps */}
         <motion.ol
           initial="hidden"

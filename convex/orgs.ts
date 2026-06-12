@@ -31,6 +31,7 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     plan: org?.plan ?? "studio",
     status: org?.status ?? "active",
     accentColor: org?.accentColor ?? "#fdb913",
+    brandPalette: org?.brandPalette ?? null,
     tagline: org?.tagline ?? "Your music business runs itself.",
     logoUrl: org?.logoId ? await ctx.storage.getUrl(org.logoId) : null,
     bookingHeroUrl: org?.bookingHeroId ? await ctx.storage.getUrl(org.bookingHeroId) : null,
@@ -145,6 +146,24 @@ export const setLogo = mutation({
         status: "active",
         logoId: storageId,
       });
+  },
+});
+
+/** Auto-branding: store the accent + palette extracted client-side from the
+    uploaded logo. The studio can still override the accent manually in the
+    branding panel afterwards. */
+export const applyBrandFromLogo = mutation({
+  args: { accentColor: v.string(), palette: v.array(v.string()) },
+  handler: async (ctx, { accentColor, palette }) => {
+    if (!/^#[0-9a-fA-F]{6}$/.test(accentColor)) throw new Error("Invalid accent color.");
+    if (palette.length > 6 || palette.some((p) => !/^#[0-9a-fA-F]{6}$/.test(p))) {
+      throw new Error("Invalid palette.");
+    }
+    const orgId = await currentOrg(ctx);
+    const org = await ensureOrg(ctx, orgId);
+    if (!org) throw new Error("No studio yet - upload a logo first.");
+    await ctx.db.patch(org._id, { accentColor, brandPalette: palette });
+    return { accentColor };
   },
 });
 

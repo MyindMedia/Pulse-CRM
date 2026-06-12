@@ -73,6 +73,7 @@ export default defineSchema({
       v.union(v.literal("active"), v.literal("paused"), v.literal("setup")),
     ),
     accentColor: v.optional(v.string()),
+    brandPalette: v.optional(v.array(v.string())),
     tagline: v.optional(v.string()),
     // Branding
     logoId: v.optional(v.id("_storage")),
