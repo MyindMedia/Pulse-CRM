@@ -291,10 +291,6 @@ export function Hero() {
 
       {/* Content stage */}
       <div className="relative z-10 mx-auto flex w-full max-w-6xl flex-col items-center text-center">
-        <p data-hero-fade data-hero-exit className="chrome-meta text-steel motion-safe:opacity-0">
-          The recording studio OS · v1.0
-        </p>
-
         {/* Headline: "Run your studio with" over the giant Pulse brand lockup
             that the monitor rises up to overlap. */}
         <h1 data-hero-exit className="chrome-display mt-6 flex flex-col items-center leading-[0.82]">
