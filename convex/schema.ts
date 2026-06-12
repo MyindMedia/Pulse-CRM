@@ -508,6 +508,7 @@ export default defineSchema({
     clerkUserId: v.optional(v.string()),
     avatarColor: v.optional(v.string()),
     photoId: v.optional(v.id("_storage")), // uploaded profile photo (Convex storage)
+    clerkImageUrl: v.optional(v.string()), // auto-filled from the Clerk account avatar
     skills: v.array(v.string()), // gear / certifications, e.g. "Neve-certified"
   })
     .index("by_org", ["orgId"])

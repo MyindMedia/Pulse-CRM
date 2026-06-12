@@ -8,19 +8,34 @@ const SIZES = {
   lg: "size-14 text-lg",
 } as const;
 
-/** Initials avatar with a deterministic gold-band tint. */
+/** Initials avatar with a deterministic gold-band tint. Renders the photo
+    instead when `src` is provided (uploaded photo or Clerk account avatar). */
 export function Avatar({
   name,
+  src,
   color,
   size = "md",
   className,
 }: {
   name: string;
+  src?: string | null;
   color?: string;
   size?: keyof typeof SIZES;
   className?: string;
 }) {
   const tint = color ?? tintFromString(name);
+  if (src) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element
+      <img
+        src={src}
+        alt=""
+        className={cn("inline-block shrink-0 rounded-md object-cover", SIZES[size], className)}
+        style={{ boxShadow: `inset 0 0 0 1px ${tint}44` }}
+        aria-hidden
+      />
+    );
+  }
   return (
     <span
       className={cn(

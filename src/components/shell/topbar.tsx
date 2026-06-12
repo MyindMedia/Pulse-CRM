@@ -7,7 +7,7 @@ import { Menu, Search } from "lucide-react";
 import { activeNav } from "@/lib/nav";
 import { openCommandPalette } from "@/components/shell/command-palette";
 import { InsightsBell } from "@/components/shell/insights-bell";
-import { Avatar } from "@/components/ui/avatar";
+import { ProfileMenu } from "@/components/shell/profile-menu";
 
 export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const pathname = usePathname();
@@ -45,13 +45,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
 
         <InsightsBell />
 
-        <div className="flex items-center gap-2 rounded-chrome border border-graphite/60 bg-coal/60 py-1 pl-1 pr-2.5">
-          <Avatar name={org?.actor ?? "Studio"} size="sm" />
-          <div className="hidden leading-tight sm:block">
-            <p className="font-grotesk text-xs font-medium text-bone">{org?.actor ?? "Studio"}</p>
-            <p className="chrome-meta text-steel/80">{org?.plan ?? "studio"} plan</p>
-          </div>
-        </div>
+        <ProfileMenu />
       </div>
     </header>
   );

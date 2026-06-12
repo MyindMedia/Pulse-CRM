@@ -1,4 +1,4 @@
-import { query, mutation, action, internalMutation, QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
+import { query, mutation, action, internalMutation, internalQuery, internalAction, QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { currentOrg, currentActor } from "./lib/tenant";
@@ -122,7 +122,7 @@ export const list = query({
         }
         return {
           ...r,
-          photoUrl: r.photoId ? await ctx.storage.getUrl(r.photoId) : null,
+          photoUrl: r.photoId ? await ctx.storage.getUrl(r.photoId) : (r.clerkImageUrl ?? null),
           inviteStatus,
           invitedAt,
         };
@@ -421,8 +421,24 @@ export const myProfile = query({
       _id: me._id,
       name: me.name,
       role: me.role,
-      photoUrl: me.photoId ? await ctx.storage.getUrl(me.photoId) : null,
+      email: me.email ?? null,
+      phone: me.phone ?? null,
+      photoUrl: me.photoId ? await ctx.storage.getUrl(me.photoId) : (me.clerkImageUrl ?? null),
+      hasUploadedPhoto: Boolean(me.photoId),
     };
+  },
+});
+
+/** A teammate edits their OWN name/phone (no team-manage capability needed). */
+export const updateMyProfile = mutation({
+  args: { name: v.optional(v.string()), phone: v.optional(v.string()) },
+  handler: async (ctx, { name, phone }) => {
+    const me = await myMemberRow(ctx);
+    if (!me) throw new Error("Only team members can edit their own profile.");
+    const patch: Record<string, unknown> = {};
+    if (name !== undefined && name.trim()) patch.name = name.trim();
+    if (phone !== undefined) patch.phone = phone.trim() || undefined;
+    await ctx.db.patch(me._id, patch);
   },
 });
 
@@ -466,19 +482,27 @@ export const syncMyClerkLink = mutation({
     const email = identity.email?.toLowerCase();
     if (!orgId || !email) return { linked: false };
 
-    // Already linked in this org → nothing to do.
+    const pictureUrl =
+      typeof identity.pictureUrl === "string" && identity.pictureUrl ? identity.pictureUrl : undefined;
+
+    // Already linked in this org → refresh the cached Clerk avatar and finish.
     const already = await ctx.db
       .query("members")
       .withIndex("by_org_clerk", (q) => q.eq("orgId", orgId).eq("clerkUserId", clerkUserId))
       .first();
-    if (already) return { linked: true };
+    if (already) {
+      if (pictureUrl && already.clerkImageUrl !== pictureUrl) {
+        await ctx.db.patch(already._id, { clerkImageUrl: pictureUrl });
+      }
+      return { linked: true };
+    }
 
     // Claim an un-linked member row that carries this verified email.
     const member = (
       await ctx.db.query("members").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
     ).find((m) => m.email?.toLowerCase() === email && !m.clerkUserId);
     if (!member) return { linked: false };
-    await ctx.db.patch(member._id, { clerkUserId });
+    await ctx.db.patch(member._id, { clerkUserId, ...(pictureUrl ? { clerkImageUrl: pictureUrl } : {}) });
 
     // Flip the latest pending invite for this email to accepted.
     const invite = (
@@ -489,5 +513,81 @@ export const syncMyClerkLink = mutation({
     if (invite) await ctx.db.patch(invite._id, { status: "accepted", acceptedAt: Date.now() });
 
     return { linked: true };
+  },
+});
+
+/* ── Clerk avatar backfill ──────────────────────────────────────
+   One-shot sweep: members already linked to a Clerk user but with
+   no cached avatar get their Clerk profile image pulled via the
+   Backend API. Day-to-day, syncMyClerkLink refreshes the avatar on
+   every login - this covers rows linked before that existed. */
+
+export const _membersNeedingAvatar = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const rows = await ctx.db.query("members").collect();
+    return rows
+      .filter((m) => m.clerkUserId && !m.clerkImageUrl && !m.photoId)
+      .map((m) => ({ _id: m._id, clerkUserId: m.clerkUserId! }));
+  },
+});
+
+export const _setClerkImage = internalMutation({
+  args: { id: v.id("members"), clerkImageUrl: v.string() },
+  handler: async (ctx, { id, clerkImageUrl }) => {
+    await ctx.db.patch(id, { clerkImageUrl });
+  },
+});
+
+export const backfillClerkPhotos = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ filled: number; checked: number }> => {
+    const key = process.env.CLERK_SECRET_KEY;
+    if (!key) return { filled: 0, checked: 0 };
+    const rows: { _id: string; clerkUserId: string }[] = await ctx.runQuery(
+      internal.members._membersNeedingAvatar,
+      {},
+    );
+    let filled = 0;
+    for (const row of rows) {
+      try {
+        const res = await fetch(`https://api.clerk.com/v1/users/${row.clerkUserId}`, {
+          headers: { Authorization: `Bearer ${key}` },
+        });
+        if (!res.ok) continue;
+        const user = (await res.json()) as { image_url?: string; has_image?: boolean };
+        if (user.has_image && user.image_url) {
+          await ctx.runMutation(internal.members._setClerkImage, {
+            id: row._id as never,
+            clerkImageUrl: user.image_url,
+          });
+          filled++;
+        }
+      } catch {
+        // skip this member; the next login sync will catch them
+      }
+    }
+    return { filled, checked: rows.length };
+  },
+});
+
+/* ── Seed/import a member photo (ops tooling, internal only) ──── */
+
+export const _setSeededPhoto = internalMutation({
+  args: { id: v.id("members"), storageId: v.id("_storage") },
+  handler: async (ctx, { id, storageId }) => {
+    await ctx.db.patch(id, { photoId: storageId });
+  },
+});
+
+export const importMemberPhoto = internalAction({
+  args: { id: v.id("members"), dataBase64: v.string(), mime: v.string() },
+  handler: async (ctx, { id, dataBase64, mime }) => {
+    const binary = atob(dataBase64);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+    const storageId = await ctx.storage.store(new Blob([bytes], { type: mime }));
+    await ctx.runMutation(internal.members._setSeededPhoto, { id, storageId });
+    return { stored: true };
   },
 });
