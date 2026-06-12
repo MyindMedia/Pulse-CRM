@@ -435,3 +435,13 @@ Higgsfield generation; (4) optional dark->light landing register.
 
 ## Standing context / prior fix
 - **Crash fixed (2026-05-23):** `/agency/[orgId]` showed "page couldn't load" because `invites.list` threw `AccessError` (a plain `Error` → redacted by Convex) with no `error.tsx` boundary. Fixes: `invites.list` degrades to `[]` on access denial; `AccessError extends ConvexError`; `/agency/error.tsx` boundary; `createSubaccount` + `adoptOrphanSubaccounts` stamp/repair `agencyId` so the owner isn't scope-denied. 128 vitest green.
+
+## Feature: sub-account white-label theming (BUILT + deployed 2026-06-12)
+
+**Goal:** studios fully white-label their booking sites + dashboard. Uploading a logo auto-creates the hero and derives the brand colors from the logo; manual branding still available; branding matches across the whole app for that sub-account; the Pulse logo stays pinned on public navbars + footers.
+
+**Decisions/architecture:**
+- Color engine `src/lib/brand-theme.ts`: canvas hue-bucket extraction (accent + up to 4-color palette) at upload time; `deriveBrandTokens()` maps one accent onto the five `--color-gold*` Tailwind v4 token vars, so a wrapper style rethemes everything (booking layout root + `OrgTheme` display:contents wrapper in the app shell).
+- `orgs.applyBrandFromLogo` mutation stores accentColor + brandPalette; called from the settings branding panel and the /welcome wizard after `setLogo`. Stock #fdb913 = no override.
+- Booking page hero: when no hero photo, an auto-generated palette gradient hero (logo + name + tagline + accent stripe) renders.
+- Pulse pinned: PulseLogo is a baked-gold image (immune to token overrides); booking navbar "Secured by Pulse" + footer "Powered by Pulse" now render on every plan (whitelabel gate removed by product decision).
