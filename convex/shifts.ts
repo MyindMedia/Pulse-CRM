@@ -34,6 +34,9 @@ async function hydrate(ctx: QueryCtx | MutationCtx, shift: Doc<"shifts">) {
     memberName: member?.name ?? "-",
     memberRole: member?.role ?? null,
     memberPhotoId: member?.photoId ?? null,
+    memberPhotoUrl: member?.photoId
+      ? await ctx.storage.getUrl(member.photoId)
+      : (member?.clerkImageUrl ?? null),
     roomName: room?.name ?? null,
   };
 }

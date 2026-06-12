@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { CalendarClock, Plane, Plus, X, DoorOpen } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import { Field, Input } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -87,6 +88,7 @@ export function MySchedulePanel() {
             <>
               {mine.shifts.map((s) => (
                 <div key={s._id} className="flex items-center gap-2 text-sm text-bone">
+                  <Avatar name={s.memberName} src={s.memberPhotoUrl} size="xs" className="rounded-full" />
                   <span className="font-meta text-xs text-steel/70">{dt(s.startTime)}</span>
                   {s.roomName && <span className="inline-flex items-center gap-0.5 text-xs text-steel/70"><DoorOpen className="size-3" />{s.roomName}</span>}
                   {s.kind === "session" && <Badge tone="gold">session</Badge>}

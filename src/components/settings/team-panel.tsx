@@ -172,6 +172,7 @@ export function TeamPanel() {
                         <div className="flex items-center gap-2.5">
                           <Avatar
                             name={member.name}
+                            src={member.photoUrl}
                             color={member.avatarColor}
                             size="sm"
                           />

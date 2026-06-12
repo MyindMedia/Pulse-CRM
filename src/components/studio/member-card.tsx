@@ -71,7 +71,12 @@ export function MemberCard({ member }: { member: TeamMember }) {
         <CardContent className="flex flex-1 flex-col gap-3 p-4 pt-4">
           <div className="flex items-start justify-between gap-2">
             <div className="flex min-w-0 items-center gap-3">
-              <Avatar name={member.name} color={member.avatarColor} size="md" />
+              <Avatar
+                name={member.name}
+                src={member.photoUrl}
+                color={member.avatarColor}
+                size="md"
+              />
               <div className="min-w-0">
                 <p className="truncate font-grotesk text-sm font-semibold text-bone">
                   {member.name}

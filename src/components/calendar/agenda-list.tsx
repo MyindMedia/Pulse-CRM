@@ -1,5 +1,7 @@
 "use client";
 
+import { useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
 import { CalendarClock } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
@@ -16,6 +18,11 @@ export function AgendaList({
   sessions: Session[];
   onOpenSession: (id: string) => void;
 }) {
+  // Member roster (with photos) so engineer attributions can show their photo.
+  const engineers = useQuery(api.members.engineers, {});
+  const engineerPhotoOf = (id?: string) =>
+    id ? (engineers?.find((e) => e._id === id)?.photoUrl ?? null) : null;
+
   if (sessions.length === 0) {
     return (
       <EmptyState
@@ -66,10 +73,23 @@ export function AgendaList({
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-bone">{s.title}</p>
-                        <p className="truncate text-xs text-steel/70">
-                          {titleCase(s.serviceType)}
-                          {s.roomName ? ` · ${s.roomName}` : ""}
-                          {s.engineerName ? ` · ${s.engineerName}` : ""}
+                        <p className="flex items-center gap-1 text-xs text-steel/70">
+                          <span className="truncate">
+                            {titleCase(s.serviceType)}
+                            {s.roomName ? ` · ${s.roomName}` : ""}
+                          </span>
+                          {s.engineerName && (
+                            <span className="inline-flex min-w-0 items-center gap-1">
+                              <span aria-hidden>·</span>
+                              <Avatar
+                                name={s.engineerName}
+                                src={engineerPhotoOf(s.engineerId)}
+                                size="xs"
+                                className="rounded-full"
+                              />
+                              <span className="truncate">{s.engineerName}</span>
+                            </span>
+                          )}
                         </p>
                       </div>
                       <Avatar name={s.artistName} size="sm" />

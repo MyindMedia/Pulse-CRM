@@ -141,9 +141,16 @@ export const engineers = query({
       .query("members")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .collect();
-    return rows
-      .map((r) => ({ _id: r._id, name: r.name, role: r.role, avatarColor: r.avatarColor }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    const hydrated = await Promise.all(
+      rows.map(async (r) => ({
+        _id: r._id,
+        name: r.name,
+        role: r.role,
+        avatarColor: r.avatarColor,
+        photoUrl: r.photoId ? await ctx.storage.getUrl(r.photoId) : (r.clerkImageUrl ?? null),
+      })),
+    );
+    return hydrated.sort((a, b) => a.name.localeCompare(b.name));
   },
 });
 

@@ -5,6 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { CalendarClock, DoorOpen, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Avatar } from "@/components/ui/avatar";
 
 function fmt(ts: number) {
   return new Date(ts).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(":00", "");
@@ -39,6 +40,7 @@ export function WhosWorkingCard() {
                   {working.now.map((s) => (
                     <li key={s._id} className="flex items-center gap-2 text-sm text-bone">
                       <span className="size-1.5 shrink-0 rounded-full bg-positive" />
+                      <Avatar name={s.memberName} src={s.memberPhotoUrl} size="xs" className="rounded-full" />
                       <span className="truncate">{s.memberName}</span>
                       {s.roomName && (
                         <span className="inline-flex items-center gap-0.5 truncate text-xs text-steel/70">
@@ -58,6 +60,7 @@ export function WhosWorkingCard() {
                   {working.upcoming.slice(0, 4).map((s) => (
                     <li key={s._id} className="flex items-center gap-2 text-xs text-steel">
                       <span className="font-meta text-steel/70">{fmt(s.startTime)}</span>
+                      <Avatar name={s.memberName} src={s.memberPhotoUrl} size="xs" className="rounded-full" />
                       <span className="truncate">{s.memberName}</span>
                       {s.roomName && <span className="truncate text-steel/70">· {s.roomName}</span>}
                     </li>

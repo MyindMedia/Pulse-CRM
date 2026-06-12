@@ -94,6 +94,12 @@ export function SessionSheet({
     api.sessions.get,
     sessionId ? { id: sessionId as Id<"sessions"> } : "skip",
   );
+  // Member roster (with photos) so the engineer line can show their photo.
+  const engineers = useQuery(api.members.engineers, sessionId ? {} : "skip");
+  const engineerPhotoUrl =
+    detail?.engineerId != null
+      ? (engineers?.find((e) => e._id === detail.engineerId)?.photoUrl ?? null)
+      : null;
 
   const payDeposit = useMutation(api.sessions.payDeposit);
   const setStatus = useMutation(api.sessions.setStatus);
@@ -166,7 +172,19 @@ export function SessionSheet({
                   {detail.songTitle ?? <span className="text-steel/70">Not linked</span>}
                 </Row>
                 <Row label="Engineer" icon={Headphones}>
-                  {detail.engineerName ?? <span className="text-steel/70">Unassigned</span>}
+                  {detail.engineerName ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Avatar
+                        name={detail.engineerName}
+                        src={engineerPhotoUrl}
+                        size="xs"
+                        className="rounded-full"
+                      />
+                      <span className="truncate">{detail.engineerName}</span>
+                    </span>
+                  ) : (
+                    <span className="text-steel/70">Unassigned</span>
+                  )}
                 </Row>
                 <Row label="Room" icon={DoorOpen}>
                   {detail.roomName ?? <span className="text-steel/70">Unassigned</span>}

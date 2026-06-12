@@ -138,12 +138,7 @@ function Wizard({
             {STEPS[step].key === "intro" && (
               <div className="space-y-4">
                 <div className="flex items-center gap-3 rounded-chrome border border-graphite/60 bg-coal/40 px-4 py-3.5">
-                  {profile.photoUrl ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={profile.photoUrl} alt={profile.name} className="size-10 shrink-0 rounded-md object-cover" />
-                  ) : (
-                    <Avatar name={profile.name} size="md" />
-                  )}
+                  <Avatar name={profile.name} src={profile.photoUrl} size="md" />
                   <div className="min-w-0">
                     <p className="truncate font-grotesk text-base font-semibold text-bone">{profile.name}</p>
                     <p className="text-xs text-gold">{roleLabel}</p>

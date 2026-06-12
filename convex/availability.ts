@@ -122,7 +122,13 @@ export const pendingTimeOff = query({
         .sort((a, b) => a.startTime - b.startTime)
         .map(async (r) => {
           const m = await ctx.db.get(r.memberId);
-          return { ...r, memberName: m?.name ?? "-" };
+          return {
+            ...r,
+            memberName: m?.name ?? "-",
+            memberPhotoUrl: m?.photoId
+              ? await ctx.storage.getUrl(m.photoId)
+              : (m?.clerkImageUrl ?? null),
+          };
         }),
     );
   },

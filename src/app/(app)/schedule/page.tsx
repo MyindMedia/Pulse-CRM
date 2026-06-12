@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Plus, X, CalendarClock, DoorOpen, Check, Ban } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
+import { Avatar } from "@/components/ui/avatar";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { ShiftDialog, type EditableShift } from "@/components/schedule/shift-dialog";
 import { TimeOffInbox } from "@/components/schedule/time-off-inbox";
@@ -31,9 +32,10 @@ function fmtTime(ts: number): string {
   return new Date(ts).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(":00", "");
 }
 
-type Member = { _id: string; name: string; avatarColor?: string };
+type Member = { _id: string; name: string; avatarColor?: string; photoUrl?: string | null };
 type Shift = {
-  _id: string; memberId: string; memberName: string; roomName: string | null;
+  _id: string; memberId: string; memberName: string; memberPhotoUrl?: string | null;
+  roomName: string | null;
   roomId?: string; note?: string; kind: "scheduled" | "session";
   status: "scheduled" | "confirmed" | "cancelled"; startTime: number; endTime: number;
 };
@@ -133,7 +135,7 @@ export default function SchedulePage() {
           <div className="flex flex-wrap gap-2">
             {working.now.map((s) => (
               <span key={s._id} className="inline-flex items-center gap-1.5 rounded-md border border-graphite/60 bg-obsidian px-2.5 py-1 text-xs text-bone">
-                <span className="size-1.5 rounded-full" style={{ backgroundColor: colorOf(s.memberId) }} />
+                <Avatar name={s.memberName} src={s.memberPhotoUrl} color={colorOf(s.memberId)} size="xs" className="rounded-full" />
                 {s.memberName}
                 {s.roomName && <span className="text-steel/70">· {s.roomName}</span>}
                 <span className="text-steel/70">until {fmtTime(s.endTime)}</span>
@@ -192,6 +194,7 @@ export default function SchedulePage() {
                   className="flex w-full items-center gap-3 rounded-lg border bg-coal/40 px-3 py-2.5 text-left"
                   style={{ borderLeftColor: colorOf(s.memberId), borderLeftWidth: 3 }}>
                   <span className="font-meta text-xs text-steel/70">{fmtTime(s.startTime)}–{fmtTime(s.endTime)}</span>
+                  <Avatar name={s.memberName} src={s.memberPhotoUrl} color={colorOf(s.memberId)} size="xs" className="rounded-full" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-bone">{s.memberName}</p>
                     {s.roomName && <p className="flex items-center gap-1 text-xs text-steel/70"><DoorOpen className="size-3" />{s.roomName}</p>}
@@ -232,6 +235,7 @@ export default function SchedulePage() {
                   <td className="sticky left-0 z-10 bg-ink px-3 py-2 text-sm font-medium text-bone">
                     <span className="inline-flex items-center gap-2">
                       <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: colorOf(m._id) }} />
+                      <Avatar name={m.name} src={m.photoUrl} color={m.avatarColor} size="xs" className="rounded-full" />
                       {m.name}
                     </span>
                   </td>

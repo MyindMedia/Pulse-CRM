@@ -129,6 +129,12 @@ export function BookingSheet({
   onClose: () => void;
 }) {
   const open = booking !== null;
+  // Member roster (with photos) so the engineer line can show their photo.
+  const engineers = useQuery(api.members.engineers, booking ? {} : "skip");
+  const engineerPhotoUrl =
+    booking?.engineerId != null
+      ? (engineers?.find((e) => e._id === booking.engineerId)?.photoUrl ?? null)
+      : null;
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -177,7 +183,17 @@ export function BookingSheet({
                   )}
                 </Row>
                 <Row label="Engineer" icon={Headphones}>
-                  {booking.engineerName ?? (
+                  {booking.engineerName ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Avatar
+                        name={booking.engineerName}
+                        src={engineerPhotoUrl}
+                        size="xs"
+                        className="rounded-full"
+                      />
+                      <span className="truncate">{booking.engineerName}</span>
+                    </span>
+                  ) : (
                     <span className="text-steel/70">Unassigned</span>
                   )}
                 </Row>

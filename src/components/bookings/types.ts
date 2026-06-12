@@ -22,6 +22,7 @@ export type BookingRow = {
   songTitle?: string | null;
   roomId?: Id<"rooms">;
   roomName?: string | null;
+  engineerId?: Id<"members">;
   engineerName?: string | null;
   startTime: number;
   endTime: number;
