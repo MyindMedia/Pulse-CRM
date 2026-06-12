@@ -3,7 +3,7 @@ import { Doc } from "./_generated/dataModel";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { currentOrg } from "./lib/tenant";
-import { notify } from "./lib/notify";
+import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
 import { stripeClient } from "./lib/stripe";
 import { ensureInquiryFromBooking } from "./opportunities";
@@ -362,6 +362,14 @@ export const createBooking = mutation({
         depositCents,
       )} deposit within ${HOLD_MINUTES} minutes to confirm it.`,
       kind: "booking.held",
+      sessionId,
+    });
+    // Internal team: a new booking request just landed.
+    await notifyTeam(ctx, {
+      orgId,
+      subject: `New booking - ${room.name}, ${new Date(args.startTime).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`,
+      body: `${args.clientName} (${args.clientEmail.trim()}) requested ${args.durationHours}h in ${room.name}. The room is held pending the ${money(depositCents)} deposit.`,
+      kind: "booking.created",
       sessionId,
     });
 

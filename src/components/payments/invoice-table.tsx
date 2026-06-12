@@ -48,8 +48,16 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
     verb: string,
   ) {
     try {
-      await setStatus({ id, status });
-      toast.success(`Invoice ${verb}`);
+      const res = await setStatus({ id, status });
+      if (status === "sent") {
+        toast.success(
+          res?.emailed
+            ? "Invoice emailed to the client with a payment link."
+            : "Invoice marked sent - the client has no email on file, so share the payment link manually.",
+        );
+      } else {
+        toast.success(`Invoice ${verb}`);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Action failed");
     }

@@ -1,6 +1,8 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { currentOrg } from "./lib/tenant";
+import { notify, notifyTeam } from "./lib/notify";
+import { money } from "./lib/money";
 
 const statusV = v.union(
   v.literal("draft"),
@@ -188,8 +190,10 @@ export const setStatus = mutation({
     if (status === "paid") patch.paidAt = Date.now();
     await ctx.db.patch(id, patch);
 
+    const artist = await ctx.db.get(inv.artistId);
+    let emailed = false;
+
     if (status === "paid") {
-      const artist = await ctx.db.get(inv.artistId);
       await ctx.db.insert("activity", {
         orgId,
         kind: "invoice.paid",
@@ -197,6 +201,24 @@ export const setStatus = mutation({
         entityType: "invoice",
         entityId: id,
         accent: "positive",
+      });
+      // Receipt to the client + heads-up to the team.
+      if (artist?.email) {
+        emailed = true;
+        await notify(ctx, {
+          orgId,
+          channel: "email",
+          recipient: artist.email,
+          subject: `Payment received - invoice ${inv.number}`,
+          body: `We received your payment of ${money(inv.amountCents)} for invoice ${inv.number}. Thank you - this invoice is settled in full.`,
+          kind: "invoice.paid",
+        });
+      }
+      await notifyTeam(ctx, {
+        orgId,
+        subject: `Invoice paid - ${inv.number} (${money(inv.amountCents)})`,
+        body: `${artist?.name ?? "A client"} paid invoice ${inv.number} in full: ${money(inv.amountCents)}.`,
+        kind: "invoice.paid",
       });
     } else if (status === "sent") {
       await ctx.db.insert("activity", {
@@ -207,7 +229,26 @@ export const setStatus = mutation({
         entityId: id,
         accent: "info",
       });
+      // The actual send: the client gets the invoice with a payment link.
+      if (artist?.email) {
+        emailed = true;
+        const payUrl = `${process.env.APP_URL ?? "http://localhost:3000"}/pay/invoice/${id}`;
+        const lines = inv.lineItems
+          .map((li) => `- ${li.label}: ${money(li.amountCents)}`)
+          .join("\n");
+        await notify(ctx, {
+          orgId,
+          channel: "email",
+          recipient: artist.email,
+          subject: `Invoice ${inv.number} - ${money(inv.amountCents)} due ${new Date(
+            inv.dueDate,
+          ).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`,
+          body: `Hi ${artist.name ?? "there"},\n\nHere is your invoice ${inv.number}:\n\n${lines}\n\nTotal: ${money(inv.amountCents)}\nDue: ${new Date(inv.dueDate).toLocaleDateString("en-US", { month: "long", day: "numeric", year: "numeric" })}\n\nPay securely online:\n${payUrl}\n\nThank you.`,
+          kind: "invoice.sent",
+        });
+      }
     }
+    return { emailed };
   },
 });
 

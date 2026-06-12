@@ -849,6 +849,7 @@ export default defineSchema({
     amountCents: v.number(),
     dueDate: v.number(),
     paidAt: v.optional(v.number()),
+    overdueNotifiedAt: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])

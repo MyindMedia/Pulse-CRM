@@ -4,6 +4,8 @@ import type { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { stripeClient } from "./lib/stripe";
 import { appUrl } from "./lib/links";
+import { notify, notifyTeam } from "./lib/notify";
+import { money } from "./lib/money";
 
 /* ============================================================
    Public invoice payment. No auth - a client opens the pay link
@@ -108,5 +110,22 @@ export async function settleInvoice(ctx: MutationCtx, invoiceId: Id<"invoices">)
     entityType: "invoice",
     entityId: invoiceId,
     accent: "positive",
+  });
+  // Receipt to the client + heads-up to the team.
+  if (artist?.email) {
+    await notify(ctx, {
+      orgId: inv.orgId,
+      channel: "email",
+      recipient: artist.email,
+      subject: `Payment received - invoice ${inv.number}`,
+      body: `We received your online payment of ${money(inv.amountCents)} for invoice ${inv.number}. Thank you - this invoice is settled in full.`,
+      kind: "invoice.paid",
+    });
+  }
+  await notifyTeam(ctx, {
+    orgId: inv.orgId,
+    subject: `Invoice paid online - ${inv.number} (${money(inv.amountCents)})`,
+    body: `${artist?.name ?? "A client"} paid invoice ${inv.number} online via Stripe: ${money(inv.amountCents)}.`,
+    kind: "invoice.paid",
   });
 }

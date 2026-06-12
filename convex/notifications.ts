@@ -34,7 +34,16 @@ export const deliver = internalAction({
     if (!n) return;
     let status: "sent" | "failed" | "simulated";
     if (n.channel === "email") {
-      const html = `<div style="font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;color:#111">${n.body
+      // Linkify bare URLs (e.g. invoice payment links) so they're clickable.
+      const escaped = n.body
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;");
+      const linked = escaped.replace(
+        /(https?:\/\/[^\s]+)/g,
+        '<a href="$1" style="color:#b8860b">$1</a>',
+      );
+      const html = `<div style="font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;color:#111">${linked
         .split("\n")
         .map((l: string) => l.trim())
         .join("<br/>")}</div>`;

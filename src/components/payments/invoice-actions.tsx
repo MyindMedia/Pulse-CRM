@@ -44,8 +44,16 @@ export function InvoiceActions({
   ) {
     setBusy(key);
     try {
-      await setStatus({ id, status: next });
-      toast.success(`Invoice ${verb}`);
+      const res = await setStatus({ id, status: next });
+      if (next === "sent") {
+        toast.success(
+          res?.emailed
+            ? "Invoice emailed to the client with a payment link."
+            : "Invoice marked sent - the client has no email on file, so share the payment link manually.",
+        );
+      } else {
+        toast.success(`Invoice ${verb}`);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Action failed");
     } finally {

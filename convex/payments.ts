@@ -2,7 +2,7 @@ import { query, mutation, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
-import { notify } from "./lib/notify";
+import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
 
 /* ============================================================
@@ -119,6 +119,13 @@ export async function settlePayment(
     entityType: "session",
     entityId: sessionId,
     accent: "positive",
+  });
+  await notifyTeam(ctx, {
+    orgId,
+    subject: `Payment received - ${money(amountCents)} (${kind}) for ${session.title}`,
+    body: `${payerName ?? artist?.name ?? "A client"} paid ${money(amountCents)} (${kind}) on "${session.title}". ${fullyPaid ? "The booking is now paid in full." : `${money(session.rateCents - paidTotal)} remains due.`}`,
+    kind: "payment.received",
+    sessionId,
   });
   if (artist?.email) {
     await notify(ctx, {

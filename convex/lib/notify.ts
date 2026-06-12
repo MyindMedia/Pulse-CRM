@@ -26,3 +26,24 @@ export async function notify(
   const id = await ctx.db.insert("notifications", { ...args, status: "simulated" });
   await ctx.scheduler.runAfter(0, internal.notifications.deliver, { id });
 }
+
+/** Email the studio's internal team (the org owner) about a status change -
+    new bookings, payments landing, invoices paid, holds released. No-op when
+    the org has no owner email on file. */
+export async function notifyTeam(
+  ctx: MutationCtx,
+  args: {
+    orgId: string;
+    subject: string;
+    body: string;
+    kind: string;
+    sessionId?: Id<"sessions">;
+  },
+): Promise<void> {
+  const org = await ctx.db
+    .query("orgs")
+    .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+    .first();
+  if (!org?.ownerEmail) return;
+  await notify(ctx, { ...args, channel: "email", recipient: org.ownerEmail });
+}

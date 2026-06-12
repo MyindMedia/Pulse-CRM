@@ -1,6 +1,6 @@
 import { mutation, internalMutation, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
-import { notify } from "./lib/notify";
+import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
 import { proposeWaitlistFill } from "./waitlist";
 
@@ -21,6 +21,7 @@ type Outcome = {
   forfeited: number;
   started: number;
   completed: number;
+  invoicesOverdue: number;
 };
 
 async function emailFor(ctx: MutationCtx, artistId: import("./_generated/dataModel").Id<"artists">) {
@@ -36,6 +37,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     forfeited: 0,
     started: 0,
     completed: 0,
+    invoicesOverdue: 0,
   };
 
   const sessions = await ctx.db.query("sessions").collect();
@@ -67,6 +69,13 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
           sessionId: s._id,
         });
       }
+      await notifyTeam(ctx, {
+        orgId: s.orgId,
+        subject: `Hold released - ${s.title}`,
+        body: `The hold on "${s.title}" expired (deposit not paid in time). The slot is open again.`,
+        kind: "booking.hold_released",
+        sessionId: s._id,
+      });
       await proposeWaitlistFill(ctx, s);
       out.holdsReleased++;
       continue;
@@ -123,6 +132,13 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
           sessionId: s._id,
         });
       }
+      await notifyTeam(ctx, {
+        orgId: s.orgId,
+        subject: `Booking forfeited - ${s.title}`,
+        body: `"${s.title}" was released: the balance was not paid in full 2 hours before start. The deposit is retained per booking terms.`,
+        kind: "booking.forfeited",
+        sessionId: s._id,
+      });
       await proposeWaitlistFill(ctx, s);
       out.forfeited++;
       continue;
@@ -145,6 +161,47 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
         accent: "positive",
       });
       out.completed++;
+    }
+  }
+
+  // 5. Invoice overdue - materialize the overdue status on sent/viewed
+  // invoices past their due date, remind the client (with the payment
+  // link) and alert the team. Fires once per invoice.
+  const invoices = await ctx.db.query("invoices").collect();
+  for (const inv of invoices) {
+    if (
+      (inv.status === "sent" || inv.status === "viewed") &&
+      inv.dueDate < now &&
+      !inv.overdueNotifiedAt
+    ) {
+      await ctx.db.patch(inv._id, { status: "overdue", overdueNotifiedAt: now });
+      await ctx.db.insert("activity", {
+        orgId: inv.orgId,
+        kind: "invoice.overdue",
+        summary: `Invoice ${inv.number} is overdue (${money(inv.amountCents)})`,
+        entityType: "invoice",
+        entityId: inv._id,
+        accent: "critical",
+      });
+      const artist = await ctx.db.get(inv.artistId);
+      if (artist?.email) {
+        const payUrl = `${process.env.APP_URL ?? "http://localhost:3000"}/pay/invoice/${inv._id}`;
+        await notify(ctx, {
+          orgId: inv.orgId,
+          channel: "email",
+          recipient: artist.email,
+          subject: `Reminder: invoice ${inv.number} is past due`,
+          body: `Invoice ${inv.number} for ${money(inv.amountCents)} was due on ${new Date(inv.dueDate).toLocaleDateString("en-US", { month: "long", day: "numeric" })} and is still open.\n\nPay securely online:\n${payUrl}\n\nIf you've already paid, you can disregard this reminder.`,
+          kind: "invoice.overdue",
+        });
+      }
+      await notifyTeam(ctx, {
+        orgId: inv.orgId,
+        subject: `Invoice overdue - ${inv.number} (${money(inv.amountCents)})`,
+        body: `Invoice ${inv.number} to ${artist?.name ?? "client"} for ${money(inv.amountCents)} is past due. The client was sent a reminder with the payment link.`,
+        kind: "invoice.overdue",
+      });
+      out.invoicesOverdue++;
     }
   }
   return out;
