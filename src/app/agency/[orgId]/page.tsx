@@ -90,11 +90,22 @@ export default function SubaccountDetailPage() {
       {/* Header */}
       <div className="flex flex-wrap items-start justify-between gap-5">
         <div className="flex items-start gap-4">
-          <span
-            className="mt-0.5 size-12 shrink-0 rounded-lg border border-graphite/60"
-            style={{ backgroundColor: accent }}
-            aria-hidden
-          />
+          {subaccount.logoUrl ? (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={subaccount.logoUrl}
+              alt=""
+              className="mt-0.5 size-12 shrink-0 rounded-lg border border-graphite/60 bg-coal-2 object-contain p-1"
+              style={{ boxShadow: `inset 0 0 0 1px ${accent}33` }}
+              aria-hidden
+            />
+          ) : (
+            <span
+              className="mt-0.5 size-12 shrink-0 rounded-lg border border-graphite/60"
+              style={{ backgroundColor: accent }}
+              aria-hidden
+            />
+          )}
           <div className="space-y-2">
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="chrome-display text-2xl leading-[0.95] tracking-[-0.01em] text-bone">

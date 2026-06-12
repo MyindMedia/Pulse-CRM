@@ -7,18 +7,15 @@ import { ArrowUpLeft, ShieldAlert } from "lucide-react";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadingPanel } from "@/components/ui/feedback";
+import { PulseLogo } from "@/components/brand/pulse-logo";
 
-/* The Pulse Agency wordmark - a command-center variant of the studio mark. */
+/* The Pulse Agency wordmark - the real brand lockup + the console label. */
 function AgencyWordmark() {
   return (
-    <Link href="/agency" className="flex items-center gap-2.5">
-      <span className="grid size-8 place-items-center rounded-md border border-gold-dim/60 bg-gold/10 text-gold">
-        <svg viewBox="0 0 24 24" className="size-4" fill="none" stroke="currentColor" strokeWidth={2.5}>
-          <path d="M2 12h4l3-8 6 16 3-8h4" strokeLinecap="round" strokeLinejoin="round" />
-        </svg>
-      </span>
-      <span className="flex flex-col leading-none">
-        <span className="font-grotesk text-base font-bold tracking-tight text-bone">Pulse Agency</span>
+    <Link href="/agency" className="flex items-center gap-3">
+      <PulseLogo size="sm" asLink={false} />
+      <span className="flex flex-col gap-0.5 border-l border-graphite/60 pl-3 leading-none">
+        <span className="font-grotesk text-sm font-bold tracking-tight text-bone">Agency</span>
         <span className="font-meta text-[0.5625rem] uppercase tracking-[0.22em] text-steel/70">
           Command center
         </span>

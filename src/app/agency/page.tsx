@@ -226,8 +226,13 @@ export default function AgencyOverviewPage() {
                       <span className="font-meta text-[0.6875rem] text-steel/70 w-5">
                         #{idx + 1}
                       </span>
-                      <span className="grid size-8 place-items-center rounded-md bg-coal-2 text-gold-dim">
-                        <Building2 className="size-4" />
+                      <span className="grid size-8 shrink-0 place-items-center overflow-hidden rounded-md bg-coal-2 text-gold-dim">
+                        {s.logoUrl ? (
+                          /* eslint-disable-next-line @next/next/no-img-element */
+                          <img src={s.logoUrl} alt="" className="size-full object-contain p-0.5" />
+                        ) : (
+                          <Building2 className="size-4" />
+                        )}
                       </span>
                       <span className="min-w-0 flex-1">
                         <p className="truncate text-sm font-medium text-bone">

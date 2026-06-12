@@ -39,6 +39,7 @@ export type SubaccountRow = {
   plan: Plan;
   status: SubStatus;
   accentColor?: string;
+  logoUrl?: string | null;
   roomCount: number;
   bookingCount: number;
   collectedCents: number;
@@ -150,11 +151,21 @@ export function SubaccountTable({ rows }: { rows: SubaccountRow[] }) {
           >
             <TD>
               <div className="flex items-center gap-3">
-                <span
-                  className="size-7 shrink-0 rounded-md border border-graphite/60"
-                  style={{ backgroundColor: row.accentColor ?? "#fdb913" }}
-                  aria-hidden
-                />
+                {row.logoUrl ? (
+                  /* eslint-disable-next-line @next/next/no-img-element */
+                  <img
+                    src={row.logoUrl}
+                    alt=""
+                    className="size-7 shrink-0 rounded-md border border-graphite/60 bg-coal-2 object-contain p-0.5"
+                    aria-hidden
+                  />
+                ) : (
+                  <span
+                    className="size-7 shrink-0 rounded-md border border-graphite/60"
+                    style={{ backgroundColor: row.accentColor ?? "#fdb913" }}
+                    aria-hidden
+                  />
+                )}
                 <div className="min-w-0">
                   <p className="truncate font-medium text-bone">{row.name}</p>
                   <p className="truncate font-meta text-[0.6875rem] text-steel/70">/{row.slug}</p>

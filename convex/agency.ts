@@ -83,6 +83,7 @@ export const subaccounts = query({
       orgs.map(async (org) => ({
         ...org,
         status: org.status ?? "active",
+        logoUrl: org.logoId ? await ctx.storage.getUrl(org.logoId) : null,
         ...(await rollup(ctx, org.orgId)),
       })),
     );
@@ -192,15 +193,19 @@ export const overview = query({
       r.sessions += 1;
       studioRollups.set(s.orgId, r);
     }
-    const topStudios = orgs
-      .map((o) => ({
-        orgId: o.orgId,
-        name: o.name,
-        plan: o.plan ?? "solo",
-        slug: o.slug,
-        collectedCents: studioRollups.get(o.orgId)?.collected ?? 0,
-        sessions: studioRollups.get(o.orgId)?.sessions ?? 0,
-      }))
+    const topStudios = (
+      await Promise.all(
+        orgs.map(async (o) => ({
+          orgId: o.orgId,
+          name: o.name,
+          plan: o.plan ?? "solo",
+          slug: o.slug,
+          logoUrl: o.logoId ? await ctx.storage.getUrl(o.logoId) : null,
+          collectedCents: studioRollups.get(o.orgId)?.collected ?? 0,
+          sessions: studioRollups.get(o.orgId)?.sessions ?? 0,
+        })),
+      )
+    )
       .sort((a, b) => b.collectedCents - a.collectedCents)
       .slice(0, 5);
 
@@ -263,7 +268,13 @@ export const subaccount = query({
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .order("desc")
       .take(10);
-    return { ...org, status: org.status ?? "active", ...(await rollup(ctx, orgId)), activity };
+    return {
+      ...org,
+      status: org.status ?? "active",
+      logoUrl: org.logoId ? await ctx.storage.getUrl(org.logoId) : null,
+      ...(await rollup(ctx, orgId)),
+      activity,
+    };
   },
 });
 
