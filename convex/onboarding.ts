@@ -43,6 +43,8 @@ export const mine = query({
       logoUrl: org.logoId ? await ctx.storage.getUrl(org.logoId) : null,
       roomCount: rooms.length,
       onboardingCompletedAt: org.onboardingCompletedAt ?? null,
+      termsAcceptedAt: org.termsAcceptedAt ?? null,
+      termsVersion: org.termsVersion ?? null,
       // Per-step completion the wizard uses to show ticks / compute progress.
       steps: {
         basics: Boolean(org.name && org.name !== "New studio" && org.slug),
@@ -149,5 +151,23 @@ export const complete = mutation({
     if (org && !org.onboardingCompletedAt) {
       await ctx.db.patch(org._id, { onboardingCompletedAt: Date.now() });
     }
+  },
+});
+
+/** Record acceptance of the Terms of Service during onboarding. The wizard
+    gates everything behind this; re-acceptance is required when the terms
+    version changes. */
+export const acceptTerms = mutation({
+  args: { version: v.string() },
+  handler: async (ctx, { version }) => {
+    const { org } = await myOrg(ctx);
+    if (!org) throw new Error("No studio for this account yet.");
+    const identity = await ctx.auth.getUserIdentity();
+    await ctx.db.patch(org._id, {
+      termsAcceptedAt: Date.now(),
+      termsVersion: version,
+      termsAcceptedBy: identity?.email ?? identity?.subject ?? "unknown",
+    });
+    return { acceptedAt: Date.now() };
   },
 });

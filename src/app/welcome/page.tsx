@@ -17,6 +17,9 @@ import { Progress } from "@/components/ui/progress";
 import { slugify } from "@/components/agency/meta";
 import { PaymentsSetupWalkthrough } from "@/components/payments/payments-setup-walkthrough";
 import { EmailConnectCard } from "@/components/email/email-connect-card";
+import { TermsStep } from "@/components/welcome/terms-step";
+import { FeatureTour } from "@/components/welcome/feature-tour";
+import { TERMS_VERSION } from "@/lib/terms";
 
 type StepKey = "basics" | "logo" | "contact" | "branding" | "payment" | "email" | "rooms";
 const STEPS: { key: StepKey; title: string; blurb: string }[] = [
@@ -59,9 +62,29 @@ export default function WelcomePage() {
     );
   }
 
-  // Remount the wizard per studio so initial state seeds cleanly from `mine`
-  // without a setState-in-effect cascade.
-  return <Wizard key={mine.orgId} initial={mine} />;
+  // Remount per studio so initial state seeds cleanly from `mine`.
+  return <Gate key={mine.orgId} initial={mine} />;
+}
+
+/* Phase machine in front of the wizard: the owner must scroll-read and
+   accept the Terms (incl. the Stripe payments section), then gets the
+   motion-graphics feature tour once, then lands in the setup wizard.
+   Returning owners who already accepted the current version skip both. */
+function Gate({ initial }: { initial: Mine }) {
+  const accepted = Boolean(
+    initial.termsAcceptedAt && initial.termsVersion === TERMS_VERSION,
+  );
+  const [phase, setPhase] = React.useState<"terms" | "tour" | "wizard">(
+    accepted ? "wizard" : "terms",
+  );
+
+  if (phase === "terms") {
+    return <TermsStep onAccepted={() => setPhase("tour")} />;
+  }
+  if (phase === "tour") {
+    return <FeatureTour onDone={() => setPhase("wizard")} />;
+  }
+  return <Wizard initial={initial} />;
 }
 
 function Wizard({ initial }: { initial: Mine }) {

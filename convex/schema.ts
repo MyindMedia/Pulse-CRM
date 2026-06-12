@@ -149,6 +149,9 @@ export default defineSchema({
     // Set once the owner finishes (or explicitly skips to the end of) the
     // branded onboarding wizard. Unset => the dashboard nudges them to finish.
     onboardingCompletedAt: v.optional(v.number()),
+    termsAcceptedAt: v.optional(v.number()),
+    termsVersion: v.optional(v.string()),
+    termsAcceptedBy: v.optional(v.string()),
     // ── Stripe Connect (P3) - studio collects deposits via its OWN account ──
     stripeAccountId: v.optional(v.string()),        // acct_… (Express connected account)
     stripeChargesEnabled: v.optional(v.boolean()),  // can accept charges
