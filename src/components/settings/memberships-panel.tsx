@@ -4,6 +4,7 @@ import * as React from "react";
 import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
+import { ConvexError } from "convex/values";
 import { Plus, Clock, Percent, Crown, RefreshCw, CreditCard, CheckCircle2 } from "lucide-react";
 import {
   Card, CardHeader, CardTitle, CardDescription, CardContent,
@@ -51,7 +52,11 @@ export function MembershipsPanel() {
       await sync({ planId: id as never });
       toast.success("Recurring price created in Stripe.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not sync to Stripe.");
+      // ConvexError carries the actionable message in .data; .message is the
+      // opaque "Server Error" envelope.
+      toast.error(
+        err instanceof ConvexError ? String(err.data) : "Could not sync to Stripe.",
+      );
     } finally {
       setSyncing(null);
     }
