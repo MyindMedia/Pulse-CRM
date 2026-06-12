@@ -30,6 +30,7 @@ import {
   STATUS_TONE,
 } from "@/components/agency/meta";
 import { DetailActions } from "@/components/agency/detail-actions";
+import { DemoModeToggle } from "@/components/agency/demo-mode-toggle";
 import { FeatureToggles } from "@/components/agency/feature-toggles";
 import { ActivityFeed } from "@/components/agency/activity-feed";
 import { ResendInviteButton } from "@/components/agency/resend-invite-button";
@@ -210,6 +211,15 @@ export default function SubaccountDetailPage() {
           </Card>
         </Section>
       </div>
+
+      {/* Demo data - fill or wipe sample rows for walkthroughs */}
+      <Section title="Demo data">
+        <Card>
+          <CardContent className="pt-5">
+            <DemoModeToggle orgId={subaccount.orgId} />
+          </CardContent>
+        </Card>
+      </Section>
 
       {/* Feature toggles - enable/disable nav features for this sub-account */}
       <Section title="Features">

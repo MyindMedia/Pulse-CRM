@@ -80,6 +80,7 @@ export default defineSchema({
     // Public booking-page theming
     bookingHeroId: v.optional(v.id("_storage")),
     generatedHeroId: v.optional(v.id("_storage")),
+    demoMode: v.optional(v.boolean()), // agency demo-data switch (see demoMode.ts)
     bookingHeadline: v.optional(v.string()),
     bookingIntro: v.optional(v.string()),
     depositPolicyText: v.optional(v.string()),
@@ -834,6 +835,14 @@ export default defineSchema({
     .index("by_song", ["songId"]),
 
   // ── Invoices ──
+  // Registry of rows inserted by the agency demo-data filler, so flipping a
+  // sub-account back to live deletes exactly what the demo added.
+  demoRows: defineTable({
+    orgId: v.string(),
+    table: v.string(),
+    docId: v.string(),
+  }).index("by_org", ["orgId"]),
+
   invoices: defineTable({
     orgId: v.string(),
     number: v.string(),

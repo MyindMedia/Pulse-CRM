@@ -23,6 +23,7 @@ import { money } from "@/lib/format";
 import { TrendArea, HBars, CategoryDonut } from "@/components/charts";
 import { CreateSubaccountDialog } from "@/components/agency/create-subaccount-dialog";
 import { InviteStudioDialog } from "@/components/agency/invite-studio-dialog";
+import { StageDemoDialog } from "@/components/agency/stage-demo-dialog";
 import {
   SubaccountTable,
   type SubaccountRow,
@@ -55,6 +56,7 @@ export default function AgencyOverviewPage() {
           <div className="flex items-center gap-2">
             <CreateSubaccountDialog />
             <InviteStudioDialog />
+            <StageDemoDialog />
           </div>
         }
       />

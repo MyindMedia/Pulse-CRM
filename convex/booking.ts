@@ -95,11 +95,12 @@ export const studioFront = query({
         const gearPhotos = (await Promise.all(gear.map((g) => photoOf(ctx, g)))).filter(
           (p): p is string => Boolean(p),
         );
-        // Lead with the room hero shot, then gear photos as supporting frames.
-        const photos = [
-          ...(room.heroImageUrl ? [room.heroImageUrl] : []),
-          ...gearPhotos,
-        ].slice(0, 6);
+        // Lead with the room hero shot (uploaded storage photo first, then the
+        // legacy seeded URL), then gear photos as supporting frames.
+        const heroShot = room.heroImageId
+          ? await ctx.storage.getUrl(room.heroImageId)
+          : room.heroImageUrl ?? null;
+        const photos = [...(heroShot ? [heroShot] : []), ...gearPhotos].slice(0, 6);
         return {
           ...room,
           ...defaults(room),
