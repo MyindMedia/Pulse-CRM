@@ -371,3 +371,35 @@ export const _patchStagedBrand = internalMutation({
     await ctx.db.patch(org._id, clean);
   },
 });
+
+/** Ops: copy one org's uploaded logo file to another org (duplicates the
+    stored file so the two never share a storage id). */
+export const copyOrgLogo = internalAction({
+  args: { fromOrgId: v.string(), toOrgId: v.string() },
+  handler: async (ctx, { fromOrgId, toOrgId }): Promise<{ copied: boolean }> => {
+    const from = await ctx.runQuery(internal.brandHero._orgBrand, { orgId: fromOrgId });
+    if (!from) throw new ConvexError("Source org not found.");
+    const url: string | null = await ctx.runQuery(internal.stageDemo._orgLogoUrl, {
+      orgId: fromOrgId,
+    });
+    if (!url) return { copied: false };
+    const storageId = await importImage(ctx, url);
+    if (!storageId) return { copied: false };
+    await ctx.runMutation(internal.stageDemo._setStagedLogo, {
+      orgId: toOrgId,
+      storageId: storageId as never,
+    });
+    return { copied: true };
+  },
+});
+
+export const _orgLogoUrl = internalQuery({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    return org?.logoId ? await ctx.storage.getUrl(org.logoId) : null;
+  },
+});
