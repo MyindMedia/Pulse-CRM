@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useMutation } from "convex/react";
+import type { FunctionReference } from "convex/server";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
@@ -15,20 +16,24 @@ const MAX_BYTES = 5 * 1024 * 1024;
 const ACCEPTED = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
 
 /**
- * Generic studio-asset upload control. Runs the Convex upload-URL → POST →
+ * Generic asset upload control. Runs the Convex upload-URL → POST →
  * set-asset flow, then hands the new `Id<"_storage">` to `onUploaded` so the
- * caller can persist it. Used for both the logo and the booking hero.
+ * caller can persist it. Used for the studio logo and booking hero, and the
+ * agency white-label logo (which passes a different upload-URL mutation).
  */
 export function AssetUploader({
   label,
   onUploaded,
   className,
+  uploadUrlMutation,
 }: {
   label: string;
   onUploaded: (storageId: Id<"_storage">) => Promise<void>;
   className?: string;
+  /** Override the upload-URL mutation. Defaults to the studio (`orgs`) one. */
+  uploadUrlMutation?: FunctionReference<"mutation", "public", Record<string, never>, string>;
 }) {
-  const generateUploadUrl = useMutation(api.orgs.generateUploadUrl);
+  const generateUploadUrl = useMutation(uploadUrlMutation ?? api.orgs.generateUploadUrl);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [busy, setBusy] = React.useState(false);
 

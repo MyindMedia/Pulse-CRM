@@ -2,6 +2,17 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireCapability, resolveViewer } from "./lib/access";
 import { DEMO_ORG } from "./lib/tenant";
+import { PLAN_LIMITS } from "./lib/plans";
+
+/** Whether the agency's plan unlocks a white-label custom domain.
+    agency_plus (resell tier) isn't in PLAN_LIMITS; treat it as unlocked.
+    Unknown/legacy keys lean permissive. */
+function customDomainAllowed(plan: string | undefined): boolean {
+  if (!plan) return true;
+  if (plan === "agency_plus") return true;
+  const limits = (PLAN_LIMITS as Record<string, { customDomain: boolean }>)[plan];
+  return limits?.customDomain ?? true;
+}
 
 /* ============================================================
    Agency settings hub - identity + rollup the console settings
@@ -47,8 +58,10 @@ export const summary = query({
       status: agency?.status ?? "active",
       appName: agency?.appName ?? null,
       accentColor: agency?.accentColor ?? null,
+      logoUrl: agency?.logoId ? await ctx.storage.getUrl(agency.logoId) : null,
       supportEmail: agency?.supportEmail ?? agency?.ownerEmail ?? null,
       customDomain: agency?.customDomain ?? null,
+      customDomainAvailable: customDomainAllowed(agency?.plan),
       stripeConnected: Boolean(agency?.stripeCustomerId),
       role: viewer.role,
       counts: {

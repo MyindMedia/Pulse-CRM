@@ -38,6 +38,21 @@ export const updateAgencyBranding = mutation({
   },
 });
 
+/** Set the agency white-label logo. Saves immediately, like the studio side. */
+export const setAgencyLogo = mutation({
+  args: { storageId: v.id("_storage") },
+  handler: async (ctx, { storageId }) => {
+    const viewer = await requireCapability(ctx, "branding.edit");
+    if (viewer.kind !== "agency_member") throw new Error("agency only");
+    const ag = await ctx.db
+      .query("agencies")
+      .withIndex("by_agency", (q) => q.eq("agencyId", viewer.agencyId))
+      .first();
+    if (!ag) throw new Error("agency not found");
+    await ctx.db.patch(ag._id, { logoId: storageId });
+  },
+});
+
 export const updateStudioBranding = mutation({
   args: {
     accentColor: v.optional(v.string()),
