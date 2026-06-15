@@ -106,6 +106,18 @@ export const handle = internalMutation({
         return { ok: true };
       }
 
+      // Sub-account "add a card" (Stripe Checkout setup mode). The agency
+      // re-bills this studio; once a card is captured we clear the trial gate.
+      if (meta.kind === "subaccount_billing" && meta.orgId) {
+        await ctx.scheduler.runAfter(0, internal.agencyBilling._markPaymentMethodOnFile, {
+          orgId: meta.orgId,
+          customerId: (obj.customer as string | undefined) ?? undefined,
+          subscriptionId: (obj.subscription as string | undefined) ?? undefined,
+        });
+        await markProcessed(ctx, event.id, e.type);
+        return { ok: true };
+      }
+
       const customerId = obj.customer as string;
       const subscriptionId = obj.subscription as string;
       // Only platform subscription checkouts go past here.

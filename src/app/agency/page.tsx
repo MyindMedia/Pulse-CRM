@@ -45,6 +45,8 @@ export default function AgencyOverviewPage() {
     bookingCount: s.bookingCount,
     collectedCents: s.collectedCents,
     _creationTime: s._creationTime,
+    billingStatus: s.billingStatus ?? null,
+    trialEndsAt: s.trialEndsAt ?? null,
   }));
 
   return (

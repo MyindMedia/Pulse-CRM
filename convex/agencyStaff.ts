@@ -19,10 +19,20 @@ export const list = query({
   handler: async (ctx) => {
     const viewer = await requireCapability(ctx, "agency.viewAll");
     if (viewer.kind !== "agency_member") return [];
-    return await ctx.db
+    const rows = await ctx.db
       .query("agencyMembers")
       .withIndex("by_agency", (q) => q.eq("agencyId", viewer.agencyId))
       .collect();
+    return await Promise.all(
+      rows.map(async (m) => ({
+        ...m,
+        title: m.title ?? null,
+        phone: m.phone ?? null,
+        photoUrl: m.photoStorageId
+          ? await ctx.storage.getUrl(m.photoStorageId)
+          : (m.clerkImageUrl ?? null),
+      })),
+    );
   },
 });
 
@@ -31,6 +41,7 @@ export const invite = mutation({
     email: v.string(),
     name: v.string(),
     role: agencyRoleV,
+    title: v.optional(v.string()),
     capabilityOverrides: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
@@ -44,6 +55,7 @@ export const invite = mutation({
       email: args.email,
       name: args.name,
       role: args.role,
+      title: args.title?.trim() || undefined,
       capabilityOverrides: args.capabilityOverrides,
       status: "invited",
       invitedAt: Date.now(),

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
 import { useClerk, useUser } from "@clerk/nextjs";
 import { api } from "@convex/_generated/api";
@@ -154,6 +155,9 @@ function ProfileDialog({
   fallbackName: string;
 }) {
   const profile = useQuery(api.members.myProfile);
+  // When the signed-in user is an agency operator (no studio member row), this
+  // is non-null and we point them at their agency profile instead of a dead end.
+  const agencyProfile = useQuery(api.agencyProfile.mine);
   const generateUploadUrl = useMutation(api.members.generateUploadUrl);
   const setMyPhoto = useMutation(api.members.setMyPhoto);
   const clearMyPhoto = useMutation(api.members.clearMyPhoto);
@@ -195,7 +199,17 @@ function ProfileDialog({
           </DialogDescription>
         </DialogHeader>
         <DialogBody className="space-y-5">
-          {profile === null ? (
+          {profile === null && agencyProfile ? (
+            <div className="space-y-4">
+              <p className="text-sm text-steel">
+                You&apos;re signed in as an agency {agencyProfile.role}. Manage your
+                profile photo, name and contact details in the agency console.
+              </p>
+              <Button asChild>
+                <Link href="/agency">Open the agency console</Link>
+              </Button>
+            </div>
+          ) : profile === null ? (
             <p className="text-sm text-steel">
               Your account isn&apos;t linked to a team member profile in this studio yet.
               Ask the studio owner to add you on the Team page with this email.

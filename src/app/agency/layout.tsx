@@ -8,6 +8,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Card, CardContent } from "@/components/ui/card";
 import { LoadingPanel } from "@/components/ui/feedback";
 import { PulseLogo } from "@/components/brand/pulse-logo";
+import { AgencyProfileMenu } from "@/components/agency/agency-profile-menu";
 
 /* The Pulse Agency wordmark - the real brand lockup + the console label. */
 function AgencyWordmark() {
@@ -36,11 +37,13 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
             <AgencyWordmark />
             <nav className="hidden items-center gap-4 text-xs font-medium text-steel sm:flex">
               <Link href="/agency" className="hover:text-bone">Sub-accounts</Link>
+              <Link href="/agency/plans" className="hover:text-bone">Plans</Link>
               <Link href="/agency/agents" className="hover:text-bone">Agents</Link>
               <Link href="/agency/autopilot" className="hover:text-bone">Autopilot</Link>
               <Link href="/agency/staff" className="hover:text-bone">Staff</Link>
               <Link href="/agency/branding" className="hover:text-bone">Branding</Link>
               <Link href="/agency/audit" className="hover:text-bone">Audit</Link>
+              <Link href="/agency/settings" className="hover:text-bone">Settings</Link>
             </nav>
             <div className="ml-auto flex items-center gap-2">
               {access?.demo && (
@@ -55,6 +58,7 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
                 <ArrowUpLeft className="size-3.5" />
                 Back to studio app
               </Link>
+              <AgencyProfileMenu />
             </div>
           </div>
         </header>

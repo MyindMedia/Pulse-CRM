@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Sidebar } from "@/components/shell/sidebar";
 import { Topbar } from "@/components/shell/topbar";
 import { StudioBanner } from "@/components/shell/studio-banner";
+import { BillingBanner, BillingLock } from "@/components/shell/billing-gate";
 import { MemberSync } from "@/components/shell/member-sync";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { FeatureGuard } from "@/components/shell/feature-guard";
@@ -39,12 +40,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Main column */}
         <div className="relative z-10 flex min-h-dvh flex-col lg:pl-64">
           <StudioBanner />
+          <BillingBanner />
           <Topbar onOpenMenu={() => setMobileNav(true)} />
           <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">
             <AppTransition>{children}</AppTransition>
           </main>
         </div>
 
+        <BillingLock />
         <CommandPalette />
       </div>
       </OrgTheme>

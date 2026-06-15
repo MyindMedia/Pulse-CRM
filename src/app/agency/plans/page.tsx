@@ -1,0 +1,306 @@
+"use client";
+
+import * as React from "react";
+import { useMutation, useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
+import { toast } from "sonner";
+import { Gift, Plus, Sparkles, Star, Tag, Trash2 } from "lucide-react";
+import { PageHeader, Section } from "@/components/ui/page";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Field, Input } from "@/components/ui/field";
+import { Switch } from "@/components/ui/toggle";
+import {
+  Dialog,
+  DialogBody,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { EmptyState } from "@/components/ui/feedback";
+import { SkeletonCards } from "@/components/ui/skeleton";
+import { money } from "@/lib/format";
+
+type PlanDraft = {
+  name: string;
+  description: string;
+  priceDollars: string;
+  billingInterval: "month" | "year";
+  trialDays: string;
+  requireCardAfterTrial: boolean;
+  isPromo: boolean;
+};
+
+const EMPTY: PlanDraft = {
+  name: "",
+  description: "",
+  priceDollars: "",
+  billingInterval: "month",
+  trialDays: "14",
+  requireCardAfterTrial: true,
+  isPromo: false,
+};
+
+export default function AgencyPlansPage() {
+  const plans = useQuery(api.agencyPlans.list, {});
+  const seedStarter = useMutation(api.agencyPlans.seedStarter);
+  const create = useMutation(api.agencyPlans.create);
+  const setActive = useMutation(api.agencyPlans.setActive);
+  const setDefault = useMutation(api.agencyPlans.setDefault);
+  const remove = useMutation(api.agencyPlans.remove);
+
+  const [open, setOpen] = React.useState(false);
+  const [draft, setDraft] = React.useState<PlanDraft>(EMPTY);
+  const [busy, setBusy] = React.useState(false);
+
+  async function submit() {
+    setBusy(true);
+    try {
+      await create({
+        name: draft.name,
+        description: draft.description || undefined,
+        priceCents: Math.round(parseFloat(draft.priceDollars || "0") * 100),
+        billingInterval: draft.billingInterval,
+        trialDays: parseInt(draft.trialDays || "0", 10),
+        requireCardAfterTrial: draft.requireCardAfterTrial,
+        isPromo: draft.isPromo,
+      });
+      toast.success("Plan created.");
+      setOpen(false);
+      setDraft(EMPTY);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not create the plan.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function guarded(fn: () => Promise<unknown>, ok: string) {
+    try {
+      await fn();
+      toast.success(ok);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Something went wrong.");
+    }
+  }
+
+  return (
+    <div className="space-y-8">
+      <PageHeader
+        overline="Billing"
+        title="Plans"
+        description="The price book you sell to your studios. Set a free first-adopter promo, paid tiers, trial lengths, and which plan new studios start on."
+        actions={
+          <Button onClick={() => setOpen(true)} size="sm">
+            <Plus className="size-4" /> New plan
+          </Button>
+        }
+      />
+
+      {plans === undefined ? (
+        <SkeletonCards cards={3} />
+      ) : plans.length === 0 ? (
+        <EmptyState
+          icon={Tag}
+          title="No plans yet"
+          description="Create your price book. Start with a free first-adopter promo and a standard paid plan, then assign studios to them."
+          action={
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => void guarded(() => seedStarter({}), "Starter plans created.")}
+              >
+                <Sparkles className="size-4" /> Create starter plans
+              </Button>
+              <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
+                <Plus className="size-4" /> New plan
+              </Button>
+            </div>
+          }
+        />
+      ) : (
+        <Section title="Your plans">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {plans.map((p) => (
+              <Card key={p._id} className={p.isDefault ? "border-gold/40" : undefined}>
+                <CardContent className="space-y-4 pt-5">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 space-y-1">
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <h3 className="font-grotesk text-base font-semibold text-bone">{p.name}</h3>
+                        {p.isPromo && (
+                          <Badge tone="gold">
+                            <Gift className="mr-1 size-3" /> Promo
+                          </Badge>
+                        )}
+                        {p.isDefault && (
+                          <Badge tone="info">
+                            <Star className="mr-1 size-3" /> Default
+                          </Badge>
+                        )}
+                        {!p.active && <Badge tone="neutral">Inactive</Badge>}
+                      </div>
+                      {p.description && <p className="text-xs text-steel">{p.description}</p>}
+                    </div>
+                  </div>
+
+                  <div className="flex items-baseline gap-1">
+                    <span className="chrome-display text-2xl text-bone">
+                      {p.priceCents === 0 ? "Free" : money(p.priceCents)}
+                    </span>
+                    {p.priceCents !== 0 && (
+                      <span className="text-sm text-steel">/{p.billingInterval}</span>
+                    )}
+                  </div>
+
+                  <dl className="space-y-1 text-xs text-steel">
+                    <div className="flex justify-between">
+                      <dt>Trial</dt>
+                      <dd className="text-bone">{p.trialDays > 0 ? `${p.trialDays} days` : "None"}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt>Card after trial</dt>
+                      <dd className="text-bone">{p.requireCardAfterTrial ? "Required" : "Optional"}</dd>
+                    </div>
+                    <div className="flex justify-between">
+                      <dt>Studios on plan</dt>
+                      <dd className="text-bone">{p.assignedCount}</dd>
+                    </div>
+                  </dl>
+
+                  <div className="flex flex-wrap gap-2 border-t border-graphite/40 pt-3">
+                    {!p.isDefault && p.active && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        onClick={() => void guarded(() => setDefault({ planId: p._id }), `${p.name} is now the default.`)}
+                      >
+                        Make default
+                      </Button>
+                    )}
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() =>
+                        void guarded(
+                          () => setActive({ planId: p._id, active: !p.active }),
+                          p.active ? "Plan deactivated." : "Plan reactivated.",
+                        )
+                      }
+                    >
+                      {p.active ? "Deactivate" : "Reactivate"}
+                    </Button>
+                    {p.assignedCount === 0 && (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-critical hover:text-critical"
+                        onClick={() => void guarded(() => remove({ planId: p._id }), "Plan deleted.")}
+                      >
+                        <Trash2 className="size-3.5" />
+                      </Button>
+                    )}
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </Section>
+      )}
+
+      {/* Create dialog */}
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>New plan</DialogTitle>
+            <DialogDescription>A plan your studios are billed on. A free promo = $0 with the promo flag on.</DialogDescription>
+          </DialogHeader>
+          <DialogBody className="space-y-4">
+            <Field label="Name" htmlFor="plan-name">
+              <Input
+                id="plan-name"
+                value={draft.name}
+                onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                placeholder="First Adopter"
+              />
+            </Field>
+            <Field label="Description" htmlFor="plan-desc">
+              <Input
+                id="plan-desc"
+                value={draft.description}
+                onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+                placeholder="Free for early studios."
+              />
+            </Field>
+            <div className="grid grid-cols-2 gap-3">
+              <Field label="Price (USD)" htmlFor="plan-price" hint="0 = free">
+                <Input
+                  id="plan-price"
+                  value={draft.priceDollars}
+                  onChange={(e) => setDraft({ ...draft, priceDollars: e.target.value.replace(/[^0-9.]/g, "") })}
+                  placeholder="0"
+                  inputMode="decimal"
+                />
+              </Field>
+              <Field label="Billing">
+                <Select
+                  value={draft.billingInterval}
+                  onValueChange={(v) => setDraft({ ...draft, billingInterval: v as "month" | "year" })}
+                >
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="month">Monthly</SelectItem>
+                    <SelectItem value="year">Yearly</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+            </div>
+            <Field label="Free trial / promo days" htmlFor="plan-trial" hint="How long studios use it before a card is needed.">
+              <Input
+                id="plan-trial"
+                value={draft.trialDays}
+                onChange={(e) => setDraft({ ...draft, trialDays: e.target.value.replace(/[^0-9]/g, "") })}
+                placeholder="14"
+                inputMode="numeric"
+              />
+            </Field>
+            <label className="flex items-center justify-between gap-3 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5">
+              <span className="text-sm text-bone">
+                Require a card when the trial ends
+                <span className="block text-xs text-steel">Locks the studio until they add payment.</span>
+              </span>
+              <Switch
+                checked={draft.requireCardAfterTrial}
+                onCheckedChange={(v) => setDraft({ ...draft, requireCardAfterTrial: v })}
+              />
+            </label>
+            <label className="flex items-center justify-between gap-3 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5">
+              <span className="text-sm text-bone">
+                First-adopter promo
+                <span className="block text-xs text-steel">Badge it as a limited promo offer.</span>
+              </span>
+              <Switch
+                checked={draft.isPromo}
+                onCheckedChange={(v) => setDraft({ ...draft, isPromo: v })}
+              />
+            </label>
+            <div className="flex justify-end">
+              <Button onClick={() => void submit()} disabled={busy || !draft.name.trim()}>
+                {busy ? "Creating…" : "Create plan"}
+              </Button>
+            </div>
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

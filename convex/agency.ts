@@ -5,6 +5,7 @@ import { seedStarterWorkspace } from "./lib/starter";
 import { resolveViewer, requireCapability, AccessError } from "./lib/access";
 import { DEMO_ORG } from "./lib/tenant";
 import { PLAN_LIMITS, type TierKey } from "./lib/plans";
+import { DAY_MS } from "./lib/billingGate";
 import { sendEmail } from "./lib/email";
 import { inviteEmailHtml, inviteEmailSubject } from "./lib/emailTemplates/invite";
 
@@ -298,6 +299,33 @@ export const provision = internalMutation({
       .first();
     if (slugTaken) throw new ConvexError(`The slug "${args.slug}" is already in use.`);
 
+    // Auto-enroll new sub-accounts in the agency's default plan (starts the
+    // trial/promo clock), so first-adopter studios begin their free window the
+    // moment they're created.
+    let billingFields: Record<string, unknown> = {};
+    if (args.agencyId) {
+      const def = (
+        await ctx.db
+          .query("agencyPlans")
+          .withIndex("by_agency_active", (q) => q.eq("agencyId", args.agencyId!).eq("active", true))
+          .collect()
+      ).find((p) => p.isDefault);
+      if (def) {
+        const now = Date.now();
+        billingFields =
+          def.priceCents === 0 && !def.isPromo
+            ? { agencyPlanId: def._id, billingStatus: "comped" }
+            : def.trialDays > 0
+              ? {
+                  agencyPlanId: def._id,
+                  billingStatus: "trialing",
+                  trialStartedAt: now,
+                  trialEndsAt: now + def.trialDays * DAY_MS,
+                }
+              : { agencyPlanId: def._id, billingStatus: "past_due" };
+      }
+    }
+
     await ctx.db.insert("orgs", {
       orgId: args.orgId,
       name: args.name,
@@ -316,6 +344,7 @@ export const provision = internalMutation({
       createdByAgency: true,
       agencyId: args.agencyId,
       tier: args.tier ?? "studio",
+      ...billingFields,
     });
     await seedStarterWorkspace(ctx, args.orgId, {
       ownerName: args.ownerName,

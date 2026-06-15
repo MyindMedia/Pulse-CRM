@@ -166,11 +166,50 @@ export default defineSchema({
     googleCalendarSyncedAt: v.optional(v.number()),   // last successful inbound pull
     googleCalendarSyncError: v.optional(v.string()),  // last pull error (cleared on success)
     smsRemindersEnabled: v.optional(v.boolean()),   // automated session SMS reminders (default on when unset)
+    // ── Agency rebilling (sub-account pays its parent agency) ──
+    // The agency assigns one of its agencyPlans; this is the per-account state.
+    agencyPlanId: v.optional(v.id("agencyPlans")),
+    billingStatus: v.optional(v.union(
+      v.literal("trialing"),   // in a free/promo window, countdown running
+      v.literal("active"),     // paying (card on file) or fully comped-then-converted
+      v.literal("past_due"),   // trial lapsed without a card → app locks if plan requires one
+      v.literal("comped"),     // free forever, agency-granted
+      v.literal("canceled"),
+    )),
+    trialStartedAt: v.optional(v.number()),
+    trialEndsAt: v.optional(v.number()),
+    paymentMethodOnFile: v.optional(v.boolean()),
+    priceCentsOverride: v.optional(v.number()),     // per-account custom price (overrides the plan)
+    billingCustomerId: v.optional(v.string()),      // sub-account's Stripe customer (platform account)
+    billingSubscriptionId: v.optional(v.string()),
+    billingNote: v.optional(v.string()),            // comp reason / billing memo
   })
     .index("by_org", ["orgId"])
     .index("by_slug", ["slug"])
     .index("by_agency", ["agencyId"])
     .index("by_stripe_account", ["stripeAccountId"]),
+
+  // ── Agency price book - the plans an agency sells to its sub-account studios.
+  //    GoHighLevel "SaaS Mode": the agency sets the price/trial; orgs.agencyPlanId
+  //    points one studio at one plan. A free promo plan = priceCents 0 + isPromo. ──
+  agencyPlans: defineTable({
+    agencyId: v.string(),
+    name: v.string(),
+    description: v.optional(v.string()),
+    priceCents: v.number(),                          // 0 allowed (free / promo)
+    billingInterval: v.union(v.literal("month"), v.literal("year")),
+    trialDays: v.number(),                           // 0 = no trial
+    requireCardAfterTrial: v.boolean(),              // trial lapses → must add card or lock
+    isPromo: v.boolean(),                            // "first adopter" plan
+    promoEndsAt: v.optional(v.number()),             // offer closes to NEW assignments after this
+    featureCaps: v.optional(v.array(v.string())),    // feature keys disabled on assign
+    isDefault: v.boolean(),                          // auto-assigned to new sub-accounts
+    active: v.boolean(),
+    stripePriceId: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_agency", ["agencyId"])
+    .index("by_agency_active", ["agencyId", "active"]),
 
   users: defineTable({
     clerkUserId: v.string(),
@@ -206,6 +245,8 @@ export default defineSchema({
     // Resell hook (Agency Plus / SaaS Mode)
     resellEnabled: v.optional(v.boolean()),
     markupCents: v.optional(v.number()),
+    // Agency-level settings
+    supportEmail: v.optional(v.string()),   // shown to studios; billing/support contact
     // Provisioning
     ownerClerkUserId: v.string(),
     ownerEmail: v.string(),
@@ -231,6 +272,11 @@ export default defineSchema({
     status: v.union(v.literal("active"), v.literal("invited"), v.literal("suspended")),
     invitedAt: v.number(),
     lastActiveAt: v.optional(v.number()),
+    // Profile fields - how this agency teammate appears across the console.
+    title: v.optional(v.string()),         // role/job title, e.g. "Founder"
+    phone: v.optional(v.string()),
+    photoStorageId: v.optional(v.id("_storage")),
+    clerkImageUrl: v.optional(v.string()), // cached Clerk avatar fallback
   })
     .index("by_agency", ["agencyId"])
     .index("by_clerk", ["clerkUserId"])

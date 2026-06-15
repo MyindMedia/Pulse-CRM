@@ -4,6 +4,7 @@ import * as React from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { RolePicker } from "@/components/access/RolePicker";
+import { Avatar } from "@/components/ui/avatar";
 
 export default function StaffPage() {
   const members = useQuery(api.agencyStaff.list, {});
@@ -12,6 +13,7 @@ export default function StaffPage() {
   const remove = useMutation(api.agencyStaff.remove);
   const [name, setName] = React.useState("");
   const [email, setEmail] = React.useState("");
+  const [title, setTitle] = React.useState("");
   const [role, setRoleSel] = React.useState("staff");
   const [err, setErr] = React.useState("");
 
@@ -22,9 +24,10 @@ export default function StaffPage() {
     try {
       await invite({
         name, email,
+        title: title.trim() || undefined,
         role: role as "owner" | "admin" | "staff" | "billing",
       });
-      setName(""); setEmail("");
+      setName(""); setEmail(""); setTitle("");
     } catch (e) {
       setErr(e instanceof Error ? e.message : "Invite failed");
     }
@@ -44,7 +47,7 @@ export default function StaffPage() {
         className="space-y-3 rounded-lg border border-graphite/50 bg-coal/40 p-4"
       >
         <h2 className="text-base font-medium text-bone">Invite a staff member</h2>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
@@ -56,6 +59,12 @@ export default function StaffPage() {
             onChange={(e) => setEmail(e.target.value)}
             placeholder="email@example.com"
             type="email"
+            className="rounded border border-graphite/60 bg-obsidian px-3 py-2 text-sm text-bone"
+          />
+          <input
+            value={title}
+            onChange={(e) => setTitle(e.target.value)}
+            placeholder="Title (optional)"
             className="rounded border border-graphite/60 bg-obsidian px-3 py-2 text-sm text-bone"
           />
           <RolePicker layer="agency" value={role} onChange={setRoleSel} />
@@ -77,12 +86,18 @@ export default function StaffPage() {
               key={m._id}
               className="grid grid-cols-[1fr_minmax(200px,auto)_auto] items-center gap-3 p-4"
             >
-              <div>
-                <p className="text-sm font-medium text-bone">{m.name}</p>
-                <p className="text-xs text-steel/70">{m.email}</p>
-                <p className="font-meta text-[0.6875rem] uppercase tracking-wide text-steel/70">
-                  {m.status}
-                </p>
+              <div className="flex min-w-0 items-center gap-3">
+                <Avatar name={m.name} src={m.photoUrl} size="md" />
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-medium text-bone">
+                    {m.name}
+                    {m.title && <span className="ml-2 text-xs font-normal text-steel/70">{m.title}</span>}
+                  </p>
+                  <p className="truncate text-xs text-steel/70">{m.email}</p>
+                  <p className="font-meta text-[0.6875rem] uppercase tracking-wide text-steel/70">
+                    {m.status}
+                  </p>
+                </div>
               </div>
               <RolePicker
                 layer="agency"

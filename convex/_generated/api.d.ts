@@ -10,7 +10,11 @@
 
 import type * as activity from "../activity.js";
 import type * as agency from "../agency.js";
+import type * as agencyBilling from "../agencyBilling.js";
 import type * as agencyOps from "../agencyOps.js";
+import type * as agencyPlans from "../agencyPlans.js";
+import type * as agencyProfile from "../agencyProfile.js";
+import type * as agencySettings from "../agencySettings.js";
 import type * as agencyStaff from "../agencyStaff.js";
 import type * as agent from "../agent.js";
 import type * as agentAutomations from "../agentAutomations.js";
@@ -55,6 +59,7 @@ import type * as lib_access from "../lib/access.js";
 import type * as lib_accessPolicies from "../lib/accessPolicies.js";
 import type * as lib_accessTypes from "../lib/accessTypes.js";
 import type * as lib_aiGuard from "../lib/aiGuard.js";
+import type * as lib_billingGate from "../lib/billingGate.js";
 import type * as lib_checklistTemplates from "../lib/checklistTemplates.js";
 import type * as lib_email from "../lib/email.js";
 import type * as lib_emailTemplates_activation from "../lib/emailTemplates/activation.js";
@@ -118,7 +123,11 @@ import type {
 declare const fullApi: ApiFromModules<{
   activity: typeof activity;
   agency: typeof agency;
+  agencyBilling: typeof agencyBilling;
   agencyOps: typeof agencyOps;
+  agencyPlans: typeof agencyPlans;
+  agencyProfile: typeof agencyProfile;
+  agencySettings: typeof agencySettings;
   agencyStaff: typeof agencyStaff;
   agent: typeof agent;
   agentAutomations: typeof agentAutomations;
@@ -163,6 +172,7 @@ declare const fullApi: ApiFromModules<{
   "lib/accessPolicies": typeof lib_accessPolicies;
   "lib/accessTypes": typeof lib_accessTypes;
   "lib/aiGuard": typeof lib_aiGuard;
+  "lib/billingGate": typeof lib_billingGate;
   "lib/checklistTemplates": typeof lib_checklistTemplates;
   "lib/email": typeof lib_email;
   "lib/emailTemplates/activation": typeof lib_emailTemplates_activation;

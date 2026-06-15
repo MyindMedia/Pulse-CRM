@@ -35,6 +35,7 @@ import { StageOnboardingButton } from "@/components/agency/stage-onboarding-butt
 import { FeatureToggles } from "@/components/agency/feature-toggles";
 import { ActivityFeed } from "@/components/agency/activity-feed";
 import { ResendInviteButton } from "@/components/agency/resend-invite-button";
+import { SubaccountBilling } from "@/components/agency/subaccount-billing";
 
 export default function SubaccountDetailPage() {
   const { orgId } = useParams<{ orgId: string }>();
@@ -223,6 +224,11 @@ export default function SubaccountDetailPage() {
           </Card>
         </Section>
       </div>
+
+      {/* Plan & billing - the agency's rebilling of this studio */}
+      <Section title="Plan & billing">
+        <SubaccountBilling orgId={subaccount.orgId} />
+      </Section>
 
       {/* Demo data - fill or wipe sample rows for walkthroughs, and the
           stage-for-onboarding hand-off once a deal closes */}

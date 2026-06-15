@@ -44,7 +44,32 @@ export type SubaccountRow = {
   bookingCount: number;
   collectedCents: number;
   _creationTime: number;
+  billingStatus?: string | null;
+  trialEndsAt?: number | null;
 };
+
+const BILLING_TONE: Record<string, NonNullable<React.ComponentProps<typeof Badge>["tone"]>> = {
+  trialing: "info",
+  active: "positive",
+  past_due: "critical",
+  comped: "gold",
+  canceled: "neutral",
+};
+
+/** Compact billing pill: trial countdown when trialing, else the status. */
+function BillingCell({ status, trialEndsAt }: { status?: string | null; trialEndsAt?: number | null }) {
+  if (!status) return <span className="text-steel/40">—</span>;
+  if (status === "trialing" && trialEndsAt) {
+    const days = Math.max(0, Math.ceil((trialEndsAt - Date.now()) / 86_400_000));
+    return <Badge tone="info">{days === 0 ? "Trial ends today" : `Trial · ${days}d`}</Badge>;
+  }
+  const label =
+    status === "past_due" ? "Past due"
+    : status === "comped" ? "Free"
+    : status === "active" ? "Active"
+    : status === "canceled" ? "Canceled" : status;
+  return <Badge tone={BILLING_TONE[status] ?? "neutral"}>{label}</Badge>;
+}
 
 /** Shared row-action menu - reused on the list and detail pages. */
 export function SubaccountActions({
@@ -135,6 +160,7 @@ export function SubaccountTable({ rows }: { rows: SubaccountRow[] }) {
           <TH>Studio</TH>
           <TH>Plan</TH>
           <TH>Status</TH>
+          <TH>Billing</TH>
           <TH className="text-right">Rooms</TH>
           <TH className="text-right">Bookings</TH>
           <TH className="text-right">Collected</TH>
@@ -179,6 +205,9 @@ export function SubaccountTable({ rows }: { rows: SubaccountRow[] }) {
               <Badge tone={STATUS_TONE[row.status]} dot>
                 {STATUS_LABEL[row.status]}
               </Badge>
+            </TD>
+            <TD>
+              <BillingCell status={row.billingStatus} trialEndsAt={row.trialEndsAt} />
             </TD>
             <TD className="text-right font-meta text-steel">{row.roomCount}</TD>
             <TD className="text-right font-meta text-steel">{row.bookingCount}</TD>

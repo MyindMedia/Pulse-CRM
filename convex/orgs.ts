@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import { currentOrg, currentActor } from "./lib/tenant";
 import { US_STATES, findState } from "./lib/usTaxRates";
 import { meterStorageUpload } from "./usage";
+import { evaluateBillingGate, effectivePriceCents } from "./lib/billingGate";
 
 /** Internal: every active, non-demo studio subaccount's orgId. The cron
  * fan-outs (weekly briefing, rate-cut sweep, ops-brain scan) iterate this
@@ -24,6 +25,21 @@ export const listActiveOrgIds = internalQuery({
    booking-page theming) lives here and flows into the app + booking site. */
 
 /** Shape an org doc into the branding payload the UI consumes. */
+async function billingOf(ctx: QueryCtx, org: Doc<"orgs"> | null) {
+  if (!org || !org.agencyPlanId || !org.billingStatus) return null;
+  const plan = await ctx.db.get(org.agencyPlanId);
+  const gate = evaluateBillingGate(org, plan, Date.now());
+  return {
+    status: org.billingStatus,
+    planName: plan?.name ?? null,
+    trialEndsAt: org.trialEndsAt ?? null,
+    paymentMethodOnFile: Boolean(org.paymentMethodOnFile),
+    effectivePriceCents: effectivePriceCents(org.priceCentsOverride, plan?.priceCents),
+    billingInterval: plan?.billingInterval ?? "month",
+    ...gate,
+  };
+}
+
 async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
   return {
     orgId,
@@ -51,6 +67,8 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     taxState: org?.taxState ?? null,
     taxRate: org?.taxRate ?? null,
     taxApply: org?.taxApply ?? false,
+    // Agency rebilling state (null for standalone studios with no agency plan).
+    billing: await billingOf(ctx, org),
   };
 }
 
