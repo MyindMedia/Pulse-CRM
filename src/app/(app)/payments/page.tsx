@@ -15,6 +15,7 @@ import { StatusFilter, type StatusFilterValue } from "@/components/payments/stat
 import { InvoiceTable } from "@/components/payments/invoice-table";
 import { CreateInvoiceDialog } from "@/components/payments/create-invoice-dialog";
 import type { InvoiceRow } from "@/components/payments/types";
+import { CapabilityGuard } from "@/components/shell/capability-guard";
 
 function PaymentsView() {
   const router = useRouter();
@@ -116,8 +117,10 @@ function PaymentsView() {
 /* useSearchParams() must sit under a Suspense boundary for static export. */
 export default function PaymentsPage() {
   return (
-    <React.Suspense fallback={null}>
-      <PaymentsView />
-    </React.Suspense>
+    <CapabilityGuard cap="invoices.read">
+      <React.Suspense fallback={null}>
+        <PaymentsView />
+      </React.Suspense>
+    </CapabilityGuard>
   );
 }

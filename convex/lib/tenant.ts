@@ -1,10 +1,22 @@
 import { QueryCtx, MutationCtx } from "../_generated/server";
-import { resolveViewer } from "./access";
+import { resolveViewer, requireCapability } from "./access";
+import type { Capability } from "./accessTypes";
 
 /* The seeded workspace used whenever Clerk auth is not configured. */
 export const DEMO_ORG = "pulse-demo";
 
 type Ctx = QueryCtx | MutationCtx;
+
+/**
+ * Resolve the caller's org but ONLY after confirming they hold `capability`.
+ * Use for capability-gated reads (financials, exec analytics) so a studio
+ * member without the role can't pull the data by calling the query directly.
+ * Throws AccessError when the role lacks the capability.
+ */
+export async function currentOrgWithCapability(ctx: Ctx, capability: Capability): Promise<string> {
+  const viewer = await requireCapability(ctx, capability);
+  return viewer.orgId ?? DEMO_ORG;
+}
 
 /**
  * Resolve the caller's organization. Backed by the Access Engine -

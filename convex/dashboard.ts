@@ -1,5 +1,6 @@
 import { query } from "./_generated/server";
-import { currentOrg } from "./lib/tenant";
+import { resolveViewer } from "./lib/access";
+import { DEMO_ORG } from "./lib/tenant";
 
 const DAY = 86_400_000;
 
@@ -15,7 +16,11 @@ function monthKey(ts: number) {
 export const overview = query({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrg(ctx);
+    const viewer = await resolveViewer(ctx);
+    const orgId = viewer.orgId ?? DEMO_ORG;
+    // Money fields are leadership-only (owner / manager / accountant). Everyone
+    // else gets the operational KPIs with financial figures nulled out.
+    const canSeeFinancials = viewer.capabilities.has("invoices.read");
     const now = Date.now();
     const monthStart = (() => {
       const d = new Date();
@@ -121,19 +126,25 @@ export const overview = query({
     const songsByStage = Object.entries(songDist).map(([stage, count]) => ({ stage, count }));
 
     return {
+      canSeeFinancials,
       kpis: {
-        revenueThisMonth,
-        revenueDelta,
+        revenueThisMonth: canSeeFinancials ? revenueThisMonth : null,
+        revenueDelta: canSeeFinancials ? revenueDelta : null,
         sessionsThisMonth,
-        pipelineValue,
-        outstandingCents: outstanding.reduce((s, i) => s + i.amountCents, 0),
-        overdueCount,
+        pipelineValue: canSeeFinancials ? pipelineValue : null,
+        outstandingCents: canSeeFinancials ? outstanding.reduce((s, i) => s + i.amountCents, 0) : null,
+        overdueCount: canSeeFinancials ? overdueCount : null,
         newLeadsThisWeek,
-        avgSessionValue,
+        avgSessionValue: canSeeFinancials ? avgSessionValue : null,
         activeSongs: songs.filter((s) => s.stage !== "released" && s.stage !== "delivered").length,
         rosterSize: artists.length,
       },
-      charts: { revenueTrend, pipelineByStage, bookingsByService, songsByStage },
+      charts: {
+        revenueTrend: canSeeFinancials ? revenueTrend : [],
+        pipelineByStage,
+        bookingsByService,
+        songsByStage,
+      },
     };
   },
 });

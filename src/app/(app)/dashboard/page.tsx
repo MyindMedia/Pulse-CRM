@@ -88,58 +88,68 @@ export default function DashboardPage() {
         <SkeletonCards cards={6} />
       ) : (
         <div className="rise-stagger grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-          <StatTile
-            label="Revenue · MTD"
-            value={<CountUp to={data.kpis.revenueThisMonth} format={(n) => money(n, { compact: true })} />}
-            icon={DollarSign}
-            delta={data.kpis.revenueDelta}
-            hint="vs last month"
-            accent
-          />
+          {data.canSeeFinancials && (
+            <StatTile
+              label="Revenue · MTD"
+              value={<CountUp to={data.kpis.revenueThisMonth ?? 0} format={(n) => money(n, { compact: true })} />}
+              icon={DollarSign}
+              delta={data.kpis.revenueDelta ?? 0}
+              hint="vs last month"
+              accent
+            />
+          )}
           <StatTile
             label="Sessions · MTD"
             value={<CountUp to={data.kpis.sessionsThisMonth} />}
             icon={CalendarCheck}
           />
-          <StatTile
-            label="Pipeline value"
-            value={<CountUp to={data.kpis.pipelineValue} format={(n) => money(n, { compact: true })} />}
-            icon={KanbanSquare}
-          />
-          <StatTile
-            label="Outstanding"
-            value={<CountUp to={data.kpis.outstandingCents} format={(n) => money(n, { compact: true })} />}
-            icon={AlertCircle}
-            hint={data.kpis.overdueCount ? `${data.kpis.overdueCount} overdue` : "all current"}
-          />
+          {data.canSeeFinancials && (
+            <StatTile
+              label="Pipeline value"
+              value={<CountUp to={data.kpis.pipelineValue ?? 0} format={(n) => money(n, { compact: true })} />}
+              icon={KanbanSquare}
+            />
+          )}
+          {data.canSeeFinancials && (
+            <StatTile
+              label="Outstanding"
+              value={<CountUp to={data.kpis.outstandingCents ?? 0} format={(n) => money(n, { compact: true })} />}
+              icon={AlertCircle}
+              hint={data.kpis.overdueCount ? `${data.kpis.overdueCount} overdue` : "all current"}
+            />
+          )}
           <StatTile
             label="New leads · 7d"
             value={<CountUp to={data.kpis.newLeadsThisWeek} />}
             icon={UserPlus}
           />
-          <StatTile
-            label="Avg session"
-            value={<CountUp to={data.kpis.avgSessionValue} format={(n) => money(n, { compact: true })} />}
-            icon={Gauge}
-          />
+          {data.canSeeFinancials && (
+            <StatTile
+              label="Avg session"
+              value={<CountUp to={data.kpis.avgSessionValue ?? 0} format={(n) => money(n, { compact: true })} />}
+              icon={Gauge}
+            />
+          )}
         </div>
       )}
 
       {/* Revenue + insights */}
       <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>Revenue - last 12 months</CardTitle>
-            <Badge tone="gold">Collected</Badge>
-          </CardHeader>
-          <CardContent>
-            {!data ? (
-              <Skeleton className="h-[200px] w-full" />
-            ) : (
-              <TrendArea data={data.charts.revenueTrend} xKey="month" yKey="revenue" />
-            )}
-          </CardContent>
-        </Card>
+        {(!data || data.canSeeFinancials) && (
+          <Card className="lg:col-span-2">
+            <CardHeader className="flex-row items-center justify-between">
+              <CardTitle>Revenue - last 12 months</CardTitle>
+              <Badge tone="gold">Collected</Badge>
+            </CardHeader>
+            <CardContent>
+              {!data ? (
+                <Skeleton className="h-[200px] w-full" />
+              ) : (
+                <TrendArea data={data.charts.revenueTrend} xKey="month" yKey="revenue" />
+              )}
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader className="flex-row items-center justify-between">

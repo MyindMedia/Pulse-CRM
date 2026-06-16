@@ -9,6 +9,7 @@ import { NoShowRiskReport } from "@/components/reports/no-show-risk";
 import { LeadSourceRoiReport } from "@/components/reports/lead-source-roi";
 import { StaffingReport } from "@/components/reports/staffing";
 import { AtRiskSessionsReport, PricingRecommendationsReport } from "@/components/reports/predictive-insights";
+import { CapabilityGuard } from "@/components/shell/capability-guard";
 
 const TABS = [
   { value: "aging", label: "Aging" },
@@ -21,6 +22,14 @@ const TABS = [
 ];
 
 export default function ReportsPage() {
+  return (
+    <CapabilityGuard cap="insights.read">
+      <ReportsView />
+    </CapabilityGuard>
+  );
+}
+
+function ReportsView() {
   return (
     <div className="space-y-7">
       <PageHeader

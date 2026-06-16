@@ -108,12 +108,12 @@ describe("agencyPlans + agencyBilling - integration", () => {
     return t.withIdentity({ subject: "u_owner", name: "Owner", orgId: "org_ag", orgType: "agency" } as never);
   }
 
-  it("seedStarter creates free-forever + 1-year-free packages for all three tiers", async () => {
+  it("seedStarter creates free-forever + 30-day + 1-year-free packages for all three tiers", async () => {
     const owner = await seed();
     await owner.mutation(api.agencyPlans.seedStarter, {});
     const plans = await owner.query(api.agencyPlans.list, {});
-    // Solo / Studio / Label, each with a Free Forever and a 1 Year Free package.
-    expect(plans.length).toBe(6);
+    // Solo / Studio / Label, each with a Free Forever, a 30 Day Free, and a 1 Year Free package.
+    expect(plans.length).toBe(9);
 
     // Free-forever packages are comped-style: $0, not a promo, no card, no end date.
     const forever = plans.filter((p) => p.name.includes("Free Forever"));
@@ -123,6 +123,16 @@ describe("agencyPlans + agencyBilling - integration", () => {
       expect(p.isPromo).toBe(false);
       expect(p.trialDays).toBe(0);
       expect(p.requireCardAfterTrial).toBe(false);
+    }
+
+    // 30-day-free packages: 30-day promo trial, card required, tier price after.
+    const thirtyDay = plans.filter((p) => p.name.includes("30 Day Free"));
+    expect(thirtyDay.length).toBe(3);
+    for (const p of thirtyDay) {
+      expect(p.priceCents).toBeGreaterThan(0);
+      expect(p.isPromo).toBe(true);
+      expect(p.trialDays).toBe(30);
+      expect(p.requireCardAfterTrial).toBe(true);
     }
 
     // 1-year-free packages: 365-day promo trial, card required, tier price after.

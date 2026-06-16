@@ -150,7 +150,8 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "equipment.read",
     "grants.issue",
     "grants.revoke.own",
-    "insights.read",
+    // No "insights.read" - exec/revenue analytics are leadership-only
+    // (owner / manager / accountant). Engineers see operations, not the books.
     "activity.read",
   ],
   assistant_engineer: [
@@ -170,7 +171,8 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "deliverables.read",
     "splitsheet.read",
     "artists.read", "artists.edit",
-    "invoices.read",
+    // No "invoices.read" - financial visibility is leadership-only
+    // (owner / manager / accountant). AR handles relationships, not the books.
     "grants.issue",
     "grants.revoke.own",
     "licenses.read", "licenses.edit",
@@ -211,6 +213,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "invoices.read", "invoices.send",
     "finance.refund",
     "licenses.read", "licenses.edit",
+    "insights.read",   // finance role sees revenue analytics / Reports
     "activity.read",
   ],
 };

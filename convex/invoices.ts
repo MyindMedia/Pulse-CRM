@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { currentOrg } from "./lib/tenant";
+import { currentOrgWithCapability } from "./lib/tenant";
 import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
 
@@ -55,7 +55,7 @@ function deriveCategory(
 export const list = query({
   args: { status: v.optional(statusV) },
   handler: async (ctx, { status }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "invoices.read");
     const rows = await ctx.db
       .query("invoices")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -89,7 +89,7 @@ export const list = query({
 export const get = query({
   args: { id: v.id("invoices") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "invoices.read");
     const inv = await ctx.db.get(id);
     if (!inv || inv.orgId !== orgId) return null;
     const [artist, song, session] = await Promise.all([
@@ -113,7 +113,7 @@ export const get = query({
 export const summary = query({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "invoices.read");
     const rows = await ctx.db
       .query("invoices")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -151,7 +151,7 @@ export const create = mutation({
     dueDate: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
     const artist = await ctx.db.get(args.artistId);
     if (!artist || artist.orgId !== orgId) throw new Error("Artist not found");
     const amountCents = args.lineItems.reduce((s, li) => s + li.amountCents, 0);
@@ -182,7 +182,7 @@ export const create = mutation({
 export const setStatus = mutation({
   args: { id: v.id("invoices"), status: statusV },
   handler: async (ctx, { id, status }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
     const inv = await ctx.db.get(id);
     if (!inv || inv.orgId !== orgId) throw new Error("Not found");
 
@@ -255,7 +255,7 @@ export const setStatus = mutation({
 export const remove = mutation({
   args: { id: v.id("invoices") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
     const inv = await ctx.db.get(id);
     if (!inv || inv.orgId !== orgId) throw new Error("Not found");
     await ctx.db.delete(id);

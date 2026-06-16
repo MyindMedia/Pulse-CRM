@@ -19,6 +19,7 @@ import { ExportPanel } from "@/components/settings/export-panel";
 import { MembershipsPanel } from "@/components/settings/memberships-panel";
 import { InventoryImportPanel } from "@/components/settings/inventory-import-panel";
 import type { Org } from "@/components/settings/types";
+import { CapabilityGuard } from "@/components/shell/capability-guard";
 
 /** Shimmer block while the org record loads. */
 function SettingsSkeleton() {
@@ -31,6 +32,14 @@ function SettingsSkeleton() {
 }
 
 export default function SettingsPage() {
+  return (
+    <CapabilityGuard cap="branding.edit" title="Settings are limited to leadership">
+      <SettingsView />
+    </CapabilityGuard>
+  );
+}
+
+function SettingsView() {
   const org = useQuery(api.orgs.current) as Org | undefined;
 
   return (

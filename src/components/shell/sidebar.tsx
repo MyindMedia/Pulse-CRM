@@ -26,6 +26,7 @@ import { api } from "@convex/_generated/api";
 import { Building2, GripVertical } from "lucide-react";
 import { NAV, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/utils";
+import { useCapabilities } from "@/lib/use-capabilities";
 import { PulseLogo } from "@/components/brand/pulse-logo";
 
 /* The Pulse wordmark - the official gold pulse glyph + "PULSE" lockup.
@@ -119,13 +120,20 @@ function SortableNavItem({
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { user } = useUser();
-  // Hide nav features the agency has disabled for this sub-account.
+  const { can, loaded: capsLoaded } = useCapabilities();
+  // Hide nav features the agency has disabled for this sub-account, and items
+  // the viewer's role can't access (financials/exec/settings). Capability-gated
+  // items stay hidden until caps load so a lower tier never sees them flash.
   const org = useQuery(api.orgs.current);
   const disabledFeatures = org?.disabledFeatures;
   const items = React.useMemo(() => {
     const disabled = new Set(disabledFeatures ?? []);
-    return NAV.filter((item) => !item.feature || !disabled.has(item.feature));
-  }, [disabledFeatures]);
+    return NAV.filter((item) => {
+      if (item.feature && disabled.has(item.feature)) return false;
+      if (item.capability && (!capsLoaded || !can(item.capability))) return false;
+      return true;
+    });
+  }, [disabledFeatures, can, capsLoaded]);
 
   // Per-user nav order, persisted in localStorage. Null until hydrated so the
   // first paint matches the server (default NAV order) and avoids a mismatch.

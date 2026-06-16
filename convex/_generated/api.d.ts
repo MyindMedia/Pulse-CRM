@@ -8,6 +8,7 @@
  * @module
  */
 
+import type * as access from "../access.js";
 import type * as activity from "../activity.js";
 import type * as agency from "../agency.js";
 import type * as agencyBilling from "../agencyBilling.js";
@@ -121,6 +122,7 @@ import type {
 } from "convex/server";
 
 declare const fullApi: ApiFromModules<{
+  access: typeof access;
   activity: typeof activity;
   agency: typeof agency;
   agencyBilling: typeof agencyBilling;

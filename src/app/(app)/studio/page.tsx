@@ -7,6 +7,7 @@ import { CircleCheck, DoorOpen, PlugZap, Plus, Users, UserPlus, Wrench } from "l
 import { PageHeader, Section } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { CountUp } from "@/components/shell/app-motion";
+import { useCapabilities } from "@/lib/use-capabilities";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Skeleton, SkeletonCards } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
@@ -40,6 +41,7 @@ function StudioRoomCard({ room }: { room: RoomItem }) {
 export default function StudioPage() {
   const rooms = useQuery(api.rooms.list) as RoomItem[] | undefined;
   const members = useQuery(api.members.list) as TeamMember[] | undefined;
+  const { can } = useCapabilities();
 
   const [addRoomOpen, setAddRoomOpen] = React.useState(false);
   const [addMemberOpen, setAddMemberOpen] = React.useState(false);
@@ -61,14 +63,18 @@ export default function StudioPage() {
         description="Every room and the people who run them - the physical backbone behind the catalog. Gear lives in Inventory."
         actions={
           <>
-            <Button variant="outline" onClick={() => setAddMemberOpen(true)}>
-              <UserPlus className="size-4" />
-              Add team member
-            </Button>
-            <Button onClick={() => setAddRoomOpen(true)}>
-              <Plus className="size-4" />
-              Add room
-            </Button>
+            {can("members.invite") && (
+              <Button variant="outline" onClick={() => setAddMemberOpen(true)}>
+                <UserPlus className="size-4" />
+                Add team member
+              </Button>
+            )}
+            {can("rooms.edit") && (
+              <Button onClick={() => setAddRoomOpen(true)}>
+                <Plus className="size-4" />
+                Add room
+              </Button>
+            )}
           </>
         }
       />
@@ -129,10 +135,12 @@ export default function StudioPage() {
             title="No rooms yet"
             description="Add the studio's bookable spaces so sessions can run against real rooms. Install gear into them from the Inventory page."
             action={
-              <Button onClick={() => setAddRoomOpen(true)}>
-                <Plus className="size-4" />
-                Add room
-              </Button>
+              can("rooms.edit") ? (
+                <Button onClick={() => setAddRoomOpen(true)}>
+                  <Plus className="size-4" />
+                  Add room
+                </Button>
+              ) : undefined
             }
           />
         ) : (
@@ -163,10 +171,12 @@ export default function StudioPage() {
             title="No team members yet"
             description="Add the engineers, managers and owners who run the studio. Their role sets what they can reach."
             action={
-              <Button onClick={() => setAddMemberOpen(true)}>
-                <UserPlus className="size-4" />
-                Add team member
-              </Button>
+              can("members.invite") ? (
+                <Button onClick={() => setAddMemberOpen(true)}>
+                  <UserPlus className="size-4" />
+                  Add team member
+                </Button>
+              ) : undefined
             }
           />
         ) : (

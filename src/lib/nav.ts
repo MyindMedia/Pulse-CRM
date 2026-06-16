@@ -28,6 +28,9 @@ export type NavItem = {
   blurb: string;
   /** Toggleable feature key (src/lib/features.ts). Omitted = always shown. */
   feature?: string;
+  /** Capability required to see this item. Omitted = visible to every role.
+      Mirrors the server policy; the page/query still enforces on its own. */
+  capability?: string;
 };
 
 /* The primary navigation. Songs is listed first under Dashboard because the
@@ -43,14 +46,14 @@ export const NAV: NavItem[] = [
   { label: "Calendar", href: "/calendar", icon: CalendarDays, blurb: "Sessions and room bookings", feature: "calendar" },
   { label: "Schedule", href: "/schedule", icon: CalendarClock, blurb: "Staff shifts - who's working, in which room", feature: "schedule" },
   { label: "Bookings", href: "/bookings", icon: Ticket, blurb: "Online bookings, deposits and holds", feature: "bookings" },
-  { label: "Payments", href: "/payments", icon: Receipt, blurb: "Invoices and cash flow", feature: "payments" },
-  { label: "Reports", href: "/reports", icon: BarChart3, blurb: "Revenue command center - where money leaks", feature: "reports" },
+  { label: "Payments", href: "/payments", icon: Receipt, blurb: "Invoices and cash flow", feature: "payments", capability: "invoices.read" },
+  { label: "Reports", href: "/reports", icon: BarChart3, blurb: "Revenue command center - where money leaks", feature: "reports", capability: "insights.read" },
   { label: "Releases", href: "/releases", icon: Rocket, blurb: "Rollout campaigns", feature: "releases" },
   { label: "Licensing", href: "/licensing", icon: ScrollText, blurb: "Sync placements and beat licenses", feature: "licensing" },
   { label: "Studio", href: "/studio", icon: SlidersHorizontal, blurb: "Rooms and the team", feature: "studio" },
   { label: "Inventory", href: "/inventory", icon: Boxes, blurb: "Equipment assets and their value", feature: "inventory" },
   { label: "Software", href: "/software", icon: AppWindow, blurb: "DAWs, plugins and license management", feature: "software" },
-  { label: "Settings", href: "/settings", icon: Settings, blurb: "Workspace configuration" },
+  { label: "Settings", href: "/settings", icon: Settings, blurb: "Workspace configuration", capability: "branding.edit" },
 ];
 
 /** Resolve the nav item whose route is active for a given pathname. */

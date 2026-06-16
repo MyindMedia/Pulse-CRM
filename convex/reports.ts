@@ -1,5 +1,5 @@
 import { query } from "./_generated/server";
-import { currentOrg } from "./lib/tenant";
+import { currentOrgWithCapability } from "./lib/tenant";
 
 /* ============================================================
    Revenue Command Center - read-only, org-scoped reporting.
@@ -25,7 +25,7 @@ function sessionBalance(s: { rateCents: number; amountPaidCents?: number }) {
 export const unpaidAging = query({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "insights.read");
     const now = Date.now();
 
     const [artists, sessions] = await Promise.all([
@@ -101,7 +101,7 @@ const BOOKABLE_HOURS_PER_DAY = 12;
 export const roomUtilization = query({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "insights.read");
     const now = Date.now();
     const windowStart = now - UTIL_WINDOW_DAYS * DAY;
     const availableHours = UTIL_WINDOW_DAYS * BOOKABLE_HOURS_PER_DAY;
@@ -163,7 +163,7 @@ const DORMANT_MIN_DAYS = 60;
 export const dormantClients = query({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "insights.read");
     const now = Date.now();
 
     const [artists, sessions] = await Promise.all([
@@ -223,7 +223,7 @@ const PER_NO_SHOW = 20;
 export const noShowRisk = query({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "insights.read");
 
     const [artists, sessions] = await Promise.all([
       ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect(),
@@ -280,7 +280,7 @@ const UNATTRIBUTED = "Unattributed";
 export const leadSourceRoi = query({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "insights.read");
 
     const [artists, opportunities] = await Promise.all([
       ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect(),

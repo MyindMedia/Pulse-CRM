@@ -1,7 +1,7 @@
 import { query, mutation, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
-import { currentOrg } from "./lib/tenant";
+import { currentOrgWithCapability } from "./lib/tenant";
 import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
 
@@ -31,7 +31,7 @@ export const forSession = query({
 export const recent = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, { limit }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "invoices.read");
     const rows = await ctx.db
       .query("payments")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -162,7 +162,7 @@ export const record = mutation({
     if (!identity) throw new Error("Sign in to record a payment.");
     const session = await ctx.db.get(sessionId);
     if (!session) throw new Error("Booking not found.");
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
     if (session.orgId !== orgId) {
       throw new Error("This booking belongs to a different studio.");
     }

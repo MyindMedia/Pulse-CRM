@@ -65,6 +65,35 @@ describe("access-policies", () => {
     expect(STUDIO_ROLE_CAPABILITIES.engineer).not.toContain("splitsheet.sign");
   });
 
+  // Financial + exec visibility is leadership-only: owner / manager / accountant.
+  it("financial + exec data is leadership-only", () => {
+    // Only owner, manager, accountant may read invoices (the money).
+    for (const role of ["engineer", "assistant_engineer", "artist_relations", "producer", "intern"] as const) {
+      expect(STUDIO_ROLE_CAPABILITIES[role]).not.toContain("invoices.read");
+      expect(STUDIO_ROLE_CAPABILITIES[role]).not.toContain("finance.refund");
+    }
+    for (const role of ["owner", "manager", "accountant"] as const) {
+      expect(STUDIO_ROLE_CAPABILITIES[role]).toContain("invoices.read");
+    }
+    // Exec analytics (Reports / insights) follow the same leadership rule.
+    expect(STUDIO_ROLE_CAPABILITIES.engineer).not.toContain("insights.read");
+    expect(STUDIO_ROLE_CAPABILITIES.artist_relations).not.toContain("insights.read");
+    for (const role of ["owner", "manager", "accountant"] as const) {
+      expect(STUDIO_ROLE_CAPABILITIES[role]).toContain("insights.read");
+    }
+  });
+
+  // Inviting / removing teammates is locked to owner + manager (remove = owner only).
+  it("only owner and manager can invite teammates", () => {
+    expect(STUDIO_ROLE_CAPABILITIES.owner).toContain("members.invite");
+    expect(STUDIO_ROLE_CAPABILITIES.manager).toContain("members.invite");
+    for (const role of ["engineer", "assistant_engineer", "artist_relations", "producer", "intern", "accountant"] as const) {
+      expect(STUDIO_ROLE_CAPABILITIES[role]).not.toContain("members.invite");
+    }
+    expect(STUDIO_ROLE_CAPABILITIES.owner).toContain("members.remove");
+    expect(STUDIO_ROLE_CAPABILITIES.manager).not.toContain("members.remove");
+  });
+
   it("guest session scope is read-only", () => {
     for (const cap of GUEST_SCOPE_CAPABILITIES.session) {
       expect(cap.endsWith(".read")).toBe(true);
