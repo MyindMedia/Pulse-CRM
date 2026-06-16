@@ -5,9 +5,10 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
-import { Gift, Pencil, Plus, RotateCcw, Sparkles, Star, Tag, Trash2 } from "lucide-react";
+import { Gift, LayoutGrid, List, Pencil, Plus, RotateCcw, Sparkles, Star, Tag, Trash2 } from "lucide-react";
 import { PageHeader, Section } from "@/components/ui/page";
 import { Card, CardContent } from "@/components/ui/card";
+import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
@@ -69,6 +70,7 @@ export default function AgencyPlansPage() {
   const [busy, setBusy] = React.useState(false);
   const [resetOpen, setResetOpen] = React.useState(false);
   const [busyReset, setBusyReset] = React.useState(false);
+  const [view, setView] = React.useState<"cards" | "list">("cards");
 
   async function doReset() {
     setBusyReset(true);
@@ -76,8 +78,8 @@ export default function AgencyPlansPage() {
       const r = await reseedStarter({});
       toast.success(
         r.studiosMoved > 0
-          ? `Reset to 6 starter plans. ${r.studiosMoved} studio${r.studiosMoved === 1 ? "" : "s"} moved to Studio: Free Forever.`
-          : "Reset to 6 starter plans.",
+          ? `Reset to ${r.seeded} starter plans. ${r.studiosMoved} studio${r.studiosMoved === 1 ? "" : "s"} moved to Studio: Free Forever.`
+          : `Reset to ${r.seeded} starter plans.`,
       );
       setResetOpen(false);
     } catch (err) {
@@ -155,12 +157,78 @@ export default function AgencyPlansPage() {
     }
   }
 
+  function renderActions(p: PlanRow) {
+    return (
+      <>
+        <Button size="sm" variant="ghost" onClick={() => openEdit(p)}>
+          <Pencil className="size-3.5" /> Edit
+        </Button>
+        {!p.isDefault && p.active && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => void guarded(() => setDefault({ planId: p._id }), `${p.name} is now the default.`)}
+          >
+            Make default
+          </Button>
+        )}
+        <Button
+          size="sm"
+          variant="ghost"
+          onClick={() =>
+            void guarded(
+              () => setActive({ planId: p._id, active: !p.active }),
+              p.active ? "Plan deactivated." : "Plan reactivated.",
+            )
+          }
+        >
+          {p.active ? "Deactivate" : "Reactivate"}
+        </Button>
+        {p.assignedCount === 0 && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="text-critical hover:text-critical"
+            onClick={() => void guarded(() => remove({ planId: p._id }), "Plan deleted.")}
+          >
+            <Trash2 className="size-3.5" />
+          </Button>
+        )}
+      </>
+    );
+  }
+
+  const viewToggle = (
+    <div className="flex items-center gap-1 rounded-md border border-graphite/50 bg-coal-2 p-0.5">
+      <Button
+        size="sm"
+        variant={view === "cards" ? "secondary" : "ghost"}
+        className="px-2"
+        aria-pressed={view === "cards"}
+        aria-label="Card view"
+        onClick={() => setView("cards")}
+      >
+        <LayoutGrid className="size-4" />
+      </Button>
+      <Button
+        size="sm"
+        variant={view === "list" ? "secondary" : "ghost"}
+        className="px-2"
+        aria-pressed={view === "list"}
+        aria-label="List view"
+        onClick={() => setView("list")}
+      >
+        <List className="size-4" />
+      </Button>
+    </div>
+  );
+
   return (
     <div className="space-y-8">
       <PageHeader
         overline="Billing"
         title="Plans"
-        description="The price book you sell to your studios. Seed first-adopter packages (free forever or one year free), set paid tiers, trial lengths, and which plan new studios start on."
+        description="The price book you sell to your studios. Seed first-adopter packages (free forever, 30 days, or one year free), set paid tiers, trial lengths, and which plan new studios start on."
         actions={
           <div className="flex flex-wrap gap-2">
             {plans && plans.length > 0 && (
@@ -181,7 +249,7 @@ export default function AgencyPlansPage() {
         <EmptyState
           icon={Tag}
           title="No plans yet"
-          description="Create your price book. Seed first-adopter packages for every tier (free forever and one year free), then assign studios to them."
+          description="Create your price book. Seed first-adopter packages for every tier (free forever, 30 days, and one year free), then assign studios to them."
           action={
             <div className="flex gap-2">
               <Button
@@ -197,15 +265,81 @@ export default function AgencyPlansPage() {
           }
         />
       ) : (
-        <Section title="Your plans">
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {plans.map((p) => (
-              <Card key={p._id} className={p.isDefault ? "border-gold/40" : undefined}>
-                <CardContent className="space-y-4 pt-5">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 space-y-1">
+        <Section title="Your plans" trailing={viewToggle}>
+          {view === "cards" ? (
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {plans.map((p) => (
+                <Card key={p._id} className={p.isDefault ? "border-gold/40" : undefined}>
+                  <CardContent className="space-y-4 pt-5">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0 space-y-1">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          <h3 className="font-grotesk text-base font-semibold text-bone">{p.name}</h3>
+                          {p.isPromo && (
+                            <Badge tone="gold">
+                              <Gift className="mr-1 size-3" /> Promo
+                            </Badge>
+                          )}
+                          {p.isDefault && (
+                            <Badge tone="info">
+                              <Star className="mr-1 size-3" /> Default
+                            </Badge>
+                          )}
+                          {!p.active && <Badge tone="neutral">Inactive</Badge>}
+                        </div>
+                        {p.description && <p className="text-xs text-steel">{p.description}</p>}
+                      </div>
+                    </div>
+
+                    <div className="flex items-baseline gap-1">
+                      <span className="chrome-display text-2xl text-bone">
+                        {p.priceCents === 0 ? "Free" : money(p.priceCents)}
+                      </span>
+                      {p.priceCents !== 0 && (
+                        <span className="text-sm text-steel">/{p.billingInterval}</span>
+                      )}
+                    </div>
+
+                    <dl className="space-y-1 text-xs text-steel">
+                      <div className="flex justify-between">
+                        <dt>Trial</dt>
+                        <dd className="text-bone">{p.trialDays > 0 ? `${p.trialDays} days` : "None"}</dd>
+                      </div>
+                      <div className="flex justify-between">
+                        <dt>Card after trial</dt>
+                        <dd className="text-bone">{p.requireCardAfterTrial ? "Required" : "Optional"}</dd>
+                      </div>
+                      <div className="flex justify-between">
+                        <dt>Studios on plan</dt>
+                        <dd className="text-bone">{p.assignedCount}</dd>
+                      </div>
+                    </dl>
+
+                    <div className="flex flex-wrap gap-2 border-t border-graphite/40 pt-3">
+                      {renderActions(p)}
+                    </div>
+                  </CardContent>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Plan</TH>
+                  <TH className="text-right">Price</TH>
+                  <TH>Trial</TH>
+                  <TH>Card after trial</TH>
+                  <TH className="text-right">Studios</TH>
+                  <TH className="text-right">Actions</TH>
+                </TR>
+              </THead>
+              <TBody>
+                {plans.map((p) => (
+                  <TR key={p._id} className={!p.active ? "opacity-60" : undefined}>
+                    <TD>
                       <div className="flex flex-wrap items-center gap-1.5">
-                        <h3 className="font-grotesk text-base font-semibold text-bone">{p.name}</h3>
+                        <span className="font-medium text-bone">{p.name}</span>
                         {p.isPromo && (
                           <Badge tone="gold">
                             <Gift className="mr-1 size-3" /> Promo
@@ -218,74 +352,31 @@ export default function AgencyPlansPage() {
                         )}
                         {!p.active && <Badge tone="neutral">Inactive</Badge>}
                       </div>
-                      {p.description && <p className="text-xs text-steel">{p.description}</p>}
-                    </div>
-                  </div>
-
-                  <div className="flex items-baseline gap-1">
-                    <span className="chrome-display text-2xl text-bone">
-                      {p.priceCents === 0 ? "Free" : money(p.priceCents)}
-                    </span>
-                    {p.priceCents !== 0 && (
-                      <span className="text-sm text-steel">/{p.billingInterval}</span>
-                    )}
-                  </div>
-
-                  <dl className="space-y-1 text-xs text-steel">
-                    <div className="flex justify-between">
-                      <dt>Trial</dt>
-                      <dd className="text-bone">{p.trialDays > 0 ? `${p.trialDays} days` : "None"}</dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt>Card after trial</dt>
-                      <dd className="text-bone">{p.requireCardAfterTrial ? "Required" : "Optional"}</dd>
-                    </div>
-                    <div className="flex justify-between">
-                      <dt>Studios on plan</dt>
-                      <dd className="text-bone">{p.assignedCount}</dd>
-                    </div>
-                  </dl>
-
-                  <div className="flex flex-wrap gap-2 border-t border-graphite/40 pt-3">
-                    <Button size="sm" variant="ghost" onClick={() => openEdit(p)}>
-                      <Pencil className="size-3.5" /> Edit
-                    </Button>
-                    {!p.isDefault && p.active && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => void guarded(() => setDefault({ planId: p._id }), `${p.name} is now the default.`)}
-                      >
-                        Make default
-                      </Button>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() =>
-                        void guarded(
-                          () => setActive({ planId: p._id, active: !p.active }),
-                          p.active ? "Plan deactivated." : "Plan reactivated.",
-                        )
-                      }
-                    >
-                      {p.active ? "Deactivate" : "Reactivate"}
-                    </Button>
-                    {p.assignedCount === 0 && (
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        className="text-critical hover:text-critical"
-                        onClick={() => void guarded(() => remove({ planId: p._id }), "Plan deleted.")}
-                      >
-                        <Trash2 className="size-3.5" />
-                      </Button>
-                    )}
-                  </div>
-                </CardContent>
-              </Card>
-            ))}
-          </div>
+                      {p.description && <p className="mt-0.5 text-xs text-steel">{p.description}</p>}
+                    </TD>
+                    <TD className="text-right whitespace-nowrap">
+                      {p.priceCents === 0 ? (
+                        "Free"
+                      ) : (
+                        <>
+                          {money(p.priceCents)}
+                          <span className="text-steel">/{p.billingInterval}</span>
+                        </>
+                      )}
+                    </TD>
+                    <TD className="whitespace-nowrap text-steel">
+                      {p.trialDays > 0 ? `${p.trialDays} days` : "None"}
+                    </TD>
+                    <TD className="text-steel">{p.requireCardAfterTrial ? "Required" : "Optional"}</TD>
+                    <TD className="text-right">{p.assignedCount}</TD>
+                    <TD>
+                      <div className="flex flex-wrap justify-end gap-1">{renderActions(p)}</div>
+                    </TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          )}
         </Section>
       )}
 
@@ -386,9 +477,9 @@ export default function AgencyPlansPage() {
           <DialogHeader>
             <DialogTitle>Reset to starter plans?</DialogTitle>
             <DialogDescription>
-              This deletes your current plans and rebuilds the 6 first-adopter packages
-              (Free Forever and 1 Year Free for Solo, Studio, and Label). Any studio on an
-              old plan is moved to Studio: Free Forever. This cannot be undone.
+              This deletes your current plans and rebuilds the 9 first-adopter packages
+              (Free Forever, 30 Day Free, and 1 Year Free for Solo, Studio, and Label). Any
+              studio on an old plan is moved to Studio: Free Forever. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogBody>

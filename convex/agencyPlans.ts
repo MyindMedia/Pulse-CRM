@@ -153,21 +153,24 @@ export const remove = mutation({
 });
 
 /* The three first-adopter tiers, mirroring the public pricing page
-   (Solo / Studio / Label). Each seeds two packages:
+   (Solo / Studio / Label). Each seeds three packages:
    - Free Forever: $0, not a promo, no trial -> comped (free with no end date, no card).
-   - 1 Year Free: priced at the tier rate but with a 365-day promo trial and a
-     required card, so studios run free for a full year, then convert to paid. */
+   - 30 Day Free: priced at the tier rate with a 30-day promo trial and a
+     required card, so studios run free for a month, then convert to paid.
+   - 1 Year Free: same but with a 365-day promo trial. */
 const FIRST_ADOPTER_TIERS = [
   {
     tier: "Solo",
     priceCents: 4900,
     forever: "Solo, free forever for early studios. One workspace and the full booking CRM. No card, no expiry.",
+    thirtyDay: "Solo free for 30 days, then $49/mo. Card required up front.",
     yearOne: "Solo free for a full year, then $49/mo. Card required up front.",
   },
   {
     tier: "Studio",
     priceCents: 12900,
     forever: "Studio, free forever for early studios. Unlimited rooms and team scheduling. No card, no expiry.",
+    thirtyDay: "Studio free for 30 days, then $129/mo. Card required up front.",
     yearOne: "Studio free for a full year, then $129/mo. Card required up front.",
     isDefault: true,
   },
@@ -175,6 +178,7 @@ const FIRST_ADOPTER_TIERS = [
     tier: "Label",
     priceCents: 19900,
     forever: "Label, free forever for early studios. Multi-studio dashboard and cross-studio reporting. No card, no expiry.",
+    thirtyDay: "Label free for 30 days, then $199/mo. Card required up front.",
     yearOne: "Label free for a full year, then $199/mo. Card required up front.",
   },
 ];
@@ -205,6 +209,20 @@ async function insertStarterPlans(
       createdAt: now + order++,
     });
     if (t.isDefault) defaultId = freeId;
+    // 30 days free, card required: 30-day promo trial, then the tier price.
+    await ctx.db.insert("agencyPlans", {
+      agencyId,
+      name: `${t.tier}: 30 Day Free`,
+      description: t.thirtyDay,
+      priceCents: t.priceCents,
+      billingInterval: "month",
+      trialDays: 30,
+      requireCardAfterTrial: true,
+      isPromo: true,
+      isDefault: false,
+      active: true,
+      createdAt: now + order++,
+    });
     // 1 year free, card required: 365-day promo trial, then the tier price.
     await ctx.db.insert("agencyPlans", {
       agencyId,
@@ -274,7 +292,7 @@ export const reseedStarter = mutation({
     // Now that nothing points at them, drop the old plans.
     for (const p of oldPlans) await ctx.db.delete(p._id);
 
-    return { replaced: oldPlans.length, seeded: 6, studiosMoved: moved };
+    return { replaced: oldPlans.length, seeded: 9, studiosMoved: moved };
   },
 });
 
