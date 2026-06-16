@@ -1,10 +1,13 @@
 import { query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireCapability } from "./lib/access";
+import { resolveViewer } from "./lib/access";
 
 /* ============================================================
    Audit log read API for the agency console viewer.
-   Only agency_member viewers see anything; everyone else gets [].
+   Only agency_member viewers with audit.read see anything; everyone
+   else (demo / studio / unscoped) gets [] rather than a thrown
+   access error, so the console tab renders an empty state instead
+   of tripping the route error boundary.
    ============================================================ */
 
 export const list = query({
@@ -14,8 +17,10 @@ export const list = query({
     resultFilter: v.optional(v.union(v.literal("allow"), v.literal("deny"))),
   },
   handler: async (ctx, args) => {
-    const viewer = await requireCapability(ctx, "audit.read");
-    if (viewer.kind !== "agency_member") return [];
+    const viewer = await resolveViewer(ctx).catch(() => null);
+    if (!viewer || viewer.kind !== "agency_member" || !viewer.capabilities.has("audit.read")) {
+      return [];
+    }
     const cap = args.limit ?? 200;
     let rows = await ctx.db
       .query("auditEvents")

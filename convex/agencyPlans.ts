@@ -23,8 +23,10 @@ async function agencyIdOf(ctx: QueryCtx | MutationCtx): Promise<string> {
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const viewer = await requireCapability(ctx, "agency.viewAll");
-    if (viewer.kind !== "agency_member") return [];
+    const viewer = await resolveViewer(ctx).catch(() => null);
+    if (!viewer || viewer.kind !== "agency_member" || !viewer.capabilities.has("agency.viewAll")) {
+      return [];
+    }
     const plans = await ctx.db
       .query("agencyPlans")
       .withIndex("by_agency", (q) => q.eq("agencyId", viewer.agencyId))

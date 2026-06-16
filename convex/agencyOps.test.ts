@@ -45,9 +45,12 @@ describe("agencyOps.portfolio", () => {
     expect(board[1].openHigh).toBe(0);
   });
 
-  it("denies a non-agency (studio) viewer", async () => {
+  it("returns an empty portfolio for a non-agency (studio) viewer", async () => {
     await seed();
     // No identity -> demo studio owner, which lacks ops.portfolio.view.
-    await expect(t.query(api.agencyOps.portfolio, {})).rejects.toThrow();
+    // The console tab must degrade gracefully (empty board), not throw and
+    // trip the route error boundary.
+    const board = await t.query(api.agencyOps.portfolio, {});
+    expect(board).toEqual([]);
   });
 });

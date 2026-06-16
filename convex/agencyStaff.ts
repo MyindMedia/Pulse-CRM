@@ -1,6 +1,6 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
-import { requireCapability } from "./lib/access";
+import { requireCapability, resolveViewer } from "./lib/access";
 
 /* ============================================================
    Agency staff CRUD + scope assignment. All mutations gated by
@@ -17,8 +17,10 @@ const agencyRoleV = v.union(
 export const list = query({
   args: {},
   handler: async (ctx) => {
-    const viewer = await requireCapability(ctx, "agency.viewAll");
-    if (viewer.kind !== "agency_member") return [];
+    const viewer = await resolveViewer(ctx).catch(() => null);
+    if (!viewer || viewer.kind !== "agency_member" || !viewer.capabilities.has("agency.viewAll")) {
+      return [];
+    }
     const rows = await ctx.db
       .query("agencyMembers")
       .withIndex("by_agency", (q) => q.eq("agencyId", viewer.agencyId))
@@ -101,7 +103,10 @@ export const remove = mutation({
 export const scopes = query({
   args: { memberId: v.id("agencyMembers") },
   handler: async (ctx, { memberId }) => {
-    await requireCapability(ctx, "agency.viewAll");
+    const viewer = await resolveViewer(ctx).catch(() => null);
+    if (!viewer || viewer.kind !== "agency_member" || !viewer.capabilities.has("agency.viewAll")) {
+      return [];
+    }
     return await ctx.db
       .query("agencyMemberScopes")
       .withIndex("by_member", (q) => q.eq("agencyMemberId", memberId))

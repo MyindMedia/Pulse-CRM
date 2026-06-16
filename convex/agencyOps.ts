@@ -8,14 +8,17 @@
    own agency's subaccounts.
    ============================================================ */
 import { query } from "./_generated/server";
-import { requireCapability } from "./lib/access";
+import { resolveViewer } from "./lib/access";
 
 export const portfolio = query({
   args: {},
   handler: async (ctx) => {
-    const viewer = await requireCapability(ctx, "ops.portfolio.view");
-    if (viewer.kind !== "agency_member") {
-      throw new Error("Portfolio is agency-only");
+    // Degrade gracefully for non-agency viewers (demo / studio / unscoped):
+    // return an empty portfolio so the Autopilot tab renders its empty state
+    // instead of throwing and tripping the route error boundary.
+    const viewer = await resolveViewer(ctx).catch(() => null);
+    if (!viewer || viewer.kind !== "agency_member" || !viewer.capabilities.has("ops.portfolio.view")) {
+      return [];
     }
     const agencyId = viewer.agencyId;
 
