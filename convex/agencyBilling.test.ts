@@ -108,16 +108,38 @@ describe("agencyPlans + agencyBilling - integration", () => {
     return t.withIdentity({ subject: "u_owner", name: "Owner", orgId: "org_ag", orgType: "agency" } as never);
   }
 
-  it("seedStarter creates a free promo default + a paid plan", async () => {
+  it("seedStarter creates free-forever + 1-year-free packages for all three tiers", async () => {
     const owner = await seed();
     await owner.mutation(api.agencyPlans.seedStarter, {});
     const plans = await owner.query(api.agencyPlans.list, {});
-    expect(plans.length).toBe(2);
-    const promo = plans.find((p) => p.isPromo);
-    expect(promo).toBeTruthy();
-    expect(promo!.priceCents).toBe(0);
-    expect(promo!.isDefault).toBe(true);
-    expect(promo!.requireCardAfterTrial).toBe(true);
+    // Solo / Studio / Label, each with a Free Forever and a 1 Year Free package.
+    expect(plans.length).toBe(6);
+
+    // Free-forever packages are comped-style: $0, not a promo, no card, no end date.
+    const forever = plans.filter((p) => p.name.includes("Free Forever"));
+    expect(forever.length).toBe(3);
+    for (const p of forever) {
+      expect(p.priceCents).toBe(0);
+      expect(p.isPromo).toBe(false);
+      expect(p.trialDays).toBe(0);
+      expect(p.requireCardAfterTrial).toBe(false);
+    }
+
+    // 1-year-free packages: 365-day promo trial, card required, tier price after.
+    const yearOne = plans.filter((p) => p.name.includes("1 Year Free"));
+    expect(yearOne.length).toBe(3);
+    for (const p of yearOne) {
+      expect(p.priceCents).toBeGreaterThan(0);
+      expect(p.isPromo).toBe(true);
+      expect(p.trialDays).toBe(365);
+      expect(p.requireCardAfterTrial).toBe(true);
+    }
+
+    // Exactly one default, and it is the Studio free-forever package.
+    const defaults = plans.filter((p) => p.isDefault);
+    expect(defaults.length).toBe(1);
+    expect(defaults[0].name).toBe("Studio: Free Forever");
+    expect(defaults[0].priceCents).toBe(0);
   });
 
   it("only one default at a time", async () => {
@@ -260,5 +282,41 @@ describe("agencyPlans + agencyBilling - integration", () => {
     });
     await owner.mutation(api.agencyBilling.assignPlan, { orgId: "org_sub1", planId: plan });
     await expect(owner.mutation(api.agencyPlans.remove, { planId: plan })).rejects.toThrow();
+  });
+
+  it("update edits the plan's editable fields", async () => {
+    const owner = await seed();
+    const plan = await owner.mutation(api.agencyPlans.create, {
+      name: "Studio", description: "old", priceCents: 9900, billingInterval: "month",
+      trialDays: 14, requireCardAfterTrial: true, isPromo: false,
+    });
+    await owner.mutation(api.agencyPlans.update, {
+      planId: plan,
+      name: "Studio Pro",
+      description: "new",
+      priceCents: 12900,
+      billingInterval: "year",
+      trialDays: 30,
+      requireCardAfterTrial: false,
+      isPromo: true,
+    });
+    const p = (await owner.query(api.agencyPlans.list, {})).find((x) => x._id === plan)!;
+    expect(p.name).toBe("Studio Pro");
+    expect(p.description).toBe("new");
+    expect(p.priceCents).toBe(12900);
+    expect(p.billingInterval).toBe("year");
+    expect(p.trialDays).toBe(30);
+    expect(p.requireCardAfterTrial).toBe(false);
+    expect(p.isPromo).toBe(true);
+  });
+
+  it("update is denied for a non-agency viewer", async () => {
+    const owner = await seed();
+    const plan = await owner.mutation(api.agencyPlans.create, {
+      name: "Studio", priceCents: 9900, billingInterval: "month", trialDays: 0,
+      requireCardAfterTrial: true, isPromo: false,
+    });
+    // No identity -> demo studio owner, which lacks billing.edit.
+    await expect(t.mutation(api.agencyPlans.update, { planId: plan, name: "Hacked" })).rejects.toThrow();
   });
 });

@@ -3,8 +3,9 @@
 import * as React from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
-import { Gift, Plus, Sparkles, Star, Tag, Trash2 } from "lucide-react";
+import { Gift, Pencil, Plus, Sparkles, Star, Tag, Trash2 } from "lucide-react";
 import { PageHeader, Section } from "@/components/ui/page";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,18 +55,48 @@ export default function AgencyPlansPage() {
   const plans = useQuery(api.agencyPlans.list, {});
   const seedStarter = useMutation(api.agencyPlans.seedStarter);
   const create = useMutation(api.agencyPlans.create);
+  const update = useMutation(api.agencyPlans.update);
   const setActive = useMutation(api.agencyPlans.setActive);
   const setDefault = useMutation(api.agencyPlans.setDefault);
   const remove = useMutation(api.agencyPlans.remove);
 
+  type PlanRow = NonNullable<typeof plans>[number];
+
   const [open, setOpen] = React.useState(false);
+  const [editingId, setEditingId] = React.useState<Id<"agencyPlans"> | null>(null);
   const [draft, setDraft] = React.useState<PlanDraft>(EMPTY);
   const [busy, setBusy] = React.useState(false);
+
+  function openCreate() {
+    setEditingId(null);
+    setDraft(EMPTY);
+    setOpen(true);
+  }
+
+  function openEdit(p: PlanRow) {
+    setEditingId(p._id);
+    setDraft({
+      name: p.name,
+      description: p.description ?? "",
+      priceDollars: p.priceCents ? (p.priceCents / 100).toString() : "",
+      billingInterval: p.billingInterval,
+      trialDays: p.trialDays.toString(),
+      requireCardAfterTrial: p.requireCardAfterTrial,
+      isPromo: p.isPromo,
+    });
+    setOpen(true);
+  }
+
+  function closeDialog() {
+    setOpen(false);
+    setEditingId(null);
+    setDraft(EMPTY);
+  }
 
   async function submit() {
     setBusy(true);
     try {
-      await create({
+      const fields = {
         name: draft.name,
         description: draft.description || undefined,
         priceCents: Math.round(parseFloat(draft.priceDollars || "0") * 100),
@@ -73,12 +104,23 @@ export default function AgencyPlansPage() {
         trialDays: parseInt(draft.trialDays || "0", 10),
         requireCardAfterTrial: draft.requireCardAfterTrial,
         isPromo: draft.isPromo,
-      });
-      toast.success("Plan created.");
-      setOpen(false);
-      setDraft(EMPTY);
+      };
+      if (editingId) {
+        await update({ planId: editingId, ...fields });
+        toast.success("Plan updated.");
+      } else {
+        await create(fields);
+        toast.success("Plan created.");
+      }
+      closeDialog();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not create the plan.");
+      toast.error(
+        err instanceof Error
+          ? err.message
+          : editingId
+            ? "Could not update the plan."
+            : "Could not create the plan.",
+      );
     } finally {
       setBusy(false);
     }
@@ -98,9 +140,9 @@ export default function AgencyPlansPage() {
       <PageHeader
         overline="Billing"
         title="Plans"
-        description="The price book you sell to your studios. Set a free first-adopter promo, paid tiers, trial lengths, and which plan new studios start on."
+        description="The price book you sell to your studios. Seed first-adopter packages (free forever or one year free), set paid tiers, trial lengths, and which plan new studios start on."
         actions={
-          <Button onClick={() => setOpen(true)} size="sm">
+          <Button onClick={openCreate} size="sm">
             <Plus className="size-4" /> New plan
           </Button>
         }
@@ -112,7 +154,7 @@ export default function AgencyPlansPage() {
         <EmptyState
           icon={Tag}
           title="No plans yet"
-          description="Create your price book. Start with a free first-adopter promo and a standard paid plan, then assign studios to them."
+          description="Create your price book. Seed first-adopter packages for every tier (free forever and one year free), then assign studios to them."
           action={
             <div className="flex gap-2">
               <Button
@@ -121,7 +163,7 @@ export default function AgencyPlansPage() {
               >
                 <Sparkles className="size-4" /> Create starter plans
               </Button>
-              <Button size="sm" variant="secondary" onClick={() => setOpen(true)}>
+              <Button size="sm" variant="secondary" onClick={openCreate}>
                 <Plus className="size-4" /> New plan
               </Button>
             </div>
@@ -178,6 +220,9 @@ export default function AgencyPlansPage() {
                   </dl>
 
                   <div className="flex flex-wrap gap-2 border-t border-graphite/40 pt-3">
+                    <Button size="sm" variant="ghost" onClick={() => openEdit(p)}>
+                      <Pencil className="size-3.5" /> Edit
+                    </Button>
                     {!p.isDefault && p.active && (
                       <Button
                         size="sm"
@@ -218,10 +263,10 @@ export default function AgencyPlansPage() {
       )}
 
       {/* Create dialog */}
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog open={open} onOpenChange={(o) => (o ? setOpen(true) : closeDialog())}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>New plan</DialogTitle>
+            <DialogTitle>{editingId ? "Edit plan" : "New plan"}</DialogTitle>
             <DialogDescription>A plan your studios are billed on. A free promo = $0 with the promo flag on.</DialogDescription>
           </DialogHeader>
           <DialogBody className="space-y-4">
@@ -295,7 +340,13 @@ export default function AgencyPlansPage() {
             </label>
             <div className="flex justify-end">
               <Button onClick={() => void submit()} disabled={busy || !draft.name.trim()}>
-                {busy ? "Creating…" : "Create plan"}
+                {busy
+                  ? editingId
+                    ? "Saving…"
+                    : "Creating…"
+                  : editingId
+                    ? "Save changes"
+                    : "Create plan"}
               </Button>
             </div>
           </DialogBody>

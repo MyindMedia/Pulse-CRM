@@ -152,7 +152,35 @@ export const remove = mutation({
   },
 });
 
-/** One-tap starter set: a free first-adopter promo + a paid plan. */
+/* The three first-adopter tiers, mirroring the public pricing page
+   (Solo / Studio / Label). Each seeds two packages:
+   - Free Forever: $0, not a promo, no trial -> comped (free with no end date, no card).
+   - 1 Year Free: priced at the tier rate but with a 365-day promo trial and a
+     required card, so studios run free for a full year, then convert to paid. */
+const FIRST_ADOPTER_TIERS = [
+  {
+    tier: "Solo",
+    priceCents: 4900,
+    forever: "Solo, free forever for early studios. One workspace and the full booking CRM. No card, no expiry.",
+    yearOne: "Solo free for a full year, then $49/mo. Card required up front.",
+  },
+  {
+    tier: "Studio",
+    priceCents: 12900,
+    forever: "Studio, free forever for early studios. Unlimited rooms and team scheduling. No card, no expiry.",
+    yearOne: "Studio free for a full year, then $129/mo. Card required up front.",
+    isDefault: true,
+  },
+  {
+    tier: "Label",
+    priceCents: 19900,
+    forever: "Label, free forever for early studios. Multi-studio dashboard and cross-studio reporting. No card, no expiry.",
+    yearOne: "Label free for a full year, then $199/mo. Card required up front.",
+  },
+];
+
+/** One-tap starter set: free-forever and 1-year-free first-adopter packages
+    for every tier (Solo / Studio / Label). */
 export const seedStarter = mutation({
   args: {},
   handler: async (ctx) => {
@@ -164,32 +192,37 @@ export const seedStarter = mutation({
       .first();
     if (existing) throw new Error("You already have plans. Add one with “New plan”.");
     const now = Date.now();
-    await ctx.db.insert("agencyPlans", {
-      agencyId,
-      name: "First Adopter",
-      description: "Free for early studios. 30-day window, then add a card to keep going.",
-      priceCents: 0,
-      billingInterval: "month",
-      trialDays: 30,
-      requireCardAfterTrial: true,
-      isPromo: true,
-      isDefault: true,
-      active: true,
-      createdAt: now,
-    });
-    await ctx.db.insert("agencyPlans", {
-      agencyId,
-      name: "Studio",
-      description: "The standard monthly plan for your studios.",
-      priceCents: 9900,
-      billingInterval: "month",
-      trialDays: 14,
-      requireCardAfterTrial: true,
-      isPromo: false,
-      isDefault: false,
-      active: true,
-      createdAt: now + 1,
-    });
+    let order = 0;
+    for (const t of FIRST_ADOPTER_TIERS) {
+      // Free forever: $0, not a promo -> comped state, no card, no end date.
+      await ctx.db.insert("agencyPlans", {
+        agencyId,
+        name: `${t.tier}: Free Forever`,
+        description: t.forever,
+        priceCents: 0,
+        billingInterval: "month",
+        trialDays: 0,
+        requireCardAfterTrial: false,
+        isPromo: false,
+        isDefault: Boolean(t.isDefault),
+        active: true,
+        createdAt: now + order++,
+      });
+      // 1 year free, card required: 365-day promo trial, then the tier price.
+      await ctx.db.insert("agencyPlans", {
+        agencyId,
+        name: `${t.tier}: 1 Year Free`,
+        description: t.yearOne,
+        priceCents: t.priceCents,
+        billingInterval: "month",
+        trialDays: 365,
+        requireCardAfterTrial: true,
+        isPromo: true,
+        isDefault: false,
+        active: true,
+        createdAt: now + order++,
+      });
+    }
   },
 });
 
