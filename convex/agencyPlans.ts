@@ -179,8 +179,53 @@ const FIRST_ADOPTER_TIERS = [
   },
 ];
 
+/** Inserts the 6 first-adopter packages (Free Forever + 1 Year Free for every
+    tier) for an agency and returns the id of the one marked default
+    (Studio: Free Forever). Shared by seedStarter / reseedStarter. */
+async function insertStarterPlans(
+  ctx: MutationCtx,
+  agencyId: string,
+): Promise<Id<"agencyPlans">> {
+  const now = Date.now();
+  let order = 0;
+  let defaultId: Id<"agencyPlans"> | null = null;
+  for (const t of FIRST_ADOPTER_TIERS) {
+    // Free forever: $0, not a promo -> comped state, no card, no end date.
+    const freeId = await ctx.db.insert("agencyPlans", {
+      agencyId,
+      name: `${t.tier}: Free Forever`,
+      description: t.forever,
+      priceCents: 0,
+      billingInterval: "month",
+      trialDays: 0,
+      requireCardAfterTrial: false,
+      isPromo: false,
+      isDefault: Boolean(t.isDefault),
+      active: true,
+      createdAt: now + order++,
+    });
+    if (t.isDefault) defaultId = freeId;
+    // 1 year free, card required: 365-day promo trial, then the tier price.
+    await ctx.db.insert("agencyPlans", {
+      agencyId,
+      name: `${t.tier}: 1 Year Free`,
+      description: t.yearOne,
+      priceCents: t.priceCents,
+      billingInterval: "month",
+      trialDays: 365,
+      requireCardAfterTrial: true,
+      isPromo: true,
+      isDefault: false,
+      active: true,
+      createdAt: now + order++,
+    });
+  }
+  if (!defaultId) throw new Error("Starter set has no default tier.");
+  return defaultId;
+}
+
 /** One-tap starter set: free-forever and 1-year-free first-adopter packages
-    for every tier (Solo / Studio / Label). */
+    for every tier (Solo / Studio / Label). Only for a fresh price book. */
 export const seedStarter = mutation({
   args: {},
   handler: async (ctx) => {
@@ -191,38 +236,45 @@ export const seedStarter = mutation({
       .withIndex("by_agency", (q) => q.eq("agencyId", agencyId))
       .first();
     if (existing) throw new Error("You already have plans. Add one with “New plan”.");
-    const now = Date.now();
-    let order = 0;
-    for (const t of FIRST_ADOPTER_TIERS) {
-      // Free forever: $0, not a promo -> comped state, no card, no end date.
-      await ctx.db.insert("agencyPlans", {
-        agencyId,
-        name: `${t.tier}: Free Forever`,
-        description: t.forever,
-        priceCents: 0,
-        billingInterval: "month",
-        trialDays: 0,
-        requireCardAfterTrial: false,
-        isPromo: false,
-        isDefault: Boolean(t.isDefault),
-        active: true,
-        createdAt: now + order++,
-      });
-      // 1 year free, card required: 365-day promo trial, then the tier price.
-      await ctx.db.insert("agencyPlans", {
-        agencyId,
-        name: `${t.tier}: 1 Year Free`,
-        description: t.yearOne,
-        priceCents: t.priceCents,
-        billingInterval: "month",
-        trialDays: 365,
-        requireCardAfterTrial: true,
-        isPromo: true,
-        isDefault: false,
-        active: true,
-        createdAt: now + order++,
-      });
+    await insertStarterPlans(ctx, agencyId);
+  },
+});
+
+/** Replace the whole price book with the 6 first-adopter packages. Any studio
+    currently on an old plan is rehomed to the new default (Studio: Free
+    Forever) before the old plans are deleted, so nobody is left planless. */
+export const reseedStarter = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await requireCapability(ctx, "billing.edit");
+    const agencyId = await agencyIdOf(ctx);
+
+    const oldPlans = await ctx.db
+      .query("agencyPlans")
+      .withIndex("by_agency", (q) => q.eq("agencyId", agencyId))
+      .collect();
+    const oldIds = new Set<string>(oldPlans.map((p) => p._id));
+
+    // Lay down the fresh 6 first, so we have a default to rehome studios onto.
+    const newDefaultId = await insertStarterPlans(ctx, agencyId);
+
+    // Move every studio off an old plan onto the new default.
+    const orgs = await ctx.db
+      .query("orgs")
+      .withIndex("by_agency", (q) => q.eq("agencyId", agencyId))
+      .collect();
+    let moved = 0;
+    for (const o of orgs) {
+      if (o.agencyPlanId && oldIds.has(o.agencyPlanId)) {
+        await ctx.db.patch(o._id, { agencyPlanId: newDefaultId });
+        moved++;
+      }
     }
+
+    // Now that nothing points at them, drop the old plans.
+    for (const p of oldPlans) await ctx.db.delete(p._id);
+
+    return { replaced: oldPlans.length, seeded: 6, studiosMoved: moved };
   },
 });
 

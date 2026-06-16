@@ -5,7 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
-import { Gift, Pencil, Plus, Sparkles, Star, Tag, Trash2 } from "lucide-react";
+import { Gift, Pencil, Plus, RotateCcw, Sparkles, Star, Tag, Trash2 } from "lucide-react";
 import { PageHeader, Section } from "@/components/ui/page";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -54,6 +54,7 @@ const EMPTY: PlanDraft = {
 export default function AgencyPlansPage() {
   const plans = useQuery(api.agencyPlans.list, {});
   const seedStarter = useMutation(api.agencyPlans.seedStarter);
+  const reseedStarter = useMutation(api.agencyPlans.reseedStarter);
   const create = useMutation(api.agencyPlans.create);
   const update = useMutation(api.agencyPlans.update);
   const setActive = useMutation(api.agencyPlans.setActive);
@@ -66,6 +67,25 @@ export default function AgencyPlansPage() {
   const [editingId, setEditingId] = React.useState<Id<"agencyPlans"> | null>(null);
   const [draft, setDraft] = React.useState<PlanDraft>(EMPTY);
   const [busy, setBusy] = React.useState(false);
+  const [resetOpen, setResetOpen] = React.useState(false);
+  const [busyReset, setBusyReset] = React.useState(false);
+
+  async function doReset() {
+    setBusyReset(true);
+    try {
+      const r = await reseedStarter({});
+      toast.success(
+        r.studiosMoved > 0
+          ? `Reset to 6 starter plans. ${r.studiosMoved} studio${r.studiosMoved === 1 ? "" : "s"} moved to Studio: Free Forever.`
+          : "Reset to 6 starter plans.",
+      );
+      setResetOpen(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not reset the price book.");
+    } finally {
+      setBusyReset(false);
+    }
+  }
 
   function openCreate() {
     setEditingId(null);
@@ -142,9 +162,16 @@ export default function AgencyPlansPage() {
         title="Plans"
         description="The price book you sell to your studios. Seed first-adopter packages (free forever or one year free), set paid tiers, trial lengths, and which plan new studios start on."
         actions={
-          <Button onClick={openCreate} size="sm">
-            <Plus className="size-4" /> New plan
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            {plans && plans.length > 0 && (
+              <Button onClick={() => setResetOpen(true)} size="sm" variant="secondary">
+                <RotateCcw className="size-4" /> Reset to starter plans
+              </Button>
+            )}
+            <Button onClick={openCreate} size="sm">
+              <Plus className="size-4" /> New plan
+            </Button>
+          </div>
         }
       />
 
@@ -347,6 +374,30 @@ export default function AgencyPlansPage() {
                   : editingId
                     ? "Save changes"
                     : "Create plan"}
+              </Button>
+            </div>
+          </DialogBody>
+        </DialogContent>
+      </Dialog>
+
+      {/* Reset confirmation */}
+      <Dialog open={resetOpen} onOpenChange={(o) => !busyReset && setResetOpen(o)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset to starter plans?</DialogTitle>
+            <DialogDescription>
+              This deletes your current plans and rebuilds the 6 first-adopter packages
+              (Free Forever and 1 Year Free for Solo, Studio, and Label). Any studio on an
+              old plan is moved to Studio: Free Forever. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogBody>
+            <div className="flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setResetOpen(false)} disabled={busyReset}>
+                Cancel
+              </Button>
+              <Button onClick={() => void doReset()} disabled={busyReset}>
+                <RotateCcw className="size-4" /> {busyReset ? "Resetting…" : "Reset price book"}
               </Button>
             </div>
           </DialogBody>
