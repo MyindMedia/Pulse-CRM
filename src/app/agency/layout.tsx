@@ -51,13 +51,6 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
                   Demo mode
                 </span>
               )}
-              <Link
-                href="/dashboard"
-                className="flex h-8 items-center gap-1.5 rounded-md border border-graphite/60 bg-coal/60 px-3 text-xs font-medium text-steel transition-colors hover:border-gold-dim hover:text-bone"
-              >
-                <ArrowUpLeft className="size-3.5" />
-                Back to studio app
-              </Link>
               <AgencyProfileMenu />
             </div>
           </div>
