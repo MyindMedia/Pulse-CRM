@@ -112,6 +112,7 @@ import type * as splitSignatures from "../splitSignatures.js";
 import type * as stageDemo from "../stageDemo.js";
 import type * as stripeConnect from "../stripeConnect.js";
 import type * as testHarness from "../testHarness.js";
+import type * as twilioA2P from "../twilioA2P.js";
 import type * as usage from "../usage.js";
 import type * as waitlist from "../waitlist.js";
 
@@ -226,6 +227,7 @@ declare const fullApi: ApiFromModules<{
   stageDemo: typeof stageDemo;
   stripeConnect: typeof stripeConnect;
   testHarness: typeof testHarness;
+  twilioA2P: typeof twilioA2P;
   usage: typeof usage;
   waitlist: typeof waitlist;
 }>;

@@ -24,6 +24,11 @@ crons.interval("room-status", { minutes: 15 }, internal.maintenance.recomputeAll
 // "simulated" mode until a provider (Twilio) is configured.
 crons.interval("sms-reminders", { minutes: 15 }, internal.sms.sendDueReminders);
 
+// Cloud-side A2P 10DLC finisher: polls the Standard A2P profile, registers the
+// brand once approved, then creates the campaign - so registration completes
+// without a local terminal. Idempotent; no-ops once the campaign exists.
+crons.interval("a2p-finish", { minutes: 10 }, internal.twilioA2P.advance);
+
 // Inbound Google Calendar sync: pull every connected studio's primary calendar
 // into busy blocks (incremental via syncToken). The read half of two-way sync.
 crons.interval("google-calendar-pull", { minutes: 10 }, internal.googleCalendarSync.pullAllOrgs);
