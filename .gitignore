@@ -39,6 +39,8 @@ yarn-error.log*
 # local dev artifacts
 .shots/
 *.sh
+# ...but track the portable deploy script (needed by cloud/phone sessions)
+!scripts/deploy.sh
 
 # typescript
 *.tsbuildinfo
@@ -52,3 +54,4 @@ next-env.d.ts
 
 # Local Netlify folder
 .netlify
+scripts/.a2p-state.env
