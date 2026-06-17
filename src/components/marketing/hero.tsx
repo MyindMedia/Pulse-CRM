@@ -239,7 +239,7 @@ export function Hero() {
     <>
     <section
       ref={root}
-      className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-obsidian px-4 pb-24 pt-28 lg:px-8"
+      className="theme-dark-island relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-obsidian px-4 pb-24 pt-28 lg:px-8"
     >
       {/* Readability scrim: chrome-to-void radial + vertical fade. */}
       <div

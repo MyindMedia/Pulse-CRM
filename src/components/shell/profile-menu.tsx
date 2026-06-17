@@ -13,10 +13,13 @@ import {
   ChevronDown,
   FileText,
   LogOut,
+  Moon,
   Sparkles,
+  Sun,
   TrendingUp,
   UserPen,
 } from "lucide-react";
+import { useTheme } from "@/lib/use-theme";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -65,6 +68,7 @@ export function ProfileMenu() {
   const counts = useQuery(api.insights.counts);
   const { signOut } = useClerk();
   const { user } = useUser();
+  const { theme, toggle } = useTheme();
 
   const [profileOpen, setProfileOpen] = React.useState(false);
   const [alertsOpen, setAlertsOpen] = React.useState(false);
@@ -128,6 +132,15 @@ export function ProfileMenu() {
                 {alertCount}
               </span>
             )}
+          </DropdownMenuItem>
+          <DropdownMenuItem
+            onSelect={(e) => {
+              e.preventDefault();
+              toggle();
+            }}
+          >
+            {theme === "light" ? <Moon className="size-4" /> : <Sun className="size-4" />}
+            {theme === "light" ? "Dark mode" : "Light mode"}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onSelect={() => void signOut({ redirectUrl: "/sign-in" })}>

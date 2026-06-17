@@ -644,3 +644,120 @@
   .material-regular, .glass-strong { background: var(--color-coal-2) !important; }
   .material-thick, .glass-liquid { background: var(--color-coal-2) !important; }
 }
+
+/* ============================================================
+   LIGHT THEME  ·  html[data-theme="light"]
+   A bespoke daylight palette: surfaces flip to warm white, text to
+   near-black, the chrome metallic reads dark-on-light, glass becomes
+   frosted-white, and the dark glows/grain soften. Gold stays the accent
+   (deepened a touch so it carries on white). Toggle is system-aware with
+   a manual override; dark remains the default.
+   ============================================================ */
+html[data-theme="light"] {
+  color-scheme: light;
+
+  /* Achromatic surfaces (near-black -> warm white) */
+  --color-ink: #faf8f4;
+  --color-ink-2: #f3f0ea;
+  --color-coal: #ffffff;
+  --color-coal-2: #f7f4ee;
+  --color-coal-3: #efebe3;
+  --color-hairline: #e7e2d8;
+  --color-hairline-2: #d9d3c7;
+  --color-obsidian: #ece7dd;
+  --color-graphite: #cdc8bc;
+  --color-slate: #8b867b;
+
+  /* Text (light greys -> dark warm greys) */
+  --color-bone: #1c1a14;
+  --color-mist: #423f38;
+  --color-steel: #6a665d;
+  --color-ash: #6a665d;
+  --color-ash-dim: #9a9488;
+  --color-fog: #2a2a2e;
+
+  /* Gold accent: deepened slightly so fills/text carry on white */
+  --color-gold: #e3a200;
+  --color-gold-bright: #fdb913;
+  --color-gold-deep: #a9760a;
+  --color-gold-dim: #e9d49a;
+
+  /* Softer, warmer elevation than the dark theme's heavy black drops */
+  --shadow-card: 0 1px 2px rgba(28,26,20,.05), 0 10px 30px rgba(28,26,20,.07);
+  --shadow-pop: 0 30px 80px rgba(28,26,20,.16), 0 2px 8px rgba(28,26,20,.10);
+  --shadow-brutal: 5px 5px 0 0 #1c1a14;
+  --shadow-glow-gold: 0 0 0 1px rgba(227,162,0,.32), 0 10px 40px rgba(227,162,0,.14);
+  --shadow-elev-1: 0 1px 2px rgba(28,26,20,.06);
+  --shadow-elev-2: 0 2px 8px rgba(28,26,20,.08);
+  --shadow-elev-3: 0 8px 24px rgba(28,26,20,.10);
+  --shadow-elev-4: 0 24px 60px rgba(28,26,20,.14);
+  --shadow-gold-soft: 0 10px 40px -16px rgba(227,162,0,.30);
+  --shadow-gold-strong: 0 16px 50px -14px rgba(227,162,0,.42);
+}
+
+/* Chrome metallic display reads dark-on-light. */
+html[data-theme="light"] .chrome-fill {
+  background: linear-gradient(180deg, #2a2a2e 0%, #4a474c 44%, #6e6c70 76%, #9b989d 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+/* Ghost outlines: hover should darken (obsidian is light now). */
+html[data-theme="light"] .chrome-ghost:hover { border-color: #2a2a2e; }
+
+/* Glass / material: frosted-white with a hairline-dark edge instead of the
+   dark-translucent + white-rim look. Backgrounds already flip via tokens. */
+html[data-theme="light"] :is(.glass, .glass-strong, .glass-liquid,
+  .material-ultrathin, .material-thin, .material-regular, .material-thick) {
+  border-color: color-mix(in oklab, #1c1a14 9%, transparent);
+  box-shadow: inset 0 1px 0 0 color-mix(in oklab, white 65%, transparent);
+}
+html[data-theme="light"] .material-thin { box-shadow: var(--shadow-elev-2), inset 0 1px 0 0 color-mix(in oklab, white 65%, transparent); }
+html[data-theme="light"] .material-regular { box-shadow: var(--shadow-elev-3), inset 0 1px 0 0 color-mix(in oklab, white 70%, transparent); }
+html[data-theme="light"] .material-thick { box-shadow: var(--shadow-elev-4), inset 0 1px 0 0 color-mix(in oklab, white 75%, transparent); }
+
+/* Soften the film grain so it textures rather than darkens on white. */
+html[data-theme="light"] .grain::before { opacity: .025; mix-blend-mode: multiply; }
+
+/* Hero/structure lines and liquid frame used white rgba highlights; tint dark. */
+html[data-theme="light"] .grid-lines::after { background-image: linear-gradient(
+  to right,
+  transparent calc(25% - 0.5px), rgba(28,26,20,0.07) calc(25% - 0.5px), rgba(28,26,20,0.07) calc(25% + 0.5px), transparent calc(25% + 0.5px),
+  transparent calc(50% - 0.5px), rgba(28,26,20,0.07) calc(50% - 0.5px), rgba(28,26,20,0.07) calc(50% + 0.5px), transparent calc(50% + 0.5px),
+  transparent calc(75% - 0.5px), rgba(28,26,20,0.07) calc(75% - 0.5px), rgba(28,26,20,0.07) calc(75% + 0.5px), transparent calc(75% + 0.5px)
+); }
+html[data-theme="light"] .liquid-frame { box-shadow: inset 0 1px 1px rgba(255,255,255,0.6), 0 24px 60px rgba(28,26,20,0.14); }
+
+/* Theme-aware marketing site backdrop (SiteBackdrop). The wash is built on
+   --color-ink so it follows the theme; the molten-gold video layer softens on
+   light so the hero reads as warm daylight, not a gold haze. */
+.site-bg-video { opacity: .4; }
+.site-bg-gold { opacity: .55; }
+.site-bg-wash {
+  background: linear-gradient(
+    to bottom,
+    color-mix(in oklab, var(--color-ink) 50%, transparent) 0%,
+    color-mix(in oklab, var(--color-ink) 76%, transparent) 50%,
+    color-mix(in oklab, var(--color-ink) 90%, transparent) 100%
+  );
+}
+html[data-theme="light"] .site-bg-video { opacity: .12; }
+html[data-theme="light"] .site-bg-gold { opacity: .26; }
+
+/* Dark island: a subtree that stays dark even in light mode (cinematic hero
+   stages, dark CTA bands). Re-asserts the dark token set + the light-on-dark
+   chrome fill so its content reads correctly against a dark backdrop. */
+html[data-theme="light"] .theme-dark-island {
+  color-scheme: dark;
+  --color-ink: #08080a; --color-ink-2: #0d0d10;
+  --color-coal: #141417; --color-coal-2: #1a1a1f; --color-coal-3: #232329;
+  --color-hairline: #2b2b32; --color-hairline-2: #383840;
+  --color-obsidian: #161616; --color-graphite: #3c3a3e; --color-slate: #7b7a7c;
+  --color-bone: #f6f6f5; --color-mist: #c9c7cc; --color-steel: #a2a2a2;
+  --color-ash: #a3a3ad; --color-ash-dim: #6c6c76; --color-fog: #f1f1f1;
+  --color-gold: #fdb913; --color-gold-bright: #ffd24a; --color-gold-deep: #c98a00; --color-gold-dim: #6b5410;
+}
+html[data-theme="light"] .theme-dark-island .chrome-fill {
+  background: linear-gradient(180deg, #ffffff 0%, #b9b7bb 42%, #6e6c70 72%, #2a2a2e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}

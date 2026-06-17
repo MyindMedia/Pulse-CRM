@@ -5,6 +5,7 @@ import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { PulseLogo } from "@/components/brand/pulse-logo";
+import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { cn } from "@/lib/utils";
 
 const LINKS = [
@@ -90,6 +91,7 @@ export function LandingNav() {
 
         {/* Desktop CTAs */}
         <div className="hidden items-center gap-2 md:flex">
+          <ThemeToggle />
           <Ctas />
         </div>
 
@@ -121,6 +123,7 @@ export function LandingNav() {
             ))}
           </div>
           <div className="mt-8 flex items-center gap-3">
+            <ThemeToggle />
             <Ctas />
           </div>
         </div>
