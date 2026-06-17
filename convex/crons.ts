@@ -18,6 +18,12 @@ crons.interval("booking-automation", { minutes: 15 }, internal.automation.tick);
 // Recompute every room's auto status from the live calendar.
 crons.interval("room-status", { minutes: 15 }, internal.maintenance.recomputeAllRoomStatuses);
 
+// Outbound SMS reminders: scan every active org for sessions due a 24h/2h
+// reminder and text the client + booked engineer. Opt-out aware, per-org
+// smsRemindersEnabled toggle, deduped via session.smsRemindersSent. Runs in
+// "simulated" mode until a provider (Twilio) is configured.
+crons.interval("sms-reminders", { minutes: 15 }, internal.sms.sendDueReminders);
+
 // Inbound Google Calendar sync: pull every connected studio's primary calendar
 // into busy blocks (incremental via syncToken). The read half of two-way sync.
 crons.interval("google-calendar-pull", { minutes: 10 }, internal.googleCalendarSync.pullAllOrgs);
