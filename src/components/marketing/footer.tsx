@@ -7,14 +7,14 @@ const COLUMNS = [
     links: [
       { href: "#features", label: "Features" },
       { href: "#workflow", label: "How it works" },
-      { href: "#pricing", label: "Pricing" },
+      { href: "#contact", label: "Contact" },
     ],
   },
   {
     title: "Account",
     links: [
       { href: "/sign-in", label: "Log in" },
-      { href: "#pricing", label: "Get started" },
+      { href: "#contact", label: "Get started" },
     ],
   },
 ];

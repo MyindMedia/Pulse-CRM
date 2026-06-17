@@ -10,7 +10,7 @@ import { cn } from "@/lib/utils";
 const LINKS = [
   { href: "#features", label: "Features" },
   { href: "#workflow", label: "How it works" },
-  { href: "#pricing", label: "Pricing" },
+  { href: "#contact", label: "Contact" },
 ];
 
 // Clerk is only mounted when configured; in demo mode there is no provider, so
@@ -26,7 +26,7 @@ function LoggedOutCtas() {
   return (
     <>
       <Link href="/sign-in" className={ghostCls}>Log in</Link>
-      <Link href="#pricing" className={goldCls}>Get started</Link>
+      <Link href="#contact" className={goldCls}>Get started</Link>
     </>
   );
 }

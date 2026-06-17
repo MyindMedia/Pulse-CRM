@@ -7,7 +7,8 @@ import { Chain } from "./chain";
 import { Features } from "./features";
 import { WorkSection } from "./work-section";
 import { LogoMarquee } from "./logo-marquee";
-import { Pricing } from "./pricing";
+// Pricing is hidden for now - kept in the repo (./pricing) to restore later.
+import { Contact } from "./contact";
 import { Faq } from "./faq";
 import { FinalCta } from "./cta";
 import { Footer } from "./footer";
@@ -31,7 +32,7 @@ export function LandingPage() {
         <Features />
         <WorkSection />
         <LogoMarquee />
-        <Pricing />
+        <Contact />
         <Faq />
         <FinalCta />
       </main>

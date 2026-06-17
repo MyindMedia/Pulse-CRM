@@ -533,7 +533,7 @@ export function Hero() {
           className="mt-9 flex flex-wrap items-center justify-center gap-3 motion-safe:opacity-0"
         >
           <Link
-            href="#pricing"
+            href="#contact"
             className="group inline-flex items-center gap-2 rounded-chrome bg-gold px-7 py-3 font-grotesk text-sm font-semibold uppercase tracking-[0.04em] text-gold-ink transition-all duration-200 hover:-translate-y-0.5 hover:bg-gold-bright focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
           >
             Get started

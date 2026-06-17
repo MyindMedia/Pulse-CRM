@@ -36,6 +36,7 @@ import type * as brandHero from "../brandHero.js";
 import type * as branding from "../branding.js";
 import type * as checklists from "../checklists.js";
 import type * as clientEmail from "../clientEmail.js";
+import type * as contact from "../contact.js";
 import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
 import type * as deliverables from "../deliverables.js";
@@ -151,6 +152,7 @@ declare const fullApi: ApiFromModules<{
   branding: typeof branding;
   checklists: typeof checklists;
   clientEmail: typeof clientEmail;
+  contact: typeof contact;
   crons: typeof crons;
   dashboard: typeof dashboard;
   deliverables: typeof deliverables;
