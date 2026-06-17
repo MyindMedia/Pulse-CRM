@@ -228,7 +228,10 @@
   .chrome-display {
     font-family: var(--font-chrome);
     font-weight: 400;
-    line-height: 0.9;
+    /* 1.1 clears Anton's tall caps so multi-line section titles never overlap
+       (0.9 caused the lines to collide). Single-line wordmarks and the stacked
+       flex hero title are unaffected since their spacing is layout-controlled. */
+    line-height: 1.1;
     letter-spacing: -0.02em;
     text-transform: uppercase;
   }
