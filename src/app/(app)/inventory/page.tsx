@@ -135,6 +135,7 @@ export default function InventoryPage() {
       serialNumber: item.serialNumber,
       condition: item.condition,
       notes: item.notes,
+      photo: item.photo,
     });
     setEditOpen(true);
   }
