@@ -76,12 +76,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       className={`${inter.variable} ${jetbrainsMono.variable} ${instrumentSerif.variable} ${plusJakarta.variable} ${anton.variable} ${ibmPlexMono.variable} h-full`}
     >
       <body className="min-h-full antialiased">
-        {/* No-flash theme: set data-theme before paint from saved choice or
-            the OS preference (default dark). The toggle updates it at runtime. */}
+        {/* No-flash theme: set data-theme before paint. Dark is the default;
+            only a saved choice ("light"/"dark") overrides it. The toggle updates
+            it at runtime. */}
         <script
           dangerouslySetInnerHTML={{
             __html:
-              "(function(){try{var t=localStorage.getItem('pulse-theme');if(t!=='light'&&t!=='dark'){t=window.matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';}document.documentElement.dataset.theme=t;}catch(e){document.documentElement.dataset.theme='dark';}})();",
+              "(function(){try{var t=localStorage.getItem('pulse-theme');document.documentElement.dataset.theme=(t==='light'||t==='dark')?t:'dark';}catch(e){document.documentElement.dataset.theme='dark';}})();",
           }}
         />
         <ConvexClientProvider>{children}</ConvexClientProvider>
