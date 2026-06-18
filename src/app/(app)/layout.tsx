@@ -25,14 +25,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Studio-light bloom - warm backdrop for the glass to refract */}
         <div className="app-bloom" aria-hidden />
 
-        {/* Desktop rail */}
-        <aside className="fixed inset-y-0 left-0 z-20 hidden w-64 material-regular lg:block">
+        {/* Desktop rail - stays dark in light mode (dark chrome). */}
+        <aside className="theme-dark-island fixed inset-y-0 left-0 z-20 hidden w-64 material-regular lg:block">
           <Sidebar />
         </aside>
 
         {/* Mobile nav drawer */}
         <Sheet open={mobileNav} onOpenChange={setMobileNav}>
-          <SheetContent width="sm" className="material-regular lg:hidden">
+          <SheetContent width="sm" className="theme-dark-island material-regular lg:hidden">
             <Sidebar onNavigate={() => setMobileNav(false)} />
           </SheetContent>
         </Sheet>

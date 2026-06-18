@@ -659,43 +659,58 @@
 html[data-theme="light"] {
   color-scheme: light;
 
-  /* Achromatic surfaces (near-black -> warm white) */
-  --color-ink: #faf8f4;
-  --color-ink-2: #f3f0ea;
-  --color-coal: #ffffff;
-  --color-coal-2: #f7f4ee;
-  --color-coal-3: #efebe3;
-  --color-hairline: #e7e2d8;
-  --color-hairline-2: #d9d3c7;
-  --color-obsidian: #ece7dd;
-  --color-graphite: #cdc8bc;
-  --color-slate: #8b867b;
+  /* Achromatic surfaces. Key to depth: the page (ink) is a clear step DARKER
+     than the cards (coal=white), so white panels lift off the page instead of
+     blending into "flat paper". */
+  --color-ink: #e8e6df;       /* page background - soft light grey */
+  --color-ink-2: #e0ddd5;     /* deeper recess / page bands */
+  --color-coal: #ffffff;      /* cards - pure white, pops on the grey page */
+  --color-coal-2: #f3f1ea;    /* recessed within a card (inputs, table rows) */
+  --color-coal-3: #e7e3da;
+  --color-hairline: #d7d2c6;  /* visible enough to define edges */
+  --color-hairline-2: #c6c0b2;
+  --color-obsidian: #edeae3;  /* input fill - subtle grey on white */
+  --color-graphite: #c6c0b2;  /* control borders */
+  --color-slate: #847f76;
 
-  /* Text (light greys -> dark warm greys) */
-  --color-bone: #1c1a14;
-  --color-mist: #423f38;
-  --color-steel: #6a665d;
-  --color-ash: #6a665d;
-  --color-ash-dim: #9a9488;
+  /* Text - crisp near-black primary, darker-than-before secondaries so labels
+     and muted copy keep contrast against the lighter surfaces. */
+  --color-bone: #16140e;
+  --color-mist: #38352e;
+  --color-steel: #5d594f;
+  --color-ash: #5d594f;
+  --color-ash-dim: #8a8478;
   --color-fog: #2a2a2e;
 
-  /* Gold accent: deepened slightly so fills/text carry on white */
+  /* Gold accent: deepened so fills/text carry on white */
   --color-gold: #e3a200;
   --color-gold-bright: #fdb913;
   --color-gold-deep: #a9760a;
   --color-gold-dim: #e9d49a;
 
-  /* Softer, warmer elevation than the dark theme's heavy black drops */
-  --shadow-card: 0 1px 2px rgba(28,26,20,.05), 0 10px 30px rgba(28,26,20,.07);
-  --shadow-pop: 0 30px 80px rgba(28,26,20,.16), 0 2px 8px rgba(28,26,20,.10);
-  --shadow-brutal: 5px 5px 0 0 #1c1a14;
-  --shadow-glow-gold: 0 0 0 1px rgba(227,162,0,.32), 0 10px 40px rgba(227,162,0,.14);
-  --shadow-elev-1: 0 1px 2px rgba(28,26,20,.06);
-  --shadow-elev-2: 0 2px 8px rgba(28,26,20,.08);
-  --shadow-elev-3: 0 8px 24px rgba(28,26,20,.10);
-  --shadow-elev-4: 0 24px 60px rgba(28,26,20,.14);
-  --shadow-gold-soft: 0 10px 40px -16px rgba(227,162,0,.30);
-  --shadow-gold-strong: 0 16px 50px -14px rgba(227,162,0,.42);
+  /* Crisper, warm elevation so cards/panels read as lifted (not flat). */
+  --shadow-card: 0 1px 3px rgba(38,33,22,.08), 0 12px 28px -8px rgba(38,33,22,.14);
+  --shadow-pop: 0 24px 60px -12px rgba(38,33,22,.22), 0 4px 12px rgba(38,33,22,.12);
+  --shadow-brutal: 5px 5px 0 0 #16140e;
+  --shadow-glow-gold: 0 0 0 1px rgba(227,162,0,.40), 0 10px 36px -8px rgba(227,162,0,.34);
+  --shadow-elev-1: 0 1px 2px rgba(38,33,22,.08), 0 2px 6px -2px rgba(38,33,22,.10);
+  --shadow-elev-2: 0 2px 4px rgba(38,33,22,.08), 0 6px 14px -4px rgba(38,33,22,.13);
+  --shadow-elev-3: 0 6px 12px -4px rgba(38,33,22,.12), 0 14px 30px -10px rgba(38,33,22,.16);
+  --shadow-elev-4: 0 12px 24px -8px rgba(38,33,22,.16), 0 30px 56px -16px rgba(38,33,22,.22);
+  --shadow-gold-soft: 0 10px 36px -14px rgba(227,162,0,.36);
+  --shadow-gold-strong: 0 16px 48px -12px rgba(227,162,0,.48);
+}
+
+/* Quiet the studio-light bloom on light so it's a faint warm glow, not a beige
+   wash that flattens everything. */
+html[data-theme="light"] .app-bloom {
+  background:
+    radial-gradient(58% 40% at 50% -8%, color-mix(in oklab, var(--color-gold) 6%, transparent), transparent 70%),
+    radial-gradient(46% 38% at 92% 2%, color-mix(in oklab, var(--color-gold-deep) 4%, transparent), transparent 72%);
+}
+/* Crisp frosted edge on glass/material panels so depth survives the flip. */
+html[data-theme="light"] :is(.material-thin, .material-regular, .material-thick, .glass, .glass-strong) {
+  border-color: color-mix(in oklab, #16140e 12%, transparent);
 }
 
 /* Chrome metallic display reads dark-on-light. */
@@ -778,6 +793,27 @@ html[data-theme="light"] .theme-dark-island {
 }
 html[data-theme="light"] .theme-dark-island .chrome-fill {
   background: linear-gradient(180deg, #ffffff 0%, #b9b7bb 42%, #6e6c70 72%, #2a2a2e 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+}
+/* The dark top bars keep their gold-on-dark ghost buttons + light hairlines. */
+html[data-theme="light"] .theme-dark-island { background-color: var(--color-coal); }
+
+/* Light island: a subtree pinned to the LIGHT palette in BOTH themes - for
+   "bright band" sections (e.g. Features) that should read white-on-light
+   whether the site is in dark or light mode. */
+.theme-light-island {
+  color-scheme: light;
+  --color-ink: #e8e6df; --color-ink-2: #e0ddd5;
+  --color-coal: #ffffff; --color-coal-2: #f3f1ea; --color-coal-3: #e7e3da;
+  --color-hairline: #d7d2c6; --color-hairline-2: #c6c0b2;
+  --color-obsidian: #edeae3; --color-graphite: #c6c0b2; --color-slate: #847f76;
+  --color-bone: #16140e; --color-mist: #38352e; --color-steel: #5d594f;
+  --color-ash: #5d594f; --color-ash-dim: #8a8478; --color-fog: #2a2a2e;
+  --color-gold: #e3a200; --color-gold-bright: #fdb913; --color-gold-deep: #a9760a; --color-gold-dim: #e9d49a;
+}
+.theme-light-island .chrome-fill {
+  background: linear-gradient(180deg, #2a2a2e 0%, #4a474c 44%, #6e6c70 76%, #9b989d 100%);
   -webkit-background-clip: text;
   background-clip: text;
 }

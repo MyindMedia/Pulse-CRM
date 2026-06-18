@@ -50,8 +50,8 @@ const FEATURES = [
 
 export function Features() {
   return (
-    <section id="features" className="relative overflow-hidden bg-bone px-4 py-28 text-obsidian lg:px-8">
-      <GhostWord word="FEATURES" className="text-obsidian/[0.05]" />
+    <section id="features" className="theme-light-island relative overflow-hidden bg-coal px-4 py-28 text-bone lg:px-8">
+      <GhostWord word="FEATURES" className="text-bone/[0.05]" />
       <div className="relative z-10 mx-auto max-w-6xl">
         <Reveal className="mx-auto max-w-2xl text-center">
           <p className="chrome-meta text-slate">Recording studio management software</p>
@@ -71,7 +71,7 @@ export function Features() {
                 <span className="grid size-11 place-items-center rounded-chrome border border-graphite/20 bg-fog text-gold-deep transition-all duration-300 group-hover:scale-110 group-hover:border-gold-deep">
                   <f.icon className="size-5" />
                 </span>
-                <h3 className="font-grotesk mt-5 text-xl font-semibold tracking-[-0.01em] text-obsidian">{f.title}</h3>
+                <h3 className="font-grotesk mt-5 text-xl font-semibold tracking-[-0.01em] text-bone">{f.title}</h3>
                 <p className="font-grotesk mt-2 text-sm leading-relaxed text-slate">{f.blurb}</p>
               </div>
             </Reveal>

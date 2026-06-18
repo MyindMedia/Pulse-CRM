@@ -68,7 +68,7 @@ export function LandingNav() {
   return (
     <header
       className={cn(
-        "fixed inset-x-0 top-0 z-50 transition-colors duration-300",
+        "theme-dark-island fixed inset-x-0 top-0 z-50 transition-colors duration-300",
         scrolled || menuOpen
           ? "border-b border-graphite/50 bg-obsidian/92 backdrop-blur-xl"
           : "border-b border-transparent",
