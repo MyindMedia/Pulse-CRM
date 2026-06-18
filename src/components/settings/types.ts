@@ -68,7 +68,7 @@ export const PLAN_TIERS: {
   {
     value: "solo",
     label: "Solo",
-    price: "$19 / mo",
+    price: "$49 / mo",
     blurb: "One engineer, one room. The essentials to run a personal studio.",
     features: [
       "1 team member",
@@ -80,7 +80,7 @@ export const PLAN_TIERS: {
   {
     value: "studio",
     label: "Studio",
-    price: "$59 / mo",
+    price: "$129 / mo",
     blurb: "A working studio with a small team and a full booking pipeline.",
     features: [
       "Up to 8 team members",
@@ -92,7 +92,7 @@ export const PLAN_TIERS: {
   {
     value: "label",
     label: "Label",
-    price: "$149 / mo",
+    price: "$199 / mo",
     blurb: "A multi-room operation or imprint running many artists at once.",
     features: [
       "Unlimited team members",
