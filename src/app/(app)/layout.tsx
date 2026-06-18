@@ -7,6 +7,7 @@ import { StudioBanner } from "@/components/shell/studio-banner";
 import { BillingBanner, BillingLock } from "@/components/shell/billing-gate";
 import { MemberSync } from "@/components/shell/member-sync";
 import { CommandPalette } from "@/components/shell/command-palette";
+import { MobileTabBar } from "@/components/shell/mobile-tabbar";
 import { FeatureGuard } from "@/components/shell/feature-guard";
 import { OrgTheme } from "@/components/shell/org-theme";
 import { AppTransition } from "@/components/shell/app-motion";
@@ -42,13 +43,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <StudioBanner />
           <BillingBanner />
           <Topbar onOpenMenu={() => setMobileNav(true)} />
-          <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">
+          <main className="flex-1 px-4 py-6 pb-28 lg:px-8 lg:py-8 lg:pb-8">
             <AppTransition>{children}</AppTransition>
           </main>
         </div>
 
         <BillingLock />
         <CommandPalette />
+        <MobileTabBar onOpenMore={() => setMobileNav(true)} />
       </div>
       </OrgTheme>
     </TooltipProvider>
