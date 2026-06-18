@@ -30,6 +30,7 @@ import {
   type EquipmentCategory,
 } from "@/components/studio/constants";
 import { PhotoUploader } from "./photo-uploader";
+import { AssetDocuments } from "./asset-documents";
 import { PhotoUpload } from "@/components/ui/photo-upload";
 
 /** An equipment record in an editable shape. Pass to edit; omit to create. */
@@ -381,7 +382,10 @@ export function EquipmentDialog({
             {/* Photo - edit uses the saved item id; create uploads now and
                 attaches the storageId when the item is saved. */}
             {isEdit && item ? (
-              <PhotoUploader equipmentId={item._id} photo={item.photo} />
+              <>
+                <PhotoUploader equipmentId={item._id} photo={item.photo} />
+                <AssetDocuments kind="equipment" refId={item._id} />
+              </>
             ) : (
               <div className="space-y-1.5">
                 <p className="text-xs font-medium text-steel">Photo</p>

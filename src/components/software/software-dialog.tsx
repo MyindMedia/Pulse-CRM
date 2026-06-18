@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/field";
+import { AssetDocuments } from "@/components/inventory/asset-documents";
 import {
   Select,
   SelectTrigger,
@@ -334,6 +335,7 @@ export function SoftwareDialog({
             <Field label="Notes" htmlFor="sw-notes">
               <Textarea id="sw-notes" value={form.notes} onChange={(e) => set("notes", e.target.value)} rows={2} placeholder="Anything worth noting…" />
             </Field>
+            {isEdit && item && <AssetDocuments kind="software" refId={item._id} />}
           </DialogBody>
           <DialogFooter>
             <Button type="button" variant="ghost" onClick={() => onOpenChange(false)} disabled={submitting}>Cancel</Button>

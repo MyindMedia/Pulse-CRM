@@ -26,6 +26,7 @@ import type * as aiActions from "../aiActions.js";
 import type * as aiArtifacts from "../aiArtifacts.js";
 import type * as aiContext from "../aiContext.js";
 import type * as artists from "../artists.js";
+import type * as assetDocuments from "../assetDocuments.js";
 import type * as audit from "../audit.js";
 import type * as automation from "../automation.js";
 import type * as availability from "../availability.js";
@@ -142,6 +143,7 @@ declare const fullApi: ApiFromModules<{
   aiArtifacts: typeof aiArtifacts;
   aiContext: typeof aiContext;
   artists: typeof artists;
+  assetDocuments: typeof assetDocuments;
   audit: typeof audit;
   automation: typeof automation;
   availability: typeof availability;

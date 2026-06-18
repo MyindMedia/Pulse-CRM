@@ -718,6 +718,33 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_org_room", ["orgId", "installedInRoomId"]),
 
+  // ── Asset documents - receipts / invoices / warranties attached to a
+  //    hardware (equipment) or software item. Kept for tax, insurance and
+  //    historical records. The file lives in Convex storage; this row is the
+  //    metadata + the link to its parent asset. ──
+  assetDocuments: defineTable({
+    orgId: v.string(),
+    kind: v.union(v.literal("equipment"), v.literal("software")),
+    refId: v.string(), // equipment._id or softwareLicenses._id (as a string)
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    fileType: v.string(), // mime type
+    sizeBytes: v.optional(v.number()),
+    docType: v.optional(
+      v.union(
+        v.literal("invoice"),
+        v.literal("receipt"),
+        v.literal("warranty"),
+        v.literal("other"),
+      ),
+    ),
+    note: v.optional(v.string()),
+    uploadedAt: v.number(),
+    uploadedBy: v.optional(v.string()),
+  })
+    .index("by_ref", ["kind", "refId"])
+    .index("by_org", ["orgId"]),
+
   // ── Sessions (bookings) ──
   sessions: defineTable({
     orgId: v.string(),
