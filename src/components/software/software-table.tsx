@@ -98,7 +98,11 @@ export function SoftwareTable({
             const renewSoon = s.renewalDate && s.renewalDate <= soon && s.status === "active";
             const renewPast = s.renewalDate && s.renewalDate < now;
             return (
-              <tr key={s._id} className="border-b border-graphite/60 last:border-0 transition-colors duration-150 hover:bg-coal-2/60">
+              <tr
+                key={s._id}
+                onClick={() => onEdit(s)}
+                className="cursor-pointer border-b border-graphite/60 last:border-0 transition-colors duration-150 hover:bg-coal-2/60"
+              >
                 <td className="px-3 py-2.5">
                   <div className="flex items-center gap-2">
                     <cat.icon className="size-4 shrink-0 text-steel/70" />
@@ -123,7 +127,7 @@ export function SoftwareTable({
                   {s.renewalDate ? shortDate(s.renewalDate) : "—"}
                 </td>
                 <td className="px-3 py-2.5"><Badge tone={st.tone} dot>{st.label}</Badge></td>
-                <td className="px-3 py-2.5">
+                <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                   <div className="flex justify-end gap-1">
                     <Button variant="ghost" size="icon-sm" onClick={() => onEdit(s)} aria-label={`Edit ${s.name}`}>
                       <Pencil className="size-3.5" />

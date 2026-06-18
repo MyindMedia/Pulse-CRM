@@ -209,8 +209,13 @@ export function EquipmentTable({
             const inStorage = item.location === "storage";
             const pending = pendingId === item._id;
             return (
-              <TR key={item._id} className={cn("group transition-colors duration-150 hover:bg-coal-2/60", pending && "opacity-50", selected.has(item._id) && "bg-gold/[0.06]")}>
-                <TD className="w-8">
+              <TR
+                key={item._id}
+                interactive
+                onClick={() => onEdit(item)}
+                className={cn("group transition-colors duration-150 hover:bg-coal-2/60", pending && "opacity-50", selected.has(item._id) && "bg-gold/[0.06]")}
+              >
+                <TD className="w-8" onClick={(e) => e.stopPropagation()}>
                   <input
                     type="checkbox"
                     aria-label={`Select ${item.name}`}
@@ -275,7 +280,7 @@ export function EquipmentTable({
                     </p>
                   )}
                 </TD>
-                <TD>
+                <TD onClick={(e) => e.stopPropagation()}>
                   <DropdownMenu>
                     <DropdownMenuTrigger asChild>
                       <Button
