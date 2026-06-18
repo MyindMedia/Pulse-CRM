@@ -746,6 +746,23 @@ html[data-theme="light"] .liquid-frame { box-shadow: inset 0 1px 1px rgba(255,25
 html[data-theme="light"] .site-bg-video { opacity: .12; }
 html[data-theme="light"] .site-bg-gold { opacity: .26; }
 
+/* Hero readability scrim - deep charcoal on dark so the white wordmark reads,
+   warm daylight on light so the dark wordmark reads. */
+.hero-scrim {
+  background:
+    radial-gradient(120% 95% at 50% 26%, rgba(22,22,22,0.30) 0%, rgba(22,22,22,0.82) 100%),
+    linear-gradient(to bottom, rgba(22,22,22,0.85) 0%, rgba(22,22,22,0.45) 38%, rgba(22,22,22,0.8) 72%, #161616 100%);
+}
+html[data-theme="light"] .hero-scrim {
+  background:
+    radial-gradient(120% 95% at 50% 26%, rgba(250,248,244,0.30) 0%, rgba(250,248,244,0.86) 100%),
+    linear-gradient(to bottom, rgba(250,248,244,0.88) 0%, rgba(250,248,244,0.55) 38%, rgba(250,248,244,0.86) 72%, var(--color-ink) 100%);
+}
+/* The flanking studio mains are dark renders; fade them on light so they read
+   as a soft haze instead of dark smudges. */
+html[data-theme="light"] .hero-speaker img { filter: brightness(1.35) saturate(0.8) blur(2px) !important; }
+html[data-theme="light"] .hero-speaker { opacity: .35 !important; }
+
 /* Dark island: a subtree that stays dark even in light mode (cinematic hero
    stages, dark CTA bands). Re-asserts the dark token set + the light-on-dark
    chrome fill so its content reads correctly against a dark backdrop. */

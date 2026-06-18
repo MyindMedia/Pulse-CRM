@@ -239,17 +239,11 @@ export function Hero() {
     <>
     <section
       ref={root}
-      className="theme-dark-island relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-obsidian px-4 pb-24 pt-28 lg:px-8"
+      className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-ink px-4 pb-24 pt-28 lg:px-8"
     >
-      {/* Readability scrim: chrome-to-void radial + vertical fade. */}
-      <div
-        aria-hidden
-        className="absolute inset-0 -z-10"
-        style={{
-          background:
-            "radial-gradient(120% 95% at 50% 26%, rgba(22,22,22,0.30) 0%, rgba(22,22,22,0.82) 100%), linear-gradient(to bottom, rgba(22,22,22,0.85) 0%, rgba(22,22,22,0.45) 38%, rgba(22,22,22,0.8) 72%, #161616 100%)",
-        }}
-      />
+      {/* Readability scrim: chrome-to-void radial + vertical fade. Theme-aware
+          (deep charcoal on dark, warm white on light) via .hero-scrim. */}
+      <div aria-hidden className="hero-scrim absolute inset-0 -z-10" />
       {/* Thin vertical structure lines (desktop). */}
       <div aria-hidden className="grid-lines pointer-events-none absolute inset-0 -z-0 hidden lg:block" />
       {/* Large studio mains flanking the scene: partially visible at either
@@ -264,7 +258,7 @@ export function Hero() {
           data-hero-ledge
           data-hero-bgspeaker
           aria-hidden
-          className="pointer-events-none absolute bottom-[38%] z-0 hidden select-none opacity-85 motion-safe:opacity-0 lg:block"
+          className="hero-speaker pointer-events-none absolute bottom-[38%] z-0 hidden select-none opacity-85 motion-safe:opacity-0 lg:block"
           style={{ [side]: "-3.5%" } as React.CSSProperties}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
