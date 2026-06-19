@@ -103,6 +103,8 @@ import type * as reports from "../reports.js";
 import type * as rightsExport from "../rightsExport.js";
 import type * as rooms from "../rooms.js";
 import type * as seed from "../seed.js";
+import type * as seedDemoFurniture from "../seedDemoFurniture.js";
+import type * as seedDemoSoftware from "../seedDemoSoftware.js";
 import type * as seedDemoYear from "../seedDemoYear.js";
 import type * as seedSchedule from "../seedSchedule.js";
 import type * as sessions from "../sessions.js";
@@ -221,6 +223,8 @@ declare const fullApi: ApiFromModules<{
   rightsExport: typeof rightsExport;
   rooms: typeof rooms;
   seed: typeof seed;
+  seedDemoFurniture: typeof seedDemoFurniture;
+  seedDemoSoftware: typeof seedDemoSoftware;
   seedDemoYear: typeof seedDemoYear;
   seedSchedule: typeof seedSchedule;
   sessions: typeof sessions;
