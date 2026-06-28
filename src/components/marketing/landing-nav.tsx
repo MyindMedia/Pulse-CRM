@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import Link from "next/link";
 import { Menu, X } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
@@ -109,34 +110,57 @@ export function LandingNav() {
       </nav>
     </header>
 
-    {/* Mobile full-screen overlay. Rendered as a SIBLING of the header (not a
-        child): when the menu is open the header gains `backdrop-blur-xl`, and a
-        backdrop-filter establishes a containing block for fixed descendants -
-        which would collapse a `fixed inset-0` child to the 64px header box and
-        leave the menu with no background. As a sibling it is fixed to the
-        viewport and fills the screen. `theme-dark-island` keeps the dark token
-        set (so `bg-obsidian` stays near-black) even when the site is in light
-        mode, matching the always-dark nav. */}
-    {menuOpen && (
-      <div className="theme-dark-island fixed inset-0 z-40 flex flex-col bg-obsidian/98 px-6 pb-8 pt-24 backdrop-blur-xl md:hidden">
-        <div className="flex flex-col gap-1">
-          {LINKS.map((l) => (
-            <a
-              key={l.href}
-              href={l.href}
+    {/* Mobile full-screen menu, rendered in a PORTAL on document.body.
+        Why a portal: the marketing site runs Lenis smooth-scroll and pins the
+        hero with GSAP, and the header carries a `backdrop-filter`. Any of those
+        can establish a containing block / transformed ancestor, which made an
+        in-tree `position: fixed` overlay (a) collapse with no background and
+        (b) scroll away with the page. Portaling to <body> escapes every
+        ancestor stacking + containing-block context, so the overlay is always
+        a true viewport-fixed sheet. The background is an inline solid colour
+        (not a theme token) so it can never resolve to transparent or a light
+        value, and `theme-dark-island` keeps the link/CTA tokens light on the
+        dark sheet in both light and dark mode. It owns its own close button
+        since it sits above the header. `overscroll-contain` stops scroll
+        chaining to the page underneath. */}
+    {menuOpen &&
+      typeof document !== "undefined" &&
+      createPortal(
+        <div
+          data-lenis-prevent
+          className="theme-dark-island fixed inset-0 z-[100] flex flex-col overflow-y-auto overscroll-contain px-6 pb-12 pt-4 backdrop-blur-2xl md:hidden"
+          style={{ backgroundColor: "rgba(9,9,11,0.985)" }}
+        >
+          <div className="flex h-12 shrink-0 items-center justify-between">
+            <PulseLogo size="sm" href="/" />
+            <button
+              type="button"
               onClick={() => setMenuOpen(false)}
-              className="chrome-display border-b border-graphite/50 py-4 text-3xl text-bone transition-colors hover:text-gold"
+              className="grid size-10 place-items-center rounded-chrome text-bone transition-colors hover:bg-graphite/40"
+              aria-label="Close menu"
             >
-              {l.label}
-            </a>
-          ))}
-        </div>
-        <div className="mt-8 flex items-center gap-3">
-          <ThemeToggle />
-          <Ctas />
-        </div>
-      </div>
-    )}
+              <X className="size-5" />
+            </button>
+          </div>
+          <div className="mt-6 flex flex-col gap-1">
+            {LINKS.map((l) => (
+              <a
+                key={l.href}
+                href={l.href}
+                onClick={() => setMenuOpen(false)}
+                className="chrome-display border-b border-graphite/50 py-4 text-3xl text-bone transition-colors hover:text-gold"
+              >
+                {l.label}
+              </a>
+            ))}
+          </div>
+          <div className="mt-8 flex items-center gap-3">
+            <ThemeToggle />
+            <Ctas />
+          </div>
+        </div>,
+        document.body,
+      )}
     </>
   );
 }
