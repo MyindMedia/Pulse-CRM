@@ -584,6 +584,9 @@ export const scanAllOrgs = internalMutation({
       // (Kept off the 2h agent loop; piggybacks the daily ops-brain cron so no
       // separate cron registration is needed.)
       await ctx.scheduler.runAfter(0, internal.opsBrain.scanProfitRiskOrg, { orgId });
+      // Rebuild the Studio Brain knowledge graph (which then chains into the
+      // Studio Manager evaluation).
+      await ctx.scheduler.runAfter(0, internal.studioBrain.rebuildOrg, { orgId });
     }
     return { scheduled: ids.length };
   },

@@ -514,6 +514,53 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"]),
 
+  // ── Studio Brain: a per-subaccount knowledge graph + history (Obsidian /
+  //    Graphify style). Nodes are this studio's entities, edges the
+  //    relationships between them, and the journal is an append-only timeline.
+  //    Everything is derived from THIS org's data only and is by_org-indexed,
+  //    so the Studio Manager reasons over one connected picture per subaccount
+  //    and can never cross a tenant boundary. ──
+  studioGraphNodes: defineTable({
+    orgId: v.string(),
+    kind: v.string(), // artist | song | session | room | gear | staff | invoice | deal
+    refId: v.string(), // source document id, as a string
+    label: v.string(),
+    summary: v.optional(v.string()),
+    attrs: v.optional(v.any()),
+    degree: v.optional(v.number()), // connection count, for centrality
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_kind", ["orgId", "kind"])
+    .index("by_org_ref", ["orgId", "refId"]),
+
+  studioGraphEdges: defineTable({
+    orgId: v.string(),
+    fromRef: v.string(),
+    toRef: v.string(),
+    rel: v.string(), // booked | in_room | engineered_by | by | for_song | billed_to | rented_on | lead_for
+    weight: v.number(),
+    key: v.string(), // `${fromRef}|${rel}|${toRef}` - dedupe / upsert
+    attrs: v.optional(v.any()),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_from", ["orgId", "fromRef"])
+    .index("by_org_to", ["orgId", "toRef"])
+    .index("by_org_key", ["orgId", "key"]),
+
+  studioJournal: defineTable({
+    orgId: v.string(),
+    at: v.number(),
+    kind: v.string(), // snapshot | milestone | risk | win | note
+    title: v.string(),
+    body: v.optional(v.string()),
+    importance: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
+    entityRefs: v.optional(v.array(v.string())),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_at", ["orgId", "at"]),
+
   // ── Audit log - every Access Engine deny/grant for sensitive actions ──
   auditEvents: defineTable({
     agencyId: v.optional(v.string()),

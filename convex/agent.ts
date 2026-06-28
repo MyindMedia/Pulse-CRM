@@ -7,6 +7,7 @@ import type { Id } from "./_generated/dataModel";
 import { currentOrg, currentActor } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { completeJSON, SMART_MODEL } from "./lib/openai";
+import { summarizeGraph } from "./lib/studioGraph";
 
 /* JSON contract for the conversational agent's structured response. Forces a
    valid object so we never brace-slice free text. strict:false keeps it lenient
@@ -272,6 +273,18 @@ export const _context = internalQuery({
       .withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", "active"))
       .collect();
 
+    // Studio Brain: knowledge-graph highlights + recent history, so the agent
+    // reasons over relationships and memory, not just a point-in-time snapshot.
+    const [brainNodes, brainEdges, recentJournal] = await Promise.all([
+      ctx.db.query("studioGraphNodes").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect(),
+      ctx.db.query("studioGraphEdges").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect(),
+      ctx.db.query("studioJournal").withIndex("by_org_at", (q) => q.eq("orgId", orgId)).order("desc").take(8),
+    ]);
+    const graph = summarizeGraph(
+      brainNodes.map((n) => ({ ref: n.refId, kind: n.kind, label: n.label })),
+      brainEdges.map((e) => ({ fromRef: e.fromRef, toRef: e.toRef, rel: e.rel, weight: e.weight })),
+    );
+
     return {
       orgName: org?.name ?? "the studio",
       plan: org?.plan ?? "studio",
@@ -315,6 +328,13 @@ export const _context = internalQuery({
         openLeads: openOpps.length,
         staleLeads: staleLeads.length,
         activeSongs: activeSongs.length,
+      },
+      brain: {
+        topClients: graph.topClients.map((c) => c.label),
+        clientConcentration: graph.clientConcentration,
+        engineerConcentration: graph.engineerConcentration,
+        idleGear: graph.idleGear,
+        history: recentJournal.map((j) => ({ title: j.title, kind: j.kind })),
       },
     };
   },
@@ -474,11 +494,28 @@ export const runAgentLLM = internalAction({
       const memoryBlock = cx.memory.length
         ? `\n\n${fenceUntrusted("STUDIO MEMORY", cx.memory.map((m) => `- [${m.type}] ${m.summary}`).join("\n"))}`
         : "";
+
+      // Studio Brain: relationship graph + recent history so the agent answers
+      // with continuity ("who are our biggest clients", "what changed lately").
+      const b = cx.brain;
+      const brainBlock =
+        b && (b.topClients.length || b.history.length)
+          ? `\n\nStudio Brain (relationships + history):\n` +
+            [
+              b.topClients.length ? `- Strongest client relationships: ${b.topClients.slice(0, 5).join(", ")}` : null,
+              b.clientConcentration.label ? `- ${b.clientConcentration.label} is ${b.clientConcentration.share}% of activity` : null,
+              b.engineerConcentration.label ? `- ${b.engineerConcentration.label} runs ${b.engineerConcentration.share}% of sessions` : null,
+              b.idleGear > 0 ? `- ${b.idleGear} rentable item(s) with no upcoming bookings` : null,
+              b.history.length ? `- Recent history: ${b.history.slice(0, 5).map((h) => h.title).join("; ")}` : null,
+            ]
+              .filter(Boolean)
+              .join("\n")
+          : "";
       const userPrompt = [
         `Studio: ${cx.orgName} (plan: ${cx.plan}).`,
         `Overall studio health is ${cx.health.band} (the weakest areas are ${weakestAreas(cx.health.components)}).`,
         `Current snapshot:\n${snapshot}`,
-        `User request: ${prompt}${inventoryBlock}${softwareBlock}${memoryBlock}`,
+        `User request: ${prompt}${inventoryBlock}${softwareBlock}${memoryBlock}${brainBlock}`,
       ].join("\n\n");
 
       // Judgment task -> the full GPT-5 tier, with a forced JSON contract so we
