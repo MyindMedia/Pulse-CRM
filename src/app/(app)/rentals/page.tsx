@@ -285,7 +285,7 @@ export default function RentalsPage() {
         </>
       )}
 
-      <EquipmentDialog open={addOpen} onOpenChange={setAddOpen} />
+      <EquipmentDialog open={addOpen} onOpenChange={setAddOpen} defaultRentable />
     </div>
   );
 }

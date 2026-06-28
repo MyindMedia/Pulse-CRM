@@ -427,7 +427,9 @@ export const rentableBoard = query({
           rentalPriceCents: e.rentalPriceCents ?? 0,
           upcomingRentals: upcomingByItem.get(e._id) ?? 0,
         });
-      } else {
+      } else if (!isFurniture(e.category)) {
+        // Only real gear (mics, instruments, outboard...) can be rented out -
+        // never furniture / acoustic / decor / cable.
         candidates.push(base);
       }
     }

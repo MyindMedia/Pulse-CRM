@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/select";
 import {
   EQUIPMENT_CATEGORIES,
+  assetClass,
   type EquipmentCategory,
 } from "@/components/studio/constants";
 import { PhotoUploader } from "./photo-uploader";
@@ -108,23 +109,28 @@ function dollarsToCents(value: string): number | null {
  * Add or edit an equipment item. Pass `item` to edit an existing record,
  * omit it to create a new one. Parent owns `open`. On create, an optional
  * install-in-room picker is shown; editing never moves the item.
+ * `defaultRentable` pre-arms the booking-add-on toggle (used when adding from
+ * the Rentals page) - the item still lands in the one shared inventory.
  */
 export function EquipmentDialog({
   item,
   open,
   onOpenChange,
+  defaultRentable,
 }: {
   item?: EditableEquipment;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  defaultRentable?: boolean;
 }) {
+  const blank: FormState = { ...BLANK, rentable: defaultRentable ?? false };
   const isEdit = item !== undefined;
   const createEquipment = useMutation(api.equipment.create);
   const updateEquipment = useMutation(api.equipment.update);
   const genPhotoUrl = useMutation(api.equipment.generateUploadUrl);
   const rooms = useQuery(api.rooms.bookable);
 
-  const [form, setForm] = React.useState<FormState>(item ? toForm(item) : BLANK);
+  const [form, setForm] = React.useState<FormState>(item ? toForm(item) : blank);
   const [submitting, setSubmitting] = React.useState(false);
   // Photo uploaded during the create flow (edit uses PhotoUploader + the item id).
   const [photoId, setPhotoId] = React.useState<string | null>(null);
@@ -164,7 +170,7 @@ export function EquipmentDialog({
   if (prevOpen !== open) {
     setPrevOpen(open);
     if (open) {
-      setForm(item ? toForm(item) : BLANK);
+      setForm(item ? toForm(item) : blank);
       setPhotoId(null);
       setCatalogPhotoUrl(null);
       setCatalogPhotoCredit(null);
@@ -575,7 +581,9 @@ export function EquipmentDialog({
               />
             </Field>
 
-            {/* Rental add-on: offer this item on the public booking page. */}
+            {/* Rental add-on: offer this item on the public booking page.
+                Gear only - never furniture / acoustic / decor / cable. */}
+            {assetClass(form.category) === "gear" && (
             <div className="space-y-3 rounded-md border border-graphite/50 bg-coal-2 p-3">
               <label className="flex cursor-pointer items-start gap-2.5">
                 <input
@@ -614,6 +622,7 @@ export function EquipmentDialog({
                 </Field>
               )}
             </div>
+            )}
           </DialogBody>
           <DialogFooter>
             <Button

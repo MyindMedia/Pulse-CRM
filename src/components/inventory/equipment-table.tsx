@@ -13,6 +13,7 @@ import {
   ImageOff,
   MoreHorizontal,
   Package,
+  Tags,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +32,7 @@ import { cn } from "@/lib/utils";
 import {
   categoryMeta,
   statusMeta,
+  assetClass,
   EQUIPMENT_STATUSES,
   type EquipmentStatus,
 } from "@/components/studio/constants";
@@ -118,8 +120,25 @@ export function EquipmentTable({
 }) {
   const moveToStorage = useMutation(api.equipment.moveToStorage);
   const setStatus = useMutation(api.equipment.setStatus);
+  const setRentable = useMutation(api.equipment.setRentable);
   const remove = useMutation(api.equipment.remove);
   const [pendingId, setPendingId] = React.useState<Id<"equipment"> | null>(null);
+
+  async function handleToggleRentable(item: EquipmentRow) {
+    setPendingId(item._id);
+    try {
+      await setRentable({ id: item._id, rentable: !item.rentable });
+      toast.success(
+        item.rentable
+          ? `${item.name} removed from rentals.`
+          : `${item.name} is now rentable. Set its price on the Rentals page.`,
+      );
+    } catch {
+      toast.error("Could not update. Try again.");
+    } finally {
+      setPendingId(null);
+    }
+  }
 
   async function handleMoveToStorage(item: EquipmentRow) {
     setPendingId(item._id);
@@ -329,6 +348,17 @@ export function EquipmentTable({
                                 : s.label}
                             </DropdownMenuItem>
                           ))}
+                        </>
+                      )}
+
+                      {/* Rentable toggle - gear only (not furniture). */}
+                      {assetClass(item.category) === "gear" && (
+                        <>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem onSelect={() => handleToggleRentable(item)}>
+                            <Tags className="size-4" />
+                            {item.rentable ? "Remove from rentals" : "Make rentable"}
+                          </DropdownMenuItem>
                         </>
                       )}
 
