@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
-import { Sparkles, Send, Loader2, X, Lightbulb, ShieldCheck, Gauge, Brain, Trash2, Plus, Repeat } from "lucide-react";
+import { Sparkles, Send, Loader2, X, Lightbulb, ShieldCheck, Gauge, Brain, Trash2, Plus, Repeat, Info } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,6 +16,7 @@ import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from "@/components/ui/select";
 import { ApprovalEditDialog, type ApprovalItem } from "@/components/agent/approval-edit-dialog";
+import { AgentInfoModal } from "@/components/agent/agent-info-modal";
 import { cn } from "@/lib/utils";
 
 const SEV_TONE = { info: "neutral", opportunity: "positive", warning: "caution", critical: "critical" } as const;
@@ -31,13 +32,21 @@ const SUGGESTED = [
 ];
 
 export default function AgentPage() {
+  const [infoOpen, setInfoOpen] = React.useState(false);
   return (
     <div className="space-y-7">
       <PageHeader
         overline="Studio intelligence"
         title="Pulse Agent"
         description="Your AI studio operations manager. It reads this studio's data, flags what matters, and prepares actions for your approval - it never sends anything on its own."
+        actions={
+          <Button variant="outline" onClick={() => setInfoOpen(true)}>
+            <Info className="size-4" />
+            How it works
+          </Button>
+        }
       />
+      <AgentInfoModal open={infoOpen} onOpenChange={setInfoOpen} />
       <HealthPanel />
       <div className="grid gap-5 lg:grid-cols-[1.6fr_1fr]">
         <div className="space-y-5">
