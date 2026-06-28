@@ -66,6 +66,7 @@ export function LandingNav() {
   }, [menuOpen]);
 
   return (
+    <>
     <header
       className={cn(
         "theme-dark-island fixed inset-x-0 top-0 z-50 transition-colors duration-300",
@@ -106,28 +107,36 @@ export function LandingNav() {
           {menuOpen ? <X className="size-5" /> : <Menu className="size-5" />}
         </button>
       </nav>
-
-      {/* Mobile full-screen overlay */}
-      {menuOpen && (
-        <div className="fixed inset-0 top-16 z-40 flex flex-col bg-obsidian/98 px-6 py-8 backdrop-blur-sm md:hidden">
-          <div className="flex flex-col gap-1">
-            {LINKS.map((l) => (
-              <a
-                key={l.href}
-                href={l.href}
-                onClick={() => setMenuOpen(false)}
-                className="chrome-display border-b border-graphite/50 py-4 text-3xl text-bone transition-colors hover:text-gold"
-              >
-                {l.label}
-              </a>
-            ))}
-          </div>
-          <div className="mt-8 flex items-center gap-3">
-            <ThemeToggle />
-            <Ctas />
-          </div>
-        </div>
-      )}
     </header>
+
+    {/* Mobile full-screen overlay. Rendered as a SIBLING of the header (not a
+        child): when the menu is open the header gains `backdrop-blur-xl`, and a
+        backdrop-filter establishes a containing block for fixed descendants -
+        which would collapse a `fixed inset-0` child to the 64px header box and
+        leave the menu with no background. As a sibling it is fixed to the
+        viewport and fills the screen. `theme-dark-island` keeps the dark token
+        set (so `bg-obsidian` stays near-black) even when the site is in light
+        mode, matching the always-dark nav. */}
+    {menuOpen && (
+      <div className="theme-dark-island fixed inset-0 z-40 flex flex-col bg-obsidian/98 px-6 pb-8 pt-24 backdrop-blur-xl md:hidden">
+        <div className="flex flex-col gap-1">
+          {LINKS.map((l) => (
+            <a
+              key={l.href}
+              href={l.href}
+              onClick={() => setMenuOpen(false)}
+              className="chrome-display border-b border-graphite/50 py-4 text-3xl text-bone transition-colors hover:text-gold"
+            >
+              {l.label}
+            </a>
+          ))}
+        </div>
+        <div className="mt-8 flex items-center gap-3">
+          <ThemeToggle />
+          <Ctas />
+        </div>
+      </div>
+    )}
+    </>
   );
 }

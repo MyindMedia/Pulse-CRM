@@ -109,10 +109,17 @@ export function Hero() {
               "-=0.6",
             );
 
-          if (!desktop) return;
+          // Scroll scrub + pin handoff. Runs on BOTH desktop and mobile so the
+          // monitor swings flat as you scroll on a phone too - just tuned so
+          // everything stays inside the narrow viewport: a shorter pin, a
+          // gentler ghost drift, and a slightly larger landed scale (the
+          // flanking mains are desktop-only, so the monitor can fill more of
+          // the mobile frame without crowding).
+          const finalScale = desktop ? 0.8 : 0.9;
+          const ghostDrift = desktop ? 26 : 14;
+          const pinEnd = desktop ? "+=200%" : "+=150%";
 
-          // Scroll scrub + pin handoff (desktop only - mobile reads the resting
-          // pose with normal scrolling). The section pins for ~2 viewports:
+          // The section pins for ~1.5-2 viewports:
           //   Phase 1 (t 0-1): the monitor swings around its base toward the
           //     viewer - past front - while the ghost logo parallaxes.
           //   Phase 2 (t 1-2): headline + copy exit upward, the stage glides up
@@ -150,7 +157,7 @@ export function Hero() {
             scrollTrigger: {
               trigger: root.current,
               start: "top top",
-              end: "+=200%",
+              end: pinEnd,
               scrub: 0.85,
               pin: true,
               pinSpacing: true,
@@ -170,13 +177,13 @@ export function Hero() {
             .fromTo(
               "[data-hero-monitor]",
               { rotateY: settle.rotateY, scale: settle.scale },
-              { rotateY: 0, scale: 0.8, ease: "power2.out", duration: 1, immediateRender: false },
+              { rotateY: 0, scale: finalScale, ease: "power2.out", duration: 1, immediateRender: false },
               0,
             )
             .fromTo(
               "[data-hero-ghost]",
               { yPercent: 0 },
-              { yPercent: 26, ease: "none", duration: 1, immediateRender: false },
+              { yPercent: ghostDrift, ease: "none", duration: 1, immediateRender: false },
               0,
             )
             .fromTo(
