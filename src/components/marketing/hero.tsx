@@ -75,6 +75,19 @@ export function Hero() {
             ? { rotateY: 52, scale: 0.66 }
             : { rotateY: 16, scale: 0.84 };
 
+          // Mobile Safari drops a large preserve-3d layer that holds live,
+          // animating content (the DashboardSim) once it churns under scroll
+          // transforms - the monitor screen went blank as you scrolled. On
+          // mobile the swing is small, so the 3D side walls barely read: render
+          // the monitor FLAT there (no preserve-3d, no will-change) so the
+          // screen stays a normal, stable layer and never blanks - on at all
+          // times, like desktop.
+          const monitorEl = root.current?.querySelector<HTMLElement>("[data-hero-monitor]");
+          if (!desktop && monitorEl) {
+            monitorEl.style.transformStyle = "flat";
+            monitorEl.style.willChange = "auto";
+          }
+
           // Entrance: headline lines clip + rise, the desk fades up, then the
           // monitor swivels up into its settle pose standing on the desk, then
           // the supporting copy/CTAs fade up. Delayed so it begins as the
@@ -163,8 +176,10 @@ export function Hero() {
               pinSpacing: true,
               anticipatePin: 1,
               invalidateOnRefresh: true,
-              onLeave: () => monitor3d(false),
-              onEnterBack: () => monitor3d(true),
+              // Desktop-only: mobile stays flat (set above), so the screen is
+              // never composited away and these toggles must not re-enable 3D.
+              onLeave: () => { if (desktop) monitor3d(false); },
+              onEnterBack: () => { if (desktop) monitor3d(true); },
             },
           });
           scrub
@@ -500,7 +515,7 @@ export function Hero() {
                 and stand below). */}
             <div
               className="absolute overflow-hidden bg-obsidian"
-              style={{ top: "1.2%", left: "1.0%", right: "1.1%", bottom: "26.5%", containerType: "inline-size" }}
+              style={{ top: "1.2%", left: "1.0%", right: "1.1%", bottom: "26.5%", containerType: "inline-size", backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}
             >
               <DashboardSim />
               {/* Faint screen glare only - stronger washes make the dark UI
@@ -524,8 +539,9 @@ export function Hero() {
           data-hero-exit
           className="font-grotesk mx-auto mt-10 max-w-[540px] text-[17px] font-medium leading-relaxed tracking-[-0.01em] text-mist/85 [text-shadow:0_1px_4px_rgba(0,0,0,0.85),0_2px_18px_rgba(0,0,0,0.7)] motion-safe:opacity-0"
         >
-          Bookings, deposits, rooms, staff and gear, all in sync and automated,
-          so the recording studio runs without the busywork.
+          Bookings, payments, staff shifts, inventory and song rights in one place,
+          with an AI manager that automates the operations, so your team runs
+          sessions instead of chasing admin.
         </p>
 
         <div

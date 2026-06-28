@@ -18,7 +18,7 @@ export function Chain() {
     <section id="workflow" className="relative px-4 py-24 lg:px-8">
       <div className="mx-auto max-w-6xl">
         <Reveal className="mx-auto max-w-2xl text-center">
-          <p className="chrome-meta text-steel">Studio booking software, automated</p>
+          <p className="chrome-meta text-steel">Automate your studio operations</p>
           <h2 className="chrome-display mt-4 text-4xl leading-[1.05] text-bone sm:text-5xl">
             From booking to <span className="text-gold">paid</span>, the studio runs itself
           </h2>

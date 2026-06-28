@@ -43,11 +43,12 @@ export function BookingLinkShare({ slug, studioName }: { slug: string; studioNam
       <CardHeader>
         <CardTitle className="flex items-center gap-2">
           <Link2 className="size-4 text-gold" />
-          Your booking link
+          Your studio&apos;s booking page
         </CardTitle>
         <CardDescription>
-          This link is live and unique to {studioName}. Share it anywhere &mdash; clients see your
-          rooms, real-time availability, pricing and any memberships, and book directly.
+          A live page that is yours alone. Clients see {studioName}&apos;s rooms, real-time
+          availability, pricing and memberships, then book and pay a deposit on the spot. No app,
+          no account, and the deposit lands straight in your Stripe.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -77,8 +78,8 @@ export function BookingLinkShare({ slug, studioName }: { slug: string; studioNam
         <div className="flex items-start gap-2 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5">
           <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-positive" />
           <p className="text-[0.6875rem] text-steel/70">
-            Not a demo &mdash; this is your studio&apos;s own page. Renaming your studio can change the
-            slug, so re-copy the link if you do.
+            This is your real studio page, not a demo. If you rename your studio the link can
+            change, so copy it again after a rename.
           </p>
         </div>
       </CardContent>

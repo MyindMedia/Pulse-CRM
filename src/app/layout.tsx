@@ -38,7 +38,7 @@ const ibmPlexMono = IBM_Plex_Mono({
 const SITE_URL = "https://pulse.myindsound.com";
 const SITE_TITLE = "Pulse: Recording Studio Management Software";
 const SITE_DESCRIPTION =
-  "Recording studio management software: online booking with deposits to your own Stripe, room and staff scheduling, gear tracking and invoicing. From $49/mo.";
+  "Recording studio management software with a built-in AI manager: online booking with deposits to your own Stripe (keep 100%), staff scheduling, inventory tracking, song splits and rights, and invoicing, all in one place. From $49/mo.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

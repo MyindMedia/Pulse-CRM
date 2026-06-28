@@ -18,8 +18,12 @@ const FAQS = [
     a: "Yes. Plans are billed monthly with no contract. Upgrade, downgrade or cancel anytime from your billing portal; changes are prorated.",
   },
   {
-    q: "What is the AI Agent?",
-    a: "An AI studio manager that drafts client replies, follows up on leads and keeps sessions and payments moving. Coming soon, included on the Studio plan.",
+    q: "What does the AI studio manager do?",
+    a: "It runs the operational busywork for you: chases unpaid deposits, follows up on new leads, fills cancellations, drafts client replies, flags no-show and scheduling risks, and scores your studio's profitability so you see exactly where to make more money. It works inside your studio only and never sees another studio's data. Included on the Studio plan.",
+  },
+  {
+    q: "Does Pulse handle song splits and rights?",
+    a: "Yes. Move every song from demo to release, capture each contributor's split, collect legally binding e-signatures, and store ISRC and ISWC. Pulse holds a release until the split sheet is fully signed, so royalties never get disputed.",
   },
   {
     q: "Can I bring my whole team?",

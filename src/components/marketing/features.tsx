@@ -1,50 +1,50 @@
 import {
+  Sparkles,
   Ticket,
-  DoorOpen,
   CalendarClock,
   Boxes,
+  Music2,
   Receipt,
-  Workflow,
 } from "lucide-react";
 import { Reveal } from "./reveal";
 import { GhostWord } from "./ghost-word";
 
 const FEATURES = [
   {
+    icon: Sparkles,
+    title: "AI operations manager",
+    blurb:
+      "Automates the busywork: chases unpaid deposits, follows up on leads, fills cancellations and flags scheduling and payment risks before they cost you. It only ever sees your studio.",
+  },
+  {
     icon: Ticket,
     title: "Bookings and deposits",
     blurb:
-      "Public booking pages take deposits straight to your own Stripe account. You keep 100 percent.",
-  },
-  {
-    icon: DoorOpen,
-    title: "Room management",
-    blurb:
-      "Assign and track every room, see what is free at a glance, and never double-book again.",
+      "Public booking pages take deposits straight to your own Stripe account. You keep 100 percent, with no per-booking fees.",
   },
   {
     icon: CalendarClock,
-    title: "Staff scheduling",
+    title: "Staffing and scheduling",
     blurb:
-      "Schedule engineers and staff to rooms and sessions in one calendar. Everyone knows where to be.",
+      "Schedule engineers and assistants to rooms and sessions in one calendar. Everyone sees their shifts, and no session runs unstaffed or double-booked.",
   },
   {
     icon: Boxes,
-    title: "Gear and inventory",
+    title: "Inventory tracking",
     blurb:
-      "Track gear, software and furniture, check items out to rooms, and know the value of every asset.",
+      "Track every mic, plugin and piece of furniture, check gear out to rooms and sessions, and stay ahead of each license renewal, repair and asset value.",
+  },
+  {
+    icon: Music2,
+    title: "Songs, splits and rights",
+    blurb:
+      "Move every song from demo to release, lock split sheets with e-signatures and store ISRC and ISWC. Pulse holds a release until the splits are signed.",
   },
   {
     icon: Receipt,
     title: "Payments and cash flow",
     blurb:
-      "Invoices, deposits and revenue in one command center, so you can see exactly where money leaks.",
-  },
-  {
-    icon: Workflow,
-    title: "Automations and workflows",
-    blurb:
-      "A booking moves itself from deposit to invoice, with room, staff and gear handled automatically.",
+      "Invoices, deposits and revenue in one place, so you always know what is owed, what is overdue and where money is leaking.",
   },
 ];
 
@@ -59,8 +59,9 @@ export function Features() {
             Run the <span className="not-italic text-gold-deep">whole</span> studio, not ten apps
           </h2>
           <p className="font-grotesk mt-5 text-[17px] font-medium leading-relaxed tracking-[-0.01em] text-slate">
-            Pulse replaces the spreadsheet, the booking form, the scheduling app and the
-            invoice tool with one recording studio management system.
+            Bookings, scheduling, inventory, payments and song rights live in one
+            system, and an AI manager runs the day-to-day, so you stop stitching
+            apps together and chasing admin.
           </p>
         </Reveal>
 
