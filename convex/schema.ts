@@ -714,6 +714,11 @@ export default defineSchema({
     nextServiceAt: v.optional(v.number()),
     photoId: v.optional(v.id("_storage")), // uploaded photo (Convex file storage)
     photoUrl: v.optional(v.string()), // fallback URL - seeded demo gear
+    // Rental add-on: the studio can offer this item as an a-la-carte add-on on
+    // the public booking page for a per-session price. Availability is checked
+    // against overlapping sessions so a single unit cannot be double-booked.
+    rentable: v.optional(v.boolean()),
+    rentalPriceCents: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])
     .index("by_org_room", ["orgId", "installedInRoomId"]),
@@ -771,6 +776,22 @@ export default defineSchema({
     // Two-way Google Calendar sync: when the studio is connected, this is the
     // Google event id we created for this session so we can patch / delete it.
     googleCalendarEventId: v.optional(v.string()),
+    // Premium gear add-ons rented a-la-carte for this session from the public
+    // booking page. Each references an equipment item + the price charged; the
+    // sum is folded into rateCents. Used to conflict-check single-unit gear so
+    // one mic cannot be booked into two overlapping sessions.
+    addOns: v.optional(
+      v.array(
+        v.object({
+          equipmentId: v.id("equipment"),
+          name: v.string(),
+          priceCents: v.number(),
+        }),
+      ),
+    ),
+    // Free-text request when a client wants gear that was unavailable or not
+    // listed; the studio team is notified to follow up.
+    gearRequestNote: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])

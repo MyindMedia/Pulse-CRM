@@ -48,6 +48,8 @@ export type EquipmentRow = {
   serialNumber?: string;
   condition?: string;
   notes?: string;
+  rentable?: boolean;
+  rentalPriceCents?: number;
   roomName: string | null;
   location: string;
   effectiveStatus: string;
@@ -228,8 +230,13 @@ export function EquipmentTable({
                   <div className="flex min-w-0 items-center gap-2.5">
                     <PhotoThumb photo={item.photo} name={item.name} />
                     <div className="min-w-0">
-                      <p className="truncate font-medium text-bone">
+                      <p className="flex items-center gap-1.5 truncate font-medium text-bone">
                         {item.name}
+                        {item.rentable && (
+                          <Badge tone="gold" className="shrink-0">
+                            Rentable{item.rentalPriceCents ? ` · ${money(item.rentalPriceCents)}` : ""}
+                          </Badge>
+                        )}
                       </p>
                       {item.serialNumber && (
                         <p className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">

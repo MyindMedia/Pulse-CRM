@@ -44,6 +44,8 @@ export type EditableEquipment = {
   serialNumber?: string;
   condition?: string;
   notes?: string;
+  rentable?: boolean;
+  rentalPriceCents?: number;
   /** Current display photo URL, when one is set. */
   photo?: string | null;
 };
@@ -58,6 +60,8 @@ type FormState = {
   serialNumber: string;
   condition: string;
   notes: string;
+  rentable: boolean;
+  rentalPrice: string;
 };
 
 /** Sentinel select value for "not installed - sits in storage". */
@@ -73,6 +77,8 @@ const BLANK: FormState = {
   serialNumber: "",
   condition: "",
   notes: "",
+  rentable: false,
+  rentalPrice: "",
 };
 
 function toForm(item: EditableEquipment): FormState {
@@ -86,6 +92,8 @@ function toForm(item: EditableEquipment): FormState {
     serialNumber: item.serialNumber ?? "",
     condition: item.condition ?? "",
     notes: item.notes ?? "",
+    rentable: item.rentable ?? false,
+    rentalPrice: item.rentalPriceCents ? (item.rentalPriceCents / 100).toString() : "",
   };
 }
 
@@ -216,6 +224,10 @@ export function EquipmentDialog({
       toast.error("Current value must be greater than zero.");
       return;
     }
+    // Rental price is only meaningful when the item is offered as an add-on.
+    const rentalPriceCents = form.rentable
+      ? Math.max(0, Math.round((parseFloat(form.rentalPrice) || 0) * 100))
+      : 0;
     setSubmitting(true);
     try {
       if (isEdit && item) {
@@ -229,6 +241,8 @@ export function EquipmentDialog({
           serialNumber: form.serialNumber.trim() || undefined,
           condition: form.condition.trim() || undefined,
           notes: form.notes.trim() || undefined,
+          rentable: form.rentable,
+          rentalPriceCents,
         });
         toast.success(`${name} updated.`);
       } else {
@@ -247,6 +261,8 @@ export function EquipmentDialog({
           notes: form.notes.trim() || undefined,
           photoId: photoId ? (photoId as Id<"_storage">) : undefined,
           photoUrl: !photoId && catalogPhotoUrl ? catalogPhotoUrl : undefined,
+          rentable: form.rentable || undefined,
+          rentalPriceCents: form.rentable ? rentalPriceCents : undefined,
         });
         toast.success(`${name} added to inventory.`);
       }
@@ -558,6 +574,46 @@ export function EquipmentDialog({
                 rows={3}
               />
             </Field>
+
+            {/* Rental add-on: offer this item on the public booking page. */}
+            <div className="space-y-3 rounded-md border border-graphite/50 bg-coal-2 p-3">
+              <label className="flex cursor-pointer items-start gap-2.5">
+                <input
+                  type="checkbox"
+                  checked={form.rentable}
+                  onChange={(e) => set("rentable", e.target.checked)}
+                  className="mt-0.5 size-4 shrink-0 accent-gold"
+                />
+                <span>
+                  <span className="block text-sm font-medium text-bone">
+                    Offer as a booking add-on
+                  </span>
+                  <span className="block text-xs text-steel/70">
+                    Clients can rent this on your booking page for a per-session price. A single
+                    unit can never be double-booked across overlapping sessions.
+                  </span>
+                </span>
+              </label>
+              {form.rentable && (
+                <Field
+                  label="Rental price per session"
+                  htmlFor="equip-rental"
+                  hint="Added to the client's session total and deposit."
+                >
+                  <Input
+                    id="equip-rental"
+                    type="number"
+                    min={0}
+                    step="0.01"
+                    inputMode="decimal"
+                    value={form.rentalPrice}
+                    onChange={(e) => set("rentalPrice", e.target.value)}
+                    placeholder="75"
+                    autoComplete="off"
+                  />
+                </Field>
+              )}
+            </div>
           </DialogBody>
           <DialogFooter>
             <Button

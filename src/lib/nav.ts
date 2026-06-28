@@ -15,6 +15,7 @@ import {
   ScrollText,
   SlidersHorizontal,
   Boxes,
+  Tags,
   AppWindow,
   Settings,
   type LucideIcon,
@@ -52,6 +53,7 @@ export const NAV: NavItem[] = [
   { label: "Licensing", href: "/licensing", icon: ScrollText, blurb: "Sync placements and beat licenses", feature: "licensing" },
   { label: "Studio", href: "/studio", icon: SlidersHorizontal, blurb: "Rooms and the team", feature: "studio" },
   { label: "Inventory", href: "/inventory", icon: Boxes, blurb: "Equipment assets and their value", feature: "inventory" },
+  { label: "Rentals", href: "/rentals", icon: Tags, blurb: "Gear clients can add to a booking, and rental pricing", feature: "inventory" },
   { label: "Software", href: "/software", icon: AppWindow, blurb: "DAWs, plugins and license management", feature: "software" },
   { label: "Settings", href: "/settings", icon: Settings, blurb: "Workspace configuration", capability: "branding.edit" },
 ];

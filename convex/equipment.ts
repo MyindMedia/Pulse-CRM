@@ -183,6 +183,8 @@ export const create = mutation({
     notes: v.optional(v.string()),
     photoId: v.optional(v.id("_storage")),
     photoUrl: v.optional(v.string()),
+    rentable: v.optional(v.boolean()),
+    rentalPriceCents: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const orgId = await currentOrg(ctx);
@@ -206,6 +208,8 @@ export const create = mutation({
       notes: args.notes,
       photoId: args.photoId,
       photoUrl: args.photoUrl,
+      rentable: args.rentable,
+      rentalPriceCents: args.rentalPriceCents,
     });
     await ctx.db.insert("activity", {
       orgId,
@@ -324,13 +328,112 @@ export const update = mutation({
     serialNumber: v.optional(v.string()),
     condition: v.optional(v.string()),
     notes: v.optional(v.string()),
+    rentable: v.optional(v.boolean()),
+    rentalPriceCents: v.optional(v.number()),
   },
   handler: async (ctx, { id, ...patch }) => {
     const orgId = await currentOrg(ctx);
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
-    const clean = Object.fromEntries(Object.entries(patch).filter(([, val]) => val !== undefined));
+    // `rentable` is a real boolean toggle, so it must survive the undefined
+    // filter even when set to false; everything else only patches when present.
+    const clean: Record<string, unknown> = Object.fromEntries(
+      Object.entries(patch).filter(([key, val]) => val !== undefined || key === "rentable"),
+    );
     await ctx.db.patch(id, clean);
+  },
+});
+
+/** Upcoming sessions that have rented this item - so inventory can show when a
+ *  single-unit piece is committed and to whom. Tenant-scoped. */
+export const rentalSchedule = query({
+  args: { id: v.id("equipment") },
+  handler: async (ctx, { id }) => {
+    const orgId = await currentOrg(ctx);
+    const item = await ctx.db.get(id);
+    assertOrg(item, orgId);
+    const now = Date.now();
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect();
+    return sessions
+      .filter(
+        (s) =>
+          s.endTime > now &&
+          s.status !== "cancelled" &&
+          s.status !== "no_show" &&
+          s.addOns?.some((a) => a.equipmentId === id),
+      )
+      .sort((a, b) => a.startTime - b.startTime)
+      .slice(0, 20)
+      .map((s) => ({ sessionId: s._id, title: s.title, startTime: s.startTime, endTime: s.endTime }));
+  },
+});
+
+/** Toggle whether an inventory item is offered as a booking add-on, with its
+ *  per-session rental price. Single source of truth: the booking page and the
+ *  inventory list both read the same `rentable` / `rentalPriceCents` fields, so
+ *  the rentals page and inventory stay in sync automatically. */
+export const setRentable = mutation({
+  args: {
+    id: v.id("equipment"),
+    rentable: v.boolean(),
+    rentalPriceCents: v.optional(v.number()),
+  },
+  handler: async (ctx, { id, rentable, rentalPriceCents }) => {
+    const orgId = await currentOrg(ctx);
+    const item = await ctx.db.get(id);
+    assertOrg(item, orgId);
+    const patch: Record<string, unknown> = { rentable };
+    if (rentalPriceCents !== undefined) {
+      patch.rentalPriceCents = Math.max(0, Math.round(rentalPriceCents));
+    }
+    await ctx.db.patch(id, patch);
+  },
+});
+
+/** The rentals page board: items already offered as add-ons (with price +
+ *  upcoming-rental count) and the rest of inventory you can add from. */
+export const rentableBoard = query({
+  args: {},
+  handler: async (ctx) => {
+    const orgId = await currentOrg(ctx);
+    const [items, sessions] = await Promise.all([
+      ctx.db.query("equipment").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect(),
+      ctx.db.query("sessions").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect(),
+    ]);
+    const now = Date.now();
+    const upcomingByItem = new Map<string, number>();
+    for (const s of sessions) {
+      if (s.endTime <= now || s.status === "cancelled" || s.status === "no_show") continue;
+      for (const a of s.addOns ?? []) {
+        upcomingByItem.set(a.equipmentId, (upcomingByItem.get(a.equipmentId) ?? 0) + 1);
+      }
+    }
+    const rentable: {
+      _id: Id<"equipment">; name: string; category: string; quantity: number;
+      photo: string | null; rentalPriceCents: number; upcomingRentals: number;
+    }[] = [];
+    const candidates: {
+      _id: Id<"equipment">; name: string; category: string; quantity: number; photo: string | null;
+    }[] = [];
+    for (const e of items) {
+      const photo = await photoOf(ctx, e);
+      const base = { _id: e._id, name: e.name, category: e.category, quantity: e.quantity ?? 1, photo };
+      if (e.rentable) {
+        rentable.push({
+          ...base,
+          rentalPriceCents: e.rentalPriceCents ?? 0,
+          upcomingRentals: upcomingByItem.get(e._id) ?? 0,
+        });
+      } else {
+        candidates.push(base);
+      }
+    }
+    rentable.sort((a, b) => a.name.localeCompare(b.name));
+    candidates.sort((a, b) => a.name.localeCompare(b.name));
+    return { rentable, candidates };
   },
 });
 

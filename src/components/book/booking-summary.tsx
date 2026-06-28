@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarDays, Clock3, DoorOpen, User } from "lucide-react";
+import { CalendarDays, Clock3, DoorOpen, User, Headphones } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { money, longDate, timeOfDay, duration } from "@/lib/format";
 
@@ -17,6 +17,8 @@ export type BookingSummaryData = {
   balanceCents: number;
   fullyPaid: boolean;
   status: string;
+  engineerName?: string | null;
+  addOns?: { name: string; priceCents: number }[];
 };
 
 const STATUS_TONE: Record<string, "positive" | "caution" | "neutral" | "critical"> = {
@@ -31,6 +33,9 @@ export function BookingSummary({ booking }: { booking: BookingSummaryData }) {
   const rows = [
     { icon: DoorOpen, label: "Room", value: booking.roomName },
     { icon: User, label: "Booked by", value: booking.clientName },
+    ...(booking.engineerName
+      ? [{ icon: Headphones, label: "Engineer", value: booking.engineerName }]
+      : []),
     { icon: CalendarDays, label: "Date", value: longDate(booking.startTime) },
     {
       icon: Clock3,
@@ -64,6 +69,16 @@ export function BookingSummary({ booking }: { booking: BookingSummaryData }) {
       </dl>
 
       <div className="space-y-2 border-t border-graphite/50 bg-coal-2/60 px-5 py-4">
+        {booking.addOns && booking.addOns.length > 0 && (
+          <div className="space-y-1.5 pb-1">
+            {booking.addOns.map((a, i) => (
+              <div key={`${a.name}-${i}`} className="flex items-center justify-between text-xs">
+                <span className="text-steel/80">{a.name}</span>
+                <span className="font-meta text-steel/80">{money(a.priceCents)}</span>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="flex items-center justify-between text-sm">
           <span className="text-steel">Session total</span>
           <span className="font-meta text-bone">{money(booking.rateCents)}</span>

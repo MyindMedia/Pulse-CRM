@@ -1,5 +1,5 @@
 import { query, mutation, action, internalQuery, QueryCtx } from "./_generated/server";
-import { Doc } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { currentOrg } from "./lib/tenant";
@@ -8,6 +8,16 @@ import { money } from "./lib/money";
 import { stripeClient } from "./lib/stripe";
 import { ensureInquiryFromBooking } from "./opportunities";
 import { whitelabelFor } from "./usage";
+import {
+  bookedUnits,
+  gearAvailable,
+  engineerAvailable,
+  unitsOf,
+  addOnsTotalCents,
+} from "./lib/gearRental";
+
+/* Staff roles a client can request to run their session, on the public page. */
+const ENGINEER_ROLES = new Set(["owner", "engineer", "assistant_engineer", "producer"]);
 
 /* ============================================================
    Booking - the public studio-booking backend (the /book pages).
@@ -193,13 +203,80 @@ export const availability = query({
   },
 });
 
+/** Add-on options for a specific room + time window: which engineers are free
+ *  and which premium gear can be rented, each priced and conflict-checked
+ *  against overlapping sessions so a single unit is never double-booked. Public
+ *  (org derived from the room). Re-runs as the client changes their time. */
+export const addOnOptions = query({
+  args: { roomId: v.id("rooms"), startTime: v.number(), durationHours: v.number() },
+  handler: async (ctx, { roomId, startTime, durationHours }) => {
+    const room = await ctx.db.get(roomId);
+    if (!room) return { engineers: [], gear: [] };
+    const orgId = room.orgId;
+    const endTime = startTime + durationHours * HOUR;
+
+    // Sessions that could overlap the window (load a day of lead-in, then
+    // filter precisely inside the pure helpers).
+    const around = await ctx.db
+      .query("sessions")
+      .withIndex("by_org_start", (q) =>
+        q.eq("orgId", orgId).gte("startTime", startTime - DAY).lt("startTime", endTime),
+      )
+      .collect();
+
+    const members = await ctx.db
+      .query("members")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect();
+    const engineers = await Promise.all(
+      members
+        .filter((m) => ENGINEER_ROLES.has(m.role))
+        .map(async (m) => ({
+          id: m._id,
+          name: m.name,
+          role: m.role,
+          photoUrl: m.photoId ? await ctx.storage.getUrl(m.photoId) : (m.clerkImageUrl ?? null),
+          available: engineerAvailable(m._id, startTime, endTime, around),
+        })),
+    );
+    engineers.sort(
+      (a, b) => Number(b.available) - Number(a.available) || a.name.localeCompare(b.name),
+    );
+
+    const equip = await ctx.db
+      .query("equipment")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect();
+    const gear = await Promise.all(
+      equip
+        .filter((e) => e.rentable)
+        .map(async (e) => {
+          const booked = bookedUnits(e._id, startTime, endTime, around);
+          return {
+            id: e._id,
+            name: e.name,
+            category: e.category,
+            priceCents: e.rentalPriceCents ?? 0,
+            photo: await photoOf(ctx, e),
+            quantity: unitsOf(e),
+            bookedUnits: booked,
+            available: gearAvailable(e, booked),
+          };
+        }),
+    );
+    gear.sort((a, b) => Number(b.available) - Number(a.available) || a.name.localeCompare(b.name));
+
+    return { engineers, gear };
+  },
+});
+
 /** Session + payment state - drives the checkout / confirmation page. */
 export const booking = query({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
     const session = await ctx.db.get(sessionId);
     if (!session) return null;
-    const [room, artist, payments, org] = await Promise.all([
+    const [room, artist, payments, org, engineer] = await Promise.all([
       session.roomId ? ctx.db.get(session.roomId) : null,
       ctx.db.get(session.artistId),
       ctx.db
@@ -210,6 +287,7 @@ export const booking = query({
         .query("orgs")
         .withIndex("by_org", (q) => q.eq("orgId", session.orgId))
         .first(),
+      session.engineerId ? ctx.db.get(session.engineerId) : null,
     ]);
     const paid = session.amountPaidCents ?? 0;
     return {
@@ -217,6 +295,8 @@ export const booking = query({
       roomName: room?.name ?? "Studio",
       clientName: artist?.name ?? "Guest",
       clientEmail: artist?.email ?? null,
+      engineerName: engineer?.name ?? null,
+      addOns: session.addOns ?? [],
       payments: payments.sort((a, b) => a._creationTime - b._creationTime),
       paidCents: paid,
       balanceCents: Math.max(0, session.rateCents - paid),
@@ -243,6 +323,10 @@ export const createBooking = mutation({
     serviceType: v.optional(serviceV),
     notes: v.optional(v.string()),
     source: v.optional(v.string()),
+    // Add-ons: a requested engineer + premium gear rented for this session.
+    engineerId: v.optional(v.id("members")),
+    addOnEquipmentIds: v.optional(v.array(v.id("equipment"))),
+    gearRequestNote: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const room = await ctx.db.get(args.roomId);
@@ -273,6 +357,42 @@ export const createBooking = mutation({
         s.endTime > args.startTime,
     );
     if (clash) throw new Error("That time was just taken - pick another slot.");
+
+    // ── Add-ons: validate the requested engineer + premium gear against the
+    // SAME overlapping-sessions window, on the server. A single unit can never
+    // be double-booked, and prices come from the DB, never the client. ──
+    let engineerId: Id<"members"> | undefined;
+    let engineerName: string | undefined;
+    let engineerEmail: string | undefined;
+    if (args.engineerId) {
+      const m = await ctx.db.get(args.engineerId);
+      if (!m || m.orgId !== orgId || !ENGINEER_ROLES.has(m.role)) {
+        throw new Error("That engineer is not available to book.");
+      }
+      if (!engineerAvailable(m._id, args.startTime, endTime, around)) {
+        throw new Error(`${m.name} was just booked for that time. Pick another engineer.`);
+      }
+      engineerId = m._id;
+      engineerName = m.name;
+      engineerEmail = m.email;
+    }
+
+    const addOns: { equipmentId: Id<"equipment">; name: string; priceCents: number }[] = [];
+    for (const eqId of args.addOnEquipmentIds ?? []) {
+      const item = await ctx.db.get(eqId);
+      if (!item || item.orgId !== orgId || !item.rentable) {
+        throw new Error("One of the gear add-ons is no longer available.");
+      }
+      const booked = bookedUnits(item._id, args.startTime, endTime, around);
+      if (!gearAvailable(item, booked)) {
+        throw new Error(
+          `${item.name} was just booked for that time. Pick another option, or request it and the studio will follow up.`,
+        );
+      }
+      addOns.push({ equipmentId: item._id, name: item.name, priceCents: item.rentalPriceCents ?? 0 });
+    }
+    const addOnTotalCents = addOnsTotalCents(addOns);
+    const gearRequestNote = args.gearRequestNote?.trim() || undefined;
 
     const leadSource = args.source ?? "web_booking";
     const email = args.clientEmail.trim().toLowerCase();
@@ -307,7 +427,7 @@ export const createBooking = mutation({
       });
     }
 
-    const rateCents = cfg.hourlyRateCents * args.durationHours;
+    const rateCents = cfg.hourlyRateCents * args.durationHours + addOnTotalCents;
     const depositCents = Math.round((rateCents * cfg.depositPct) / 100);
     const sessionId = await ctx.db.insert("sessions", {
       orgId,
@@ -326,6 +446,9 @@ export const createBooking = mutation({
       amountPaidCents: 0,
       source: "public_booking",
       holdExpiresAt: Date.now() + HOLD_MINUTES * 60_000,
+      ...(engineerId ? { engineerId } : {}),
+      ...(addOns.length ? { addOns } : {}),
+      ...(gearRequestNote ? { gearRequestNote } : {}),
     });
 
     // Lead→booking funnel: open an `inquiry` opportunity for this lead so the
@@ -370,16 +493,40 @@ export const createBooking = mutation({
       kind: "booking.held",
       sessionId,
     });
-    // Internal team: a new booking request just landed.
+    // Internal team: a new booking request just landed, with any engineer
+    // request, rented gear, and a free-text gear ask to follow up on.
+    const addOnLine = addOns.length
+      ? `\nGear add-ons: ${addOns.map((a) => `${a.name} (${money(a.priceCents)})`).join(", ")}.`
+      : "";
+    const engineerLine = engineerName ? `\nRequested engineer: ${engineerName}.` : "";
+    const requestLine = gearRequestNote ? `\nGear request to follow up: "${gearRequestNote}".` : "";
     await notifyTeam(ctx, {
       orgId,
       subject: `New booking - ${room.name}, ${new Date(args.startTime).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`,
-      body: `${args.clientName} (${args.clientEmail.trim()}) requested ${args.durationHours}h in ${room.name}. The room is held pending the ${money(depositCents)} deposit.`,
+      body: `${args.clientName} (${args.clientEmail.trim()}) requested ${args.durationHours}h in ${room.name}. The room is held pending the ${money(depositCents)} deposit.${engineerLine}${addOnLine}${requestLine}`,
       kind: "booking.created",
       sessionId,
     });
+    // Personally notify the requested engineer so they know to expect it.
+    if (engineerEmail) {
+      await notify(ctx, {
+        orgId,
+        channel: "email",
+        recipient: engineerEmail,
+        subject: `You were requested - ${room.name}`,
+        body: `${args.clientName} requested you for a ${args.durationHours}-hour session in ${room.name} on ${new Date(args.startTime).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}. It is held pending their deposit.`,
+        kind: "booking.engineer_requested",
+        sessionId,
+      });
+    }
 
-    return { sessionId, rateCents, depositCents, depositPct: cfg.depositPct };
+    return {
+      sessionId,
+      rateCents,
+      depositCents,
+      depositPct: cfg.depositPct,
+      addOnTotalCents,
+    };
   },
 });
 

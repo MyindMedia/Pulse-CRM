@@ -31,6 +31,11 @@ import {
   emptyBookingForm,
   type BookingFormValues,
 } from "@/components/book/booking-form";
+import {
+  AddOnsPicker,
+  emptyAddOns,
+  type AddOnSelection,
+} from "@/components/book/add-ons-picker";
 
 export default function RoomDetailPage() {
   const { slug, roomId } = useParams<{ slug: string; roomId: string }>();
@@ -40,6 +45,7 @@ export default function RoomDetailPage() {
 
   const [selection, setSelection] = React.useState<SlotSelection | null>(null);
   const [form, setForm] = React.useState<BookingFormValues>(emptyBookingForm);
+  const [addOns, setAddOns] = React.useState<AddOnSelection>(emptyAddOns);
   const [submitting, setSubmitting] = React.useState(false);
 
   const handleSelection = React.useCallback((s: SlotSelection | null) => {
@@ -76,9 +82,8 @@ export default function RoomDetailPage() {
   const formValid = form.clientName.trim().length > 1 && emailValid;
   const canSubmit = Boolean(selection) && formValid && !submitting;
 
-  const liveRateCents = selection
-    ? loadedRoom.hourlyRateCents * selection.durationHours
-    : 0;
+  const liveRoomCents = selection ? loadedRoom.hourlyRateCents * selection.durationHours : 0;
+  const liveRateCents = liveRoomCents + (selection ? addOns.addOnTotalCents : 0);
   const liveDepositCents = Math.round((liveRateCents * loadedRoom.depositPct) / 100);
 
   async function handleContinue() {
@@ -94,6 +99,9 @@ export default function RoomDetailPage() {
         durationHours: selection.durationHours,
         serviceType: form.serviceType,
         notes: form.notes.trim() || undefined,
+        engineerId: addOns.engineerId,
+        addOnEquipmentIds: addOns.gear.map((g) => g.id),
+        gearRequestNote: addOns.gearRequestNote || undefined,
       });
       toast.success("Booking held - finish payment to confirm.");
       router.push(`/book/${slug}/checkout/${result.sessionId}`);
@@ -201,53 +209,88 @@ export default function RoomDetailPage() {
           </h2>
           <div className="space-y-5 rounded-lg border border-graphite/50 bg-coal p-5">
             <BookingForm values={form} onChange={setForm} />
-
-            <div className="space-y-3 border-t border-graphite/50 pt-4">
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-steel">Session total</span>
-                <span className="font-meta text-bone">
-                  {selection ? money(liveRateCents) : "-"}
-                </span>
-              </div>
-              <div className="flex items-center justify-between text-sm">
-                <span className="text-steel">Deposit to hold</span>
-                <span className="font-meta text-gold-bright">
-                  {selection ? money(liveDepositCents) : "-"}
-                </span>
-              </div>
-
-              <Button
-                type="button"
-                size="lg"
-                className="w-full"
-                disabled={!canSubmit}
-                onClick={handleContinue}
-              >
-                {submitting ? (
-                  <>
-                    <Loader2 className="size-4 animate-spin" />
-                    Holding your slot…
-                  </>
-                ) : (
-                  <>
-                    Continue to payment
-                    <ArrowRight className="size-4" />
-                  </>
-                )}
-              </Button>
-
-              {!selection && (
-                <p className="text-center text-xs text-steel/70">
-                  Pick a date and time to continue.
-                </p>
-              )}
-              {selection && !formValid && (
-                <p className="text-center text-xs text-steel/70">
-                  Add your name and a valid email to continue.
-                </p>
-              )}
-            </div>
           </div>
+        </div>
+      </section>
+
+      {/* Add-ons: engineer + premium gear, available for the chosen time */}
+      {selection && (
+        <section className="space-y-3">
+          <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
+            Engineer and add-ons
+          </h2>
+          <AddOnsPicker
+            roomId={loadedRoom._id}
+            selection={{ startTime: selection.startTime, durationHours: selection.durationHours }}
+            onChange={setAddOns}
+          />
+        </section>
+      )}
+
+      {/* Itemized total + continue */}
+      <section className="space-y-3">
+        <div className="space-y-3 rounded-lg border border-graphite/50 bg-coal p-5">
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-steel">
+              Room {selection ? `(${selection.durationHours}h)` : ""}
+            </span>
+            <span className="font-meta text-bone">{selection ? money(liveRoomCents) : "-"}</span>
+          </div>
+          {addOns.engineerName && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-steel">Engineer</span>
+              <span className="font-meta text-bone">{addOns.engineerName}</span>
+            </div>
+          )}
+          {addOns.gear.map((g) => (
+            <div key={g.id} className="flex items-center justify-between text-sm">
+              <span className="text-steel">{g.name}</span>
+              <span className="font-meta text-bone">{money(g.priceCents)}</span>
+            </div>
+          ))}
+          <div className="flex items-center justify-between border-t border-graphite/50 pt-3 text-sm">
+            <span className="font-grotesk font-semibold text-bone">Session total</span>
+            <span className="font-meta font-semibold text-bone">
+              {selection ? money(liveRateCents) : "-"}
+            </span>
+          </div>
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-steel">Deposit to hold ({loadedRoom.depositPct}%)</span>
+            <span className="font-meta text-gold-bright">
+              {selection ? money(liveDepositCents) : "-"}
+            </span>
+          </div>
+
+          <Button
+            type="button"
+            size="lg"
+            className="w-full"
+            disabled={!canSubmit}
+            onClick={handleContinue}
+          >
+            {submitting ? (
+              <>
+                <Loader2 className="size-4 animate-spin" />
+                Holding your slot…
+              </>
+            ) : (
+              <>
+                Continue to payment
+                <ArrowRight className="size-4" />
+              </>
+            )}
+          </Button>
+
+          {!selection && (
+            <p className="text-center text-xs text-steel/70">
+              Pick a date and time to continue.
+            </p>
+          )}
+          {selection && !formValid && (
+            <p className="text-center text-xs text-steel/70">
+              Add your name and a valid email to continue.
+            </p>
+          )}
         </div>
       </section>
     </div>

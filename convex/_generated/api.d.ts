@@ -68,6 +68,7 @@ import type * as lib_email from "../lib/email.js";
 import type * as lib_emailTemplates_activation from "../lib/emailTemplates/activation.js";
 import type * as lib_emailTemplates_invite from "../lib/emailTemplates/invite.js";
 import type * as lib_gearCatalog from "../lib/gearCatalog.js";
+import type * as lib_gearRental from "../lib/gearRental.js";
 import type * as lib_google from "../lib/google.js";
 import type * as lib_guardrails from "../lib/guardrails.js";
 import type * as lib_holidays from "../lib/holidays.js";
@@ -192,6 +193,7 @@ declare const fullApi: ApiFromModules<{
   "lib/emailTemplates/activation": typeof lib_emailTemplates_activation;
   "lib/emailTemplates/invite": typeof lib_emailTemplates_invite;
   "lib/gearCatalog": typeof lib_gearCatalog;
+  "lib/gearRental": typeof lib_gearRental;
   "lib/google": typeof lib_google;
   "lib/guardrails": typeof lib_guardrails;
   "lib/holidays": typeof lib_holidays;
