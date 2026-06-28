@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { currentOrg } from "./lib/tenant";
+import { isReleasable } from "./lib/guardrails";
 
 const stageV = v.union(
   v.literal("writing"),
@@ -309,6 +310,20 @@ export const advanceStage = mutation({
     const orgId = await currentOrg(ctx);
     const song = await ctx.db.get(id);
     if (!song || song.orgId !== orgId) throw new Error("Not found");
+    // Safeguard: never release a song without an executed split sheet. An
+    // unresolved split freezes royalties and invites takedowns, so this is a
+    // hard gate, not a soft warning.
+    if (stage === "released") {
+      const sheet = await ctx.db
+        .query("splitSheets")
+        .withIndex("by_song", (q) => q.eq("songId", id))
+        .first();
+      if (!isReleasable(stage, sheet?.status)) {
+        throw new Error(
+          "Cannot release this song: its split sheet is not fully executed. Lock every contributor's split first to avoid frozen royalties and takedown risk.",
+        );
+      }
+    }
     await ctx.db.patch(id, { stage });
     await ctx.db.insert("activity", {
       orgId,

@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { currentOrg, assertOrg } from "./lib/tenant";
+import { isReleasable } from "./lib/guardrails";
 
 /** The standard pre-built rollout - offsets are days relative to release day. */
 const DEFAULT_TASKS = [
@@ -113,6 +114,19 @@ export const setStatus = mutation({
     const orgId = await currentOrg(ctx);
     const campaign = await ctx.db.get(id);
     assertOrg(campaign, orgId);
+    if (status === "released") {
+      // Same hard split-sheet gate as songs.advanceStage - a campaign cannot
+      // flip a song live without executed splits.
+      const sheet = await ctx.db
+        .query("splitSheets")
+        .withIndex("by_song", (q) => q.eq("songId", campaign.songId))
+        .first();
+      if (!isReleasable("released", sheet?.status)) {
+        throw new Error(
+          "Cannot mark this campaign released: the song's split sheet is not fully executed. Lock every contributor's split first to avoid frozen royalties and takedown risk.",
+        );
+      }
+    }
     await ctx.db.patch(id, { status });
     if (status === "released") {
       const song = await ctx.db.get(campaign.songId);

@@ -34,6 +34,8 @@ import {
   type NoShowRiskSignal,
   type WeakLeadSourceSignal,
 } from "./agents/generators";
+import { gatherProfitCounts, buildReport, profitLeverCandidates } from "./profitability";
+import { gatherRiskFlags, riskFlagCandidates } from "./risk";
 
 const DAY = 86_400_000;
 const QUIET_DAYS = 90;
@@ -73,7 +75,10 @@ export type ActionType =
   | "pricing_opportunity"
   | "no_show_risk"
   | "weak_lead_source"
-  | "waitlist_fill";
+  | "waitlist_fill"
+  // Operations Agent: profitability levers + category risk flags (note_only).
+  | "profit_improvement"
+  | "studio_risk";
 
 export type Priority = "low" | "medium" | "high";
 
@@ -263,12 +268,17 @@ export async function gatherSignals(ctx: MutationCtx, orgId: string): Promise<Si
 
   const quietArtists = artists
     .filter((a) => (a.status === "active" || a.status === "vip") && a.lastContactAt && now - a.lastContactAt > QUIET_DAYS * DAY)
+    // Scored outreach: re-engage the highest-lifetime-value clients first, so
+    // the limited daily outreach budget lands on the biggest revenue at risk.
+    .sort((a, b) => (b.lifetimeValueCents ?? 0) - (a.lifetimeValueCents ?? 0))
     .slice(0, 10)
     .map((a) => ({ id: a._id, name: a.name, email: a.email }));
 
   const invoices = await ctx.db.query("invoices").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
   const overdueInvoices = invoices
     .filter((i) => i.status === "overdue" || (i.status === "sent" && i.dueDate < now))
+    // Chase the largest dollars first - biggest cash recovery per outreach.
+    .sort((a, b) => (b.amountCents ?? 0) - (a.amountCents ?? 0))
     .slice(0, 10)
     .map((i) => {
       const artist = artistMap.get(i.artistId);
@@ -570,6 +580,10 @@ export const scanAllOrgs = internalMutation({
     const ids = await activeOrgIds(ctx);
     for (const orgId of ids) {
       await ctx.scheduler.runAfter(0, internal.opsBrain.scanOrg, { orgId });
+      // Same daily cadence: also run the heavier profitability + risk sweep.
+      // (Kept off the 2h agent loop; piggybacks the daily ops-brain cron so no
+      // separate cron registration is needed.)
+      await ctx.scheduler.runAfter(0, internal.opsBrain.scanProfitRiskOrg, { orgId });
     }
     return { scheduled: ids.length };
   },
@@ -585,6 +599,48 @@ export const scanAgentsAllOrgs = internalMutation({
     const ids = await activeOrgIds(ctx);
     for (const orgId of ids) {
       await ctx.scheduler.runAfter(0, internal.opsBrain.scanOrg, { orgId });
+    }
+    return { scheduled: ids.length };
+  },
+});
+
+/* ============================================================
+   Operations Agent: profitability + risk sweep.
+
+   Heavier than the inbox scan (full financial + cross-category read),
+   so it runs on its own daily cadence rather than the 2h agent loop.
+   It reuses the SAME dedupe/autonomy/audit rail (upsertProposed) for
+   its note_only proposals, and auto-posts the internal analyses
+   (profitability summary + critical risk flags) as insights.
+   ============================================================ */
+export const scanProfitRiskOrg = internalMutation({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    // Profitability improvement levers (note_only recommendations).
+    const profitReport = buildReport(await gatherProfitCounts(ctx, orgId));
+    const profitCandidates = profitLeverCandidates(profitReport);
+
+    // Category risk flags (note_only).
+    const riskFlags = await gatherRiskFlags(ctx, orgId);
+    const riskCandidates = riskFlagCandidates(riskFlags);
+
+    const res = await upsertProposed(ctx, orgId, [...profitCandidates, ...riskCandidates]);
+
+    // Internal analyses auto-post (low-risk, no outbound).
+    await ctx.scheduler.runAfter(0, internal.profitability.postSummaryInsight, { orgId });
+    await ctx.scheduler.runAfter(0, internal.risk.postCriticalInsights, { orgId });
+
+    return { inserted: res.inserted, profitScore: profitReport.overall, riskFlags: riskFlags.length };
+  },
+});
+
+/** Fan the profitability + risk sweep across every active subaccount. */
+export const scanProfitRiskAllOrgs = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const ids = await activeOrgIds(ctx);
+    for (const orgId of ids) {
+      await ctx.scheduler.runAfter(0, internal.opsBrain.scanProfitRiskOrg, { orgId });
     }
     return { scheduled: ids.length };
   },

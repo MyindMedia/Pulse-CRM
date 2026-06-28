@@ -1243,6 +1243,10 @@ export default defineSchema({
       v.literal("no_show_risk"),
       v.literal("weak_lead_source"),
       v.literal("waitlist_fill"),
+      // Operations Agent: profitability levers + category risk flags
+      // (note_only, internal recommendations surfaced in the inbox).
+      v.literal("profit_improvement"),
+      v.literal("studio_risk"),
     ),
     priority: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
     title: v.string(),

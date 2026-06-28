@@ -446,3 +446,27 @@ Higgsfield generation; (4) optional dark->light landing register.
 - Booking page hero: when no hero photo, an auto-generated palette gradient hero (logo + name + tagline + accent stripe) renders.
 - Pulse pinned: PulseLogo is a baked-gold image (immune to token overrides); booking navbar "Secured by Pulse" + footer "Powered by Pulse" now render on every plan (whitelabel gate removed by product decision).
 - **AI brand heroes (2026-06-12):** `convex/brandHero.ts` generates a low-key studio interior lit in the org accent via Gemini (`gemini-2.5-flash-image`, GEMINI_API_KEY on prod) on every logo upload (3s after `setLogo`; manual `bookingHeroId` wins; "Generate with AI" button in branding panel). Booking landing redesigned: full-bleed hero background (manual > generated > palette gradient) under a dark ink fade + brand tint, themed CTA.
+
+## Epic: Studio Operations Agent — KB + profitability + risk guardrails (grilled 2026-06-27)
+
+**Goal (owner's words):** an extensive per-sub-account agent that looks ONLY at that sub-account's data (never cross-contaminating), runs an outreach algorithm, evaluates a studio's profitability and where it can improve, reasons against a knowledge base of global studio best practices / top-performer criteria, finds problems before they arise, and has guardrails + safeguards for every category (pipeline, songs, splitsheets, studio scheduling, staff scheduling). It should effectively replace multiple low-level roles.
+
+**What already exists (extend, do NOT rebuild):**
+- `opsBrain.ts` + `opsActions.ts` — deterministic per-org autopilot: gathers `by_org`-scoped signals → pure rule layer → candidate actions → dedupe → per-org autonomy graduation + `DAILY_AUTO_CAP` → idempotent, audited execution. Named agents cover leads, payments, sessions, deposits, revisions, split sheets, rooms, rights metadata, pricing, no-show, weak lead sources.
+- `agent.ts` + `agent*` tables + `agentHealth.ts` — conversational Pulse Agent, approvals, memory, 6-component Studio Health, agency fleet.
+- Tenant isolation rail: `lib/tenant.ts` (`currentOrg`/`currentOrgWithCapability`/`assertOrg`), access engine (`resolveViewer`/`requireCapability`), `lib/aiGuard.ts` (injection + tenant binding). Execution re-verifies `orgId` ownership before every mutation.
+
+**Decisions (grilled 2026-06-27):**
+- **Build order:** (1) Knowledge Base + Profitability engine FIRST, then (2) category guardrails/risk detector, then (3) scored outreach algorithm, then (4) isolation audit hardening across the new surfaces.
+- **KB sourcing = both:** codify domain knowledge now (so the engine works immediately), AND run web research in parallel to refine the benchmark numbers with cited sources. KB is codified data in-repo (not per-tenant), versioned, reasoned against per-org.
+- **Autonomy = auto for low-risk, approval-first for the rest:** internal-only analyses (profitability scores, risk flags, health) post automatically; anything client-facing or financial routes through the existing approval/inbox + autonomy-graduation mechanism. Reuse `opsActions` + `opsAutonomy`, never a new send path.
+- **Deploy:** build → typecheck → full vitest → deploy Convex (node@22 + `CONVEX_DEPLOY_KEY` from `op://Security/Convex PULSE CRM/deploy key`) → push (Netlify auto-deploys frontend). Goes live on pulse.myindsound.com.
+
+**Architecture (this epic):**
+- `convex/lib/studioKnowledge.ts` — versioned, pure, in-repo KB: profitability criteria + benchmark bands (utilization, revenue/room, no-show %, lead→booking conversion, deposit capture, AR aging, staff cost ratio, revision overage, split-sheet execution, pipeline health) sourced from codified domain knowledge, refined by web research. No tenant data; pure scoring functions.
+- `convex/profitability.ts` — per-org profitability evaluator: reads `by_org` signals, computes metrics, scores each against the KB band, returns a graded report + ranked improvement levers (estimated $ impact). Internal read auto-posts an insight; client-facing/financial levers → `opsActions` proposals.
+- `convex/lib/guardrails.ts` + `convex/risk.ts` — category-specific safeguards + forward-looking problem detector for pipeline, songs, splitsheets (HARD gate: no release action while split unexecuted), studio scheduling (double-book/buffer/hold-expiry), staff scheduling (overtime, unfilled shift, availability conflict, single-point-of-failure). Each guardrail = pure predicate + severity.
+- Wire new generators into `opsBrain` (same dedupe/autonomy/audit rail). New action types added to `ActionType`. Crons: add a daily profitability+risk sweep alongside `ops-brain`.
+- **Isolation invariant (non-negotiable):** every new query is `by_org`-indexed; KB is global/read-only; no new code reads across orgs; tests assert cross-org reads return nothing.
+
+**Non-goals (this pass):** new UI framework; replacing the conversational agent; live external per-tenant data feeds; auto-executing any client-facing/financial action without graduation.
