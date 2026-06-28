@@ -24,7 +24,7 @@ import { assessStudio, type AssessInput, type Assessment } from "./lib/managerBr
 import { appendJournal } from "./studioBrain";
 import { completeJSON, SMART_MODEL } from "./lib/openai";
 import { verifyDraft } from "./lib/aiVerify";
-import { tenantGuard } from "./lib/aiGuard";
+import { tenantGuard, fenceUntrusted } from "./lib/aiGuard";
 
 /** Gather every signal the manager reasons over, for one org. Read-only. */
 export const managerData = internalQuery({
@@ -122,8 +122,10 @@ export const evaluateOrg = internalAction({
     // deterministic. Verified before use, with the only allowed money being the
     // figures already in the deterministic body.
     const allowedMoney = (body.match(/\$[\d,]+/g) ?? []);
+    // The facts contain client/song names (client-controlled text), so they are
+    // fenced as untrusted data - they inform the note, never instruct the model.
     const narrative = await completeJSON<{ note?: string }>(
-      `You are the studio manager for ${orgName}. In 2-3 sentences, give the owner a plain-language read of where the studio stands and the single most important thing to do next. Base it ONLY on these facts, do not invent numbers:\n\n${body}`,
+      `You are the studio manager for ${orgName}. In 2-3 sentences, give the owner a plain-language read of where the studio stands and the single most important thing to do next. Base it ONLY on these facts, do not invent numbers:\n\n${fenceUntrusted("STUDIO FACTS", body)}`,
       {
         model: SMART_MODEL,
         system: `You are a sharp, calm studio operations manager. ${tenantGuard(orgName)} Speak plainly to a busy owner. Output JSON {"note": string}. Do not state any dollar figure that is not in the facts.`,

@@ -169,11 +169,21 @@ export async function completeJSON<T = unknown>(
   return null;
 }
 
+/* Data-protection gate: customer data (client names, financials) must only
+   reach an AI sub-processor that is on the commercial path under a DPA. The
+   OpenAI API (Commercial Terms + DPA, no training on API data) is that path.
+   The Gemini text fallback is OFF by default so PII never silently routes to a
+   second AI endpoint; turn it on with AI_ALLOW_GEMINI_FALLBACK=1 only once the
+   Gemini/Google Cloud DPA + paid (no-train) tier is in place. When off, an
+   OpenAI outage degrades to the deterministic template, not to Gemini. */
+export const GEMINI_FALLBACK_ENABLED = process.env.AI_ALLOW_GEMINI_FALLBACK === "1";
+
 async function completeGemini(
   prompt: string,
   system: string,
   maxTokens: number,
 ): Promise<{ source: string; model: string; text: string } | null> {
+  if (!GEMINI_FALLBACK_ENABLED) return null;
   const key = process.env.GEMINI_API_KEY;
   if (!key) return null;
   try {

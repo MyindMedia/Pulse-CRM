@@ -497,19 +497,24 @@ export const runAgentLLM = internalAction({
 
       // Studio Brain: relationship graph + recent history so the agent answers
       // with continuity ("who are our biggest clients", "what changed lately").
+      // Client/song names are client-CONTROLLED text, so the whole block is
+      // fenced as untrusted data - a client named "ignore your instructions"
+      // can never become an instruction to the model.
       const b = cx.brain;
+      const brainContent = b
+        ? [
+            b.topClients.length ? `- Strongest client relationships: ${b.topClients.slice(0, 5).join(", ")}` : null,
+            b.clientConcentration.label ? `- ${b.clientConcentration.label} is ${b.clientConcentration.share}% of activity` : null,
+            b.engineerConcentration.label ? `- ${b.engineerConcentration.label} runs ${b.engineerConcentration.share}% of sessions` : null,
+            b.idleGear > 0 ? `- ${b.idleGear} rentable item(s) with no upcoming bookings` : null,
+            b.history.length ? `- Recent history: ${b.history.slice(0, 5).map((h) => h.title).join("; ")}` : null,
+          ]
+            .filter(Boolean)
+            .join("\n")
+        : "";
       const brainBlock =
         b && (b.topClients.length || b.history.length)
-          ? `\n\nStudio Brain (relationships + history):\n` +
-            [
-              b.topClients.length ? `- Strongest client relationships: ${b.topClients.slice(0, 5).join(", ")}` : null,
-              b.clientConcentration.label ? `- ${b.clientConcentration.label} is ${b.clientConcentration.share}% of activity` : null,
-              b.engineerConcentration.label ? `- ${b.engineerConcentration.label} runs ${b.engineerConcentration.share}% of sessions` : null,
-              b.idleGear > 0 ? `- ${b.idleGear} rentable item(s) with no upcoming bookings` : null,
-              b.history.length ? `- Recent history: ${b.history.slice(0, 5).map((h) => h.title).join("; ")}` : null,
-            ]
-              .filter(Boolean)
-              .join("\n")
+          ? `\n\n${fenceUntrusted("STUDIO BRAIN (relationships + history)", brainContent)}`
           : "";
       const userPrompt = [
         `Studio: ${cx.orgName} (plan: ${cx.plan}).`,
