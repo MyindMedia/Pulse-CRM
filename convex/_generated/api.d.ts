@@ -62,6 +62,7 @@ import type * as lib_access from "../lib/access.js";
 import type * as lib_accessPolicies from "../lib/accessPolicies.js";
 import type * as lib_accessTypes from "../lib/accessTypes.js";
 import type * as lib_aiGuard from "../lib/aiGuard.js";
+import type * as lib_aiVerify from "../lib/aiVerify.js";
 import type * as lib_billingGate from "../lib/billingGate.js";
 import type * as lib_checklistTemplates from "../lib/checklistTemplates.js";
 import type * as lib_email from "../lib/email.js";
@@ -187,6 +188,7 @@ declare const fullApi: ApiFromModules<{
   "lib/accessPolicies": typeof lib_accessPolicies;
   "lib/accessTypes": typeof lib_accessTypes;
   "lib/aiGuard": typeof lib_aiGuard;
+  "lib/aiVerify": typeof lib_aiVerify;
   "lib/billingGate": typeof lib_billingGate;
   "lib/checklistTemplates": typeof lib_checklistTemplates;
   "lib/email": typeof lib_email;

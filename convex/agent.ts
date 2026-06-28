@@ -6,7 +6,46 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { currentOrg, currentActor } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
-import { complete, DEFAULT_MODEL } from "./lib/openai";
+import { completeJSON, SMART_MODEL } from "./lib/openai";
+
+/* JSON contract for the conversational agent's structured response. Forces a
+   valid object so we never brace-slice free text. strict:false keeps it lenient
+   on optional fields. */
+const AGENT_SCHEMA = {
+  name: "pulse_agent_response",
+  schema: {
+    type: "object",
+    properties: {
+      summary: { type: "string" },
+      draft: { type: "string" },
+      findings: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            severity: { type: "string" },
+            explanation: { type: "string" },
+          },
+        },
+      },
+      recommendedActions: {
+        type: "array",
+        items: {
+          type: "object",
+          properties: {
+            title: { type: "string" },
+            actionType: { type: "string" },
+            riskLevel: { type: "string" },
+            approvalRequired: { type: "boolean" },
+            explanation: { type: "string" },
+            proposedPayload: { type: "object" },
+          },
+        },
+      },
+    },
+  },
+} as const;
 import { tenantGuard, fenceUntrusted } from "./lib/aiGuard";
 import { sendEmail } from "./lib/email";
 import { sendSms } from "./lib/sms";
@@ -442,17 +481,24 @@ export const runAgentLLM = internalAction({
         `User request: ${prompt}${inventoryBlock}${softwareBlock}${memoryBlock}`,
       ].join("\n\n");
 
-      const ai = await complete(userPrompt, { system, model: DEFAULT_MODEL, maxOutputTokens: 1200 });
+      // Judgment task -> the full GPT-5 tier, with a forced JSON contract so we
+      // never parse malformed free text.
+      const ai = await completeJSON<Parsed>(userPrompt, {
+        system,
+        model: SMART_MODEL,
+        maxOutputTokens: 1200,
+        schema: AGENT_SCHEMA,
+      });
 
       if (!ai) {
-        // No LLM configured -> deterministic fallback summary from the snapshot.
+        // No LLM configured (or unparseable) -> deterministic fallback summary.
         const s = cx.summary;
         const summary = `${cx.orgName} snapshot: ${usd(s.revenueThisMonthCents)} collected this month, ${s.unpaidInvoices} unpaid invoices (${usd(s.unpaidCents)} outstanding, ${s.overdueInvoices} overdue), ${s.upcomingSessions} upcoming sessions, ${s.openLeads} open leads (${s.staleLeads} stale), ${s.activeSongs} active songs.`;
         await ctx.runMutation(internal.agent._finalize, { runId, orgId, status: "completed", summary, assistant: summary, source: "fallback" });
         return;
       }
 
-      const parsed = parseResponse(ai.text);
+      const parsed = ai.data;
       const approvals = (parsed.recommendedActions ?? [])
         .filter((a) => a.approvalRequired !== false && a.actionType)
         .map((a) => ({
@@ -467,7 +513,7 @@ export const runAgentLLM = internalAction({
         severity: normalizeSeverity(f.severity),
         explanation: f.explanation ?? "",
       }));
-      const assistant = parsed.summary || parsed.draft || ai.text;
+      const assistant = parsed.summary || parsed.draft || "I could not produce a summary this time.";
 
       await ctx.runMutation(internal.agent._finalize, {
         runId, orgId,
@@ -702,16 +748,6 @@ type Parsed = {
   recommendedActions?: ParsedAction[];
 };
 
-function parseResponse(text: string): Parsed {
-  try {
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    if (start === -1 || end === -1) return { summary: text };
-    return JSON.parse(text.slice(start, end + 1)) as Parsed;
-  } catch {
-    return { summary: text };
-  }
-}
 
 /** Whole-dollar money for human-facing copy. Never cents. */
 function usd(cents?: number): string {

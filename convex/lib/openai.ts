@@ -13,7 +13,14 @@ import OpenAI from "openai";
 import { stripEmDashes } from "./text";
 import { INJECTION_GUARD } from "./aiGuard";
 
-export const DEFAULT_MODEL = "gpt-5-mini";
+/* Model tiering (both env-overridable so the exact GPT-5 ids can be set on the
+   deployment without a code change):
+   - DEFAULT_MODEL: fast + cheap, for copy (emails, recaps, prep packets).
+   - SMART_MODEL: the full GPT-5 tier, for JUDGMENT - the conversational agent's
+     planning, risk/profitability narratives, anything that decides rather than
+     just writes. */
+export const DEFAULT_MODEL = process.env.OPENAI_MODEL || "gpt-5-mini";
+export const SMART_MODEL = process.env.OPENAI_SMART_MODEL || "gpt-5";
 
 /* Brand voice: never emit em dashes or en dashes. Injected into every system
    prompt; the output is sanitized too as a belt-and-suspenders. */
@@ -75,6 +82,90 @@ export async function complete(
   // 2. Gemini fallback (funded Pulse Google key).
   const g = await completeGemini(prompt, system, maxTokens);
   if (g) return g;
+  return null;
+}
+
+/** Pull a JSON object out of a model response: strips code fences, then takes
+ *  the outermost {...}. Pure + exported so the parser is unit-testable. */
+export function extractJson(text: string): string | null {
+  if (!text) return null;
+  const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+  const body = fenced ? fenced[1] : text;
+  const start = body.indexOf("{");
+  const end = body.lastIndexOf("}");
+  if (start === -1 || end === -1 || end < start) return null;
+  return body.slice(start, end + 1);
+}
+
+/** Structured completion: forces a JSON object and returns it PARSED, so call
+ *  sites never brace-slice free text. Tries OpenAI with a json_schema response
+ *  format (retrying once without it if the param is unsupported), then Gemini
+ *  with a JSON instruction; robust extract+parse on every path. Returns null
+ *  when nothing usable comes back so the caller keeps its deterministic path. */
+export async function completeJSON<T = unknown>(
+  prompt: string,
+  opts?: {
+    model?: string;
+    system?: string;
+    maxOutputTokens?: number;
+    schema?: { name: string; schema: Record<string, unknown> };
+  },
+): Promise<{ source: string; model: string; data: T } | null> {
+  const model = opts?.model ?? DEFAULT_MODEL;
+  const base = opts?.system ? `${opts.system}\n\n${INJECTION_GUARD}` : INJECTION_GUARD;
+  const system = `${base}\n\n${NO_EM_DASH_RULE}\n\nRespond with ONLY a single valid JSON object - no prose, no markdown code fences.`;
+  const maxTokens = opts?.maxOutputTokens ?? 1200;
+
+  const tryParse = (text: string): T | null => {
+    const j = extractJson(stripEmDashes(text));
+    if (!j) return null;
+    try {
+      return JSON.parse(j) as T;
+    } catch {
+      return null;
+    }
+  };
+
+  const c = client();
+  if (c) {
+    // Degrade the requested model to DEFAULT_MODEL (still OpenAI) before falling
+    // to Gemini - so a not-yet-enabled SMART model id doesn't bounce the agent
+    // off OpenAI entirely. For each model, try the json_schema format first,
+    // then plain (some SDK/model combos reject the format param).
+    const models = model === DEFAULT_MODEL ? [model] : [model, DEFAULT_MODEL];
+    for (const m of models) {
+      for (const useFormat of opts?.schema ? [true, false] : [false]) {
+        try {
+          const req: Record<string, unknown> = {
+            model: m,
+            input: [
+              { role: "system", content: system },
+              { role: "user", content: prompt },
+            ],
+            max_output_tokens: maxTokens,
+          };
+          if (useFormat && opts?.schema) {
+            req.text = {
+              format: { type: "json_schema", name: opts.schema.name, schema: opts.schema.schema, strict: false },
+            };
+          }
+          const res = (await c.responses.create(
+            req as Parameters<typeof c.responses.create>[0],
+          )) as { output_text?: string };
+          const data = tryParse(res.output_text ?? "");
+          if (data) return { source: "openai", model: m, data };
+        } catch (err) {
+          console.error("[openai.completeJSON] error", err);
+        }
+      }
+    }
+  }
+
+  const g = await completeGemini(prompt, system, maxTokens);
+  if (g) {
+    const data = tryParse(g.text);
+    if (data) return { source: "gemini", model: GEMINI_MODEL, data };
+  }
   return null;
 }
 

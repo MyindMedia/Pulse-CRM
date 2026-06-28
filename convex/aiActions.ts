@@ -19,6 +19,7 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import type { WeeklyBriefingData, RateCutData } from "./aiContext";
 import { complete, DEFAULT_MODEL } from "./lib/openai";
+import { verifyDraft } from "./lib/aiVerify";
 import { tenantGuard, fenceUntrusted } from "./lib/aiGuard";
 
 /** Format a Date for human-readable display. */
@@ -615,12 +616,22 @@ Output ONLY the email body. No subject line.`;
           }
           if (ai?.text?.trim()) {
             const masked = maskTokens(ai.text.trim());
-            await ctx.runMutation(internal.opsActions.applyEnrichment, {
-              id,
-              body: c.payLink ? ensurePayLink(masked, c.payLink) : masked,
-              model: ai.model,
-            });
-            enriched++;
+            const finalBody = c.payLink ? ensurePayLink(masked, c.payLink) : masked;
+            // Verifier gate: never surface an AI body with a placeholder token
+            // or an invented dollar amount (these emails are not given a money
+            // fact, so any $ figure is a hallucination). On failure we keep the
+            // deterministic fallback the rule layer already wrote.
+            const verdict = verifyDraft(finalBody, { allowedMoney: [] });
+            if (verdict.ok) {
+              await ctx.runMutation(internal.opsActions.applyEnrichment, {
+                id,
+                body: finalBody,
+                model: ai.model,
+              });
+              enriched++;
+            } else {
+              console.warn(`[enrich] rejected AI draft for ${c.type}: ${verdict.issues.join("; ")}`);
+            }
           }
         }
         continue;
