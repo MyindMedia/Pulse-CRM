@@ -140,15 +140,26 @@ export const list = query({
 });
 
 /**
- * Profit-and-loss roll-up for a window. Collected revenue is paid `payments`
- * (session deposits/balances) plus paid ad-hoc `invoices` (no session link, so
- * session revenue isn't double-counted), minus expenses in the window. Also
- * returns the monthly recurring expense run-rate.
+ * Profit-and-loss roll-up for a window. Collected revenue = paid `invoices`
+ * (the app's canonical revenue, same as the dashboard) PLUS paid `payments`
+ * (booking deposits/balances) for any session NOT already counted via a paid
+ * invoice - so a session billed both ways isn't double-counted. Minus expenses
+ * in the window. Also returns the monthly recurring expense run-rate.
  */
 export const plReport = query({
   args: { start: v.number(), end: v.number() },
   handler: async (ctx, { start, end }) => {
     const orgId = await currentOrgWithCapability(ctx, "insights.read");
+
+    const invoices = await ctx.db
+      .query("invoices")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect();
+    const paidInvoices = invoices.filter(
+      (i) => i.status === "paid" && i.paidAt && i.paidAt >= start && i.paidAt < end,
+    );
+    const invoiceRevenue = paidInvoices.reduce((s, i) => s + i.amountCents, 0);
+    const invoicedSessions = new Set(paidInvoices.map((i) => i.sessionId).filter(Boolean));
 
     const payments = await ctx.db
       .query("payments")
@@ -160,17 +171,10 @@ export const plReport = query({
         const at = p.paidAt ?? p._creationTime;
         return at >= start && at < end;
       })
+      .filter((p) => !invoicedSessions.has(p.sessionId)) // session already counted via its invoice
       .reduce((s, p) => s + p.amountCents, 0);
 
-    const invoices = await ctx.db
-      .query("invoices")
-      .withIndex("by_org", (q) => q.eq("orgId", orgId))
-      .collect();
-    const invoiceRevenue = invoices
-      .filter((i) => i.status === "paid" && !i.sessionId && i.paidAt && i.paidAt >= start && i.paidAt < end)
-      .reduce((s, i) => s + i.amountCents, 0);
-
-    const revenueCents = paymentRevenue + invoiceRevenue;
+    const revenueCents = invoiceRevenue + paymentRevenue;
 
     const expenses = await ctx.db
       .query("expenses")

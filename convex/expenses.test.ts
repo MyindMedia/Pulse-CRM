@@ -44,7 +44,7 @@ describe("expenses backend", () => {
     expect(rows[0].vendor).toBe("Power Co");
   });
 
-  it("computes a P&L: payments + ad-hoc invoices as revenue, session invoices excluded", async () => {
+  it("computes a P&L: paid invoices + non-invoiced session payments, de-duped", async () => {
     const t = convexTest(schema);
     const org = "pulse-demo"; // the no-identity demo viewer resolves here
     await t.run(async (ctx) => {
@@ -52,23 +52,31 @@ describe("expenses backend", () => {
         orgId: org, name: "A", type: "artist", status: "active",
         genres: [], tags: [], sessionCount: 0, reliability: "solid", lifetimeValueCents: 0,
       } as never);
-      const sessionId = await ctx.db.insert("sessions", {
-        orgId: org, title: "S", artistId, serviceType: "recording",
-        startTime: 1_000_000, endTime: 1_010_000, status: "completed",
-        rateCents: 30_000, depositCents: 0, depositPaid: false, intakeCompleted: true,
-      } as never);
-      // Session cash via payments (counts).
+      const mk = (title: string) =>
+        ctx.db.insert("sessions", {
+          orgId: org, title, artistId, serviceType: "recording",
+          startTime: 1_000_000, endTime: 1_010_000, status: "completed",
+          rateCents: 30_000, depositCents: 0, depositPaid: false, intakeCompleted: true,
+        } as never);
+      // Session A: collected via a payment, NEVER invoiced -> counts via payment.
+      const sessA = await mk("A");
       await ctx.db.insert("payments", {
-        orgId: org, sessionId, kind: "full", amountCents: 50_000,
+        orgId: org, sessionId: sessA, kind: "full", amountCents: 50_000,
         provider: "stripe", status: "paid", paidAt: 1_000_000,
       });
-      // Session-LINKED invoice (must be excluded so session revenue isn't double-counted).
+      // Session B: billed by a paid invoice + ALSO has a payment -> counts ONCE
+      // (via the invoice); the payment is de-duped out.
+      const sessB = await mk("B");
+      await ctx.db.insert("payments", {
+        orgId: org, sessionId: sessB, kind: "deposit", amountCents: 9_999,
+        provider: "stripe", status: "paid", paidAt: 1_000_000,
+      });
       await ctx.db.insert("invoices", {
-        orgId: org, number: "INV-1", artistId, sessionId, status: "paid",
+        orgId: org, number: "INV-1", artistId, sessionId: sessB, status: "paid",
         lineItems: [{ label: "session", amountCents: 30_000 }], amountCents: 30_000,
         dueDate: 1_000_000, paidAt: 1_000_000,
       });
-      // Ad-hoc invoice, no session (counts).
+      // Ad-hoc invoice, no session -> counts.
       await ctx.db.insert("invoices", {
         orgId: org, number: "INV-2", artistId, status: "paid",
         lineItems: [{ label: "mix", amountCents: 20_000 }], amountCents: 20_000,
@@ -79,11 +87,11 @@ describe("expenses backend", () => {
     await t.mutation(api.expenses.create, { category: "software", amountCents: 12_000, date: 1_000_000, recurring: "annual" });
 
     const pl = await t.query(api.expenses.plReport, { start: 1, end: 9_999_999_999_999 });
-    expect(pl.revenueFromPaymentsCents).toBe(50_000);
-    expect(pl.revenueFromInvoicesCents).toBe(20_000); // session-linked 30k excluded
-    expect(pl.revenueCents).toBe(70_000);
+    expect(pl.revenueFromInvoicesCents).toBe(50_000); // 30k session-linked + 20k ad-hoc
+    expect(pl.revenueFromPaymentsCents).toBe(50_000); // session A only; session B's 9,999 de-duped
+    expect(pl.revenueCents).toBe(100_000);
     expect(pl.expensesCents).toBe(112_000);
-    expect(pl.netCents).toBe(-42_000);
+    expect(pl.netCents).toBe(-12_000);
     expect(pl.byCategory[0].category).toBe("rent");
     expect(pl.monthlyRecurringCents).toBe(101_000); // rent 100k + software 12k/12
   });

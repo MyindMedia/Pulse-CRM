@@ -118,6 +118,7 @@ import type * as rightsExport from "../rightsExport.js";
 import type * as risk from "../risk.js";
 import type * as rooms from "../rooms.js";
 import type * as seed from "../seed.js";
+import type * as seedDemoFinance from "../seedDemoFinance.js";
 import type * as seedDemoFurniture from "../seedDemoFurniture.js";
 import type * as seedDemoSoftware from "../seedDemoSoftware.js";
 import type * as seedDemoYear from "../seedDemoYear.js";
@@ -256,6 +257,7 @@ declare const fullApi: ApiFromModules<{
   risk: typeof risk;
   rooms: typeof rooms;
   seed: typeof seed;
+  seedDemoFinance: typeof seedDemoFinance;
   seedDemoFurniture: typeof seedDemoFurniture;
   seedDemoSoftware: typeof seedDemoSoftware;
   seedDemoYear: typeof seedDemoYear;
