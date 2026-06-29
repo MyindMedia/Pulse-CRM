@@ -345,6 +345,21 @@ export const createBooking = mutation({
     const endTime = args.startTime + args.durationHours * HOUR;
     if (args.startTime <= Date.now()) throw new Error("Pick a start time in the future.");
 
+    // Abuse guard: cap public booking requests per org per hour. Each request
+    // creates several rows and emails both the team and the (attacker-supplied)
+    // client address, so an unbounded public endpoint is a spam + email-
+    // amplification vector. 40/hour is generous for real demand.
+    const hourBucket = new Date().toISOString().slice(0, 13); // YYYY-MM-DDTHH
+    const bookingCounter = await ctx.db
+      .query("usageCounters")
+      .withIndex("by_org_period_metric", (q) =>
+        q.eq("orgId", orgId).eq("period", hourBucket).eq("metric", "public_bookings"),
+      )
+      .first();
+    if ((bookingCounter?.value ?? 0) >= 40) {
+      throw new Error("Too many booking requests right now. Please try again shortly.");
+    }
+
     const around = await ctx.db
       .query("sessions")
       .withIndex("by_org_start", (q) =>
@@ -520,6 +535,19 @@ export const createBooking = mutation({
         body: `${args.clientName} requested you for a ${args.durationHours}-hour session in ${room.name} on ${new Date(args.startTime).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}. It is held pending their deposit.`,
         kind: "booking.engineer_requested",
         sessionId,
+      });
+    }
+
+    // Count this booking against the per-org hourly rate limit.
+    if (bookingCounter) {
+      await ctx.db.patch(bookingCounter._id, { value: bookingCounter.value + 1, updatedAt: Date.now() });
+    } else {
+      await ctx.db.insert("usageCounters", {
+        orgId,
+        period: hourBucket,
+        metric: "public_bookings",
+        value: 1,
+        updatedAt: Date.now(),
       });
     }
 

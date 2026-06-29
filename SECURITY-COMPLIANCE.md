@@ -97,9 +97,12 @@ A four-track read-only audit (tenant isolation/IDOR, authorization, public endpo
 **Verified clean**
 No committed secrets; nothing secret in the browser bundle (only publishable keys); no `eval`/unsafe `dangerouslySetInnerHTML`; Stripe webhook signature verified; payment amounts always server-derived; magic-link/split-sheet/portal tokens are random + scoped + single-use.
 
-**Open (abuse/CSRF mitigations, lower severity — recommended next):**
-1. Rate-limit/captcha `booking.createBooking` (unbounded record + email amplification) and cap `portal.ask` LLM calls per token.
-2. Google OAuth callback (`http.ts /google/callback`) should use a random single-use `state` nonce bound to the initiating user/org (CSRF: an attacker could attach their Google account to a victim org).
+**Follow-ups — fixed (2026-06-29)**
+1. **Google OAuth CSRF:** the callback no longer trusts `state` as the org. `authUrl` mints a random single-use nonce (`oauthStates` table, 10-min TTL) bound to the initiating org; the callback resolves the org by consuming that nonce, so a forged callback can't attach a Google account to a victim org.
+2. **`createBooking` abuse:** a per-org hourly cap (40 public bookings/hour via `usageCounters`) bounds DB pollution + the client/team email amplification.
+3. **`portal.ask` cost:** a rolling per-grant rate limit (30 LLM calls/hour/token) stops one valid portal link from driving unbounded paid AI calls.
+
+_Accepted (non-exploitable, low):_ `agency.enterAs` writes only the demo `appState` (Clerk org-switching is separate) and demo mode is now denied in prod; downstream `requireCapability` re-checks agency scope, so it grants no real cross-tenant access.
 
 _Note: the auth-bypass fix means any unauthenticated pitch-demo browsing in prod must use a logged-in demo account; the bare slug-less `/book` page no longer renders for anonymous callers in prod (real studios use `/book/<slug>`, which is unaffected)._
 

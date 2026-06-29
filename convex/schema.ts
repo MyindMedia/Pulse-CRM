@@ -316,6 +316,10 @@ export default defineSchema({
     firstUsedAt: v.optional(v.number()),
     lastUsedAt: v.optional(v.number()),
     useCount: v.number(),
+    // Rolling rate-limit window for the concierge LLM (caps paid AI calls per
+    // portal token so one valid link can't drive unbounded cost).
+    askWindowStart: v.optional(v.number()),
+    askCount: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])
     .index("by_token", ["token"])
@@ -585,6 +589,16 @@ export default defineSchema({
     key: v.string(), // "demo"
     activeOrgId: v.optional(v.string()),
   }).index("by_key", ["key"]),
+
+  // ── OAuth CSRF state nonces. The Google connect flow passes a random,
+  //    single-use, short-lived nonce as the OAuth `state`, bound server-side to
+  //    the initiating org, so the callback can't be forged to attach an
+  //    attacker's Google account to a victim org. Consumed (deleted) on use. ──
+  oauthStates: defineTable({
+    nonce: v.string(),
+    orgId: v.string(),
+    expiresAt: v.number(),
+  }).index("by_nonce", ["nonce"]),
 
   members: defineTable({
     orgId: v.string(),

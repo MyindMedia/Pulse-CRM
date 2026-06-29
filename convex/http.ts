@@ -14,12 +14,19 @@ http.route({
   handler: httpAction(async (ctx, req) => {
     const url = new URL(req.url);
     const code = url.searchParams.get("code");
-    const orgId = url.searchParams.get("state");
+    const state = url.searchParams.get("state");
     const appUrl = process.env.APP_URL ?? "http://localhost:3000";
-    if (!code || !orgId) {
+    if (!code || !state) {
       return Response.redirect(`${appUrl}/settings?google=error`, 302);
     }
     try {
+      // CSRF: resolve the org from the single-use server-side nonce, NOT from a
+      // client-controlled state value. A forged callback yields no org and is
+      // rejected.
+      const orgId = await ctx.runMutation(internal.googleAuth._consumeOAuthState, { nonce: state });
+      if (!orgId) {
+        return Response.redirect(`${appUrl}/settings?google=error`, 302);
+      }
       const tokens = await exchangeCode(code);
       if (tokens.refresh_token) {
         await ctx.runMutation(internal.googleAuth._storeTokens, {

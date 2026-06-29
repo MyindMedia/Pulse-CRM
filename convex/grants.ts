@@ -101,6 +101,29 @@ export const lookupByToken = query({
 });
 
 /** Internal - bumped on every successful guest-token use. */
+/** Rolling per-grant rate limit for the concierge LLM. Returns false (blocked)
+ *  once a token exceeds the per-hour cap, so one valid portal link can't drive
+ *  unbounded paid AI calls. */
+export const checkAskRate = internalMutation({
+  args: { grantId: v.id("collaboratorGrants") },
+  handler: async (ctx, { grantId }): Promise<boolean> => {
+    const g = await ctx.db.get(grantId);
+    if (!g) return false;
+    const now = Date.now();
+    const WINDOW = 3_600_000; // 1 hour
+    const LIMIT = 30;
+    let count = g.askCount ?? 0;
+    let start = g.askWindowStart ?? 0;
+    if (now - start > WINDOW) {
+      count = 0;
+      start = now;
+    }
+    if (count >= LIMIT) return false;
+    await ctx.db.patch(grantId, { askCount: count + 1, askWindowStart: start });
+    return true;
+  },
+});
+
 export const markUsed = internalMutation({
   args: { grantId: v.id("collaboratorGrants") },
   handler: async (ctx, { grantId }) => {

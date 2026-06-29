@@ -120,6 +120,15 @@ export const ask = action({
 
     await ctx.runMutation(internal.grants.markUsed, { grantId: c.grantId });
 
+    // Rate-limit the LLM per portal token (bounds paid AI cost / abuse).
+    const allowed = await ctx.runMutation(internal.grants.checkAskRate, { grantId: c.grantId });
+    if (!allowed) {
+      return {
+        answer: `You've asked a lot in a short window. Please give it a few minutes, or reach out to ${c.studioName} directly.`,
+        source: "rate_limited",
+      };
+    }
+
     // This surface is public + takes free text, so it is the prime injection
     // target. Tenant data isolation already prevents any cross-studio leak
     // (only this artist's facts are ever in context); on top of that, refuse

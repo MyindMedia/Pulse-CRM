@@ -20,10 +20,32 @@ export const status = query({
   },
 });
 
-/** Internal - caller's orgId (auth propagates into runQuery). Used as OAuth state. */
+/** Internal - caller's orgId (auth propagates into runQuery). */
 export const _myOrgId = internalQuery({
   args: {},
   handler: async (ctx) => await currentOrg(ctx),
+});
+
+/** Internal - mint a single-use OAuth state nonce bound to an org (CSRF guard).
+ *  10-minute TTL; old nonces for the org are cleared so they don't accumulate. */
+export const _createOAuthState = internalMutation({
+  args: { orgId: v.string(), nonce: v.string() },
+  handler: async (ctx, { orgId, nonce }) => {
+    await ctx.db.insert("oauthStates", { nonce, orgId, expiresAt: Date.now() + 10 * 60_000 });
+  },
+});
+
+/** Internal - validate + consume an OAuth state nonce, returning its org or null
+ *  (when missing, expired, or already used). Single-use: deleted on read. */
+export const _consumeOAuthState = internalMutation({
+  args: { nonce: v.string() },
+  handler: async (ctx, { nonce }): Promise<string | null> => {
+    const row = await ctx.db.query("oauthStates").withIndex("by_nonce", (q) => q.eq("nonce", nonce)).first();
+    if (!row) return null;
+    await ctx.db.delete(row._id);
+    if (row.expiresAt < Date.now()) return null;
+    return row.orgId;
+  },
 });
 
 /** Internal - store the refresh token + connected email after OAuth callback. */
@@ -50,7 +72,12 @@ export const authUrl = action({
       throw new ConvexError("Google connect isn’t configured yet. Ask your admin to set it up.");
     }
     const orgId = await ctx.runQuery(internal.googleAuth._myOrgId, {});
-    return { url: googleAuthUrl(orgId) };
+    // CSRF: use a random single-use nonce as the OAuth `state` (not the raw
+    // orgId), bound server-side to this org, so the callback can't be forged to
+    // attach a different Google account to this (or another) org.
+    const nonce = crypto.randomUUID();
+    await ctx.runMutation(internal.googleAuth._createOAuthState, { orgId, nonce });
+    return { url: googleAuthUrl(nonce) };
   },
 });
 
