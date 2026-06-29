@@ -636,6 +636,10 @@ export default defineSchema({
     // Lead-source attribution (web booking form, referral, instagram, etc.) -
     // powers the lead-source ROI report + the lead→booking funnel.
     source: v.optional(v.string()),
+    // GDPR erasure: set when this client's personal data was erased (right to
+    // be forgotten). Identifying fields are anonymized; financial/operational
+    // records are retained under the accounting legitimate-interest basis.
+    erasedAt: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])

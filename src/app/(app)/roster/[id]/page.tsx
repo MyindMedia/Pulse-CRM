@@ -46,6 +46,7 @@ import { ActivityTimeline } from "@/components/roster/activity-timeline";
 import { ClientMessages } from "@/components/roster/client-messages";
 import { NotesPanel } from "@/components/roster/notes-panel";
 import { EditArtistDialog, type EditableArtist } from "@/components/roster/edit-artist-dialog";
+import { DataRightsMenu } from "@/components/roster/data-rights-menu";
 import { artistTypeLabel } from "@/components/roster/constants";
 
 /* ── Social link helpers ───────────────────────────────────── */
@@ -204,6 +205,7 @@ export default function ArtistDetailPage() {
                 Book session
               </Link>
             </Button>
+            <DataRightsMenu artistId={artistId} artistName={data.name} erased={Boolean(data.erasedAt)} />
           </div>
         </div>
       </div>

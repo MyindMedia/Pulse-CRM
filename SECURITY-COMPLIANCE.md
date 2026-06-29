@@ -66,13 +66,13 @@ Confirm each holds **SOC 2 Type II + an executed DPA** and add to the sub-proces
 ## GDPR notes (PII)
 
 - **Lawful basis / roles:** the studio is the controller of its clients' PII; Pulse is the processor; sub-processors above need Art. 28 DPAs + a transfer mechanism (SCCs / EU-US DPF) for any US transfer.
-- **Data-subject rights — open item:** Pulse can delete an artist/client record per org; a documented **erasure + export** flow per data subject should be formalized (currently ad-hoc via record delete). _Recommended next build._
+- **Data-subject rights — IMPLEMENTED (`convex/dataRights.ts`):** per client, the studio can **export** a structured data bundle (portability) and **erase** (right to be forgotten). Erasure anonymizes the client's identifying fields and scrubs their identity from session titles/notes, message history, outbound notifications and AI email drafts, and the knowledge-graph node; financial records (invoices, payments) are retained in anonymized form under the accounting legitimate-interest basis. Erasure is owner/manager-gated (`members.remove`), org-scoped, audited (`auditEvents` + `activity`), and idempotent. UI: a Privacy menu on the client detail (`/roster/[id]`).
 
 ## Open items (ranked)
 
 1. **Execute + record the OpenAI DPA and enable ZDR** (AI sub-processor is the main egress of customer data). _Highest._
 2. **Collect/execute DPAs** for the vendor checklist; maintain a published sub-processor list.
-3. **Formalize a GDPR erasure/export flow** per data subject.
+3. ~~Formalize a GDPR erasure/export flow per data subject.~~ **Done** (`convex/dataRights.ts`).
 4. Keep `AI_ALLOW_GEMINI_FALLBACK` off until the Google DPA is in place.
 
 _Generated with the `compliance-ops` skill. Not legal advice._
