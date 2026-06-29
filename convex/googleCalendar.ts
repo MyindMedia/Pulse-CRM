@@ -1,4 +1,5 @@
 import { internalAction, internalMutation, internalQuery } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -135,7 +136,7 @@ export const removeSession = internalAction({
 /** Schedule a push for one session, safe to call from any mutation. No-op when
  *  the org is not Google-connected (the action itself checks again). */
 export async function scheduleGoogleCalendarPush(
-  ctx: { scheduler: { runAfter: (delay: number, fn: typeof internal.googleCalendar.pushSession, args: { sessionId: Id<"sessions"> }) => Promise<unknown> } },
+  ctx: MutationCtx,
   sessionId: Id<"sessions">,
 ): Promise<void> {
   await ctx.scheduler.runAfter(0, internal.googleCalendar.pushSession, { sessionId });
@@ -143,7 +144,7 @@ export async function scheduleGoogleCalendarPush(
 
 /** Schedule a remove for one session. */
 export async function scheduleGoogleCalendarRemove(
-  ctx: { scheduler: { runAfter: (delay: number, fn: typeof internal.googleCalendar.removeSession, args: { sessionId: Id<"sessions"> }) => Promise<unknown> } },
+  ctx: MutationCtx,
   sessionId: Id<"sessions">,
 ): Promise<void> {
   await ctx.scheduler.runAfter(0, internal.googleCalendar.removeSession, { sessionId });

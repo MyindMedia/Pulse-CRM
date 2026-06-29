@@ -33,6 +33,8 @@ import { PaymentPanel } from "@/components/bookings/payment-panel";
 import { statusColor } from "./constants";
 import { ChecklistsPanel } from "./checklists-panel";
 import { SessionAiPanel } from "@/components/ai/session-ai-panel";
+import { CompDialog } from "./comp-dialog";
+import { Gift } from "lucide-react";
 
 type SessionStatus =
   | "tentative"
@@ -104,6 +106,7 @@ export function SessionSheet({
   const payDeposit = useMutation(api.sessions.payDeposit);
   const setStatus = useMutation(api.sessions.setStatus);
   const completeIntake = useMutation(api.sessions.completeIntake);
+  const [compOpen, setCompOpen] = useState(false);
 
   const [busy, setBusy] = useState(false);
   const [prevSessionId, setPrevSessionId] = useState(sessionId);
@@ -190,8 +193,26 @@ export function SessionSheet({
                   {detail.roomName ?? <span className="text-steel/70">Unassigned</span>}
                 </Row>
                 <Row label="Rate" icon={Wallet}>
-                  <span className="font-meta font-semibold text-gold-bright">
-                    {money(detail.rateCents)}
+                  <span className="flex flex-wrap items-center gap-2">
+                    <span className="font-meta font-semibold text-gold-bright">
+                      {money(detail.rateCents)}
+                    </span>
+                    {detail.compType && (
+                      <Badge tone="caution" className="capitalize">
+                        {detail.compType} ·{" "}
+                        {money(Math.max(0, (detail.listValueCents ?? detail.rateCents) - detail.rateCents))} foregone
+                      </Badge>
+                    )}
+                    {detail.status !== "cancelled" && (
+                      <button
+                        type="button"
+                        onClick={() => setCompOpen(true)}
+                        className="inline-flex items-center gap-1 text-[0.6875rem] font-medium text-steel transition-colors hover:text-gold"
+                      >
+                        <Gift className="size-3" />
+                        {detail.compType ? "Edit comp" : "Comp / discount"}
+                      </button>
+                    )}
                   </span>
                 </Row>
                 <Row label="Deposit">
@@ -344,6 +365,7 @@ export function SessionSheet({
 
               {busy && <Spinner />}
             </SheetFooter>
+            <CompDialog session={detail} open={compOpen} onOpenChange={setCompOpen} />
           </>
         )}
       </SheetContent>

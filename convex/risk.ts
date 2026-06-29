@@ -16,6 +16,8 @@ import { query, internalQuery, internalMutation } from "./_generated/server";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import { currentOrgWithCapability } from "./lib/tenant";
 import { allRiskFlags, type RiskFlag, type RiskSeverity } from "./lib/guardrails";
+import { foregoneCents, compLeakageShare } from "./lib/comp";
+import { money } from "./lib/money";
 import type { ProposedAction, Priority } from "./opsBrain";
 
 /** Load org-scoped data and run every detector. orgId arrives already
@@ -35,7 +37,7 @@ export async function gatherRiskFlags(ctx: QueryCtx | MutationCtx, orgId: string
 
   const sheetBySong = new Map(splitSheets.map((sh) => [sh.songId, sh] as const));
 
-  return allRiskFlags({
+  const flags = allRiskFlags({
     now,
     songs: songs.map((s) => ({
       id: s._id,
@@ -67,6 +69,31 @@ export async function gatherRiskFlags(ctx: QueryCtx | MutationCtx, orgId: string
     availability: availability.map((a) => ({ memberId: a.memberId, weekday: a.weekday, startMinutes: a.startMinutes, endMinutes: a.endMinutes })),
     timeOff: timeOff.map((t) => ({ memberId: t.memberId, startTime: t.startTime, endTime: t.endTime, status: t.status })),
   });
+
+  // Comp leakage (finance): too large a share of revenue is being given away as
+  // comps/discounts. Rolls comped-session cost tracking into the risk + manager
+  // layer so it surfaces as a priority, not just a report.
+  const foregone = sessions.reduce(
+    (acc, s) => acc + foregoneCents({ rateCents: s.rateCents, listValueCents: s.listValueCents, compType: s.compType }),
+    0,
+  );
+  const charged = sessions
+    .filter((s) => s.status !== "cancelled" && s.status !== "no_show")
+    .reduce((acc, s) => acc + (s.rateCents ?? 0), 0);
+  const share = compLeakageShare(foregone, charged);
+  if (foregone >= 50_000 && share >= 0.2) {
+    flags.push({
+      category: "finance",
+      severity: "warning",
+      key: "comp_leakage",
+      title: `Comp leakage: ${money(foregone)} given away`,
+      detail: `Comped and discounted sessions are ${Math.round(share * 100)}% of billable value (${money(foregone)} foregone). Tighten who gets comps and track the return on artist-development sessions.`,
+      entityType: "comps",
+      entityId: "comp_leakage",
+    });
+  }
+
+  return flags;
 }
 
 const SEVERITY_PRIORITY: Record<RiskSeverity, Priority> = { critical: "high", warning: "medium", info: "low" };

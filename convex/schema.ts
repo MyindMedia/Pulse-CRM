@@ -839,6 +839,12 @@ export default defineSchema({
     // Free-text request when a client wants gear that was unavailable or not
     // listed; the studio team is notified to follow up.
     gearRequestNote: v.optional(v.string()),
+    // Comped / discounted session cost tracking. `compType` marks the session;
+    // `listValueCents` is what it would normally bill (so foregone revenue =
+    // listValue - rateCents); `compReason` is why. Absent = a normal booking.
+    compType: v.optional(v.union(v.literal("comped"), v.literal("discounted"))),
+    listValueCents: v.optional(v.number()),
+    compReason: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])

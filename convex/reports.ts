@@ -1,5 +1,6 @@
 import { query } from "./_generated/server";
 import { currentOrgWithCapability } from "./lib/tenant";
+import { summarizeComps, foregoneCents, compLeakageShare } from "./lib/comp";
 
 /* ============================================================
    Revenue Command Center - read-only, org-scoped reporting.
@@ -332,6 +333,66 @@ export const leadSourceRoi = query({
       totalLeads: rows.reduce((s, r) => s + r.leads, 0),
       totalWonValueCents: rows.reduce((s, r) => s + r.wonValueCents, 0),
       totalLifetimeValueCents: rows.reduce((s, r) => s + r.lifetimeValueCents, 0),
+    };
+  },
+});
+
+/* ────────────────────────────────────────────────────────────
+   6. Comps & discounts
+   Every comped or discounted session and the foregone revenue
+   (list value minus what was charged), broken down by reason and
+   by client. Shows the studio exactly what it is giving away.
+   ──────────────────────────────────────────────────────────── */
+export const compSummary = query({
+  args: {},
+  handler: async (ctx) => {
+    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+    const [sessions, artists] = await Promise.all([
+      ctx.db.query("sessions").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect(),
+      ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect(),
+    ]);
+    const nameOf = new Map<string, string>(artists.map((a) => [a._id as string, a.name]));
+
+    const comp = sessions.filter((s) => s.compType);
+    const sum = summarizeComps(
+      comp.map((s) => ({
+        artistId: s.artistId,
+        rateCents: s.rateCents,
+        listValueCents: s.listValueCents,
+        compType: s.compType,
+        compReason: s.compReason,
+      })),
+    );
+
+    // Charged revenue across non-cancelled sessions, for the leakage ratio.
+    const chargedRevenueCents = sessions
+      .filter((s) => s.status !== "cancelled" && s.status !== "no_show")
+      .reduce((acc, s) => acc + (s.rateCents ?? 0), 0);
+
+    const rows = comp
+      .map((s) => ({
+        sessionId: s._id,
+        title: s.title,
+        artistName: nameOf.get(s.artistId) ?? "Client",
+        compType: s.compType!,
+        reason: s.compReason ?? "other",
+        startTime: s.startTime,
+        listValueCents: s.listValueCents ?? s.rateCents,
+        chargedCents: s.rateCents,
+        foregoneCents: foregoneCents({
+          rateCents: s.rateCents,
+          listValueCents: s.listValueCents,
+          compType: s.compType,
+        }),
+      }))
+      .sort((a, b) => b.startTime - a.startTime);
+
+    return {
+      ...sum,
+      chargedRevenueCents,
+      leakageShare: compLeakageShare(sum.totalForegoneCents, chargedRevenueCents),
+      byClient: sum.byClient.slice(0, 10).map((c) => ({ ...c, artistName: nameOf.get(c.artistId) ?? "Client" })),
+      rows: rows.slice(0, 50),
     };
   },
 });

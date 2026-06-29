@@ -25,7 +25,7 @@
 
 const DAY = 86_400_000;
 
-export type RiskCategory = "pipeline" | "songs" | "splitsheets" | "studio_scheduling" | "staff_scheduling";
+export type RiskCategory = "pipeline" | "songs" | "splitsheets" | "studio_scheduling" | "staff_scheduling" | "finance";
 export type RiskSeverity = "info" | "warning" | "critical";
 
 export type RiskFlag = {

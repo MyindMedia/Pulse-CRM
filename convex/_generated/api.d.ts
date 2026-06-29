@@ -65,6 +65,7 @@ import type * as lib_aiGuard from "../lib/aiGuard.js";
 import type * as lib_aiVerify from "../lib/aiVerify.js";
 import type * as lib_billingGate from "../lib/billingGate.js";
 import type * as lib_checklistTemplates from "../lib/checklistTemplates.js";
+import type * as lib_comp from "../lib/comp.js";
 import type * as lib_email from "../lib/email.js";
 import type * as lib_emailTemplates_activation from "../lib/emailTemplates/activation.js";
 import type * as lib_emailTemplates_invite from "../lib/emailTemplates/invite.js";
@@ -195,6 +196,7 @@ declare const fullApi: ApiFromModules<{
   "lib/aiVerify": typeof lib_aiVerify;
   "lib/billingGate": typeof lib_billingGate;
   "lib/checklistTemplates": typeof lib_checklistTemplates;
+  "lib/comp": typeof lib_comp;
   "lib/email": typeof lib_email;
   "lib/emailTemplates/activation": typeof lib_emailTemplates_activation;
   "lib/emailTemplates/invite": typeof lib_emailTemplates_invite;

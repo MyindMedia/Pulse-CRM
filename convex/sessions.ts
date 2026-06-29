@@ -6,6 +6,7 @@ import {
   assertNoBufferConflict,
   recomputeRoomStatus,
 } from "./lib/roomStatus";
+import { money } from "./lib/money";
 import { stageChecklistsFor, dropPreChecklistFor } from "./checklists";
 import { ensureSessionShift } from "./shifts";
 import { proposeWaitlistFill } from "./waitlist";
@@ -266,6 +267,67 @@ export const assignEngineer = mutation({
       endTime: session.endTime,
     });
     return { staffingWarning: warning };
+  },
+});
+
+/** Comp or discount a session, tracking the foregone revenue. `listValueCents`
+ *  is what it would normally bill (defaults to the current rate the first time);
+ *  comped sets the rate to 0, discounted sets it to `chargedCents`. "none"
+ *  un-comps and restores the list value as the rate. */
+export const setComp = mutation({
+  args: {
+    id: v.id("sessions"),
+    compType: v.union(v.literal("comped"), v.literal("discounted"), v.literal("none")),
+    listValueCents: v.optional(v.number()),
+    chargedCents: v.optional(v.number()),
+    compReason: v.optional(v.string()),
+  },
+  handler: async (ctx, { id, compType, listValueCents, chargedCents, compReason }) => {
+    const orgId = await currentOrg(ctx);
+    const s = await ctx.db.get(id);
+    if (!s || s.orgId !== orgId) throw new Error("Not found");
+
+    if (compType === "none") {
+      const restored = s.listValueCents ?? s.rateCents;
+      await ctx.db.patch(id, {
+        compType: undefined,
+        listValueCents: undefined,
+        compReason: undefined,
+        rateCents: restored,
+      });
+      await ctx.db.insert("activity", {
+        orgId,
+        kind: "session.comp.cleared",
+        summary: `Comp removed from "${s.title}"`,
+        entityType: "session",
+        entityId: id,
+        accent: "info",
+      });
+      return;
+    }
+
+    // The first time you comp, the standing rate IS the list value.
+    const list = listValueCents ?? s.listValueCents ?? s.rateCents;
+    const charged = compType === "comped" ? 0 : Math.max(0, Math.round(chargedCents ?? 0));
+    if (compType === "discounted" && charged >= list) {
+      throw new Error("A discount must be below the list value.");
+    }
+    const foregone = Math.max(0, list - charged);
+    await ctx.db.patch(id, {
+      compType,
+      listValueCents: list,
+      compReason: compReason?.trim() || undefined,
+      rateCents: charged,
+    });
+    await ctx.db.insert("activity", {
+      orgId,
+      kind: "session.comp.set",
+      summary: `${compType === "comped" ? "Comped" : "Discounted"} "${s.title}" - ${money(foregone)} foregone${compReason ? `, ${compReason.trim()}` : ""}`,
+      entityType: "session",
+      entityId: id,
+      accent: "caution",
+    });
+    return { foregoneCents: foregone };
   },
 });
 
