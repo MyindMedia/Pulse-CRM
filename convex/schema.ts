@@ -1049,6 +1049,43 @@ export default defineSchema({
     createdAt: v.number(),
   }).index("by_org", ["orgId"]),
 
+  // ── Expenses - money OUT. The other half of the books: rent, utilities,
+  //    subscriptions, gear, repairs, contractor/engineer payouts, marketing,
+  //    etc. Powers the P&L (revenue from payments minus expenses) and feeds a
+  //    real margin into the profitability + manager surfaces. Tenant-scoped. ──
+  expenses: defineTable({
+    orgId: v.string(),
+    category: v.union(
+      v.literal("rent"),
+      v.literal("utilities"),
+      v.literal("software"),
+      v.literal("gear"),
+      v.literal("repairs"),
+      v.literal("payroll"),
+      v.literal("contractor"),
+      v.literal("marketing"),
+      v.literal("supplies"),
+      v.literal("insurance"),
+      v.literal("travel"),
+      v.literal("fees"),
+      v.literal("other"),
+    ),
+    vendor: v.optional(v.string()),
+    description: v.optional(v.string()),
+    amountCents: v.number(),
+    date: v.number(), // when the cost was incurred / paid (day-resolution)
+    // "monthly"/"annual" mark a recurring fixed cost so reporting can annualize.
+    recurring: v.optional(v.union(v.literal("monthly"), v.literal("annual"))),
+    // If this is a payout to a staff member / contractor, link them.
+    memberId: v.optional(v.id("members")),
+    receiptId: v.optional(v.id("_storage")),
+    notes: v.optional(v.string()),
+    createdBy: v.optional(v.string()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_date", ["orgId", "date"])
+    .index("by_org_member", ["orgId", "memberId"]),
+
   // ── Software + license management - DAWs, plugins, sample libraries and
   //    subscriptions the studio owns. Tracks cost, seats, renewal, and the
   //    license key. Tenant-scoped. ──
