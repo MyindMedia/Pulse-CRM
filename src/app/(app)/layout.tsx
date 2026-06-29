@@ -7,6 +7,7 @@ import { StudioBanner } from "@/components/shell/studio-banner";
 import { BillingBanner, BillingLock } from "@/components/shell/billing-gate";
 import { MemberSync } from "@/components/shell/member-sync";
 import { CommandPalette } from "@/components/shell/command-palette";
+import { ClockWidget } from "@/components/timeclock/clock-widget";
 import { MobileTabBar } from "@/components/shell/mobile-tabbar";
 import { FeatureGuard } from "@/components/shell/feature-guard";
 import { OrgTheme } from "@/components/shell/org-theme";
@@ -50,6 +51,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <BillingLock />
         <CommandPalette />
+        <ClockWidget />
         <MobileTabBar onOpenMore={() => setMobileNav(true)} />
       </div>
       </OrgTheme>

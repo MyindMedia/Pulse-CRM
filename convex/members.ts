@@ -205,6 +205,30 @@ export const update = mutation({
   },
 });
 
+/** Set a teammate's pay - hourly (cents/hour) or salary (annual cents). Pass
+ *  payType null to clear. Owner/manager (members.invite) only; this is the
+ *  basis for payroll. */
+export const setPay = mutation({
+  args: {
+    id: v.id("members"),
+    payType: v.union(v.literal("hourly"), v.literal("salary"), v.null()),
+    payRateCents: v.optional(v.number()),
+  },
+  handler: async (ctx, { id, payType, payRateCents }) => {
+    const viewer = await requireCapability(ctx, "members.invite");
+    const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
+    const member = await ctx.db.get(id);
+    if (!member || member.orgId !== orgId) throw new Error("Not found");
+    if (payType !== null && (payRateCents === undefined || payRateCents < 0)) {
+      throw new Error("Enter a pay rate.");
+    }
+    await ctx.db.patch(id, {
+      payType: payType === null ? undefined : payType,
+      payRateCents: payType === null ? undefined : payRateCents,
+    });
+  },
+});
+
 export const remove = mutation({
   args: { id: v.id("members") },
   handler: async (ctx, { id }) => {

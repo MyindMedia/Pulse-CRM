@@ -622,6 +622,11 @@ export default defineSchema({
     clerkImageUrl: v.optional(v.string()), // auto-filled from the Clerk account avatar
     skills: v.array(v.string()), // gear / certifications, e.g. "Neve-certified"
     notes: v.optional(v.string()), // internal notes about the teammate
+    // Payroll: how this teammate is paid. "hourly" => payRateCents is cents/hour
+    // (multiplied by clocked hours); "salary" => payRateCents is the ANNUAL
+    // salary in cents (prorated per pay period). Absent = unpaid / not tracked.
+    payType: v.optional(v.union(v.literal("hourly"), v.literal("salary"))),
+    payRateCents: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])
     .index("by_org_clerk", ["orgId", "clerkUserId"]),
@@ -1472,6 +1477,28 @@ export default defineSchema({
     .index("by_org_member", ["orgId", "memberId"])
     .index("by_org_start", ["orgId", "startTime"])
     .index("by_session", ["sessionId"]),
+
+  // ── Time clock - the actual hours a teammate worked. One row per clock-in;
+  //    open while clockOutAt is undefined. Drives payroll (hours x rate) and
+  //    the mobile clock-in/out widget. rateCentsSnapshot freezes the hourly
+  //    rate at clock-in so a later raise doesn't rewrite past pay. ──
+  timeEntries: defineTable({
+    orgId: v.string(),
+    memberId: v.id("members"),
+    shiftId: v.optional(v.id("shifts")), // the scheduled shift this covers, if any
+    clockInAt: v.number(),
+    clockOutAt: v.optional(v.number()),
+    status: v.union(v.literal("active"), v.literal("completed")),
+    rateCentsSnapshot: v.optional(v.number()), // cents/hour at clock-in
+    source: v.union(v.literal("self"), v.literal("manual")), // self-service vs admin entry
+    snoozedUntil: v.optional(v.number()), // end-of-shift "still working" snooze
+    note: v.optional(v.string()),
+    editedBy: v.optional(v.string()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_member", ["orgId", "memberId"])
+    .index("by_member_status", ["memberId", "status"])
+    .index("by_org_in", ["orgId", "clockInAt"]),
 
   // ── Recurring weekly availability a staff member sets for themselves. ──
   availability: defineTable({
