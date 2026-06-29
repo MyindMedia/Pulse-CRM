@@ -258,10 +258,12 @@ export const subaccount = query({
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .first();
     if (!org) return null;
-    // An agency member may only inspect a sub-account under their own agency
-    // (and never the seed demo workspace from a real console).
+    // Only an agency member of THIS org's agency may inspect it (financial
+    // rollup + activity). Studio members and unauthenticated callers must NOT
+    // fall through - previously the guard only handled the agency-member case,
+    // leaking any org's financials to any other authenticated viewer.
     const viewer = await resolveViewer(ctx).catch(() => null);
-    if (viewer?.kind === "agency_member" && (orgId === DEMO_ORG || org.agencyId !== viewer.agencyId)) {
+    if (viewer?.kind !== "agency_member" || orgId === DEMO_ORG || org.agencyId !== viewer.agencyId) {
       return null;
     }
     const activity = await ctx.db

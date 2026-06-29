@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { currentOrg, assertOrg } from "./lib/tenant";
+import { currentOrg, assertOrg, currentOrgWithCapability} from "./lib/tenant";
 
 const kindV = v.union(
   v.literal("mix"),
@@ -50,7 +50,7 @@ export const create = mutation({
     paymentGated: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "deliverables.upload");
     const song = await ctx.db.get(args.songId);
     assertOrg(song, orgId);
     // Auto-increment version within the song.
@@ -84,7 +84,7 @@ export const create = mutation({
 export const setStatus = mutation({
   args: { id: v.id("deliverables"), status: statusV, approvedBy: v.optional(v.string()) },
   handler: async (ctx, { id, status, approvedBy }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "deliverables.approve");
     const d = await ctx.db.get(id);
     assertOrg(d, orgId);
     const patch: Record<string, unknown> = { status };
@@ -130,7 +130,7 @@ export const addComment = mutation({
     authorName: v.string(),
   },
   handler: async (ctx, args) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "deliverables.upload");
     const d = await ctx.db.get(args.deliverableId);
     assertOrg(d, orgId);
     // Revision-budget guard: bump usage on the parent song.
@@ -153,7 +153,7 @@ export const addComment = mutation({
 export const resolveComment = mutation({
   args: { id: v.id("revisionComments"), resolved: v.boolean() },
   handler: async (ctx, { id, resolved }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "deliverables.upload");
     const c = await ctx.db.get(id);
     assertOrg(c, orgId);
     await ctx.db.patch(id, { resolved });
@@ -164,7 +164,7 @@ export const resolveComment = mutation({
 export const consumeRevision = mutation({
   args: { songId: v.id("songs") },
   handler: async (ctx, { songId }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "deliverables.upload");
     const song = await ctx.db.get(songId);
     assertOrg(song, orgId);
     const used = song.revisionsUsed + 1;

@@ -225,8 +225,23 @@ export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
     throw new AccessError("NO_WORKSPACE", "Your account isn't linked to a studio yet.");
   }
 
-  // 2. No Clerk identity -> demo mode synthesizes an owner-level studio viewer
-  //    pointed at appState.activeOrgId (or "pulse-demo" default).
+  // 2. No Clerk identity.
+  //    SECURITY: in production (Clerk configured) an unauthenticated caller must
+  //    be DENIED - it must never fall through to the owner-level demo viewer
+  //    below. Convex functions are publicly invocable at the deployment URL, so
+  //    without this gate a tokenless API call would be treated as owner of
+  //    appState.activeOrgId (a real org in prod). The legitimate logged-in app
+  //    always carries a Clerk identity (the no-identity path is reachable only
+  //    by direct unauthenticated API calls). Demo mode is therefore allowed ONLY
+  //    when Clerk is genuinely off (local/seed) or explicitly opted in.
+  const demoAllowed =
+    process.env.PULSE_DEMO_MODE === "1" || !process.env.CLERK_JWT_ISSUER_DOMAIN;
+  if (!demoAllowed) {
+    throw new AccessError("UNAUTHENTICATED", "Sign in required.");
+  }
+
+  // Demo mode (Clerk disabled) synthesizes an owner-level studio viewer pointed
+  // at appState.activeOrgId (or "pulse-demo" default).
   const state = await ctx.db
     .query("appState")
     .withIndex("by_key", (q) => q.eq("key", "demo"))

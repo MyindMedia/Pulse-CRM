@@ -1,5 +1,6 @@
 import { mutation, internalMutation, MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
+import { currentOrgWithCapability } from "./lib/tenant";
 import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
 import { proposeWaitlistFill } from "./waitlist";
@@ -220,8 +221,12 @@ export const tick = internalMutation({
   },
 });
 
-/** Manual trigger - the internal Bookings view exposes this as a button. */
+/** Manual trigger - the internal Bookings view exposes this as a button. Gated
+ *  to owner/manager (it fires outbound automation across the studio). */
 export const runNow = mutation({
   args: {},
-  handler: async (ctx) => runAutomation(ctx),
+  handler: async (ctx) => {
+    await currentOrgWithCapability(ctx, "ops.autonomy.manage");
+    return runAutomation(ctx);
+  },
 });

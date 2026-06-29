@@ -89,13 +89,18 @@ http.route({
   path: "/sms/inbound",
   method: "POST",
   handler: httpAction(async (ctx, req) => {
-    // LoopMessage: verify the configurable webhook authorization header.
-    const loopSecret = process.env.LOOPMESSAGE_WEBHOOK_SECRET;
-    if (loopSecret && (req.headers.get("authorization") ?? "") !== loopSecret) {
-      // Only reject when the request actually looks like LoopMessage (carries an
-      // auth header attempt); Twilio/Telnyx have their own paths and no header.
-      const auth = req.headers.get("authorization");
-      if (auth !== null) return new Response("unauthorized", { status: 401 });
+    // Auth (fail closed): the inbound webhook must present the configured shared
+    // secret, as the Authorization header OR a ?token= query param. Without this
+    // any anonymous POST could forge inbound SMS to opt phone numbers in/out
+    // (STOP/START) or inject "client" messages into a thread. A missing secret
+    // is treated as a deny so a misconfiguration can't leave it wide open.
+    // Configure SMS_INBOUND_SECRET (or LOOPMESSAGE_WEBHOOK_SECRET) and append it
+    // to each provider's webhook URL, e.g. /sms/inbound?token=<secret>.
+    const secret = process.env.SMS_INBOUND_SECRET || process.env.LOOPMESSAGE_WEBHOOK_SECRET;
+    const presented =
+      req.headers.get("authorization") ?? new URL(req.url).searchParams.get("token") ?? "";
+    if (!secret || presented !== secret) {
+      return new Response("unauthorized", { status: 401 });
     }
 
     let from = "";

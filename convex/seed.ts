@@ -1,6 +1,7 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { DEMO_ORG } from "./lib/tenant";
+import { requireCapability } from "./lib/access";
 
 /* ============================================================
    PULSE - demo seed
@@ -43,6 +44,11 @@ export const run = mutation({
   args: { orgId: v.optional(v.string()), studioName: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const orgId = args.orgId ?? DEMO_ORG;
+    // Destructive wipe+reseed: require owner/manager on the TARGET org. Blocks
+    // unauthenticated callers AND stops one org's member from wiping another by
+    // passing its id (requireCapability validates the org belongs to the
+    // caller). The seeded DEMO_ORG owner holds this in Clerk-disabled demo mode.
+    await requireCapability(ctx, "members.remove", { orgId });
     const preserveOrg = orgId !== DEMO_ORG; // keep the real org's identity fields
     const now = Date.now();
 

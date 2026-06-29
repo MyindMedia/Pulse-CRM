@@ -77,6 +77,9 @@ export const handle = internalMutation({
           // Already-paid / released bookings settle to a no-op; don't 500 the webhook.
           console.error("[webhook] settlePayment skipped:", (err as Error).message);
         }
+        // Mark processed so a Stripe retry of this event can't double-record the
+        // payment (settlePayment is not idempotent per-event).
+        await markProcessed(ctx, event.id, e.type);
         return { ok: true };
       }
 
@@ -87,6 +90,7 @@ export const handle = internalMutation({
         } catch (err) {
           console.error("[webhook] invoice settle skipped:", (err as Error).message);
         }
+        await markProcessed(ctx, event.id, e.type);
         return { ok: true };
       }
 

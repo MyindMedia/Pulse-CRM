@@ -1,6 +1,7 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { DEMO_ORG } from "./lib/tenant";
+import { requireCapability } from "./lib/access";
 import { HOLIDAYS, ymd } from "./lib/holidays";
 
 /* ============================================================
@@ -19,6 +20,9 @@ export const run = mutation({
   args: { orgId: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const orgId = args.orgId ?? DEMO_ORG;
+    // Destructive wipe+reseed: owner/manager on the target org only (validates
+    // the org belongs to the caller; blocks unauthenticated + cross-tenant).
+    await requireCapability(ctx, "members.remove", { orgId });
     const now = Date.now();
 
     // Wipe the tables this seeder owns (so re-runs don't duplicate).

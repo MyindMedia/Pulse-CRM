@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { currentOrg, assertOrg } from "./lib/tenant";
+import { currentOrg, assertOrg, currentOrgWithCapability} from "./lib/tenant";
 
 const contributorV = v.object({
   name: v.string(),
@@ -67,7 +67,7 @@ export const upsert = mutation({
     ),
   },
   handler: async (ctx, { songId, contributors, status }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "splitsheet.edit");
     const song = await ctx.db.get(songId);
     assertOrg(song, orgId);
 
@@ -129,7 +129,7 @@ export const setStatus = mutation({
     status: v.union(v.literal("draft"), v.literal("sent"), v.literal("fully_executed")),
   },
   handler: async (ctx, { id, status }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "splitsheet.edit");
     const sheet = await ctx.db.get(id);
     assertOrg(sheet, orgId);
     await ctx.db.patch(id, { status, updatedAt: Date.now() });

@@ -1,5 +1,5 @@
 import { mutation, type MutationCtx } from "./_generated/server";
-import { currentOrg } from "./lib/tenant";
+import { currentOrgWithCapability } from "./lib/tenant";
 import { periodFor } from "./usage";
 
 /* ============================================================
@@ -59,7 +59,7 @@ function dollars(cents: number | undefined): string {
 export const clientsCsv = mutation({
   args: {},
   handler: async (ctx): Promise<{ filename: string; csv: string }> => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "insights.read");
     const artists = await ctx.db
       .query("artists")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -80,7 +80,7 @@ export const clientsCsv = mutation({
 export const songsCsv = mutation({
   args: {},
   handler: async (ctx): Promise<{ filename: string; csv: string }> => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "songs.read");
     const songs = await ctx.db
       .query("songs")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -101,7 +101,7 @@ export const songsCsv = mutation({
 export const bookingsCsv = mutation({
   args: {},
   handler: async (ctx): Promise<{ filename: string; csv: string }> => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "insights.read");
     const sessions = await ctx.db
       .query("sessions")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -123,7 +123,7 @@ export const bookingsCsv = mutation({
 export const invoicesCsv = mutation({
   args: {},
   handler: async (ctx): Promise<{ filename: string; csv: string }> => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "invoices.read");
     const invoices = await ctx.db
       .query("invoices")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -144,7 +144,7 @@ export const invoicesCsv = mutation({
 export const splitSheetsCsv = mutation({
   args: {},
   handler: async (ctx): Promise<{ filename: string; csv: string }> => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "splitsheet.read");
     const sheets = await ctx.db
       .query("splitSheets")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -173,7 +173,7 @@ export const splitSheetsCsv = mutation({
 export const activityCsv = mutation({
   args: {},
   handler: async (ctx): Promise<{ filename: string; csv: string }> => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "activity.read");
     const events = await ctx.db
       .query("activity")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))

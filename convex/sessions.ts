@@ -1,7 +1,7 @@
 import { query, mutation, QueryCtx, MutationCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
-import { currentOrg } from "./lib/tenant";
+import { currentOrg, currentOrgWithCapability} from "./lib/tenant";
 import {
   assertNoBufferConflict,
   recomputeRoomStatus,
@@ -283,7 +283,7 @@ export const setComp = mutation({
     compReason: v.optional(v.string()),
   },
   handler: async (ctx, { id, compType, listValueCents, chargedCents, compReason }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "sessions.edit");
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) throw new Error("Not found");
 

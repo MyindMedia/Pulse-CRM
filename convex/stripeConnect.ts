@@ -4,6 +4,7 @@ import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { stripeClient } from "./lib/stripe";
 import { currentOrg } from "./lib/tenant";
+import { requireCapability } from "./lib/access";
 
 /* ============================================================
    Stripe Connect (P3). Each studio connects its OWN Stripe
@@ -37,6 +38,9 @@ export const _orgForConnect = internalQuery({
   args: {},
   handler: async (ctx) => {
     const orgId = await currentOrg(ctx);
+    // Managing the connected Stripe account (onboarding link, embedded session,
+    // bank/payout dashboard, status refresh) is owner/manager finance work.
+    await requireCapability(ctx, "invoices.send", { orgId });
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     if (!org) return null;
     return {
@@ -209,6 +213,7 @@ export const _depositContext = internalQuery({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
     const orgId = await currentOrg(ctx);
+    await requireCapability(ctx, "invoices.send", { orgId });
     const session = await ctx.db.get(sessionId);
     if (!session || session.orgId !== orgId) return null;
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();

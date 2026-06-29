@@ -77,9 +77,12 @@ export const issue = mutation({
 export const revoke = mutation({
   args: { grantId: v.id("collaboratorGrants") },
   handler: async (ctx, { grantId }) => {
-    await requireCapability(ctx, "grants.revoke");
     const g = await ctx.db.get(grantId);
     if (!g) throw new Error("grant not found");
+    // Validate the grant belongs to the caller's org (the `.own` suffix on
+    // grants.revoke.own would otherwise let a low-priv member revoke any org's
+    // grant by id). requireCapability with the resource enforces org ownership.
+    await requireCapability(ctx, "grants.revoke", { orgId: g.orgId });
     await ctx.db.patch(grantId, { revoked: true });
   },
 });

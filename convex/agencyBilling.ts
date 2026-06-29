@@ -8,6 +8,7 @@ import { currentOrg } from "./lib/tenant";
 import { stripeClient } from "./lib/stripe";
 import { evaluateBillingGate, effectivePriceCents, DAY_MS } from "./lib/billingGate";
 import { sendEmail } from "./lib/email";
+import { escapeHtml } from "./lib/text";
 
 /* ============================================================
    Agency rebilling - the per-sub-account billing/trial state. The
@@ -320,7 +321,7 @@ export const _notifyExpired = internalAction({
       await sendEmail({
         to: it.ownerEmail,
         subject: it.locked ? "Action needed: add a payment method to keep Pulse" : "Your Pulse trial has ended",
-        html: `<p>Your free window for <strong>${it.name}</strong> has ended.</p>
+        html: `<p>Your free window for <strong>${escapeHtml(it.name)}</strong> has ended.</p>
           <p>${it.locked
             ? "Add a payment method to keep using your studio dashboard."
             : "You're all set - billing has started on your card on file."}</p>

@@ -10,7 +10,7 @@
    because node-ical needs the Node.js runtime.
    ============================================================ */
 import { v } from "convex/values";
-import { mutation, query, internalMutation } from "./_generated/server";
+import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
 import { currentOrg } from "./lib/tenant";
 
 /** Guess the source from an iCal URL host. */
@@ -176,14 +176,14 @@ export const remove = mutation({
    Plain V8 mutations; no top-level node-ical dependency.
    ============================================================ */
 
-export const getInternal = query({
+export const getInternal = internalQuery({
   args: { id: v.id("externalCalendars") },
   handler: async (ctx, { id }) => {
     return await ctx.db.get(id);
   },
 });
 
-export const listActiveInternal = query({
+export const listActiveInternal = internalQuery({
   args: {},
   handler: async (ctx) => {
     const orgId = await currentOrg(ctx);

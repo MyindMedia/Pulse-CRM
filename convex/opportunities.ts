@@ -1,7 +1,7 @@
 import { query, mutation, MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
-import { currentOrg } from "./lib/tenant";
+import { currentOrg, currentOrgWithCapability} from "./lib/tenant";
 import { insertSession } from "./sessions";
 
 const stageV = v.union(
@@ -107,7 +107,7 @@ export const create = mutation({
     songId: v.optional(v.id("songs")),
   },
   handler: async (ctx, args) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "opportunities.edit");
     const artist = await ctx.db.get(args.artistId);
     if (!artist || artist.orgId !== orgId) throw new Error("Artist not found");
     const id = await ctx.db.insert("opportunities", {
@@ -210,7 +210,7 @@ const STAGE_PROBABILITY: Record<string, number> = {
 export const moveStage = mutation({
   args: { id: v.id("opportunities"), stage: stageV },
   handler: async (ctx, { id, stage }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "opportunities.edit");
     const opp = await ctx.db.get(id);
     if (!opp || opp.orgId !== orgId) throw new Error("Not found");
     await ctx.db.patch(id, {
@@ -251,7 +251,7 @@ export const convertToBooking = mutation({
     rateCents: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "opportunities.edit");
     const opp = await ctx.db.get(args.id);
     if (!opp || opp.orgId !== orgId) throw new Error("Opportunity not found");
     if (opp.stage === "won" || opp.stage === "lost") {
@@ -323,7 +323,7 @@ export const update = mutation({
     probability: v.optional(v.number()),
   },
   handler: async (ctx, { id, ...patch }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "opportunities.edit");
     const opp = await ctx.db.get(id);
     if (!opp || opp.orgId !== orgId) throw new Error("Not found");
     const clean = Object.fromEntries(Object.entries(patch).filter(([, val]) => val !== undefined));
@@ -334,7 +334,7 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("opportunities") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "opportunities.edit");
     const opp = await ctx.db.get(id);
     if (!opp || opp.orgId !== orgId) throw new Error("Not found");
     await ctx.db.delete(id);

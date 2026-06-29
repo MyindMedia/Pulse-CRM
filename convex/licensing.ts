@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { currentOrg, assertOrg } from "./lib/tenant";
+import { currentOrg, assertOrg, currentOrgWithCapability} from "./lib/tenant";
 
 /* ============================================================
    Licensing - two revenue streams off the song catalog:
@@ -51,7 +51,7 @@ export const createSync = mutation({
     feeCents: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "licenses.edit");
     const song = await ctx.db.get(args.songId);
     assertOrg(song, orgId);
     const id = await ctx.db.insert("syncOpportunities", {
@@ -85,7 +85,7 @@ export const updateSync = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, { id, ...patch }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "licenses.edit");
     const row = await ctx.db.get(id);
     assertOrg(row, orgId);
     const clean = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
@@ -96,7 +96,7 @@ export const updateSync = mutation({
 export const moveSyncStage = mutation({
   args: { id: v.id("syncOpportunities"), stage: syncStageV },
   handler: async (ctx, { id, stage }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "licenses.edit");
     const row = await ctx.db.get(id);
     assertOrg(row, orgId);
     await ctx.db.patch(id, { stage, updatedAt: Date.now() });
@@ -158,7 +158,7 @@ export const sellLicense = mutation({
     streamCap: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "licenses.edit");
     const song = await ctx.db.get(args.songId);
     assertOrg(song, orgId);
     // Exclusive licenses retire the beat from the non-exclusive market.
@@ -198,7 +198,7 @@ export const sellLicense = mutation({
 export const deactivateLicense = mutation({
   args: { id: v.id("licenses") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "licenses.edit");
     const row = await ctx.db.get(id);
     assertOrg(row, orgId);
     await ctx.db.patch(id, { active: false });

@@ -8,6 +8,7 @@ import { currentOrg, currentActor } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { completeJSON, SMART_MODEL } from "./lib/openai";
 import { summarizeGraph } from "./lib/studioGraph";
+import { escapeHtml } from "./lib/text";
 
 /* JSON contract for the conversational agent's structured response. Forces a
    valid object so we never brace-slice free text. strict:false keeps it lenient
@@ -651,7 +652,7 @@ export const executeApproval = internalAction({
     try {
       const p = (ap.proposedPayload ?? {}) as { to?: string; subject?: string; body?: string };
       if (ap.actionType === "send_email" && p.to) {
-        const status = await sendEmail({ to: p.to, subject: p.subject ?? "A note from the studio", html: `<div>${(p.body ?? "").replace(/\n/g, "<br/>")}</div>` });
+        const status = await sendEmail({ to: p.to, subject: p.subject ?? "A note from the studio", html: `<div>${escapeHtml(p.body ?? "").replace(/\n/g, "<br/>")}</div>` });
         ok = status !== "failed"; result = `email ${status}`;
       } else if (ap.actionType === "send_sms" && p.to) {
         const status = await sendSms({ to: p.to, body: p.body ?? "" });

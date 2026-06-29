@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
-import { currentOrg } from "./lib/tenant";
+import { currentOrg, currentOrgWithCapability} from "./lib/tenant";
 import { searchSoftwareCatalog } from "./lib/softwareCatalog";
 
 /* ============================================================
@@ -99,7 +99,7 @@ export const create = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "licenses.edit");
     const name = args.name.trim();
     if (!name) throw new ConvexError("Give the software a name.");
     if (!Number.isFinite(args.costCents) || args.costCents < 0) {
@@ -152,7 +152,7 @@ export const update = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, { id, ...patch }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "licenses.edit");
     const row = await ctx.db.get(id);
     if (!row || row.orgId !== orgId) throw new ConvexError("Software not found.");
     const clean: Record<string, unknown> = {};
@@ -175,7 +175,7 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("softwareLicenses") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "licenses.edit");
     const row = await ctx.db.get(id);
     if (!row || row.orgId !== orgId) throw new ConvexError("Software not found.");
     await ctx.db.delete(id);

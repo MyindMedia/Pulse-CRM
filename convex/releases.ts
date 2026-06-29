@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { currentOrg, assertOrg } from "./lib/tenant";
+import { currentOrg, assertOrg, currentOrgWithCapability} from "./lib/tenant";
 import { isReleasable } from "./lib/guardrails";
 
 /** The standard pre-built rollout - offsets are days relative to release day. */
@@ -71,7 +71,7 @@ export const forSong = query({
 export const create = mutation({
   args: { songId: v.id("songs"), releaseDate: v.number() },
   handler: async (ctx, { songId, releaseDate }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "releases.edit");
     const song = await ctx.db.get(songId);
     assertOrg(song, orgId);
     const id = await ctx.db.insert("releaseCampaigns", {
@@ -97,7 +97,7 @@ export const create = mutation({
 export const toggleTask = mutation({
   args: { id: v.id("releaseCampaigns"), index: v.number() },
   handler: async (ctx, { id, index }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "releases.edit");
     const campaign = await ctx.db.get(id);
     assertOrg(campaign, orgId);
     const tasks = campaign.tasks.map((t, i) => (i === index ? { ...t, done: !t.done } : t));
@@ -111,7 +111,7 @@ export const setStatus = mutation({
     status: v.union(v.literal("planning"), v.literal("active"), v.literal("released")),
   },
   handler: async (ctx, { id, status }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "releases.edit");
     const campaign = await ctx.db.get(id);
     assertOrg(campaign, orgId);
     if (status === "released") {

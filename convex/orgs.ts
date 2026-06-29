@@ -2,7 +2,7 @@ import { query, mutation, internalQuery, QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
-import { currentOrg, currentActor } from "./lib/tenant";
+import { currentOrg, currentActor, currentOrgWithCapability} from "./lib/tenant";
 import { US_STATES, findState } from "./lib/usTaxRates";
 import { meterStorageUpload } from "./usage";
 import { evaluateBillingGate, effectivePriceCents } from "./lib/billingGate";
@@ -118,7 +118,7 @@ export const update = mutation({
     depositPolicyText: v.optional(v.string()),
   },
   handler: async (ctx, patch) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "branding.edit");
     const org = await ensureOrg(ctx, orgId);
     const clean = Object.fromEntries(Object.entries(patch).filter(([, val]) => val !== undefined));
     if (org) {
@@ -152,7 +152,7 @@ export const generateUploadUrl = mutation({
 export const setLogo = mutation({
   args: { storageId: v.id("_storage") },
   handler: async (ctx, { storageId }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "branding.edit");
     const org = await ensureOrg(ctx, orgId);
     await meterStorageUpload(ctx, orgId, storageId, org?.logoId ?? null);
     await ctx.scheduler.runAfter(3000, internal.brandHero.generate, { orgId });
@@ -179,7 +179,7 @@ export const applyBrandFromLogo = mutation({
     if (palette.length > 6 || palette.some((p) => !/^#[0-9a-fA-F]{6}$/.test(p))) {
       throw new Error("Invalid palette.");
     }
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "branding.edit");
     const org = await ensureOrg(ctx, orgId);
     if (!org) throw new Error("No studio yet - upload a logo first.");
     await ctx.db.patch(org._id, { accentColor, brandPalette: palette });
@@ -190,7 +190,7 @@ export const applyBrandFromLogo = mutation({
 export const setBookingHero = mutation({
   args: { storageId: v.id("_storage") },
   handler: async (ctx, { storageId }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "branding.edit");
     const org = await ensureOrg(ctx, orgId);
     await meterStorageUpload(ctx, orgId, storageId, org?.bookingHeroId ?? null);
     if (org) await ctx.db.patch(org._id, { bookingHeroId: storageId });
@@ -231,7 +231,7 @@ export const setServicePricing = mutation({
     }),
   },
   handler: async (ctx, { pricing }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "branding.edit");
     const org = await ensureOrg(ctx, orgId);
     if (!org) throw new Error("Org not found");
     await ctx.db.patch(org._id, { servicePricing: pricing });
@@ -252,7 +252,7 @@ export const setDiscountCodes = mutation({
     ),
   },
   handler: async (ctx, { codes }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "branding.edit");
     const org = await ensureOrg(ctx, orgId);
     if (!org) throw new Error("Org not found");
     // Normalize codes to uppercase + dedupe; drop empty rows.
@@ -270,7 +270,7 @@ export const setDefaultRateCutPct = mutation({
   args: { pct: v.number() },
   handler: async (ctx, { pct }) => {
     if (pct < 1 || pct > 90) throw new Error("Cut % must be between 1 and 90");
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "branding.edit");
     const org = await ensureOrg(ctx, orgId);
     if (!org) throw new Error("Org not found");
     await ctx.db.patch(org._id, { defaultRateCutPct: pct });
@@ -287,7 +287,7 @@ export const setTaxConfig = mutation({
     apply: v.boolean(),
   },
   handler: async (ctx, { state, taxRate, apply }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "branding.edit");
     const org = await ensureOrg(ctx, orgId);
     if (!org) throw new Error("Org not found");
     // Resolve the rate: explicit value wins, else look up from the state.

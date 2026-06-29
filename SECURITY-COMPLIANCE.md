@@ -75,4 +75,32 @@ Confirm each holds **SOC 2 Type II + an executed DPA** and add to the sub-proces
 3. ~~Formalize a GDPR erasure/export flow per data subject.~~ **Done** (`convex/dataRights.ts`).
 4. Keep `AI_ALLOW_GEMINI_FALLBACK` off until the Google DPA is in place.
 
+## Platform vulnerability audit + remediation (2026-06-29)
+
+A four-track read-only audit (tenant isolation/IDOR, authorization, public endpoints/webhooks, secrets/auth/input) followed by fixes. All shipped; 458 tests + typecheck + lint + build green.
+
+**Critical — fixed**
+- **Auth bypass (`lib/access.ts`):** the no-Clerk-identity branch synthesized an OWNER viewer pointed at `appState.activeOrgId` without checking Clerk was configured, so a tokenless Convex API call got owner access to a real prod org. Now denied in production (demo viewer only when `CLERK_JWT_ISSUER_DOMAIN` is unset or `PULSE_DEMO_MODE=1`). Verified `CLERK_JWT_ISSUER_DOMAIN` is set on prod, so the gate is active.
+- **Unauthenticated cross-tenant wipe (`seed.run`, `seedSchedule.run`):** public mutations took an arbitrary `orgId` and deleted ~30 tables. Now require `members.remove` on the target org.
+- **Financial/PII exfiltration (`exports.ts`):** CSV exports of invoices/bookings/clients/splits had no gate. Now capability-gated (`invoices.read`/`insights.read`/`splitsheet.read`/`songs.read`/`activity.read`).
+- **Stripe Connect (`stripeConnect.ts`):** bank/payout dashboard link + account/deposit actions were `currentOrg`-only. Now gated `invoices.send` at the shared chokepoints.
+
+**High — fixed**
+- **Authorization migration:** ~50 destructive/financial mutations across artists, songs, equipment, sessions (setComp), orgs settings, opportunities, licensing, splitSheets, releases, deliverables, software, automation.runNow moved from bare `currentOrg` to `currentOrgWithCapability(cap)` so a low-privilege member (intern) can no longer delete data, comp bookings, or rewrite pricing.
+- **Cross-tenant financial read (`agency.subaccount`):** guard only handled agency members; studio members fell through to any org's rollup. Now requires an agency member of that org's agency.
+- **SMS inbound webhook (`http.ts`):** the only check was a bypassable LoopMessage header (skipped when absent), letting forged posts opt numbers in/out + inject cross-org messages. Now fail-closed on a shared secret (`SMS_INBOUND_SECRET`/`LOOPMESSAGE_WEBHOOK_SECRET`, via header or `?token=`).
+- **Webhook idempotency (`billingWebhooks.ts`):** the session/invoice settle branches didn't `markProcessed`, so a Stripe retry double-recorded a payment. Fixed.
+
+**Medium — fixed**
+- Public `availability` no longer returns session titles (leaked client names). `grants.revoke` now verifies the grant's org. `externalCalendars.getInternal`/`listActiveInternal` changed `query`→`internalQuery` (were leaking private iCal URLs). `fetchIcal` now blocks SSRF (https + public-IP-resolved host only). `demoMode.status` is agency-scoped; `requireAgencyOverOrg` treats an orphan org as a mismatch. Two email-HTML interpolations now HTML-escaped (`agent.ts`, `agencyBilling.ts`).
+
+**Verified clean**
+No committed secrets; nothing secret in the browser bundle (only publishable keys); no `eval`/unsafe `dangerouslySetInnerHTML`; Stripe webhook signature verified; payment amounts always server-derived; magic-link/split-sheet/portal tokens are random + scoped + single-use.
+
+**Open (abuse/CSRF mitigations, lower severity — recommended next):**
+1. Rate-limit/captcha `booking.createBooking` (unbounded record + email amplification) and cap `portal.ask` LLM calls per token.
+2. Google OAuth callback (`http.ts /google/callback`) should use a random single-use `state` nonce bound to the initiating user/org (CSRF: an attacker could attach their Google account to a victim org).
+
+_Note: the auth-bypass fix means any unauthenticated pitch-demo browsing in prod must use a logged-in demo account; the bare slug-less `/book` page no longer renders for anonymous callers in prod (real studios use `/book/<slug>`, which is unaffected)._
+
 _Generated with the `compliance-ops` skill. Not legal advice._

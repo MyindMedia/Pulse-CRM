@@ -1,7 +1,7 @@
 import { query, mutation, QueryCtx, MutationCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
-import { currentOrg, assertOrg } from "./lib/tenant";
+import { currentOrg, assertOrg, currentOrgWithCapability} from "./lib/tenant";
 import { searchGearCatalog } from "./lib/gearCatalog";
 import { meterStorageUpload } from "./usage";
 
@@ -187,7 +187,7 @@ export const create = mutation({
     rentalPriceCents: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
     if (args.installedInRoomId) {
       const room = await ctx.db.get(args.installedInRoomId);
       assertOrg(room, orgId);
@@ -247,7 +247,7 @@ export const importBulk = mutation({
     skipDuplicateSerials: v.optional(v.boolean()),
   },
   handler: async (ctx, { items, skipDuplicateSerials }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
 
     // Map room names -> ids once (case-insensitive), for the location column.
     const rooms = await ctx.db
@@ -332,7 +332,7 @@ export const update = mutation({
     rentalPriceCents: v.optional(v.number()),
   },
   handler: async (ctx, { id, ...patch }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
     // `rentable` is a real boolean toggle, so it must survive the undefined
@@ -382,7 +382,7 @@ export const setRentable = mutation({
     rentalPriceCents: v.optional(v.number()),
   },
   handler: async (ctx, { id, rentable, rentalPriceCents }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
     const patch: Record<string, unknown> = { rentable };
@@ -443,7 +443,7 @@ export const rentableBoard = query({
 export const install = mutation({
   args: { id: v.id("equipment"), roomId: v.id("rooms") },
   handler: async (ctx, { id, roomId }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
     const room = await ctx.db.get(roomId);
@@ -466,7 +466,7 @@ export const install = mutation({
 export const moveToStorage = mutation({
   args: { id: v.id("equipment") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
     // Back to storage => available again (preserve maintenance/retired flags).
@@ -488,7 +488,7 @@ export const moveToStorage = mutation({
 export const setStatus = mutation({
   args: { id: v.id("equipment"), status: statusV },
   handler: async (ctx, { id, status }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
     await ctx.db.patch(id, { status });
@@ -498,7 +498,7 @@ export const setStatus = mutation({
 export const remove = mutation({
   args: { id: v.id("equipment") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
     await ctx.db.delete(id);
@@ -518,7 +518,7 @@ async function ownItems(ctx: MutationCtx, orgId: string, ids: Id<"equipment">[])
 export const bulkAssign = mutation({
   args: { ids: v.array(v.id("equipment")), roomId: v.optional(v.id("rooms")) },
   handler: async (ctx, { ids, roomId }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
     if (roomId) {
       const room = await ctx.db.get(roomId);
       assertOrg(room, orgId);
@@ -560,7 +560,7 @@ export const bulkUpdate = mutation({
     condition: v.optional(v.string()),
   },
   handler: async (ctx, { ids, category, status, condition }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
     const patch: Record<string, unknown> = {};
     if (category !== undefined) patch.category = category;
     if (status !== undefined) patch.status = status;
@@ -576,7 +576,7 @@ export const bulkUpdate = mutation({
 export const bulkRemove = mutation({
   args: { ids: v.array(v.id("equipment")) },
   handler: async (ctx, { ids }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
     const items = await ownItems(ctx, orgId, ids);
     for (const it of items) await ctx.db.delete(it._id);
     if (items.length > 0) {
@@ -596,7 +596,7 @@ export const bulkRemove = mutation({
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
-    await currentOrg(ctx);
+    await currentOrgWithCapability(ctx, "equipment.edit");
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -605,7 +605,7 @@ export const generateUploadUrl = mutation({
 export const setPhoto = mutation({
   args: { id: v.id("equipment"), storageId: v.id("_storage") },
   handler: async (ctx, { id, storageId }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
     await meterStorageUpload(ctx, orgId, storageId, item.photoId ?? null);

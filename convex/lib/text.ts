@@ -7,3 +7,15 @@ export function stripEmDashes<T extends string | undefined | null>(value: T): T 
   if (typeof value !== "string") return value;
   return value.replace(/[—–―]/g, "-") as T;
 }
+
+/** HTML-escape a string before interpolating it into an email/markup template,
+ *  so user/LLM/DB-supplied text can't inject markup. */
+export function escapeHtml(s: string | undefined | null): string {
+  if (!s) return "";
+  return s
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}

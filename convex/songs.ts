@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { currentOrg } from "./lib/tenant";
+import { currentOrg, currentOrgWithCapability} from "./lib/tenant";
 import { isReleasable } from "./lib/guardrails";
 
 const stageV = v.union(
@@ -272,7 +272,7 @@ export const create = mutation({
     revisionsIncluded: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "songs.edit");
     const artist = await ctx.db.get(args.artistId);
     if (!artist || artist.orgId !== orgId) throw new Error("Artist not found");
     const id = await ctx.db.insert("songs", {
@@ -307,7 +307,7 @@ export const create = mutation({
 export const advanceStage = mutation({
   args: { id: v.id("songs"), stage: stageV },
   handler: async (ctx, { id, stage }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "songs.edit");
     const song = await ctx.db.get(id);
     if (!song || song.orgId !== orgId) throw new Error("Not found");
     // Safeguard: never release a song without an executed split sheet. An
@@ -353,7 +353,7 @@ export const update = mutation({
     ownerMemberId: v.optional(v.union(v.id("members"), v.null())),
   },
   handler: async (ctx, { id, ...patch }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "songs.edit");
     const song = await ctx.db.get(id);
     if (!song || song.orgId !== orgId) throw new Error("Not found");
 
@@ -384,7 +384,7 @@ export const update = mutation({
 export const addReferenceTrack = mutation({
   args: { id: v.id("songs"), title: v.string(), url: v.string(), note: v.optional(v.string()) },
   handler: async (ctx, { id, title, url, note }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "songs.edit");
     const song = await ctx.db.get(id);
     if (!song || song.orgId !== orgId) throw new Error("Not found");
     await ctx.db.patch(id, { referenceTracks: [...song.referenceTracks, { title, url, note }] });
@@ -394,7 +394,7 @@ export const addReferenceTrack = mutation({
 export const remove = mutation({
   args: { id: v.id("songs") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "songs.delete");
     const song = await ctx.db.get(id);
     if (!song || song.orgId !== orgId) throw new Error("Not found");
     await ctx.db.delete(id);

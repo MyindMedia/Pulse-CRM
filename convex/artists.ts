@@ -1,6 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
-import { currentOrg } from "./lib/tenant";
+import { currentOrg, currentOrgWithCapability} from "./lib/tenant";
 
 const artistTypeV = v.union(
   v.literal("artist"),
@@ -99,7 +99,7 @@ export const create = mutation({
     source: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "artists.edit");
     const id = await ctx.db.insert("artists", {
       orgId,
       name: args.name,
@@ -140,7 +140,7 @@ export const update = mutation({
     spotify: v.optional(v.string()),
   },
   handler: async (ctx, { id, ...patch }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "artists.edit");
     const artist = await ctx.db.get(id);
     if (!artist || artist.orgId !== orgId) throw new Error("Not found");
     const clean = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
@@ -151,7 +151,7 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("artists") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "artists.edit");
     const artist = await ctx.db.get(id);
     if (!artist || artist.orgId !== orgId) throw new Error("Not found");
     await ctx.db.delete(id);

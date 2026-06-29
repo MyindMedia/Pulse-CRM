@@ -198,7 +198,10 @@ export const availability = query({
     }
     return {
       slots,
-      booked: booked.map((b) => ({ start: b.startTime, end: b.endTime, title: b.title })),
+      // PUBLIC endpoint: return only busy time blocks, never the session title -
+      // titles embed the client's name ("{client} - {room}") and would leak the
+      // studio's whole client list to anonymous viewers.
+      booked: booked.map((b) => ({ start: b.startTime, end: b.endTime })),
     };
   },
 });

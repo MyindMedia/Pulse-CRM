@@ -29,7 +29,9 @@ async function requireAgencyOverOrg(ctx: MutationCtx, orgId: string) {
     .withIndex("by_org", (q) => q.eq("orgId", orgId))
     .first();
   if (!org) throw new ConvexError("Sub-account not found.");
-  if (org.agencyId && org.agencyId !== viewer.agencyId) {
+  // Treat an orphan org (no agencyId) as a mismatch so an agency member can't
+  // act on a sub-account that isn't under their agency.
+  if (org.agencyId !== viewer.agencyId) {
     throw new ConvexError("This sub-account belongs to a different agency.");
   }
   return org;
@@ -54,6 +56,12 @@ export const status = query({
       .query("orgs")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .first();
+    // Agency-console read: only an agency member of THIS org's agency may see
+    // demo state (previously it trusted orgId from args and leaked to anyone).
+    const viewer = await resolveViewer(ctx).catch(() => null);
+    if (!org || viewer?.kind !== "agency_member" || org.agencyId !== viewer.agencyId) {
+      return { demoMode: false, demoRowCount: 0 };
+    }
     const count = (
       await ctx.db.query("demoRows").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
     ).length;
