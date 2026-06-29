@@ -839,6 +839,16 @@ export default defineSchema({
     // Free-text request when a client wants gear that was unavailable or not
     // listed; the studio team is notified to follow up.
     gearRequestNote: v.optional(v.string()),
+    // ── Comped (no-charge) bookings ──
+    // A comp is a session that is held and run but never invoiced - a label or
+    // the studio owner waives the charge. We still capture what the booking
+    // WOULD have billed in `compedValueCents` so owners can see the revenue
+    // they're giving away (it surfaces in the reports + the AI agent's
+    // reporting). When a session is comped, `rateCents` is zeroed (nothing is
+    // owed and it never invoices) and the forgone value lives here instead.
+    comped: v.optional(v.boolean()),
+    compReason: v.optional(v.string()), // why it was comped: "Label comp", "Owner comp"...
+    compedValueCents: v.optional(v.number()), // captured cost / forgone revenue
   })
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])

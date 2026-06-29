@@ -60,6 +60,9 @@ export type RawCounts = {
   scheduledInWindow: number; // sessions that were due in window (completed+no_show+cancelled)
   noShowInWindow: number; // no_show + cancelled
   avgSessionValueCents: number;
+  // comped (no-charge) bookings in window: revenue waived, not collected
+  compedSessionCount: number;
+  compedValueLossCents: number;
   // lead conversion
   leadCount: number;
   bookedLeadCount: number;
@@ -151,6 +154,9 @@ export type ProfitReport = {
   criteria: { key: string; label: string; detail: string }[];
   /** How many metrics had enough data to grade. */
   graded: number;
+  /** Comped (no-charge) bookings in the window + the revenue waived on them. */
+  compedSessionCount: number;
+  compedValueLossCents: number;
 };
 
 /** Estimate the dollar upside / exposure of fixing one below-healthy metric.
@@ -235,6 +241,8 @@ export function buildReport(c: RawCounts): ProfitReport {
     levers,
     criteria: TOP_PERFORMER_CRITERIA,
     graded: metrics.length,
+    compedSessionCount: c.compedSessionCount,
+    compedValueLossCents: c.compedValueLossCents,
   };
 }
 
@@ -302,6 +310,14 @@ export async function gatherProfitCounts(ctx: QueryCtx | MutationCtx, orgId: str
 
   const valued = windowSessions.filter((s) => (s.rateCents ?? 0) > 0);
   const avgSessionValueCents = valued.length ? Math.round(valued.reduce((s, x) => s + x.rateCents, 0) / valued.length) : 0;
+
+  // Comped bookings in window: sessions run for free. Sum the value waived so
+  // the report can flag revenue given away (not just revenue collected).
+  const compedInWindow = windowSessions.filter(
+    (s) => s.comped && s.status !== "cancelled" && s.status !== "no_show",
+  );
+  const compedSessionCount = compedInWindow.length;
+  const compedValueLossCents = compedInWindow.reduce((sum, s) => sum + (s.compedValueCents ?? 0), 0);
 
   // Lead conversion: artists that arrived as leads (have a source) vs booked.
   const sourcedArtists = artists.filter((a) => !!a.source);
@@ -373,6 +389,8 @@ export async function gatherProfitCounts(ctx: QueryCtx | MutationCtx, orgId: str
     scheduledInWindow: dueInWindow.length,
     noShowInWindow,
     avgSessionValueCents,
+    compedSessionCount,
+    compedValueLossCents,
     leadCount,
     bookedLeadCount,
     depositConsidered,
@@ -435,10 +453,17 @@ export const postSummaryInsight = internalMutation({
               : ""
         }`
       : "";
+    // Comped sessions don't grade as a metric, but the waived revenue is a real
+    // cost the owner should see - call it out when there's any in the window.
+    const compedLine =
+      report.compedSessionCount > 0
+        ? `\n\nComped revenue: ${money(report.compedValueLossCents)} waived across ${report.compedSessionCount} no-charge ${report.compedSessionCount === 1 ? "session" : "sessions"}.`
+        : "";
     const body =
-      weakest.length > 0
+      (weakest.length > 0
         ? `Scored ${report.overall}/100 across ${report.graded} metrics.\n\nWeakest areas:\n${lines.join("\n")}${leverLine}`
-        : `Scored ${report.overall}/100 across ${report.graded} metrics. No metric is below healthy - keep it up.`;
+        : `Scored ${report.overall}/100 across ${report.graded} metrics. No metric is below healthy - keep it up.`) +
+      compedLine;
 
     const severity = report.band === "critical" ? "warning" : report.band === "warning" ? "warning" : report.band === "top" ? "info" : "opportunity";
 

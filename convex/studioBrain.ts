@@ -87,7 +87,20 @@ async function deriveGraph(ctx: QueryCtx | MutationCtx, orgId: string): Promise<
     (s) => s.startTime >= windowStart && s.status !== "cancelled" && s.status !== "no_show",
   );
   for (const s of liveSessions) {
-    addNode({ kind: "session", refId: s._id, label: s.title, attrs: { status: s.status, startTime: s.startTime, rateCents: s.rateCents } });
+    addNode({
+      kind: "session",
+      refId: s._id,
+      label: s.title,
+      attrs: {
+        status: s.status,
+        startTime: s.startTime,
+        rateCents: s.rateCents,
+        // Comped bookings bill nothing; carry the forgone value so the manager
+        // can reason about revenue given away, not just collected.
+        comped: s.comped ?? false,
+        compedValueCents: s.compedValueCents ?? 0,
+      },
+    });
   }
 
   // Edges.

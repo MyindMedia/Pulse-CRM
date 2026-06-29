@@ -24,6 +24,8 @@ function healthy(): RawCounts {
     scheduledInWindow: 50,
     noShowInWindow: 3, // 6% (healthy)
     avgSessionValueCents: 20000,
+    compedSessionCount: 0,
+    compedValueLossCents: 0,
     leadCount: 20,
     bookedLeadCount: 3, // 15% (top)
     depositConsidered: 40,

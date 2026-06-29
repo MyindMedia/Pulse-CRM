@@ -206,4 +206,46 @@ describe("reports - Revenue Command Center", () => {
     expect(out.totalLeads).toBe(4);
     expect(out.totalWonValueCents).toBe(125000);
   });
+
+  it("compedRevenueLoss totals waived value by client and room", async () => {
+    const now = Date.now();
+    const label = await seedArtist({ name: "Label X" });
+    const indie = await seedArtist({ name: "Indie Y" });
+    const roomA = await seedRoom("Studio A");
+
+    // Two comps for the label (one with a room), one for the indie. The comped
+    // value is captured in compedValueCents while rateCents is zeroed.
+    await seedSession(label, {
+      roomId: roomA, comped: true, rateCents: 0, compedValueCents: 40000,
+      startTime: now - 5 * DAY, endTime: now - 5 * DAY + 3_600_000,
+    });
+    await seedSession(label, {
+      comped: true, rateCents: 0, compedValueCents: 20000,
+      startTime: now - 10 * DAY, endTime: now - 10 * DAY + 3_600_000,
+    });
+    await seedSession(indie, {
+      roomId: roomA, comped: true, rateCents: 0, compedValueCents: 15000,
+      startTime: now - 2 * DAY, endTime: now - 2 * DAY + 3_600_000,
+    });
+    // A cancelled comp contributes nothing.
+    await seedSession(label, {
+      comped: true, rateCents: 0, compedValueCents: 99000, status: "cancelled",
+    });
+    // A normal paid session is ignored entirely.
+    await seedSession(indie, { rateCents: 50000 });
+
+    const out = await t.query(api.reports.compedRevenueLoss, {});
+    expect(out.totalCount).toBe(3);
+    expect(out.totalLossCents).toBe(75000); // 40k + 20k + 15k
+
+    const byClient = Object.fromEntries(out.byClient.map((r) => [r.artistName, r]));
+    expect(byClient["Label X"].count).toBe(2);
+    expect(byClient["Label X"].lossCents).toBe(60000);
+    expect(byClient["Indie Y"].lossCents).toBe(15000);
+    expect(out.byClient[0].artistName).toBe("Label X"); // ranked by loss desc
+
+    const byRoom = Object.fromEntries(out.byRoom.map((r) => [r.roomName, r]));
+    expect(byRoom["Studio A"].count).toBe(2); // both room-assigned comps
+    expect(byRoom["Studio A"].lossCents).toBe(55000); // 40k + 15k
+  });
 });

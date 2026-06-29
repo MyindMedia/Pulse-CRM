@@ -297,6 +297,7 @@ Sessions this week:
 Revenue:
   Booked (cleared deposits): ${fmtCents(data.depositRevenueCents)}
   Completed sessions value: ${fmtCents(data.completedRevenueCents)}
+  Comped (revenue waived): ${fmtCents(data.compedValueCents)} across ${data.compedCount} no-charge session(s)
 
 Top artists (sessions this week):
 ${data.topArtists.map((a) => `  - ${a.name}: ${a.count}x`).join("\n")}

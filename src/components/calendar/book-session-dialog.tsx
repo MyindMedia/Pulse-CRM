@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Field, Input } from "@/components/ui/field";
+import { Switch } from "@/components/ui/toggle";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/feedback";
@@ -78,6 +79,9 @@ export function BookSessionDialog({
   const [title, setTitle] = useState("");
   const [rate, setRate] = useState("");
   const [deposit, setDeposit] = useState("");
+  // Comp: waive the charge but still capture the rate as revenue loss.
+  const [comped, setComped] = useState(false);
+  const [compReason, setCompReason] = useState("");
 
   const songs = useQuery(
     api.songs.picker,
@@ -97,6 +101,8 @@ export function BookSessionDialog({
     setTitle("");
     setRate("");
     setDeposit("");
+    setComped(false);
+    setCompReason("");
   }
 
   // Seed the date when the modal opens - needs a fresh "now" per open, so
@@ -119,7 +125,8 @@ export function BookSessionDialog({
     client.name.trim() !== "",
     serviceType !== "",
     date !== "" && time !== "" && durationMins > 0,
-    title.trim().length > 0 && rateCents > 0 && depositCents <= rateCents,
+    // A comp still needs a rate (the value being waived), but no deposit check.
+    title.trim().length > 0 && rateCents > 0 && (comped || depositCents <= rateCents),
   ];
 
   const isLast = step === 3;
@@ -150,9 +157,13 @@ export function BookSessionDialog({
         startTime,
         endTime,
         rateCents,
-        depositCents: depositCents > 0 ? depositCents : undefined,
+        depositCents: comped || depositCents <= 0 ? undefined : depositCents,
+        comped: comped || undefined,
+        compReason: comped ? compReason.trim() || undefined : undefined,
       });
-      toast.success("Session booked - held as tentative");
+      toast.success(
+        comped ? "Session comped - no charge, revenue loss captured" : "Session booked - held as tentative",
+      );
       reset();
       onOpenChange(false);
     } catch {
@@ -366,7 +377,11 @@ export function BookSessionDialog({
               </Field>
 
               <div className="grid grid-cols-2 gap-3">
-                <Field label="Rate (USD)" htmlFor="sess-rate">
+                <Field
+                  label={comped ? "Value (USD)" : "Rate (USD)"}
+                  htmlFor="sess-rate"
+                  hint={comped ? "Captured as revenue loss." : undefined}
+                >
                   <Input
                     id="sess-rate"
                     inputMode="decimal"
@@ -386,15 +401,39 @@ export function BookSessionDialog({
                     value={deposit}
                     onChange={(e) => setDeposit(e.target.value.replace(/[^0-9.]/g, ""))}
                     placeholder="150"
+                    disabled={comped}
                   />
                 </Field>
               </div>
 
-              {depositCents > rateCents && rateCents > 0 && (
+              {!comped && depositCents > rateCents && rateCents > 0 && (
                 <p className="text-[0.6875rem] text-critical">
                   The deposit cannot be larger than the session rate.
                 </p>
               )}
+
+              {/* Comp toggle - waive the charge, capture the value as loss. */}
+              <div className="space-y-2 rounded-md border border-graphite/50 bg-coal-2 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium text-bone">Comp this session</p>
+                    <p className="text-[0.6875rem] text-steel/70">
+                      No charge to the client. The {rateCents > 0 ? money(rateCents) : "rate"} is
+                      captured as revenue loss in the reports.
+                    </p>
+                  </div>
+                  <Switch checked={comped} onCheckedChange={setComped} />
+                </div>
+                {comped && (
+                  <Field label="Comp reason" hint="Optional - e.g. label comp, owner comp.">
+                    <Input
+                      value={compReason}
+                      onChange={(e) => setCompReason(e.target.value)}
+                      placeholder="Label comp"
+                    />
+                  </Field>
+                )}
+              </div>
 
               {/* Booking summary */}
               <div className="space-y-1.5 rounded-md border border-graphite/50 bg-coal-2 p-3">
@@ -411,11 +450,13 @@ export function BookSessionDialog({
                     </Badge>
                   )}
                   <Badge tone="neutral">{duration(0, durationMins * 60_000)}</Badge>
+                  {comped && <Badge tone="gold">Comped</Badge>}
                 </div>
                 {rateCents > 0 && (
                   <p className="font-meta text-xs text-steel">
-                    Rate {money(rateCents)}
-                    {depositCents > 0 ? ` · deposit ${money(depositCents)}` : ""}
+                    {comped
+                      ? `No charge · ${money(rateCents)} waived`
+                      : `Rate ${money(rateCents)}${depositCents > 0 ? ` · deposit ${money(depositCents)}` : ""}`}
                   </p>
                 )}
               </div>

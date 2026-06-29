@@ -34,6 +34,10 @@ export type BookingRow = {
   source?: "public_booking" | "internal";
   holdExpiresAt?: number;
   balanceRemindedAt?: number;
+  // Comped (no-charge) bookings: billed nothing, but carry the forgone value.
+  comped?: boolean;
+  compReason?: string;
+  compedValueCents?: number;
 };
 
 /** A recorded payment as returned by `api.payments.forSession` / `recent`. */

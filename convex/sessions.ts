@@ -2,6 +2,7 @@ import { query, mutation, QueryCtx, MutationCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { currentOrg } from "./lib/tenant";
+import { money } from "./lib/money";
 import {
   assertNoBufferConflict,
   recomputeRoomStatus,
@@ -119,13 +120,21 @@ export async function insertSession(
     endTime: number;
     rateCents: number;
     depositCents?: number;
+    // A comped booking bills nothing: it confirms immediately, never invoices,
+    // and captures the forgone value (the rate it would have charged) so the
+    // owner can see the revenue given away.
+    comped?: boolean;
+    compReason?: string;
   },
 ): Promise<Id<"sessions">> {
   // 15-minute reset buffer between sessions in the same room.
   await assertNoBufferConflict(ctx, args.roomId, args.startTime, args.endTime);
 
-  // Smart-deposit shield: a session is only tentative until the deposit clears.
-  const deposit = args.depositCents ?? Math.round(args.rateCents * 0.3);
+  const comped = args.comped === true;
+  // Comped: zero the billable rate, capture what it would have billed, confirm
+  // it (nothing to hold for). Otherwise: tentative until the deposit clears.
+  const rateCents = comped ? 0 : args.rateCents;
+  const deposit = comped ? 0 : (args.depositCents ?? Math.round(args.rateCents * 0.3));
   const id = await ctx.db.insert("sessions", {
     orgId: args.orgId,
     title: args.title,
@@ -136,19 +145,28 @@ export async function insertSession(
     engineerId: args.engineerId,
     startTime: args.startTime,
     endTime: args.endTime,
-    status: "tentative",
-    rateCents: args.rateCents,
+    status: comped ? "confirmed" : "tentative",
+    rateCents,
     depositCents: deposit,
-    depositPaid: false,
+    depositPaid: comped,
     intakeCompleted: false,
+    ...(comped
+      ? {
+          comped: true,
+          compedValueCents: args.rateCents,
+          ...(args.compReason?.trim() ? { compReason: args.compReason.trim() } : {}),
+        }
+      : {}),
   });
   await ctx.db.insert("activity", {
     orgId: args.orgId,
-    kind: "session.created",
-    summary: `${args.title} held for ${args.artistName} - awaiting deposit`,
+    kind: comped ? "session.comped" : "session.created",
+    summary: comped
+      ? `${args.title} comped for ${args.artistName} - ${money(args.rateCents)} waived`
+      : `${args.title} held for ${args.artistName} - awaiting deposit`,
     entityType: "session",
     entityId: id,
-    accent: "info",
+    accent: comped ? "gold" : "info",
   });
   // Stage the pre + post checklists so engineers and interns can tick
   // through them before / after the session.
@@ -178,6 +196,10 @@ export const create = mutation({
     endTime: v.number(),
     rateCents: v.number(),
     depositCents: v.optional(v.number()),
+    // Comp this booking: bill nothing but capture `rateCents` as the forgone
+    // value so it shows up as revenue loss in the reports.
+    comped: v.optional(v.boolean()),
+    compReason: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const orgId = await currentOrg(ctx);
@@ -223,6 +245,8 @@ export const create = mutation({
       endTime: args.endTime,
       rateCents: args.rateCents,
       depositCents: args.depositCents,
+      comped: args.comped,
+      compReason: args.compReason,
     });
 
     // Staff scheduling: auto-create the engineer's shift for this session and
@@ -400,6 +424,77 @@ export const setStatus = mutation({
         orgId, kind: "session.completed",
         summary: `${s.title} completed - balance invoiced automatically`,
         entityType: "session", entityId: id, accent: "positive",
+      });
+    }
+  },
+});
+
+/**
+ * Comp (or un-comp) an existing booking. A comp bills nothing but captures
+ * what the session WOULD have billed in `compedValueCents`, so the owner can
+ * see the revenue they're giving away (a label/owner waiving a studio session).
+ *
+ * Comping zeroes the billable rate so the booking never invoices and never
+ * shows as an owed balance; un-comping restores the captured value as the rate.
+ */
+export const setComp = mutation({
+  args: {
+    id: v.id("sessions"),
+    comped: v.boolean(),
+    reason: v.optional(v.string()),
+    // Optional override of the captured value; otherwise it's derived from the
+    // current rate, a prior capture, or the room rate x booked hours + add-ons.
+    valueCents: v.optional(v.number()),
+  },
+  handler: async (ctx, { id, comped, reason, valueCents }) => {
+    const orgId = await currentOrg(ctx);
+    const s = await ctx.db.get(id);
+    if (!s || s.orgId !== orgId) throw new Error("Not found");
+
+    if (comped) {
+      // Capture the forgone value: explicit override, the live rate, a prior
+      // capture, or - failing those - room rate x booked hours + gear add-ons.
+      const addOnsCents = (s.addOns ?? []).reduce((sum, a) => sum + a.priceCents, 0);
+      let captured = valueCents ?? (s.rateCents > 0 ? s.rateCents : s.compedValueCents ?? 0);
+      if (!captured && s.roomId) {
+        const room = await ctx.db.get(s.roomId);
+        const hours = Math.max(0, s.endTime - s.startTime) / 3_600_000;
+        captured = Math.round((room?.hourlyRateCents ?? 0) * hours) + addOnsCents;
+      }
+      await ctx.db.patch(id, {
+        comped: true,
+        compReason: reason?.trim() || s.compReason,
+        compedValueCents: captured,
+        rateCents: 0,
+        depositCents: 0,
+        depositPaid: true,
+      });
+      await ctx.db.insert("activity", {
+        orgId,
+        kind: "session.comped",
+        summary: `${s.title} comped - ${money(captured)} waived`,
+        entityType: "session",
+        entityId: id,
+        accent: "gold",
+      });
+    } else {
+      // Un-comp: restore the captured value as the billable rate.
+      const restored = valueCents ?? s.compedValueCents ?? s.rateCents;
+      await ctx.db.patch(id, {
+        comped: false,
+        compedValueCents: undefined,
+        compReason: undefined,
+        rateCents: restored,
+        depositCents: Math.round(restored * 0.3),
+        depositPaid: false,
+      });
+      await ctx.db.insert("activity", {
+        orgId,
+        kind: "session.uncomped",
+        summary: `${s.title} un-comped - ${money(restored)} now billable`,
+        entityType: "session",
+        entityId: id,
+        accent: "info",
       });
     }
   },

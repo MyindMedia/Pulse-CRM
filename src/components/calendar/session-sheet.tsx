@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import {
   CheckCircle2,
   ClipboardCheck,
+  Gift,
   Music2,
   Headphones,
   DoorOpen,
@@ -30,6 +31,7 @@ import { Spinner } from "@/components/ui/feedback";
 import { money, longDate, timeOfDay, duration } from "@/lib/format";
 import { meta, SESSION_STATUS, titleCase } from "@/lib/labels";
 import { PaymentPanel } from "@/components/bookings/payment-panel";
+import { CompPanel } from "@/components/bookings/comp-panel";
 import { statusColor } from "./constants";
 import { ChecklistsPanel } from "./checklists-panel";
 import { SessionAiPanel } from "@/components/ai/session-ai-panel";
@@ -189,19 +191,24 @@ export function SessionSheet({
                 <Row label="Room" icon={DoorOpen}>
                   {detail.roomName ?? <span className="text-steel/70">Unassigned</span>}
                 </Row>
-                <Row label="Rate" icon={Wallet}>
-                  <span className="font-meta font-semibold text-gold-bright">
-                    {money(detail.rateCents)}
-                  </span>
-                </Row>
-                <Row label="Deposit">
+                <Row label={detail.comped ? "Comped value" : "Rate"} icon={detail.comped ? Gift : Wallet}>
                   <span className="inline-flex items-center gap-2">
-                    <span className="font-meta text-steel">{money(detail.depositCents)}</span>
-                    <Badge tone={detail.depositPaid ? "positive" : "caution"}>
-                      {detail.depositPaid ? "Paid" : "Unpaid"}
-                    </Badge>
+                    <span className="font-meta font-semibold text-gold-bright">
+                      {money(detail.comped ? (detail.compedValueCents ?? 0) : detail.rateCents)}
+                    </span>
+                    {detail.comped && <Badge tone="gold">No charge</Badge>}
                   </span>
                 </Row>
+                {!detail.comped && (
+                  <Row label="Deposit">
+                    <span className="inline-flex items-center gap-2">
+                      <span className="font-meta text-steel">{money(detail.depositCents)}</span>
+                      <Badge tone={detail.depositPaid ? "positive" : "caution"}>
+                        {detail.depositPaid ? "Paid" : "Unpaid"}
+                      </Badge>
+                    </span>
+                  </Row>
+                )}
                 <Row label="Intake">
                   <Badge tone={detail.intakeCompleted ? "positive" : "caution"}>
                     {detail.intakeCompleted ? "Completed" : "Pending"}
@@ -279,12 +286,25 @@ export function SessionSheet({
                 )}
               </div>
 
-              {/* Payment - booking ledger and staff record-a-payment */}
-              <PaymentPanel
+              {/* Payment - booking ledger and staff record-a-payment.
+                  A comped session bills nothing, so the ledger is hidden. */}
+              {!detail.comped && (
+                <PaymentPanel
+                  sessionId={detail._id}
+                  rateCents={detail.rateCents}
+                  depositCents={detail.depositCents}
+                  amountPaidCents={detail.amountPaidCents}
+                  cancelled={detail.status === "cancelled"}
+                />
+              )}
+
+              {/* Comp control - waive the charge, capture the revenue loss */}
+              <CompPanel
                 sessionId={detail._id}
-                rateCents={detail.rateCents}
-                depositCents={detail.depositCents}
-                amountPaidCents={detail.amountPaidCents}
+                comped={detail.comped}
+                compedValueCents={detail.compedValueCents}
+                compReason={detail.compReason}
+                rateCents={detail.comped ? (detail.compedValueCents ?? 0) : detail.rateCents}
                 cancelled={detail.status === "cancelled"}
               />
             </SheetBody>

@@ -335,3 +335,78 @@ export const leadSourceRoi = query({
     };
   },
 });
+
+/* ────────────────────────────────────────────────────────────
+   6. Comped revenue loss
+   Sessions that were booked and run but never billed - a label or
+   the studio owner waived the charge. Each comp carries the value it
+   WOULD have billed in `compedValueCents`; we total that forgone
+   revenue and break it down by client (who's being comped) and by
+   room (where the comps land) so owners see the cost of giving
+   sessions away. Cancelled / no-show comps contribute nothing.
+   ──────────────────────────────────────────────────────────── */
+const COMP_WINDOW_DAYS = 90;
+
+export const compedRevenueLoss = query({
+  args: {},
+  handler: async (ctx) => {
+    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+    const now = Date.now();
+    const windowStart = now - COMP_WINDOW_DAYS * DAY;
+
+    const [artists, rooms, sessions] = await Promise.all([
+      ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect(),
+      ctx.db.query("rooms").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect(),
+      ctx.db.query("sessions").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect(),
+    ]);
+    const artistName = new Map(artists.map((a) => [a._id, a.name]));
+    const roomName = new Map(rooms.map((r) => [r._id, r.name]));
+
+    const comped = sessions.filter(
+      (s) => s.comped && s.status !== "cancelled" && s.status !== "no_show",
+    );
+
+    type ClientRow = { artistId: string; artistName: string; count: number; lossCents: number };
+    type RoomRow = { roomId: string; roomName: string; count: number; lossCents: number };
+    const byClient = new Map<string, ClientRow>();
+    const byRoom = new Map<string, RoomRow>();
+    let totalLossCents = 0;
+    let windowLossCents = 0;
+    let windowCount = 0;
+
+    for (const s of comped) {
+      const loss = s.compedValueCents ?? 0;
+      totalLossCents += loss;
+      if (s.startTime >= windowStart) {
+        windowLossCents += loss;
+        windowCount += 1;
+      }
+
+      const cr =
+        byClient.get(s.artistId) ??
+        { artistId: s.artistId, artistName: artistName.get(s.artistId) ?? "Unknown", count: 0, lossCents: 0 };
+      cr.count += 1;
+      cr.lossCents += loss;
+      byClient.set(s.artistId, cr);
+
+      if (s.roomId) {
+        const rr =
+          byRoom.get(s.roomId) ??
+          { roomId: s.roomId, roomName: roomName.get(s.roomId) ?? "Unassigned", count: 0, lossCents: 0 };
+        rr.count += 1;
+        rr.lossCents += loss;
+        byRoom.set(s.roomId, rr);
+      }
+    }
+
+    return {
+      windowDays: COMP_WINDOW_DAYS,
+      totalCount: comped.length,
+      totalLossCents,
+      windowCount,
+      windowLossCents,
+      byClient: [...byClient.values()].sort((a, b) => b.lossCents - a.lossCents),
+      byRoom: [...byRoom.values()].sort((a, b) => b.lossCents - a.lossCents),
+    };
+  },
+});

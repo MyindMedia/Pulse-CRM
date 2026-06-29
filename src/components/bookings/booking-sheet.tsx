@@ -6,6 +6,7 @@ import {
   AlertTriangle,
   Clock,
   DoorOpen,
+  Gift,
   Globe,
   Headphones,
   Mail,
@@ -29,6 +30,7 @@ import type { BookingRow, NotificationRow } from "./types";
 import { isOnline } from "./types";
 import { HoldCountdown } from "./hold-countdown";
 import { PaymentPanel } from "./payment-panel";
+import { CompPanel } from "./comp-panel";
 
 function Row({
   label,
@@ -152,6 +154,12 @@ export function BookingSheet({
                     Online booking
                   </Badge>
                 )}
+                {booking.comped && (
+                  <Badge tone="gold">
+                    <Gift className="size-2.5" />
+                    Comped
+                  </Badge>
+                )}
                 {booking.startTime > Date.now() && booking.status !== "cancelled" && (
                   <SessionRiskBadge sessionId={booking._id} />
                 )}
@@ -207,11 +215,22 @@ export function BookingSheet({
                 )}
               </div>
 
-              <PaymentPanel
+              {!booking.comped && (
+                <PaymentPanel
+                  sessionId={booking._id}
+                  rateCents={booking.rateCents}
+                  depositCents={booking.depositCents}
+                  amountPaidCents={booking.amountPaidCents}
+                  cancelled={booking.status === "cancelled"}
+                />
+              )}
+
+              <CompPanel
                 sessionId={booking._id}
-                rateCents={booking.rateCents}
-                depositCents={booking.depositCents}
-                amountPaidCents={booking.amountPaidCents}
+                comped={booking.comped}
+                compedValueCents={booking.compedValueCents}
+                compReason={booking.compReason}
+                rateCents={booking.comped ? (booking.compedValueCents ?? 0) : booking.rateCents}
                 cancelled={booking.status === "cancelled"}
               />
 

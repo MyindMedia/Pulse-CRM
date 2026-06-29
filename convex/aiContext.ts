@@ -143,6 +143,8 @@ async function weeklyBriefingFor(ctx: QueryCtx, orgId: string) {
     let noShowCount = 0;
     let depositRevenueCents = 0;
     let completedRevenueCents = 0;
+    let compedCount = 0;
+    let compedValueCents = 0;
     const artistCount = new Map<string, number>();
     const roomHours = new Map<string, number>();
 
@@ -154,6 +156,11 @@ async function weeklyBriefingFor(ctx: QueryCtx, orgId: string) {
       }
       if (s.status === "cancelled") cancelledCount++;
       if (s.status === "no_show") noShowCount++;
+      // Comped sessions: track how much revenue was waived this week.
+      if (s.comped && s.status !== "cancelled" && s.status !== "no_show") {
+        compedCount++;
+        compedValueCents += s.compedValueCents ?? 0;
+      }
       if (s.depositPaid) depositRevenueCents += s.depositCents;
       artistCount.set(s.artistId, (artistCount.get(s.artistId) ?? 0) + 1);
       if (s.roomId) {
@@ -216,6 +223,8 @@ async function weeklyBriefingFor(ctx: QueryCtx, orgId: string) {
       noShowCount,
       depositRevenueCents,
       completedRevenueCents,
+      compedCount,
+      compedValueCents,
       topArtists,
       topRooms,
       churnRisk,
