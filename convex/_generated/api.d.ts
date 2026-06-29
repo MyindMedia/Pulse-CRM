@@ -106,6 +106,7 @@ import type * as portal from "../portal.js";
 import type * as predictions from "../predictions.js";
 import type * as profitability from "../profitability.js";
 import type * as releases from "../releases.js";
+import type * as reportBuilder from "../reportBuilder.js";
 import type * as reports from "../reports.js";
 import type * as rightsExport from "../rightsExport.js";
 import type * as risk from "../risk.js";
@@ -236,6 +237,7 @@ declare const fullApi: ApiFromModules<{
   predictions: typeof predictions;
   profitability: typeof profitability;
   releases: typeof releases;
+  reportBuilder: typeof reportBuilder;
   reports: typeof reports;
   rightsExport: typeof rightsExport;
   risk: typeof risk;

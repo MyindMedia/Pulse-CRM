@@ -10,9 +10,11 @@ import { LeadSourceRoiReport } from "@/components/reports/lead-source-roi";
 import { CompedRevenueLossReport } from "@/components/reports/comped-revenue-loss";
 import { StaffingReport } from "@/components/reports/staffing";
 import { AtRiskSessionsReport, PricingRecommendationsReport } from "@/components/reports/predictive-insights";
+import { ReportBuilder } from "@/components/reports/report-builder";
 import { CapabilityGuard } from "@/components/shell/capability-guard";
 
 const TABS = [
+  { value: "builder", label: "Builder" },
   { value: "aging", label: "Aging" },
   { value: "utilization", label: "Utilization" },
   { value: "staffing", label: "Staffing" },
@@ -37,10 +39,10 @@ function ReportsView() {
       <PageHeader
         overline="Revenue Command Center"
         title="Reports"
-        description="Where the money is - unpaid balances, room utilization, dormant clients, no-show risk and which lead sources actually pay off."
+        description="Where the money is - unpaid balances, room utilization, dormant clients, no-show risk and which lead sources actually pay off. Build a custom report for anything else."
       />
 
-      <Tabs defaultValue="aging" className="space-y-5">
+      <Tabs defaultValue="builder" className="space-y-5">
         <TabsList>
           {TABS.map((t) => (
             <TabsTrigger key={t.value} value={t.value}>
@@ -49,6 +51,9 @@ function ReportsView() {
           ))}
         </TabsList>
 
+        <TabsContent value="builder">
+          <ReportBuilder />
+        </TabsContent>
         <TabsContent value="aging">
           <UnpaidAgingReport />
         </TabsContent>
