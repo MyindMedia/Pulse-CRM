@@ -132,6 +132,8 @@ export function AddOnsPicker({
                 avatarFallback={initial(e.name)}
                 title={e.name}
                 subtitle={e.available ? e.role.replace(/_/g, " ") : "Booked for this time"}
+                bio={e.bio}
+                credits={e.credits}
               />
             ))}
           </div>
@@ -236,6 +238,8 @@ function OptionRow({
   subtitle,
   avatar,
   avatarFallback,
+  bio,
+  credits,
 }: {
   selected: boolean;
   disabled?: boolean;
@@ -244,14 +248,18 @@ function OptionRow({
   subtitle: string;
   avatar?: string;
   avatarFallback?: string;
+  // Engineer proof-of-work, shown at the point of choosing who runs the session.
+  bio?: string | null;
+  credits?: string[];
 }) {
+  const hasProof = Boolean((bio && bio.trim()) || (credits && credits.length > 0));
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={onClick}
       className={[
-        "flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-colors",
+        "flex flex-col gap-2 rounded-lg border px-3 py-2.5 text-left transition-colors",
         disabled
           ? "cursor-not-allowed border-graphite/40 bg-coal-2/40 opacity-60"
           : selected
@@ -259,20 +267,41 @@ function OptionRow({
             : "border-graphite/50 bg-coal-2 hover:border-bone/40",
       ].join(" ")}
     >
-      {avatarFallback !== undefined &&
-        (avatar ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={avatar} alt="" className="size-8 shrink-0 rounded-full object-cover" draggable={false} />
-        ) : (
-          <span className="grid size-8 shrink-0 place-items-center rounded-full bg-coal-3 font-grotesk text-xs font-semibold text-steel">
-            {avatarFallback}
-          </span>
-        ))}
-      <span className="min-w-0 flex-1">
-        <span className="block truncate font-grotesk text-sm font-medium text-bone">{title}</span>
-        <span className="block truncate text-xs capitalize text-steel/70">{subtitle}</span>
+      <span className="flex w-full items-center gap-2.5">
+        {avatarFallback !== undefined &&
+          (avatar ? (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img src={avatar} alt="" className="size-8 shrink-0 rounded-full object-cover" draggable={false} />
+          ) : (
+            <span className="grid size-8 shrink-0 place-items-center rounded-full bg-coal-3 font-grotesk text-xs font-semibold text-steel">
+              {avatarFallback}
+            </span>
+          ))}
+        <span className="min-w-0 flex-1">
+          <span className="block truncate font-grotesk text-sm font-medium text-bone">{title}</span>
+          <span className="block truncate text-xs capitalize text-steel/70">{subtitle}</span>
+        </span>
+        {selected && !disabled && <Check className="size-4 shrink-0 text-gold" />}
       </span>
-      {selected && !disabled && <Check className="size-4 shrink-0 text-gold" />}
+      {hasProof && (
+        <span className="block pl-[2.75rem]">
+          {bio && bio.trim() && (
+            <span className="block text-xs leading-relaxed text-steel">{bio}</span>
+          )}
+          {credits && credits.length > 0 && (
+            <span className="mt-1.5 flex flex-wrap gap-1">
+              {credits.slice(0, 4).map((c, i) => (
+                <span
+                  key={i}
+                  className="rounded-full border border-graphite/50 bg-coal-3 px-1.5 py-0.5 text-[0.625rem] text-mist/80"
+                >
+                  {c}
+                </span>
+              ))}
+            </span>
+          )}
+        </span>
+      )}
     </button>
   );
 }

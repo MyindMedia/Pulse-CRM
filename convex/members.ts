@@ -205,6 +205,30 @@ export const update = mutation({
   },
 });
 
+/** Set an engineer's public booking-page profile: a short bio + notable
+ *  credits (proof-of-work shown where a client picks who runs their session).
+ *  Gated on members.invite (mirrors `update`). Empty credits are dropped. */
+export const setProfile = mutation({
+  args: {
+    id: v.id("members"),
+    bio: v.optional(v.string()),
+    credits: v.optional(v.array(v.string())),
+  },
+  handler: async (ctx, { id, bio, credits }) => {
+    const viewer = await requireCapability(ctx, "members.invite");
+    const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
+    const member = await ctx.db.get(id);
+    if (!member || member.orgId !== orgId) throw new Error("Not found");
+    const patch: Record<string, unknown> = {};
+    if (bio !== undefined) patch.bio = bio.trim() || undefined;
+    if (credits !== undefined) {
+      const clean = credits.map((c) => c.trim()).filter((c) => c.length > 0);
+      patch.credits = clean.length ? clean : undefined;
+    }
+    await ctx.db.patch(id, patch);
+  },
+});
+
 /** Set a teammate's pay - hourly (cents/hour) or salary (annual cents). Pass
  *  payType null to clear. Owner/manager (members.invite) only; this is the
  *  basis for payroll. */

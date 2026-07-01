@@ -69,11 +69,22 @@ export default function BookLayout({ children }: { children: React.ReactNode }) 
 
       <footer className="relative z-10 border-t border-graphite/50 bg-obsidian/60">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 py-6 text-xs text-steel/70 sm:flex-row lg:px-8">
-          <span>
-            {studioName} - Powered by{" "}
-            <span className="font-medium text-steel">Pulse</span>, the operating
-            system for recording studios.
-          </span>
+          {front?.whitelabel ? (
+            <span>{studioName}</span>
+          ) : (
+            <span>
+              {studioName} - Powered by{" "}
+              <a
+                href="https://pulse.myindsound.com/?ref=book"
+                target="_blank"
+                rel="noreferrer"
+                className="font-medium text-steel underline-offset-2 transition-colors hover:text-gold-bright hover:underline"
+              >
+                Pulse
+              </a>
+              , the operating system for recording studios.
+            </span>
+          )}
           <span>{new Date().getFullYear()}</span>
         </div>
       </footer>

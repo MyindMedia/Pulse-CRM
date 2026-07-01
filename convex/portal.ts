@@ -1,6 +1,7 @@
 import { query, action, internalQuery } from "./_generated/server";
 import { v } from "convex/values";
 import type { QueryCtx } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { complete } from "./lib/openai";
 import { tenantGuard, fenceUntrusted, detectInjection } from "./lib/aiGuard";
@@ -17,7 +18,20 @@ import { whitelabelFor } from "./usage";
    invoices, with a deterministic fallback when no LLM key is set.
    ============================================================ */
 
-const DAY = 86_400_000;
+/** Invoice statuses that the artist can actually pay from the portal. */
+const PAYABLE_INVOICE_STATUSES = new Set(["sent", "viewed", "overdue"]);
+function invoicePayable(status: string): boolean {
+  return PAYABLE_INVOICE_STATUSES.has(status);
+}
+
+/** Deliverable statuses the artist is allowed to see / download (approved work only). */
+function deliverableVisible(status: string): boolean {
+  return status === "approved" || status === "final";
+}
+
+function isAudioMime(mimeType?: string): boolean {
+  return !!mimeType && mimeType.toLowerCase().startsWith("audio/");
+}
 
 /** Validate an artist-portal grant by token. Null when missing/expired/wrong scope. */
 async function loadGrant(ctx: { db: QueryCtx["db"] }, token: string) {
@@ -27,6 +41,24 @@ async function loadGrant(ctx: { db: QueryCtx["db"] }, token: string) {
     .first();
   if (!g || g.revoked || g.expiresAt < Date.now() || g.scope !== "artist_portal") return null;
   return g;
+}
+
+/**
+ * Sum of what's still owed across a song's linked sessions. Mirrors the gate
+ * math in files.ts / payments.ts so a payment-gated deliverable stays locked
+ * on the portal until the song's balance is settled.
+ */
+async function songOutstandingCents(ctx: { db: QueryCtx["db"] }, songId: Doc<"songs">["_id"]): Promise<number> {
+  const sessions = await ctx.db
+    .query("sessions")
+    .withIndex("by_song", (q) => q.eq("songId", songId))
+    .collect();
+  let outstanding = 0;
+  for (const s of sessions) {
+    if (s.status === "cancelled") continue;
+    outstanding += Math.max(0, s.rateCents - (s.amountPaidCents ?? 0));
+  }
+  return outstanding;
 }
 
 async function gatherContext(ctx: { db: QueryCtx["db"] }, orgId: string, artistId: string) {
@@ -47,10 +79,53 @@ async function gatherContext(ctx: { db: QueryCtx["db"] }, orgId: string, artistI
     .collect();
   const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
 
+  // Approved deliverables for this artist's own songs only. Scoped by walking
+  // the artist's org+artist song set, then re-checking each deliverable's org
+  // and approval status - never other orgs, never unapproved drafts.
+  const deliverables: {
+    id: Doc<"deliverables">["_id"];
+    label: string;
+    kind: Doc<"deliverables">["kind"];
+    version: number;
+    songTitle: string;
+    fileName?: string;
+    mimeType?: string;
+    isAudio: boolean;
+    durationSec?: number;
+    locked: boolean;
+  }[] = [];
+  for (const song of songs) {
+    const rows = await ctx.db
+      .query("deliverables")
+      .withIndex("by_song", (q) => q.eq("songId", song._id))
+      .collect();
+    const approved = rows.filter((d) => d.orgId === orgId && deliverableVisible(d.status) && d.fileId);
+    if (approved.length === 0) continue;
+    // Compute the pay-gate once per song (only if any approved file is gated).
+    const gatedHere = approved.some((d) => d.paymentGated);
+    const outstanding = gatedHere ? await songOutstandingCents(ctx, song._id) : 0;
+    for (const d of approved) {
+      deliverables.push({
+        id: d._id,
+        label: d.label,
+        kind: d.kind,
+        version: d.version,
+        songTitle: song.title,
+        fileName: d.fileName,
+        mimeType: d.mimeType,
+        isAudio: isAudioMime(d.mimeType),
+        durationSec: d.durationSec,
+        locked: d.paymentGated && outstanding > 0,
+      });
+    }
+  }
+  deliverables.sort((a, b) => (a.songTitle === b.songTitle ? b.version - a.version : a.songTitle.localeCompare(b.songTitle)));
+
   const now = Date.now();
   return {
     studioName: org?.name ?? "the studio",
     artistName: (artist as { name: string }).name,
+    bookingSlug: org?.slug ?? null,
     songs: songs.map((s) => ({ title: s.title, stage: s.stage })),
     upcomingSessions: sessions
       .filter((s) => s.startTime > now && s.status !== "cancelled")
@@ -58,7 +133,8 @@ async function gatherContext(ctx: { db: QueryCtx["db"] }, orgId: string, artistI
       .map((s) => ({ title: s.title, startTime: s.startTime, status: s.status })),
     invoices: invoices
       .filter((i) => i.status !== "void")
-      .map((i) => ({ number: i.number, amountCents: i.amountCents, status: i.status })),
+      .map((i) => ({ id: i._id, number: i.number, amountCents: i.amountCents, status: i.status, payable: invoicePayable(i.status) })),
+    deliverables,
   };
 }
 
@@ -79,6 +155,40 @@ export const summary = query({
       expiresAt: grant.expiresAt,
       whitelabel: await whitelabelFor(ctx, grant.orgId),
     };
+  },
+});
+
+/**
+ * Public: token-scoped signed download URL for a single APPROVED deliverable.
+ * Re-verifies the grant, the org, that the deliverable's song belongs to the
+ * artist this token represents, and that the version is approved - a public
+ * token surface, so ownership is re-checked on every read. Returns
+ * { locked: true } when a payment-gated file's balance is unpaid, or null when
+ * the deliverable is not available to this artist.
+ */
+export const deliverableDownloadUrl = query({
+  args: { token: v.string(), deliverableId: v.id("deliverables") },
+  handler: async (ctx, { token, deliverableId }) => {
+    const grant = await loadGrant(ctx, token);
+    if (!grant) return null;
+
+    const artist = await ctx.db.get(grant.entityId as never);
+    if (!artist || (artist as { orgId: string }).orgId !== grant.orgId) return null;
+
+    const d = await ctx.db.get(deliverableId);
+    if (!d || d.orgId !== grant.orgId) return null;
+    if (!deliverableVisible(d.status) || !d.fileId) return null;
+
+    // The deliverable's song must belong to this org + this artist.
+    const song = await ctx.db.get(d.songId);
+    if (!song || song.orgId !== grant.orgId || song.artistId !== grant.entityId) return null;
+
+    if (d.paymentGated && (await songOutstandingCents(ctx, d.songId)) > 0) {
+      return { locked: true as const };
+    }
+
+    const url = await ctx.storage.getUrl(d.fileId);
+    return url ? { url } : null;
   },
 });
 

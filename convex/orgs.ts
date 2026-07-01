@@ -63,6 +63,8 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     // Pricing / discount / tax config (cycle: Pricing settings)
     servicePricing: org?.servicePricing ?? null,
     discountCodes: org?.discountCodes ?? [],
+    // Booking-page social proof the studio curates.
+    testimonials: org?.testimonials ?? [],
     defaultRateCutPct: org?.defaultRateCutPct ?? null,
     taxState: org?.taxState ?? null,
     taxRate: org?.taxRate ?? null,
@@ -261,6 +263,38 @@ export const setDiscountCodes = mutation({
       .map((c) => ({ ...c, code: c.code.trim().toUpperCase() }))
       .filter((c) => c.code && !seen.has(c.code) && (seen.add(c.code), true));
     await ctx.db.patch(org._id, { discountCodes: clean });
+  },
+});
+
+/** Replace the studio's curated testimonials (booking-page social proof).
+ *  Gated on branding.edit (mirrors setDiscountCodes). Empty rows are dropped
+ *  and ratings are clamped to 1-5. */
+export const setTestimonials = mutation({
+  args: {
+    testimonials: v.array(
+      v.object({
+        author: v.string(),
+        role: v.optional(v.string()),
+        quote: v.string(),
+        rating: v.optional(v.number()),
+      }),
+    ),
+  },
+  handler: async (ctx, { testimonials }) => {
+    const orgId = await currentOrgWithCapability(ctx, "branding.edit");
+    const org = await ensureOrg(ctx, orgId);
+    if (!org) throw new Error("Org not found");
+    const clean = testimonials
+      .map((t) => ({
+        author: t.author.trim(),
+        role: t.role?.trim() || undefined,
+        quote: t.quote.trim(),
+        rating:
+          t.rating === undefined ? undefined : Math.min(Math.max(Math.round(t.rating), 1), 5),
+      }))
+      // A testimonial with no author or no quote is not proof of anything.
+      .filter((t) => t.author.length > 0 && t.quote.length > 0);
+    await ctx.db.patch(org._id, { testimonials: clean });
   },
 });
 

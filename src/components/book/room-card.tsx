@@ -21,11 +21,23 @@ export type RoomCardData = {
   photos: string[];
 };
 
-export function RoomCard({ room, slug }: { room: RoomCardData; slug: string }) {
+export function RoomCard({
+  room,
+  slug,
+  refId,
+}: {
+  room: RoomCardData;
+  slug: string;
+  /** Referral artistId from a ?ref= share link, threaded onto the room link. */
+  refId?: string;
+}) {
+  const href = refId
+    ? `/book/${slug}/${room._id}?ref=${encodeURIComponent(refId)}`
+    : `/book/${slug}/${room._id}`;
   return (
     <motion.div variants={fadeUp}>
       <Link
-        href={`/book/${slug}/${room._id}`}
+        href={href}
         className="group block h-full overflow-hidden rounded-lg border border-graphite/50 bg-coal transition-all duration-150 hover:border-graphite/60 hover:bg-coal-2"
       >
         <RoomCover photos={room.photos} name={room.name} className="aspect-[16/10]" />

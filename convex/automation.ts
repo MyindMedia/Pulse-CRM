@@ -6,6 +6,7 @@ import { money } from "./lib/money";
 import { appUrl } from "./lib/links";
 import { proposeWaitlistFill } from "./waitlist";
 import { createCompletionInvoice } from "./sessions";
+import { normalizePhone } from "./lib/phone";
 
 /* ============================================================
    Booking automation - runs on a 15-minute cron (see crons.ts)
@@ -57,6 +58,8 @@ type Outcome = {
   started: number;
   completed: number;
   invoicesOverdue: number;
+  reviewRequests: number;
+  holdNudges: number;
 };
 
 async function emailFor(ctx: MutationCtx, artistId: import("./_generated/dataModel").Id<"artists">) {
@@ -73,6 +76,8 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     started: 0,
     completed: 0,
     invoicesOverdue: 0,
+    reviewRequests: 0,
+    holdNudges: 0,
   };
 
   const sessions = await ctx.db.query("sessions").collect();
@@ -154,10 +159,95 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
       continue;
     }
 
+    // 2b. Post-session review request - the growth loop. ~24h after a session
+    //     completes, email the client a one-tap link to leave a review. Applies
+    //     to BOTH public and internal completed sessions. Sent once per session
+    //     (deduped via the notifications log, kind "review.request"). Only fires
+    //     for recent completions so a fresh deploy never backfill-spams months of
+    //     historical sessions.
+    if (
+      s.status === "completed" &&
+      now - s.endTime >= DAY &&
+      now - s.endTime <= 8 * DAY
+    ) {
+      const priorNotes = await ctx.db
+        .query("notifications")
+        .withIndex("by_session", (q) => q.eq("sessionId", s._id))
+        .collect();
+      if (!priorNotes.some((n) => n.kind === "review.request")) {
+        const clientEmail = await emailFor(ctx, s.artistId);
+        const org = await ctx.db
+          .query("orgs")
+          .withIndex("by_org", (q) => q.eq("orgId", s.orgId))
+          .first();
+        if (clientEmail) {
+          const reviewUrl = `${appUrl()}/review/${s._id}`;
+          const studio = org?.name ?? "the studio";
+          await notify(ctx, {
+            orgId: s.orgId,
+            channel: "email",
+            recipient: clientEmail,
+            subject: `How was your session at ${studio}?`,
+            body: `Thanks for recording "${s.title}" with ${studio}. We would love a quick word on how it went - it takes about 20 seconds and helps other artists find us.\n\nLeave a quick review:\n${reviewUrl}`,
+            kind: "review.request",
+            sessionId: s._id,
+          });
+          out.reviewRequests++;
+        }
+      }
+    }
+
     // Everything below is public-booking lifecycle only: internal sessions
     // are never auto-cancelled, forfeited, or auto-advanced.
     if (!isPublic) continue;
     const email = await emailFor(ctx, s.artistId);
+
+    // 2c. Hold-expiry SMS nudge - a public hold with an unpaid deposit about to
+    //     expire (T-15 min) gets one text with the pay link, a last chance to
+    //     keep the slot before block 3 releases it. Public-booking only, once
+    //     per session (deduped via notifications, kind "booking.hold_nudge"),
+    //     and it honors SMS opt-outs.
+    if (
+      s.status === "tentative" &&
+      paid === 0 &&
+      s.holdExpiresAt &&
+      s.holdExpiresAt > now &&
+      s.holdExpiresAt - now <= 15 * 60 * 1000
+    ) {
+      const artist = await ctx.db.get(s.artistId);
+      const phone = artist?.phone ? normalizePhone(artist.phone) : null;
+      if (phone) {
+        const optOut = await ctx.db
+          .query("smsOptOuts")
+          .withIndex("by_phone", (q) => q.eq("phone", phone))
+          .first();
+        if (!optOut?.optedOut) {
+          const priorNotes = await ctx.db
+            .query("notifications")
+            .withIndex("by_session", (q) => q.eq("sessionId", s._id))
+            .collect();
+          if (!priorNotes.some((n) => n.kind === "booking.hold_nudge")) {
+            const org = await ctx.db
+              .query("orgs")
+              .withIndex("by_org", (q) => q.eq("orgId", s.orgId))
+              .first();
+            if (org?.slug) {
+              const payUrl = `${appUrl()}/book/${org.slug}/checkout/${s._id}`;
+              await notify(ctx, {
+                orgId: s.orgId,
+                channel: "sms",
+                recipient: phone,
+                subject: "Studio hold expiring",
+                body: `${org.name ?? "Studio"}: your hold on "${s.title}" expires soon. Pay the deposit to keep it: ${payUrl}`,
+                kind: "booking.hold_nudge",
+                sessionId: s._id,
+              });
+              out.holdNudges++;
+            }
+          }
+        }
+      }
+    }
 
     // 3. Hold expiry - an unpaid hold past its window is released.
     if (s.status === "tentative" && paid === 0 && s.holdExpiresAt && s.holdExpiresAt < now) {

@@ -15,8 +15,9 @@ export function BookingLinkShare({ slug, studioName }: { slug: string; studioNam
   const [origin, setOrigin] = React.useState("");
   const [copied, setCopied] = React.useState(false);
 
-  // Absolute URL is only available client-side.
+  // Absolute URL is only available client-side (SSR renders the relative path).
   React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (typeof window !== "undefined") setOrigin(window.location.origin);
   }, []);
 

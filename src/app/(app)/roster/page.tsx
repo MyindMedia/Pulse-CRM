@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Search, UserPlus, Users, X } from "lucide-react";
+import { Search, Upload, UserPlus, Users, X } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { CountUp } from "@/components/shell/app-motion";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -19,6 +19,7 @@ import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { money, relativeTime } from "@/lib/format";
 import { meta, ARTIST_STATUS, RELIABILITY } from "@/lib/labels";
 import { AddArtistDialog } from "@/components/roster/add-artist-dialog";
+import { ImportClientsDialog } from "@/components/roster/import-clients-dialog";
 import { StatusFilter, type StatusFilterValue } from "@/components/roster/status-filter";
 import { GenreChips } from "@/components/roster/genre-chips";
 import { artistTypeLabel } from "@/components/roster/constants";
@@ -60,6 +61,7 @@ function RosterView() {
   const [searchInput, setSearchInput] = React.useState("");
   const search = useDebouncedValue(searchInput.trim(), 250);
   const [addOpen, setAddOpen] = React.useState(false);
+  const [importOpen, setImportOpen] = React.useState(false);
 
   // Auto-open the Add Artist dialog when the URL carries ?new=1. Split into
   // a render-time check (state) and an effect that strips the param.
@@ -95,10 +97,16 @@ function RosterView() {
         title="Clients"
         description="Every client - artist, producer and label - the studio works with, ranked by lifetime value."
         actions={
-          <Button onClick={() => setAddOpen(true)}>
-            <UserPlus className="size-4" />
-            Add artist
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => setImportOpen(true)}>
+              <Upload className="size-4" />
+              Import clients
+            </Button>
+            <Button onClick={() => setAddOpen(true)}>
+              <UserPlus className="size-4" />
+              Add artist
+            </Button>
+          </div>
         }
       />
 
@@ -300,6 +308,7 @@ function RosterView() {
       )}
 
       <AddArtistDialog open={addOpen} onOpenChange={setAddOpen} />
+      <ImportClientsDialog open={importOpen} onOpenChange={setImportOpen} />
     </div>
   );
 }

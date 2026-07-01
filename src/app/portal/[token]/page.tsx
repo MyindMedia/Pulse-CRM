@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import { useParams } from "next/navigation";
-import { useQuery, useAction } from "convex/react";
+import { useQuery, useAction, useConvex } from "convex/react";
 import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import { errorMessage } from "@/lib/errors";
-import { Loader2, Music2, CalendarCheck, Receipt, Sparkles, SendHorizontal } from "lucide-react";
+import { Loader2, Music2, CalendarCheck, Receipt, Sparkles, SendHorizontal, CalendarPlus, ArrowUpRight, Download, Play, Lock, FileAudio } from "lucide-react";
 
 const usd = (c: number) => `$${(c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const when = (ts: number) => new Date(ts).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -62,6 +63,14 @@ export default function ClientPortalPage() {
                   <Receipt className="size-4 text-gold" /> Balance due: <b>{usd(data.outstandingCents)}</b>
                 </p>
               )}
+              {data.bookingSlug && (
+                <a
+                  href={`/book/${data.bookingSlug}?artist=${encodeURIComponent(data.artistName)}`}
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-gold px-4 py-2.5 text-sm font-semibold text-ink transition-opacity hover:opacity-90 sm:w-auto"
+                >
+                  <CalendarPlus className="size-4" /> Book another session
+                </a>
+              )}
             </header>
 
             {/* Concierge */}
@@ -107,13 +116,40 @@ export default function ClientPortalPage() {
               items={data.upcomingSessions.map((s) => ({ key: s.title + s.startTime, primary: s.title, secondary: when(s.startTime) }))}
             />
 
+            {/* Deliverables - approved mixes/masters/stems the artist can download */}
+            {data.deliverables.length > 0 && (
+              <DeliverablesSection token={token} items={data.deliverables} />
+            )}
+
             {/* Invoices */}
-            <PortalList
-              icon={<Receipt className="size-4 text-steel/70" />}
-              title="Invoices"
-              empty="No invoices."
-              items={data.invoices.map((i) => ({ key: i.number, primary: i.number, secondary: i.status, trailing: usd(i.amountCents) }))}
-            />
+            <section className="rounded-chrome border border-graphite/50 bg-coal/60 p-5 shadow-elev-2">
+              <div className="flex items-center gap-2"><Receipt className="size-4 text-steel/70" /><h2 className="font-grotesk text-sm font-semibold text-bone">Invoices</h2></div>
+              {data.invoices.length === 0 ? (
+                <p className="mt-3 text-xs text-steel/70">No invoices.</p>
+              ) : (
+                <ul className="mt-3 divide-y divide-hairline">
+                  {data.invoices.map((i) => (
+                    <li key={i.number} className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0">
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm text-bone">{i.number}</span>
+                        <span className="block truncate font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">{i.status}</span>
+                      </span>
+                      <span className="flex shrink-0 items-center gap-3">
+                        <span className="font-meta text-sm tabular-nums text-bone">{usd(i.amountCents)}</span>
+                        {i.payable && (
+                          <a
+                            href={`/pay/invoice/${i.id}`}
+                            className="inline-flex items-center gap-1 rounded-md bg-gold px-2.5 py-1.5 text-xs font-semibold text-ink transition-opacity hover:opacity-90"
+                          >
+                            Pay <ArrowUpRight className="size-3.5" />
+                          </a>
+                        )}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
 
             {!data.whitelabel && (
               <p className="pb-4 text-center text-[0.625rem] text-steel/70">Powered by Pulse</p>
@@ -122,6 +158,121 @@ export default function ClientPortalPage() {
         )}
       </div>
     </div>
+  );
+}
+
+type DeliverableItem = {
+  id: Id<"deliverables">;
+  label: string;
+  kind: string;
+  version: number;
+  songTitle: string;
+  fileName?: string;
+  mimeType?: string;
+  isAudio: boolean;
+  durationSec?: number;
+  locked: boolean;
+};
+
+function DeliverablesSection({ token, items }: { token: string; items: DeliverableItem[] }) {
+  return (
+    <section className="rounded-chrome border border-graphite/50 bg-coal/60 p-5 shadow-elev-2">
+      <div className="flex items-center gap-2">
+        <FileAudio className="size-4 text-steel/70" />
+        <h2 className="font-grotesk text-sm font-semibold text-bone">Your files</h2>
+      </div>
+      <p className="mt-1 text-xs text-steel">Approved mixes, masters, and stems - listen or download any time.</p>
+      <ul className="mt-3 space-y-2.5">
+        {items.map((d) => (
+          <DeliverableRow key={d.id} token={token} item={d} />
+        ))}
+      </ul>
+    </section>
+  );
+}
+
+function DeliverableRow({ token, item }: { token: string; item: DeliverableItem }) {
+  const convex = useConvex();
+  const [url, setUrl] = React.useState<string | null>(null);
+  const [showPlayer, setShowPlayer] = React.useState(false);
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const [locked, setLocked] = React.useState(item.locked);
+
+  async function resolveUrl(): Promise<string | null> {
+    if (url) return url;
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await convex.query(api.portal.deliverableDownloadUrl, { token, deliverableId: item.id });
+      if (!res) { setError("This file is not available."); return null; }
+      if ("locked" in res && res.locked) { setLocked(true); setError("Locked until your balance is paid."); return null; }
+      if ("url" in res && res.url) { setUrl(res.url); return res.url; }
+      return null;
+    } catch (err) {
+      setError(errorMessage(err, "Could not load this file."));
+      return null;
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleDownload() {
+    const u = await resolveUrl();
+    if (!u) return;
+    const a = document.createElement("a");
+    a.href = u;
+    a.download = item.fileName ?? item.label;
+    a.rel = "noopener";
+    a.click();
+  }
+
+  async function handlePlay() {
+    const u = await resolveUrl();
+    if (u) setShowPlayer(true);
+  }
+
+  return (
+    <li className="rounded-md border border-graphite/50 bg-obsidian p-3">
+      <div className="flex items-center justify-between gap-3">
+        <span className="min-w-0">
+          <span className="block truncate text-sm text-bone">{item.label} <span className="text-steel/70">v{item.version}</span></span>
+          <span className="block truncate font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">{item.kind} - {item.songTitle}</span>
+        </span>
+        <span className="flex shrink-0 items-center gap-2">
+          {locked ? (
+            <span className="inline-flex items-center gap-1 rounded-md border border-graphite/50 px-2.5 py-1.5 text-xs text-steel">
+              <Lock className="size-3.5" /> Locked
+            </span>
+          ) : (
+            <>
+              {item.isAudio && !showPlayer && (
+                <button
+                  onClick={handlePlay}
+                  disabled={busy}
+                  className="inline-flex items-center gap-1 rounded-md border border-graphite/50 px-2.5 py-1.5 text-xs font-semibold text-bone transition-colors hover:border-gold/50 disabled:opacity-50"
+                >
+                  {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Play className="size-3.5" />} Play
+                </button>
+              )}
+              <button
+                onClick={handleDownload}
+                disabled={busy}
+                className="inline-flex items-center gap-1 rounded-md bg-gold px-2.5 py-1.5 text-xs font-semibold text-ink transition-opacity hover:opacity-90 disabled:opacity-50"
+              >
+                {busy ? <Loader2 className="size-3.5 animate-spin" /> : <Download className="size-3.5" />} Download
+              </button>
+            </>
+          )}
+        </span>
+      </div>
+      {showPlayer && url && (
+        <audio controls autoPlay src={url} className="mt-2.5 w-full">
+          <track kind="captions" />
+        </audio>
+      )}
+      {error && <p className="mt-2 text-[0.6875rem] text-steel">{error}</p>}
+    </li>
   );
 }
 

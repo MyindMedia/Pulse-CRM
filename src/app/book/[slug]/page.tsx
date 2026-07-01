@@ -1,6 +1,7 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import * as React from "react";
+import { useParams, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -18,6 +19,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { fadeUp, staggerChildren } from "@/lib/motion";
 import { RoomCard } from "@/components/book/room-card";
 import { MembershipPlans } from "@/components/book/membership-plans";
+import { SocialProof, EngineerRoster } from "@/components/book/social-proof";
 
 const STEPS = [
   { icon: MousePointerClick, label: "Pick a room", note: "Browse rooms and gear." },
@@ -27,8 +29,21 @@ const STEPS = [
 
 const DEFAULT_HEADLINE = "Book studio time";
 
+/* useSearchParams() must sit under a Suspense boundary for static export. */
 export default function StudioSlugFrontPage() {
+  return (
+    <React.Suspense fallback={null}>
+      <StudioFrontView />
+    </React.Suspense>
+  );
+}
+
+function StudioFrontView() {
   const { slug } = useParams<{ slug: string }>();
+  const searchParams = useSearchParams();
+  // Referral share links (?ref=<artistId>) are threaded onto every room link so
+  // the attribution survives the front -> room -> booking navigation.
+  const refId = searchParams.get("ref") ?? undefined;
   const front = useQuery(api.booking.studioFront, { slug });
 
   // Studio could not be resolved from the slug.
@@ -249,7 +264,7 @@ export default function StudioSlugFrontPage() {
             className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
           >
             {front.rooms.map((room) => (
-              <RoomCard key={room._id} room={room} slug={slug} />
+              <RoomCard key={room._id} room={room} slug={slug} refId={refId} />
             ))}
           </motion.div>
         )}
@@ -273,6 +288,19 @@ export default function StudioSlugFrontPage() {
           </div>
         )}
       </section>
+
+      {/* Meet the engineers - proof-of-work before room selection */}
+      {front && <EngineerRoster engineers={front.engineers} />}
+
+      {/* Social proof: aggregate rating, testimonials, recent reviews */}
+      {front && (
+        <SocialProof
+          testimonials={front.testimonials}
+          reviews={front.reviews}
+          reviewStats={front.reviewStats}
+          accent={accent}
+        />
+      )}
 
       {/* Memberships (hidden until the studio publishes a subscribable package) */}
       <MembershipPlans slug={slug} accent={accent} />

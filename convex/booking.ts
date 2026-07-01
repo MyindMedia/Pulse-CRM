@@ -4,6 +4,7 @@ import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { currentOrg } from "./lib/tenant";
 import { notify, notifyTeam } from "./lib/notify";
+import { normalizePhone } from "./lib/phone";
 import { money } from "./lib/money";
 import { stripeClient } from "./lib/stripe";
 import { ensureInquiryFromBooking } from "./opportunities";
@@ -83,6 +84,62 @@ async function brand(ctx: QueryCtx, org: Doc<"orgs"> | null) {
   };
 }
 
+/** Social proof for the public page: the studio's curated testimonials plus
+ *  its published post-session reviews (rating average + a short recent feed).
+ *  Read the reviews table directly server-side so the booking page always has
+ *  proof-of-work without a cross-module dependency. A page selling $100+/hr
+ *  time converts far better with real ratings + quotes than on price alone. */
+async function socialProof(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
+  const testimonials = org?.testimonials ?? [];
+  const published = await ctx.db
+    .query("reviews")
+    .withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", "published"))
+    .collect();
+  const count = published.length;
+  const average = count ? published.reduce((s, r) => s + r.rating, 0) / count : 0;
+  const reviews = published
+    .sort((a, b) => b.at - a.at)
+    .slice(0, 6)
+    .map((r) => ({
+      rating: r.rating,
+      text: r.text ?? null,
+      authorName: r.authorName ?? null,
+      at: r.at,
+    }));
+  return {
+    testimonials,
+    reviews,
+    reviewStats: { count, average: Math.round(average * 10) / 10 },
+  };
+}
+
+/** Public engineer profiles: the studio's engineers who have published a bio
+ *  or notable credits, shown as proof-of-work where a client picks who runs
+ *  their session. Only profiles with real content are surfaced. */
+async function engineerProfiles(ctx: QueryCtx, orgId: string) {
+  const members = await ctx.db
+    .query("members")
+    .withIndex("by_org", (q) => q.eq("orgId", orgId))
+    .collect();
+  const profiles = await Promise.all(
+    members
+      .filter(
+        (m) =>
+          ENGINEER_ROLES.has(m.role) &&
+          ((m.bio && m.bio.trim().length > 0) || (m.credits && m.credits.length > 0)),
+      )
+      .map(async (m) => ({
+        id: m._id,
+        name: m.name,
+        role: m.role,
+        bio: m.bio ?? null,
+        credits: m.credits ?? [],
+        photoUrl: m.photoId ? await ctx.storage.getUrl(m.photoId) : (m.clerkImageUrl ?? null),
+      })),
+  );
+  return profiles.sort((a, b) => a.name.localeCompare(b.name));
+}
+
 /** Public studio front. `slug` selects a studio; omitted → the active org. */
 export const studioFront = query({
   args: { slug: v.optional(v.string()) },
@@ -134,6 +191,7 @@ export const studioFront = query({
         };
       }),
     );
+    const proof = await socialProof(ctx, org, orgId);
     return {
       orgId,
       org: await brand(ctx, org),
@@ -141,6 +199,11 @@ export const studioFront = query({
       openHour: OPEN_HOUR,
       closeHour: CLOSE_HOUR,
       rooms: cards.sort((a, b) => b.hourlyRateCents - a.hourlyRateCents),
+      // Social proof + engineer credits - the conversion layer.
+      testimonials: proof.testimonials,
+      reviews: proof.reviews,
+      reviewStats: proof.reviewStats,
+      engineers: await engineerProfiles(ctx, orgId),
     };
   },
 });
@@ -170,6 +233,7 @@ export const room = query({
         photo: await photoOf(ctx, g),
       })),
     );
+    const proof = await socialProof(ctx, org, room.orgId);
     return {
       ...room,
       ...defaults(room),
@@ -181,6 +245,10 @@ export const room = query({
       studioName: org?.name ?? "Pulse Studio",
       depositPolicy: org?.depositPolicyText ?? null,
       equipment: equipment.sort((a, b) => a.name.localeCompare(b.name)),
+      // Social proof for the room page trust strip.
+      testimonials: proof.testimonials,
+      reviews: proof.reviews,
+      reviewStats: proof.reviewStats,
     };
   },
 });
@@ -272,6 +340,10 @@ export const addOnOptions = query({
           id: m._id,
           name: m.name,
           role: m.role,
+          // Bio + notable credits are the proof-of-work shown at the point a
+          // client is choosing who runs their session.
+          bio: m.bio ?? null,
+          credits: m.credits ?? [],
           photoUrl: m.photoId ? await ctx.storage.getUrl(m.photoId) : (m.clerkImageUrl ?? null),
           available: engineerAvailable(m._id, startTime, endTime, around),
         })),
@@ -360,6 +432,10 @@ export const createBooking = mutation({
     serviceType: v.optional(serviceV),
     notes: v.optional(v.string()),
     source: v.optional(v.string()),
+    // Referral attribution: an artistId from a ?ref= share link. Validated
+    // server-side (must be a real artist in THIS org); anything else is ignored
+    // so a garbage ref never errors a public booking.
+    ref: v.optional(v.string()),
     // Add-ons: a requested engineer + premium gear rented for this session.
     engineerId: v.optional(v.id("members")),
     addOnEquipmentIds: v.optional(v.array(v.id("equipment"))),
@@ -376,6 +452,10 @@ export const createBooking = mutation({
       throw new Error("This room is not open for booking.");
     }
     const orgId = room.orgId;
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
     const cfg = defaults(room);
     if (args.durationHours < cfg.minimumHours) {
       throw new Error(`This room has a ${cfg.minimumHours}-hour minimum.`);
@@ -456,10 +536,6 @@ export const createBooking = mutation({
     // the session silently bills full price. ──
     let discount: { code: string; pct: number; label: string | null } | null = null;
     if (args.discountCode?.trim()) {
-      const org = await ctx.db
-        .query("orgs")
-        .withIndex("by_org", (q) => q.eq("orgId", orgId))
-        .first();
       discount = findDiscount(org, args.discountCode);
       if (!discount) {
         throw new Error(
@@ -469,6 +545,21 @@ export const createBooking = mutation({
     }
 
     const leadSource = args.source ?? "web_booking";
+
+    // ── Referral attribution: a ?ref=<artistId> share link. Resolve it to a
+    // real artist in THIS org (normalizeId never throws on garbage). A valid
+    // ref flips the lead source to "referral" and records who referred them -
+    // a field the app never wrote before. Anything invalid is silently ignored.
+    let referredByArtistId: Id<"artists"> | undefined;
+    if (args.ref) {
+      const refId = ctx.db.normalizeId("artists", args.ref);
+      if (refId) {
+        const referrer = await ctx.db.get(refId);
+        if (referrer && referrer.orgId === orgId) referredByArtistId = refId;
+      }
+    }
+    const effectiveSource = referredByArtistId ? "referral" : leadSource;
+
     const email = args.clientEmail.trim().toLowerCase();
     const existing = (
       await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
@@ -477,11 +568,15 @@ export const createBooking = mutation({
     const clientName = args.clientName.trim();
     if (existing) {
       artistId = existing._id;
+      // First-touch attribution wins for source; only stamp a referrer when the
+      // artist has none yet and the ref is not the artist referring themselves.
+      const setReferrer =
+        !existing.referredByArtistId && referredByArtistId && referredByArtistId !== existing._id;
       await ctx.db.patch(existing._id, {
         phone: args.clientPhone ?? existing.phone,
         lastContactAt: Date.now(),
-        // Only stamp the lead-source if this artist had none (first touch wins).
-        source: existing.source ?? leadSource,
+        source: existing.source ?? effectiveSource,
+        ...(setReferrer ? { referredByArtistId } : {}),
       });
     } else {
       artistId = await ctx.db.insert("artists", {
@@ -497,7 +592,8 @@ export const createBooking = mutation({
         sessionCount: 0,
         reliability: "solid",
         lastContactAt: Date.now(),
-        source: leadSource,
+        source: effectiveSource,
+        ...(referredByArtistId ? { referredByArtistId } : {}),
       });
     }
 
@@ -548,7 +644,7 @@ export const createBooking = mutation({
       artistName: clientName,
       serviceType: args.serviceType ?? "recording",
       valueCents: rateCents,
-      source: leadSource,
+      source: effectiveSource,
     });
 
     await ctx.db.insert("activity", {
@@ -582,6 +678,24 @@ export const createBooking = mutation({
       kind: "booking.held",
       sessionId,
     });
+    // The hold is a 60-minute PAYMENT window - email alone is the wrong channel
+    // for a clock-ticking action, so also text the pay link when we have a
+    // phone. (The T-15 expiry nudge is scheduled elsewhere; this is the
+    // immediate confirmation.)
+    const phoneE164 = args.clientPhone ? normalizePhone(args.clientPhone) : null;
+    if (phoneE164) {
+      const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+      const payUrl = `${appUrl}/book/${org?.slug ?? ""}/checkout/${sessionId}`;
+      await notify(ctx, {
+        orgId,
+        channel: "sms",
+        recipient: phoneE164,
+        subject: `Hold started - ${room.name}`,
+        body: `${room.name} is held for you. Pay the ${money(depositCents)} deposit within ${HOLD_MINUTES} min to confirm: ${payUrl}`,
+        kind: "booking.held",
+        sessionId,
+      });
+    }
     // Internal team: a new booking request just landed, with any engineer
     // request, rented gear, and a free-text gear ask to follow up on.
     const addOnLine = addOns.length

@@ -134,6 +134,17 @@ export default defineSchema({
     // and/or assesses `cancellationFeePct` of the booking rate.
     cancellationWindowHours: v.optional(v.number()),
     cancellationFeePct: v.optional(v.number()), // 0-100
+    // Booking-page social proof: short client testimonials the studio curates.
+    testimonials: v.optional(
+      v.array(
+        v.object({
+          author: v.string(),
+          role: v.optional(v.string()),
+          quote: v.string(),
+          rating: v.optional(v.number()),
+        }),
+      ),
+    ),
     // US sales tax config. State drives a default rate; the owner can
     // override `taxRate` manually. `taxApply` toggles whether invoices
     // automatically add tax on top of the subtotal.
@@ -632,6 +643,10 @@ export default defineSchema({
     // salary in cents (prorated per pay period). Absent = unpaid / not tracked.
     payType: v.optional(v.union(v.literal("hourly"), v.literal("salary"))),
     payRateCents: v.optional(v.number()),
+    // Booking-page engineer profile: a short bio + notable credits, shown to
+    // clients choosing an engineer (proof-of-work that lifts conversion).
+    bio: v.optional(v.string()),
+    credits: v.optional(v.array(v.string())),
   })
     .index("by_org", ["orgId"])
     .index("by_org_clerk", ["orgId", "clerkUserId"]),
@@ -1066,6 +1081,24 @@ export default defineSchema({
     active: v.boolean(),
     createdAt: v.number(),
   }).index("by_org", ["orgId"]),
+
+  // ── Reviews / testimonials collected after sessions. A post-session request
+  //    links a token; the client rates + writes a note. Owner can hide any.
+  //    Published reviews feed social proof on the booking page. ──
+  reviews: defineTable({
+    orgId: v.string(),
+    artistId: v.optional(v.id("artists")),
+    sessionId: v.optional(v.id("sessions")),
+    rating: v.number(), // 1-5
+    text: v.optional(v.string()),
+    authorName: v.optional(v.string()),
+    status: v.union(v.literal("published"), v.literal("hidden")),
+    source: v.optional(v.string()), // "post_session", "manual", ...
+    at: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_status", ["orgId", "status"])
+    .index("by_session", ["sessionId"]),
 
   // ── Recovery ledger - dollars Pulse actively saved/recovered for the studio
   //    (forfeited deposits, cancellation/no-show fees, waitlist backfills,

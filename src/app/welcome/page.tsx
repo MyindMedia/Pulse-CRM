@@ -9,7 +9,8 @@ import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import { errorMessage } from "@/lib/errors";
 import { extractBrandFromImage } from "@/lib/brand-theme";
-import { Check, ChevronRight, ImagePlus, Loader2 } from "lucide-react";
+import { Check, ChevronRight, Copy, ExternalLink, ImagePlus, Loader2, Sparkles } from "lucide-react";
+import { QRCodeSVG } from "qrcode.react";
 import { PulseLogo } from "@/components/brand/pulse-logo";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/field";
@@ -100,6 +101,7 @@ function Wizard({ initial }: { initial: Mine }) {
 
   const [step, setStep] = React.useState(0);
   const [busy, setBusy] = React.useState(false);
+  const [finished, setFinished] = React.useState(false);
   const [uploading, setUploading] = React.useState(false);
   const [logoUrl, setLogoUrl] = React.useState<string | null>(initial.logoUrl);
 
@@ -198,14 +200,33 @@ function Wizard({ initial }: { initial: Mine }) {
     if (step < STEPS.length - 1) {
       setStep((s) => s + 1);
     } else {
-      await complete({});
-      toast.success("Your studio is set up. Welcome to Pulse!");
-      router.push("/dashboard");
+      setBusy(true);
+      try {
+        await complete({});
+        setFinished(true);
+      } catch (err) {
+        toast.error(errorMessage(err, "Could not finish setup."));
+      } finally {
+        setBusy(false);
+      }
     }
   }
 
   const canAdvance =
     STEPS[step].key === "basics" ? name.trim().length > 1 && effectiveSlug.length > 1 : true;
+
+  // Time-to-first-booking is the activation metric, so end the wizard by
+  // pointing the owner straight at their live, shareable booking page.
+  if (finished) {
+    return (
+      <LiveScreen
+        slug={effectiveSlug}
+        studioName={name.trim() || initial.name}
+        accent={accent}
+        onDashboard={() => router.push("/dashboard")}
+      />
+    );
+  }
 
   return (
     <div className="min-h-dvh bg-ink">
@@ -388,6 +409,109 @@ function Wizard({ initial }: { initial: Mine }) {
             ) : (
               <>Save &amp; continue<ChevronRight className="size-3.5" /></>
             )}
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* The activation finish: "your booking page is live - share it". Points the
+   owner straight at their public /book/<slug> with a copy-link button, a
+   preview link, and a QR they can show a client on the spot. */
+function LiveScreen({
+  slug,
+  studioName,
+  accent,
+  onDashboard,
+}: {
+  slug: string;
+  studioName: string;
+  accent: string;
+  onDashboard: () => void;
+}) {
+  // Prefer the server-persisted slug when it lands (authoritative), otherwise
+  // fall back to the slug the owner just set.
+  const fresh = useQuery(api.onboarding.mine, {});
+  const finalSlug = fresh?.slug || slug;
+
+  const [origin, setOrigin] = React.useState("");
+  React.useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (typeof window !== "undefined") setOrigin(window.location.origin);
+  }, []);
+
+  const path = `/book/${finalSlug}`;
+  const bookingUrl = origin ? `${origin}${path}` : path;
+  const displayUrl = bookingUrl.replace(/^https?:\/\//, "");
+
+  const [copied, setCopied] = React.useState(false);
+  async function copyLink() {
+    try {
+      await navigator.clipboard.writeText(bookingUrl);
+      setCopied(true);
+      toast.success("Booking link copied - paste it anywhere.");
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      toast.error("Could not copy the link. Select and copy it manually.");
+    }
+  }
+
+  return (
+    <div className="min-h-dvh bg-ink">
+      <div className="app-bloom" aria-hidden />
+      <div className="relative z-10 mx-auto flex min-h-dvh max-w-xl flex-col items-center px-5 py-12">
+        <PulseLogo className="h-6" />
+
+        <div className="mt-10 flex w-full flex-1 flex-col items-center text-center">
+          <span
+            className="grid size-14 place-items-center rounded-chrome border border-gold-dim/40"
+            style={{ backgroundColor: accent + "1f" }}
+          >
+            <Sparkles className="size-6 text-gold" />
+          </span>
+          <p className="mt-5 font-meta text-[0.6875rem] uppercase tracking-[0.22em] text-gold">
+            You are live
+          </p>
+          <h1 className="mt-2 font-grotesk text-3xl font-bold tracking-tight text-bone">
+            {studioName} is taking bookings
+          </h1>
+          <p className="mt-2 max-w-sm text-sm text-steel">
+            Your booking page is live. Share the link and clients can pick a room, choose a time,
+            and lock it in with a deposit - no back-and-forth.
+          </p>
+
+          {/* QR of the booking URL - show a client on the spot. */}
+          <div className="mt-8 rounded-chrome border border-graphite/60 bg-bone p-4 shadow-elev-3">
+            <QRCodeSVG value={bookingUrl} size={148} bgColor="#ffffff" fgColor="#0a0a0a" level="M" />
+          </div>
+
+          {/* The shareable link + copy. */}
+          <div className="mt-6 flex w-full max-w-md items-center gap-2 rounded-md border border-graphite/60 bg-coal/60 p-1.5 pl-3">
+            <span className="min-w-0 flex-1 truncate text-left font-meta text-xs text-steel">
+              {displayUrl}
+            </span>
+            <Button size="sm" variant="secondary" onClick={copyLink}>
+              {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+              {copied ? "Copied" : "Copy link"}
+            </Button>
+          </div>
+
+          <a
+            href={path}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 inline-flex items-center gap-1.5 text-xs font-medium text-steel transition-colors hover:text-bone"
+          >
+            <ExternalLink className="size-3.5" />
+            Preview your booking page
+          </a>
+        </div>
+
+        <div className="mt-10 w-full border-t border-graphite/50 pt-5">
+          <Button className="w-full" onClick={onDashboard}>
+            Go to your dashboard
+            <ChevronRight className="size-4" />
           </Button>
         </div>
       </div>

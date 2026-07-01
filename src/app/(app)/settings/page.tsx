@@ -12,6 +12,8 @@ import { TeamPanel } from "@/components/settings/team-panel";
 import { BillingPanel } from "@/components/settings/billing-panel";
 import { IntegrationsPanel } from "@/components/settings/integrations-panel";
 import { BrandingPanel } from "@/components/settings/branding-panel";
+import { TestimonialsPanel } from "@/components/settings/testimonials-panel";
+import { EngineerProfilesPanel } from "@/components/settings/engineer-profiles-panel";
 import { PricingPanel } from "@/components/settings/pricing-panel";
 import { CancellationPolicyPanel } from "@/components/settings/cancellation-policy-panel";
 import { DataPanel } from "@/components/settings/data-panel";
@@ -98,7 +100,10 @@ function SettingsView() {
             <WorkspacePanel org={org} />
           </TabsContent>
           <TabsContent value="branding">
-            <BrandingPanel org={org} />
+            <div className="space-y-5">
+              <BrandingPanel org={org} />
+              <TestimonialsPanel org={org} />
+            </div>
           </TabsContent>
           <TabsContent value="pricing">
             <div className="space-y-5">
@@ -107,7 +112,10 @@ function SettingsView() {
             </div>
           </TabsContent>
           <TabsContent value="team">
-            <TeamPanel />
+            <div className="space-y-5">
+              <TeamPanel />
+              <EngineerProfilesPanel />
+            </div>
           </TabsContent>
           <TabsContent value="integrations">
             <IntegrationsPanel />

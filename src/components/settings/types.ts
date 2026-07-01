@@ -21,6 +21,13 @@ export type DiscountCode = {
   active: boolean;
 };
 
+export type Testimonial = {
+  author: string;
+  role?: string;
+  quote: string;
+  rating?: number;
+};
+
 export type Org = {
   orgId: Id<"orgs">;
   actor: string;
@@ -40,6 +47,7 @@ export type Org = {
   configured: boolean;
   servicePricing: ServicePricing | null;
   discountCodes: DiscountCode[];
+  testimonials: Testimonial[];
   defaultRateCutPct: number | null;
   taxState: string | null;
   taxRate: number | null;

@@ -37,6 +37,7 @@ import {
   type AddOnSelection,
 } from "@/components/book/add-ons-picker";
 import { PromoCode, emptyPromo, type PromoState } from "@/components/book/promo-code";
+import { SocialProof } from "@/components/book/social-proof";
 
 /* useSearchParams() must sit under a Suspense boundary for static export. */
 export default function RoomDetailPage() {
@@ -53,6 +54,9 @@ function RoomDetailView() {
   const searchParams = useSearchParams();
   // Promo links (?code=XYZ) come from the studio's AI rate-cut emails.
   const codeFromLink = searchParams.get("code") ?? undefined;
+  // Referral share links (?ref=<artistId>) attribute the booking to the client
+  // who referred them; validated server-side in createBooking.
+  const refFromLink = searchParams.get("ref") ?? undefined;
   const room = useQuery(api.booking.room, { roomId: roomId as Id<"rooms"> });
   const createBooking = useMutation(api.booking.createBooking);
 
@@ -127,6 +131,7 @@ function RoomDetailView() {
         addOnEquipmentIds: addOns.gear.map((g) => g.id),
         gearRequestNote: addOns.gearRequestNote || undefined,
         discountCode: promo.status === "valid" ? promo.code : undefined,
+        ref: refFromLink,
       });
       toast.success("Booking held - finish payment to confirm.");
       router.push(`/book/${slug}/checkout/${result.sessionId}`);
@@ -341,6 +346,13 @@ function RoomDetailView() {
           )}
         </div>
       </section>
+
+      {/* Social proof: real ratings + client words back the room's rate */}
+      <SocialProof
+        testimonials={room.testimonials}
+        reviews={room.reviews}
+        reviewStats={room.reviewStats}
+      />
     </div>
   );
 }
