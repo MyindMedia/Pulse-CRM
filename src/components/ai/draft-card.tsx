@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useMutation } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id, Doc } from "@convex/_generated/dataModel";
-import { Sparkles, Copy, Check, Mail, Eye, EyeOff } from "lucide-react";
+import { Sparkles, Copy, Check, Mail, Eye, EyeOff, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,8 +23,36 @@ export function AiDraftCard({
   className?: string;
 }) {
   const setStatus = useMutation(api.aiArtifacts.setStatus);
+  const sendDraft = useAction(api.agent.sendArtifactDraft);
   const [expanded, setExpanded] = React.useState(defaultExpanded ?? false);
   const [copied, setCopied] = React.useState<"body" | "email" | null>(null);
+  const [sending, setSending] = React.useState(false);
+
+  // Merged (token-substituted) view of the email draft. The raw draft body
+  // carries privacy merge tokens like {{user_FirstName}} - the model never
+  // sees the real client name - so everything user-facing here (preview,
+  // send, mailto fallback, copy) uses the server-merged copy instead.
+  const merged = useQuery(
+    api.agent.mergedDraftEmail,
+    expanded && artifact.emailDraft ? { artifactId: artifact._id } : "skip",
+  );
+  const emailBody = merged?.body ?? artifact.emailDraft?.body ?? "";
+  const emailSubject = merged?.subject ?? artifact.emailDraft?.subject ?? "";
+
+  async function send() {
+    setSending(true);
+    try {
+      const res = await sendDraft({ artifactId: artifact._id });
+      if (res.ok) toast.success(res.channel === "google" ? "Sent from your Gmail." : "Sent.");
+      else toast.error("Send failed. Try again or use your mail app.");
+    } catch (err) {
+      // ConvexError carries its human-readable message in .data.
+      const data = err && typeof err === "object" && "data" in err ? (err as { data?: unknown }).data : null;
+      toast.error(typeof data === "string" ? data : "Send failed.");
+    } finally {
+      setSending(false);
+    }
+  }
 
   async function copy(kind: "body" | "email", text: string) {
     try {
@@ -141,19 +169,28 @@ export function AiDraftCard({
                     </p>
                   )}
                   <p className="mt-0.5 text-xs font-medium text-bone">
-                    {artifact.emailDraft.subject}
+                    {emailSubject}
                   </p>
                   <pre className="mt-2 whitespace-pre-wrap font-sans text-xs leading-relaxed text-steel">
-                    {artifact.emailDraft.body}
+                    {emailBody}
                   </pre>
                   <div className="mt-2 flex justify-end gap-2">
+                    {merged?.canSend && (
+                      <Button size="sm" onClick={send} disabled={sending}>
+                        <Send className="size-3.5" /> {sending ? "Sending..." : "Send"}
+                      </Button>
+                    )}
                     <Button
                       variant="secondary"
                       size="sm"
+                      disabled={!merged}
                       onClick={() => {
-                        const to = artifact.emailDraft!.to ?? "";
-                        const subject = encodeURIComponent(artifact.emailDraft!.subject);
-                        const body = encodeURIComponent(artifact.emailDraft!.body);
+                        // Fallback path: hand off to the user's mail app - with
+                        // merge tokens already substituted server-side.
+                        if (!merged) return;
+                        const to = merged.to ?? artifact.emailDraft!.to ?? "";
+                        const subject = encodeURIComponent(merged.subject);
+                        const body = encodeURIComponent(merged.body);
                         window.location.href = `mailto:${to}?subject=${subject}&body=${body}`;
                       }}
                     >
@@ -162,9 +199,7 @@ export function AiDraftCard({
                     <Button
                       variant="secondary"
                       size="sm"
-                      onClick={() =>
-                        copy("email", `${artifact.emailDraft!.subject}\n\n${artifact.emailDraft!.body}`)
-                      }
+                      onClick={() => copy("email", `${emailSubject}\n\n${emailBody}`)}
                     >
                       {copied === "email" ? (
                         <>

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
@@ -36,16 +36,30 @@ import {
   emptyAddOns,
   type AddOnSelection,
 } from "@/components/book/add-ons-picker";
+import { PromoCode, emptyPromo, type PromoState } from "@/components/book/promo-code";
 
+/* useSearchParams() must sit under a Suspense boundary for static export. */
 export default function RoomDetailPage() {
+  return (
+    <React.Suspense fallback={<RoomDetailSkeleton />}>
+      <RoomDetailView />
+    </React.Suspense>
+  );
+}
+
+function RoomDetailView() {
   const { slug, roomId } = useParams<{ slug: string; roomId: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  // Promo links (?code=XYZ) come from the studio's AI rate-cut emails.
+  const codeFromLink = searchParams.get("code") ?? undefined;
   const room = useQuery(api.booking.room, { roomId: roomId as Id<"rooms"> });
   const createBooking = useMutation(api.booking.createBooking);
 
   const [selection, setSelection] = React.useState<SlotSelection | null>(null);
   const [form, setForm] = React.useState<BookingFormValues>(emptyBookingForm);
   const [addOns, setAddOns] = React.useState<AddOnSelection>(emptyAddOns);
+  const [promo, setPromo] = React.useState<PromoState>(emptyPromo);
   const [submitting, setSubmitting] = React.useState(false);
 
   const handleSelection = React.useCallback((s: SlotSelection | null) => {
@@ -80,14 +94,24 @@ export default function RoomDetailPage() {
 
   const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.clientEmail.trim());
   const formValid = form.clientName.trim().length > 1 && emailValid;
-  const canSubmit = Boolean(selection) && formValid && !submitting;
+  // An invalid (or still-checking) code blocks submit: never book at full
+  // price while a code sits in the box looking applied.
+  const promoOk = promo.status === "none" || promo.status === "valid";
+  const canSubmit = Boolean(selection) && formValid && promoOk && !submitting;
 
+  // Client-side display math only - createBooking recomputes the
+  // authoritative amounts (and re-validates the code) on the server.
   const liveRoomCents = selection ? loadedRoom.hourlyRateCents * selection.durationHours : 0;
-  const liveRateCents = liveRoomCents + (selection ? addOns.addOnTotalCents : 0);
+  const liveListCents = liveRoomCents + (selection ? addOns.addOnTotalCents : 0);
+  const promoPct = promo.status === "valid" ? promo.pct : 0;
+  const liveRateCents = promoPct
+    ? Math.round((liveListCents * (100 - promoPct)) / 100)
+    : liveListCents;
+  const liveDiscountCents = liveListCents - liveRateCents;
   const liveDepositCents = Math.round((liveRateCents * loadedRoom.depositPct) / 100);
 
   async function handleContinue() {
-    if (!selection || !formValid) return;
+    if (!selection || !formValid || !promoOk) return;
     setSubmitting(true);
     try {
       const result = await createBooking({
@@ -102,6 +126,7 @@ export default function RoomDetailPage() {
         engineerId: addOns.engineerId,
         addOnEquipmentIds: addOns.gear.map((g) => g.id),
         gearRequestNote: addOns.gearRequestNote || undefined,
+        discountCode: promo.status === "valid" ? promo.code : undefined,
       });
       toast.success("Booking held - finish payment to confirm.");
       router.push(`/book/${slug}/checkout/${result.sessionId}`);
@@ -248,6 +273,24 @@ export default function RoomDetailPage() {
               <span className="font-meta text-bone">{money(g.priceCents)}</span>
             </div>
           ))}
+
+          {/* Promo code - prefilled from ?code= links, validated server-side */}
+          <div className="border-t border-graphite/50 pt-3">
+            <PromoCode
+              roomId={loadedRoom._id}
+              initialCode={codeFromLink}
+              onChange={setPromo}
+            />
+          </div>
+          {promo.status === "valid" && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-steel">Discount ({promo.pct}% off)</span>
+              <span className="font-meta text-positive">
+                {selection ? `-${money(liveDiscountCents)}` : "-"}
+              </span>
+            </div>
+          )}
+
           <div className="flex items-center justify-between border-t border-graphite/50 pt-3 text-sm">
             <span className="font-grotesk font-semibold text-bone">Session total</span>
             <span className="font-meta font-semibold text-bone">
@@ -289,6 +332,11 @@ export default function RoomDetailPage() {
           {selection && !formValid && (
             <p className="text-center text-xs text-steel/70">
               Add your name and a valid email to continue.
+            </p>
+          )}
+          {selection && formValid && !promoOk && (
+            <p className="text-center text-xs text-steel/70">
+              Fix or clear the discount code to continue.
             </p>
           )}
         </div>

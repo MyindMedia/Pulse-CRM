@@ -1,4 +1,4 @@
-import { query, mutation, internalQuery, QueryCtx } from "./_generated/server";
+import { query, mutation, internalQuery, internalMutation, QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
@@ -261,6 +261,24 @@ export const setDiscountCodes = mutation({
       .map((c) => ({ ...c, code: c.code.trim().toUpperCase() }))
       .filter((c) => c.code && !seen.has(c.code) && (seen.add(c.code), true));
     await ctx.db.patch(org._id, { discountCodes: clean });
+  },
+});
+
+/** Internal: register (or refresh) a single discount code on an org, so a code
+ *  the AI rate-cut recommender generates and emails to clients is actually
+ *  redeemable at checkout. Idempotent: upserts by normalized code. */
+export const ensureDiscountCode = internalMutation({
+  args: { orgId: v.string(), code: v.string(), pct: v.number(), label: v.optional(v.string()) },
+  handler: async (ctx, { orgId, code, pct, label }) => {
+    const normalized = code.trim().toUpperCase();
+    if (!normalized) return;
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+    if (!org) return;
+    const clampedPct = Math.max(1, Math.min(90, Math.round(pct)));
+    const existing = org.discountCodes ?? [];
+    const rest = existing.filter((c) => c.code.trim().toUpperCase() !== normalized);
+    rest.push({ code: normalized, pct: clampedPct, label, active: true });
+    await ctx.db.patch(org._id, { discountCodes: rest });
   },
 });
 

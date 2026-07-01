@@ -19,6 +19,10 @@ export type BookingSummaryData = {
   status: string;
   engineerName?: string | null;
   addOns?: { name: string; priceCents: number }[];
+  // Comp fields set when a discount code was applied at booking time.
+  compType?: "comped" | "discounted";
+  listValueCents?: number;
+  compReason?: string;
 };
 
 const STATUS_TONE: Record<string, "positive" | "caution" | "neutral" | "critical"> = {
@@ -79,6 +83,19 @@ export function BookingSummary({ booking }: { booking: BookingSummaryData }) {
             ))}
           </div>
         )}
+        {/* Discount applied at booking (a code): list price minus what's billed */}
+        {booking.compType === "discounted" &&
+          booking.listValueCents != null &&
+          booking.listValueCents > booking.rateCents && (
+            <div className="flex items-center justify-between text-xs">
+              <span className="text-steel/80">
+                Discount{booking.compReason ? ` (${booking.compReason})` : ""}
+              </span>
+              <span className="font-meta text-positive">
+                -{money(booking.listValueCents - booking.rateCents)}
+              </span>
+            </div>
+          )}
         <div className="flex items-center justify-between text-sm">
           <span className="text-steel">Session total</span>
           <span className="font-meta text-bone">{money(booking.rateCents)}</span>

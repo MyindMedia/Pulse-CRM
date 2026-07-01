@@ -252,6 +252,55 @@ export const setStatus = mutation({
   },
 });
 
+/**
+ * Manually re-send a payment reminder for an open invoice: emails the client
+ * with the public pay link (same template as the automated overdue nudge in
+ * automation.ts). Throttled to one reminder per 24h via `overdueNotifiedAt`,
+ * which doubles as the "last reminder sent" stamp - so a manual nudge also
+ * suppresses the automated overdue duplicate for that invoice.
+ */
+export const sendReminder = mutation({
+  args: { id: v.id("invoices") },
+  handler: async (ctx, { id }) => {
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
+    const inv = await ctx.db.get(id);
+    if (!inv || inv.orgId !== orgId) throw new Error("Not found");
+    if (!["sent", "viewed", "overdue"].includes(inv.status)) {
+      throw new Error("Only sent, viewed, or overdue invoices can be reminded.");
+    }
+    const now = Date.now();
+    if (inv.overdueNotifiedAt && now - inv.overdueNotifiedAt < 24 * 3_600_000) {
+      throw new Error(
+        "A reminder for this invoice already went out in the last 24 hours. Give the client a moment before nudging again.",
+      );
+    }
+    const artist = await ctx.db.get(inv.artistId);
+    if (!artist?.email) {
+      // No throttle stamp on a no-op: nothing was sent.
+      return { emailed: false };
+    }
+    await ctx.db.patch(id, { overdueNotifiedAt: now });
+    const payUrl = `${process.env.APP_URL ?? "http://localhost:3000"}/pay/invoice/${id}`;
+    await notify(ctx, {
+      orgId,
+      channel: "email",
+      recipient: artist.email,
+      subject: `Reminder: invoice ${inv.number} is awaiting payment`,
+      body: `Hi ${artist.name ?? "there"},\n\nThis is a friendly reminder that invoice ${inv.number} for ${money(inv.amountCents)} is still open (due ${new Date(inv.dueDate).toLocaleDateString("en-US", { month: "long", day: "numeric" })}).\n\nPay securely online:\n${payUrl}\n\nIf you've already paid, you can disregard this reminder.`,
+      kind: "invoice.reminder",
+    });
+    await ctx.db.insert("activity", {
+      orgId,
+      kind: "invoice.reminder",
+      summary: `Payment reminder sent for invoice ${inv.number} (${money(inv.amountCents)})`,
+      entityType: "invoice",
+      entityId: id,
+      accent: "info",
+    });
+    return { emailed: true };
+  },
+});
+
 export const remove = mutation({
   args: { id: v.id("invoices") },
   handler: async (ctx, { id }) => {

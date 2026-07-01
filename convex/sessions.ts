@@ -337,7 +337,32 @@ export const payDeposit = mutation({
     const orgId = await currentOrg(ctx);
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) throw new Error("Not found");
-    await ctx.db.patch(id, { depositPaid: true, status: "confirmed" });
+    // Ledger first: a manually-recorded deposit lands as a real payments row
+    // so the money reconciles everywhere (checkout page, P&L, completion
+    // invoice). Skip when a cleared deposit/full row already exists for this
+    // session so a re-click can never double-insert.
+    const ledger = await ctx.db
+      .query("payments")
+      .withIndex("by_session", (q) => q.eq("sessionId", id))
+      .collect();
+    const alreadyLedgered = ledger.some(
+      (p) => (p.kind === "deposit" || p.kind === "full") && p.status === "paid",
+    );
+    const patch: Record<string, unknown> = { depositPaid: true, status: "confirmed" };
+    if (!alreadyLedgered && !s.depositPaid && s.depositCents > 0) {
+      await ctx.db.insert("payments", {
+        orgId,
+        sessionId: id,
+        kind: "deposit",
+        amountCents: s.depositCents,
+        provider: "simulated", // manually recorded by staff (cash / card reader)
+        status: "paid",
+        reference: `MANUAL-${String(Date.now()).slice(-8)}`,
+        paidAt: Date.now(),
+      });
+      patch.amountPaidCents = (s.amountPaidCents ?? 0) + s.depositCents;
+    }
+    await ctx.db.patch(id, patch);
     if (s.roomId) await recomputeRoomStatus(ctx, s.roomId);
     await ctx.db.insert("activity", {
       orgId,
@@ -374,6 +399,43 @@ export const payDeposit = mutation({
     }
   },
 });
+
+/**
+ * Invoice whatever is still owed when a session completes. Shared by the
+ * manual setStatus("completed") path below and the automation cron's
+ * auto-complete (automation.ts) so both paths bill identically. Credits every
+ * cleared payment (amountPaidCents, plus the legacy depositPaid flag for rows
+ * that predate the payments ledger) so a session can never be over-billed,
+ * skips entirely when nothing is owed, and never double-invoices a session
+ * that already has a live invoice.
+ */
+export async function createCompletionInvoice(
+  ctx: MutationCtx,
+  s: Doc<"sessions">,
+): Promise<Id<"invoices"> | null> {
+  // max() not sum: deposits settled through the ledger set BOTH
+  // amountPaidCents and depositPaid, so adding them would double-credit.
+  const paidCents = Math.max(s.amountPaidCents ?? 0, s.depositPaid ? s.depositCents : 0);
+  const balance = Math.max(0, s.rateCents - paidCents);
+  if (balance <= 0) return null;
+  const existing = await ctx.db
+    .query("invoices")
+    .withIndex("by_artist", (q) => q.eq("artistId", s.artistId))
+    .collect();
+  if (existing.some((inv) => inv.sessionId === s._id && inv.status !== "void")) return null;
+  const num = `PLS-${String(Date.now()).slice(-6)}`;
+  return ctx.db.insert("invoices", {
+    orgId: s.orgId,
+    number: num,
+    artistId: s.artistId,
+    songId: s.songId,
+    sessionId: s._id,
+    status: "draft",
+    lineItems: [{ label: `${s.title} - balance`, amountCents: balance }],
+    amountCents: balance,
+    dueDate: Date.now() + 14 * 86400000,
+  });
+}
 
 /** Local one-liner to avoid importing the whole format lib server-side. */
 function longDateLite(ts: number): string {
@@ -436,17 +498,7 @@ export const setStatus = mutation({
         lastContactAt: Date.now(),
         status: artist?.status === "lead" ? "active" : artist?.status,
       });
-      const balance = s.rateCents - (s.depositPaid ? s.depositCents : 0);
-      if (balance > 0) {
-        const num = `PLS-${String(Date.now()).slice(-6)}`;
-        await ctx.db.insert("invoices", {
-          orgId, number: num, artistId: s.artistId, songId: s.songId, sessionId: id,
-          status: "draft",
-          lineItems: [{ label: `${s.title} - balance`, amountCents: balance }],
-          amountCents: balance,
-          dueDate: Date.now() + 14 * 86400000,
-        });
-      }
+      const invoiceId = await createCompletionInvoice(ctx, s);
       await ctx.db.insert("insights", {
         orgId, kind: "recap", severity: "info",
         title: `Post-session checklist + recap - ${s.title}`,
@@ -460,7 +512,7 @@ export const setStatus = mutation({
       });
       await ctx.db.insert("activity", {
         orgId, kind: "session.completed",
-        summary: `${s.title} completed - balance invoiced automatically`,
+        summary: `${s.title} completed${invoiceId ? " - balance invoiced automatically" : " - paid in full, nothing left to invoice"}`,
         entityType: "session", entityId: id, accent: "positive",
       });
     }

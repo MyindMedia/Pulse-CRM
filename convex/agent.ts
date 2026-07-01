@@ -1,14 +1,18 @@
 import {
-  query, mutation, internalQuery, internalMutation, internalAction,
+  query, mutation, internalQuery, internalMutation, internalAction, action,
 } from "./_generated/server";
+import type { QueryCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
-import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
+import { api, internal } from "./_generated/api";
+import type { Doc, Id } from "./_generated/dataModel";
 import { currentOrg, currentActor } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { completeJSON, SMART_MODEL } from "./lib/openai";
 import { summarizeGraph } from "./lib/studioGraph";
-import { escapeHtml } from "./lib/text";
+import { escapeHtml, stripEmDashes } from "./lib/text";
+import { isDigestDue } from "./lib/digestSchedule";
+import { notifyTeam } from "./lib/notify";
+import { googleConfigured, gmailSend } from "./lib/google";
 
 /* JSON contract for the conversational agent's structured response. Forces a
    valid object so we never brace-slice free text. strict:false keeps it lenient
@@ -391,11 +395,34 @@ export const _finalize = internalMutation({
       await ctx.db.insert("agentAuditLogs", { orgId: a.orgId, runId: a.runId, event: auto ? "approval.auto_approved" : "approval.created", detail: ap.title, at: now });
       if (auto) await ctx.scheduler.runAfter(0, internal.agent.executeApproval, { id: approvalId });
     }
+    // Snapshot the run BEFORE patching so digest delivery below can tell a
+    // first finalize from a re-entry (idempotency: deliver exactly once).
+    const runBefore = await ctx.db.get(a.runId);
     await ctx.db.patch(a.runId, {
       status: a.status, summary: a.summary, source: a.source, modelName: a.modelName,
       error: a.error, completedAt: now,
     });
     await ctx.db.insert("agentAuditLogs", { orgId: a.orgId, runId: a.runId, event: `run.${a.status}`, at: now });
+
+    // Daily digest DELIVERY: the brief is only useful if it reaches the owner,
+    // so a completed digest run emails its summary through the notify() seam
+    // (notifications table -> Resend), not just an in-app artifact. Guarded to
+    // fire once per run (only on the queued/running -> finalized transition;
+    // _maybeStartDigest already caps runs at one per day), and never on failure.
+    const firstFinalize = runBefore && (runBefore.status === "queued" || runBefore.status === "running");
+    if (runBefore?.runType === "daily_digest" && firstFinalize && a.status !== "failed") {
+      const briefText = a.assistant ?? a.summary;
+      if (briefText) {
+        const dateLabel = new Date(now).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric" });
+        await notifyTeam(ctx, {
+          orgId: a.orgId,
+          subject: stripEmDashes(`Daily studio brief - ${dateLabel}`),
+          body: stripEmDashes(`${briefText.trim()}\n\nOpen Pulse for the full picture and any actions waiting on you.`),
+          kind: "agent_daily_digest",
+        });
+        await ctx.db.insert("agentAuditLogs", { orgId: a.orgId, runId: a.runId, event: "digest.delivered", detail: "emailed to owner", at: now });
+      }
+    }
 
     // Usage metering for the billing period.
     const p = period(now);
@@ -692,6 +719,172 @@ export const _markExecuted = internalMutation({
   },
 });
 
+// ── AI draft delivery: send-time merge-token substitution + send ────────
+/*
+   Privacy design (see SECURITY-COMPLIANCE.md "merge token"): the model never
+   receives the real client name - prompts in aiActions.ts instruct it to emit
+   {{user_FirstName}} (and sometimes {{room_name}}) verbatim. Those tokens are
+   substituted HERE, at send time, outside the model, with values read from the
+   org's own records. This runs AFTER the creation-time verifier gate
+   (lib/aiVerify.ts, which rejects enrichment drafts still carrying {{...}}
+   placeholders); artifact emailDrafts intentionally carry the token until the
+   moment of send, and anything left unmerged is refused rather than sent.
+*/
+
+/** Every merge token the aiActions.ts prompts can emit, with its fallback when
+ *  the org has no value on file (e.g. artist record erased or unmatched). */
+export const MERGE_TOKENS = [
+  { token: "user_FirstName", fallback: "there" },
+  { token: "room_name", fallback: "the studio" },
+] as const;
+
+export type MergeValues = { firstName?: string | null; roomName?: string | null };
+
+/** Substitute all supported merge tokens with real values (or safe fallbacks)
+ *  and strip em dashes. Pure - unit-tested in aiDeliverability.test.ts. */
+export function applyMergeTokens(text: string, values: MergeValues): string {
+  const byToken: Record<string, string | undefined> = {
+    user_FirstName: values.firstName?.trim() || undefined,
+    room_name: values.roomName?.trim() || undefined,
+  };
+  let out = text;
+  for (const { token, fallback } of MERGE_TOKENS) {
+    const re = new RegExp(`\\{\\{\\s*${token}\\s*\\}\\}`, "gi");
+    out = out.replace(re, byToken[token] ?? fallback);
+  }
+  return stripEmDashes(out);
+}
+
+/** True when a body still carries any {{...}} token after merging - the same
+ *  placeholder shape lib/aiVerify.ts rejects. Never send such a body. */
+export function hasUnmergedTokens(text: string): boolean {
+  return /\{\{[^}]*\}\}/.test(text);
+}
+
+/** Resolve everything needed to merge + send one artifact's email draft:
+ *  the client (via the linked session, else an org-scoped email match),
+ *  the room name, and the org's client-email channel config. */
+async function resolveDraftSend(ctx: QueryCtx, orgId: string, a: Doc<"aiArtifacts">) {
+  if (!a.emailDraft) return null;
+  const session = a.sessionId ? await ctx.db.get(a.sessionId) : null;
+  let artist = session?.artistId ? await ctx.db.get(session.artistId) : null;
+  if (artist && artist.orgId !== orgId) artist = null;
+  if (!artist && a.emailDraft.to) {
+    const to = a.emailDraft.to.toLowerCase();
+    const all = await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
+    artist = all.find((x) => x.email && x.email.toLowerCase() === to) ?? null;
+  }
+  const roomId = a.roomId ?? session?.roomId;
+  const room = roomId ? await ctx.db.get(roomId) : null;
+  const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+  return {
+    artistId: artist?._id ?? null,
+    firstName: artist?.name?.trim().split(/\s+/)[0] ?? null,
+    roomName: room && room.orgId === orgId ? room.name : null,
+    to: artist?.email ?? a.emailDraft.to ?? null,
+    subject: a.emailDraft.subject,
+    body: a.emailDraft.body,
+    studioName: org?.name ?? "Studio",
+    provider: org?.emailProvider ?? ("internal" as const),
+    googleRefreshToken: org?.googleRefreshToken ?? null,
+    googleEmail: org?.googleEmail ?? null,
+  };
+}
+
+/** Merged (token-substituted) view of an artifact's email draft, for the UI:
+ *  the mailto fallback and the preview must never show a raw {{token}}. */
+export const mergedDraftEmail = query({
+  args: { artifactId: v.id("aiArtifacts") },
+  handler: async (ctx, { artifactId }) => {
+    const orgId = await currentOrg(ctx);
+    const a = await ctx.db.get(artifactId);
+    if (!a || a.orgId !== orgId || !a.emailDraft) return null;
+    const c = await resolveDraftSend(ctx, orgId, a);
+    if (!c) return null;
+    const values = { firstName: c.firstName, roomName: c.roomName };
+    const body = applyMergeTokens(c.body, values);
+    const subject = applyMergeTokens(c.subject, values);
+    return {
+      to: c.to,
+      subject,
+      body,
+      canSend: Boolean(c.artistId && c.to) && !hasUnmergedTokens(body) && !hasUnmergedTokens(subject),
+    };
+  },
+});
+
+/** Internal - full send context for one artifact draft (gated: same
+ *  artists.edit capability as clientEmail.sendToClient). */
+export const _draftSendContext = internalQuery({
+  args: { artifactId: v.id("aiArtifacts") },
+  handler: async (ctx, { artifactId }) => {
+    const orgId = await currentOrg(ctx);
+    await requireCapability(ctx, "artists.edit", { orgId });
+    const a = await ctx.db.get(artifactId);
+    if (!a || a.orgId !== orgId) return null;
+    return await resolveDraftSend(ctx, orgId, a);
+  },
+});
+
+/** One-tap send for an AI artifact email draft. Substitutes merge tokens at
+ *  send time, then routes through the same client-email infrastructure as
+ *  clientEmail.sendToClient (Gmail when connected, else the internal Resend
+ *  channel), with the escapeHtml body treatment the approved-agent-email path
+ *  uses. Logs to the client's Messages thread + Timeline via
+ *  clientEmail._logMessage. */
+export const sendArtifactDraft = action({
+  args: { artifactId: v.id("aiArtifacts") },
+  handler: async (ctx, { artifactId }): Promise<{ ok: boolean; channel: string }> => {
+    const c = await ctx.runQuery(internal.agent._draftSendContext, { artifactId });
+    if (!c) throw new ConvexError("Draft not found.");
+    if (!c.artistId) throw new ConvexError("Could not match this draft to a client record.");
+    if (!c.to) throw new ConvexError("This client has no email on file.");
+
+    const values = { firstName: c.firstName, roomName: c.roomName };
+    const body = applyMergeTokens(c.body, values);
+    const subject = applyMergeTokens(c.subject, values);
+    // Belt-and-suspenders, consistent with lib/aiVerify.ts: a body that still
+    // carries any placeholder never leaves the building.
+    if (hasUnmergedTokens(body) || hasUnmergedTokens(subject)) {
+      throw new ConvexError("Draft still contains unfilled merge tokens - edit it before sending.");
+    }
+
+    const html = `<div style="font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;color:#111">${escapeHtml(body)
+      .split("\n")
+      .map((l) => l.trim())
+      .join("<br/>")}</div>`;
+
+    let channel: "google" | "internal";
+    let status: "sent" | "failed" | "simulated";
+    if (c.provider === "google" && c.googleRefreshToken && googleConfigured()) {
+      channel = "google";
+      try {
+        await gmailSend(c.googleRefreshToken, { from: c.googleEmail ?? "me", to: c.to, subject, html });
+        status = "sent";
+      } catch {
+        status = "failed";
+      }
+    } else {
+      channel = "internal";
+      status = await sendEmail({
+        to: c.to,
+        subject,
+        html,
+        from: `${c.studioName} via Pulse <support@myindsound.com>`,
+      });
+    }
+
+    const identity = await ctx.auth.getUserIdentity();
+    await ctx.runMutation(internal.clientEmail._logMessage, {
+      artistId: c.artistId, subject, body, channel, status, sentBy: identity?.subject,
+    });
+    if (status !== "failed") {
+      await ctx.runMutation(api.aiArtifacts.setStatus, { id: artifactId, status: "acknowledged" });
+    }
+    return { ok: status !== "failed", channel };
+  },
+});
+
 // ── Memory (per-org, explicit, editable) ────────────────────────────────
 
 const MEMORY_TYPE = v.union(
@@ -744,8 +937,11 @@ export const deleteMemory = mutation({
 const DIGEST_PROMPT =
   "Produce today's studio brief. Cover: today's and tomorrow's sessions and any prep risks, overdue invoices worth chasing, stale leads to follow up, and the single most important action to take today. Keep it short and skimmable.";
 
-/** Start a digest run for one org if it's enabled and hasn't run in ~20h.
- *  Returns the runId to kick, or null. */
+/** Start a digest run for one org if it's enabled, the org-local hour matches
+ *  the policy's digestHourLocal, and the last digest is >20h old (one per day).
+ *  The schedule decision itself is the pure isDigestDue() in
+ *  lib/digestSchedule.ts; "org-local" is UTC because orgs carry no timezone
+ *  field (documented there). Returns the runId to kick, or null. */
 export const _maybeStartDigest = internalMutation({
   args: { orgId: v.string() },
   handler: async (ctx, { orgId }): Promise<Id<"agentRuns"> | null> => {
@@ -754,7 +950,12 @@ export const _maybeStartDigest = internalMutation({
     const digestEnabled = policy?.digestEnabled ?? DEFAULT_POLICY.digestEnabled;
     if (!enabled || !digestEnabled) return null;
     const now = Date.now();
-    if (policy?.lastDigestAt && now - policy.lastDigestAt < 20 * 60 * 60 * 1000) return null;
+    const due = isDigestDue({
+      now,
+      digestHourLocal: policy?.digestHourLocal ?? DEFAULT_POLICY.digestHourLocal,
+      lastDigestAt: policy?.lastDigestAt,
+    });
+    if (!due) return null;
 
     const runId = await ctx.db.insert("agentRuns", {
       orgId, initiatedBy: "system", runType: "daily_digest", status: "queued", prompt: DIGEST_PROMPT,

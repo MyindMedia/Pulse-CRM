@@ -399,6 +399,14 @@ async function writeRateCutPromos(ctx: ActionCtx, data: NonNullable<RateCutData>
         : "https://pulse-dash-kit.netlify.app/book";
 
     for (const rec of data.recommendations) {
+      // Register the generated code on the org so the ?code= link actually
+      // applies a discount at checkout (otherwise the promo is a dead link).
+      await ctx.runMutation(internal.orgs.ensureDiscountCode, {
+        orgId: data.orgId,
+        code: rec.discountCode,
+        pct: rec.cutPct,
+        label: `${rec.roomName} ${rec.windowLabel}`,
+      });
       const bookingLink = `${baseBookingUrl}/${rec.roomId}?code=${rec.discountCode}`;
       const minBlockLabel = `${fmtCents(rec.minBlockCents)} for the ${rec.minimumHours}h minimum`;
       const facts = `Studio: ${data.orgName}

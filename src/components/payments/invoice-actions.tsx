@@ -32,6 +32,7 @@ export function InvoiceActions({
 }) {
   const router = useRouter();
   const setStatus = useMutation(api.invoices.setStatus);
+  const sendReminder = useMutation(api.invoices.sendReminder);
   const remove = useMutation(api.invoices.remove);
 
   const [busy, setBusy] = React.useState<string | null>(null);
@@ -56,6 +57,22 @@ export function InvoiceActions({
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Action failed");
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  async function handleReminder() {
+    setBusy("remind");
+    try {
+      const res = await sendReminder({ id });
+      toast.success(
+        res.emailed
+          ? `Reminder emailed to the client for ${number}`
+          : "The client has no email on file, so share the payment link manually.",
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send the reminder");
     } finally {
       setBusy(null);
     }
@@ -124,10 +141,10 @@ export function InvoiceActions({
           <Button
             variant="outline"
             className="w-full justify-start"
-            onClick={() => toast.success(`Reminder sent for ${number}`)}
+            onClick={handleReminder}
             disabled={busy !== null}
           >
-            <Bell className="size-4" />
+            {busy === "remind" ? <Spinner /> : <Bell className="size-4" />}
             Send reminder
           </Button>
         )}

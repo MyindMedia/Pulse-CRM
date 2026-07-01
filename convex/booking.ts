@@ -53,6 +53,20 @@ const defaults = (room: Doc<"rooms">) => ({
   hourlyRateCents: room.hourlyRateCents ?? 0,
 });
 
+/** Look one submitted code up in the org's owner-issued list
+ *  (orgs.discountCodes). Codes are stored normalized (uppercase) and
+ *  `active` is the on/off switch - the owner pauses a code to expire it.
+ *  Returns the single match or null; never the list itself. */
+function findDiscount(org: Doc<"orgs"> | null, raw: string | undefined) {
+  const code = raw?.trim().toUpperCase();
+  if (!code) return null;
+  const match = (org?.discountCodes ?? []).find((c) => c.code === code && c.active);
+  if (!match) return null;
+  // Clamp so a mis-entered percent can never zero out or invert the price.
+  const pct = Math.min(Math.max(match.pct, 0), 100);
+  return { code: match.code, pct, label: match.label ?? null };
+}
+
 /** The studio's branding block for the public page. */
 async function brand(ctx: QueryCtx, org: Doc<"orgs"> | null) {
   return {
@@ -168,6 +182,26 @@ export const room = query({
       depositPolicy: org?.depositPolicyText ?? null,
       equipment: equipment.sort((a, b) => a.name.localeCompare(b.name)),
     };
+  },
+});
+
+/** Validate one promo code against the room's studio. PUBLIC (org derived
+ *  from the room, like the other booking queries) - it answers for the ONE
+ *  submitted code only and never exposes the org's full code list to
+ *  anonymous viewers. The client uses this for display; createBooking
+ *  re-validates server-side and recomputes the authoritative amounts. */
+export const validateCode = query({
+  args: { roomId: v.id("rooms"), code: v.string() },
+  handler: async (ctx, { roomId, code }) => {
+    const room = await ctx.db.get(roomId);
+    if (!room || room.status === "retired") return { valid: false as const };
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", room.orgId))
+      .first();
+    const match = findDiscount(org, code);
+    if (!match) return { valid: false as const };
+    return { valid: true as const, code: match.code, pct: match.pct, label: match.label };
   },
 });
 
@@ -330,6 +364,10 @@ export const createBooking = mutation({
     engineerId: v.optional(v.id("members")),
     addOnEquipmentIds: v.optional(v.array(v.id("equipment"))),
     gearRequestNote: v.optional(v.string()),
+    // Promo code (from ?code= links or typed in). Validated server-side
+    // against orgs.discountCodes; invalid codes are a hard error, never a
+    // silent full-price charge.
+    discountCode: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const room = await ctx.db.get(args.roomId);
@@ -412,6 +450,24 @@ export const createBooking = mutation({
     const addOnTotalCents = addOnsTotalCents(addOns);
     const gearRequestNote = args.gearRequestNote?.trim() || undefined;
 
+    // ── Discount code: validate against the org's owner-issued list on the
+    // server, then apply to the room + add-on total below. An unknown or
+    // paused code throws - the page must never show a code as applied while
+    // the session silently bills full price. ──
+    let discount: { code: string; pct: number; label: string | null } | null = null;
+    if (args.discountCode?.trim()) {
+      const org = await ctx.db
+        .query("orgs")
+        .withIndex("by_org", (q) => q.eq("orgId", orgId))
+        .first();
+      discount = findDiscount(org, args.discountCode);
+      if (!discount) {
+        throw new Error(
+          "That discount code isn't valid or is no longer active. Remove it to book at the standard rate.",
+        );
+      }
+    }
+
     const leadSource = args.source ?? "web_booking";
     const email = args.clientEmail.trim().toLowerCase();
     const existing = (
@@ -445,7 +501,13 @@ export const createBooking = mutation({
       });
     }
 
-    const rateCents = cfg.hourlyRateCents * args.durationHours + addOnTotalCents;
+    // The undiscounted (list) total, then the rate actually billed. The
+    // deposit is computed off the billed rate so it stays proportional to
+    // what the client owes, discounted or not.
+    const listRateCents = cfg.hourlyRateCents * args.durationHours + addOnTotalCents;
+    const rateCents = discount
+      ? Math.round((listRateCents * (100 - discount.pct)) / 100)
+      : listRateCents;
     const depositCents = Math.round((rateCents * cfg.depositPct) / 100);
     const sessionId = await ctx.db.insert("sessions", {
       orgId,
@@ -467,6 +529,15 @@ export const createBooking = mutation({
       ...(engineerId ? { engineerId } : {}),
       ...(addOns.length ? { addOns } : {}),
       ...(gearRequestNote ? { gearRequestNote } : {}),
+      // Mark discounted sessions with the comp fields so the existing comp
+      // report picks up the foregone revenue (listValue - rate) automatically.
+      ...(discount
+        ? {
+            compType: "discounted" as const,
+            listValueCents: listRateCents,
+            compReason: `Code ${discount.code}`,
+          }
+        : {}),
     });
 
     // Lead→booking funnel: open an `inquiry` opportunity for this lead so the
@@ -518,10 +589,13 @@ export const createBooking = mutation({
       : "";
     const engineerLine = engineerName ? `\nRequested engineer: ${engineerName}.` : "";
     const requestLine = gearRequestNote ? `\nGear request to follow up: "${gearRequestNote}".` : "";
+    const discountLine = discount
+      ? `\nDiscount code ${discount.code} applied: ${discount.pct}% off (list ${money(listRateCents)}, billed ${money(rateCents)}).`
+      : "";
     await notifyTeam(ctx, {
       orgId,
       subject: `New booking - ${room.name}, ${new Date(args.startTime).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`,
-      body: `${args.clientName} (${args.clientEmail.trim()}) requested ${args.durationHours}h in ${room.name}. The room is held pending the ${money(depositCents)} deposit.${engineerLine}${addOnLine}${requestLine}`,
+      body: `${args.clientName} (${args.clientEmail.trim()}) requested ${args.durationHours}h in ${room.name}. The room is held pending the ${money(depositCents)} deposit.${engineerLine}${addOnLine}${requestLine}${discountLine}`,
       kind: "booking.created",
       sessionId,
     });
@@ -557,6 +631,9 @@ export const createBooking = mutation({
       depositCents,
       depositPct: cfg.depositPct,
       addOnTotalCents,
+      listValueCents: listRateCents,
+      discountPct: discount?.pct ?? 0,
+      discountCode: discount?.code ?? null,
     };
   },
 });

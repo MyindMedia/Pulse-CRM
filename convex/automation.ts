@@ -3,15 +3,20 @@ import { internal } from "./_generated/api";
 import { currentOrgWithCapability } from "./lib/tenant";
 import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
+import { appUrl } from "./lib/links";
 import { proposeWaitlistFill } from "./waitlist";
+import { createCompletionInvoice } from "./sessions";
 
 /* ============================================================
    Booking automation - runs on a 15-minute cron (see crons.ts)
    and can be triggered on demand from the internal Bookings view.
 
-   It only ever touches sessions created through the public /book
-   flow (`source === "public_booking"`). Internal / seeded sessions
-   are never auto-cancelled or auto-advanced.
+   Lifecycle automation (hold expiry, forfeiture, auto-progression)
+   only ever touches sessions created through the public /book flow
+   (`source === "public_booking"`). Internal / seeded sessions are
+   never auto-cancelled or auto-advanced - they only receive the
+   payment emails (deposit pay link + balance reminder) so clients
+   booked by staff can still pay online.
    ============================================================ */
 
 const HOUR = 3_600_000;
@@ -43,12 +48,89 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
 
   const sessions = await ctx.db.query("sessions").collect();
   for (const s of sessions) {
-    if (s.source !== "public_booking") continue;
-    const paid = s.amountPaidCents ?? 0;
+    const isPublic = s.source === "public_booking";
+    // max() not sum: ledger deposits set BOTH amountPaidCents and depositPaid,
+    // so adding them would double-credit; legacy internal rows may only carry
+    // the flag.
+    const paid = Math.max(s.amountPaidCents ?? 0, s.depositPaid ? s.depositCents : 0);
     const fullyPaid = paid >= s.rateCents;
+
+    // 1. Deposit pay link - internal bookings with an unpaid deposit get the
+    //    public checkout link once, so clients booked by staff can pay online.
+    //    (Public bookings already got the link at checkout.) No hold or
+    //    forfeit ever applies to internal sessions.
+    if (
+      !isPublic &&
+      (s.status === "tentative" || s.status === "confirmed") &&
+      s.depositCents > 0 &&
+      !s.depositPaid &&
+      s.startTime > now
+    ) {
+      const priorNotes = await ctx.db
+        .query("notifications")
+        .withIndex("by_session", (q) => q.eq("sessionId", s._id))
+        .collect();
+      if (!priorNotes.some((n) => n.kind === "booking.deposit_link")) {
+        const email = await emailFor(ctx, s.artistId);
+        const org = await ctx.db
+          .query("orgs")
+          .withIndex("by_org", (q) => q.eq("orgId", s.orgId))
+          .first();
+        if (email && org?.slug) {
+          const payUrl = `${appUrl()}/book/${org.slug}/checkout/${s._id}`;
+          await notify(ctx, {
+            orgId: s.orgId,
+            channel: "email",
+            recipient: email,
+            subject: `Deposit due - ${s.title}`,
+            body: `Your session "${s.title}" is on the calendar. A ${money(Math.min(s.depositCents, s.rateCents))} deposit locks it in.\n\nPay securely online:\n${payUrl}`,
+            kind: "booking.deposit_link",
+            sessionId: s._id,
+          });
+          out.remindersSent++;
+        }
+      }
+    }
+
+    // 2. Balance reminder - confirmed, not fully paid, 2-4h out, once.
+    //    Applies to public AND internal bookings; includes the pay link.
+    if (
+      s.status === "confirmed" &&
+      !fullyPaid &&
+      !s.balanceRemindedAt &&
+      s.startTime - now <= 4 * HOUR &&
+      s.startTime - now > 2 * HOUR
+    ) {
+      await ctx.db.patch(s._id, { balanceRemindedAt: now });
+      const email = await emailFor(ctx, s.artistId);
+      if (email) {
+        const org = await ctx.db
+          .query("orgs")
+          .withIndex("by_org", (q) => q.eq("orgId", s.orgId))
+          .first();
+        const payLink = org?.slug
+          ? `\n\nPay securely online:\n${appUrl()}/book/${org.slug}/checkout/${s._id}`
+          : "";
+        await notify(ctx, {
+          orgId: s.orgId,
+          channel: "email",
+          recipient: email,
+          subject: `Balance due - ${s.title}`,
+          body: `Your ${money(s.rateCents - paid)} balance is due before your session. Pay in full at least 2 hours before your start time to keep the booking.${payLink}`,
+          kind: "booking.balance_reminder",
+          sessionId: s._id,
+        });
+      }
+      out.remindersSent++;
+      continue;
+    }
+
+    // Everything below is public-booking lifecycle only: internal sessions
+    // are never auto-cancelled, forfeited, or auto-advanced.
+    if (!isPublic) continue;
     const email = await emailFor(ctx, s.artistId);
 
-    // 1. Hold expiry - an unpaid hold past its window is released.
+    // 3. Hold expiry - an unpaid hold past its window is released.
     if (s.status === "tentative" && paid === 0 && s.holdExpiresAt && s.holdExpiresAt < now) {
       await ctx.db.patch(s._id, { status: "cancelled" });
       await ctx.db.insert("activity", {
@@ -82,31 +164,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
       continue;
     }
 
-    // 2. Balance reminder - confirmed, not fully paid, 2-4h out, once.
-    if (
-      s.status === "confirmed" &&
-      !fullyPaid &&
-      !s.balanceRemindedAt &&
-      s.startTime - now <= 4 * HOUR &&
-      s.startTime - now > 2 * HOUR
-    ) {
-      await ctx.db.patch(s._id, { balanceRemindedAt: now });
-      if (email) {
-        await notify(ctx, {
-          orgId: s.orgId,
-          channel: "email",
-          recipient: email,
-          subject: `Balance due - ${s.title}`,
-          body: `Your ${money(s.rateCents - paid)} balance is due before your session. Pay in full at least 2 hours before your start time to keep the booking.`,
-          kind: "booking.balance_reminder",
-          sessionId: s._id,
-        });
-      }
-      out.remindersSent++;
-      continue;
-    }
-
-    // 3. Forfeit - confirmed but not paid in full inside the 2h window.
+    // 4. Forfeit - confirmed but not paid in full inside the 2h window.
     if (
       s.status === "confirmed" &&
       !fullyPaid &&
@@ -145,7 +203,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
       continue;
     }
 
-    // 4. Progression - paid bookings advance with the clock.
+    // 5. Progression - paid bookings advance with the clock.
     if (s.status === "confirmed" && fullyPaid && now >= s.startTime && now < s.endTime) {
       await ctx.db.patch(s._id, { status: "in_progress" });
       out.started++;
@@ -153,10 +211,14 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     }
     if ((s.status === "in_progress" || (s.status === "confirmed" && fullyPaid)) && now >= s.endTime) {
       await ctx.db.patch(s._id, { status: "completed" });
+      // Same balance-invoice fan-out as the manual completion path in
+      // sessions.setStatus: bill only what is still owed (usually nothing -
+      // public bookings reach here fully paid), never double-invoice.
+      const invoiceId = await createCompletionInvoice(ctx, s);
       await ctx.db.insert("activity", {
         orgId: s.orgId,
         kind: "session.completed",
-        summary: `${s.title} completed`,
+        summary: `${s.title} completed${invoiceId ? " - balance invoiced automatically" : ""}`,
         entityType: "session",
         entityId: s._id,
         accent: "positive",
@@ -165,7 +227,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     }
   }
 
-  // 5. Invoice overdue - materialize the overdue status on sent/viewed
+  // 6. Invoice overdue - materialize the overdue status on sent/viewed
   // invoices past their due date, remind the client (with the payment
   // link) and alert the team. Fires once per invoice.
   const invoices = await ctx.db.query("invoices").collect();
