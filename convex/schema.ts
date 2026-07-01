@@ -134,6 +134,8 @@ export default defineSchema({
     // and/or assesses `cancellationFeePct` of the booking rate.
     cancellationWindowHours: v.optional(v.number()),
     cancellationFeePct: v.optional(v.number()), // 0-100
+    // AI receptionist: opt-in auto-reply to inbound SMS booking inquiries.
+    aiReceptionistEnabled: v.optional(v.boolean()),
     // Booking-page social proof: short client testimonials the studio curates.
     testimonials: v.optional(
       v.array(
@@ -1081,6 +1083,33 @@ export default defineSchema({
     active: v.boolean(),
     createdAt: v.number(),
   }).index("by_org", ["orgId"]),
+
+  // ── Prepaid hour-block packages. The studio sells a block ("10 hours, 15%
+  //    off"); a purchase creates a credit the client draws down on future
+  //    bookings. Upfront cash + commitment. ──
+  packageProducts: defineTable({
+    orgId: v.string(),
+    name: v.string(),
+    hours: v.number(),
+    priceCents: v.number(),
+    description: v.optional(v.string()),
+    active: v.boolean(),
+  }).index("by_org", ["orgId"]),
+
+  packageCredits: defineTable({
+    orgId: v.string(),
+    artistId: v.id("artists"),
+    productId: v.optional(v.id("packageProducts")),
+    name: v.string(),
+    hoursTotal: v.number(),
+    hoursRemaining: v.number(),
+    priceCents: v.number(),
+    status: v.union(v.literal("active"), v.literal("depleted"), v.literal("expired")),
+    purchasedAt: v.number(),
+    stripeReference: v.optional(v.string()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_artist", ["orgId", "artistId"]),
 
   // ── Reviews / testimonials collected after sessions. A post-session request
   //    links a token; the client rates + writes a note. Owner can hide any.

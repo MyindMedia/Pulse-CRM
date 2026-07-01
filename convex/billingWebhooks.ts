@@ -4,6 +4,7 @@ import { Id } from "./_generated/dataModel";
 import { tierForPriceId } from "./lib/stripe";
 import { settlePayment } from "./payments";
 import { settleInvoice } from "./invoicePay";
+import { applyPackagePurchase } from "./packages";
 import { internal } from "./_generated/api";
 
 /* ============================================================
@@ -79,6 +80,25 @@ export const handle = internalMutation({
         }
         // Mark processed so a Stripe retry of this event can't double-record the
         // payment (settlePayment is not idempotent per-event).
+        await markProcessed(ctx, event.id, e.type);
+        return { ok: true };
+      }
+
+      // Prepaid hour-block package bought on a studio's connected account.
+      // Metadata carries kind/productId/artistId/orgId; create the credit. The
+      // event-id guard above makes this idempotent (a Stripe retry short-circuits
+      // at alreadyProcessed, so the credit is never double-created).
+      if (meta.kind === "package" && meta.productId && meta.artistId && meta.orgId) {
+        try {
+          await applyPackagePurchase(ctx, {
+            orgId: meta.orgId,
+            productId: meta.productId as Id<"packageProducts">,
+            artistId: meta.artistId as Id<"artists">,
+            stripeReference: (obj.payment_intent as string) ?? (obj.id as string),
+          });
+        } catch (err) {
+          console.error("[webhook] package credit skipped:", (err as Error).message);
+        }
         await markProcessed(ctx, event.id, e.type);
         return { ok: true };
       }

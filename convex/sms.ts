@@ -289,7 +289,7 @@ export const _handleInbound = internalMutation({
     const artists = await ctx.db.query("artists").collect();
     const match = artists.find((a) => a.phone && normalizePhone(a.phone) === phone);
     if (match) {
-      await ctx.db.insert("clientMessages", {
+      const clientMessageId = await ctx.db.insert("clientMessages", {
         orgId: match.orgId,
         artistId: match._id,
         direction: "in",
@@ -298,6 +298,24 @@ export const _handleInbound = internalMutation({
         channel: "sms",
         status: "received",
       });
+
+      // AI receptionist (opt-in, Tier 4): when the studio has enabled it, hand
+      // the inbound off to an action that may auto-reply with the booking link.
+      // We only SCHEDULE it here (this is a mutation - no LLM/HTTP inline), and
+      // all opt-out/recording behavior above stays intact + unconditional.
+      const org = await ctx.db
+        .query("orgs")
+        .withIndex("by_org", (q) => q.eq("orgId", match.orgId))
+        .first();
+      if (org?.aiReceptionistEnabled === true) {
+        await ctx.scheduler.runAfter(0, internal.receptionist.handle, {
+          orgId: match.orgId,
+          from,
+          body,
+          clientMessageId,
+          artistId: match._id,
+        });
+      }
     }
   },
 });

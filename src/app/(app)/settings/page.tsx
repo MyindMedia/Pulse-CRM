@@ -21,6 +21,7 @@ import { UsagePanel } from "@/components/settings/usage-panel";
 import { ExportPanel } from "@/components/settings/export-panel";
 import { MembershipsPanel } from "@/components/settings/memberships-panel";
 import { InventoryImportPanel } from "@/components/settings/inventory-import-panel";
+import { AiReceptionistPanel } from "@/components/settings/ai-receptionist-panel";
 import type { Org } from "@/components/settings/types";
 import { CapabilityGuard } from "@/components/shell/capability-guard";
 
@@ -118,7 +119,16 @@ function SettingsView() {
             </div>
           </TabsContent>
           <TabsContent value="integrations">
-            <IntegrationsPanel />
+            <div className="space-y-5">
+              <IntegrationsPanel />
+              <div className="pt-2">
+                <h2 className="font-grotesk text-base font-semibold text-bone">AI receptionist</h2>
+                <p className="text-sm text-steel">
+                  Never miss a booking inquiry - auto-reply to inbound texts with your booking link.
+                </p>
+              </div>
+              <AiReceptionistPanel org={org} />
+            </div>
           </TabsContent>
           <TabsContent value="memberships">
             <MembershipsPanel />

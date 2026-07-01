@@ -2,6 +2,18 @@
 
 _Four-agent assessment, 2026-07-01: owner-value lens (code-traced), operator-day lens (code-traced), growth/client-facing lens (code-traced), competitive research (web, cited). Synthesized and cross-ranked._
 
+## Build status (shipped 2026-07-01)
+
+Executed in five agent waves (parallel implementation agents on disjoint file sets, integrated + regression-tested + deployed between waves).
+
+- **Wave 1 - Tier 0 trust bugs** (commit `34e66f8`): discount-code redemption (was a dead link), money reconciliation (over-bill fix, cron invoicing, deposit ledger row, real send-reminder), AI deliverability (merge-token substitution, digest delivery). 529 tests.
+- **Wave 2 - Tier 1 money loop** (commit `a9682cf`): No-Show Shield (cancellation policy + forfeit/fee + waitlist-on-no-show + card-on-file), dunning ladder (3/7/14), Recovered-by-Pulse ROI ledger + tile + monthly recap. 544 tests.
+- **Wave 3 - Tier 2 operator loop** (commit `262511a`): Today command center, session floor actions (extend/add-gear/timer/eng-log/check-in/rebook), per-member notifications + activity bell, PWA manifest. 561 tests.
+- **Wave 4 - Tier 3 growth** (commit `4b81579`): reviews + referral loop, booking-page social proof + referral attribution + SMS confirms + clickable Powered-by-Pulse, portal upgrades (book-again/pay/deliverable downloads), onboarding share-moment + client CSV import. 590 tests.
+- **Wave 5 - Tier 4 in-app** (in progress): AI SMS receptionist (opt-in auto-reply to booking inquiries), prepaid hour-block packages.
+
+**Deferred to marketing-site scope (handoff, not in this app repo):** the anti-StudioHero comparison page, the "Find a Studio on Pulse" SEO directory, and the annual "State of the Recording Studio" benchmark report. **Deferred (needs infra):** web push (VAPID + a subscriptions table); the booking-funnel visit tracker (needs page-visit events). **Best-effort/partial:** card-on-file auto-charge ships the SetupIntent + off-session charge path; the client-side card-capture Elements UI is the remaining follow-up (the No-Show Shield operates fully via the fee-invoice path meanwhile).
+
 ## The thesis
 
 Pulse already detects money problems better than anything in the category. What it doesn't yet do is **act on them automatically and take credit for the dollars**. Three of four agents independently converged on the same conclusion:

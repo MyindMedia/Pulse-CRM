@@ -69,6 +69,8 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     taxState: org?.taxState ?? null,
     taxRate: org?.taxRate ?? null,
     taxApply: org?.taxApply ?? false,
+    // AI SMS receptionist (Tier 4) - opt-in, default off.
+    aiReceptionistEnabled: org?.aiReceptionistEnabled === true,
     // Agency rebilling state (null for standalone studios with no agency plan).
     billing: await billingOf(ctx, org),
   };
@@ -352,5 +354,19 @@ export const setTaxConfig = mutation({
       taxRate: rate,
       taxApply: apply,
     });
+  },
+});
+
+/** Toggle the AI SMS receptionist (Tier 4). Opt-in, default off: when on, an
+ *  inbound booking text gets an instant auto-reply with the studio's booking
+ *  link (see convex/receptionist.ts for the compliance posture). Gated on
+ *  branding.edit (mirrors the other studio-config toggles). */
+export const setAiReceptionist = mutation({
+  args: { enabled: v.boolean() },
+  handler: async (ctx, { enabled }) => {
+    const orgId = await currentOrgWithCapability(ctx, "branding.edit");
+    const org = await ensureOrg(ctx, orgId);
+    if (!org) throw new Error("Org not found");
+    await ctx.db.patch(org._id, { aiReceptionistEnabled: enabled });
   },
 });

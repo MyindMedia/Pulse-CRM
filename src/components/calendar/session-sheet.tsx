@@ -20,6 +20,7 @@ import {
   Timer,
   Clock,
   PackagePlus,
+  PackageCheck,
   NotebookPen,
   CalendarPlus,
   Plus,
@@ -286,6 +287,15 @@ export function SessionSheet({
                 cancelled={detail.status === "cancelled"}
               />
 
+              {/* Apply prepaid package hours - draw down a client's active credit */}
+              {detail.status !== "cancelled" && (
+                <ApplyPackagePanel
+                  sessionId={detail._id}
+                  artistId={detail.artistId}
+                  rateCents={detail.rateCents}
+                />
+              )}
+
               {/* Collect balance on the spot - pay link + QR / copy / text */}
               <CollectBalancePanel
                 sessionId={detail._id}
@@ -476,6 +486,110 @@ function CollectBalancePanel({
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/**
+ * Apply prepaid package hours to this session. Shows the client's active credits
+ * (hours remaining + per-hour value); the operator picks a credit and applies N
+ * hours, which reduces the session's charged rate and draws the balance down.
+ * Studio-initiated - the public booking flow is untouched.
+ */
+function ApplyPackagePanel({
+  sessionId,
+  artistId,
+  rateCents,
+}: {
+  sessionId: Id<"sessions">;
+  artistId: Id<"artists">;
+  rateCents: number;
+}) {
+  const credits = useQuery(api.packages.creditsForArtist, { artistId });
+  const redeem = useMutation(api.packages.redeem);
+  const [creditId, setCreditId] = useState("");
+  const [hours, setHours] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  // Nothing to show until the client has an active credit with hours left.
+  if (!credits || credits.length === 0) return null;
+
+  const selected = credits.find((c) => c._id === creditId) ?? null;
+
+  async function apply() {
+    if (!selected) {
+      toast.error("Pick a package first.");
+      return;
+    }
+    const n = parseFloat(hours);
+    if (!Number.isFinite(n) || n <= 0) {
+      toast.error("Enter how many hours to apply.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const res = await redeem({
+        sessionId,
+        creditId: selected._id,
+        hours: n,
+      });
+      toast.success(
+        `Applied ${res.hoursApplied}h - ${money(res.valueCents)} covered, rate now ${money(res.rateCents)}`,
+      );
+      setHours("");
+      setCreditId("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not apply the package");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3 rounded-md border border-gold/25 bg-gold/[0.04] p-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="inline-flex items-center gap-1.5 text-xs font-medium text-steel">
+          <PackageCheck className="size-3.5 text-gold" />
+          Apply package hours
+        </p>
+        <span className="font-meta text-xs text-steel">Rate {money(rateCents)}</span>
+      </div>
+
+      <Select value={creditId} onValueChange={setCreditId}>
+        <SelectTrigger>
+          <SelectValue placeholder="Choose a prepaid block" />
+        </SelectTrigger>
+        <SelectContent>
+          {credits.map((c) => (
+            <SelectItem key={c._id} value={c._id}>
+              {c.name} · {c.hoursRemaining}h left · {money(c.perHourCents)}/hr
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-end">
+        <Field label="Hours to apply" className="flex-1">
+          <Input
+            type="number"
+            min={0}
+            step="0.5"
+            inputMode="decimal"
+            value={hours}
+            onChange={(e) => setHours(e.target.value)}
+            placeholder={selected ? String(selected.hoursRemaining) : "0"}
+          />
+        </Field>
+        <Button
+          size="sm"
+          variant="primary"
+          disabled={busy || !selected}
+          onClick={() => void apply()}
+        >
+          <PackageCheck className="size-3.5" />
+          Apply
+        </Button>
+      </div>
     </div>
   );
 }
