@@ -67,6 +67,39 @@ export const recent = query({
   },
 });
 
+/* The transactional events worth pushing to a teammate's phone in-app: money
+   landing, sessions moving, and cancellations. Filtered from the org-wide
+   `activity` log so the bell's "Activity" view stays signal, not noise. */
+const NOTEWORTHY_ACTIVITY = new Set([
+  "booking.created",
+  "booking.held",
+  "booking.forfeited",
+  "session.created",
+  "session.confirmed",
+  "session.completed",
+  "session.assigned",
+  "invoice.paid",
+  "payment.received",
+  "shift.cancelled",
+]);
+
+/** Recent noteworthy activity (bookings, payments, completions, cancellations)
+    for the in-app notification bell. Studio-member scoped via currentOrg. */
+export const activityFeed = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, { limit }) => {
+    const orgId = await currentOrg(ctx);
+    // Over-fetch then filter so we still surface a full page of noteworthy rows
+    // even when chatty low-signal activity dominates the raw log.
+    const rows = await ctx.db
+      .query("activity")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .order("desc")
+      .take(150);
+    return rows.filter((r) => NOTEWORTHY_ACTIVITY.has(r.kind)).slice(0, limit ?? 20);
+  },
+});
+
 export const forSession = query({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {

@@ -46,15 +46,31 @@ const DURATIONS = [
   { label: "8 hours", mins: 480 },
 ];
 
+/** A prior session distilled to the fields worth carrying into a rebook, so
+ *  booking a regular is just picking a new date + time. */
+export type SessionPrefill = {
+  artistId?: string;
+  artistName: string;
+  serviceType?: string;
+  roomId?: string;
+  engineerId?: string;
+  songId?: string;
+  rateCents?: number;
+  title?: string;
+};
+
 /** Multi-step session booking modal. Submits to sessions.create. */
 export function BookSessionDialog({
   open,
   onOpenChange,
   initialDate,
+  prefillFrom,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   initialDate?: number;
+  /** Seed the dialog from a prior session (one-tap rebook). */
+  prefillFrom?: SessionPrefill;
 }) {
   const rooms = useQuery(api.rooms.bookable);
   const engineers = useQuery(api.members.engineers);
@@ -107,6 +123,19 @@ export function BookSessionDialog({
     if (open) {
       // eslint-disable-next-line react-hooks/purity -- one-shot "today" snapshot on open transition
       setDate(toDateInputValue(initialDate ?? Date.now()));
+      // One-tap rebook: carry the client / service / room / engineer / rate
+      // from a prior session so only the new date + time remain to choose.
+      if (prefillFrom) {
+        setClient({ artistId: prefillFrom.artistId, name: prefillFrom.artistName });
+        if (prefillFrom.songId) setSongId(prefillFrom.songId);
+        if (prefillFrom.serviceType) setServiceType(prefillFrom.serviceType);
+        if (prefillFrom.roomId) setRoomId(prefillFrom.roomId);
+        if (prefillFrom.engineerId) setEngineerId(prefillFrom.engineerId);
+        if (prefillFrom.title) setTitle(prefillFrom.title);
+        if (prefillFrom.rateCents && prefillFrom.rateCents > 0) {
+          setRate(String(prefillFrom.rateCents / 100));
+        }
+      }
     }
   }
 

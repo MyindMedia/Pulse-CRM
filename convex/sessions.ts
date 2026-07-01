@@ -6,6 +6,11 @@ import {
   assertNoBufferConflict,
   recomputeRoomStatus,
 } from "./lib/roomStatus";
+import {
+  bookedUnits,
+  gearAvailable,
+  addOnsTotalCents,
+} from "./lib/gearRental";
 import { money } from "./lib/money";
 import { notify } from "./lib/notify";
 import { stageChecklistsFor, dropPreChecklistFor } from "./checklists";
@@ -694,6 +699,216 @@ export const completeIntake = mutation({
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) throw new Error("Not found");
     await ctx.db.patch(id, { intakeCompleted: true });
+  },
+});
+
+/* ============================================================
+   Mid-session / turnover floor actions - the things operators need
+   once a session is on the calendar: extend or reschedule the window,
+   add gear on the fly, and rebook. All gated to `sessions.edit`.
+   ============================================================ */
+
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * Rescale a by-duration rate when a session's window length changes. The
+ * effective hourly rate is derived from the SESSION itself (rate minus any
+ * gear add-ons, over the current hours) so room-rate and custom-priced
+ * sessions both scale correctly. Comp / discount proportionality is preserved
+ * by scaling the list value the same way and holding the charged/list ratio
+ * constant. Deposit and amountPaid are never touched here - the overtime lands
+ * on the outstanding balance through the normal completion-invoice flow.
+ * Returns null when the duration is unchanged (or degenerate).
+ */
+function recomputeDurationRate(
+  s: Doc<"sessions">,
+  newStart: number,
+  newEnd: number,
+): { rateCents: number; listValueCents?: number } | null {
+  const oldMs = s.endTime - s.startTime;
+  const newMs = newEnd - newStart;
+  if (oldMs <= 0 || newMs === oldMs) return null;
+  const addOnTotal = addOnsTotalCents(s.addOns ?? []);
+  const scale = newMs / oldMs;
+  if (s.listValueCents && s.listValueCents > 0) {
+    const listRoom = Math.max(0, s.listValueCents - addOnTotal);
+    const newListValue = Math.round(listRoom * scale) + addOnTotal;
+    const ratio = s.rateCents / s.listValueCents;
+    return { rateCents: Math.round(newListValue * ratio), listValueCents: newListValue };
+  }
+  const room = Math.max(0, s.rateCents - addOnTotal);
+  return { rateCents: Math.round(room * scale) + addOnTotal };
+}
+
+/**
+ * Shared reschedule engine: conflict-check the new window against other live
+ * sessions in the same room (15-minute reset buffer, self excluded), recompute
+ * the by-duration rate, keep the engineer shift + room status + Google mirror
+ * in sync, and log the change. Both `reschedule` and `extend` route through it.
+ */
+async function applyReschedule(
+  ctx: MutationCtx,
+  orgId: string,
+  s: Doc<"sessions">,
+  startTime: number,
+  endTime: number,
+): Promise<{ rateCents: number; startTime: number; endTime: number }> {
+  if (endTime <= startTime) throw new Error("The session must end after it starts.");
+  await assertNoBufferConflict(ctx, s.roomId, startTime, endTime, s._id);
+
+  const rate = recomputeDurationRate(s, startTime, endTime);
+  const patch: Record<string, unknown> = { startTime, endTime };
+  if (rate) {
+    patch.rateCents = rate.rateCents;
+    if (rate.listValueCents !== undefined) patch.listValueCents = rate.listValueCents;
+  }
+  await ctx.db.patch(s._id, patch);
+
+  // Keep the engineer's auto-shift aligned with the new window (soft warning
+  // only, never blocks), then refresh room status + the Google mirror.
+  await ensureSessionShift(ctx, {
+    _id: s._id,
+    orgId,
+    engineerId: s.engineerId ?? null,
+    roomId: s.roomId ?? null,
+    startTime,
+    endTime,
+  });
+  if (s.roomId) await recomputeRoomStatus(ctx, s.roomId);
+  await scheduleGoogleCalendarPush(ctx, s._id);
+
+  const deltaMins = Math.round((endTime - startTime - (s.endTime - s.startTime)) / 60_000);
+  const newRate = rate?.rateCents ?? s.rateCents;
+  const summary =
+    deltaMins !== 0
+      ? `${s.title} ${deltaMins > 0 ? "extended" : "shortened"} by ${Math.abs(deltaMins)} min${
+          rate ? ` - rate now ${money(newRate)}` : ""
+        }`
+      : `${s.title} moved to ${longDateLite(startTime)}`;
+  await ctx.db.insert("activity", {
+    orgId,
+    kind: "session.rescheduled",
+    summary,
+    entityType: "session",
+    entityId: s._id,
+    accent: "info",
+  });
+  return { rateCents: newRate, startTime, endTime };
+}
+
+/** Move a session to a new window (drag-to-reschedule / manual edit). Gated
+ *  `sessions.edit`; conflict-checked; recomputes the by-duration rate. */
+export const reschedule = mutation({
+  args: { id: v.id("sessions"), startTime: v.number(), endTime: v.number() },
+  handler: async (ctx, { id, startTime, endTime }) => {
+    const orgId = await currentOrgWithCapability(ctx, "sessions.edit");
+    const s = await ctx.db.get(id);
+    if (!s || s.orgId !== orgId) throw new Error("Not found");
+    return applyReschedule(ctx, orgId, s, startTime, endTime);
+  },
+});
+
+/** Extend (or trim, with a negative value) a session's end time by N minutes -
+ *  the mid-session overtime button. Gated `sessions.edit`; overtime becomes
+ *  billable through the recomputed rate + normal balance flow. */
+export const extend = mutation({
+  args: { id: v.id("sessions"), addMinutes: v.number() },
+  handler: async (
+    ctx,
+    { id, addMinutes },
+  ): Promise<{ rateCents: number; startTime: number; endTime: number }> => {
+    const orgId = await currentOrgWithCapability(ctx, "sessions.edit");
+    const s = await ctx.db.get(id);
+    if (!s || s.orgId !== orgId) throw new Error("Not found");
+    const mins = Math.round(addMinutes);
+    if (mins === 0) throw new Error("Pick how long to extend the session.");
+    const endTime = s.endTime + mins * 60_000;
+    return applyReschedule(ctx, orgId, s, s.startTime, endTime);
+  },
+});
+
+/** Rentable gear that can still be added to this session's window, each priced
+ *  and conflict-checked so a single unit already committed to an overlapping
+ *  session shows as unavailable. Drives the "Add gear" control in the sheet. */
+export const gearOptions = query({
+  args: { id: v.id("sessions") },
+  handler: async (ctx, { id }) => {
+    const orgId = await currentOrg(ctx);
+    const s = await ctx.db.get(id);
+    if (!s || s.orgId !== orgId) return [];
+    const around = await ctx.db
+      .query("sessions")
+      .withIndex("by_org_start", (q) =>
+        q.eq("orgId", orgId).gte("startTime", s.startTime - DAY_MS).lt("startTime", s.endTime),
+      )
+      .collect();
+    const already = new Set((s.addOns ?? []).map((a) => a.equipmentId));
+    const equip = await ctx.db
+      .query("equipment")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect();
+    return equip
+      .filter((e) => e.rentable)
+      .map((e) => {
+        const booked = bookedUnits(e._id, s.startTime, s.endTime, around, s._id);
+        return {
+          id: e._id,
+          name: e.name,
+          category: e.category,
+          priceCents: e.rentalPriceCents ?? 0,
+          alreadyOn: already.has(e._id),
+          available: !already.has(e._id) && gearAvailable(e, booked),
+        };
+      })
+      .sort((a, b) => Number(b.available) - Number(a.available) || a.name.localeCompare(b.name));
+  },
+});
+
+/** Append a gear add-on to an existing session and fold its rental price into
+ *  the rate. Gated `sessions.edit`; conflict-checks single-unit gear against
+ *  overlapping sessions (same rule as the public booking add-ons). */
+export const addGear = mutation({
+  args: { id: v.id("sessions"), equipmentId: v.id("equipment") },
+  handler: async (ctx, { id, equipmentId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "sessions.edit");
+    const s = await ctx.db.get(id);
+    if (!s || s.orgId !== orgId) throw new Error("Not found");
+    const item = await ctx.db.get(equipmentId);
+    if (!item || item.orgId !== orgId || !item.rentable) {
+      throw new Error("That gear isn't available to rent.");
+    }
+    if ((s.addOns ?? []).some((a) => a.equipmentId === equipmentId)) {
+      throw new Error(`${item.name} is already on this session.`);
+    }
+    const around = await ctx.db
+      .query("sessions")
+      .withIndex("by_org_start", (q) =>
+        q.eq("orgId", orgId).gte("startTime", s.startTime - DAY_MS).lt("startTime", s.endTime),
+      )
+      .collect();
+    const booked = bookedUnits(item._id, s.startTime, s.endTime, around, s._id);
+    if (!gearAvailable(item, booked)) {
+      throw new Error(`${item.name} is booked on another overlapping session.`);
+    }
+    const priceCents = item.rentalPriceCents ?? 0;
+    const addOns = [...(s.addOns ?? []), { equipmentId: item._id, name: item.name, priceCents }];
+    const patch: Record<string, unknown> = { addOns, rateCents: s.rateCents + priceCents };
+    // The rental is billed at full price even on a comped / discounted session,
+    // so fold it into the list value too - that keeps foregone (list - charged)
+    // unchanged rather than silently comping the gear.
+    if (s.listValueCents && s.listValueCents > 0) {
+      patch.listValueCents = s.listValueCents + priceCents;
+    }
+    await ctx.db.patch(id, patch);
+    await ctx.db.insert("activity", {
+      orgId,
+      kind: "session.gear.added",
+      summary: `${item.name} added to "${s.title}" (+${money(priceCents)})`,
+      entityType: "session",
+      entityId: id,
+      accent: "info",
+    });
+    return { rateCents: s.rateCents + priceCents, addOnTotalCents: addOnsTotalCents(addOns) };
   },
 });
 

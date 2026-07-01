@@ -43,10 +43,20 @@ function CalendarView() {
   const router = useRouter();
   const params = useSearchParams();
 
-  const now = new Date();
-  const [year, setYear] = useState(now.getFullYear());
-  const [month, setMonth] = useState(now.getMonth());
+  const [year, setYear] = useState(() => new Date().getFullYear());
+  const [month, setMonth] = useState(() => new Date().getMonth());
+  // On a phone the month grid is unreadable, so default to the agenda/list view
+  // there. Desktop keeps the month grid. Resolved once at mount (SSR renders the
+  // desktop default; the client corrects immediately before paint on mobile) -
+  // a legitimate one-time media-query default, so the set-state-in-effect nudge
+  // does not apply.
   const [view, setView] = useState<ViewMode>("month");
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.matchMedia("(max-width: 767px)").matches) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setView("agenda");
+    }
+  }, []);
   const [openSessionId, setOpenSessionId] = useState<string | null>(null);
   const [bookOpen, setBookOpen] = useState(false);
   const [bookDate, setBookDate] = useState<number | undefined>(undefined);

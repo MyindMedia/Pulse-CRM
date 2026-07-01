@@ -140,6 +140,7 @@ import type * as studioBrain from "../studioBrain.js";
 import type * as studioManager from "../studioManager.js";
 import type * as testHarness from "../testHarness.js";
 import type * as timeclock from "../timeclock.js";
+import type * as today from "../today.js";
 import type * as twilioA2P from "../twilioA2P.js";
 import type * as usage from "../usage.js";
 import type * as waitlist from "../waitlist.js";
@@ -283,6 +284,7 @@ declare const fullApi: ApiFromModules<{
   studioManager: typeof studioManager;
   testHarness: typeof testHarness;
   timeclock: typeof timeclock;
+  today: typeof today;
   twilioA2P: typeof twilioA2P;
   usage: typeof usage;
   waitlist: typeof waitlist;

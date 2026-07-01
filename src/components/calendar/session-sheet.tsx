@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -17,6 +17,12 @@ import {
   Check,
   MessageSquare,
   Link2,
+  Timer,
+  Clock,
+  PackagePlus,
+  NotebookPen,
+  CalendarPlus,
+  Plus,
 } from "lucide-react";
 import {
   Sheet,
@@ -32,6 +38,14 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/feedback";
+import { Field, Input, Textarea } from "@/components/ui/field";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { money, longDate, timeOfDay, duration } from "@/lib/format";
 import { meta, SESSION_STATUS, titleCase } from "@/lib/labels";
 import { PaymentPanel } from "@/components/bookings/payment-panel";
@@ -39,6 +53,7 @@ import { statusColor } from "./constants";
 import { ChecklistsPanel } from "./checklists-panel";
 import { SessionAiPanel } from "@/components/ai/session-ai-panel";
 import { CompDialog } from "./comp-dialog";
+import { BookSessionDialog, type SessionPrefill } from "./book-session-dialog";
 import { Gift } from "lucide-react";
 
 type SessionStatus =
@@ -112,6 +127,7 @@ export function SessionSheet({
   const setStatus = useMutation(api.sessions.setStatus);
   const completeIntake = useMutation(api.sessions.completeIntake);
   const [compOpen, setCompOpen] = useState(false);
+  const [rebookOpen, setRebookOpen] = useState(false);
 
   const [busy, setBusy] = useState(false);
   const [prevSessionId, setPrevSessionId] = useState(sessionId);
@@ -166,6 +182,7 @@ export function SessionSheet({
                 {longDate(detail.startTime)} · {timeOfDay(detail.startTime)}–
                 {timeOfDay(detail.endTime)} ({duration(detail.startTime, detail.endTime)})
               </SheetDescription>
+              {detail.status === "in_progress" && <LiveTimer startTime={detail.startTime} />}
             </SheetHeader>
 
             <SheetBody className="space-y-5">
@@ -244,66 +261,21 @@ export function SessionSheet({
                 </div>
               )}
 
+              {/* Mid-session floor actions: extend the window + add gear */}
+              {detail.status !== "cancelled" &&
+                detail.status !== "no_show" &&
+                detail.status !== "completed" && (
+                  <FloorActionsPanel sessionId={detail._id} busy={busy} setBusy={setBusy} />
+                )}
+
               {/* Pre + post session checklists for staff / interns */}
               <ChecklistsPanel sessionId={detail._id} />
 
               {/* AI artifacts: recap email, prep packet, reminders */}
               <SessionAiPanel sessionId={detail._id} />
 
-              {/* Engineering log - the recall sheet */}
-              <div className="space-y-2">
-                <p className="text-xs font-medium text-steel">Engineering log</p>
-                {!detail.engineeringLog ? (
-                  <p className="rounded-md border border-dashed border-graphite/60 py-6 text-center text-xs text-steel/70">
-                    No recall sheet logged for this session yet.
-                  </p>
-                ) : (
-                  <div className="space-y-2 rounded-md border border-graphite/50 bg-coal-2 p-3">
-                    <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
-                      {(
-                        [
-                          ["Sample rate", detail.engineeringLog.sampleRate],
-                          ["Bit depth", detail.engineeringLog.bitDepth],
-                          ["Tuning", detail.engineeringLog.tuningRef],
-                          ["Monitoring", detail.engineeringLog.monitoring],
-                          ["Tempo map", detail.engineeringLog.tempoMap],
-                        ] as const
-                      )
-                        .filter(([, val]) => Boolean(val))
-                        .map(([label, val]) => (
-                          <div key={label}>
-                            <p className="font-meta text-[0.5625rem] uppercase tracking-wide text-steel/70">
-                              {label}
-                            </p>
-                            <p className="text-sm text-bone">{val}</p>
-                          </div>
-                        ))}
-                    </div>
-                    {detail.engineeringLog.signalChains.length > 0 && (
-                      <div className="space-y-1 border-t border-graphite/50 pt-2">
-                        <p className="font-meta text-[0.5625rem] uppercase tracking-wide text-steel/70">
-                          Signal chains
-                        </p>
-                        {detail.engineeringLog.signalChains.map((chain, i) => (
-                          <p key={i} className="text-xs text-steel">
-                            <span className="text-bone">{chain.track}</span>
-                            {chain.mic || chain.preamp || chain.outboard
-                              ? ` - ${[chain.mic, chain.preamp, chain.outboard]
-                                  .filter(Boolean)
-                                  .join(" / ")}`
-                              : ""}
-                          </p>
-                        ))}
-                      </div>
-                    )}
-                    {detail.engineeringLog.notes && (
-                      <p className="border-t border-graphite/50 pt-2 text-xs leading-relaxed text-steel">
-                        {detail.engineeringLog.notes}
-                      </p>
-                    )}
-                  </div>
-                )}
-              </div>
+              {/* Engineering log - the recall sheet, now editable */}
+              <RecallPanel sessionId={detail._id} log={detail.engineeringLog ?? null} />
 
               {/* Payment - booking ledger and staff record-a-payment */}
               <PaymentPanel
@@ -377,9 +349,35 @@ export function SessionSheet({
                 </Button>
               ))}
 
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={busy}
+                onClick={() => setRebookOpen(true)}
+              >
+                <CalendarPlus className="size-3.5" />
+                Book again
+              </Button>
+
               {busy && <Spinner />}
             </SheetFooter>
             <CompDialog session={detail} open={compOpen} onOpenChange={setCompOpen} />
+            <BookSessionDialog
+              open={rebookOpen}
+              onOpenChange={setRebookOpen}
+              prefillFrom={
+                {
+                  artistId: detail.artistId,
+                  artistName: detail.artistName,
+                  serviceType: detail.serviceType,
+                  roomId: detail.roomId ?? undefined,
+                  engineerId: detail.engineerId ?? undefined,
+                  songId: detail.songId ?? undefined,
+                  rateCents: detail.rateCents,
+                  title: detail.title,
+                } satisfies SessionPrefill
+              }
+            />
           </>
         )}
       </SheetContent>
@@ -476,6 +474,307 @@ function CollectBalancePanel({
               </Button>
             </div>
           </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/**
+ * Live elapsed-time readout for a session that's in progress. Ticks client-side
+ * every second, counting up from the scheduled start.
+ */
+function LiveTimer({ startTime }: { startTime: number }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(t);
+  }, []);
+  const totalSec = Math.max(0, Math.floor((now - startTime) / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return (
+    <span className="mt-1 inline-flex items-center gap-1.5 font-meta text-xs font-semibold text-gold-bright">
+      <Timer className="size-3.5 animate-pulse" />
+      {h > 0 ? `${h}:${pad(m)}:${pad(s)}` : `${pad(m)}:${pad(s)}`} elapsed
+    </span>
+  );
+}
+
+/**
+ * Mid-session / turnover floor actions: quick-extend the window (+30 / +60,
+ * overtime becomes billable through the recomputed rate) and add premium gear
+ * to a live session (conflict-checked, price folded into the rate).
+ */
+function FloorActionsPanel({
+  sessionId,
+  busy,
+  setBusy,
+}: {
+  sessionId: Id<"sessions">;
+  busy: boolean;
+  setBusy: (b: boolean) => void;
+}) {
+  const extend = useMutation(api.sessions.extend);
+  const addGear = useMutation(api.sessions.addGear);
+  const gear = useQuery(api.sessions.gearOptions, { id: sessionId });
+  const [gearId, setGearId] = useState("");
+
+  async function runExtend(mins: number) {
+    setBusy(true);
+    try {
+      const res = await extend({ id: sessionId, addMinutes: mins });
+      toast.success(`Extended ${mins} min - rate now ${money(res.rateCents)}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not extend the session");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function runAddGear() {
+    if (!gearId) return;
+    setBusy(true);
+    try {
+      const res = await addGear({ id: sessionId, equipmentId: gearId as Id<"equipment"> });
+      toast.success(`Gear added - rate now ${money(res.rateCents)}`);
+      setGearId("");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not add the gear");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  const options = (gear ?? []).filter((g) => g.available);
+
+  return (
+    <div className="space-y-3 rounded-md border border-graphite/50 bg-coal-2 p-3">
+      <p className="inline-flex items-center gap-1.5 text-xs font-medium text-steel">
+        <Clock className="size-3.5 text-gold" />
+        Floor actions
+      </p>
+
+      <div className="space-y-1.5">
+        <p className="font-meta text-[0.5625rem] uppercase tracking-wide text-steel/70">
+          Extend session
+        </p>
+        <div className="flex flex-wrap gap-2">
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => runExtend(30)}>
+            <Plus className="size-3.5" />
+            30 min
+          </Button>
+          <Button size="sm" variant="outline" disabled={busy} onClick={() => runExtend(60)}>
+            <Plus className="size-3.5" />
+            60 min
+          </Button>
+        </div>
+      </div>
+
+      <div className="space-y-1.5">
+        <p className="font-meta text-[0.5625rem] uppercase tracking-wide text-steel/70">
+          Add gear
+        </p>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Select value={gearId} onValueChange={setGearId}>
+            <SelectTrigger className="flex-1">
+              <SelectValue
+                placeholder={
+                  options.length ? "Select premium gear" : "No rentable gear free for this window"
+                }
+              />
+            </SelectTrigger>
+            <SelectContent>
+              {options.map((g) => (
+                <SelectItem key={g.id} value={g.id}>
+                  {g.name} · {money(g.priceCents)}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            size="sm"
+            variant="primary"
+            disabled={busy || !gearId}
+            onClick={runAddGear}
+          >
+            <PackagePlus className="size-3.5" />
+            Add
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type RecallLog = {
+  sampleRate?: string;
+  bitDepth?: string;
+  tuningRef?: string;
+  monitoring?: string;
+  tempoMap?: string;
+  notes?: string;
+  signalChains: { track: string; mic?: string; preamp?: string; outboard?: string }[];
+} | null;
+
+/**
+ * The engineering recall sheet - now editable. Shows the logged settings
+ * read-only, with a quick-capture editor (calls engineeringLogs.save) so
+ * engineers can record sample rate / monitoring / notes during or after the
+ * session. Signal chains stay read-only here (captured elsewhere).
+ */
+function RecallPanel({ sessionId, log }: { sessionId: Id<"sessions">; log: RecallLog }) {
+  const save = useMutation(api.engineeringLogs.save);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState({
+    sampleRate: "",
+    bitDepth: "",
+    tuningRef: "",
+    monitoring: "",
+    tempoMap: "",
+    notes: "",
+  });
+
+  function openEditor() {
+    setForm({
+      sampleRate: log?.sampleRate ?? "",
+      bitDepth: log?.bitDepth ?? "",
+      tuningRef: log?.tuningRef ?? "",
+      monitoring: log?.monitoring ?? "",
+      tempoMap: log?.tempoMap ?? "",
+      notes: log?.notes ?? "",
+    });
+    setEditing(true);
+  }
+
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setForm((f) => ({ ...f, [k]: e.target.value }));
+
+  async function submit() {
+    setSaving(true);
+    try {
+      await save({
+        sessionId,
+        sampleRate: form.sampleRate.trim() || undefined,
+        bitDepth: form.bitDepth.trim() || undefined,
+        tuningRef: form.tuningRef.trim() || undefined,
+        monitoring: form.monitoring.trim() || undefined,
+        tempoMap: form.tempoMap.trim() || undefined,
+        notes: form.notes.trim() || undefined,
+      });
+      toast.success("Recall sheet saved");
+      setEditing(false);
+    } catch {
+      toast.error("Could not save the recall sheet");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-medium text-steel">Engineering log</p>
+        {!editing && (
+          <button
+            type="button"
+            onClick={openEditor}
+            className="inline-flex items-center gap-1 text-[0.6875rem] font-medium text-steel transition-colors hover:text-gold"
+          >
+            <NotebookPen className="size-3" />
+            {log ? "Edit recall" : "Log recall"}
+          </button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="space-y-3 rounded-md border border-graphite/50 bg-coal-2 p-3">
+          <div className="grid grid-cols-2 gap-3">
+            <Field label="Sample rate">
+              <Input value={form.sampleRate} onChange={set("sampleRate")} placeholder="48 kHz" />
+            </Field>
+            <Field label="Bit depth">
+              <Input value={form.bitDepth} onChange={set("bitDepth")} placeholder="24-bit" />
+            </Field>
+            <Field label="Tuning">
+              <Input value={form.tuningRef} onChange={set("tuningRef")} placeholder="A440" />
+            </Field>
+            <Field label="Monitoring">
+              <Input value={form.monitoring} onChange={set("monitoring")} placeholder="NS-10" />
+            </Field>
+            <Field label="Tempo map">
+              <Input value={form.tempoMap} onChange={set("tempoMap")} placeholder="92 BPM" />
+            </Field>
+          </div>
+          <Field label="Notes">
+            <Textarea
+              rows={3}
+              value={form.notes}
+              onChange={set("notes")}
+              placeholder="Recall notes, patch changes, anything the next session needs."
+            />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <Button size="sm" variant="ghost" disabled={saving} onClick={() => setEditing(false)}>
+              Cancel
+            </Button>
+            <Button size="sm" variant="primary" disabled={saving} onClick={submit}>
+              {saving && <Spinner className="text-gold-ink" />}
+              {saving ? "Saving…" : "Save recall"}
+            </Button>
+          </div>
+        </div>
+      ) : !log ? (
+        <p className="rounded-md border border-dashed border-graphite/60 py-6 text-center text-xs text-steel/70">
+          No recall sheet logged for this session yet.
+        </p>
+      ) : (
+        <div className="space-y-2 rounded-md border border-graphite/50 bg-coal-2 p-3">
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+            {(
+              [
+                ["Sample rate", log.sampleRate],
+                ["Bit depth", log.bitDepth],
+                ["Tuning", log.tuningRef],
+                ["Monitoring", log.monitoring],
+                ["Tempo map", log.tempoMap],
+              ] as const
+            )
+              .filter(([, val]) => Boolean(val))
+              .map(([label, val]) => (
+                <div key={label}>
+                  <p className="font-meta text-[0.5625rem] uppercase tracking-wide text-steel/70">
+                    {label}
+                  </p>
+                  <p className="text-sm text-bone">{val}</p>
+                </div>
+              ))}
+          </div>
+          {log.signalChains.length > 0 && (
+            <div className="space-y-1 border-t border-graphite/50 pt-2">
+              <p className="font-meta text-[0.5625rem] uppercase tracking-wide text-steel/70">
+                Signal chains
+              </p>
+              {log.signalChains.map((chain, i) => (
+                <p key={i} className="text-xs text-steel">
+                  <span className="text-bone">{chain.track}</span>
+                  {chain.mic || chain.preamp || chain.outboard
+                    ? ` - ${[chain.mic, chain.preamp, chain.outboard]
+                        .filter(Boolean)
+                        .join(" / ")}`
+                    : ""}
+                </p>
+              ))}
+            </div>
+          )}
+          {log.notes && (
+            <p className="border-t border-graphite/50 pt-2 text-xs leading-relaxed text-steel">
+              {log.notes}
+            </p>
+          )}
         </div>
       )}
     </div>

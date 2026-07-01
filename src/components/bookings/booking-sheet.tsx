@@ -1,13 +1,17 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useState } from "react";
+import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
+import { toast } from "sonner";
 import {
   AlertTriangle,
+  CheckCircle2,
   Clock,
   DoorOpen,
   Globe,
   Headphones,
+  LogIn,
   Mail,
   MessageSquare,
   Music2,
@@ -19,13 +23,16 @@ import {
   SheetTitle,
   SheetDescription,
   SheetBody,
+  SheetFooter,
 } from "@/components/ui/sheet";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Spinner } from "@/components/ui/feedback";
 import { longDate, timeOfDay, duration, relativeTime } from "@/lib/format";
 import { meta, SESSION_STATUS } from "@/lib/labels";
-import type { BookingRow, NotificationRow } from "./types";
+import type { BookingRow, NotificationRow, SessionStatus } from "./types";
 import { isOnline } from "./types";
 import { HoldCountdown } from "./hold-countdown";
 import { PaymentPanel } from "./payment-panel";
@@ -120,6 +127,27 @@ function MessageLog({ sessionId }: { sessionId: BookingRow["_id"] }) {
   );
 }
 
+/** Status transitions offered from the Bookings screen, mirroring the calendar
+ *  SessionSheet workflow so both surfaces drive the same lifecycle. */
+const NEXT_STATUSES: Record<SessionStatus, SessionStatus[]> = {
+  tentative: ["confirmed", "cancelled"],
+  confirmed: ["in_progress", "cancelled", "no_show"],
+  in_progress: ["completed", "cancelled"],
+  completed: [],
+  cancelled: [],
+  no_show: [],
+};
+
+/** "Check in" is the first-class verb for starting a session at the front desk. */
+const STATUS_VERB: Record<SessionStatus, string> = {
+  tentative: "Confirm",
+  confirmed: "Confirm",
+  in_progress: "Check in",
+  completed: "Mark complete",
+  cancelled: "Cancel",
+  no_show: "Mark no-show",
+};
+
 /** Full booking detail drawer: schedule, payment, history and messages. */
 export function BookingSheet({
   booking,
@@ -135,6 +163,22 @@ export function BookingSheet({
     booking?.engineerId != null
       ? (engineers?.find((e) => e._id === booking.engineerId)?.photoUrl ?? null)
       : null;
+
+  const setStatus = useMutation(api.sessions.setStatus);
+  const [busy, setBusy] = useState(false);
+
+  async function run(next: SessionStatus, ok: string) {
+    if (!booking) return;
+    setBusy(true);
+    try {
+      await setStatus({ id: booking._id, status: next });
+      toast.success(ok);
+    } catch {
+      toast.error("Action failed - please retry");
+    } finally {
+      setBusy(false);
+    }
+  }
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
@@ -217,6 +261,33 @@ export function BookingSheet({
 
               <MessageLog sessionId={booking._id} />
             </SheetBody>
+
+            {NEXT_STATUSES[booking.status].length > 0 && (
+              <SheetFooter className="flex-wrap">
+                {NEXT_STATUSES[booking.status].map((next) => (
+                  <Button
+                    key={next}
+                    variant={
+                      next === "cancelled" || next === "no_show"
+                        ? "danger"
+                        : next === "in_progress"
+                          ? "primary"
+                          : "secondary"
+                    }
+                    size="sm"
+                    disabled={busy}
+                    onClick={() =>
+                      run(next, `Session ${meta(SESSION_STATUS, next).label.toLowerCase()}`)
+                    }
+                  >
+                    {next === "in_progress" && <LogIn className="size-3.5" />}
+                    {next === "completed" && <CheckCircle2 className="size-3.5" />}
+                    {STATUS_VERB[next]}
+                  </Button>
+                ))}
+                {busy && <Spinner />}
+              </SheetFooter>
+            )}
           </>
         )}
       </SheetContent>

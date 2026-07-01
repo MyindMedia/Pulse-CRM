@@ -11,10 +11,18 @@ import { cn } from "@/lib/utils";
 import { useCapabilities } from "@/lib/use-capabilities";
 
 /**
- * iOS-style bottom tab bar (mobile only). Shows the first few primary nav
- * destinations as icon tabs plus a "More" tab that opens the full nav drawer.
- * Blurred material, gold active state, and safe-area padding so it sits above
- * the home indicator without clipping. Hidden on lg+ where the sidebar shows.
+ * The hourly-use surfaces an operator actually taps on a phone, in order.
+ * The bar draws from this list (not the top of the full nav) so the bottom
+ * tabs are the daily-driver screens; everything else lives in the More drawer.
+ */
+const MOBILE_PRIMARY = ["/today", "/calendar", "/bookings", "/payments"] as const;
+
+/**
+ * iOS-style bottom tab bar (mobile only). Surfaces the operator's daily-driver
+ * destinations (Today, Calendar, Bookings, Payments) as icon tabs plus a "More"
+ * tab that opens the full nav drawer. Blurred material, gold active state, and
+ * safe-area padding so it sits above the home indicator without clipping.
+ * Hidden on lg+ where the sidebar shows.
  */
 export function MobileTabBar({ onOpenMore }: { onOpenMore: () => void }) {
   const pathname = usePathname();
@@ -24,11 +32,15 @@ export function MobileTabBar({ onOpenMore }: { onOpenMore: () => void }) {
 
   const items = React.useMemo(() => {
     const disabled = new Set(disabledFeatures ?? []);
-    return NAV.filter((item) => {
-      if (item.feature && disabled.has(item.feature)) return false;
-      if (item.capability && (!loaded || !can(item.capability))) return false;
-      return true;
-    }).slice(0, 4);
+    const byHref = new Map(NAV.map((item) => [item.href, item]));
+    return MOBILE_PRIMARY.map((href) => byHref.get(href))
+      .filter((item): item is (typeof NAV)[number] => Boolean(item))
+      .filter((item) => {
+        if (item.feature && disabled.has(item.feature)) return false;
+        if (item.capability && (!loaded || !can(item.capability))) return false;
+        return true;
+      })
+      .slice(0, 5);
   }, [disabledFeatures, can, loaded]);
 
   return (
@@ -37,7 +49,10 @@ export function MobileTabBar({ onOpenMore }: { onOpenMore: () => void }) {
       className="theme-dark-island fixed inset-x-0 bottom-0 z-30 lg:hidden material-thick border-t border-hairline-2/60"
       style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
     >
-      <div className="mx-auto grid max-w-md grid-cols-5">
+      <div
+        className="mx-auto grid max-w-md"
+        style={{ gridTemplateColumns: `repeat(${items.length + 1}, minmax(0, 1fr))` }}
+      >
         {items.map((item) => {
           const active = pathname === item.href || pathname.startsWith(`${item.href}/`);
           return (
