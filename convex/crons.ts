@@ -53,4 +53,14 @@ crons.weekly(
   internal.aiActions.runRateCutForAllOrgs,
 );
 
+// Monthly "Recovered by Pulse" recap: on the 1st, email each org owner what
+// Pulse recovered for them last month (forfeited deposits, no-show fees,
+// waitlist backfills, reminder-driven payments). Fires once, skips $0 orgs,
+// and self-guards against double-sends. The renewal-proof ROI number.
+crons.monthly(
+  "recovery-recap",
+  { day: 1, hourUTC: 14, minuteUTC: 0 },
+  internal.recoveryRecap.runMonthly,
+);
+
 export default crons;

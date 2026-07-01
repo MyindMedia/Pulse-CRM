@@ -20,6 +20,35 @@ import { createCompletionInvoice } from "./sessions";
    ============================================================ */
 
 const HOUR = 3_600_000;
+const DAY = 24 * HOUR;
+
+/** Escalating dunning copy for the overdue-invoice ladder. Distinct,
+ *  professional tone per stage; plain hyphens only, no em dashes. Reuses the
+ *  same /pay/invoice/<id> pay-link format as the manual reminder. */
+function dunningCopy(
+  stage: number,
+  number: string,
+  amount: string,
+  dueOn: string,
+  payUrl: string,
+): { subject: string; body: string } {
+  if (stage === 1) {
+    return {
+      subject: `Reminder: invoice ${number} is past due`,
+      body: `Hi there,\n\nJust a friendly reminder that invoice ${number} for ${amount} was due on ${dueOn} and is still open.\n\nPay securely online:\n${payUrl}\n\nIf you have already taken care of this, please disregard this note.`,
+    };
+  }
+  if (stage === 2) {
+    return {
+      subject: `Second notice: invoice ${number} is past due`,
+      body: `Hi there,\n\nOur records show invoice ${number} for ${amount} has been past due since ${dueOn} and remains unpaid. Please arrange payment at your earliest convenience.\n\nPay securely online:\n${payUrl}\n\nIf payment is already on its way, thank you, and please disregard this reminder.`,
+    };
+  }
+  return {
+    subject: `Final notice: invoice ${number} is significantly past due`,
+    body: `Hi there,\n\nThis is a final notice regarding invoice ${number} for ${amount}, which has been outstanding since ${dueOn} and is now significantly past due. Please settle the balance promptly to keep your account in good standing.\n\nPay securely online:\n${payUrl}\n\nIf you have already paid, please contact us so we can update our records.`,
+  };
+}
 
 type Outcome = {
   holdsReleased: number;
@@ -227,17 +256,27 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     }
   }
 
-  // 6. Invoice overdue - materialize the overdue status on sent/viewed
-  // invoices past their due date, remind the client (with the payment
-  // link) and alert the team. Fires once per invoice.
+  // 6. Overdue dunning ladder - an escalating series of reminders on open
+  //    invoices past their due date, replacing the old single-shot email:
+  //      Stage 1 (~3 days overdue)  friendly nudge + pay link
+  //      Stage 2 (~7 days overdue)  firmer reminder + pay link
+  //      Stage 3 (~14 days overdue) final notice (significantly past due)
+  //    At most one stage per sweep, each stage at most once (tracked by
+  //    invoices.reminderStage), with a >=24h gap between sends. The last-send
+  //    time is stamped on overdueNotifiedAt, which is shared with the manual
+  //    invoices.sendReminder throttle - so a manual nudge and the auto ladder
+  //    never double-email the same client inside 24h. The ladder stops after
+  //    stage 3 (it never spams past the final notice).
   const invoices = await ctx.db.query("invoices").collect();
   for (const inv of invoices) {
-    if (
-      (inv.status === "sent" || inv.status === "viewed") &&
-      inv.dueDate < now &&
-      !inv.overdueNotifiedAt
-    ) {
-      await ctx.db.patch(inv._id, { status: "overdue", overdueNotifiedAt: now });
+    const isOpen =
+      inv.status === "sent" || inv.status === "viewed" || inv.status === "overdue";
+    if (!isOpen || inv.dueDate >= now) continue;
+
+    // Materialize the stored overdue status once (mirrors effectiveStatus in
+    // invoices.ts) and drop a single activity marker the first time.
+    if (inv.status !== "overdue") {
+      await ctx.db.patch(inv._id, { status: "overdue" });
       await ctx.db.insert("activity", {
         orgId: inv.orgId,
         kind: "invoice.overdue",
@@ -246,26 +285,55 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
         entityId: inv._id,
         accent: "critical",
       });
-      const artist = await ctx.db.get(inv.artistId);
-      if (artist?.email) {
-        const payUrl = `${process.env.APP_URL ?? "http://localhost:3000"}/pay/invoice/${inv._id}`;
-        await notify(ctx, {
-          orgId: inv.orgId,
-          channel: "email",
-          recipient: artist.email,
-          subject: `Reminder: invoice ${inv.number} is past due`,
-          body: `Invoice ${inv.number} for ${money(inv.amountCents)} was due on ${new Date(inv.dueDate).toLocaleDateString("en-US", { month: "long", day: "numeric" })} and is still open.\n\nPay securely online:\n${payUrl}\n\nIf you've already paid, you can disregard this reminder.`,
-          kind: "invoice.overdue",
-        });
-      }
-      await notifyTeam(ctx, {
-        orgId: inv.orgId,
-        subject: `Invoice overdue - ${inv.number} (${money(inv.amountCents)})`,
-        body: `Invoice ${inv.number} to ${artist?.name ?? "client"} for ${money(inv.amountCents)} is past due. The client was sent a reminder with the payment link.`,
-        kind: "invoice.overdue",
-      });
-      out.invoicesOverdue++;
     }
+
+    const stageSent = inv.reminderStage ?? 0;
+    if (stageSent >= 3) continue; // ladder exhausted - do not spam forever
+
+    const daysOverdue = Math.floor((now - inv.dueDate) / DAY);
+    const nextStage = stageSent + 1;
+    const thresholdDays = nextStage === 1 ? 3 : nextStage === 2 ? 7 : 14;
+    if (daysOverdue < thresholdDays) continue; // next stage not due yet
+
+    // Min-gap: never send within 24h of the last send (auto OR manual nudge).
+    if (inv.overdueNotifiedAt && now - inv.overdueNotifiedAt < DAY) continue;
+
+    const artist = await ctx.db.get(inv.artistId);
+    if (!artist?.email) continue; // nothing to send - leave the stage unbumped
+
+    const payUrl = `${process.env.APP_URL ?? "http://localhost:3000"}/pay/invoice/${inv._id}`;
+    const dueOn = new Date(inv.dueDate).toLocaleDateString("en-US", {
+      month: "long",
+      day: "numeric",
+    });
+    const copy = dunningCopy(nextStage, inv.number, money(inv.amountCents), dueOn, payUrl);
+
+    // Bump the stage + stamp the send time before emailing so a re-entrant
+    // sweep can never double-send the same stage.
+    await ctx.db.patch(inv._id, { reminderStage: nextStage, overdueNotifiedAt: now });
+    await notify(ctx, {
+      orgId: inv.orgId,
+      channel: "email",
+      recipient: artist.email,
+      subject: copy.subject,
+      body: copy.body,
+      kind: "invoice.dunning",
+    });
+    await ctx.db.insert("activity", {
+      orgId: inv.orgId,
+      kind: "invoice.dunning",
+      summary: `Overdue reminder ${nextStage}/3 sent for invoice ${inv.number} (${money(inv.amountCents)})`,
+      entityType: "invoice",
+      entityId: inv._id,
+      accent: nextStage === 3 ? "critical" : "info",
+    });
+    await notifyTeam(ctx, {
+      orgId: inv.orgId,
+      subject: `Overdue reminder ${nextStage}/3 sent - ${inv.number} (${money(inv.amountCents)})`,
+      body: `${artist.name ?? "A client"}'s invoice ${inv.number} for ${money(inv.amountCents)} is ${daysOverdue} days past due. Auto-reminder stage ${nextStage} of 3 was just sent with the payment link.`,
+      kind: "invoice.dunning",
+    });
+    out.invoicesOverdue++;
   }
   return out;
 }

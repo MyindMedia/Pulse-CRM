@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
+import { QRCodeSVG } from "qrcode.react";
 import {
   CheckCircle2,
   ClipboardCheck,
@@ -12,6 +13,10 @@ import {
   Headphones,
   DoorOpen,
   Wallet,
+  Copy,
+  Check,
+  MessageSquare,
+  Link2,
 } from "lucide-react";
 import {
   Sheet,
@@ -308,6 +313,15 @@ export function SessionSheet({
                 amountPaidCents={detail.amountPaidCents}
                 cancelled={detail.status === "cancelled"}
               />
+
+              {/* Collect balance on the spot - pay link + QR / copy / text */}
+              <CollectBalancePanel
+                sessionId={detail._id}
+                balanceCents={Math.max(
+                  0,
+                  detail.rateCents - (detail.amountPaidCents ?? 0),
+                )}
+              />
             </SheetBody>
 
             <SheetFooter className="flex-wrap">
@@ -370,5 +384,100 @@ export function SessionSheet({
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+/**
+ * On-the-spot balance collection. Shows the outstanding balance, the public pay
+ * link (with a scannable QR when available), a big Copy button, and a one-tap
+ * "Text the link" that reuses the studio's SMS seam. Mobile-friendly so staff
+ * can settle up at the desk.
+ */
+function CollectBalancePanel({
+  sessionId,
+  balanceCents,
+}: {
+  sessionId: Id<"sessions">;
+  balanceCents: number;
+}) {
+  const link = useQuery(api.sessions.payLink, { id: sessionId });
+  const sendSms = useMutation(api.sessions.sendPayLinkSms);
+  const [copied, setCopied] = useState(false);
+  const [texting, setTexting] = useState(false);
+
+  if (balanceCents <= 0) return null;
+
+  const url = link?.url ?? null;
+
+  async function copy() {
+    if (!url) return;
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast.success("Pay link copied");
+      setTimeout(() => setCopied(false), 1800);
+    } catch {
+      toast.error("Could not copy - long-press the link to copy it");
+    }
+  }
+
+  async function text() {
+    setTexting(true);
+    try {
+      await sendSms({ id: sessionId });
+      toast.success("Pay link texted to the client");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not send the text");
+    } finally {
+      setTexting(false);
+    }
+  }
+
+  return (
+    <div className="space-y-3 rounded-md border border-gold/25 bg-gold/[0.04] p-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="inline-flex items-center gap-1.5 text-xs font-medium text-steel">
+          <Wallet className="size-3.5 text-gold" />
+          Collect balance
+        </p>
+        <span className="font-meta text-sm font-semibold text-gold-bright">
+          {money(balanceCents)}
+        </span>
+      </div>
+
+      {!url ? (
+        <p className="text-xs text-steel/70">
+          Connect a booking slug in Settings to generate a pay link.
+        </p>
+      ) : (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="shrink-0 self-center rounded-md border border-graphite/50 bg-white p-1.5">
+            <QRCodeSVG value={url} size={104} marginSize={0} aria-label="Scan to pay" />
+          </div>
+          <div className="min-w-0 flex-1 space-y-2">
+            <p className="flex items-center gap-1.5 truncate rounded border border-graphite/50 bg-coal-2 px-2 py-1.5 font-meta text-[0.6875rem] text-steel">
+              <Link2 className="size-3 shrink-0 text-steel/70" />
+              <span className="truncate">{url}</span>
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <Button size="sm" variant="primary" onClick={copy} className="flex-1">
+                {copied ? <Check className="size-3.5" /> : <Copy className="size-3.5" />}
+                {copied ? "Copied" : "Copy link"}
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={text}
+                disabled={texting || !link?.hasPhone}
+                title={link?.hasPhone ? undefined : "No phone number on file"}
+              >
+                <MessageSquare className="size-3.5" />
+                {texting ? "Texting…" : "Text the link"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
 }

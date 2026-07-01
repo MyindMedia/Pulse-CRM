@@ -9,6 +9,7 @@ import { OpsAutopilotPanel } from "@/components/ai/ops-autopilot-panel";
 import { OnboardingNudge } from "@/components/onboarding/onboarding-nudge";
 import { GetPaidBanner } from "@/components/payments/get-paid-banner";
 import { WhosWorkingCard } from "@/components/schedule/whos-working-card";
+import { RecoveredByPulse } from "@/components/dashboard/recovered-by-pulse";
 import {
   DollarSign,
   CalendarCheck,
@@ -172,6 +173,17 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Recovered by Pulse - the renewal-proof ROI number. Finance-gated the
+          same way the revenue cards are; only queried once we know the viewer
+          can see the books (recovery.summary is insights.read gated). */}
+      {data && data.canSeeFinancials && (
+        <div className="grid gap-4 lg:grid-cols-3">
+          <div className="lg:col-span-1">
+            <RecoveredByPulse />
+          </div>
+        </div>
+      )}
 
       <WhosWorkingCard />
 

@@ -7,11 +7,12 @@ import {
   recomputeRoomStatus,
 } from "./lib/roomStatus";
 import { money } from "./lib/money";
+import { notify } from "./lib/notify";
 import { stageChecklistsFor, dropPreChecklistFor } from "./checklists";
 import { ensureSessionShift } from "./shifts";
 import { proposeWaitlistFill } from "./waitlist";
 import { scheduleGoogleCalendarPush, scheduleGoogleCalendarRemove } from "./googleCalendar";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
@@ -437,6 +438,46 @@ export async function createCompletionInvoice(
   });
 }
 
+/**
+ * No-Show Shield: invoice the fee still owed after a forfeited deposit is
+ * applied. Draft invoice, 14-day terms, idempotent - never adds a second fee
+ * invoice for the same session (a re-run of the cancel/no-show path is a no-op).
+ * Returns the new invoice id, or null when nothing was owed / one already exists.
+ */
+export async function createCancellationFeeInvoice(
+  ctx: MutationCtx,
+  s: Doc<"sessions">,
+  amountCents: number,
+  label: string,
+): Promise<Id<"invoices"> | null> {
+  if (amountCents <= 0) return null;
+  const existing = await ctx.db
+    .query("invoices")
+    .withIndex("by_artist", (q) => q.eq("artistId", s.artistId))
+    .collect();
+  // One fee invoice per session: any live invoice already tagged as a fee for
+  // this session blocks a duplicate.
+  const alreadyBilled = existing.some(
+    (inv) =>
+      inv.sessionId === s._id &&
+      inv.status !== "void" &&
+      inv.lineItems.some((li) => li.label.toLowerCase().includes("fee")),
+  );
+  if (alreadyBilled) return null;
+  const num = `PLS-${String(Date.now()).slice(-6)}`;
+  return ctx.db.insert("invoices", {
+    orgId: s.orgId,
+    number: num,
+    artistId: s.artistId,
+    songId: s.songId,
+    sessionId: s._id,
+    status: "draft",
+    lineItems: [{ label: `${s.title} - ${label}`, amountCents }],
+    amountCents,
+    dueDate: Date.now() + 14 * 86400000,
+  });
+}
+
 /** Local one-liner to avoid importing the whole format lib server-side. */
 function longDateLite(ts: number): string {
   return new Date(ts).toLocaleString("en-US", {
@@ -448,12 +489,131 @@ function longDateLite(ts: number): string {
   });
 }
 
+/**
+ * Assess the No-Show Shield on a session that just moved to cancelled / no_show.
+ * Reads the org's cancellation policy, forfeits any paid deposit, and bills the
+ * remaining fee (an auto-charge when a card is on file, otherwise a fee invoice
+ * plus a short professional notice email). Every recovered dollar is logged to
+ * the recovery ledger so the "Recovered by Pulse" ticker reflects it.
+ */
+async function assessNoShowShield(
+  ctx: MutationCtx,
+  s: Doc<"sessions">,
+  status: "cancelled" | "no_show",
+): Promise<void> {
+  const org = await ctx.db
+    .query("orgs")
+    .withIndex("by_org", (q) => q.eq("orgId", s.orgId))
+    .first();
+  const feePct = Math.min(Math.max(org?.cancellationFeePct ?? 0, 0), 100);
+  const windowMs = Math.max(org?.cancellationWindowHours ?? 0, 0) * ONE_HOUR_MS;
+  const insideWindow = Date.now() >= s.startTime - windowMs;
+  // A no-show always assesses; a cancel only inside the notice window (a cancel
+  // outside the window is free - the existing behavior).
+  const chargeable = status === "no_show" || insideWindow;
+  if (!chargeable) return;
+
+  const fee = Math.round((s.rateCents * feePct) / 100);
+  const depositForfeitCents = s.depositPaid ? s.depositCents : 0;
+  // The deposit already in hand is applied toward the fee; only the remainder
+  // needs collecting.
+  const additionalCents = Math.max(0, fee - depositForfeitCents);
+
+  await ctx.db.patch(s._id, {
+    cancellationFeeCents: fee,
+    depositForfeited: depositForfeitCents > 0,
+  });
+
+  const artist = await ctx.db.get(s.artistId);
+  const feeKind = status === "no_show" ? "no_show_fee" : "cancellation_fee";
+  const label = status === "no_show" ? "no-show fee" : "late cancellation fee";
+  const reason = status === "no_show" ? "no-show" : "late cancellation";
+
+  // The kept deposit is recovered money the moment it is forfeited.
+  if (depositForfeitCents > 0) {
+    await ctx.runMutation(internal.recovery.record, {
+      orgId: s.orgId,
+      kind: "deposit_forfeited",
+      amountCents: depositForfeitCents,
+      sessionId: s._id,
+      note: `${s.title} - deposit forfeited on ${reason}`,
+    });
+  }
+
+  if (additionalCents > 0) {
+    // The shield always ships fully functional through invoices: bill the fee,
+    // log the recovery, and notify the client.
+    const invoiceId = await createCancellationFeeInvoice(ctx, s, additionalCents, label);
+    await ctx.runMutation(internal.recovery.record, {
+      orgId: s.orgId,
+      kind: feeKind,
+      amountCents: additionalCents,
+      sessionId: s._id,
+      invoiceId: invoiceId ?? undefined,
+      note: `${s.title} - ${label}`,
+    });
+
+    // Best-effort auto-charge when a card is on file for this client on the
+    // studio's connected Stripe account. Off-session charge runs in an action;
+    // on success it settles the fee invoice. Falls back to the invoice + notice
+    // above when no card is saved (the common case until card capture ships).
+    const canAutoCharge =
+      Boolean(process.env.STRIPE_SECRET_KEY) &&
+      Boolean(org?.stripeAccountId) &&
+      Boolean(org?.stripeChargesEnabled) &&
+      Boolean(artist?.stripeCustomerId) &&
+      Boolean(artist?.defaultPaymentMethodId);
+    if (canAutoCharge && invoiceId) {
+      await ctx.scheduler.runAfter(0, internal.cardOnFile.chargeFee, {
+        sessionId: s._id,
+        invoiceId,
+        amountCents: additionalCents,
+      });
+    }
+
+    if (artist?.email) {
+      const nice = `${label[0].toUpperCase()}${label.slice(1)}`;
+      const depositLine =
+        depositForfeitCents > 0
+          ? ` Your ${money(depositForfeitCents)} deposit has been applied toward it.`
+          : "";
+      await notify(ctx, {
+        orgId: s.orgId,
+        channel: "email",
+        recipient: artist.email,
+        subject: `${nice} - ${s.title}`,
+        body: `Hi ${artist.name},\n\nPer our booking policy, a ${label} of ${money(
+          fee,
+        )} applies to your ${status === "no_show" ? "missed" : "late-cancelled"} session "${s.title}".${depositLine} We have sent an invoice for the ${money(
+          additionalCents,
+        )} balance. Reply here with any questions - we would love to get you rebooked.`,
+        kind: `session.${feeKind}`,
+        sessionId: s._id,
+      });
+    }
+  }
+
+  await ctx.db.insert("activity", {
+    orgId: s.orgId,
+    kind: `session.${status}.fee`,
+    summary: `No-Show Shield: ${money(fee)} ${label} on ${s.title}${
+      depositForfeitCents > 0 ? ` (${money(depositForfeitCents)} deposit kept)` : ""
+    }`,
+    entityType: "session",
+    entityId: s._id,
+    accent: "gold",
+  });
+}
+
 export const setStatus = mutation({
   args: { id: v.id("sessions"), status: statusV },
   handler: async (ctx, { id, status }) => {
     const orgId = await currentOrg(ctx);
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) throw new Error("Not found");
+    // Snapshot BEFORE the patch: only a fresh transition out of an active state
+    // into cancelled / no-show assesses the shield (so a re-set is idempotent).
+    const wasActive = s.status !== "cancelled" && s.status !== "no_show";
     await ctx.db.patch(id, { status });
     // Status change cascades to the room: cancelling an active session
     // flips the room back to available; starting one flips it to in_use.
@@ -465,10 +625,18 @@ export const setStatus = mutation({
       await dropPreChecklistFor(ctx, id);
     }
 
-    // A freshly cancelled future slot is a smart-fill opportunity: offer it to
-    // the best-matched waitlisted artist (proposed into the approval inbox).
-    if (status === "cancelled" && s.status !== "cancelled") {
+    // A freshly freed slot (cancelled OR no-show) is a smart-fill opportunity:
+    // offer it to the best-matched waitlisted artist (proposed into the approval
+    // inbox). proposeWaitlistFill self-guards past/unfillable slots.
+    if ((status === "cancelled" || status === "no_show") && wasActive) {
       await proposeWaitlistFill(ctx, s);
+    }
+
+    // ── No-Show Shield: a late cancel (inside the studio's cancellation window)
+    // or a no-show forfeits any paid deposit and assesses the cancellation fee,
+    // proving the subscription pays for itself. Only fires on a fresh transition.
+    if ((status === "cancelled" || status === "no_show") && wasActive) {
+      await assessNoShowShield(ctx, s, status);
     }
 
     // Two-way calendar: cancellations pull the Google event; any other status
@@ -526,5 +694,111 @@ export const completeIntake = mutation({
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) throw new Error("Not found");
     await ctx.db.patch(id, { intakeCompleted: true });
+  },
+});
+
+/* ============================================================
+   No-Show Shield: cancellation policy + on-the-spot balance
+   collection. The policy setter lives here (not orgs.ts) but only
+   patches the org row; reading org cross-table is fine.
+   ============================================================ */
+
+/** The studio's cancellation policy (window + fee %). Null when unset. */
+export const getCancellationPolicy = query({
+  args: {},
+  handler: async (ctx) => {
+    const orgId = await currentOrg(ctx);
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    return {
+      cancellationWindowHours: org?.cancellationWindowHours ?? null,
+      cancellationFeePct: org?.cancellationFeePct ?? null,
+    };
+  },
+});
+
+/** Set the cancellation window (hours) and fee (% of the booking rate). Gated to
+ *  leadership (branding.edit). Patches the org row only. */
+export const setCancellationPolicy = mutation({
+  args: {
+    cancellationWindowHours: v.optional(v.number()),
+    cancellationFeePct: v.optional(v.number()),
+  },
+  handler: async (ctx, { cancellationWindowHours, cancellationFeePct }) => {
+    const orgId = await currentOrgWithCapability(ctx, "branding.edit");
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    if (!org) throw new Error("No workspace to configure.");
+    const patch: Record<string, number> = {};
+    if (cancellationWindowHours !== undefined) {
+      patch.cancellationWindowHours = Math.max(0, Math.round(cancellationWindowHours));
+    }
+    if (cancellationFeePct !== undefined) {
+      patch.cancellationFeePct = Math.min(100, Math.max(0, Math.round(cancellationFeePct)));
+    }
+    await ctx.db.patch(org._id, patch);
+    return { ok: true };
+  },
+});
+
+/** The public pay link + outstanding balance for a session, for the studio to
+ *  hand off (QR / copy / text). Scoped to the caller's own org. */
+export const payLink = query({
+  args: { id: v.id("sessions") },
+  handler: async (ctx, { id }) => {
+    const orgId = await currentOrg(ctx);
+    const s = await ctx.db.get(id);
+    if (!s || s.orgId !== orgId) return null;
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    const artist = await ctx.db.get(s.artistId);
+    const base =
+      process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const slug = org?.slug ?? "";
+    const url = slug ? `${base}/book/${slug}/checkout/${id}` : null;
+    const paid = s.amountPaidCents ?? 0;
+    return {
+      url,
+      balanceCents: Math.max(0, s.rateCents - paid),
+      hasPhone: Boolean(artist?.phone),
+    };
+  },
+});
+
+/** Text the public pay link to the client. Gated (sessions.edit); needs a phone
+ *  on file. Reuses the notify() SMS seam. */
+export const sendPayLinkSms = mutation({
+  args: { id: v.id("sessions") },
+  handler: async (ctx, { id }) => {
+    const orgId = await currentOrgWithCapability(ctx, "sessions.edit");
+    const s = await ctx.db.get(id);
+    if (!s || s.orgId !== orgId) throw new Error("Not found");
+    const artist = await ctx.db.get(s.artistId);
+    if (!artist?.phone) throw new Error("No phone number on file for this client.");
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    const base =
+      process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const url = `${base}/book/${org?.slug ?? ""}/checkout/${id}`;
+    const paid = s.amountPaidCents ?? 0;
+    const balance = Math.max(0, s.rateCents - paid);
+    await notify(ctx, {
+      orgId,
+      channel: "sms",
+      recipient: artist.phone,
+      subject: "Pay link",
+      body: `${org?.name ?? "The studio"}: your balance of ${money(balance)} for "${s.title}". Pay securely here: ${url}`,
+      kind: "session.paylink",
+      sessionId: id,
+    });
+    return { ok: true };
   },
 });

@@ -1,5 +1,6 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { internal } from "./_generated/api";
 import { currentOrgWithCapability } from "./lib/tenant";
 import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
@@ -194,6 +195,18 @@ export const setStatus = mutation({
     let emailed = false;
 
     if (status === "paid") {
+      // Attribute reminder-driven collections: if the dunning ladder (or a
+      // manual reminder) had already gone out, credit the recovery ledger -
+      // but only on the transition INTO paid, so a re-save never double-counts.
+      if (inv.status !== "paid" && (inv.reminderStage ?? 0) > 0) {
+        await ctx.runMutation(internal.recovery.record, {
+          orgId,
+          kind: "reminder_collected",
+          amountCents: inv.amountCents,
+          invoiceId: id,
+          note: `Invoice ${inv.number} paid after reminder stage ${inv.reminderStage}`,
+        });
+      }
       await ctx.db.insert("activity", {
         orgId,
         kind: "invoice.paid",

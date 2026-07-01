@@ -129,6 +129,11 @@ export default defineSchema({
     // an underused window. When unset the recommender uses its rule-based
     // default (15% / 20%).
     defaultRateCutPct: v.optional(v.number()),
+    // No-Show Shield: the studio's cancellation policy. Cancelling inside
+    // `cancellationWindowHours` of the start (or a no-show) forfeits the deposit
+    // and/or assesses `cancellationFeePct` of the booking rate.
+    cancellationWindowHours: v.optional(v.number()),
+    cancellationFeePct: v.optional(v.number()), // 0-100
     // US sales tax config. State drives a default rate; the owner can
     // override `taxRate` manually. `taxApply` toggles whether invoices
     // automatically add tax on top of the subtotal.
@@ -655,6 +660,10 @@ export default defineSchema({
     // Lead-source attribution (web booking form, referral, instagram, etc.) -
     // powers the lead-source ROI report + the lead→booking funnel.
     source: v.optional(v.string()),
+    // Card on file (No-Show Shield): a Stripe customer + saved payment method on
+    // the studio's connected account, so a no-show fee can be auto-charged.
+    stripeCustomerId: v.optional(v.string()),
+    defaultPaymentMethodId: v.optional(v.string()),
     // GDPR erasure: set when this client's personal data was erased (right to
     // be forgotten). Identifying fields are anonymized; financial/operational
     // records are retained under the accounting legitimate-interest basis.
@@ -868,6 +877,9 @@ export default defineSchema({
     compType: v.optional(v.union(v.literal("comped"), v.literal("discounted"))),
     listValueCents: v.optional(v.number()),
     compReason: v.optional(v.string()),
+    // No-Show Shield outcomes on a cancelled / no-show session.
+    cancellationFeeCents: v.optional(v.number()),
+    depositForfeited: v.optional(v.boolean()),
   })
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])
@@ -1036,6 +1048,7 @@ export default defineSchema({
     dueDate: v.number(),
     paidAt: v.optional(v.number()),
     overdueNotifiedAt: v.optional(v.number()),
+    reminderStage: v.optional(v.number()), // dunning ladder step already sent (0/1/2/3)
   })
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])
@@ -1053,6 +1066,28 @@ export default defineSchema({
     active: v.boolean(),
     createdAt: v.number(),
   }).index("by_org", ["orgId"]),
+
+  // ── Recovery ledger - dollars Pulse actively saved/recovered for the studio
+  //    (forfeited deposits, cancellation/no-show fees, waitlist backfills,
+  //    reminder-driven collections). Powers the "Recovered by Pulse" ROI ticker
+  //    that proves the subscription pays for itself. ──
+  recoveryEvents: defineTable({
+    orgId: v.string(),
+    kind: v.union(
+      v.literal("deposit_forfeited"),
+      v.literal("cancellation_fee"),
+      v.literal("no_show_fee"),
+      v.literal("waitlist_fill"),
+      v.literal("reminder_collected"),
+    ),
+    amountCents: v.number(),
+    at: v.number(),
+    sessionId: v.optional(v.id("sessions")),
+    invoiceId: v.optional(v.id("invoices")),
+    note: v.optional(v.string()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_at", ["orgId", "at"]),
 
   // ── Expenses - money OUT. The other half of the books: rent, utilities,
   //    subscriptions, gear, repairs, contractor/engineer payouts, marketing,

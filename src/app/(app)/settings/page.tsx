@@ -13,6 +13,7 @@ import { BillingPanel } from "@/components/settings/billing-panel";
 import { IntegrationsPanel } from "@/components/settings/integrations-panel";
 import { BrandingPanel } from "@/components/settings/branding-panel";
 import { PricingPanel } from "@/components/settings/pricing-panel";
+import { CancellationPolicyPanel } from "@/components/settings/cancellation-policy-panel";
 import { DataPanel } from "@/components/settings/data-panel";
 import { UsagePanel } from "@/components/settings/usage-panel";
 import { ExportPanel } from "@/components/settings/export-panel";
@@ -100,7 +101,10 @@ function SettingsView() {
             <BrandingPanel org={org} />
           </TabsContent>
           <TabsContent value="pricing">
-            <PricingPanel org={org} />
+            <div className="space-y-5">
+              <PricingPanel org={org} />
+              <CancellationPolicyPanel />
+            </div>
           </TabsContent>
           <TabsContent value="team">
             <TeamPanel />
