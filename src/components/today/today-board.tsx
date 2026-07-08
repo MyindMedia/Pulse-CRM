@@ -62,24 +62,25 @@ export function TodayBoard() {
         </div>
       )}
 
-      {/* Now strip - rooms + busy-until */}
-      {!data ? (
-        <Skeleton className="h-24 w-full" />
-      ) : (
-        <Section title="Right now">
-          <NowStrip rooms={data.rooms} now={now} />
-        </Section>
-      )}
-
-      {/* Timeline + side rail */}
+      {/* Right now (2x2 room grid) + timeline share the left column so they
+          read at the same width; the rail sits beside both. */}
       <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
-        <Section title="Today's sessions">
-          {!data ? (
-            <Skeleton className="h-72 w-full" />
-          ) : (
-            <TodayTimeline sessions={data.sessions} now={now} onOpen={setOpenSessionId} />
-          )}
-        </Section>
+        <div className="space-y-7">
+          <Section title="Right now">
+            {!data ? (
+              <Skeleton className="h-24 w-full" />
+            ) : (
+              <NowStrip rooms={data.rooms} now={now} />
+            )}
+          </Section>
+          <Section title="Today's sessions">
+            {!data ? (
+              <Skeleton className="h-72 w-full" />
+            ) : (
+              <TodayTimeline sessions={data.sessions} now={now} onOpen={setOpenSessionId} />
+            )}
+          </Section>
+        </div>
 
         {/* Rail first on phones so Next Arrivals sits right under the
             counters instead of below the full timeline. */}
