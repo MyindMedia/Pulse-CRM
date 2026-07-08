@@ -16,11 +16,13 @@ import { OrgTheme } from "@/components/shell/org-theme";
 import { AppTransition } from "@/components/shell/app-motion";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { ShellErrorBoundary } from "@/components/shell/shell-error-boundary";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileNav, setMobileNav] = useState(false);
 
   return (
+    <ShellErrorBoundary>
     <TooltipProvider delayDuration={300}>
       <MemberSync />
       <ActiveOrgSync />
@@ -60,5 +62,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </div>
       </OrgTheme>
     </TooltipProvider>
+    </ShellErrorBoundary>
   );
 }

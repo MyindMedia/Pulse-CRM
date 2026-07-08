@@ -34,12 +34,29 @@ export const overview = query({
       return d.getTime();
     })();
 
+    // Sessions/invoices/opportunities grow with the studio's lifetime; every
+    // KPI this query surfaces looks back at most ~13 months, so bound those
+    // reads to a rolling 400-day window (by_org indexes order by _creationTime,
+    // making this an indexed range, not a scan). Trade-off: an unpaid invoice
+    // or open opportunity older than ~13 months ages out of Outstanding /
+    // Pipeline value. Artists + songs stay whole-table (roster + catalog are
+    // human-scale and back all-time counts).
+    const windowStart = now - 400 * 86_400_000;
     const [artists, songs, sessions, invoices, opportunities] = await Promise.all([
       ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect(),
       ctx.db.query("songs").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect(),
-      ctx.db.query("sessions").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect(),
-      ctx.db.query("invoices").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect(),
-      ctx.db.query("opportunities").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect(),
+      ctx.db
+        .query("sessions")
+        .withIndex("by_org", (q) => q.eq("orgId", orgId).gte("_creationTime", windowStart))
+        .collect(),
+      ctx.db
+        .query("invoices")
+        .withIndex("by_org", (q) => q.eq("orgId", orgId).gte("_creationTime", windowStart))
+        .collect(),
+      ctx.db
+        .query("opportunities")
+        .withIndex("by_org", (q) => q.eq("orgId", orgId).gte("_creationTime", windowStart))
+        .collect(),
     ]);
 
     // ── Revenue (collected, by paidAt) ──

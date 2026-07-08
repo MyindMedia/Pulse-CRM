@@ -26,7 +26,10 @@ export default function AppError({
   // A stale/wedged Clerk client can leave the Convex socket unauthenticated -
   // every query then throws UNAUTHENTICATED and retrying can't help. The only
   // real remedy is a fresh sign-in, so say that instead of "try again".
-  const isAuthError = /UNAUTHENTICATED|Sign in required/i.test(error.message);
+  const isAuthError =
+    /UNAUTHENTICATED|Sign in required|NO_WORKSPACE|NO_STUDIO_MEMBER|NO_AGENCY_MEMBER|isn't linked to a studio/i.test(
+      error.message,
+    );
 
   return (
     <div className="grid min-h-[60dvh] place-items-center px-4">

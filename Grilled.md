@@ -447,6 +447,44 @@ Higgsfield generation; (4) optional dark->light landing register.
 - Pulse pinned: PulseLogo is a baked-gold image (immune to token overrides); booking navbar "Secured by Pulse" + footer "Powered by Pulse" now render on every plan (whitelabel gate removed by product decision).
 - **AI brand heroes (2026-06-12):** `convex/brandHero.ts` generates a low-key studio interior lit in the org accent via Gemini (`gemini-2.5-flash-image`, GEMINI_API_KEY on prod) on every logo upload (3s after `setLogo`; manual `bookingHeroId` wins; "Generate with AI" button in branding panel). Booking landing redesigned: full-bleed hero background (manual > generated > palette gradient) under a dark ink fade + brand tint, themed CTA.
 
+## Hardening: go-live resilience pass (3-agent audit, 2026-07-08, /goal)
+
+**Trigger:** recurring "This page couldn't load" (Chrome error page) on
+/dashboard right before go-live. Three parallel review agents audited the
+auth/load chain, all page query handling, and deploy/perf resilience.
+**Root causes found + fixed:**
+- **Shell white-screens (the big one):** a dozen shell components (Sidebar,
+  Topbar, OrgTheme, banners, widgets) run useQuery OUTSIDE any boundary -
+  Next's error.tsx cannot wrap its own layout segment, and Convex useQuery
+  THROWS server errors into render. On fresh loads the shell subscribes
+  before Clerk auth attaches -> UNAUTHENTICATED throw -> whole tree unmounts.
+  Fixes: `ShellErrorBoundary` class boundary wrapping the entire (app) shell,
+  `global-error.tsx` last-resort net, error regexes broadened to all
+  AccessError shapes (NO_WORKSPACE etc. now offer "Sign in again" instead of
+  a futile Try-again loop), AND chrome reads degrade server-side instead of
+  throwing (orgs.current -> null, insights.counts/open, activityFeed -> [],
+  agencyBilling.myBilling -> null; catch AccessError - the myCapabilities
+  pattern applied everywhere the shell reads).
+- **Deploy skew:** self-heal head script (commit `9d3af9a`) - stale-chunk /
+  ChunkLoadError / React #310 -> one sessionStorage-guarded reload.
+- **Unbounded hot queries:** dashboard.overview's sessions/invoices/
+  opportunities collects bounded to a rolling 400-day indexed window (KPIs
+  look back <=13mo; unpaid invoices older than that age out of Outstanding -
+  accepted); insights.open, opsActions.list/counts, aiArtifacts.list bounded
+  to newest-500. recovery.summary still whole-table (needs a materialized
+  counter - FOLLOW-UP).
+- **Duplicate subscription:** LiveToasts activityFeed limit 15 -> 20 to dedupe
+  with InsightsBell.
+- **Aurora GPU cost:** backdrop blobs settle after 2 cycles (glass panels
+  backdrop-blur that layer; forever-motion = forever re-sampling).
+**GO-LIVE BLOCKER (config, owner-owned):** Clerk still runs the DEV instance
+(pk_test alive-emu-4) - cross-origin handshakes, dev-browser tokens, session
+wedging all stem from it. Promote to a Clerk PRODUCTION instance (custom
+domain e.g. clerk.pulse.myindsound.com), then update NEXT_PUBLIC_CLERK_
+PUBLISHABLE_KEY + CLERK_SECRET_KEY on Netlify AND Convex prod, and
+CLERK_JWT_ISSUER_DOMAIN on Convex; keep session-token aud:"convex"
+customization + phone settings when recreating.
+
 ## Feature: customizable dashboard (widget grid) + chart fixes (2026-07-08, /goal)
 
 **Owner asks:** service names on the bookings donut (legend showed only dots/

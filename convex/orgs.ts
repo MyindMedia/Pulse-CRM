@@ -3,6 +3,7 @@ import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { currentOrg, currentActor, currentOrgWithCapability} from "./lib/tenant";
+import { AccessError } from "./lib/access";
 import { US_STATES, findState } from "./lib/usTaxRates";
 import { meterStorageUpload } from "./usage";
 import { evaluateBillingGate, effectivePriceCents } from "./lib/billingGate";
@@ -80,7 +81,17 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
 export const current = query({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrg(ctx);
+    // Shell-chrome read: a dozen shell components subscribe the moment the
+    // app mounts - often BEFORE Clerk auth attaches to the socket. Degrade to
+    // null instead of throwing so the shell renders while auth settles (every
+    // gated mutation/query still re-checks server-side).
+    let orgId: string;
+    try {
+      orgId = await currentOrg(ctx);
+    } catch (e) {
+      if (e instanceof AccessError) return null;
+      throw e;
+    }
     const org = await ctx.db
       .query("orgs")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))

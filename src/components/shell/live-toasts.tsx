@@ -26,7 +26,9 @@ export function LiveToasts() {
   const router = useRouter();
   const { can, loaded } = useCapabilities();
   const manager = loaded && can("schedule.manage");
-  const feed = useQuery(api.notifications.activityFeed, manager ? { limit: 15 } : "skip");
+  // limit 20 matches InsightsBell's subscription exactly so Convex dedupes
+  // the two consumers into ONE activityFeed query.
+  const feed = useQuery(api.notifications.activityFeed, manager ? { limit: 20 } : "skip");
   // The viewer's own member row (null for non-staff) - to mute self punches.
   // Already subscribed globally by ClockWidget, so this dedupes to no extra load.
   const me = useQuery(api.timeclock.myStatus, {});

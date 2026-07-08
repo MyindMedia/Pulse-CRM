@@ -20,7 +20,8 @@ export const list = query({
     const rows = await ctx.db
       .query("aiArtifacts")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
-      .collect();
+      .order("desc")
+      .take(500);
     let filtered = kind ? rows.filter((r) => r.kind === kind) : rows;
     if (!includeDismissed) {
       filtered = filtered.filter((r) => r.status !== "dismissed");

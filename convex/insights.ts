@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { currentOrg, assertOrg } from "./lib/tenant";
+import { AccessError } from "./lib/access";
 
 const statusV = v.union(
   v.literal("new"),
@@ -13,7 +14,14 @@ const statusV = v.union(
 export const open = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, { limit }) => {
-    const orgId = await currentOrg(ctx);
+    // Shell-chrome read: degrade instead of throw while auth settles.
+    let orgId: string;
+    try {
+      orgId = await currentOrg(ctx);
+    } catch (e) {
+      if (e instanceof AccessError) return [];
+      throw e;
+    }
     const rows = await ctx.db
       .query("insights")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -28,11 +36,20 @@ export const open = query({
 export const counts = query({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrg(ctx);
+    // Shell-chrome read: degrade instead of throw while auth settles.
+    let orgId: string;
+    try {
+      orgId = await currentOrg(ctx);
+    } catch (e) {
+      if (e instanceof AccessError) return { new: 0, open: 0, warning: 0 };
+      throw e;
+    }
+    // Newest 500 bounds the read; open insights live near the head anyway.
     const rows = await ctx.db
       .query("insights")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
-      .collect();
+      .order("desc")
+      .take(500);
     return {
       new: rows.filter((r) => r.status === "new").length,
       open: rows.filter((r) => r.status === "new" || r.status === "seen").length,

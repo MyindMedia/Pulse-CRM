@@ -2,6 +2,7 @@ import { query, internalQuery, internalMutation, internalAction } from "./_gener
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { currentOrg } from "./lib/tenant";
+import { AccessError } from "./lib/access";
 import { sendEmail } from "./lib/email";
 import { sendSms } from "./lib/sms";
 
@@ -90,7 +91,14 @@ const NOTEWORTHY_ACTIVITY = new Set([
 export const activityFeed = query({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, { limit }) => {
-    const orgId = await currentOrg(ctx);
+    // Shell-chrome read: degrade instead of throw while auth settles.
+    let orgId: string;
+    try {
+      orgId = await currentOrg(ctx);
+    } catch (e) {
+      if (e instanceof AccessError) return [];
+      throw e;
+    }
     // Over-fetch then filter so we still surface a full page of noteworthy rows
     // even when chatty low-signal activity dominates the raw log.
     const rows = await ctx.db

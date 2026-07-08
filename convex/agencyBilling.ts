@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { requireCapability, resolveViewer } from "./lib/access";
 import { currentOrg } from "./lib/tenant";
+import { AccessError } from "./lib/access";
 import { stripeClient } from "./lib/stripe";
 import { evaluateBillingGate, effectivePriceCents, DAY_MS } from "./lib/billingGate";
 import { sendEmail } from "./lib/email";
@@ -259,7 +260,14 @@ export const startPaymentSetup = action({
 export const myBilling = query({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrg(ctx);
+    // Shell-chrome read: degrade instead of throw while auth settles.
+    let orgId: string;
+    try {
+      orgId = await currentOrg(ctx);
+    } catch (e) {
+      if (e instanceof AccessError) return null;
+      throw e;
+    }
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     if (!org) return null;
     // Agency operators acting-as a studio are never gated - they're here to fix it.

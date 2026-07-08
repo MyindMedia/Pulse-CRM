@@ -596,7 +596,9 @@
      Drop one <div class="app-bloom" /> behind the app content. */
   /* The living backdrop the glass refracts. Static warm blooms plus two
      slow-drifting aurora blobs (gold + a whisper of signal blue) - transform
-     -only animation, composited once, stilled under reduced motion. Without
+     -only animation that settles after two cycles (a dozen glass panels
+     backdrop-blur this layer; a forever-moving backdrop would re-sample
+     every frame, forever), stilled under reduced motion. Without
      something luminous back here, backdrop-blur reads as flat paint. */
   .app-bloom {
     position: fixed;
@@ -623,7 +625,7 @@
     top: -20vmax;
     opacity: 0.55;
     background: radial-gradient(closest-side, color-mix(in oklab, var(--color-gold) 13%, transparent), transparent 70%);
-    animation: aurora-a 26s var(--ease-in-out) infinite alternate;
+    animation: aurora-a 26s var(--ease-in-out) 2 alternate both;
   }
   .app-bloom::after {
     right: -22vmax;
@@ -632,7 +634,7 @@
     background:
       radial-gradient(closest-side, color-mix(in oklab, var(--color-info) 8%, transparent), transparent 68%),
       radial-gradient(closest-side, color-mix(in oklab, var(--color-gold-deep) 9%, transparent), transparent 74%);
-    animation: aurora-b 34s var(--ease-in-out) infinite alternate;
+    animation: aurora-b 34s var(--ease-in-out) 2 alternate both;
   }
   @media (prefers-reduced-motion: reduce) {
     .app-bloom::before,

@@ -33,7 +33,8 @@ export const list = query({
     const rows = await ctx.db
       .query("opsActions")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
-      .collect();
+      .order("desc")
+      .take(500);
     return rows
       .filter((r) => r.status === "proposed" || (r.status === "snoozed" && (r.snoozeUntil ?? 0) <= now))
       .sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || b.createdAt - a.createdAt)
@@ -50,7 +51,8 @@ export const counts = query({
     const rows = await ctx.db
       .query("opsActions")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
-      .collect();
+      .order("desc")
+      .take(500);
     const open = rows.filter((r) => r.status === "proposed" || (r.status === "snoozed" && (r.snoozeUntil ?? 0) <= now));
     return { open: open.length, high: open.filter((r) => r.priority === "high").length };
   },
