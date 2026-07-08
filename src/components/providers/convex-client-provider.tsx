@@ -1,8 +1,7 @@
 "use client";
 
-import { ReactNode, useMemo } from "react";
-import { ConvexReactClient, ConvexProvider } from "convex/react";
-import { ConvexProviderWithClerk } from "convex/react-clerk";
+import { ReactNode, useCallback, useMemo } from "react";
+import { ConvexReactClient, ConvexProvider, ConvexProviderWithAuth } from "convex/react";
 import { ClerkProvider, useAuth } from "@clerk/nextjs";
 import { clerkAppearance } from "@/lib/clerk-appearance";
 
@@ -53,12 +52,50 @@ export function ConvexClientProvider({ children }: { children: ReactNode }) {
   if (CLERK_KEY) {
     return (
       <ClerkProvider publishableKey={CLERK_KEY} appearance={clerkAppearance}>
-        <ConvexProviderWithClerk client={convex} useAuth={useAuth}>
+        <ConvexProviderWithAuth client={convex} useAuth={useClerkSessionTokenAuth}>
           {children}
-        </ConvexProviderWithClerk>
+        </ConvexProviderWithAuth>
       </ClerkProvider>
     );
   }
 
   return <ConvexProvider client={convex}>{children}</ConvexProvider>;
+}
+
+/*
+ * Convex auth via the PLAIN Clerk session token. This instance has NO "convex"
+ * JWT template - the session token itself carries `aud: "convex"` (dashboard
+ * session-token customization), which is what convex/auth.config.ts trusts.
+ * The stock ConvexProviderWithClerk branches on `sessionClaims.aud`: one bad
+ * read (mid token-rotation, stale client) sends it down the nonexistent
+ * template path, the 404 is swallowed, it hands Convex `null`, and EVERY query
+ * throws UNAUTHENTICATED until a full re-auth - the "dashboard isn't loading"
+ * storms of 2026-07-07/08. Fetching the session token directly removes that
+ * branch entirely.
+ */
+function useClerkSessionTokenAuth() {
+  const { isLoaded, isSignedIn, getToken, orgId, userId } = useAuth();
+
+  const fetchAccessToken = useCallback(
+    async ({ forceRefreshToken }: { forceRefreshToken: boolean }) => {
+      try {
+        return await getToken({ skipCache: forceRefreshToken });
+      } catch {
+        return null;
+      }
+    },
+    // Rebuild (-> Convex re-auths) when the signed-in user or active org
+    // changes; Clerk's getToken reference itself is stable.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [getToken, orgId, userId],
+  );
+
+  return useMemo(
+    () => ({
+      isLoading: !isLoaded,
+      isAuthenticated: Boolean(isSignedIn),
+      fetchAccessToken,
+    }),
+    [isLoaded, isSignedIn, fetchAccessToken],
+  );
 }
