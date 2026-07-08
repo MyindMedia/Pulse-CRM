@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { useAuth, useClerk, useUser } from "@clerk/nextjs";
+import { useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
 
 /**
  * Clerk only stamps the org claim on the session token once an organization is
@@ -24,10 +26,15 @@ function ActiveOrgSyncInner() {
   const { isLoaded, isSignedIn, orgId } = useAuth();
   const { user } = useUser();
   const clerk = useClerk();
+  // Only STUDIO members need the org activated; agency viewers resolve through
+  // the agencyMembers table without any org claim, and touching their session
+  // state buys nothing (and risks churning a session that already works).
+  const caps = useQuery(api.access.myCapabilities, {});
+  const isStudioMember = caps?.kind === "studio_member";
   const busy = React.useRef(false);
 
   React.useEffect(() => {
-    if (!isLoaded || !isSignedIn || orgId || busy.current) return;
+    if (!isLoaded || !isSignedIn || orgId || !isStudioMember || busy.current) return;
     const membership = user?.organizationMemberships?.[0];
     if (!membership) return;
     busy.current = true;
@@ -38,7 +45,7 @@ function ActiveOrgSyncInner() {
         // single-studio case; allow a retry on the next render.
         busy.current = false;
       });
-  }, [isLoaded, isSignedIn, orgId, user, clerk]);
+  }, [isLoaded, isSignedIn, orgId, isStudioMember, user, clerk]);
 
   return null;
 }
