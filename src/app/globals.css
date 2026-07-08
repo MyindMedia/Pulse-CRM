@@ -175,7 +175,10 @@
 @layer base {
   * { border-color: var(--color-hairline); }
 
-  html { color-scheme: dark; -webkit-text-size-adjust: 100%; }
+  /* touch-action: manipulation removes double-tap-to-zoom (and its 300ms tap
+     delay) so the mobile view stays locked at one size; scroll panning still
+     works everywhere. */
+  html { color-scheme: dark; -webkit-text-size-adjust: 100%; touch-action: manipulation; }
 
   /* Lenis smooth scroll (marketing only; class is set on <html> at runtime). */
   html.lenis, html.lenis body { height: auto; }

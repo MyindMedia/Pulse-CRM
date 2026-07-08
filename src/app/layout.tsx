@@ -68,7 +68,12 @@ export const viewport: Viewport = {
   themeColor: "#08080a",
   width: "device-width",
   initialScale: 1,
+  // One locked size on mobile: no pinch/double-tap zoom, no input-focus
+  // auto-zoom - the app always renders at device width like a native screen.
+  // (Safari-the-browser can still accessibility-override pinch; the installed
+  // PWA honors the lock fully. touch-action in globals.css kills double-tap.)
   maximumScale: 1,
+  userScalable: false,
   // Draw edge-to-edge in standalone/notched iOS; safe-area insets are handled
   // where it matters (the mobile tab bar pads env(safe-area-inset-bottom)).
   viewportFit: "cover",
