@@ -52,7 +52,7 @@ export function PulseLoader({
           />
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/pulse-logo.png"
+            src="/pulse-logo-main.png"
             alt="Pulse"
             className="logo-breathe relative z-10 h-auto w-64 select-none"
             style={{ filter: "drop-shadow(0 6px 20px rgba(253,185,19,0.25))" }}
