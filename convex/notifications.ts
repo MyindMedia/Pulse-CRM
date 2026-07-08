@@ -4,6 +4,7 @@ import { internal } from "./_generated/api";
 import { currentOrg } from "./lib/tenant";
 import { AccessError } from "./lib/access";
 import { sendEmail } from "./lib/email";
+import { studioEmailHtml } from "./lib/emailTemplates/layout";
 import { sendSms } from "./lib/sms";
 
 /* Notifications - the confirmation / reminder log. Written by the notify()
@@ -12,7 +13,12 @@ import { sendSms } from "./lib/sms";
 
 export const _get = internalQuery({
   args: { id: v.id("notifications") },
-  handler: async (ctx, { id }) => ctx.db.get(id),
+  handler: async (ctx, { id }) => {
+    const n = await ctx.db.get(id);
+    if (!n) return null;
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", n.orgId)).first();
+    return { ...n, orgName: org?.name ?? "Your studio" };
+  },
 });
 
 export const _setStatus = internalMutation({
@@ -35,19 +41,8 @@ export const deliver = internalAction({
     if (!n) return;
     let status: "sent" | "failed" | "simulated";
     if (n.channel === "email") {
-      // Linkify bare URLs (e.g. invoice payment links) so they're clickable.
-      const escaped = n.body
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;");
-      const linked = escaped.replace(
-        /(https?:\/\/[^\s]+)/g,
-        '<a href="$1" style="color:#b8860b">$1</a>',
-      );
-      const html = `<div style="font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;color:#111">${linked
-        .split("\n")
-        .map((l: string) => l.trim())
-        .join("<br/>")}</div>`;
+      // Branded studio-framed email (escapes + linkifies pay URLs internally).
+      const html = studioEmailHtml({ studioName: n.orgName, bodyText: n.body });
       status = await sendEmail({ to: n.recipient, subject: n.subject, html });
     } else {
       status = await sendSms({ to: n.recipient, body: n.body });

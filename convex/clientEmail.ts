@@ -4,6 +4,7 @@ import { internal } from "./_generated/api";
 import { currentOrg } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { sendEmail } from "./lib/email";
+import { studioEmailHtml } from "./lib/emailTemplates/layout";
 import { googleConfigured, gmailSend } from "./lib/google";
 
 /* Client communications email (P4). A studio sends client email either through
@@ -70,10 +71,9 @@ export const sendToClient = action({
     if (!c) throw new ConvexError("Client not found.");
     if (!c.to) throw new ConvexError("This client has no email on file.");
 
-    const html = `<div style="font-family:system-ui,sans-serif;font-size:14px;line-height:1.6;color:#111">${body
-      .split("\n")
-      .map((l) => l.trim())
-      .join("<br/>")}</div>`;
+    // Branded, studio-framed layout (white-label: the client sees the
+    // STUDIO's name; Pulse only appears in the footer).
+    const html = studioEmailHtml({ studioName: c.studioName, bodyText: body });
 
     let channel: "google" | "internal";
     let status: "sent" | "failed" | "simulated";

@@ -16,13 +16,11 @@ import { internal } from "./_generated/api";
 import { currentOrg, currentActor } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { sendEmail } from "./lib/email";
+import { studioEmailHtml } from "./lib/emailTemplates/layout";
 import { recordApprovalLearning, recordDismissLearning } from "./predictions";
 
 const PRIORITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
-function escapeHtml(s: string): string {
-  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-}
 
 /** Open queue for the active org: proposed actions plus snoozes that are due. */
 export const list = query({
@@ -61,7 +59,12 @@ export const counts = query({
 /** Internal: fetch one action for the executor. */
 export const getInternal = internalQuery({
   args: { id: v.id("opsActions") },
-  handler: async (ctx, { id }) => ctx.db.get(id),
+  handler: async (ctx, { id }) => {
+    const action = await ctx.db.get(id);
+    if (!action) return null;
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", action.orgId)).first();
+    return { ...action, orgName: org?.name ?? "Your studio" };
+  },
 });
 
 /** Internal: apply an OpenAI-written draft to a still-open action. The rule
@@ -331,7 +334,8 @@ export const execute = internalAction({
       emailStatus = await sendEmail({
         to: action.payload.to,
         subject: action.payload.subject,
-        html: `<p>${escapeHtml(action.payload.body)}</p>`,
+        // Branded studio-framed layout (escapes + linkifies internally).
+        html: studioEmailHtml({ studioName: action.orgName, bodyText: action.payload.body }),
       });
     }
     await ctx.runMutation(internal.opsActions.finalize, { id, emailStatus });
