@@ -9,7 +9,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import {
   type ChartConfig,
@@ -57,16 +56,13 @@ export function RevenueChartCard({ className }: { className?: string }) {
   return (
     <Card className={className}>
       <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0 space-y-1.5">
-          <div className="flex flex-wrap items-center gap-2">
-            <CardTitle>Revenue</CardTitle>
-            {data && (
-              <Delta value={(data.kpis.revenueDelta ?? 0) * 100} variant="badge">
-                <DeltaIcon variant="trend" />
-                <DeltaValue />
-              </Delta>
-            )}
-          </div>
+        <div className="flex min-w-0 flex-wrap items-center gap-2">
+          {data && (
+            <Delta value={(data.kpis.revenueDelta ?? 0) * 100} variant="badge">
+              <DeltaIcon variant="trend" />
+              <DeltaValue />
+            </Delta>
+          )}
           <CardDescription>Collected per month across the studio.</CardDescription>
         </div>
         <Select value={String(months)} onValueChange={(v) => setMonths(Number(v) as 6 | 12)}>

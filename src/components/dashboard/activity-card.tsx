@@ -11,13 +11,7 @@ import {
   Clock3,
   Sparkles,
 } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
 import { cn } from "@/lib/utils";
@@ -50,10 +44,6 @@ export function ActivityCard({ className }: { className?: string }) {
 
   return (
     <Card className={cn("gap-0", className)}>
-      <CardHeader className="border-b border-hairline-2/50 pb-4">
-        <CardTitle>Activity</CardTitle>
-        <CardDescription>Everything the studio just did.</CardDescription>
-      </CardHeader>
       <CardContent className="p-0">
         {activity === undefined ? (
           <div className="space-y-2 p-4">

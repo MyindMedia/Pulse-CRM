@@ -15,7 +15,6 @@ import {
 } from "@/components/dashboard/chart-cards";
 import { PulseAiPanel } from "@/components/ai/pulse-ai-panel";
 import { OpsAutopilotPanel } from "@/components/ai/ops-autopilot-panel";
-import { Section } from "@/components/ui/page";
 
 /* The dashboard widget catalog. Every tile the dashboard can show lives here;
    the customizable grid renders from this list in the user's saved order.
@@ -30,6 +29,8 @@ export type DashboardWidgetDef = {
   span: WidgetSpan;
   /** Hidden until the user adds it from the tray. */
   defaultHidden?: boolean;
+  /** False for composite boards that carry their own section titles. */
+  titled?: boolean;
   render: () => ReactNode;
 };
 
@@ -46,6 +47,7 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
     title: "Today board",
     blurb: "Live counters, rooms right now, timeline, arrivals, balances, on shift",
     span: "full",
+    titled: false, // carries its own "Right now" / "Today's sessions" sections
     render: () => <TodayBoard />,
   },
   {
@@ -117,22 +119,14 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
     title: "Ops Autopilot",
     blurb: "The deterministic ops layer's proposed actions",
     span: "half",
-    render: () => (
-      <Section title="Ops Autopilot">
-        <OpsAutopilotPanel />
-      </Section>
-    ),
+    render: () => <OpsAutopilotPanel />,
   },
   {
     key: "pulse-ai",
     title: "Pulse AI",
     blurb: "Ask the studio agent anything",
     span: "half",
-    render: () => (
-      <Section title="Pulse AI">
-        <PulseAiPanel />
-      </Section>
-    ),
+    render: () => <PulseAiPanel />,
   },
 ];
 

@@ -9,7 +9,6 @@ import {
   CardContent,
   CardDescription,
   CardHeader,
-  CardTitle,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,11 +26,8 @@ export function UpcomingSessionsCard({ className }: { className?: string }) {
 
   return (
     <Card className={className}>
-      <CardHeader className="flex-row items-center justify-between border-b border-hairline-2/50 pb-4">
-        <div className="space-y-1">
-          <CardTitle>Upcoming sessions</CardTitle>
-          <CardDescription>Confirmed and tentative work on the books.</CardDescription>
-        </div>
+      <CardHeader className="flex-row items-center justify-between border-b border-hairline-2/50 py-3">
+        <CardDescription>Confirmed and tentative work on the books.</CardDescription>
         <Link href="/calendar" className="inline-flex items-center gap-1 text-xs font-medium text-gold hover:underline">
           Calendar <ArrowRight className="size-3" />
         </Link>

@@ -28,6 +28,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
+import { Section } from "@/components/ui/page";
 import { useOptionalUser } from "@/lib/use-optional-clerk";
 import {
   type DashboardLayout,
@@ -72,7 +73,9 @@ function SortableWidget({
       {...attributes}
       {...listeners}
     >
-      <div className="pointer-events-none select-none">{def.render()}</div>
+      <div className="pointer-events-none select-none">
+        {def.titled === false ? def.render() : <Section title={def.title}>{def.render()}</Section>}
+      </div>
       <span className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-md border border-gold/40 bg-coal-2/95 px-1.5 py-0.5 font-meta text-[0.625rem] uppercase tracking-wide text-gold backdrop-blur">
         <GripVertical className="size-3" />
         {def.title}
@@ -217,7 +220,7 @@ export function CustomizableDashboard() {
             if (!def) return null;
             return (
               <div key={key} className={SPAN_CLASS[def.span]}>
-                {def.render()}
+                {def.titled === false ? def.render() : <Section title={def.title}>{def.render()}</Section>}
               </div>
             );
           })}

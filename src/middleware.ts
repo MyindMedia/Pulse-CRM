@@ -26,7 +26,16 @@ const isPublicRoute = createRouteMatcher([
 
 const handler = CLERK_ENABLED
   ? clerkMiddleware(async (auth, req) => {
-      if (!isPublicRoute(req)) await auth.protect();
+      if (!isPublicRoute(req)) {
+        // Send unauthenticated traffic to OUR /sign-in (same origin), not the
+        // Clerk-hosted accounts.dev page. Client-side RSC/prefetch fetches that
+        // hit an expired session used to get 307'd cross-origin and die as
+        // CORS errors in the console; a same-origin redirect resolves cleanly
+        // and keeps the return path via redirect_url.
+        const signIn = new URL("/sign-in", req.url);
+        signIn.searchParams.set("redirect_url", req.url);
+        await auth.protect({ unauthenticatedUrl: signIn.toString() });
+      }
     })
   : () => NextResponse.next();
 

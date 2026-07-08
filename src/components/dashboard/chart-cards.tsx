@@ -2,14 +2,7 @@
 
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Sparkles } from "lucide-react";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HBars, CategoryDonut } from "@/components/charts";
 import { RecoveredByPulse } from "@/components/dashboard/recovered-by-pulse";
@@ -22,11 +15,7 @@ export function PipelineChartCard() {
   const data = useQuery(api.dashboard.overview);
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Pipeline by stage</CardTitle>
-        <CardDescription>Open opportunities.</CardDescription>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-5">
         {!data ? (
           <Skeleton className="h-[160px] w-full" />
         ) : data.charts.pipelineByStage.length === 0 ? (
@@ -43,11 +32,7 @@ export function ServiceChartCard() {
   const data = useQuery(api.dashboard.overview);
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Bookings by service</CardTitle>
-        <CardDescription>Where session time goes.</CardDescription>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-5">
         {!data ? (
           <Skeleton className="h-[200px] w-full" />
         ) : data.charts.bookingsByService.length === 0 ? (
@@ -64,11 +49,7 @@ export function CatalogChartCard() {
   const data = useQuery(api.dashboard.overview);
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Catalog by stage</CardTitle>
-        <CardDescription>Songs in production.</CardDescription>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-5">
         {!data ? (
           <Skeleton className="h-[160px] w-full" />
         ) : data.charts.songsByStage.length === 0 ? (
@@ -85,13 +66,6 @@ export function InsightsCard() {
   const insights = useQuery(api.insights.open, { limit: 4 });
   return (
     <Card className="gap-0">
-      <CardHeader className="flex-row items-center justify-between border-b border-hairline-2/50 pb-4">
-        <div className="space-y-1">
-          <CardTitle>Pulse insights</CardTitle>
-          <CardDescription>Nudges from your data.</CardDescription>
-        </div>
-        <Sparkles className="size-4 shrink-0 text-gold" />
-      </CardHeader>
       <CardContent className="p-0">
         {insights === undefined ? (
           <div className="space-y-2 p-4">
