@@ -447,6 +447,32 @@ Higgsfield generation; (4) optional dark->light landing register.
 - Pulse pinned: PulseLogo is a baked-gold image (immune to token overrides); booking navbar "Secured by Pulse" + footer "Powered by Pulse" now render on every plan (whitelabel gate removed by product decision).
 - **AI brand heroes (2026-06-12):** `convex/brandHero.ts` generates a low-key studio interior lit in the org accent via Gemini (`gemini-2.5-flash-image`, GEMINI_API_KEY on prod) on every logo upload (3s after `setLogo`; manual `bookingHeroId` wins; "Generate with AI" button in branding panel). Booking landing redesigned: full-bleed hero background (manual > generated > palette gradient) under a dark ink fade + brand tint, themed CTA.
 
+## Redesign: dashboard on the @efferd/dashboard-3 interface (2026-07-08)
+
+**Owner ask:** install `@efferd/dashboard-3` (shadcn registry block), keep all
+existing items, change the interface, keep Pulse branding.
+**Setup:** `components.json` created by hand (Tailwind v4, css=globals.css,
+aliases @/, registry `@efferd: https://efferd.com/r/{style}/{name}.json`);
+`npx shadcn add @efferd/dashboard-3` run with "No" to every overwrite - ALL 10
+existing ui primitives kept (avatar/badge/button/card/dropdown/select/table/
+sheet/tooltip/skeleton). shadcn appended sidebar vars + `@custom-variant dark`
+to globals.css (left in, inert).
+**Kept from the block:** `delta.tsx` (retuned: Badge tone=positive/critical,
+Pulse signal tokens), `indicator.tsx` (StatusIndicator ping, colors mapped to
+positive/critical/caution/info), `formater.ts`, `ui/chart.tsx` (shadcn chart
+wrapper; semantic tokens bridged in globals.css: background/foreground/border/
+muted(-foreground) -> Pulse palette). Deleted the unused app-shell-3 family +
+sidebar/breadcrumb/kbd/collapsible/input/separator + demo block files (mined
+for patterns first). Dep added: `radix-ui` (monolith, for kept prims).
+**New interface (src/components/dashboard/):** `kpi-stats.tsx` (six delta stat
+cards, financial-gated), `revenue-chart-card.tsx` (gold gradient AreaChart via
+ChartContainer, 6/12mo select, MoM delta badge), `upcoming-sessions-card.tsx`
++ `activity-card.tsx` (bordered-header list cards). Dashboard page recomposed:
+TodayBoard (untouched) -> KPI row -> revenue(3)+insights(1) -> distribution
+trio + RecoveredByPulse -> upcoming+activity -> Ops Autopilot + Pulse AI.
+WhosWorkingCard's on-clock dot upgraded to the pulsing StatusIndicator. All
+items preserved; gold/black brand throughout. 629 vitest, tsc/lint/build green.
+
 ## Features: live owner/manager toasts + punch-driven On-shift + Today/Dashboard merge (2026-07-07)
 
 - **Live pop-ups (`9733060`):** clockIn/clockOut write `staff.clocked_in` /

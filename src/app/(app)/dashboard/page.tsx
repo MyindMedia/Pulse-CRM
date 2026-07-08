@@ -10,33 +10,26 @@ import { OnboardingNudge } from "@/components/onboarding/onboarding-nudge";
 import { GetPaidBanner } from "@/components/payments/get-paid-banner";
 import { TodayBoard } from "@/components/today/today-board";
 import { RecoveredByPulse } from "@/components/dashboard/recovered-by-pulse";
-import {
-  DollarSign,
-  CalendarCheck,
-  KanbanSquare,
-  AlertCircle,
-  UserPlus,
-  Gauge,
-  Database,
-  ArrowRight,
-  Sparkles,
-} from "lucide-react";
+import { KpiStats } from "@/components/dashboard/kpi-stats";
+import { RevenueChartCard } from "@/components/dashboard/revenue-chart-card";
+import { UpcomingSessionsCard } from "@/components/dashboard/upcoming-sessions-card";
+import { ActivityCard } from "@/components/dashboard/activity-card";
+import { ArrowRight, Database, Sparkles } from "lucide-react";
 import { PageHeader, Section } from "@/components/ui/page";
-import { CountUp } from "@/components/shell/app-motion";
-import { StatTile } from "@/components/ui/stat-tile";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton, SkeletonCards } from "@/components/ui/skeleton";
-import { EmptyState } from "@/components/ui/feedback";
-import { TrendArea, HBars, CategoryDonut } from "@/components/charts";
-import { money, compactNumber, relativeTime, shortDate, timeOfDay, longDate } from "@/lib/format";
-import { meta, SESSION_STATUS, ACCENT_TONE, titleCase } from "@/lib/labels";
+import { Skeleton } from "@/components/ui/skeleton";
+import { HBars, CategoryDonut } from "@/components/charts";
+import { compactNumber, shortDate, longDate } from "@/lib/format";
 
 export default function DashboardPage() {
   const data = useQuery(api.dashboard.overview);
-  const upcoming = useQuery(api.sessions.upcoming, { limit: 6 });
-  const activity = useQuery(api.activity.recent, { limit: 12 });
   const insights = useQuery(api.insights.open, { limit: 4 });
   const seed = useMutation(api.seed.run);
   const [seeding, setSeeding] = useState(false);
@@ -87,112 +80,49 @@ export default function DashboardPage() {
         </Card>
       )}
 
-      {/* KPI grid */}
-      {!data ? (
-        <SkeletonCards cards={6} />
-      ) : (
-        <div className="rise-stagger grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
-          {data.canSeeFinancials && (
-            <StatTile
-              label="Revenue · MTD"
-              value={<CountUp to={data.kpis.revenueThisMonth ?? 0} format={(n) => money(n, { compact: true })} />}
-              icon={DollarSign}
-              delta={data.kpis.revenueDelta ?? 0}
-              hint="vs last month"
-              accent
-            />
-          )}
-          <StatTile
-            label="Sessions · MTD"
-            value={<CountUp to={data.kpis.sessionsThisMonth} />}
-            icon={CalendarCheck}
-          />
-          {data.canSeeFinancials && (
-            <StatTile
-              label="Pipeline value"
-              value={<CountUp to={data.kpis.pipelineValue ?? 0} format={(n) => money(n, { compact: true })} />}
-              icon={KanbanSquare}
-            />
-          )}
-          {data.canSeeFinancials && (
-            <StatTile
-              label="Outstanding"
-              value={<CountUp to={data.kpis.outstandingCents ?? 0} format={(n) => money(n, { compact: true })} />}
-              icon={AlertCircle}
-              hint={data.kpis.overdueCount ? `${data.kpis.overdueCount} overdue` : "all current"}
-            />
-          )}
-          <StatTile
-            label="New leads · 7d"
-            value={<CountUp to={data.kpis.newLeadsThisWeek} />}
-            icon={UserPlus}
-          />
-          {data.canSeeFinancials && (
-            <StatTile
-              label="Avg session"
-              value={<CountUp to={data.kpis.avgSessionValue ?? 0} format={(n) => money(n, { compact: true })} />}
-              icon={Gauge}
-            />
-          )}
-        </div>
-      )}
+      {/* KPI row - delta stat cards. */}
+      <KpiStats />
 
-      {/* Revenue + insights */}
-      <div className="grid gap-4 lg:grid-cols-3">
-        {(!data || data.canSeeFinancials) && (
-          <Card className="lg:col-span-2">
-            <CardHeader className="flex-row items-center justify-between">
-              <CardTitle>Revenue - last 12 months</CardTitle>
-              <Badge tone="gold">Collected</Badge>
-            </CardHeader>
-            <CardContent>
-              {!data ? (
-                <Skeleton className="h-[200px] w-full" />
-              ) : (
-                <TrendArea data={data.charts.revenueTrend} xKey="month" yKey="revenue" />
-              )}
-            </CardContent>
-          </Card>
-        )}
-
-        <Card>
-          <CardHeader className="flex-row items-center justify-between">
-            <CardTitle>Pulse insights</CardTitle>
-            <Sparkles className="size-4 text-gold" />
+      {/* Money line + AI nudges. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-4">
+        <RevenueChartCard className="lg:col-span-3" />
+        <Card className="gap-0 lg:col-span-1">
+          <CardHeader className="flex-row items-center justify-between border-b border-hairline-2/50 pb-4">
+            <div className="space-y-1">
+              <CardTitle>Pulse insights</CardTitle>
+              <CardDescription>Nudges from your data.</CardDescription>
+            </div>
+            <Sparkles className="size-4 shrink-0 text-gold" />
           </CardHeader>
-          <CardContent className="space-y-2.5">
+          <CardContent className="p-0">
             {insights === undefined ? (
-              <Skeleton className="h-40 w-full" />
+              <div className="space-y-2 p-4">
+                {[0, 1, 2].map((i) => (
+                  <Skeleton key={i} className="h-12 w-full" />
+                ))}
+              </div>
             ) : insights.length === 0 ? (
-              <p className="py-8 text-center text-sm text-steel/70">No open nudges.</p>
+              <p className="py-10 text-center text-sm text-steel/70">No open nudges.</p>
             ) : (
-              insights.map((it) => (
-                <div key={it._id} className="rounded-md border border-graphite/50 bg-coal-2 p-3">
-                  <p className="text-sm font-medium text-bone">{it.title}</p>
-                  <p className="mt-0.5 text-xs leading-relaxed text-steel">{it.body}</p>
-                </div>
-              ))
+              <ul className="divide-y divide-hairline-2/40">
+                {insights.map((it) => (
+                  <li key={it._id} className="px-4 py-3">
+                    <p className="text-sm font-medium text-bone">{it.title}</p>
+                    <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-steel">{it.body}</p>
+                  </li>
+                ))}
+              </ul>
             )}
           </CardContent>
         </Card>
       </div>
 
-      {/* Recovered by Pulse - the renewal-proof ROI number. Finance-gated the
-          same way the revenue cards are; only queried once we know the viewer
-          can see the books (recovery.summary is insights.read gated). */}
-      {data && data.canSeeFinancials && (
-        <div className="grid gap-4 lg:grid-cols-3">
-          <div className="lg:col-span-1">
-            <RecoveredByPulse />
-          </div>
-        </div>
-      )}
-
-      {/* Chart trio */}
-      <div className="grid gap-4 lg:grid-cols-3">
+      {/* Distribution trio + the renewal-proof ROI number. */}
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <Card>
           <CardHeader>
             <CardTitle>Pipeline by stage</CardTitle>
+            <CardDescription>Open opportunities.</CardDescription>
           </CardHeader>
           <CardContent>
             {!data ? (
@@ -207,6 +137,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Bookings by service</CardTitle>
+            <CardDescription>Where session time goes.</CardDescription>
           </CardHeader>
           <CardContent>
             {!data ? (
@@ -221,6 +152,7 @@ export default function DashboardPage() {
         <Card>
           <CardHeader>
             <CardTitle>Catalog by stage</CardTitle>
+            <CardDescription>Songs in production.</CardDescription>
           </CardHeader>
           <CardContent>
             {!data ? (
@@ -232,120 +164,22 @@ export default function DashboardPage() {
             )}
           </CardContent>
         </Card>
+        {data && data.canSeeFinancials ? <RecoveredByPulse /> : <div className="hidden lg:block" />}
       </div>
 
-      {/* Upcoming + activity */}
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Section
-          title="Upcoming sessions"
-          trailing={
-            <Link href="/calendar" className="text-xs font-medium text-gold hover:underline">
-              Open calendar
-            </Link>
-          }
-        >
-          <Card>
-            <CardContent className="divide-y divide-hairline p-0">
-              {upcoming === undefined ? (
-                <div className="space-y-2 p-4">
-                  {[0, 1, 2].map((i) => (
-                    <Skeleton key={i} className="h-12 w-full" />
-                  ))}
-                </div>
-              ) : upcoming.length === 0 ? (
-                <EmptyState
-                  icon={CalendarCheck}
-                  title="Nothing on the books"
-                  description="Confirmed sessions will show up here."
-                  className="border-0 bg-transparent"
-                />
-              ) : (
-                upcoming.map((s) => {
-                  const st = meta(SESSION_STATUS, s.status);
-                  return (
-                    <Link
-                      key={s._id}
-                      href="/calendar"
-                      className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-coal-2"
-                    >
-                      <div className="grid size-11 shrink-0 place-items-center rounded-md border border-graphite/50 bg-obsidian text-center">
-                        <span className="font-grotesk text-sm font-bold leading-none text-bone">
-                          {new Date(s.startTime).getDate()}
-                        </span>
-                        <span className="font-meta text-[0.5625rem] uppercase text-steel/70">
-                          {new Date(s.startTime).toLocaleDateString("en-US", { month: "short" })}
-                        </span>
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-bone">{s.title}</p>
-                        <p className="truncate text-xs text-steel/70">
-                          {s.artistName} · {timeOfDay(s.startTime)}
-                          {s.roomName ? ` · ${s.roomName}` : ""}
-                        </p>
-                      </div>
-                      <Badge tone={st.tone}>{st.label}</Badge>
-                    </Link>
-                  );
-                })
-              )}
-            </CardContent>
-          </Card>
-        </Section>
+      {/* Work on the books + the event stream. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <UpcomingSessionsCard />
+        <ActivityCard />
+      </div>
 
+      {/* The AI layer. */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Section title="Ops Autopilot">
           <OpsAutopilotPanel />
         </Section>
-
         <Section title="Pulse AI">
           <PulseAiPanel />
-        </Section>
-
-        <Section title="Activity">
-          <Card>
-            <CardContent className="p-0">
-              {activity === undefined ? (
-                <div className="space-y-2 p-4">
-                  {[0, 1, 2, 3].map((i) => (
-                    <Skeleton key={i} className="h-10 w-full" />
-                  ))}
-                </div>
-              ) : activity.length === 0 ? (
-                <EmptyState
-                  icon={Sparkles}
-                  title="No activity yet"
-                  description="Studio events will stream in here."
-                  className="border-0 bg-transparent"
-                />
-              ) : (
-                <ul className="rise-stagger max-h-[22rem] overflow-y-auto p-2">
-                  {activity.map((a) => (
-                    <li key={a._id} className="flex items-start gap-3 rounded-md px-2 py-2">
-                      <span
-                        className="mt-1.5 size-1.5 shrink-0 rounded-full"
-                        style={{
-                          background: `var(--color-${
-                            ACCENT_TONE[a.accent ?? "info"] === "gold"
-                              ? "gold"
-                              : ACCENT_TONE[a.accent ?? "info"] === "positive"
-                                ? "positive"
-                                : ACCENT_TONE[a.accent ?? "info"] === "critical"
-                                  ? "critical"
-                                  : "info"
-                          })`,
-                        }}
-                      />
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm text-bone">{a.summary}</p>
-                        <p className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
-                          {titleCase(a.kind)} · {relativeTime(a._creationTime)}
-                        </p>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </CardContent>
-          </Card>
         </Section>
       </div>
 

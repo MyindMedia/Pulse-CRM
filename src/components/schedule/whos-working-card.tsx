@@ -7,6 +7,7 @@ import { api } from "@convex/_generated/api";
 import { CalendarClock, DoorOpen, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
+import { StatusIndicator } from "@/components/indicator";
 
 function fmt(ts: number) {
   return new Date(ts).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(":00", "");
@@ -46,7 +47,7 @@ export function WhosWorkingCard() {
                 <ul className="space-y-1.5">
                   {working.now.map((s) => (
                     <li key={s._id} className="flex items-center gap-2 text-sm text-bone">
-                      <span className="size-1.5 shrink-0 rounded-full bg-positive" />
+                      <StatusIndicator color="emerald" pulse />
                       <Avatar name={s.memberName} src={s.memberPhotoUrl} size="xs" className="rounded-full" />
                       <span className="truncate">{s.memberName}</span>
                       {s.roomName && (
