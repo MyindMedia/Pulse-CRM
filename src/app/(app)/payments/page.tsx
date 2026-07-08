@@ -12,9 +12,11 @@ import { EmptyState } from "@/components/ui/feedback";
 import { MoneySummary, type InvoiceSummary } from "@/components/payments/money-summary";
 import { PaymentsSetupWalkthrough } from "@/components/payments/payments-setup-walkthrough";
 import { StatusFilter, type StatusFilterValue } from "@/components/payments/status-filter";
+import { InvoiceFiltersBar } from "@/components/payments/invoice-filters";
 import { InvoiceTable } from "@/components/payments/invoice-table";
 import { CreateInvoiceDialog } from "@/components/payments/create-invoice-dialog";
 import type { InvoiceRow } from "@/components/payments/types";
+import { DEFAULT_INVOICE_FILTERS, type InvoiceFilters, filterInvoices } from "@/lib/invoice-filter";
 import { CapabilityGuard } from "@/components/shell/capability-guard";
 
 function PaymentsView() {
@@ -22,6 +24,7 @@ function PaymentsView() {
   const searchParams = useSearchParams();
 
   const [filter, setFilter] = React.useState<StatusFilterValue>("all");
+  const [filters, setFilters] = React.useState<InvoiceFilters>(DEFAULT_INVOICE_FILTERS);
   const [createOpen, setCreateOpen] = React.useState(false);
 
   // Auto-open the create dialog when the URL carries ?new=1. Split into a
@@ -41,19 +44,35 @@ function PaymentsView() {
   const invoices = useQuery(api.invoices.list, {}) as InvoiceRow[] | undefined;
   const summary = useQuery(api.invoices.summary) as InvoiceSummary | undefined;
 
+  // Category options come from the FULL list so a narrowed view never makes
+  // options vanish mid-flight.
+  const categories = React.useMemo(() => {
+    if (!invoices) return [];
+    return [...new Set(invoices.map((i) => i.category))].sort();
+  }, [invoices]);
+
+  // Search + category + period narrow first; the status control then counts
+  // WITHIN that narrowed set so its numbers always describe what's on screen.
+  const searched = React.useMemo(
+    () => (invoices ? filterInvoices(invoices, filters) : []),
+    [invoices, filters],
+  );
+
   const counts = React.useMemo<Partial<Record<StatusFilterValue, number>>>(() => {
-    if (!invoices) return {};
-    const acc: Partial<Record<StatusFilterValue, number>> = { all: invoices.length };
-    for (const inv of invoices) {
+    const acc: Partial<Record<StatusFilterValue, number>> = { all: searched.length };
+    for (const inv of searched) {
       acc[inv.status] = (acc[inv.status] ?? 0) + 1;
     }
     return acc;
-  }, [invoices]);
+  }, [searched]);
 
-  const rows = React.useMemo(() => {
-    if (!invoices) return [];
-    return filter === "all" ? invoices : invoices.filter((i) => i.status === filter);
-  }, [invoices, filter]);
+  const rows = React.useMemo(
+    () => (filter === "all" ? searched : searched.filter((i) => i.status === filter)),
+    [searched, filter],
+  );
+
+  const filtersActive =
+    filters.search !== "" || filters.category !== "all" || filters.period !== "all";
 
   return (
     <div className="space-y-7">
@@ -79,6 +98,9 @@ function PaymentsView() {
           <StatusFilter value={filter} onChange={setFilter} counts={counts} />
         }
       >
+        <div className="mb-4">
+          <InvoiceFiltersBar value={filters} onChange={setFilters} categories={categories} />
+        </div>
         {invoices === undefined ? (
           <SkeletonRows rows={6} />
         ) : invoices.length === 0 ? (
@@ -97,10 +119,20 @@ function PaymentsView() {
           <EmptyState
             icon={Receipt}
             title="Nothing in this view"
-            description="No invoices match the selected status filter."
+            description={
+              filtersActive
+                ? "No invoices match your search or filters."
+                : "No invoices match the selected status filter."
+            }
             action={
-              <Button variant="outline" onClick={() => setFilter("all")}>
-                Show all invoices
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setFilter("all");
+                  setFilters(DEFAULT_INVOICE_FILTERS);
+                }}
+              >
+                Clear filters
               </Button>
             }
           />

@@ -79,6 +79,7 @@ export const list = query({
         ...r,
         status: effectiveStatus(r),
         artistName: artists.get(r.artistId)?.name ?? "Unknown",
+        sessionTitle: session?.title ?? null,
         category: deriveCategory(session?.serviceType, r.lineItems),
       };
     });

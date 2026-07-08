@@ -21,6 +21,7 @@ export type InvoiceRow = {
   dueDate: number;
   paidAt?: number;
   artistName: string;
+  sessionTitle: string | null;
   category: string;
 };
 
