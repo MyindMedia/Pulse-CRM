@@ -90,6 +90,20 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         {/* No-flash theme: set data-theme before paint. Dark is the default;
             only a saved choice ("light"/"dark") overrides it. The toggle updates
             it at runtime. */}
+        {/* Deploy-skew self-heal: with frequent deploys, an open tab's next
+            navigation can request old chunk hashes that no longer exist
+            (ChunkLoadError / failed dynamic import / React #310) and Chrome
+            shows "This page couldn't load". Catch those failures and recover
+            with ONE automatic reload (sessionStorage-guarded so it can never
+            loop). Same pattern proven on the Overwatch app. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html:
+              "(function(){var K='pulse-heal-at';function heal(){try{var l=+sessionStorage.getItem(K)||0;if(Date.now()-l<30000)return;sessionStorage.setItem(K,String(Date.now()));location.reload();}catch(e){}}" +
+              "addEventListener('error',function(e){var t=e.target;if(t&&(t.tagName==='SCRIPT'||t.tagName==='LINK')&&String(t.src||t.href||'').indexOf('/_next/')!==-1)heal();},true);" +
+              "addEventListener('unhandledrejection',function(e){var m=String((e.reason&&e.reason.message)||e.reason||'');if(/ChunkLoadError|Loading chunk|dynamically imported module|Importing a module script failed|Minified React error #310/.test(m))heal();});})();",
+          }}
+        />
         <script
           dangerouslySetInnerHTML={{
             __html:
