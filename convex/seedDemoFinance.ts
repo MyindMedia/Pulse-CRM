@@ -9,10 +9,12 @@ import { memberPay } from "./lib/payroll";
      - ~12 months of expenses (rent, utilities, insurance, ad
        spend, gear, repairs, fees) so the P&L has a real cost
        base and net profit,
-     - ~8 weeks of clocked time entries for paid staff (so the
-       Payroll page shows hours x rate), one engineer currently
-       ON the clock, and a live shift for the owner so the mobile
-       clock-in widget pops the moment they log in.
+     - ~8 weeks of clocked time entries for the WHOLE paid team
+       on a steady weekly rhythm (so the Payroll page shows the
+       full roster with hours in any pay period), one engineer
+       currently ON the clock, a live shift for the owner so the
+       mobile clock-in widget pops the moment they log in, and
+       the org's pay-period preference (biweekly, mid-period).
    Idempotent: every row it creates is tagged; a re-run wipes the
    tagged rows first, so real data is never touched.
      npx convex run seedDemoFinance:fill '{}'            (auto-finds Myind Sound)
@@ -126,19 +128,24 @@ export const fill = internalMutation({
       expensesAdded++;
     }
 
-    // ── Time entries: ~8 weeks of clocked hours for paid staff. ──
+    // ── Time entries: ~8 weeks of clocked hours for the WHOLE paid team.
+    //    Every teammate keeps a steady weekly rhythm (engineers two shifts a
+    //    week, managers one admin shift), so any window - this month, or the
+    //    current biweekly/monthly pay period - shows the full team with hours.
     let entriesAdded = 0;
     const payable = members.filter((m) => PAY[m.role]);
     for (let i = 0; i < payable.length; i++) {
       const m = payable[i];
       const conf = PAY[m.role];
       const rate = conf[0] === "hourly" ? conf[1] : undefined;
+      const isManager = m.role === "manager";
+      // Weekday(s) this teammate clocks in (1=Mon..6=Sat), staggered per person.
+      const workdays = isManager ? [1 + (i % 5)] : [1 + (i % 3), 4 + (i % 3)];
       for (let off = 1; off <= 56; off++) {
         const day = new Date(now - off * DAY);
-        if (day.getDay() === 0) continue; // skip Sundays
-        if ((i * 3 + off) % 10 !== 0) continue; // ~1 short shift every ~10 days (boutique studio)
-        const inAt = new Date(day.getFullYear(), day.getMonth(), day.getDate(), 11, 0).getTime();
-        const hours = 3 + ((i + off) % 2); // 3-4h shifts
+        if (!workdays.includes(day.getDay())) continue;
+        const inAt = new Date(day.getFullYear(), day.getMonth(), day.getDate(), isManager ? 10 : 11, 0).getTime();
+        const hours = (isManager ? 2 : 3) + ((i + off) % 2); // managers 2-3h, engineers 3-4h
         await ctx.db.insert("timeEntries", {
           orgId, memberId: m._id, clockInAt: inAt, clockOutAt: inAt + hours * HOUR,
           status: "completed", rateCentsSnapshot: rate, source: "self", note: TAG,
@@ -164,6 +171,19 @@ export const fill = internalMutation({
         orgId, memberId: owner._id, startTime: now - 10 * 60_000, endTime: now + 4 * HOUR,
         kind: "scheduled", status: "scheduled", note: `Front desk ${TAG}`,
       });
+    }
+
+    // ── Pay-period preference: the demo studio pays every two weeks,
+    //    anchored to the Monday of LAST week so "today" sits mid-period.
+    const orgRow = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    if (orgRow) {
+      const d = new Date(now);
+      const monday = new Date(d.getFullYear(), d.getMonth(), d.getDate() - ((d.getDay() + 6) % 7) - 7);
+      const anchor = `${monday.getFullYear()}-${String(monday.getMonth() + 1).padStart(2, "0")}-${String(monday.getDate()).padStart(2, "0")}`;
+      await ctx.db.patch(orgRow._id, { payrollSchedule: "biweekly", payrollAnchorDate: anchor });
     }
 
     return { orgId, removed, paid, expensesAdded, entriesAdded };

@@ -112,6 +112,12 @@ export default defineSchema({
         writing: v.optional(v.number()),
       }),
     ),
+    // Pay-period preference for the Payroll page (owner/manager choice).
+    // Unset = monthly (calendar months). Biweekly = rolling 14-day windows
+    // aligned to payrollAnchorDate (YYYY-MM-DD, the first day of a period,
+    // interpreted in the viewer's timezone).
+    payrollSchedule: v.optional(v.union(v.literal("monthly"), v.literal("biweekly"))),
+    payrollAnchorDate: v.optional(v.string()),
     // Custom discount codes the owner issues themselves (separate from
     // the AI rate-cut generator's deterministic codes). Stored on the
     // org so they're tenant-scoped and reusable across surfaces.

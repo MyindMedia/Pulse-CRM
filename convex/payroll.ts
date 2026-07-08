@@ -11,6 +11,49 @@ import { memberPay, hoursBetween } from "./lib/payroll";
    corrections are schedule.manage; posting is invoices.send.
    ============================================================ */
 
+/* Pay-period schedule preference. A studio is paid either monthly (calendar
+   months) or biweekly (14-day windows aligned to an anchor date). The stored
+   preference is just the choice + anchor; the client computes the concrete
+   window boundaries in the viewer's timezone (src/lib/pay-period.ts). */
+
+export const getSchedule = query({
+  args: {},
+  handler: async (ctx) => {
+    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    return {
+      schedule: org?.payrollSchedule ?? ("monthly" as const),
+      anchorDate: org?.payrollAnchorDate ?? null,
+    };
+  },
+});
+
+export const setSchedule = mutation({
+  args: {
+    schedule: v.union(v.literal("monthly"), v.literal("biweekly")),
+    // First day of a biweekly period, YYYY-MM-DD. Kept when omitted.
+    anchorDate: v.optional(v.string()),
+  },
+  handler: async (ctx, { schedule, anchorDate }) => {
+    const orgId = await currentOrgWithCapability(ctx, "schedule.manage");
+    if (anchorDate !== undefined && !/^\d{4}-\d{2}-\d{2}$/.test(anchorDate)) {
+      throw new Error("Anchor date must be YYYY-MM-DD.");
+    }
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    if (!org) throw new Error("This studio's workspace isn't set up yet.");
+    await ctx.db.patch(org._id, {
+      payrollSchedule: schedule,
+      ...(anchorDate !== undefined ? { payrollAnchorDate: anchorDate } : {}),
+    });
+  },
+});
+
 /** Per-staff hours + pay for a window, plus totals. */
 export const summary = query({
   args: { start: v.number(), end: v.number() },

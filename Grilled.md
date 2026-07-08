@@ -447,6 +447,37 @@ Higgsfield generation; (4) optional dark->light landing register.
 - Pulse pinned: PulseLogo is a baked-gold image (immune to token overrides); booking navbar "Secured by Pulse" + footer "Powered by Pulse" now render on every plan (whitelabel gate removed by product decision).
 - **AI brand heroes (2026-06-12):** `convex/brandHero.ts` generates a low-key studio interior lit in the org accent via Gemini (`gemini-2.5-flash-image`, GEMINI_API_KEY on prod) on every logo upload (3s after `setLogo`; manual `bookingHeroId` wins; "Generate with AI" button in branding panel). Booking landing redesigned: full-bleed hero background (manual > generated > palette gradient) under a dark ink fade + brand tint, themed CTA.
 
+## Feature: payroll pay-period schedule (built + shipped 2026-07-07)
+
+**Goal (owner):** payroll for the entire team every month, and the Payroll page
+shows the CURRENT pay period, where the schedule is every two weeks or monthly
+per the studio manager/owner's preference.
+
+**Decisions/build:**
+- `orgs.payrollSchedule` ("monthly" | "biweekly", unset = monthly) +
+  `orgs.payrollAnchorDate` (YYYY-MM-DD first day of a biweekly period).
+- `payroll.getSchedule` (insights.read) / `payroll.setSchedule`
+  (schedule.manage, so owner + manager only; validates anchor format; keeps the
+  anchor when switching back to monthly).
+- Window math stays CLIENT-side in the viewer's timezone (matches the page's
+  existing rangeFor pattern): new pure lib `src/lib/pay-period.ts`
+  (`payPeriodFor` monthly = calendar month, biweekly = 14-day spans aligned to
+  the anchor; `defaultAnchorDate` = most recent Monday) + unit tests.
+- Payroll page: default range is now "This pay period" (+ "Last pay period"),
+  shows the period dates next to the picker, and owner/manager get a
+  "Paid monthly / Paid every two weeks" selector (useCapabilities-gated;
+  first switch to biweekly anchors on the most recent Monday).
+- `seedDemoFinance`: whole paid team now clocks a steady weekly rhythm
+  (engineers 2 shifts/wk 3-4h, managers 1 shift/wk 2-3h, staggered weekdays,
+  no Sundays) so every period shows the full roster; seed also sets the demo
+  org to biweekly anchored Monday of last week (mid-period on run day).
+- Verified tsc + lint + 616 vitest + build; deployed Convex prod
+  `pastel-corgi-340`; seed re-run (65 entries, 210h / $6,640 per 8wk).
+
+**Non-goals (this pass):** weekly/semi-monthly schedules, a custom anchor-date
+picker in the UI (anchor defaults to Monday; adjustable later), payroll
+run/approval workflow.
+
 ## Epic: Studio Operations Agent — KB + profitability + risk guardrails (grilled 2026-06-27)
 
 **Goal (owner's words):** an extensive per-sub-account agent that looks ONLY at that sub-account's data (never cross-contaminating), runs an outreach algorithm, evaluates a studio's profitability and where it can improve, reasons against a knowledge base of global studio best practices / top-performer criteria, finds problems before they arise, and has guardrails + safeguards for every category (pipeline, songs, splitsheets, studio scheduling, staff scheduling). It should effectively replace multiple low-level roles.

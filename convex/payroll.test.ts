@@ -94,6 +94,30 @@ describe("admin payroll", () => {
     expect(expenses.some((e) => e.category === "payroll" && e.amountCents === 20_000)).toBe(true);
   });
 
+  it("pay schedule: defaults monthly, owner/manager can set biweekly + anchor, staff can't", async () => {
+    const t = convexTest(schema);
+    const org = "studio_sched";
+    await t.run((ctx) => ctx.db.insert("orgs", { orgId: org, name: "Sched Studio", slug: "sched-studio", plan: "studio" }));
+    await t.run((ctx) => ctx.db.insert("members", { orgId: org, name: "Owner", role: "owner", skills: [], clerkUserId: "u_own" }));
+    await t.run((ctx) => ctx.db.insert("members", { orgId: org, name: "Eng", role: "engineer", skills: [], clerkUserId: "u_eng" }));
+    const asOwner = t.withIdentity({ subject: "u_own", orgId: org });
+    const asEng = t.withIdentity({ subject: "u_eng", orgId: org });
+
+    const before = await asOwner.query(api.payroll.getSchedule, {});
+    expect(before).toEqual({ schedule: "monthly", anchorDate: null });
+
+    await asOwner.mutation(api.payroll.setSchedule, { schedule: "biweekly", anchorDate: "2026-06-29" });
+    const after = await asOwner.query(api.payroll.getSchedule, {});
+    expect(after).toEqual({ schedule: "biweekly", anchorDate: "2026-06-29" });
+
+    // Switching back keeps the anchor for a later return to biweekly.
+    await asOwner.mutation(api.payroll.setSchedule, { schedule: "monthly" });
+    expect(await asOwner.query(api.payroll.getSchedule, {})).toEqual({ schedule: "monthly", anchorDate: "2026-06-29" });
+
+    await expect(asOwner.mutation(api.payroll.setSchedule, { schedule: "biweekly", anchorDate: "June 29" })).rejects.toThrow();
+    await expect(asEng.mutation(api.payroll.setSchedule, { schedule: "monthly" })).rejects.toThrow();
+  });
+
   it("setPay updates a teammate's rate", async () => {
     const t = convexTest(schema);
     const org = "studio_pay3";
