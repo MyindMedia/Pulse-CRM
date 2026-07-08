@@ -447,6 +447,32 @@ Higgsfield generation; (4) optional dark->light landing register.
 - Pulse pinned: PulseLogo is a baked-gold image (immune to token overrides); booking navbar "Secured by Pulse" + footer "Powered by Pulse" now render on every plan (whitelabel gate removed by product decision).
 - **AI brand heroes (2026-06-12):** `convex/brandHero.ts` generates a low-key studio interior lit in the org accent via Gemini (`gemini-2.5-flash-image`, GEMINI_API_KEY on prod) on every logo upload (3s after `setLogo`; manual `bookingHeroId` wins; "Generate with AI" button in branding panel). Booking landing redesigned: full-bleed hero background (manual > generated > palette gradient) under a dark ink fade + brand tint, themed CTA.
 
+## Overhaul: app-wide liquid-glass + transitions.dev motion (2026-07-08, /goal)
+
+**Owner ask:** super modern/crisp UI through the ENTIRE app, glass effect,
+transitions.dev skill for motion, futuristic + eye-catching.
+**Approach - amplify the primitives so every screen changes at once:**
+- transitions.dev **motion tokens** installed in globals.css (:root
+  --duration-* / --ease-* / --distance-* / --scale-* / --blur-*); overlay
+  anim-* utilities, rise-soft/rise-stagger, Card/StatTile hovers all retimed
+  onto the token scale.
+- **Aurora backdrop**: .app-bloom now carries two slow-drifting blurred blobs
+  (gold + whisper of info blue; transform-only 26s/34s alternates, stilled
+  under prefers-reduced-motion) - glass finally has something to refract.
+- **.glass-edge utility**: 1px masked-gradient razor hairline (specular white
+  -> gold trace) replacing flat borders on Card (thin/regular) + StatTile;
+  brightens on hover. Declared after material-* so its border-color override
+  wins the cascade.
+- **rise-in-soft** now rises out of a blur (--blur-medium) - every staggered
+  entrance app-wide got the futurist voice; PageHeader text is staggered.
+- **AppTransition** (route changes): blurred rise in, quick blurred exit.
+- **Topbar** de-flattened: bg-obsidian/65 + backdrop-blur-2xl + saturate so
+  content visibly blurs beneath the sticky header.
+- Skeletons already shimmered; buttons already sheen + press-scale.
+Verified tsc/lint/629 vitest/build. NOTE prior deploy b3c8c9e (dashboard-3
+interface) WAS live - owner "saw no change" because the top fold (header +
+TodayBoard) was intentionally unchanged; this pass changes the whole feel.
+
 ## Redesign: dashboard on the @efferd/dashboard-3 interface (2026-07-08)
 
 **Owner ask:** install `@efferd/dashboard-3` (shadcn registry block), keep all

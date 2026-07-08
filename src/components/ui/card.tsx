@@ -22,17 +22,21 @@ export function Card({
           "border border-hairline bg-coal",
           elevation === 0 ? "" : elevation === 2 ? "shadow-elev-2" : "shadow-elev-1",
         )
-      : material === "regular"
-        ? "material-regular"
-        : "material-thin";
+      : cn(
+          // Glass tiers wear the razor gradient hairline: glass-edge draws the
+          // visible 1px (specular white falling to a gold trace), while the
+          // material's own border just reserves the pixel.
+          material === "regular" ? "material-regular" : "material-thin",
+          "glass-edge border-transparent",
+        );
   return (
     <div
       className={cn(
         "rounded-chrome text-bone",
         surface,
-        interactive &&
-          "transition-[transform,box-shadow,border-color,background-color] duration-200 ease-out " +
-            "hover:border-hairline-2 hover:-translate-y-0.5 hover:shadow-elev-3 cursor-pointer",
+        "transition-[transform,box-shadow,border-color,background-color] " +
+          "[transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-smooth-out)]",
+        interactive && "hover:-translate-y-0.5 hover:shadow-elev-3 cursor-pointer",
         className,
       )}
       {...props}

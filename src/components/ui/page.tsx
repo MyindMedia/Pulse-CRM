@@ -17,7 +17,7 @@ export function PageHeader({
 }) {
   return (
     <div className={cn("flex flex-wrap items-end justify-between gap-4", className)}>
-      <div className="space-y-1.5">
+      <div className="rise-stagger space-y-1.5">
         {overline && <p className="overline">{overline}</p>}
         <h1 className="chrome-display text-[1.75rem] leading-[0.95] tracking-[-0.01em] text-bone sm:text-[2rem]">
           {title}

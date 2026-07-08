@@ -25,8 +25,12 @@ export function StatTile({
   return (
     <div
       className={cn(
-        "sheen group rise-soft rounded-chrome p-4 transition-[transform,box-shadow,border-color] duration-200 ease-out hover:-translate-y-0.5 hover:shadow-elev-3",
-        accent ? "material-thin border-gold-dim/50 bg-gold/[0.05]" : "material-thin",
+        "sheen group rise-soft rounded-chrome p-4 transition-[transform,box-shadow,border-color] " +
+          "[transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-smooth-out)] " +
+          "hover:-translate-y-0.5 hover:shadow-elev-3",
+        accent
+          ? "material-thin border-gold-dim/50 bg-gold/[0.05]"
+          : "material-thin glass-edge border-transparent",
         className,
       )}
     >
