@@ -447,6 +447,29 @@ Higgsfield generation; (4) optional dark->light landing register.
 - Pulse pinned: PulseLogo is a baked-gold image (immune to token overrides); booking navbar "Secured by Pulse" + footer "Powered by Pulse" now render on every plan (whitelabel gate removed by product decision).
 - **AI brand heroes (2026-06-12):** `convex/brandHero.ts` generates a low-key studio interior lit in the org accent via Gemini (`gemini-2.5-flash-image`, GEMINI_API_KEY on prod) on every logo upload (3s after `setLogo`; manual `bookingHeroId` wins; "Generate with AI" button in branding panel). Booking landing redesigned: full-bleed hero background (manual > generated > palette gradient) under a dark ink fade + brand tint, themed CTA.
 
+## Feature: customizable dashboard (widget grid) + chart fixes (2026-07-08, /goal)
+
+**Owner asks:** service names on the bookings donut (legend showed only dots/
+numbers in narrow cards), remove Catalog-by-stage, move Next Arrivals up,
+and a customizable dashboard (move/remove/add widgets).
+**Build:**
+- `CategoryDonut` stacked (donut over full-width legend) - the row layout
+  crushed the label column to zero in 1-col cards; agency page benefits too.
+- TodayBoard side rail `order-first lg:order-none` - arrivals sit under the
+  counters on phones instead of below the timeline.
+- **Widget system:** `src/lib/dashboard-layout.ts` (pure order/hidden state,
+  normalizeLayout reconciles saves against the registry; 5 tests) +
+  `src/components/dashboard/widget-registry.tsx` (12 widgets, span map onto
+  the 4-col grid) + `customizable-dashboard.tsx` (dnd-kit rectSortingStrategy
+  drag-reorder, X to remove, Add-widget tray, Reset; per-user localStorage
+  `pulse:dash-layout:<userId>`, same pattern as nav order). Page slimmed to
+  header + nudges + seed card + <CustomizableDashboard/>. Inline chart cards
+  extracted to `chart-cards.tsx` (self-querying so tiles mount anywhere).
+- Catalog chart = `defaultHidden` in the registry (removed from default view,
+  re-addable from the tray - verified in the tray).
+**Verified:** local demo-mode run - donut names render, customize mode
+(frames/remove/tray) exercised in-browser; tsc/lint/640 vitest/build green.
+
 ## Overhaul: app-wide liquid-glass + transitions.dev motion (2026-07-08, /goal)
 
 **Owner ask:** super modern/crisp UI through the ENTIRE app, glass effect,

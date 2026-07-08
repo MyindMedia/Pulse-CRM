@@ -138,7 +138,7 @@ export function CategoryDonut({
 }) {
   const total = data.reduce((s, d) => s + Number(d[valueKey] ?? 0), 0);
   return (
-    <div className="flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:gap-5">
+    <div className="flex flex-col items-center gap-4">
       <div className="relative w-full max-w-[12rem] shrink-0">
         <ResponsiveContainer width="100%" height={180}>
           <PieChart>
@@ -166,7 +166,7 @@ export function CategoryDonut({
           </p>
         </div>
       </div>
-      <ul className="grid w-full grid-cols-1 gap-1.5 text-xs sm:flex-1">
+      <ul className="grid w-full grid-cols-1 gap-1.5 text-xs">
         {data.map((d, i) => {
           const label = String(d[labelKey]);
           const value = Number(d[valueKey] ?? 0);

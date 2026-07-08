@@ -81,7 +81,9 @@ export function TodayBoard() {
           )}
         </Section>
 
-        <div className="space-y-4">
+        {/* Rail first on phones so Next Arrivals sits right under the
+            counters instead of below the full timeline. */}
+        <div className="order-first space-y-4 lg:order-none">
           {!data ? (
             <Skeleton className="h-96 w-full" />
           ) : (
