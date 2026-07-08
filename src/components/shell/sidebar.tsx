@@ -120,7 +120,13 @@ function SortableNavItem({
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
   const { user } = useUser();
-  const { can, loaded: capsLoaded } = useCapabilities();
+  const { can, loaded: capsLoaded, kind } = useCapabilities();
+  // Agency mode is for AGENCY members only - sub-account (studio) users must
+  // never see the console entry. `kind` comes from the server's resolveViewer
+  // (agency_member vs studio_member), and stays null while loading so the
+  // link never flashes for a studio viewer. Route access is enforced
+  // server-side regardless; this hides the door.
+  const isAgencyViewer = kind === "agency_member";
   // Hide nav features the agency has disabled for this sub-account, and items
   // the viewer's role can't access (financials/exec/settings). Capability-gated
   // items stay hidden until caps load so a lower tier never sees them flash.
@@ -196,14 +202,16 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
       </nav>
 
       <div className="space-y-3 px-3">
-        <Link
-          href="/agency"
-          onClick={onNavigate}
-          className="group flex items-center gap-3 rounded-chrome border border-graphite/60 bg-coal/40 px-3 py-2 font-meta text-[0.7rem] uppercase tracking-[0.04em] text-steel transition-colors hover:border-gold hover:text-bone"
-        >
-          <Building2 className="size-[1.1rem] shrink-0 text-steel/70 transition-colors group-hover:text-gold" />
-          Agency console
-        </Link>
+        {isAgencyViewer && (
+          <Link
+            href="/agency"
+            onClick={onNavigate}
+            className="group flex items-center gap-3 rounded-chrome border border-graphite/60 bg-coal/40 px-3 py-2 font-meta text-[0.7rem] uppercase tracking-[0.04em] text-steel transition-colors hover:border-gold hover:text-bone"
+          >
+            <Building2 className="size-[1.1rem] shrink-0 text-steel/70 transition-colors group-hover:text-gold" />
+            Agency console
+          </Link>
+        )}
         <div className="px-2">
           <p className="chrome-meta text-steel/80">Pulse by Myind Sound</p>
           <p className="mt-0.5 font-meta text-[0.625rem] text-steel/60">v1.0 · Studio edition</p>
