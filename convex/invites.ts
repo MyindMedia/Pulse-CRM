@@ -2,6 +2,7 @@ import { mutation, query, action, internalMutation, internalQuery } from "./_gen
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import { requireCapability, AccessError } from "./lib/access";
+import { classifyClerkCreateUserError } from "./lib/clerkErrors";
 import { sendEmail } from "./lib/email";
 import { normalizePhone } from "./lib/phone";
 import { inviteEmailHtml, inviteEmailSubject } from "./lib/emailTemplates/invite";
@@ -167,7 +168,14 @@ type AcceptResult =
   | { ok: true; email: string; role: string }
   | {
       ok: false;
-      reason: "invalid" | "accepted" | "expired" | "not_configured" | "exists" | "clerk_error";
+      reason:
+        | "invalid"
+        | "accepted"
+        | "expired"
+        | "not_configured"
+        | "exists"
+        | "phone_exists"
+        | "clerk_error";
       detail?: string;
     };
 
@@ -192,34 +200,43 @@ export const accept = action({
     // 1. Create the user (backend-created emails/phones are verified - no code
     //    step). phone_number is sent when present, which also satisfies a Clerk
     //    instance that Requires a phone number.
-    const userRes = await fetch("https://api.clerk.com/v1/users", {
-      method: "POST",
-      headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email_address: [inv.email],
-        phone_number: phone ? [phone] : undefined,
-        password: args.password,
-        first_name: firstName || undefined,
-        last_name: lastName || undefined,
-      }),
-    });
+    const createUser = (withPhone: boolean) =>
+      fetch("https://api.clerk.com/v1/users", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${secret}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          email_address: [inv.email],
+          phone_number: withPhone && phone ? [phone] : undefined,
+          password: args.password,
+          first_name: firstName || undefined,
+          last_name: lastName || undefined,
+        }),
+      });
+
+    let userRes = await createUser(Boolean(phone));
     if (!userRes.ok) {
-      // Parse Clerk's structured error; never return the raw body (it can echo
-      // the email / internal codes back to an unauthenticated caller).
-      const body = await userRes.text();
-      let code = "";
-      let safeMsg = "Account creation failed.";
-      try {
-        const parsed = JSON.parse(body) as { errors?: { code?: string; message?: string }[] };
-        code = parsed.errors?.[0]?.code ?? "";
-        safeMsg = parsed.errors?.[0]?.message ?? safeMsg;
-      } catch {
-        // non-JSON body; keep the generic message
-      }
-      if (code === "form_identifier_exists" || /already exists|taken|duplicate/i.test(body)) {
+      let err = classifyClerkCreateUserError(await userRes.text());
+      if (err.kind === "phone_exists" && phone) {
+        // The phone is already an identifier on ANOTHER account (e.g. the owner
+        // pre-filled their own cell on a staff invite). The phone identifier is
+        // optional for us - markAccepted keeps the number on the studio's member
+        // record either way - so retry without it instead of dead-ending the
+        // invite with a misleading "account exists".
+        userRes = await createUser(false);
+        if (!userRes.ok) {
+          err = classifyClerkCreateUserError(await userRes.text());
+          if (err.kind === "email_exists") return { ok: false as const, reason: "exists" as const };
+          // Instance insists on a phone (or another failure): tell the invitee
+          // the truth so they can enter a different number on the form.
+          return { ok: false as const, reason: "phone_exists" as const, detail: err.message };
+        }
+      } else if (err.kind === "email_exists") {
         return { ok: false as const, reason: "exists" as const };
+      } else {
+        // Surface Clerk's structured, actionable message - never the raw body
+        // (it can echo the email / internal codes to an unauthenticated caller).
+        return { ok: false as const, reason: "clerk_error" as const, detail: err.message };
       }
-      return { ok: false as const, reason: "clerk_error" as const, detail: safeMsg };
     }
     const user = (await userRes.json()) as { id: string };
 

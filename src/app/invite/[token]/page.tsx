@@ -51,6 +51,8 @@ export default function InvitePage() {
       if (!res.ok) {
         const msg: Record<string, string> = {
           exists: "You already have a Pulse account. Please sign in.",
+          phone_exists:
+            "That cell number is already on another Pulse account. Enter a different number and try again.",
           expired: "This invite has expired. Ask your admin to resend it.",
           invalid: "This invite link is no longer valid. Ask your admin to resend it.",
           not_configured: "Sign-up isn’t configured yet. Please contact your admin.",
