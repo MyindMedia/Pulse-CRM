@@ -657,7 +657,10 @@ export default defineSchema({
     credits: v.optional(v.array(v.string())),
   })
     .index("by_org", ["orgId"])
-    .index("by_org_clerk", ["orgId", "clerkUserId"]),
+    .index("by_org_clerk", ["orgId", "clerkUserId"])
+    // Cross-org lookup by Clerk user - resolveViewer's fallback for sessions
+    // that carry no org claim (fresh sign-in before the org is activated).
+    .index("by_clerk", ["clerkUserId"]),
 
   // ── Artists / clients - the CRM contacts ──
   artists: defineTable({

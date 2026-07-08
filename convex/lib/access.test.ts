@@ -175,6 +175,43 @@ describe("access engine - AGENCY_ADMIN_EMAILS allowlist", () => {
   });
 });
 
+// ── No-org-claim fallback ───────────────────────────────────────
+// Clerk only stamps orgId once the session has an ACTIVE organization; a
+// freshly-invited member's first sign-in has none, which used to NO_WORKSPACE
+// every query and blank the app after login. A sole DB-backed membership now
+// resolves; ambiguity or no membership still denies.
+describe("access engine - member resolves WITHOUT an org claim (sole membership)", () => {
+  let t: ReturnType<typeof convexTest>;
+  beforeEach(() => { t = convexTest(schema); });
+
+  it("a member of exactly one studio resolves as that studio's member", async () => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: "org_solo", name: "Solo", slug: "solo", plan: "studio", status: "active" });
+      await ctx.db.insert("members", {
+        orgId: "org_solo", name: "Mgr", role: "manager",
+        clerkUserId: "user_fresh", skills: [],
+      });
+    });
+    // Fresh session: subject only, no orgId claim (org not yet activated).
+    const asFresh = t.withIdentity({ subject: "user_fresh", name: "Mgr" });
+    const result = await asFresh.query(api.testHarness.resolve, {});
+    expect(result.kind).toBe("studio_member");
+    expect(result.role).toBe("manager");
+    expect(result.caps).toContain("schedule.manage");
+  });
+
+  it("membership in TWO studios stays denied without an org claim (ambiguous)", async () => {
+    await t.run(async (ctx) => {
+      for (const o of ["org_a2", "org_b2"]) {
+        await ctx.db.insert("orgs", { orgId: o, name: o, slug: o, plan: "studio", status: "active" });
+        await ctx.db.insert("members", { orgId: o, name: "Multi", role: "engineer", clerkUserId: "user_multi", skills: [] });
+      }
+    });
+    const asMulti = t.withIdentity({ subject: "user_multi", name: "Multi" });
+    await expect(asMulti.query(api.testHarness.resolve, {})).rejects.toThrow();
+  });
+});
+
 describe("access engine - authed-but-no-workspace is denied (not demo-owner)", () => {
   let t: ReturnType<typeof convexTest>;
   const prevEnv = process.env.AGENCY_ADMIN_EMAILS;

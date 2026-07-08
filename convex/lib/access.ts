@@ -216,6 +216,37 @@ export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
       };
     }
 
+    // No org claim on the token. Clerk only stamps orgId once the session has
+    // an ACTIVE organization, and a freshly-invited member's first sign-in has
+    // none - which used to NO_WORKSPACE every query and leave the app blank
+    // after login. Membership is DB-backed (members.clerkUserId is written by
+    // the trusted invite-accept/sync paths), so resolve by Clerk user when it
+    // maps to exactly ONE studio. Ambiguity (multi-studio user) still denies -
+    // those sessions need the org claim, which ActiveOrgSync establishes
+    // client-side right after sign-in.
+    if (!orgId) {
+      const rows = await ctx.db
+        .query("members")
+        .withIndex("by_clerk", (q) => q.eq("clerkUserId", clerkUserId))
+        .take(2);
+      if (rows.length === 1) {
+        const member = rows[0];
+        const org = await ctx.db
+          .query("orgs")
+          .withIndex("by_org", (q) => q.eq("orgId", member.orgId))
+          .first();
+        return {
+          kind: "studio_member",
+          orgId: member.orgId,
+          agencyId: org?.agencyId,
+          memberId: member._id,
+          clerkUserId,
+          role: member.role,
+          capabilities: buildStudioCaps(member.role, member.capabilityOverrides),
+        };
+      }
+    }
+
     // Authenticated but not linked to any agency or studio (no org, not an
     // agency member, not on the operator allowlist). Public Clerk sign-up is
     // enabled, so we must DENY here rather than fall through to demo mode -

@@ -6,6 +6,7 @@ import { Topbar } from "@/components/shell/topbar";
 import { StudioBanner } from "@/components/shell/studio-banner";
 import { BillingBanner, BillingLock } from "@/components/shell/billing-gate";
 import { MemberSync } from "@/components/shell/member-sync";
+import { ActiveOrgSync } from "@/components/shell/active-org-sync";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { ClockWidget } from "@/components/timeclock/clock-widget";
 import { MobileTabBar } from "@/components/shell/mobile-tabbar";
@@ -21,6 +22,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <TooltipProvider delayDuration={300}>
       <MemberSync />
+      <ActiveOrgSync />
       <FeatureGuard />
       <OrgTheme>
       <div className="relative min-h-dvh bg-ink">

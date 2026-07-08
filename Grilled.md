@@ -447,6 +447,29 @@ Higgsfield generation; (4) optional dark->light landing register.
 - Pulse pinned: PulseLogo is a baked-gold image (immune to token overrides); booking navbar "Secured by Pulse" + footer "Powered by Pulse" now render on every plan (whitelabel gate removed by product decision).
 - **AI brand heroes (2026-06-12):** `convex/brandHero.ts` generates a low-key studio interior lit in the org accent via Gemini (`gemini-2.5-flash-image`, GEMINI_API_KEY on prod) on every logo upload (3s after `setLogo`; manual `bookingHeroId` wins; "Generate with AI" button in branding panel). Booking landing redesigned: full-bleed hero background (manual > generated > palette gradient) under a dark ink fade + brand tint, themed CTA.
 
+## Fix: blank app after a fresh member's first sign-in (2026-07-07)
+
+**Symptom:** newly-invited staff (first real one: berlaw@gmail.com, manager on
+Myind Sound) sign in successfully on mobile and the app never loads.
+**Root cause:** Clerk only stamps the `orgId` claim once the session has an
+ACTIVE organization, and nothing in the app called `setActive` after sign-in -
+so a fresh member's token had no org claim and `resolveViewer` threw
+NO_WORKSPACE on every query (the owner never hit it: agency paths resolve
+without the claim). Two-layer fix:
+- `members.by_clerk` index + resolveViewer fallback: no org claim + exactly
+  ONE members row for the Clerk user -> resolves as that studio's member.
+  Ambiguous (multi-studio) or no membership still denies (pinned by tests).
+- `ActiveOrgSync` shell component: signed-in user with memberships but no
+  active org -> `clerk.setActive(first membership)`, keeping the Clerk session
+  itself correct (org roles, middleware auth().orgId, multi-org).
+**Also this session:** invite-accept phone-collision fix (see memory
+`pulse_clerk_phone_required_gotcha`): duplicate phone on the invite (owner's
+own cell) was misreported as "account exists"; now classified via
+`convex/lib/clerkErrors.ts`, retried without the phone identifier, or surfaced
+honestly as phone_exists. berlaw account ultimately created via
+`invites:accept` CLI run with a Clerk TEST phone (+14045550134, dev-instance
+test range) because the instance keeps phone Required.
+
 ## Feature: staff mobile time clock + iOS app polish (built + shipped 2026-07-07)
 
 **Goal (owner, /goal):** teams get a clock in/out function on mobile when
