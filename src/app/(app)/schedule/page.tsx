@@ -138,7 +138,9 @@ export default function SchedulePage() {
                 <Avatar name={s.memberName} src={s.memberPhotoUrl} color={colorOf(s.memberId)} size="xs" className="rounded-full" />
                 {s.memberName}
                 {s.roomName && <span className="text-steel/70">· {s.roomName}</span>}
-                <span className="text-steel/70">until {fmtTime(s.endTime)}</span>
+                <span className="text-steel/70">
+                  {s.endTime ? `until ${fmtTime(s.endTime)}` : `since ${fmtTime(s.clockInAt)}`}
+                </span>
               </span>
             ))}
           </div>

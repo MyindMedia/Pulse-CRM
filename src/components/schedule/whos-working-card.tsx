@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -11,16 +12,20 @@ function fmt(ts: number) {
   return new Date(ts).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(":00", "");
 }
 
-/** Dashboard widget: who's on shift now + who's up next today. */
+/** Dashboard widget: today's staff only - who is ON THE CLOCK right now
+ *  (real time-clock punches) and who is still scheduled to clock in today.
+ *  Everyone else stays off the list. */
 export function WhosWorkingCard() {
   const working = useQuery(api.shifts.whosWorking, {});
+  // Mount-stable "now" for the due-now check (kept out of render for purity).
+  const [mountedAt] = React.useState(() => Date.now());
 
   return (
     <Card>
       <CardHeader className="flex-row items-center justify-between">
         <CardTitle className="flex items-center gap-2 text-sm">
           <CalendarClock className="size-4 text-gold" />
-          On shift
+          On shift today
         </CardTitle>
         <Link href="/schedule" className="inline-flex items-center gap-1 text-xs text-steel hover:text-bone">
           Schedule <ArrowRight className="size-3" />
@@ -29,10 +34,12 @@ export function WhosWorkingCard() {
       <CardContent className="space-y-3 pt-1">
         {working === undefined ? (
           <p className="text-sm text-steel/70">Checking…</p>
+        ) : working.now.length === 0 && working.upcoming.length === 0 ? (
+          <p className="text-sm text-steel/70">No staff on the clock or scheduled today.</p>
         ) : (
           <>
             <div>
-              <p className="mb-1.5 font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">Now</p>
+              <p className="mb-1.5 font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">On the clock</p>
               {working.now.length === 0 ? (
                 <p className="text-sm text-steel/70">No one clocked in.</p>
               ) : (
@@ -47,7 +54,9 @@ export function WhosWorkingCard() {
                           <DoorOpen className="size-3" />{s.roomName}
                         </span>
                       )}
-                      <span className="ml-auto shrink-0 font-meta text-[0.6875rem] text-steel/70">→ {fmt(s.endTime)}</span>
+                      <span className="ml-auto shrink-0 font-meta text-[0.6875rem] text-steel/70">
+                        {s.endTime ? `→ ${fmt(s.endTime)}` : `since ${fmt(s.clockInAt)}`}
+                      </span>
                     </li>
                   ))}
                 </ul>
@@ -55,11 +64,15 @@ export function WhosWorkingCard() {
             </div>
             {working.upcoming.length > 0 && (
               <div className="border-t border-graphite/50 pt-2.5">
-                <p className="mb-1.5 font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">Next today</p>
+                <p className="mb-1.5 font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">Scheduled to clock in</p>
                 <ul className="space-y-1">
                   {working.upcoming.slice(0, 4).map((s) => (
                     <li key={s._id} className="flex items-center gap-2 text-xs text-steel">
-                      <span className="font-meta text-steel/70">{fmt(s.startTime)}</span>
+                      {s.startTime <= mountedAt ? (
+                        <span className="rounded-full border border-gold/40 px-1.5 py-px font-meta text-[0.625rem] uppercase tracking-wide text-gold">due</span>
+                      ) : (
+                        <span className="font-meta text-steel/70">{fmt(s.startTime)}</span>
+                      )}
                       <Avatar name={s.memberName} src={s.memberPhotoUrl} size="xs" className="rounded-full" />
                       <span className="truncate">{s.memberName}</span>
                       {s.roomName && <span className="truncate text-steel/70">· {s.roomName}</span>}

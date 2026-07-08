@@ -137,9 +137,18 @@ describe("today command center", () => {
       ctx.db.insert("shifts", { orgId: org, memberId: engId, roomId, startTime: NOON - HOUR, endTime: NOON + 4 * HOUR, kind: "scheduled", status: "scheduled" }),
     );
 
+    // Scheduled but not punched in -> the on-the-clock COUNT stays 0 (the
+    // count reflects real time-clock punches, not the schedule).
+    const before = await asOwner.query(api.today.today, { nowMs: NOON });
+    expect(before.staffOnShift.length).toBe(1); // schedule list unchanged
+    expect(before.counts.staffOnShift).toBe(0);
+
+    // ...and flips to 1 once they actually clock in.
+    await t.run((ctx) =>
+      ctx.db.insert("timeEntries", { orgId: org, memberId: engId, clockInAt: NOON - 30 * 60_000, status: "active", source: "self" }),
+    );
     const res = await asOwner.query(api.today.today, { nowMs: NOON });
     expect(res.arrivals.map((a) => a.title)).toEqual(["Upcoming"]);
-    expect(res.staffOnShift.length).toBe(1);
     expect(res.staffOnShift[0].memberName).toBe("Nova");
     expect(res.staffOnShift[0].onNow).toBe(true);
     expect(res.counts.staffOnShift).toBe(1);

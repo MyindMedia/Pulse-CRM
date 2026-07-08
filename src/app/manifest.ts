@@ -13,7 +13,7 @@ export default function manifest(): MetadataRoute.Manifest {
     short_name: "Pulse",
     description:
       "Recording studio management with a built-in AI manager: bookings, scheduling, inventory, splits, and invoicing.",
-    start_url: "/today",
+    start_url: "/dashboard",
     scope: "/",
     display: "standalone",
     orientation: "portrait",

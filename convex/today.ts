@@ -197,6 +197,15 @@ export const today = query({
       (s) => s.startTime > now && !DEAD_STATUSES.includes(s.status),
     ).length;
 
+    // "On shift" counts REAL punches (active time entries), not the schedule -
+    // matching the dashboard's On-shift card (shifts.whosWorking).
+    const clockedInCount = (
+      await ctx.db
+        .query("timeEntries")
+        .withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", "active"))
+        .collect()
+    ).length;
+
     return {
       now,
       dayStart,
@@ -206,7 +215,7 @@ export const today = query({
         live: liveCount,
         remaining: remainingCount,
         arrivals: arrivals.length,
-        staffOnShift: staffOnShift.filter((s) => s.onNow).length,
+        staffOnShift: clockedInCount,
       },
       sessions,
       rooms: roomStatus,

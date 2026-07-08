@@ -17,7 +17,7 @@ import { useCapabilities } from "@/lib/use-capabilities";
  * "/clock" (the staff punch clock) only shows for actual studio team members -
  * agency viewers and demo owners have no member row to clock.
  */
-const MOBILE_PRIMARY = ["/today", "/clock", "/calendar", "/bookings", "/payments"] as const;
+const MOBILE_PRIMARY = ["/dashboard", "/clock", "/calendar", "/bookings", "/payments"] as const;
 
 /**
  * iOS-style bottom tab bar (mobile only). Surfaces the operator's daily-driver

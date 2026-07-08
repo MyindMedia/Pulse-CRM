@@ -75,22 +75,66 @@ export const listRange = query({
   },
 });
 
-/** Who's on shift right now + the rest of today. Dashboard widget. */
+/** Local midnight for the day containing `ts` (mirrors convex/today.ts). */
+function startOfDay(ts: number): number {
+  const d = new Date(ts);
+  d.setHours(0, 0, 0, 0);
+  return d.getTime();
+}
+
+/** The "On shift" view: who is on the clock RIGHT NOW (real time-clock
+ *  punches, not just the schedule) + who is still scheduled to clock in
+ *  TODAY. A scheduled teammate who hasn't punched shows under `upcoming`
+ *  (due when their window is already open) until they actually clock in;
+ *  staff with neither a punch nor a shift today don't appear at all. */
 export const whosWorking = query({
   args: {},
   handler: async (ctx) => {
     const orgId = await currentOrg(ctx);
     const now = Date.now();
+    const dayStart = startOfDay(now);
+    const dayEnd = dayStart + DAY;
+
+    // On the clock now - driven by active time entries, earliest punch first.
+    const active = await ctx.db
+      .query("timeEntries")
+      .withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", "active"))
+      .collect();
+    const onClock = await Promise.all(
+      active.map(async (e) => {
+        const member = await ctx.db.get(e.memberId);
+        const shift = e.shiftId ? await ctx.db.get(e.shiftId) : null;
+        const room = shift?.roomId ? await ctx.db.get(shift.roomId) : null;
+        return {
+          _id: e._id as string,
+          memberId: e.memberId,
+          memberName: member?.name ?? "-",
+          memberPhotoUrl: member?.photoId
+            ? await ctx.storage.getUrl(member.photoId)
+            : (member?.clerkImageUrl ?? null),
+          roomName: room?.name ?? null,
+          clockInAt: e.clockInAt,
+          endTime: shift?.endTime ?? null,
+        };
+      }),
+    );
+    onClock.sort((a, b) => a.clockInAt - b.clockInAt);
+    const clockedIn = new Set(active.map((e) => e.memberId));
+
+    // Scheduled to clock in today (window still open or later today), minus
+    // anyone already punched in. Widen the scan a day so an overnight shift
+    // that started yesterday still counts.
     const rows = await ctx.db
       .query("shifts")
-      .withIndex("by_org_start", (q) => q.eq("orgId", orgId).gte("startTime", now - DAY).lte("startTime", now + DAY))
+      .withIndex("by_org_start", (q) =>
+        q.eq("orgId", orgId).gte("startTime", dayStart - DAY).lt("startTime", dayEnd),
+      )
       .collect();
-    const live = rows.filter((s) => s.status !== "cancelled" && s.startTime <= now && s.endTime >= now);
     const upcoming = rows
-      .filter((s) => s.status !== "cancelled" && s.startTime > now && s.startTime < now + DAY)
+      .filter((s) => s.status !== "cancelled" && s.endTime >= now && !clockedIn.has(s.memberId))
       .sort((a, b) => a.startTime - b.startTime);
     return {
-      now: await Promise.all(live.map((s) => hydrate(ctx, s))),
+      now: onClock,
       upcoming: await Promise.all(upcoming.slice(0, 8).map((s) => hydrate(ctx, s))),
     };
   },

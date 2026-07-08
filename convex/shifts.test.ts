@@ -34,7 +34,7 @@ describe("staff scheduling - shifts", () => {
     expect(res.conflict).toBe(true);
   });
 
-  it("whosWorking returns members on shift right now", async () => {
+  it("whosWorking: scheduled-but-unpunched staff show as due to clock in, not on the clock", async () => {
     const now = Date.now();
     await t.run(async (ctx) =>
       ctx.db.insert("shifts", {
@@ -42,8 +42,53 @@ describe("staff scheduling - shifts", () => {
         startTime: now - HOUR, endTime: now + HOUR, kind: "scheduled", status: "scheduled",
       }));
     const w = await t.query(api.shifts.whosWorking, {});
+    expect(w.now.length).toBe(0); // no punch -> not "on the clock"
+    expect(w.upcoming.length).toBe(1); // ...but still scheduled today
+    expect(w.upcoming[0].memberName).toBe("Eng Ellis");
+  });
+
+  it("whosWorking: a clocked-in member moves to 'now' and leaves 'upcoming'", async () => {
+    const now = Date.now();
+    const shiftId = await t.run(async (ctx) =>
+      ctx.db.insert("shifts", {
+        orgId: "pulse-demo", memberId: memberId as never,
+        startTime: now - HOUR, endTime: now + HOUR, kind: "scheduled", status: "scheduled",
+      }));
+    await t.run(async (ctx) =>
+      ctx.db.insert("timeEntries", {
+        orgId: "pulse-demo", memberId: memberId as never, shiftId,
+        clockInAt: now - 30 * 60_000, status: "active", source: "self",
+      }));
+    const w = await t.query(api.shifts.whosWorking, {});
     expect(w.now.length).toBe(1);
     expect(w.now[0].memberName).toBe("Eng Ellis");
+    expect(w.now[0].endTime).toBe(now + HOUR); // shift context carried through
+    expect(w.upcoming.length).toBe(0); // not double-listed
+
+    // Ad hoc punch (no shift) still shows under "now" for another member.
+    const idle = await t.run(async (ctx) =>
+      ctx.db.insert("members", { orgId: "pulse-demo", name: "Adhoc Ava", role: "engineer", skills: [] }));
+    await t.run(async (ctx) =>
+      ctx.db.insert("timeEntries", {
+        orgId: "pulse-demo", memberId: idle, clockInAt: now - 5 * 60_000, status: "active", source: "self",
+      }));
+    const w2 = await t.query(api.shifts.whosWorking, {});
+    expect(w2.now.map((r) => r.memberName).sort()).toEqual(["Adhoc Ava", "Eng Ellis"]);
+  });
+
+  it("whosWorking: staff with neither a punch nor a shift today are invisible", async () => {
+    const now = Date.now();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("members", { orgId: "pulse-demo", name: "Idle Ida", role: "engineer", skills: [] });
+      await ctx.db.insert("shifts", {
+        orgId: "pulse-demo", memberId: memberId as never,
+        startTime: now + 3 * 24 * HOUR, endTime: now + 3 * 24 * HOUR + 4 * HOUR,
+        kind: "scheduled", status: "scheduled",
+      });
+    });
+    const w = await t.query(api.shifts.whosWorking, {});
+    expect(w.now.length).toBe(0);
+    expect(w.upcoming.length).toBe(0);
   });
 
   it("unstaffedSessions lists engineering gaps; assignEngineer clears them + auto-shifts", async () => {

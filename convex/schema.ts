@@ -1604,6 +1604,7 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_org_member", ["orgId", "memberId"])
     .index("by_member_status", ["memberId", "status"])
+    .index("by_org_status", ["orgId", "status"])
     .index("by_org_in", ["orgId", "clockInAt"]),
 
   // ── Recurring weekly availability a staff member sets for themselves. ──

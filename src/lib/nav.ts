@@ -1,7 +1,6 @@
 import {
   AlarmClock,
   LayoutDashboard,
-  Sun,
   Sparkles,
   Music2,
   Mic2,
@@ -42,8 +41,7 @@ export type NavItem = {
 /* The primary navigation. Songs is listed first under Dashboard because the
    song record is the spine of Pulse - everything else hangs off it. */
 export const NAV: NavItem[] = [
-  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, blurb: "Studio at a glance" },
-  { label: "Today", href: "/today", icon: Sun, blurb: "The operator command center - what's happening right now" },
+  { label: "Dashboard", href: "/dashboard", icon: LayoutDashboard, blurb: "The command center - what's happening right now + the studio at a glance" },
   { label: "Agent", href: "/agent", icon: Sparkles, blurb: "Your AI studio operations manager", feature: "agent" },
   { label: "Songs", href: "/songs", icon: Music2, blurb: "The catalog - every record in flight", feature: "songs" },
   { label: "Clients", href: "/roster", icon: Users, blurb: "Everyone the studio works with - artists, clients, leads", feature: "clients" },

@@ -8,7 +8,7 @@ import { PulseAiPanel } from "@/components/ai/pulse-ai-panel";
 import { OpsAutopilotPanel } from "@/components/ai/ops-autopilot-panel";
 import { OnboardingNudge } from "@/components/onboarding/onboarding-nudge";
 import { GetPaidBanner } from "@/components/payments/get-paid-banner";
-import { WhosWorkingCard } from "@/components/schedule/whos-working-card";
+import { TodayBoard } from "@/components/today/today-board";
 import { RecoveredByPulse } from "@/components/dashboard/recovered-by-pulse";
 import {
   DollarSign,
@@ -30,7 +30,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton, SkeletonCards } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
 import { TrendArea, HBars, CategoryDonut } from "@/components/charts";
-import { money, compactNumber, relativeTime, shortDate, timeOfDay } from "@/lib/format";
+import { money, compactNumber, relativeTime, shortDate, timeOfDay, longDate } from "@/lib/format";
 import { meta, SESSION_STATUS, ACCENT_TONE, titleCase } from "@/lib/labels";
 
 export default function DashboardPage() {
@@ -51,8 +51,11 @@ export default function DashboardPage() {
       <PageHeader
         overline="Studio"
         title="Dashboard"
-        description="Everything moving through the studio today - bookings, cash, catalog and the deals in flight."
+        description={`What's happening right now and everything moving through the studio - ${longDate(lastRefreshed)}.`}
       />
+
+      {/* The live day view (formerly the Today page) - one pane, no tab hop. */}
+      <TodayBoard />
 
       {empty && (
         <Card className="border-gold-dim/50 bg-gold/[0.04]">
@@ -184,8 +187,6 @@ export default function DashboardPage() {
           </div>
         </div>
       )}
-
-      <WhosWorkingCard />
 
       {/* Chart trio */}
       <div className="grid gap-4 lg:grid-cols-3">
