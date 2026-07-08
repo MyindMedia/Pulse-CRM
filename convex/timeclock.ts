@@ -138,7 +138,7 @@ export const clockIn = mutation({
         throw new Error("That shift isn't yours.");
       }
     }
-    return await ctx.db.insert("timeEntries", {
+    const entryId = await ctx.db.insert("timeEntries", {
       orgId,
       memberId: member._id,
       shiftId,
@@ -147,6 +147,17 @@ export const clockIn = mutation({
       rateCentsSnapshot: member.payType === "hourly" ? member.payRateCents : undefined,
       source: "self",
     });
+    // Surface the punch to owners/managers (notification bell + live toasts).
+    await ctx.db.insert("activity", {
+      orgId,
+      kind: "staff.clocked_in",
+      summary: `${member.name} clocked in`,
+      actorName: member.name,
+      entityType: "member",
+      entityId: member._id,
+      accent: "gold",
+    });
+    return entryId;
   },
 });
 
@@ -158,10 +169,21 @@ export const clockOut = mutation({
     if (!cm) throw new Error("Only studio team members can clock out.");
     const open = await activeEntry(ctx, cm.member._id);
     if (!open) return null;
+    const now = Date.now();
     await ctx.db.patch(open._id, {
-      clockOutAt: Date.now(),
+      clockOutAt: now,
       status: "completed",
       note: note ?? open.note,
+    });
+    const hours = Math.round(((now - open.clockInAt) / HOUR) * 10) / 10;
+    await ctx.db.insert("activity", {
+      orgId: cm.orgId,
+      kind: "staff.clocked_out",
+      summary: `${cm.member.name} clocked out - ${hours}h`,
+      actorName: cm.member.name,
+      entityType: "member",
+      entityId: cm.member._id,
+      accent: "info",
     });
     return open._id;
   },

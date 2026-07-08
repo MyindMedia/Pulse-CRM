@@ -81,6 +81,8 @@ const NOTEWORTHY_ACTIVITY = new Set([
   "invoice.paid",
   "payment.received",
   "shift.cancelled",
+  "staff.clocked_in",
+  "staff.clocked_out",
 ]);
 
 /** Recent noteworthy activity (bookings, payments, completions, cancellations)

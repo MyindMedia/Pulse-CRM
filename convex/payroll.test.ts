@@ -54,6 +54,16 @@ describe("self-service clock (as a staff member)", () => {
     expect(entry!.status).toBe("completed");
     expect(entry!.clockOutAt!).toBeGreaterThanOrEqual(entry!.clockInAt);
     expect(entry!.rateCentsSnapshot).toBe(4_000);
+
+    // Punches land in the activity log so owners/managers get notified
+    // (bell feed + live toasts).
+    const acts = await t.run((ctx) => ctx.db.query("activity").collect());
+    const kinds = acts.map((a) => a.kind);
+    expect(kinds).toContain("staff.clocked_in");
+    expect(kinds).toContain("staff.clocked_out");
+    const inAct = acts.find((a) => a.kind === "staff.clocked_in")!;
+    expect(inAct.summary).toContain("Eng");
+    expect(inAct.entityId).toBe(memberId);
   });
 
   it("a different teammate can't be clocked - only yourself", async () => {
