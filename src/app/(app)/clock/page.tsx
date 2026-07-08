@@ -10,6 +10,7 @@ import { PageHeader } from "@/components/ui/page";
 import { StatTile } from "@/components/ui/stat-tile";
 import { cn } from "@/lib/utils";
 import { clockedMs, startOfToday, startOfWeek, fmtDuration, fmtTicker } from "@/lib/timesheet";
+import { EngineerRequests } from "@/components/schedule/engineer-requests";
 
 const MIN = 60_000;
 
@@ -162,6 +163,8 @@ export default function ClockPage() {
                 : "No shift scheduled - this punch saves as an ad hoc entry"}
         </p>
       </div>
+
+      <EngineerRequests />
 
       <div className="rise-stagger grid grid-cols-2 gap-3">
         <StatTile label="Today" value={fmtDuration(todayMs)} icon={AlarmClock} accent hint="clocked" />

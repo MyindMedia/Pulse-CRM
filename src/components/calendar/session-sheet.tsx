@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
+import { useCapabilities } from "@/lib/use-capabilities";
 import { QRCodeSVG } from "qrcode.react";
 import {
   CheckCircle2,
@@ -119,6 +120,8 @@ export function SessionSheet({
   );
   // Member roster (with photos) so the engineer line can show their photo.
   const engineers = useQuery(api.members.engineers, sessionId ? {} : "skip");
+  const { can } = useCapabilities();
+  const overrideConfirm = useMutation(api.sessions.overrideEngineerConfirmation);
   const engineerPhotoUrl =
     detail?.engineerId != null
       ? (engineers?.find((e) => e._id === detail.engineerId)?.photoUrl ?? null)
@@ -199,7 +202,7 @@ export function SessionSheet({
                 </Row>
                 <Row label="Engineer" icon={Headphones}>
                   {detail.engineerName ? (
-                    <span className="inline-flex items-center gap-2">
+                    <span className="inline-flex flex-wrap items-center gap-2">
                       <Avatar
                         name={detail.engineerName}
                         src={engineerPhotoUrl}
@@ -207,6 +210,30 @@ export function SessionSheet({
                         className="rounded-full"
                       />
                       <span className="truncate">{detail.engineerName}</span>
+                      {detail.engineerRequestStatus === "pending" && (
+                        <>
+                          <Badge tone="caution">awaiting confirmation</Badge>
+                          {can("schedule.manage") && (
+                            <button
+                              type="button"
+                              className="text-xs font-medium text-gold hover:underline"
+                              onClick={() =>
+                                void overrideConfirm({ sessionId: detail._id })
+                                  .then(() => toast.success("Booking finalized by override."))
+                                  .catch((e) => toast.error(e instanceof Error ? e.message : "Could not override."))
+                              }
+                            >
+                              Confirm on their behalf
+                            </button>
+                          )}
+                        </>
+                      )}
+                      {detail.engineerRequestStatus === "confirmed" && (
+                        <Badge tone="positive">confirmed</Badge>
+                      )}
+                      {detail.engineerRequestStatus === "overridden" && (
+                        <Badge tone="gold">finalized by manager</Badge>
+                      )}
                     </span>
                   ) : (
                     <span className="text-steel/70">Unassigned</span>

@@ -864,6 +864,16 @@ export default defineSchema({
     serviceType,
     roomId: v.optional(v.id("rooms")),
     engineerId: v.optional(v.id("members")),
+    // Public-booking engineer request lifecycle: pending until the engineer
+    // confirms (or a manager overrides); declined clears the assignment.
+    engineerRequestStatus: v.optional(
+      v.union(
+        v.literal("pending"),
+        v.literal("confirmed"),
+        v.literal("declined"),
+        v.literal("overridden"),
+      ),
+    ),
     startTime: v.number(),
     endTime: v.number(),
     status: sessionStatus,

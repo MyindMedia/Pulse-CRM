@@ -12,12 +12,15 @@ import { Textarea } from "@/components/ui/field";
 export type AddOnSelection = {
   engineerId?: Id<"members">;
   engineerName?: string;
+  /** Client declared they need an engineer - picking a person is required. */
+  needsEngineer: boolean;
   gear: { id: Id<"equipment">; name: string; priceCents: number }[];
   gearRequestNote: string;
   addOnTotalCents: number;
 };
 
 export const emptyAddOns: AddOnSelection = {
+  needsEngineer: false,
   gear: [],
   gearRequestNote: "",
   addOnTotalCents: 0,
@@ -55,6 +58,7 @@ export function AddOnsPicker({
   // becomes unavailable for the chosen time is simply ignored (and re-appears
   // if it frees up) without a render cascade.
   const [engineerId, setEngineerId] = React.useState<Id<"members"> | undefined>(undefined);
+  const [needsEngineer, setNeedsEngineer] = React.useState(false);
   const [gearIds, setGearIds] = React.useState<Id<"equipment">[]>([]);
   const [note, setNote] = React.useState("");
 
@@ -63,17 +67,19 @@ export function AddOnsPicker({
     const eng = options.engineers.find((e) => e.id === engineerId && e.available);
     const liveGear = options.gear.filter((g) => gearIds.includes(g.id) && g.available);
     return {
-      engineerId: eng?.id,
+      engineerId: needsEngineer ? eng?.id : eng?.id,
       engineerName: eng?.name,
+      needsEngineer,
       gear: liveGear.map((g) => ({ id: g.id, name: g.name, priceCents: g.priceCents })),
       gearRequestNote: note.trim(),
       addOnTotalCents: liveGear.reduce((s, g) => s + g.priceCents, 0),
     };
-  }, [options, engineerId, gearIds, note]);
+  }, [options, engineerId, gearIds, note, needsEngineer]);
 
   // Report up only when the effective selection actually changes.
   const signature = JSON.stringify({
     e: derived.engineerId ?? null,
+    ne: derived.needsEngineer,
     g: derived.gear.map((x) => x.id),
     n: derived.gearRequestNote,
     t: derived.addOnTotalCents,
@@ -85,7 +91,13 @@ export function AddOnsPicker({
 
   const selectedGearIds = new Set(derived.gear.map((g) => g.id));
 
-  if (!selection) return null;
+  if (!selection) {
+    return (
+      <div className="rounded-lg border border-dashed border-graphite/60 bg-coal/50 p-4 text-sm text-steel/80">
+        Pick a date and time above to choose your engineer and add premium gear.
+      </div>
+    );
+  }
 
   if (options === undefined) {
     return (
@@ -108,20 +120,36 @@ export function AddOnsPicker({
       {/* Engineer / producer */}
       {engineers.length > 0 && (
         <section className="space-y-3">
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <UserRound className="size-4 text-gold" />
             <h3 className="font-grotesk text-base font-semibold tracking-tight text-bone">
-              Choose your engineer
+              Need an engineer?
             </h3>
-            <span className="text-xs text-steel/60">optional</span>
+            <label className="ml-auto inline-flex cursor-pointer items-center gap-2 text-sm text-steel">
+              <input
+                type="checkbox"
+                checked={needsEngineer}
+                onChange={(e) => setNeedsEngineer(e.target.checked)}
+                className="size-4 accent-[#fdb913]"
+              />
+              I need an engineer for this session
+            </label>
           </div>
+          {needsEngineer && (
+            <p className="text-xs text-steel/70">
+              Pick who you want to work with - it&apos;s required so the right person can confirm
+              your session. Your booking is finalized once they accept.
+            </p>
+          )}
           <div className="grid gap-2 sm:grid-cols-2">
-            <OptionRow
-              selected={!derived.engineerId}
-              onClick={() => setEngineerId(undefined)}
-              title="No preference"
-              subtitle="The studio assigns the best fit"
-            />
+            {!needsEngineer && (
+              <OptionRow
+                selected={!derived.engineerId}
+                onClick={() => setEngineerId(undefined)}
+                title="No preference"
+                subtitle="The studio assigns the best fit"
+              />
+            )}
             {engineers.map((e) => (
               <OptionRow
                 key={e.id}
@@ -137,6 +165,15 @@ export function AddOnsPicker({
               />
             ))}
           </div>
+          {needsEngineer && derived.engineerId && derived.engineerName && (
+            <p className="rounded-md border border-gold/30 bg-gold/[0.06] px-3 py-2 text-xs text-gold">
+              {derived.engineerName} will be asked to confirm this session - you&apos;ll get an
+              email as soon as it&apos;s locked in.
+            </p>
+          )}
+          {needsEngineer && !derived.engineerId && (
+            <p className="text-xs text-critical">Select an engineer to continue.</p>
+          )}
         </section>
       )}
 

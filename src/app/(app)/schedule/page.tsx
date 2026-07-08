@@ -13,6 +13,7 @@ import { SkeletonRows } from "@/components/ui/skeleton";
 import { ShiftDialog, type EditableShift } from "@/components/schedule/shift-dialog";
 import { TimeOffInbox } from "@/components/schedule/time-off-inbox";
 import { MySchedulePanel } from "@/components/schedule/my-schedule-panel";
+import { EngineerRequests } from "@/components/schedule/engineer-requests";
 import { UnstaffedSessions } from "@/components/schedule/unstaffed-sessions";
 import { cn } from "@/lib/utils";
 
@@ -146,6 +147,8 @@ export default function SchedulePage() {
           </div>
         )}
       </div>
+
+      <EngineerRequests />
 
       <UnstaffedSessions />
 

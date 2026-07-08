@@ -20,6 +20,9 @@ const POP: Record<string, { title: string; route: string }> = {
   "booking.held": { title: "Booking hold placed", route: "/bookings" },
   "staff.clocked_in": { title: "Staff on the clock", route: "/payroll" },
   "staff.clocked_out": { title: "Staff off the clock", route: "/payroll" },
+  "engineer.requested": { title: "Engineer requested", route: "/bookings" },
+  "engineer.confirmed": { title: "Booking finalized", route: "/bookings" },
+  "engineer.declined": { title: "Session needs restaffing", route: "/bookings" },
 };
 
 export function LiveToasts() {

@@ -101,7 +101,8 @@ function RoomDetailView() {
   // An invalid (or still-checking) code blocks submit: never book at full
   // price while a code sits in the box looking applied.
   const promoOk = promo.status === "none" || promo.status === "valid";
-  const canSubmit = Boolean(selection) && formValid && promoOk && !submitting;
+  const engineerOk = !addOns.needsEngineer || Boolean(addOns.engineerId);
+  const canSubmit = Boolean(selection) && formValid && promoOk && engineerOk && !submitting;
 
   // Client-side display math only - createBooking recomputes the
   // authoritative amounts (and re-validates the code) on the server.

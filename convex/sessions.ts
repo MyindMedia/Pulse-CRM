@@ -2,6 +2,7 @@ import { query, mutation, QueryCtx, MutationCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { currentOrg, currentOrgWithCapability} from "./lib/tenant";
+import { resolveViewer } from "./lib/access";
 import {
   assertNoBufferConflict,
   recomputeRoomStatus,
@@ -1013,6 +1014,148 @@ export const sendPayLinkSms = mutation({
       body: `${org?.name ?? "The studio"}: your balance of ${money(balance)} for "${s.title}". Pay securely here: ${url}`,
       kind: "session.paylink",
       sessionId: id,
+    });
+    return { ok: true };
+  },
+});
+
+/* ── Engineer request lifecycle (public bookings) ──────────────
+   A client who needs an engineer picks one at booking time; the session sits
+   tentative until THAT engineer confirms (or a manager/owner overrides). */
+
+/** The signed-in engineer's pending requests - drives the confirm panel on
+ *  Schedule and the mobile Clock page. Returns [] for non-members. */
+export const myEngineerRequests = query({
+  args: {},
+  handler: async (ctx) => {
+    const viewer = await resolveViewer(ctx).catch(() => null);
+    if (!viewer || viewer.kind !== "studio_member") return [];
+    const memberId = viewer.memberId as unknown as string;
+    if (!memberId || memberId === "demo") return [];
+    const now = Date.now();
+    const rows = (
+      await ctx.db
+        .query("sessions")
+        .withIndex("by_org", (q) => q.eq("orgId", viewer.orgId))
+        .collect()
+    ).filter(
+      (x) =>
+        x.engineerId === viewer.memberId &&
+        x.engineerRequestStatus === "pending" &&
+        x.endTime >= now &&
+        x.status !== "cancelled",
+    );
+    return await Promise.all(
+      rows
+        .sort((a, b) => a.startTime - b.startTime)
+        .map(async (x) => {
+          const [artist, room] = await Promise.all([
+            ctx.db.get(x.artistId),
+            x.roomId ? ctx.db.get(x.roomId) : null,
+          ]);
+          return {
+            _id: x._id,
+            title: x.title,
+            artistName: artist?.name ?? "Client",
+            roomName: room?.name ?? null,
+            startTime: x.startTime,
+            endTime: x.endTime,
+            serviceType: x.serviceType,
+          };
+        }),
+    );
+  },
+});
+
+/** The requested engineer accepts or declines. Accepting finalizes the
+ *  booking (session -> confirmed + auto-shift); declining clears the
+ *  assignment so managers can restaff (session stays tentative). */
+export const respondToEngineerRequest = mutation({
+  args: { sessionId: v.id("sessions"), accept: v.boolean() },
+  handler: async (ctx, { sessionId, accept }) => {
+    const viewer = await resolveViewer(ctx);
+    if (viewer.kind !== "studio_member") throw new Error("Only studio staff can respond.");
+    const session = await ctx.db.get(sessionId);
+    if (!session || session.orgId !== viewer.orgId) throw new Error("Session not found");
+    if (session.engineerId !== viewer.memberId) {
+      throw new Error("This request was sent to a different engineer.");
+    }
+    if (session.engineerRequestStatus !== "pending") {
+      throw new Error("This request has already been handled.");
+    }
+    const me = await ctx.db.get(viewer.memberId);
+    const name = me?.name ?? "Engineer";
+    if (accept) {
+      await ctx.db.patch(sessionId, {
+        engineerRequestStatus: "confirmed",
+        status: "confirmed",
+      });
+      await ensureSessionShift(ctx, {
+        _id: sessionId,
+        orgId: session.orgId,
+        engineerId: session.engineerId,
+        roomId: session.roomId ?? null,
+        startTime: session.startTime,
+        endTime: session.endTime,
+      });
+      await ctx.db.insert("activity", {
+        orgId: session.orgId,
+        kind: "engineer.confirmed",
+        summary: `${name} confirmed ${session.title} - booking finalized`,
+        actorName: name,
+        entityType: "session",
+        entityId: sessionId,
+        accent: "positive",
+      });
+    } else {
+      await ctx.db.patch(sessionId, {
+        engineerId: undefined,
+        engineerRequestStatus: "declined",
+      });
+      await ctx.db.insert("activity", {
+        orgId: session.orgId,
+        kind: "engineer.declined",
+        summary: `${name} declined ${session.title} - needs restaffing`,
+        actorName: name,
+        entityType: "session",
+        entityId: sessionId,
+        accent: "critical",
+      });
+    }
+    return { ok: true };
+  },
+});
+
+/** Manager/owner override: finalize the booking without waiting on the
+ *  requested engineer's confirmation. */
+export const overrideEngineerConfirmation = mutation({
+  args: { sessionId: v.id("sessions") },
+  handler: async (ctx, { sessionId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "schedule.manage");
+    const session = await ctx.db.get(sessionId);
+    if (!session || session.orgId !== orgId) throw new Error("Session not found");
+    if (session.engineerRequestStatus !== "pending") {
+      throw new Error("This request has already been handled.");
+    }
+    await ctx.db.patch(sessionId, {
+      engineerRequestStatus: "overridden",
+      status: "confirmed",
+    });
+    await ensureSessionShift(ctx, {
+      _id: sessionId,
+      orgId,
+      engineerId: session.engineerId ?? null,
+      roomId: session.roomId ?? null,
+      startTime: session.startTime,
+      endTime: session.endTime,
+    });
+    await ctx.db.insert("activity", {
+      orgId,
+      kind: "engineer.confirmed",
+      summary: `${session.title} finalized by management override`,
+      entityType: "session",
+      entityId: sessionId,
+      accent: "gold",
     });
     return { ok: true };
   },

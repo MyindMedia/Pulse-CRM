@@ -622,7 +622,7 @@ export const createBooking = mutation({
       amountPaidCents: 0,
       source: "public_booking",
       holdExpiresAt: Date.now() + HOLD_MINUTES * 60_000,
-      ...(engineerId ? { engineerId } : {}),
+      ...(engineerId ? { engineerId, engineerRequestStatus: "pending" as const } : {}),
       ...(addOns.length ? { addOns } : {}),
       ...(gearRequestNote ? { gearRequestNote } : {}),
       // Mark discounted sessions with the comp fields so the existing comp
@@ -713,14 +713,29 @@ export const createBooking = mutation({
       kind: "booking.created",
       sessionId,
     });
-    // Personally notify the requested engineer so they know to expect it.
+    // Personally notify the requested engineer - their confirmation is what
+    // finalizes the booking (managers can override from the session sheet).
+    if (engineerId) {
+      await ctx.db.insert("activity", {
+        orgId,
+        kind: "engineer.requested",
+        summary: `${engineerName} requested by ${args.clientName.trim()} - awaiting confirmation`,
+        actorName: engineerName,
+        entityType: "session",
+        entityId: sessionId,
+        accent: "gold",
+      });
+    }
     if (engineerEmail) {
+      const appUrl = process.env.APP_URL ?? "https://pulse.myindsound.com";
       await notify(ctx, {
         orgId,
         channel: "email",
         recipient: engineerEmail,
-        subject: `You were requested - ${room.name}`,
-        body: `${args.clientName} requested you for a ${args.durationHours}-hour session in ${room.name} on ${new Date(args.startTime).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}. It is held pending their deposit.`,
+        subject: `Action needed: ${args.clientName} requested you - ${room.name}`,
+        body: `${args.clientName} requested you for a ${args.durationHours}-hour session in ${room.name} on ${new Date(args.startTime).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.
+
+The booking is finalized once you confirm. Review it here: ${appUrl}/schedule`,
         kind: "booking.engineer_requested",
         sessionId,
       });

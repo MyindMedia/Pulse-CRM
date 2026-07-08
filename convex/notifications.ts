@@ -79,6 +79,9 @@ const NOTEWORTHY_ACTIVITY = new Set([
   "shift.cancelled",
   "staff.clocked_in",
   "staff.clocked_out",
+  "engineer.requested",
+  "engineer.confirmed",
+  "engineer.declined",
 ]);
 
 /** Recent noteworthy activity (bookings, payments, completions, cancellations)
