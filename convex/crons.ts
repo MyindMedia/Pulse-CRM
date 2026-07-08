@@ -24,6 +24,10 @@ crons.interval("room-status", { minutes: 15 }, internal.maintenance.recomputeAll
 // "simulated" mode until a provider (Twilio) is configured.
 crons.interval("sms-reminders", { minutes: 15 }, internal.sms.sendDueReminders);
 
+// Email reminders - the channel that works today (Resend). Sessions: client +
+// engineer at 24h and 2h. Staff shifts: 24h before. Idempotent per entity.
+crons.interval("email-reminders", { minutes: 30 }, internal.reminders.sweep, {});
+
 // Cloud-side A2P 10DLC finisher: polls the Standard A2P profile, registers the
 // brand once approved, then creates the campaign - so registration completes
 // without a local terminal. Idempotent; no-ops once the campaign exists.

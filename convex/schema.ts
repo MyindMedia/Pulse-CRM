@@ -887,7 +887,9 @@ export default defineSchema({
     source: v.optional(v.string()), // "public_booking" | "internal"
     holdExpiresAt: v.optional(v.number()), // unpaid hold auto-releases at this time
     balanceRemindedAt: v.optional(v.number()), // set once the "pay in full" nudge fires
-    smsRemindersSent: v.optional(v.array(v.string())), // which SMS reminders fired: "24h" | "2h"
+    smsRemindersSent: v.optional(v.array(v.string())),
+    // Which email reminders have gone out ("24h" / "2h") - sweep dedupe.
+    emailRemindersSent: v.optional(v.array(v.string())), // which SMS reminders fired: "24h" | "2h"
     // Two-way Google Calendar sync: when the studio is connected, this is the
     // Google event id we created for this session so we can patch / delete it.
     googleCalendarEventId: v.optional(v.string()),
@@ -1588,6 +1590,8 @@ export default defineSchema({
     status: v.union(v.literal("scheduled"), v.literal("confirmed"), v.literal("cancelled")),
     note: v.optional(v.string()),
     createdBy: v.optional(v.string()),
+    // 24h-before staff reminder sent marker (email sweep dedupe).
+    reminderSentAt: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])
     .index("by_org_member", ["orgId", "memberId"])
