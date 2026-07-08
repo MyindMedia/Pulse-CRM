@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useQuery } from "convex/react";
-import { useUser } from "@clerk/nextjs";
+import { useOptionalUser } from "@/lib/use-optional-clerk";
 import {
   DndContext,
   type DragEndEvent,
@@ -119,7 +119,7 @@ function SortableNavItem({
 
 export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   const pathname = usePathname();
-  const { user } = useUser();
+  const { user } = useOptionalUser();
   const { can, loaded: capsLoaded, kind } = useCapabilities();
   // Agency mode is for AGENCY members only - sub-account (studio) users must
   // never see the console entry. `kind` comes from the server's resolveViewer

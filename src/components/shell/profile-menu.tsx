@@ -4,7 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
-import { useClerk, useUser } from "@clerk/nextjs";
+import { useOptionalSignOut, useOptionalUser } from "@/lib/use-optional-clerk";
 import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
 import {
@@ -66,8 +66,8 @@ export function ProfileMenu() {
   const org = useQuery(api.orgs.current);
   const profile = useQuery(api.members.myProfile);
   const counts = useQuery(api.insights.counts);
-  const { signOut } = useClerk();
-  const { user } = useUser();
+  const signOut = useOptionalSignOut();
+  const { user } = useOptionalUser();
   const { theme, toggle } = useTheme();
 
   const [profileOpen, setProfileOpen] = React.useState(false);
@@ -143,10 +143,12 @@ export function ProfileMenu() {
             {theme === "light" ? "Dark mode" : "Light mode"}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => void signOut({ redirectUrl: "/sign-in" })}>
-            <LogOut className="size-4" />
-            Sign out
-          </DropdownMenuItem>
+          {signOut && (
+            <DropdownMenuItem onSelect={() => void signOut({ redirectUrl: "/sign-in" })}>
+              <LogOut className="size-4" />
+              Sign out
+            </DropdownMenuItem>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
