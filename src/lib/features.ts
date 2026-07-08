@@ -52,6 +52,8 @@ export function featureForPath(pathname: string): FeatureKey | null {
     inbox: "inbox",
     calendar: "calendar",
     schedule: "schedule",
+    clock: "schedule", // the staff time clock rides the Schedule feature
+
     bookings: "bookings",
     payments: "payments",
     reports: "reports",

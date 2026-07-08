@@ -447,6 +447,41 @@ Higgsfield generation; (4) optional dark->light landing register.
 - Pulse pinned: PulseLogo is a baked-gold image (immune to token overrides); booking navbar "Secured by Pulse" + footer "Powered by Pulse" now render on every plan (whitelabel gate removed by product decision).
 - **AI brand heroes (2026-06-12):** `convex/brandHero.ts` generates a low-key studio interior lit in the org accent via Gemini (`gemini-2.5-flash-image`, GEMINI_API_KEY on prod) on every logo upload (3s after `setLogo`; manual `bookingHeroId` wins; "Generate with AI" button in branding panel). Booking landing redesigned: full-bleed hero background (manual > generated > palette gradient) under a dark ink fade + brand tint, themed CTA.
 
+## Feature: staff mobile time clock + iOS app polish (built + shipped 2026-07-07)
+
+**Goal (owner, /goal):** teams get a clock in/out function on mobile when
+logged in, and the logged-in mobile experience feels like an iOS app for staff.
+
+**What already existed (kept):** `convex/timeclock.ts` (self-scoped clockIn/
+clockOut/snooze/myStatus/myEntries - ad hoc clock-in already allowed, no
+backend change needed), the shift-prompt `ClockWidget` (pops at shift start/
+end + floating on-the-clock pill), `MobileTabBar`, installable manifest,
+branded mobile-friendly Clerk sign-in.
+
+**Gaps closed:**
+- NEW `/clock` page (`src/app/(app)/clock/page.tsx`): phone-first punch
+  screen - live wall clock, one big circular punch button (gold "Clock in" /
+  ticking h:mm:ss + "tap to clock out"), shift context line (open shift ->
+  ties entry to it; else next shift; else "ad hoc entry"), Today + This-week
+  stat tiles, recent-entries timesheet. Non-staff (agency view-as, clients,
+  demo owner: myStatus.member=null) get a quiet explainer. Pure math in
+  `src/lib/timesheet.ts` (clockedMs/startOfToday/startOfWeek/fmtDuration/
+  fmtTicker) + tests (619 vitest total).
+- Nav: "Time Clock" item (feature "schedule", no capability - staff see it);
+  `featureForPath` maps /clock -> "schedule" so agency toggles gate it.
+- MobileTabBar: /clock added to MOBILE_PRIMARY (after Today), shown only when
+  `timeclock.myStatus` resolves a member row (real staff), hidden for agency
+  viewers/demo owners.
+- iOS/PWA polish: real square icons generated from the waveform mark on ink
+  (public/icon-192/512, icon-maskable-512, apple-touch-icon 180) wired into
+  manifest.ts + metadata.icons.apple; viewport gains `viewportFit: "cover"`
+  (tab bar already pads safe-area-inset-bottom).
+
+**Non-goals (this pass):** web push notifications (needs VAPID + schema),
+geofenced clock-in, offline queueing of punches.
+**Verified:** tsc + lint + 619 vitest + next build green (/clock +
+manifest.webmanifest in the route list). Frontend-only - no Convex deploy.
+
 ## Feature: payroll pay-period schedule (built + shipped 2026-07-07)
 
 **Goal (owner):** payroll for the entire team every month, and the Payroll page

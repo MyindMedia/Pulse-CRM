@@ -48,6 +48,7 @@ export const metadata: Metadata = {
   applicationName: "Pulse",
   // Installable-to-home-screen support on iOS (Next auto-links app/manifest.ts).
   appleWebApp: { capable: true, title: "Pulse", statusBarStyle: "black-translucent" },
+  icons: { apple: "/apple-touch-icon.png" },
   authors: [{ name: "Myind Sound" }],
   openGraph: {
     type: "website",
@@ -68,6 +69,9 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   maximumScale: 1,
+  // Draw edge-to-edge in standalone/notched iOS; safe-area insets are handled
+  // where it matters (the mobile tab bar pads env(safe-area-inset-bottom)).
+  viewportFit: "cover",
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

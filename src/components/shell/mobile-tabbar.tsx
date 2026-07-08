@@ -14,8 +14,10 @@ import { useCapabilities } from "@/lib/use-capabilities";
  * The hourly-use surfaces an operator actually taps on a phone, in order.
  * The bar draws from this list (not the top of the full nav) so the bottom
  * tabs are the daily-driver screens; everything else lives in the More drawer.
+ * "/clock" (the staff punch clock) only shows for actual studio team members -
+ * agency viewers and demo owners have no member row to clock.
  */
-const MOBILE_PRIMARY = ["/today", "/calendar", "/bookings", "/payments"] as const;
+const MOBILE_PRIMARY = ["/today", "/clock", "/calendar", "/bookings", "/payments"] as const;
 
 /**
  * iOS-style bottom tab bar (mobile only). Surfaces the operator's daily-driver
@@ -29,6 +31,9 @@ export function MobileTabBar({ onOpenMore }: { onOpenMore: () => void }) {
   const { can, loaded } = useCapabilities();
   const org = useQuery(api.orgs.current);
   const disabledFeatures = org?.disabledFeatures;
+  // Already subscribed globally by ClockWidget, so this dedupes to no extra load.
+  const clockStatus = useQuery(api.timeclock.myStatus, {});
+  const isStaff = Boolean(clockStatus?.member);
 
   const items = React.useMemo(() => {
     const disabled = new Set(disabledFeatures ?? []);
@@ -36,12 +41,13 @@ export function MobileTabBar({ onOpenMore }: { onOpenMore: () => void }) {
     return MOBILE_PRIMARY.map((href) => byHref.get(href))
       .filter((item): item is (typeof NAV)[number] => Boolean(item))
       .filter((item) => {
+        if (item.href === "/clock" && !isStaff) return false;
         if (item.feature && disabled.has(item.feature)) return false;
         if (item.capability && (!loaded || !can(item.capability))) return false;
         return true;
       })
       .slice(0, 5);
-  }, [disabledFeatures, can, loaded]);
+  }, [disabledFeatures, can, loaded, isStaff]);
 
   return (
     <nav

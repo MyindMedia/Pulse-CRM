@@ -1,4 +1,5 @@
 import {
+  AlarmClock,
   LayoutDashboard,
   Sun,
   Sparkles,
@@ -51,6 +52,7 @@ export const NAV: NavItem[] = [
   { label: "Inbox", href: "/inbox", icon: Inbox, blurb: "AI agent drafts awaiting your approval", feature: "inbox" },
   { label: "Calendar", href: "/calendar", icon: CalendarDays, blurb: "Sessions and room bookings", feature: "calendar" },
   { label: "Schedule", href: "/schedule", icon: CalendarClock, blurb: "Staff shifts - who's working, in which room", feature: "schedule" },
+  { label: "Time Clock", href: "/clock", icon: AlarmClock, blurb: "Clock in and out - your hours and recent entries", feature: "schedule" },
   { label: "Bookings", href: "/bookings", icon: Ticket, blurb: "Online bookings, deposits and holds", feature: "bookings" },
   { label: "Payments", href: "/payments", icon: Receipt, blurb: "Invoices and cash flow", feature: "payments", capability: "invoices.read" },
   { label: "Packages", href: "/packages", icon: Package, blurb: "Prepaid hour blocks - sell studio time up front", capability: "invoices.read" },

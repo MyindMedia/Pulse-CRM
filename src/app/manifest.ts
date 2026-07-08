@@ -6,10 +6,7 @@ import type { MetadataRoute } from "next";
 
    NOTE: full web push (VAPID keys + a push-subscription table) is a follow-up -
    it needs a schema change, which is out of scope here. This ships
-   installability only.
-
-   NOTE: the referenced icon (badge-pulse.png) is the best existing brand mark
-   in public/; a dedicated square 192/512 maskable icon is a follow-up. */
+   installability only. */
 export default function manifest(): MetadataRoute.Manifest {
   return {
     name: "Pulse - Studio Management",
@@ -23,12 +20,9 @@ export default function manifest(): MetadataRoute.Manifest {
     background_color: "#08080a",
     theme_color: "#08080a",
     icons: [
-      {
-        src: "/badge-pulse.png",
-        sizes: "any",
-        type: "image/png",
-        purpose: "any",
-      },
+      { src: "/icon-192.png", sizes: "192x192", type: "image/png", purpose: "any" },
+      { src: "/icon-512.png", sizes: "512x512", type: "image/png", purpose: "any" },
+      { src: "/icon-maskable-512.png", sizes: "512x512", type: "image/png", purpose: "maskable" },
     ],
   };
 }
