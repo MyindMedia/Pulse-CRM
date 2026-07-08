@@ -467,12 +467,17 @@ per the studio manager/owner's preference.
   shows the period dates next to the picker, and owner/manager get a
   "Paid monthly / Paid every two weeks" selector (useCapabilities-gated;
   first switch to biweekly anchors on the most recent Monday).
-- `seedDemoFinance`: whole paid team now clocks a steady weekly rhythm
-  (engineers 2 shifts/wk 3-4h, managers 1 shift/wk 2-3h, staggered weekdays,
-  no Sundays) so every period shows the full roster; seed also sets the demo
-  org to biweekly anchored Monday of last week (mid-period on run day).
+- `seedDemoFinance`: whole paid team now clocks a steady weekly rhythm so
+  every period shows the full roster; seed also sets the demo org to biweekly
+  anchored Monday of last week (mid-period on run day).
+- Full-time pass (same day, owner ask): BOTH managers ($52k/yr) and the
+  senior engineers Renzo + Sienna ($47.5k/yr) are now SALARIED full-timers
+  clocking Mon-Fri 7-8h days; Theo stays hourly $32/hr part-time (2 shifts/wk
+  3-4h) AND is the live on-the-clock engineer so ticking pay still demos the
+  hourly path. Salary = annual cents prorated per period by lib/payroll;
+  salaried entries carry no rateCentsSnapshot.
 - Verified tsc + lint + 616 vitest + build; deployed Convex prod
-  `pastel-corgi-340`; seed re-run (65 entries, 210h / $6,640 per 8wk).
+  `pastel-corgi-340`; seed re-run (177 entries, 1,258h / $32,388 per 8wk).
 
 **Non-goals (this pass):** weekly/semi-monthly schedules, a custom anchor-date
 picker in the UI (anchor defaults to Monday; adjustable later), payroll

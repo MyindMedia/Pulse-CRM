@@ -5,7 +5,8 @@ import { memberPay } from "./lib/payroll";
 /* ============================================================
    Demo finance fill - the money-OUT + payroll side of the pitch
    demo (revenue already exists from seedDemoYear). Loads:
-     - pay rates on every team member (by role),
+     - pay on every team member: managers + senior engineers are
+       FULL-TIME salaried, the first engineer is hourly/part-time,
      - ~12 months of expenses (rent, utilities, insurance, ad
        spend, gear, repairs, fees) so the P&L has a real cost
        base and net profit,
@@ -29,10 +30,9 @@ type Cat =
   | "rent" | "utilities" | "software" | "gear" | "repairs" | "payroll"
   | "contractor" | "marketing" | "supplies" | "insurance" | "travel" | "fees" | "other";
 
-// Pay by role, scaled to this boutique studio (revenue ~$55k/yr). The owner
-// draws profit rather than payroll, so they're omitted. Mostly hourly with one
-// modest salary (the manager) so the demo shows both pay types.
-// ["hourly", cents/hour] or ["salary", ANNUAL cents].
+// Hourly pay by role (cents/hour). The owner draws profit rather than
+// payroll, so they're omitted. Roles that become FULL-TIME (see SALARY
+// below) get a salary instead of their hourly rate.
 const PAY: Record<string, ["hourly" | "salary", number]> = {
   manager: ["hourly", 3_000],
   producer: ["hourly", 4_200],
@@ -41,6 +41,15 @@ const PAY: Record<string, ["hourly" | "salary", number]> = {
   artist_relations: ["hourly", 2_100],
   accountant: ["hourly", 3_500],
   intern: ["hourly", 1_500],
+};
+
+// Full-time staff: BOTH managers and the senior engineers are salaried
+// employees (ANNUAL cents, prorated per pay period by lib/payroll). The
+// first engineer stays hourly/part-time so the demo shows both pay types
+// and the live on-the-clock ticker still moves the pay number.
+const SALARY = {
+  manager: 5_200_000, // $52k/yr studio managers
+  engineer: 4_750_000, // $47.5k/yr senior engineers
 };
 
 // Fixed monthly costs (created for each of the last 12 months). Sized for a
@@ -91,13 +100,32 @@ export const fill = internalMutation({
       if ((s.note ?? "").endsWith(TAG)) { await ctx.db.delete(s._id); removed++; }
     }
 
-    // ── Pay rates on every member (idempotent re-set). ──
+    // ── Pay on every member (idempotent re-set). Managers + all but the
+    //    first engineer are FULL-TIME salaried; the first engineer stays
+    //    hourly/part-time. Each member's final plan is kept so the time
+    //    entries below can match snapshot rates + shift length to it. ──
     const members = await ctx.db.query("members").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
     let paid = 0;
+    const plan = new Map<string, { payType: "hourly" | "salary"; rateCents: number }>();
+    let hourlyEngineerId: string | null = null;
     for (const m of members) {
       const p = PAY[m.role];
       if (p) {
-        await ctx.db.patch(m._id, { payType: p[0], payRateCents: p[1] });
+        let payType = p[0];
+        let rateCents = p[1];
+        if (m.role === "manager") {
+          payType = "salary";
+          rateCents = SALARY.manager;
+        } else if (m.role === "engineer") {
+          if (hourlyEngineerId === null) {
+            hourlyEngineerId = m._id; // stays hourly (the on-the-clock demo engineer)
+          } else {
+            payType = "salary";
+            rateCents = SALARY.engineer;
+          }
+        }
+        await ctx.db.patch(m._id, { payType, payRateCents: rateCents });
+        plan.set(m._id, { payType, rateCents });
         paid++;
       } else {
         // Roles not in PAY (e.g. the owner, who draws profit) are unpaid - clear
@@ -129,37 +157,41 @@ export const fill = internalMutation({
     }
 
     // ── Time entries: ~8 weeks of clocked hours for the WHOLE paid team.
-    //    Every teammate keeps a steady weekly rhythm (engineers two shifts a
-    //    week, managers one admin shift), so any window - this month, or the
-    //    current biweekly/monthly pay period - shows the full team with hours.
+    //    Full-timers (salaried) work Mon-Fri 7-8h days; the hourly engineer
+    //    keeps a part-time rhythm of two 3-4h shifts a week. So any window -
+    //    this month, or the current biweekly/monthly pay period - shows the
+    //    full roster with hours that match their employment type.
     let entriesAdded = 0;
-    const payable = members.filter((m) => PAY[m.role]);
+    const payable = members.filter((m) => plan.has(m._id));
     for (let i = 0; i < payable.length; i++) {
       const m = payable[i];
-      const conf = PAY[m.role];
-      const rate = conf[0] === "hourly" ? conf[1] : undefined;
+      const p = plan.get(m._id)!;
+      const fullTime = p.payType === "salary";
       const isManager = m.role === "manager";
-      // Weekday(s) this teammate clocks in (1=Mon..6=Sat), staggered per person.
-      const workdays = isManager ? [1 + (i % 5)] : [1 + (i % 3), 4 + (i % 3)];
+      // Weekdays this teammate clocks in (1=Mon..5=Fri, part-timers staggered).
+      const workdays = fullTime ? [1, 2, 3, 4, 5] : [1 + (i % 3), 4 + (i % 3)];
       for (let off = 1; off <= 56; off++) {
         const day = new Date(now - off * DAY);
         if (!workdays.includes(day.getDay())) continue;
-        const inAt = new Date(day.getFullYear(), day.getMonth(), day.getDate(), isManager ? 10 : 11, 0).getTime();
-        const hours = (isManager ? 2 : 3) + ((i + off) % 2); // managers 2-3h, engineers 3-4h
+        const inAt = new Date(day.getFullYear(), day.getMonth(), day.getDate(), isManager ? 9 : fullTime ? 10 : 11, 0).getTime();
+        const hours = fullTime ? 7 + ((i + off) % 2) : 3 + ((i + off) % 2); // full-timers 7-8h, part-time 3-4h
         await ctx.db.insert("timeEntries", {
           orgId, memberId: m._id, clockInAt: inAt, clockOutAt: inAt + hours * HOUR,
-          status: "completed", rateCentsSnapshot: rate, source: "self", note: TAG,
+          status: "completed",
+          rateCentsSnapshot: p.payType === "hourly" ? p.rateCents : undefined,
+          source: "self", note: TAG,
         });
         entriesAdded++;
       }
     }
 
-    // ── One engineer currently ON the clock (live "on the clock" state). ──
-    const eng = payable.find((m) => m.role === "engineer");
+    // ── The hourly engineer currently ON the clock (live ticking pay). ──
+    const eng = payable.find((m) => m._id === hourlyEngineerId) ?? payable.find((m) => m.role === "engineer");
     if (eng) {
       await ctx.db.insert("timeEntries", {
         orgId, memberId: eng._id, clockInAt: now - 2 * HOUR, status: "active",
-        rateCentsSnapshot: PAY.engineer[1], source: "self", note: TAG,
+        rateCentsSnapshot: plan.get(eng._id)!.payType === "hourly" ? plan.get(eng._id)!.rateCents : undefined,
+        source: "self", note: TAG,
       });
       entriesAdded++;
     }
