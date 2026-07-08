@@ -447,6 +447,25 @@ Higgsfield generation; (4) optional dark->light landing register.
 - Pulse pinned: PulseLogo is a baked-gold image (immune to token overrides); booking navbar "Secured by Pulse" + footer "Powered by Pulse" now render on every plan (whitelabel gate removed by product decision).
 - **AI brand heroes (2026-06-12):** `convex/brandHero.ts` generates a low-key studio interior lit in the org accent via Gemini (`gemini-2.5-flash-image`, GEMINI_API_KEY on prod) on every logo upload (3s after `setLogo`; manual `bookingHeroId` wins; "Generate with AI" button in branding panel). Booking landing redesigned: full-bleed hero background (manual > generated > palette gradient) under a dark ink fade + brand tint, themed CTA.
 
+## Features: live owner/manager toasts + punch-driven On-shift + Today/Dashboard merge (2026-07-07)
+
+- **Live pop-ups (`9733060`):** clockIn/clockOut write `staff.clocked_in` /
+  `staff.clocked_out` activity rows (added to the bell's NOTEWORTHY set); new
+  `LiveToasts` shell component pops real-time toasts for `schedule.manage`
+  holders on staff punches + new bookings (own punches muted, pre-mount
+  history stays in the bell).
+- **On-shift = real punches, today only (`9338a87`):** `shifts.whosWorking`
+  rewritten - `now` = active time entries (new `timeEntries.by_org_status`
+  index), `upcoming` = today's still-open shifts minus anyone already punched
+  ("due" chip when the window is open); staff with neither punch nor shift
+  today don't appear. `today.counts.staffOnShift` counts punches too.
+- **Today + Dashboard are ONE pane (`9338a87`):** new
+  `src/components/today/today-board.tsx` (counters, now strip, timeline,
+  arrivals/balances/on-shift/tomorrow rail - StaffPanel replaced by the
+  punch-driven WhosWorkingCard) tops /dashboard; /today redirects there;
+  nav item removed, mobile tab + PWA start_url now /dashboard. Dashboard
+  remains the login landing.
+
 ## Fix: blank app after a fresh member's first sign-in (2026-07-07)
 
 **Symptom:** newly-invited staff (first real one: berlaw@gmail.com, manager on
