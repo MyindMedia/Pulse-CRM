@@ -93,7 +93,7 @@ export function AddArtistDialog({
         genres: form.genres.length ? form.genres : undefined,
         status: form.status,
       });
-      toast.success(`${name} added to the roster.`);
+      toast.success(`${name} added to your clients.`);
       onOpenChange(false);
       router.push(`/roster/${id as Id<"artists">}`);
     } catch {
@@ -109,7 +109,7 @@ export function AddArtistDialog({
         <DialogHeader>
           <DialogTitle>Add artist</DialogTitle>
           <DialogDescription>
-            Create a new roster contact. You can fill in the rest from their profile.
+            Create a new client. You can fill in the rest from their profile.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>

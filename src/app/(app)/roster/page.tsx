@@ -50,7 +50,7 @@ function RosterView() {
 
   const segParam = searchParams.get("segment") ?? "all";
   const [segment, setSegment] = React.useState(SEGMENTS.some((s) => s.key === segParam) ? segParam : "all");
-  // Follow the URL param (e.g. the "Roster" nav shortcut → ?segment=artists)
+  // Follow the URL param (?segment=artists etc. - deep links still work)
   // even when already on this page (render-time sync, no effect cascade).
   const [prevSeg, setPrevSeg] = React.useState(segParam);
   if (prevSeg !== segParam) {

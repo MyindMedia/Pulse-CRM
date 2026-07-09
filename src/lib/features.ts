@@ -5,7 +5,6 @@ export type FeatureKey =
   | "agent"
   | "songs"
   | "clients"
-  | "roster"
   | "pipeline"
   | "inbox"
   | "calendar"
@@ -23,7 +22,6 @@ export const TOGGLEABLE_FEATURES: { key: FeatureKey; label: string; blurb: strin
   { key: "agent", label: "Agent", blurb: "AI studio operations manager" },
   { key: "songs", label: "Songs", blurb: "Song catalog" },
   { key: "clients", label: "Clients", blurb: "Client directory" },
-  { key: "roster", label: "Roster", blurb: "Artist roster" },
   { key: "pipeline", label: "Pipeline", blurb: "Leads pipeline" },
   { key: "inbox", label: "Inbox", blurb: "Agent approval inbox" },
   { key: "calendar", label: "Calendar", blurb: "Sessions calendar" },
@@ -42,8 +40,8 @@ export const TOGGLEABLE_FEATURES: { key: FeatureKey; label: string; blurb: strin
  *  the route is always available. */
 export function featureForPath(pathname: string): FeatureKey | null {
   const seg = pathname.split("/").filter(Boolean)[0] ?? "";
-  // /roster powers both "Clients" and "Roster" nav items; it's available if
-  // EITHER is enabled, so route-gating keys it to "clients" (the broader one).
+  // /roster is the "Clients" surface (artists, clients, and leads in one
+  // directory) - the separate Roster nav item was consolidated into it.
   const map: Record<string, FeatureKey> = {
     agent: "agent",
     songs: "songs",
