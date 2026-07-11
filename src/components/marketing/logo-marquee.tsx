@@ -125,9 +125,9 @@ export function LogoMarquee() {
   return (
     <section ref={root} className="relative overflow-hidden px-0 py-24">
       <div className="mx-auto max-w-6xl px-4 lg:px-8">
-        <p className="chrome-meta text-steel">Trusted by recording studios</p>
+        <p className="chrome-meta text-steel">Client studios</p>
         <p className="font-grotesk mt-3 max-w-prose text-[17px] font-medium tracking-[-0.01em] text-mist">
-          Studios running on Pulse.
+          Studios that trust Myind Sound.
         </p>
       </div>
 
