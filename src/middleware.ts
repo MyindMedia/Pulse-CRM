@@ -22,6 +22,7 @@ const isPublicRoute = createRouteMatcher([
   "/invite(.*)", // beta invite account-creation screen - no auth required
   "/portal(.*)", // client concierge magic-link portal - token-authed, no login
   "/sign(.*)", // split-sheet e-signature magic-link - token-authed, no login
+  "/visit(.*)", // visitor QR self check-in - org derived from the slug, no login
 ]);
 
 const handler = CLERK_ENABLED

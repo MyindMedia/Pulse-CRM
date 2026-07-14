@@ -12,6 +12,7 @@ import {
   LayoutGrid,
   List,
   Plus,
+  Tablet,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
@@ -134,15 +135,23 @@ function CalendarView() {
         title="Calendar"
         description="Studio sessions across the month - book, confirm and run every date on the books."
         actions={
-          <Button
-            onClick={() => {
-              setBookDate(undefined);
-              setBookOpen(true);
-            }}
-          >
-            <Plus className="size-4" />
-            Book session
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" asChild>
+              <a href="/kiosk" target="_blank" rel="noreferrer">
+                <Tablet className="size-4" />
+                Open kiosk
+              </a>
+            </Button>
+            <Button
+              onClick={() => {
+                setBookDate(undefined);
+                setBookOpen(true);
+              }}
+            >
+              <Plus className="size-4" />
+              Book session
+            </Button>
+          </div>
         }
       />
 

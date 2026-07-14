@@ -699,6 +699,26 @@ export default defineSchema({
     .index("by_org_status", ["orgId", "status"])
     .searchIndex("search_name", { searchField: "name", filterFields: ["orgId"] }),
 
+  // ── Visitors - the front-desk guest log. Each row is one visit (check-in,
+  //    optional check-out). Contact details also upsert into `artists` as
+  //    leads (source "visitor_qr"), so the Clients directory doubles as the
+  //    outreach database; artistId links the visit back to that record. ──
+  visitors: defineTable({
+    orgId: v.string(),
+    name: v.string(),
+    email: v.string(), // stored lowercased - the dedup key into artists
+    phone: v.optional(v.string()),
+    purpose: v.optional(v.string()), // reason for the visit
+    hostName: v.optional(v.string()), // who they came to see
+    artistId: v.optional(v.id("artists")),
+    checkInAt: v.number(),
+    checkOutAt: v.optional(v.number()),
+    source: v.string(), // "qr" | "front_desk"
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_checkin", ["orgId", "checkInAt"])
+    .index("by_org_email", ["orgId", "email"]),
+
   // ── Songs - the spine of the product ──
   songs: defineTable({
     orgId: v.string(),

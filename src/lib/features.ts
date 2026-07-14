@@ -9,6 +9,7 @@ export type FeatureKey =
   | "inbox"
   | "calendar"
   | "schedule"
+  | "visitors"
   | "bookings"
   | "payments"
   | "reports"
@@ -26,6 +27,7 @@ export const TOGGLEABLE_FEATURES: { key: FeatureKey; label: string; blurb: strin
   { key: "inbox", label: "Inbox", blurb: "Agent approval inbox" },
   { key: "calendar", label: "Calendar", blurb: "Sessions calendar" },
   { key: "schedule", label: "Schedule", blurb: "Staff shifts" },
+  { key: "visitors", label: "Visitors", blurb: "Front-desk guest log + QR check-in" },
   { key: "bookings", label: "Bookings", blurb: "Online bookings + deposits" },
   { key: "payments", label: "Payments", blurb: "Invoices + cash flow" },
   { key: "reports", label: "Reports", blurb: "Revenue command center" },
@@ -51,6 +53,7 @@ export function featureForPath(pathname: string): FeatureKey | null {
     calendar: "calendar",
     schedule: "schedule",
     clock: "schedule", // the staff time clock rides the Schedule feature
+    visitors: "visitors",
 
     bookings: "bookings",
     payments: "payments",

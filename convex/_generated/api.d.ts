@@ -37,6 +37,7 @@ import type * as brandHero from "../brandHero.js";
 import type * as branding from "../branding.js";
 import type * as cardOnFile from "../cardOnFile.js";
 import type * as checklists from "../checklists.js";
+import type * as clerkIdRemap from "../clerkIdRemap.js";
 import type * as clientEmail from "../clientEmail.js";
 import type * as contact from "../contact.js";
 import type * as crons from "../crons.js";
@@ -75,6 +76,7 @@ import type * as lib_digestSchedule from "../lib/digestSchedule.js";
 import type * as lib_email from "../lib/email.js";
 import type * as lib_emailTemplates_activation from "../lib/emailTemplates/activation.js";
 import type * as lib_emailTemplates_invite from "../lib/emailTemplates/invite.js";
+import type * as lib_emailTemplates_layout from "../lib/emailTemplates/layout.js";
 import type * as lib_gearCatalog from "../lib/gearCatalog.js";
 import type * as lib_gearRental from "../lib/gearRental.js";
 import type * as lib_google from "../lib/google.js";
@@ -121,6 +123,7 @@ import type * as receptionist from "../receptionist.js";
 import type * as recovery from "../recovery.js";
 import type * as recoveryRecap from "../recoveryRecap.js";
 import type * as releases from "../releases.js";
+import type * as reminders from "../reminders.js";
 import type * as reports from "../reports.js";
 import type * as reviews from "../reviews.js";
 import type * as rightsExport from "../rightsExport.js";
@@ -148,6 +151,7 @@ import type * as timeclock from "../timeclock.js";
 import type * as today from "../today.js";
 import type * as twilioA2P from "../twilioA2P.js";
 import type * as usage from "../usage.js";
+import type * as visitors from "../visitors.js";
 import type * as waitlist from "../waitlist.js";
 
 import type {
@@ -186,6 +190,7 @@ declare const fullApi: ApiFromModules<{
   branding: typeof branding;
   cardOnFile: typeof cardOnFile;
   checklists: typeof checklists;
+  clerkIdRemap: typeof clerkIdRemap;
   clientEmail: typeof clientEmail;
   contact: typeof contact;
   crons: typeof crons;
@@ -224,6 +229,7 @@ declare const fullApi: ApiFromModules<{
   "lib/email": typeof lib_email;
   "lib/emailTemplates/activation": typeof lib_emailTemplates_activation;
   "lib/emailTemplates/invite": typeof lib_emailTemplates_invite;
+  "lib/emailTemplates/layout": typeof lib_emailTemplates_layout;
   "lib/gearCatalog": typeof lib_gearCatalog;
   "lib/gearRental": typeof lib_gearRental;
   "lib/google": typeof lib_google;
@@ -270,6 +276,7 @@ declare const fullApi: ApiFromModules<{
   recovery: typeof recovery;
   recoveryRecap: typeof recoveryRecap;
   releases: typeof releases;
+  reminders: typeof reminders;
   reports: typeof reports;
   reviews: typeof reviews;
   rightsExport: typeof rightsExport;
@@ -297,6 +304,7 @@ declare const fullApi: ApiFromModules<{
   today: typeof today;
   twilioA2P: typeof twilioA2P;
   usage: typeof usage;
+  visitors: typeof visitors;
   waitlist: typeof waitlist;
 }>;
 

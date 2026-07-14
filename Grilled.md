@@ -673,6 +673,36 @@ per the studio manager/owner's preference.
 picker in the UI (anchor defaults to Monday; adjustable later), payroll
 run/approval workflow.
 
+## Restyle: Clerk UI full glass branding + backdrop-filter pipeline fix (2026-07-08, /goal)
+
+**Owner ask:** converted Clerk to a Pro account; fully brand the Clerk interfaces.
+**Build:** `src/lib/clerk-appearance.ts` rebuilt onto the liquid-glass system -
+`cardBox` = `material-thick glass-edge shadow-pop` (card + footer read as ONE
+slab; inner `card`/`footer` forced transparent with Tailwind v4 `!` since
+Clerk's stylesheet loads after ours; `bg-none!` kills the footer gradient
+image), popovers `material-regular glass-edge`, modals `material-thick` over a
+blurred ink backdrop, radius 14.4px (chrome), gold primary button gets
+`sheen press`. `/sign-in`, `/sign-up`, `/welcome/activate` swapped their static
+radial for the `app-bloom` aurora so the glass refracts something.
+**Root-cause fix while verifying:** ALL authored `backdrop-filter` declarations
+were compiled away - Lightning CSS keeps only the LAST of a
+standard+`-webkit-` pair, and globals.css declared the standard prop FIRST, so
+prod shipped only the webkit alias (live site included; glass held up in
+Chrome/Safari purely via the alias). Swapped all 9 pairs so the standard
+property comes last; verified blur(36px) now computes in-browser and both
+props survive the prod build.
+**Clerk CLI (new):** `npm i -g clerk` (v2.0.0) + `clerk/skills` agent skills
+installed. Backend-API commands work from this dir via
+`set -a; source .env.local; set +a; clerk users list`. Dashboard-auth commands
+(`clerk config/apps/link`) still need interactive `clerk auth login` (user).
+**User-owned to finish:** flip "Remove Clerk branding" in Dashboard ->
+Customization (Backend API exposes no `branded` field; the dev instance forces
+the badge regardless - clears on the production instance per the GO-LIVE
+blocker), optionally rename the app display name ("Sign in to Pulse CRM"),
+and git push for Netlify to ship the theme + backdrop-filter fix.
+**Verified:** tsc, lint (2 pre-existing errors untouched: profitability.test.ts
+any, twilioA2P.ts prefer-const), 640 vitest, next build, agent-browser visual.
+
 ## Epic: Studio Operations Agent — KB + profitability + risk guardrails (grilled 2026-06-27)
 
 **Goal (owner's words):** an extensive per-sub-account agent that looks ONLY at that sub-account's data (never cross-contaminating), runs an outreach algorithm, evaluates a studio's profitability and where it can improve, reasons against a knowledge base of global studio best practices / top-performer criteria, finds problems before they arise, and has guardrails + safeguards for every category (pipeline, songs, splitsheets, studio scheduling, staff scheduling). It should effectively replace multiple low-level roles.
@@ -696,3 +726,18 @@ run/approval workflow.
 - **Isolation invariant (non-negotiable):** every new query is `by_org`-indexed; KB is global/read-only; no new code reads across orgs; tests assert cross-org reads return nothing.
 
 **Non-goals (this pass):** new UI framework; replacing the conversational agent; live external per-tenant data feeds; auto-executing any client-facing/financial action without graduation.
+
+## Feature: front-desk kiosk calendar + visitor check-in (2026-07-14)
+
+**Goal (owner's words):** a calendar-only view for the sub-account to run full screen on an iPad at the front desk - all events for the month, filterable by day or week, with drill-down and a manual check-in option per session. Plus a Visitors screen on the nav bar showing every visitor's registered timestamps; visitors scan a QR, enter email + visit details, and get checked in. Visits feed a database usable for clients and outreach.
+
+**Decisions (autonomous build - owner away; assumptions flagged):**
+- **Kiosk stays authenticated.** Session data carries rates/deposits and the security audit closed unauthenticated org reads, so `/kiosk` is a signed-in route (staff signs the iPad into Pulse once). It lives OUTSIDE the `(app)` group so it renders chrome-less under the root layout; middleware already protects any non-public route. ASSUMPTION: no PIN-only kiosk auth for v1 - the iPad uses a staff login.
+- **Views:** month (default, all events) / week / day toggle with touch-size targets, prev/today/next paging, live clock. Data = existing `api.sessions.inRange`; date math reused from `src/components/calendar/constants.ts` (week + day grids are new).
+- **Session check-in = the existing status machine.** Drill-down overlay shows session detail; "Check in" runs `api.sessions.setStatus -> in_progress` (which already flips the room to in-use, drives No-Show Shield, Google mirror). Transitions follow SessionSheet's NEXT_STATUSES map (tentative must be confirmed first; in_progress can be marked complete). No schema change for sessions.
+- **Visitors = new `visitors` table (visit log) + upsert into `artists` (the client/outreach database).** Dedup by lowercased email exactly like `booking.createBooking`; new contacts land as `status:"lead"`, `type:"other"`, `tags:["Visitor"]`, `source:"visitor_qr"`, first-touch source wins. The Clients directory therefore doubles as the outreach database - no parallel CRM table.
+- **Public self check-in page `/visit/<slug>`** (added to middleware public routes), branded via existing public `api.orgs.getBySlug`, org resolved server-side from the slug (booking.ts pattern), rate-limited via `usageCounters` metric `visitor_checkins` (60/org/hour). Success screen auto-resets for the next guest. QR rendered with the already-installed `qrcode.react`.
+- **Visitors nav item + `/visitors` page** gated by new feature key `"visitors"` (agency-toggleable like every other module): stat tiles (in studio now / today / this month / contacts), Visit log tab (name, contact, purpose, host, check-in + check-out timestamps, staff Check-out button), Directory tab (unique visitors by email: visit count, last visit, link into Clients), header actions = Check-in QR dialog (print/copy) + manual "Log visitor" dialog for front desk.
+- **Activity feed:** each check-in writes an `activity` row (`visitor.checked_in`) so the dashboard feed shows walk-ins.
+- **Tests:** convex/visitors.test.ts - register creates visit + artist lead, email dedup patches instead of duplicating, unknown slug throws, hourly rate limit throws, checkOut stamps, org scoping (other org's visits invisible), directory grouping.
+- **Not in this pass:** visitor self-checkout on the iPad, badge printing, SMS host notification, per-visitor NDA/waiver capture, PIN-locked kiosk mode.
