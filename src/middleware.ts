@@ -17,12 +17,16 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",
-  "/book(.*)", // public studio booking - no login
-  "/pay(.*)", // public invoice payment link - no login
+  // NOTE: these matchers need the explicit "/" before "(.*)" - a bare
+  // "/book(.*)" also matches sibling APP routes (/bookings, /payments,
+  // /visitors), silently exempting them from the sign-in redirect.
+  "/book", // public studio booking (demo front) - no login
+  "/book/(.*)", // public studio booking by slug - no login
+  "/pay/(.*)", // public invoice payment link - no login
   "/invite(.*)", // beta invite account-creation screen - no auth required
   "/portal(.*)", // client concierge magic-link portal - token-authed, no login
   "/sign(.*)", // split-sheet e-signature magic-link - token-authed, no login
-  "/visit(.*)", // visitor QR self check-in - org derived from the slug, no login
+  "/visit/(.*)", // visitor QR self check-in - org derived from the slug, no login
 ]);
 
 const handler = CLERK_ENABLED
