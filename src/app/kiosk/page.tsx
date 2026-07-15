@@ -10,15 +10,18 @@ import {
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
+  ClipboardCheck,
   Disc3,
   DoorOpen,
   Headphones,
+  Music2,
+  Receipt,
   StickyNote,
   Sun,
   User,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { longDate, timeOfDay, duration } from "@/lib/format";
+import { longDate, timeOfDay, duration, money } from "@/lib/format";
 import { meta, SESSION_STATUS, titleCase } from "@/lib/labels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -282,10 +285,13 @@ function SessionChip({
   session,
   onOpen,
   showStatus,
+  compact,
 }: {
   session: Session;
   onOpen: (id: string) => void;
   showStatus?: boolean;
+  /** Dense one-liner for month cells, where six weeks share the frame. */
+  compact?: boolean;
 }) {
   return (
     <button
@@ -294,15 +300,32 @@ function SessionChip({
         e.stopPropagation();
         onOpen(session._id);
       }}
-      className="flex w-full min-h-11 items-center gap-2 overflow-hidden rounded-md border border-graphite/50 bg-coal-2 px-2.5 py-1.5 text-left outline-none transition-colors hover:border-graphite/70 hover:bg-coal-3 focus-visible:ring-2 focus-visible:ring-gold/30"
+      className={cn(
+        "flex w-full items-center overflow-hidden rounded-md border border-graphite/50 bg-coal-2 text-left outline-none transition-colors hover:border-graphite/70 hover:bg-coal-3 focus-visible:ring-2 focus-visible:ring-gold/30",
+        compact ? "gap-1.5 px-1.5 py-[3px]" : "min-h-11 gap-2 px-2.5 py-1.5",
+      )}
     >
       <span
         aria-hidden
-        className="h-7 w-1 shrink-0 rounded-full"
+        className={cn("shrink-0 rounded-full", compact ? "h-3.5 w-0.5" : "h-7 w-1")}
         style={{ backgroundColor: statusColor(session.status) }}
       />
-      <span className="shrink-0 font-meta text-xs text-steel/70">{timeOfDay(session.startTime)}</span>
-      <span className="min-w-0 flex-1 truncate text-sm font-medium text-bone">{session.title}</span>
+      <span
+        className={cn(
+          "shrink-0 font-meta text-steel/70",
+          compact ? "text-[0.5625rem]" : "text-xs",
+        )}
+      >
+        {timeOfDay(session.startTime)}
+      </span>
+      <span
+        className={cn(
+          "min-w-0 flex-1 truncate font-medium text-bone",
+          compact ? "text-[0.6875rem]" : "text-sm",
+        )}
+      >
+        {session.title}
+      </span>
       {showStatus && (
         <Badge tone={meta(SESSION_STATUS, session.status).tone}>
           {meta(SESSION_STATUS, session.status).label}
@@ -332,18 +355,21 @@ function KioskMonth({
   const byDay = groupByDay(sessions);
 
   return (
-    <div className="grid h-full grid-rows-[auto_1fr] overflow-hidden rounded-lg border border-graphite/50 bg-coal">
+    // A plain `1fr` grid track never shrinks below its content (it means
+    // minmax(auto, 1fr)), which let busy months push the last weeks past the
+    // fold. minmax(0, 1fr) + min-h-0 keeps all six weeks inside the frame.
+    <div className="grid h-full min-h-0 grid-rows-[auto_minmax(0,1fr)] overflow-hidden rounded-lg border border-graphite/50 bg-coal">
       <div className="grid grid-cols-7 border-b border-graphite/50 bg-obsidian">
         {WEEKDAY_LABELS.map((d) => (
           <div
             key={d}
-            className="px-2 py-2.5 text-center font-meta text-xs uppercase tracking-wide text-steel/70"
+            className="px-2 py-2 text-center font-meta text-xs uppercase tracking-wide text-steel/70"
           >
             {d}
           </div>
         ))}
       </div>
-      <div className="grid grid-cols-7 grid-rows-6">
+      <div className="grid min-h-0 grid-cols-7 grid-rows-6">
         {days.map((dayTs) => {
           const inMonth = new Date(dayTs).getMonth() === month;
           const isToday = isSameDay(dayTs, now);
@@ -363,13 +389,14 @@ function KioskMonth({
                 }
               }}
               className={cn(
-                "flex min-h-0 cursor-pointer flex-col gap-1 overflow-hidden border-b border-r border-graphite/50 p-1.5 outline-none transition-colors last:border-r-0 hover:bg-coal-2 focus-visible:ring-2 focus-visible:ring-gold/30",
+                "flex min-h-0 cursor-pointer flex-col gap-0.5 overflow-hidden border-b border-r border-graphite/50 p-1 outline-none transition-colors last:border-r-0 hover:bg-coal-2 focus-visible:ring-2 focus-visible:ring-gold/30",
                 !inMonth && "bg-obsidian/40",
+                isToday && "bg-gold/[0.04]",
               )}
             >
               <span
                 className={cn(
-                  "grid size-7 shrink-0 place-items-center rounded-sm font-meta text-sm",
+                  "grid size-6 shrink-0 place-items-center rounded-sm font-meta text-xs",
                   isToday && "bg-gold font-bold text-gold-ink",
                   !isToday && inMonth && "text-bone",
                   !isToday && !inMonth && "text-steel/70",
@@ -377,12 +404,14 @@ function KioskMonth({
               >
                 {new Date(dayTs).getDate()}
               </span>
-              <div className="flex min-h-0 flex-col gap-1 overflow-hidden">
+              <div className="flex min-h-0 flex-col gap-0.5 overflow-hidden">
                 {visible.map((s) => (
-                  <SessionChip key={s._id} session={s} onOpen={onOpenSession} />
+                  <SessionChip key={s._id} session={s} onOpen={onOpenSession} compact />
                 ))}
                 {overflow > 0 && (
-                  <span className="px-1 font-meta text-xs text-steel/70">+{overflow} more</span>
+                  <span className="px-1 font-meta text-[0.625rem] text-steel/70">
+                    +{overflow} more
+                  </span>
                 )}
               </div>
             </div>
@@ -577,6 +606,11 @@ function KioskSessionDialog({
               <DetailRow icon={Disc3} label="Service">
                 {titleCase(session.serviceType)}
               </DetailRow>
+              {session.songTitle && (
+                <DetailRow icon={Music2} label="Song">
+                  {session.songTitle}
+                </DetailRow>
+              )}
               {session.roomName && (
                 <DetailRow icon={DoorOpen} label="Room">
                   {session.roomName}
@@ -587,6 +621,24 @@ function KioskSessionDialog({
                   {session.engineerName}
                 </DetailRow>
               )}
+              <DetailRow icon={Receipt} label="Rate">
+                <span className="inline-flex items-center gap-2">
+                  {money(session.rateCents)}
+                  {session.depositCents > 0 &&
+                    (session.depositPaid ? (
+                      <Badge tone="positive">Deposit paid</Badge>
+                    ) : (
+                      <Badge tone="caution">{money(session.depositCents)} deposit due</Badge>
+                    ))}
+                </span>
+              </DetailRow>
+              <DetailRow icon={ClipboardCheck} label="Intake">
+                {session.intakeCompleted ? (
+                  <Badge tone="positive">Complete</Badge>
+                ) : (
+                  <Badge tone="neutral">Pending</Badge>
+                )}
+              </DetailRow>
               {session.notes && (
                 <DetailRow icon={StickyNote} label="Notes">
                   {session.notes}
