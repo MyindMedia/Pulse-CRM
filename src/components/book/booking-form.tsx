@@ -74,39 +74,40 @@ export function BookingForm({
         </Field>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
-        <Field
-          label="Phone"
-          htmlFor="bk-phone"
-          hint="Optional - we'll text session reminders & updates. Msg/data rates may apply; reply STOP to opt out."
+      {/* Phone and the service picker each get a full row - this form lives in
+          a narrow sidebar on the room page, and a half-width select truncates
+          both its value and its dropdown options. */}
+      <Field
+        label="Phone"
+        htmlFor="bk-phone"
+        hint="Optional - we'll text session reminders & updates. Msg/data rates may apply; reply STOP to opt out."
+      >
+        <Input
+          id="bk-phone"
+          type="tel"
+          value={values.clientPhone}
+          onChange={(e) => set("clientPhone", e.target.value)}
+          placeholder="(555) 012-3456"
+          autoComplete="tel"
+        />
+      </Field>
+      <Field label="What are you booking for?">
+        <Select
+          value={values.serviceType}
+          onValueChange={(v) => set("serviceType", v as ServiceType)}
         >
-          <Input
-            id="bk-phone"
-            type="tel"
-            value={values.clientPhone}
-            onChange={(e) => set("clientPhone", e.target.value)}
-            placeholder="(555) 012-3456"
-            autoComplete="tel"
-          />
-        </Field>
-        <Field label="What are you booking for?">
-          <Select
-            value={values.serviceType}
-            onValueChange={(v) => set("serviceType", v as ServiceType)}
-          >
-            <SelectTrigger>
-              <SelectValue placeholder="Select a service" />
-            </SelectTrigger>
-            <SelectContent>
-              {SERVICE_TYPES.map((s) => (
-                <SelectItem key={s} value={s} className="capitalize">
-                  {s}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </Field>
-      </div>
+          <SelectTrigger className="w-full capitalize">
+            <SelectValue placeholder="Select a service" />
+          </SelectTrigger>
+          <SelectContent>
+            {SERVICE_TYPES.map((s) => (
+              <SelectItem key={s} value={s} className="capitalize">
+                {s}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
 
       <Field label="Notes" htmlFor="bk-notes" hint="Optional - tell the studio anything useful.">
         <Textarea

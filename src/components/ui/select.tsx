@@ -47,8 +47,10 @@ export const SelectContent = React.forwardRef<
       )}
       {...props}
     >
+      {/* min-w (not w): the menu never shrinks below the trigger, but grows to
+          fit its longest item - a narrow trigger must not clip option text. */}
       <SelectPrimitive.Viewport
-        className={cn("p-1", position === "popper" && "w-[var(--radix-select-trigger-width)]")}
+        className={cn("p-1", position === "popper" && "min-w-[var(--radix-select-trigger-width)]")}
       >
         {children}
       </SelectPrimitive.Viewport>
