@@ -748,6 +748,9 @@ export default defineSchema({
     mode: v.optional(v.string()), // Major / Minor
     moodTags: v.array(v.string()),
     coverColor: v.optional(v.string()),
+    // Real cover art (uploaded, or pulled from a Spotify / Apple Music link
+    // by the song importer). coverColor stays as the tonal fallback.
+    coverArtId: v.optional(v.id("_storage")),
     brief: v.optional(v.string()), // creative brief
     referenceTracks: v.array(
       v.object({ title: v.string(), url: v.string(), note: v.optional(v.string()) }),

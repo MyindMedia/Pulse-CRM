@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
@@ -11,6 +11,9 @@ import {
   ArrowLeft,
   Disc3,
   Gauge,
+  ImagePlus,
+  ImageOff,
+  Link2,
   MoreHorizontal,
   Music4,
   Play,
@@ -43,6 +46,7 @@ import { meta, SONG_STAGE, titleCase } from "@/lib/labels";
 import { musicalKey, compactNumber } from "@/lib/format";
 import { tintFromString } from "@/lib/utils";
 import { StageStepper } from "@/components/songs/stage-stepper";
+import { ImportLinkDialog } from "@/components/songs/import-link-dialog";
 import { OverviewCard } from "@/components/songs/overview-card";
 import { OverviewTab } from "@/components/songs/overview-tab";
 import { AiActivityTab } from "@/components/songs/ai-activity-tab";
@@ -165,6 +169,7 @@ type HeroSong = {
   mode?: string;
   moodTags: string[];
   coverColor?: string;
+  coverUrl?: string | null;
   streamCount?: number;
   openComments: number;
   artist: { _id: string; name: string } | null;
@@ -173,11 +178,32 @@ type HeroSong = {
 function SongHero({ song }: { song: HeroSong }) {
   const router = useRouter();
   const removeSong = useMutation(api.songs.remove);
+  const generateCoverUploadUrl = useMutation(api.songs.generateCoverUploadUrl);
+  const setCoverArt = useMutation(api.songs.setCoverArt);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const stage = meta(SONG_STAGE, song.stage);
   const tint = song.coverColor ?? tintFromString(song.title);
+
+  async function uploadCover(file: File) {
+    try {
+      const uploadUrl = await generateCoverUploadUrl();
+      const res = await fetch(uploadUrl, {
+        method: "POST",
+        headers: { "Content-Type": file.type },
+        body: file,
+      });
+      if (!res.ok) throw new Error("Upload failed");
+      const { storageId } = await res.json();
+      await setCoverArt({ id: song._id, storageId });
+      toast.success("Cover art updated.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not upload the cover.");
+    }
+  }
 
   async function remove() {
     setDeleting(true);
@@ -200,14 +226,19 @@ function SongHero({ song }: { song: HeroSong }) {
             background: `linear-gradient(120deg, ${tint}26 0%, ${tint}0a 45%, transparent 80%)`,
           }}
         >
-          {/* Cover */}
+          {/* Cover - real art when set, tonal fallback otherwise */}
           <div
             className="relative grid size-24 shrink-0 place-items-center overflow-hidden rounded-lg"
             style={{
               background: `linear-gradient(135deg, ${tint} 0%, ${tint}55 100%)`,
             }}
           >
-            <Disc3 className="size-12 text-ink/70" />
+            {song.coverUrl ? (
+              /* eslint-disable-next-line @next/next/no-img-element */
+              <img src={song.coverUrl} alt="" className="size-full object-cover" />
+            ) : (
+              <Disc3 className="size-12 text-ink/70" />
+            )}
           </div>
 
           {/* Identity */}
@@ -295,6 +326,24 @@ function SongHero({ song }: { song: HeroSong }) {
                 </DropdownMenuItem>
               )}
               <DropdownMenuSeparator />
+              <DropdownMenuLabel>Cover art</DropdownMenuLabel>
+              <DropdownMenuItem onSelect={() => setImportOpen(true)}>
+                <Link2 className="size-4" />
+                Import from Spotify / Apple Music
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => fileInputRef.current?.click()}>
+                <ImagePlus className="size-4" />
+                Upload cover art
+              </DropdownMenuItem>
+              {song.coverUrl && (
+                <DropdownMenuItem
+                  onSelect={() => setCoverArt({ id: song._id, storageId: null })}
+                >
+                  <ImageOff className="size-4" />
+                  Remove cover art
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuSeparator />
               <DropdownMenuItem destructive onSelect={() => setConfirmOpen(true)}>
                 <Trash2 className="size-4" />
                 Delete song
@@ -303,6 +352,20 @@ function SongHero({ song }: { song: HeroSong }) {
           </DropdownMenu>
         </div>
       </div>
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) uploadCover(file);
+          e.target.value = "";
+        }}
+      />
+
+      <ImportLinkDialog open={importOpen} onOpenChange={setImportOpen} songId={song._id} />
 
       {/* Delete confirm */}
       <Dialog open={confirmOpen} onOpenChange={(next) => !deleting && setConfirmOpen(next)}>

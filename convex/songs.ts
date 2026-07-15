@@ -56,9 +56,15 @@ export const list = query({
     const artists = new Map(
       (await Promise.all(artistIds.map((id) => ctx.db.get(id)))).filter(Boolean).map((a) => [a!._id, a!]),
     );
-    return rows
-      .map((r) => ({ ...r, artistName: artists.get(r.artistId)?.name ?? "Unknown" }))
-      .sort((a, b) => b._creationTime - a._creationTime);
+    return (
+      await Promise.all(
+        rows.map(async (r) => ({
+          ...r,
+          artistName: artists.get(r.artistId)?.name ?? "Unknown",
+          coverUrl: r.coverArtId ? await ctx.storage.getUrl(r.coverArtId) : null,
+        })),
+      )
+    ).sort((a, b) => b._creationTime - a._creationTime);
   },
 });
 
@@ -94,6 +100,7 @@ export const get = query({
     return {
       ...song,
       artist,
+      coverUrl: song.coverArtId ? await ctx.storage.getUrl(song.coverArtId) : null,
       sessions: sessions.sort((a, b) => a.startTime - b.startTime),
       deliverables: deliverables.sort((a, b) => b.version - a.version),
       openComments: comments.filter((c) => !c.resolved).length,
@@ -378,6 +385,25 @@ export const update = mutation({
         .map(([k, val]) => [k, val === null ? undefined : val]),
     );
     await ctx.db.patch(id, clean);
+  },
+});
+
+/** Upload target for manual cover art (the PhotoUpload component's pattern). */
+export const generateCoverUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await currentOrgWithCapability(ctx, "songs.edit");
+    return ctx.storage.generateUploadUrl();
+  },
+});
+
+export const setCoverArt = mutation({
+  args: { id: v.id("songs"), storageId: v.union(v.id("_storage"), v.null()) },
+  handler: async (ctx, { id, storageId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "songs.edit");
+    const song = await ctx.db.get(id);
+    if (!song || song.orgId !== orgId) throw new Error("Not found");
+    await ctx.db.patch(id, { coverArtId: storageId ?? undefined });
   },
 });
 

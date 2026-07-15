@@ -21,6 +21,7 @@ type SongCardData = {
   mode?: string;
   moodTags: string[];
   coverColor?: string;
+  coverUrl?: string | null;
   revisionsIncluded: number;
   revisionsUsed: number;
   streamCount?: number;
@@ -36,13 +37,21 @@ export function SongCard({ song }: { song: SongCardData }) {
   return (
     <Card interactive className="group overflow-hidden p-0">
       <Link href={`/songs/${song._id}`} className="block">
-        {/* Tonal cover block */}
+        {/* Cover block - real art when set, tonal fallback otherwise */}
         <div
           className="relative flex h-28 items-end overflow-hidden p-3"
           style={{
             background: `linear-gradient(135deg, ${tint}33 0%, ${tint}0d 60%, transparent 100%)`,
           }}
         >
+          {song.coverUrl && (
+            /* eslint-disable-next-line @next/next/no-img-element */
+            <img
+              src={song.coverUrl}
+              alt=""
+              className="absolute inset-0 size-full object-cover opacity-90 transition-transform duration-300 group-hover:scale-105"
+            />
+          )}
           <div
             className="absolute -right-6 -top-6 grid size-24 place-items-center rounded-full opacity-20 transition-transform duration-300 group-hover:scale-110"
             style={{ background: tint }}
