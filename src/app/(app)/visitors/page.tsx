@@ -36,7 +36,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Field, Input, Textarea } from "@/components/ui/field";
-import { shortDate, timeOfDay, relativeTime } from "@/lib/format";
+import { shortDate, timeOfDay, relativeTime, money } from "@/lib/format";
 import { startOfDay } from "@/components/calendar/constants";
 
 /*
@@ -157,6 +157,11 @@ export default function VisitorsPage() {
                           {v.hostName && (
                             <p className="text-xs text-steel/70">Here to see {v.hostName}</p>
                           )}
+                          {v.sessionTitle && (
+                            <Badge tone="gold" className="mt-1">
+                              Session: {v.sessionTitle}
+                            </Badge>
+                          )}
                         </TD>
                         <TD>
                           <p className="font-meta text-xs text-bone">{stamp(v.checkInAt)}</p>
@@ -211,6 +216,8 @@ export default function VisitorsPage() {
                       <TH>Contact</TH>
                       <TH>Phone</TH>
                       <TH>Visits</TH>
+                      <TH>Bookings</TH>
+                      <TH>Lifetime spent</TH>
                       <TH>First visit</TH>
                       <TH>Last visit</TH>
                       <TH className="text-right">Client record</TH>
@@ -233,6 +240,12 @@ export default function VisitorsPage() {
                           <Badge tone={c.visitCount > 1 ? "gold" : "neutral"}>
                             {c.visitCount} {c.visitCount === 1 ? "visit" : "visits"}
                           </Badge>
+                        </TD>
+                        <TD className="font-meta text-sm tabular-nums text-bone">
+                          {c.lifetimeBookings}
+                        </TD>
+                        <TD className="font-meta text-sm tabular-nums text-bone">
+                          {c.lifetimeSpendCents > 0 ? money(c.lifetimeSpendCents) : "-"}
                         </TD>
                         <TD className="font-meta text-xs text-steel/70">{shortDate(c.firstVisitAt)}</TD>
                         <TD className="font-meta text-xs text-bone">{shortDate(c.lastVisitAt)}</TD>

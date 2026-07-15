@@ -22,6 +22,16 @@ import { timeOfDay, longDate } from "@/lib/format";
 const PURPOSES = ["Session", "Meeting", "Studio tour", "Delivery", "Pickup", "Other"];
 const RESET_AFTER_MS = 9_000;
 
+/** The visitor terms shown behind the required check-in checkbox. Generic
+    enough for any studio; acceptance is stamped on the visit record. */
+const VISITOR_TERMS = [
+  "I am visiting the premises as a guest and will follow staff instructions, posted safety notices, and studio etiquette at all times.",
+  "Studio areas may contain sensitive audio equipment and active recording sessions. I will not touch equipment or enter live rooms without permission.",
+  "I will not photograph, record, or share unreleased material I see or hear during my visit without the studio's written consent.",
+  "The studio is not responsible for loss of or damage to my personal belongings, and I am responsible for any damage I cause to studio property.",
+  "The contact details I provide will be used to log my visit, notify my host, and follow up about studio services. I can request removal of my details at any time.",
+] as const;
+
 export default function VisitPage() {
   const params = useParams<{ slug: string }>();
   const slug = Array.isArray(params?.slug) ? params.slug[0] : params?.slug;
@@ -34,9 +44,15 @@ export default function VisitPage() {
   const [purposeChip, setPurposeChip] = useState("");
   const [purposeNote, setPurposeNote] = useState("");
   const [hostName, setHostName] = useState("");
+  const [termsAccepted, setTermsAccepted] = useState(false);
+  const [termsOpen, setTermsOpen] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [done, setDone] = useState<{ name: string; at: number } | null>(null);
+  const [done, setDone] = useState<{
+    name: string;
+    at: number;
+    session: { title: string; startTime: number; status: string } | null;
+  } | null>(null);
 
   // After a successful check-in the screen resets itself so the next guest
   // can scan and go - the page may be left open on a lobby device.
@@ -54,21 +70,24 @@ export default function VisitPage() {
     // Chip + free-text detail combine into one purpose line for the log.
     const purpose = [purposeChip, purposeNote.trim()].filter(Boolean).join(" - ");
     try {
-      await register({
+      const result = await register({
         slug,
         name,
         email,
         phone: phone.trim() || undefined,
         purpose: purpose || undefined,
         hostName: hostName.trim() || undefined,
+        termsAccepted,
       });
-      setDone({ name: name.trim(), at: Date.now() });
+      setDone({ name: name.trim(), at: Date.now(), session: result.session });
       setName("");
       setEmail("");
       setPhone("");
       setPurposeChip("");
       setPurposeNote("");
       setHostName("");
+      setTermsAccepted(false);
+      setTermsOpen(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Something went wrong - please try again.");
     } finally {
@@ -119,10 +138,20 @@ export default function VisitPage() {
             <h1 className="mt-4 font-grotesk text-2xl font-bold tracking-tight">
               You&apos;re checked in{done.name ? `, ${done.name.split(" ")[0]}` : ""}
             </h1>
-            <p className="mt-2 text-sm text-steel/70">
-              {longDate(done.at)} · {timeOfDay(done.at)} - the {studioName} team knows you&apos;re
-              here. Take a seat and make yourself at home.
-            </p>
+            {done.session ? (
+              <p className="mt-2 text-sm text-steel/70">
+                We found your booking - <span className="text-bone">{done.session.title}</span> at{" "}
+                {timeOfDay(done.session.startTime)}
+                {done.session.status === "in_progress"
+                  ? " is checked in and ready to roll."
+                  : " is confirmed and the team knows you're here."}
+              </p>
+            ) : (
+              <p className="mt-2 text-sm text-steel/70">
+                {longDate(done.at)} · {timeOfDay(done.at)} - the {studioName} team knows you&apos;re
+                here. Take a seat and make yourself at home.
+              </p>
+            )}
             <Button variant="outline" className="mt-6" onClick={() => setDone(null)}>
               Check in another visitor
             </Button>
@@ -210,9 +239,50 @@ export default function VisitPage() {
               />
             </Field>
 
+            {/* Visitor terms - required to check in; the server enforces it too. */}
+            <div className="rounded-md border border-graphite/50 bg-coal-2">
+              <label className="flex cursor-pointer items-start gap-3 p-3.5">
+                <input
+                  type="checkbox"
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                  className="mt-0.5 size-5 shrink-0 accent-gold"
+                  required
+                />
+                <span className="text-sm text-bone">
+                  I agree to the{" "}
+                  <button
+                    type="button"
+                    onClick={() => setTermsOpen((o) => !o)}
+                    className="font-medium text-gold-bright underline decoration-gold-dim underline-offset-2 outline-none focus-visible:ring-2 focus-visible:ring-gold/30"
+                  >
+                    visitor terms
+                  </button>{" "}
+                  of {studioName}.
+                </span>
+              </label>
+              {termsOpen && (
+                <ul className="space-y-2 border-t border-graphite/50 px-3.5 py-3 text-xs leading-relaxed text-steel/70">
+                  {VISITOR_TERMS.map((term, i) => (
+                    <li key={i} className="flex gap-2">
+                      <span aria-hidden className="text-gold-dim">
+                        {i + 1}.
+                      </span>
+                      <span>{term}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
             {error && <p className="text-sm text-critical">{error}</p>}
 
-            <Button type="submit" size="lg" className="w-full" disabled={busy || !slug}>
+            <Button
+              type="submit"
+              size="lg"
+              className="w-full"
+              disabled={busy || !slug || !termsAccepted}
+            >
               <UserCheck className="size-5" />
               {busy ? "Checking you in..." : "Check in"}
             </Button>

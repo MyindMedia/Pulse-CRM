@@ -742,6 +742,35 @@ any, twilioA2P.ts prefer-const), 640 vitest, next build, agent-browser visual.
 - **Tests:** convex/visitors.test.ts - register creates visit + artist lead, email dedup patches instead of duplicating, unknown slug throws, hourly rate limit throws, checkOut stamps, org scoping (other org's visits invisible), directory grouping.
 - **Not in this pass:** visitor self-checkout on the iPad, badge printing, SMS host notification, per-visitor NDA/waiver capture, PIN-locked kiosk mode.
 
+**Follow-up (2026-07-15, /goal): automated e-check-in + required visitor terms + lifetime stats.**
+Owner: auto-check-in when a visitor's email matches a session booking (cross-compare
+name + email), every check-in lands in Clients, track lifetime bookings + spend,
+require a generated terms-of-service checkbox, and have check-ins update the kiosk
+session status automatically.
+- **Matching (`matchAndCheckInSession` in visitors.ts):** candidate sessions =
+  `by_org_start` window [now-6h, now+16h] (timezone-free), status
+  tentative/confirmed/in_progress. Email match (vs the booking artist's email) is
+  decisive; name cross-compare picks between multiple bookings under one email.
+  Name-only matches count ONLY when unambiguous (exactly one candidate). One artist
+  read per unique artistId - no N+1.
+- **Status advance = one step along the existing machine:** tentative -> confirmed
+  (arrived; deposit still collectable), confirmed -> in_progress (same cascades as
+  the kiosk button: recomputeRoomStatus + scheduleGoogleCalendarPush + a
+  `session.checked_in` activity row). Kiosk updates live via its reactive
+  `sessions.inRange` query - nothing kiosk-side changed. in_progress just links.
+- **Schema:** visitors += `sessionId`/`sessionMatchedBy`("email"|"name")/
+  `termsAcceptedAt`. Applies to BOTH the QR path and staff manual entry.
+- **Terms:** /visit/<slug> gets a required checkbox + expandable 5-clause generated
+  visitor terms (conduct, equipment, confidentiality/recording, liability, contact
+  use). Server-enforced on the public path only (`termsAccepted !== true` throws);
+  staff manual entry vouches instead. Acceptance stamped on the visit row.
+- **Lifetime stats:** already maintained by the session-completion path
+  (`artists.sessionCount`/`lifetimeValueCents`) - NOT reinvented; the visitors
+  `directory` query now joins them per contact and the Directory tab shows
+  Bookings + Lifetime spent columns. Visit log shows a gold "Session: <title>"
+  badge on matched visits; QR success screen names the found booking.
+- Tests: 12 new in visitors.test.ts (676 total). Deployed Convex prod + main.
+
 **Follow-up (2026-07-15): true browser fullscreen.** Owner: kiosk should run full
 screen with no menus, just a minimize button to exit. The route was already
 chrome-less, so "menus" = the browser's own address/tab bars. Added a Fullscreen

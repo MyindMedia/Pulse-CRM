@@ -1,7 +1,9 @@
 import { query, mutation, MutationCtx } from "./_generated/server";
-import { Id } from "./_generated/dataModel";
+import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { currentOrg } from "./lib/tenant";
+import { recomputeRoomStatus } from "./lib/roomStatus";
+import { scheduleGoogleCalendarPush } from "./googleCalendar";
 
 /* ============================================================
    Visitors - the front-desk guest log.
@@ -12,9 +14,112 @@ import { currentOrg } from "./lib/tenant";
    Every visit also upserts the contact into `artists` (deduped
    by lowercased email) so walk-ins land in the Clients directory
    as leads - the outreach database - without a parallel CRM.
+   A check-in whose email (or unambiguous name) matches a session
+   booked around now e-checks that session in automatically, so
+   the kiosk calendar reflects the arrival with no staff tap.
    ============================================================ */
 
 const HOURLY_CHECKIN_CAP = 60;
+
+// How far around "now" a booking counts as the visit the guest is arriving
+// for. Wide on the late side (a 9pm session's client can sign in at noon for
+// a tour, but their evening booking is still "today"); bounded on the early
+// side so yesterday's session never re-activates. Timestamps keep this
+// timezone-free - no server-vs-studio midnight math.
+const MATCH_LOOKBACK_MS = 6 * 60 * 60 * 1000; // session started up to 6h ago
+const MATCH_LOOKAHEAD_MS = 16 * 60 * 60 * 1000; // session starts within 16h
+
+/** Lowercase, trim and collapse whitespace so "Ray  Vaughn " == "ray vaughn". */
+function normalizeName(name: string): string {
+  return name.trim().toLowerCase().replace(/\s+/g, " ");
+}
+
+/**
+ * E-check-in: find the session this visitor is arriving for and advance it.
+ * Email is the primary key (visitor email == the booking artist's email);
+ * when emails don't line up, an exact normalized-name match is accepted only
+ * if it is unambiguous (exactly one candidate session). Matched sessions
+ * advance one step along the existing status machine - tentative -> confirmed
+ * (they showed up; staff still collects the deposit before starting),
+ * confirmed -> in_progress (the same transition the kiosk's Check-in button
+ * runs, so the room flips in-use and the Google mirror updates). The kiosk's
+ * reactive queries pick the change up instantly.
+ */
+async function matchAndCheckInSession(
+  ctx: MutationCtx,
+  orgId: string,
+  visitor: { name: string; email: string },
+): Promise<{ session: Doc<"sessions">; matchedBy: "email" | "name" } | null> {
+  const now = Date.now();
+  const candidates = (
+    await ctx.db
+      .query("sessions")
+      .withIndex("by_org_start", (q) =>
+        q
+          .eq("orgId", orgId)
+          .gte("startTime", now - MATCH_LOOKBACK_MS)
+          .lte("startTime", now + MATCH_LOOKAHEAD_MS),
+      )
+      .collect()
+  ).filter(
+    (s) => s.status === "tentative" || s.status === "confirmed" || s.status === "in_progress",
+  );
+  if (candidates.length === 0) return null;
+
+  // One artist read per unique artistId in the window - no N+1 over sessions.
+  const artistIds = [...new Set(candidates.map((s) => s.artistId))];
+  const artists = new Map(
+    (await Promise.all(artistIds.map((id) => ctx.db.get(id)))).flatMap((a) =>
+      a ? [[a._id, a] as const] : [],
+    ),
+  );
+
+  const visitorName = normalizeName(visitor.name);
+  const emailMatches = candidates.filter(
+    (s) => artists.get(s.artistId)?.email?.toLowerCase() === visitor.email,
+  );
+  const nameMatches = candidates.filter(
+    (s) => normalizeName(artists.get(s.artistId)?.name ?? "") === visitorName,
+  );
+
+  let matched: Doc<"sessions"> | undefined;
+  let matchedBy: "email" | "name";
+  if (emailMatches.length > 0) {
+    // Email is decisive. Cross-compare the name only to pick between several
+    // bookings under one email (a manager booking for multiple artists).
+    matched =
+      emailMatches.find((s) => normalizeName(artists.get(s.artistId)?.name ?? "") === visitorName) ??
+      emailMatches.sort((a, b) => Math.abs(a.startTime - now) - Math.abs(b.startTime - now))[0];
+    matchedBy = "email";
+  } else if (nameMatches.length === 1) {
+    // Name alone only counts when it points at exactly one booking.
+    matched = nameMatches[0];
+    matchedBy = "name";
+  } else {
+    return null;
+  }
+
+  if (matched.status === "tentative" || matched.status === "confirmed") {
+    const nextStatus = matched.status === "tentative" ? "confirmed" : "in_progress";
+    await ctx.db.patch(matched._id, { status: nextStatus });
+    if (matched.roomId) await recomputeRoomStatus(ctx, matched.roomId);
+    await scheduleGoogleCalendarPush(ctx, matched._id);
+    await ctx.db.insert("activity", {
+      orgId,
+      kind: "session.checked_in",
+      summary:
+        nextStatus === "in_progress"
+          ? `${visitor.name} e-checked in - ${matched.title} is now running`
+          : `${visitor.name} arrived - ${matched.title} auto-confirmed (deposit still due)`,
+      entityType: "session",
+      entityId: matched._id,
+      accent: "gold",
+    });
+    matched = { ...matched, status: nextStatus };
+  }
+
+  return { session: matched, matchedBy };
+}
 
 const registerFields = {
   name: v.string(),
@@ -32,15 +137,23 @@ type RegisterArgs = {
   hostName?: string;
 };
 
-/** Upsert the visitor into `artists` (dedup by lowercased email), then insert
-    the visit row + an activity-feed entry. Shared by the public QR path and
-    the staff manual-entry path. */
+type RecordVisitResult = {
+  visitId: Id<"visitors">;
+  // Echoed to the QR success screen so the guest sees their booking was found.
+  session: { title: string; startTime: number; status: string } | null;
+};
+
+/** Upsert the visitor into `artists` (dedup by lowercased email), match the
+    visit against a booked session (e-check-in), then insert the visit row +
+    an activity-feed entry. Shared by the public QR path and the staff
+    manual-entry path. */
 async function recordVisit(
   ctx: MutationCtx,
   orgId: string,
   args: RegisterArgs,
   source: "qr" | "front_desk",
-): Promise<Id<"visitors">> {
+  termsAcceptedAt?: number,
+): Promise<RecordVisitResult> {
   const name = args.name.trim();
   const email = args.email.trim().toLowerCase();
   if (!name) throw new Error("Please enter your name.");
@@ -83,6 +196,10 @@ async function recordVisit(
     });
   }
 
+  // E-check-in: link the visit to the session this guest is arriving for and
+  // advance its status so the kiosk shows the arrival without a staff tap.
+  const match = await matchAndCheckInSession(ctx, orgId, { name, email });
+
   const visitId = await ctx.db.insert("visitors", {
     orgId,
     name,
@@ -91,6 +208,9 @@ async function recordVisit(
     purpose,
     hostName,
     artistId,
+    sessionId: match?.session._id,
+    sessionMatchedBy: match?.matchedBy,
+    termsAcceptedAt,
     checkInAt: Date.now(),
     source,
   });
@@ -98,19 +218,35 @@ async function recordVisit(
   await ctx.db.insert("activity", {
     orgId,
     kind: "visitor.checked_in",
-    summary: `${name} checked in at the front desk${purpose ? ` - ${purpose}` : ""}`,
+    summary: `${name} checked in at the front desk${
+      match ? ` for ${match.session.title}` : purpose ? ` - ${purpose}` : ""
+    }`,
     entityType: "visitor",
     entityId: visitId,
     accent: "info",
   });
 
-  return visitId;
+  return {
+    visitId,
+    session: match
+      ? {
+          title: match.session.title,
+          startTime: match.session.startTime,
+          status: match.session.status,
+        }
+      : null,
+  };
 }
 
 /** PUBLIC - QR self check-in from /visit/<slug>. Org comes from the slug. */
 export const register = mutation({
-  args: { slug: v.string(), ...registerFields },
-  handler: async (ctx, { slug, ...args }) => {
+  args: { slug: v.string(), termsAccepted: v.optional(v.boolean()), ...registerFields },
+  handler: async (ctx, { slug, termsAccepted, ...args }) => {
+    // The visitor terms are a hard gate on self check-in - the client enforces
+    // the checkbox, the server enforces the truth of it.
+    if (termsAccepted !== true) {
+      throw new Error("Please accept the visitor terms to check in.");
+    }
     const org = await ctx.db
       .query("orgs")
       .withIndex("by_slug", (q) => q.eq("slug", slug))
@@ -131,7 +267,7 @@ export const register = mutation({
       throw new Error("Check-in is briefly paused - please ask the front desk to sign you in.");
     }
 
-    const visitId = await recordVisit(ctx, orgId, args, "qr");
+    const result = await recordVisit(ctx, orgId, args, "qr", Date.now());
 
     if (counter) {
       await ctx.db.patch(counter._id, { value: counter.value + 1, updatedAt: Date.now() });
@@ -145,17 +281,17 @@ export const register = mutation({
       });
     }
 
-    return { visitId };
+    return result;
   },
 });
 
-/** Staff manual entry from the Visitors screen (front desk signs someone in). */
+/** Staff manual entry from the Visitors screen (front desk signs someone in).
+    No terms gate here - staff vouches for the guest they are keying in. */
 export const registerManual = mutation({
   args: registerFields,
   handler: async (ctx, args) => {
     const orgId = await currentOrg(ctx);
-    const visitId = await recordVisit(ctx, orgId, args, "front_desk");
-    return { visitId };
+    return recordVisit(ctx, orgId, args, "front_desk");
   },
 });
 
@@ -171,12 +307,13 @@ export const checkOut = mutation({
   },
 });
 
-/** The visit log, newest first. Optionally bounded to [from, to] check-in times. */
+/** The visit log, newest first. Optionally bounded to [from, to] check-in times.
+    Visits that e-checked a session in carry the session's title for the log. */
 export const list = query({
   args: { from: v.optional(v.number()), to: v.optional(v.number()) },
   handler: async (ctx, { from, to }) => {
     const orgId = await currentOrg(ctx);
-    return ctx.db
+    const visits = await ctx.db
       .query("visitors")
       .withIndex("by_org_checkin", (idx) => {
         const scoped = idx.eq("orgId", orgId);
@@ -187,10 +324,23 @@ export const list = query({
       })
       .order("desc")
       .take(500);
+    // One read per unique matched session (most visits have none).
+    const sessionIds = [...new Set(visits.flatMap((v) => (v.sessionId ? [v.sessionId] : [])))];
+    const sessions = new Map(
+      (await Promise.all(sessionIds.map((id) => ctx.db.get(id)))).flatMap((s) =>
+        s ? [[s._id, s] as const] : [],
+      ),
+    );
+    return visits.map((v) => ({
+      ...v,
+      sessionTitle: v.sessionId ? sessions.get(v.sessionId)?.title ?? null : null,
+    }));
   },
 });
 
-/** Unique visitors grouped by email - the outreach view. Newest-visit first. */
+/** Unique visitors grouped by email - the outreach view. Newest-visit first.
+    Each contact carries the linked client's lifetime stats (total completed
+    bookings + lifetime spend), maintained by the session-completion path. */
 export const directory = query({
   args: {},
   handler: async (ctx) => {
@@ -209,6 +359,8 @@ export const directory = query({
         visitCount: number;
         firstVisitAt: number;
         lastVisitAt: number;
+        lifetimeBookings: number;
+        lifetimeSpendCents: number;
       }
     >();
     for (const visit of visits) {
@@ -222,6 +374,8 @@ export const directory = query({
           visitCount: 1,
           firstVisitAt: visit.checkInAt,
           lastVisitAt: visit.checkInAt,
+          lifetimeBookings: 0,
+          lifetimeSpendCents: 0,
         });
       } else {
         entry.visitCount += 1;
@@ -235,6 +389,19 @@ export const directory = query({
         }
       }
     }
-    return [...byEmail.values()].sort((a, b) => b.lastVisitAt - a.lastVisitAt);
+    // One read per unique contact - the artist row already carries the
+    // lifetime counters (sessionCount / lifetimeValueCents), incremented by
+    // the session-completion path, so no sweep over sessions is needed.
+    const entries = [...byEmail.values()];
+    await Promise.all(
+      entries.map(async (entry) => {
+        if (!entry.artistId) return;
+        const artist = await ctx.db.get(entry.artistId);
+        if (!artist || artist.orgId !== orgId) return;
+        entry.lifetimeBookings = artist.sessionCount ?? 0;
+        entry.lifetimeSpendCents = artist.lifetimeValueCents ?? 0;
+      }),
+    );
+    return entries.sort((a, b) => b.lastVisitAt - a.lastVisitAt);
   },
 });

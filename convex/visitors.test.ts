@@ -22,6 +22,7 @@ describe("visitors - public QR check-in", () => {
   it("register creates the visit, an activity entry and a new client lead", async () => {
     const { visitId } = await t.mutation(api.visitors.register, {
       slug: SLUG,
+      termsAccepted: true,
       name: "  Ray Vaughn ",
       email: "Ray@Example.com",
       phone: "555-0101",
@@ -70,7 +71,7 @@ describe("visitors - public QR check-in", () => {
     );
 
     const { visitId } = await t.mutation(api.visitors.register, {
-      slug: SLUG, name: "Ray Vaughn", email: "RAY@example.com", phone: "555-0101",
+      slug: SLUG, termsAccepted: true, name: "Ray Vaughn", email: "RAY@example.com", phone: "555-0101",
     });
 
     const { visit, artists } = await t.run(async (ctx) => ({
@@ -88,13 +89,13 @@ describe("visitors - public QR check-in", () => {
 
   it("register rejects an unknown slug", async () => {
     await expect(
-      t.mutation(api.visitors.register, { slug: "nope", name: "X", email: "x@y.co" }),
+      t.mutation(api.visitors.register, { slug: "nope", termsAccepted: true, name: "X", email: "x@y.co" }),
     ).rejects.toThrow(/isn't active/);
   });
 
   it("register rejects a malformed email", async () => {
     await expect(
-      t.mutation(api.visitors.register, { slug: SLUG, name: "X", email: "not-an-email" }),
+      t.mutation(api.visitors.register, { slug: SLUG, termsAccepted: true, name: "X", email: "not-an-email" }),
     ).rejects.toThrow(/valid email/);
   });
 
@@ -106,7 +107,7 @@ describe("visitors - public QR check-in", () => {
       });
     });
     await expect(
-      t.mutation(api.visitors.register, { slug: SLUG, name: "X", email: "x@y.co" }),
+      t.mutation(api.visitors.register, { slug: SLUG, termsAccepted: true, name: "X", email: "x@y.co" }),
     ).rejects.toThrow(/paused/);
   });
 });
@@ -159,13 +160,13 @@ describe("visitors - staff surface", () => {
 
   it("directory groups repeat visits by email with counts and freshest details", async () => {
     await t.mutation(api.visitors.register, {
-      slug: SLUG, name: "Ray V", email: "ray@example.com",
+      slug: SLUG, termsAccepted: true, name: "Ray V", email: "ray@example.com",
     });
     await t.mutation(api.visitors.register, {
-      slug: SLUG, name: "Ray Vaughn", email: "RAY@example.com", phone: "555-0101",
+      slug: SLUG, termsAccepted: true, name: "Ray Vaughn", email: "RAY@example.com", phone: "555-0101",
     });
     await t.mutation(api.visitors.register, {
-      slug: SLUG, name: "Nova", email: "nova@example.com",
+      slug: SLUG, termsAccepted: true, name: "Nova", email: "nova@example.com",
     });
 
     const contacts = await t.query(api.visitors.directory, {});
@@ -174,5 +175,230 @@ describe("visitors - staff surface", () => {
     expect(ray.visitCount).toBe(2);
     expect(ray.name).toBe("Ray Vaughn"); // freshest visit's details win
     expect(ray.phone).toBe("555-0101");
+  });
+
+  it("directory carries the client's lifetime bookings and spend", async () => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("artists", {
+        orgId: ORG, name: "Ray Vaughn", type: "artist", email: "ray@example.com",
+        genres: [], tags: [], status: "active", lifetimeValueCents: 125_000,
+        sessionCount: 4, reliability: "solid",
+      });
+    });
+    await t.mutation(api.visitors.registerManual, {
+      name: "Ray Vaughn", email: "ray@example.com",
+    });
+
+    const contacts = await t.query(api.visitors.directory, {});
+    const ray = contacts.find((c) => c.email === "ray@example.com")!;
+    expect(ray.lifetimeBookings).toBe(4);
+    expect(ray.lifetimeSpendCents).toBe(125_000);
+  });
+});
+
+describe("visitors - required terms of service", () => {
+  let t: ReturnType<typeof convexTest>;
+  beforeEach(async () => {
+    t = convexTest(schema);
+    await seedOrg(t);
+  });
+
+  it("public register rejects a check-in without accepted terms", async () => {
+    await expect(
+      t.mutation(api.visitors.register, { slug: SLUG, name: "X", email: "x@y.co" }),
+    ).rejects.toThrow(/visitor terms/);
+    await expect(
+      t.mutation(api.visitors.register, {
+        slug: SLUG, termsAccepted: false, name: "X", email: "x@y.co",
+      }),
+    ).rejects.toThrow(/visitor terms/);
+  });
+
+  it("public register stamps the acceptance time", async () => {
+    const { visitId } = await t.mutation(api.visitors.register, {
+      slug: SLUG, termsAccepted: true, name: "Ray", email: "ray@example.com",
+    });
+    const visit = await t.run(async (ctx) => ctx.db.get(visitId));
+    expect(visit!.termsAcceptedAt).toBeGreaterThan(0);
+  });
+
+  it("staff manual entry needs no terms stamp", async () => {
+    const { visitId } = await t.mutation(api.visitors.registerManual, {
+      name: "Walk In", email: "walkin@example.com",
+    });
+    const visit = await t.run(async (ctx) => ctx.db.get(visitId));
+    expect(visit!.termsAcceptedAt).toBeUndefined();
+  });
+});
+
+describe("visitors - e-check-in against booked sessions", () => {
+  let t: ReturnType<typeof convexTest>;
+
+  function seedArtist(
+    overrides: Partial<{ orgId: string; name: string; email: string }> = {},
+  ) {
+    return t.run(async (ctx) =>
+      ctx.db.insert("artists", {
+        orgId: overrides.orgId ?? ORG,
+        name: overrides.name ?? "Ray Vaughn",
+        type: "artist",
+        email: overrides.email ?? "ray@example.com",
+        genres: [], tags: [], status: "active",
+        lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
+      }),
+    );
+  }
+
+  function seedSession(
+    artistId: Awaited<ReturnType<typeof seedArtist>>,
+    overrides: Partial<{
+      orgId: string;
+      title: string;
+      status: "tentative" | "confirmed" | "in_progress" | "completed";
+      startTime: number;
+    }> = {},
+  ) {
+    const start = overrides.startTime ?? Date.now() + 2 * 60 * 60 * 1000;
+    return t.run(async (ctx) =>
+      ctx.db.insert("sessions", {
+        orgId: overrides.orgId ?? ORG,
+        title: overrides.title ?? "Vocal tracking",
+        artistId,
+        serviceType: "recording",
+        startTime: start,
+        endTime: start + 2 * 60 * 60 * 1000,
+        status: overrides.status ?? "confirmed",
+        rateCents: 20_000, depositCents: 6_000, depositPaid: true,
+        intakeCompleted: false,
+      }),
+    );
+  }
+
+  beforeEach(async () => {
+    t = convexTest(schema);
+    await seedOrg(t);
+  });
+
+  it("an email match starts the confirmed session and links the visit", async () => {
+    const artistId = await seedArtist();
+    const sessionId = await seedSession(artistId);
+
+    const result = await t.mutation(api.visitors.register, {
+      slug: SLUG, termsAccepted: true, name: "Ray Vaughn", email: "RAY@example.com",
+    });
+
+    expect(result.session).toMatchObject({ title: "Vocal tracking", status: "in_progress" });
+    const { visit, session, activity } = await t.run(async (ctx) => ({
+      visit: await ctx.db.get(result.visitId),
+      session: await ctx.db.get(sessionId),
+      activity: (await ctx.db.query("activity").collect()).filter((a) => a.orgId === ORG),
+    }));
+    expect(visit!.sessionId).toEqual(sessionId);
+    expect(visit!.sessionMatchedBy).toBe("email");
+    expect(session!.status).toBe("in_progress"); // the kiosk's reactive query sees this live
+    expect(activity.some((a) => a.kind === "session.checked_in")).toBe(true);
+  });
+
+  it("a tentative booking auto-confirms on arrival but does not start", async () => {
+    const artistId = await seedArtist();
+    const sessionId = await seedSession(artistId, { status: "tentative" });
+
+    await t.mutation(api.visitors.register, {
+      slug: SLUG, termsAccepted: true, name: "Ray Vaughn", email: "ray@example.com",
+    });
+
+    const session = await t.run(async (ctx) => ctx.db.get(sessionId));
+    expect(session!.status).toBe("confirmed"); // deposit still collectable before start
+  });
+
+  it("cross-compares by name when the email doesn't match, if unambiguous", async () => {
+    const artistId = await seedArtist({ email: "manager@label.com" });
+    const sessionId = await seedSession(artistId);
+
+    const result = await t.mutation(api.visitors.register, {
+      slug: SLUG, termsAccepted: true, name: "  ray  VAUGHN ", email: "ray.personal@gmail.com",
+    });
+
+    expect(result.session?.title).toBe("Vocal tracking");
+    const visit = await t.run(async (ctx) => ctx.db.get(result.visitId));
+    expect(visit!.sessionId).toEqual(sessionId);
+    expect(visit!.sessionMatchedBy).toBe("name");
+  });
+
+  it("an ambiguous name-only match links nothing", async () => {
+    const a1 = await seedArtist({ email: "a1@x.com" });
+    const a2 = await seedArtist({ email: "a2@x.com" });
+    await seedSession(a1, { title: "Session A" });
+    await seedSession(a2, { title: "Session B" });
+
+    const result = await t.mutation(api.visitors.register, {
+      slug: SLUG, termsAccepted: true, name: "Ray Vaughn", email: "someone@else.com",
+    });
+
+    expect(result.session).toBeNull();
+    const visit = await t.run(async (ctx) => ctx.db.get(result.visitId));
+    expect(visit!.sessionId).toBeUndefined();
+  });
+
+  it("never touches sessions outside the arrival window", async () => {
+    const artistId = await seedArtist();
+    const sessionId = await seedSession(artistId, {
+      startTime: Date.now() + 24 * 60 * 60 * 1000, // tomorrow
+    });
+
+    const result = await t.mutation(api.visitors.register, {
+      slug: SLUG, termsAccepted: true, name: "Ray Vaughn", email: "ray@example.com",
+    });
+
+    expect(result.session).toBeNull();
+    const session = await t.run(async (ctx) => ctx.db.get(sessionId));
+    expect(session!.status).toBe("confirmed"); // untouched
+  });
+
+  it("never matches another org's session", async () => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: "org_other", name: "Other", slug: "other", plan: "studio" });
+    });
+    const artistId = await seedArtist({ orgId: "org_other" });
+    const sessionId = await seedSession(artistId, { orgId: "org_other" });
+
+    const result = await t.mutation(api.visitors.register, {
+      slug: SLUG, termsAccepted: true, name: "Ray Vaughn", email: "ray@example.com",
+    });
+
+    expect(result.session).toBeNull();
+    const session = await t.run(async (ctx) => ctx.db.get(sessionId));
+    expect(session!.status).toBe("confirmed"); // the other tenant is untouched
+  });
+
+  it("an in_progress session links without a double transition", async () => {
+    const artistId = await seedArtist();
+    const sessionId = await seedSession(artistId, { status: "in_progress" });
+
+    const result = await t.mutation(api.visitors.register, {
+      slug: SLUG, termsAccepted: true, name: "Ray Vaughn", email: "ray@example.com",
+    });
+
+    expect(result.session?.status).toBe("in_progress");
+    const { visit, activity } = await t.run(async (ctx) => ({
+      visit: await ctx.db.get(result.visitId),
+      activity: (await ctx.db.query("activity").collect()).filter((a) => a.orgId === ORG),
+    }));
+    expect(visit!.sessionId).toEqual(sessionId);
+    // No status change happened, so no session.checked_in activity fires.
+    expect(activity.some((a) => a.kind === "session.checked_in")).toBe(false);
+  });
+
+  it("manual front-desk entry e-checks in the same way", async () => {
+    const artistId = await seedArtist();
+    const sessionId = await seedSession(artistId);
+
+    const result = await t.mutation(api.visitors.registerManual, {
+      name: "Ray Vaughn", email: "ray@example.com",
+    });
+
+    expect(result.session?.status).toBe("in_progress");
+    const visit = await t.run(async (ctx) => ctx.db.get(result.visitId));
+    expect(visit!.sessionId).toEqual(sessionId);
   });
 });

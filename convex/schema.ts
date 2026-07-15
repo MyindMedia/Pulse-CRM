@@ -711,6 +711,15 @@ export default defineSchema({
     purpose: v.optional(v.string()), // reason for the visit
     hostName: v.optional(v.string()), // who they came to see
     artistId: v.optional(v.id("artists")),
+    // E-check-in: when the visitor's email (or, failing that, an unambiguous
+    // name match) lines up with a session booked around now, the visit links
+    // to it and the session advances automatically (tentative -> confirmed,
+    // confirmed -> in_progress) so the kiosk reflects the arrival live.
+    sessionId: v.optional(v.id("sessions")),
+    sessionMatchedBy: v.optional(v.string()), // "email" | "name"
+    // Visitor terms of service - the QR self check-in requires acceptance;
+    // the stamp is the audit record.
+    termsAcceptedAt: v.optional(v.number()),
     checkInAt: v.number(),
     checkOutAt: v.optional(v.number()),
     source: v.string(), // "qr" | "front_desk"
