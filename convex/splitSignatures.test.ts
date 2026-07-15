@@ -154,4 +154,81 @@ describe("split-sheet e-signature", () => {
       t.mutation(api.splitSignatures.sign, { token: link.token, signature: "Again" }),
     ).rejects.toThrow();
   });
+
+  it("a used link still resolves to the already-signed confirmation, not invalid", async () => {
+    const { splitSheetId } = await seedSheet(t);
+    const [link] = await t.mutation(api.splitSignatures.issue, { splitSheetId });
+    await t.mutation(api.splitSignatures.sign, { token: link.token, signature: "Producer Name" });
+
+    // Re-opening the same (now revoked) link shows "you have signed".
+    const revisit = await t.query(api.splitSignatures.lookup, { token: link.token });
+    expect(revisit).not.toBeNull();
+    expect(revisit!.alreadySigned).toBe(true);
+  });
+
+  it("a superseded link for a still-unsigned contributor stays invalid", async () => {
+    const { splitSheetId } = await seedSheet(t);
+    const [first] = await t.mutation(api.splitSignatures.issue, { splitSheetId });
+    await t.mutation(api.splitSignatures.issue, { splitSheetId }); // revokes the first
+
+    expect(await t.query(api.splitSignatures.lookup, { token: first.token })).toBeNull();
+  });
+
+  it("stores a typed signature with its chosen script font", async () => {
+    const { splitSheetId } = await seedSheet(t);
+    const [link] = await t.mutation(api.splitSignatures.issue, { splitSheetId });
+
+    await t.mutation(api.splitSignatures.sign, {
+      token: link.token, signature: "Needs To Sign",
+      signatureKind: "typed", signatureFont: "great-vibes",
+    });
+    const sheet = await t.run(async (ctx) => ctx.db.get(splitSheetId));
+    const signer = sheet!.contributors[1];
+    expect(signer.signatureKind).toBe("typed");
+    expect(signer.signatureFont).toBe("great-vibes");
+  });
+
+  it("stores a drawn signature as a PNG data URI and rejects junk", async () => {
+    const { splitSheetId } = await seedSheet(t);
+    const [link] = await t.mutation(api.splitSignatures.issue, { splitSheetId });
+
+    // Not a PNG data URI -> rejected before any lookup.
+    await expect(
+      t.mutation(api.splitSignatures.sign, {
+        token: link.token, signature: "<svg>nope</svg>", signatureKind: "drawn",
+      }),
+    ).rejects.toThrow(/PNG/);
+
+    const dataUrl = `data:image/png;base64,${"A".repeat(2000)}`;
+    await t.mutation(api.splitSignatures.sign, {
+      token: link.token, signature: dataUrl, signatureKind: "drawn",
+    });
+    const sheet = await t.run(async (ctx) => ctx.db.get(splitSheetId));
+    const signer = sheet!.contributors[1];
+    expect(signer.signatureKind).toBe("drawn");
+    expect(signer.signature).toBe(dataUrl);
+    expect(signer.signatureFont).toBeUndefined();
+  });
+
+  it("rejects an unknown typed signature style", async () => {
+    const { splitSheetId } = await seedSheet(t);
+    const [link] = await t.mutation(api.splitSignatures.issue, { splitSheetId });
+    await expect(
+      t.mutation(api.splitSignatures.sign, {
+        token: link.token, signature: "Name", signatureKind: "typed", signatureFont: "comic-sans",
+      }),
+    ).rejects.toThrow(/style/);
+  });
+
+  it("rejects an oversized drawn signature", async () => {
+    const { splitSheetId } = await seedSheet(t);
+    const [link] = await t.mutation(api.splitSignatures.issue, { splitSheetId });
+    await expect(
+      t.mutation(api.splitSignatures.sign, {
+        token: link.token,
+        signature: `data:image/png;base64,${"A".repeat(200_000)}`,
+        signatureKind: "drawn",
+      }),
+    ).rejects.toThrow(/too large/);
+  });
 });

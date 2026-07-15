@@ -100,7 +100,7 @@ export const lookup = query({
       .query("collaboratorGrants")
       .withIndex("by_token", (q) => q.eq("token", token))
       .first();
-    if (!grant || grant.revoked || grant.expiresAt < Date.now() || grant.scope !== "splitsheet") return null;
+    if (!grant || grant.scope !== "splitsheet") return null;
 
     const sheet = await ctx.db.get(grant.entityId as Id<"splitSheets">);
     if (!sheet) return null;
@@ -108,6 +108,14 @@ export const lookup = query({
       (c) => c.email && c.email.toLowerCase() === grant.email.toLowerCase(),
     );
     if (idx < 0) return null;
+
+    // A dead link (self-revoked on signing, superseded by a re-issue, or
+    // expired) still resolves for a signer who already signed - reopening
+    // your own used link shows the "you have signed" confirmation, never the
+    // scary invalid screen. Unsigned dead links stay null: the sign form
+    // must only ever render for the one live token.
+    const alreadySigned = sheet.contributors[idx].signed;
+    if ((grant.revoked || grant.expiresAt < Date.now()) && !alreadySigned) return null;
     const song = await ctx.db.get(sheet.songId);
     const artist = song ? await ctx.db.get(song.artistId) : null;
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", sheet.orgId)).first();
@@ -117,19 +125,46 @@ export const lookup = query({
       song: song ? { title: song.title, artist: artist?.name ?? "Unknown" } : null,
       sheet: { _id: sheet._id, status: sheet.status, contributors: sheet.contributors },
       signer: { name: grant.name, email: grant.email, contributorIndex: idx },
-      alreadySigned: sheet.contributors[idx].signed,
+      alreadySigned,
       expiresAt: grant.expiresAt,
     };
   },
 });
 
-/** Public (token-authed): stamp the signature onto the contributor row. */
+// The script fonts the typed-signature picker offers. Server-side allowlist so
+// a stored font is always one the app can actually render.
+const SIGNATURE_FONTS = ["dancing-script", "great-vibes", "caveat", "homemade-apple"];
+const DRAWN_PREFIX = "data:image/png;base64,";
+const DRAWN_MAX_CHARS = 150_000; // ~110KB PNG - generous for a signature pad
+
+/** Public (token-authed): stamp the signature onto the contributor row.
+ *  Two capture kinds: "typed" (legal name + chosen script font) and "drawn"
+ *  (finger/stylus PNG data URI from the signature pad). */
 export const sign = mutation({
-  args: { token: v.string(), signature: v.string(), userAgent: v.optional(v.string()) },
-  handler: async (ctx, { token, signature, userAgent }) => {
+  args: {
+    token: v.string(),
+    signature: v.string(),
+    signatureKind: v.optional(v.union(v.literal("typed"), v.literal("drawn"))),
+    signatureFont: v.optional(v.string()),
+    userAgent: v.optional(v.string()),
+  },
+  handler: async (ctx, { token, signature, signatureKind, signatureFont, userAgent }) => {
+    const kind = signatureKind ?? "typed";
     const trimmed = signature.trim();
     if (trimmed.length === 0) throw new Error("Signature cannot be empty.");
-    if (trimmed.length > 4096) throw new Error("Signature is too long.");
+    if (kind === "typed") {
+      if (trimmed.length > 200) throw new Error("Signature is too long.");
+      if (signatureFont !== undefined && !SIGNATURE_FONTS.includes(signatureFont)) {
+        throw new Error("Unknown signature style.");
+      }
+    } else {
+      if (!trimmed.startsWith(DRAWN_PREFIX)) {
+        throw new Error("Drawn signature must be a PNG image.");
+      }
+      if (trimmed.length > DRAWN_MAX_CHARS) {
+        throw new Error("Drawn signature is too large - please clear and sign again.");
+      }
+    }
 
     const grant = await ctx.db
       .query("collaboratorGrants")
@@ -149,7 +184,15 @@ export const sign = mutation({
     const now = Date.now();
     const next: Doc<"splitSheets">["contributors"] = sheet.contributors.map((c, i) =>
       i === idx
-        ? { ...c, signed: true, signedAt: now, signature: trimmed, signedFromUa: userAgent }
+        ? {
+            ...c,
+            signed: true,
+            signedAt: now,
+            signature: trimmed,
+            signatureKind: kind,
+            signatureFont: kind === "typed" ? signatureFont : undefined,
+            signedFromUa: userAgent,
+          }
         : c,
     );
     await ctx.db.patch(sheet._id, { contributors: next, updatedAt: now });

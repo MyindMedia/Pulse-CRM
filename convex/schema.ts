@@ -1079,6 +1079,11 @@ export default defineSchema({
         // `signed` flag is legally backed rather than a bare checkbox.
         signedAt: v.optional(v.number()),
         signature: v.optional(v.string()), // typed full name or drawn data URI
+        // How the signature was captured: "typed" = legal name rendered in the
+        // chosen script font (signatureFont), "drawn" = finger/stylus PNG data
+        // URI stored in `signature`. Unset = legacy typed-name rows.
+        signatureKind: v.optional(v.union(v.literal("typed"), v.literal("drawn"))),
+        signatureFont: v.optional(v.string()),
         signedFromUa: v.optional(v.string()), // user-agent at signing time
       }),
     ),
