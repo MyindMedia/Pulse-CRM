@@ -742,6 +742,52 @@ any, twilioA2P.ts prefer-const), 640 vitest, next build, agent-browser visual.
 - **Tests:** convex/visitors.test.ts - register creates visit + artist lead, email dedup patches instead of duplicating, unknown slug throws, hourly rate limit throws, checkOut stamps, org scoping (other org's visits invisible), directory grouping.
 - **Not in this pass:** visitor self-checkout on the iPad, badge printing, SMS host notification, per-visitor NDA/waiver capture, PIN-locked kiosk mode.
 
+## Feature: split-sheet REAL e-signatures + used-link UX (2026-07-15, commit 4d8e113)
+
+**Trigger:** owner reported "This signing link is no longer valid" on /sign/<token>.
+**Diagnosis (prod data):** the link HAD been used - he signed it 22s after issuing;
+the grant self-revokes on signing (single-use), and `lookup` returned null for any
+revoked grant, so revisiting your own used link showed the scary invalid screen.
+**Fixes:**
+- `lookup` now resolves dead links (revoked-on-use / superseded / expired) whose
+  contributor already signed -> the "you have signed" confirmation. Unsigned dead
+  links stay null (the sign form only renders for the one live token).
+- **Real e-signature capture, two modes:** (a) typed legal name rendered in a
+  script font the signer picks from a gallery (Dancing Script / Great Vibes /
+  Caveat / Homemade Apple - keys allowlisted server-side), (b) finger/stylus/mouse
+  SignaturePad canvas -> PNG data URI (white paper, dark ink, dpr-scaled;
+  cap 150k chars). contributors += signatureKind/signatureFont. Mutation errors
+  now surface on the page (were silently swallowed).
+
+## Feature: Songs cover art + streaming-link import + split-sheet prefill (2026-07-15, commit 14d361d)
+
+**Owner ask:** cover art update/upload OR pull from a Spotify / Apple Music link
+with metadata and credits; pre-fill split sheets when a link is provided during
+song creation or edit.
+**Build:**
+- `convex/lib/musicLink.ts` (pure, 15 unit tests): link parsing (Spotify track incl
+  intl-xx, Apple album?i= / song paths), Apple artwork upscaling (100x100->600x600),
+  MusicBrainz relation->role mapping, credit dedupe/merge, balanced contributor
+  builder (equal splits, remainder on first row, always 100/100), og-tag parser.
+- `convex/songImport.ts`: `fetchFromLink` action (songs.edit-gated via internal
+  access query) - Apple = iTunes lookup API; Spotify = oEmbed + page og tags
+  (artist from og:description); credits best-effort from MusicBrainz
+  (recording artist-rels -> producers/engineers, work artist-rels -> writers);
+  cover fetched into `_storage` (4MB cap, 8s timeouts, all failures graceful).
+  `applyToSong` mutation: cover + fill-blank-only metadata + source link appended
+  to referenceTracks once + split sheet drafted from credits (primary artist
+  included) ONLY when no sheet exists or the draft is empty - studio work is
+  never clobbered.
+- Schema: songs += coverArtId (_storage). list/get hydrate coverUrl.
+- UI: song hero cover tile renders real art (tonal fallback kept); actions menu
+  gains Import from Spotify/Apple Music + Upload cover art + Remove cover art;
+  catalog SongCard shows the art; NewSongDialog gets an optional link-import field
+  that prefills title/genre, auto-selects a roster artist by name match, and
+  applies cover/credits/sheet right after creation.
+**Live checks:** iTunes lookup + MusicBrainz verified from the network; Spotify
+oEmbed 503'd once then 200 (transient). Prod action correctly rejects
+unauthenticated callers. 697 vitest green.
+
 **Follow-up (2026-07-15, /goal): automated e-check-in + required visitor terms + lifetime stats.**
 Owner: auto-check-in when a visitor's email matches a session booking (cross-compare
 name + email), every check-in lands in Clients, track lifetime bookings + spend,
