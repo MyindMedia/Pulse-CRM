@@ -67,8 +67,10 @@ export function AddOnsPicker({
     const eng = options.engineers.find((e) => e.id === engineerId && e.available);
     const liveGear = options.gear.filter((g) => gearIds.includes(g.id) && g.available);
     return {
-      engineerId: needsEngineer ? eng?.id : eng?.id,
-      engineerName: eng?.name,
+      // An engineer only rides the booking when the client declared they need
+      // one - the roster is hidden (and any earlier pick ignored) otherwise.
+      engineerId: needsEngineer ? eng?.id : undefined,
+      engineerName: needsEngineer ? eng?.name : undefined,
       needsEngineer,
       gear: liveGear.map((g) => ({ id: g.id, name: g.name, priceCents: g.priceCents })),
       gearRequestNote: note.trim(),
@@ -135,36 +137,32 @@ export function AddOnsPicker({
               I need an engineer for this session
             </label>
           </div>
+          {/* The roster reveals only once the client says they need an
+              engineer - checking the box is what opens the selection. */}
           {needsEngineer && (
-            <p className="text-xs text-steel/70">
-              Pick who you want to work with - it&apos;s required so the right person can confirm
-              your session. Your booking is finalized once they accept.
-            </p>
+            <>
+              <p className="text-xs text-steel/70">
+                Pick who you want to work with - it&apos;s required so the right person can confirm
+                your session. Your booking is finalized once they accept.
+              </p>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {engineers.map((e) => (
+                  <OptionRow
+                    key={e.id}
+                    selected={derived.engineerId === e.id}
+                    disabled={!e.available}
+                    onClick={() => setEngineerId(e.id)}
+                    avatar={e.photoUrl ?? undefined}
+                    avatarFallback={initial(e.name)}
+                    title={e.name}
+                    subtitle={e.available ? e.role.replace(/_/g, " ") : "Booked for this time"}
+                    bio={e.bio}
+                    credits={e.credits}
+                  />
+                ))}
+              </div>
+            </>
           )}
-          <div className="grid gap-2 sm:grid-cols-2">
-            {!needsEngineer && (
-              <OptionRow
-                selected={!derived.engineerId}
-                onClick={() => setEngineerId(undefined)}
-                title="No preference"
-                subtitle="The studio assigns the best fit"
-              />
-            )}
-            {engineers.map((e) => (
-              <OptionRow
-                key={e.id}
-                selected={derived.engineerId === e.id}
-                disabled={!e.available}
-                onClick={() => setEngineerId(e.id)}
-                avatar={e.photoUrl ?? undefined}
-                avatarFallback={initial(e.name)}
-                title={e.name}
-                subtitle={e.available ? e.role.replace(/_/g, " ") : "Booked for this time"}
-                bio={e.bio}
-                credits={e.credits}
-              />
-            ))}
-          </div>
           {needsEngineer && derived.engineerId && derived.engineerName && (
             <p className="rounded-md border border-gold/30 bg-gold/[0.06] px-3 py-2 text-xs text-gold">
               {derived.engineerName} will be asked to confirm this session - you&apos;ll get an
