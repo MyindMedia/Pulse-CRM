@@ -244,19 +244,24 @@ function RoomDetailView() {
         </div>
       </section>
 
-      {/* Add-ons: engineer + premium gear, available for the chosen time */}
-      {selection && (
-        <section className="space-y-3">
-          <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
-            Engineer and add-ons
-          </h2>
-          <AddOnsPicker
-            roomId={loadedRoom._id}
-            selection={{ startTime: selection.startTime, durationHours: selection.durationHours }}
-            onChange={setAddOns}
-          />
-        </section>
-      )}
+      {/* Add-ons: engineer + premium gear. Always visible - before a time is
+          chosen the picker renders its own "pick a date and time" placeholder,
+          so clients know the option exists instead of it appearing from
+          nowhere after they select a slot. */}
+      <section className="space-y-3">
+        <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
+          Engineer and add-ons
+        </h2>
+        <AddOnsPicker
+          roomId={loadedRoom._id}
+          selection={
+            selection
+              ? { startTime: selection.startTime, durationHours: selection.durationHours }
+              : null
+          }
+          onChange={setAddOns}
+        />
+      </section>
 
       {/* Itemized total + continue */}
       <section className="space-y-3">
