@@ -741,3 +741,17 @@ any, twilioA2P.ts prefer-const), 640 vitest, next build, agent-browser visual.
 - **Activity feed:** each check-in writes an `activity` row (`visitor.checked_in`) so the dashboard feed shows walk-ins.
 - **Tests:** convex/visitors.test.ts - register creates visit + artist lead, email dedup patches instead of duplicating, unknown slug throws, hourly rate limit throws, checkOut stamps, org scoping (other org's visits invisible), directory grouping.
 - **Not in this pass:** visitor self-checkout on the iPad, badge printing, SMS host notification, per-visitor NDA/waiver capture, PIN-locked kiosk mode.
+
+**Follow-up (2026-07-15): true browser fullscreen.** Owner: kiosk should run full
+screen with no menus, just a minimize button to exit. The route was already
+chrome-less, so "menus" = the browser's own address/tab bars. Added a Fullscreen
+API toggle in the kiosk header (Maximize2 icon next to the clock): fullscreens
+`document.documentElement` (NOT the kiosk div - Radix dialogs portal to
+document.body and would vanish behind a fullscreened child element), webkit
+prefixes kept for iPad Safari, state tracked via fullscreenchange +
+webkitfullscreenchange, support detected through useSyncExternalStore (false on
+server, real answer client-side - no hydration mismatch, no
+set-state-in-effect lint warning; button hidden where the API is missing, e.g.
+iPhone Safari). In fullscreen the button swaps to Minimize2; Esc/system gesture
+also exits. Calendar toolbar intentionally stays visible in fullscreen (it is
+the kiosk's only navigation - month/week/day, paging, check-in flow).

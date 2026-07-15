@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore } from "react";
 import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -14,6 +14,8 @@ import {
   Disc3,
   DoorOpen,
   Headphones,
+  Maximize2,
+  Minimize2,
   Music2,
   Receipt,
   StickyNote,
@@ -63,6 +65,21 @@ type KioskView = "month" | "week" | "day";
 
 const DAY_MS = 86_400_000;
 const CLERK_ENABLED = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+
+// iPad Safari shipped the Fullscreen API behind webkit prefixes long before
+// the unprefixed spec landed (16.4), so both spellings stay supported here.
+type FullscreenDocument = Document & {
+  webkitFullscreenElement?: Element | null;
+  webkitExitFullscreen?: () => Promise<void> | void;
+};
+type FullscreenRoot = HTMLElement & {
+  webkitRequestFullscreen?: () => Promise<void> | void;
+};
+
+function fullscreenElement(): Element | null {
+  const doc = document as FullscreenDocument;
+  return document.fullscreenElement ?? doc.webkitFullscreenElement ?? null;
+}
 
 /** Sunday-anchored start of the week containing ts (matches the month grid). */
 function startOfWeek(ts: number): number {
@@ -120,6 +137,49 @@ function Kiosk() {
       lock?.release().catch(() => {});
     };
   }, []);
+
+  // Browser fullscreen - takes the kiosk edge to edge with no address bar or
+  // browser menus; the minimize button (or the system Esc gesture) drops back
+  // out. Support is a client-only constant (iPhone Safari lacks the API), so
+  // it reads through useSyncExternalStore: false on the server render, the
+  // real answer from the first client render on - no hydration mismatch.
+  const fullscreenSupported = useSyncExternalStore(
+    () => () => {},
+    () => {
+      const root = document.documentElement as FullscreenRoot;
+      return Boolean(root.requestFullscreen ?? root.webkitRequestFullscreen);
+    },
+    () => false,
+  );
+  const [fullscreen, setFullscreen] = useState(false);
+  useEffect(() => {
+    const onChange = () => setFullscreen(fullscreenElement() !== null);
+    document.addEventListener("fullscreenchange", onChange);
+    document.addEventListener("webkitfullscreenchange", onChange);
+    return () => {
+      document.removeEventListener("fullscreenchange", onChange);
+      document.removeEventListener("webkitfullscreenchange", onChange);
+    };
+  }, []);
+
+  // Fullscreens the whole document (not the kiosk div) so portaled overlays -
+  // the session drill-down dialog renders into document.body - stay visible.
+  async function toggleFullscreen() {
+    try {
+      if (fullscreenElement()) {
+        const doc = document as FullscreenDocument;
+        if (document.exitFullscreen) await document.exitFullscreen();
+        else await doc.webkitExitFullscreen?.();
+      } else {
+        const root = document.documentElement as FullscreenRoot;
+        if (root.requestFullscreen) await root.requestFullscreen();
+        else await root.webkitRequestFullscreen?.();
+      }
+    } catch {
+      // Denied requests (kiosk embedded in an iframe, permission policy) just
+      // leave the page inline - nothing to recover.
+    }
+  }
 
   // Convex attaches the Clerk token to the socket ASYNCHRONOUSLY after mount.
   // A query fired before that lands executes unauthenticated and throws
@@ -256,6 +316,18 @@ function Kiosk() {
               {new Date(now).toLocaleDateString("en-US", { weekday: "long", month: "short", day: "numeric" })}
             </p>
           </div>
+
+          {fullscreenSupported && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={toggleFullscreen}
+              aria-label={fullscreen ? "Minimize" : "Full screen"}
+              title={fullscreen ? "Minimize" : "Full screen"}
+            >
+              {fullscreen ? <Minimize2 className="size-5" /> : <Maximize2 className="size-5" />}
+            </Button>
+          )}
         </div>
       </header>
 
