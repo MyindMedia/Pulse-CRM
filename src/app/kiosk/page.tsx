@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useConvexAuth, useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import {
@@ -34,6 +34,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ShellErrorBoundary } from "@/components/shell/shell-error-boundary";
 import { brandStyle } from "@/lib/brand-theme";
 import {
   MONTH_NAMES,
@@ -61,6 +62,7 @@ import {
 type KioskView = "month" | "week" | "day";
 
 const DAY_MS = 86_400_000;
+const CLERK_ENABLED = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
 /** Sunday-anchored start of the week containing ts (matches the month grid). */
 function startOfWeek(ts: number): number {
@@ -73,6 +75,17 @@ function shortDayLabel(ts: number): string {
 }
 
 export default function KioskPage() {
+  // The (app) shell wraps every page in this boundary; the kiosk lives
+  // outside the shell, so it brings its own - a stray query throw must show
+  // the recoverable panel, not tear down to the root error page.
+  return (
+    <ShellErrorBoundary>
+      <Kiosk />
+    </ShellErrorBoundary>
+  );
+}
+
+function Kiosk() {
   const [view, setView] = useState<KioskView>("month");
   const [anchor, setAnchor] = useState(() => startOfDay(Date.now()));
   const [openSessionId, setOpenSessionId] = useState<string | null>(null);
@@ -108,6 +121,14 @@ export default function KioskPage() {
     };
   }, []);
 
+  // Convex attaches the Clerk token to the socket ASYNCHRONOUSLY after mount.
+  // A query fired before that lands executes unauthenticated and throws
+  // server-side (the same race orgs.current degrades around). Hold session
+  // reads until auth is actually on the wire; in demo mode (no Clerk) there
+  // is nothing to wait for.
+  const { isLoading: authLoading, isAuthenticated } = useConvexAuth();
+  const authReady = CLERK_ENABLED ? isAuthenticated : !authLoading;
+
   const org = useQuery(api.orgs.current);
 
   const anchorDate = new Date(anchor);
@@ -123,7 +144,9 @@ export default function KioskPage() {
     return { from: anchor, to: anchor + DAY_MS - 1 };
   }, [view, anchor, year, month]);
 
-  const sessions = useQuery(api.sessions.inRange, { from, to }) as Session[] | undefined;
+  const sessions = useQuery(api.sessions.inRange, authReady ? { from, to } : "skip") as
+    | Session[]
+    | undefined;
 
   function shift(delta: number) {
     if (view === "month") {
