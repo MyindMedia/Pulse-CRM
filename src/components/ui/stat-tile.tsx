@@ -2,7 +2,9 @@ import * as React from "react";
 import { ArrowDownRight, ArrowUpRight, type LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-/** Headline metric tile - value, label, optional delta vs prior period. */
+/** Headline metric tile - value, label, optional delta vs prior period.
+    Pass `onClick` to render the tile as a button (e.g. a stat that jumps to
+    its detail tab); it keeps the exact same look plus a focus ring. */
 export function StatTile({
   label,
   value,
@@ -11,6 +13,7 @@ export function StatTile({
   hint,
   accent,
   className,
+  onClick,
 }: {
   label: string;
   value: React.ReactNode;
@@ -19,11 +22,14 @@ export function StatTile({
   hint?: string;
   accent?: boolean;
   className?: string;
+  onClick?: () => void;
 }) {
   const showDelta = delta !== undefined && Number.isFinite(delta) && delta !== 0;
   const up = (delta ?? 0) > 0;
+  const Root: React.ElementType = onClick ? "button" : "div";
   return (
-    <div
+    <Root
+      {...(onClick ? { type: "button", onClick } : {})}
       className={cn(
         "sheen group rise-soft rounded-chrome p-4 transition-[transform,box-shadow,border-color] " +
           "[transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-smooth-out)] " +
@@ -31,6 +37,8 @@ export function StatTile({
         accent
           ? "material-thin border-gold-dim/50 bg-gold/[0.05]"
           : "material-thin glass-edge border-transparent",
+        onClick &&
+          "cursor-pointer text-left outline-none focus-visible:ring-2 focus-visible:ring-gold/40",
         className,
       )}
     >
@@ -62,6 +70,6 @@ export function StatTile({
         )}
         {hint && <span className="text-[0.6875rem] text-steel/70">{hint}</span>}
       </div>
-    </div>
+    </Root>
   );
 }

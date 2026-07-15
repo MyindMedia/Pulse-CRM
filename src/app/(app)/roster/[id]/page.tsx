@@ -61,6 +61,23 @@ function spotifyUrl(value: string): string {
   return `https://open.spotify.com/search/${encodeURIComponent(value)}`;
 }
 
+/** Context line for the Outstanding tile: how many open invoices carry the
+    balance and how far past due the oldest one is. Mirrors the backend's
+    open set (sent / viewed / overdue) in convex/artists.ts. */
+function outstandingHint(invoices: { status: string; dueDate: number }[]): string {
+  const open = invoices.filter(
+    (i) => i.status === "sent" || i.status === "viewed" || i.status === "overdue",
+  );
+  if (open.length === 0) return "all settled";
+  const now = Date.now();
+  const overdueDates = open.filter((i) => i.dueDate < now).map((i) => i.dueDate);
+  const count = `${open.length} ${open.length === 1 ? "invoice" : "invoices"} open`;
+  if (overdueDates.length === 0) return `${count} · none overdue`;
+  const days = Math.max(1, Math.floor((now - Math.min(...overdueDates)) / 86_400_000));
+  const age = days >= 60 ? `${Math.floor(days / 30)}mo` : `${days}d`;
+  return `${count} · oldest ${age} overdue`;
+}
+
 /* ── Page ──────────────────────────────────────────────────── */
 
 export default function ArtistDetailPage() {
@@ -70,6 +87,8 @@ export default function ArtistDetailPage() {
   const data = useQuery(api.artists.get, { id: artistId });
 
   const [editOpen, setEditOpen] = React.useState(false);
+  // Controlled so the Outstanding stat tile can jump straight to Invoices.
+  const [tab, setTab] = React.useState("timeline");
 
   if (data === undefined) return <ArtistDetailSkeleton />;
 
@@ -227,7 +246,8 @@ export default function ArtistDetailPage() {
           label="Outstanding"
           value={<CountUp to={data.outstandingCents} format={(n) => money(n, { compact: true })} />}
           icon={Wallet}
-          hint={data.outstandingCents > 0 ? "balance due" : "all settled"}
+          hint={outstandingHint(data.invoices)}
+          onClick={data.outstandingCents > 0 ? () => setTab("invoices") : undefined}
         />
         <StatTile
           label="Last contact"
@@ -237,7 +257,7 @@ export default function ArtistDetailPage() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="timeline" className="space-y-4">
+      <Tabs value={tab} onValueChange={setTab} className="space-y-4">
         <TabsList>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
           <TabsTrigger value="songs">Songs ({data.songs.length})</TabsTrigger>
