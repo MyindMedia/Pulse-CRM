@@ -80,6 +80,18 @@ export function deriveBrandTokens(accent: string | null | undefined): BrandToken
   const normalized = accent.startsWith("#") ? accent.toLowerCase() : `#${accent.toLowerCase()}`;
   if (normalized === DEFAULT_ACCENT) return null; // stock brand - no override needed
   const [h, s, l] = rgbToHsl(...rgb);
+  // Monochrome brands (white / black / silver accents): force-saturating a
+  // colorless value invents a random hue (white used to come out dusty red).
+  // Derive a clean neutral family instead - silver accents, near-black ink.
+  if (s < 0.12) {
+    return {
+      "--color-gold": hslToHex(h, 0.04, 0.74),
+      "--color-gold-bright": hslToHex(h, 0.04, 0.88),
+      "--color-gold-deep": hslToHex(h, 0.05, 0.52),
+      "--color-gold-dim": hslToHex(h, 0.05, 0.27),
+      "--color-gold-ink": hslToHex(h, 0.06, 0.07),
+    };
+  }
   // Keep the accent itself usable on dark UI: floor very dark logos up.
   const baseL = Math.max(0.42, Math.min(0.62, l));
   const baseS = Math.max(0.45, s);
