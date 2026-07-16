@@ -51,6 +51,7 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     status: org?.status ?? "active",
     accentColor: org?.accentColor ?? "#fdb913",
     timezone: org?.timezone ?? null,
+    briefRequireAll: org?.briefRequireAll === true,
     brandPalette: org?.brandPalette ?? null,
     tagline: org?.tagline ?? "Your music business runs itself.",
     logoUrl: org?.logoId ? await ctx.storage.getUrl(org.logoId) : null,
@@ -134,6 +135,7 @@ export const update = mutation({
     bookingIntro: v.optional(v.string()),
     depositPolicyText: v.optional(v.string()),
     timezone: v.optional(v.string()),
+    briefRequireAll: v.optional(v.boolean()),
   },
   handler: async (ctx, patch) => {
     if (patch.timezone !== undefined && !isValidTimezone(patch.timezone)) {

@@ -53,6 +53,7 @@ export function WorkspacePanel({ org }: { org: Org }) {
   const [plan, setPlan] = React.useState<OrgPlan>(org.plan);
   const [accent, setAccent] = React.useState(org.accentColor);
   const [timezone, setTimezone] = React.useState(org.timezone ?? "");
+  const [briefPolicy, setBriefPolicy] = React.useState(org.briefRequireAll ? "required" : "optional");
   const [submitting, setSubmitting] = React.useState(false);
 
   // Re-seed local state if the org record changes underneath us. We track a
@@ -67,6 +68,7 @@ export function WorkspacePanel({ org }: { org: Org }) {
     setPlan(org.plan);
     setAccent(org.accentColor);
     setTimezone(org.timezone ?? "");
+    setBriefPolicy(org.briefRequireAll ? "required" : "optional");
   }
 
   const accentValid = HEX_RE.test(accent.trim());
@@ -79,7 +81,8 @@ export function WorkspacePanel({ org }: { org: Org }) {
     tagline.trim() !== org.tagline ||
     plan !== org.plan ||
     (accentValid && normalizedAccent.toLowerCase() !== org.accentColor.toLowerCase()) ||
-    (timezone !== "" && timezone !== (org.timezone ?? ""));
+    (timezone !== "" && timezone !== (org.timezone ?? "")) ||
+    briefPolicy !== (org.briefRequireAll ? "required" : "optional");
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -99,6 +102,7 @@ export function WorkspacePanel({ org }: { org: Org }) {
         plan,
         accentColor: normalizedAccent,
         ...(timezone ? { timezone } : {}),
+        briefRequireAll: briefPolicy === "required",
       });
       toast.success("Workspace settings saved.");
     } catch {
@@ -114,6 +118,7 @@ export function WorkspacePanel({ org }: { org: Org }) {
     setPlan(org.plan);
     setAccent(org.accentColor);
     setTimezone(org.timezone ?? "");
+    setBriefPolicy(org.briefRequireAll ? "required" : "optional");
   }
 
   const tzOptions = [...TIMEZONES];
@@ -197,6 +202,23 @@ export function WorkspacePanel({ org }: { org: Org }) {
                   Use this device&apos;s timezone
                 </Button>
               )}
+            </div>
+          </Field>
+
+          <Field
+            label="Session brief checklist"
+            hint="Required mode expects staff to check every step on the pre-session brief - promotes accountability; every check is logged with who and when."
+          >
+            <div className="w-full sm:w-64">
+              <Select value={briefPolicy} onValueChange={setBriefPolicy}>
+                <SelectTrigger aria-label="Session brief checklist policy">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="optional">Optional guidance</SelectItem>
+                  <SelectItem value="required">Required - all steps checked</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </Field>
 

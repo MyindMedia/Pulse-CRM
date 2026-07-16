@@ -18,16 +18,17 @@ function session(over: Partial<T10Session>): T10Session {
 }
 
 describe("computeT10Alerts", () => {
-  it("fires the arrival alert exactly in the T-10 window", () => {
-    const due = computeT10Alerts(NOW, [session({})], []);
+  it("fires the pre-session brief alert exactly in the T-15 window", () => {
+    const due = computeT10Alerts(NOW, [session({ startTime: NOW + 15 * MIN })], []);
     expect(due).toHaveLength(1);
-    expect(due[0].key).toBe("a10:s1");
-    expect(due[0].title).toContain("Arrival in 10 minutes");
+    expect(due[0].key).toBe("b15:s1");
+    expect(due[0].title).toContain("Pre-session brief");
     expect(due[0].body).toContain("Nova");
+    expect(due[0].url).toBe("/brief/s1");
 
-    // 15 minutes out: not yet. 5 minutes out: window passed.
-    expect(computeT10Alerts(NOW, [session({ startTime: NOW + 15 * MIN })], [])).toHaveLength(0);
-    expect(computeT10Alerts(NOW, [session({ startTime: NOW + 5 * MIN })], [])).toHaveLength(0);
+    // 20 minutes out: not yet. 10 minutes out: window passed.
+    expect(computeT10Alerts(NOW, [session({ startTime: NOW + 20 * MIN })], [])).toHaveLength(0);
+    expect(computeT10Alerts(NOW, [session({ startTime: NOW + 10 * MIN })], [])).toHaveLength(0);
   });
 
   it("fires wrap-up at T-10 before the end, for in-progress sessions", () => {
@@ -38,6 +39,7 @@ describe("computeT10Alerts", () => {
     );
     expect(due.map((a) => a.key)).toEqual(["w10:s1"]);
     expect(due[0].body).toContain("Files, billing, gear, notes");
+    expect(due[0].url).toBe("/brief/s1#wrap");
   });
 
   it("fires studio refresh at end-time only when another booking follows", () => {
@@ -73,8 +75,8 @@ describe("computeT10Alerts", () => {
   });
 
   it("formats clock times in the studio's timezone", () => {
-    const la = computeT10Alerts(NOW, [session({})], [], "America/Los_Angeles")[0];
-    const ny = computeT10Alerts(NOW, [session({})], [], "America/New_York")[0];
+    const la = computeT10Alerts(NOW, [session({ startTime: NOW + 15 * MIN })], [], "America/Los_Angeles")[0];
+    const ny = computeT10Alerts(NOW, [session({ startTime: NOW + 15 * MIN })], [], "America/New_York")[0];
     const laTime = la.body.match(/at (\d+:\d+ [AP]M)/)?.[1];
     const nyTime = ny.body.match(/at (\d+:\d+ [AP]M)/)?.[1];
     expect(laTime).toBeTruthy();

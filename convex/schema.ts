@@ -77,6 +77,9 @@ export default defineSchema({
     // time string (device alerts, reminder emails, SMS). Auto-set from a
     // staff device on first load; adjustable in Settings > Workspace.
     timezone: v.optional(v.string()),
+    // Pre-session brief policy: when true every checklist step must be
+    // checked (accountability mode); unset/false = optional guidance.
+    briefRequireAll: v.optional(v.boolean()),
     brandPalette: v.optional(v.array(v.string())),
     tagline: v.optional(v.string()),
     // Branding
@@ -714,6 +717,10 @@ export default defineSchema({
     orgId: v.string(),
     sessionId: v.id("sessions"),
     done: v.array(v.string()),
+    // Who checked what, when - the accountability trail shown on the brief.
+    attribution: v.optional(
+      v.array(v.object({ step: v.string(), by: v.string(), at: v.number() })),
+    ),
   }).index("by_org_session", ["orgId", "sessionId"]),
 
   // Web-push subscriptions for team devices (PWA/browser). One row per

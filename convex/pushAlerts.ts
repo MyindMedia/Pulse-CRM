@@ -90,6 +90,28 @@ export const sweep = internalMutation({
         })),
       );
 
+      // "On schedule" targeting: staff whose shift covers RIGHT NOW (plus a
+      // 20-min lead-in for the incoming crew) get the pings; when nobody
+      // on-shift has a registered device the send falls back to all devices.
+      const activeShiftRows = await ctx.db
+        .query("shifts")
+        .withIndex("by_org_start", (q) =>
+          q.eq("orgId", orgId).gte("startTime", now - 14 * 3_600_000).lte("startTime", now + 20 * 60_000),
+        )
+        .collect();
+      const onShiftMemberIds = [
+        ...new Set(
+          activeShiftRows
+            .filter((sh) => sh.status !== "cancelled" && sh.endTime >= now)
+            .map((sh) => sh.memberId),
+        ),
+      ];
+      const onShiftClerkIds = (
+        await Promise.all(onShiftMemberIds.map((id) => ctx.db.get(id)))
+      )
+        .map((m) => m?.clerkUserId)
+        .filter((id): id is string => Boolean(id));
+
       for (const alert of computeT10Alerts(now, sessions, shifts, tz)) {
         const seen = await ctx.db
           .query("pushAlerts")
@@ -103,6 +125,7 @@ export const sweep = internalMutation({
           body: alert.body,
           url: alert.url,
           tag: alert.key,
+          clerkUserIds: onShiftClerkIds.length > 0 ? onShiftClerkIds : undefined,
         });
         fired += 1;
       }

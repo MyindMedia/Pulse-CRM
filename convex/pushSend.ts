@@ -17,8 +17,10 @@ export const sendToOrg = internalAction({
     body: v.string(),
     url: v.optional(v.string()),
     tag: v.optional(v.string()),
+    // When set, only these users' devices are pinged (e.g. on-shift staff).
+    clerkUserIds: v.optional(v.array(v.string())),
   },
-  handler: async (ctx, { orgId, title, body, url, tag }) => {
+  handler: async (ctx, { orgId, title, body, url, tag, clerkUserIds }) => {
     const publicKey = process.env.VAPID_PUBLIC_KEY;
     const privateKey = process.env.VAPID_PRIVATE_KEY;
     if (!publicKey || !privateKey) return { sent: 0, reason: "vapid-unset" };
@@ -28,7 +30,13 @@ export const sendToOrg = internalAction({
       privateKey,
     );
 
-    const subs = await ctx.runQuery(internal.push._forOrg, { orgId });
+    let subs = await ctx.runQuery(internal.push._forOrg, { orgId });
+    if (clerkUserIds && clerkUserIds.length > 0) {
+      const targeted = subs.filter((s) => clerkUserIds.includes(s.clerkUserId));
+      // Fall back to the whole team rather than dropping the alert when the
+      // on-shift staff have no registered devices.
+      if (targeted.length > 0) subs = targeted;
+    }
     let sent = 0;
     for (const sub of subs) {
       try {

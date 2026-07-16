@@ -46,19 +46,21 @@ export function computeT10Alerts(
   const alerts: T10Alert[] = [];
   const t10From = now + 9 * MIN;
   const t10To = now + 11 * MIN;
+  const t15From = now + 14 * MIN;
+  const t15To = now + 16 * MIN;
 
   for (const s of sessions) {
     const room = s.roomName ? ` - ${s.roomName}` : "";
-    // Next event: client arrives in ~10 minutes.
+    // Next event: pre-session brief 15 minutes before start.
     if (
       (s.status === "confirmed" || s.status === "tentative") &&
-      inWindow(s.startTime, t10From, t10To)
+      inWindow(s.startTime, t15From, t15To)
     ) {
       alerts.push({
-        key: `a10:${s._id}`,
-        title: "Arrival in 10 minutes",
-        body: `${s.artistName} at ${clock(s.startTime, tz)}${room}. Run the arrival checklist.`,
-        url: "/dashboard",
+        key: `b15:${s._id}`,
+        title: "Pre-session brief - 15 minutes out",
+        body: `${s.artistName} at ${clock(s.startTime, tz)}${room}. Open the brief and run prep.`,
+        url: `/brief/${s._id}`,
       });
     }
     // Session ends in ~10 minutes: start the wrap-up.
@@ -70,7 +72,7 @@ export function computeT10Alerts(
         key: `w10:${s._id}`,
         title: "Wrap-up in 10 minutes",
         body: `${s.artistName} ends at ${clock(s.endTime, tz)}${room}. Files, billing, gear, notes.`,
-        url: "/dashboard",
+        url: `/brief/${s._id}#wrap`,
       });
     }
     // Session just ended with another booking behind it: studio refresh now.
@@ -79,7 +81,7 @@ export function computeT10Alerts(
         key: `r:${s._id}`,
         title: "Studio refresh",
         body: `${s.roomName ?? "The room"} turns over for ${s.nextInRoom.artistName} at ${clock(s.nextInRoom.startTime, tz)}. Reset and stage now.`,
-        url: "/dashboard",
+        url: `/brief/${s._id}#wrap`,
       });
     }
   }

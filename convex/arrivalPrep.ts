@@ -115,6 +115,67 @@ export const wrapping = query({
   },
 });
 
+/** Everything the Pre-session brief page needs for one session: the booking
+ *  (artist, room, engineer, times), the live checklist with its
+ *  accountability trail, the studio's require-all policy, and the next
+ *  booking in the room (the refresh target). */
+export const brief = query({
+  args: { sessionId: v.id("sessions") },
+  handler: async (ctx, { sessionId }) => {
+    const orgId = await currentOrg(ctx);
+    const s = await ctx.db.get(sessionId);
+    if (!s || s.orgId !== orgId) return null;
+
+    const [artist, room, engineer, org, prep] = await Promise.all([
+      s.artistId ? ctx.db.get(s.artistId) : null,
+      s.roomId ? ctx.db.get(s.roomId) : null,
+      s.engineerId ? ctx.db.get(s.engineerId) : null,
+      ctx.db
+        .query("orgs")
+        .withIndex("by_org", (q) => q.eq("orgId", orgId))
+        .first(),
+      ctx.db
+        .query("arrivalPrep")
+        .withIndex("by_org_session", (q) => q.eq("orgId", orgId).eq("sessionId", sessionId))
+        .first(),
+    ]);
+
+    let next: { artistName: string; startTime: number } | null = null;
+    if (s.roomId) {
+      const upcoming = await ctx.db
+        .query("sessions")
+        .withIndex("by_org_start", (q) =>
+          q.eq("orgId", orgId).gte("startTime", s.endTime).lte("startTime", s.endTime + 2 * 3_600_000),
+        )
+        .collect();
+      const candidate = upcoming
+        .filter((n) => n.roomId === s.roomId && n._id !== s._id && n.status !== "cancelled")
+        .sort((a, b) => a.startTime - b.startTime)[0];
+      if (candidate) {
+        const nextArtist = candidate.artistId ? await ctx.db.get(candidate.artistId) : null;
+        next = { artistName: nextArtist?.name ?? "Next client", startTime: candidate.startTime };
+      }
+    }
+
+    return {
+      _id: s._id,
+      title: s.title,
+      status: s.status,
+      serviceType: s.serviceType,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      notes: s.notes ?? null,
+      artistName: artist?.name ?? "Unknown",
+      roomName: room?.name ?? null,
+      engineerName: engineer?.name ?? null,
+      done: prep?.done ?? [],
+      attribution: prep?.attribution ?? [],
+      requireAll: org?.briefRequireAll === true,
+      next,
+    };
+  },
+});
+
 /** Mark a prep step done / not done for a session in the caller's org. */
 export const setStep = mutation({
   args: { sessionId: v.id("sessions"), step: stepV, done: v.boolean() },
@@ -133,8 +194,14 @@ export const setStep = mutation({
     else current.delete(step);
     const next = [...current];
 
-    if (row) await ctx.db.patch(row._id, { done: next });
-    else await ctx.db.insert("arrivalPrep", { orgId, sessionId, done: next });
+    // Accountability trail: who checked the step, when. Uncheck clears it.
+    const identity = await ctx.auth.getUserIdentity();
+    const by = (identity?.name as string) ?? (identity?.email as string) ?? "Staff";
+    const attribution = (row?.attribution ?? []).filter((a) => a.step !== step);
+    if (done) attribution.push({ step, by, at: Date.now() });
+
+    if (row) await ctx.db.patch(row._id, { done: next, attribution });
+    else await ctx.db.insert("arrivalPrep", { orgId, sessionId, done: next, attribution });
     return { done: next };
   },
 });

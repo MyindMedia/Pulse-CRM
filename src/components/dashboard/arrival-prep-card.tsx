@@ -144,11 +144,11 @@ export function ArrivalPrepCard({ className }: { className?: string }) {
                     <PrepChip
                       done={done.has("details")}
                       icon={Eye}
-                      label="Session details"
+                      label="Open brief"
                       asChild
                     >
                       <Link
-                        href={`/calendar?session=${s._id}`}
+                        href={`/brief/${s._id}`}
                         onClick={() => void mark(s._id, "details", true)}
                       />
                     </PrepChip>

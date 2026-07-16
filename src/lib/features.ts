@@ -46,6 +46,7 @@ export function featureForPath(pathname: string): FeatureKey | null {
   // directory) - the separate Roster nav item was consolidated into it.
   const map: Record<string, FeatureKey> = {
     agent: "agent",
+    brief: "bookings",
     songs: "songs",
     roster: "clients",
     pipeline: "pipeline",

@@ -37,6 +37,7 @@ export type Org = {
   status: string;
   accentColor: string;
   timezone: string | null;
+  briefRequireAll: boolean;
   tagline: string;
   logoUrl: string | null;
   bookingHeroUrl: string | null;
