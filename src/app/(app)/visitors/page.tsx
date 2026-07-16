@@ -42,15 +42,7 @@ import { shortDate, timeOfDay, relativeTime, money } from "@/lib/format";
 import { startOfDay } from "@/components/calendar/constants";
 import { checkinSignHtml, type CheckinSignBrand } from "@/lib/checkin-sign";
 import { parkingSignHtml } from "@/lib/parking-sign";
-
-/** Open a self-printing sign document (checkin-sign / parking-sign HTML) in
- * its own window. Both documents print themselves after fonts + logo load. */
-function openSignWindow(html: string) {
-  const w = window.open("", "_blank", "width=1140,height=900");
-  if (!w) return;
-  w.document.write(html);
-  w.document.close();
-}
+import { openSignWindow } from "@/lib/sign-window";
 
 /*
  * Visitors - the front-desk guest log. Every registration (QR self check-in

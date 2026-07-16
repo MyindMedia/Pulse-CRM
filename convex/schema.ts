@@ -703,6 +703,14 @@ export default defineSchema({
   //    optional check-out). Contact details also upsert into `artists` as
   //    leads (source "visitor_qr"), so the Clients directory doubles as the
   //    outreach database; artistId links the visit back to that record. ──
+  // Front-desk arrival prep - which checklist steps are done per upcoming
+  // session (details reviewed, parking sign printed, room ready, welcome set).
+  arrivalPrep: defineTable({
+    orgId: v.string(),
+    sessionId: v.id("sessions"),
+    done: v.array(v.string()),
+  }).index("by_org_session", ["orgId", "sessionId"]),
+
   visitors: defineTable({
     orgId: v.string(),
     name: v.string(),

@@ -25,6 +25,7 @@ import type * as agents_generators from "../agents/generators.js";
 import type * as aiActions from "../aiActions.js";
 import type * as aiArtifacts from "../aiArtifacts.js";
 import type * as aiContext from "../aiContext.js";
+import type * as arrivalPrep from "../arrivalPrep.js";
 import type * as artists from "../artists.js";
 import type * as assetDocuments from "../assetDocuments.js";
 import type * as audit from "../audit.js";
@@ -182,6 +183,7 @@ declare const fullApi: ApiFromModules<{
   aiActions: typeof aiActions;
   aiArtifacts: typeof aiArtifacts;
   aiContext: typeof aiContext;
+  arrivalPrep: typeof arrivalPrep;
   artists: typeof artists;
   assetDocuments: typeof assetDocuments;
   audit: typeof audit;
