@@ -101,7 +101,7 @@ export const payViaStripe = action({
 export async function settleInvoice(ctx: MutationCtx, invoiceId: Id<"invoices">) {
   const inv = await ctx.db.get(invoiceId);
   if (!inv || inv.status === "paid") return;
-  await ctx.db.patch(invoiceId, { status: "paid", paidAt: Date.now() });
+  await ctx.db.patch(invoiceId, { status: "paid", paidAt: Date.now(), paymentMethod: "card" });
   const artist = await ctx.db.get(inv.artistId);
   await ctx.db.insert("activity", {
     orgId: inv.orgId,

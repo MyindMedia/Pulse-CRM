@@ -27,6 +27,7 @@ const categoryV = v.union(
   v.literal("insurance"),
   v.literal("travel"),
   v.literal("fees"),
+  v.literal("adjustment"),
   v.literal("other"),
 );
 const recurringV = v.union(v.literal("monthly"), v.literal("annual"));
@@ -176,6 +177,22 @@ export const plReport = query({
 
     const revenueCents = invoiceRevenue + paymentRevenue;
 
+    // Collected totals per payment type: invoice paymentMethod (venmo/cash/
+    // cashapp/zelle/credit, "card" from the online path) plus session payments,
+    // which only settle through Stripe checkout and therefore count as card.
+    // Invoices paid before the field existed land in "unrecorded".
+    const methodTotals = new Map<string, number>();
+    for (const i of paidInvoices) {
+      const key = i.paymentMethod ?? "unrecorded";
+      methodTotals.set(key, (methodTotals.get(key) ?? 0) + i.amountCents);
+    }
+    if (paymentRevenue > 0) {
+      methodTotals.set("card", (methodTotals.get("card") ?? 0) + paymentRevenue);
+    }
+    const paymentsByMethod = [...methodTotals.entries()]
+      .map(([method, amountCents]) => ({ method, amountCents }))
+      .sort((a, b) => b.amountCents - a.amountCents);
+
     const expenses = await ctx.db
       .query("expenses")
       .withIndex("by_org_date", (q) => q.eq("orgId", orgId).gte("date", start).lt("date", end))
@@ -195,6 +212,7 @@ export const plReport = query({
       ...summary,
       revenueFromPaymentsCents: paymentRevenue,
       revenueFromInvoicesCents: invoiceRevenue,
+      paymentsByMethod,
       expenseCount: expenses.length,
       monthlyRecurringCents,
     };

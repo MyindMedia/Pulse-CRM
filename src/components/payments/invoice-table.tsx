@@ -31,6 +31,7 @@ import { meta, INVOICE_STATUS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import type { InvoiceRow } from "./types";
 import { categoryMeta } from "./category";
+import { RecordPaymentDialog, type RecordPaymentTarget } from "./record-payment-dialog";
 
 /** Stops a click inside the actions cell from also opening the row link. */
 function swallow(e: React.MouseEvent) {
@@ -41,10 +42,11 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
   const router = useRouter();
   const setStatus = useMutation(api.invoices.setStatus);
   const remove = useMutation(api.invoices.remove);
+  const [recordTarget, setRecordTarget] = React.useState<RecordPaymentTarget | null>(null);
 
   async function changeStatus(
     id: Id<"invoices">,
-    status: "sent" | "paid" | "void",
+    status: "sent" | "void",
     verb: string,
   ) {
     try {
@@ -73,6 +75,7 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
   }
 
   return (
+    <>
     <Table>
       <THead>
         <TR>
@@ -160,7 +163,13 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
                     )}
                     {row.status !== "paid" && row.status !== "void" && (
                       <DropdownMenuItem
-                        onSelect={() => changeStatus(row._id, "paid", "marked paid")}
+                        onSelect={() =>
+                          setRecordTarget({
+                            id: row._id,
+                            number: row.number,
+                            amountCents: row.amountCents,
+                          })
+                        }
                       >
                         <CheckCircle2 className="size-4" />
                         Mark paid
@@ -190,5 +199,13 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
         })}
       </TBody>
     </Table>
+    <RecordPaymentDialog
+      open={recordTarget !== null}
+      onOpenChange={(o) => {
+        if (!o) setRecordTarget(null);
+      }}
+      invoice={recordTarget}
+    />
+    </>
   );
 }

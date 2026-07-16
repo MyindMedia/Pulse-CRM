@@ -257,7 +257,7 @@ describe("reminder-driven collection attribution", () => {
     const invoiceId = await seedCollectInvoice(t, 2);
     const asOwner = t.withIdentity({ subject: "u_own", name: "Owner", orgId: ORG_R });
 
-    await asOwner.mutation(api.invoices.setStatus, { id: invoiceId, status: "paid" });
+    await asOwner.mutation(api.invoices.setStatus, { id: invoiceId, status: "paid", paymentMethod: "zelle" });
 
     const events = await recoveryEvents(t);
     expect(events).toHaveLength(1);
@@ -271,7 +271,7 @@ describe("reminder-driven collection attribution", () => {
     const invoiceId = await seedCollectInvoice(t); // no reminderStage
     const asOwner = t.withIdentity({ subject: "u_own", name: "Owner", orgId: ORG_R });
 
-    await asOwner.mutation(api.invoices.setStatus, { id: invoiceId, status: "paid" });
+    await asOwner.mutation(api.invoices.setStatus, { id: invoiceId, status: "paid", paymentMethod: "zelle" });
 
     const events = await recoveryEvents(t);
     expect(events).toHaveLength(0);
@@ -282,8 +282,8 @@ describe("reminder-driven collection attribution", () => {
     const invoiceId = await seedCollectInvoice(t, 1);
     const asOwner = t.withIdentity({ subject: "u_own", name: "Owner", orgId: ORG_R });
 
-    await asOwner.mutation(api.invoices.setStatus, { id: invoiceId, status: "paid" });
-    await asOwner.mutation(api.invoices.setStatus, { id: invoiceId, status: "paid" });
+    await asOwner.mutation(api.invoices.setStatus, { id: invoiceId, status: "paid", paymentMethod: "zelle" });
+    await asOwner.mutation(api.invoices.setStatus, { id: invoiceId, status: "paid", paymentMethod: "zelle" });
 
     const events = await recoveryEvents(t);
     expect(events).toHaveLength(1);

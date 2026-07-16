@@ -17,6 +17,7 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { money, percent, shortDate } from "@/lib/format";
+import { meta, PAYMENT_METHOD } from "@/lib/labels";
 import {
   ExpenseDialog,
   EXPENSE_CATEGORIES,
@@ -103,8 +104,25 @@ export default function ExpensesPage() {
         <StatTile label="Recurring / mo" value={pl ? <CountUp to={pl.monthlyRecurringCents} format={(n) => money(n, { compact: true })} /> : "-"} icon={RefreshCw} hint="fixed cost run-rate" />
       </div>
 
+      {pl && pl.paymentsByMethod.length > 0 && (
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
+            Payments by type
+          </span>
+          {pl.paymentsByMethod.map((m) => (
+            <span key={m.method} className="inline-flex items-center gap-2 rounded-full border border-graphite/50 bg-coal-2 px-3 py-1 text-xs text-bone">
+              <span className="text-steel/80">{meta(PAYMENT_METHOD, m.method).label}</span>
+              <span className="font-meta text-gold">{money(m.amountCents)}</span>
+            </span>
+          ))}
+        </div>
+      )}
+
       {pl && pl.byCategory.length > 0 && (
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
+            Expenses by category
+          </span>
           {pl.byCategory.map((c) => (
             <span key={c.category} className="inline-flex items-center gap-2 rounded-full border border-graphite/50 bg-coal-2 px-3 py-1 text-xs text-bone">
               <span className="text-steel/80">{CATEGORY_LABEL.get(c.category) ?? c.category}</span>

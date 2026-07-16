@@ -39,6 +39,18 @@ export const INVOICE_STATUS: Record<string, Meta> = {
   void: { label: "Void", tone: "neutral" },
 };
 
+/** How an invoice was settled - manual methods, the online card path, and
+ * the bucket for invoices paid before the field existed. */
+export const PAYMENT_METHOD: Record<string, Meta> = {
+  venmo: { label: "Venmo", tone: "info" },
+  cash: { label: "Cash", tone: "positive" },
+  cashapp: { label: "Cash App", tone: "positive" },
+  zelle: { label: "Zelle", tone: "info" },
+  credit: { label: "Studio credit", tone: "gold" },
+  card: { label: "Card (online)", tone: "info" },
+  unrecorded: { label: "Unrecorded", tone: "neutral" },
+};
+
 export const PIPELINE_STAGE: Record<string, Meta> = {
   inquiry: { label: "Inquiry", tone: "neutral" },
   qualified: { label: "Qualified", tone: "info" },

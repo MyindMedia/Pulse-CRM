@@ -5,7 +5,7 @@ import { Disc3, Music2 } from "lucide-react";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { money, longDate } from "@/lib/format";
-import { meta, INVOICE_STATUS } from "@/lib/labels";
+import { meta, INVOICE_STATUS, PAYMENT_METHOD } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import type { InvoiceDetail } from "./types";
 
@@ -99,6 +99,9 @@ export function InvoiceSheet({ invoice }: { invoice: InvoiceDetail }) {
             {paid && invoice.paidAt && (
               <p className="text-[0.6875rem] font-medium text-positive">
                 Settled {longDate(invoice.paidAt)}
+                {invoice.paymentMethod
+                  ? ` via ${meta(PAYMENT_METHOD, invoice.paymentMethod).label}`
+                  : ""}
               </p>
             )}
           </div>

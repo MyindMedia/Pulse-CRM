@@ -157,7 +157,7 @@ export const _markFeePaid = internalMutation({
   handler: async (ctx, { invoiceId, reference }) => {
     const inv = await ctx.db.get(invoiceId);
     if (!inv || inv.status === "paid" || inv.status === "void") return;
-    await ctx.db.patch(invoiceId, { status: "paid", paidAt: Date.now() });
+    await ctx.db.patch(invoiceId, { status: "paid", paidAt: Date.now(), paymentMethod: "card" });
     await ctx.db.insert("activity", {
       orgId: inv.orgId,
       kind: "invoice.paid",

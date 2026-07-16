@@ -120,6 +120,7 @@ export default function InvoiceDetailPage() {
                 id={invoice._id}
                 number={invoice.number}
                 status={invoice.status}
+                amountCents={invoice.amountCents}
               />
             </CardContent>
           </Card>

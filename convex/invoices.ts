@@ -181,21 +181,61 @@ export const create = mutation({
   },
 });
 
+// Manual payment methods a staffer can record. The online Stripe path stamps
+// "card" itself (invoicePay.settleInvoice) and never goes through setStatus.
+const manualMethodV = v.union(
+  v.literal("venmo"),
+  v.literal("cash"),
+  v.literal("cashapp"),
+  v.literal("zelle"),
+  v.literal("credit"),
+);
+
+const METHOD_LABELS: Record<string, string> = {
+  venmo: "Venmo",
+  cash: "cash",
+  cashapp: "Cash App",
+  zelle: "Zelle",
+  credit: "studio credit",
+};
+
 export const setStatus = mutation({
-  args: { id: v.id("invoices"), status: statusV },
-  handler: async (ctx, { id, status }) => {
+  args: { id: v.id("invoices"), status: statusV, paymentMethod: v.optional(manualMethodV) },
+  handler: async (ctx, { id, status, paymentMethod }) => {
     const orgId = await currentOrgWithCapability(ctx, "invoices.send");
     const inv = await ctx.db.get(id);
     if (!inv || inv.orgId !== orgId) throw new Error("Not found");
 
+    // Manually recording a payment must say HOW the client paid - the type
+    // feeds the payments-by-method P&L breakdown.
+    if (status === "paid" && !paymentMethod) {
+      throw new Error("Select how the client paid (Venmo, cash, Cash App, Zelle, or credit).");
+    }
+
     const patch: Record<string, unknown> = { status };
-    if (status === "paid") patch.paidAt = Date.now();
+    if (status === "paid") {
+      patch.paidAt = Date.now();
+      patch.paymentMethod = paymentMethod;
+    }
     await ctx.db.patch(id, patch);
 
     const artist = await ctx.db.get(inv.artistId);
     let emailed = false;
 
     if (status === "paid") {
+      // Studio credit is not cash in: on the fresh transition into paid,
+      // post the offsetting P&L adjustment so revenue nets out. Re-saves of
+      // an already-paid invoice never double-post.
+      if (paymentMethod === "credit" && inv.status !== "paid") {
+        await ctx.db.insert("expenses", {
+          orgId,
+          category: "adjustment",
+          vendor: artist?.name,
+          description: `Studio credit applied - invoice ${inv.number}`,
+          amountCents: inv.amountCents,
+          date: Date.now(),
+        });
+      }
       // Attribute reminder-driven collections: if the dunning ladder (or a
       // manual reminder) had already gone out, credit the recovery ledger -
       // but only on the transition INTO paid, so a re-save never double-counts.
@@ -208,10 +248,11 @@ export const setStatus = mutation({
           note: `Invoice ${inv.number} paid after reminder stage ${inv.reminderStage}`,
         });
       }
+      const methodLabel = paymentMethod ? METHOD_LABELS[paymentMethod] : null;
       await ctx.db.insert("activity", {
         orgId,
         kind: "invoice.paid",
-        summary: `${inv.number} paid in full by ${artist?.name ?? "client"}`,
+        summary: `${inv.number} paid in full by ${artist?.name ?? "client"}${methodLabel ? ` via ${methodLabel}` : ""}`,
         entityType: "invoice",
         entityId: id,
         accent: "positive",
@@ -224,14 +265,17 @@ export const setStatus = mutation({
           channel: "email",
           recipient: artist.email,
           subject: `Payment received - invoice ${inv.number}`,
-          body: `We received your payment of ${money(inv.amountCents)} for invoice ${inv.number}. Thank you - this invoice is settled in full.`,
+          body:
+            paymentMethod === "credit"
+              ? `Studio credit of ${money(inv.amountCents)} was applied to invoice ${inv.number}. Thank you - this invoice is settled in full.`
+              : `We received your payment of ${money(inv.amountCents)} for invoice ${inv.number}. Thank you - this invoice is settled in full.`,
           kind: "invoice.paid",
         });
       }
       await notifyTeam(ctx, {
         orgId,
         subject: `Invoice paid - ${inv.number} (${money(inv.amountCents)})`,
-        body: `${artist?.name ?? "A client"} paid invoice ${inv.number} in full: ${money(inv.amountCents)}.`,
+        body: `${artist?.name ?? "A client"} paid invoice ${inv.number} in full: ${money(inv.amountCents)}${methodLabel ? ` via ${methodLabel}` : ""}.`,
         kind: "invoice.paid",
       });
     } else if (status === "sent") {

@@ -6,6 +6,12 @@ export type LineItem = { label: string; amountCents: number };
 /** Invoice status values mirrored from the Convex schema. */
 export type InvoiceStatus = "draft" | "sent" | "viewed" | "paid" | "overdue" | "void";
 
+/** Methods a staffer can pick when manually recording a payment. */
+export type ManualPaymentMethod = "venmo" | "cash" | "cashapp" | "zelle" | "credit";
+
+/** All settle methods - manual ones plus the online Stripe card path. */
+export type PaymentMethod = ManualPaymentMethod | "card";
+
 /** A row as returned by `api.invoices.list` - invoice + hydrated artist
  * name + derived category for the table. */
 export type InvoiceRow = {
@@ -20,6 +26,7 @@ export type InvoiceRow = {
   amountCents: number;
   dueDate: number;
   paidAt?: number;
+  paymentMethod?: PaymentMethod;
   artistName: string;
   sessionTitle: string | null;
   category: string;
@@ -47,6 +54,7 @@ export type InvoiceDetail = {
   amountCents: number;
   dueDate: number;
   paidAt?: number;
+  paymentMethod?: PaymentMethod;
   artist: InvoiceArtist | null;
   songTitle: string | null;
   sessionTitle: string | null;

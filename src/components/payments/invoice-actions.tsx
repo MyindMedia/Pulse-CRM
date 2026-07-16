@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/feedback";
+import { RecordPaymentDialog } from "./record-payment-dialog";
 import type { InvoiceStatus } from "./types";
 
 /** Status-contextual action buttons for an invoice detail view. */
@@ -25,10 +26,12 @@ export function InvoiceActions({
   id,
   number,
   status,
+  amountCents,
 }: {
   id: Id<"invoices">;
   number: string;
   status: InvoiceStatus;
+  amountCents: number;
 }) {
   const router = useRouter();
   const setStatus = useMutation(api.invoices.setStatus);
@@ -37,9 +40,10 @@ export function InvoiceActions({
 
   const [busy, setBusy] = React.useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
+  const [recordOpen, setRecordOpen] = React.useState(false);
 
   async function transition(
-    next: "sent" | "viewed" | "paid" | "void",
+    next: "sent" | "viewed" | "void",
     verb: string,
     key: string,
   ) {
@@ -125,14 +129,10 @@ export function InvoiceActions({
           <Button
             variant={status === "draft" ? "secondary" : "primary"}
             className="w-full justify-start"
-            onClick={() => transition("paid", "marked paid", "paid")}
+            onClick={() => setRecordOpen(true)}
             disabled={busy !== null}
           >
-            {busy === "paid" ? (
-              <Spinner className={status === "draft" ? undefined : "text-gold-ink"} />
-            ) : (
-              <CreditCard className="size-4" />
-            )}
+            <CreditCard className="size-4" />
             Record payment
           </Button>
         )}
@@ -171,6 +171,12 @@ export function InvoiceActions({
           Delete invoice
         </Button>
       </div>
+
+      <RecordPaymentDialog
+        open={recordOpen}
+        onOpenChange={setRecordOpen}
+        invoice={{ id, number, amountCents }}
+      />
 
       <Dialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <DialogContent size="sm">

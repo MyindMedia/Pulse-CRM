@@ -1122,6 +1122,20 @@ export default defineSchema({
     amountCents: v.number(),
     dueDate: v.number(),
     paidAt: v.optional(v.number()),
+    // How the invoice was settled. Manual recording requires one of the
+    // manual methods; the online Stripe path stamps "card". "credit" means
+    // studio credit was applied - not cash in - and auto-posts a P&L
+    // adjustment expense. Unset = paid before this field existed.
+    paymentMethod: v.optional(
+      v.union(
+        v.literal("venmo"),
+        v.literal("cash"),
+        v.literal("cashapp"),
+        v.literal("zelle"),
+        v.literal("credit"),
+        v.literal("card"),
+      ),
+    ),
     overdueNotifiedAt: v.optional(v.number()),
     reminderStage: v.optional(v.number()), // dunning ladder step already sent (0/1/2/3)
   })
@@ -1228,6 +1242,9 @@ export default defineSchema({
       v.literal("insurance"),
       v.literal("travel"),
       v.literal("fees"),
+      // P&L adjustments - non-cash offsets like studio credit applied to an
+      // invoice (auto-posted when an invoice is recorded paid by credit).
+      v.literal("adjustment"),
       v.literal("other"),
     ),
     vendor: v.optional(v.string()),

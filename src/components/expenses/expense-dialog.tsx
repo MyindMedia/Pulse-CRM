@@ -36,6 +36,7 @@ export const EXPENSE_CATEGORIES = [
   { value: "marketing", label: "Marketing" },
   { value: "supplies", label: "Supplies" },
   { value: "insurance", label: "Insurance" },
+  { value: "adjustment", label: "P&L adjustment" },
   { value: "travel", label: "Travel" },
   { value: "fees", label: "Fees" },
   { value: "other", label: "Other" },
