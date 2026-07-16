@@ -15,7 +15,7 @@ export type CheckinSignBrand = {
   logoUrl?: string | null;
 };
 
-function escapeHtml(s: string): string {
+export function escapeHtml(s: string): string {
   return s
     .replace(/&/g, "&amp;")
     .replace(/</g, "&lt;")
@@ -25,7 +25,7 @@ function escapeHtml(s: string): string {
 }
 
 /** Accent must be a safe CSS hex; anything else falls back to Pulse gold. */
-function safeAccent(accent?: string | null): string {
+export function safeAccent(accent?: string | null): string {
   return accent && /^#[0-9a-fA-F]{3,8}$/.test(accent) ? accent : "#fdb913";
 }
 
