@@ -674,3 +674,21 @@ export const _seedMemberContact = internalMutation({
     await ctx.db.patch(id, clean);
   },
 });
+
+/* ── Admin repair: relink a member row to a new Clerk user ──────
+   The 07-08 production cutover left some member rows pointing at Clerk
+   user ids that no longer exist ("ghost links"), which blocks
+   syncMyClerkLink's claim (it only claims UN-linked rows). CLI-run only:
+   `npx convex run members:_relinkClerkUser '{"orgId":"...","email":"...","clerkUserId":"user_..."}'` */
+export const _relinkClerkUser = internalMutation({
+  args: { orgId: v.string(), email: v.string(), clerkUserId: v.string() },
+  handler: async (ctx, { orgId, email, clerkUserId }) => {
+    const row = (
+      await ctx.db.query("members").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
+    ).find((m) => m.email?.toLowerCase() === email.toLowerCase());
+    if (!row) throw new Error("No member row with that email in that org");
+    const previous = row.clerkUserId ?? null;
+    await ctx.db.patch(row._id, { clerkUserId });
+    return { memberId: row._id, name: row.name, previous, now: clerkUserId };
+  },
+});
