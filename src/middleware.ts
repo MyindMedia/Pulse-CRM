@@ -17,6 +17,15 @@ const CLERK_ENABLED = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
  */
 const PRIMARY_ORIGIN = "https://pulse.myindsound.com";
 const SATELLITE_DOMAIN = "studiopulse.tech";
+/*
+ * PROXY mode (not CNAME mode): Clerk's cert for clerk.studiopulse.tech never
+ * issued, so the satellite's Frontend API is served through this app at
+ * /__clerk instead - same-origin, covered by the site's own certificate.
+ * clerkMiddleware's frontendApiProxy forwards those requests to Clerk over
+ * the primary's FAPI TLS. If Clerk ever issues the CNAME cert, this can be
+ * reverted to `domain: SATELLITE_DOMAIN` and the /__clerk plumbing removed.
+ */
+const SATELLITE_PROXY_URL = `https://${SATELLITE_DOMAIN}/__clerk`;
 
 function isSatelliteHost(hostname: string): boolean {
   return hostname === SATELLITE_DOMAIN || hostname.endsWith(`.${SATELLITE_DOMAIN}`);
@@ -40,6 +49,7 @@ const isPublicRoute = createRouteMatcher([
   "/portal(.*)", // client concierge magic-link portal - token-authed, no login
   "/sign(.*)", // split-sheet e-signature magic-link - token-authed, no login
   "/visit/(.*)", // visitor QR self check-in - org derived from the slug, no login
+  "/__clerk(.*)", // satellite Frontend API proxy - handled by frontendApiProxy
 ]);
 
 const handler = CLERK_ENABLED
@@ -83,9 +93,12 @@ const handler = CLERK_ENABLED
         isSatelliteHost(req.nextUrl.hostname)
           ? {
               isSatellite: true,
-              domain: SATELLITE_DOMAIN,
+              proxyUrl: SATELLITE_PROXY_URL,
               signInUrl: `${PRIMARY_ORIGIN}/sign-in`,
               signUpUrl: `${PRIMARY_ORIGIN}/sign-up`,
+              frontendApiProxy: {
+                enabled: (url: URL) => isSatelliteHost(url.hostname),
+              },
             }
           : {},
     )
@@ -97,5 +110,8 @@ export const config = {
   matcher: [
     "/((?!_next|[^?]*\\.(?:html?|css|js(?!on)|jpe?g|webp|png|gif|svg|ttf|woff2?|ico|csv|docx?|xlsx?|zip|webmanifest|mp4|webm|mov|m4v|mp3|wav|ogg)).*)",
     "/(api|trpc)(.*)",
+    // Satellite FAPI proxy: must be matched explicitly - ClerkJS loads
+    // /__clerk/npm/...clerk.browser.js, and .js is excluded above.
+    "/__clerk(.*)",
   ],
 };

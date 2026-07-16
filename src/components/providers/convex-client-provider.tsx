@@ -26,6 +26,10 @@ const CLERK_KEY = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
  */
 const PRIMARY_ORIGIN = "https://pulse.myindsound.com";
 const SATELLITE_DOMAIN = "studiopulse.tech";
+// PROXY mode: the satellite's Frontend API is served same-origin at /__clerk
+// (see src/middleware.ts) because Clerk never issued the CNAME cert for
+// clerk.studiopulse.tech.
+const SATELLITE_PROXY_URL = `https://${SATELLITE_DOMAIN}/__clerk`;
 const IS_SATELLITE =
   typeof window !== "undefined" &&
   (window.location.hostname === SATELLITE_DOMAIN ||
@@ -77,7 +81,7 @@ export function ConvexClientProvider({ children }: { children: ReactNode }) {
         {...(IS_SATELLITE
           ? {
               isSatellite: true,
-              domain: SATELLITE_DOMAIN,
+              proxyUrl: SATELLITE_PROXY_URL,
               signInUrl: `${PRIMARY_ORIGIN}/sign-in`,
               signUpUrl: `${PRIMARY_ORIGIN}/sign-up`,
             }
