@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import {
   Inter,
   JetBrains_Mono,
@@ -79,7 +80,18 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  /*
+   * Clerk multi-domain: the satellite decision MUST be made server-side, per
+   * request. ClerkJS's <script> tag is SSR-rendered with the provider's
+   * config baked into data- attributes; a client-only window.location check
+   * leaves the satellite (studiopulse.tech) with primary-domain config and
+   * ClerkJS dies with "Missing domain and proxyUrl". Reading the Host header
+   * makes routes render dynamically - acceptable: the landing page already
+   * is, and everything else is an auth-gated client-data app.
+   */
+  const host = (await headers()).get("host") ?? "";
+  const isSatellite = host === "studiopulse.tech" || host.endsWith(".studiopulse.tech");
   return (
     <html
       lang="en"
@@ -110,7 +122,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               "(function(){try{var t=localStorage.getItem('pulse-theme');document.documentElement.dataset.theme=(t==='light'||t==='dark')?t:'dark';}catch(e){document.documentElement.dataset.theme='dark';}})();",
           }}
         />
-        <ConvexClientProvider>{children}</ConvexClientProvider>
+        <ConvexClientProvider isSatellite={isSatellite}>{children}</ConvexClientProvider>
         <Toaster
           theme="dark"
           position="bottom-right"

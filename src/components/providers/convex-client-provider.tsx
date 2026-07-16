@@ -20,9 +20,10 @@ const CLERK_KEY = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 /*
  * Multi-domain: studiopulse.tech is a Clerk SATELLITE of the primary
- * pulse.myindsound.com (see src/middleware.ts). ClerkJS only runs in the
- * browser, so the host check is safe behind a typeof-window guard; the
- * server render just passes the primary-domain defaults.
+ * pulse.myindsound.com (see src/middleware.ts). The satellite decision comes
+ * in as a PROP from the root layout (request Host header) - it must be known
+ * during SSR because ClerkJS's script tag is server-rendered with this
+ * config baked in; a window check here would hydrate too late.
  */
 const PRIMARY_ORIGIN = "https://pulse.myindsound.com";
 const SATELLITE_DOMAIN = "studiopulse.tech";
@@ -30,10 +31,6 @@ const SATELLITE_DOMAIN = "studiopulse.tech";
 // (see src/middleware.ts) because Clerk never issued the CNAME cert for
 // clerk.studiopulse.tech.
 const SATELLITE_PROXY_URL = `https://${SATELLITE_DOMAIN}/__clerk`;
-const IS_SATELLITE =
-  typeof window !== "undefined" &&
-  (window.location.hostname === SATELLITE_DOMAIN ||
-    window.location.hostname.endsWith(`.${SATELLITE_DOMAIN}`));
 // The primary must allowlist the satellite for the post-sign-in return trip;
 // harmless everywhere else.
 const ALLOWED_REDIRECT_ORIGINS = [
@@ -64,7 +61,13 @@ function MissingConvex() {
   );
 }
 
-export function ConvexClientProvider({ children }: { children: ReactNode }) {
+export function ConvexClientProvider({
+  children,
+  isSatellite = false,
+}: {
+  children: ReactNode;
+  isSatellite?: boolean;
+}) {
   const convex = useMemo(
     () => (CONVEX_URL ? new ConvexReactClient(CONVEX_URL) : null),
     [],
@@ -78,7 +81,7 @@ export function ConvexClientProvider({ children }: { children: ReactNode }) {
         publishableKey={CLERK_KEY}
         appearance={clerkAppearance}
         allowedRedirectOrigins={ALLOWED_REDIRECT_ORIGINS}
-        {...(IS_SATELLITE
+        {...(isSatellite
           ? {
               isSatellite: true,
               proxyUrl: SATELLITE_PROXY_URL,
