@@ -32,7 +32,7 @@ export function SheetContent({
       >
         {children}
         <DialogPrimitive.Close
-          className="absolute right-4 top-[calc(1rem+env(safe-area-inset-top))] rounded-sm p-1 text-steel/70 outline-none transition-colors hover:bg-coal-3 hover:text-bone focus-visible:ring-2 focus-visible:ring-gold/30"
+          className="absolute right-4 top-[calc(1rem_+_env(safe-area-inset-top))] rounded-sm p-1 text-steel/70 outline-none transition-colors hover:bg-coal-3 hover:text-bone focus-visible:ring-2 focus-visible:ring-gold/30"
           aria-label="Close"
         >
           <X className="size-4" />
