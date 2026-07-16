@@ -16,7 +16,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Field, Input } from "@/components/ui/field";
+import { Field, Input, Textarea } from "@/components/ui/field";
 import { PhotoUpload } from "@/components/ui/photo-upload";
 import {
   Select,
@@ -36,7 +36,14 @@ export type EditableMember = {
   role: string;
   skills: string[];
   photoUrl?: string | null;
+  bio?: string;
+  credits?: string[];
+  spotifyUrl?: string;
+  playlistUrls?: string[];
 };
+
+/** Roles that get a client-facing engineer profile (mirrors the server). */
+const ENGINEER_ROLES = new Set(["owner", "engineer", "assistant_engineer", "producer"]);
 
 type FormState = {
   name: string;
@@ -44,6 +51,10 @@ type FormState = {
   phone: string;
   role: MemberRole;
   skills: string[];
+  bio: string;
+  credits: string;
+  spotifyUrl: string;
+  playlists: string;
 };
 
 const BLANK: FormState = {
@@ -52,6 +63,10 @@ const BLANK: FormState = {
   phone: "",
   role: "engineer",
   skills: [],
+  bio: "",
+  credits: "",
+  spotifyUrl: "",
+  playlists: "",
 };
 
 function toForm(member: EditableMember): FormState {
@@ -61,6 +76,10 @@ function toForm(member: EditableMember): FormState {
     phone: member.phone ?? "",
     role: member.role as MemberRole,
     skills: member.skills ?? [],
+    bio: member.bio ?? "",
+    credits: (member.credits ?? []).join("\n"),
+    spotifyUrl: member.spotifyUrl ?? "",
+    playlists: (member.playlistUrls ?? []).join("\n"),
   };
 }
 
@@ -81,6 +100,7 @@ export function MemberDialog({
   const createMember = useMutation(api.members.create);
   const inviteTeammate = useAction(api.members.inviteTeammate);
   const updateMember = useMutation(api.members.update);
+  const setProfile = useMutation(api.members.setProfile);
   const genPhotoUrl = useMutation(api.members.generateUploadUrl);
   const setPhoto = useMutation(api.members.setPhoto);
   const clearPhoto = useMutation(api.members.clearPhoto);
@@ -118,6 +138,15 @@ export function MemberDialog({
           role: form.role,
           skills: form.skills,
         });
+        if (ENGINEER_ROLES.has(form.role)) {
+          await setProfile({
+            id: member._id,
+            bio: form.bio,
+            credits: form.credits.split("\n").map((c) => c.trim()).filter(Boolean),
+            spotifyUrl: form.spotifyUrl,
+            playlistUrls: form.playlists.split("\n").map((u) => u.trim()).filter(Boolean),
+          });
+        }
         toast.success("Team member updated.");
       } else {
         const email = form.email.trim();
@@ -250,6 +279,52 @@ export function MemberDialog({
                 placeholder="Tracking, mixing, vocal production…"
               />
             </Field>
+
+            {isEdit && ENGINEER_ROLES.has(form.role) && (
+              <div className="space-y-4 rounded-md border border-graphite/50 bg-coal-2 p-3">
+                <div>
+                  <p className="text-sm font-semibold text-bone">Engineer profile</p>
+                  <p className="text-[0.6875rem] text-steel/70">
+                    Stats, credits and listening links - shown to clients when they pick
+                    who runs their session.
+                  </p>
+                </div>
+                <Field label="Bio" hint="1-2 sentences, shown to clients.">
+                  <Textarea
+                    value={form.bio}
+                    onChange={(e) => set("bio", e.target.value)}
+                    placeholder="12 years behind the SSL. Vocal-forward hip-hop and R&B."
+                    rows={2}
+                  />
+                </Field>
+                <Field label="Notable credits" hint="One per line.">
+                  <Textarea
+                    value={form.credits}
+                    onChange={(e) => set("credits", e.target.value)}
+                    placeholder={"Drake - Certified Lover Boy\nSZA - SOS"}
+                    rows={2}
+                  />
+                </Field>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <Field label="Spotify profile" hint="Artist or profile page link.">
+                    <Input
+                      type="url"
+                      value={form.spotifyUrl}
+                      onChange={(e) => set("spotifyUrl", e.target.value)}
+                      placeholder="https://open.spotify.com/artist/..."
+                    />
+                  </Field>
+                  <Field label="Playlist links" hint="One per line - work showcases.">
+                    <Textarea
+                      value={form.playlists}
+                      onChange={(e) => set("playlists", e.target.value)}
+                      placeholder={"https://open.spotify.com/playlist/..."}
+                      rows={2}
+                    />
+                  </Field>
+                </div>
+              </div>
+            )}
           </DialogBody>
           <DialogFooter>
             <Button

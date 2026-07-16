@@ -213,8 +213,10 @@ export const setProfile = mutation({
     id: v.id("members"),
     bio: v.optional(v.string()),
     credits: v.optional(v.array(v.string())),
+    spotifyUrl: v.optional(v.string()),
+    playlistUrls: v.optional(v.array(v.string())),
   },
-  handler: async (ctx, { id, bio, credits }) => {
+  handler: async (ctx, { id, bio, credits, spotifyUrl, playlistUrls }) => {
     const viewer = await requireCapability(ctx, "members.invite");
     const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
     const member = await ctx.db.get(id);
@@ -224,6 +226,17 @@ export const setProfile = mutation({
     if (credits !== undefined) {
       const clean = credits.map((c) => c.trim()).filter((c) => c.length > 0);
       patch.credits = clean.length ? clean : undefined;
+    }
+    const httpOk = (u: string) => /^https?:\/\//i.test(u);
+    if (spotifyUrl !== undefined) {
+      const u = spotifyUrl.trim();
+      if (u && !httpOk(u)) throw new Error("Spotify link must be a full https:// URL.");
+      patch.spotifyUrl = u || undefined;
+    }
+    if (playlistUrls !== undefined) {
+      const clean = playlistUrls.map((u) => u.trim()).filter(Boolean).slice(0, 10);
+      if (clean.some((u) => !httpOk(u))) throw new Error("Playlist links must be full https:// URLs.");
+      patch.playlistUrls = clean.length ? clean : undefined;
     }
     await ctx.db.patch(id, patch);
   },

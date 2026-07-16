@@ -5,7 +5,7 @@ import { useQuery, useMutation, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { ConvexError } from "convex/values";
 import { toast } from "sonner";
-import { Mail, MoreHorizontal, Pencil, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
+import { ChevronDown, Mail, MoreHorizontal, Pencil, ShieldCheck, Trash2, UserPlus, Users } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -34,19 +34,39 @@ import {
   type TeamMember,
 } from "@/components/studio/member-card";
 
-/** Role explainer - owner / manager / engineer access summary. */
+/** Role explainer - owner / manager / engineer access summary. Collapsed by
+ *  default; the header toggles it open. */
 function RoleExplainer() {
+  const [open, setOpen] = React.useState(false);
   return (
     <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <ShieldCheck className="size-4 text-gold" />
-          Role permissions
-        </CardTitle>
-        <CardDescription>
-          What each role can reach in the workspace.
-        </CardDescription>
+      <CardHeader
+        role="button"
+        tabIndex={0}
+        aria-expanded={open}
+        onClick={() => setOpen((o) => !o)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            setOpen((o) => !o);
+          }
+        }}
+        className="cursor-pointer select-none flex-row items-center justify-between"
+      >
+        <div className="space-y-1">
+          <CardTitle className="flex items-center gap-2">
+            <ShieldCheck className="size-4 text-gold" />
+            Role permissions
+          </CardTitle>
+          <CardDescription>
+            What each role can reach in the workspace. Click to {open ? "collapse" : "expand"}.
+          </CardDescription>
+        </div>
+        <ChevronDown
+          className={`size-4 shrink-0 text-steel transition-transform ${open ? "rotate-180" : ""}`}
+        />
       </CardHeader>
+      {open && (
       <CardContent className="grid gap-3 sm:grid-cols-3">
         {MEMBER_ROLES.map((r) => {
           const tone = MEMBER_ROLE[r.value]?.tone ?? "neutral";
@@ -63,6 +83,7 @@ function RoleExplainer() {
           );
         })}
       </CardContent>
+      )}
     </Card>
   );
 }
@@ -281,6 +302,10 @@ export function TeamPanel() {
             role: editMember.role,
             skills: editMember.skills ?? [],
             photoUrl: editMember.photoUrl,
+            bio: editMember.bio,
+            credits: editMember.credits,
+            spotifyUrl: editMember.spotifyUrl,
+            playlistUrls: editMember.playlistUrls,
           }}
           open
           onOpenChange={(open) => {

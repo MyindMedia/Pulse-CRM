@@ -45,6 +45,10 @@ export type TeamMember = {
   clerkUserId?: string;
   photoUrl?: string | null;
   notes?: string;
+  bio?: string;
+  credits?: string[];
+  spotifyUrl?: string;
+  playlistUrls?: string[];
   inviteStatus?: "active" | "pending" | "expired" | "none";
   invitedAt?: number;
 };

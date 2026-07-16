@@ -662,6 +662,10 @@ export default defineSchema({
     // clients choosing an engineer (proof-of-work that lifts conversion).
     bio: v.optional(v.string()),
     credits: v.optional(v.array(v.string())),
+    // Listening links: the engineer's Spotify artist/profile page and any
+    // playlists that showcase their work.
+    spotifyUrl: v.optional(v.string()),
+    playlistUrls: v.optional(v.array(v.string())),
   })
     .index("by_org", ["orgId"])
     .index("by_org_clerk", ["orgId", "clerkUserId"])
