@@ -91,16 +91,17 @@ export default function BookingsPage() {
     }
   }
 
-  // Booking-specific tiles focus on online (public-booking) sessions;
-  // the pipeline below still surfaces every session for completeness.
+  // Tiles count EVERY booking (seeded, staff-created, and online) so the
+  // page reflects the studio's real book of business - counting only
+  // public-booking sessions left them at 0/$0 on studios that book in-app,
+  // which read as "no bookings". Online-ness still badges each card.
   const stats = React.useMemo(() => {
     if (!sessions) return null;
-    const online = sessions.filter(isOnline);
     let activeHolds = 0;
     let awaitingBalance = 0;
     let paidInFull = 0;
     let collected = 0;
-    for (const s of online) {
+    for (const s of sessions) {
       const m = bookingMoney(s);
       collected += m.paid;
       if (s.status === "tentative") activeHolds += 1;
@@ -136,7 +137,7 @@ export default function BookingsPage() {
       <PageHeader
         overline="Operations"
         title="Bookings"
-        description="The command center for online bookings - holds, deposits, balances and the automation that keeps the calendar honest."
+        description="The command center for bookings - holds, deposits, balances and the automation that keeps the calendar honest."
         actions={
           <div className="flex items-center gap-2">
             <Button variant="secondary" onClick={handleRun} disabled={running}>
@@ -185,7 +186,7 @@ export default function BookingsPage() {
             value={<CountUp to={stats.collected} format={(n) => money(n, { compact: true })} />}
             icon={CircleDollarSign}
             accent
-            hint="from online bookings"
+            hint="collected on bookings"
           />
         </div>
       )}
