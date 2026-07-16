@@ -29,8 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
 import { timeOfDay, shortDate } from "@/lib/format";
-import { parkingSignHtml } from "@/lib/parking-sign";
-import { openSignWindow } from "@/lib/sign-window";
+import { ParkingSignDialog } from "@/components/parking/parking-sign-dialog";
 import { PrepChip } from "@/components/dashboard/arrival-prep-card";
 import { cn } from "@/lib/utils";
 
@@ -105,8 +104,8 @@ function StepSection({
               icon={icon}
               label={label}
               onClick={() => {
-                onAction?.[key]?.();
-                onToggle(key, onAction?.[key] ? true : !done.has(key));
+                if (onAction?.[key]) onAction[key]?.();
+                else onToggle(key, !done.has(key));
               }}
             />
           ))}
@@ -133,9 +132,9 @@ export default function BriefPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const id = sessionId as Id<"sessions">;
   const brief = useQuery(api.arrivalPrep.brief, { sessionId: id });
-  const org = useQuery(api.orgs.current);
   const setStep = useMutation(api.arrivalPrep.setStep);
   const [now] = React.useState(() => Date.now());
+  const [parkingOpen, setParkingOpen] = React.useState(false);
 
   if (brief === undefined) {
     return (
@@ -172,9 +171,7 @@ export default function BriefPage() {
     void setStep({ sessionId: id, step: step as never, done: next }).catch(() => {});
   }
 
-  function printParking() {
-    openSignWindow(parkingSignHtml(org ?? { name: "Pulse Studio" }, brief!.artistName));
-  }
+
 
   const policySatisfied = beforeStart ? preComplete : allComplete;
 
@@ -229,10 +226,17 @@ export default function BriefPage() {
             : "Checklist is optional guidance - check steps as you go."}
       </div>
 
-      <Button className="w-full sm:w-auto" onClick={printParking}>
+      <Button className="w-full sm:w-auto" onClick={() => setParkingOpen(true)}>
         <CircleParking className="size-4" />
         Print parking sign for {brief.artistName}
       </Button>
+
+      <ParkingSignDialog
+        open={parkingOpen}
+        onOpenChange={setParkingOpen}
+        initialName={brief.artistName}
+        onPrinted={() => toggle("parking", true)}
+      />
 
       <StepSection
         title="Arrival prep"
@@ -241,7 +245,7 @@ export default function BriefPage() {
         done={done}
         attribution={brief.attribution}
         onToggle={toggle}
-        onAction={{ parking: printParking }}
+        onAction={{ parking: () => setParkingOpen(true) }}
       />
       <StepSection
         anchor="wrap"

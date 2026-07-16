@@ -41,8 +41,8 @@ import { Field, Input, Textarea } from "@/components/ui/field";
 import { shortDate, timeOfDay, relativeTime, money } from "@/lib/format";
 import { startOfDay } from "@/components/calendar/constants";
 import { checkinSignHtml, type CheckinSignBrand } from "@/lib/checkin-sign";
-import { parkingSignHtml } from "@/lib/parking-sign";
 import { openSignWindow } from "@/lib/sign-window";
+import { ParkingSignDialog } from "@/components/parking/parking-sign-dialog";
 
 /*
  * Visitors - the front-desk guest log. Every registration (QR self check-in
@@ -64,12 +64,7 @@ export default function VisitorsPage() {
 
   const [qrOpen, setQrOpen] = useState(false);
   const [logOpen, setLogOpen] = useState(false);
-  const [parkingOpen, setParkingOpen] = useState(false);
-
-  function printParkingSign(guestName: string) {
-    if (!guestName.trim()) return;
-    openSignWindow(parkingSignHtml(org ?? { name: "Pulse Studio" }, guestName));
-  }
+  const [parking, setParking] = useState<{ open: boolean; name: string }>({ open: false, name: "" });
 
   // Stable snapshot at mount - stats don't need a live tick.
   const [now] = useState(() => Date.now());
@@ -93,7 +88,7 @@ export default function VisitorsPage() {
         description="Every guest check-in with its timestamps - and the contact database it builds for clients and outreach."
         actions={
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="outline" onClick={() => setParkingOpen(true)}>
+            <Button variant="outline" onClick={() => setParking({ open: true, name: "" })}>
               <CircleParking className="size-4" />
               Parking sign
             </Button>
@@ -196,7 +191,7 @@ export default function VisitorsPage() {
                               size="icon-sm"
                               aria-label={`Print parking sign for ${v.name}`}
                               title="Print parking sign"
-                              onClick={() => printParkingSign(v.name)}
+                              onClick={() => setParking({ open: true, name: v.name })}
                             >
                               <CircleParking className="size-4" />
                             </Button>
@@ -297,9 +292,9 @@ export default function VisitorsPage() {
       <CheckInQrDialog open={qrOpen} onOpenChange={setQrOpen} slug={org?.slug} brand={org ?? undefined} />
       <LogVisitorDialog open={logOpen} onOpenChange={setLogOpen} />
       <ParkingSignDialog
-        open={parkingOpen}
-        onOpenChange={setParkingOpen}
-        onPrint={printParkingSign}
+        open={parking.open}
+        onOpenChange={(o) => setParking((prev) => ({ ...prev, open: o }))}
+        initialName={parking.name}
         suggestions={[...new Set((log ?? []).map((v) => v.name))]}
       />
     </div>
@@ -369,70 +364,6 @@ function CheckInQrDialog({
           <Button variant="outline" className="w-full" onClick={copy} disabled={!visitUrl}>
             {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
             {copied ? "Copied" : "Copy link"}
-          </Button>
-        </DialogFooter>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-/** Reserved-parking name badge - staff types (or picks) the guest's name and
- * prints the branded landscape sign for the spot (lib/parking-sign.ts). */
-function ParkingSignDialog({
-  open,
-  onOpenChange,
-  onPrint,
-  suggestions,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  onPrint: (guestName: string) => void;
-  suggestions: string[];
-}) {
-  const [guest, setGuest] = useState("");
-
-  function handleOpenChange(next: boolean) {
-    if (!next) setGuest("");
-    onOpenChange(next);
-  }
-
-  return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="max-w-sm">
-        <DialogHeader>
-          <DialogTitle>Parking spot sign</DialogTitle>
-        </DialogHeader>
-        <DialogBody className="space-y-4">
-          <p className="text-sm text-steel/70">
-            Print a branded reserved-parking sign with the visitor&apos;s name - post it at their
-            spot before they arrive.
-          </p>
-          <Field label="Visitor name">
-            <Input
-              value={guest}
-              onChange={(e) => setGuest(e.target.value)}
-              placeholder="e.g. Mira Quartz"
-              list="parking-sign-names"
-              autoFocus
-            />
-            <datalist id="parking-sign-names">
-              {suggestions.map((n) => (
-                <option key={n} value={n} />
-              ))}
-            </datalist>
-          </Field>
-        </DialogBody>
-        <DialogFooter>
-          <Button
-            className="w-full"
-            disabled={!guest.trim()}
-            onClick={() => {
-              onPrint(guest);
-              handleOpenChange(false);
-            }}
-          >
-            <Printer className="size-4" />
-            Print parking sign
           </Button>
         </DialogFooter>
       </DialogContent>

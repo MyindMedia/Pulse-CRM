@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { cn } from "@/lib/utils";
 import { Section } from "@/components/ui/page";
+import { ArrivalPrepCard } from "@/components/dashboard/arrival-prep-card";
 import { useOptionalUser } from "@/lib/use-optional-clerk";
 import {
   type DashboardLayout,
@@ -199,6 +200,12 @@ export function CustomizableDashboard() {
           </Button>
         )}
       </div>
+
+      {/* PINNED: Arrival prep always leads the dashboard - the front desk's
+          next-client alert + checklist stays above every custom layout. */}
+      <Section title="Arrival prep">
+        <ArrivalPrepCard />
+      </Section>
 
       {/* The grid */}
       {editing ? (

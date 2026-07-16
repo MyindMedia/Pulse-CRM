@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 import { TodayBoard } from "@/components/today/today-board";
-import { ArrivalPrepCard } from "@/components/dashboard/arrival-prep-card";
 import { WrapUpCard } from "@/components/dashboard/wrapup-card";
 import { KpiStats } from "@/components/dashboard/kpi-stats";
 import { RevenueChartCard } from "@/components/dashboard/revenue-chart-card";
@@ -51,13 +50,6 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
     span: "full",
     titled: false, // carries its own "Right now" / "Today's sessions" sections
     render: () => <TodayBoard />,
-  },
-  {
-    key: "arrival-prep",
-    title: "Arrival prep",
-    blurb: "Next-arrival alert + checklist: session details, parking sign, room ready",
-    span: "half",
-    render: () => <ArrivalPrepCard />,
   },
   {
     key: "wrapup",

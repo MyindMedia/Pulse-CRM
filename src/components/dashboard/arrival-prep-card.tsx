@@ -10,9 +10,8 @@ import { Card, CardContent, CardDescription, CardHeader } from "@/components/ui/
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
 import { timeOfDay } from "@/lib/format";
-import { parkingSignHtml } from "@/lib/parking-sign";
-import { openSignWindow } from "@/lib/sign-window";
 import { cn } from "@/lib/utils";
+import { ParkingSignDialog } from "@/components/parking/parking-sign-dialog";
 import { DeviceAlertsChip } from "./device-alerts-chip";
 
 /* The front-desk prep board: the next client arrivals with a live checklist -
@@ -36,8 +35,8 @@ function countdown(startTime: number, now: number): { label: string; soon: boole
 
 export function ArrivalPrepCard({ className }: { className?: string }) {
   const upcoming = useQuery(api.sessions.upcoming, { limit: 12 });
-  const org = useQuery(api.orgs.current);
   const setStep = useMutation(api.arrivalPrep.setStep);
+  const [parkingFor, setParkingFor] = React.useState<{ sessionId: Id<"sessions">; name: string } | null>(null);
 
   // A stable "now" per mount keeps the list from reshuffling mid-view.
   const [now] = React.useState(() => Date.now());
@@ -67,10 +66,7 @@ export function ArrivalPrepCard({ className }: { className?: string }) {
     }
   }
 
-  function printParking(sessionId: Id<"sessions">, artistName: string) {
-    openSignWindow(parkingSignHtml(org ?? { name: "Pulse Studio" }, artistName));
-    void mark(sessionId, "parking", true);
-  }
+
 
   const next = arrivals[0];
   const nextCountdown = next ? countdown(next.startTime, now) : null;
@@ -156,7 +152,7 @@ export function ArrivalPrepCard({ className }: { className?: string }) {
                       done={done.has("parking")}
                       icon={CircleParking}
                       label="Parking sign"
-                      onClick={() => printParking(s._id, s.artistName)}
+                      onClick={() => setParkingFor({ sessionId: s._id, name: s.artistName })}
                     />
                     <PrepChip
                       done={done.has("room")}
@@ -177,6 +173,16 @@ export function ArrivalPrepCard({ className }: { className?: string }) {
           </ul>
         )}
       </CardContent>
+      <ParkingSignDialog
+        open={parkingFor !== null}
+        onOpenChange={(o) => {
+          if (!o) setParkingFor(null);
+        }}
+        initialName={parkingFor?.name ?? ""}
+        onPrinted={() => {
+          if (parkingFor) void mark(parkingFor.sessionId, "parking", true);
+        }}
+      />
     </Card>
   );
 }
