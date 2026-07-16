@@ -117,6 +117,9 @@ export const fetchFromSite = action({
 /** Apply imported branding/info to a freshly created sub-account. Gated by
  *  the same per-org agency capability as the other subaccount management
  *  mutations - the org must belong to the caller's agency. */
+const HEX = /^#[0-9a-fA-F]{6}$/;
+const STOCK_ACCENT = "#fdb913";
+
 export const applyToOrg = mutation({
   args: {
     orgId: v.string(),
@@ -126,8 +129,15 @@ export const applyToOrg = mutation({
     phone: v.optional(v.string()),
     address: v.optional(v.string()),
     website: v.optional(v.string()),
+    // Brand colors the client extracted from the imported logo
+    // (lib/brand-theme extractBrandFromImage - canvas is browser-only).
+    accentColor: v.optional(v.string()),
+    brandPalette: v.optional(v.array(v.string())),
   },
-  handler: async (ctx, { orgId, logoStorageId, tagline, email, phone, address, website }) => {
+  handler: async (
+    ctx,
+    { orgId, logoStorageId, tagline, email, phone, address, website, accentColor, brandPalette },
+  ) => {
     await requireCapability(ctx, "agency.subaccount.pause", { orgId });
     const org = await ctx.db
       .query("orgs")
@@ -138,6 +148,19 @@ export const applyToOrg = mutation({
     const patch: Record<string, unknown> = {};
     if (logoStorageId) patch.logoId = logoStorageId;
     if (tagline && !org.tagline) patch.tagline = tagline;
+    if (accentColor) {
+      if (!HEX.test(accentColor)) throw new Error("Invalid accent color.");
+      if (brandPalette && (brandPalette.length > 6 || brandPalette.some((p) => !HEX.test(p)))) {
+        throw new Error("Invalid palette.");
+      }
+      // Same rule as the white-label engine: stock gold = no explicit choice
+      // yet, safe to theme from the logo; a chosen accent is never clobbered.
+      const stock = !org.accentColor || org.accentColor.toLowerCase() === STOCK_ACCENT;
+      if (stock) {
+        patch.accentColor = accentColor;
+        if (brandPalette?.length) patch.brandPalette = brandPalette;
+      }
+    }
     if (email || phone || address || website) {
       patch.contact = {
         ...(org.contact ?? {}),

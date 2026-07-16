@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/feedback";
 import { type Plan, PLAN_LABEL, slugify } from "@/components/agency/meta";
+import { extractBrandFromImage } from "@/lib/brand-theme";
 
 type SiteImport = {
   name: string | null;
@@ -39,6 +40,8 @@ type SiteImport = {
   website: string;
   logoStorageId: string | null;
   logoPreviewUrl: string | null;
+  accentColor: string | null;
+  brandPalette: string[] | null;
 };
 
 /** "New subaccount" - provisions a studio org (Clerk org when configured). */
@@ -79,10 +82,27 @@ export function CreateSubaccountDialog({ triggerSize = "md" }: { triggerSize?: "
     setFetching(true);
     try {
       const res = await fetchFromSite({ url: siteUrl.trim() });
-      setImported(res as SiteImport);
+      // Derive brand colors from the imported logo right here - canvas
+      // extraction is browser-only, and Convex storage URLs allow CORS.
+      // Monochrome logos (or any failure) just skip theming.
+      let accentColor: string | null = null;
+      let brandPalette: string[] | null = null;
+      if (res.logoPreviewUrl) {
+        try {
+          const extracted = await extractBrandFromImage(res.logoPreviewUrl);
+          if (extracted) {
+            accentColor = extracted.accent;
+            brandPalette = extracted.palette;
+          }
+        } catch {
+          // Non-fatal - the studio can match colors later in Settings.
+        }
+      }
+      setImported({ ...(res as Omit<SiteImport, "accentColor" | "brandPalette">), accentColor, brandPalette });
       if (res.name && !name.trim()) setName(res.name);
       const found = [
         res.logoStorageId && "logo",
+        accentColor && "brand colors",
         res.name && "name",
         res.tagline && "tagline",
         res.email && "email",
@@ -135,6 +155,8 @@ export function CreateSubaccountDialog({ triggerSize = "md" }: { triggerSize?: "
             phone: imported.phone ?? undefined,
             address: imported.address ?? undefined,
             website: imported.website,
+            accentColor: imported.accentColor ?? undefined,
+            brandPalette: imported.brandPalette ?? undefined,
           });
         } catch {
           toast.warning("Created, but the imported branding could not be applied - set it in their Settings.");
@@ -231,9 +253,16 @@ export function CreateSubaccountDialog({ triggerSize = "md" }: { triggerSize?: "
                   </span>
                 )}
                 <div className="min-w-0 text-xs text-steel">
-                  <p className="truncate font-medium text-bone">
+                  <p className="flex items-center gap-1.5 truncate font-medium text-bone">
                     {imported.name ?? "Site reached"}
                     {imported.logoStorageId ? " · logo found" : ""}
+                    {imported.accentColor && (
+                      <span
+                        title={`Brand accent ${imported.accentColor}`}
+                        className="inline-block size-3 shrink-0 rounded-full border border-white/20"
+                        style={{ backgroundColor: imported.accentColor }}
+                      />
+                    )}
                   </p>
                   <p className="truncate text-steel/70">
                     {[imported.email, imported.phone, imported.address].filter(Boolean).join(" · ") ||

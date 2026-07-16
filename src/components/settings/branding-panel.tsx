@@ -23,6 +23,7 @@ import {
   CardFooter,
 } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Spinner } from "@/components/ui/feedback";
 import { Field, Input, Textarea } from "@/components/ui/field";
 import { AssetUploader } from "@/components/settings/asset-uploader";
 import { BookingLinkShare } from "@/components/settings/booking-link-share";
@@ -104,6 +105,34 @@ export function BrandingPanel({ org }: { org: Org }) {
     headline.trim() !== (org.bookingHeadline ?? "") ||
     intro.trim() !== (org.bookingIntro ?? "") ||
     deposit.trim() !== (org.depositPolicyText ?? "");
+
+  const [matchingColors, setMatchingColors] = React.useState(false);
+
+  /** Re-derive accent + palette from the CURRENT logo - covers logos that
+   * arrived without extraction (e.g. imported from the studio's website by
+   * the agency) and lets the studio re-run it anytime. Storage URLs allow
+   * CORS, so the same canvas extraction used at upload works here. */
+  async function matchColorsToLogo() {
+    if (!org.logoUrl || matchingColors) return;
+    setMatchingColors(true);
+    try {
+      const extracted = await extractBrandFromImage(org.logoUrl);
+      if (!extracted) {
+        toast.info("This logo reads as monochrome - pick an accent below instead.");
+        return;
+      }
+      await applyBrandFromLogo({
+        accentColor: extracted.accent,
+        palette: extracted.palette,
+      });
+      setAccent(extracted.accent);
+      toast.success("Brand colors matched to your logo - fine-tune below anytime.");
+    } catch {
+      toast.error("Could not read colors from the logo.");
+    } finally {
+      setMatchingColors(false);
+    }
+  }
 
   async function handleLogo(storageId: Id<"_storage">) {
     await setLogo({ storageId });
@@ -214,7 +243,21 @@ export function BrandingPanel({ org }: { org: Org }) {
                   if (file) pendingLogoFileRef.current = file;
                 }}
               >
-                <AssetUploader label="Logo" onUploaded={handleLogo} />
+                <div className="flex flex-wrap items-center gap-2">
+                  <AssetUploader label="Logo" onUploaded={handleLogo} />
+                  {org.logoUrl && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={matchColorsToLogo}
+                      disabled={matchingColors}
+                    >
+                      {matchingColors ? <Spinner /> : <Palette className="size-4" />}
+                      Match colors to logo
+                    </Button>
+                  )}
+                </div>
                 <p className="text-[0.6875rem] text-steel/70">
                   {org.logoUrl
                     ? "Uploading replaces the current logo immediately."

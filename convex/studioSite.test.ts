@@ -106,6 +106,32 @@ describe("studioImport.applyToOrg", () => {
     expect(org?.contact?.website).toBe("https://sub.com/");
   });
 
+  it("applies extracted brand colors when the accent is stock, never over a chosen one", async () => {
+    const owner = await agencyOwner("org_ag", "u_own", "org_sub");
+    await owner.mutation(api.studioImport.applyToOrg, {
+      orgId: "org_sub",
+      accentColor: "#a327ff",
+      brandPalette: ["#a327ff", "#000000"],
+    });
+    let org = await t.run(async (ctx) =>
+      (await ctx.db.query("orgs").collect()).find((o) => o.orgId === "org_sub"),
+    );
+    expect(org?.accentColor).toBe("#a327ff");
+    expect(org?.brandPalette).toEqual(["#a327ff", "#000000"]);
+
+    // A chosen accent is never clobbered by a later import.
+    await owner.mutation(api.studioImport.applyToOrg, { orgId: "org_sub", accentColor: "#123456" });
+    org = await t.run(async (ctx) =>
+      (await ctx.db.query("orgs").collect()).find((o) => o.orgId === "org_sub"),
+    );
+    expect(org?.accentColor).toBe("#a327ff");
+
+    // Invalid hex is rejected outright.
+    await expect(
+      owner.mutation(api.studioImport.applyToOrg, { orgId: "org_sub", accentColor: "red" }),
+    ).rejects.toThrow();
+  });
+
   it("never clobbers an existing tagline and rejects other agencies", async () => {
     const owner = await agencyOwner("org_ag", "u_own", "org_sub");
     await t.run(async (ctx) => {
