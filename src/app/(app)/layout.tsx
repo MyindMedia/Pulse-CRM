@@ -44,7 +44,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* Mobile nav drawer */}
         <Sheet open={mobileNav} onOpenChange={setMobileNav}>
-          <SheetContent width="sm" className="theme-dark-island material-regular lg:hidden">
+          <SheetContent width="sm" className="theme-dark-island material-regular pt-[env(safe-area-inset-top)] lg:hidden">
             <Sidebar onNavigate={() => setMobileNav(false)} />
           </SheetContent>
         </Sheet>

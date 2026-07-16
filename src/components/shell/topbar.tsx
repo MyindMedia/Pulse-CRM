@@ -15,7 +15,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
   const current = activeNav(pathname);
 
   return (
-    <header className="theme-dark-island sticky top-0 z-30 flex h-16 items-center gap-3 border-b border-white/[0.08] bg-obsidian/65 px-4 backdrop-blur-2xl backdrop-saturate-150 lg:px-6">
+    <header className="theme-dark-island sticky top-0 z-30 flex h-[calc(4rem+env(safe-area-inset-top))] items-center gap-3 border-b border-white/[0.08] bg-obsidian/65 px-4 pt-[env(safe-area-inset-top)] backdrop-blur-2xl backdrop-saturate-150 lg:px-6">
       <button
         onClick={onOpenMenu}
         className="grid size-9 place-items-center rounded-chrome text-steel hover:bg-coal-2 hover:text-bone lg:hidden"
