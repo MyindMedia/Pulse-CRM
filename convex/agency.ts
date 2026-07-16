@@ -23,7 +23,17 @@ const planV = v.union(v.literal("solo"), v.literal("studio"), v.literal("label")
  *  sub-accounts. Prevents one agency's console from listing another agency's
  *  (or the demo's) studios. */
 async function visibleOrgs(ctx: QueryCtx) {
-  const viewer = await resolveViewer(ctx).catch(() => null);
+  // UNAUTHENTICATED must see NOTHING: the old `.catch(() => null)` left the
+  // agency filter unapplied, handing every org (with revenue rollups) to an
+  // anonymous socket - and to the /agency boot race before Clerk attaches.
+  // Empty list degrades gracefully; the query re-runs once auth lands.
+  // (Demo mode without Clerk resolves a demo viewer and never throws.)
+  let viewer;
+  try {
+    viewer = await resolveViewer(ctx);
+  } catch {
+    return [];
+  }
   let orgs = (await ctx.db.query("orgs").collect()).filter((o) => o.orgId !== DEMO_ORG);
   if (viewer?.kind === "agency_member") {
     orgs = orgs.filter((o) => o.agencyId === viewer.agencyId);

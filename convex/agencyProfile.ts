@@ -2,7 +2,7 @@ import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
-import { resolveViewer } from "./lib/access";
+import { AccessError, resolveViewer } from "./lib/access";
 
 /* ============================================================
    Agency-member self-service profile.
@@ -56,7 +56,18 @@ function nameFromIdentity(identity: Identity): string {
 export const mine = query({
   args: {},
   handler: async (ctx) => {
-    const viewer = await resolveViewer(ctx);
+    // Shell-chrome read on /agency: the page subscribes the moment it mounts,
+    // often BEFORE Clerk auth attaches to the socket (slower still on the
+    // satellite domain's proxied Clerk boot). Degrade to null instead of
+    // throwing UNAUTHENTICATED into the error boundary - the query re-runs
+    // authed a beat later. Same pattern as orgs.current.
+    let viewer;
+    try {
+      viewer = await resolveViewer(ctx);
+    } catch (e) {
+      if (e instanceof AccessError) return null;
+      throw e;
+    }
     if (viewer.kind !== "agency_member") return null;
     const identity = await getIdentity(ctx);
     if (!identity) return null;
