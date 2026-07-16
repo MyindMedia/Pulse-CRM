@@ -10,6 +10,7 @@ import {
   FileText,
   HardDrive,
   Package,
+  PackageCheck,
   Sparkles,
   SlidersHorizontal,
   LayoutPanelTop,
@@ -28,7 +29,7 @@ import { DeviceAlertsChip } from "./device-alerts-chip";
    follows in the same room, the turnover checklist to reset and stage the
    space. Same live shared state (arrivalPrep) as the arrival board. */
 
-type WrapStep = "files" | "billing" | "gear" | "notes" | "reset" | "refresh" | "zero" | "stage";
+type WrapStep = string;
 
 function endLabel(endTime: number, now: number): string {
   const mins = Math.round((endTime - now) / 60_000);
@@ -81,6 +82,9 @@ export function WrapUpCard({ className }: { className?: string }) {
               const done = new Set(prep?.[s._id] ?? []);
               const wrapDone = ["files", "billing", "gear", "notes"].filter((k) => done.has(k)).length;
               const refreshDone = ["reset", "refresh", "zero", "stage"].filter((k) => done.has(k)).length;
+              const itemsDone = s.rentedItems.filter((i) => done.has(i.key)).length;
+              const totalSteps = 8 + s.rentedItems.length;
+              const totalDone = wrapDone + refreshDone + itemsDone;
               return (
                 <li key={s._id} className="space-y-2 px-4 py-3">
                   <div className="flex items-center justify-between gap-3">
@@ -94,12 +98,12 @@ export function WrapUpCard({ className }: { className?: string }) {
                     <span
                       className={cn(
                         "shrink-0 rounded-full border px-2 py-0.5 font-meta text-[0.625rem]",
-                        wrapDone + refreshDone >= 8
+                        totalDone >= totalSteps
                           ? "border-positive/40 bg-positive/10 text-positive"
                           : "border-graphite/50 text-steel/70",
                       )}
                     >
-                      {wrapDone + refreshDone >= 8 ? "Done" : `wrap ${wrapDone}/4 · refresh ${refreshDone}/4`}
+                      {totalDone >= totalSteps ? "Done" : `${totalDone}/${totalSteps} done`}
                     </span>
                   </div>
                   <div className="flex flex-wrap gap-1.5">
@@ -108,6 +112,22 @@ export function WrapUpCard({ className }: { className?: string }) {
                     <PrepChip done={done.has("gear")} icon={Package} label="Gear checked in" onClick={() => void mark(s._id, "gear", !done.has("gear"))} />
                     <PrepChip done={done.has("notes")} icon={FileText} label="Notes logged" onClick={() => void mark(s._id, "notes", !done.has("notes"))} />
                   </div>
+                  {s.rentedItems.length > 0 && (
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/60">
+                        Rented gear back to storage
+                      </span>
+                      {s.rentedItems.map((item) => (
+                        <PrepChip
+                          key={item.key}
+                          done={done.has(item.key)}
+                          icon={PackageCheck}
+                          label={`Return ${item.name}`}
+                          onClick={() => void mark(s._id, item.key, !done.has(item.key))}
+                        />
+                      ))}
+                    </div>
+                  )}
                   <div className="flex flex-wrap items-center gap-1.5">
                     <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/60">
                       {s.next ? `Refresh for ${s.next.artistName} at ${timeOfDay(s.next.startTime)}` : "Studio refresh"}

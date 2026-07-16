@@ -8,6 +8,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import {
   CalendarDays,
+  PackageCheck,
   CircleCheck,
   CircleDollarSign,
   CircleParking,
@@ -161,7 +162,13 @@ export default function BriefPage() {
   }
 
   const done = new Set(brief.done);
-  const allSteps = [...ARRIVAL, ...WRAP, ...REFRESH];
+  const itemSteps = brief.rentedItems.map((item) => ({
+    key: item.key,
+    label: `Return ${item.name}`,
+    icon: PackageCheck,
+  }));
+  const wrapSteps = [...WRAP, ...itemSteps];
+  const allSteps = [...ARRIVAL, ...wrapSteps, ...REFRESH];
   const preComplete = ARRIVAL.every((s) => done.has(s.key));
   const allComplete = allSteps.every((s) => done.has(s.key));
   const beforeStart = now < brief.startTime;
@@ -250,8 +257,12 @@ export default function BriefPage() {
       <StepSection
         anchor="wrap"
         title="Session wrap-up"
-        subtitle="Closing out the session."
-        steps={WRAP}
+        subtitle={
+          brief.rentedItems.length > 0
+            ? "Closing out the session - every rented item goes back to storage."
+            : "Closing out the session."
+        }
+        steps={wrapSteps}
         done={done}
         attribution={brief.attribution}
         onToggle={toggle}

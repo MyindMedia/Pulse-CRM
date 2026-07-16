@@ -38,6 +38,32 @@ describe("arrival prep checklist", () => {
     expect(prep[sessionId]).toEqual(["parking"]);
   });
 
+  it("accepts per-item rental steps only for gear actually on the session", async () => {
+    const equipmentId = await t.run(async (ctx) =>
+      ctx.db.insert("equipment", {
+        orgId: ORG, name: "Neumann U87", category: "mic", status: "available", purchaseCents: 320_000, currentValueCents: 250_000, condition: "good",
+      } as never),
+    );
+    await t.run(async (ctx) => {
+      await ctx.db.patch(sessionId, {
+        addOns: [{ equipmentId, name: "Neumann U87", priceCents: 7_500 }],
+      } as never);
+    });
+    await t.mutation(api.arrivalPrep.setStep, {
+      sessionId, step: `item:${equipmentId}`, done: true,
+    });
+    const prep = await t.query(api.arrivalPrep.forSessions, { sessionIds: [sessionId] });
+    expect(prep[sessionId]).toEqual([`item:${equipmentId}`]);
+
+    // Unknown fixed step and item keys not on the session are rejected.
+    await expect(
+      t.mutation(api.arrivalPrep.setStep, { sessionId, step: "item:notreal", done: true }),
+    ).rejects.toThrow(/Unknown checklist step/);
+    await expect(
+      t.mutation(api.arrivalPrep.setStep, { sessionId, step: "sweep_floors", done: true }),
+    ).rejects.toThrow(/Unknown checklist step/);
+  });
+
   it("rejects a session from another org", async () => {
     const foreign = await t.run(async (ctx) => {
       const artistId = await ctx.db.insert("artists", {

@@ -13,23 +13,17 @@ export const PREP_STEPS = ["details", "parking", "room", "welcome"] as const;
 export const WRAP_STEPS = ["files", "billing", "gear", "notes"] as const;
 export const REFRESH_STEPS = ["reset", "refresh", "zero", "stage"] as const;
 
-const stepV = v.union(
+/** Fixed checklist steps. Rented gear adds DYNAMIC steps per session -
+ *  key "item:<equipmentId>" - validated against the session's addOns so
+ *  arbitrary keys can never be written. */
+const FIXED_STEPS = new Set<string>([
   // Arrival prep
-  v.literal("details"),
-  v.literal("parking"),
-  v.literal("room"),
-  v.literal("welcome"),
+  "details", "parking", "room", "welcome",
   // Session wrap-up
-  v.literal("files"),
-  v.literal("billing"),
-  v.literal("gear"),
-  v.literal("notes"),
+  "files", "billing", "gear", "notes",
   // Studio refresh / turnover
-  v.literal("reset"),
-  v.literal("refresh"),
-  v.literal("zero"),
-  v.literal("stage"),
-);
+  "reset", "refresh", "zero", "stage",
+]);
 
 /** Prep state for a set of sessions (the widget passes the upcoming ones).
  *  Returns { [sessionId]: doneSteps[] } - sessions with no row are simply
@@ -108,6 +102,12 @@ export const wrapping = query({
           endTime: s.endTime,
           artistName: artist?.name ?? "Unknown",
           roomName: room?.name ?? null,
+          // Non-standard gear rented for this session - each becomes its own
+          // "return to storage" wrap-up step.
+          rentedItems: (s.addOns ?? []).map((a) => ({
+            key: `item:${a.equipmentId}`,
+            name: a.name,
+          })),
           next,
         };
       }),
@@ -171,6 +171,10 @@ export const brief = query({
       done: prep?.done ?? [],
       attribution: prep?.attribution ?? [],
       requireAll: org?.briefRequireAll === true,
+      rentedItems: (s.addOns ?? []).map((a) => ({
+        key: `item:${a.equipmentId}`,
+        name: a.name,
+      })),
       next,
     };
   },
@@ -178,11 +182,15 @@ export const brief = query({
 
 /** Mark a prep step done / not done for a session in the caller's org. */
 export const setStep = mutation({
-  args: { sessionId: v.id("sessions"), step: stepV, done: v.boolean() },
+  args: { sessionId: v.id("sessions"), step: v.string(), done: v.boolean() },
   handler: async (ctx, { sessionId, step, done }) => {
     const orgId = await currentOrg(ctx);
     const session = await ctx.db.get(sessionId);
     if (!session || session.orgId !== orgId) throw new Error("Session not found");
+    const isRentedItem =
+      step.startsWith("item:") &&
+      (session.addOns ?? []).some((a) => `item:${a.equipmentId}` === step);
+    if (!FIXED_STEPS.has(step) && !isRentedItem) throw new Error("Unknown checklist step");
 
     const row = await ctx.db
       .query("arrivalPrep")
