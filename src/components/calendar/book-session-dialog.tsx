@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -100,6 +100,62 @@ export function BookSessionDialog({
     client.artistId ? { artistId: client.artistId as Id<"artists"> } : {},
   );
 
+  /* Schedule-aware start times: with a room chosen, the same availability
+     the public booking page uses (hourly slots, past times excluded, booked
+     blocks returned) drives a slot picker - taken or too-short windows are
+     greyed out; without a room we can only enforce "not in the past". */
+  const OPEN_HOUR = 9;
+  const CLOSE_HOUR = 22;
+  const dayStart = date ? combineDateTime(date, "00:00") : null;
+  const availability = useQuery(
+    api.booking.availability,
+    roomId && dayStart !== null
+      ? { roomId: roomId as Id<"rooms">, dayStart }
+      : "skip",
+  );
+
+  type Slot = { hour: number; startTime: number; available: boolean };
+  const slots: Slot[] = useMemo(() => {
+    if (dayStart === null) return [];
+    const now = Date.now();
+    const durMs = durationMins * 60_000;
+    if (roomId && availability) {
+      return availability.slots.map((sl) => ({
+        hour: sl.hour,
+        startTime: sl.startTime,
+        available:
+          sl.available &&
+          !availability.booked.some((b) => b.start < sl.startTime + durMs && b.end > sl.startTime),
+      }));
+    }
+    // No room picked: no conflicts to check - just never offer the past.
+    const out: Slot[] = [];
+    for (let h = OPEN_HOUR; h < CLOSE_HOUR; h++) {
+      const startTime = dayStart + h * 3_600_000;
+      out.push({ hour: h, startTime, available: startTime > now });
+    }
+    return out;
+  }, [dayStart, roomId, availability, durationMins]);
+
+  // Keep the selection legal: whenever the day/room/duration changes and the
+  // chosen time is gone (past, taken, or unset), snap to the NEXT open slot.
+  const slotsLoading = Boolean(roomId && dayStart !== null && availability === undefined);
+  useEffect(() => {
+    if (dayStart === null || slotsLoading || slots.length === 0) return;
+    const selected = time ? combineDateTime(date, time) : null;
+    const selectedSlot = slots.find((sl) => sl.startTime === selected);
+    if (selectedSlot?.available) return;
+    const next = slots.find((sl) => sl.available);
+    if (next) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- snapping an invalid selection to schedule data
+      setTime(`${String(next.hour).padStart(2, "0")}:00`);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dayStart, roomId, durationMins, slotsLoading, slots.length]);
+
+  const selectedStart = date && time ? combineDateTime(date, time) : null;
+  const selectedSlotOk = slots.some((sl) => sl.startTime === selectedStart && sl.available);
+
   function reset() {
     setStep(0);
     setClient({ name: "" });
@@ -147,7 +203,7 @@ export function BookSessionDialog({
   const stepValid: boolean[] = [
     client.name.trim() !== "",
     serviceType !== "",
-    date !== "" && time !== "" && durationMins > 0,
+    date !== "" && time !== "" && durationMins > 0 && selectedSlotOk,
     title.trim().length > 0 && rateCents > 0 && depositCents <= rateCents,
   ];
 
@@ -330,24 +386,61 @@ export function BookSessionDialog({
           {/* Step 3 - Date / time / duration */}
           {step === 2 && (
             <>
-              <div className="grid grid-cols-2 gap-3">
-                <Field label="Date" htmlFor="sess-date">
-                  <Input
-                    id="sess-date"
-                    type="date"
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                  />
-                </Field>
-                <Field label="Start time" htmlFor="sess-time">
-                  <Input
-                    id="sess-time"
-                    type="time"
-                    value={time}
-                    onChange={(e) => setTime(e.target.value)}
-                  />
-                </Field>
-              </div>
+              <Field label="Date" htmlFor="sess-date">
+                <Input
+                  id="sess-date"
+                  type="date"
+                  value={date}
+                  onChange={(e) => setDate(e.target.value)}
+                />
+              </Field>
+
+              <Field
+                label="Start time"
+                hint={
+                  roomId
+                    ? "Open times for the room - booked and past slots are greyed out."
+                    : "Pick a room in the previous step to see live availability; past times are disabled."
+                }
+              >
+                {slotsLoading ? (
+                  <p className="py-3 text-center text-xs text-steel/70">Checking the schedule…</p>
+                ) : slots.length === 0 ? (
+                  <p className="py-3 text-center text-xs text-steel/70">Pick a date first.</p>
+                ) : slots.every((sl) => !sl.available) ? (
+                  <p className="rounded-md border border-dashed border-graphite/60 py-3 text-center text-xs text-steel/70">
+                    No open times this day - try the next day or another room.
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-5">
+                    {slots.map((sl) => {
+                      const label = new Date(sl.startTime).toLocaleTimeString("en-US", {
+                        hour: "numeric",
+                        minute: "2-digit",
+                      });
+                      const isSelected = selectedStart === sl.startTime;
+                      return (
+                        <button
+                          key={sl.hour}
+                          type="button"
+                          disabled={!sl.available}
+                          onClick={() => setTime(`${String(sl.hour).padStart(2, "0")}:00`)}
+                          className={cn(
+                            "rounded-md border px-2 py-1.5 font-meta text-xs transition-colors",
+                            isSelected
+                              ? "border-gold/60 bg-gold/15 text-gold"
+                              : sl.available
+                                ? "border-graphite/50 bg-coal-2 text-bone hover:border-graphite/70"
+                                : "cursor-not-allowed border-graphite/30 bg-coal text-steel/30 line-through",
+                          )}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </Field>
 
               <Field label="Duration">
                 <Select

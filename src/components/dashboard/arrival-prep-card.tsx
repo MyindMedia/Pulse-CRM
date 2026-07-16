@@ -117,7 +117,11 @@ export function ArrivalPrepCard({ className }: { className?: string }) {
               const cd = countdown(s.startTime, now);
               return (
                 <li key={s._id} className="space-y-2 px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
+                  {/* The whole header row opens the pre-session brief. */}
+                  <Link
+                    href={`/brief/${s._id}`}
+                    className="flex items-center justify-between gap-3 rounded-md outline-none transition-colors hover:bg-coal-2 focus-visible:ring-2 focus-visible:ring-gold/30"
+                  >
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-bone">{s.artistName}</p>
                       <p className="truncate text-xs text-steel/70">
@@ -135,7 +139,7 @@ export function ArrivalPrepCard({ className }: { className?: string }) {
                     >
                       {ready ? "Ready" : `${done.size}/4 ready`}
                     </span>
-                  </div>
+                  </Link>
                   <div className="flex flex-wrap gap-1.5">
                     <PrepChip
                       done={done.has("details")}
