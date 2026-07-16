@@ -18,6 +18,11 @@ crons.interval("booking-automation", { minutes: 15 }, internal.automation.tick);
 // Recompute every room's auto status from the live calendar.
 crons.interval("room-status", { minutes: 15 }, internal.maintenance.recomputeAllRoomStatuses);
 
+// Team-device push alerts: T-10 arrival / wrap-up / shift change and
+// end-of-session studio refresh. Only orgs with registered devices are
+// scanned; the pushAlerts ledger dedupes; sends no-op until VAPID keys set.
+crons.interval("t10-device-alerts", { minutes: 1 }, internal.pushAlerts.sweep, {});
+
 // Outbound SMS reminders: scan every active org for sessions due a 24h/2h
 // reminder and text the client + booked engineer. Opt-out aware, per-org
 // smsRemindersEnabled toggle, deduped via session.smsRemindersSent. Runs in

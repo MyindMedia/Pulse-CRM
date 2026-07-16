@@ -13,6 +13,7 @@ import { timeOfDay } from "@/lib/format";
 import { parkingSignHtml } from "@/lib/parking-sign";
 import { openSignWindow } from "@/lib/sign-window";
 import { cn } from "@/lib/utils";
+import { DeviceAlertsChip } from "./device-alerts-chip";
 
 /* The front-desk prep board: the next client arrivals with a live checklist -
    review the session, print the parking sign (same one-button print as the
@@ -76,8 +77,9 @@ export function ArrivalPrepCard({ className }: { className?: string }) {
 
   return (
     <Card className={className}>
-      <CardHeader className="flex-row items-center justify-between border-b border-hairline-2/50 py-3">
+      <CardHeader className="flex-row items-center justify-between gap-2 border-b border-hairline-2/50 py-3">
         <CardDescription>Prep the studio before the client walks in.</CardDescription>
+        <DeviceAlertsChip />
         {next && nextCountdown && (
           <span
             className={cn(
@@ -180,8 +182,8 @@ export function ArrivalPrepCard({ className }: { className?: string }) {
 }
 
 /** One checklist chip. Action chips (details/parking) run their action and
- *  stay checked; state chips toggle. */
-function PrepChip({
+ *  stay checked; state chips toggle. Shared with the wrap-up board. */
+export function PrepChip({
   done,
   icon: Icon,
   label,

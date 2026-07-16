@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { TodayBoard } from "@/components/today/today-board";
 import { ArrivalPrepCard } from "@/components/dashboard/arrival-prep-card";
+import { WrapUpCard } from "@/components/dashboard/wrapup-card";
 import { KpiStats } from "@/components/dashboard/kpi-stats";
 import { RevenueChartCard } from "@/components/dashboard/revenue-chart-card";
 import { UpcomingSessionsCard } from "@/components/dashboard/upcoming-sessions-card";
@@ -57,6 +58,13 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
     blurb: "Next-arrival alert + checklist: session details, parking sign, room ready",
     span: "half",
     render: () => <ArrivalPrepCard />,
+  },
+  {
+    key: "wrapup",
+    title: "Wrap-up & studio refresh",
+    blurb: "Sessions ending soon: files, billing, gear, notes + room turnover checklist",
+    span: "half",
+    render: () => <WrapUpCard />,
   },
   {
     key: "kpis",

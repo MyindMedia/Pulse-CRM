@@ -703,13 +703,34 @@ export default defineSchema({
   //    optional check-out). Contact details also upsert into `artists` as
   //    leads (source "visitor_qr"), so the Clients directory doubles as the
   //    outreach database; artistId links the visit back to that record. ──
-  // Front-desk arrival prep - which checklist steps are done per upcoming
-  // session (details reviewed, parking sign printed, room ready, welcome set).
+  // Front-desk prep checklists - which steps are done per session. One row
+  // holds every phase's steps (arrival: details/parking/room/welcome,
+  // wrap-up: files/billing/gear/notes, refresh: reset/refresh/zero/stage).
   arrivalPrep: defineTable({
     orgId: v.string(),
     sessionId: v.id("sessions"),
     done: v.array(v.string()),
   }).index("by_org_session", ["orgId", "sessionId"]),
+
+  // Web-push subscriptions for team devices (PWA/browser). One row per
+  // device endpoint; pruned automatically when the push service says gone.
+  pushSubscriptions: defineTable({
+    orgId: v.string(),
+    clerkUserId: v.string(),
+    endpoint: v.string(),
+    keys: v.object({ p256dh: v.string(), auth: v.string() }),
+    userAgent: v.optional(v.string()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_endpoint", ["endpoint"]),
+
+  // Dedupe ledger for scheduled device alerts (T-10 arrival / wrap /
+  // shift-change / studio-refresh) - one row per alert key, insert-if-absent.
+  pushAlerts: defineTable({
+    orgId: v.string(),
+    key: v.string(),
+    sentAt: v.number(),
+  }).index("by_org_key", ["orgId", "key"]),
 
   visitors: defineTable({
     orgId: v.string(),
