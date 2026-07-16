@@ -18,6 +18,25 @@ import { clerkAppearance } from "@/lib/clerk-appearance";
 
 const CLERK_KEY = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
+/*
+ * Multi-domain: studiopulse.tech is a Clerk SATELLITE of the primary
+ * pulse.myindsound.com (see src/middleware.ts). ClerkJS only runs in the
+ * browser, so the host check is safe behind a typeof-window guard; the
+ * server render just passes the primary-domain defaults.
+ */
+const PRIMARY_ORIGIN = "https://pulse.myindsound.com";
+const SATELLITE_DOMAIN = "studiopulse.tech";
+const IS_SATELLITE =
+  typeof window !== "undefined" &&
+  (window.location.hostname === SATELLITE_DOMAIN ||
+    window.location.hostname.endsWith(`.${SATELLITE_DOMAIN}`));
+// The primary must allowlist the satellite for the post-sign-in return trip;
+// harmless everywhere else.
+const ALLOWED_REDIRECT_ORIGINS = [
+  `https://${SATELLITE_DOMAIN}`,
+  `https://www.${SATELLITE_DOMAIN}`,
+];
+
 /* The Convex deployment URL. `NEXT_PUBLIC_CONVEX_URL` (written by
  * `npx convex dev` locally) takes precedence; when it is absent - e.g. a
  * hosting environment where the build var was not configured - we fall back
@@ -51,7 +70,19 @@ export function ConvexClientProvider({ children }: { children: ReactNode }) {
 
   if (CLERK_KEY) {
     return (
-      <ClerkProvider publishableKey={CLERK_KEY} appearance={clerkAppearance}>
+      <ClerkProvider
+        publishableKey={CLERK_KEY}
+        appearance={clerkAppearance}
+        allowedRedirectOrigins={ALLOWED_REDIRECT_ORIGINS}
+        {...(IS_SATELLITE
+          ? {
+              isSatellite: true,
+              domain: SATELLITE_DOMAIN,
+              signInUrl: `${PRIMARY_ORIGIN}/sign-in`,
+              signUpUrl: `${PRIMARY_ORIGIN}/sign-up`,
+            }
+          : {})}
+      >
         <ConvexProviderWithAuth client={convex} useAuth={useClerkSessionTokenAuth}>
           {children}
         </ConvexProviderWithAuth>
