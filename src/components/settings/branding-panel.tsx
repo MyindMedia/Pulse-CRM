@@ -13,6 +13,7 @@ import {
   Image as ImageIcon,
   Info,
   Palette,
+  Pipette,
 } from "lucide-react";
 import {
   Card,
@@ -270,7 +271,7 @@ export function BrandingPanel({ org }: { org: Org }) {
           {/* Accent color */}
           <Field
             label="Accent color"
-            hint="Pick a swatch or enter a 6-digit hex value."
+            hint="Pick a swatch, open the spectrum picker for any color, or enter a 6-digit hex value."
           >
             <div className="space-y-3">
               <div className="flex flex-wrap gap-2">
@@ -298,6 +299,25 @@ export function BrandingPanel({ org }: { org: Org }) {
                     </button>
                   );
                 })}
+                {/* Full-spectrum picker - the native color input opens the
+                    OS color window (spectrum, sliders, eyedropper). */}
+                <label
+                  title="Custom color - full spectrum"
+                  className="relative grid size-8 cursor-pointer place-items-center overflow-hidden rounded-md border border-graphite/60 transition-transform hover:scale-105"
+                  style={{
+                    background:
+                      "conic-gradient(from 180deg, #e8442e, #e8a02d, #e3d24b, #4db56b, #3fa8c9, #4a5fd0, #9b4dd4, #d44a9b, #e8442e)",
+                  }}
+                >
+                  <input
+                    type="color"
+                    value={accentValid ? normalizedAccent : "#e0a226"}
+                    onChange={(e) => setAccent(e.target.value)}
+                    className="absolute inset-0 size-full cursor-pointer opacity-0"
+                    aria-label="Pick a custom accent color (full spectrum)"
+                  />
+                  <Pipette className="size-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.7)]" />
+                </label>
               </div>
               <div className="flex items-center gap-2">
                 <span

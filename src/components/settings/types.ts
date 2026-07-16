@@ -112,14 +112,28 @@ export const PLAN_TIERS: {
   },
 ];
 
-/** A short curated set of accent colors from the brand gold band. */
+/** Curated accent swatches - warm golds first (the house band), then a
+ *  spectrum sweep. All sit in the UI-friendly mid-lightness range the
+ *  theming engine expects; the full-spectrum picker covers everything else. */
 export const ACCENT_SWATCHES: { value: string; label: string }[] = [
   { value: "#E0A226", label: "Studio gold" },
   { value: "#F4C84A", label: "Bright gold" },
   { value: "#C8861A", label: "Deep amber" },
+  { value: "#B45A2B", label: "Copper" },
   { value: "#D9603A", label: "Burnt orange" },
-  { value: "#4A8DB5", label: "Console blue" },
-  { value: "#5BA678", label: "Reel green" },
-  { value: "#9B6BC8", label: "Violet" },
+  { value: "#E8842D", label: "Tangerine" },
+  { value: "#B33939", label: "Brick red" },
   { value: "#C24A6B", label: "Crimson" },
+  { value: "#E2557B", label: "Rose" },
+  { value: "#B06AB3", label: "Orchid" },
+  { value: "#9B6BC8", label: "Violet" },
+  { value: "#7C4DD4", label: "Electric violet" },
+  { value: "#6D7FE0", label: "Periwinkle" },
+  { value: "#3E63C4", label: "Royal blue" },
+  { value: "#4A8DB5", label: "Console blue" },
+  { value: "#4FB9D8", label: "Sky" },
+  { value: "#3BAFA8", label: "Teal" },
+  { value: "#2F8F6B", label: "Emerald" },
+  { value: "#5BA678", label: "Reel green" },
+  { value: "#7BA05B", label: "Olive" },
 ];
