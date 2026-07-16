@@ -7,7 +7,7 @@ import { mutation, query, internalMutation } from "./_generated/server";
 import { currentOrg } from "./lib/tenant";
 
 /** Newest-first list, optionally filtered by kind. Used by the dashboard
- * "Pulse AI" feed. Dismissed artifacts are hidden by default; pass
+ * "Pulse Agent" feed. Dismissed artifacts are hidden by default; pass
  * includeDismissed: true to surface them again. */
 export const list = query({
   args: {

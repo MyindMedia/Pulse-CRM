@@ -97,7 +97,7 @@ const GUARDRAILS: Guard[] = [
 ];
 
 /**
- * Explains how the Pulse AI agents behave and lists what they can do. Opened
+ * Explains how the Pulse Agent agents behave and lists what they can do. Opened
  * from the AI section header. Read-only, purely informational.
  */
 export function AgentInfoModal({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }) {

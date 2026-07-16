@@ -8,9 +8,10 @@ import { Sparkles, Copy, Check, Mail, Eye, EyeOff, Send } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { SimpleMarkdown } from "@/components/ai/simple-markdown";
 import { cn } from "@/lib/utils";
 
-/** Single Pulse AI artifact rendered with copy + dismiss + ack actions.
+/** Single Pulse Agent artifact rendered with copy + dismiss + ack actions.
  * Works for recaps, prep packets, reminders, briefings, rate-cut promos -
  * anything in the aiArtifacts table. */
 export function AiDraftCard({
@@ -134,9 +135,7 @@ export function AiDraftCard({
 
               {expanded && artifact.body && (
                 <div className="rounded-md border border-graphite/50 bg-coal-2 p-3">
-                  <pre className="whitespace-pre-wrap font-sans text-xs leading-relaxed text-steel">
-                    {artifact.body}
-                  </pre>
+                  <SimpleMarkdown text={artifact.body} />
                   <div className="mt-2 flex justify-end">
                     <Button
                       variant="secondary"

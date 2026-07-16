@@ -75,7 +75,7 @@ export function PulseAiPanel() {
           <div className="flex items-center gap-2">
             <Sparkles className="size-4 text-gold" />
             <p className="font-grotesk text-sm font-semibold text-bone">
-              Pulse AI
+              Pulse Agent
             </p>
             <span className="font-meta text-[0.625rem] uppercase text-steel/70">
               {all?.length ?? 0} artifacts

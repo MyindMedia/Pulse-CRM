@@ -131,7 +131,7 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
   },
   {
     key: "pulse-ai",
-    title: "Pulse AI",
+    title: "Pulse Agent",
     blurb: "Ask the studio agent anything",
     span: "half",
     render: () => <PulseAiPanel />,

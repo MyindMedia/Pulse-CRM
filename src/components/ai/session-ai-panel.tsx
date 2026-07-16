@@ -47,7 +47,7 @@ export function SessionAiPanel({ sessionId }: { sessionId: Id<"sessions"> }) {
       <div className="flex items-center justify-between gap-2">
         <p className="inline-flex items-center gap-1.5 text-xs font-medium text-steel">
           <Sparkles className="size-3.5 text-gold" />
-          Pulse AI
+          Pulse Agent
         </p>
         <div className="flex items-center gap-1">
           <Button variant="ghost" size="sm" onClick={runPrep} disabled={prepPending}>
