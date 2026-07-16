@@ -24,7 +24,7 @@ export function SheetContent({
       <DialogPrimitive.Overlay className="anim-overlay fixed inset-0 z-50 bg-ink/80 backdrop-blur-sm" />
       <DialogPrimitive.Content
         className={cn(
-          "anim-sheet fixed right-0 top-0 z-50 flex h-dvh w-full flex-col glass-liquid shadow-elev-4 text-bone",
+          "anim-sheet fixed right-0 top-0 z-50 flex h-dvh w-full flex-col glass-liquid shadow-elev-4 text-bone pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
           w,
           className,
         )}
@@ -32,7 +32,7 @@ export function SheetContent({
       >
         {children}
         <DialogPrimitive.Close
-          className="absolute right-4 top-4 rounded-sm p-1 text-steel/70 outline-none transition-colors hover:bg-coal-3 hover:text-bone focus-visible:ring-2 focus-visible:ring-gold/30"
+          className="absolute right-4 top-[calc(1rem+env(safe-area-inset-top))] rounded-sm p-1 text-steel/70 outline-none transition-colors hover:bg-coal-3 hover:text-bone focus-visible:ring-2 focus-visible:ring-gold/30"
           aria-label="Close"
         >
           <X className="size-4" />

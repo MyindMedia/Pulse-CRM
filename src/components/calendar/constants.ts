@@ -70,6 +70,13 @@ export function startOfDay(ts: number): number {
   return d.getTime();
 }
 
+/** Midnight of the Sunday starting this timestamp's week (local time). */
+export function startOfWeek(ts: number): number {
+  const d = new Date(startOfDay(ts));
+  d.setDate(d.getDate() - d.getDay());
+  return d.getTime();
+}
+
 export function isSameDay(a: number, b: number): boolean {
   return startOfDay(a) === startOfDay(b);
 }

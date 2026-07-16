@@ -56,14 +56,14 @@ export function AgendaList({
                     <button
                       type="button"
                       onClick={() => onOpenSession(s._id)}
-                      className="flex w-full items-center gap-3 px-4 py-3 text-left outline-none transition-colors hover:bg-coal-2 focus-visible:ring-2 focus-visible:ring-gold/30"
+                      className="flex w-full items-stretch gap-3 px-4 py-3 text-left outline-none transition-colors hover:bg-coal-2 focus-visible:ring-2 focus-visible:ring-gold/30"
                     >
                       <span
                         aria-hidden
-                        className="h-9 w-1 shrink-0 rounded-full"
+                        className="w-1 shrink-0 self-stretch rounded-full"
                         style={{ backgroundColor: statusColor(s.status) }}
                       />
-                      <div className="w-20 shrink-0">
+                      <div className="w-16 shrink-0 pt-0.5">
                         <p className="font-meta text-xs font-medium text-bone">
                           {timeOfDay(s.startTime)}
                         </p>
@@ -71,29 +71,39 @@ export function AgendaList({
                           {duration(s.startTime, s.endTime)}
                         </p>
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-bone">{s.title}</p>
-                        <p className="flex items-center gap-1 text-xs text-steel/70">
-                          <span className="truncate">
-                            {titleCase(s.serviceType)}
-                            {s.roomName ? ` · ${s.roomName}` : ""}
+                      {/* Text block wraps instead of amputating - titles get up
+                          to two lines, the meta line breaks naturally. */}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className="min-w-0 flex-1 text-sm font-medium leading-snug text-bone [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden">
+                            {s.title}
+                          </p>
+                          <Badge tone={st.tone} className="shrink-0">
+                            {st.label}
+                          </Badge>
+                        </div>
+                        <p className="text-xs leading-relaxed text-steel/70">
+                          {titleCase(s.serviceType)}
+                          {s.roomName ? ` · ${s.roomName}` : ""}
+                        </p>
+                        <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-steel/70">
+                          <span className="inline-flex items-center gap-1.5">
+                            <Avatar name={s.artistName} size="xs" />
+                            <span>{s.artistName}</span>
                           </span>
                           {s.engineerName && (
-                            <span className="inline-flex min-w-0 items-center gap-1">
-                              <span aria-hidden>·</span>
+                            <span className="inline-flex items-center gap-1.5">
                               <Avatar
                                 name={s.engineerName}
                                 src={engineerPhotoOf(s.engineerId)}
                                 size="xs"
                                 className="rounded-full"
                               />
-                              <span className="truncate">{s.engineerName}</span>
+                              <span>{s.engineerName}</span>
                             </span>
                           )}
-                        </p>
+                        </div>
                       </div>
-                      <Avatar name={s.artistName} size="sm" />
-                      <Badge tone={st.tone}>{st.label}</Badge>
                     </button>
                   </li>
                 );
