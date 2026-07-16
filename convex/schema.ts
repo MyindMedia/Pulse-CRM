@@ -73,6 +73,10 @@ export default defineSchema({
       v.union(v.literal("active"), v.literal("paused"), v.literal("setup")),
     ),
     accentColor: v.optional(v.string()),
+    // IANA timezone for the studio's location - drives every server-composed
+    // time string (device alerts, reminder emails, SMS). Auto-set from a
+    // staff device on first load; adjustable in Settings > Workspace.
+    timezone: v.optional(v.string()),
     brandPalette: v.optional(v.array(v.string())),
     tagline: v.optional(v.string()),
     // Branding

@@ -7,6 +7,7 @@ import { StudioBanner } from "@/components/shell/studio-banner";
 import { BillingBanner, BillingLock } from "@/components/shell/billing-gate";
 import { MemberSync } from "@/components/shell/member-sync";
 import { ActiveOrgSync } from "@/components/shell/active-org-sync";
+import { TimezoneSync } from "@/components/shell/timezone-sync";
 import { LiveToasts } from "@/components/shell/live-toasts";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { ClockWidget } from "@/components/timeclock/clock-widget";
@@ -26,6 +27,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     <TooltipProvider delayDuration={300}>
       <MemberSync />
       <ActiveOrgSync />
+      <TimezoneSync />
       <LiveToasts />
       <FeatureGuard />
       <OrgTheme>

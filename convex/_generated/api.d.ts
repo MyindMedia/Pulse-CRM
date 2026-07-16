@@ -105,6 +105,7 @@ import type * as lib_studioSite from "../lib/studioSite.js";
 import type * as lib_t10 from "../lib/t10.js";
 import type * as lib_tenant from "../lib/tenant.js";
 import type * as lib_text from "../lib/text.js";
+import type * as lib_tz from "../lib/tz.js";
 import type * as lib_usTaxRates from "../lib/usTaxRates.js";
 import type * as licensing from "../licensing.js";
 import type * as maintenance from "../maintenance.js";
@@ -267,6 +268,7 @@ declare const fullApi: ApiFromModules<{
   "lib/t10": typeof lib_t10;
   "lib/tenant": typeof lib_tenant;
   "lib/text": typeof lib_text;
+  "lib/tz": typeof lib_tz;
   "lib/usTaxRates": typeof lib_usTaxRates;
   licensing: typeof licensing;
   maintenance: typeof maintenance;

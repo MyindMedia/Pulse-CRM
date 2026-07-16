@@ -36,6 +36,7 @@ export type Org = {
   plan: OrgPlan;
   status: string;
   accentColor: string;
+  timezone: string | null;
   tagline: string;
   logoUrl: string | null;
   bookingHeroUrl: string | null;

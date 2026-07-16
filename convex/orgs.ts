@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import { currentOrg, currentActor, currentOrgWithCapability} from "./lib/tenant";
 import { AccessError } from "./lib/access";
 import { US_STATES, findState } from "./lib/usTaxRates";
+import { isValidTimezone } from "./lib/tz";
 import { meterStorageUpload } from "./usage";
 import { evaluateBillingGate, effectivePriceCents } from "./lib/billingGate";
 
@@ -49,6 +50,7 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     plan: org?.plan ?? "studio",
     status: org?.status ?? "active",
     accentColor: org?.accentColor ?? "#fdb913",
+    timezone: org?.timezone ?? null,
     brandPalette: org?.brandPalette ?? null,
     tagline: org?.tagline ?? "Your music business runs itself.",
     logoUrl: org?.logoId ? await ctx.storage.getUrl(org.logoId) : null,
@@ -131,8 +133,12 @@ export const update = mutation({
     bookingHeadline: v.optional(v.string()),
     bookingIntro: v.optional(v.string()),
     depositPolicyText: v.optional(v.string()),
+    timezone: v.optional(v.string()),
   },
   handler: async (ctx, patch) => {
+    if (patch.timezone !== undefined && !isValidTimezone(patch.timezone)) {
+      throw new Error("Unknown timezone.");
+    }
     const orgId = await currentOrgWithCapability(ctx, "branding.edit");
     const org = await ensureOrg(ctx, orgId);
     const clean = Object.fromEntries(Object.entries(patch).filter(([, val]) => val !== undefined));

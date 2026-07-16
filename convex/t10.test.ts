@@ -71,4 +71,14 @@ describe("computeT10Alerts", () => {
   it("cancelled and no-show sessions never alert", () => {
     expect(computeT10Alerts(NOW, [session({ status: "cancelled" })], [])).toHaveLength(0);
   });
+
+  it("formats clock times in the studio's timezone", () => {
+    const la = computeT10Alerts(NOW, [session({})], [], "America/Los_Angeles")[0];
+    const ny = computeT10Alerts(NOW, [session({})], [], "America/New_York")[0];
+    const laTime = la.body.match(/at (\d+:\d+ [AP]M)/)?.[1];
+    const nyTime = ny.body.match(/at (\d+:\d+ [AP]M)/)?.[1];
+    expect(laTime).toBeTruthy();
+    expect(nyTime).toBeTruthy();
+    expect(laTime).not.toBe(nyTime); // 3-hour offset shows up
+  });
 });

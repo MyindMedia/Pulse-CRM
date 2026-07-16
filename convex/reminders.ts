@@ -1,6 +1,7 @@
 import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { notify } from "./lib/notify";
+import { orgTz, whenLabel, clockTime } from "./lib/tz";
 
 /* ============================================================
    Email reminders - the channel that works TODAY (Resend is live;
@@ -17,15 +18,7 @@ import { notify } from "./lib/notify";
 const DAY = 86_400_000;
 const TWO_HOURS = 2 * 3_600_000;
 
-function whenLabel(ts: number): string {
-  return new Date(ts).toLocaleString("en-US", {
-    weekday: "short",
-    month: "short",
-    day: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
-}
+
 
 export const sweep = internalMutation({
   args: { nowMs: v.optional(v.number()) },
@@ -57,7 +50,7 @@ export const sweep = internalMutation({
         if (!kind) continue;
 
         const soon = kind === "2h" ? "in about 2 hours" : "tomorrow";
-        const when = whenLabel(s.startTime);
+        const when = whenLabel(s.startTime, orgTz(org));
         const room = s.roomId ? await ctx.db.get(s.roomId) : null;
         const where = room?.name ? ` in ${room.name}` : "";
 
@@ -116,7 +109,7 @@ export const sweep = internalMutation({
           channel: "email",
           recipient: member.email,
           subject: `Reminder: you're on the ${studio} schedule tomorrow`,
-          body: `${member.name}, you have a shift coming up${where}.\n\n${whenLabel(sh.startTime)} to ${new Date(sh.endTime).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}\n\nSee the full schedule in Pulse.`,
+          body: `${member.name}, you have a shift coming up${where}.\n\n${whenLabel(sh.startTime, orgTz(org))} to ${clockTime(sh.endTime, orgTz(org))}\n\nSee the full schedule in Pulse.`,
           kind: "shift.reminder_24h",
         });
         await ctx.db.patch(sh._id, { reminderSentAt: now });

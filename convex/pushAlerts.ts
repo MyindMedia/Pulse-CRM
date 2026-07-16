@@ -2,6 +2,7 @@ import { internalMutation } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { computeT10Alerts, type T10Session, type T10Shift } from "./lib/t10";
+import { orgTz } from "./lib/tz";
 
 /* The every-minute device-alert sweep. Only orgs with registered devices are
    scanned; each due alert is deduped through the pushAlerts ledger and fanned
@@ -18,6 +19,11 @@ export const sweep = internalMutation({
     let fired = 0;
 
     for (const orgId of orgIds) {
+      const orgRow = await ctx.db
+        .query("orgs")
+        .withIndex("by_org", (q) => q.eq("orgId", orgId))
+        .first();
+      const tz = orgTz(orgRow);
       // Near-term sessions: started up to 12h ago (long sessions still end in
       // range) through those starting just past the T-10 window.
       const rows = await ctx.db
@@ -84,7 +90,7 @@ export const sweep = internalMutation({
         })),
       );
 
-      for (const alert of computeT10Alerts(now, sessions, shifts)) {
+      for (const alert of computeT10Alerts(now, sessions, shifts, tz)) {
         const seen = await ctx.db
           .query("pushAlerts")
           .withIndex("by_org_key", (q) => q.eq("orgId", orgId).eq("key", alert.key))

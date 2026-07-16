@@ -1,4 +1,5 @@
 import { action, query, mutation, internalQuery, internalMutation, internalAction } from "./_generated/server";
+import { orgTz, dateLabel } from "./lib/tz";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -166,11 +167,7 @@ export const _dueReminders = internalQuery({
       else if (ms <= DAY && ms > TWO_HOURS && !sent.includes("24h")) kind = "24h";
       if (!kind) continue;
 
-      const dateStr = new Date(s.startTime).toLocaleDateString("en-US", {
-        weekday: "short",
-        month: "short",
-        day: "numeric",
-      });
+      const dateStr = dateLabel(s.startTime, orgTz(org));
       const soon = kind === "2h" ? "in about 2 hours" : "in about a day";
 
       const artist = await ctx.db.get(s.artistId);

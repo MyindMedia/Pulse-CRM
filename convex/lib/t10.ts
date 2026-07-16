@@ -25,11 +25,11 @@ export type T10Alert = { key: string; title: string; body: string; url: string }
 
 const MIN = 60_000;
 
-function clock(ts: number): string {
+function clock(ts: number, tz: string): string {
   return new Date(ts).toLocaleTimeString("en-US", {
     hour: "numeric",
     minute: "2-digit",
-    timeZone: process.env.STUDIO_TZ ?? "America/New_York",
+    timeZone: tz,
   });
 }
 
@@ -41,6 +41,7 @@ export function computeT10Alerts(
   now: number,
   sessions: T10Session[],
   shifts: T10Shift[],
+  tz = "America/New_York",
 ): T10Alert[] {
   const alerts: T10Alert[] = [];
   const t10From = now + 9 * MIN;
@@ -56,7 +57,7 @@ export function computeT10Alerts(
       alerts.push({
         key: `a10:${s._id}`,
         title: "Arrival in 10 minutes",
-        body: `${s.artistName} at ${clock(s.startTime)}${room}. Run the arrival checklist.`,
+        body: `${s.artistName} at ${clock(s.startTime, tz)}${room}. Run the arrival checklist.`,
         url: "/dashboard",
       });
     }
@@ -68,7 +69,7 @@ export function computeT10Alerts(
       alerts.push({
         key: `w10:${s._id}`,
         title: "Wrap-up in 10 minutes",
-        body: `${s.artistName} ends at ${clock(s.endTime)}${room}. Files, billing, gear, notes.`,
+        body: `${s.artistName} ends at ${clock(s.endTime, tz)}${room}. Files, billing, gear, notes.`,
         url: "/dashboard",
       });
     }
@@ -77,7 +78,7 @@ export function computeT10Alerts(
       alerts.push({
         key: `r:${s._id}`,
         title: "Studio refresh",
-        body: `${s.roomName ?? "The room"} turns over for ${s.nextInRoom.artistName} at ${clock(s.nextInRoom.startTime)}. Reset and stage now.`,
+        body: `${s.roomName ?? "The room"} turns over for ${s.nextInRoom.artistName} at ${clock(s.nextInRoom.startTime, tz)}. Reset and stage now.`,
         url: "/dashboard",
       });
     }
@@ -88,7 +89,7 @@ export function computeT10Alerts(
       alerts.push({
         key: `s10:${sh._id}`,
         title: "Shift change in 10 minutes",
-        body: `${sh.memberName} starts at ${clock(sh.startTime)}.`,
+        body: `${sh.memberName} starts at ${clock(sh.startTime, tz)}.`,
         url: "/schedule",
       });
     }

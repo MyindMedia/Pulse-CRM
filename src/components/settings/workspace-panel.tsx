@@ -32,6 +32,19 @@ import {
 
 const HEX_RE = /^#?[0-9a-fA-F]{6}$/;
 
+/** Common studio timezones; the org's current zone is appended when it is
+ *  something else (auto-set from a staff device's location). */
+const TIMEZONES: { value: string; label: string }[] = [
+  { value: "America/Los_Angeles", label: "Pacific - Los Angeles" },
+  { value: "America/Denver", label: "Mountain - Denver" },
+  { value: "America/Phoenix", label: "Arizona - Phoenix" },
+  { value: "America/Chicago", label: "Central - Chicago" },
+  { value: "America/New_York", label: "Eastern - New York" },
+  { value: "America/Anchorage", label: "Alaska - Anchorage" },
+  { value: "Pacific/Honolulu", label: "Hawaii - Honolulu" },
+  { value: "Europe/London", label: "UK - London" },
+];
+
 /** Workspace identity panel - name, tagline, plan, accent color. */
 export function WorkspacePanel({ org }: { org: Org }) {
   const updateOrg = useMutation(api.orgs.update);
@@ -39,6 +52,7 @@ export function WorkspacePanel({ org }: { org: Org }) {
   const [tagline, setTagline] = React.useState(org.tagline);
   const [plan, setPlan] = React.useState<OrgPlan>(org.plan);
   const [accent, setAccent] = React.useState(org.accentColor);
+  const [timezone, setTimezone] = React.useState(org.timezone ?? "");
   const [submitting, setSubmitting] = React.useState(false);
 
   // Re-seed local state if the org record changes underneath us. We track a
@@ -52,6 +66,7 @@ export function WorkspacePanel({ org }: { org: Org }) {
     setTagline(org.tagline);
     setPlan(org.plan);
     setAccent(org.accentColor);
+    setTimezone(org.timezone ?? "");
   }
 
   const accentValid = HEX_RE.test(accent.trim());
@@ -63,7 +78,8 @@ export function WorkspacePanel({ org }: { org: Org }) {
     name.trim() !== org.name ||
     tagline.trim() !== org.tagline ||
     plan !== org.plan ||
-    (accentValid && normalizedAccent.toLowerCase() !== org.accentColor.toLowerCase());
+    (accentValid && normalizedAccent.toLowerCase() !== org.accentColor.toLowerCase()) ||
+    (timezone !== "" && timezone !== (org.timezone ?? ""));
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -82,6 +98,7 @@ export function WorkspacePanel({ org }: { org: Org }) {
         tagline: tagline.trim(),
         plan,
         accentColor: normalizedAccent,
+        ...(timezone ? { timezone } : {}),
       });
       toast.success("Workspace settings saved.");
     } catch {
@@ -96,7 +113,15 @@ export function WorkspacePanel({ org }: { org: Org }) {
     setTagline(org.tagline);
     setPlan(org.plan);
     setAccent(org.accentColor);
+    setTimezone(org.timezone ?? "");
   }
+
+  const tzOptions = [...TIMEZONES];
+  if (timezone && !tzOptions.some((t) => t.value === timezone)) {
+    tzOptions.push({ value: timezone, label: timezone.replace(/_/g, " ") });
+  }
+  const deviceTz =
+    typeof window !== "undefined" ? Intl.DateTimeFormat().resolvedOptions().timeZone : "";
 
   return (
     <form onSubmit={handleSave}>
@@ -146,6 +171,33 @@ export function WorkspacePanel({ org }: { org: Org }) {
               placeholder="Where the record gets made."
               className="min-h-16"
             />
+          </Field>
+
+          <Field
+            label="Studio timezone"
+            hint="Set from your location - drives alert, reminder and SMS times for this studio."
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="w-full sm:w-64">
+                <Select value={timezone || undefined} onValueChange={setTimezone}>
+                  <SelectTrigger aria-label="Studio timezone">
+                    <SelectValue placeholder="Pick a timezone" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tzOptions.map((t) => (
+                      <SelectItem key={t.value} value={t.value}>
+                        {t.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {deviceTz && deviceTz !== timezone && (
+                <Button type="button" variant="outline" size="sm" onClick={() => setTimezone(deviceTz)}>
+                  Use this device&apos;s timezone
+                </Button>
+              )}
+            </div>
           </Field>
 
           <Field label="Plan" htmlFor="ws-plan">
