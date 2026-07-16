@@ -33,7 +33,9 @@ describe("deriveBrandTokens", () => {
   });
 
   it("monochrome accents derive a NEUTRAL family, never a saturated hue", () => {
-    for (const accent of ["#ffffff", "#000000", "#c9c9c9"]) {
+    // #f2eded is the real-world trap: near-white with a red tint reads
+    // s=0.16 in HSL but has almost zero chroma - it must theme as silver.
+    for (const accent of ["#ffffff", "#000000", "#c9c9c9", "#f2eded"]) {
       const tokens = deriveBrandTokens(accent);
       expect(tokens).not.toBeNull();
       const [, s, l] = hsl(tokens!["--color-gold"]);

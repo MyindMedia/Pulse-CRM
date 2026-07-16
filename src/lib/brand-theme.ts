@@ -82,8 +82,10 @@ export function deriveBrandTokens(accent: string | null | undefined): BrandToken
   const [h, s, l] = rgbToHsl(...rgb);
   // Monochrome brands (white / black / silver accents): force-saturating a
   // colorless value invents a random hue (white used to come out dusty red).
-  // Derive a clean neutral family instead - silver accents, near-black ink.
-  if (s < 0.12) {
+  // Chroma, not raw saturation, is the discriminator - HSL saturation
+  // explodes near white (#f2eded reads s=0.16 with almost no visible color).
+  const chroma = s * (1 - Math.abs(2 * l - 1));
+  if (chroma < 0.08) {
     return {
       "--color-gold": hslToHex(h, 0.04, 0.74),
       "--color-gold-bright": hslToHex(h, 0.04, 0.88),
