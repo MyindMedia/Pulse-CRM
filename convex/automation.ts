@@ -60,6 +60,7 @@ type Outcome = {
   invoicesOverdue: number;
   reviewRequests: number;
   holdNudges: number;
+  staleResolved: number;
 };
 
 async function emailFor(ctx: MutationCtx, artistId: import("./_generated/dataModel").Id<"artists">) {
@@ -78,6 +79,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     invoicesOverdue: 0,
     reviewRequests: 0,
     holdNudges: 0,
+    staleResolved: 0,
   };
 
   const sessions = await ctx.db.query("sessions").collect();
@@ -88,6 +90,28 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     // the flag.
     const paid = Math.max(s.amountPaidCents ?? 0, s.depositPaid ? s.depositCents : 0);
     const fullyPaid = paid >= s.rateCents;
+
+    // 0. Stale resolution - anything that ended more than a day ago and was
+    //    never closed out leaves the operational board. Paid work (or a
+    //    session that actually started) auto-completes; a confirmed booking
+    //    with money down that never ran is a no-show; an unpaid hold whose
+    //    date passed expires into the archive (cancelled + autoResolved
+    //    marker, surfaced on Reports > Archive). Applies to internal AND
+    //    public rows - staff-set final statuses are never touched.
+    if (
+      s.endTime < now - 86_400_000 &&
+      (s.status === "tentative" || s.status === "confirmed" || s.status === "in_progress")
+    ) {
+      if (s.status === "in_progress" || paid > 0) {
+        await ctx.db.patch(s._id, { status: "completed", autoResolved: "auto_completed" });
+      } else if (s.status === "confirmed") {
+        await ctx.db.patch(s._id, { status: "no_show", autoResolved: "auto_no_show" });
+      } else {
+        await ctx.db.patch(s._id, { status: "cancelled", autoResolved: "expired_hold" });
+      }
+      out.staleResolved++;
+      continue;
+    }
 
     // 1. Deposit pay link - internal bookings with an unpaid deposit get the
     //    public checkout link once, so clients booked by staff can pay online.

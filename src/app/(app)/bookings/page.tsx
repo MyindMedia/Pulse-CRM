@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
@@ -23,10 +24,16 @@ import { EmptyState, Spinner } from "@/components/ui/feedback";
 import { money } from "@/lib/format";
 import {
   bookingMoney,
-  isOnline,
   laneFor,
   type BookingRow,
 } from "@/components/bookings/types";
+import {
+  Select,
+  SelectTrigger,
+  SelectValue,
+  SelectContent,
+  SelectItem,
+} from "@/components/ui/select";
 import { BookingLane } from "@/components/bookings/booking-lane";
 import { BookingSheet } from "@/components/bookings/booking-sheet";
 import {
@@ -111,6 +118,13 @@ export default function BookingsPage() {
     return { activeHolds, awaitingBalance, paidInFull, collected };
   }, [sessions]);
 
+  // The operational board shows what matters NOW and coming up: anything
+  // that ended more than two weeks ago lives in Reports > Archive (the
+  // automation resolves stale rows to completed / no-show / expired hold).
+  const RELEVANCE_MS = 14 * 86_400_000;
+  const [nowTs] = React.useState(() => Date.now());
+  const [sortBy, setSortBy] = React.useState<"date_asc" | "date_desc" | "value" | "client">("date_asc");
+
   const lanes = React.useMemo(() => {
     const empty = {
       holds: [] as BookingRow[],
@@ -119,15 +133,18 @@ export default function BookingsPage() {
       released: [] as BookingRow[],
     };
     if (!sessions) return empty;
-    // Online bookings first within each lane so they read prominently.
-    const sorted = [...sessions].sort((a, b) => {
-      const onlineDelta = Number(isOnline(b)) - Number(isOnline(a));
-      if (onlineDelta !== 0) return onlineDelta;
-      return a.startTime - b.startTime;
-    });
+    const comparators: Record<string, (a: BookingRow, b: BookingRow) => number> = {
+      date_asc: (a, b) => a.startTime - b.startTime,
+      date_desc: (a, b) => b.startTime - a.startTime,
+      value: (a, b) => b.rateCents - a.rateCents,
+      client: (a, b) => a.artistName.localeCompare(b.artistName),
+    };
+    const sorted = sessions
+      .filter((s) => s.endTime >= nowTs - RELEVANCE_MS)
+      .sort(comparators[sortBy]);
     for (const s of sorted) empty[laneFor(s)].push(s);
     return empty;
-  }, [sessions]);
+  }, [sessions, sortBy, nowTs, RELEVANCE_MS]);
 
   const loading = sessions === undefined;
   const totalBookings = sessions?.length ?? 0;
@@ -194,6 +211,25 @@ export default function BookingsPage() {
       <div className="grid gap-7 lg:grid-cols-[1.6fr_1fr]">
         {/* Pipeline */}
         <Section title="Pipeline">
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+            <Select value={sortBy} onValueChange={(v) => setSortBy(v as typeof sortBy)}>
+              <SelectTrigger className="h-8 w-44 text-xs" aria-label="Sort bookings">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="date_asc">Soonest first</SelectItem>
+                <SelectItem value="date_desc">Latest first</SelectItem>
+                <SelectItem value="value">Highest value</SelectItem>
+                <SelectItem value="client">Client A-Z</SelectItem>
+              </SelectContent>
+            </Select>
+            <Link
+              href="/reports"
+              className="font-meta text-[0.6875rem] uppercase tracking-wide text-steel/60 transition-colors hover:text-gold"
+            >
+              Older bookings live in Reports / Archive
+            </Link>
+          </div>
           {loading ? (
             <div className="space-y-3">
               {[0, 1, 2, 3, 4].map((i) => (

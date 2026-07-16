@@ -17,6 +17,15 @@ import {
   Music2,
 } from "lucide-react";
 import {
+  Dialog,
+  DialogBody,
+  DialogClose,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Sheet,
   SheetContent,
   SheetHeader,
@@ -166,6 +175,26 @@ export function BookingSheet({
 
   const setStatus = useMutation(api.sessions.setStatus);
   const [busy, setBusy] = useState(false);
+  // Status changes that deserve a beat of confirmation - one stray tap
+  // should never cancel a session or mark a client a no-show.
+  const [confirmNext, setConfirmNext] = useState<SessionStatus | null>(null);
+  const CONFIRM_COPY: Partial<Record<SessionStatus, { title: string; body: string; cta: string }>> = {
+    cancelled: {
+      title: "Cancel this session?",
+      body: "The slot opens back up and the client is notified where applicable. This can be rebooked but not undone.",
+      cta: "Cancel session",
+    },
+    no_show: {
+      title: "Mark as no-show?",
+      body: "Records the client as absent - deposit handling follows your no-show policy. Make sure they really did not arrive.",
+      cta: "Mark no-show",
+    },
+    in_progress: {
+      title: "Check the client in?",
+      body: "Starts the session clock, flips the room to in-use and notifies the team the session is live.",
+      cta: "Check in",
+    },
+  };
 
   async function run(next: SessionStatus, ok: string) {
     if (!booking) return;
@@ -263,7 +292,7 @@ export function BookingSheet({
             </SheetBody>
 
             {NEXT_STATUSES[booking.status].length > 0 && (
-              <SheetFooter className="flex-wrap">
+              <SheetFooter className="flex-wrap gap-2 pt-3">
                 {NEXT_STATUSES[booking.status].map((next) => (
                   <Button
                     key={next}
@@ -274,20 +303,55 @@ export function BookingSheet({
                           ? "primary"
                           : "secondary"
                     }
-                    size="sm"
+                    className="min-w-[7.5rem] flex-1"
                     disabled={busy}
                     onClick={() =>
-                      run(next, `Session ${meta(SESSION_STATUS, next).label.toLowerCase()}`)
+                      CONFIRM_COPY[next]
+                        ? setConfirmNext(next)
+                        : run(next, `Session ${meta(SESSION_STATUS, next).label.toLowerCase()}`)
                     }
                   >
-                    {next === "in_progress" && <LogIn className="size-3.5" />}
-                    {next === "completed" && <CheckCircle2 className="size-3.5" />}
+                    {next === "in_progress" && <LogIn className="size-4" />}
+                    {next === "completed" && <CheckCircle2 className="size-4" />}
                     {STATUS_VERB[next]}
                   </Button>
                 ))}
                 {busy && <Spinner />}
               </SheetFooter>
             )}
+
+            {/* Confirmation for cancel / no-show / check-in */}
+            <Dialog open={confirmNext !== null} onOpenChange={(o) => !o && setConfirmNext(null)}>
+              <DialogContent size="sm">
+                <DialogHeader>
+                  <DialogTitle>{confirmNext ? CONFIRM_COPY[confirmNext]?.title : ""}</DialogTitle>
+                </DialogHeader>
+                <DialogBody>
+                  <p className="text-sm text-steel">
+                    {confirmNext ? CONFIRM_COPY[confirmNext]?.body : ""}
+                  </p>
+                </DialogBody>
+                <DialogFooter>
+                  <DialogClose asChild>
+                    <Button type="button" variant="ghost">
+                      Keep as is
+                    </Button>
+                  </DialogClose>
+                  <Button
+                    variant={confirmNext === "in_progress" ? "primary" : "danger"}
+                    disabled={busy}
+                    onClick={() => {
+                      if (!confirmNext) return;
+                      const next = confirmNext;
+                      setConfirmNext(null);
+                      void run(next, `Session ${meta(SESSION_STATUS, next).label.toLowerCase()}`);
+                    }}
+                  >
+                    {confirmNext ? CONFIRM_COPY[confirmNext]?.cta : ""}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
           </>
         )}
       </SheetContent>

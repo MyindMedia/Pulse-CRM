@@ -1,4 +1,5 @@
 import { query } from "./_generated/server";
+import { v } from "convex/values";
 import { currentOrgWithCapability } from "./lib/tenant";
 import { summarizeComps, foregoneCents, compLeakageShare } from "./lib/comp";
 
@@ -394,5 +395,44 @@ export const compSummary = query({
       byClient: sum.byClient.slice(0, 10).map((c) => ({ ...c, artistName: nameOf.get(c.artistId) ?? "Client" })),
       rows: rows.slice(0, 50),
     };
+  },
+});
+
+/** Booking archive - everything the stale-resolution pass (and staff) closed
+ *  out: completed, no-shows, cancellations and expired unpaid holds. Keeps
+ *  the operational Bookings board clean while the history stays reportable. */
+export const bookingArchive = query({
+  args: { days: v.optional(v.number()) },
+  handler: async (ctx, { days }) => {
+    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+    const now = Date.now();
+    const from = now - (days ?? 90) * 86_400_000;
+    const rows = await ctx.db
+      .query("sessions")
+      .withIndex("by_org_start", (q) => q.eq("orgId", orgId).gte("startTime", from).lte("startTime", now))
+      .collect();
+    const past = rows
+      .filter((s) => s.endTime < now && ["completed", "cancelled", "no_show"].includes(s.status))
+      .sort((a, b) => b.startTime - a.startTime);
+
+    const bucketOf = (s: (typeof past)[number]) =>
+      s.autoResolved === "expired_hold" ? "expired_hold" : s.status;
+    const counts = { completed: 0, no_show: 0, cancelled: 0, expired_hold: 0 };
+    for (const s of past) counts[bucketOf(s) as keyof typeof counts]++;
+
+    const recent = await Promise.all(
+      past.slice(0, 30).map(async (s) => ({
+        _id: s._id,
+        title: s.title,
+        startTime: s.startTime,
+        status: s.status,
+        bucket: bucketOf(s),
+        autoResolved: s.autoResolved ?? null,
+        rateCents: s.rateCents,
+        paidCents: Math.max(s.amountPaidCents ?? 0, s.depositPaid ? s.depositCents : 0),
+        artistName: (await ctx.db.get(s.artistId))?.name ?? "Unknown",
+      })),
+    );
+    return { counts, total: past.length, recent };
   },
 });

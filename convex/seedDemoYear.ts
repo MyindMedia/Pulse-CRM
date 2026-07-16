@@ -71,6 +71,11 @@ export const fillYear = internalMutation({
 
     // ── Wipe prior demo_year content (idempotent re-fill) ──
     const oldSessions = await ctx.db.query("sessions").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
+    const oldSeededIds = new Set(oldSessions.filter((x) => x.source === TAG).map((x) => x._id as string));
+    const oldNotes = await ctx.db.query("notifications").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
+    for (const n of oldNotes) {
+      if (n.sessionId && oldSeededIds.has(n.sessionId as string)) await ctx.db.delete(n._id);
+    }
     for (const s of oldSessions) if (s.source === TAG) await ctx.db.delete(s._id);
     const oldShifts = await ctx.db.query("shifts").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
     for (const sh of oldShifts) if (sh.createdBy === TAG) await ctx.db.delete(sh._id);
@@ -162,6 +167,53 @@ export const fillYear = internalMutation({
           source: TAG,
         })) as Id<"sessions">;
         sessionCount++;
+
+        // Message log: confirmations, reminders and a short client thread on a
+        // sample of bookings so the sheet's log demos real traffic.
+        if (r() < 0.38) {
+          const first = a.name.split(" ")[0];
+          const when = new Date(start).toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric" });
+          const at = new Date(start).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+          const email = a.email ?? `${a.name.toLowerCase().replace(/[^a-z]+/g, ".")}@demo.mail`;
+          await ctx.db.insert("notifications", {
+            orgId, channel: "email", recipient: email,
+            subject: `Booking confirmed - ${cap(service)} — ${a.name}`,
+            body: `Hi ${first}, you're locked in for ${cap(service).toLowerCase()} on ${when} at ${at}${room ? ` in ${room.name}` : ""}. Deposit received - see you then.`,
+            kind: "booking.confirmed", sessionId, status: "sent",
+          });
+          if (r() < 0.7) {
+            await ctx.db.insert("notifications", {
+              orgId, channel: "sms", recipient: a.phone ?? "+15550100200",
+              subject: "Session reminder",
+              body: `${cap(service)} session tomorrow at ${at}. Reply if anything changed - see you soon!`,
+              kind: "session.reminder.24h", sessionId, status: "simulated",
+            });
+          }
+          if (r() < 0.45) {
+            const q = pick([
+              `Can we start 30 min later? Traffic is rough on my end.`,
+              `Is the U87 free for this one? Want it on lead vocals.`,
+              `Cool to bring one extra writer to the session?`,
+              `Do you have a session drummer we could add for an hour?`,
+            ] as const, r());
+            const reply = pick([
+              `All good - adjusted on our side. See you soon.`,
+              `Yes, reserved it for your session. Anything else you need?`,
+              `Of course - front desk will check them in.`,
+              `We'll have someone on call - confirm by tomorrow and it's set.`,
+            ] as const, r());
+            await ctx.db.insert("notifications", {
+              orgId, channel: "sms", recipient: a.phone ?? "+15550100200",
+              subject: `SMS from ${a.name}`,
+              body: q, kind: "client.question", sessionId, status: "sent",
+            });
+            await ctx.db.insert("notifications", {
+              orgId, channel: "sms", recipient: a.phone ?? "+15550100200",
+              subject: "Front desk reply",
+              body: reply, kind: "staff.reply", sessionId, status: "sent",
+            });
+          }
+        }
 
         // Matching engineer shift for the booking.
         await ctx.db.insert("shifts", {

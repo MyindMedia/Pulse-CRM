@@ -9,6 +9,7 @@ import { NoShowRiskReport } from "@/components/reports/no-show-risk";
 import { LeadSourceRoiReport } from "@/components/reports/lead-source-roi";
 import { StaffingReport } from "@/components/reports/staffing";
 import { CompsReport } from "@/components/reports/comps";
+import { BookingArchiveReport } from "@/components/reports/booking-archive";
 import { AtRiskSessionsReport, PricingRecommendationsReport } from "@/components/reports/predictive-insights";
 import { CapabilityGuard } from "@/components/shell/capability-guard";
 
@@ -21,6 +22,7 @@ const TABS = [
   { value: "predict", label: "Pricing & risk" },
   { value: "comps", label: "Comps" },
   { value: "sources", label: "Lead ROI" },
+  { value: "archive", label: "Archive" },
 ];
 
 export default function ReportsPage() {
@@ -75,6 +77,9 @@ function ReportsView() {
         </TabsContent>
         <TabsContent value="sources">
           <LeadSourceRoiReport />
+        </TabsContent>
+        <TabsContent value="archive">
+          <BookingArchiveReport />
         </TabsContent>
       </Tabs>
     </div>

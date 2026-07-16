@@ -985,6 +985,10 @@ export default defineSchema({
     // Free-text request when a client wants gear that was unavailable or not
     // listed; the studio team is notified to follow up.
     gearRequestNote: v.optional(v.string()),
+    // Stamped by the automation's stale-resolution pass so reports can tell
+    // auto-archived rows ("expired_hold" | "auto_completed" | "auto_no_show")
+    // from staff-set statuses.
+    autoResolved: v.optional(v.string()),
     // Comped / discounted session cost tracking. `compType` marks the session;
     // `listValueCents` is what it would normally bill (so foregone revenue =
     // listValue - rateCents); `compReason` is why. Absent = a normal booking.
