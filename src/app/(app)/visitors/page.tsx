@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -14,6 +14,7 @@ import {
   DoorOpen,
   LogIn,
   Plus,
+  Printer,
   QrCode,
   UserCheck,
   Users,
@@ -38,6 +39,7 @@ import {
 import { Field, Input, Textarea } from "@/components/ui/field";
 import { shortDate, timeOfDay, relativeTime, money } from "@/lib/format";
 import { startOfDay } from "@/components/calendar/constants";
+import { checkinSignHtml, type CheckinSignBrand } from "@/lib/checkin-sign";
 
 /*
  * Visitors - the front-desk guest log. Every registration (QR self check-in
@@ -268,7 +270,7 @@ export default function VisitorsPage() {
         </Tabs>
       )}
 
-      <CheckInQrDialog open={qrOpen} onOpenChange={setQrOpen} slug={org?.slug} />
+      <CheckInQrDialog open={qrOpen} onOpenChange={setQrOpen} slug={org?.slug} brand={org ?? undefined} />
       <LogVisitorDialog open={logOpen} onOpenChange={setLogOpen} />
     </div>
   );
@@ -279,12 +281,15 @@ function CheckInQrDialog({
   open,
   onOpenChange,
   slug,
+  brand,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   slug?: string;
+  brand?: CheckinSignBrand;
 }) {
   const [copied, setCopied] = useState(false);
+  const qrWrapRef = useRef<HTMLDivElement>(null);
   const visitUrl =
     typeof window !== "undefined" && slug ? `${window.location.origin}/visit/${slug}` : "";
 
@@ -295,6 +300,18 @@ function CheckInQrDialog({
     setTimeout(() => setCopied(false), 2000);
   }
 
+  /** Open the branded front-desk sign in its own window; it prints itself
+   * once fonts + logo have loaded (see lib/checkin-sign.ts). The QR is the
+   * dialog's own rendered SVG, so the sign always matches the link shown. */
+  function printSign() {
+    const qrSvg = qrWrapRef.current?.querySelector("svg")?.outerHTML;
+    if (!qrSvg || !visitUrl) return;
+    const w = window.open("", "_blank", "width=880,height=1140");
+    if (!w) return;
+    w.document.write(checkinSignHtml(brand ?? { name: "Pulse Studio" }, visitUrl, qrSvg));
+    w.document.close();
+  }
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-sm">
@@ -303,11 +320,11 @@ function CheckInQrDialog({
         </DialogHeader>
         <DialogBody className="space-y-4">
           <p className="text-sm text-steel/70">
-            Print this or frame it at the front desk. Guests scan it, enter their email and visit
-            details, and land in the visit log instantly.
+            Print the branded sign for the front desk or office. Guests scan it, enter their email
+            and visit details, and land in the visit log instantly.
           </p>
           {visitUrl ? (
-            <div className="mx-auto w-fit rounded-lg bg-white p-4">
+            <div ref={qrWrapRef} className="mx-auto w-fit rounded-lg bg-white p-4">
               <QRCodeSVG value={visitUrl} size={208} bgColor="#ffffff" fgColor="#0a0a0a" level="M" />
             </div>
           ) : (
@@ -317,7 +334,11 @@ function CheckInQrDialog({
             <p className="break-all text-center font-meta text-xs text-steel/70">{visitUrl}</p>
           )}
         </DialogBody>
-        <DialogFooter>
+        <DialogFooter className="gap-2 sm:flex-col">
+          <Button className="w-full" onClick={printSign} disabled={!visitUrl}>
+            <Printer className="size-4" />
+            Print front-desk sign
+          </Button>
           <Button variant="outline" className="w-full" onClick={copy} disabled={!visitUrl}>
             {copied ? <Check className="size-4" /> : <Copy className="size-4" />}
             {copied ? "Copied" : "Copy link"}
