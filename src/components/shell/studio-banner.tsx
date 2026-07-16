@@ -7,18 +7,23 @@ import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
 import { Eye, LogOut } from "lucide-react";
 import { Spinner } from "@/components/ui/feedback";
+import { useCapabilities } from "@/lib/use-capabilities";
 
 const DEMO_ORG_ID = "pulse-demo";
 
 /** Thin "entered as" strip - shown when the active workspace is a real
-    studio subaccount the agency operator stepped into. */
+    studio subaccount the agency operator stepped into. AGENCY viewers only:
+    studio staff working in their own workspace must never see the view-as
+    banner or its "Exit to agency" door (same gate as the sidebar's console
+    link - `kind` stays null while loading, so it never flashes). */
 export function StudioBanner() {
   const router = useRouter();
   const org = useQuery(api.orgs.current);
+  const { kind } = useCapabilities();
   const enterAs = useMutation(api.agency.enterAs);
   const [exiting, setExiting] = React.useState(false);
 
-  if (!org || org.orgId === DEMO_ORG_ID) return null;
+  if (!org || org.orgId === DEMO_ORG_ID || kind !== "agency_member") return null;
 
   async function exit() {
     if (exiting) return;
