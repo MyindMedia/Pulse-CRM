@@ -49,7 +49,9 @@ export function Field({
   className,
 }: {
   label: string;
-  hint?: string;
+  // ReactNode, not string: the SMS opt-in hint has to carry links to the
+  // privacy policy and terms for A2P 10DLC campaign review.
+  hint?: React.ReactNode;
   htmlFor?: string;
   children: React.ReactNode;
   className?: string;

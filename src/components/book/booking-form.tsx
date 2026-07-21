@@ -80,7 +80,22 @@ export function BookingForm({
       <Field
         label="Phone"
         htmlFor="bk-phone"
-        hint="Optional - we'll text session reminders & updates. Msg/data rates may apply; reply STOP to opt out."
+        hint={
+          <>
+            Optional - by giving your number you agree to receive session
+            reminders &amp; booking updates by text. Message frequency varies.
+            Msg/data rates may apply. Reply STOP to opt out, HELP for help.
+            Consent is not a condition of purchase. See our{" "}
+            <a href="/privacy" className="underline hover:text-gold">
+              Privacy Policy
+            </a>{" "}
+            and{" "}
+            <a href="/terms" className="underline hover:text-gold">
+              Terms
+            </a>
+            .
+          </>
+        }
       >
         <Input
           id="bk-phone"
