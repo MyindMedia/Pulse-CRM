@@ -36,6 +36,11 @@ const isPublicRoute = createRouteMatcher([
   "/opengraph-image(.*)", // social share card - must be scrapeable
   "/twitter-image(.*)", // social share card - must be scrapeable
   "/welcome/activate(.*)", // pay-first signup: reached before the account exists
+  // Legal pages must stay anonymous-reachable: A2P 10DLC / TCR campaign review
+  // fetches them signed-out, and a 307 to /sign-in reads to the reviewer as
+  // "no privacy policy" - which is exactly why a campaign was rejected before.
+  "/privacy",
+  "/terms",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",
