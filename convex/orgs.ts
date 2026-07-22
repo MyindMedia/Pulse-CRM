@@ -61,6 +61,8 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     depositPolicyText: org?.depositPolicyText ?? null,
     ownerName: org?.ownerName ?? null,
     ownerEmail: org?.ownerEmail ?? null,
+    // Public callback number printed in automated texts (see lib/smsTemplates).
+    contactPhone: org?.contact?.phone ?? null,
     configured: Boolean(org),
     // Feature toggles (nav gating) - keys the agency has disabled for this org.
     disabledFeatures: org?.disabledFeatures ?? [],
@@ -136,6 +138,9 @@ export const update = mutation({
     depositPolicyText: v.optional(v.string()),
     timezone: v.optional(v.string()),
     briefRequireAll: v.optional(v.boolean()),
+    // Public callback number for this studio. Automated texts print it so
+    // clients reach the studio rather than the shared 10DLC sender.
+    contactPhone: v.optional(v.string()),
   },
   handler: async (ctx, patch) => {
     if (patch.timezone !== undefined && !isValidTimezone(patch.timezone)) {
@@ -143,7 +148,15 @@ export const update = mutation({
     }
     const orgId = await currentOrgWithCapability(ctx, "branding.edit");
     const org = await ensureOrg(ctx, orgId);
-    const clean = Object.fromEntries(Object.entries(patch).filter(([, val]) => val !== undefined));
+    const { contactPhone, ...rest } = patch;
+    const clean: Record<string, unknown> = Object.fromEntries(
+      Object.entries(rest).filter(([, val]) => val !== undefined),
+    );
+    // contact is a nested object holding onboarding-wizard values; merge so
+    // editing the phone here never wipes legalName / address / website.
+    if (contactPhone !== undefined) {
+      clean.contact = { ...(org?.contact ?? {}), phone: contactPhone.trim() || undefined };
+    }
     if (org) {
       await ctx.db.patch(org._id, clean);
     } else {

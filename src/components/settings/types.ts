@@ -46,6 +46,7 @@ export type Org = {
   depositPolicyText: string | null;
   ownerName: string | null;
   ownerEmail: string | null;
+  contactPhone: string | null;
   configured: boolean;
   servicePricing: ServicePricing | null;
   discountCodes: DiscountCode[];

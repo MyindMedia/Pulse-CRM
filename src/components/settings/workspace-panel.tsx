@@ -53,13 +53,14 @@ export function WorkspacePanel({ org }: { org: Org }) {
   const [plan, setPlan] = React.useState<OrgPlan>(org.plan);
   const [accent, setAccent] = React.useState(org.accentColor);
   const [timezone, setTimezone] = React.useState(org.timezone ?? "");
+  const [contactPhone, setContactPhone] = React.useState(org.contactPhone ?? "");
   const [briefPolicy, setBriefPolicy] = React.useState(org.briefRequireAll ? "required" : "optional");
   const [submitting, setSubmitting] = React.useState(false);
 
   // Re-seed local state if the org record changes underneath us. We track a
   // derived signature of the watched fields so identity-only changes don't
   // clobber in-progress edits.
-  const orgSig = `${org.name}${org.tagline}${org.plan}${org.accentColor}`;
+  const orgSig = `${org.name}${org.tagline}${org.plan}${org.accentColor}${org.contactPhone ?? ""}`;
   const [prevOrgSig, setPrevOrgSig] = React.useState(orgSig);
   if (prevOrgSig !== orgSig) {
     setPrevOrgSig(orgSig);
@@ -68,6 +69,7 @@ export function WorkspacePanel({ org }: { org: Org }) {
     setPlan(org.plan);
     setAccent(org.accentColor);
     setTimezone(org.timezone ?? "");
+    setContactPhone(org.contactPhone ?? "");
     setBriefPolicy(org.briefRequireAll ? "required" : "optional");
   }
 
@@ -82,6 +84,7 @@ export function WorkspacePanel({ org }: { org: Org }) {
     plan !== org.plan ||
     (accentValid && normalizedAccent.toLowerCase() !== org.accentColor.toLowerCase()) ||
     (timezone !== "" && timezone !== (org.timezone ?? "")) ||
+    contactPhone.trim() !== (org.contactPhone ?? "") ||
     briefPolicy !== (org.briefRequireAll ? "required" : "optional");
 
   async function handleSave(e: React.FormEvent) {
@@ -102,6 +105,7 @@ export function WorkspacePanel({ org }: { org: Org }) {
         plan,
         accentColor: normalizedAccent,
         ...(timezone ? { timezone } : {}),
+        contactPhone: contactPhone.trim(),
         briefRequireAll: briefPolicy === "required",
       });
       toast.success("Workspace settings saved.");
@@ -163,6 +167,21 @@ export function WorkspacePanel({ org }: { org: Org }) {
               />
             </Field>
           </div>
+
+          <Field
+            label="Studio phone"
+            htmlFor="ws-phone"
+            hint="Printed in automated texts so clients call you back, not the sending number. Leave blank to omit it."
+          >
+            <Input
+              id="ws-phone"
+              type="tel"
+              value={contactPhone}
+              onChange={(e) => setContactPhone(e.target.value)}
+              placeholder="(213) 823-2720"
+              autoComplete="tel"
+            />
+          </Field>
 
           <Field
             label="Tagline"

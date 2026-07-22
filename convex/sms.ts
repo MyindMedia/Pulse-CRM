@@ -7,6 +7,13 @@ import { currentOrg } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { sendSms, type SmsStatus } from "./lib/sms";
 import { normalizePhone } from "./lib/phone";
+import {
+  renderSms,
+  displayPhone,
+  CLIENT_REMINDER,
+  STAFF_REMINDER,
+  MANUAL_CLIENT,
+} from "./lib/smsTemplates";
 
 /* SMS: automated session reminders (cron), manual studio→client texts, and
    inbound replies + STOP/START opt-out handling (A2P 10DLC compliance).
@@ -92,7 +99,7 @@ export const sendClientSms = action({
     if (await ctx.runQuery(internal.sms._isOptedOut, { phone: c.phone })) {
       return { ok: false, status: "opted_out" };
     }
-    const text = `${c.studioName}: ${body}`;
+    const text = renderSms(MANUAL_CLIENT, { studio: c.studioName, body });
     const status = await sendSms({ to: c.phone, body: text });
     const identity = await ctx.auth.getUserIdentity();
     await ctx.runMutation(internal.sms._logSms, {
@@ -142,6 +149,9 @@ export const _dueReminders = internalQuery({
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     if (!org || org.smsRemindersEnabled === false) return [];
     const studio = org.name ?? "Studio";
+    // The studio's own callback number from the onboarding wizard - clients
+    // should reach the studio, never the shared 10DLC sender.
+    const studioPhone = displayPhone(org.contact?.phone);
     const now = Date.now();
 
     const upcoming = await ctx.db
@@ -178,7 +188,13 @@ export const _dueReminders = internalQuery({
         recipients.push({
           phone: clientPhone,
           isClient: true,
-          body: `${studio}: Reminder - your session "${s.title}" starts ${soon} (${dateStr}). Reply STOP to opt out.`,
+          body: renderSms(CLIENT_REMINDER, {
+            studio,
+            title: s.title,
+            soon,
+            date: dateStr,
+            phone: studioPhone,
+          }),
         });
       }
       if (s.engineerId) {
@@ -188,7 +204,12 @@ export const _dueReminders = internalQuery({
           recipients.push({
             phone: engPhone,
             isClient: false,
-            body: `${studio}: You're booked - "${s.title}" ${soon} (${dateStr}).`,
+            body: renderSms(STAFF_REMINDER, {
+              studio,
+              title: s.title,
+              soon,
+              date: dateStr,
+            }),
           });
         }
       }
