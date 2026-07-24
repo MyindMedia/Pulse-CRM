@@ -41,9 +41,18 @@ const isPublicRoute = createRouteMatcher([
   // "no privacy policy" - which is exactly why a campaign was rejected before.
   "/privacy",
   "/terms",
+  // SEO cornerstone posts: crawled and read signed-out. A sign-in redirect here
+  // would hide the content from search engines entirely (same failure mode the
+  // legal pages above call out). Needs the explicit "/blog" before "/blog/(.*)".
+  "/blog",
+  "/blog/(.*)",
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",
+  // Newsletter send: server-to-server / agent-triggered, gated by ADMIN_SECRET
+  // inside the route handler (not Clerk). Without this exemption Clerk 307s the
+  // POST to /sign-in and the ADMIN_SECRET call can never reach the handler.
+  "/api/admin/newsletter",
   // NOTE: these matchers need the explicit "/" before "(.*)" - a bare
   // "/book(.*)" also matches sibling APP routes (/bookings, /payments,
   // /visitors), silently exempting them from the sign-in redirect.
