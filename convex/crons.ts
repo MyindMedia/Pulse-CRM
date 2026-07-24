@@ -33,6 +33,12 @@ crons.interval("sms-reminders", { minutes: 15 }, internal.sms.sendDueReminders);
 // engineer at 24h and 2h. Staff shifts: 24h before. Idempotent per entity.
 crons.interval("email-reminders", { minutes: 30 }, internal.reminders.sweep, {});
 
+// Waitlist nurture: Pulse's own owned-channel acquisition sequence. Scans the
+// marketing `subscribers` list and sends the Day 0 / Day 2 / Day 5 emails as
+// each becomes due. Idempotent per subscriber per step (subscribers.nurtureSent);
+// new signups also trigger an immediate sweep so the welcome lands at once.
+crons.interval("waitlist-nurture", { hours: 1 }, internal.subscribers.nurtureSweep, {});
+
 // Cloud-side A2P 10DLC finisher: polls the Standard A2P profile, registers the
 // brand once approved, then creates the campaign - so registration completes
 // without a local terminal. Idempotent; no-ops once the campaign exists.

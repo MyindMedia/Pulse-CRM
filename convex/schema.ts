@@ -1041,6 +1041,26 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_session", ["sessionId"]),
 
+  // ── Waitlist subscribers - Pulse's OWN owned-channel marketing list ──
+  // Platform-level (no orgId): these are prospective customers who joined the
+  // "get updates" capture on the marketing site, NOT a studio's clients. Kept
+  // separate from the multi-tenant CRM so marketing mail never mixes with tenant
+  // data. Source of truth for the nurture engine; each subscriber is also pushed
+  // to the Resend Audience so the MYI-52 newsletter broadcast reaches them.
+  subscribers: defineTable({
+    email: v.string(), // normalized lowercase; unique by convention via by_email
+    source: v.optional(v.string()), // capture origin: "footer", "blog", ...
+    status: v.union(v.literal("subscribed"), v.literal("unsubscribed")),
+    createdAt: v.number(),
+    // Completed nurture steps ("day0" | "day2" | "day5"). The dedupe ledger -
+    // mirrors session.emailRemindersSent so a step is never sent twice.
+    nurtureSent: v.array(v.string()),
+    lastNurtureAt: v.optional(v.number()),
+    // Result of the best-effort Resend Audience push: "added" | "simulated" | "failed".
+    audienceStatus: v.optional(v.string()),
+    unsubscribedAt: v.optional(v.number()),
+  }).index("by_email", ["email"]),
+
   // ── Engineering log - "Recall Sheet 2.0" ──
   engineeringLogs: defineTable({
     orgId: v.string(),

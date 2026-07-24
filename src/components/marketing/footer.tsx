@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { PulseLogo } from "@/components/brand/pulse-logo";
+import { WaitlistForm } from "./waitlist-form";
 
 const COLUMNS = [
   {
@@ -31,6 +32,20 @@ const COLUMNS = [
 export function Footer() {
   return (
     <footer className="relative border-t border-graphite/50 px-4 py-14 lg:px-8">
+      {/* Owned-channel capture: join the waitlist / get product updates. */}
+      <div className="mx-auto mb-12 max-w-6xl">
+        <div className="rounded-chrome border border-graphite/60 bg-obsidian/50 px-6 py-8 sm:flex sm:items-center sm:justify-between sm:gap-8">
+          <div className="max-w-sm">
+            <p className="chrome-meta text-gold">Get product updates</p>
+            <p className="font-grotesk mt-2 text-sm text-mist/75">
+              Studio playbooks, new features, and early access. No spam,
+              unsubscribe anytime.
+            </p>
+          </div>
+          <WaitlistForm source="footer" className="mt-5 sm:mt-0 sm:w-[380px]" />
+        </div>
+      </div>
+
       {/* 5 cells: brand blurb + Product + Account + Legal + Made by. */}
       <div className="mx-auto grid max-w-6xl gap-10 sm:grid-cols-2 lg:grid-cols-5">
         <div className="space-y-4">

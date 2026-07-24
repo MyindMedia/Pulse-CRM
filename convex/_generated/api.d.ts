@@ -156,6 +156,7 @@ import type * as stripeConnect from "../stripeConnect.js";
 import type * as studioBrain from "../studioBrain.js";
 import type * as studioImport from "../studioImport.js";
 import type * as studioManager from "../studioManager.js";
+import type * as subscribers from "../subscribers.js";
 import type * as testHarness from "../testHarness.js";
 import type * as timeclock from "../timeclock.js";
 import type * as today from "../today.js";
@@ -319,6 +320,7 @@ declare const fullApi: ApiFromModules<{
   studioBrain: typeof studioBrain;
   studioImport: typeof studioImport;
   studioManager: typeof studioManager;
+  subscribers: typeof subscribers;
   testHarness: typeof testHarness;
   timeclock: typeof timeclock;
   today: typeof today;

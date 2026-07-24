@@ -29,3 +29,25 @@ export async function sendEmail(args: {
     return "failed";
   }
 }
+
+/** Add a contact to the managed Resend Audience so the newsletter broadcast
+    path (MYI-52) reaches waitlist subscribers. Best-effort: no-ops to
+    "simulated" when RESEND_API_KEY / RESEND_AUDIENCE_ID are unset, and never
+    throws (the signup itself must not fail if the audience push does). */
+export async function addAudienceContact(
+  email: string,
+): Promise<"added" | "simulated" | "failed"> {
+  const key = process.env.RESEND_API_KEY;
+  const audienceId = process.env.RESEND_AUDIENCE_ID;
+  if (!key || !audienceId) return "simulated";
+  try {
+    const res = await fetch(`https://api.resend.com/audiences/${audienceId}/contacts`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ email, unsubscribed: false }),
+    });
+    return res.ok ? "added" : "failed";
+  } catch {
+    return "failed";
+  }
+}

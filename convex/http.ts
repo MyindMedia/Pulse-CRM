@@ -147,4 +147,33 @@ http.route({
   }),
 });
 
+/* Waitlist unsubscribe - one-click link in every nurture/newsletter email.
+   Flips the subscriber to "unsubscribed" (idempotent, never throws) and returns
+   a small confirmation page. Email-in-querystring is standard for a marketing
+   list and low-risk here (worst case someone opts another address out of a
+   prospect newsletter). */
+http.route({
+  path: "/unsubscribe",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const url = new URL(req.url);
+    const email = url.searchParams.get("email") ?? url.searchParams.get("e") ?? "";
+    if (email) await ctx.runMutation(internal.subscribers.unsubscribeByEmail, { email });
+    const html = `<!doctype html><html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Unsubscribed - Pulse</title></head>
+<body style="margin:0;font-family:system-ui,-apple-system,sans-serif;background:#0d0d0f;color:#f4f2ee;">
+  <div style="max-width:460px;margin:16vh auto;padding:0 24px;text-align:center;">
+    <p style="font-size:12px;letter-spacing:0.16em;text-transform:uppercase;color:#fdb913;margin:0 0 14px;">Pulse</p>
+    <h1 style="font-size:26px;margin:0 0 12px;">You're unsubscribed</h1>
+    <p style="font-size:15px;line-height:1.6;color:#b7b3aa;margin:0;">You won't get any more waitlist emails from Pulse. Changed your mind? You can rejoin from the site anytime.</p>
+  </div>
+</body></html>`;
+    return new Response(html, {
+      status: 200,
+      headers: { "content-type": "text/html; charset=utf-8" },
+    });
+  }),
+});
+
 export default http;
