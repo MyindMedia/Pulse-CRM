@@ -817,6 +817,398 @@ session status automatically.
   badge on matched visits; QR success screen names the found booking.
 - Tests: 12 new in visitors.test.ts (676 total). Deployed Convex prod + main.
 
+## Fix: studiopulse.tech sign-in hang -> Clerk satellite domain (2026-07-15, commit 059f1a6)
+
+**Symptom:** sign-in at studiopulse.tech/sign-in hung on the loading screen.
+**Root cause (proven):** production Clerk instance had ONE domain
+(pulse.myindsound.com); FAPI rejected every request from studiopulse.tech with
+`origin_invalid` ("Origin must be equal to or a subdomain of the requesting
+URL"), so ClerkJS could never establish a session and the app waited forever.
+Predicted at domain setup ([[pulse-studiopulse-domain]]).
+**Fix (satellite, non-destructive; primary-domain flip deferred):**
+- Clerk API: POST /v1/domains `{name:"studiopulse.tech", is_satellite:true}`
+  -> dmn_3GZ43HCofs0OcxaDyXmXkEkqYyo, FAPI clerk.studiopulse.tech.
+- Netlify DNS (zone 6a57e25bcaab47444ab4c397): CNAME clerk.studiopulse.tech ->
+  frontend-api.clerk.services (Clerk auto-issues SSL after detection).
+- `src/middleware.ts`: clerkMiddleware now takes a per-request OPTIONS CALLBACK
+  - satellite hosts get `{isSatellite, domain, signInUrl/signUpUrl ->
+  https://pulse.myindsound.com/...}`; satellite /sign-in + /sign-up redirect to
+  the primary (satellites cannot host Clerk auth flows) with redirect_url back;
+  protected satellite routes use plain auth.protect() (Clerk handshake).
+- `convex-client-provider.tsx`: ClerkProvider gets the same satellite props
+  (browser-computed behind typeof-window) + `allowedRedirectOrigins`
+  [studiopulse.tech, www] so the primary honors the return trip.
+- No Convex change (issuer stays clerk.pulse.myindsound.com; same instance).
+**Sign-in UX on satellite:** URL bounces through pulse.myindsound.com for the
+Clerk flow, then returns signed in. Making studiopulse.tech PRIMARY instead is
+a future planned cutover (new pk key, 5 DNS records, Google OAuth redirect URI
+update in Google console, sessions dropped) - deliberately not done here.
+
+**Follow-up same day - CNAME mode never worked; switched to PROXY mode
+(e84f6b9) + SSR host decision (6b8f444):**
+- Clerk never issued the TLS cert for clerk.studiopulse.tech (>1h,
+  ERR_SSL_VERSION_OR_CIPHER_MISMATCH on the handshake; no CAA blockers). Fix:
+  PATCH the domain with `proxy_url: https://studiopulse.tech/__clerk` and turn
+  on clerkMiddleware's `frontendApiProxy` for satellite hosts - the satellite
+  FAPI is served same-origin under the site's own Netlify cert and forwarded
+  to Clerk over the primary FAPI's TLS. `/__clerk(.*)` added to BOTH
+  isPublicRoute AND config.matcher (ClerkJS fetches .js assets through it and
+  the matcher excludes .js). CNAME left in DNS but now `required: false`.
+- **SSR gotcha (the second loading-screen):** ClerkJS's script tag is
+  SERVER-rendered with provider config in data- attributes; a client-only
+  `typeof window` satellite check hydrates too late -> satellite got
+  primary-domain config -> "ClerkJS: Missing domain and proxyUrl". Root
+  layout now reads the request HOST header (`await headers()`) and passes
+  `isSatellite` as a prop to ConvexClientProvider (makes routes dynamic -
+  accepted). Verified live: script tag src goes through /__clerk with
+  data-clerk-proxy-url set, window.Clerk {loaded:true, satellite:true},
+  console clean, /dashboard bounces to primary sign-in with redirect_url and
+  the form renders. Credential round-trip = owner-verified.
+
+## Feature: Arrival prep widget - alert + studio-prep checklist (2026-07-16, commit aa1b854)
+
+**Owner ask:** a section with an alert and a checklist for studio prep and
+client arrival - view session details and print the parking placeholder with
+the same one-button function as the QR print.
+**Build:** default dashboard widget "Arrival prep" (`arrival-prep-card.tsx`,
+registered span=half after the Today board). Next 24h tentative/confirmed
+sessions (via sessions.upcoming), max 4, each with a 4-step live checklist:
+Session details (Link -> /calendar?session=<id>, marks done), Parking sign
+(openSignWindow(parkingSignHtml) with the booking's artist name, marks done),
+Room ready + Welcome set (toggles). Header = countdown chip for the soonest
+arrival, pulsing gold under 60 min ("the alert"). State = new org-scoped
+`arrivalPrep` table {orgId, sessionId, done[]} by_org_session (allowlisted
+step union; setStep verifies the session belongs to the caller's org; 2
+tests incl cross-org rejection) - shared live across staff. openSignWindow
+extracted to `lib/sign-window.ts`. 723 vitest; Convex prod + Netlify deployed.
+**Not this pass:** push/SMS arrival alerts (could ride opsBrain/reminders),
+per-studio custom checklist steps.
+
+**Follow-up (2026-07-16, commit 7f9929c): wrap-up + studio refresh + DEVICE
+PUSH ALERTS (the deferred web-push finally built).**
+- New widget "Wrap-up & studio refresh" (`wrapup-card.tsx`, span=half): sessions
+  ending/ended within 45 min (new `arrivalPrep.wrapping` query - by_org_start
+  window, hydrates artist/room + NEXT booking in the same room within 2h as the
+  refresh target). Checklists: wrap = files/billing/gear/notes, refresh =
+  reset/refresh/zero/stage - same shared arrivalPrep row, step union extended.
+- **Web-push pipeline:** `pushSubscriptions` (per-device endpoint rows, pruned
+  on 404/410) + `pushAlerts` dedupe ledger; `push.ts` (publicKey/subscribe/
+  unsubscribe/isSubscribed); `pushSend.ts` ("use node", web-push + VAPID -
+  keys GENERATED + SET on prod env: VAPID_PUBLIC_KEY/PRIVATE_KEY/SUBJECT);
+  `pushAlerts.sweep` internal mutation on a NEW 1-min cron
+  ("t10-device-alerts" - crons.ts is guarded by a file hook, edited via python
+  with disclosure) - only orgs with registered devices scanned. Pure alert
+  logic `lib/t10.ts` (5 tests): T-10 arrival (confirmed/tentative), T-10
+  wrap-up (in_progress/confirmed end), shift change T-10 (skips cancelled),
+  studio refresh at end-time when another booking follows in-room. 2-min
+  windows, ledger absorbs overlap.
+- `public/push-sw.js`: showNotification with vibrate [200,100,200,100,300] +
+  sound (haptic/audible per device), tag renotify, click -> focus/open app.
+  `lib/push.ts` client subscribe (iOS needs installed PWA 16.4+). "Enable
+  device alerts" chip in BOTH prep widget headers; "Alerts on" check when the
+  device endpoint is registered. STUDIO_TZ env (unset = America/New_York)
+  formats alert clock times.
+- 728 vitest; Convex prod (schema + cron) + Netlify deployed.
+
+**Follow-up (f6b791d): Pulse Agent branding + artifact markdown.** All
+user-visible "Pulse AI" labels are now "Pulse Agent" (panel headings, widget
+title; file/component names unchanged to avoid churn). Agent artifacts
+(weekly briefings etc.) rendered raw markdown in a <pre>; new dependency-free
+`ai/simple-markdown.tsx` renders the emitted subset (#/## headings, bullets,
+**bold**, paragraphs) as styled text nodes - wired into draft-card bodies.
+
+**Follow-up (e4b35a7): bookings hygiene + archive + seeded messages + sheet
+confirms.** Owner: board must show only relevant/now+upcoming, stale unpaid
+holds -> archive on Reports, old rows auto-categorized by payment status,
+seeded message logs, sheet compaction + confirm popups.
+- Automation "stale resolution" pass (runAutomation block 0, internal AND
+  public rows, 24h grace): past unpaid tentative -> cancelled+
+  autoResolved:"expired_hold"; past confirmed unpaid -> no_show
+  ("auto_no_show"); paid or in_progress -> completed ("auto_completed").
+  sessions.autoResolved marker (schema). Test convex/staleResolution.test.ts.
+  RAN ON PROD: 13 auto-completed / 3 no-shows / 5 expired holds, 0 stale left.
+- Bookings page: lanes filter to endTime >= now-14d ("Older bookings live in
+  Reports / Archive" link), sort select (soonest/latest/value/client);
+  online-first bias removed. Tiles still count everything.
+- Reports += "Archive" tab (`reports.bookingArchive` query + booking-archive
+  report): 4 buckets, 90d table, "auto" tag on auto-resolved rows.
+- seedDemoYear: message logs on ~38% of bookings (booking.confirmed email,
+  session.reminder.24h sms simulated, client.question + staff.reply sms
+  threads); prior seeded notifications wiped WITH their sessions (dedupe by
+  sessionId of TAG rows). RE-SEEDED prod Myind Sound: 314 sessions, 112/68/
+  51/52 message rows.
+- BookingSheet: footer buttons flex-1 (bigger targets, less dead space);
+  Cancel / Mark no-show / Check in gated by confirmation dialogs.
+
+**Follow-up (269eb57): schedule-aware booking slots + brief tap-through.**
+Owner: in-app booking for today must start at the NEXT available slot, never
+the past, reading schedule/availability to prevent double-booking, grey out
+taken slots - all surfaces. Build: BookSessionDialog's time input replaced by
+a slot GRID reusing the public `booking.availability` query (hourly, 9-22,
+past excluded, booked blocks returned): duration-aware conflict check client-
+side (slot dead if any booked block overlaps [start, start+duration)), greyed
++ struck-through when unavailable, auto-SNAP to next open slot when the
+selection is past/taken/unset, "No open times this day" empty state, step
+validity requires a legal slot. No room chosen = past times still disabled
+(no conflict data without a room). Covers calendar + bookings + rebook
+(same dialog); public /book page already had this. Arrival prep rows: header
+row (artist/time/room) is now a Link to /brief/<id>.
+
+**Fix-of-the-fix (6b34cb0): Tailwind calc GOTCHA.** The safe-area calc classes
+(`h-[calc(4rem+env(...))]`, `top-[calc(1rem+env(...))]`) were SILENTLY DROPPED
+- Tailwind arbitrary calc needs spaces encoded as underscores
+(`calc(4rem_+_env(...))`); unspaced `+` = invalid CSS, no build error. Only
+the space-free pt/pb rules had emitted, so status-bar collisions survived two
+deploys. Now all four rules verified IN THE BUILT CSS (grep .next chunks).
+Lesson recorded in memory: always grep emitted CSS for arbitrary calc values.
+
+**Follow-up (0a9070c): calendar Day/Week views + sheet safe-area.** Owner
+(iPhone 17 Pro Max PWA): session sheet content collided with the status bar,
+calendar rows amputated text, Today "did nothing", no day/week toggles. Fixes:
+(1) SheetContent primitive now pads env(safe-area-inset-top/bottom) + close
+button offset (per-usage nav inset removed - would have doubled); (2) calendar
+rebuilt on ONE anchor date with Day/Week/Month/Agenda views (prev/next steps
+by the view unit; Today jumps anchor to now; phones default to DAY; header
+labels day/week span); `startOfWeek` added to calendar constants (Sunday,
+local); Day/Week reuse AgendaList over sessions.inRange windows; (3) agenda
+rows: 2-line title clamp (manual -webkit-box - no line-clamp plugin), meta
+wraps, artist+engineer chips on their own wrap line, badge pinned; (4) BONUS:
+`?session=<id>` deep link on /calendar (used by brief + invoice pages) now
+actually opens the SessionSheet - it was previously ignored.
+
+**Follow-up (a0d8ce9): per-rented-item wrap-up steps.** Sessions with gear
+add-ons (sessions.addOns = a-la-carte rented equipment) auto-grow the wrap-up
+checklist: one "Return <item>" step per add-on (key `item:<equipmentId>`,
+setStep validates against the session's REAL addOns - stepV is now v.string()
+with FIXED_STEPS set + item allowlist, arbitrary keys rejected). wrapping +
+brief queries expose `rentedItems`; wrap-up widget shows a "Rented gear back
+to storage" chip row and the done pill counts 8+k; brief appends them to the
+wrap section with the same attribution trail. Tracks non-standard gear back
+to storage piece by piece.
+
+**Follow-up (4fedca3): pinned Arrival prep + editable parking name.** Arrival
+prep removed from the widget registry and rendered PINNED above the
+customizable grid (normalizeLayout drops the stale key from saved layouts
+automatically) - always first on every dashboard. New shared
+`components/parking/parking-sign-dialog.tsx`: every parking print (visitors
+header + rows, arrival widget chip, brief button/chip) opens it with the name
+PREFILLED (booking artist / visit-log entry) but EDITABLE - placeholder
+session names get corrected before printing. Checklist "parking" step marks
+only onPrinted (not on dialog open); brief StepSection action chips no longer
+auto-toggle.
+
+**Fix (a7e43bc): iOS top safe area in the installed PWA.** Topbar content
+collided with the clock/Dynamic Island on notched iPhones (17 Pro Max) -
+edge-to-edge was intended (viewportFit cover + black-translucent) but only
+the BOTTOM inset was handled (tab bar). Topbar now
+`h-[calc(4rem+env(safe-area-inset-top))] pt-[env(safe-area-inset-top)]`
+(blur still runs under the status bar); mobile nav SheetContent pads the
+same inset. env() = 0 in normal browsers, so no effect outside the PWA.
+
+**Fix (c1956c1): StudioBanner leaked to staff.** The "Viewing <studio> as
+client / Exit to agency" strip rendered for ANY real studio workspace - a
+studio manager (berlaw) saw the agency view-as banner in their own studio.
+Now gated on useCapabilities().kind === "agency_member" (same gate as the
+sidebar console link; null-while-loading so no flash). Also that day:
+berlaw@gmail.com Google sign-in minted a new Clerk user -> repaired by adding
+it org:admin to the Myind Sound Clerk org + `members:_relinkClerkUser`
+(496f835) CLI repair for GHOST clerkUserId links left by the cutover.
+
+**Fix (4dfa4cd): post-sign-in "Pulse hit a snag" -> AuthGate.** Google OAuth
+worked (after the user added the 2 redirect URIs to the Google client in
+project pulse-497404, see [[pulse-google-oauth-client]]) but the redirect
+landed on the snag boundary: prod logs showed ~12 dashboard queries throwing
+UNAUTHENTICATED in one burst at 10:57:30 - the app mounts before the session
+attaches to the Convex socket (wider window with Google redirect + satellite
+handshake). Structural fix instead of degrading every query:
+`shell/auth-gate.tsx` holds the whole (app) tree behind a branded splash
+("Opening your studio") until useConvexAuth reports authenticated - FIRST
+attach only (state latches; token refresh / org switch never unmounts).
+Demo mode (no Clerk key) passes through. Frontend-only deploy.
+
+**Follow-up (78db864): team settings restructure.** Role-permissions explainer
+collapses by default (header toggles, keyboard-accessible). Standalone
+"Engineer profiles" settings panel DELETED - the member Edit dialog now
+carries an "Engineer profile" section (engineer-facing roles only): bio,
+notable credits, NEW Spotify profile + playlist links
+(members.spotifyUrl/playlistUrls, https-validated in setProfile, playlists
+capped at 10). Booking-page consumers of bio/credits unchanged; surfacing
+spotify links on the public engineer picker = follow-up.
+
+**Follow-up (dc70a40): Pre-session brief - T-15 notification + accountability.**
+Owner: brief leveraging the booking + name, parking print on it, notification
+to on-schedule staff 15 min before start and during staging windows, and an
+optional/required-check-all policy for accountability.
+- `/brief/<sessionId>` page (feature-mapped to "bookings"): booking header
+  (artist/title/times/room/engineer/notes chips + starts-in badge), policy
+  banner (requireAll: amber "every step required" -> green "brief complete";
+  pre-start = arrival section, post-start = all 12), prominent "Print parking
+  sign for <artist>" button, three StepSections (arrival w/ parking action,
+  wrap #wrap anchor, refresh w/ turnover target) each with an attribution
+  trail ("Room ready - Theo, 2:41 PM").
+- `arrivalPrep.brief` query (session + prep + attribution + requireAll +
+  next-in-room); setStep now records `attribution` [{step, by, at}] from the
+  identity (uncheck clears); orgs += `briefRequireAll` (Workspace setting
+  "Session brief checklist": optional/required).
+- Alerts: arrival alert MOVED to T-15 as "Pre-session brief - 15 minutes out"
+  (key b15, url /brief/<id>); wrap + refresh alerts deep-link /brief/<id>#wrap.
+  pushSend gains `clerkUserIds` targeting; the sweep computes ON-SHIFT staff
+  (shift covering now, +20min lead-in, via members.clerkUserId) and targets
+  their devices, falling back to all org devices when none registered.
+- Arrival widget details chip -> "Open brief". 729 vitest; prod deployed.
+
+**Follow-up (f7e5892): per-studio timezone from device location.** Convex
+runs UTC - alerts/reminder emails/shift SMS all formatted in the wrong zone.
+`orgs.timezone` (IANA, validated via Intl in orgs.update): AUTO-SET by
+`TimezoneSync` shell component from the first settings-capable device that
+loads the app (staff device location = studio location; cap denials silent),
+manual Select + "Use this device's timezone" in Settings > Workspace. Shared
+`convex/lib/tz.ts` (orgTz/clockTime/whenLabel/dateLabel) feeds t10 alerts
+(tz param), reminders.ts and sms.ts. STUDIO_TZ env = fallback only, then
+Eastern. Owner is PST - his studios stamp America/Los_Angeles on next load.
+
+## Fix + security: /agency boot-race crash and visibleOrgs anonymous leak (2026-07-15, commit b907ba2)
+
+Fresh /agency loads on the satellite hit "Pulse hit a snag": `agencyProfile.mine`
+threw UNAUTHENTICATED into the boundary when the page subscribed before Clerk
+attached to the socket (proxied Clerk boot widens the race). Fixed with the
+orgs.current degrade pattern (AccessError -> null). While tracing it: found
+`visibleOrgs`' `.catch(() => null)` left the agency filter UNAPPLIED on that
+same throw - `agency.overview`/`agency.subaccounts` returned EVERY org with
+revenue rollups to an unauthenticated socket. Now returns [] on throw (demo
+mode unaffected - its viewer resolves without throwing). Deployed to Convex
+prod immediately. **FOLLOW-UP (security list):** an AUTHED non-agency viewer
+(e.g. a studio member) still gets the unfiltered org list from those queries -
+same filter-only-if-agency shape; tighten with the next security pass.
+
+## Feature: reserved-parking name badge (2026-07-15, commit 2035f2f)
+
+Same branded print family as the check-in sign: `lib/parking-sign.ts` (pure,
+3 tests) renders a landscape-Letter reserved-parking sign - logo/monogram,
+studio caps name, accent rule, "RESERVED PARKING", guest name as the hero with
+an accent period, serif italic "We saved this spot for you.", Pulse footer;
+composition vertically centered. Entry points: "Parking sign" header action on
+/visitors (name dialog with visit-log suggestions) + one-tap CircleParking
+shortcut on every visit-log row. `escapeHtml`/`safeAccent` now exported from
+checkin-sign; shared `openSignWindow` helper.
+
+## Feature: agency sub-account import from the studio's existing website (2026-07-15, commit 9ddff6b)
+
+**Owner ask:** when creating a sub-account, paste the studio's existing link to
+pull their logo and basic info.
+**Build:** `convex/lib/studioSite.ts` (pure, 8 tests incl applyToOrg suite):
+normalizeSiteUrl (http/https only), JSON-LD walker (Organization/LocalBusiness/
+RecordingStudio etc via @graph too) > og tags > title fallback; email/phone from
+JSON-LD or mailto:/tel: links; PostalAddress joined; logo candidates ranked
+JSON-LD logo > apple-touch-icon (sized) > icons > og:image, relative URLs
+resolved. `convex/studioImport.ts`: `fetchFromSite` action (gated
+agency.subaccount.create via internal access query; 8s timeouts, 2MB HTML /
+4MB logo caps, first real image/* stored to _storage) + `applyToOrg` mutation
+(gated agency.subaccount.pause per-org; patches logoId, tagline-if-unset,
+merges contact email/phone/address/website). CreateSubaccountDialog: optional
+"Studio website" field + Fetch button -> prefills name, shows logo/info preview
+chip, applies after createSubaccount (best-effort, never fails creation).
+Parser verified live against myindsound.com + abbeyroad.com.
+
+**Follow-up (7ca0bf5): whole-app theming + monochrome accents.** Owner: saved
+branding must cover the ENTIRE app and follow client view-as. Diagnosis (live
+computed styles): view-as theming already worked (orgs.current resolves the
+acting org; sidebar+main computed the derived accent) BUT (1) Radix portals
+(dialogs/dropdowns/palette/toasts at document.body) sat OUTSIDE the
+display:contents wrapper -> overlays stayed stock gold, and (2) The Dojo's
+saved #ffffff was force-saturated into dusty red #ca7272 (hue 0 + minimum
+0.45 sat on a colorless value). Fixes: OrgTheme now sets/removes the 5 gold
+token vars on <html> via effect (portals inherit; cleanup on unmount protects
+/book /visit /kiosk own-brand wrappers); deriveBrandTokens gains a
+monochrome branch (s < 0.12 -> silver neutral family, near-black ink).
+brand-theme now unit-tested (3 tests).
+
+**Follow-up (1419a74): 20 accent swatches + full-spectrum picker.** The
+branding panel's swatch row grew 8 -> 20 (settings/types.ts, mid-lightness
+band) and gained a conic-rainbow tile wrapping a native `<input type="color">`
+(OS spectrum window incl. eyedropper) wired to the same accent state ->
+Save persists -> OrgTheme rethemes app + booking page. Hex entry unchanged.
+
+**Follow-up same day (f699452): brand colors from the logo, both paths.**
+Convex storage URLs serve CORS (verified), so the same canvas hue-bucket
+extraction (`lib/brand-theme.extractBrandFromImage`, which already accepts a
+URL) now runs (1) in the create-subaccount dialog on the imported logo's
+preview URL - accent + palette ride through `applyToOrg`, applied ONLY while
+the org accent is stock #fdb913 (a chosen accent is never clobbered; invalid
+hex rejected server-side; accent swatch shown in the preview chip) - and
+(2) on demand via a new "Match colors to logo" button in Settings > Branding
+(re-derives from the CURRENT logo through the existing `applyBrandFromLogo`,
+covering logos that arrived without extraction). Manual upload extraction was
+already live (branding panel + welcome wizard). 718 vitest green.
+
+## Feature: printable branded front-desk check-in sign (2026-07-15, commit 2634932)
+
+**Owner ask:** an elegant branded one-pager each sub-account can print from the
+visitor check-in QR modal and post at the front desk.
+**Build:** `src/lib/checkin-sign.ts` - pure `checkinSignHtml(brand, url, qrSvg)`
+generator (unit-tested: accent hex validated against style injection, all text
+HTML-escaped, logo -> monogram fallback). Print-first design: white US-Letter
+page (scales to A4), studio logo or accent monogram, letterspaced studio name,
+Instrument Serif italic tagline + accent word, accent-framed QR (the dialog's
+own rendered SVG, so sign always matches the link), mono URL, three
+accent-numbered scan steps, "Powered by Pulse" footer. Google fonts loaded in
+the print window; doc prints itself after `load` + `document.fonts.ready` and
+closes on afterprint. Dialog (visitors page) gains a primary "Print front-desk
+sign" button; brand comes from `orgs.current` so agency view-as prints each
+sub-account's own branding. 706 vitest green.
+
+## Fix: /bookings "shows no bookings" -> KPI tiles counted online-only (2026-07-15, commit 2dd50bd)
+
+**Report:** studiopulse.tech/bookings "isn't showing any actual bookings" (seeded + real).
+**Diagnosis (live browser + prod data):** NOT a satellite/auth issue - the page
+loaded signed-in with the full pipeline (HOLDS 25 etc.). Myind Sound studio org
+(org_3GFAaPYy...) holds 302 sessions: 308 seeded `source:"demo_year"` + ~11 real
+staff-created (source unset). The four TOP stat tiles filtered
+`source === "public_booking"` -> ZERO such sessions exist in that org -> tiles
+read 0/0/0/$0 above the fold and the page scanned as empty. Staged bookings
+live in the staged org (`staged-playback-recording-studio`, 5 sessions,
+source "demo") and only show when acting as that sub-account.
+**Fix:** tiles now roll up EVERY session (holds / awaiting balance / paid in
+full / collected); online-ness still badges cards + sorts lanes; page
+description + collected hint no longer say "online". If the demo seed should
+exercise the online-booking funnel, stamping a share of seeded sessions
+`source:"public_booking"` is the follow-up lever (not done this pass).
+
+## Feature: required payment type on manual invoice payments + credit -> P&L adjustment (2026-07-15)
+
+**Owner ask:** manually recording an invoice payment must require a payment type
+(Venmo, Cash, Cash App, Zelle, Credit); anything credit posts to P&L adjustments,
+and payment types are captured so total payments by type are trackable.
+**Build (completed an in-flight uncommitted backend pass found in the tree):**
+- Schema: `invoices.paymentMethod` (venmo/cash/cashapp/zelle/credit/card,
+  optional - unset = paid before the field existed); `expenses.category` +=
+  `"adjustment"` ("P&L adjustment" in the dialog/labels).
+- `invoices.setStatus`: `paymentMethod` REQUIRED when status -> paid (server
+  throws otherwise); stamps the method; on the fresh transition into paid with
+  `credit`, auto-posts ONE offsetting `adjustment` expense (credit is not cash
+  in, so revenue nets out) - re-saves never double-post. Activity row + team
+  email say "via <method>"; the client receipt says credit was applied instead
+  of "we received your payment".
+- Online path stamps `card` itself: `invoicePay.settleInvoice` (Stripe checkout
+  webhook) + `cardOnFile._markFeePaid` (No-Show Shield off-session charge).
+- `expenses.plReport` += `paymentsByMethod` (paid invoices grouped by method;
+  session `payments` rows counted as card; legacy = "unrecorded").
+- UI: new `RecordPaymentDialog` (required radio-tile method picker, credit
+  shows a "posts a P&L adjustment" note) wired into BOTH manual surfaces -
+  invoice table "Mark paid" and detail-page "Record payment" (which now takes
+  `amountCents`). Invoice sheet shows "Settled <date> via <method>"; Expenses
+  page gains a "Payments by type" chip row; `PAYMENT_METHOD` labels in
+  `lib/labels.ts`.
+- Tests: `convex/invoicePaymentMethod.test.ts` (6: required-method throw,
+  method stamp, single adjustment + no double-post, void needs no method,
+  webhook stamps card, plReport by-method rollup); dunning tests updated to
+  pass a method. 703 vitest green; tsc/lint/build clean (build needs node@22
+  on PATH for the convex codegen prebuild).
+- **SHIPPED 2026-07-15 late (commit 8cc59d3):** Convex prod deployed FIRST,
+  then main pushed (deployed together with the studio-site importer 9ddff6b).
+  Tree still holds unrelated uncommitted changes (sign-in/globals.css/
+  clerk-appearance/welcome-activate) from a prior session - left uncommitted.
+
 **Follow-up (2026-07-15): true browser fullscreen.** Owner: kiosk should run full
 screen with no menus, just a minimize button to exit. The route was already
 chrome-less, so "menus" = the browser's own address/tab bars. Added a Fullscreen

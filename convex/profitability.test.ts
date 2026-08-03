@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { convexTest } from "convex-test";
+import type { Id } from "./_generated/dataModel";
 import schema from "./schema";
 import {
   computeMetricValues,
@@ -131,7 +132,7 @@ describe("tenant isolation", () => {
         });
       const mkRoom = async (orgId: string, name: string) =>
         ctx.db.insert("rooms", { orgId, name, status: "available", bookable: true, hourlyRateCents: 8000 });
-      const mkSong = async (orgId: string, artistId: any, title: string) =>
+      const mkSong = async (orgId: string, artistId: Id<"artists">, title: string) =>
         ctx.db.insert("songs", {
           orgId, title, artistId, kind: "single", stage: "mastering",
           moodTags: [], referenceTracks: [], revisionsIncluded: 3, revisionsUsed: 0,

@@ -29,14 +29,24 @@ crons.interval("t10-device-alerts", { minutes: 1 }, internal.pushAlerts.sweep, {
 // "simulated" mode until a provider (Twilio) is configured.
 crons.interval("sms-reminders", { minutes: 15 }, internal.sms.sendDueReminders);
 
+// Timeclock SMS checks: the 8h overtime confirm and the 4h intern
+// permission flow, plus the no-answer caps and manager escalations.
+crons.interval("timeclock-sms", { minutes: 15 }, internal.smsFlows.sweepTimeclock);
+
+// SMS lifecycle: offer freed slots to the waitlist (CLAIM) and request a 1-5
+// rating after completed sessions.
+crons.interval("sms-lifecycle", { minutes: 15 }, internal.smsFlows.sweepLifecycle);
+
+// Owner daily digest: hourly sweep, texts owners at 8am org-local on days
+// with sessions or payroll flags. Deduped via org.smsDigestLastSent.
+crons.interval("sms-daily-digest", { minutes: 60 }, internal.smsFlows.sweepDailyDigest);
+
 // Email reminders - the channel that works today (Resend). Sessions: client +
 // engineer at 24h and 2h. Staff shifts: 24h before. Idempotent per entity.
 crons.interval("email-reminders", { minutes: 30 }, internal.reminders.sweep, {});
 
-// Cloud-side A2P 10DLC finisher: polls the Standard A2P profile, registers the
-// brand once approved, then creates the campaign - so registration completes
-// without a local terminal. Idempotent; no-ops once the campaign exists.
-crons.interval("a2p-finish", { minutes: 10 }, internal.twilioA2P.advance);
+// A2P 10DLC finisher retired 2026-08-02: SMS moved to the GHL number (already
+// A2P-registered); the Twilio campaign + resubmit kit are parked in scripts/.
 
 // Inbound Google Calendar sync: pull every connected studio's primary calendar
 // into busy blocks (incremental via syncToken). The read half of two-way sync.
@@ -71,5 +81,11 @@ crons.monthly(
   { day: 1, hourUTC: 14, minuteUTC: 0 },
   internal.recoveryRecap.runMonthly,
 );
+
+// Keep the demo/pitch accounts pitch-ready. The seeds are relative to "now"
+// and one leaves an engineer clocked in, so both drift stale within days -
+// twice now a demo has been opened on inflated payroll and an empty calendar.
+// Nightly, before anyone is awake to demo.
+crons.daily("demo-refresh", { hourUTC: 8, minuteUTC: 30 }, internal.demoRefresh.refreshAll);
 
 export default crons;

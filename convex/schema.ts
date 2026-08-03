@@ -197,6 +197,7 @@ export default defineSchema({
     googleCalendarSyncedAt: v.optional(v.number()),   // last successful inbound pull
     googleCalendarSyncError: v.optional(v.string()),  // last pull error (cleared on success)
     smsRemindersEnabled: v.optional(v.boolean()),   // automated session SMS reminders (default on when unset)
+    smsDigestLastSent: v.optional(v.string()),      // local YYYY-MM-DD the 8am owner digest last went out
     // ── Agency rebilling (sub-account pays its parent agency) ──
     // The agency assigns one of its agencyPlans; this is the per-account state.
     agencyPlanId: v.optional(v.id("agencyPlans")),
@@ -998,6 +999,13 @@ export default defineSchema({
     // No-Show Shield outcomes on a cancelled / no-show session.
     cancellationFeeCents: v.optional(v.number()),
     depositForfeited: v.optional(v.boolean()),
+    // SMS confirm flow: client replied NO to the pre-session confirm text.
+    // Their deposit is held for rebooking until rebookHoldUntil (10 days);
+    // after that staff/automation may forfeit it.
+    clientDeclinedAt: v.optional(v.number()),
+    rebookHoldUntil: v.optional(v.number()),
+    // Set once the freed slot has been offered to the waitlist by SMS.
+    waitlistBlastAt: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])
@@ -1716,12 +1724,61 @@ export default defineSchema({
     snoozedUntil: v.optional(v.number()), // end-of-shift "still working" snooze
     note: v.optional(v.string()),
     editedBy: v.optional(v.string()),
+    // SMS timeclock checks. Overtime: at 8h the member is texted; YES marks
+    // the OT approved, NO caps the entry at 8h, silence flags it for payroll
+    // review. Interns: at 4h they must request permission via EXTEND, which a
+    // manager APPROVEs or DENYs by text; timeout caps the entry at 4h.
+    otPromptSentAt: v.optional(v.number()),
+    otStatus: v.optional(
+      v.union(v.literal("confirmed"), v.literal("declined"), v.literal("unconfirmed")),
+    ),
+    internPromptSentAt: v.optional(v.number()),
+    internExtension: v.optional(
+      v.union(
+        v.literal("requested"),
+        v.literal("approved"),
+        v.literal("denied"),
+        v.literal("timeout"),
+      ),
+    ),
+    autoClosedReason: v.optional(v.string()), // e.g. "ot_declined" | "intern_timeout"
   })
     .index("by_org", ["orgId"])
     .index("by_org_member", ["orgId", "memberId"])
     .index("by_member_status", ["memberId", "status"])
     .index("by_org_status", ["orgId", "status"])
     .index("by_org_in", ["orgId", "clockInAt"]),
+
+  // ── Open SMS questions awaiting a reply. One row per outbound question; the
+  //    inbound router matches a reply to the newest open prompt for that phone
+  //    and applies the effect (confirm a session, approve overtime, ...). ──
+  smsPrompts: defineTable({
+    orgId: v.string(),
+    phone: v.string(), // normalized E.164 of the person we asked
+    kind: v.union(
+      v.literal("booking_confirm"), // client: YES confirms / NO declines the session
+      v.literal("rebook_offer"),    // client: REBOOK holds the deposit for rebooking
+      v.literal("staff_confirm"),   // staff: YES confirms they'll work the session
+      v.literal("overtime_confirm"),// staff: YES approves OT / NO caps at 8h
+      v.literal("intern_checkin"),  // intern: EXTEND requests permission past 4h
+      v.literal("intern_approval"), // manager: APPROVE/DENY the intern extension
+      v.literal("waitlist_claim"),  // waitlisted client: CLAIM takes a freed slot
+      v.literal("cover_offer"),     // engineer: YES takes an uncovered session
+      v.literal("review_rating"),   // client: 1-5 rating after a completed session
+    ),
+    sessionId: v.optional(v.id("sessions")),
+    entryId: v.optional(v.id("timeEntries")),
+    memberId: v.optional(v.id("members")), // the member the prompt is ABOUT
+    artistId: v.optional(v.id("artists")), // the client the prompt is ABOUT
+    status: v.union(v.literal("open"), v.literal("answered"), v.literal("expired")),
+    answer: v.optional(v.string()),
+    sentAt: v.number(),
+    expiresAt: v.number(),
+    answeredAt: v.optional(v.number()),
+  })
+    .index("by_phone_status", ["phone", "status"])
+    .index("by_entry", ["entryId"])
+    .index("by_session", ["sessionId"]),
 
   // ── Recurring weekly availability a staff member sets for themselves. ──
   availability: defineTable({

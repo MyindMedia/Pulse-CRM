@@ -7,6 +7,7 @@ import { appUrl } from "./lib/links";
 import { proposeWaitlistFill } from "./waitlist";
 import { createCompletionInvoice } from "./sessions";
 import { normalizePhone } from "./lib/phone";
+import { renderSms, BALANCE_DUE_SMS } from "./lib/smsTemplates";
 
 /* ============================================================
    Booking automation - runs on a 15-minute cron (see crons.ts)
@@ -178,6 +179,34 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
           kind: "booking.balance_reminder",
           sessionId: s._id,
         });
+      }
+      // SMS leg of the same reminder - texts convert far better this close to
+      // the session. Same dedupe (balanceRemindedAt) covers both channels.
+      {
+        const artist = await ctx.db.get(s.artistId);
+        const cell = artist?.phone ? normalizePhone(artist.phone) : null;
+        if (cell) {
+          const optedOut = await ctx.db
+            .query("smsOptOuts")
+            .withIndex("by_phone", (q) => q.eq("phone", cell))
+            .first();
+          if (!optedOut?.optedOut) {
+            const org = await ctx.db
+              .query("orgs")
+              .withIndex("by_org", (q) => q.eq("orgId", s.orgId))
+              .first();
+            const link = org?.slug ? `${appUrl()}/book/${org.slug}/checkout/${s._id}` : null;
+            await ctx.scheduler.runAfter(0, internal.smsFlows._send, {
+              to: cell,
+              body: renderSms(BALANCE_DUE_SMS, {
+                amount: money(s.rateCents - paid),
+                title: s.title,
+                studio: org?.name ?? "the studio",
+                link,
+              }),
+            });
+          }
+        }
       }
       out.remindersSent++;
       continue;

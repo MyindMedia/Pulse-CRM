@@ -6,6 +6,21 @@ import { exchangeCode, emailFromIdToken } from "./lib/google";
 
 const http = httpRouter();
 
+/* GHL "Customer Replied" workflow webhook payload (the fields we read). */
+type GhlInbound = {
+  phone?: string;
+  message?: { body?: string } | string;
+  customData?: { phone?: string; message?: string };
+};
+
+function ghlShape(json: unknown): boolean {
+  const j = json as GhlInbound;
+  return (
+    typeof j?.phone === "string" ||
+    typeof j?.customData?.phone === "string"
+  );
+}
+
 /* Google OAuth callback - exchanges the code, stores the studio's refresh token
    (state carries the orgId), then bounces back to the app settings. */
 http.route({
@@ -126,6 +141,16 @@ http.route({
           if (json.event !== "message_inbound") return new Response("ok", { status: 200 });
           from = json.contact ?? "";
           body = json.text ?? "";
+        } else if (ghlShape(json)) {
+          // GHL workflow webhook ("Customer Replied" -> Webhook action). Both
+          // the standard contact payload ({phone, message:{body}}) and a
+          // custom-data mapping ({phone, message} as plain strings) land here.
+          const g = json as unknown as GhlInbound;
+          from = g.phone ?? g.customData?.phone ?? "";
+          body =
+            (typeof g.message === "object" ? g.message?.body : g.message) ??
+            g.customData?.message ??
+            "";
         } else {
           // Telnyx
           from = json.data?.payload?.from?.phone_number ?? "";

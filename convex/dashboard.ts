@@ -64,8 +64,16 @@ export const overview = query({
     const revenueThisMonth = paid
       .filter((i) => i.paidAt! >= monthStart)
       .reduce((s, i) => s + i.amountCents, 0);
+    // Like-for-like: compare month-to-date against the SAME elapsed span of
+    // last month, not the whole of it. Measuring 3 weeks against a full month
+    // makes the delta read negative every day of every month regardless of how
+    // the studio is actually doing, which is worse than useless on day 2.
+    const elapsedThisMonth = now - monthStart;
     const revenueLastMonth = paid
-      .filter((i) => i.paidAt! >= lastMonthStart && i.paidAt! < monthStart)
+      .filter(
+        (i) =>
+          i.paidAt! >= lastMonthStart && i.paidAt! < lastMonthStart + elapsedThisMonth,
+      )
       .reduce((s, i) => s + i.amountCents, 0);
     const revenueDelta =
       revenueLastMonth > 0

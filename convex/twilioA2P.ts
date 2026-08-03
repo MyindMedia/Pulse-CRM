@@ -58,7 +58,7 @@ export const advance = internalAction({
       }>;
     };
     const usable = (b: { status: string }) => b.status === "APPROVED" || b.status === "REGISTERED";
-    let brand =
+    const brand =
       brands.data?.find((b) => b.brand_type === "STANDARD" && usable(b)) ??
       brands.data?.find((b) => usable(b)) ??
       brands.data?.find((b) => b.a2p_profile_bundle_sid === STD_A2P_BUNDLE);

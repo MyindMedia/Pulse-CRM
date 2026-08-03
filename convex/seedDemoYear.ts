@@ -123,7 +123,18 @@ export const fillYear = internalMutation({
 
       // ── Bookings for the week ──
       const r = makeRng(weekStart);
-      const count = Math.max(2, Math.round(perWeek + (r() - 0.5) * 4));
+      // The studio grows across the window and runs hottest in the current
+      // month. Two reasons: the revenue trend should climb rather than wander,
+      // and Revenue MTD is measured against a FULL prior month, so without a
+      // lift the tile reads negative every day of every month.
+      const growth = 0.7 + 0.6 * (w / Math.max(1, totalWeeks - 1));
+      const wkDate = new Date(weekStart);
+      const nowDate = new Date(now);
+      const inCurrentMonth =
+        wkDate.getFullYear() === nowDate.getFullYear() &&
+        wkDate.getMonth() === nowDate.getMonth();
+      const lift = inCurrentMonth ? 3.1 : 1;
+      const count = Math.max(2, Math.round((perWeek + (r() - 0.5) * 4) * growth * lift));
       for (let i = 0; i < count; i++) {
         const a = pick(artists, r());
         const eng = pick(engineers, r());
@@ -232,7 +243,21 @@ export const fillYear = internalMutation({
         // Invoice for completed work (mostly paid; some sent/overdue).
         if (status === "completed") {
           const x = r();
-          const invStatus = x < 0.78 ? "paid" : x < 0.92 ? "sent" : "overdue";
+          // Age matters: the dashboard counts any SENT invoice past its due
+          // date as overdue, so a flat unpaid rate across 52 weeks piles up a
+          // year of stragglers (45 of them, all red). Real studios collect old
+          // work; only recent invoices are legitimately still in flight.
+          const ageDays = (now - end) / DAY;
+          const invStatus =
+            ageDays > 21
+              ? x < 0.985
+                ? "paid"
+                : "overdue"
+              : x < 0.86
+                ? "paid"
+                : x < 0.94
+                  ? "sent"
+                  : "overdue";
           const dueDate = end + 7 * DAY;
           await ctx.db.insert("invoices", {
             orgId,

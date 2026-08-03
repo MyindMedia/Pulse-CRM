@@ -11,9 +11,13 @@ import {
   renderSms,
   displayPhone,
   CLIENT_REMINDER,
+  CLIENT_CONFIRM_2H,
   STAFF_REMINDER,
+  STAFF_CONFIRM_2H,
   MANUAL_CLIENT,
 } from "./lib/smsTemplates";
+import { routeInbound } from "./smsFlows";
+import { parseSmsIntent } from "./lib/smsKeywords";
 
 /* SMS: automated session reminders (cron), manual studio→client texts, and
    inbound replies + STOP/START opt-out handling (A2P 10DLC compliance).
@@ -165,7 +169,16 @@ export const _dueReminders = internalQuery({
       sessionId: Id<"sessions">;
       kind: "24h" | "2h";
       artistId: Id<"artists">;
-      recipients: { phone: string; body: string; isClient: boolean }[];
+      startTime: number;
+      recipients: {
+        phone: string;
+        body: string;
+        isClient: boolean;
+        // At 2h the reminder is a YES/NO question - the sender opens a prompt
+        // so the reply router can apply the answer.
+        promptKind?: "booking_confirm" | "staff_confirm";
+        memberId?: Id<"members">;
+      }[];
     }[] = [];
 
     for (const s of upcoming) {
@@ -181,14 +194,15 @@ export const _dueReminders = internalQuery({
       const soon = kind === "2h" ? "in about 2 hours" : "in about a day";
 
       const artist = await ctx.db.get(s.artistId);
-      const recipients: { phone: string; body: string; isClient: boolean }[] = [];
+      const recipients: (typeof out)[number]["recipients"] = [];
 
       const clientPhone = artist?.phone ? normalizePhone(artist.phone) : null;
       if (clientPhone) {
         recipients.push({
           phone: clientPhone,
           isClient: true,
-          body: renderSms(CLIENT_REMINDER, {
+          promptKind: kind === "2h" ? ("booking_confirm" as const) : undefined,
+          body: renderSms(kind === "2h" ? CLIENT_CONFIRM_2H : CLIENT_REMINDER, {
             studio,
             title: s.title,
             soon,
@@ -204,7 +218,9 @@ export const _dueReminders = internalQuery({
           recipients.push({
             phone: engPhone,
             isClient: false,
-            body: renderSms(STAFF_REMINDER, {
+            promptKind: kind === "2h" ? ("staff_confirm" as const) : undefined,
+            memberId: s.engineerId,
+            body: renderSms(kind === "2h" ? STAFF_CONFIRM_2H : STAFF_REMINDER, {
               studio,
               title: s.title,
               soon,
@@ -225,10 +241,10 @@ export const _dueReminders = internalQuery({
       }
       if (filtered.length === 0) {
         // Nothing to send, but still mark so we don't re-scan this session forever.
-        out.push({ sessionId: s._id, kind, artistId: s.artistId, recipients: [] });
+        out.push({ sessionId: s._id, kind, artistId: s.artistId, startTime: s.startTime, recipients: [] });
         continue;
       }
-      out.push({ sessionId: s._id, kind, artistId: s.artistId, recipients: filtered });
+      out.push({ sessionId: s._id, kind, artistId: s.artistId, startTime: s.startTime, recipients: filtered });
     }
     return out;
   },
@@ -262,6 +278,18 @@ export const sendDueReminders = internalAction({
               status,
             });
           }
+          // The 2h text asks a YES/NO question - open the prompt the reply
+          // router resolves against. Late answers stay useful for 2h past start.
+          if (r.promptKind && status !== "failed") {
+            await ctx.runMutation(internal.smsFlows._openPrompt, {
+              orgId,
+              phone: r.phone,
+              kind: r.promptKind,
+              sessionId: item.sessionId,
+              memberId: r.memberId,
+              expiresAt: item.startTime + TWO_HOURS,
+            });
+          }
         }
         await ctx.runMutation(internal.sms._markReminderSent, { sessionId: item.sessionId, kind: item.kind });
       }
@@ -282,26 +310,32 @@ export const _testSend = internalAction({
 
 // ── Inbound (replies + STOP/START) ──────────────────────────────────────
 
-/** Handle an inbound SMS: honor STOP/START keywords, else log the reply to the
- *  matching client's thread (best-effort phone match across artists). */
+/** Handle an inbound SMS: honor STOP/START keywords, then let the two-way flow
+ *  router try to consume the reply (booking confirms, overtime, intern
+ *  approvals, HELP/RESCHEDULE/LATE), else log it to the matching client's
+ *  thread (best-effort phone match across artists). */
 export const _handleInbound = internalMutation({
   args: { from: v.string(), body: v.string() },
   handler: async (ctx, { from, body }) => {
     const phone = normalizePhone(from);
     if (!phone) return;
-    const keyword = body.trim().toUpperCase();
+    const intent = parseSmsIntent(body);
 
-    if (/^(STOP|STOPALL|UNSUBSCRIBE|CANCEL|END|QUIT)$/.test(keyword)) {
+    if (intent === "stop") {
       const existing = await ctx.db.query("smsOptOuts").withIndex("by_phone", (q) => q.eq("phone", phone)).first();
       if (existing) await ctx.db.patch(existing._id, { optedOut: true, updatedAt: Date.now() });
       else await ctx.db.insert("smsOptOuts", { phone, optedOut: true, updatedAt: Date.now() });
       return;
     }
-    if (/^(START|UNSTOP|YES)$/.test(keyword)) {
+    if (intent === "start") {
       const existing = await ctx.db.query("smsOptOuts").withIndex("by_phone", (q) => q.eq("phone", phone)).first();
       if (existing) await ctx.db.patch(existing._id, { optedOut: false, updatedAt: Date.now() });
       return;
     }
+
+    // Two-way flows: YES/NO/EXTEND/APPROVE/... against the sender's open
+    // prompt, plus the standalone HELP/RESCHEDULE/LATE keywords.
+    const consumed = await routeInbound(ctx, phone, body);
 
     // Best-effort: route the reply into the thread of an artist with this phone.
     const artists = await ctx.db.query("artists").collect();
@@ -321,11 +355,12 @@ export const _handleInbound = internalMutation({
       // the inbound off to an action that may auto-reply with the booking link.
       // We only SCHEDULE it here (this is a mutation - no LLM/HTTP inline), and
       // all opt-out/recording behavior above stays intact + unconditional.
+      // Skipped when a flow already consumed the reply - one answer, one voice.
       const org = await ctx.db
         .query("orgs")
         .withIndex("by_org", (q) => q.eq("orgId", match.orgId))
         .first();
-      if (org?.aiReceptionistEnabled === true) {
+      if (!consumed && org?.aiReceptionistEnabled === true) {
         await ctx.scheduler.runAfter(0, internal.receptionist.handle, {
           orgId: match.orgId,
           from,

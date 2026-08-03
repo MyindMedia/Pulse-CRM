@@ -13,7 +13,49 @@ export async function sendSms(args: { to: string; body: string }): Promise<SmsSt
   const payload = { to: args.to, body: stripEmDashes(args.body) };
   if (provider === "loopmessage") return sendLoopMessage(payload);
   if (provider === "telnyx") return sendTelnyx(payload);
+  if (provider === "ghl") return sendGhl(payload);
   return sendTwilio(payload);
+}
+
+/** GHL (LeadConnector): rides the Myind Sound location's number + existing A2P
+ *  registration. GHL can only message a contact, so each send upserts the
+ *  recipient into the location first (tagged pulse-sms to keep the CRM
+ *  filterable). GHL_FROM_NUMBER optional - defaults to the location's default
+ *  number. */
+async function sendGhl({ to, body }: { to: string; body: string }): Promise<SmsStatus> {
+  const key = process.env.GHL_API_KEY;
+  const locationId = process.env.GHL_LOCATION_ID;
+  const fromNumber = process.env.GHL_FROM_NUMBER;
+  if (!key || !locationId) return "simulated";
+  const headers = {
+    Authorization: `Bearer ${key}`,
+    "Content-Type": "application/json",
+    // GHL's Cloudflare rejects non-browser default user agents (error 1010).
+    "User-Agent": "Pulse/1.0 (+https://pulse.myindsound.com)",
+  };
+  try {
+    const upsert = await fetch("https://services.leadconnectorhq.com/contacts/upsert", {
+      method: "POST",
+      headers: { ...headers, Version: "2021-07-28" },
+      body: JSON.stringify({ locationId, phone: to, tags: ["pulse-sms"] }),
+    });
+    if (!upsert.ok) return "failed";
+    const contactId = ((await upsert.json()) as { contact?: { id?: string } }).contact?.id;
+    if (!contactId) return "failed";
+    const res = await fetch("https://services.leadconnectorhq.com/conversations/messages", {
+      method: "POST",
+      headers: { ...headers, Version: "2021-04-15" },
+      body: JSON.stringify({
+        type: "SMS",
+        contactId,
+        message: body,
+        ...(fromNumber ? { fromNumber } : {}),
+      }),
+    });
+    return res.ok ? "sent" : "failed";
+  } catch {
+    return "failed";
+  }
 }
 
 /** LoopMessage: blue-bubble iMessage with automatic SMS fallback (no A2P 10DLC
