@@ -1,5 +1,11 @@
 @import "tailwindcss";
 
+/* Markdown docs are prose, not templates - Tailwind's auto source detection
+   scans them and a class-shaped string in a doc (e.g. Grilled.md quoting
+   `h-[calc(4rem+env(...))]`) generates invalid CSS that breaks the build. */
+@source not "../../*.md";
+@source not "../../docs/**/*.md";
+
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================================
@@ -331,15 +337,15 @@
 
   .glass {
     background: color-mix(in oklab, var(--color-coal) 68%, transparent);
-    backdrop-filter: blur(22px) saturate(180%);
     -webkit-backdrop-filter: blur(22px) saturate(180%);
+    backdrop-filter: blur(22px) saturate(180%);
     border: 1px solid color-mix(in oklab, white 8%, transparent);
     box-shadow: inset 0 1px 0 0 color-mix(in oklab, white 8%, transparent);
   }
   .glass-strong {
     background: color-mix(in oklab, var(--color-coal-2) 78%, transparent);
-    backdrop-filter: blur(30px) saturate(200%);
     -webkit-backdrop-filter: blur(30px) saturate(200%);
+    backdrop-filter: blur(30px) saturate(200%);
     border: 1px solid color-mix(in oklab, white 10%, transparent);
     box-shadow: inset 0 1px 0 0 color-mix(in oklab, white 10%, transparent);
   }
@@ -351,8 +357,8 @@
       color-mix(in oklab, var(--color-coal-2) 60%, transparent) 0%,
       color-mix(in oklab, var(--color-coal) 82%, transparent) 100%
     );
-    backdrop-filter: blur(36px) saturate(220%);
     -webkit-backdrop-filter: blur(36px) saturate(220%);
+    backdrop-filter: blur(36px) saturate(220%);
     border: 1px solid color-mix(in oklab, white 12%, transparent);
     box-shadow:
       inset 0 1px 0 0 color-mix(in oklab, white 14%, transparent),
@@ -367,8 +373,8 @@
     position: relative;
     background: rgba(255, 255, 255, 0.012);
     background-blend-mode: luminosity;
-    backdrop-filter: blur(4px);
     -webkit-backdrop-filter: blur(4px);
+    backdrop-filter: blur(4px);
     box-shadow:
       inset 0 1px 1px rgba(255, 255, 255, 0.1),
       0 24px 60px rgba(0, 0, 0, 0.45);
@@ -490,15 +496,15 @@
      .glass / .glass-strong / .glass-liquid remain as aliases. ── */
   .material-ultrathin {
     background: color-mix(in oklab, var(--color-coal) 52%, transparent);
-    backdrop-filter: blur(var(--glass-blur-ultrathin)) saturate(170%);
     -webkit-backdrop-filter: blur(var(--glass-blur-ultrathin)) saturate(170%);
+    backdrop-filter: blur(var(--glass-blur-ultrathin)) saturate(170%);
     border: 1px solid color-mix(in oklab, white 7%, transparent);
     box-shadow: inset 0 1px 0 0 color-mix(in oklab, white 7%, transparent);
   }
   .material-thin {
     background: color-mix(in oklab, var(--color-coal) 66%, transparent);
-    backdrop-filter: blur(var(--glass-blur-thin)) saturate(185%);
     -webkit-backdrop-filter: blur(var(--glass-blur-thin)) saturate(185%);
+    backdrop-filter: blur(var(--glass-blur-thin)) saturate(185%);
     border: 1px solid color-mix(in oklab, white 9%, transparent);
     box-shadow:
       var(--shadow-elev-2),
@@ -506,8 +512,8 @@
   }
   .material-regular {
     background: color-mix(in oklab, var(--color-coal-2) 76%, transparent);
-    backdrop-filter: blur(var(--glass-blur-regular)) saturate(200%);
     -webkit-backdrop-filter: blur(var(--glass-blur-regular)) saturate(200%);
+    backdrop-filter: blur(var(--glass-blur-regular)) saturate(200%);
     border: 1px solid color-mix(in oklab, white 10%, transparent);
     box-shadow:
       var(--shadow-elev-3),
@@ -519,8 +525,8 @@
       color-mix(in oklab, var(--color-coal-2) 58%, transparent) 0%,
       color-mix(in oklab, var(--color-coal) 84%, transparent) 100%
     );
-    backdrop-filter: blur(var(--glass-blur-thick)) saturate(220%);
     -webkit-backdrop-filter: blur(var(--glass-blur-thick)) saturate(220%);
+    backdrop-filter: blur(var(--glass-blur-thick)) saturate(220%);
     border: 1px solid color-mix(in oklab, white 12%, transparent);
     box-shadow:
       var(--shadow-elev-4),
@@ -768,8 +774,8 @@
 @media (prefers-reduced-transparency: reduce) {
   .material-ultrathin, .material-thin, .material-regular, .material-thick,
   .glass, .glass-strong, .glass-liquid {
-    backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
   }
   .material-ultrathin, .glass { background: var(--color-coal) !important; }
   .material-thin { background: var(--color-coal) !important; }

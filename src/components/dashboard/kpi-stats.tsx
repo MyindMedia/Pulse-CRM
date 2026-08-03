@@ -43,7 +43,7 @@ export function KpiStats() {
           label: "Revenue · MTD",
           value: money(k.revenueThisMonth ?? 0, { compact: true }),
           delta: (k.revenueDelta ?? 0) * 100,
-          footnote: "vs last month",
+          footnote: "vs same span last month",
         }]
       : []),
     { label: "Sessions · MTD", value: String(k.sessionsThisMonth), footnote: "booked this month" },

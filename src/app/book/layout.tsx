@@ -33,9 +33,14 @@ export default function BookLayout({ children }: { children: React.ReactNode }) 
         className="pointer-events-none fixed inset-x-0 top-0 h-[420px] bg-[radial-gradient(ellipse_60%_100%_at_50%_0%,rgba(253,185,19,0.10),transparent_70%)]"
       />
 
-      <header className="relative z-10 border-b border-graphite/50 bg-obsidian/80 backdrop-blur">
+      {/* pt = iOS safe area: viewport-fit=cover + translucent status bar draw
+          this chrome under the notch/Dynamic Island without it. */}
+      <header className="relative z-10 border-b border-graphite/50 bg-obsidian/80 pt-[env(safe-area-inset-top)] backdrop-blur">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 lg:px-8">
-          <Link href={slug ? `/book/${slug}` : "/book"} className="group flex items-center gap-2.5">
+          <Link
+            href={slug ? `/book/${slug}` : "/book"}
+            className="group flex min-w-0 items-center gap-2.5"
+          >
             {front?.org.logoUrl ? (
               /* eslint-disable-next-line @next/next/no-img-element */
               <img
@@ -48,11 +53,11 @@ export default function BookLayout({ children }: { children: React.ReactNode }) 
                 <Disc3 className="size-5" />
               </span>
             )}
-            <span className="flex flex-col leading-none">
-              <span className="font-grotesk text-sm font-semibold tracking-tight text-bone group-hover:text-gold-bright">
+            <span className="flex min-w-0 flex-col leading-none">
+              <span className="truncate font-grotesk text-sm font-semibold tracking-tight text-bone group-hover:text-gold-bright">
                 {studioName}
               </span>
-              <span className="overline mt-0.5">
+              <span className="overline mt-0.5 truncate">
                 {front?.org.tagline || "Studio booking"}
               </span>
             </span>
@@ -67,7 +72,7 @@ export default function BookLayout({ children }: { children: React.ReactNode }) 
         {children}
       </main>
 
-      <footer className="relative z-10 border-t border-graphite/50 bg-obsidian/60">
+      <footer className="relative z-10 border-t border-graphite/50 bg-obsidian/60 pb-[env(safe-area-inset-bottom)]">
         <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-2 px-4 py-6 text-xs text-steel/70 sm:flex-row lg:px-8">
           {front?.whitelabel ? (
             <span>{studioName}</span>
@@ -75,7 +80,7 @@ export default function BookLayout({ children }: { children: React.ReactNode }) 
             <span>
               {studioName} - Powered by{" "}
               <a
-                href="https://pulse.myindsound.com/?ref=book"
+                href="https://studiopulse.tech/?ref=book"
                 target="_blank"
                 rel="noreferrer"
                 className="font-medium text-steel underline-offset-2 transition-colors hover:text-gold-bright hover:underline"

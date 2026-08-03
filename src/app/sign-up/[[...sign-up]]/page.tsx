@@ -10,14 +10,9 @@ const CLERK_ENABLED = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 export default function SignUpPage() {
   return (
     <div className="relative grid min-h-dvh place-items-center bg-ink p-6">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-50"
-        style={{
-          background:
-            "radial-gradient(60% 40% at 50% 30%, rgba(253,185,19,0.08), transparent 70%)",
-        }}
-      />
+      {/* Aurora backdrop - matches /sign-in so the invite explainer sits on
+          the same luminous surface. */}
+      <div aria-hidden className="app-bloom" />
       <div className="relative flex w-full max-w-md flex-col items-center gap-6">
         <PulseLogo size="lg" asLink={false} />
         {CLERK_ENABLED ? (

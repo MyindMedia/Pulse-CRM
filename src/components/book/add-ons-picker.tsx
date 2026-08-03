@@ -211,16 +211,19 @@ export function AddOnsPicker({
                   >
                     {checked && <Check className="size-3.5" />}
                   </span>
+                  {/* Thumbnails are desktop-only: mobile shows just the gear
+                      name. lazy keeps the hidden imgs from ever downloading. */}
                   {g.photo ? (
                     // eslint-disable-next-line @next/next/no-img-element
                     <img
                       src={g.photo}
                       alt=""
-                      className="size-9 shrink-0 rounded-md object-cover"
+                      loading="lazy"
+                      className="hidden size-9 shrink-0 rounded-md object-cover sm:block"
                       draggable={false}
                     />
                   ) : (
-                    <span className="grid size-9 shrink-0 place-items-center rounded-md bg-coal-3 text-steel">
+                    <span className="hidden size-9 shrink-0 place-items-center rounded-md bg-coal-3 text-steel sm:grid">
                       <Music4 className="size-4" />
                     </span>
                   )}

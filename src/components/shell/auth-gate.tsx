@@ -15,10 +15,20 @@ const CLERK_ENABLED = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
    Only the FIRST authentication is gated: once the session has attached,
    later token refreshes/org switches never unmount the app. Demo mode
-   (no Clerk key) renders straight through. */
+   (no Clerk key) renders straight through - and must not call useConvexAuth
+   at all, because that tree is wrapped in a plain ConvexProvider with no auth
+   context and the hook throws "Could not find ConvexProviderWithAuth". The
+   split below keeps the hook inside a child that only mounts under Clerk;
+   CLERK_ENABLED is a build-time constant, so the branch never flips at
+   runtime and hook order stays stable. */
 export function AuthGate({ children }: { children: React.ReactNode }) {
+  if (!CLERK_ENABLED) return <>{children}</>;
+  return <ClerkAuthGate>{children}</ClerkAuthGate>;
+}
+
+function ClerkAuthGate({ children }: { children: React.ReactNode }) {
   const { isLoading, isAuthenticated } = useConvexAuth();
-  const [ready, setReady] = React.useState(!CLERK_ENABLED);
+  const [ready, setReady] = React.useState(false);
 
   React.useEffect(() => {
     if (isAuthenticated) setReady(true);

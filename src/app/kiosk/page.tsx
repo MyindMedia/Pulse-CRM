@@ -95,17 +95,38 @@ export default function KioskPage() {
   // The (app) shell wraps every page in this boundary; the kiosk lives
   // outside the shell, so it brings its own - a stray query throw must show
   // the recoverable panel, not tear down to the root error page.
+  // useConvexAuth only exists under ConvexProviderWithAuth; demo mode (no
+  // Clerk key) mounts a plain ConvexProvider, so the hook lives in a wrapper
+  // that is only rendered in auth mode - calling it in demo mode throws.
   return (
     <ShellErrorBoundary>
-      <Kiosk />
+      {CLERK_ENABLED ? <KioskWithClerkAuth /> : <Kiosk authReady />}
     </ShellErrorBoundary>
   );
 }
 
-function Kiosk() {
+function KioskWithClerkAuth() {
+  // Convex attaches the Clerk token to the socket ASYNCHRONOUSLY after mount.
+  // A query fired before that lands executes unauthenticated and throws
+  // server-side (the same race orgs.current degrades around). Hold session
+  // reads until auth is actually on the wire.
+  const { isAuthenticated } = useConvexAuth();
+  return <Kiosk authReady={isAuthenticated} />;
+}
+
+function Kiosk({ authReady }: { authReady: boolean }) {
   const [view, setView] = useState<KioskView>("month");
   const [anchor, setAnchor] = useState(() => startOfDay(Date.now()));
   const [openSessionId, setOpenSessionId] = useState<string | null>(null);
+
+  // Phones open on the day agenda - a 7-column month grid is unreadable at
+  // phone width. matchMedia is client-only, and seeding the useState from it
+  // would render "day" against the server's "month" markup (hydration
+  // mismatch), so the switch happens once after mount instead.
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (window.matchMedia("(max-width: 767px)").matches) setView("day");
+  }, []);
 
   // Minute-tick clock so the header time and "today" highlight stay honest on
   // a device that sits on a desk for weeks.
@@ -181,14 +202,6 @@ function Kiosk() {
     }
   }
 
-  // Convex attaches the Clerk token to the socket ASYNCHRONOUSLY after mount.
-  // A query fired before that lands executes unauthenticated and throws
-  // server-side (the same race orgs.current degrades around). Hold session
-  // reads until auth is actually on the wire; in demo mode (no Clerk) there
-  // is nothing to wait for.
-  const { isLoading: authLoading, isAuthenticated } = useConvexAuth();
-  const authReady = CLERK_ENABLED ? isAuthenticated : !authLoading;
-
   const org = useQuery(api.orgs.current);
 
   const anchorDate = new Date(anchor);
@@ -250,8 +263,12 @@ function Kiosk() {
       />
 
       {/* ── Header ── */}
-      <header className="relative z-10 flex shrink-0 items-center justify-between gap-4 border-b border-graphite/50 bg-obsidian/80 px-5 py-3 backdrop-blur">
-        <div className="flex min-w-0 items-center gap-3">
+      {/* Wraps into stacked rows on phones (wordmark+clock / nav / view
+          switcher) and two rows on iPad portrait; one row on lg+. The pt env()
+          keeps the chrome clear of the iOS status bar - standalone mode draws
+          edge to edge under the notch/Dynamic Island without it. */}
+      <header className="relative z-10 flex shrink-0 flex-wrap items-center justify-between gap-x-3 gap-y-2 border-b border-graphite/50 bg-obsidian/80 px-3 py-2.5 pt-[calc(0.625rem_+_env(safe-area-inset-top))] backdrop-blur sm:px-5 sm:py-3 sm:pt-[calc(0.75rem_+_env(safe-area-inset-top))] lg:flex-nowrap lg:gap-x-4">
+        <div className="flex min-w-0 flex-1 items-center gap-3 lg:flex-initial">
           {org?.logoUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
             <img src={org.logoUrl} alt="" className="size-9 rounded object-contain" />
@@ -268,46 +285,7 @@ function Kiosk() {
           </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={() => shift(-1)} aria-label="Previous">
-            <ChevronLeft className="size-5" />
-          </Button>
-          <h1 className="min-w-56 text-center font-grotesk text-xl font-bold tracking-tight">
-            {rangeLabel}
-          </h1>
-          <Button variant="outline" size="icon" onClick={() => shift(1)} aria-label="Next">
-            <ChevronRight className="size-5" />
-          </Button>
-          <Button variant="secondary" onClick={goToday}>
-            Today
-          </Button>
-        </div>
-
-        <div className="flex items-center gap-4">
-          {/* View filter - month is home; week and day narrow it down. */}
-          <div className="inline-flex items-center gap-1 rounded-md border border-graphite/50 bg-coal p-1">
-            {(
-              [
-                { key: "month", label: "Month", icon: CalendarRange },
-                { key: "week", label: "Week", icon: CalendarDays },
-                { key: "day", label: "Day", icon: Sun },
-              ] as const
-            ).map(({ key, label, icon: Icon }) => (
-              <button
-                key={key}
-                type="button"
-                onClick={() => setView(key)}
-                className={cn(
-                  "inline-flex min-h-11 items-center gap-2 rounded-sm px-4 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-gold/30",
-                  view === key ? "bg-coal-3 text-bone" : "text-steel/70 hover:text-bone",
-                )}
-              >
-                <Icon className="size-4" />
-                {label}
-              </button>
-            ))}
-          </div>
-
+        <div className="flex shrink-0 items-center gap-3 lg:order-4 lg:gap-4">
           <div className="text-right leading-none">
             <p className="font-meta text-xl font-semibold tabular-nums text-gold-bright">
               {new Date(now).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
@@ -329,10 +307,52 @@ function Kiosk() {
             </Button>
           )}
         </div>
+
+        <div className="order-3 flex w-full items-center justify-center gap-2 md:w-auto md:flex-1 lg:order-2 lg:flex-initial">
+          <Button variant="outline" size="icon" onClick={() => shift(-1)} aria-label="Previous">
+            <ChevronLeft className="size-5" />
+          </Button>
+          <h1 className="min-w-0 flex-1 truncate text-center font-grotesk text-base font-bold tracking-tight sm:text-xl md:min-w-56 md:flex-none">
+            {rangeLabel}
+          </h1>
+          <Button variant="outline" size="icon" onClick={() => shift(1)} aria-label="Next">
+            <ChevronRight className="size-5" />
+          </Button>
+          <Button variant="secondary" onClick={goToday}>
+            Today
+          </Button>
+        </div>
+
+        {/* View filter - month is home; week and day narrow it down. Full-width
+            segmented control on phones so it never falls off the screen. */}
+        <div className="order-4 flex w-full justify-center md:w-auto lg:order-3">
+          <div className="inline-flex w-full items-center gap-1 rounded-md border border-graphite/50 bg-coal p-1 md:w-auto">
+            {(
+              [
+                { key: "month", label: "Month", icon: CalendarRange },
+                { key: "week", label: "Week", icon: CalendarDays },
+                { key: "day", label: "Day", icon: Sun },
+              ] as const
+            ).map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setView(key)}
+                className={cn(
+                  "inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-sm px-2 text-sm font-medium transition-colors outline-none focus-visible:ring-2 focus-visible:ring-gold/30 md:flex-none md:px-4",
+                  view === key ? "bg-coal-3 text-bone" : "text-steel/70 hover:text-bone",
+                )}
+              >
+                <Icon className="size-4" />
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
       </header>
 
       {/* ── Body ── */}
-      <main className="relative z-10 min-h-0 flex-1 p-4">
+      <main className="relative z-10 min-h-0 flex-1 p-2 pb-[calc(0.5rem_+_env(safe-area-inset-bottom))] sm:p-4 sm:pb-[calc(1rem_+_env(safe-area-inset-bottom))]">
         {sessions === undefined ? (
           <Skeleton className="h-full w-full" />
         ) : view === "month" ? (
@@ -535,20 +555,22 @@ function KioskWeek({
   const days = Array.from({ length: 7 }, (_, i) => weekStart + i * DAY_MS);
 
   return (
-    <div className="grid h-full grid-cols-7 gap-2">
+    // Phones: a vertical scrolling list of day sections - seven columns can't
+    // share 390px. iPad portrait and up gets the side-by-side week grid.
+    <div className="flex h-full flex-col gap-2 overflow-y-auto md:grid md:grid-cols-7 md:overflow-visible">
       {days.map((dayTs) => {
         const isToday = isSameDay(dayTs, now);
         const list = byDay.get(startOfDay(dayTs)) ?? [];
         return (
           <section
             key={dayTs}
-            className="flex min-h-0 flex-col overflow-hidden rounded-lg border border-graphite/50 bg-coal"
+            className="flex shrink-0 flex-col overflow-hidden rounded-lg border border-graphite/50 bg-coal md:min-h-0 md:shrink"
           >
             <button
               type="button"
               onClick={() => onOpenDay(dayTs)}
               className={cn(
-                "shrink-0 border-b border-graphite/50 px-3 py-2.5 text-left outline-none transition-colors hover:bg-coal-2 focus-visible:ring-2 focus-visible:ring-gold/30",
+                "flex shrink-0 items-baseline gap-2 border-b border-graphite/50 px-3 py-2.5 text-left outline-none transition-colors hover:bg-coal-2 focus-visible:ring-2 focus-visible:ring-gold/30 md:block",
                 isToday ? "bg-gold/10" : "bg-obsidian",
               )}
             >
@@ -617,21 +639,21 @@ function KioskDay({
               <button
                 type="button"
                 onClick={() => onOpenSession(s._id)}
-                className="flex w-full items-center gap-4 px-5 py-4 text-left outline-none transition-colors hover:bg-coal-2 focus-visible:ring-2 focus-visible:ring-gold/30"
+                className="flex w-full items-center gap-3 px-3 py-4 text-left outline-none transition-colors hover:bg-coal-2 focus-visible:ring-2 focus-visible:ring-gold/30 sm:gap-4 sm:px-5"
               >
                 <span
                   aria-hidden
                   className="h-12 w-1.5 shrink-0 rounded-full"
                   style={{ backgroundColor: statusColor(s.status) }}
                 />
-                <div className="w-28 shrink-0">
+                <div className="w-20 shrink-0 sm:w-28">
                   <p className="font-meta text-base font-semibold text-bone">
                     {timeOfDay(s.startTime)}
                   </p>
                   <p className="font-meta text-xs text-steel/70">{duration(s.startTime, s.endTime)}</p>
                 </div>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate font-grotesk text-lg font-semibold text-bone">{s.title}</p>
+                  <p className="truncate font-grotesk text-base font-semibold text-bone sm:text-lg">{s.title}</p>
                   <p className="truncate text-sm text-steel/70">
                     {s.artistName}
                     {" · "}

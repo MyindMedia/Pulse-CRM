@@ -12,7 +12,11 @@ gsap.registerPlugin(useGSAP, ScrollTrigger);
  * text color) instead of a generic icon. The track is scroll-scrubbed and
  * centered on Slang City Studios: on mount we measure the Slang City card and
  * offset the track so it sits at viewport center mid-scroll, drifting left or
- * right with scroll direction. */
+ * right with scroll direction.
+ *
+ * On mobile there is no room for that drift, so the strip becomes a plain
+ * swipeable overflow-x scroller: the scrub is skipped below md and the
+ * duplicate marquee copy is hidden so the reader swipes one honest set. */
 
 const WORDMARKS: { key: string; center?: boolean; mark: React.ReactNode }[] = [
   {
@@ -94,30 +98,35 @@ export function LogoMarquee() {
   useGSAP(
     () => {
       if (typeof window === "undefined") return;
-      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
-      const track = root.current?.querySelector<HTMLElement>("[data-studio-track]");
-      const anchor = root.current?.querySelector<HTMLElement>("[data-studio-anchor]");
-      if (!track || !anchor) return;
-      // Offset so the Slang City card sits at viewport center when the strip
-      // is mid-viewport; the scrub drifts around that point with scroll.
-      const a = anchor.getBoundingClientRect();
-      const t = track.getBoundingClientRect();
-      const delta = window.innerWidth / 2 - (a.left - t.left + a.width / 2);
-      const drift = window.innerWidth * 0.09;
-      gsap.fromTo(
-        track,
-        { x: delta + drift },
-        {
-          x: delta - drift,
-          ease: "none",
-          scrollTrigger: {
-            trigger: root.current,
-            start: "top bottom",
-            end: "bottom top",
-            scrub: 0.6,
+      const mm = gsap.matchMedia();
+      // Desktop only. Below md the strip is a native horizontal scroller and a
+      // transform on the track would fight the user's swipe.
+      mm.add("(min-width: 768px) and (prefers-reduced-motion: no-preference)", () => {
+        const track = root.current?.querySelector<HTMLElement>("[data-studio-track]");
+        const anchor = root.current?.querySelector<HTMLElement>("[data-studio-anchor]");
+        if (!track || !anchor) return;
+        // Offset so the Slang City card sits at viewport center when the strip
+        // is mid-viewport; the scrub drifts around that point with scroll.
+        const a = anchor.getBoundingClientRect();
+        const t = track.getBoundingClientRect();
+        const delta = window.innerWidth / 2 - (a.left - t.left + a.width / 2);
+        const drift = window.innerWidth * 0.09;
+        gsap.fromTo(
+          track,
+          { x: delta + drift },
+          {
+            x: delta - drift,
+            ease: "none",
+            scrollTrigger: {
+              trigger: root.current,
+              start: "top bottom",
+              end: "bottom top",
+              scrub: 0.6,
+            },
           },
-        },
-      );
+        );
+      });
+      return () => mm.revert();
     },
     { scope: root },
   );
@@ -131,10 +140,14 @@ export function LogoMarquee() {
         </p>
       </div>
 
-      <div className="mt-10 overflow-hidden [mask-image:linear-gradient(to_right,transparent,#000_10%,#000_90%,transparent)]">
-        <div data-studio-track className="flex w-max gap-6 px-3 will-change-transform">
+      <div className="no-scrollbar mt-10 overflow-x-auto overscroll-x-contain md:overflow-hidden md:[mask-image:linear-gradient(to_right,transparent,#000_10%,#000_90%,transparent)]">
+        <div data-studio-track className="flex w-max gap-6 px-4 will-change-transform md:px-3">
           {[0, 1].map((copy) => (
-            <div key={copy} className="flex shrink-0 items-center gap-6" aria-hidden={copy === 1}>
+            <div
+              key={copy}
+              className={`shrink-0 items-center gap-6 ${copy === 1 ? "hidden md:flex" : "flex"}`}
+              aria-hidden={copy === 1}
+            >
               {WORDMARKS.map(({ key, center, mark }) => (
                 <div
                   key={key}

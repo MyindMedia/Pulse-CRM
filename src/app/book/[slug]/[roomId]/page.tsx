@@ -374,7 +374,13 @@ function RoomDetailSkeleton() {
           <Skeleton className="h-6 w-48" />
         </div>
       </div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+      {/* Gear placeholder: name rows on mobile, photo grid on sm+ */}
+      <div className="space-y-2 sm:hidden">
+        {Array.from({ length: 6 }).map((_, i) => (
+          <Skeleton key={i} className="h-9 w-full" />
+        ))}
+      </div>
+      <div className="hidden gap-3 sm:grid sm:grid-cols-4">
         {Array.from({ length: 8 }).map((_, i) => (
           <Skeleton key={i} className="aspect-square w-full" />
         ))}
