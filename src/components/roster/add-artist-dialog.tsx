@@ -119,7 +119,7 @@ export function AddArtistDialog({
                 id="artist-name"
                 value={form.name}
                 onChange={(e) => set("name", e.target.value)}
-                placeholder="Lumen, Ada Reyes, Northbound…"
+                placeholder="Ada Reyes, Northbound, Solene…"
                 autoFocus
                 required
               />

@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, Save, Star } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { Field, Input, Textarea } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
 import type { Org, Testimonial } from "./types";
@@ -93,14 +94,14 @@ export function TestimonialsPanel({ org }: { org: Org }) {
                       value={t.rating ?? 5}
                       onChange={(r) => update(i, { rating: r })}
                     />
-                    <Button
+                    <IconButton
                       variant="ghost"
                       size="icon-sm"
                       onClick={() => removeAt(i)}
-                      aria-label="Remove testimonial"
+                      label="Remove testimonial"
                     >
                       <Trash2 className="size-3.5" />
-                    </Button>
+                    </IconButton>
                   </div>
                 </div>
                 <Field label="Quote">

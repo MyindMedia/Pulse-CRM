@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { Input, Field } from "@/components/ui/field";
 import { Spinner } from "@/components/ui/feedback";
 import { money } from "@/lib/format";
@@ -266,29 +267,30 @@ export function CreateInvoiceDialog({
                       className="pl-6 text-right font-meta"
                     />
                   </div>
-                  <Button
+                  <IconButton
                     type="button"
                     variant="ghost"
                     size="icon"
                     onClick={() => saveLineAsFee(line)}
                     disabled={!line.label.trim() || dollarsToCents(line.amount) <= 0}
-                    aria-label="Save as reusable fee"
-                    title="Save as reusable fee"
+                    label="Save as a reusable fee"
+                    hint="Keeps this line in your fee templates so you can add it to the next invoice in one click."
                     className="shrink-0"
                   >
                     <BookmarkPlus className="size-4" />
-                  </Button>
-                  <Button
+                  </IconButton>
+                  <IconButton
                     type="button"
                     variant="ghost"
                     size="icon"
                     onClick={() => removeLine(line.id)}
                     disabled={lines.length === 1}
-                    aria-label="Remove line"
+                    label="Remove this line"
+                    hint={lines.length === 1 ? "An invoice needs at least one line." : undefined}
                     className="shrink-0"
                   >
                     <Trash2 className="size-4" />
-                  </Button>
+                  </IconButton>
                 </div>
               ))}
             </div>

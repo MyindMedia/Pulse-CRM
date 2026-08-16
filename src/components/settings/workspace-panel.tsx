@@ -149,7 +149,7 @@ export function WorkspacePanel({ org }: { org: Org }) {
                 id="ws-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Lumen Recording Co."
+                placeholder="Myind Sound"
                 required
               />
             </Field>

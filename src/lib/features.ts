@@ -17,6 +17,7 @@ export type FeatureKey =
   | "licensing"
   | "studio"
   | "inventory"
+  | "patch"
   | "software";
 
 export const TOGGLEABLE_FEATURES: { key: FeatureKey; label: string; blurb: string }[] = [
@@ -35,6 +36,7 @@ export const TOGGLEABLE_FEATURES: { key: FeatureKey; label: string; blurb: strin
   { key: "licensing", label: "Licensing", blurb: "Sync + beat licenses" },
   { key: "studio", label: "Studio", blurb: "Rooms + team" },
   { key: "inventory", label: "Inventory", blurb: "Equipment assets" },
+  { key: "patch", label: "Patch", blurb: "Signal routing + cable management" },
   { key: "software", label: "Software", blurb: "Software + licenses" },
 ];
 

@@ -71,7 +71,7 @@ const ONE_OFFS: { category: Cat; vendor: string; label: string; cents: number; d
   { category: "gear", vendor: "Vintage King", label: "Shure SM7B + cloudlifter", cents: 48_000, daysAgo: 205 },
   { category: "repairs", vendor: "Pro Audio Service", label: "Mic capsule repair", cents: 22_000, daysAgo: 70 },
   { category: "repairs", vendor: "Cool Air HVAC", label: "HVAC service call", cents: 26_000, daysAgo: 150 },
-  { category: "marketing", vendor: "Lumen Studio", label: "Brand photoshoot", cents: 35_000, daysAgo: 90 },
+  { category: "marketing", vendor: "Northlight Studio", label: "Brand photoshoot", cents: 35_000, daysAgo: 90 },
   { category: "fees", vendor: "Berkman CPA", label: "Annual bookkeeping", cents: 45_000, daysAgo: 30 },
   { category: "software", vendor: "Avid", label: "Pro Tools renewal", cents: 29_900, daysAgo: 60 },
   { category: "contractor", vendor: "Freelance Mixer", label: "Overflow mix work", cents: 38_000, daysAgo: 35 },

@@ -59,7 +59,7 @@ function HomeScreen({ run }: { run: boolean }) {
     <div className="flex h-full flex-col gap-[0.7em]">
       <div>
         <p className="font-meta text-[0.6em] uppercase tracking-[0.12em] text-steel/70">Good morning</p>
-        <p className="font-grotesk text-[1.05em] font-semibold text-bone">Lumen Recording Co.</p>
+        <p className="font-grotesk text-[1.05em] font-semibold text-bone">Myind Sound</p>
       </div>
       <div className="grid grid-cols-2 gap-[0.55em]">
         <MiniKpi label="Revenue MTD" value={28.4} prefix="$" suffix="k" run={run} />

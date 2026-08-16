@@ -61,6 +61,112 @@ const pipelineStage = v.union(
   v.literal("lost"),
 );
 
+// ── Patch Manager validators ──
+// Shared by device profiles, ports, connections and the cable stock fields
+// on `equipment`. Kept here so the port template on a profile and the real
+// port on an instance can never drift apart.
+
+/** Which way audio moves through a port. */
+const portDirection = v.union(
+  v.literal("input"),
+  v.literal("output"),
+  v.literal("bidirectional"),
+);
+
+/** Operating level. Drives the mic-into-line style mismatch warnings. */
+const signalLevel = v.union(
+  v.literal("mic"),
+  v.literal("line"),
+  v.literal("instrument"),
+  v.literal("speaker"),
+  v.literal("digital"),
+  v.literal("control"),
+);
+
+/** Physical connector on the panel. A DB25 is one connector, eight ports.
+    Split to real granularity: "USB" is not a connector, USB-A, USB-B and
+    USB-C are three plugs that do not fit each other. The bare `xlr` and
+    `usb` values are kept for rows written before the split and are treated
+    as "some variant of this family" by the mating checks. */
+const connectorType = v.union(
+  v.literal("xlr3"),
+  v.literal("xlr5"),
+  v.literal("trs"),
+  v.literal("ts"),
+  v.literal("trs_mini"),
+  v.literal("bantam"),
+  v.literal("db25"),
+  v.literal("speakon"),
+  v.literal("banana"),
+  v.literal("rca"),
+  v.literal("bnc"),
+  v.literal("wordclock_bnc"),
+  v.literal("midi_din"),
+  v.literal("rj45"),
+  v.literal("usb_a"),
+  v.literal("usb_b"),
+  v.literal("usb_b_mini"),
+  v.literal("usb_b_micro"),
+  v.literal("usb_c"),
+  v.literal("thunderbolt"),
+  v.literal("adat_optical"),
+  v.literal("spdif_optical"),
+  v.literal("spdif_coax"),
+  // Legacy, pre-split.
+  v.literal("xlr"),
+  v.literal("usb"),
+  v.literal("other"),
+);
+
+/** Which half of a mating pair a plug or socket is. */
+const connectorGender = v.union(
+  v.literal("male"),
+  v.literal("female"),
+  v.literal("unspecified"),
+);
+
+/** Hardware toggles a port can expose. Only rendered when the profile declares it. */
+const portCapability = v.union(
+  v.literal("phantom"),
+  v.literal("pad"),
+  v.literal("polarity"),
+  v.literal("monoSum"),
+  v.literal("hpf"),
+  v.literal("impedance"),
+);
+
+/** Patchbay row behaviour. Decides what audio does with nothing plugged in. */
+const normallingMode = v.union(
+  v.literal("full"),
+  v.literal("half"),
+  v.literal("none"),
+);
+
+/** Live toggle state for one port. Every field optional: absent = not applicable. */
+const portState = v.object({
+  phantom: v.optional(v.boolean()),
+  pad: v.optional(v.boolean()),
+  polarity: v.optional(v.boolean()),
+  monoSum: v.optional(v.boolean()),
+  hpf: v.optional(v.boolean()),
+  impedance: v.optional(v.string()),
+});
+
+/** One port as declared on a reusable profile, before it is instantiated. */
+const portTemplateEntry = v.object({
+  label: v.string(),
+  direction: portDirection,
+  signalLevel: signalLevel,
+  connector: connectorType,
+  gender: v.optional(connectorGender),
+  channelIndex: v.optional(v.number()),
+  capabilities: v.array(portCapability),
+  // Patchbays only: which physical row and column this jack sits on, so
+  // normalling can be derived from geometry instead of hand-wiring it.
+  bayRow: v.optional(v.union(v.literal("top"), v.literal("bottom"))),
+  bayColumn: v.optional(v.number()),
+});
+
 export default defineSchema({
   // ── Orgs - one row per studio subaccount. orgId is the Clerk org id
   //    (org_xxx) or "pulse-demo". The agency console provisions these. ──
@@ -901,9 +1007,33 @@ export default defineSchema({
     // against overlapping sessions so a single unit cannot be double-booked.
     rentable: v.optional(v.boolean()),
     rentalPriceCents: v.optional(v.number()),
+    // ── Cable stock (Patch Manager) ──
+    // Only meaningful on category "cable". Turns an undifferentiated line
+    // item ("XLR Cable, qty 6") into real stock the patch canvas can spend:
+    // a connection claims one run from this row, and the remaining count is
+    // what the cable manager reports as free. Absent on every other category.
+    cableSpec: v.optional(
+      v.object({
+        connectorA: connectorType,
+        connectorB: connectorType,
+        // A cable is plugs, so each end has a gender. An XLR mic cable is
+        // female at the mic and male at the preamp.
+        genderA: v.optional(connectorGender),
+        genderB: v.optional(connectorGender),
+        // Runs carried by one physical cable. 1 for an XLR, 8 for a DB25 fan.
+        channels: v.number(),
+        lengthFt: v.optional(v.number()),
+        // Jacket colour, used for the edge tint on the canvas.
+        color: v.optional(v.string()),
+        signalLevel: v.optional(signalLevel),
+        // Prefix for physical labels on this batch, e.g. "A" -> A-001.
+        labelPrefix: v.optional(v.string()),
+      }),
+    ),
   })
     .index("by_org", ["orgId"])
-    .index("by_org_room", ["orgId", "installedInRoomId"]),
+    .index("by_org_room", ["orgId", "installedInRoomId"])
+    .index("by_org_category", ["orgId", "category"]),
 
   // ── Asset documents - receipts / invoices / warranties attached to a
   //    hardware (equipment) or software item. Kept for tax, insurance and
@@ -1888,4 +2018,205 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_artist", ["artistId"])
     .index("by_stripe_subscription", ["stripeSubscriptionId"]),
+
+  /* ============================================================
+     PATCH MANAGER
+     Node-based documentation of what is physically plugged into
+     what, at channel level. The graph is the map; `equipment` is
+     still the asset register. A device on the canvas points back
+     at the inventory row it represents, so the two never diverge.
+     Nothing here controls hardware. It records.
+     ============================================================ */
+
+  // ── Patch space - a room or rig that gets patched. A studio can have
+  //    several. Binds to a real room when one exists, so the canvas and
+  //    the room's installed gear describe the same physical place. ──
+  patchSpaces: defineTable({
+    orgId: v.string(),
+    name: v.string(),
+    roomId: v.optional(v.id("rooms")), // unset -> a rig with no fixed room
+    description: v.optional(v.string()),
+    // Bumped on every graph mutation. Photo staleness in a later phase
+    // compares against this instead of walking the audit log.
+    revision: v.number(),
+    createdAt: v.number(),
+    createdBy: v.optional(v.string()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_room", ["orgId", "roomId"]),
+
+  // ── Device profile - a reusable definition of a piece of gear and the
+  //    ports it exposes. Global profiles are curated and shared by every
+  //    studio; studio profiles are the escape hatch for gear the seed set
+  //    will never cover. `catalogId` links a profile to its gearCatalog
+  //    entry so the profile and the Add-equipment prefill agree. ──
+  deviceProfiles: defineTable({
+    // Unset on global profiles. Set on studio-authored ones.
+    orgId: v.optional(v.string()),
+    scope: v.union(v.literal("global"), v.literal("studio")),
+    name: v.string(),
+    manufacturer: v.string(),
+    // Mirrors equipment.category so a profile and an inventory row can be
+    // matched up. Stored loose rather than as the literal union because
+    // the curated set only ever covers the gear categories.
+    category: v.string(),
+    rackUnits: v.optional(v.number()),
+    catalogId: v.optional(v.string()), // gearCatalog slug, e.g. "neumann-u87-ai"
+    portTemplate: v.array(portTemplateEntry),
+    // Ribbon mics and similar. Drives the phantom power warning.
+    phantomSensitive: v.optional(v.boolean()),
+    // Patchbays only: how the rows behave out of the box.
+    defaultNormalling: v.optional(normallingMode),
+    sourceUrl: v.optional(v.string()), // provenance for future scraped entries
+    createdBy: v.optional(v.string()),
+  })
+    .index("by_scope", ["scope"])
+    .index("by_org", ["orgId"])
+    .index("by_catalog", ["catalogId"])
+    .searchIndex("search_name", { searchField: "name" }),
+
+  // ── Device instance - one unit placed on one canvas. `equipmentId` is the
+  //    binding to real inventory: place a device and you are placing a gear
+  //    asset the studio actually owns. `unitIndex` addresses one unit of a
+  //    multi-quantity inventory row, which the equipment table cannot do on
+  //    its own. Instances without an equipmentId are allowed so an engineer
+  //    can sketch a rig before the gear is entered in inventory. ──
+  deviceInstances: defineTable({
+    orgId: v.string(),
+    patchSpaceId: v.id("patchSpaces"),
+    profileId: v.id("deviceProfiles"),
+    equipmentId: v.optional(v.id("equipment")),
+    unitIndex: v.optional(v.number()), // 0-based unit of a quantity > 1 row
+    label: v.string(), // "Rack 2 - Neve 1073 #3"
+    notes: v.optional(v.string()),
+    position: v.object({ x: v.number(), y: v.number() }),
+    normalling: v.optional(normallingMode), // patchbays override the profile default
+    // A photo of THIS unit as it actually sits in the rack, which is not the
+    // same picture as the catalog shot on the equipment record. Falls back to
+    // the inventory photo when unset.
+    photoId: v.optional(v.id("_storage")),
+    createdAt: v.number(),
+  })
+    .index("by_patchSpace", ["patchSpaceId"])
+    .index("by_org", ["orgId"])
+    .index("by_equipment", ["equipmentId"]),
+
+  // ── Annotation - a sticky note on the canvas. Not a device, not a cable:
+  //    the thing an engineer writes on tape and leaves on the desk. Kept in
+  //    its own table so it can never be mistaken for gear by the run list,
+  //    the inventory counts or the connector checks. ──
+  patchAnnotations: defineTable({
+    orgId: v.string(),
+    patchSpaceId: v.id("patchSpaces"),
+    text: v.string(),
+    /** Sticky colour key, resolved to a hex by the canvas. */
+    color: v.string(),
+    position: v.object({ x: v.number(), y: v.number() }),
+    size: v.optional(v.object({ width: v.number(), height: v.number() })),
+    createdAt: v.number(),
+    createdBy: v.optional(v.string()),
+  })
+    .index("by_patchSpace", ["patchSpaceId"])
+    .index("by_org", ["orgId"]),
+
+  // ── Port - one input or output on one device instance. Channel level
+  //    throughout: a DB25 snake is eight rows here, never one. Ports are
+  //    materialised from the profile's portTemplate at placement time so a
+  //    later profile edit cannot silently rewrite a documented patch. ──
+  ports: defineTable({
+    orgId: v.string(),
+    patchSpaceId: v.id("patchSpaces"),
+    deviceInstanceId: v.id("deviceInstances"),
+    label: v.string(),
+    direction: portDirection,
+    signalLevel: signalLevel,
+    connector: connectorType,
+    // Which half of the pair this jack is. Absent means unknown, which
+    // the mating checks treat as "do not block".
+    gender: v.optional(connectorGender),
+    channelIndex: v.optional(v.number()),
+    capabilities: v.array(portCapability),
+    state: portState,
+    // Patchbays: physical geometry, so normalling is derived not hand-wired.
+    bayRow: v.optional(v.union(v.literal("top"), v.literal("bottom"))),
+    bayColumn: v.optional(v.number()),
+  })
+    .index("by_device", ["deviceInstanceId"])
+    .index("by_patchSpace", ["patchSpaceId"])
+    .index("by_org", ["orgId"]),
+
+  // ── Connection - a directed edge, output port to input port. Cable
+  //    metadata points at a real `equipment` row of category "cable" so a
+  //    patch spends stock the studio owns; `cableTag` records which
+  //    physical labelled cable of that batch was used. Normalled edges are
+  //    implied by patchbay geometry and carry no cable. ──
+  connections: defineTable({
+    orgId: v.string(),
+    patchSpaceId: v.id("patchSpaces"),
+    fromPortId: v.id("ports"),
+    toPortId: v.id("ports"),
+    isNormalled: v.boolean(),
+    // The cable stock row this run is drawn from.
+    cableId: v.optional(v.id("equipment")),
+    // Labelling. A cable is usually labelled in three places: once in the
+    // middle with what it is, and once at each end with where the OTHER
+    // end goes. The end labels are deliberately separate strings because
+    // they say different things: the interface end reads "out to monitors"
+    // while the monitor end reads "in from the interface".
+    cableTag: v.optional(v.string()),
+    cableLabelMode: v.optional(v.union(v.literal("single"), v.literal("perEnd"))),
+    cableTagSource: v.optional(v.string()),
+    cableTagTarget: v.optional(v.string()),
+    // Result of the last connector check against the assigned cable.
+    // "mismatch" means someone recorded it anyway, which is allowed but
+    // has to be visible on the run list rather than silently fine.
+    cableFit: v.optional(
+      v.union(
+        v.literal("exact"),
+        v.literal("compatible"),
+        v.literal("vague"),
+        v.literal("mismatch"),
+      ),
+    ),
+    // Overrides when the run does not match the stock row's spec.
+    cableColor: v.optional(v.string()),
+    cableLengthFt: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_patchSpace", ["patchSpaceId"])
+    .index("by_fromPort", ["fromPortId"])
+    .index("by_toPort", ["toPortId"])
+    .index("by_cable", ["cableId"])
+    .index("by_org", ["orgId"]),
+
+  // ── Patch audit - append-only. Every mutation that touches a device, a
+  //    port or a connection writes one of these in the same transaction.
+  //    This is the source of truth for what changed; snapshots in a later
+  //    phase are named markers into this log. ──
+  patchAudit: defineTable({
+    orgId: v.string(),
+    patchSpaceId: v.id("patchSpaces"),
+    actor: v.string(), // human label from currentActor()
+    at: v.number(),
+    entityType: v.union(
+      v.literal("patchSpace"),
+      v.literal("device"),
+      v.literal("port"),
+      v.literal("connection"),
+      v.literal("note"),
+    ),
+    entityId: v.string(),
+    changeType: v.union(
+      v.literal("create"),
+      v.literal("update"),
+      v.literal("delete"),
+    ),
+    // One line, already written for a human. "Patched Neve 1073 ch3 out to Pro Tools in 5".
+    summary: v.string(),
+    before: v.optional(v.any()),
+    after: v.optional(v.any()),
+  })
+    .index("by_patchSpace_at", ["patchSpaceId", "at"])
+    .index("by_org_at", ["orgId", "at"]),
 });

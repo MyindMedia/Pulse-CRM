@@ -393,7 +393,7 @@ export function DashboardSim({ start = 0 }: { start?: number }) {
         {/* Topbar */}
         <header className="flex h-[2.6em] shrink-0 items-center gap-[0.6em] border-b border-graphite/50 bg-obsidian/80 px-[0.9em]">
           <div className="flex flex-col">
-            <span className="font-meta text-[0.55em] uppercase tracking-[0.12em] text-steel/70">Lumen Recording Co.</span>
+            <span className="font-meta text-[0.55em] uppercase tracking-[0.12em] text-steel/70">Myind Sound</span>
             <span className="font-grotesk text-[0.8em] font-semibold text-bone">{NAV[navIdx].label}</span>
           </div>
           <div className="ml-auto flex items-center gap-[0.5em]">

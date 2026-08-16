@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { RightsExportDialog } from "@/components/songs/rights-export-dialog";
 import { SigningLinksDialog, type SigningLink } from "@/components/songs/signing-links-dialog";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/field";
 import { Checkbox } from "@/components/ui/toggle";
@@ -293,14 +294,14 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
                       />
                       Signed
                     </label>
-                    <Button
+                    <IconButton
                       variant="ghost"
                       size="icon-sm"
                       onClick={() => removeRow(i)}
-                      aria-label="Remove contributor"
+                      label="Remove contributor"
                     >
                       <Trash2 className="size-4 text-critical" />
-                    </Button>
+                    </IconButton>
                   </div>
                 </div>
               </div>

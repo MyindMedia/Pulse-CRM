@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Plus, Trash2, Save, Check } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { Field, Input } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/toggle";
@@ -205,19 +206,19 @@ function FeeRow({ fee }: { fee: FeeTemplate }) {
           aria-label={`Toggle ${fee.label}`}
         />
         {dirty ? (
-          <Button variant="ghost" size="icon-sm" onClick={save} disabled={!canSave} aria-label="Save fee">
+          <IconButton variant="ghost" size="icon-sm" onClick={save} disabled={!canSave} label="Save fee">
             <Save className="size-3.5" />
-          </Button>
+          </IconButton>
         ) : null}
       </div>
-      <Button
+      <IconButton
         variant="ghost"
         size="icon-sm"
         onClick={() => remove({ id })}
-        aria-label={`Remove ${fee.label}`}
+        label={`Remove ${fee.label}`}
       >
         <Trash2 className="size-3.5" />
-      </Button>
+      </IconButton>
     </li>
   );
 }
@@ -537,14 +538,14 @@ function DiscountCodesCard({ org }: { org: Org }) {
                       {c.active ? "on" : "off"}
                     </span>
                   </div>
-                  <Button
+                  <IconButton
                     variant="ghost"
                     size="icon-sm"
                     onClick={() => removeAt(i)}
-                    aria-label={`Remove ${c.code || "code"}`}
+                    label={`Remove ${c.code || "code"}`}
                   >
                     <Trash2 className="size-3.5" />
-                  </Button>
+                  </IconButton>
                 </li>
               ))}
             </ul>

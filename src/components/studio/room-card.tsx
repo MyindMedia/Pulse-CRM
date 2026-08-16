@@ -8,6 +8,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import { ArrowUpRight, MoreHorizontal, Package, Wrench, Trash2, ChevronDown, ChevronUp } from "lucide-react";
+import { OpenPatchButton } from "@/components/patch/open-patch-button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -321,6 +322,18 @@ export function RoomCard({
             </>
           )}
         </div>
+
+        {/* Jump straight to this room's patch map. */}
+        {!isRetired && (
+          <div className="mt-3">
+            <OpenPatchButton
+              roomId={room._id}
+              roomName={room.name}
+              variant="secondary"
+              className="w-full"
+            />
+          </div>
+        )}
 
         {/* Service notes */}
         <div className="mt-auto space-y-1.5 border-t border-graphite/50 pt-3">

@@ -80,15 +80,15 @@ export const run = mutation({
         });
       } else {
         await ctx.db.insert("orgs", {
-          orgId, name: args.studioName ?? "Lumen Recording Co.", slug: "lumen-recording",
+          orgId, name: args.studioName ?? "Myind Sound", slug: "myind-sound",
           plan: "studio", accentColor: "#fdb913",
         });
       }
     } else {
       await ctx.db.insert("orgs", {
         orgId,
-        name: "Lumen Recording Co.",
-        slug: "lumen-recording",
+        name: "Myind Sound",
+        slug: "myind-sound",
         plan: "studio",
         accentColor: "#fdb913",
         tagline: "Where the record gets made.",
@@ -867,6 +867,6 @@ export const run = mutation({
       entityType: "song", entityId: sParadise, status: "seen",
     });
 
-    return { ok: true, org: "Lumen Recording Co.", seededAt: now };
+    return { ok: true, org: "Myind Sound", seededAt: now };
   },
 });

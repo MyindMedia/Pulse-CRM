@@ -35,7 +35,7 @@ Open http://localhost:3000 — it redirects to `/dashboard`.
 ### Seed the demo studio
 
 On first load the dashboard shows a **"Load demo data"** card. Click it (or run
-`npx convex run seed:run`) to populate the `pulse-demo` workspace with Lumen
+`npx convex run seed:run`) to populate the `pulse-demo` workspace with Myind
 Recording Co. — a full studio of artists, songs, sessions, invoices, deals,
 sync pitches, beat licenses and release campaigns. Every screen is then
 explorable with zero further setup.

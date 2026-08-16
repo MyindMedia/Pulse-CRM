@@ -27,6 +27,7 @@ import { longDate, timeOfDay, duration, money } from "@/lib/format";
 import { meta, SESSION_STATUS, titleCase } from "@/lib/labels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import {
   Dialog,
   DialogBody,
@@ -296,28 +297,27 @@ function Kiosk({ authReady }: { authReady: boolean }) {
           </div>
 
           {fullscreenSupported && (
-            <Button
+            <IconButton
               variant="outline"
               size="icon"
               onClick={toggleFullscreen}
-              aria-label={fullscreen ? "Minimize" : "Full screen"}
-              title={fullscreen ? "Minimize" : "Full screen"}
+              label={fullscreen ? "Minimize" : "Full screen"}
             >
               {fullscreen ? <Minimize2 className="size-5" /> : <Maximize2 className="size-5" />}
-            </Button>
+            </IconButton>
           )}
         </div>
 
         <div className="order-3 flex w-full items-center justify-center gap-2 md:w-auto md:flex-1 lg:order-2 lg:flex-initial">
-          <Button variant="outline" size="icon" onClick={() => shift(-1)} aria-label="Previous">
+          <IconButton variant="outline" size="icon" onClick={() => shift(-1)} label="Previous">
             <ChevronLeft className="size-5" />
-          </Button>
+          </IconButton>
           <h1 className="min-w-0 flex-1 truncate text-center font-grotesk text-base font-bold tracking-tight sm:text-xl md:min-w-56 md:flex-none">
             {rangeLabel}
           </h1>
-          <Button variant="outline" size="icon" onClick={() => shift(1)} aria-label="Next">
+          <IconButton variant="outline" size="icon" onClick={() => shift(1)} label="Next">
             <ChevronRight className="size-5" />
-          </Button>
+          </IconButton>
           <Button variant="secondary" onClick={goToday}>
             Today
           </Button>

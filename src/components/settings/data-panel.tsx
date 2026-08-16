@@ -34,7 +34,7 @@ export function DataPanel() {
     setRunning(true);
     try {
       await seedRun({});
-      toast.success("Demo workspace rebuilt - Lumen Recording Co. is fresh.");
+      toast.success("Demo workspace rebuilt - Myind Sound is fresh.");
       setConfirmOpen(false);
     } catch {
       toast.error("Could not reload the demo data. Try again.");
@@ -52,7 +52,7 @@ export function DataPanel() {
             Reload demo data
           </CardTitle>
           <CardDescription>
-            Rebuild the Lumen Recording Co. demo workspace from scratch.
+            Rebuild the Myind Sound demo workspace from scratch.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -98,7 +98,7 @@ export function DataPanel() {
           <DialogHeader>
             <DialogTitle>Reload the demo workspace?</DialogTitle>
             <DialogDescription>
-              Every current record is replaced with the original Lumen Recording
+              Every current record is replaced with the original Myind Sound
               Co. demo data.
             </DialogDescription>
           </DialogHeader>

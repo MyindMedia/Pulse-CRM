@@ -1,6 +1,6 @@
 import { query, mutation, QueryCtx, MutationCtx } from "./_generated/server";
 import { Doc, Id } from "./_generated/dataModel";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { currentOrg, assertOrg, currentOrgWithCapability} from "./lib/tenant";
 import { searchGearCatalog } from "./lib/gearCatalog";
 import { meterStorageUpload } from "./usage";
@@ -495,12 +495,49 @@ export const setStatus = mutation({
   },
 });
 
+/**
+ * Refuse to delete gear that the patch manager is still pointing at.
+ *
+ * Deleting it used to succeed silently and leave a device on a canvas that
+ * quietly downgraded to a "sketch", or a cable run whose stock row no longer
+ * existed and could never be reassigned. Both cases make the patch map lie,
+ * which is the one thing it must not do.
+ */
+async function assertNotPatched(ctx: MutationCtx, item: Doc<"equipment">) {
+  const placed = await ctx.db
+    .query("deviceInstances")
+    .withIndex("by_equipment", (q) => q.eq("equipmentId", item._id))
+    .collect();
+  if (placed.length > 0) {
+    const spaces = await Promise.all(
+      [...new Set(placed.map((d) => d.patchSpaceId))].map((id) => ctx.db.get(id)),
+    );
+    const names = spaces.filter(Boolean).map((s) => s!.name).join(", ");
+    throw new ConvexError(
+      `${item.name} is on the patch canvas in ${names}. Remove it there before deleting the asset.`,
+    );
+  }
+
+  if (item.category === "cable") {
+    const runs = await ctx.db
+      .query("connections")
+      .withIndex("by_cable", (q) => q.eq("cableId", item._id))
+      .collect();
+    if (runs.length > 0) {
+      throw new ConvexError(
+        `${item.name} is assigned to ${runs.length} cable run${runs.length === 1 ? "" : "s"}. Release ${runs.length === 1 ? "it" : "them"} in the cable manager before deleting the stock.`,
+      );
+    }
+  }
+}
+
 export const remove = mutation({
   args: { id: v.id("equipment") },
   handler: async (ctx, { id }) => {
     const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
+    await assertNotPatched(ctx, item);
     await ctx.db.delete(id);
   },
 });
@@ -578,6 +615,9 @@ export const bulkRemove = mutation({
   handler: async (ctx, { ids }) => {
     const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
     const items = await ownItems(ctx, orgId, ids);
+    // Same guard as the single delete. A bulk select is not a licence to
+    // orphan a patch canvas.
+    for (const it of items) await assertNotPatched(ctx, it);
     for (const it of items) await ctx.db.delete(it._id);
     if (items.length > 0) {
       await ctx.db.insert("activity", {

@@ -24,8 +24,8 @@ QE = "QE2c6890da8086d771620e9b13fadeba0b"
 BASE = f"https://messaging.twilio.com/v1/Services/{MGS}/Compliance/Usa2p"
 
 DOMAIN = "https://pulse.myindsound.com"
-STUDIO_URL = f"{DOMAIN}/book/lumen-recording"
-ROOM_URL = f"{DOMAIN}/book/lumen-recording/m5758ddde5kcshparkb1mn8mms873q02"
+STUDIO_URL = f"{DOMAIN}/book/myind-sound"
+ROOM_URL = f"{DOMAIN}/book/myind-sound/m5758ddde5kcshparkb1mn8mms873q02"
 PRIVACY_URL = f"{DOMAIN}/privacy"
 TERMS_URL = f"{DOMAIN}/terms"
 

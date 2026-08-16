@@ -5,7 +5,7 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Minus, Plus, CalendarX2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -221,29 +221,29 @@ export function AvailabilityPicker({
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <Button
+              <IconButton
                 type="button"
                 variant="outline"
                 size="icon-sm"
-                aria-label="Shorter session"
+                label="Shorter session"
                 disabled={durationHours <= minimumHours}
                 onClick={() => setDurationHours((d) => Math.max(minimumHours, d - 1))}
               >
                 <Minus className="size-4" />
-              </Button>
+              </IconButton>
               <span className="w-14 text-center font-grotesk text-lg font-semibold text-bone">
                 {durationHours}h
               </span>
-              <Button
+              <IconButton
                 type="button"
                 variant="outline"
                 size="icon-sm"
-                aria-label="Longer session"
+                label="Longer session"
                 disabled={durationHours >= maxDuration}
                 onClick={() => setDurationHours((d) => Math.min(maxDuration, d + 1))}
               >
                 <Plus className="size-4" />
-              </Button>
+              </IconButton>
             </div>
           </div>
 

@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -186,15 +187,14 @@ export default function VisitorsPage() {
                         </TD>
                         <TD className="text-right">
                           <div className="inline-flex items-center gap-2">
-                            <Button
+                            <IconButton
                               variant="ghost"
                               size="icon-sm"
-                              aria-label={`Print parking sign for ${v.name}`}
-                              title="Print parking sign"
+                              label={`Print parking sign for ${v.name}`}
                               onClick={() => setParking({ open: true, name: v.name })}
                             >
                               <CircleParking className="size-4" />
-                            </Button>
+                            </IconButton>
                             {v.checkOutAt ? (
                               <Badge tone="neutral">Departed</Badge>
                             ) : (

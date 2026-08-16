@@ -122,6 +122,7 @@ export function SyncBoard() {
       </div>
 
       <DndContext
+        id="sync-board"
         sensors={sensors}
         collisionDetection={closestCorners}
         onDragStart={(e: DragStartEvent) => setActiveId(String(e.active.id))}

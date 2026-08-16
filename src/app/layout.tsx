@@ -9,6 +9,7 @@ import {
   IBM_Plex_Mono,
 } from "next/font/google";
 import { ConvexClientProvider } from "@/components/providers/convex-client-provider";
+import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
 import "./globals.css";
 
@@ -98,7 +99,11 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       suppressHydrationWarning
       className={`${inter.variable} ${jetbrainsMono.variable} ${instrumentSerif.variable} ${plusJakarta.variable} ${anton.variable} ${ibmPlexMono.variable} h-full`}
     >
-      <body className="min-h-full antialiased">
+      {/* Same guard the html element already carries. Browser extensions
+          write attributes onto body before React hydrates - `isolation:
+          isolate` is a common one - and React then reports a mismatch for
+          markup this app never rendered. */}
+      <body className="min-h-full antialiased" suppressHydrationWarning>
         {/* No-flash theme: set data-theme before paint. Dark is the default;
             only a saved choice ("light"/"dark") overrides it. The toggle updates
             it at runtime. */}
@@ -122,7 +127,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               "(function(){try{var t=localStorage.getItem('pulse-theme');document.documentElement.dataset.theme=(t==='light'||t==='dark')?t:'dark';}catch(e){document.documentElement.dataset.theme='dark';}})();",
           }}
         />
-        <ConvexClientProvider isSatellite={isSatellite}>{children}</ConvexClientProvider>
+        {/* Tooltips live at the root, not just inside the app shell, so the
+            public surfaces (booking, kiosk, portal) can label their icon
+            controls too. */}
+        <TooltipProvider delayDuration={300}>
+          <ConvexClientProvider isSatellite={isSatellite}>{children}</ConvexClientProvider>
+        </TooltipProvider>
         <Toaster
           theme="dark"
           position="bottom-right"

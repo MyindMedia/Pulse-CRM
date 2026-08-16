@@ -23,11 +23,12 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { api } from "@convex/_generated/api";
-import { Building2, GripVertical } from "lucide-react";
+import { Building2, GripVertical, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { NAV, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { useCapabilities } from "@/lib/use-capabilities";
 import { PulseLogo } from "@/components/brand/pulse-logo";
+import { Tooltip } from "@/components/ui/tooltip";
 
 /* The Pulse wordmark - the official gold pulse glyph + "PULSE" lockup.
  * Stretches across the full sidebar rail. */
@@ -59,14 +60,49 @@ function SortableNavItem({
   item,
   active,
   onNavigate,
+  collapsed,
 }: {
   item: NavItem;
   active: boolean;
   onNavigate?: () => void;
+  collapsed?: boolean;
 }) {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
     id: item.href,
+    // There is nowhere to grab in a 72px rail, and reordering something you
+    // cannot read the name of is not a thing anyone wants to do.
+    disabled: collapsed,
   });
+
+  // Collapsed, the icon has to carry the whole meaning, so the name it lost
+  // comes back as a tooltip rather than disappearing.
+  if (collapsed) {
+    return (
+      <li ref={setNodeRef} className="list-none">
+        <Tooltip label={item.label} side="right">
+          <Link
+            href={item.href}
+            onClick={onNavigate}
+            aria-current={active ? "page" : undefined}
+            className={cn(
+              "group flex min-h-11 items-center justify-center rounded-chrome border transition-colors duration-200 ease-out active:scale-[0.98]",
+              active
+                ? "border-gold/50 bg-gold/12 text-bone"
+                : "border-transparent text-steel hover:bg-coal/60 hover:text-bone",
+            )}
+          >
+            <item.icon
+              className={cn(
+                "size-[1.15rem] shrink-0 transition-colors",
+                active ? "text-gold" : "text-steel/70 group-hover:text-steel",
+              )}
+            />
+            <span className="sr-only">{item.label}</span>
+          </Link>
+        </Tooltip>
+      </li>
+    );
+  }
 
   return (
     <li
@@ -117,7 +153,16 @@ function SortableNavItem({
   );
 }
 
-export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
+export function Sidebar({
+  onNavigate,
+  collapsed = false,
+  onToggleCollapsed,
+}: {
+  onNavigate?: () => void;
+  /** Desktop rail only. The mobile drawer always renders in full. */
+  collapsed?: boolean;
+  onToggleCollapsed?: () => void;
+}) {
   const pathname = usePathname();
   const { user } = useOptionalUser();
   const { can, loaded: capsLoaded, kind } = useCapabilities();
@@ -179,13 +224,57 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
   }
 
   return (
-    <div className="flex h-full flex-col gap-6 py-5">
-      <div className="px-4">
-        <Wordmark />
+    <div className={cn("flex h-full flex-col gap-6 py-5", collapsed && "gap-4")}>
+      <div
+        className={cn(
+          "flex items-center gap-2",
+          collapsed ? "flex-col px-2" : "px-4",
+        )}
+      >
+        {collapsed ? (
+          <Link href="/dashboard" aria-label="Pulse home" className="block">
+            <img src="/icon-192.png" alt="Pulse" className="size-8 rounded-md" draggable={false} />
+          </Link>
+        ) : (
+          <Wordmark />
+        )}
+        {onToggleCollapsed && (
+          <Tooltip
+            label={collapsed ? "Expand navigation" : "Collapse navigation"}
+            shortcut="cmd+\\"
+            side="right"
+          >
+            <button
+              type="button"
+              onClick={onToggleCollapsed}
+              aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+              aria-expanded={!collapsed}
+              className={cn(
+                "grid size-8 shrink-0 place-items-center rounded-chrome border border-transparent text-steel/70",
+                "transition-colors hover:border-hairline-2 hover:bg-coal/60 hover:text-bone",
+                !collapsed && "ml-auto",
+              )}
+            >
+              {collapsed ? (
+                <PanelLeftOpen className="size-4" />
+              ) : (
+                <PanelLeftClose className="size-4" />
+              )}
+            </button>
+          </Tooltip>
+        )}
       </div>
 
-      <nav className="min-h-0 flex-1 overflow-y-auto px-3">
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+      <nav className={cn("min-h-0 flex-1 overflow-y-auto", collapsed ? "px-2" : "px-3")}>
+        {/* A stable id keeps dnd-kit's generated aria ids deterministic. Without
+            it the counter differs between the server render and the client one
+            and React reports a hydration mismatch on every nav item. */}
+        <DndContext
+          id="sidebar-nav"
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
           <SortableContext items={ordered.map((i) => i.href)} strategy={verticalListSortingStrategy}>
             <ul className="space-y-0.5">
               {ordered.map((item) => (
@@ -194,6 +283,7 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
                   item={item}
                   active={pathname === item.href || pathname.startsWith(`${item.href}/`)}
                   onNavigate={onNavigate}
+                  collapsed={collapsed}
                 />
               ))}
             </ul>
@@ -201,21 +291,35 @@ export function Sidebar({ onNavigate }: { onNavigate?: () => void }) {
         </DndContext>
       </nav>
 
-      <div className="space-y-3 px-3">
-        {isAgencyViewer && (
-          <Link
-            href="/agency"
-            onClick={onNavigate}
-            className="group flex items-center gap-3 rounded-chrome border border-graphite/60 bg-coal/40 px-3 py-2 font-meta text-[0.7rem] uppercase tracking-[0.04em] text-steel transition-colors hover:border-gold hover:text-bone"
-          >
-            <Building2 className="size-[1.1rem] shrink-0 text-steel/70 transition-colors group-hover:text-gold" />
-            Agency console
-          </Link>
+      <div className={cn("space-y-3", collapsed ? "px-2" : "px-3")}>
+        {isAgencyViewer &&
+          (collapsed ? (
+            <Tooltip label="Agency console" side="right">
+              <Link
+                href="/agency"
+                onClick={onNavigate}
+                className="group flex items-center justify-center rounded-chrome border border-graphite/60 bg-coal/40 py-2 text-steel transition-colors hover:border-gold hover:text-bone"
+              >
+                <Building2 className="size-[1.1rem] shrink-0 text-steel/70 transition-colors group-hover:text-gold" />
+                <span className="sr-only">Agency console</span>
+              </Link>
+            </Tooltip>
+          ) : (
+            <Link
+              href="/agency"
+              onClick={onNavigate}
+              className="group flex items-center gap-3 rounded-chrome border border-graphite/60 bg-coal/40 px-3 py-2 font-meta text-[0.7rem] uppercase tracking-[0.04em] text-steel transition-colors hover:border-gold hover:text-bone"
+            >
+              <Building2 className="size-[1.1rem] shrink-0 text-steel/70 transition-colors group-hover:text-gold" />
+              Agency console
+            </Link>
+          ))}
+        {!collapsed && (
+          <div className="px-2">
+            <p className="chrome-meta text-steel/80">Pulse by Myind Sound</p>
+            <p className="mt-0.5 font-meta text-[0.625rem] text-steel/60">v1.0 · Studio edition</p>
+          </div>
         )}
-        <div className="px-2">
-          <p className="chrome-meta text-steel/80">Pulse by Myind Sound</p>
-          <p className="mt-0.5 font-meta text-[0.625rem] text-steel/60">v1.0 · Studio edition</p>
-        </div>
       </div>
     </div>
   );

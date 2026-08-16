@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Wallet, Clock, Users, ArrowRightLeft, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { StatTile } from "@/components/ui/stat-tile";
 import { CountUp } from "@/components/shell/app-motion";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
@@ -184,9 +185,9 @@ export default function PayrollPage() {
                 <TD className="text-right font-meta text-steel">{r.hours.toFixed(1)}h</TD>
                 <TD className="text-right font-meta text-bone">{money(r.payCents)}</TD>
                 <TD>
-                  <Button variant="ghost" size="icon" aria-label="Set pay" onClick={() => editPay(r)}>
+                  <IconButton variant="ghost" size="icon" label="Set the pay rate" onClick={() => editPay(r)}>
                     <Pencil className="size-4" />
-                  </Button>
+                  </IconButton>
                 </TD>
               </TR>
             ))

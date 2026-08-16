@@ -32,6 +32,7 @@ export const AGENCY_ROLE_CAPABILITIES: Record<AgencyRole, ReadonlyArray<Capabili
     "artists.read", "artists.edit",
     "rooms.read", "rooms.edit",
     "equipment.read", "equipment.edit",
+    "patch.read", "patch.edit",
     "invoices.read", "invoices.send",
     "finance.refund",
     "members.read", "members.invite", "members.remove",
@@ -65,6 +66,7 @@ export const AGENCY_ROLE_CAPABILITIES: Record<AgencyRole, ReadonlyArray<Capabili
     "artists.read", "artists.edit",
     "rooms.read", "rooms.edit",
     "equipment.read", "equipment.edit",
+    "patch.read", "patch.edit",
     "invoices.read", "invoices.send",
     "finance.refund",
     "members.read", "members.invite",
@@ -101,6 +103,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "artists.read", "artists.edit",
     "rooms.read", "rooms.edit",
     "equipment.read", "equipment.edit",
+    "patch.read", "patch.edit",
     "invoices.read", "invoices.send",
     "finance.refund",
     "members.read", "members.invite", "members.remove",
@@ -125,6 +128,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "artists.read", "artists.edit",
     "rooms.read", "rooms.edit",
     "equipment.read", "equipment.edit",
+    "patch.read", "patch.edit",
     "invoices.read", "invoices.send",
     "finance.refund",
     "members.read", "members.invite",
@@ -148,6 +152,9 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "artists.read",
     "rooms.read",
     "equipment.read",
+    // Engineers patch the room for a living, so they own the patch document
+    // even though the asset register itself stays read-only for them.
+    "patch.read", "patch.edit",
     "grants.issue",
     "grants.revoke.own",
     // No "insights.read" - exec/revenue analytics are leadership-only
@@ -163,6 +170,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "artists.read",
     "rooms.read",
     "equipment.read",
+    "patch.read", "patch.edit",
     "activity.read",
   ],
   artist_relations: [
@@ -189,6 +197,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "artists.read",
     "rooms.read",
     "equipment.read",
+    "patch.read", "patch.edit",
     "grants.issue",
     "grants.revoke.own",
     "licenses.read", "licenses.edit",
@@ -203,6 +212,8 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "artists.read",
     "rooms.read",
     "equipment.read",
+    // Read only. An intern can trace a signal path but cannot repatch the map.
+    "patch.read",
     "activity.read",
   ],
   accountant: [

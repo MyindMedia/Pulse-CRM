@@ -39,7 +39,7 @@ export default function DashboardPage() {
             <div className="min-w-0 flex-1">
               <p className="font-grotesk font-semibold text-bone">Load the demo studio</p>
               <p className="text-sm text-steel">
-                Populate Pulse with Lumen Recording Co. - a full studio of artists, songs,
+                Populate Pulse with Myind Sound - a full studio of artists, songs,
                 sessions, invoices and deals so every screen is explorable.
               </p>
             </div>

@@ -7,6 +7,7 @@ import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
 import { CreditCard, CheckCircle2, Circle, Loader2, ArrowUpRight, Landmark, ShieldCheck, RefreshCw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/utils";
 import { EmbeddedConnectOnboarding, embeddedConnectAvailable } from "./embedded-connect-onboarding";
 
@@ -91,9 +92,9 @@ export function PaymentsSetupWalkthrough() {
           {opening ? <Loader2 className="size-3.5 animate-spin" /> : <ArrowUpRight className="size-3.5" />}
           Stripe dashboard
         </Button>
-        <Button variant="ghost" size="icon-sm" onClick={refresh} disabled={refreshing} aria-label="Refresh status">
+        <IconButton variant="ghost" size="icon-sm" onClick={refresh} disabled={refreshing} label="Refresh the connection status" hint="Re-checks Stripe for the latest onboarding state.">
           {refreshing ? <Loader2 className="size-3.5 animate-spin" /> : <RefreshCw className="size-3.5" />}
-        </Button>
+        </IconButton>
       </div>
     );
   }

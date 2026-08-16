@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import {
   Select,
   SelectTrigger,
@@ -202,25 +203,25 @@ function CalendarView() {
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3">
         <div className="flex w-full items-center gap-2 sm:w-auto">
-          <Button
+          <IconButton
             variant="outline"
             size="icon-sm"
             onClick={() => shift(-1)}
-            aria-label={`Previous ${view === "agenda" ? "month" : view}`}
+            label={`Previous ${view === "agenda" ? "month" : view}`}
           >
             <ChevronLeft className="size-4" />
-          </Button>
+          </IconButton>
           <h2 className="min-w-0 flex-1 text-center font-grotesk text-lg font-bold tracking-tight text-bone sm:min-w-44 sm:flex-none">
             {headerLabel(view, anchor)}
           </h2>
-          <Button
+          <IconButton
             variant="outline"
             size="icon-sm"
             onClick={() => shift(1)}
-            aria-label={`Next ${view === "agenda" ? "month" : view}`}
+            label={`Next ${view === "agenda" ? "month" : view}`}
           >
             <ChevronRight className="size-4" />
-          </Button>
+          </IconButton>
           <Button variant="secondary" size="sm" onClick={goToday}>
             Today
           </Button>

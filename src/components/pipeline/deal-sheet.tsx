@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Field, Input } from "@/components/ui/field";
@@ -257,23 +258,23 @@ export function DealSheet({
                         className="h-8 w-28 text-right"
                         autoFocus
                       />
-                      <Button
+                      <IconButton
                         variant="primary"
                         size="icon-sm"
                         onClick={saveValue}
                         disabled={busy}
-                        aria-label="Save value"
+                        label="Save value"
                       >
                         <Check className="size-3.5" />
-                      </Button>
-                      <Button
+                      </IconButton>
+                      <IconButton
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => setEditingValue(false)}
-                        aria-label="Cancel"
+                        label="Cancel"
                       >
                         <X className="size-3.5" />
-                      </Button>
+                      </IconButton>
                     </span>
                   ) : (
                     <button

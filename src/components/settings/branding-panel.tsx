@@ -357,7 +357,7 @@ export function BrandingPanel({ org }: { org: Org }) {
                 id="brand-name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                placeholder="Lumen Recording Co."
+                placeholder="Myind Sound"
                 required
               />
             </Field>

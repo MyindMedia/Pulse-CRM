@@ -995,3 +995,151 @@ html[data-theme="light"] .theme-dark-island { background-color: var(--color-coal
   --color-muted: var(--color-coal-3);
   --color-muted-foreground: var(--color-steel);
 }
+
+/* ────────────────────────────────────────────────────────────
+   Patch Manager canvas
+   Signal direction is shown by marching the dash along the edge
+   from output toward input. Display layer only: it never encodes
+   anything the data does not already say, and it is switched off
+   above a connection threshold in the canvas itself.
+   ──────────────────────────────────────────────────────────── */
+@keyframes patch-flow {
+  to {
+    stroke-dashoffset: -22;
+  }
+}
+
+.patch-edge-flow {
+  animation: patch-flow 0.9s linear infinite;
+}
+
+.patch-canvas .react-flow__handle {
+  border-radius: 9999px;
+}
+
+/* The marquee. Lucidchart's is a tinted rectangle you can actually see
+   against a dark canvas; the library default is nearly invisible here. */
+.patch-canvas .react-flow__selection {
+  background: rgba(253, 185, 19, 0.09);
+  border: 1px solid var(--color-gold);
+}
+
+.patch-canvas .react-flow__edge.selected .react-flow__edge-path {
+  stroke-width: 3;
+}
+
+/* Connection line while dragging a new cable out of a port. */
+.patch-canvas .react-flow__connectionline path {
+  stroke: var(--color-gold);
+  stroke-width: 2;
+  stroke-dasharray: 5 4;
+}
+
+.patch-canvas .react-flow__attribution {
+  display: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .patch-edge-flow {
+    animation: none;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────
+   Print
+   The patch run list gets taped to a wall, so it has to be
+   legible in black and white. Pulse is a dark theme; printing
+   it untouched gives a solid black page. Drop the chrome and
+   invert to ink on paper.
+   ──────────────────────────────────────────────────────────── */
+@media print {
+  aside,
+  nav,
+  [data-print-hide],
+  .app-bloom {
+    display: none !important;
+  }
+
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+
+  main {
+    padding: 0 !important;
+  }
+
+  * {
+    background-image: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    color: #000 !important;
+    border-color: #999 !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  th,
+  td {
+    border: 1px solid #999 !important;
+    padding: 6px 8px !important;
+  }
+
+  thead {
+    display: table-header-group;
+  }
+
+  tr {
+    break-inside: avoid;
+  }
+}
+
+/* The cable being dragged. Gold, dashed and marching, so it reads as a
+   live cable in the air rather than a UI affordance. */
+.patch-canvas .react-flow__connectionline path {
+  stroke: var(--color-gold);
+  stroke-width: 2.5;
+  stroke-dasharray: 6 5;
+  animation: patch-flow 0.7s linear infinite;
+  filter: drop-shadow(0 0 4px rgba(253, 185, 19, 0.5));
+}
+
+/* Handles keep their hit area even when the card is small on screen. */
+.patch-canvas .react-flow__handle {
+  z-index: 4;
+}
+
+.patch-canvas .react-flow__handle-connecting {
+  cursor: crosshair;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .patch-canvas .react-flow__connectionline path {
+    animation: none;
+  }
+}
+
+/* ────────────────────────────────────────────────────────────
+   Patch canvas surface
+
+   The app is near-black, which is wrong for this one screen: a
+   black cable jacket on a black canvas is invisible, and black
+   is the most common cable in any studio. The canvas gets its
+   own lighter working surface so every jacket colour reads,
+   including the dark ones.
+   ──────────────────────────────────────────────────────────── */
+.patch-canvas,
+.patch-canvas .react-flow,
+.patch-canvas .react-flow__background {
+  background-color: #2b2b31 !important;
+}
+
+html[data-theme="light"] .patch-canvas,
+html[data-theme="light"] .patch-canvas .react-flow,
+html[data-theme="light"] .patch-canvas .react-flow__background {
+  background-color: #e8e8ea !important;
+}

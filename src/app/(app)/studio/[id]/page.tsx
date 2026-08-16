@@ -29,6 +29,8 @@ import {
   Wrench,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
+import { OpenPatchButton } from "@/components/patch/open-patch-button";
 import { Badge } from "@/components/ui/badge";
 import { PhotoUpload } from "@/components/ui/photo-upload";
 import { CountUp } from "@/components/shell/app-motion";
@@ -564,6 +566,7 @@ export default function StudioDetailPage() {
                 </DropdownMenuContent>
               </DropdownMenu>
             )}
+            <OpenPatchButton roomId={room._id} roomName={room.name} />
             <Button size="sm" onClick={() => setAddOpen(true)}>
               <Plus className="size-4" />
               Add new gear
@@ -744,25 +747,25 @@ export default function StudioDetailPage() {
                       )}
                     </div>
                     <div className="flex items-center gap-1">
-                      <Button
+                      <IconButton
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => handleSync(cal._id)}
                         disabled={syncing}
-                        aria-label="Refresh"
+                        label="Refresh"
                       >
                         <RefreshCw
                           className={cn("size-4", syncing && "animate-spin")}
                         />
-                      </Button>
-                      <Button
+                      </IconButton>
+                      <IconButton
                         variant="ghost"
                         size="icon-sm"
                         onClick={() => handleRemoveCalendar(cal._id, cal.label)}
-                        aria-label="Remove"
+                        label="Remove"
                       >
                         <Unplug className="size-4" />
-                      </Button>
+                      </IconButton>
                     </div>
                   </div>
                   {cal.lastError && (

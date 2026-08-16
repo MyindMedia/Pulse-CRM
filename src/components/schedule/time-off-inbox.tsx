@@ -6,7 +6,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import { Plane, Check, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { Avatar } from "@/components/ui/avatar";
 
 function range(a: number, b: number) {
@@ -51,12 +51,12 @@ export function TimeOffInbox() {
                 {r.reason && <span className="text-steel/70"> · {r.reason}</span>}
               </p>
             </div>
-            <Button size="icon-sm" variant="secondary" aria-label="Approve" onClick={() => act(r._id as Id<"timeOff">, "approved")}>
+            <IconButton size="icon-sm" variant="secondary" label="Approve this time off" onClick={() => act(r._id as Id<"timeOff">, "approved")}>
               <Check className="size-4 text-positive" />
-            </Button>
-            <Button size="icon-sm" variant="secondary" aria-label="Deny" onClick={() => act(r._id as Id<"timeOff">, "denied")}>
+            </IconButton>
+            <IconButton size="icon-sm" variant="secondary" label="Deny this request" onClick={() => act(r._id as Id<"timeOff">, "denied")}>
               <X className="size-4 text-critical" />
-            </Button>
+            </IconButton>
           </div>
         ))}
       </CardContent>

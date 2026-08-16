@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { ChevronLeft, ChevronRight, Plus, X, CalendarClock, DoorOpen, Check, Ban } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { Avatar } from "@/components/ui/avatar";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { ShiftDialog, type EditableShift } from "@/components/schedule/shift-dialog";
@@ -155,9 +156,9 @@ export default function SchedulePage() {
       {/* Week nav */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1">
-          <Button variant="secondary" size="icon-sm" aria-label="Previous week" onClick={() => setWeekStart((w) => w - 7 * DAY)}><ChevronLeft className="size-4" /></Button>
+          <IconButton variant="secondary" size="icon-sm" label="Previous week" onClick={() => setWeekStart((w) => w - 7 * DAY)}><ChevronLeft className="size-4" /></IconButton>
           <Button variant="secondary" size="sm" onClick={() => setWeekStart(startOfWeek(Date.now()))}>This week</Button>
-          <Button variant="secondary" size="icon-sm" aria-label="Next week" onClick={() => setWeekStart((w) => w + 7 * DAY)}><ChevronRight className="size-4" /></Button>
+          <IconButton variant="secondary" size="icon-sm" label="Next week" onClick={() => setWeekStart((w) => w + 7 * DAY)}><ChevronRight className="size-4" /></IconButton>
         </div>
         <p className="text-sm font-medium text-steel">{weekLabel}</p>
       </div>

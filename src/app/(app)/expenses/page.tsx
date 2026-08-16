@@ -6,6 +6,7 @@ import { api } from "@convex/_generated/api";
 import { Wallet, TrendingDown, TrendingUp, Percent, RefreshCw, Plus, Pencil } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { StatTile } from "@/components/ui/stat-tile";
 import { CountUp } from "@/components/shell/app-motion";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
@@ -160,9 +161,9 @@ export default function ExpensesPage() {
                 <TD className="text-steel">{r.description ?? "-"}</TD>
                 <TD className="text-right font-meta text-bone">{money(r.amountCents)}</TD>
                 <TD>
-                  <Button variant="ghost" size="icon" aria-label="Edit expense" onClick={() => openEdit(r)}>
+                  <IconButton variant="ghost" size="icon" label="Edit this expense" onClick={() => openEdit(r)}>
                     <Pencil className="size-4" />
-                  </Button>
+                  </IconButton>
                 </TD>
               </TR>
             ))

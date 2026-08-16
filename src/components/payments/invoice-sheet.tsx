@@ -43,7 +43,7 @@ export function InvoiceSheet({ invoice }: { invoice: InvoiceDetail }) {
               <p className="font-grotesk text-lg font-bold tracking-tight text-bone">
                 Pulse Studio
               </p>
-              <p className="text-xs text-steel/70">Lumen Recording Co.</p>
+              <p className="text-xs text-steel/70">Myind Sound</p>
             </div>
           </div>
           <div className="text-right">

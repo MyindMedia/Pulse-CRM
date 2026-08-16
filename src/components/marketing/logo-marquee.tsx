@@ -63,10 +63,10 @@ const WORDMARKS: { key: string; center?: boolean; mark: React.ReactNode }[] = [
     mark: <span className="font-grotesk text-xl font-extrabold lowercase tracking-[-0.03em]">good music.</span>,
   },
   {
-    key: "Lumen Recording Co.",
+    key: "Myind Sound",
     mark: (
       <span className="flex items-baseline gap-2">
-        <span className="font-meta text-lg font-semibold uppercase tracking-[0.3em]">Lumen</span>
+        <span className="font-meta text-lg font-semibold uppercase tracking-[0.3em]">Myind</span>
         <span className="chrome-meta text-[0.625rem] opacity-70">REC. CO</span>
       </span>
     ),

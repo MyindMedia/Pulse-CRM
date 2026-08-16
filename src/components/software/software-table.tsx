@@ -7,7 +7,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import { Pencil, Trash2, KeyRound } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { IconButton } from "@/components/ui/icon-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { money, shortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
@@ -129,12 +129,12 @@ export function SoftwareTable({
                 <td className="px-3 py-2.5"><Badge tone={st.tone} dot>{st.label}</Badge></td>
                 <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>
                   <div className="flex justify-end gap-1">
-                    <Button variant="ghost" size="icon-sm" onClick={() => onEdit(s)} aria-label={`Edit ${s.name}`}>
+                    <IconButton variant="ghost" size="icon-sm" onClick={() => onEdit(s)} label={`Edit ${s.name}`}>
                       <Pencil className="size-3.5" />
-                    </Button>
-                    <Button variant="ghost" size="icon-sm" onClick={() => del(s)} aria-label={`Remove ${s.name}`}>
+                    </IconButton>
+                    <IconButton variant="ghost" size="icon-sm" onClick={() => del(s)} label={`Remove ${s.name}`} hint="Deletes the licence record.">
                       <Trash2 className="size-3.5" />
-                    </Button>
+                    </IconButton>
                   </div>
                 </td>
               </tr>

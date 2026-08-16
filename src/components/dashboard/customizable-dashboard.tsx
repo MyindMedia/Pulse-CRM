@@ -209,7 +209,12 @@ export function CustomizableDashboard() {
 
       {/* The grid */}
       {editing ? (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+        <DndContext
+          id="dashboard-tiles"
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
           <SortableContext items={visible} strategy={rectSortingStrategy}>
             <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
               {visible.map((key) => {

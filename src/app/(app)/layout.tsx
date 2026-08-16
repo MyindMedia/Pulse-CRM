@@ -1,6 +1,8 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { cn } from "@/lib/utils";
+import { useCollapsiblePanel } from "@/lib/use-collapsible-panel";
 import { Sidebar } from "@/components/shell/sidebar";
 import { Topbar } from "@/components/shell/topbar";
 import { StudioBanner } from "@/components/shell/studio-banner";
@@ -22,6 +24,30 @@ import { ShellErrorBoundary } from "@/components/shell/shell-error-boundary";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileNav, setMobileNav] = useState(false);
+  const { collapsed: navCollapsed, toggle: toggleNav } = useCollapsiblePanel(
+    "pulse:nav-collapsed",
+  );
+
+  // Cmd+\ folds the rail. The canvas uses the same idea for its own panels,
+  // so one muscle memory covers every surface that competes for width.
+  useEffect(() => {
+    function onKey(event: KeyboardEvent) {
+      if (event.key !== "\\" || !(event.metaKey || event.ctrlKey)) return;
+      const target = event.target as HTMLElement | null;
+      if (
+        target &&
+        (target.tagName === "INPUT" ||
+          target.tagName === "TEXTAREA" ||
+          target.isContentEditable)
+      ) {
+        return;
+      }
+      event.preventDefault();
+      toggleNav();
+    }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [toggleNav]);
 
   return (
     <ShellErrorBoundary>
@@ -38,8 +64,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="app-bloom" aria-hidden />
 
         {/* Desktop rail - stays dark in light mode (dark chrome). */}
-        <aside className="theme-dark-island fixed inset-y-0 left-0 z-20 hidden w-64 material-regular lg:block">
-          <Sidebar />
+        <aside
+          className={cn(
+            "theme-dark-island fixed inset-y-0 left-0 z-20 hidden material-regular lg:block",
+            "transition-[width] duration-200 ease-out",
+            navCollapsed ? "w-[4.5rem]" : "w-64",
+          )}
+        >
+          <Sidebar collapsed={navCollapsed} onToggleCollapsed={toggleNav} />
         </aside>
 
         {/* Mobile nav drawer */}
@@ -50,7 +82,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         </Sheet>
 
         {/* Main column */}
-        <div className="relative z-10 flex min-h-dvh flex-col lg:pl-64">
+        <div
+          className={cn(
+            "relative z-10 flex min-h-dvh flex-col transition-[padding] duration-200 ease-out",
+            navCollapsed ? "lg:pl-[4.5rem]" : "lg:pl-64",
+          )}
+        >
           <StudioBanner />
           <BillingBanner />
           <Topbar onOpenMenu={() => setMobileNav(true)} />
