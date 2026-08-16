@@ -4,9 +4,36 @@ import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { DEMO_ORG } from "./lib/tenant";
 import { portsFor, isPhantomSensitive } from "./lib/portTemplates";
+import { cableFit } from "./lib/connectors";
 
 /* ============================================================
-   Demo patch seed - a believable tracking chain for the pitch.
+   Demo patch seed - three rooms that show what the module does.
+
+   Built from the studio's real inventory: gear it already owns
+   is bound to, and only what is missing gets created. A patch
+   map is worth nothing if it draws boxes the studio does not
+   have, so the demo has to be honest about that too.
+
+   One room, wired to cover the module rather than to look busy.
+   The tracking chain runs mics into preamps, through a
+   half-normalled TT bay, into the interface and out to monitors,
+   and along the way it puts every state the canvas can show on
+   screen at once:
+
+     exact        seven runs patched with the right lead, which is
+                  what a well-kept locker looks like.
+     mismatch     one run deliberately patched with a TT lead into
+                  an XLR jack, so the connector check is visibly
+                  catching something rather than being described.
+     vague        one lead recorded in the locker by name only, so
+                  the honest "cannot be sure" verdict appears.
+     unassigned   the ribbon is patched with no cable chosen yet,
+                  which is what the pull list is for.
+
+   Plus a phantom-sensitive ribbon, per-end cable labels beside
+   single-label ones, four notes doing real work, and one device
+   whose I/O is still an unconfirmed guess so that state is on
+   screen too.
 
    Idempotent: every row it writes is tagged, so a re-run wipes
    only its own work and leaves a real studio's patch alone.
@@ -16,13 +43,32 @@ import { portsFor, isPhantomSensitive } from "./lib/portTemplates";
 const TAG = "[demo_patch]";
 
 /** Cable stock the demo room actually needs. */
+/*
+ * Cable stock, recorded the way a well-run locker actually is: the exact
+ * connector at each end and which end is male. That precision is what lets
+ * the mating check say "exact" instead of shrugging - and the one row that
+ * omits it is deliberate, so the "recorded too vaguely to be sure" state
+ * has something to show.
+ */
 const CABLE_STOCK = [
-  { name: "XLR 10ft", a: "xlr", b: "xlr", length: 10, color: "black", qty: 12, cents: 1800 },
-  { name: "XLR 25ft", a: "xlr", b: "xlr", length: 25, color: "blue", qty: 8, cents: 2600 },
-  { name: "XLR 50ft", a: "xlr", b: "xlr", length: 50, color: "red", qty: 4, cents: 4200 },
+  { name: "XLR 10ft", a: "xlr3", b: "xlr3", ga: "female", gb: "male", length: 10, color: "black", qty: 12, cents: 1800 },
+  { name: "XLR 25ft", a: "xlr3", b: "xlr3", ga: "female", gb: "male", length: 25, color: "blue", qty: 8, cents: 2600 },
+  { name: "XLR 50ft", a: "xlr3", b: "xlr3", ga: "female", gb: "male", length: 50, color: "red", qty: 4, cents: 4200 },
   { name: "TRS 6ft patch", a: "trs", b: "trs", length: 6, color: "yellow", qty: 16, cents: 1200 },
-  { name: "DB25 to XLR-M fan 10ft", a: "db25", b: "xlr", length: 10, color: "green", qty: 3, cents: 14500 },
+  { name: "TS 10ft instrument", a: "ts", b: "ts", length: 10, color: "white", qty: 6, cents: 1400 },
+  { name: "DB25 to XLR-M fan 10ft", a: "db25", b: "xlr3", gb: "male", length: 10, color: "green", qty: 3, cents: 14500 },
   { name: "TT bantam 3ft", a: "bantam", b: "bantam", length: 3, color: "orange", qty: 24, cents: 900 },
+  // The leads that actually get a rack onto a bay. Without these the demo
+  // would be patching XLR into TT with a TT-to-TT cable, which no engineer
+  // would let past.
+  { name: "XLR-M to TT 5ft", a: "xlr3", b: "bantam", ga: "male", length: 5, color: "orange", qty: 16, cents: 1900 },
+  { name: "XLR-F to TT 5ft", a: "xlr3", b: "bantam", ga: "female", length: 5, color: "orange", qty: 16, cents: 1900 },
+  { name: "TRS to XLR-M 10ft", a: "trs", b: "xlr3", gb: "male", length: 10, color: "grey", qty: 8, cents: 1700 },
+  { name: "ADAT optical 3ft", a: "adat_optical", b: "adat_optical", length: 3, color: "black", qty: 4, cents: 1100 },
+  { name: "Word clock BNC 3ft", a: "wordclock_bnc", b: "wordclock_bnc", length: 3, color: "yellow", qty: 4, cents: 1600 },
+  { name: "Thunderbolt 3ft", a: "thunderbolt", b: "thunderbolt", length: 3, color: "white", qty: 2, cents: 4900 },
+  // Deliberately under-recorded: someone typed the name and nothing else.
+  { name: "Unmarked patch lead", a: "other", b: "other", length: 6, color: "violet", qty: 5, cents: 800 },
 ] as const;
 
 async function profileByCatalog(ctx: MutationCtx, catalogId: string) {
@@ -47,7 +93,12 @@ export const run = internalMutation({
     ).filter((s) => (s.description ?? "").includes(TAG));
 
     for (const space of oldSpaces) {
-      for (const table of ["connections", "ports", "deviceInstances"] as const) {
+      for (const table of [
+        "connections",
+        "ports",
+        "deviceInstances",
+        "patchAnnotations",
+      ] as const) {
         const rows = await ctx.db
           .query(table)
           .withIndex("by_patchSpace", (q) => q.eq("patchSpaceId", space._id))
@@ -84,6 +135,8 @@ export const run = internalMutation({
         cableSpec: {
           connectorA: cable.a,
           connectorB: cable.b,
+          genderA: "ga" in cable ? (cable.ga as "male" | "female") : undefined,
+          genderB: "gb" in cable ? (cable.gb as "male" | "female") : undefined,
           channels: cable.a === "db25" ? 8 : 1,
           lengthFt: cable.length,
           color: cable.color,
@@ -158,6 +211,20 @@ export const run = internalMutation({
       if (opts.catalogId && !opts.manufacturer) {
         const profile = await profileByCatalog(ctx, opts.catalogId);
         profileId = profile?._id ?? null;
+
+        /*
+         * Refresh a reused profile's ports from the curated map before
+         * placing on it. A profile minted before the connector vocabulary
+         * was split still carries the legacy catch-alls, and those mate with
+         * anything - so every run on this demo would grade "vague" and the
+         * connector check would look like it does nothing. The hand-written
+         * map is the source of truth; the stored copy is just a cache.
+         */
+        if (profile) {
+          await ctx.db.patch(profile._id, {
+            portTemplate: portsFor(opts.catalogId, opts.category ?? profile.category),
+          });
+        }
       }
 
       if (!profileId) {
@@ -296,19 +363,47 @@ export const run = internalMutation({
       .query("equipment")
       .withIndex("by_org_category", (q) => q.eq("orgId", orgId).eq("category", "cable"))
       .collect();
-    const xlr25 = cableRows.find((c) => c.name === "XLR 25ft")?._id;
-    const xlr10 = cableRows.find((c) => c.name === "XLR 10ft")?._id;
-    const tt = cableRows.find((c) => c.name === "TT bantam 3ft")?._id;
+    const stock = (name: string) => cableRows.find((c) => c.name === name)?._id;
+    const xlr25 = stock("XLR 25ft");
+    const xlr10 = stock("XLR 10ft");
+    const tt = stock("TT bantam 3ft");
+    const trs = stock("TRS 6ft patch");
+    const xlrmTT = stock("XLR-M to TT 5ft");
+    const xlrfTT = stock("XLR-F to TT 5ft");
+    const trsXlr = stock("TRS to XLR-M 10ft");
+    const vague = stock("Unmarked patch lead");
 
     async function patch(
       from: [string, string],
       to: [string, string],
       cableId?: Id<"equipment">,
       cableTag?: string,
+      /** Per-end labelling, the way a well-marked loom really reads. */
+      ends?: { source: string; target: string },
     ) {
       const fromPort = placed[from[0]]?.ports[from[1]];
       const toPort = placed[to[0]]?.ports[to[1]];
       if (!fromPort || !toPort) return;
+
+      /*
+       * Grade the run the same way the app does when someone patches by
+       * hand. Seeding these unset would leave the demo silent on the one
+       * thing the connector engine exists for.
+       */
+      let fit: "exact" | "compatible" | "vague" | "mismatch" | undefined;
+      if (cableId) {
+        const cable = await ctx.db.get(cableId);
+        const a = await ctx.db.get(fromPort);
+        const b = await ctx.db.get(toPort);
+        if (cable?.cableSpec && a && b) {
+          fit = cableFit(
+            { connector: cable.cableSpec.connectorA, gender: cable.cableSpec.genderA },
+            { connector: cable.cableSpec.connectorB, gender: cable.cableSpec.genderB },
+            { connector: a.connector, gender: a.gender, label: a.label },
+            { connector: b.connector, gender: b.gender, label: b.label },
+          ).verdict;
+        }
+      }
       // Read back the real labels. The log is for a human at 2am, so it must
       // say "Telefunken U47", not the key this script happened to use.
       const fromLabel = (await ctx.db.get(placed[from[0]].deviceId))?.label ?? from[0];
@@ -320,7 +415,11 @@ export const run = internalMutation({
         toPortId: toPort,
         isNormalled: false,
         cableId,
-        cableTag,
+        cableTag: ends ? undefined : cableTag,
+        cableLabelMode: ends ? "perEnd" : cableTag ? "single" : undefined,
+        cableTagSource: ends?.source,
+        cableTagTarget: ends?.target,
+        cableFit: fit,
         createdAt: Date.now(),
       });
       await ctx.db.insert("patchAudit", {
@@ -336,9 +435,15 @@ export const run = internalMutation({
     }
 
     // Vocal chain: U47 into the Neve, Neve into the bay, bay into the 1176.
-    await patch(["u47", "Out"], ["pre", "Mic In 1"], xlr25, "A-014");
-    await patch(["pre", "Out 1"], ["bay", "Top 1"], tt, "TT-001");
-    await patch(["bay", "Bottom 1"], ["comp", "In"], tt, "TT-002");
+    // Labelled per end, which is how a marked-up loom actually reads: each
+    // end says where the OTHER end goes, because that is the question you
+    // are asking when you pick a cable up.
+    await patch(["u47", "Out"], ["pre", "Mic In 1"], xlr25, undefined, {
+      source: "OUT TO NEVE CH1",
+      target: "IN FROM U47",
+    });
+    await patch(["pre", "Out 1"], ["bay", "Top 1"], xlrfTT, "TT-001");
+    await patch(["bay", "Bottom 1"], ["comp", "In"], xlrmTT, "TT-002");
     await patch(["comp", "Out"], ["apollo", "Mic/Line In 1"], xlr10, "A-021");
 
     // Second mic straight into channel 2.
@@ -349,8 +454,26 @@ export const run = internalMutation({
     // pull list and the "no cable" marker both have something to show.
     await patch(["r121", "Out"], ["apollo", "Mic/Line In 3"]);
 
-    // Monitoring.
-    await patch(["apollo", "Monitor Out L"], ["monitors", "XLR In"], xlr10, "M-001");
+    /*
+     * One run patched with the wrong thing on purpose. A TT bantam lead into
+     * an XLR jack does not fit, and the demo is far more convincing when the
+     * connector check is visibly catching something than when every line is
+     * green. This is the row that proves the validation is real.
+     */
+    await patch(["pre", "Out 2"], ["apollo", "Mic/Line In 4"], tt, "A-099");
+
+    /*
+     * And one recorded too vaguely to grade: the locker row says "patch
+     * lead" and nothing about its ends, so the fit is "vague" rather than a
+     * confident yes. That is the honest answer, and it is worth showing.
+     */
+    await patch(["comp", "Out"], ["bay", "Top 3"], vague, "U-001");
+
+    // Monitoring, both sides.
+    await patch(["apollo", "Monitor Out L"], ["monitors", "XLR In"], trsXlr, undefined, {
+      source: "OUT TO MONITORS L",
+      target: "IN FROM APOLLO",
+    });
 
     /* ── A little live state ────────────────────────────────── */
     const micIn1 = placed.pre?.ports["Mic In 1"];
@@ -358,12 +481,82 @@ export const run = internalMutation({
     if (micIn1) await ctx.db.patch(micIn1, { state: { phantom: true, hpf: true } });
     if (micIn2) await ctx.db.patch(micIn2, { state: { phantom: true, pad: true } });
 
+    /* ── Notes on the wall ──────────────────────────────────────
+       Half of what an engineer needs to say about a rig is not a
+       connection. Without somewhere to write it, it goes on actual tape
+       and is lost, so the demo shows the notes doing real work. */
+    const NOTES = [
+      {
+        text: "Neve ch2 crackles above +6. Booked for service Thursday - do not repatch.",
+        color: "red",
+        position: { x: 352, y: 620 },
+      },
+      {
+        text: "R-121 on the guitar cab. NEVER send 48V down this line: it will destroy the ribbon.",
+        color: "amber",
+        position: { x: 32, y: 600 },
+      },
+      {
+        text: "Bay rows 1-8 are half-normalled to the Neve. Patching the bottom row breaks the normal.",
+        color: "blue",
+        position: { x: 688, y: 470 },
+      },
+      {
+        text: "Leave the vocal chain patched for Maya's session Friday.",
+        color: "green",
+        position: { x: 1024, y: 620 },
+      },
+    ] as const;
+
+    for (const note of NOTES) {
+      await ctx.db.insert("patchAnnotations", {
+        orgId,
+        patchSpaceId,
+        text: note.text,
+        color: note.color,
+        position: note.position,
+        size: { width: 240, height: 132 },
+        createdAt: Date.now(),
+        createdBy: "Seed",
+      });
+    }
+
+    /* ── Where each device's I/O came from ──────────────────────
+       The canvas distinguishes a hand-verified port list from a guess, and
+       that only means something if the demo contains both. The rack gear is
+       confirmed; the odd item is left openly unconfirmed so the "these
+       ports are a guess" state is on screen rather than described. */
+    for (const key of ["u47", "sm7b", "r121", "pre", "comp", "bay", "apollo"]) {
+      const device = placed[key];
+      if (!device) continue;
+      const instance = await ctx.db.get(device.deviceId);
+      if (instance) {
+        await ctx.db.patch(instance.profileId, {
+          specSource: "curated",
+          specVerifiedAt: Date.now(),
+          specVerifiedBy: "Studio",
+        });
+      }
+    }
+    if (placed.monitors) {
+      const instance = await ctx.db.get(placed.monitors.deviceId);
+      if (instance) {
+        await ctx.db.patch(instance.profileId, {
+          specSource: "ai",
+          specNote: "2 line inputs (XLR and TRS)",
+          specVerifiedAt: undefined,
+          specVerifiedBy: undefined,
+        });
+      }
+    }
+
     await ctx.db.patch(patchSpaceId, { revision: Date.now() });
 
     return {
       patchSpaceId,
       devices: Object.keys(placed).length,
       cableTypes: CABLE_STOCK.length,
+      notes: NOTES.length,
     };
   },
 });
