@@ -8,6 +8,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { ExternalLink, Trash2, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 import {
   Dialog,
   DialogBody,
@@ -105,7 +106,7 @@ export function DeviceEditDialog({
       toast.success("Saved.");
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save.");
+      toast.error(errorMessage(error, "Could not save."));
     } finally {
       setSaving(false);
     }
@@ -119,7 +120,7 @@ export function DeviceEditDialog({
       toast.success(`${device.label} removed.`);
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not remove.");
+      toast.error(errorMessage(error, "Could not remove."));
     }
   }
 
@@ -168,7 +169,7 @@ export function DeviceEditDialog({
                     toast.success("Linked to inventory.");
                   } catch (error) {
                     toast.error(
-                      error instanceof Error ? error.message : "Could not link that.",
+                      errorMessage(error, "Could not link that."),
                     );
                   }
                 }}
@@ -286,7 +287,7 @@ export function DeviceEditDialog({
                                   } as never);
                                 } catch (error) {
                                   toast.error(
-                                    error instanceof Error ? error.message : "Could not change.",
+                                    errorMessage(error, "Could not change."),
                                   );
                                 }
                               }}

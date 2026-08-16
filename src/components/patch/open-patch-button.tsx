@@ -8,6 +8,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Plug } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Tooltip } from "@/components/ui/tooltip";
 import { useCapabilities } from "@/lib/use-capabilities";
@@ -59,7 +60,7 @@ export function OpenPatchButton({
       const id = await openForRoom({ roomId });
       router.push(`/patch/${id}`);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not open the patch map.");
+      toast.error(errorMessage(error, "Could not open the patch map."));
       setPending(false);
     }
   }

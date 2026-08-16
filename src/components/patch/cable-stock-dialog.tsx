@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { CONNECTORS, connectorMeta } from "./constants";
 import { CableColorField } from "./cable-color-field";
+import { errorMessage } from "@/lib/errors";
 
 type StockItem = {
   _id: Id<"equipment">;
@@ -167,7 +168,7 @@ export function CableStockDialog({
       }
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save that.");
+      toast.error(errorMessage(error, "Could not save that."));
     } finally {
       setSaving(false);
     }
@@ -181,7 +182,7 @@ export function CableStockDialog({
       toast.success("Removed from inventory.");
       onOpenChange(false);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not delete that.");
+      toast.error(errorMessage(error, "Could not delete that."));
     }
   }
 

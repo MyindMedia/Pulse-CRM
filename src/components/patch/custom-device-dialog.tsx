@@ -27,6 +27,7 @@ import {
 import { EQUIPMENT_CATEGORIES } from "@/components/studio/constants";
 import { CAPABILITIES, CONNECTORS, SIGNAL_LEVELS } from "./constants";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 import { Tooltip } from "@/components/ui/tooltip";
 
 type DraftPort = {
@@ -137,7 +138,7 @@ export function CustomDeviceDialog({
       onOpenChange(false);
       onCreated?.(id as Id<"deviceProfiles">);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save that device.");
+      toast.error(errorMessage(error, "Could not save that device."));
     } finally {
       setSaving(false);
     }

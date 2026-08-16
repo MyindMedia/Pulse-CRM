@@ -44,6 +44,7 @@ import {
   ZapOff,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Tooltip, prettyKeys } from "@/components/ui/tooltip";
 import {
@@ -712,7 +713,7 @@ function PatchCanvasInner({
           },
         });
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Could not patch that.");
+        toast.error(errorMessage(error, "Could not patch that."));
       }
     },
     [canEdit, portIndex, connectPorts, disconnect, pushHistory, graph],
@@ -747,7 +748,7 @@ function PatchCanvasInner({
           },
         });
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Could not place that.");
+        toast.error(errorMessage(error, "Could not place that."));
       }
     },
     [canEdit, graph, placeDevice, removeDevice, patchSpaceId, pushHistory],
@@ -821,7 +822,7 @@ function PatchCanvasInner({
         },
       });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not delete.");
+      toast.error(errorMessage(error, "Could not delete."));
     }
   }, [
     canEdit,
@@ -909,7 +910,7 @@ function PatchCanvasInner({
       window.setTimeout(() => void fitView({ padding: 0.15, duration: 400 }), 60);
       toast.success("Laid out along the signal path.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not arrange.");
+      toast.error(errorMessage(error, "Could not arrange."));
     } finally {
       setArranging(false);
     }
@@ -1072,7 +1073,7 @@ function PatchCanvasInner({
           },
         });
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "Could not add a note.");
+        toast.error(errorMessage(error, "Could not add a note."));
       }
     },
     [canEdit, addNote, removeNote, patchSpaceId, pushHistory],

@@ -7,6 +7,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Cable, CircleAlert, Plus, Printer, Sparkles, Unplug } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -99,7 +100,7 @@ export function CableManager({ patchSpaceId }: { patchSpaceId: Id<"patchSpaces">
         toast.success(`Assigned cable to ${result.assigned} run${result.assigned === 1 ? "" : "s"}.`);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not assign.");
+      toast.error(errorMessage(error, "Could not assign."));
     } finally {
       setAssigning(false);
     }

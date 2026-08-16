@@ -15,6 +15,7 @@ import {
   Search,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/field";
 import {
@@ -112,7 +113,7 @@ export function SpecSheetDialog({
       setStatus(null);
     } catch (error) {
       setStatus(null);
-      toast.error(error instanceof Error ? error.message : "That did not work.");
+      toast.error(errorMessage(error, "That did not work."));
     } finally {
       setBusy(false);
     }
@@ -150,7 +151,7 @@ export function SpecSheetDialog({
       }
       await run({ text: extracted }, file.name);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not read that file.");
+      toast.error(errorMessage(error, "Could not read that file."));
       setStatus(null);
     } finally {
       setBusy(false);
@@ -180,7 +181,7 @@ export function SpecSheetDialog({
       onOpenChange(false);
       reset();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not apply that.");
+      toast.error(errorMessage(error, "Could not apply that."));
     } finally {
       setBusy(false);
     }

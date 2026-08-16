@@ -5,15 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import {
-  Boxes,
-  DoorOpen,
-  Package,
-  Plus,
-  Wallet,
-  Cpu,
-  Sofa,
-} from "lucide-react";
+import { Boxes, Cpu, DoorOpen, Package, Plus, Search, Sofa, Wallet, X } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { CountUp } from "@/components/shell/app-motion";
@@ -37,6 +29,8 @@ import {
   EquipmentTable,
   type EquipmentRow,
 } from "@/components/inventory/equipment-table";
+import { Input } from "@/components/ui/field";
+import { searchItems } from "@/lib/inventory-search";
 import {
   EquipmentDialog,
   type EditableEquipment,
@@ -51,6 +45,7 @@ const ALL = "all";
 const STORAGE = "storage";
 
 export default function InventoryPage() {
+  const [q, setQ] = React.useState("");
   const [category, setCategory] = React.useState<string>(ALL);
   const [location, setLocation] = React.useState<string>(ALL);
   const [assetClass, setAssetClass] = React.useState<string>(ALL);
@@ -121,8 +116,20 @@ export default function InventoryPage() {
   }) as EquipmentRow[] | undefined;
 
   const loading = items === undefined;
-  const filtering = category !== ALL || location !== ALL || assetClass !== ALL;
-  const empty = !loading && items.length === 0;
+
+  /*
+   * Search narrows what the filters already returned, rather than replacing
+   * them. Filtering server-side and searching client-side is the right split
+   * here: the filters change WHICH rows are fetched, and search is a fast
+   * pass over rows already in hand, so typing stays instant.
+   */
+  const visible = React.useMemo(
+    () => (items ? searchItems(items, q) : undefined),
+    [items, q],
+  );
+
+  const filtering = category !== ALL || location !== ALL || assetClass !== ALL || !!q.trim();
+  const empty = !loading && (visible?.length ?? 0) === 0;
 
   function handleEdit(item: EquipmentRow) {
     setEditItem({
@@ -208,6 +215,32 @@ export default function InventoryPage() {
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">
+        <div className="relative w-full sm:w-64">
+          <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-steel" />
+          <Input
+            value={q}
+            onChange={(event) => {
+              setQ(event.target.value);
+              clearSelection();
+            }}
+            placeholder="Search gear, serial, room"
+            aria-label="Search inventory"
+            className="pl-9 pr-8"
+          />
+          {q && (
+            <button
+              type="button"
+              onClick={() => {
+                setQ("");
+                clearSelection();
+              }}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 grid size-5 -translate-y-1/2 place-items-center rounded text-steel transition-colors hover:text-bone"
+            >
+              <X className="size-3.5" />
+            </button>
+          )}
+        </div>
         <div className="w-full sm:w-48">
           <Select value={assetClass} onValueChange={setAssetClassAndClear}>
             <SelectTrigger aria-label="Filter by class">
@@ -259,6 +292,7 @@ export default function InventoryPage() {
             variant="ghost"
             size="sm"
             onClick={() => {
+              setQ("");
               setCategory(ALL);
               setLocation(ALL);
               setAssetClass(ALL);
@@ -383,7 +417,7 @@ export default function InventoryPage() {
         />
       ) : (
         <EquipmentTable
-          items={items ?? []}
+          items={visible ?? []}
           loading={loading}
           filtering={filtering}
           onInstall={handleInstall}
@@ -396,8 +430,12 @@ export default function InventoryPage() {
 
       {!loading && !empty && (
         <p className="text-xs text-steel/70">
-          Showing {items.length} {items.length === 1 ? "item" : "items"}
-          {filtering ? " for the current filters" : ""}.
+          Showing {visible!.length} {visible!.length === 1 ? "item" : "items"}
+          {q.trim() ? ` matching "${q.trim()}"` : filtering ? " for the current filters" : ""}
+          {q.trim() && items && visible!.length !== items.length
+            ? ` of ${items.length}`
+            : ""}
+          .
         </p>
       )}
 

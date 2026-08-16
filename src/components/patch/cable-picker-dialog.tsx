@@ -7,6 +7,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { ArrowRight, Cable, Check, Plus, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 import {
   Dialog,
   DialogBody,
@@ -156,7 +157,7 @@ export function CablePickerDialog({
       toast.success("Cable recorded on this run.");
       onClose();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not assign that cable.");
+      toast.error(errorMessage(error, "Could not assign that cable."));
     } finally {
       setBusy(false);
     }
@@ -188,7 +189,7 @@ export function CablePickerDialog({
       toast.success(`${draft.name.trim() || suggestedName} added to inventory and patched.`);
       onClose();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not add that cable.");
+      toast.error(errorMessage(error, "Could not add that cable."));
     } finally {
       setBusy(false);
     }

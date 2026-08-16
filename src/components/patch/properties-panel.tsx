@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/field";
 import {
@@ -141,7 +142,7 @@ function PortToggle({
         await setPortState({ id: port._id as Id<"ports">, [capability]: !on } as never);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not change that.");
+      toast.error(errorMessage(error, "Could not change that."));
     } finally {
       setPending(false);
     }
@@ -229,7 +230,7 @@ function DeviceProperties({
       await updateDevice({ id: selection._id, label: label.trim(), notes });
       toast.success("Saved.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save.");
+      toast.error(errorMessage(error, "Could not save."));
     }
   }
 
@@ -240,7 +241,7 @@ function DeviceProperties({
       toast.success(`${selection.label} removed.`);
       onDeleted();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not remove.");
+      toast.error(errorMessage(error, "Could not remove."));
     }
   }
 
@@ -310,7 +311,7 @@ function DeviceProperties({
                     await verifySpec({ profileId: selection.profileId });
                     toast.success("Ports confirmed.");
                   } catch (error) {
-                    toast.error(error instanceof Error ? error.message : "Could not confirm.");
+                    toast.error(errorMessage(error, "Could not confirm."));
                   }
                 }}
               >
@@ -522,7 +523,7 @@ function ConnectionProperties({
     try {
       await updateConnection({ id: selection._id, ...fields } as never);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save.");
+      toast.error(errorMessage(error, "Could not save."));
     }
   }
 
@@ -649,7 +650,7 @@ function NoteProperties({
     try {
       await updateNote({ id: selection._id, ...patch });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save.");
+      toast.error(errorMessage(error, "Could not save."));
     }
   }
 
@@ -709,7 +710,7 @@ function NoteProperties({
             await removeNote({ id: selection._id });
             onDeleted();
           } catch (error) {
-            toast.error(error instanceof Error ? error.message : "Could not remove.");
+            toast.error(errorMessage(error, "Could not remove."));
           }
         }}
       >

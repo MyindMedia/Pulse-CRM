@@ -13,7 +13,6 @@ import {
 } from "@dnd-kit/core";
 import {
   SortableContext,
-  arrayMove,
   sortableKeyboardCoordinates,
   useSortable,
   verticalListSortingStrategy,
@@ -24,6 +23,8 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { FileSearch, GripVertical, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
+import { orderAfterDrag } from "./port-order";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import {
@@ -113,7 +114,7 @@ function PortRow({
     try {
       await updatePort({ id: port._id as Id<"ports">, ...patch } as never);
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not save that port.");
+      toast.error(errorMessage(error, "Could not save that port."));
     }
   }
 
@@ -129,7 +130,7 @@ function PortRow({
       await removePort({ id: port._id as Id<"ports"> });
       onDone();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not remove that port.");
+      toast.error(errorMessage(error, "Could not remove that port."));
     }
   }
 
@@ -255,20 +256,20 @@ export function PortEditor({
   );
 
   /*
-   * Order is one sequence across the whole device, so a drag inside one
-   * column has to send both columns back or the untouched one would have
-   * its indices rewritten out from under it.
+   * Order is one sequence across the whole device, so a drag has to send
+   * every port back, exactly once.
+   *
+   * Concatenating the two columns does NOT do that: a bidirectional jack -
+   * a word clock socket, an RJ45, anything that is both - appears in the
+   * inputs list AND the outputs list, so joining them sends it twice and
+   * the server rightly refuses the whole ordering. Rebuilding from the real
+   * port list instead guarantees a permutation whatever a jack's direction.
    */
   async function onDragEnd(event: DragEndEvent, group: "inputs" | "outputs") {
     const { active, over } = event;
     if (!over || active.id === over.id) return;
 
-    const list = group === "inputs" ? inputs : outputs;
-    const ids = list.map((p) => p._id);
-    const moved = arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)));
-
-    const other = (group === "inputs" ? outputs : inputs).map((p) => p._id);
-    const orderedIds = group === "inputs" ? [...moved, ...other] : [...other, ...moved];
+    const orderedIds = orderAfterDrag(ports, group, String(active.id), String(over.id));
 
     try {
       await reorderPorts({
@@ -276,7 +277,7 @@ export function PortEditor({
         orderedIds: orderedIds as Id<"ports">[],
       });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not reorder those.");
+      toast.error(errorMessage(error, "Could not reorder those."));
     }
   }
 
@@ -296,7 +297,7 @@ export function PortEditor({
         capabilities: [],
       });
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Could not add that port.");
+      toast.error(errorMessage(error, "Could not add that port."));
     } finally {
       setBusy(false);
     }
