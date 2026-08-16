@@ -7,6 +7,7 @@ import { ImagePlus, RefreshCw, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/feedback";
 import { cn } from "@/lib/utils";
+import { ExpandableImage } from "@/components/ui/image-lightbox";
 import { errorMessage } from "@/lib/errors";
 
 /**
@@ -82,8 +83,15 @@ export function PhotoUpload({
         )}
       >
         {shown ? (
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={shown} alt="" className="size-full object-cover" />
+          /* 80px is enough to know a photo exists and no use for reading what
+             is written on it, which is the whole point of photographing the
+             back of a rack unit. Clicking opens it properly. */
+          <ExpandableImage
+            src={shown}
+            alt={hint ?? "Uploaded photo"}
+            caption={hint}
+            className={cn("size-full", radius)}
+          />
         ) : (
           <ImagePlus className="size-6 text-steel/70" />
         )}

@@ -29,6 +29,7 @@ import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Skeleton } from "@/components/ui/skeleton";
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { ExpandableImage } from "@/components/ui/image-lightbox";
 import {
   categoryMeta,
   statusMeta,
@@ -66,8 +67,12 @@ function PhotoThumb({ photo, name }: { photo: string | null; name: string }) {
   return (
     <span className="grid size-9 shrink-0 place-items-center overflow-hidden rounded-md border border-graphite/50 bg-obsidian">
       {photo ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={photo} alt={name} className="size-full object-cover" />
+        /* 36px identifies a row, it does not let you check a serial or a
+           scuff. Clicking opens the real thing. Stopping the click here
+           keeps it from also toggling the row's checkbox. */
+        <span onClick={(event) => event.stopPropagation()}>
+          <ExpandableImage src={photo} alt={name} caption={name} className="size-9" />
+        </span>
       ) : (
         <ImageOff className="size-3.5 text-steel/70" />
       )}
