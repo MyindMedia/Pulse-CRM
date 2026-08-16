@@ -50,6 +50,7 @@ type DeviceSelection = {
   ports: PatchPort[];
   photoUrl: string | null;
   photoIsOwn: boolean;
+  panelPhotoUrl: string | null;
   profileId: Id<"deviceProfiles">;
   specSource: "curated" | "ai" | "category" | "manual";
   specVerified: boolean;
@@ -205,6 +206,8 @@ function DeviceProperties({
   const verifySpec = useMutation(api.patchSpecs.verifySpec);
   const setDevicePhoto = useMutation(api.patchManager.setDevicePhoto);
   const clearDevicePhoto = useMutation(api.patchManager.clearDevicePhoto);
+  const setPanelPhoto = useMutation(api.patchManager.setDevicePanelPhoto);
+  const clearPanelPhoto = useMutation(api.patchManager.clearDevicePanelPhoto);
 
   const [label, setLabel] = React.useState(selection.label);
   const [notes, setNotes] = React.useState(selection.notes ?? "");
@@ -259,22 +262,43 @@ function DeviceProperties({
         </div>
       </div>
 
-      {/* A photo of the unit as it sits in the rack. The catalog shot from
-          inventory shows through until someone takes a real one, which is
-          why the caption says which of the two you are looking at. */}
-      <PhotoUpload
-        photo={selection.photoUrl}
-        generateUploadUrl={generateUploadUrl}
-        onStorageId={(storageId) => setDevicePhoto({ id: selection._id, storageId })}
-        onClear={
-          selection.photoIsOwn ? () => clearDevicePhoto({ id: selection._id }) : undefined
-        }
-        hint={
-          selection.photoUrl && !selection.photoIsOwn
-            ? "Catalog photo from inventory. Upload one of this actual unit."
-            : "A photo of this unit in the rack, so the map matches the room."
-        }
-      />
+      {/* Two photos, two jobs. The front is how you find the box; the back is
+          what you want open beside you while patching. Kept apart so the card
+          never shows cable spaghetti and the patching reference never gets
+          overwritten by a nicer front shot. */}
+      <div className="space-y-3">
+        <div>
+          <p className="overline mb-1.5">Device photo</p>
+          <PhotoUpload
+            photo={selection.photoUrl}
+            generateUploadUrl={generateUploadUrl}
+            onStorageId={(storageId) => setDevicePhoto({ id: selection._id, storageId })}
+            onClear={
+              selection.photoIsOwn ? () => clearDevicePhoto({ id: selection._id }) : undefined
+            }
+            hint={
+              selection.photoUrl && !selection.photoIsOwn
+                ? "Catalog photo from inventory. Upload the actual unit to tell it apart."
+                : "The front of this unit. Shown on its card, so you can spot it in a rack."
+            }
+          />
+        </div>
+
+        <div>
+          <p className="overline mb-1.5">Rear panel</p>
+          <PhotoUpload
+            photo={selection.panelPhotoUrl}
+            generateUploadUrl={generateUploadUrl}
+            onStorageId={(storageId) => setPanelPhoto({ id: selection._id, storageId })}
+            onClear={
+              selection.panelPhotoUrl
+                ? () => clearPanelPhoto({ id: selection._id })
+                : undefined
+            }
+            hint="Where the jacks are. Open this while patching instead of crawling behind the rack."
+          />
+        </div>
+      </div>
 
       {/* Where these ports came from. Shown only while it is still a guess,
           so a confirmed rig carries no permanent nag. */}
@@ -406,6 +430,7 @@ function DeviceProperties({
         deviceLabel={selection.label}
         ports={selection.ports}
         canEdit={canEdit}
+        hasPanelPhoto={!!selection.panelPhotoUrl}
       />
 
       {togglablePorts.length > 0 && (

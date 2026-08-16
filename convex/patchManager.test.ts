@@ -816,6 +816,48 @@ describe("device photos", () => {
     expect(graph!.devices[0].photoIsOwn).toBe(false);
   });
 
+  // Two photos answering two questions. Keeping them apart is the point:
+  // the card must never show cable spaghetti, and the patching reference
+  // must never be overwritten by a nicer front shot.
+  it("keeps the device photo and the panel photo apart", async () => {
+    const front = await t.run(async (ctx) =>
+      ctx.storage.store(new Blob(["front"], { type: "image/jpeg" })),
+    );
+    const back = await t.run(async (ctx) =>
+      ctx.storage.store(new Blob(["back"], { type: "image/jpeg" })),
+    );
+
+    await t.mutation(api.patchManager.setDevicePhoto, { id: deviceId, storageId: front });
+    await t.mutation(api.patchManager.setDevicePanelPhoto, { id: deviceId, storageId: back });
+
+    let device = (await t.query(api.patchManager.graph, { patchSpaceId: spaceId }))!.devices[0];
+    expect(device.photoUrl).toBeTruthy();
+    expect(device.panelPhotoUrl).toBeTruthy();
+    expect(device.panelPhotoUrl).not.toBe(device.photoUrl);
+
+    // Clearing one must not touch the other.
+    await t.mutation(api.patchManager.clearDevicePanelPhoto, { id: deviceId });
+    device = (await t.query(api.patchManager.graph, { patchSpaceId: spaceId }))!.devices[0];
+    expect(device.photoUrl).toBeTruthy();
+    expect(device.panelPhotoUrl).toBeNull();
+  });
+
+  // A catalog shot of the front is worse than no panel photo: it looks like
+  // an answer to "where are the jacks" and is not one.
+  it("never falls the panel photo back to a catalog shot", async () => {
+    const stock = await t.run(async (ctx) =>
+      ctx.storage.store(new Blob(["stock"], { type: "image/jpeg" })),
+    );
+    const device = (await t.query(api.patchManager.graph, { patchSpaceId: spaceId }))!.devices[0];
+    await t.run(async (ctx) => {
+      await ctx.db.patch(device.equipment!._id, { photoId: stock });
+    });
+
+    const after = (await t.query(api.patchManager.graph, { patchSpaceId: spaceId }))!.devices[0];
+    expect(after.photoUrl).toBeTruthy();
+    expect(after.panelPhotoUrl).toBeNull();
+  });
+
   it("marks a photo of this unit as its own, and lets it be removed", async () => {
     const storageId = await t.run(async (ctx) =>
       ctx.storage.store(new Blob(["not really a jpeg"], { type: "image/jpeg" })),

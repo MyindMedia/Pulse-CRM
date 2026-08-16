@@ -83,6 +83,7 @@ type GraphDevice = {
   rackUnits?: number;
   photoUrl: string | null;
   photoIsOwn: boolean;
+  panelPhotoUrl: string | null;
   profileId: Id<"deviceProfiles">;
   specSource: "curated" | "ai" | "category" | "manual";
   specVerified: boolean;
@@ -613,6 +614,7 @@ function PatchCanvasInner({
         ports: device.ports,
         photoUrl: device.photoUrl,
         photoIsOwn: device.photoIsOwn,
+        panelPhotoUrl: device.panelPhotoUrl,
         profileId: device.profileId,
         specSource: device.specSource,
         specVerified: device.specVerified,

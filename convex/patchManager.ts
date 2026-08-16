@@ -466,6 +466,7 @@ export const graph = query({
       ...new Set(
         [
           ...devices.map((d) => d.photoId),
+          ...devices.map((d) => d.panelPhotoId),
           ...equipment.filter(Boolean).map((e) => e!.photoId),
         ].filter(Boolean),
       ),
@@ -487,11 +488,18 @@ export const graph = query({
         const item = device.equipmentId ? equipmentById.get(device.equipmentId) ?? null : null;
         const ownPhoto = device.photoId ? photoUrlById.get(device.photoId) ?? null : null;
         const stockPhoto = item?.photoId ? photoUrlById.get(item.photoId) ?? null : null;
+        const panelPhoto = device.panelPhotoId
+          ? photoUrlById.get(device.panelPhotoId) ?? null
+          : null;
         return {
           ...device,
           /** Whether the picture shown is of this unit or of the model. */
           photoIsOwn: !!ownPhoto,
           photoUrl: ownPhoto ?? stockPhoto ?? item?.photoUrl ?? null,
+          /* The back of the unit, for patching. Never falls back to a catalog
+             shot: a stock photo of the front is worse than no panel photo,
+             because it looks like an answer and is not one. */
+          panelPhotoUrl: panelPhoto,
           profileName: profile?.name ?? "Unknown device",
           manufacturer: profile?.manufacturer ?? "",
           category: profile?.category ?? "other",
@@ -1778,6 +1786,48 @@ export const setDevicePhoto = mutation({
       entityId: id,
       changeType: "update",
       summary: `Added a photo to ${device.label}`,
+    });
+  },
+});
+
+export const setDevicePanelPhoto = mutation({
+  args: { id: v.id("deviceInstances"), storageId: v.id("_storage") },
+  handler: async (ctx, { id, storageId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "patch.edit");
+    const actor = await currentActor(ctx);
+    const device = await ctx.db.get(id);
+    assertOrg(device, orgId);
+
+    await meterStorageUpload(ctx, orgId, storageId, device.panelPhotoId ?? null);
+    await ctx.db.patch(id, { panelPhotoId: storageId });
+    await logPatch(ctx, actor, {
+      orgId,
+      patchSpaceId: device.patchSpaceId,
+      entityType: "device",
+      entityId: id,
+      changeType: "update",
+      summary: `Added a rear panel photo to ${device.label}`,
+    });
+  },
+});
+
+export const clearDevicePanelPhoto = mutation({
+  args: { id: v.id("deviceInstances") },
+  handler: async (ctx, { id }) => {
+    const orgId = await currentOrgWithCapability(ctx, "patch.edit");
+    const actor = await currentActor(ctx);
+    const device = await ctx.db.get(id);
+    assertOrg(device, orgId);
+    if (!device.panelPhotoId) return;
+
+    await ctx.db.patch(id, { panelPhotoId: undefined });
+    await logPatch(ctx, actor, {
+      orgId,
+      patchSpaceId: device.patchSpaceId,
+      entityType: "device",
+      entityId: id,
+      changeType: "update",
+      summary: `Removed the rear panel photo from ${device.label}`,
     });
   },
 });

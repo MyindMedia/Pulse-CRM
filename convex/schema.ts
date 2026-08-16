@@ -2122,10 +2122,21 @@ export default defineSchema({
     notes: v.optional(v.string()),
     position: v.object({ x: v.number(), y: v.number() }),
     normalling: v.optional(normallingMode), // patchbays override the profile default
-    // A photo of THIS unit as it actually sits in the rack, which is not the
-    // same picture as the catalog shot on the equipment record. Falls back to
-    // the inventory photo when unset.
+    /*
+     * Two photos, because they answer two different questions.
+     *
+     * `photoId` is the device's face: what you look for when you are trying
+     * to find this box among forty others. It is what the canvas card shows.
+     *
+     * `panelPhotoId` is its back: where the jacks actually are, which is what
+     * you want open beside you while patching. Keeping them apart means the
+     * card never shows a picture of cable spaghetti, and the patching
+     * reference never gets overwritten by a nicer front shot.
+     *
+     * Both fall back to the inventory catalog photo when unset.
+     */
     photoId: v.optional(v.id("_storage")),
+    panelPhotoId: v.optional(v.id("_storage")),
     createdAt: v.number(),
   })
     .index("by_patchSpace", ["patchSpaceId"])

@@ -231,11 +231,13 @@ export function PortEditor({
   deviceLabel,
   ports,
   canEdit,
+  hasPanelPhoto,
 }: {
   deviceInstanceId: Id<"deviceInstances">;
   deviceLabel: string;
   ports: PatchPort[];
   canEdit: boolean;
+  hasPanelPhoto: boolean;
 }) {
   const addPort = useMutation(api.patchManager.addPort);
   const reorderPorts = useMutation(api.patchManager.reorderPorts);
@@ -441,6 +443,7 @@ export function PortEditor({
             deviceInstanceId={deviceInstanceId}
             deviceLabel={deviceLabel}
             ports={ports}
+            hasPanelPhoto={hasPanelPhoto}
           />
         </>
       )}

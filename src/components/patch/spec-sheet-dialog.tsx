@@ -55,16 +55,20 @@ export function SpecSheetDialog({
   deviceInstanceId,
   deviceLabel,
   ports,
+  hasPanelPhoto,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   deviceInstanceId: Id<"deviceInstances">;
   deviceLabel: string;
   ports: PatchPort[];
+  /** Whether a rear panel photo is already saved, so we never overwrite it. */
+  hasPanelPhoto: boolean;
 }) {
   const propose = useAction(api.patchSpecs.proposeFromSource);
   const applyProposal = useMutation(api.patchSpecs.applyProposal);
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+  const setPanelPhoto = useMutation(api.patchManager.setDevicePanelPhoto);
 
   const [source, setSource] = React.useState<Source>("lookup");
   const [url, setUrl] = React.useState("");
@@ -132,6 +136,24 @@ export function SpecSheetDialog({
         });
         if (!res.ok) throw new Error(`Upload failed (${res.status})`);
         const { storageId } = (await res.json()) as { storageId: string };
+
+        /*
+         * They just photographed the back of this unit to read its jacks.
+         * That IS the rear panel photo, so keep it rather than making them
+         * take the same picture twice - but never over one already saved,
+         * which may be a better shot than this one.
+         */
+        if (!hasPanelPhoto) {
+          try {
+            await setPanelPhoto({
+              id: deviceInstanceId,
+              storageId: storageId as Id<"_storage">,
+            });
+          } catch {
+            // Keeping the photo is a convenience. Reading it is the job.
+          }
+        }
+
         await run({ imageId: storageId as Id<"_storage"> }, file.name);
         return;
       }
