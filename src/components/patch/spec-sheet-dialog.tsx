@@ -5,7 +5,15 @@ import { useAction, useMutation } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { Camera, FileText, Link2, Loader2, ClipboardPaste, Check } from "lucide-react";
+import {
+  Camera,
+  Check,
+  ClipboardPaste,
+  FileText,
+  Link2,
+  Loader2,
+  Search,
+} from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Field, Input, Textarea } from "@/components/ui/field";
@@ -30,9 +38,10 @@ import type { PatchPort } from "./device-node";
    session" has to be visible before anything happens.
    ============================================================ */
 
-type Source = "link" | "file" | "paste" | "photo";
+type Source = "lookup" | "link" | "file" | "paste" | "photo";
 
 const SOURCES: { key: Source; label: string; icon: typeof Link2 }[] = [
+  { key: "lookup", label: "Look up", icon: Search },
   { key: "link", label: "Link", icon: Link2 },
   { key: "file", label: "PDF", icon: FileText },
   { key: "paste", label: "Paste", icon: ClipboardPaste },
@@ -56,7 +65,7 @@ export function SpecSheetDialog({
   const applyProposal = useMutation(api.patchSpecs.applyProposal);
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
 
-  const [source, setSource] = React.useState<Source>("link");
+  const [source, setSource] = React.useState<Source>("lookup");
   const [url, setUrl] = React.useState("");
   const [text, setText] = React.useState("");
   const [busy, setBusy] = React.useState(false);
@@ -65,6 +74,7 @@ export function SpecSheetDialog({
     ports: ProposedPort[];
     summary?: string;
     label: string;
+    hedged?: boolean;
   } | null>(null);
 
   // Which removals the user has chosen to go ahead with. Everything the
@@ -97,6 +107,7 @@ export function SpecSheetDialog({
         ports: (result.ports ?? []) as ProposedPort[],
         summary: result.summary,
         label,
+        hedged: result.hedged,
       });
       setStatus(null);
     } catch (error) {
@@ -215,6 +226,19 @@ export function SpecSheetDialog({
                 ))}
               </div>
 
+              {source === "lookup" && (
+                <div className="rounded-chrome border border-hairline-2 bg-coal-2/40 p-3">
+                  <p className="text-xs text-bone">
+                    Look up {deviceLabel} by model name
+                  </p>
+                  <p className="mt-1 text-[11px] leading-snug text-steel">
+                    No document needed. This is how you get the real I/O onto a device
+                    that was placed before its spec was known, because a device keeps
+                    the jacks it was placed with.
+                  </p>
+                </div>
+              )}
+
               {source === "link" && (
                 <Field
                   label="Link to the product page or manual"
@@ -282,29 +306,47 @@ export function SpecSheetDialog({
                 </p>
               )}
 
-              {(source === "link" || source === "paste") && (
+              {(source === "link" || source === "paste" || source === "lookup") && (
                 <Button
                   className="w-full"
-                  disabled={busy || (source === "link" ? !url.trim() : text.trim().length < 20)}
-                  onClick={() =>
-                    source === "link"
-                      ? void run({ url: url.trim() }, url.trim())
-                      : void run({ text: text.trim() }, "the pasted text")
+                  disabled={
+                    busy ||
+                    (source === "link" && !url.trim()) ||
+                    (source === "paste" && text.trim().length < 20)
                   }
+                  onClick={() => {
+                    if (source === "link") void run({ url: url.trim() }, url.trim());
+                    else if (source === "paste") void run({ text: text.trim() }, "the pasted text");
+                    else void run({}, "a lookup by model name");
+                  }}
                 >
                   {busy ? <Loader2 className="size-4 animate-spin" /> : null}
-                  Read it
+                  {source === "lookup" ? "Look it up" : "Read it"}
                 </Button>
               )}
             </>
           ) : (
             <>
-              <div className="rounded-chrome border border-hairline-2 bg-coal-2/40 p-3">
+              <div
+                className={cn(
+                  "rounded-chrome border p-3",
+                  proposal.hedged
+                    ? "border-caution/40 bg-caution/10"
+                    : "border-hairline-2 bg-coal-2/40",
+                )}
+              >
                 <p className="font-meta text-[9px] uppercase tracking-wide text-steel">
                   From {proposal.label}
                 </p>
                 {proposal.summary && (
-                  <p className="mt-1 text-xs text-bone">{proposal.summary}</p>
+                  <p
+                    className={cn(
+                      "mt-1 text-xs",
+                      proposal.hedged ? "text-caution" : "text-bone",
+                    )}
+                  >
+                    {proposal.summary}
+                  </p>
                 )}
               </div>
 

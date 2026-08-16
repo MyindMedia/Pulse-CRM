@@ -384,6 +384,21 @@ export function resolveSpec(
   };
 }
 
+/**
+ * The product name to ask about.
+ *
+ * A profile's name usually already carries the brand, so joining the two
+ * blindly produces "Genelec Genelec 8351B" - which is not a product, and a
+ * model asked about it will decline to be confident rather than answer.
+ * That one duplicated word was enough to make lookups fail.
+ */
+export function deviceName(manufacturer: string | undefined, name: string): string {
+  const brand = manufacturer?.trim();
+  if (!brand) return name.trim();
+  const alreadyThere = new RegExp(`\\b${brand.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i");
+  return alreadyThere.test(name) ? name.trim() : `${brand} ${name}`.trim();
+}
+
 /** The prompt. Kept here so the vocabulary and the ask cannot drift apart. */
 export function specPrompt(input: {
   name: string;
@@ -395,7 +410,7 @@ export function specPrompt(input: {
     .filter((c) => c !== "xlr" && c !== "usb" && c !== "other")
     .join(", ");
   return [
-    `Device: ${[input.manufacturer, input.name].filter(Boolean).join(" ")}`,
+    `Device: ${deviceName(input.manufacturer, input.name)}`,
     `Category: ${input.category}`,
     input.note ? `Known detail: ${input.note}` : "",
     "",

@@ -24,6 +24,7 @@ import { GEAR_CATALOG } from "./lib/gearCatalog";
 import {
   resolveSpec,
   specPrompt,
+  deviceName,
   SPEC_SCHEMA,
   type SpecCandidate,
 } from "./lib/specLookup";
@@ -46,6 +47,15 @@ import {
    one you are looking at rather than presenting every port list
    with the same confidence.
    ============================================================ */
+
+/* The wording the background lookup has been answering to. Reused verbatim
+   by the by-name path, so one proven prompt serves both rather than two
+   near-identical ones that quietly behave differently. */
+const MEMORY_SYSTEM =
+  "You are a studio technician cataloguing the back panel of audio hardware. " +
+  "You answer only about physical connectors, and you say so when you do not " +
+  "know a specific model rather than inventing plausible I/O. " +
+  "Respond with ONLY a single valid JSON object matching this shape: ";
 
 /** How long a failed or in-flight lookup blocks a retry. */
 const LOOKUP_COOLDOWN_MS = 10 * 60 * 1000;
@@ -139,11 +149,7 @@ export const lookupProfile = internalAction({
           ? GEAR_CATALOG.find((g) => g.id === profile.catalogId)?.note
           : undefined,
       }),
-      "You are a studio technician cataloguing the back panel of audio hardware. " +
-        "You answer only about physical connectors, and you say so when you do not " +
-        "know a specific model rather than inventing plausible I/O. " +
-        "Respond with ONLY a single valid JSON object matching this shape: " +
-        JSON.stringify(SPEC_SCHEMA.schema),
+      MEMORY_SYSTEM + JSON.stringify(SPEC_SCHEMA.schema),
     );
 
     // The model declining to be sure is a real answer, and a better one than
@@ -301,6 +307,11 @@ export const deviceForProposal = internalQuery({
       label: device.label,
       category: profile?.category ?? "other",
       manufacturer: profile?.manufacturer ?? "",
+      // The catalog's own one-line note ("Rackmount 18-in/20-out") is often
+      // the detail that tips a model from unsure to certain.
+      catalogNote: profile?.catalogId
+        ? GEAR_CATALOG.find((g) => g.id === profile.catalogId)?.note
+        : undefined,
     };
   },
 });
@@ -330,6 +341,8 @@ export const proposeFromSource = action({
     summary?: string;
     model?: string;
     rejected?: number;
+    /** The model hedged. Shown, not hidden, because a person approves this. */
+    hedged?: boolean;
   }> => {
     const device = await ctx.runQuery(internal.patchSpecs.deviceForProposal, {
       deviceInstanceId,
@@ -365,28 +378,61 @@ export const proposeFromSource = action({
       sourceText = text.trim().slice(0, MAX_SOURCE_CHARS);
       sourceLabel = "the pasted text";
     } else {
-      return { ok: false, reason: "Give a link, a file or some text to read." };
+      /*
+       * No document. Fall back to asking about the device by name, which is
+       * the same research the background lookup does - the difference is
+       * that this one comes back as a diff to approve rather than writing
+       * to a profile. It is the only route that reaches a device already
+       * placed, because ports are copied at placement and never re-read.
+       */
+      sourceLabel = "a lookup by model name";
     }
 
-    const prompt = [
-      `Device: ${[device.manufacturer, device.label].filter(Boolean).join(" ")}`,
-      `Category: ${device.category}`,
-      "",
-      images
-        ? "The image shows the rear panel of this device. List every jack visible on it."
-        : `Documentation follows. List the connectors it describes.\n\n${sourceText}`,
-    ].join("\n");
+    const fromMemory = !images && !sourceText;
+
+    const prompt = fromMemory
+      ? specPrompt({
+          name: device.label,
+          manufacturer: device.manufacturer,
+          category: device.category,
+          note: device.catalogNote,
+        })
+      : [
+          `Device: ${deviceName(device.manufacturer, device.label)}`,
+          `Category: ${device.category}`,
+          "",
+          images
+            ? "The image shows the rear panel of this device. List every jack visible on it."
+            : `Documentation follows. List the connectors it describes.\n\n${sourceText}`,
+        ].join("\n");
 
     const answer = await readDeviceSpec<SpecCandidate>(
       prompt,
-      SPEC_SYSTEM + JSON.stringify(SPEC_SCHEMA.schema),
+      fromMemory
+        ? MEMORY_SYSTEM + JSON.stringify(SPEC_SCHEMA.schema)
+        : SPEC_SYSTEM + JSON.stringify(SPEC_SCHEMA.schema),
       images,
     );
 
-    if (!answer || answer.data?.confident === false) {
+    if (!answer) {
       return {
         ok: false,
-        reason: `Nothing about this device's I/O could be read from ${sourceLabel}.`,
+        reason: `The lookup service did not answer. Try again, or paste the connector list.`,
+      };
+    }
+    /*
+     * A hedged answer is still worth showing HERE, because this path ends in
+     * a diff a person approves. That is the opposite of the background
+     * lookup, which writes without asking and so refuses anything the model
+     * is unsure about. The uncertainty is surfaced instead of discarded.
+     */
+    const hedged = answer.data?.confident === false;
+    if (hedged && !answer.data?.ports?.length) {
+      return {
+        ok: false,
+        reason:
+          `Not confident about this model from ${sourceLabel}, and it offered nothing. ` +
+          `Point it at the manual, or paste the connector list.`,
       };
     }
 
@@ -421,9 +467,14 @@ export const proposeFromSource = action({
     return {
       ok: true,
       ports: resolved.ports,
-      summary: resolved.summary,
+      summary: hedged
+        ? `Not certain about this model. Check every line before applying.${
+            resolved.summary ? ` It said: ${resolved.summary}` : ""
+          }`
+        : resolved.summary,
       model: answer.model,
       rejected: resolved.rejected,
+      hedged,
     };
   },
 });

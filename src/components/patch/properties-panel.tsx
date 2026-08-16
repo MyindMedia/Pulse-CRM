@@ -10,7 +10,6 @@ import {
   Check,
   ExternalLink,
   HelpCircle,
-  Sparkles,
   MousePointerSquareDashed,
   Trash2,
   Unplug,
@@ -203,7 +202,6 @@ function DeviceProperties({
   const removeDevice = useMutation(api.patchManager.removeDevice);
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
   const verifySpec = useMutation(api.patchSpecs.verifySpec);
-  const requestLookup = useMutation(api.patchSpecs.requestLookup);
   const setDevicePhoto = useMutation(api.patchManager.setDevicePhoto);
   const clearDevicePhoto = useMutation(api.patchManager.clearDevicePhoto);
 
@@ -285,15 +283,19 @@ function DeviceProperties({
             <div className="flex items-start gap-2">
               <HelpCircle className="mt-0.5 size-3.5 shrink-0 text-info" />
               <div className="min-w-0 flex-1">
-                <p className="text-[11px] font-semibold text-bone">I/O not confirmed</p>
+                <p className="text-[11px] font-semibold text-bone">
+                  These {selection.ports.length} port
+                  {selection.ports.length === 1 ? "" : "s"} are a guess
+                </p>
                 <p className="mt-0.5 text-[11px] leading-snug text-steel">
                   {selection.specSource === "ai"
                     ? selection.specNote
                       ? `Looked up from the model name: ${selection.specNote}.`
                       : "Looked up from the model name, not read off the panel."
-                    : "A generic template for this kind of gear. The real panel almost certainly differs."}{" "}
-                  {selection.ports.length} port
-                  {selection.ports.length === 1 ? "" : "s"} listed.
+                    : "A generic template for this kind of gear, not this model's real panel."}{" "}
+                  To fix the list, use{" "}
+                  <span className="text-bone">Configure from a spec sheet</span> below.
+                  Confirming only silences this notice.
                 </p>
               </div>
             </div>
@@ -313,32 +315,8 @@ function DeviceProperties({
                 }}
               >
                 <Check className="size-3.5" />
-                Looks right
+                Ports are correct
               </Button>
-              {selection.specSource === "category" && (
-                <Tooltip
-                  label="Look it up"
-                  hint="Ask for this model's real I/O. Takes a few seconds and only ever adds detail."
-                >
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    disabled={!canEdit}
-                    onClick={async () => {
-                      try {
-                        await requestLookup({ profileId: selection.profileId });
-                        toast("Looking up the I/O for this model.");
-                      } catch (error) {
-                        toast.error(
-                          error instanceof Error ? error.message : "Could not start the lookup.",
-                        );
-                      }
-                    }}
-                  >
-                    <Sparkles className="size-3.5" />
-                  </Button>
-                </Tooltip>
-              )}
             </div>
           </div>
         )}
