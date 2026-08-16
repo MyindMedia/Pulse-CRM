@@ -39,12 +39,27 @@ export type SpecCandidate = {
   }[];
 };
 
+/** A word the vocabulary does not know yet, kept so it can be added. */
+export type VocabGap = {
+  kind: "connector" | "signalLevel" | "direction";
+  term: string;
+  /** The port it appeared on, for context when reviewing. */
+  onPort: string;
+};
+
 export type SpecResolution = {
   ports: PortTemplate[];
   source: "ai" | "category";
   summary?: string;
   /** How many ports the model proposed that we refused to accept. */
   rejected: number;
+  /*
+   * Everything we could not place. Dropping a jack silently is how a
+   * vocabulary stops growing: nobody ever finds out that "EtherCON" or
+   * "Euroblock" turned up nine times last month. These are recorded so the
+   * gap becomes a list someone can act on.
+   */
+  gaps: VocabGap[];
 };
 
 const DIRECTIONS = new Set<PortDirection>(["input", "output", "bidirectional"]);
@@ -171,6 +186,70 @@ export function normaliseConnector(raw: string | undefined): ConnectorValue | nu
   const underscored = key.replace(/[\s-]+/g, "_");
   if (LEGACY_CONNECTORS.has(underscored)) return null;
   if (underscored in CONNECTOR_DEFS) return underscored as ConnectorValue;
+
+  return matchConnectorPhrase(key);
+}
+
+/*
+ * Documentation does not name connectors the way an enum does. A manual
+ * says "Analog input, balanced XLR female" or "two RJ45 connectors for
+ * GLM", and refusing those loses the whole point of reading the manual.
+ *
+ * Ordered most specific first, because "usb-c" contains "usb" and "xlr5"
+ * contains "xlr": a shorter pattern matching first would quietly downgrade
+ * a jack we could have named exactly.
+ */
+const CONNECTOR_PHRASES: [RegExp, ConnectorValue][] = [
+  [/\bmini[\s-]?xlr\b|\bta[34]\b/, "mini_xlr"],
+  [/\b4[\s-]?pin\b.*\bxlr\b|\bxlr[\s-]?4\b/, "xlr4"],
+  [/\b5[\s-]?pin\b.*\bxlr\b|\bxlr[\s-]?5\b/, "xlr5"],
+  [/\beuroblock\b|\bphoenix\b|\bterminal block\b|\bscrew terminal\b/, "euroblock"],
+  [/\btrrs\b|\bheadset jack\b/, "trrs"],
+  [/\bethercon\b/, "rj45"],
+  [/\bxlr\b/, "xlr3"],
+  [/\bthunderbolt\b|\btb[34]\b/, "thunderbolt"],
+  [/\busb[\s-]?c\b|\busb type[\s-]?c\b/, "usb_c"],
+  [/\busb\b.*\bmicro\b|\bmicro[\s-]?usb\b/, "usb_b_micro"],
+  [/\busb\b.*\bmini\b|\bmini[\s-]?usb\b/, "usb_b_mini"],
+  [/\busb[\s-]?b\b|\busb type[\s-]?b\b|\busb printer\b/, "usb_b"],
+  [/\busb[\s-]?a\b|\busb type[\s-]?a\b/, "usb_a"],
+  [/\bword\s?clock\b/, "wordclock_bnc"],
+  [/\badat\b|\blightpipe\b/, "adat_optical"],
+  [/\btoslink\b|\boptical\b/, "spdif_optical"],
+  [/\bs\/?pdif\b.*\bcoax|\bcoax.*\bs\/?pdif\b|\bs\/?pdif\b/, "spdif_coax"],
+  [/\bbnc\b/, "bnc"],
+  [/\bdb[\s-]?25\b|\bd[\s-]?sub\b|\bd25\b/, "db25"],
+  [/\bspeakon\b|\bnl[24]\b/, "speakon"],
+  [/\bbanana\b|\bbinding post\b/, "banana"],
+  [/\brca\b|\bphono\b|\bcinch\b/, "rca"],
+  [/\brj[\s-]?45\b|\bethernet\b|\bnetwork\b|\bcat[56]\b/, "rj45"],
+  [/\bmidi\b|\b5[\s-]?pin din\b|\bdin\b/, "midi_din"],
+  [/\bbantam\b|\btt\b/, "bantam"],
+  [/\b3\.5\s?mm\b|\b1\/8\b|\bmini[\s-]?jack\b|\beighth\b/, "trs_mini"],
+  [/\bts\b|\bunbalanced\b.*\bjack\b/, "ts"],
+  [/\btrs\b|\b1\/4\b|\bquarter\b|\bjack\b|\bphone plug\b/, "trs"],
+];
+
+/*
+ * Power inlets are not signal connectors. A manual lists them alongside the
+ * audio I/O and a model will happily hand them over, so they are named here
+ * and refused outright rather than being left to fall through to something
+ * that merely looks close.
+ */
+const NOT_A_SIGNAL_CONNECTOR =
+  /\biec\b|\bmains\b|\bpower\b|\bdc\b|\bbarrel\b|\bpsu\b|\bkettle\b|\bearth\b|\bground\b/;
+
+/** True when we refused on purpose, so it is not a vocabulary gap. */
+export function isDeliberateRefusal(raw: string): boolean {
+  return NOT_A_SIGNAL_CONNECTOR.test(flatten(raw));
+}
+
+/** Read a connector out of a sentence, or refuse. */
+export function matchConnectorPhrase(flattened: string): ConnectorValue | null {
+  if (NOT_A_SIGNAL_CONNECTOR.test(flattened)) return null;
+  for (const [pattern, value] of CONNECTOR_PHRASES) {
+    if (pattern.test(flattened)) return value;
+  }
   return null;
 }
 
@@ -186,12 +265,19 @@ function normaliseDirection(raw: string | undefined): PortDirection | null {
 
 function normaliseLevel(raw: string | undefined): SignalLevel | null {
   if (!raw) return null;
-  const key = raw.trim().toLowerCase();
+  const key = flatten(raw);
   if (LEVELS.has(key as SignalLevel)) return key as SignalLevel;
-  if (key === "inst" || key === "hi-z" || key === "hiz") return "instrument";
-  if (key === "monitor" || key === "speaker level") return "speaker";
-  if (key === "clock" || key === "midi") return "control";
-  if (key === "aes" || key === "spdif" || key === "adat") return "digital";
+  if (/\binst|hi-?z\b|guitar|\bdi\b/.test(key)) return "instrument";
+  if (/monitor|speaker|amplifier/.test(key)) return "speaker";
+  if (/clock|midi|\bctrl\b|control|network|remote/.test(key)) return "control";
+  if (/aes|s\/?pdif|adat|digital|optical|usb|dante|madi/.test(key)) return "digital";
+  if (/\bmic\b|microphone/.test(key)) return "mic";
+  /*
+   * "Analog" is how a manual says "not digital", and it is by far the most
+   * common level word in real documentation. Line is the right reading of it
+   * on everything except a mic input, which is caught above.
+   */
+  if (/analog|analogue|balanced|unbalanced|\bline\b|\baux\b/.test(key)) return "line";
   return null;
 }
 
@@ -206,10 +292,12 @@ export function resolveSpec(
   candidate: SpecCandidate | null | undefined,
   category: string,
 ): SpecResolution {
+  const gaps: VocabGap[] = [];
   const fallback = (): SpecResolution => ({
     ports: (CATEGORY_DEFAULTS[category] ?? CATEGORY_DEFAULTS.other)(),
     source: "category",
     rejected: 0,
+    gaps,
   });
 
   if (!candidate?.ports?.length) return fallback();
@@ -228,6 +316,30 @@ export function resolveSpec(
     // does not get in.
     if (!direction || !signalLevel || !connector || !label) {
       rejected += 1;
+      // Record WHICH word we could not place, not just that we failed. A
+      // power inlet is a deliberate refusal and not a gap, so anything the
+      // refusal list already covers is left out.
+      const where = label || "(unlabelled)";
+      /*
+       * A power inlet is refused on purpose, so nothing about it is a gap.
+       * Recording its level as missing vocabulary would fill the review
+       * queue with "AC" and "mains" and bury the terms worth acting on.
+       */
+      const deliberate =
+        (raw.connector && isDeliberateRefusal(raw.connector)) ||
+        (label && isDeliberateRefusal(label));
+
+      if (!deliberate) {
+        if (raw.connector && !connector) {
+          gaps.push({ kind: "connector", term: raw.connector.trim(), onPort: where });
+        }
+        if (raw.signalLevel && !signalLevel) {
+          gaps.push({ kind: "signalLevel", term: raw.signalLevel.trim(), onPort: where });
+        }
+        if (raw.direction && !direction) {
+          gaps.push({ kind: "direction", term: raw.direction.trim(), onPort: where });
+        }
+      }
       continue;
     }
 
@@ -268,6 +380,7 @@ export function resolveSpec(
     source: "ai",
     summary: candidate.summary?.trim() || undefined,
     rejected,
+    gaps,
   };
 }
 
@@ -334,3 +447,68 @@ export const SPEC_SCHEMA = {
     },
   },
 } as const;
+
+/* ============================================================
+   Comparing a spec sheet against the jacks a device already has.
+
+   The point of showing a diff rather than replacing the port
+   list is that a port can have a cable in it. Destroying one
+   silently un-patches a run someone documented, so every removal
+   has to be visible and refusable before anything is written.
+   ============================================================ */
+
+export type ExistingPort = {
+  _id: string;
+  label: string;
+  direction: PortDirection;
+  signalLevel: string;
+  connector: string;
+  /** How many cables are currently patched into this jack. */
+  patched: number;
+};
+
+export type PortDiff = {
+  add: PortTemplate[];
+  keep: { port: ExistingPort; matches: PortTemplate }[];
+  remove: ExistingPort[];
+};
+
+/** Labels differ by punctuation and case far more often than by meaning. */
+function labelKey(label: string): string {
+  return label
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, " ")
+    .trim();
+}
+
+/**
+ * Line a proposed port list up against the jacks already on a device.
+ *
+ * Matching is by label and direction, because that is what a person reads
+ * off a panel. A jack whose connector was guessed wrong still matches its
+ * proposal - it is the same hole, and the diff should offer to correct it
+ * rather than to delete and recreate it, which would pull its cable.
+ */
+export function diffPorts(existing: ExistingPort[], proposed: PortTemplate[]): PortDiff {
+  const unclaimed = new Map<string, ExistingPort[]>();
+  for (const port of existing) {
+    const key = `${labelKey(port.label)}|${port.direction}`;
+    const list = unclaimed.get(key) ?? [];
+    list.push(port);
+    unclaimed.set(key, list);
+  }
+
+  const add: PortTemplate[] = [];
+  const keep: { port: ExistingPort; matches: PortTemplate }[] = [];
+
+  for (const candidate of proposed) {
+    const key = `${labelKey(candidate.label)}|${candidate.direction}`;
+    const pool = unclaimed.get(key);
+    const match = pool?.shift();
+    if (match) keep.push({ port: match, matches: candidate });
+    else add.push(candidate);
+  }
+
+  const remove = [...unclaimed.values()].flat();
+  return { add, keep, remove };
+}

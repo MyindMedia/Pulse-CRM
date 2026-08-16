@@ -49,6 +49,10 @@ export const connectorV = v.union(
   v.literal("adat_optical"),
   v.literal("spdif_optical"),
   v.literal("spdif_coax"),
+  v.literal("xlr4"),
+  v.literal("mini_xlr"),
+  v.literal("euroblock"),
+  v.literal("trrs"),
   // Legacy, pre-split.
   v.literal("xlr"),
   v.literal("usb"),

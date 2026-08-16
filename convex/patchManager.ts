@@ -60,7 +60,7 @@ type AuditArgs = {
  * caller's transaction. Every mutation below goes through this.
  * There is no code path that changes the graph without it.
  */
-async function logPatch(ctx: MutationCtx, actor: string, args: AuditArgs) {
+export async function logPatch(ctx: MutationCtx, actor: string, args: AuditArgs) {
   const at = Date.now();
   await ctx.db.insert("patchAudit", {
     orgId: args.orgId,

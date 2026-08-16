@@ -424,6 +424,7 @@ function DeviceProperties({
           because a port has to exist before its 48V switch means anything. */}
       <PortEditor
         deviceInstanceId={selection._id}
+        deviceLabel={selection.label}
         ports={selection.ports}
         canEdit={canEdit}
       />

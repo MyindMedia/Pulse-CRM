@@ -47,6 +47,14 @@ export type ConnectorValue =
   | "spdif_coax"
   | "spdif_optical"
   | "wordclock_bnc"
+  // Added because real documentation kept using them: a 4-pin XLR on
+  // intercom and some lamp circuits, a mini-XLR on lavalier and compact
+  // gear, a Euroblock across install AV, and TRRS on anything that expects
+  // a phone headset.
+  | "xlr4"
+  | "mini_xlr"
+  | "euroblock"
+  | "trrs"
   // Legacy values from before the vocabulary was split out. Kept so old
   // rows keep working, and treated as "any variant of this family" so
   // they warn rather than block.
@@ -91,6 +99,35 @@ export const CONNECTOR_DEFS: Record<ConnectorValue, ConnectorDef> = {
     group: "Clock and data",
     gendered: true,
     crossMates: ["bnc"],
+  },
+  xlr4: {
+    label: "XLR 4-pin",
+    short: "XLR4",
+    group: "Analogue",
+    gendered: true,
+  },
+  mini_xlr: {
+    label: "Mini XLR (TA3/TA4)",
+    short: "miniXLR",
+    group: "Analogue",
+    gendered: true,
+  },
+  euroblock: {
+    label: "Euroblock / Phoenix",
+    short: "EURO",
+    group: "Analogue",
+    // A screw terminal has no plug gender worth checking.
+    gendered: false,
+  },
+  trrs: {
+    label: "3.5mm TRRS",
+    short: "TRRS",
+    group: "Analogue",
+    gendered: false,
+    // A TRRS headset plug goes into a TRS socket and passes audio; it is a
+    // real-world fit, just not the full story, so it mates rather than
+    // matching exactly.
+    crossMates: ["trs_mini"],
   },
   midi_din: { label: "MIDI 5-pin DIN", short: "MIDI", group: "Control", gendered: true },
   rj45: { label: "RJ45 / etherCON", short: "RJ45", group: "Clock and data", gendered: true },

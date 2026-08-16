@@ -5,7 +5,7 @@ import { useMutation } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { Plus, Trash2, X } from "lucide-react";
+import { FileSearch, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
@@ -19,6 +19,7 @@ import {
 import { Tooltip } from "@/components/ui/tooltip";
 import { connectorMeta, levelMeta } from "./constants";
 import type { PatchPort } from "./device-node";
+import { SpecSheetDialog } from "./spec-sheet-dialog";
 
 /* ============================================================
    Adding and correcting the jacks on a placed device.
@@ -181,14 +182,17 @@ function PortRow({
 
 export function PortEditor({
   deviceInstanceId,
+  deviceLabel,
   ports,
   canEdit,
 }: {
   deviceInstanceId: Id<"deviceInstances">;
+  deviceLabel: string;
   ports: PatchPort[];
   canEdit: boolean;
 }) {
   const addPort = useMutation(api.patchManager.addPort);
+  const [sheetOpen, setSheetOpen] = React.useState(false);
   // Open by default. The whole reason this exists is that a device's I/O is
   // often wrong on arrival, so hiding the fix behind a disclosure just makes
   // people believe the wrong list.
@@ -282,6 +286,19 @@ export function PortEditor({
             </div>
           )}
 
+          {/* Reading the manual beats typing twenty jacks by hand, so this
+              sits above the manual add buttons rather than under them. */}
+          <Button
+            variant="secondary"
+            size="sm"
+            className="w-full"
+            disabled={!canEdit}
+            onClick={() => setSheetOpen(true)}
+          >
+            <FileSearch className="size-3.5" />
+            Configure from a spec sheet
+          </Button>
+
           <div className="flex gap-1.5">
             <Button
               variant="secondary"
@@ -304,6 +321,14 @@ export function PortEditor({
               Add output
             </Button>
           </div>
+
+          <SpecSheetDialog
+            open={sheetOpen}
+            onOpenChange={setSheetOpen}
+            deviceInstanceId={deviceInstanceId}
+            deviceLabel={deviceLabel}
+            ports={ports}
+          />
         </>
       )}
     </div>

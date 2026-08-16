@@ -1281,3 +1281,46 @@ the account has credit.
 
 **Non-goals (this pass):** scraping manufacturer PDFs, a bulk "look up
 everything" sweep, editing ports from the canvas (setPorts exists; no UI yet).
+
+## Feature: configure device I/O from a spec sheet (grilled + BUILT 2026-08-15)
+
+**Owner ask:** upload a document or paste a link with a device's I/O and have
+it configure the ports. Plus: "if you come across any vocab not in the system
+for cable or input type make sure it is added."
+
+**Decisions (grilled):**
+- **Show a diff, the user approves it.** Not replace-outright and not
+  add-only. A port can have a cable in it, so the difference between "adds
+  eight inputs" and "unpatches your session" has to be visible before
+  anything is written. Removals are OFF by default: a sheet not mentioning a
+  jack is a weak reason to pull a cable out of it.
+- **All four sources**: a link (server fetches, strips HTML), a PDF or text
+  file (parsed IN THE BROWSER via pdfjs-dist, matching the inventory
+  spreadsheet precedent - only text reaches the server), pasted text, and a
+  photo of the back panel (vision, confirmed working on `gemma4:31b`).
+
+**Provider scoping (load-bearing):** device research runs on its own Ollama
+key through `convex/lib/deviceResearch.ts`, deliberately NOT a branch inside
+`lib/openai.ts`. Wiring it into the shared `complete()` would quietly make it
+the fallback for the Agent, concierge portal and email enrichment - surfaces
+carrying client names and financials. What leaves here is a manufacturer and
+a model name, which is public product information.
+
+**Vocabulary now grows instead of silently losing jacks:**
+- Unknown connectors/levels are RECORDED in a new `patchVocabGaps` table
+  (term, count, example device + port) and surfaced by `patchSpecs.vocabGaps`,
+  rather than being dropped invisibly. Deliberate refusals (power inlets)
+  never enter the queue, so it stays a list worth acting on.
+- Reading real documentation drove concrete additions: connectors `xlr4`,
+  `mini_xlr` (TA3/TA4), `euroblock` (Phoenix), `trrs`; EtherCON reads as
+  rj45; phrase matching so "balanced XLR female" and "two RJ45 connectors
+  for GLM" resolve; signal level "analog"/"AES/EBU"/"network" map correctly.
+- **`convex/connectorVocab.test.ts` pins the three declarations together** -
+  the mating table, the schema union, and the shared arg validators. A value
+  the schema accepts but the mating engine has never heard of would crash a
+  fit check the first time someone patched it, so adding a connector is now
+  something you cannot half-do.
+
+**Non-goals (this pass):** OCR of scanned PDFs (use the photo path), fetching
+PDFs at a URL (download and upload instead), auto-promoting a recorded gap
+into the mating table (it needs mating rules a human decides).

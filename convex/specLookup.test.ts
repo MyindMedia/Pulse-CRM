@@ -196,3 +196,107 @@ describe("the prompt", () => {
     expect(prompt).not.toMatch(/one of: .*\bother\b/);
   });
 });
+
+
+/* Documentation does not speak in enums. These are the exact phrasings a
+   real manual used, and each one previously lost a jack. */
+describe("reading a real manufacturer's wording", () => {
+  it("pulls the connector out of a sentence", () => {
+    expect(normaliseConnector("XLR female")).toBe("xlr3");
+    expect(normaliseConnector("balanced XLR male")).toBe("xlr3");
+    expect(normaliseConnector("two RJ45 connectors for GLM")).toBe("rj45");
+    expect(normaliseConnector("5-pin XLR")).toBe("xlr5");
+    expect(normaliseConnector("1/4 inch TRS jack")).toBe("trs");
+    expect(normaliseConnector("Neutrik speakON")).toBe("speakon");
+    expect(normaliseConnector("optical TOSLINK")).toBe("spdif_optical");
+    expect(normaliseConnector("ADAT lightpipe")).toBe("adat_optical");
+  });
+
+  // The specific spelling has to beat the general one, or a USB-C port
+  // silently becomes a USB-B and the mating check starts lying.
+  it("prefers the specific reading over the general one", () => {
+    expect(normaliseConnector("USB-C port")).toBe("usb_c");
+    expect(normaliseConnector("USB Type-B connector")).toBe("usb_b");
+    expect(normaliseConnector("Word Clock BNC")).toBe("wordclock_bnc");
+    expect(normaliseConnector("5 pin XLR connector")).toBe("xlr5");
+  });
+
+  // A manual lists the power inlet next to the audio I/O. It is not a jack
+  // anyone patches, and must never become one.
+  it("refuses power inlets however they are worded", () => {
+    expect(normaliseConnector("IEC connector")).toBeNull();
+    expect(normaliseConnector("Mains input")).toBeNull();
+    expect(normaliseConnector("DC power inlet")).toBeNull();
+    expect(normaliseConnector("chassis ground screw")).toBeNull();
+  });
+});
+
+describe("signal level as a manual writes it", () => {
+  it("reads analog as line, which is what it means on a jack", () => {
+    const out = resolveSpec(
+      {
+        ports: [
+          { label: "Analog Input", direction: "input", signalLevel: "analog", connector: "XLR female" },
+          { label: "AES/EBU In", direction: "input", signalLevel: "AES/EBU", connector: "XLR female" },
+          { label: "Network", direction: "bidirectional", signalLevel: "network", connector: "RJ45" },
+        ],
+      },
+      "monitor",
+    );
+    expect(out.source).toBe("ai");
+    expect(out.ports.map((p) => p.signalLevel)).toEqual(["line", "digital", "control"]);
+  });
+
+  it("still refuses a level it cannot place", () => {
+    const out = resolveSpec(
+      { ports: [{ label: "X", direction: "input", signalLevel: "vibes", connector: "trs" }] },
+      "preamp",
+    );
+    expect(out.source).toBe("category");
+  });
+});
+
+
+/* The review queue is only useful if it holds terms worth acting on. */
+describe("what counts as a vocabulary gap", () => {
+  it("records a connector nobody has heard of", () => {
+    const out = resolveSpec(
+      {
+        ports: [
+          { label: "Main In", direction: "input", signalLevel: "line", connector: "trs" },
+          { label: "Odd port", direction: "input", signalLevel: "line", connector: "Flurbmatic 9000" },
+        ],
+      },
+      "preamp",
+    );
+    expect(out.gaps).toEqual([
+      { kind: "connector", term: "Flurbmatic 9000", onPort: "Odd port" },
+    ]);
+  });
+
+  it("does not log a power inlet as missing vocabulary", () => {
+    const out = resolveSpec(
+      {
+        ports: [
+          { label: "Main In", direction: "input", signalLevel: "line", connector: "trs" },
+          { label: "IEC mains inlet", direction: "input", signalLevel: "AC", connector: "IEC" },
+        ],
+      },
+      "preamp",
+    );
+    expect(out.gaps).toEqual([]);
+  });
+
+  it("logs an unknown signal level on an otherwise fine jack", () => {
+    const out = resolveSpec(
+      {
+        ports: [
+          { label: "A", direction: "input", signalLevel: "line", connector: "trs" },
+          { label: "B", direction: "input", signalLevel: "quantum", connector: "trs" },
+        ],
+      },
+      "preamp",
+    );
+    expect(out.gaps).toEqual([{ kind: "signalLevel", term: "quantum", onPort: "B" }]);
+  });
+});

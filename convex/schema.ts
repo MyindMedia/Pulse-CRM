@@ -112,6 +112,10 @@ const connectorType = v.union(
   v.literal("adat_optical"),
   v.literal("spdif_optical"),
   v.literal("spdif_coax"),
+  v.literal("xlr4"),
+  v.literal("mini_xlr"),
+  v.literal("euroblock"),
+  v.literal("trrs"),
   // Legacy, pre-split.
   v.literal("xlr"),
   v.literal("usb"),
@@ -2132,6 +2136,36 @@ export default defineSchema({
   //    the thing an engineer writes on tape and leaves on the desk. Kept in
   //    its own table so it can never be mistaken for gear by the run list,
   //    the inventory counts or the connector checks. ──
+  // ── Vocabulary gap - a connector or signal level a spec sheet used that
+  //    the mating engine has never heard of. Recorded rather than dropped,
+  //    because a word we cannot place is the only evidence that the
+  //    vocabulary needs to grow. Nothing reads these at patch time; they are
+  //    a review queue for promoting a term into CONNECTOR_DEFS. ──
+  patchVocabGaps: defineTable({
+    orgId: v.string(),
+    kind: v.union(
+      v.literal("connector"),
+      v.literal("signalLevel"),
+      v.literal("direction"),
+    ),
+    /** Lowercased, so "XLR Female" and "xlr female" are one row. */
+    term: v.string(),
+    /** Exactly as it was written the first time, for review. */
+    rawTerm: v.string(),
+    /** How many times this has turned up. */
+    seen: v.number(),
+    /** A device and port it appeared on, to make the term make sense. */
+    exampleDevice: v.optional(v.string()),
+    examplePort: v.optional(v.string()),
+    firstSeenAt: v.number(),
+    lastSeenAt: v.number(),
+    /** Set once the term has been added to the vocabulary or dismissed. */
+    resolvedAt: v.optional(v.number()),
+    resolvedAs: v.optional(v.string()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_term", ["orgId", "kind", "term"]),
+
   patchAnnotations: defineTable({
     orgId: v.string(),
     patchSpaceId: v.id("patchSpaces"),
