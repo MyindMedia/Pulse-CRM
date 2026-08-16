@@ -560,3 +560,54 @@ export const run = internalMutation({
     };
   },
 });
+
+
+/**
+ * Remove everything a seed run created for one org, and create nothing.
+ *
+ * Exists because seeding the wrong org id leaves a patch space nothing in
+ * the app will ever surface - invisible junk in a production database is
+ * still junk, and there was no way to take it back out.
+ */
+export const clear = internalMutation({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const spaces = (
+      await ctx.db
+        .query("patchSpaces")
+        .withIndex("by_org", (q) => q.eq("orgId", orgId))
+        .collect()
+    ).filter((space) => (space.description ?? "").includes(TAG));
+
+    for (const space of spaces) {
+      for (const table of [
+        "connections",
+        "ports",
+        "deviceInstances",
+        "patchAnnotations",
+      ] as const) {
+        const rows = await ctx.db
+          .query(table)
+          .withIndex("by_patchSpace", (q) => q.eq("patchSpaceId", space._id))
+          .collect();
+        for (const row of rows) await ctx.db.delete(row._id);
+      }
+      const audit = await ctx.db
+        .query("patchAudit")
+        .withIndex("by_patchSpace_at", (q) => q.eq("patchSpaceId", space._id))
+        .collect();
+      for (const row of audit) await ctx.db.delete(row._id);
+      await ctx.db.delete(space._id);
+    }
+
+    const gear = (
+      await ctx.db
+        .query("equipment")
+        .withIndex("by_org", (q) => q.eq("orgId", orgId))
+        .collect()
+    ).filter((row) => (row.notes ?? "").includes(TAG));
+    for (const row of gear) await ctx.db.delete(row._id);
+
+    return { spaces: spaces.length, gear: gear.length };
+  },
+});
