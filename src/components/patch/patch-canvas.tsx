@@ -82,6 +82,10 @@ type GraphDevice = {
   rackUnits?: number;
   photoUrl: string | null;
   photoIsOwn: boolean;
+  profileId: Id<"deviceProfiles">;
+  specSource: "curated" | "ai" | "category" | "manual";
+  specVerified: boolean;
+  specNote: string | null;
   equipment: {
     _id: Id<"equipment">;
     name: string;
@@ -483,6 +487,9 @@ function PatchCanvasInner({
             equipment: device.equipment,
             photoUrl: device.photoUrl,
             photoIsOwn: device.photoIsOwn,
+            specUnverified:
+              !device.specVerified &&
+              (device.specSource === "ai" || device.specSource === "category"),
             traceDimmed: !!tracedDevices && !tracedDevices.has(device._id),
           } satisfies DeviceNodeData,
         } as Node;
@@ -605,6 +612,10 @@ function PatchCanvasInner({
         ports: device.ports,
         photoUrl: device.photoUrl,
         photoIsOwn: device.photoIsOwn,
+        profileId: device.profileId,
+        specSource: device.specSource,
+        specVerified: device.specVerified,
+        specNote: device.specNote,
         equipment: device.equipment,
         phantomRiskByPort: phantomRiskByPort.get(device._id) ?? {},
       };

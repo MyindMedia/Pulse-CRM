@@ -1,6 +1,7 @@
 import { query, mutation, internalMutation } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
+import { internal } from "./_generated/api";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import { currentOrgWithCapability, currentActor, assertOrg } from "./lib/tenant";
 import { GEAR_CATALOG, searchGearCatalog } from "./lib/gearCatalog";
@@ -15,7 +16,7 @@ import {
   portStateV,
   portTemplateV,
 } from "./lib/patchValidators";
-import { cableFit, type Gender } from "./lib/connectors";
+import { cableFit, conventionalPortGender, type Gender } from "./lib/connectors";
 import {
   portsFor,
   isPhantomSensitive,
@@ -496,6 +497,13 @@ export const graph = query({
           category: profile?.category ?? "other",
           rackUnits: profile?.rackUnits,
           phantomSensitive: profile?.phantomSensitive ?? false,
+          profileId: device.profileId,
+          /* Where these ports came from, and whether anyone has agreed. A
+             patch map is only trustworthy if a guess looks different from a
+             hand-verified port list. */
+          specSource: profile?.specSource ?? "category",
+          specVerified: !!profile?.specVerifiedAt,
+          specNote: profile?.specNote ?? null,
           // The inventory link, resolved.
           equipment: item
             ? {
@@ -691,7 +699,11 @@ async function profileForEquipment(
     return brands[0];
   })();
 
-  return await ctx.db.insert("deviceProfiles", {
+  // Which tier these ports came from. A hand-written map is trusted on
+  // sight; a category template is openly a guess and gets looked up.
+  const curated = !!catalogId && !!CATALOG_PORTS[catalogId];
+
+  const profileId = await ctx.db.insert("deviceProfiles", {
     orgId,
     scope: "studio",
     name: item.name,
@@ -703,8 +715,21 @@ async function profileForEquipment(
     catalogId,
     portTemplate: portsFor(catalogId, item.category),
     phantomSensitive: isPhantomSensitive(catalogId, item.name),
+    specSource: curated ? "curated" : "category",
+    // A curated map needs nobody's blessing; it was written against the
+    // manufacturer's own panel.
+    specVerifiedAt: curated ? Date.now() : undefined,
     createdBy: actor,
   });
+
+  // Everything else starts as a category guess, so go and find the real I/O
+  // in the background. The device is placeable either way - the lookup only
+  // ever upgrades what is already there.
+  if (!curated) {
+    await ctx.scheduler.runAfter(0, internal.patchSpecs.lookupProfile, { profileId });
+  }
+
+  return profileId;
 }
 
 /**
@@ -1267,6 +1292,14 @@ export const addPort = mutation({
       capabilities: capabilities ?? [],
       state: {},
       ...rest,
+      /*
+       * A jack on a chassis has a conventional gender, and the port
+       * templates have always stamped it. A hand-added port that skipped it
+       * was invisible to the two-males check - the one thing the connector
+       * engine exists to catch - so it is stamped here too unless the caller
+       * knows better and says so.
+       */
+      gender: rest.gender ?? conventionalPortGender(rest.connector, rest.direction),
     });
 
     await logPatch(ctx, actor, {
@@ -1287,6 +1320,14 @@ export const updatePort = mutation({
     id: v.id("ports"),
     label: v.optional(v.string()),
     channelIndex: v.optional(v.number()),
+    // Correcting a jack means correcting what KIND of jack it is, not just
+    // its name. A guessed port with the wrong connector is the case this
+    // exists for, so the connector has to be editable or the fix is cosmetic.
+    direction: v.optional(portDirectionV),
+    signalLevel: v.optional(signalLevelV),
+    connector: v.optional(connectorV),
+    gender: v.optional(genderV),
+    capabilities: v.optional(v.array(portCapabilityV)),
   },
   handler: async (ctx, { id, ...patch }) => {
     const orgId = await currentOrgWithCapability(ctx, "patch.edit");
@@ -1294,24 +1335,74 @@ export const updatePort = mutation({
     const port = await ctx.db.get(id);
     assertOrg(port, orgId);
 
-    const clean = Object.fromEntries(
+    const clean: Record<string, unknown> = Object.fromEntries(
       Object.entries(patch).filter(([, value]) => value !== undefined),
     );
     if (Object.keys(clean).length === 0) return;
 
+    /*
+     * Gender follows the jack unless someone states otherwise. Changing an
+     * XLR input into an XLR output flips it male, and leaving the old value
+     * behind would quietly break the two-males check on every cable that
+     * lands here afterwards.
+     */
+    if ((patch.connector || patch.direction) && !patch.gender) {
+      clean.gender = conventionalPortGender(
+        patch.connector ?? port.connector,
+        patch.direction ?? port.direction,
+      );
+    }
+
     await ctx.db.patch(id, clean);
+
+    // Changing what a jack IS can invalidate the cables already in it, so
+    // re-grade them rather than leaving a stale verdict on the canvas.
+    if (patch.connector || patch.gender || patch.direction) {
+      await regradeCablesOnPort(ctx, id);
+    }
+
     await logPatch(ctx, actor, {
       orgId,
       patchSpaceId: port.patchSpaceId,
       entityType: "port",
       entityId: id,
       changeType: "update",
-      summary: `Renamed port ${port.label}`,
-      before: { label: port.label, channelIndex: port.channelIndex },
+      summary: `Edited port ${port.label} on this device`,
+      before: {
+        label: port.label,
+        connector: port.connector,
+        direction: port.direction,
+        signalLevel: port.signalLevel,
+      },
       after: clean,
     });
   },
 });
+
+/**
+ * Re-check every cable landing on a port whose shape just changed.
+ *
+ * A run recorded as "exact" against an XLR jack is not exact any more once
+ * that jack becomes a TRS. Leaving the old verdict makes the canvas lie in
+ * exactly the situation the connector checks exist to catch.
+ */
+async function regradeCablesOnPort(ctx: MutationCtx, portId: Id<"ports">) {
+  for (const index of ["by_fromPort", "by_toPort"] as const) {
+    const edges = await ctx.db
+      .query("connections")
+      .withIndex(index, (q) =>
+        index === "by_fromPort" ? q.eq("fromPortId", portId) : q.eq("toPortId", portId),
+      )
+      .collect();
+    for (const edge of edges) {
+      if (!edge.cableId) continue;
+      const check = await checkCableFit(ctx, edge.cableId, edge.fromPortId, edge.toPortId);
+      if (check.verdict !== edge.cableFit) {
+        await ctx.db.patch(edge._id, { cableFit: check.verdict });
+      }
+    }
+  }
+}
 
 export const removePort = mutation({
   args: { id: v.id("ports") },

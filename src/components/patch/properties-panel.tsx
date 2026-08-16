@@ -7,7 +7,10 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import {
   Cable,
+  Check,
   ExternalLink,
+  HelpCircle,
+  Sparkles,
   MousePointerSquareDashed,
   Trash2,
   Unplug,
@@ -30,6 +33,7 @@ import { capabilityMeta, connectorMeta, levelMeta } from "./constants";
 import { CableColorField } from "./cable-color-field";
 import { CableLabelFields, type CableLabelMode } from "./cable-label-fields";
 import { PanelCollapseButton } from "./panel-rail";
+import { PortEditor } from "./port-editor";
 import { NOTE_COLORS } from "./note-node";
 import { PhotoUpload } from "@/components/ui/photo-upload";
 import type { PatchPort } from "./device-node";
@@ -46,6 +50,10 @@ type DeviceSelection = {
   ports: PatchPort[];
   photoUrl: string | null;
   photoIsOwn: boolean;
+  profileId: Id<"deviceProfiles">;
+  specSource: "curated" | "ai" | "category" | "manual";
+  specVerified: boolean;
+  specNote: string | null;
   equipment: { _id: Id<"equipment">; name: string; serialNumber: string | null } | null;
   /** port id -> label of the phantom-sensitive device currently patched into it. */
   phantomRiskByPort: Record<string, string>;
@@ -194,6 +202,8 @@ function DeviceProperties({
   const updateDevice = useMutation(api.patchManager.updateDevice);
   const removeDevice = useMutation(api.patchManager.removeDevice);
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+  const verifySpec = useMutation(api.patchSpecs.verifySpec);
+  const requestLookup = useMutation(api.patchSpecs.requestLookup);
   const setDevicePhoto = useMutation(api.patchManager.setDevicePhoto);
   const clearDevicePhoto = useMutation(api.patchManager.clearDevicePhoto);
 
@@ -266,6 +276,72 @@ function DeviceProperties({
             : "A photo of this unit in the rack, so the map matches the room."
         }
       />
+
+      {/* Where these ports came from. Shown only while it is still a guess,
+          so a confirmed rig carries no permanent nag. */}
+      {!selection.specVerified &&
+        (selection.specSource === "ai" || selection.specSource === "category") && (
+          <div className="space-y-2 rounded-chrome border border-info/30 bg-info/8 p-3">
+            <div className="flex items-start gap-2">
+              <HelpCircle className="mt-0.5 size-3.5 shrink-0 text-info" />
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-semibold text-bone">I/O not confirmed</p>
+                <p className="mt-0.5 text-[11px] leading-snug text-steel">
+                  {selection.specSource === "ai"
+                    ? selection.specNote
+                      ? `Looked up from the model name: ${selection.specNote}.`
+                      : "Looked up from the model name, not read off the panel."
+                    : "A generic template for this kind of gear. The real panel almost certainly differs."}{" "}
+                  {selection.ports.length} port
+                  {selection.ports.length === 1 ? "" : "s"} listed.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-1.5">
+              <Button
+                variant="secondary"
+                size="sm"
+                className="flex-1"
+                disabled={!canEdit}
+                onClick={async () => {
+                  try {
+                    await verifySpec({ profileId: selection.profileId });
+                    toast.success("Ports confirmed.");
+                  } catch (error) {
+                    toast.error(error instanceof Error ? error.message : "Could not confirm.");
+                  }
+                }}
+              >
+                <Check className="size-3.5" />
+                Looks right
+              </Button>
+              {selection.specSource === "category" && (
+                <Tooltip
+                  label="Look it up"
+                  hint="Ask for this model's real I/O. Takes a few seconds and only ever adds detail."
+                >
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={!canEdit}
+                    onClick={async () => {
+                      try {
+                        await requestLookup({ profileId: selection.profileId });
+                        toast("Looking up the I/O for this model.");
+                      } catch (error) {
+                        toast.error(
+                          error instanceof Error ? error.message : "Could not start the lookup.",
+                        );
+                      }
+                    }}
+                  >
+                    <Sparkles className="size-3.5" />
+                  </Button>
+                </Tooltip>
+              )}
+            </div>
+          </div>
+        )}
 
       {/* The inventory link, made obvious and clickable. */}
       {selection.equipment ? (
@@ -343,6 +419,14 @@ function DeviceProperties({
           className="min-h-16 text-xs"
         />
       </Field>
+
+      {/* Add and correct the jacks on this unit. Lives above the toggles
+          because a port has to exist before its 48V switch means anything. */}
+      <PortEditor
+        deviceInstanceId={selection._id}
+        ports={selection.ports}
+        canEdit={canEdit}
+      />
 
       {togglablePorts.length > 0 && (
         <div className="space-y-2">

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Handle, Position, useConnection, type NodeProps } from "@xyflow/react";
-import { AlertTriangle, ChevronDown, Package } from "lucide-react";
+import { AlertTriangle, ChevronDown, HelpCircle, Package } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Tooltip } from "@/components/ui/tooltip";
 import { categoryMeta } from "@/components/studio/constants";
@@ -54,6 +54,8 @@ export type DeviceNodeData = {
   photoUrl: string | null;
   /** True when the photo is of this unit rather than the catalog shot. */
   photoIsOwn: boolean;
+  /** These ports are a guess nobody has confirmed against the hardware. */
+  specUnverified: boolean;
   /** Dims everything not on the traced signal path. */
   traceDimmed: boolean;
   onOpenPort?: (portId: string) => void;
@@ -318,6 +320,16 @@ export const DeviceNode = React.memo(function DeviceNode({
             {data.equipment?.serialNumber ? ` · ${data.equipment.serialNumber}` : ""}
           </p>
         </div>
+        {data.specUnverified && (
+          <Tooltip
+            label="I/O not confirmed"
+            hint="These ports were worked out from the model name, not read off the panel. Open the properties panel to confirm or correct them."
+          >
+            <span className="cursor-help">
+              <HelpCircle className="mt-px size-3 shrink-0 text-info" />
+            </span>
+          </Tooltip>
+        )}
         {data.phantomSensitive && (
           <Tooltip
             label="Phantom sensitive"

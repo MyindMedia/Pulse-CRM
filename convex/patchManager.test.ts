@@ -21,6 +21,17 @@ async function seedEquipment(
     category: string;
     quantity: number;
     installedInRoomId: Id<"rooms">;
+    /* Cable stock is an equipment row carrying its ends. Without this the
+       helper silently dropped the spec and every fit graded "vague". */
+    cableSpec: {
+      connectorA: string;
+      connectorB: string;
+      channels: number;
+      lengthFt?: number;
+      genderA?: string;
+      genderB?: string;
+      color?: string;
+    };
   }> = {},
 ) {
   return await t.run(async (ctx) =>
@@ -31,6 +42,7 @@ async function seedEquipment(
       status: "available" as const,
       quantity: overrides.quantity,
       installedInRoomId: overrides.installedInRoomId,
+      cableSpec: overrides.cableSpec as never,
       purchaseCents: 479500,
       currentValueCents: 479500,
     }),
@@ -817,5 +829,261 @@ describe("device photos", () => {
     await t.mutation(api.patchManager.clearDevicePhoto, { id: deviceId });
     graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
     expect(graph!.devices[0].photoIsOwn).toBe(false);
+  });
+});
+
+describe("where a device's I/O came from", () => {
+  let t: T;
+  let spaceId: Id<"patchSpaces">;
+
+  beforeEach(async () => {
+    t = convexTest(schema);
+    spaceId = await seedSpace(t);
+  });
+
+  async function place(name: string, category: string) {
+    const equipmentId = await seedEquipment(t, { name, category });
+    await t.mutation(api.patchManager.placeDevice, {
+      patchSpaceId: spaceId,
+      equipmentId,
+      position: { x: 0, y: 0 },
+    });
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    return graph!.devices.find((d) => d.label.startsWith(name))!;
+  }
+
+  // A hand-written port map was authored against the manufacturer's own
+  // panel. Asking a human to re-confirm it would be theatre.
+  it("trusts a curated map on sight", async () => {
+    const device = await place("Shure SM57", "mic");
+    expect(device.specSource).toBe("curated");
+    expect(device.specVerified).toBe(true);
+  });
+
+  it("marks a category fallback as an unconfirmed guess", async () => {
+    const device = await place("Some Obscure Box 9000", "preamp");
+    expect(device.specSource).toBe("category");
+    expect(device.specVerified).toBe(false);
+  });
+
+  it("stops asking once someone confirms the ports", async () => {
+    const device = await place("Some Obscure Box 9000", "preamp");
+    expect(device.specVerified).toBe(false);
+
+    await t.mutation(api.patchSpecs.verifySpec, { profileId: device.profileId });
+
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    expect(graph!.devices[0].specVerified).toBe(true);
+  });
+
+  it("lists only the profiles still waiting on a human", async () => {
+    await place("Shure SM57", "mic");
+    const guess = await place("Some Obscure Box 9000", "preamp");
+
+    let waiting = await t.query(api.patchSpecs.unverified, {});
+    expect(waiting.map((w) => w.name)).toEqual(["Some Obscure Box 9000"]);
+
+    await t.mutation(api.patchSpecs.verifySpec, { profileId: guess.profileId });
+    waiting = await t.query(api.patchSpecs.unverified, {});
+    expect(waiting).toHaveLength(0);
+  });
+
+  // Someone who has seen the hardware outranks anything a lookup finds
+  // later, or the correction would be silently undone on the next pass.
+  it("locks the ports once they are edited by hand", async () => {
+    const device = await place("Some Obscure Box 9000", "preamp");
+    await t.mutation(api.patchSpecs.setPorts, {
+      profileId: device.profileId,
+      ports: [
+        {
+          label: "The one real input",
+          direction: "input",
+          signalLevel: "line",
+          connector: "trs",
+          capabilities: [],
+        },
+      ],
+    });
+
+    const profile = await t.run(async (ctx) => ctx.db.get(device.profileId));
+    expect(profile!.specSource).toBe("manual");
+    expect(profile!.specVerifiedAt).toBeTruthy();
+
+    // A late lookup landing afterwards must not overwrite the human. This
+    // calls the internal writer directly, which is exactly the race the
+    // guard exists for: the action was already in flight when they edited.
+    await t.mutation(internal.patchSpecs.storeSpec, {
+      profileId: device.profileId,
+      ports: [
+        {
+          label: "Invented by a robot",
+          direction: "input",
+          signalLevel: "mic",
+          connector: "xlr3",
+          capabilities: [],
+        },
+      ],
+      source: "ai",
+    });
+
+    const after = await t.run(async (ctx) => ctx.db.get(device.profileId));
+    expect(after!.portTemplate[0].label).toBe("The one real input");
+  });
+
+  it("refuses an empty port list", async () => {
+    const device = await place("Some Obscure Box 9000", "preamp");
+    await expect(
+      t.mutation(api.patchSpecs.setPorts, { profileId: device.profileId, ports: [] }),
+    ).rejects.toThrow(/at least one port/);
+  });
+});
+
+describe("adding and correcting a device's I/O by hand", () => {
+  let t: T;
+  let spaceId: Id<"patchSpaces">;
+  let deviceId: Id<"deviceInstances">;
+
+  beforeEach(async () => {
+    t = convexTest(schema);
+    spaceId = await seedSpace(t);
+    const equipmentId = await seedEquipment(t, { name: "Shure SM57", category: "mic" });
+    await t.mutation(api.patchManager.placeDevice, {
+      patchSpaceId: spaceId,
+      equipmentId,
+      position: { x: 0, y: 0 },
+    });
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    deviceId = graph!.devices[0]._id;
+  });
+
+  async function portsOf() {
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    return graph!.devices[0].ports;
+  }
+
+  it("adds a jack that was missing from the guess", async () => {
+    const before = (await portsOf()).length;
+    await t.mutation(api.patchManager.addPort, {
+      deviceInstanceId: deviceId,
+      label: "Line In 1",
+      direction: "input",
+      signalLevel: "line",
+      connector: "trs",
+    });
+
+    const after = await portsOf();
+    expect(after).toHaveLength(before + 1);
+    expect(after.find((p) => p.label === "Line In 1")).toBeTruthy();
+  });
+
+  // An XLR output is male, an XLR input female. Flipping a jack's direction
+  // has to flip its gender or the two-males check silently stops working.
+  it("re-stamps gender when the jack changes shape", async () => {
+    const id = await t.mutation(api.patchManager.addPort, {
+      deviceInstanceId: deviceId,
+      label: "Panel jack",
+      direction: "input",
+      signalLevel: "mic",
+      connector: "xlr3",
+    });
+    expect((await portsOf()).find((p) => p._id === id)!.gender).toBe("female");
+
+    await t.mutation(api.patchManager.updatePort, { id, direction: "output" });
+    expect((await portsOf()).find((p) => p._id === id)!.gender).toBe("male");
+  });
+
+  it("lets an explicit gender override the convention", async () => {
+    const id = await t.mutation(api.patchManager.addPort, {
+      deviceInstanceId: deviceId,
+      label: "Odd jack",
+      direction: "output",
+      signalLevel: "line",
+      connector: "xlr3",
+    });
+    await t.mutation(api.patchManager.updatePort, {
+      id,
+      connector: "xlr3",
+      gender: "female",
+    });
+    expect((await portsOf()).find((p) => p._id === id)!.gender).toBe("female");
+  });
+
+  it("corrects the connector, not just the name", async () => {
+    const id = await t.mutation(api.patchManager.addPort, {
+      deviceInstanceId: deviceId,
+      label: "Wrongly guessed",
+      direction: "output",
+      signalLevel: "line",
+      connector: "xlr3",
+    });
+    await t.mutation(api.patchManager.updatePort, { id, connector: "trs", label: "Line Out" });
+
+    const port = (await portsOf()).find((p) => p._id === id)!;
+    expect(port.connector).toBe("trs");
+    expect(port.label).toBe("Line Out");
+  });
+
+  // A run graded against an XLR jack is not still clean once that jack
+  // becomes a TRS. Leaving the old verdict makes the canvas lie in exactly
+  // the situation the connector checks exist to catch.
+  it("re-grades a patched cable when the jack underneath it changes", async () => {
+    // Ports added here rather than borrowed from a template, so the test
+    // pins the re-grade mechanism and not a curated map's spelling.
+    const outId = await t.mutation(api.patchManager.addPort, {
+      deviceInstanceId: deviceId,
+      label: "Clean Out",
+      direction: "output",
+      signalLevel: "line",
+      connector: "xlr3",
+    });
+
+    const preId = await seedEquipment(t, { name: "AMS Neve 1073SPX", category: "preamp" });
+    await t.mutation(api.patchManager.placeDevice, {
+      patchSpaceId: spaceId,
+      equipmentId: preId,
+      position: { x: 300, y: 0 },
+    });
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    const preDevice = graph!.devices.find((d) => d.category === "preamp")!;
+    const inId = await t.mutation(api.patchManager.addPort, {
+      deviceInstanceId: preDevice._id,
+      label: "Clean In",
+      direction: "input",
+      signalLevel: "line",
+      connector: "xlr3",
+    });
+
+    const cableId = await seedEquipment(t, {
+      name: "XLR 10ft",
+      category: "cable",
+      cableSpec: { connectorA: "xlr3", connectorB: "xlr3", channels: 1, lengthFt: 10 },
+    });
+    const connectionId = await t.mutation(api.patchManager.connect, {
+      fromPortId: outId,
+      toPortId: inId,
+      cableId,
+    });
+
+    expect((await t.run(async (ctx) => ctx.db.get(connectionId)))!.cableFit).toBe("exact");
+
+    // Someone realises that input is actually a TRS jack.
+    await t.mutation(api.patchManager.updatePort, { id: inId, connector: "trs" });
+
+    // The write itself must land before the re-grade can mean anything.
+    expect((await t.run(async (ctx) => ctx.db.get(inId)))!.connector).toBe("trs");
+
+    expect((await t.run(async (ctx) => ctx.db.get(connectionId)))!.cableFit).toBe("mismatch");
+  });
+
+  it("pulls the cables when a jack is removed", async () => {
+    const id = await t.mutation(api.patchManager.addPort, {
+      deviceInstanceId: deviceId,
+      label: "Doomed",
+      direction: "output",
+      signalLevel: "line",
+      connector: "trs",
+    });
+    await t.mutation(api.patchManager.removePort, { id });
+    expect((await portsOf()).find((p) => p._id === id)).toBeUndefined();
   });
 });

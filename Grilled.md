@@ -1222,3 +1222,62 @@ set-state-in-effect lint warning; button hidden where the API is missing, e.g.
 iPhone Safari). In fullscreen the button swaps to Minimize2; Esc/system gesture
 also exits. Calendar toolbar intentionally stays visible in fullscreen (it is
 the kiosk's only navigation - month/week/day, paging, check-in flow).
+
+## Feature: I/O spec lookup for patch ports (grilled + BUILT 2026-08-15)
+
+**Owner ask:** "a function that will look up specs of inventory when something
+is added, to ensure I/O specs are correct for ports in the patch module."
+
+**The gap it closes:** the gear catalog holds 226 models but only **34** had a
+hand-written port map. Everything else - the other 192 catalog models, all
+custom gear, and every row imported from a spreadsheet - fell through to a
+generic template by category. A Scarlett 18i20 was placed with a stock
+"interface" port set instead of its real 18-in/20-out.
+
+**Decisions (grilled, both "recommended"):**
+- **Curated first, AI for the long tail.** A hand-written map wins whenever one
+  exists. Anything else gets a one-off AI lookup, cached on the `deviceProfiles`
+  row so the second studio to place the same model pays nothing. Category
+  default is the floor and never disappears - a failed lookup leaves the device
+  exactly as placeable as it was.
+- **Use it, mark it unverified.** Ports appear immediately; the device card
+  carries a quiet `?` and the properties panel offers "Looks right" / a re-look.
+  Confirming is one click and permanent. Nothing blocks placement, and nobody is
+  shown a guess dressed as a fact.
+
+**Trust tiers, stored on the profile as `specSource`:**
+`curated` (auto-verified, authored against the manufacturer's panel) >
+`manual` (a human edited the ports; outranks every future lookup) >
+`ai` (looked up + cached, awaiting a nod) > `category` (openly a guess).
+
+**The model is a research assistant, not a source of truth.** Nothing it says
+reaches the database unchecked - `convex/lib/specLookup.ts` validates every port
+against the same connector/level/direction vocabulary the mating engine uses,
+drops anything unrecognised rather than coercing it, expands `count` banks into
+numbered channel-indexed rows, refuses runaway banks, and falls back to the
+category template when more ports were rejected than kept (half-remembered I/O
+looks specific and is wrong, which is worse than an honest generic). The legacy
+catch-alls `xlr`/`usb`/`other` are explicitly unreachable from a lookup: they
+mate with anything, so minting one would silently disable the gender check.
+
+**Build surface:** `deviceProfiles` += `specSource`/`specVerifiedAt`/
+`specVerifiedBy`/`specNote`/`specModel`/`specLookupAt`; new
+`convex/lib/specLookup.ts` (pure, 16 tests) + `convex/patchSpecs.ts`
+(`lookupProfile` internalAction, `requestLookup`, `verifySpec`, `setPorts`,
+`unverified`); `ensureProfile` stamps the tier and schedules a lookup for
+non-curated gear; graph carries the provenance; device card shows a `?` badge;
+properties panel gains the confirm/re-look card.
+
+**Data protection:** the lookup sends a manufacturer and model name only - public
+product information, no customer data. It therefore does NOT change the
+`AI_ALLOW_GEMINI_FALLBACK` posture, which stays off so PII cannot silently route
+to a second sub-processor without a DPA (see `convex/lib/openai.ts`).
+
+**Operational finding:** the OpenAI key on both local and prod Convex currently
+returns `credit_balance_exhausted`, so live lookups fall back to the category
+template. Behaviour is correct and silent-safe (verified: status `fell-back`, no
+throw, device still placeable), but no device will actually gain real I/O until
+the account has credit.
+
+**Non-goals (this pass):** scraping manufacturer PDFs, a bulk "look up
+everything" sweep, editing ports from the canvas (setPorts exists; no UI yet).

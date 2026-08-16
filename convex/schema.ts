@@ -2068,6 +2068,33 @@ export default defineSchema({
     // Patchbays only: how the rows behave out of the box.
     defaultNormalling: v.optional(normallingMode),
     sourceUrl: v.optional(v.string()), // provenance for future scraped entries
+    /*
+     * Where this profile's I/O came from, and whether a human has agreed
+     * with it. A patch map is only worth trusting if you can tell a
+     * hand-verified port list from a guess, so the provenance travels with
+     * the ports rather than being inferred later.
+     *   curated  - hand-written map in portTemplates.ts, trusted on sight
+     *   ai       - looked up once and cached, needs a human nod
+     *   category - a generic fallback by gear category, openly a guess
+     *   manual   - someone edited the ports themselves, which settles it
+     */
+    specSource: v.optional(
+      v.union(
+        v.literal("curated"),
+        v.literal("ai"),
+        v.literal("category"),
+        v.literal("manual"),
+      ),
+    ),
+    /** Set once a human confirms the ports. Absent means unverified. */
+    specVerifiedAt: v.optional(v.number()),
+    specVerifiedBy: v.optional(v.string()),
+    /** One line of what the lookup believed, shown when asking for the nod. */
+    specNote: v.optional(v.string()),
+    /** Which model answered, so a bad batch can be traced and re-run. */
+    specModel: v.optional(v.string()),
+    /** Set while a lookup is in flight, so two placements do not both ask. */
+    specLookupAt: v.optional(v.number()),
     createdBy: v.optional(v.string()),
   })
     .index("by_scope", ["scope"])
