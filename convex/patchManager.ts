@@ -1404,6 +1404,51 @@ async function regradeCablesOnPort(ctx: MutationCtx, portId: Id<"ports">) {
   }
 }
 
+/**
+ * Put a device's jacks in the order they appear on the panel.
+ *
+ * Order is `channelIndex`, which is what both the canvas card and the run
+ * list sort by, so this is the one knob that makes the screen match the
+ * hardware. Rewriting the whole sequence rather than nudging one entry
+ * keeps the indices dense and gap-free, which matters because a patchbay
+ * lays itself out by counting them.
+ */
+export const reorderPorts = mutation({
+  args: {
+    deviceInstanceId: v.id("deviceInstances"),
+    /** Every port on the device, in the order it should now appear. */
+    orderedIds: v.array(v.id("ports")),
+  },
+  handler: async (ctx, { deviceInstanceId, orderedIds }) => {
+    const orgId = await currentOrgWithCapability(ctx, "patch.edit");
+    const device = await ctx.db.get(deviceInstanceId);
+    assertOrg(device, orgId);
+
+    const ports = await ctx.db
+      .query("ports")
+      .withIndex("by_device", (q) => q.eq("deviceInstanceId", deviceInstanceId))
+      .collect();
+
+    // A partial list would leave the ports it omitted holding stale indices
+    // and silently jumbled, so the caller has to name all of them.
+    const known = new Set(ports.map((p) => p._id as string));
+    if (orderedIds.length !== ports.length || orderedIds.some((id) => !known.has(id))) {
+      throw new ConvexError("That ordering does not match this device's ports.");
+    }
+
+    let index = 1;
+    for (const id of orderedIds) {
+      const port = ports.find((p) => p._id === id)!;
+      if (port.channelIndex !== index) {
+        await ctx.db.patch(id, { channelIndex: index });
+      }
+      index += 1;
+    }
+    // Reordering is presentation, like moving a device on the canvas, so it
+    // writes no audit row for the same reason moveDevice does not.
+  },
+});
+
 export const removePort = mutation({
   args: { id: v.id("ports") },
   handler: async (ctx, { id }) => {

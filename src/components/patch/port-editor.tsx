@@ -2,10 +2,27 @@
 
 import * as React from "react";
 import { useMutation } from "convex/react";
+import {
+  DndContext,
+  type DragEndEvent,
+  KeyboardSensor,
+  PointerSensor,
+  closestCenter,
+  useSensor,
+  useSensors,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { FileSearch, Plus, X } from "lucide-react";
+import { FileSearch, GripVertical, Plus, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
@@ -79,6 +96,13 @@ function PortRow({
   const removePort = useMutation(api.patchManager.removePort);
   const [label, setLabel] = React.useState(port.label);
 
+  // The row drags by its grip only. Dragging from the label field would
+  // fight the caret, and dragging from a select would eat the click.
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: port._id,
+    disabled: !canEdit,
+  });
+
   const [seeded, setSeeded] = React.useState(port._id);
   if (seeded !== port._id) {
     setSeeded(port._id);
@@ -110,8 +134,29 @@ function PortRow({
   }
 
   return (
-    <div className="space-y-1.5 rounded-md border border-hairline bg-coal-2/40 p-2">
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Translate.toString(transform), transition }}
+      className={cn(
+        "space-y-1.5 rounded-md border border-hairline bg-coal-2/40 p-2",
+        isDragging && "z-10 opacity-70 shadow-elev-2",
+      )}
+    >
       <div className="flex items-center gap-1.5">
+        <button
+          type="button"
+          aria-label={`Reorder ${port.label}`}
+          disabled={!canEdit}
+          {...attributes}
+          {...listeners}
+          className={cn(
+            "shrink-0 cursor-grab touch-none rounded p-0.5 text-steel/50",
+            "transition-colors hover:text-steel active:cursor-grabbing",
+            "disabled:cursor-default disabled:opacity-40",
+          )}
+        >
+          <GripVertical className="size-3.5" />
+        </button>
         <Input
           value={label}
           disabled={!canEdit}
@@ -192,6 +237,7 @@ export function PortEditor({
   canEdit: boolean;
 }) {
   const addPort = useMutation(api.patchManager.addPort);
+  const reorderPorts = useMutation(api.patchManager.reorderPorts);
   const [sheetOpen, setSheetOpen] = React.useState(false);
   // Open by default. The whole reason this exists is that a device's I/O is
   // often wrong on arrival, so hiding the fix behind a disclosure just makes
@@ -201,6 +247,38 @@ export function PortEditor({
 
   const inputs = ports.filter((p) => p.direction === "input" || p.direction === "bidirectional");
   const outputs = ports.filter((p) => p.direction === "output" || p.direction === "bidirectional");
+
+  const sensors = useSensors(
+    // A few pixels of slop so a click on the grip still reads as a click.
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  /*
+   * Order is one sequence across the whole device, so a drag inside one
+   * column has to send both columns back or the untouched one would have
+   * its indices rewritten out from under it.
+   */
+  async function onDragEnd(event: DragEndEvent, group: "inputs" | "outputs") {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const list = group === "inputs" ? inputs : outputs;
+    const ids = list.map((p) => p._id);
+    const moved = arrayMove(ids, ids.indexOf(String(active.id)), ids.indexOf(String(over.id)));
+
+    const other = (group === "inputs" ? outputs : inputs).map((p) => p._id);
+    const orderedIds = group === "inputs" ? [...moved, ...other] : [...other, ...moved];
+
+    try {
+      await reorderPorts({
+        deviceInstanceId,
+        orderedIds: orderedIds as Id<"ports">[],
+      });
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Could not reorder those.");
+    }
+  }
 
   async function add(direction: "input" | "output") {
     setBusy(true);
@@ -259,14 +337,31 @@ export function PortEditor({
               <p className="font-meta text-[9px] uppercase tracking-wider text-steel/60">
                 Inputs
               </p>
-              {inputs.map((port) => (
-                <PortRow
-                  key={port._id}
-                  port={port}
-                  canEdit={canEdit}
-                  onDone={() => undefined}
-                />
-              ))}
+              {/* A stable id keeps dnd-kit's generated aria ids deterministic;
+                  without one the counter differs between the server and the
+                  client render and React reports a hydration mismatch. */}
+              <DndContext
+                id="patch-port-inputs"
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={(event) => void onDragEnd(event, "inputs")}
+              >
+                <SortableContext
+                  items={inputs.map((p) => p._id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-1.5">
+                    {inputs.map((port) => (
+                      <PortRow
+                        key={port._id}
+                        port={port}
+                        canEdit={canEdit}
+                        onDone={() => undefined}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             </div>
           )}
 
@@ -275,14 +370,31 @@ export function PortEditor({
               <p className="font-meta text-[9px] uppercase tracking-wider text-steel/60">
                 Outputs
               </p>
-              {outputs.map((port) => (
-                <PortRow
-                  key={port._id}
-                  port={port}
-                  canEdit={canEdit}
-                  onDone={() => undefined}
-                />
-              ))}
+              {/* A stable id keeps dnd-kit's generated aria ids deterministic;
+                  without one the counter differs between the server and the
+                  client render and React reports a hydration mismatch. */}
+              <DndContext
+                id="patch-port-outputs"
+                sensors={sensors}
+                collisionDetection={closestCenter}
+                onDragEnd={(event) => void onDragEnd(event, "outputs")}
+              >
+                <SortableContext
+                  items={outputs.map((p) => p._id)}
+                  strategy={verticalListSortingStrategy}
+                >
+                  <div className="space-y-1.5">
+                    {outputs.map((port) => (
+                      <PortRow
+                        key={port._id}
+                        port={port}
+                        canEdit={canEdit}
+                        onDone={() => undefined}
+                      />
+                    ))}
+                  </div>
+                </SortableContext>
+              </DndContext>
             </div>
           )}
 

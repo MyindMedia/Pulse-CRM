@@ -1087,3 +1087,114 @@ describe("adding and correcting a device's I/O by hand", () => {
     expect((await portsOf()).find((p) => p._id === id)).toBeUndefined();
   });
 });
+
+describe("putting a device's jacks in panel order", () => {
+  let t: T;
+  let spaceId: Id<"patchSpaces">;
+  let deviceId: Id<"deviceInstances">;
+
+  beforeEach(async () => {
+    t = convexTest(schema);
+    spaceId = await seedSpace(t);
+    const equipmentId = await seedEquipment(t, { name: "Shure SM57", category: "mic" });
+    await t.mutation(api.patchManager.placeDevice, {
+      patchSpaceId: spaceId,
+      equipmentId,
+      position: { x: 0, y: 0 },
+    });
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    deviceId = graph!.devices[0]._id;
+  });
+
+  async function addThree() {
+    const ids: Id<"ports">[] = [];
+    for (const label of ["Alpha", "Bravo", "Charlie"]) {
+      ids.push(
+        await t.mutation(api.patchManager.addPort, {
+          deviceInstanceId: deviceId,
+          label,
+          direction: "input",
+          signalLevel: "line",
+          connector: "trs",
+        }),
+      );
+    }
+    return ids;
+  }
+
+  async function labelsInOrder() {
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    return graph!.devices[0].ports.map((p) => p.label);
+  }
+
+  it("reorders the jacks and the graph reads them back that way", async () => {
+    const all = await t
+      .query(api.patchManager.graph, { patchSpaceId: spaceId })
+      .then((g) => g!.devices[0].ports.map((p) => p._id as Id<"ports">));
+    const [a, b, c] = await addThree();
+
+    await t.mutation(api.patchManager.reorderPorts, {
+      deviceInstanceId: deviceId,
+      orderedIds: [c, a, b, ...all],
+    });
+
+    const labels = await labelsInOrder();
+    expect(labels.slice(0, 3)).toEqual(["Charlie", "Alpha", "Bravo"]);
+  });
+
+  // A partial list would leave the jacks it omitted holding stale indices
+  // and silently jumbled, which is worse than refusing.
+  it("refuses an ordering that does not name every port", async () => {
+    const [a] = await addThree();
+    await expect(
+      t.mutation(api.patchManager.reorderPorts, {
+        deviceInstanceId: deviceId,
+        orderedIds: [a],
+      }),
+    ).rejects.toThrow(/does not match this device/);
+  });
+
+  it("refuses a port that belongs to another device", async () => {
+    const otherEquipment = await seedEquipment(t, { name: "Telefunken U47", category: "mic" });
+    await t.mutation(api.patchManager.placeDevice, {
+      patchSpaceId: spaceId,
+      equipmentId: otherEquipment,
+      position: { x: 400, y: 0 },
+    });
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    const stranger = graph!.devices.find((d) => d._id !== deviceId)!.ports[0]._id as Id<"ports">;
+
+    const mine = graph!.devices
+      .find((d) => d._id === deviceId)!
+      .ports.map((p) => p._id as Id<"ports">);
+
+    await expect(
+      t.mutation(api.patchManager.reorderPorts, {
+        deviceInstanceId: deviceId,
+        orderedIds: [stranger, ...mine.slice(1)],
+      }),
+    ).rejects.toThrow(/does not match this device/);
+  });
+
+  // Dense, gap-free indices matter: a patchbay lays itself out by counting.
+  it("leaves the indices dense and starting at one", async () => {
+    const all = await t
+      .query(api.patchManager.graph, { patchSpaceId: spaceId })
+      .then((g) => g!.devices[0].ports.map((p) => p._id as Id<"ports">));
+    const [a, b, c] = await addThree();
+
+    await t.mutation(api.patchManager.reorderPorts, {
+      deviceInstanceId: deviceId,
+      orderedIds: [...all, c, b, a],
+    });
+
+    const indices = await t.run(async (ctx) => {
+      const rows = await ctx.db.query("ports").collect();
+      return rows
+        .filter((r) => r.deviceInstanceId === deviceId)
+        .map((r) => r.channelIndex)
+        .sort((x, y) => (x ?? 0) - (y ?? 0));
+    });
+    expect(indices).toEqual([1, 2, 3, 4]);
+  });
+});
