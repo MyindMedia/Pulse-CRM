@@ -8,7 +8,7 @@ import {
 } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { currentOrgWithCapability, currentActor } from "./lib/tenant";
-import { completeJSON, hasOpenAI } from "./lib/openai";
+import { researchDeviceIO, hasDeviceResearch } from "./lib/deviceResearch";
 import { portTemplateV } from "./lib/patchValidators";
 import { CATALOG_PORTS } from "./lib/portTemplates";
 import { GEAR_CATALOG } from "./lib/gearCatalog";
@@ -116,11 +116,11 @@ export const lookupProfile = internalAction({
     if (profile.specLookupAt && Date.now() - profile.specLookupAt < LOOKUP_COOLDOWN_MS) {
       return { status: "in-flight" };
     }
-    if (!hasOpenAI()) return { status: "no-model" };
+    if (!hasDeviceResearch()) return { status: "no-model" };
 
     await ctx.runMutation(internal.patchSpecs.markLookupStarted, { profileId });
 
-    const answer = await completeJSON<SpecCandidate>(
+    const answer = await researchDeviceIO<SpecCandidate>(
       specPrompt({
         name: profile.name,
         manufacturer: profile.manufacturer,
@@ -129,14 +129,11 @@ export const lookupProfile = internalAction({
           ? GEAR_CATALOG.find((g) => g.id === profile.catalogId)?.note
           : undefined,
       }),
-      {
-        system:
-          "You are a studio technician cataloguing the back panel of audio hardware. " +
-          "You answer only about physical connectors, and you say so when you do not " +
-          "know a specific model rather than inventing plausible I/O.",
-        schema: SPEC_SCHEMA,
-        maxOutputTokens: 1400,
-      },
+      "You are a studio technician cataloguing the back panel of audio hardware. " +
+        "You answer only about physical connectors, and you say so when you do not " +
+        "know a specific model rather than inventing plausible I/O. " +
+        "Respond with ONLY a single valid JSON object matching this shape: " +
+        JSON.stringify(SPEC_SCHEMA.schema),
     );
 
     // The model declining to be sure is a real answer, and a better one than

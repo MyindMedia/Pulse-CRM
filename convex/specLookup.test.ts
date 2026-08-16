@@ -152,8 +152,30 @@ describe("connector spelling", () => {
     expect(normaliseConnector("ADAT")).toBe("adat_optical");
   });
 
+  // Models write panel labels the way a manual prints them. Dropping a jack
+  // over a non-breaking hyphen would be a silly way to lose a USB port.
+  it("survives the typography a real answer comes back with", () => {
+    expect(normaliseConnector("USB\u2011C")).toBe("usb_c");
+    expect(normaliseConnector("USB\u2013C")).toBe("usb_c");
+    expect(normaliseConnector("XLR\u20113")).toBe("xlr3");
+    expect(normaliseConnector("  usb-c  ")).toBe("usb_c");
+    expect(normaliseConnector("USB\u00a0C")).toBe("usb_c");
+  });
+
+  // A combo jack is one hole taking XLR or a jack plug. We have no "accepts
+  // either", and these are overwhelmingly used as mic inputs, so it is
+  // recorded as XLR rather than dropped.
+  it("records a combo jack as XLR rather than losing it", () => {
+    expect(normaliseConnector('XLR/\u00bc" combo')).toBe("xlr3");
+    expect(normaliseConnector("XLR / TRS Combo")).toBe("xlr3");
+    expect(normaliseConnector("Combo XLR-1/4 inch")).toBe("xlr3");
+  });
+
   it("refuses to guess at something it does not recognise", () => {
     expect(normaliseConnector("hyperjack")).toBeNull();
+    // A DC inlet is not a signal connector and must never become one.
+    expect(normaliseConnector("Barrel")).toBeNull();
+    expect(normaliseConnector("DC power")).toBeNull();
     expect(normaliseConnector("")).toBeNull();
     expect(normaliseConnector(undefined)).toBeNull();
   });

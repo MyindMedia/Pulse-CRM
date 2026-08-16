@@ -189,7 +189,10 @@ export function PortEditor({
   canEdit: boolean;
 }) {
   const addPort = useMutation(api.patchManager.addPort);
-  const [open, setOpen] = React.useState(false);
+  // Open by default. The whole reason this exists is that a device's I/O is
+  // often wrong on arrival, so hiding the fix behind a disclosure just makes
+  // people believe the wrong list.
+  const [open, setOpen] = React.useState(true);
   const [busy, setBusy] = React.useState(false);
 
   const inputs = ports.filter((p) => p.direction === "input" || p.direction === "bidirectional");
@@ -220,7 +223,7 @@ export function PortEditor({
   return (
     <div className="space-y-2">
       <div className="flex items-center gap-2">
-        <p className="overline">I/O</p>
+        <p className="overline">Inputs &amp; outputs</p>
         <span className="font-meta text-[9px] uppercase tracking-wide text-steel/70">
           {inputs.length} in · {outputs.length} out
         </span>
@@ -230,7 +233,7 @@ export function PortEditor({
           aria-expanded={open}
           className="ml-auto font-meta text-[9px] uppercase tracking-wide text-steel transition-colors hover:text-gold"
         >
-          {open ? "Done" : "Edit"}
+          {open ? "Hide" : "Edit I/O"}
         </button>
       </div>
 
@@ -288,7 +291,7 @@ export function PortEditor({
               onClick={() => void add("input")}
             >
               <Plus className="size-3.5" />
-              Input
+              Add input
             </Button>
             <Button
               variant="secondary"
@@ -298,7 +301,7 @@ export function PortEditor({
               onClick={() => void add("output")}
             >
               <Plus className="size-3.5" />
-              Output
+              Add output
             </Button>
           </div>
         </>

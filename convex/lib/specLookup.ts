@@ -84,8 +84,13 @@ const CONNECTOR_ALIASES: Record<string, ConnectorValue> = {
   jack: "trs",
   "1/4": "trs",
   "1/4 trs": "trs",
+  "1/4\" trs": "trs",
+  '"1/4" jack"': "trs",
   "quarter inch": "trs",
   "1/4 ts": "ts",
+  "1/4\" ts": "ts",
+  "trs jack": "trs",
+  "ts jack": "ts",
   "3.5mm": "trs_mini",
   minijack: "trs_mini",
   "1/8": "trs_mini",
@@ -126,10 +131,37 @@ const CONNECTOR_ALIASES: Record<string, ConnectorValue> = {
  */
 const LEGACY_CONNECTORS = new Set(["xlr", "usb", "other"]);
 
+/*
+ * Models write panel labels the way a manual prints them: "USB\u2011C" with a
+ * non-breaking hyphen, \u00bc" with a fraction glyph, curly quotes. Those are
+ * the same connector as the ASCII spelling and must not be dropped over
+ * typography, so the text is flattened before anything is matched.
+ */
+function flatten(raw: string): string {
+  return raw
+    .normalize("NFKD")
+    // Every dash-like character becomes a plain hyphen.
+    .replace(/[\u2010-\u2015\u2212]/g, "-")
+    .replace(/[\u2018\u2019\u02bc]/g, "'")
+    .replace(/[\u201c\u201d]/g, '"')
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
 /** Resolve a model's spelling to a connector we actually understand. */
 export function normaliseConnector(raw: string | undefined): ConnectorValue | null {
   if (!raw) return null;
-  const key = raw.trim().toLowerCase().replace(/\s+/g, " ");
+  const key = flatten(raw);
+
+  /*
+   * A combo jack is one hole that takes an XLR or a jack plug. Our
+   * vocabulary has no "accepts either", and an interface's mic inputs are
+   * overwhelmingly used as XLR, so a combo is recorded as XLR rather than
+   * dropped. That is a deliberate simplification: a TRS run into a combo
+   * will read as a mismatch and want the port corrected by hand.
+   */
+  if (/combo/.test(key) && /xlr/.test(key)) return "xlr3";
   // Aliases are consulted first so "xlr" lands on the specific xlr3 rather
   // than matching the legacy wildcard that shares its name.
   const alias = CONNECTOR_ALIASES[key];

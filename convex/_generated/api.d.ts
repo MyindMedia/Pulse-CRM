@@ -75,6 +75,7 @@ import type * as lib_checklistTemplates from "../lib/checklistTemplates.js";
 import type * as lib_clerkErrors from "../lib/clerkErrors.js";
 import type * as lib_comp from "../lib/comp.js";
 import type * as lib_connectors from "../lib/connectors.js";
+import type * as lib_deviceResearch from "../lib/deviceResearch.js";
 import type * as lib_digestSchedule from "../lib/digestSchedule.js";
 import type * as lib_email from "../lib/email.js";
 import type * as lib_emailTemplates_activation from "../lib/emailTemplates/activation.js";
@@ -251,6 +252,7 @@ declare const fullApi: ApiFromModules<{
   "lib/clerkErrors": typeof lib_clerkErrors;
   "lib/comp": typeof lib_comp;
   "lib/connectors": typeof lib_connectors;
+  "lib/deviceResearch": typeof lib_deviceResearch;
   "lib/digestSchedule": typeof lib_digestSchedule;
   "lib/email": typeof lib_email;
   "lib/emailTemplates/activation": typeof lib_emailTemplates_activation;
