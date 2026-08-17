@@ -155,7 +155,13 @@ export default function PatchSpacePage() {
       ) : (
         <div className="flex-1 overflow-y-auto p-4 lg:p-6">
           {tab === "devices" && <DeviceList patchSpaceId={patchSpaceId} />}
-          {tab === "cables" && <CableManager patchSpaceId={patchSpaceId} />}
+          {tab === "cables" && (
+            <CableManager
+              patchSpaceId={patchSpaceId}
+              spaceName={space?.name}
+              roomName={space?.roomName}
+            />
+          )}
           {tab === "history" && <HistoryTab patchSpaceId={patchSpaceId} />}
         </div>
       )}

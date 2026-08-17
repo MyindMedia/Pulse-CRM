@@ -5,7 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { Cable, CircleAlert, Plus, Printer, Sparkles, Unplug } from "lucide-react";
+import { Cable, CircleAlert, Plus, Sparkles, Unplug } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { errorMessage } from "@/lib/errors";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
@@ -15,6 +15,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Section } from "@/components/ui/page";
+import { CollapsibleSection } from "@/components/ui/collapsible-section";
+import { RunSheetButton } from "./run-sheet";
 import { money } from "@/lib/format";
 import { Tooltip } from "@/components/ui/tooltip";
 import { cableColorHex, connectorMeta } from "./constants";
@@ -69,7 +71,16 @@ type PullRow = {
  * counts here are the same numbers the asset register reports; nothing is
  * duplicated. The pull list is what an engineer takes to the locker.
  */
-export function CableManager({ patchSpaceId }: { patchSpaceId: Id<"patchSpaces"> }) {
+export function CableManager({
+  patchSpaceId,
+  spaceName,
+  roomName,
+}: {
+  patchSpaceId: Id<"patchSpaces">;
+  /** Named on the printed sheet, which is the only place it appears. */
+  spaceName?: string;
+  roomName?: string | null;
+}) {
   const stock = useQuery(api.patchCables.stock, {}) as StockRow[] | undefined;
   const summary = useQuery(api.patchCables.stockSummary, {});
   const runs = useQuery(api.patchCables.runList, { patchSpaceId }) as RunRow[] | undefined;
@@ -127,6 +138,108 @@ export function CableManager({ patchSpaceId }: { patchSpaceId: Id<"patchSpaces">
         )}
       </div>
 
+      <Section
+        title="Run list"
+        trailing={
+          <RunSheetButton
+            patchSpaceId={patchSpaceId}
+            spaceName={spaceName ?? "Patch"}
+            roomName={roomName}
+          />
+        }
+      >
+        {runs === undefined ? (
+          <Skeleton className="h-40 w-full" />
+        ) : runs.length === 0 ? (
+          <EmptyState
+            icon={Unplug}
+            title="Nothing patched in this room"
+            description="Patch something on the canvas and every run shows up here."
+          />
+        ) : (
+          <div className="overflow-x-auto rounded-chrome border border-hairline">
+            <Table>
+              <THead>
+                <TR>
+                  <TH>Source</TH>
+                  <TH>Destination</TH>
+                  <TH>Cable</TH>
+                  <TH>Label</TH>
+                  <TH>Length</TH>
+                  <TH />
+                </TR>
+              </THead>
+              <TBody>
+                {runs.map((run) => (
+                  <TR
+                    key={run._id}
+                    interactive={!run.isNormalled}
+                    onClick={() => !run.isNormalled && setPickerFor(run._id)}
+                  >
+                    <TD>
+                      <span className="font-medium text-bone">{run.source}</span>
+                      <span className="mt-0.5 block font-meta text-[10px] uppercase tracking-wide text-steel">
+                        {run.sourcePort}
+                      </span>
+                    </TD>
+                    <TD>
+                      <span className="font-medium text-bone">{run.destination}</span>
+                      <span className="mt-0.5 block font-meta text-[10px] uppercase tracking-wide text-steel">
+                        {run.destinationPort}
+                      </span>
+                    </TD>
+                    <TD>
+                      {run.isNormalled ? (
+                        <Badge tone="info">Normalled</Badge>
+                      ) : run.cableName ? (
+                        <span className="flex items-center gap-1.5">
+                          {cableColorHex(run.color) && (
+                            <span
+                              className="size-2.5 shrink-0 rounded-full border border-hairline-2"
+                              style={{ background: cableColorHex(run.color)! }}
+                            />
+                          )}
+                          <span className="text-bone">{run.cableName}</span>
+                        </span>
+                      ) : (
+                        <Badge tone="caution">No cable</Badge>
+                      )}
+                    </TD>
+                    <TD className="font-meta text-[11px] text-steel">{run.cableTag ?? "—"}</TD>
+                    <TD className="text-steel">{run.lengthFt ? `${run.lengthFt} ft` : "—"}</TD>
+                    <TD onClick={(event) => event.stopPropagation()}>
+                      {run.cableName && !run.isNormalled && (
+                        <Tooltip
+                          label="Release the cable"
+                          hint="Frees the run back to stock. The connection stays documented."
+                        >
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
+                            aria-label={`Release ${run.cableName} from this run`}
+                            onClick={() => unassign({ connectionId: run._id })}
+                          >
+                            <Unplug className="size-3.5" />
+                          </Button>
+                        </Tooltip>
+                      )}
+                    </TD>
+                  </TR>
+                ))}
+              </TBody>
+            </Table>
+          </div>
+        )}
+        {runs && runs.length > 0 && (
+          <p className="text-[11px] text-steel">
+            {runs.length} run{runs.length === 1 ? "" : "s"}.{" "}
+            {unassignedCount > 0 && (
+              <span className="text-caution">{unassignedCount} with no cable assigned.</span>
+            )}
+          </p>
+        )}
+      </Section>
+
       {/* Pull list. Only worth showing when something is missing. */}
       {pull && pull.length > 0 && (
         <Section
@@ -177,8 +290,12 @@ export function CableManager({ patchSpaceId }: { patchSpaceId: Id<"patchSpaces">
         </Section>
       )}
 
-      {/* The locker */}
-      <Section
+      {/* The locker, last and folded. It is reference material - what the
+          studio owns - rather than what is patched right now, and it is the
+          longest table on the page. */}
+      <CollapsibleSection
+        defaultOpen={false}
+        summary={summary ? `${summary.types} types · ${summary.free} free` : undefined}
         title="Cable stock"
         trailing={
           <Button variant="secondary" size="sm" onClick={() => setStockDialog({ open: true, editId: null })}>
@@ -275,109 +392,9 @@ export function CableManager({ patchSpaceId }: { patchSpaceId: Id<"patchSpaces">
             </Table>
           </div>
         )}
-      </Section>
+      </CollapsibleSection>
 
       {/* The patch list that gets taped to the wall */}
-      <Section
-        title="Run list"
-        trailing={
-          <Button variant="secondary" size="sm" onClick={() => window.print()}>
-            <Printer className="size-3.5" />
-            Print
-          </Button>
-        }
-      >
-        {runs === undefined ? (
-          <Skeleton className="h-40 w-full" />
-        ) : runs.length === 0 ? (
-          <EmptyState
-            icon={Unplug}
-            title="Nothing patched in this room"
-            description="Patch something on the canvas and every run shows up here."
-          />
-        ) : (
-          <div className="overflow-x-auto rounded-chrome border border-hairline">
-            <Table>
-              <THead>
-                <TR>
-                  <TH>Source</TH>
-                  <TH>Destination</TH>
-                  <TH>Cable</TH>
-                  <TH>Label</TH>
-                  <TH>Length</TH>
-                  <TH />
-                </TR>
-              </THead>
-              <TBody>
-                {runs.map((run) => (
-                  <TR
-                    key={run._id}
-                    interactive={!run.isNormalled}
-                    onClick={() => !run.isNormalled && setPickerFor(run._id)}
-                  >
-                    <TD>
-                      <span className="font-medium text-bone">{run.source}</span>
-                      <span className="mt-0.5 block font-meta text-[10px] uppercase tracking-wide text-steel">
-                        {run.sourcePort}
-                      </span>
-                    </TD>
-                    <TD>
-                      <span className="font-medium text-bone">{run.destination}</span>
-                      <span className="mt-0.5 block font-meta text-[10px] uppercase tracking-wide text-steel">
-                        {run.destinationPort}
-                      </span>
-                    </TD>
-                    <TD>
-                      {run.isNormalled ? (
-                        <Badge tone="info">Normalled</Badge>
-                      ) : run.cableName ? (
-                        <span className="flex items-center gap-1.5">
-                          {cableColorHex(run.color) && (
-                            <span
-                              className="size-2.5 shrink-0 rounded-full border border-hairline-2"
-                              style={{ background: cableColorHex(run.color)! }}
-                            />
-                          )}
-                          <span className="text-bone">{run.cableName}</span>
-                        </span>
-                      ) : (
-                        <Badge tone="caution">No cable</Badge>
-                      )}
-                    </TD>
-                    <TD className="font-meta text-[11px] text-steel">{run.cableTag ?? "—"}</TD>
-                    <TD className="text-steel">{run.lengthFt ? `${run.lengthFt} ft` : "—"}</TD>
-                    <TD onClick={(event) => event.stopPropagation()}>
-                      {run.cableName && !run.isNormalled && (
-                        <Tooltip
-                          label="Release the cable"
-                          hint="Frees the run back to stock. The connection stays documented."
-                        >
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={`Release ${run.cableName} from this run`}
-                            onClick={() => unassign({ connectionId: run._id })}
-                          >
-                            <Unplug className="size-3.5" />
-                          </Button>
-                        </Tooltip>
-                      )}
-                    </TD>
-                  </TR>
-                ))}
-              </TBody>
-            </Table>
-          </div>
-        )}
-        {runs && runs.length > 0 && (
-          <p className="text-[11px] text-steel">
-            {runs.length} run{runs.length === 1 ? "" : "s"}.{" "}
-            {unassignedCount > 0 && (
-              <span className="text-caution">{unassignedCount} with no cable assigned.</span>
-            )}
-          </p>
-        )}
-      </Section>
 
       <CableStockDialog
         open={stockDialog.open}
