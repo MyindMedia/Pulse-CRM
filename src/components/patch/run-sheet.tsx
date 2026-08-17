@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { createPortal } from "react-dom";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -55,18 +56,39 @@ export function RunSheetButton({
         Print run sheet
       </Button>
 
-      {/* Rendered always but only visible to the printer, so the browser has
-          the document laid out and the fonts loaded before print fires. */}
-      <RunSheet
-        runs={runs ?? []}
-        spaceName={spaceName}
-        roomName={roomName}
-        studioName={org?.name ?? "Studio"}
-        logoUrl={org?.logoUrl ?? null}
-        accent={org?.accentColor ?? "#fdb913"}
-      />
+      {/*
+        Portalled to <body>, and that is load-bearing rather than tidy.
+        The print rule hides `body > *` so only the sheet prints, and an
+        element cannot escape a hidden ancestor however hard it declares
+        itself visible. Rendered in place, the sheet printed blank.
+      */}
+      <RunSheetPortal>
+        <RunSheet
+          runs={runs ?? []}
+          spaceName={spaceName}
+          roomName={roomName}
+          studioName={org?.name ?? "Studio"}
+          logoUrl={org?.logoUrl ?? null}
+          accent={org?.accentColor ?? "#fdb913"}
+        />
+      </RunSheetPortal>
     </>
   );
+}
+
+/** Mounts its children as a direct child of <body>, after hydration. */
+function RunSheetPortal({ children }: { children: React.ReactNode }) {
+  const [host, setHost] = React.useState<HTMLElement | null>(null);
+  React.useEffect(() => {
+    const el = document.createElement("div");
+    el.className = "run-sheet-host";
+    document.body.appendChild(el);
+    setHost(el);
+    return () => {
+      document.body.removeChild(el);
+    };
+  }, []);
+  return host ? createPortal(children, host) : null;
 }
 
 type RunRow = {
@@ -104,6 +126,21 @@ function RunSheet({
   /* Printed date, not "now" re-rendered: a sheet taped to a rack should say
      when it was printed, and re-rendering would make it lie about that on
      every reflow. */
+  /* An index of which rows touch each box. The table answers "what is run 7";
+     this answers "what is plugged into the Neve", which is the question you
+     have when you are standing in front of it. */
+  const byDevice = React.useMemo(() => {
+    const map = new Map<string, number[]>();
+    runs.forEach((run, index) => {
+      for (const device of [run.source, run.destination]) {
+        const list = map.get(device) ?? [];
+        list.push(index + 1);
+        map.set(device, list);
+      }
+    });
+    return [...map.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+  }, [runs]);
+
   const printedAt = React.useMemo(
     () =>
       new Date().toLocaleString(undefined, {
@@ -137,14 +174,22 @@ function RunSheet({
         </div>
       </header>
 
+      <p className="run-sheet-lede">
+        Every cable currently patched in this room, and what it joins. Read a row
+        left to right: the signal leaves the first device at the port named under
+        it, travels down the cable in the middle, and arrives at the second
+        device at the port named under that.
+      </p>
+
       <table className="run-sheet-table">
         <thead>
           <tr>
             <th className="run-sheet-num">#</th>
-            <th>From</th>
-            <th>To</th>
-            <th>Cable</th>
-            <th>Label</th>
+            <th>Signal leaves</th>
+            <th className="run-sheet-arrow-col" />
+            <th>and arrives at</th>
+            <th>Down this cable</th>
+            <th>Marked</th>
           </tr>
         </thead>
         <tbody>
@@ -154,13 +199,18 @@ function RunSheet({
               <td>
                 <span className="run-sheet-device">{run.source}</span>
                 <span className="run-sheet-port">
-                  {run.sourcePort} · {connectorMeta(run.sourceConnector).short}
+                  from its {run.sourcePort} socket ({connectorMeta(run.sourceConnector).label})
                 </span>
               </td>
+              {/* An arrow does the explaining that a column heading cannot.
+                  Someone who has never opened the patch screen still knows
+                  which way the sound is going. */}
+              <td className="run-sheet-arrow">&rarr;</td>
               <td>
                 <span className="run-sheet-device">{run.destination}</span>
                 <span className="run-sheet-port">
-                  {run.destinationPort} · {connectorMeta(run.destinationConnector).short}
+                  into its {run.destinationPort} socket (
+                  {connectorMeta(run.destinationConnector).label})
                 </span>
               </td>
               <td>
@@ -174,9 +224,12 @@ function RunSheet({
                   <>
                     <span className="run-sheet-device">{run.cableName}</span>
                     <span className="run-sheet-port">
-                      {[run.color, run.lengthFt ? `${run.lengthFt} ft` : null]
+                      {[
+                        run.color ? `${run.color} jacket` : null,
+                        run.lengthFt ? `${run.lengthFt} ft long` : null,
+                      ]
                         .filter(Boolean)
-                        .join(" · ")}
+                        .join(", ")}
                     </span>
                   </>
                 )}
@@ -188,6 +241,27 @@ function RunSheet({
       </table>
 
       {runs.length === 0 && <p className="run-sheet-empty">Nothing patched in this room.</p>}
+
+      {byDevice.length > 0 && (
+        <section className="run-sheet-index">
+          <h2 className="run-sheet-index-title" style={{ color: accent }}>
+            By device
+          </h2>
+          <p className="run-sheet-port">
+            Which rows above touch each box, for when you are standing at one of them.
+          </p>
+          <ul className="run-sheet-index-list">
+            {byDevice.map(([device, numbers]) => (
+              <li key={device}>
+                <span className="run-sheet-device">{device}</span>
+                <span className="run-sheet-port">
+                  run{numbers.length === 1 ? "" : "s"} {numbers.join(", ")}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
 
       <footer className="run-sheet-foot">
         <span>{studioName}</span>

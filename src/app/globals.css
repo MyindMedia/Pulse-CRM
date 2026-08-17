@@ -1154,14 +1154,20 @@ html[data-theme="light"] .patch-canvas .react-flow__background {
    top, and every row legible at arm's length.
    ============================================================ */
 
-.run-sheet {
+.run-sheet,
+.run-sheet-host {
   display: none;
 }
 
 @media print {
-  /* The app disappears; only the sheet prints. */
-  body > * {
+  /* The app disappears; only the sheet prints. The sheet is portalled to be
+     a direct child of body precisely so this rule cannot bury it. */
+  body > *:not(.run-sheet-host) {
     display: none !important;
+  }
+
+  .run-sheet-host {
+    display: block !important;
   }
 
   .run-sheet {
@@ -1232,9 +1238,56 @@ html[data-theme="light"] .patch-canvas .react-flow__background {
     margin: 0 0 1pt;
   }
 
+  .run-sheet-lede {
+    margin: 0 0 12pt;
+    max-width: 46em;
+    font-size: 9pt;
+    color: #444;
+  }
+
   .run-sheet-table {
     width: 100%;
     border-collapse: collapse;
+  }
+
+  .run-sheet-arrow-col {
+    width: 16pt;
+  }
+
+  .run-sheet-arrow {
+    width: 16pt;
+    text-align: center;
+    color: #999;
+    font-size: 11pt;
+  }
+
+  .run-sheet-index {
+    margin-top: 18pt;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .run-sheet-index-title {
+    margin: 0 0 2pt;
+    font-size: 8pt;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    font-weight: 700;
+  }
+
+  .run-sheet-index-list {
+    list-style: none;
+    margin: 8pt 0 0;
+    padding: 0;
+    /* Two columns: this is a lookup table, not prose, and a single tall
+       column wastes half the page and pushes the footer onto sheet two. */
+    column-count: 2;
+    column-gap: 24pt;
+  }
+
+  .run-sheet-index-list li {
+    break-inside: avoid;
+    margin-bottom: 5pt;
   }
 
   .run-sheet-table th {
