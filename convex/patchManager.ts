@@ -47,7 +47,7 @@ import {
 type AuditArgs = {
   orgId: string;
   patchSpaceId: Id<"patchSpaces">;
-  entityType: "patchSpace" | "device" | "port" | "connection" | "note";
+  entityType: "patchSpace" | "device" | "port" | "connection" | "note" | "group";
   entityId: string;
   changeType: "create" | "update" | "delete";
   summary: string;
@@ -383,6 +383,7 @@ export const removeSpace = mutation({
       "ports",
       "deviceInstances",
       "patchAnnotations",
+      "patchGroups",
     ] as const) {
       const rows = await ctx.db
         .query(table)
@@ -456,6 +457,19 @@ export const graph = query({
     const annotations = await ctx.db
       .query("patchAnnotations")
       .withIndex("by_patchSpace", (q) => q.eq("patchSpaceId", patchSpaceId))
+      .collect();
+
+    const groups = await ctx.db
+      .query("patchGroups")
+      .withIndex("by_patchSpace", (q) => q.eq("patchSpaceId", patchSpaceId))
+      .collect();
+
+    /* Every room the studio has, so a zone can say which one it stands for
+       and the panel can offer the choice without a second round trip. A
+       studio has tens of rooms, not thousands. */
+    const rooms = await ctx.db
+      .query("rooms")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .collect();
 
     /* Photos, resolved once here rather than per card. A device shows the
@@ -540,6 +554,12 @@ export const graph = query({
         };
       }),
       annotations,
+      groups,
+      rooms: rooms.map((room) => ({
+        _id: room._id,
+        name: room.name,
+        roomType: room.roomType ?? null,
+      })),
     };
   },
 });
@@ -1003,6 +1023,35 @@ export const updateDevice = mutation({
       },
       after: clean,
     });
+  },
+});
+
+/**
+ * Paint one or more cards.
+ *
+ * Takes a list rather than a single id because the way anyone actually uses
+ * this is "these six boxes are the monitor path" - selecting them and then
+ * colouring them one at a time is six chances to miss one. Null clears the
+ * colour and puts the card back to the house style.
+ *
+ * No audit row: a colour changes how the canvas reads, not what is patched,
+ * and the log is worth keeping readable as a record of electrical change.
+ */
+export const setDeviceColor = mutation({
+  args: {
+    ids: v.array(v.id("deviceInstances")),
+    color: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, { ids, color }) => {
+    const orgId = await currentOrgWithCapability(ctx, "patch.edit");
+    for (const id of ids) {
+      const device = await ctx.db.get(id);
+      assertOrg(device, orgId);
+      // Convex removes an optional field when it is patched to undefined,
+      // which is what "no colour" has to mean - an empty string would be a
+      // colour the canvas then has to keep special-casing.
+      await ctx.db.patch(id, { color: color ?? undefined });
+    }
   },
 });
 
@@ -1509,6 +1558,13 @@ export const connect = mutation({
     notes: v.optional(v.string()),
     /** Record a cable whose ends do not physically fit. Adapters exist. */
     allowMismatch: v.optional(v.boolean()),
+    /*
+     * Permanent copper in the wall between two panels, rather than a cable
+     * anyone patches. Spends no stock and never reaches the run sheet as
+     * something to plug in - it is already plugged in, and has been since
+     * the building was wired.
+     */
+    isTieLine: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const orgId = await currentOrgWithCapability(ctx, "patch.edit");
@@ -1522,6 +1578,12 @@ export const connect = mutation({
     if (from._id === to._id) throw new ConvexError("A port cannot patch to itself.");
     if (from.patchSpaceId !== to.patchSpaceId) {
       throw new ConvexError("Both ports must be in the same patch space.");
+    }
+    // A tie line joins two panels. Calling anything else one would let a
+    // preamp output be recorded as building wiring, which is how a patch
+    // map starts claiming signal arrives somewhere by magic.
+    if (args.isTieLine && args.cableId) {
+      throw new ConvexError("A tie line is wall wiring. It does not spend cable stock.");
     }
 
     // One physical jack, one cable. Re-patching an input replaces what
@@ -1552,6 +1614,7 @@ export const connect = mutation({
       fromPortId: args.fromPortId,
       toPortId: args.toPortId,
       isNormalled: false,
+      isTieLine: args.isTieLine,
       cableId: args.cableId,
       cableTag: args.cableTag,
       cableFit: fit,
@@ -1570,7 +1633,9 @@ export const connect = mutation({
       entityType: "connection",
       entityId: id,
       changeType: "create",
-      summary: `Patched ${fromDevice?.label ?? "?"} ${from.label} to ${toDevice?.label ?? "?"} ${to.label}`,
+      summary: args.isTieLine
+        ? `Recorded a tie line: ${fromDevice?.label ?? "?"} ${from.label} to ${toDevice?.label ?? "?"} ${to.label}`
+        : `Patched ${fromDevice?.label ?? "?"} ${from.label} to ${toDevice?.label ?? "?"} ${to.label}`,
       after: { fromPortId: args.fromPortId, toPortId: args.toPortId, cableId: args.cableId },
     });
 
@@ -1946,5 +2011,168 @@ export const removeNote = mutation({
       before: { text: note.text, color: note.color, position: note.position },
     });
     return { text: note.text, color: note.color, position: note.position, size: note.size };
+  },
+});
+
+
+/* ── Sections ───────────────────────────────────────────────────
+   A coloured rectangle under the gear. The canvas equivalent of
+   the tape an engineer runs across the desk to mark off "monitor
+   path" from "tracking path", and it earns its own table for the
+   same reason a note does: it must never be mistaken for gear.
+
+   Membership is geometric and is worked out on the canvas, not
+   stored. Whatever sits inside the rectangle is in the section.
+   A stored member list would be a second opinion about where a
+   device is, and the two would disagree the first time anyone
+   dragged a preamp two feet to the left.
+   ────────────────────────────────────────────────────────────── */
+
+const GROUP_LIMIT = 60;
+
+/** Nothing useful is smaller than this, and a 4px section is unclickable. */
+const GROUP_MIN = { width: 160, height: 120 };
+
+export const addGroup = mutation({
+  args: {
+    patchSpaceId: v.id("patchSpaces"),
+    name: v.optional(v.string()),
+    kind: v.optional(v.string()),
+    roomId: v.optional(v.id("rooms")),
+    color: v.optional(v.string()),
+    position: v.object({ x: v.number(), y: v.number() }),
+    size: v.object({ width: v.number(), height: v.number() }),
+  },
+  handler: async (ctx, { patchSpaceId, name, kind, roomId, color, position, size }) => {
+    const orgId = await currentOrgWithCapability(ctx, "patch.edit");
+    const actor = await currentActor(ctx);
+    const space = await ctx.db.get(patchSpaceId);
+    assertOrg(space, orgId);
+
+    // A zone can only stand for a room this studio owns.
+    if (roomId) {
+      const room = await ctx.db.get(roomId);
+      assertOrg(room, orgId);
+    }
+
+    const existing = await ctx.db
+      .query("patchGroups")
+      .withIndex("by_patchSpace", (q) => q.eq("patchSpaceId", patchSpaceId))
+      .collect();
+    if (existing.length >= GROUP_LIMIT) {
+      throw new ConvexError(
+        `A patch can hold ${GROUP_LIMIT} sections. Tidy some up first.`,
+      );
+    }
+
+    const id = await ctx.db.insert("patchGroups", {
+      orgId,
+      patchSpaceId,
+      name: name?.trim() || `Section ${existing.length + 1}`,
+      kind: kind ?? "zone",
+      roomId,
+      color: color ?? "amber",
+      position,
+      size: {
+        width: Math.max(GROUP_MIN.width, size.width),
+        height: Math.max(GROUP_MIN.height, size.height),
+      },
+      createdAt: Date.now(),
+      createdBy: actor,
+    });
+    await logPatch(ctx, actor, {
+      orgId,
+      patchSpaceId,
+      entityType: "group",
+      entityId: id,
+      changeType: "create",
+      summary: `Grouped part of the canvas as ${name?.trim() || "a section"}`,
+    });
+    return id;
+  },
+});
+
+export const updateGroup = mutation({
+  args: {
+    id: v.id("patchGroups"),
+    name: v.optional(v.string()),
+    kind: v.optional(v.string()),
+    /** Null unbinds the zone from its room; leaving it out changes nothing. */
+    roomId: v.optional(v.union(v.id("rooms"), v.null())),
+    color: v.optional(v.string()),
+    position: v.optional(v.object({ x: v.number(), y: v.number() })),
+    size: v.optional(v.object({ width: v.number(), height: v.number() })),
+  },
+  handler: async (ctx, { id, roomId, ...patch }) => {
+    const orgId = await currentOrgWithCapability(ctx, "patch.edit");
+    const group = await ctx.db.get(id);
+    assertOrg(group, orgId);
+
+    if (roomId) {
+      const room = await ctx.db.get(roomId);
+      assertOrg(room, orgId);
+    }
+
+    const clean: Record<string, unknown> = Object.fromEntries(
+      Object.entries(patch).filter(([, value]) => value !== undefined),
+    );
+    // A section with no name is a coloured smudge nobody can refer to in a
+    // handover, so an empty rename falls back to what it was called.
+    if (typeof clean.name === "string") {
+      const trimmed = (clean.name as string).trim();
+      if (!trimmed) delete clean.name;
+      else clean.name = trimmed;
+    }
+    if (clean.size) {
+      const size = clean.size as { width: number; height: number };
+      clean.size = {
+        width: Math.max(GROUP_MIN.width, size.width),
+        height: Math.max(GROUP_MIN.height, size.height),
+      };
+    }
+    // Convex removes an optional field patched to undefined, which is what
+    // unbinding has to mean; leaving the argument out must not do that.
+    if (roomId !== undefined) clean.roomId = roomId ?? undefined;
+
+    if (Object.keys(clean).length === 0) return;
+    // Moving, resizing and recolouring a section are all layout. None of it
+    // belongs in the revision counter that drives re-fitting the view.
+    await ctx.db.patch(id, clean);
+  },
+});
+
+/**
+ * Delete the rectangle. Never the gear inside it - a section is a way of
+ * looking at the canvas, and "ungroup" has to mean the tape comes up, not
+ * that half the room disappears.
+ *
+ * Hands back what it removed so undo can put it straight back.
+ */
+export const removeGroup = mutation({
+  args: { id: v.id("patchGroups") },
+  handler: async (ctx, { id }) => {
+    const orgId = await currentOrgWithCapability(ctx, "patch.edit");
+    const actor = await currentActor(ctx);
+    const group = await ctx.db.get(id);
+    assertOrg(group, orgId);
+
+    await ctx.db.delete(id);
+    await logPatch(ctx, actor, {
+      orgId,
+      patchSpaceId: group.patchSpaceId,
+      entityType: "group",
+      entityId: id,
+      changeType: "delete",
+      summary: `Ungrouped ${group.name}`,
+      before: { name: group.name, color: group.color, position: group.position },
+    });
+    return {
+      name: group.name,
+      kind: group.kind,
+      roomId: group.roomId,
+      color: group.color,
+      position: group.position,
+      size: group.size,
+    };
   },
 });

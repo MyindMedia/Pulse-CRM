@@ -9,8 +9,10 @@ import { categoryMeta } from "@/components/studio/constants";
 import {
   PATCH_CATEGORY_ICONS,
   PORT_COLLAPSE_LIMIT,
+  WALL_PANEL_CATEGORY,
   capabilityMeta,
   connectorMeta,
+  deviceColorHex,
   levelMeta,
 } from "./constants";
 
@@ -58,6 +60,15 @@ export type DeviceNodeData = {
   specUnverified: boolean;
   /** Dims everything not on the traced signal path. */
   traceDimmed: boolean;
+  /** Card colour, or null for the house style. */
+  color?: string | null;
+  /*
+   * What is on the other end of each jack, for the cards where that is the
+   * whole point. A wall panel connector says nothing on its own - "XLR 3"
+   * is not information - and everything once you know it lands on the
+   * control room panel and carries the talkback.
+   */
+  portPeers?: Record<string, { label: string; tie: boolean }[]>;
   onOpenPort?: (portId: string) => void;
 };
 
@@ -212,6 +223,147 @@ function PortRow({
   );
 }
 
+/**
+ * One connector on a wall panel.
+ *
+ * Panels are drawn differently from everything else, and the reason is
+ * physical: a jack on a plate is ONE hole. The default card would render a
+ * bidirectional port twice - once as an input, once as an output - and a
+ * panel that claims sixteen holes when the wall has eight is not a document
+ * anyone can work from.
+ *
+ * The row is split down the middle for dragging: the left half receives a
+ * cable, the right half starts one. That is the only way a single row can
+ * offer both directions to React Flow, and it matches how the plate is
+ * actually used - things arrive from the room, things leave down the wall.
+ */
+function PanelRow({
+  port,
+  peers,
+  dragRole,
+  onOpen,
+}: {
+  port: PatchPort;
+  peers: { label: string; tie: boolean }[];
+  dragRole: DragRole;
+  onOpen?: () => void;
+}) {
+  const level = levelMeta(port.signalLevel);
+  const connector = connectorMeta(port.connector);
+  const connected = peers.length > 0;
+  const tied = peers.some((p) => p.tie);
+
+  return (
+    <Tooltip
+      side="right"
+      label={port.label}
+      hint={
+        <>
+          {connector.label} · {level.label}
+          <br />
+          {connected ? peers.map((p) => p.label).join(" · ") : "Nothing on this connector"}
+          <br />
+          Drag from the right half to run a cable out, drop on the left half to land one.
+        </>
+      }
+    >
+      <div
+        className={cn(
+          "group/port relative flex items-center gap-1.5 px-2 py-[3px] text-[10px] leading-tight",
+          "cursor-crosshair transition-[background-color,opacity] hover:bg-gold/[0.07]",
+          dragRole === "target" && "bg-gold/[0.12]",
+          dragRole === "incompatible" && "opacity-30",
+        )}
+        onClick={(event) => {
+          event.stopPropagation();
+          onOpen?.();
+        }}
+      >
+        <Handle
+          id={port._id}
+          type="target"
+          position={Position.Left}
+          className="!absolute !inset-y-0 !left-0 !h-auto !w-1/2 !min-w-0 !translate-x-0 !translate-y-0 !rounded-none !border-0 !bg-transparent hover:!cursor-crosshair"
+          style={{ transform: "none", left: 0, top: 0, bottom: 0 }}
+        />
+        <Handle
+          id={port._id}
+          type="source"
+          position={Position.Right}
+          className="!absolute !inset-y-0 !right-0 !h-auto !w-1/2 !min-w-0 !translate-x-0 !translate-y-0 !rounded-none !border-0 !bg-transparent hover:!cursor-crosshair"
+          style={{ transform: "none", right: 0, top: 0, bottom: 0 }}
+        />
+
+        {/* A hole in a plate, drawn as one. Filled when something is in it. */}
+        <span
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute top-1/2 z-[6] size-3 -translate-y-1/2 rounded-full border-2 border-coal",
+            "transition-[transform,box-shadow,opacity] duration-150 group-hover/port:scale-[1.55]",
+            "-left-[6px]",
+            dragRole === "target" && "scale-[1.7] animate-pulse",
+            dragRole === "incompatible" && "opacity-20",
+            dragRole === "origin" && "scale-[1.7]",
+          )}
+          style={{
+            background: connected ? level.color : "#4a4a52",
+            boxShadow: connected ? `0 0 0 2px ${level.color}22` : undefined,
+          }}
+        />
+        <span
+          aria-hidden
+          className={cn(
+            "pointer-events-none absolute top-1/2 z-[6] size-3 -translate-y-1/2 rounded-full border-2 border-coal",
+            "transition-[transform,box-shadow,opacity] duration-150 group-hover/port:scale-[1.55]",
+            "-right-[6px]",
+            dragRole === "target" && "scale-[1.7] animate-pulse",
+            dragRole === "incompatible" && "opacity-20",
+            dragRole === "origin" && "scale-[1.7]",
+          )}
+          style={{
+            background: connected ? level.color : "#4a4a52",
+            boxShadow: connected ? `0 0 0 2px ${level.color}22` : undefined,
+          }}
+        />
+
+        <span
+          className="h-2.5 w-[2px] shrink-0 rounded-full"
+          style={{ background: level.color, opacity: connected ? 1 : 0.4 }}
+        />
+        <span
+          className={cn(
+            "w-[52px] shrink-0 truncate font-medium",
+            connected ? "text-bone" : "text-ash",
+          )}
+        >
+          {port.label}
+        </span>
+
+        {/* What is actually on the other end. This is the whole reason a
+            panel card exists rather than a row of numbered holes. */}
+        <span
+          className={cn(
+            "min-w-0 flex-1 truncate text-right",
+            connected ? "text-steel" : "text-steel/45",
+          )}
+        >
+          {connected ? peers.map((p) => p.label).join(" · ") : "free"}
+        </span>
+        {tied && (
+          <Tooltip
+            label="Tie line"
+            hint="Permanent wiring in the wall. It is not patched and never comes out."
+          >
+            <span className="shrink-0 cursor-help rounded-[3px] bg-info/20 px-1 font-meta text-[8px] font-semibold text-info">
+              TIE
+            </span>
+          </Tooltip>
+        )}
+      </div>
+    </Tooltip>
+  );
+}
+
 export const DeviceNode = React.memo(function DeviceNode({
   id,
   data,
@@ -243,6 +395,10 @@ export const DeviceNode = React.memo(function DeviceNode({
     [dragging, fromHandleId, fromNodeId, connection.fromHandle?.type, id],
   );
 
+  // A plate on a wall is drawn as one column of holes, not as an in list
+  // and an out list. See PanelRow.
+  const isPanel = data.category === WALL_PANEL_CATEGORY;
+
   const inputs = data.ports.filter(
     (p) => p.direction === "input" || p.direction === "bidirectional",
   );
@@ -272,6 +428,13 @@ export const DeviceNode = React.memo(function DeviceNode({
   const meta = categoryMeta(data.category);
   const Icon = PATCH_CATEGORY_ICONS[data.category] ?? meta.icon ?? Package;
 
+  /* A painted card. The colour goes on the border, the header and a spine
+     down the left edge - never behind the port list, where it would fight
+     the level colours that actually carry meaning. Selection still wins:
+     gold means "this is the one you have hold of" and nothing else may
+     claim it. */
+  const tint = deviceColorHex(data.color);
+
   return (
     <div
       className={cn(
@@ -279,14 +442,24 @@ export const DeviceNode = React.memo(function DeviceNode({
         "transition-[border-color,box-shadow,opacity] duration-150",
         selected
           ? "border-gold shadow-[0_0_0_1px_var(--color-gold),0_12px_32px_-12px_rgba(253,185,19,0.45)]"
-          : "border-hairline-2 shadow-elev-2 hover:border-gold-dim/70",
+          : tint
+            ? "shadow-elev-2"
+            : "border-hairline-2 shadow-elev-2 hover:border-gold-dim/70",
         data.traceDimmed && "opacity-25",
         // A card with nowhere for this cable to land gets out of the way.
         dragging && fromNodeId === id && "ring-1 ring-gold/40",
       )}
+      style={
+        tint && !selected
+          ? { borderColor: `${tint}80`, boxShadow: `inset 3px 0 0 0 ${tint}` }
+          : undefined
+      }
     >
       {/* Header */}
-      <div className="flex items-start gap-2 border-b border-hairline bg-coal-2/80 px-2.5 py-2">
+      <div
+        className="flex items-start gap-2 border-b border-hairline bg-coal-2/80 px-2.5 py-2"
+        style={tint ? { background: `${tint}1f` } : undefined}
+      >
         {/* A photo of the real unit beats an icon for finding the right box in
             a dark rack, so it takes the icon's slot when one exists. */}
         {data.photoUrl ? (
@@ -352,7 +525,25 @@ export const DeviceNode = React.memo(function DeviceNode({
         )}
       </div>
 
-      {/* Ports, inputs left and outputs right */}
+      {/* A wall panel: one row per hole, each carrying what is on the far
+          end of it. Ordered by connector number, because that is how they
+          are silk-screened and how anyone reads them off the wall. */}
+      {isPanel ? (
+        <div className="py-1">
+          {[...data.ports]
+            .sort((a, b) => (a.channelIndex ?? 0) - (b.channelIndex ?? 0))
+            .map((port) => (
+              <PanelRow
+                key={port._id}
+                port={port}
+                peers={data.portPeers?.[port._id] ?? []}
+                dragRole={roleFor(port)}
+                onOpen={() => data.onOpenPort?.(port._id)}
+              />
+            ))}
+        </div>
+      ) : (
+      /* Ports, inputs left and outputs right */
       <div className="grid grid-cols-2 gap-x-1 py-1">
         <div className="min-w-0 border-r border-hairline">
           {shownInputs.length > 0 && (
@@ -389,8 +580,9 @@ export const DeviceNode = React.memo(function DeviceNode({
           ))}
         </div>
       </div>
+      )}
 
-      {collapsible && (
+      {collapsible && !isPanel && (
         <Tooltip
           label={expanded ? "Show fewer ports" : "Show every port"}
           hint={

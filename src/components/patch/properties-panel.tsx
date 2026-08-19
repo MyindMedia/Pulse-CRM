@@ -6,13 +6,16 @@ import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import {
+  ArrowRight,
   Cable,
   Check,
   ExternalLink,
   HelpCircle,
   MousePointerSquareDashed,
+  Slash,
   Trash2,
   Unplug,
+  Waypoints,
   Zap,
 } from "lucide-react";
 import Link from "next/link";
@@ -29,12 +32,14 @@ import {
 } from "@/components/ui/select";
 import { categoryMeta } from "@/components/studio/constants";
 import { Tooltip } from "@/components/ui/tooltip";
-import { capabilityMeta, connectorMeta, levelMeta } from "./constants";
+import { DEVICE_COLORS, capabilityMeta, connectorMeta, levelMeta } from "./constants";
 import { CableColorField } from "./cable-color-field";
 import { CableLabelFields, type CableLabelMode } from "./cable-label-fields";
 import { PanelCollapseButton } from "./panel-rail";
 import { PortEditor } from "./port-editor";
 import { NOTE_COLORS } from "./note-node";
+import { GROUP_COLORS } from "./group-node";
+import { ZONE_KINDS, zoneKind } from "./zone-kinds";
 import { PhotoUpload } from "@/components/ui/photo-upload";
 import type { PatchPort } from "./device-node";
 
@@ -58,6 +63,8 @@ type DeviceSelection = {
   equipment: { _id: Id<"equipment">; name: string; serialNumber: string | null } | null;
   /** port id -> label of the phantom-sensitive device currently patched into it. */
   phantomRiskByPort: Record<string, string>;
+  /** Card colour on the canvas, or undefined for the house style. */
+  color?: string | null;
 };
 
 type ConnectionSelection = {
@@ -82,7 +89,43 @@ type NoteSelection = {
   color: string;
 };
 
-export type PatchSelection = DeviceSelection | ConnectionSelection | NoteSelection | null;
+type GroupSelection = {
+  kind: "group";
+  _id: Id<"patchGroups">;
+  name: string;
+  /** Zone kind: control room, vocal booth, wall panel, and so on. */
+  zoneKind: string;
+  roomId: Id<"rooms"> | null;
+  rooms: { _id: Id<"rooms">; name: string; roomType: string | null }[];
+  color: string;
+  /** Counted from where things sit, not from a stored member list. */
+  status: {
+    devices: number;
+    ports: number;
+    patched: number;
+    free: number;
+    leaving: number;
+    onTieLines: number;
+  };
+  /** Runs with one end in this zone and the other end somewhere else. */
+  crossing: {
+    _id: string;
+    from: string;
+    to: string;
+    toZone: string | null;
+    tie: boolean;
+    fit: string | null;
+  }[];
+  /** Connectors in this zone with nothing in them. */
+  free: { device: string; port: string }[];
+};
+
+export type PatchSelection =
+  | DeviceSelection
+  | ConnectionSelection
+  | NoteSelection
+  | GroupSelection
+  | null;
 
 /**
  * Impedance is a setting, not a switch, so it cycles through values rather
@@ -207,6 +250,7 @@ function DeviceProperties({
   const setDevicePhoto = useMutation(api.patchManager.setDevicePhoto);
   const clearDevicePhoto = useMutation(api.patchManager.clearDevicePhoto);
   const setPanelPhoto = useMutation(api.patchManager.setDevicePanelPhoto);
+  const setDeviceColor = useMutation(api.patchManager.setDeviceColor);
   const clearPanelPhoto = useMutation(api.patchManager.clearDevicePanelPhoto);
 
   const [label, setLabel] = React.useState(selection.label);
@@ -379,6 +423,66 @@ function DeviceProperties({
           className="h-9 text-xs"
         />
       </Field>
+
+      {/* Card colour. Worth having because a room already colour-codes
+          itself - the monitor path, the rig going back on Friday - and the
+          canvas is a poor map if it cannot say what the room says. */}
+      <div>
+        <p className="overline mb-1.5">Card colour</p>
+        <div className="flex flex-wrap items-center gap-1.5">
+          {DEVICE_COLORS.map((colour) => (
+            <Tooltip key={colour.value} label={colour.label}>
+              <button
+                type="button"
+                disabled={!canEdit}
+                aria-label={colour.label}
+                aria-pressed={selection.color === colour.value}
+                onClick={() =>
+                  void setDeviceColor({ ids: [selection._id], color: colour.value }).catch(
+                    (error) => toast.error(errorMessage(error, "Could not change the colour.")),
+                  )
+                }
+                className={cn(
+                  "size-7 rounded-md border-2 transition-transform disabled:opacity-40",
+                  selection.color === colour.value
+                    ? "scale-110 border-gold"
+                    : "border-transparent hover:scale-105",
+                )}
+                style={{
+                  background: `${colour.hex}33`,
+                  borderColor:
+                    selection.color === colour.value ? undefined : `${colour.hex}99`,
+                }}
+              />
+            </Tooltip>
+          ))}
+          <Tooltip label="No colour" hint="Back to the house style.">
+            <button
+              type="button"
+              disabled={!canEdit}
+              aria-label="No colour"
+              aria-pressed={!selection.color}
+              onClick={() =>
+                void setDeviceColor({ ids: [selection._id], color: null }).catch((error) =>
+                  toast.error(errorMessage(error, "Could not change the colour.")),
+                )
+              }
+              className={cn(
+                "flex size-7 items-center justify-center rounded-md border-2 bg-coal-2 transition-transform disabled:opacity-40",
+                !selection.color ? "scale-110 border-gold" : "border-hairline-2 hover:scale-105",
+              )}
+            >
+              <Slash className="size-3 text-steel" />
+            </button>
+          </Tooltip>
+        </div>
+        {selection.color && (
+          <p className="mt-1.5 text-[10px] text-steel">
+            Shown on the card and in the minimap. Right-click a selection of cards to
+            paint them all at once.
+          </p>
+        )}
+      </div>
 
       {isPatchbay && (
         <Field
@@ -746,6 +850,284 @@ function NoteProperties({
   );
 }
 
+function GroupProperties({
+  selection,
+  onDeleted,
+  canEdit,
+}: {
+  selection: GroupSelection;
+  onDeleted: () => void;
+  canEdit: boolean;
+}) {
+  const updateGroup = useMutation(api.patchManager.updateGroup);
+  const removeGroup = useMutation(api.patchManager.removeGroup);
+
+  const [name, setName] = React.useState(selection.name);
+  const [seededId, setSeededId] = React.useState(selection._id);
+  if (seededId !== selection._id) {
+    setSeededId(selection._id);
+    setName(selection.name);
+  }
+
+  async function save(patch: {
+    name?: string;
+    kind?: string;
+    roomId?: Id<"rooms"> | null;
+    color?: string;
+  }) {
+    try {
+      await updateGroup({ id: selection._id, ...patch });
+    } catch (error) {
+      toast.error(errorMessage(error, "Could not save."));
+    }
+  }
+
+  const zone = zoneKind(selection.zoneKind);
+  const ZoneIcon = zone.icon;
+  const { status } = selection;
+
+  return (
+    <div className="space-y-4 p-3">
+      <div className="flex items-start gap-2">
+        <ZoneIcon className="mt-0.5 size-4 shrink-0 text-gold" />
+        <div className="min-w-0 flex-1">
+          <p className="truncate text-sm font-semibold text-bone">{selection.name}</p>
+          <p className="truncate font-meta text-[10px] uppercase tracking-wide text-steel">
+            {zone.label}
+            {status.devices > 0 && ` · ${status.devices} device${status.devices === 1 ? "" : "s"}`}
+          </p>
+        </div>
+      </div>
+
+      {/* The four numbers worth having on screen at once. Free connectors get
+          their own tile because "what have I got left in the booth" is the
+          question that gets asked at 2am with a client waiting. */}
+      <div className="grid grid-cols-2 gap-1.5">
+        {[
+          { label: "Connectors", value: status.ports, tone: "text-bone" },
+          { label: "Patched", value: status.patched, tone: "text-positive" },
+          { label: "Free", value: status.free, tone: "text-bone" },
+          {
+            label: "Leaving zone",
+            value: status.leaving,
+            tone: status.leaving > 0 ? "text-gold" : "text-steel",
+          },
+        ].map((tile) => (
+          <div
+            key={tile.label}
+            className="rounded-md border border-hairline bg-coal-2/40 px-2 py-1.5"
+          >
+            <p className={cn("text-sm font-semibold tabular-nums", tile.tone)}>{tile.value}</p>
+            <p className="font-meta text-[9px] uppercase tracking-wide text-steel">
+              {tile.label}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <p className="rounded-md border border-hairline bg-coal-2/40 px-2.5 py-2 text-[11px] leading-snug text-steel">
+        Whatever sits inside the rectangle belongs to this zone. Drag it by its tab and
+        everything standing on it comes along. A run that leaves the zone crosses a wall,
+        which is what tie lines and wall panels are for.
+      </p>
+
+      <Field label="Name" htmlFor="patch-group-name">
+        <Input
+          id="patch-group-name"
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          onBlur={() => void save({ name })}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") event.currentTarget.blur();
+          }}
+          disabled={!canEdit}
+          placeholder="Monitor path"
+          className="h-9 text-xs"
+        />
+      </Field>
+
+      <Field
+        label="Kind"
+        hint="What kind of place this is. It decides nothing on its own; it is how the map says a run has to cross a wall."
+      >
+        <Select
+          value={selection.zoneKind}
+          onValueChange={(value) => void save({ kind: value })}
+          disabled={!canEdit}
+        >
+          <SelectTrigger className="h-9 text-xs">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {ZONE_KINDS.map((option) => (
+              <SelectItem key={option.value} value={option.value}>
+                {option.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+      <p className="-mt-2 text-[10px] leading-snug text-steel/80">{zone.hint}</p>
+
+      {/* Binding a zone to a room is what stops the canvas and the asset
+          register having two names for one place. Offered on every kind,
+          because a studio that calls its booth a rack is not wrong. */}
+      <Field
+        label="Room"
+        hint="The room in inventory this zone stands for. Gear installed there is understood to live here."
+      >
+        <Select
+          value={selection.roomId ?? "none"}
+          onValueChange={(value) =>
+            void save({ roomId: value === "none" ? null : (value as Id<"rooms">) })
+          }
+          disabled={!canEdit}
+        >
+          <SelectTrigger className="h-9 text-xs">
+            <SelectValue placeholder="Not a room" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">Not a room</SelectItem>
+            {selection.rooms.map((room) => (
+              <SelectItem key={room._id} value={room._id}>
+                {room.name}
+                {room.roomType ? ` · ${room.roomType}` : ""}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </Field>
+
+      <div>
+        <p className="overline mb-1.5">Colour</p>
+        <div className="flex flex-wrap gap-1.5">
+          {GROUP_COLORS.map((colour) => (
+            <Tooltip key={colour.key} label={colour.label}>
+              <button
+                type="button"
+                disabled={!canEdit}
+                aria-label={colour.label}
+                aria-pressed={selection.color === colour.key}
+                onClick={() => void save({ color: colour.key })}
+                className={cn(
+                  "size-7 rounded-md border-2 transition-transform disabled:opacity-40",
+                  selection.color === colour.key
+                    ? "scale-110 border-gold"
+                    : "border-transparent hover:scale-105",
+                )}
+                style={{
+                  background: colour.tab,
+                  borderColor: selection.color === colour.key ? undefined : colour.border,
+                }}
+              />
+            </Tooltip>
+          ))}
+        </div>
+      </div>
+
+      {/* Everything that has to cross a wall. Read from this zone outwards,
+          whichever way the signal actually runs, because the question being
+          asked is always "what does THIS room need to reach". */}
+      {selection.crossing.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="overline">
+            Leaves this zone · {selection.crossing.length}
+          </p>
+          {selection.crossing.some((run) => !run.tie) && (
+            <p className="flex items-start gap-1.5 rounded-md border border-caution/30 bg-caution/10 px-2 py-1.5 text-[10px] leading-snug text-caution">
+              <Waypoints className="mt-px size-3 shrink-0" />
+              {selection.crossing.filter((run) => !run.tie).length} of these cross the edge of
+              the zone on a loose cable. If they really run between rooms, patch them through
+              a wall panel so the tie line is documented.
+            </p>
+          )}
+          <div className="max-h-60 space-y-1 overflow-y-auto pr-1">
+            {selection.crossing.map((run) => (
+              <div
+                key={run._id}
+                className="rounded-md border border-hairline bg-coal-2/40 px-2 py-1.5"
+              >
+                <div className="flex items-center gap-1.5">
+                  <span className="min-w-0 flex-1 truncate text-[11px] text-bone">
+                    {run.from}
+                  </span>
+                  {run.tie ? (
+                    <Tooltip
+                      label="Tie line"
+                      hint="Permanent wiring in the wall. Nobody patches this; it is already there."
+                    >
+                      <span className="shrink-0 cursor-help rounded-[3px] bg-info/20 px-1 font-meta text-[8px] font-semibold text-info">
+                        TIE
+                      </span>
+                    </Tooltip>
+                  ) : (
+                    <span className="shrink-0 rounded-[3px] bg-coal-3 px-1 font-meta text-[8px] font-semibold text-steel">
+                      CABLE
+                    </span>
+                  )}
+                </div>
+                <p className="mt-0.5 flex items-center gap-1 truncate text-[10px] text-steel">
+                  <ArrowRight className="size-2.5 shrink-0" />
+                  {run.to}
+                  {run.toZone && <span className="text-steel/70">· {run.toZone}</span>}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* What is left. A patch map that cannot answer "have I got a spare
+          XLR in the booth" is a picture, not a tool. */}
+      {selection.free.length > 0 && (
+        <div className="space-y-1.5">
+          <p className="overline">Free in this zone · {selection.free.length}</p>
+          <div className="max-h-44 space-y-1 overflow-y-auto pr-1">
+            {selection.free.slice(0, 40).map((slot, index) => (
+              <div
+                key={`${slot.device}-${slot.port}-${index}`}
+                className="flex items-center gap-2 rounded-md border border-hairline bg-coal-2/30 px-2 py-1"
+              >
+                <span className="size-1.5 shrink-0 rounded-full bg-steel/50" />
+                <span className="min-w-0 flex-1 truncate text-[10px] text-steel">
+                  {slot.device}
+                </span>
+                <span className="shrink-0 text-[10px] text-bone">{slot.port}</span>
+              </div>
+            ))}
+          </div>
+          {selection.free.length > 40 && (
+            <p className="text-[10px] text-steel/70">
+              and {selection.free.length - 40} more, not listed
+            </p>
+          )}
+        </div>
+      )}
+
+      <Button
+        variant="ghost"
+        size="sm"
+        className="w-full text-critical hover:bg-critical/10"
+        disabled={!canEdit}
+        onClick={async () => {
+          try {
+            await removeGroup({ id: selection._id });
+            onDeleted();
+          } catch (error) {
+            toast.error(errorMessage(error, "Could not ungroup."));
+          }
+        }}
+      >
+        <Trash2 className="size-3.5" />
+        Ungroup
+      </Button>
+      <p className="-mt-2 text-[10px] text-steel">
+        Takes the section away. Every device standing on it stays exactly where it is.
+      </p>
+    </div>
+  );
+}
+
 export function PropertiesPanel({
   selection,
   onDeleted,
@@ -766,9 +1148,11 @@ export function PropertiesPanel({
             ? "Connection"
             : selection?.kind === "note"
               ? "Note"
-              : selection
-                ? "Device"
-                : "Properties"}
+              : selection?.kind === "group"
+                ? "Section"
+                : selection
+                  ? "Device"
+                  : "Properties"}
         </p>
         {onCollapse && (
           <PanelCollapseButton
@@ -785,7 +1169,7 @@ export function PropertiesPanel({
           <div className="flex h-full flex-col items-center justify-center gap-2 px-6 text-center">
             <MousePointerSquareDashed className="size-6 text-steel/50" />
             <p className="text-xs text-steel">
-              Select a device, a cable or a note to edit it.
+              Select a device, a cable, a note or a section to edit it.
             </p>
             <p className="text-[10px] text-steel/60">
               Drag from a port dot to another port to patch.
@@ -800,6 +1184,9 @@ export function PropertiesPanel({
         )}
         {selection?.kind === "note" && (
           <NoteProperties selection={selection} onDeleted={onDeleted} canEdit={canEdit} />
+        )}
+        {selection?.kind === "group" && (
+          <GroupProperties selection={selection} onDeleted={onDeleted} canEdit={canEdit} />
         )}
       </div>
     </div>

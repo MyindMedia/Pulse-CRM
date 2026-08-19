@@ -176,6 +176,35 @@ export function patchbay(
   return out;
 }
 
+/**
+ * A wall panel: the plate of connectors that lets one room reach
+ * another. Every jack is bidirectional on purpose.
+ *
+ * A tie line is copper, and copper does not care which way you use
+ * it. The same booth panel jack takes a mic on Monday and feeds a
+ * cue box on Tuesday, so recording a fixed direction would make the
+ * map wrong half the time. Direction lives on the RUN - which end
+ * you plugged the source into - not on the plate screwed to the wall.
+ */
+export function wallPanel(
+  count: number,
+  connector: ConnectorType = "xlr3",
+  labelPrefix = "XLR",
+  signalLevel: SignalLevel = "mic",
+  startIndex = 1,
+): PortTemplate[] {
+  return Array.from({ length: count }, (_, i) => ({
+    label: `${labelPrefix} ${startIndex + i}`,
+    direction: "bidirectional" as PortDirection,
+    signalLevel,
+    connector,
+    // A panel jack is a socket whichever way the signal runs.
+    gender: conventionalPortGender(connector, "input"),
+    channelIndex: startIndex + i,
+    capabilities: [] as PortCapability[],
+  }));
+}
+
 /* ── Category fallbacks ─────────────────────────────────────────
    Every equipment category resolves to something placeable. These
    are intentionally modest: a plausible minimum an engineer can
@@ -184,6 +213,9 @@ export function patchbay(
 
 export const CATEGORY_DEFAULTS: Record<string, () => PortTemplate[]> = {
   mic: () => [port("Out", "output", "mic", "xlr3", ["polarity"])],
+
+  // A plain four-way XLR plate: the smallest thing anyone screws to a wall.
+  wallPanel: () => wallPanel(4, "xlr3", "XLR"),
 
   preamp: () => [
     port("Mic In", "input", "mic", "xlr3", ["phantom", "pad", "polarity", "hpf", "impedance"], 1),
@@ -498,6 +530,54 @@ export const EXTRA_PROFILES: ProfileSeed[] = [
     rackUnits: 2,
     defaultNormalling: "none",
     ports: patchbay(12, "xlr3"),
+  },
+  /* Wall panels. The gear nobody buys and every multi-room studio has:
+     the plate by the booth door, the floor box under the drums, the tie
+     lines that make a room-to-room patch possible at all. */
+  {
+    id: "wall-panel-xlr-4",
+    name: "Wall Panel 4x XLR",
+    manufacturer: "Generic",
+    category: "wallPanel",
+    ports: wallPanel(4, "xlr3", "XLR"),
+  },
+  {
+    id: "wall-panel-xlr-8",
+    name: "Wall Panel 8x XLR",
+    manufacturer: "Generic",
+    category: "wallPanel",
+    ports: wallPanel(8, "xlr3", "XLR"),
+  },
+  {
+    id: "wall-panel-xlr-12",
+    name: "Wall Panel 12x XLR",
+    manufacturer: "Generic",
+    category: "wallPanel",
+    ports: wallPanel(12, "xlr3", "XLR"),
+  },
+  {
+    id: "wall-panel-trs-8",
+    name: "Wall Panel 8x TRS",
+    manufacturer: "Generic",
+    category: "wallPanel",
+    ports: wallPanel(8, "trs", "TRS", "line"),
+  },
+  {
+    id: "floor-box-xlr-4-trs-2",
+    name: "Floor Box 4x XLR + 2x TRS",
+    manufacturer: "Generic",
+    category: "wallPanel",
+    ports: [
+      ...wallPanel(4, "xlr3", "XLR"),
+      ...wallPanel(2, "trs", "TRS", "line"),
+    ],
+  },
+  {
+    id: "wall-panel-network-4",
+    name: "Wall Panel 4x RJ45",
+    manufacturer: "Generic",
+    category: "wallPanel",
+    ports: wallPanel(4, "rj45", "Net", "digital"),
   },
   {
     id: "di-passive-single",

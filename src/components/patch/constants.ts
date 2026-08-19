@@ -5,6 +5,7 @@ import {
   Cpu,
   Gauge,
   Mic,
+  PanelTop,
   Plug,
   Radio,
   Speaker,
@@ -131,6 +132,7 @@ export function capabilityMeta(capability: string) {
 /** Icon for a device category on the canvas and in the palette. */
 export const PATCH_CATEGORY_ICONS: Record<string, LucideIcon> = {
   patchbay: Plug,
+  wallPanel: PanelTop,
   cable: Cable,
   interface: Usb,
   preamp: Gauge,
@@ -173,3 +175,50 @@ export function cableColorHex(color: string | null | undefined): string | null {
   // Allow a raw hex the studio typed in themselves.
   return /^#[0-9a-f]{3,8}$/i.test(color) ? color : null;
 }
+
+/* ── Device colour ──────────────────────────────────────────────
+   A card can be painted. The point is not decoration: a room
+   already colour-codes itself in real life - the monitor path,
+   the two tracking rigs, the box that is on loan and going back
+   on Friday - and the canvas is useless as a map if it cannot
+   say the same thing the room says.
+
+   Deliberately six. A palette long enough to need a scroll is a
+   palette where the colours stop meaning anything.
+   ────────────────────────────────────────────────────────────── */
+
+export const DEVICE_COLORS: { value: string; label: string; hex: string }[] = [
+  { value: "gold", label: "Gold", hex: "#fdb913" },
+  { value: "blue", label: "Blue", hex: "#5db4ff" },
+  { value: "green", label: "Green", hex: "#3ddc91" },
+  { value: "red", label: "Red", hex: "#ff5d5d" },
+  { value: "violet", label: "Violet", hex: "#c39bff" },
+  { value: "slate", label: "Slate", hex: "#8b8b95" },
+];
+
+const DEVICE_COLOR_BY_VALUE = new Map(DEVICE_COLORS.map((c) => [c.value, c]));
+
+/** Resolve a stored device colour to a hex, or null for the house style. */
+export function deviceColorHex(color: string | null | undefined): string | null {
+  if (!color) return null;
+  const known = DEVICE_COLOR_BY_VALUE.get(color.toLowerCase());
+  if (known) return known.hex;
+  // Expanded to six digits, because the card appends an alpha pair to this
+  // and "#abc80" is not a colour any browser will paint.
+  const short = /^#([0-9a-f])([0-9a-f])([0-9a-f])$/i.exec(color);
+  if (short) return `#${short[1]}${short[1]}${short[2]}${short[2]}${short[3]}${short[3]}`;
+  return /^#[0-9a-f]{6}$/i.test(color) ? color : null;
+}
+
+/**
+ * Where a section sits in the stack.
+ *
+ * React Flow adds 1000 to a selected node's z-index, so anything that must
+ * stay behind the gear even while it is selected has to start far enough
+ * below zero to survive that. A section that jumped in front of the rack
+ * the moment you clicked it would be unusable.
+ */
+export const GROUP_Z = -1200;
+
+/** The device category that means "a plate on a wall with tie lines behind it". */
+export const WALL_PANEL_CATEGORY = "wallPanel";

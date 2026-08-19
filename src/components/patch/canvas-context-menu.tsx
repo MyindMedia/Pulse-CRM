@@ -98,6 +98,10 @@ export function CanvasContextMenu({
             type="button"
             role="menuitem"
             disabled={item.disabled}
+            // The hint has nowhere to go on a menu row without doubling its
+            // height, and a thirteen-item list of zone kinds twice as tall is
+            // worse than a hint you have to hover for.
+            title={item.hint}
             onClick={() => {
               onClose();
               item.onSelect();

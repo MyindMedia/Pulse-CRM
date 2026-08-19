@@ -55,6 +55,8 @@ export type PatchEdgeData = {
   cableTagSource: string | null;
   cableTagTarget: string | null;
   isNormalled: boolean;
+  /** Permanent wiring in the wall between two panels, not a cable. */
+  isTieLine: boolean;
   animated: boolean;
   traceDimmed: boolean;
   /** No cable assigned from stock yet. */
@@ -278,10 +280,15 @@ export const PatchEdge = React.memo(function PatchEdge({
 }: EdgeProps & { data?: PatchEdgeData }) {
   const mode = data?.mode ?? "bubble";
   const normalled = data?.isNormalled;
+  /* Copper in a wall. Drawn like neither a patch cord nor a normal: it is
+     real wiring, so it gets a solid line, but it hangs off nothing and
+     swings from nothing, so it gets no physics and no jacket. */
+  const tie = data?.isTieLine;
+  const fixed = normalled || tie;
 
-  // Physics only in cable mode, and never for an implied normal, which is
-  // internal to the bay and has no cable to swing.
-  const swingOn = mode === "cable" && !normalled;
+  // Physics only in cable mode, and never for wiring that is inside a bay
+  // or inside a wall - neither has a cable to swing.
+  const swingOn = mode === "cable" && !fixed;
   const { sag, sway } = useCableSwing(
     sourceX,
     sourceY,
@@ -325,7 +332,7 @@ export const PatchEdge = React.memo(function PatchEdge({
     cableColorHex(data?.cableColor) ?? levelMeta(data?.signalLevel ?? "line").color;
 
   const animated = data?.animated && !normalled;
-  const isCable = mode === "cable" && !normalled;
+  const isCable = mode === "cable" && !fixed;
 
   // How far inboard the end labels sit, and how far they drop to clear the
   // cable itself. Scaled down on short runs so the two never collide.
@@ -361,8 +368,13 @@ export const PatchEdge = React.memo(function PatchEdge({
           // Everything else stays a solid jacket in every mode; direction
           // is carried by the light travelling along it, not by chopping
           // the cable into pieces.
-          strokeDasharray: normalled ? "2 4" : undefined,
-          opacity: data?.traceDimmed ? 0.12 : normalled ? 0.55 : 1,
+          // A normalled connection is implied by the bay; a tie line is
+          // buried in a wall. Neither is a cable anyone can point at, and
+          // both get a dash so the map cannot claim a patch cord exists.
+          // The tie line's dash is longer: it is real copper, just not
+          // copper you can reach.
+          strokeDasharray: normalled ? "2 4" : tie ? "10 5" : undefined,
+          opacity: data?.traceDimmed ? 0.12 : normalled ? 0.55 : tie ? 0.8 : 1,
           filter: selected ? `drop-shadow(0 0 5px ${stroke})` : undefined,
         }}
       />

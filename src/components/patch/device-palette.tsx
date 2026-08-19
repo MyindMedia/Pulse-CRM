@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/field";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { categoryMeta } from "@/components/studio/constants";
+import { WALL_PANEL_CATEGORY } from "./constants";
 import { Tooltip } from "@/components/ui/tooltip";
 
 export type PaletteItem = {
@@ -275,7 +276,11 @@ export function DevicePalette({
               key={profile._id}
               side="right"
               label={profile.name}
-              hint={`${profile.manufacturer} · ${profile.inputCount} inputs, ${profile.outputCount} outputs. Click or drag onto the canvas.`}
+              hint={
+                profile.category === WALL_PANEL_CATEGORY
+                  ? `${profile.manufacturer} · ${profile.portCount} connectors, each usable in either direction. Click or drag onto the canvas.`
+                  : `${profile.manufacturer} · ${profile.inputCount} inputs, ${profile.outputCount} outputs. Click or drag onto the canvas.`
+              }
             >
             <button
               type="button"
@@ -295,7 +300,12 @@ export function DevicePalette({
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-medium text-bone">{profile.name}</span>
                 <span className="block truncate font-meta text-[9px] uppercase tracking-wide text-steel">
-                  {profile.inputCount} in · {profile.outputCount} out
+                  {/* A hole in a plate is one hole. Counting it as an input
+                      AND an output, which is what a bidirectional jack does
+                      everywhere else, would claim a 4-way panel has eight. */}
+                  {profile.category === WALL_PANEL_CATEGORY
+                    ? `${profile.portCount} connectors`
+                    : `${profile.inputCount} in · ${profile.outputCount} out`}
                 </span>
               </span>
               {profile.scope === "studio" && (

@@ -2121,6 +2121,14 @@ export default defineSchema({
     label: v.string(), // "Rack 2 - Neve 1073 #3"
     notes: v.optional(v.string()),
     position: v.object({ x: v.number(), y: v.number() }),
+    /*
+     * Card colour on the canvas. A key from DEVICE_COLORS, or a raw hex
+     * someone typed. Unset means the default card, and most gear should
+     * stay that way: colour only says anything while it is scarce. What it
+     * is for is the thing the room already colour-codes in real life -
+     * the monitor path, the two tracking rigs, the box that is on loan.
+     */
+    color: v.optional(v.string()),
     normalling: v.optional(normallingMode), // patchbays override the profile default
     /*
      * Two photos, because they answer two different questions.
@@ -2191,6 +2199,50 @@ export default defineSchema({
     .index("by_patchSpace", ["patchSpaceId"])
     .index("by_org", ["orgId"]),
 
+  // ── Group - a coloured section of canvas that sits UNDER the devices,
+  //    the way a strip of tape across the desk marks off "monitor path"
+  //    from "tracking path". Membership is geometric, not a field on the
+  //    device: whatever sits inside the rectangle belongs to it. Drag a
+  //    preamp in and it is in; drag it out and it is out. A stored member
+  //    list would be a second source of truth about where gear is, and it
+  //    would be wrong within a day of anyone rearranging the rig.
+  //
+  //    Carries no ports, spends no inventory, never reaches a run list.
+  patchGroups: defineTable({
+    orgId: v.string(),
+    patchSpaceId: v.id("patchSpaces"),
+    name: v.string(),
+    /*
+     * What kind of place this is: a console position, a vocal booth, a
+     * machine room, the wall panel by the door. Stored loose rather than as
+     * a literal union because studios name their own spaces and the list
+     * will grow; the canvas resolves an unknown kind to a plain zone.
+     *
+     * This is what makes a section worth having over a coloured rectangle.
+     * A run leaving a zone is a run leaving a ROOM, and that is the thing
+     * that needs a tie line, a wall panel and a long cable rather than a
+     * patch cord off the desk.
+     */
+    kind: v.string(),
+    /*
+     * The inventory room this zone stands for, when it stands for one.
+     *
+     * A studio big enough to need room-to-room patching already has its
+     * rooms in the asset register, and two names for one room is how a
+     * patch map and an asset register start disagreeing. Zones that are not
+     * rooms - a console position, a rack, a wall panel - leave this unset.
+     */
+    roomId: v.optional(v.id("rooms")),
+    /** Sticky colour key, resolved to a fill by the canvas. */
+    color: v.string(),
+    position: v.object({ x: v.number(), y: v.number() }),
+    size: v.object({ width: v.number(), height: v.number() }),
+    createdAt: v.number(),
+    createdBy: v.optional(v.string()),
+  })
+    .index("by_patchSpace", ["patchSpaceId"])
+    .index("by_org", ["orgId"]),
+
   // ── Port - one input or output on one device instance. Channel level
   //    throughout: a DB25 snake is eight rows here, never one. Ports are
   //    materialised from the profile's portTemplate at placement time so a
@@ -2228,6 +2280,14 @@ export default defineSchema({
     fromPortId: v.id("ports"),
     toPortId: v.id("ports"),
     isNormalled: v.boolean(),
+    /*
+     * A tie line: permanent copper in the wall between two panels, not a
+     * cable anyone patches. It spends no stock, survives every repatch, and
+     * is the reason a mic in the booth can reach a preamp in the control
+     * room at all. Kept apart from ordinary runs because a run sheet that
+     * tells an engineer to "patch" the building's own wiring is wrong.
+     */
+    isTieLine: v.optional(v.boolean()),
     // The cable stock row this run is drawn from.
     cableId: v.optional(v.id("equipment")),
     // Labelling. A cable is usually labelled in three places: once in the
@@ -2277,6 +2337,7 @@ export default defineSchema({
       v.literal("port"),
       v.literal("connection"),
       v.literal("note"),
+      v.literal("group"),
     ),
     entityId: v.string(),
     changeType: v.union(

@@ -168,6 +168,7 @@ export const runList = query({
         return {
           _id: edge._id,
           isNormalled: edge.isNormalled,
+          isTieLine: !!edge.isTieLine,
           source: fromDevice?.label ?? "Missing device",
           sourcePort: from?.label ?? "Missing port",
           sourceConnector: from?.connector ?? null,
@@ -182,8 +183,11 @@ export const runList = query({
           color: edge.cableColor ?? cable?.cableSpec?.color ?? null,
           lengthFt: edge.cableLengthFt ?? cable?.cableSpec?.lengthFt ?? null,
           notes: edge.notes ?? null,
-          // A run with no cable assigned is a run nobody can find later.
-          unassigned: !edge.cableId && !edge.isNormalled,
+          /* A run with no cable assigned is a run nobody can find later.
+             A tie line is exempt: there was never a cable to assign, and
+             flagging the building's own wiring as unfinished work would
+             train people to ignore the flag. */
+          unassigned: !edge.cableId && !edge.isNormalled && !edge.isTieLine,
           // A dangling reference means a device or port was deleted out
           // from under this edge. Surfaced rather than hidden.
           orphaned: !from || !to || !fromDevice || !toDevice,

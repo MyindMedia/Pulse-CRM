@@ -104,6 +104,7 @@ type RunRow = {
   color: string | null;
   lengthFt: number | null;
   isNormalled: boolean;
+  isTieLine: boolean;
   unassigned: boolean;
   notes: string | null;
 };
@@ -216,6 +217,11 @@ function RunSheet({
               <td>
                 {run.isNormalled ? (
                   <span className="run-sheet-port">normalled at the bay</span>
+                ) : run.isTieLine ? (
+                  /* Nobody plugs in a tie line. It is in the wall, and a run
+                     sheet that tells an engineer to patch the building is
+                     one they will stop trusting. */
+                  <span className="run-sheet-port">tie line, already in the wall</span>
                 ) : run.unassigned ? (
                   /* An empty cell reads as "nothing to do here". A run with no
                      cable chosen is the opposite: it is the work. */

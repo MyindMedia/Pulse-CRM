@@ -30,6 +30,7 @@ import {
   GitBranch,
   Loader2,
   Cable as CableIcon,
+  Frame,
   Keyboard,
   LayoutGrid,
   Maximize2,
@@ -59,6 +60,16 @@ import { PatchEdge, type PatchEdgeData, type PatchRenderMode } from "./patch-edg
 import { announceCableJolt } from "./cable-jolt";
 import { PanelRail } from "./panel-rail";
 import { NoteNode, NOTE_COLORS, NOTE_DEFAULT_SIZE, type NoteNodeData } from "./note-node";
+import {
+  GroupNode,
+  GROUP_COLORS,
+  GROUP_DEFAULT_SIZE,
+  GROUP_DRAG_HANDLE,
+  GROUP_PADDING,
+  type GroupNodeData,
+  type ZoneStatus,
+} from "./group-node";
+import { ZONE_KINDS, zoneKind } from "./zone-kinds";
 import { CanvasContextMenu, type MenuState, type MenuItem } from "./canvas-context-menu";
 import { useCollapsiblePanel } from "@/lib/use-collapsible-panel";
 import { CablePickerDialog } from "./cable-picker-dialog";
@@ -66,9 +77,21 @@ import { autoArrange } from "./auto-arrange";
 import { DevicePalette, type PaletteItem, type PaletteProfile } from "./device-palette";
 import { PropertiesPanel, type PatchSelection } from "./properties-panel";
 import { CustomDeviceDialog } from "./custom-device-dialog";
-import { ANIMATION_CONNECTION_LIMIT, GRID } from "./constants";
+import {
+  ANIMATION_CONNECTION_LIMIT,
+  DEVICE_COLORS,
+  GRID,
+  GROUP_Z,
+  WALL_PANEL_CATEGORY,
+  deviceColorHex,
+} from "./constants";
 
-const nodeTypes = { device: DeviceNode, note: NoteNode };
+const nodeTypes = { device: DeviceNode, note: NoteNode, group: GroupNode };
+
+/* What a card is assumed to be before the browser has measured it. Only
+   used while a node is one frame old, so it never has to be exact - it
+   just has to stop a brand new section being drawn around nothing. */
+const ASSUMED_DEVICE_SIZE = { width: 264, height: 160 };
 const edgeTypes = { patch: PatchEdge };
 
 type GraphDevice = {
@@ -77,6 +100,7 @@ type GraphDevice = {
   notes?: string;
   normalling?: string;
   position: { x: number; y: number };
+  color?: string;
   category: string;
   manufacturer: string;
   phantomSensitive: boolean;
@@ -103,12 +127,14 @@ type GraphConnection = {
   fromPortId: string;
   toPortId: string;
   isNormalled: boolean;
+  isTieLine?: boolean;
   cableId?: Id<"equipment">;
   cableTag?: string;
   cableTagSource?: string;
   cableTagTarget?: string;
   cableLabelMode?: "single" | "perEnd";
   cableColor?: string;
+  cableFit?: "exact" | "compatible" | "vague" | "mismatch";
   color: string | null;
   lengthFt: number | null;
   notes?: string;
@@ -122,12 +148,100 @@ type GraphNote = {
   size?: { width: number; height: number };
 };
 
+type GraphGroup = {
+  _id: Id<"patchGroups">;
+  name: string;
+  kind: string;
+  roomId?: Id<"rooms">;
+  color: string;
+  position: { x: number; y: number };
+  size: { width: number; height: number };
+};
+
+type GraphRoom = { _id: Id<"rooms">; name: string; roomType: string | null };
+
 type GraphPayload = {
   space: { _id: Id<"patchSpaces">; name: string };
   devices: GraphDevice[];
   connections: GraphConnection[];
   annotations: GraphNote[];
+  groups: GraphGroup[];
+  rooms: GraphRoom[];
 };
+
+/** The rectangle a node occupies, using the browser's measurement if there is one. */
+function nodeRect(node: Node) {
+  // Measured first, then whatever the node declared, then a guess. A section
+  // declares its own size, so it is never guessed at even in the frame after
+  // the graph is rebuilt and the browser has not measured anything yet.
+  const width = node.measured?.width ?? node.width ?? ASSUMED_DEVICE_SIZE.width;
+  const height = node.measured?.height ?? node.height ?? ASSUMED_DEVICE_SIZE.height;
+  return { x: node.position.x, y: node.position.y, width, height };
+}
+
+/**
+ * What is plugged in inside a zone, and what has to leave it.
+ *
+ * Worked out from where things sit, the same way membership is, so a
+ * device dragged into the booth starts counting as being in the booth
+ * without anyone telling the canvas twice.
+ *
+ * The number that earns its place is `leaving`: a run with one end in
+ * here and the other end elsewhere crosses a wall, and crossing a wall
+ * means a tie line and a panel rather than a patch cord off the desk.
+ */
+function zoneStatus(
+  portIds: Set<string>,
+  deviceCount: number,
+  connections: { fromPortId: string; toPortId: string; isTieLine?: boolean }[],
+): ZoneStatus {
+  const patched = new Set<string>();
+  let leaving = 0;
+  let onTieLines = 0;
+  for (const c of connections) {
+    const fromIn = portIds.has(c.fromPortId);
+    const toIn = portIds.has(c.toPortId);
+    if (fromIn) patched.add(c.fromPortId);
+    if (toIn) patched.add(c.toPortId);
+    // Exactly one end inside: this run crosses the edge of the zone.
+    if (fromIn !== toIn) {
+      leaving++;
+      if (c.isTieLine) onTieLines++;
+    }
+  }
+  return {
+    devices: deviceCount,
+    ports: portIds.size,
+    patched: patched.size,
+    free: portIds.size - patched.size,
+    leaving,
+    onTieLines,
+  };
+}
+
+/**
+ * Which nodes sit inside a section.
+ *
+ * By centre, not by overlap: a card half in and half out belongs to
+ * whichever section it mostly sits in, which is the answer anyone
+ * looking at the screen would give. Sections themselves are never
+ * members - nesting one inside another would make a drag ambiguous.
+ */
+function zoneMembers(deviceNodes: Node[], rect: { x: number; y: number; width: number; height: number }) {
+  return new Set(nodesInside(deviceNodes, rect).map((n) => n.id));
+}
+
+function nodesInside(nodes: Node[], rect: { x: number; y: number; width: number; height: number }) {
+  return nodes.filter((node) => {
+    if (node.type === "group") return false;
+    const box = nodeRect(node);
+    const cx = box.x + box.width / 2;
+    const cy = box.y + box.height / 2;
+    return (
+      cx >= rect.x && cx <= rect.x + rect.width && cy >= rect.y && cy <= rect.y + rect.height
+    );
+  });
+}
 
 /**
  * Zoom controls. React Flow ships its own, but they carry only bare `title`
@@ -270,6 +384,7 @@ const SHORTCUTS: { keys: string; what: string }[] = [
   { keys: "cmd+z", what: "Undo" },
   { keys: "cmd+shift+z", what: "Redo" },
   { keys: "cmd+a", what: "Select every device" },
+  { keys: "cmd+g", what: "Group the selection into a section" },
   { keys: "backspace", what: "Remove the selection" },
   { keys: "esc", what: "Clear the selection" },
   { keys: "f", what: "Fit the patch on screen" },
@@ -304,6 +419,12 @@ function PatchCanvasInner({
     [graph],
   );
 
+  /** And which are sections. Three kinds of node, three tables behind them. */
+  const groupIds = React.useMemo(
+    () => new Set((graph?.groups ?? []).map((g) => g._id as string)),
+    [graph],
+  );
+
   const placeDevice = useMutation(api.patchManager.placeDevice);
   const moveDevice = useMutation(api.patchManager.moveDevice);
   const removeDevice = useMutation(api.patchManager.removeDevice);
@@ -313,6 +434,10 @@ function PatchCanvasInner({
   const addNote = useMutation(api.patchManager.addNote);
   const updateNote = useMutation(api.patchManager.updateNote);
   const removeNote = useMutation(api.patchManager.removeNote);
+  const setDeviceColor = useMutation(api.patchManager.setDeviceColor);
+  const addGroup = useMutation(api.patchManager.addGroup);
+  const updateGroup = useMutation(api.patchManager.updateGroup);
+  const removeGroup = useMutation(api.patchManager.removeGroup);
 
   const { screenToFlowPosition, fitView, getNodes } = useReactFlow();
 
@@ -383,6 +508,42 @@ function PatchCanvasInner({
     }
     return set;
   }, [graph]);
+
+  /*
+   * What is on the far end of every wall panel connector.
+   *
+   * Only panels get this. On a preamp the answer is obvious from the card;
+   * on a plate screwed to a wall, "XLR 3" says nothing at all until you know
+   * it lands on the control room panel and carries the talkback.
+   */
+  const portPeers = React.useMemo(() => {
+    const out: Record<string, { label: string; tie: boolean }[]> = {};
+    if (!graph) return out;
+    for (const c of graph.connections) {
+      const from = portIndex.get(c.fromPortId);
+      const to = portIndex.get(c.toPortId);
+      if (!from || !to) continue;
+      if (from.device.category === WALL_PANEL_CATEGORY) {
+        (out[c.fromPortId] ??= []).push({
+          label: `${to.device.label} · ${to.port.label}`,
+          tie: !!c.isTieLine,
+        });
+      }
+      if (to.device.category === WALL_PANEL_CATEGORY) {
+        (out[c.toPortId] ??= []).push({
+          label: `${from.device.label} · ${from.port.label}`,
+          tie: !!c.isTieLine,
+        });
+      }
+    }
+    return out;
+  }, [graph, portIndex]);
+
+  /** Room names, for the zones that stand for a room. */
+  const roomsById = React.useMemo(
+    () => new Map((graph?.rooms ?? []).map((r) => [r._id as string, r] as const)),
+    [graph],
+  );
 
   // The travelling arrows are SMIL, which CSS cannot switch off, so the
   // preference has to be read here and kill the animation at the source.
@@ -466,6 +627,9 @@ function PatchCanvasInner({
   // echo of the pre-drag position, so live drags are held back.
   const draggingRef = React.useRef<Set<string>>(new Set());
 
+  /** A section just created, waiting for the graph to come back with it. */
+  const pendingGroupRef = React.useRef<string | null>(null);
+
   React.useEffect(() => {
     if (!graph) return;
     setNodes((previous) => {
@@ -478,6 +642,12 @@ function PatchCanvasInner({
           type: "device",
           position: dragging && existing ? existing.position : device.position,
           selected: existing?.selected ?? false,
+          /* Carry the browser's measurement across the rebuild. Dropping it
+             makes every card an unknown size until it is measured again, and
+             anything that reasons about where things ARE - which devices a
+             section contains, how big a box to draw round a selection - would
+             be working off a guess for those frames. */
+          measured: existing?.measured,
           data: {
             label: device.label,
             category: device.category,
@@ -493,6 +663,10 @@ function PatchCanvasInner({
               !device.specVerified &&
               (device.specSource === "ai" || device.specSource === "category"),
             traceDimmed: !!tracedDevices && !tracedDevices.has(device._id),
+            color: device.color ?? null,
+            // Only panels read this, and handing it to every card would put a
+            // whole-canvas object on forty nodes for nothing.
+            portPeers: device.category === WALL_PANEL_CATEGORY ? portPeers : undefined,
           } satisfies DeviceNodeData,
         } as Node;
       });
@@ -507,6 +681,7 @@ function PatchCanvasInner({
           type: "note",
           position: dragging && existing ? existing.position : note.position,
           selected: existing?.selected ?? false,
+          measured: existing?.measured,
           draggable: canEdit,
           data: {
             text: note.text,
@@ -519,9 +694,89 @@ function PatchCanvasInner({
         } as Node;
       });
 
-      return [...noteNodes, ...deviceNodes];
+      /* Sections. They are nodes so they can be dragged, resized and
+         selected like anything else, but three things keep them out of the
+         way of the gear:
+
+           - a z-index far enough below zero that React Flow's +1000 for a
+             selected node still leaves them behind the rack,
+           - no pointer events on the body, so the canvas underneath keeps
+             its marquee-select and its right-click menu,
+           - a drag handle limited to the title tab.
+
+         Listed first as well, which is what decides the order when two
+         things share a z-index. */
+      const groupNodes = (graph.groups ?? []).map((group) => {
+        const existing = prevById.get(group._id);
+        const dragging = draggingRef.current.has(group._id);
+        const position = dragging && existing ? existing.position : group.position;
+        return {
+          id: group._id,
+          type: "group",
+          position,
+          selected: existing?.selected ?? false,
+          measured: existing?.measured,
+          draggable: canEdit,
+          dragHandle: `.${GROUP_DRAG_HANDLE}`,
+          zIndex: GROUP_Z,
+          width: group.size.width,
+          height: group.size.height,
+          style: { pointerEvents: "none" as const },
+          data: {
+            name: group.name,
+            kind: group.kind,
+            color: group.color,
+            width: group.size.width,
+            height: group.size.height,
+            status: (() => {
+              const rect = { ...position, ...group.size };
+              const inside = nodesInside(deviceNodes, rect);
+              const insideIds = new Set(inside.map((n) => n.id));
+              const portIds = new Set<string>();
+              for (const device of graph.devices) {
+                if (!insideIds.has(device._id)) continue;
+                for (const p of device.ports) portIds.add(p._id);
+              }
+              return zoneStatus(portIds, inside.length, graph.connections);
+            })(),
+            roomName: group.roomId ? roomsById.get(group.roomId)?.name ?? null : null,
+            canEdit,
+            onRename: (name: string) => void updateGroup({ id: group._id, name }),
+          } satisfies GroupNodeData,
+        } as Node;
+      });
+
+      return [...groupNodes, ...noteNodes, ...deviceNodes];
     });
-  }, [graph, connectedPorts, tracedDevices, setNodes, canEdit, updateNote]);
+  }, [
+    graph,
+    connectedPorts,
+    tracedDevices,
+    setNodes,
+    canEdit,
+    updateNote,
+    updateGroup,
+    portPeers,
+    roomsById,
+  ]);
+
+  /*
+   * A section that has just landed takes the selection, on its own, so the
+   * properties panel opens on its name field.
+   *
+   * This has to be its own effect. Consuming the ref inside the setNodes
+   * updater looks tidier and is wrong: React calls updaters twice in
+   * development to catch exactly this, and the second call - the one whose
+   * result is kept - would find the ref already cleared and select nothing.
+   */
+  React.useEffect(() => {
+    const pending = pendingGroupRef.current;
+    if (!pending) return;
+    if (!(graph?.groups ?? []).some((g) => g._id === pending)) return;
+    pendingGroupRef.current = null;
+    setNodes((prev) => prev.map((n) => ({ ...n, selected: n.id === pending })));
+    setEdges((prev) => prev.map((e) => ({ ...e, selected: false })));
+  }, [graph, setNodes, setEdges]);
 
   React.useEffect(() => {
     if (!graph) return;
@@ -555,9 +810,10 @@ function PatchCanvasInner({
             cableTagSource: c.cableTagSource ?? null,
             cableTagTarget: c.cableTagTarget ?? null,
             isNormalled: c.isNormalled,
+            isTieLine: !!c.isTieLine,
             animated: animationOn,
             traceDimmed: dimmed,
-            unassigned: !c.cableId && !c.isNormalled,
+            unassigned: !c.cableId && !c.isNormalled && !c.isTieLine,
           } satisfies PatchEdgeData,
         } as Edge;
       });
@@ -596,6 +852,83 @@ function PatchCanvasInner({
     if (!graph) return null;
 
     if (selectedIds.nodes.length === 1 && selectedIds.edges.length === 0) {
+      const group = graph.groups?.find((g) => g._id === selectedIds.nodes[0]);
+      if (group) {
+        /* The connector readout. Built here rather than on the node because
+           it is only ever wanted for the one zone someone is looking at, and
+           building it for every zone on every graph tick would be work
+           nobody asked for. */
+        const deviceNodes = getNodes().filter((n) => n.type === "device");
+        const insideIds = zoneMembers(deviceNodes, { ...group.position, ...group.size });
+
+        const portIds = new Set<string>();
+        const portOwner = new Map<string, { device: string; port: string }>();
+        for (const device of graph.devices) {
+          if (!insideIds.has(device._id)) continue;
+          for (const p of device.ports) {
+            portIds.add(p._id);
+            portOwner.set(p._id, { device: device.label, port: p.label });
+          }
+        }
+
+        // Which zone every other device sits in, so a crossing run can say
+        // where it is going rather than just that it goes somewhere.
+        const zoneOf = new Map<string, string>();
+        for (const other of graph.groups) {
+          if (other._id === group._id) continue;
+          for (const id of zoneMembers(deviceNodes, { ...other.position, ...other.size })) {
+            zoneOf.set(id, other.name);
+          }
+        }
+
+        const patched = new Set<string>();
+        const crossing: {
+          _id: string;
+          from: string;
+          to: string;
+          toZone: string | null;
+          tie: boolean;
+          fit: string | null;
+        }[] = [];
+        for (const c of graph.connections) {
+          const fromIn = portIds.has(c.fromPortId);
+          const toIn = portIds.has(c.toPortId);
+          if (fromIn) patched.add(c.fromPortId);
+          if (toIn) patched.add(c.toPortId);
+          if (fromIn === toIn) continue;
+          const from = portIndex.get(c.fromPortId);
+          const to = portIndex.get(c.toPortId);
+          // Read from the zone outwards, whichever way the signal runs.
+          const near = fromIn ? from : to;
+          const far = fromIn ? to : from;
+          crossing.push({
+            _id: c._id,
+            from: `${near?.device.label ?? "?"} · ${near?.port.label ?? "?"}`,
+            to: `${far?.device.label ?? "?"} · ${far?.port.label ?? "?"}`,
+            toZone: far ? zoneOf.get(far.device._id) ?? null : null,
+            tie: !!c.isTieLine,
+            fit: c.cableFit ?? null,
+          });
+        }
+
+        const free = [...portIds]
+          .filter((id) => !patched.has(id))
+          .map((id) => portOwner.get(id)!)
+          .sort((a, b) => a.device.localeCompare(b.device) || a.port.localeCompare(b.port));
+
+        return {
+          kind: "group",
+          _id: group._id,
+          name: group.name,
+          zoneKind: group.kind,
+          roomId: group.roomId ?? null,
+          rooms: graph.rooms,
+          color: group.color,
+          status: zoneStatus(portIds, insideIds.size, graph.connections),
+          crossing,
+          free,
+        };
+      }
       const note = graph.annotations.find((n) => n._id === selectedIds.nodes[0]);
       if (note) {
         return { kind: "note", _id: note._id, text: note.text, color: note.color };
@@ -621,6 +954,7 @@ function PatchCanvasInner({
         specNote: device.specNote,
         equipment: device.equipment,
         phantomRiskByPort: phantomRiskByPort.get(device._id) ?? {},
+        color: device.color ?? null,
       };
     }
 
@@ -646,7 +980,7 @@ function PatchCanvasInner({
     }
 
     return null;
-  }, [graph, selectedIds, portIndex, phantomRiskByPort]);
+  }, [graph, selectedIds, portIndex, phantomRiskByPort, getNodes]);
 
   /* ── Mutations with history ────────────────────────────────── */
 
@@ -678,10 +1012,23 @@ function PatchCanvasInner({
       // allowed and warned about later, per the spec.
       if (connection.sourceHandle === connection.targetHandle) return;
 
+      /*
+       * Panel to panel is the wall, not a patch.
+       *
+       * Nobody runs a cable from one wall plate to another across a
+       * building; that copper was pulled when the place was wired. Recording
+       * it as an ordinary run would spend cable stock the studio never
+       * spent and put "plug in the building" on the run sheet.
+       */
+      const isTieLine =
+        from.device.category === WALL_PANEL_CATEGORY &&
+        to.device.category === WALL_PANEL_CATEGORY;
+
       try {
         const args = {
           fromPortId: connection.sourceHandle as Id<"ports">,
           toPortId: connection.targetHandle as Id<"ports">,
+          ...(isTieLine ? { isTieLine: true } : {}),
         };
         // Patching an input replaces whatever was in it, which is correct at
         // the bay but means undo has to put the displaced run back or it is a
@@ -693,9 +1040,14 @@ function PatchCanvasInner({
         // than closing over the first one. Otherwise undo after a redo
         // targets a row that no longer exists.
         const live = { id: (await connectPorts(args)) as Id<"connections"> };
-        // Ask now, while the engineer is still holding the cable. Asking
-        // later, from a table, means guessing.
-        setAskCableFor(live.id);
+        if (isTieLine) {
+          // A tie line spends no stock, so there is nothing to ask about.
+          toast.success("Recorded as a tie line between the two panels.");
+        } else {
+          // Ask now, while the engineer is still holding the cable. Asking
+          // later, from a table, means guessing.
+          setAskCableFor(live.id);
+        }
         pushHistory({
           label: "patch",
           undo: async () => {
@@ -764,8 +1116,11 @@ function PatchCanvasInner({
     // Notes and devices share the node list but not the table they came from,
     // and deleting a sticky should never raise a "and every cable on it"
     // confirm for something that has no cables.
-    const nodeIds = selectedNodeIds.filter((id) => !noteIds.has(id));
+    const nodeIds = selectedNodeIds.filter((id) => !noteIds.has(id) && !groupIds.has(id));
     const doomedNotes = selectedNodeIds.filter((id) => noteIds.has(id));
+    // Deleting a section takes the rectangle up, never the gear standing on
+    // it. "Ungroup" that removed half a rack would be a trap.
+    const doomedGroups = selectedNodeIds.filter((id) => groupIds.has(id));
 
     const deviceCount = nodeIds.length;
     if (
@@ -795,9 +1150,22 @@ function PatchCanvasInner({
         noteSnapshots.push(await removeNote({ id: id as Id<"patchAnnotations"> }));
       }
 
+      const groupSnapshots: {
+        name: string;
+        color: string;
+        position: { x: number; y: number };
+        size: { width: number; height: number };
+      }[] = [];
+      for (const id of doomedGroups) {
+        groupSnapshots.push(await removeGroup({ id: id as Id<"patchGroups"> }));
+      }
+
       pushHistory({
         label: "delete",
         undo: async () => {
+          for (const group of groupSnapshots) {
+            await addGroup({ patchSpaceId, ...group });
+          }
           for (const note of noteSnapshots) {
             await addNote({
               patchSpaceId,
@@ -839,6 +1207,9 @@ function PatchCanvasInner({
     addNote,
     patchSpaceId,
     noteIds,
+    groupIds,
+    removeGroup,
+    addGroup,
   ]);
 
   // One in-flight history operation at a time. Key repeat on a held Cmd+Z
@@ -942,10 +1313,28 @@ function PatchCanvasInner({
             size: { width, height },
           });
         }
+        // Dragging a section's top or left edge changes where it starts as
+        // well as how big it is, and that arrives as a separate position
+        // change no drag-stop will ever fire for. Both are written here.
+        if (
+          change.type === "dimensions" &&
+          change.resizing === false &&
+          change.dimensions &&
+          canEdit &&
+          groupIds.has(change.id)
+        ) {
+          const { width, height } = change.dimensions;
+          const live = getNodes().find((n) => n.id === change.id);
+          void updateGroup({
+            id: change.id as Id<"patchGroups">,
+            size: { width, height },
+            position: live?.position,
+          });
+        }
       }
       onNodesChange(changes);
     },
-    [onNodesChange, canEdit, updateNote, noteIds],
+    [onNodesChange, canEdit, updateNote, noteIds, groupIds, updateGroup, getNodes],
   );
 
   const persistPositions = React.useCallback(
@@ -954,11 +1343,14 @@ function PatchCanvasInner({
       setSaveState("saving");
       try {
         await Promise.all(
-          // A note and a device both moved, but they live in different tables.
+          // A note, a section and a device all moved, and all three live in
+          // different tables.
           moved.map((n) =>
             n.type === "note"
               ? updateNote({ id: n.id as Id<"patchAnnotations">, position: n.position })
-              : moveDevice({ id: n.id as Id<"deviceInstances">, position: n.position }),
+              : n.type === "group"
+                ? updateGroup({ id: n.id as Id<"patchGroups">, position: n.position })
+                : moveDevice({ id: n.id as Id<"deviceInstances">, position: n.position }),
           ),
         );
         setSaveState("saved");
@@ -972,7 +1364,7 @@ function PatchCanvasInner({
         for (const n of moved) draggingRef.current.delete(n.id);
       }
     },
-    [canEdit, moveDevice, updateNote],
+    [canEdit, moveDevice, updateNote, updateGroup],
   );
 
   /*
@@ -1010,9 +1402,51 @@ function PatchCanvasInner({
     dragVelocityRef.current = { vx: 0, vy: 0 };
   }, []);
 
+  /*
+   * Dragging a section takes its contents with it.
+   *
+   * Membership is worked out once, when the drag starts, and held for the
+   * length of the drag. Recomputing it every frame would mean a card that
+   * slid out of the rectangle mid-throw stopped moving halfway across the
+   * canvas, which looks exactly like a bug.
+   */
+  const groupDragRef = React.useRef<{
+    id: string;
+    from: { x: number; y: number };
+    members: { id: string; type?: string; from: { x: number; y: number } }[];
+  } | null>(null);
+
+  const handleNodeDragStart = React.useCallback(
+    (_event: MouseEvent | TouchEvent, node: Node) => {
+      if (node.type !== "group") return;
+      const rect = nodeRect(node);
+      const members = nodesInside(getNodes(), rect).map((n) => ({
+        id: n.id,
+        type: n.type,
+        from: { ...n.position },
+      }));
+      for (const member of members) draggingRef.current.add(member.id);
+      groupDragRef.current = { id: node.id, from: { ...node.position }, members };
+    },
+    [getNodes],
+  );
+
   const handleNodeDrag = React.useCallback(
-    (_event: MouseEvent | TouchEvent, node: Node) => trackDragVelocity(node),
-    [trackDragVelocity],
+    (_event: MouseEvent | TouchEvent, node: Node) => {
+      trackDragVelocity(node);
+      const carry = groupDragRef.current;
+      if (!carry || carry.id !== node.id) return;
+      const dx = node.position.x - carry.from.x;
+      const dy = node.position.y - carry.from.y;
+      const byId = new Map(carry.members.map((m) => [m.id, m.from]));
+      setNodes((prev) =>
+        prev.map((n) => {
+          const from = byId.get(n.id);
+          return from ? { ...n, position: { x: from.x + dx, y: from.y + dy } } : n;
+        }),
+      );
+    },
+    [trackDragVelocity, setNodes],
   );
 
   const handleSelectionDrag = React.useCallback(
@@ -1026,6 +1460,30 @@ function PatchCanvasInner({
     async (_event: MouseEvent | TouchEvent, node: Node, dragged: Node[]) => {
       // Multi-select drags report every moved node, so persist all of them.
       const moved = dragged?.length ? dragged : [node];
+      /* Everything a section carried moved too, and React Flow knows nothing
+         about it, so those rows have to be written here.
+
+         The positions are recomputed from the drag rather than read back off
+         the canvas. A React state update queued on the last frame of a drag
+         has not necessarily reached the store by the time the mouse comes up,
+         and re-reading would then save every carried device at the position
+         it started from - which looks exactly like the drag being ignored. */
+      const carry = groupDragRef.current;
+      if (carry && carry.id === node.id) {
+        const dx = node.position.x - carry.from.x;
+        const dy = node.position.y - carry.from.y;
+        moved.push(
+          ...carry.members.map(
+            (member) =>
+              ({
+                id: member.id,
+                type: member.type,
+                position: { x: member.from.x + dx, y: member.from.y + dy },
+              }) as Node,
+          ),
+        );
+        groupDragRef.current = null;
+      }
       releaseJolt(moved);
       await persistPositions(moved);
     },
@@ -1081,6 +1539,131 @@ function PatchCanvasInner({
     [canEdit, addNote, removeNote, patchSpaceId, pushHistory],
   );
 
+  /* ── Sections ───────────────────────────────────────────────
+     A coloured rectangle under the gear, named after whatever the
+     devices standing on it have in common. Membership is where a
+     device sits, so a section is created by drawing one around the
+     things you already selected rather than by filling a list.
+     ──────────────────────────────────────────────────────────── */
+
+
+  /** The colour to reach for next, so two sections side by side never match. */
+  const nextGroupColor = React.useCallback(() => {
+    const used = new Set((graph?.groups ?? []).map((g) => g.color));
+    return (GROUP_COLORS.find((c) => !used.has(c.key)) ?? GROUP_COLORS[(graph?.groups?.length ?? 0) % GROUP_COLORS.length]).key;
+  }, [graph]);
+
+  const createGroup = React.useCallback(
+    async (
+      position: { x: number; y: number },
+      size: { width: number; height: number },
+      kind?: string,
+    ) => {
+      if (!canEdit) return;
+      // A typed zone takes its kind's colour, so a canvas of rooms is
+      // legible before anyone tunes it. An untyped one keeps rotating.
+      const color = kind ? zoneKind(kind).color : nextGroupColor();
+      const name = kind ? zoneKind(kind).label : undefined;
+      try {
+        const id = (await addGroup({
+          patchSpaceId,
+          position,
+          size,
+          kind,
+          name,
+          color,
+        })) as Id<"patchGroups">;
+        // Selecting it opens the properties panel on the name field, which is
+        // the next thing anyone wants after drawing a box round six preamps.
+        // It cannot be selected until the graph comes back with it, so the
+        // id is left here for the sync pass to pick up.
+        pendingGroupRef.current = id;
+        setEdges((prev) => prev.map((e) => ({ ...e, selected: false })));
+        pushHistory({
+          label: "group",
+          undo: async () => {
+            await removeGroup({ id });
+          },
+          redo: async () => {
+            pendingGroupRef.current = (await addGroup({
+              patchSpaceId,
+              position,
+              size,
+              kind,
+              name,
+              color,
+            })) as Id<"patchGroups">;
+          },
+        });
+      } catch (error) {
+        toast.error(errorMessage(error, "Could not add a section."));
+      }
+    },
+    [canEdit, addGroup, removeGroup, patchSpaceId, pushHistory, nextGroupColor, setEdges],
+  );
+
+  /** Draw a section around whatever is selected, with room to breathe. */
+  const groupSelection = React.useCallback(async () => {
+    if (!canEdit) return;
+    const chosen = getNodes().filter((n) => n.selected && n.type !== "group");
+    if (chosen.length === 0) {
+      toast("Select the devices you want to group first, then group them.");
+      return;
+    }
+
+    let minX = Infinity;
+    let minY = Infinity;
+    let maxX = -Infinity;
+    let maxY = -Infinity;
+    for (const node of chosen) {
+      const box = nodeRect(node);
+      minX = Math.min(minX, box.x);
+      minY = Math.min(minY, box.y);
+      maxX = Math.max(maxX, box.x + box.width);
+      maxY = Math.max(maxY, box.y + box.height);
+    }
+
+    // Extra room at the top: that is where the title tab hangs, and a tab
+    // sitting on top of a card is a tab nobody can grab.
+    await createGroup(
+      { x: minX - GROUP_PADDING.x, y: minY - GROUP_PADDING.y },
+      {
+        width: maxX - minX + GROUP_PADDING.x * 2,
+        height: maxY - minY + GROUP_PADDING.y + GROUP_PADDING.x,
+      },
+    );
+  }, [canEdit, getNodes, createGroup]);
+
+  /** Paint cards. Takes a list because colouring a signal path one box at a time is a chore. */
+  const paintDevices = React.useCallback(
+    async (ids: string[], color: string | null) => {
+      if (!canEdit || ids.length === 0) return;
+      const before = new Map(
+        (graph?.devices ?? [])
+          .filter((d) => ids.includes(d._id))
+          .map((d) => [d._id, d.color ?? null] as const),
+      );
+      try {
+        await setDeviceColor({ ids: ids as Id<"deviceInstances">[], color });
+        pushHistory({
+          label: "colour",
+          undo: async () => {
+            // Each card goes back to the colour it had, not to one shared one.
+            for (const [id, was] of before) {
+              await setDeviceColor({ ids: [id as Id<"deviceInstances">], color: was });
+            }
+          },
+          redo: async () => {
+            await setDeviceColor({ ids: ids as Id<"deviceInstances">[], color });
+          },
+        });
+      } catch (error) {
+        toast.error(errorMessage(error, "Could not change the colour."));
+      }
+    },
+    [canEdit, setDeviceColor, graph, pushHistory],
+  );
+
   const openPaneMenu = React.useCallback(
     (event: MouseEvent | React.MouseEvent) => {
       event.preventDefault();
@@ -1092,6 +1675,20 @@ function PatchCanvasInner({
           label: "Sticky note",
           disabled: !canEdit,
           onSelect: () => void dropNote(at),
+        },
+        {
+          kind: "item",
+          label: "Section",
+          hint: "A coloured area under the gear. Anything inside it moves with it.",
+          disabled: !canEdit,
+          onSelect: () =>
+            void createGroup(
+              {
+                x: at.x - GROUP_DEFAULT_SIZE.width / 2,
+                y: at.y - GROUP_DEFAULT_SIZE.height / 2,
+              },
+              GROUP_DEFAULT_SIZE,
+            ),
         },
         {
           kind: "item",
@@ -1124,6 +1721,13 @@ function PatchCanvasInner({
         },
         {
           kind: "item",
+          label: "Group the selection",
+          shortcut: "cmd+g",
+          disabled: !canEdit,
+          onSelect: () => void groupSelection(),
+        },
+        {
+          kind: "item",
           label: "Select every device",
           shortcut: "cmd+a",
           onSelect: () => setNodes((prev) => prev.map((n) => ({ ...n, selected: true }))),
@@ -1131,20 +1735,92 @@ function PatchCanvasInner({
       ];
       setMenu({ x: event.clientX, y: event.clientY, items });
     },
-    [screenToFlowPosition, canEdit, dropNote, setPaletteCollapsed, arrange, fitView, setNodes],
+    [
+      screenToFlowPosition,
+      canEdit,
+      dropNote,
+      setPaletteCollapsed,
+      arrange,
+      fitView,
+      setNodes,
+      createGroup,
+      groupSelection,
+    ],
   );
 
   const openNodeMenu = React.useCallback(
     (event: MouseEvent | React.MouseEvent, node: Node) => {
       event.preventDefault();
       const isNote = node.type === "note";
-      // Right-clicking something that is not selected should act on THAT
-      // thing, not on whatever happened to be selected before.
-      setNodes((prev) => prev.map((n) => ({ ...n, selected: n.id === node.id })));
-      setEdges((prev) => prev.map((e) => ({ ...e, selected: false })));
-      setSelectedIds({ nodes: [node.id], edges: [] });
+      const isGroup = node.type === "group";
 
-      const items: MenuItem[] = isNote
+      /* Right-clicking something that is not selected should act on THAT
+         thing, not on whatever happened to be selected before. But
+         right-clicking INSIDE a selection has to keep it: the whole point
+         of selecting six preamps is to do one thing to all six. */
+      const live = getNodes();
+      const alreadySelected = live.some((n) => n.id === node.id && n.selected);
+      const selectedNow = alreadySelected
+        ? live.filter((n) => n.selected).map((n) => n.id)
+        : [node.id];
+      if (!alreadySelected) {
+        setNodes((prev) => prev.map((n) => ({ ...n, selected: n.id === node.id })));
+        setEdges((prev) => prev.map((e) => ({ ...e, selected: false })));
+        setSelectedIds({ nodes: [node.id], edges: [] });
+      }
+
+      /* Which of the selected nodes are gear. Colour and grouping act on
+         these; a sticky note caught in the same marquee is left alone. */
+      const paintable = selectedNow.filter((id) => !noteIds.has(id) && !groupIds.has(id));
+      const many = paintable.length > 1;
+
+      const items: MenuItem[] = isGroup
+        ? [
+            { kind: "label", label: "Section" },
+            {
+              kind: "item",
+              label: "Rename",
+              hint: "Or double-click its tab.",
+              disabled: !canEdit,
+              onSelect: () => setPropertiesCollapsed(false),
+            },
+            { kind: "separator" },
+            { kind: "label", label: "Zone kind" },
+            ...ZONE_KINDS.map(
+              (zone): MenuItem => ({
+                kind: "item",
+                label: zone.label,
+                hint: zone.hint,
+                disabled: !canEdit,
+                onSelect: () =>
+                  void updateGroup({
+                    id: node.id as Id<"patchGroups">,
+                    kind: zone.value,
+                  }),
+              }),
+            ),
+            { kind: "separator" },
+            { kind: "label", label: "Section colour" },
+            ...GROUP_COLORS.map(
+              (colour): MenuItem => ({
+                kind: "item",
+                label: colour.label,
+                disabled: !canEdit,
+                onSelect: () =>
+                  void updateGroup({ id: node.id as Id<"patchGroups">, color: colour.key }),
+              }),
+            ),
+            { kind: "separator" },
+            {
+              kind: "item",
+              label: "Ungroup",
+              hint: "Takes the section away. The gear standing on it stays where it is.",
+              danger: true,
+              disabled: !canEdit,
+              onSelect: () => void removeGroup({ id: node.id as Id<"patchGroups"> }),
+            },
+          ]
+        : isNote
         ? [
             { kind: "label", label: "Note colour" },
             ...NOTE_COLORS.map(
@@ -1179,6 +1855,33 @@ function PatchCanvasInner({
             },
             {
               kind: "item",
+              label: many ? `Group these ${paintable.length}` : "Group into a section",
+              shortcut: "cmd+g",
+              disabled: !canEdit,
+              onSelect: () => void groupSelection(),
+            },
+            { kind: "separator" },
+            {
+              kind: "label",
+              label: many ? `Colour ${paintable.length} cards` : "Card colour",
+            },
+            ...DEVICE_COLORS.map(
+              (colour): MenuItem => ({
+                kind: "item",
+                label: colour.label,
+                disabled: !canEdit,
+                onSelect: () => void paintDevices(paintable, colour.value),
+              }),
+            ),
+            {
+              kind: "item",
+              label: "No colour",
+              disabled: !canEdit,
+              onSelect: () => void paintDevices(paintable, null),
+            },
+            { kind: "separator" },
+            {
+              kind: "item",
               label: "Add a note beside it",
               disabled: !canEdit,
               onSelect: () =>
@@ -1210,6 +1913,13 @@ function PatchCanvasInner({
       setPropertiesCollapsed,
       trace,
       setTrace,
+      getNodes,
+      noteIds,
+      groupIds,
+      updateGroup,
+      removeGroup,
+      groupSelection,
+      paintDevices,
     ],
   );
 
@@ -1309,6 +2019,11 @@ function PatchCanvasInner({
         else void undo();
         return;
       }
+      if (meta && event.key.toLowerCase() === "g") {
+        event.preventDefault();
+        void groupSelection();
+        return;
+      }
       if (meta && event.key.toLowerCase() === "a") {
         event.preventDefault();
         setNodes((prev) => prev.map((n) => ({ ...n, selected: true })));
@@ -1351,6 +2066,7 @@ function PatchCanvasInner({
     persistPositions,
     togglePalette,
     toggleProperties,
+    groupSelection,
   ]);
 
   /* ── Render ────────────────────────────────────────────────── */
@@ -1441,6 +2157,24 @@ function PatchCanvasInner({
                 disabled={!canEdit || arranging || (graph?.devices.length ?? 0) === 0}
               >
                 <LayoutGrid className="size-4" />
+              </Button>
+            </span>
+          </Tooltip>
+
+          <Tooltip
+            label="Group the selection"
+            shortcut="cmd+g"
+            hint="Draws a named, coloured section under whatever is selected. Move the section and everything standing on it moves with it."
+          >
+            <span className="inline-flex">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Group the selection into a section"
+                onClick={() => void groupSelection()}
+                disabled={!canEdit || selectedIds.nodes.length === 0}
+              >
+                <Frame className="size-4" />
               </Button>
             </span>
           </Tooltip>
@@ -1564,6 +2298,11 @@ function PatchCanvasInner({
               {connectionCount} run{connectionCount === 1 ? "" : "s"}
             </span>
             <span>{graph?.devices.length ?? 0} devices</span>
+            {(graph?.groups?.length ?? 0) > 0 && (
+              <span>
+                {graph!.groups.length} section{graph!.groups.length === 1 ? "" : "s"}
+              </span>
+            )}
             {(graph?.annotations.length ?? 0) > 0 && (
               <span>
                 {graph!.annotations.length} note{graph!.annotations.length === 1 ? "" : "s"}
@@ -1589,6 +2328,7 @@ function PatchCanvasInner({
             onPaneContextMenu={openPaneMenu}
             onNodeContextMenu={openNodeMenu}
             onEdgeContextMenu={openEdgeMenu}
+            onNodeDragStart={handleNodeDragStart}
             onNodeDrag={handleNodeDrag}
             onSelectionDrag={handleSelectionDrag}
             onEdgesChange={onEdgesChange}
@@ -1678,9 +2418,15 @@ function PatchCanvasInner({
               style={{ width: 128, height: 92 }}
               className="!m-2 !rounded-chrome !border !border-hairline-2 !bg-coal/85"
               maskColor="rgba(8,8,10,0.66)"
-              nodeColor={(node) =>
-                (node.data as DeviceNodeData)?.traceDimmed ? "#2b2b32" : "#fdb913"
-              }
+              /* A painted card shows its colour here too. The minimap is the
+                 one place you see the whole room at once, which is exactly
+                 where "the monitor path is the blue ones" has to hold. */
+              nodeColor={(node) => {
+                if (node.type === "group") return "#3a3a42";
+                const data = node.data as DeviceNodeData;
+                if (data?.traceDimmed) return "#2b2b32";
+                return deviceColorHex(data?.color) ?? "#fdb913";
+              }}
             />
           </ReactFlow>
         )}

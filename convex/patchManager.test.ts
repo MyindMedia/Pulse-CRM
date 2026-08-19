@@ -792,6 +792,396 @@ describe("sticky notes", () => {
   });
 });
 
+describe("painting a card", () => {
+  let t: T;
+  let spaceId: Id<"patchSpaces">;
+
+  beforeEach(async () => {
+    t = convexTest(schema);
+    spaceId = await seedSpace(t);
+  });
+
+  async function place(name: string) {
+    const equipmentId = await seedEquipment(t, { name });
+    return await t.mutation(api.patchManager.placeDevice, {
+      patchSpaceId: spaceId,
+      position: { x: 0, y: 0 },
+      equipmentId,
+    });
+  }
+
+  it("colours a card and reads it back with the graph", async () => {
+    const id = await place("Neve 1073");
+    await t.mutation(api.patchManager.setDeviceColor, { ids: [id], color: "blue" });
+
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    expect(graph!.devices[0].color).toBe("blue");
+  });
+
+  // The whole reason this takes a list: "these six are the monitor path" is
+  // one thought, and colouring them one at a time is six chances to miss one.
+  it("paints a whole selection in one call", async () => {
+    const ids = [await place("Preamp A"), await place("Preamp B"), await place("Preamp C")];
+    await t.mutation(api.patchManager.setDeviceColor, { ids, color: "green" });
+
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    expect(graph!.devices.map((d) => d.color)).toEqual(["green", "green", "green"]);
+  });
+
+  it("clears the colour back to the house style", async () => {
+    const id = await place("Neve 1073");
+    await t.mutation(api.patchManager.setDeviceColor, { ids: [id], color: "red" });
+    await t.mutation(api.patchManager.setDeviceColor, { ids: [id], color: null });
+
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    expect(graph!.devices[0].color).toBeUndefined();
+  });
+
+  // Colour is how the canvas reads, not what is patched. The audit log is
+  // only worth reading if it stays a record of electrical change.
+  it("writes no audit row", async () => {
+    const id = await place("Neve 1073");
+    const before = await t.run(async (ctx) => ctx.db.query("patchAudit").collect());
+    await t.mutation(api.patchManager.setDeviceColor, { ids: [id], color: "violet" });
+    const after = await t.run(async (ctx) => ctx.db.query("patchAudit").collect());
+
+    expect(after).toHaveLength(before.length);
+  });
+});
+
+describe("sections", () => {
+  let t: T;
+  let spaceId: Id<"patchSpaces">;
+
+  beforeEach(async () => {
+    t = convexTest(schema);
+    spaceId = await seedSpace(t);
+  });
+
+  it("draws a section and reads it back with the graph", async () => {
+    await t.mutation(api.patchManager.addGroup, {
+      patchSpaceId: spaceId,
+      name: "Monitor path",
+      color: "blue",
+      position: { x: 40, y: 60 },
+      size: { width: 600, height: 400 },
+    });
+
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    expect(graph!.groups).toHaveLength(1);
+    expect(graph!.groups[0].name).toBe("Monitor path");
+    expect(graph!.groups[0].color).toBe("blue");
+    expect(graph!.groups[0].size).toEqual({ width: 600, height: 400 });
+  });
+
+  it("names itself when nobody names it", async () => {
+    await t.mutation(api.patchManager.addGroup, {
+      patchSpaceId: spaceId,
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+    });
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    expect(graph!.groups[0].name).toBe("Section 1");
+  });
+
+  // A section is not gear. If it ever counted as one, the run list, the
+  // inventory maths and the connector checks would all start lying.
+  it("never appears among the devices or the notes", async () => {
+    await t.mutation(api.patchManager.addGroup, {
+      patchSpaceId: spaceId,
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+    });
+
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    expect(graph!.devices).toHaveLength(0);
+    expect(graph!.annotations).toHaveLength(0);
+  });
+
+  it("renames, recolours, moves and resizes", async () => {
+    const id = await t.mutation(api.patchManager.addGroup, {
+      patchSpaceId: spaceId,
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+    });
+    await t.mutation(api.patchManager.updateGroup, {
+      id,
+      name: "Tracking rig",
+      color: "green",
+      position: { x: 120, y: 240 },
+      size: { width: 820, height: 520 },
+    });
+
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    const group = graph!.groups[0];
+    expect(group.name).toBe("Tracking rig");
+    expect(group.color).toBe("green");
+    expect(group.position).toEqual({ x: 120, y: 240 });
+    expect(group.size).toEqual({ width: 820, height: 520 });
+  });
+
+  // A section with no name is a coloured smudge nobody can point at in a
+  // handover, so a blank rename keeps the name it had.
+  it("refuses to be renamed to nothing", async () => {
+    const id = await t.mutation(api.patchManager.addGroup, {
+      patchSpaceId: spaceId,
+      name: "Monitor path",
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+    });
+    await t.mutation(api.patchManager.updateGroup, { id, name: "   " });
+
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    expect(graph!.groups[0].name).toBe("Monitor path");
+  });
+
+  it("cannot be resized down to something unclickable", async () => {
+    const id = await t.mutation(api.patchManager.addGroup, {
+      patchSpaceId: spaceId,
+      position: { x: 0, y: 0 },
+      size: { width: 4, height: 4 },
+    });
+    let graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    expect(graph!.groups[0].size).toEqual({ width: 160, height: 120 });
+
+    await t.mutation(api.patchManager.updateGroup, { id, size: { width: 10, height: 10 } });
+    graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    expect(graph!.groups[0].size).toEqual({ width: 160, height: 120 });
+  });
+
+  // Ungrouping takes the tape up. It has never meant "delete half the rack".
+  it("leaves the gear standing when the section is removed", async () => {
+    const equipmentId = await seedEquipment(t);
+    await t.mutation(api.patchManager.placeDevice, {
+      patchSpaceId: spaceId,
+      position: { x: 200, y: 200 },
+      equipmentId,
+    });
+    const id = await t.mutation(api.patchManager.addGroup, {
+      patchSpaceId: spaceId,
+      position: { x: 0, y: 0 },
+      size: { width: 900, height: 700 },
+    });
+
+    const snapshot = await t.mutation(api.patchManager.removeGroup, { id });
+    expect(snapshot.size).toEqual({ width: 900, height: 700 });
+
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    expect(graph!.groups).toHaveLength(0);
+    expect(graph!.devices).toHaveLength(1);
+  });
+
+  it("goes with the patch space when the space is deleted", async () => {
+    await t.mutation(api.patchManager.addGroup, {
+      patchSpaceId: spaceId,
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+    });
+    await t.mutation(api.patchManager.removeSpace, { id: spaceId });
+
+    const left = await t.run(async (ctx) => ctx.db.query("patchGroups").collect());
+    expect(left).toHaveLength(0);
+  });
+});
+
+describe("zones: what kind of place a section is", () => {
+  let t: T;
+  let spaceId: Id<"patchSpaces">;
+
+  beforeEach(async () => {
+    t = convexTest(schema);
+    spaceId = await seedSpace(t);
+  });
+
+  it("records the kind and the room it stands for", async () => {
+    const roomId = await seedRoom(t, "Vocal Booth");
+    await t.mutation(api.patchManager.addGroup, {
+      patchSpaceId: spaceId,
+      name: "Vocal Booth",
+      kind: "vocalBooth",
+      roomId,
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+    });
+
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    expect(graph!.groups[0].kind).toBe("vocalBooth");
+    expect(graph!.groups[0].roomId).toBe(roomId);
+    // The panel needs the room list to offer the choice at all.
+    expect(graph!.rooms.map((r) => r.name)).toContain("Vocal Booth");
+  });
+
+  it("defaults to a plain zone when nobody says what it is", async () => {
+    await t.mutation(api.patchManager.addGroup, {
+      patchSpaceId: spaceId,
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+    });
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    expect(graph!.groups[0].kind).toBe("zone");
+  });
+
+  it("retypes a zone and rebinds its room", async () => {
+    const booth = await seedRoom(t, "Booth");
+    const live = await seedRoom(t, "Live Room");
+    const id = await t.mutation(api.patchManager.addGroup, {
+      patchSpaceId: spaceId,
+      kind: "vocalBooth",
+      roomId: booth,
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+    });
+    await t.mutation(api.patchManager.updateGroup, { id, kind: "liveRoom", roomId: live });
+
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    expect(graph!.groups[0].kind).toBe("liveRoom");
+    expect(graph!.groups[0].roomId).toBe(live);
+  });
+
+  // A console is not a room. Unbinding has to be possible, and leaving the
+  // argument out must not be mistaken for it.
+  it("unbinds the room on null and leaves it alone when omitted", async () => {
+    const roomId = await seedRoom(t, "Booth");
+    const id = await t.mutation(api.patchManager.addGroup, {
+      patchSpaceId: spaceId,
+      roomId,
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+    });
+
+    await t.mutation(api.patchManager.updateGroup, { id, name: "Desk" });
+    let graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    expect(graph!.groups[0].roomId).toBe(roomId);
+
+    await t.mutation(api.patchManager.updateGroup, { id, roomId: null });
+    graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    expect(graph!.groups[0].roomId).toBeUndefined();
+  });
+
+  it("hands the kind and the room back so undo restores the same zone", async () => {
+    const roomId = await seedRoom(t, "Machine Room");
+    const id = await t.mutation(api.patchManager.addGroup, {
+      patchSpaceId: spaceId,
+      name: "Machine Room",
+      kind: "machineRoom",
+      roomId,
+      position: { x: 0, y: 0 },
+      size: { width: 400, height: 300 },
+    });
+    const snapshot = await t.mutation(api.patchManager.removeGroup, { id });
+
+    expect(snapshot.kind).toBe("machineRoom");
+    expect(snapshot.roomId).toBe(roomId);
+  });
+});
+
+describe("tie lines: the copper in the wall", () => {
+  let t: T;
+  let spaceId: Id<"patchSpaces">;
+
+  beforeEach(async () => {
+    t = convexTest(schema);
+    spaceId = await seedSpace(t);
+  });
+
+  /** Two wall panels and the ports on them, which is the whole setup. */
+  async function panels() {
+    await t.mutation(internal.patchManager.seedGlobalProfiles, {});
+    const profile = await t.run(async (ctx) => {
+      const all = await ctx.db.query("deviceProfiles").collect();
+      return all.find((p) => p.name === "Wall Panel 4x XLR")!;
+    });
+
+    const booth = await t.mutation(api.patchManager.placeDevice, {
+      patchSpaceId: spaceId,
+      position: { x: 0, y: 0 },
+      profileId: profile._id,
+    });
+    const control = await t.mutation(api.patchManager.placeDevice, {
+      patchSpaceId: spaceId,
+      position: { x: 600, y: 0 },
+      profileId: profile._id,
+    });
+
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    const boothPorts = graph!.devices.find((d) => d._id === booth)!.ports;
+    const controlPorts = graph!.devices.find((d) => d._id === control)!.ports;
+    return { booth, control, boothPorts, controlPorts };
+  }
+
+  // A tie line works whichever way you use it, so the plate cannot claim a
+  // direction. Recording one would make the map wrong half the time.
+  it("gives every panel connector a jack that works both ways", async () => {
+    const { boothPorts } = await panels();
+    expect(boothPorts).toHaveLength(4);
+    expect(boothPorts.every((p) => p.direction === "bidirectional")).toBe(true);
+    expect(boothPorts.map((p) => p.label)).toEqual(["XLR 1", "XLR 2", "XLR 3", "XLR 4"]);
+  });
+
+  it("records a tie line between two panels", async () => {
+    const { boothPorts, controlPorts } = await panels();
+    await t.mutation(api.patchManager.connect, {
+      fromPortId: boothPorts[0]._id,
+      toPortId: controlPorts[0]._id,
+      isTieLine: true,
+    });
+
+    const graph = await t.query(api.patchManager.graph, { patchSpaceId: spaceId });
+    expect(graph!.connections[0].isTieLine).toBe(true);
+    expect(graph!.connections[0].cableId).toBeUndefined();
+  });
+
+  // Wall wiring is not stock. Letting it spend a cable would take a cable
+  // out of the cupboard that is still in the cupboard.
+  it("refuses to spend cable stock on wall wiring", async () => {
+    const { boothPorts, controlPorts } = await panels();
+    const cableId = await seedEquipment(t, {
+      name: "XLR 25ft",
+      category: "cable",
+      quantity: 4,
+      cableSpec: { connectorA: "xlr3", connectorB: "xlr3", channels: 1 },
+    });
+
+    await expect(
+      t.mutation(api.patchManager.connect, {
+        fromPortId: boothPorts[1]._id,
+        toPortId: controlPorts[1]._id,
+        isTieLine: true,
+        cableId,
+      }),
+    ).rejects.toThrow(/does not spend cable stock/i);
+  });
+
+  // The run sheet is a list of things to plug in. The building is already
+  // plugged in, and flagging it as outstanding work teaches people to
+  // ignore the flag that matters.
+  it("never asks anyone to patch the building", async () => {
+    const { boothPorts, controlPorts } = await panels();
+    await t.mutation(api.patchManager.connect, {
+      fromPortId: boothPorts[2]._id,
+      toPortId: controlPorts[2]._id,
+      isTieLine: true,
+    });
+
+    const runs = await t.query(api.patchCables.runList, { patchSpaceId: spaceId });
+    expect(runs).toHaveLength(1);
+    expect(runs[0].isTieLine).toBe(true);
+    expect(runs[0].unassigned).toBe(false);
+  });
+
+  it("says so in the audit log", async () => {
+    const { boothPorts, controlPorts } = await panels();
+    await t.mutation(api.patchManager.connect, {
+      fromPortId: boothPorts[3]._id,
+      toPortId: controlPorts[3]._id,
+      isTieLine: true,
+    });
+
+    const log = await t.query(api.patchManager.history, { patchSpaceId: spaceId });
+    expect(log.some((row) => /tie line/i.test(row.summary))).toBe(true);
+  });
+});
+
 describe("device photos", () => {
   let t: T;
   let spaceId: Id<"patchSpaces">;
