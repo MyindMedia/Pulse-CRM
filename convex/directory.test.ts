@@ -22,6 +22,7 @@ async function studio(
       directoryListed: opts.listed ?? true,
       directoryCity: opts.city ?? "Atlanta",
       directoryRegion: "GA",
+      timezone: "UTC",   // pin it: the busy-day maths is timezone-aware now
       directoryBlurb: "Big room, old console.",
       directoryTags: ["SSL", "live room"],
       // Something private that must never appear in a listing.
@@ -106,11 +107,14 @@ describe("finding a room", () => {
         status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
       });
       const room = (await ctx.db.query("rooms").collect()).find((r) => r.orgId === "o1")!;
-      // Nudge each session an hour into the future and cover one extra day:
-      // a session starting exactly at "now" has already fallen out of the
-      // forward-looking window by the time the query runs.
+      // Fill every day the probe will land on. buildListing walks
+      // now + i*DAY for i in 0..13 and asks whether that local day is busy,
+      // so a session placed a beat AFTER each probe shares its day key and is
+      // still inside the forward-looking window. Anchoring to midday instead
+      // would put "today" in the past whenever the suite runs after noon.
+      const base = Date.now();
       for (let i = 0; i <= 14; i++) {
-        const startTime = Date.now() + i * DAY + 3_600_000;
+        const startTime = base + i * DAY + 2_000;
         await ctx.db.insert("sessions", {
           orgId: "o1", title: `Day ${i}`, artistId: artist, roomId: room._id,
           serviceType: "recording",
@@ -188,5 +192,66 @@ describe("the studio's own controls", () => {
     });
     const asOwner = t.withIdentity({ subject: "u_own", orgId: "o1" });
     expect((await asOwner.query(api.directory.mySettings, {})).preview).toBeNull();
+  });
+});
+
+describe("busy days are the studio's days, not UTC's", () => {
+  it("counts a late-night session against the day it actually happened", async () => {
+    const t = convexTest(schema);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: "o_la", name: "LA Room", slug: "la-room", plan: "studio",
+        status: "active", directoryListed: true,
+        timezone: "America/Los_Angeles",
+      });
+      const room = await ctx.db.insert("rooms", {
+        orgId: "o_la", name: "A", hourlyRateCents: 10_000,
+        status: "available", bookable: true,
+      });
+      const artist = await ctx.db.insert("artists", {
+        orgId: "o_la", name: "A", type: "artist", genres: [], tags: [],
+        status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
+      });
+      // 8pm Pacific tomorrow. That is 4am UTC the day AFTER, so a UTC bucket
+      // would mark the wrong day busy and send an artist to a booked room.
+      const d = new Date(Date.now() + DAY);
+      const laEvening = new Date(
+        `${new Intl.DateTimeFormat("en-CA", {
+          timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit",
+        }).format(d)}T20:00:00-07:00`,
+      ).getTime();
+      await ctx.db.insert("sessions", {
+        orgId: "o_la", title: "Late", artistId: artist, roomId: room,
+        serviceType: "recording", startTime: laEvening, endTime: laEvening + 3_600_000,
+        status: "confirmed", rateCents: 10_000, depositCents: 0,
+        depositPaid: true, amountPaidCents: 0, intakeCompleted: true,
+      });
+    });
+
+    const listing = await t.query(api.directory.listing, { slug: "la-room" });
+    expect(listing).not.toBeNull();
+    // Whatever the answer is, it must not be the Pacific day that session sits on.
+    const pacificDay = (ts: number) =>
+      new Intl.DateTimeFormat("en-CA", {
+        timeZone: "America/Los_Angeles", year: "numeric", month: "2-digit", day: "2-digit",
+      }).format(new Date(ts));
+    const busyPacificDay = pacificDay(Date.now() + DAY);
+    expect(pacificDay(listing!.nextOpenAt!)).not.toBe(busyPacificDay);
+  });
+
+  it("survives a nonsense stored timezone instead of taking the page down", async () => {
+    const t = convexTest(schema);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: "o_bad", name: "Bad TZ", slug: "bad-tz", plan: "studio",
+        status: "active", directoryListed: true, timezone: "Not/AZone",
+      });
+      await ctx.db.insert("rooms", {
+        orgId: "o_bad", name: "A", hourlyRateCents: 5_000,
+        status: "available", bookable: true,
+      });
+    });
+    const listing = await t.query(api.directory.listing, { slug: "bad-tz" });
+    expect(listing?.nextOpenAt).not.toBeNull();
   });
 });

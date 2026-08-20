@@ -52,3 +52,27 @@ export function dateLabel(ts: number, tz: string): string {
     timeZone: tz,
   });
 }
+
+
+/**
+ * "YYYY-MM-DD" for a moment, in a studio's OWN timezone.
+ *
+ * Bucketing by UTC looks harmless until you remember that a session at 8pm
+ * Pacific is 4am UTC the next day. Anything that asks "which days is this
+ * studio busy" has to ask in the studio's local time, or a fully booked
+ * Saturday reads as free and an artist gets sent to a room that is not there.
+ */
+export function localDayKey(ts: number, tz: string): string {
+  try {
+    // en-CA formats as YYYY-MM-DD, which is the shape we want and is stable.
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).format(new Date(ts));
+  } catch {
+    // An invalid stored timezone must not take a public page down.
+    return new Date(ts).toISOString().slice(0, 10);
+  }
+}

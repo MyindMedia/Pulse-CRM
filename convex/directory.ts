@@ -4,6 +4,7 @@ import type { QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { requireCapability } from "./lib/access";
 import { currentOrg } from "./lib/tenant";
+import { localDayKey, orgTz } from "./lib/tz";
 
 /* ============================================================
    Find a Studio on Pulse - the public directory.
@@ -70,14 +71,17 @@ async function buildListing(
         q.eq("orgId", org.orgId).gte("startTime", now).lt("startTime", now + 14 * DAY),
       )
       .collect();
+    // In the STUDIO's timezone, not UTC. A session at 8pm Pacific is 4am UTC
+    // the next day, so a UTC bucket would call a booked Saturday free.
+    const tz = orgTz(org);
     const busyDays = new Set(
       sessions
         .filter((s) => s.status !== "cancelled")
-        .map((s) => new Date(s.startTime).toISOString().slice(0, 10)),
+        .map((s) => localDayKey(s.startTime, tz)),
     );
     for (let i = 0; i < 14; i++) {
       const at = now + i * DAY;
-      if (!busyDays.has(new Date(at).toISOString().slice(0, 10))) {
+      if (!busyDays.has(localDayKey(at, tz))) {
         nextOpenAt = at;
         break;
       }
