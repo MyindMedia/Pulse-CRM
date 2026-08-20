@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { Card, CardContent } from "@/components/ui/card";
+import { CardOnFileCard } from "@/components/payments/card-on-file-card";
 import { CountUp } from "@/components/shell/app-motion";
 import { StatTile } from "@/components/ui/stat-tile";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -228,6 +229,13 @@ export default function ArtistDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Card on file - the No-Show Shield's teeth. */}
+      <CardOnFileCard
+        artistId={artistId}
+        hasCard={Boolean(data.defaultPaymentMethodId)}
+        clientName={data.name}
+      />
 
       {/* Stat tiles */}
       <div className="rise-stagger grid grid-cols-2 gap-3 lg:grid-cols-4">

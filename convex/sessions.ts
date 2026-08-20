@@ -1,4 +1,6 @@
 import { query, mutation, QueryCtx, MutationCtx } from "./_generated/server";
+import { fireRules } from "./agentRules";
+import { queuePayoutForSession } from "./payouts";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { currentOrg, currentOrgWithCapability} from "./lib/tenant";
@@ -661,6 +663,11 @@ export const setStatus = mutation({
         summary: `No-show flagged - ${artist?.name ?? "client"} marked for review`,
         entityType: "session", entityId: id, accent: "critical",
       });
+      await fireRules(ctx, orgId, "session.no_show", {
+        clientName: artist?.name,
+        entityType: "session",
+        entityId: id,
+      });
     }
 
     // Session completed → fan out: invoice the balance + queue a recap insight.
@@ -673,6 +680,17 @@ export const setStatus = mutation({
         status: artist?.status === "lead" ? "active" : artist?.status,
       });
       const invoiceId = await createCompletionInvoice(ctx, s);
+      // The engineer's cut, worked out now while the numbers are in front of
+      // us rather than in someone's head at the end of the month. Queues only;
+      // paying it out is still a decision a person makes.
+      await queuePayoutForSession(ctx, { ...s, status: "completed" });
+      // Standing rules the owner promoted from an insight, fired on the real
+      // event rather than discovered by polling for it.
+      await fireRules(ctx, orgId, "session.completed", {
+        clientName: artist?.name,
+        entityType: "session",
+        entityId: id,
+      });
       await ctx.db.insert("insights", {
         orgId, kind: "recap", severity: "info",
         title: `Post-session checklist + recap - ${s.title}`,

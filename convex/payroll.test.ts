@@ -80,6 +80,11 @@ describe("admin payroll", () => {
   it("summarizes hours + pay and posts a labor expense into the P&L", async () => {
     const t = convexTest(schema);
     const org = "studio_pay";
+    // Payroll is a Pro-tier capability, so the workspace row has to exist and
+    // sit on a plan that includes it. plan "studio" maps to the Pro tier.
+    await t.run((ctx) =>
+      ctx.db.insert("orgs", { orgId: org, name: "Pay Studio", slug: "pay-studio", plan: "studio" }),
+    );
     const eng = await t.run((ctx) =>
       ctx.db.insert("members", { orgId: org, name: "Eng", role: "engineer", skills: [], payType: "hourly", payRateCents: 5_000 }),
     );

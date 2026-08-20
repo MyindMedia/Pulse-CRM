@@ -12,6 +12,14 @@ import type {
   AgencyRole, StudioRole, GrantScope,
   Capability, ResourceRef,
 } from "./accessTypes";
+import {
+  capabilitiesForTier,
+  entitlementForCapability,
+  upgradeError,
+  moduleOffError,
+} from "./entitlements";
+import { orgGate } from "./tier";
+import { isToggleable } from "./modules";
 
 /* ============================================================
    Access Engine - one resolver, one require, one audit hook.
@@ -305,6 +313,34 @@ export async function requireCapability(
   if (!ok) {
     await audit(ctx, viewer, capability, resource, "deny", "missing capability");
     throw new AccessError("CAPABILITY_DENIED", `${viewer.kind} lacks ${capability}`);
+  }
+
+  // ── Entitlement + module check ─────────────────────────────
+  // Three separate questions, all of which must pass:
+  //   permission - may this PERSON do it?   (the capability check above)
+  //   tier       - did the WORKSPACE buy it?
+  //   toggle     - is it switched ON for this workspace?
+  //
+  // Gating here rather than per-module means a capability added later is
+  // metered by default, and it is what makes a module toggle real rather than
+  // decorative: turning a module off blocks the API, not just the nav.
+  // Unmapped capabilities are unmetered and always allowed.
+  const needed = entitlementForCapability(capability);
+  if (needed) {
+    const scopeOrgId = resource?.orgId ?? viewer.orgId;
+    // Agency-level work with no sub-account in scope is not gated here - the
+    // agency console is entitled by its own plan, checked at its own call sites.
+    if (scopeOrgId) {
+      const { tier, disabled } = await orgGate(ctx, scopeOrgId);
+      if (!capabilitiesForTier(tier).has(needed)) {
+        await audit(ctx, viewer, capability, resource, "deny", `tier ${tier} lacks ${needed}`);
+        throw upgradeError(needed, tier);
+      }
+      if (isToggleable(needed) && disabled.has(needed)) {
+        await audit(ctx, viewer, capability, resource, "deny", `module ${needed} switched off`);
+        throw moduleOffError(needed);
+      }
+    }
   }
 
   // Scope/resource checks per viewer kind

@@ -6,14 +6,19 @@ import type { TierKey } from "./lib/plans";
 import { sendEmail } from "./lib/email";
 import { activationEmailSubject, activationEmailHtml } from "./lib/emailTemplates/activation";
 
-const SELF_SERVE_TIERS = new Set(["studio", "pro", "growth"]);
+// The three tiers a studio can buy without talking to anyone.
+// Flow is not in here: there is nothing to check out for: it is activated by
+// connecting Stripe, not by paying a subscription.
+const SELF_SERVE_TIERS = new Set(["studio", "pro", "label"]);
 
 const tierV = v.union(
+  v.literal("flow"),
   v.literal("studio"),
   v.literal("pro"),
-  v.literal("growth"),
+  v.literal("label"),
+  v.literal("growth"),                    // legacy, superseded by "label"
   v.literal("enterprise"),
-  v.literal("agency"),
+  v.literal("agency"),                    // legacy
 );
 
 /** Public action - start a Stripe Checkout session for the chosen tier. */

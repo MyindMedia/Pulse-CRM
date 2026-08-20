@@ -1,4 +1,6 @@
 import { query, mutation, action, internalQuery, QueryCtx } from "./_generated/server";
+import { recordBooked } from "./bookingFunnel";
+import { fireRules } from "./agentRules";
 import { Doc, Id } from "./_generated/dataModel";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
@@ -444,6 +446,9 @@ export const createBooking = mutation({
     // against orgs.discountCodes; invalid codes are a hard error, never a
     // silent full-price charge.
     discountCode: v.optional(v.string()),
+    // Anonymous funnel key minted by the booking page. Optional and
+    // untrusted: it only ever attributes a visit, never authorizes anything.
+    visitorKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const room = await ctx.db.get(args.roomId);
@@ -634,6 +639,21 @@ export const createBooking = mutation({
             compReason: `Code ${discount.code}`,
           }
         : {}),
+    });
+
+    // Close the booking-page funnel: this visitor got all the way through.
+    // Written here rather than from the client so the booked count can never
+    // be inflated from outside.
+    await recordBooked(ctx, orgId, args.visitorKey, sessionId, rateCents, {
+      ref: args.ref,
+      code: discount?.code,
+    });
+
+    // Standing rules that fire on a new booking.
+    await fireRules(ctx, orgId, "booking.created", {
+      clientName: clientName,
+      entityType: "session",
+      entityId: sessionId,
     });
 
     // Lead→booking funnel: open an `inquiry` opportunity for this lead so the

@@ -1,6 +1,6 @@
 # Pulse
 
-The song-centric operating system for music businesses — recording studios, producers and labels. Sessions, splits, revisions, releases and licensing on one unbroken chain from inquiry to royalty.
+The studio operating system. Bookings, deposits, staff, invoices and the whole client relationship for recording studios, producers and labels, on one unbroken chain from inquiry to paid.
 
 Built by Myind Sound. Next.js 16 (App Router) · Convex · Clerk · Tailwind v4 · TypeScript.
 

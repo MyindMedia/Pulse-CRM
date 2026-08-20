@@ -20,6 +20,7 @@ import { fadeUp, staggerChildren } from "@/lib/motion";
 import { RoomCard } from "@/components/book/room-card";
 import { MembershipPlans } from "@/components/book/membership-plans";
 import { SocialProof, EngineerRoster } from "@/components/book/social-proof";
+import { useTrackBookingStep } from "@/lib/use-booking-funnel";
 
 const STEPS = [
   { icon: MousePointerClick, label: "Pick a room", note: "Browse rooms and gear." },
@@ -45,6 +46,8 @@ function StudioFrontView() {
   // the attribution survives the front -> room -> booking navigation.
   const refId = searchParams.get("ref") ?? undefined;
   const front = useQuery(api.booking.studioFront, { slug });
+  // Anonymous funnel: how many people saw this page, against how many booked.
+  useTrackBookingStep(slug, "page");
 
   // Studio could not be resolved from the slug.
   if (front === null) {

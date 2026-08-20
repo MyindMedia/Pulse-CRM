@@ -32,7 +32,7 @@ export const Reveal: React.FC<{ data?: number[] }> = () => {
   );
 };
 
-// s7 — song-centric: dashboard window over the song-journey pipeline.
+// s7 — studio operating system: dashboard window over the song-journey pipeline.
 export const SongCentric: React.FC<{ data?: number[] }> = () => (
   <AbsoluteFill>
     <Stage3D drift={4}>

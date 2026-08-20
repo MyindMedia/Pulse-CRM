@@ -4,7 +4,7 @@
 
 ## Project
 
-**Pulse** — a song-centric Studio OS / CRM. Agencies run a command center (`/agency`) over multiple studio **sub-accounts**; each studio gets its own workspace, public booking page (`/book/<slug>`), bookings, sessions, invoicing, AI agents. Next.js 16 (App Router, "use client" pages) + Convex + Clerk (v7 Signals API). Access engine in `convex/lib/access.ts` (resolveViewer → requireCapability → audit). File storage = Convex `_storage` (logos already wired in `convex/orgs.ts`).
+**Pulse** — the studio operating system (Studio OS / CRM). Agencies run a command center (`/agency`) over multiple studio **sub-accounts**; each studio gets its own workspace, public booking page (`/book/<slug>`), bookings, sessions, invoicing, AI agents. Next.js 16 (App Router, "use client" pages) + Convex + Clerk (v7 Signals API). Access engine in `convex/lib/access.ts` (resolveViewer → requireCapability → audit). File storage = Convex `_storage` (logos already wired in `convex/orgs.ts`).
 
 Live site: `pulse-dash-kit.netlify.app`. **Deploy topology:** local repo Convex is an *anonymous local* backend (`127.0.0.1:3210`); the live site uses a **cloud** Convex deployment (URL set in the Netlify UI) — deploys need `CONVEX_DEPLOY_KEY` / `npx convex login` (not available in the agent env). Clerk is a **development** instance (`sk_test_…`). Agency admin email: `lawrenceb@myindsound.com`.
 
@@ -1324,3 +1324,295 @@ a model name, which is public product information.
 **Non-goals (this pass):** OCR of scanned PDFs (use the photo path), fetching
 PDFs at a URL (download and upload instead), auto-promoting a recorded gap
 into the mating table (it needs mating rules a human decides).
+
+## Epic: three-tier pricing + entitlement gating + white label (2026-08-19)
+
+Repriced and re-gated the product. Decisions (from the goal, not grilled - the prices were
+given):
+
+- **Three sellable tiers.** `studio` $149.99 · `pro` $297.00 · `label` $499.99. Keys live in
+  `convex/lib/plans.ts`, which is now the single source of truth for price, limits,
+  capabilities and white-label level. `growth` / `enterprise` / `agency` stay as non-public
+  legacy keys so existing rows resolve.
+- **Capability ladder is strictly cumulative.** `STUDIO_CAPS` ⊂ `PRO_CAPS` ⊂ `LABEL_CAPS`,
+  enforced by a test. What sits where:
+  - **Studio ($149.99)** the whole money loop, uncrippled: booking page, deposits, card on
+    file, no-show shield, dunning ladder, client portal, SMS flows, reviews/referrals,
+    discount codes. 2 rooms, 3 seats, 10 GB, 100 AI credits.
+  - **Pro ($297)** adds staff schedule, time clock, payroll, AI ops agent, AI receptionist,
+    reports, pipeline, songs, visitors, inventory, packages, memberships, expenses,
+    profitability, rentals, maintenance, calendar sync. 6 rooms, 15 seats, 100 GB, 1k credits.
+  - **Label ($499.99)** adds releases, licensing, patch bay, software, split sheets, AI
+    autonomy, API exports, custom domain, **full white-label UI**, multi-studio. Unlimited
+    rooms/seats, 1 TB, 5k credits.
+- **Two enforcement layers, both required.**
+  1. *Nav (soft).* `orgs.current` returns `effectiveDisabledFeatures(tier, agencyDisabled)` -
+     the union of agency toggles and tier locks. Sidebar, mobile tab bar, command palette and
+     the route guard all already read that one field, so gating landed with no per-surface
+     wiring. An agency toggle can only subtract, never unlock.
+  2. *Server (hard).* The entitlement check lives **inside `requireCapability`**
+     (`convex/lib/access.ts`), mapped by `ENTITLEMENT_FOR_CAPABILITY`. A module added later
+     is metered by default instead of relying on someone calling `requireFeature`. Denials
+     throw a structured `UPGRADE_REQUIRED` ConvexError carrying the tier and price that
+     unlock it, so the UI renders an upgrade card, not a red toast.
+- **Tier resolution moved to `convex/lib/tier.ts`**, a leaf importing only `plans.ts`, to
+  break the cycle access → entitlements → usage → tenant → access. `usage.ts` re-exports it.
+- **Legacy rows do not get demoted.** `orgs.tier` is optional and unset on older workspaces.
+  `tierForOrg` falls back through `orgs.plan` (always present) via `PLAN_TO_TIER`
+  (solo→studio, studio→pro, label→label) before defaulting to the cheapest tier. Without this
+  every existing studio would have silently lost features on deploy.
+- **`pulse-demo` resolves to `label`.** A demo that hides half the product is a worse demo,
+  and it is also the no-auth fallback the test harness uses.
+- **White label = the Label tier's whole reason to exist.** New `orgs.theme` (palette, fonts,
+  radius, density, mode, sign-in copy + background, email skin, app name, wordmark) written
+  through `convex/theme.ts`, gated by the new `theme.edit` capability which the access engine
+  additionally gates on the `whiteLabelUi` entitlement. Values are validated against a hex
+  regex and a font allowlist (a bad value would land in a CSS custom property), and a **WCAG
+  4.5:1 contrast floor** stops a studio making its own app unreadable. `theme.get` merges over
+  the Pulse defaults and returns `active: false` below Label, so a **downgrade instantly
+  reverts the chrome without destroying the saved theme**.
+- **Powered by Pulse is a condition, not a flag.** `POWERED_BY_PULSE_REQUIRED` in plans.ts,
+  `theme.get` always returns `poweredByPulse: true`, and `PoweredByPulse` takes no opt-out
+  prop. On Label the rail shows the studio's logo with the lockup underneath.
+- **Locked features are listed, not hidden.** A "Locked on your plan" block in the sidebar
+  names each tier-locked surface, the tier that unlocks it and its price. Agency-disabled
+  features stay fully hidden - that is an operator decision, not a paywall.
+
+**Known sharp edge:** `licenses.read` / `licenses.edit` is shared by two surfaces (sync/beat
+Licensing and the Software licenses page). Both are Label-tier today so one mapping is
+correct; **split the capability before moving either to a different tier**, or the other
+moves with it. Documented at the mapping site.
+
+**Build surface:** `convex/lib/plans.ts` (rewritten), `convex/lib/entitlements.ts` (new),
+`convex/lib/tier.ts` (new), `convex/lib/themeSpec.ts` (new), `convex/theme.ts` (new),
+`convex/lib/access.ts` (+ entitlement gate), `convex/orgs.ts` (+ tier/limits/whitelabel on
+`current`), `convex/schema.ts` (+ `label` tier, + `orgs.theme`), `convex/lib/accessPolicies.ts`
+(+ `theme.edit`), `convex/lib/stripe.ts` + `convex/billing.ts` (+ `STRIPE_PRICE_LABEL`),
+`src/components/brand/powered-by-pulse.tsx` + `brand-lockup.tsx` (new),
+`src/components/shell/white-label-theme.tsx` (new), `src/components/settings/white-label-panel.tsx`
+(new), sidebar + app layout + settings + onboard + pricing-panel copy.
+**955 vitest green** (39 new across `entitlements.test.ts` and `theme.test.ts`), `next build`
+clean.
+
+**Go-live config:** create the three Stripe prices and set `STRIPE_PRICE_STUDIO`,
+`STRIPE_PRICE_PRO` and the new **`STRIPE_PRICE_LABEL`** on Convex. Stamp `orgs.tier` on
+existing workspaces (the `orgs.plan` fallback covers them meanwhile). `npx convex codegen`
+could not run in the agent env (Node 25 installed; the local backend needs v20/22/24), so
+`convex/_generated/api.d.ts` was hand-edited to declare the new `theme` module - a real
+deploy regenerates it.
+
+## Feature: module switchboard - real toggles across all 40 modules (2026-08-20)
+
+The per-sub-account toggles covered 17 nav keys and **were never enforced server-side** -
+`orgs.disabledFeatures` only hid nav items, so a switched-off module still answered its API
+and its deep link. The toggle was decoration. Fixed, and widened to the whole product.
+
+- **One registry, `convex/lib/modules.ts`.** 40 modules, each with label, blurb, area, nav
+  flag and a `core` flag. `src/lib/features.ts` is now a thin re-export of it, so nav gating,
+  the switchboard and the server check cannot drift - there is exactly one list of modules.
+- **Grouped into the same 14 areas as the feature catalog** (`AREA_ORDER` / `AREA_LABELS`),
+  so the switchboard and the catalog read as one document.
+- **Enforcement moved into `requireCapability`** alongside the tier gate. Three questions now
+  have to pass on every metered call: may this *person*, did this *workspace buy it*, and is
+  it *switched on*. A disabled module throws `MODULE_DISABLED` - deliberately a different
+  refusal from `UPGRADE_REQUIRED`, because "upgrade" is the wrong advice for something the
+  studio already owns and somebody turned off.
+- **`orgGate(ctx, orgId)`** in `lib/tier.ts` returns tier + disabled set from ONE org read,
+  so adding the toggle check did not double the reads on every gated call.
+- **Core modules cannot be switched off.** `bookings` and `calendar` are marked core: Pulse
+  without a way to take a booking and see it is not Pulse. `effectiveDisabledFeatures` drops
+  core and unknown keys on read, and both write paths filter through `isToggleable`, so no
+  client payload or stale row can strand a studio.
+- **Toggles still only subtract.** Tier locks are unioned in after the toggles, so switching
+  a module on can never grant a capability the plan excludes.
+- **White label is now a real module** (`whiteLabelUi`, Branding area, Label tier), switchable
+  per studio. Switching it off hides the settings panel (`theme.canTheme` reads through
+  `moduleEnabled`) and refuses `theme.save`.
+- **Two write paths, one board.** `modules.setModule` / `modules.enableAll` for a studio owner
+  curating their own workspace; `agency.setFeatures` for an operator managing a sub-account.
+  Both render `ModuleSwitchboard`, which takes its grouping and locks from the server's
+  `modules.board` query rather than from either caller.
+- **Always-on rows.** Platform guarantees (tenant isolation, access engine, audit, GDPR) and
+  agency-side surfaces are listed without switches, so every area renders and nobody hunts
+  for a switch that should not exist.
+
+**Surface:** `convex/lib/modules.ts` + `convex/modules.ts` + `convex/modules.test.ts` (new),
+`convex/lib/tier.ts` (+`orgGate`), `convex/lib/entitlements.ts` (widened past nav,
+`moduleOffError`, `moduleEnabled`, `lockedModules`), `convex/lib/access.ts` (toggle gate),
+`convex/agency.ts` (`setFeatures` filtered), `src/lib/features.ts` (re-export),
+`src/components/modules/module-switchboard.tsx` (new, replaces `agency/feature-toggles.tsx`),
+agency sub-account page + studio settings. **973 vitest green** (17 new), `next build` clean.
+
+## Epic: build out the roadmap + gated beta preview (2026-08-20)
+
+Five of the nine "not built yet" items shipped, plus a customer-facing preview gate.
+
+**1. Booking funnel tracker** (`convex/bookingFunnel.ts`, `bookingVisits` table). Anonymous
+per-step tracking on the public booking surface: no IP, no cookie, no fingerprint. The browser
+mints a random key in `sessionStorage`; steps dedupe per (visitor, step, room) so a refresh
+does not inflate anything, and the org is resolved from the slug, never the caller. The
+`booked` step is written **server-side** by `createBooking`, so the conversion count cannot be
+inflated from outside. Counts DISTINCT visitors per stage - one person opening four rooms is
+one person considering. Reports tab + source breakdown. 12 tests.
+
+**2. Engineer payout automation** (`convex/payouts.ts`, `lib/payoutMath.ts`, `payouts` table).
+A session completes and the engineer's cut is queued from whichever basis they are on:
+commission %, points x point value, or clocked hours (overlap of punches with the session
+window, so a shift spanning two sessions is not billed twice to one). Salary returns null -
+payroll already covers them and paying again is the expensive direction to get wrong. An
+unconfigured basis returns **null, not zero**: a zero row reads as "we owe you nothing", which
+is a different and wrong claim. Every payout carries its arithmetic as a sentence, and rates
+are snapshotted so a later raise cannot rewrite what was earned. **Nothing pays itself**:
+queued -> approved -> paid are three separate human actions, and marking paid posts a
+`payroll` expense into the P&L. Voiding never deletes. 17 tests.
+
+**3. Insight to standing rule** (`convex/agentRules.ts`, `lib/ruleSpec.ts`, `agentRules` table).
+Distinct from `agentAutomations` on purpose: an automation is a PROMPT the agent reasons about
+on a schedule; a rule is if-this-then-that with no model in the loop. Promoting an insight
+dismisses it (answered permanently, not once) and keeps the provenance so the rule can be
+explained months later. Fires on the real events (`session.completed`, `session.no_show`,
+`booking.created`) rather than polling. **Client-facing rule actions queue an approval rather
+than sending** - a rule may run unattended, it may not invent a send path that skips opt-outs.
+11 tests.
+
+**4. In-page card capture** (`src/components/payments/card-capture.tsx`). `@stripe/stripe-js` +
+`@stripe/react-stripe-js` added. The SetupIntent action existed with **no UI at all**; this is
+the form. Elements is mounted against the same connected account the SetupIntent was created
+on - the server now returns `stripeAccountId` alongside the client secret so the client cannot
+pair them wrongly. Surfaced on the client profile with the reason stated (No-Show Shield).
+
+**5. Find a Studio on Pulse** (`convex/directory.ts`, `/studios`). Public, unauthenticated,
+**opt-in and off by default**. A listing exposes only what is already on the studio's own
+booking page; tests assert no internal id or owner email can leak. "Next open day" is the
+honest cheap version of live availability (first of the next 14 days with no confirmed
+session), and results lead with studios you can actually book - leading with places you cannot
+is what killed the last directory. No commission on anything it sends. 11 tests.
+
+## Feature: gated beta preview + NDA signature + branded invite (2026-08-20)
+
+The feature catalog as a **customer-facing page** behind a per-recipient code and a signed
+agreement.
+
+- **`betaInvites` table + `convex/betaAccess.ts`.** One code per recipient (Crockford-ish
+  alphabet, no I/O/0/1 because half get read down a phone), so opens and signatures attribute
+  to a person rather than to "somebody". Re-inviting the same email reuses their row instead
+  of leaving two live codes.
+- **The gate is a real server check.** `betaAccess.preview` assembles the content on the server
+  and returns it **only to a code that has signed**. It is never shipped to the browser and
+  hidden with CSS, because hidden is one devtools panel away from published.
+- **The signature is bound to the terms.** `lib/betaNda.ts` holds the agreement as data and
+  hashes its canonical text; signing requires the hash the signer was shown, so a later edit
+  cannot be passed off as what they agreed to. A stale-version signature is flagged rather than
+  silently accepted. (FNV-1a, not cryptographic - it detects change, it does not resist an
+  attacker; noted in the file.)
+- **Attribution without authorization.** Views are counted and never walk a signature backwards.
+  Revoking sets a status; it never deletes, because the signature record is the point.
+- **Branded HTML invite** (`lib/emailTemplates/betaInvite.ts`). Dark, gold, email-safe tables and
+  inline styles. Prints the code as well as linking it, because a link that dies in a corporate
+  mail scanner still leaves them something to type. Recipient name is escaped.
+- **Agency CRM panel** (`components/agency/beta-invites.tsx`) on `/agency`: send, copy link,
+  revoke, and see invited / opened / signed counts.
+- **`/preview`** - three states (code, agreement, content), watermarked with who opened it.
+- 18 tests.
+
+**NOT legal advice.** The agreement is a short plain-English mutual-confidentiality clause set
+with the usual carve-outs; have a lawyer read it before it goes to anyone who matters.
+
+**Still on the board:** payments-monetized entry tier, State of the Recording Studio benchmark,
+the comparison page, the migration guarantee. **1042 vitest green**, `next build` clean.
+
+## Epic complete: all nine roadmap items built (2026-08-20)
+
+The remaining four, on top of the five recorded above.
+
+**6. Payments-monetized entry tier** (`flow` in `lib/plans.ts`). $0/month, 200 bps of what the
+studio collects through Pulse. `takeRateBps` + `paymentsRequired` on the tier; `priceLabel`
+prices it as "2% of collections" rather than a dollar figure, and `breakEvenCollectionsCents`
+answers the only question a studio actually asks - at what point is the subscription cheaper
+($7,499.50 collected in a month against Studio). Capability set is deliberately the **money
+loop only** (bookings, calendar, payments, clients, studio, card on file, no-show shield,
+dunning); the growth extras start at Studio, so there is a real reason to move up. Not in
+`SELF_SERVE_TIERS`: there is nothing to check out for, it activates by connecting Stripe.
+
+**7. State of the Recording Studio** (`convex/benchmark.ts`). Three privacy rules enforced in
+code rather than promised in a policy: a **minimum cohort of 5 studios** before any number is
+returned (below that it is `null`, not rounded and not estimated), **no identifiers anywhere**
+in the payload, and **medians not totals** because a total can be reverse-engineered by a
+studio that knows its own contribution. Thin regions are suppressed even when the overall set
+publishes. Studios with under 3 sessions in the window are excluded as unrepresentative. The
+caller's own numbers sit beside the market, computed the same way. Sample size is stated on
+the page. 8 tests, including one asserting no org id, name, slug or client name can appear in
+the serialized response.
+
+**8. The comparison page** (`/vs`). Cost and commitment first, because that is what is being
+decided the morning after a bad week. Every claim is about published pricing and checkable;
+the page explicitly declines to characterize the competitor's quality, carries a correction
+invitation, and closes with a trademark disclaimer.
+
+**9. Migration guarantee.** Stated on `/vs` and on the pricing picker, with the terms spelled
+out: clients, rooms, rates and sessions imported, booking page live, Stripe connected, a call
+while the first real booking comes in, and the first month free if it is not live in a day.
+
+**1053 vitest green**, `next build` clean. `convex/lib/roadmap.ts` now marks all nine shipped,
+so the gated preview page reflects it automatically.
+
+**Go-live config for the new work:** `NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY` (in-page card
+capture), `APP_URL` (beta invite links), `RESEND_API_KEY` (invite emails - falls back to
+"simulated" and still mints the code without it). No new Stripe price is needed for Flow.
+
+## Epic: beta invite dashboard, positioning, deletion (2026-08-20)
+
+**Positioning.** "Song-centric" removed from every surface: the invite email, the schema
+header, README, the feature catalog, the voice-agent prompt, and 12 strategy/promo docs. The
+product is **the studio operating system**. The songs table is still a spine, it is just no
+longer the pitch.
+
+**Beta invite dashboard** (`/agency/beta`), replacing the panel on `/agency`.
+- **A funnel, not a scoreboard.** Sent → opened → clicked the link → signed → built a studio.
+  Each stage counts everyone who reached it *or went past it*, so the numbers only fall and
+  the gap between two stages is a list of people to call. Filters expose exactly those lists:
+  "sent, never opened" and "opened, never signed".
+- **Engagement signals worth selling on.** Magic-link clicks tracked separately from typed
+  codes, because "the email worked" and "they found their way in" are different facts. Email
+  opens via a 1x1 pixel on `/beta/open.gif` - **best-effort and labelled as such**, since image
+  blocking means a missing open proves nothing. Last login recorded from the app shell once
+  per session, which is the signal that separates curious from using it.
+- **Signature register** tab: who agreed to what and when, each row carrying the terms hash and
+  flagging any signature captured against an older version.
+
+**Magic link → sub-account.** `betaAccess.claim` turns a signed invite into a real workspace.
+Requires a SIGNED invite - the agreement is the price of admission, not a step you can route
+around. Deliberately separate from `agency.createSubaccount`: that path is an agency admin
+provisioning Clerk orgs with their capabilities; this one is a recipient creating their own
+workspace, where the authorization *is* the signature.
+
+**Parallax onboarding** (`/preview/claim`). Pointer- and scroll-driven parallax on three
+decorative layers, all `aria-hidden`. Nothing that carries meaning moves, so at
+`prefers-reduced-motion` every layer pins and the step transitions collapse to opacity, with
+no loss of function. Live slug availability as they type; the address follows the name until
+they edit it themselves.
+
+**Beta cohort, badge over migration.** Chose the badge because the sub-account list already
+exists and a beta workspace is a *real* studio, not a trial shell. `betaCohort` +
+`betaClaimedAt` + `graduatedAt` on orgs; a Beta/Graduated badge in the table; and
+`agency.graduateBeta` which sets tier and status and **moves nothing** - no migration, no copy,
+no chance of loss. `betaCohort` is kept after graduation as provenance; `graduatedAt` is what
+says they are off beta terms. `revertGraduation` exists as an undo for a misclick.
+
+**Three-step deletion** (`convex/subaccountDeletion.ts`). Destroys a real business's records,
+so it is built to be hard to do by accident and impossible to do quietly:
+1. `impact` counts what dies from live data and surfaces the things that make it worse -
+   sessions still on the calendar, money still owed, client files about to go unreachable.
+2. `requestDeletion` opens a **10-minute window** and returns a one-time token bound to that
+   workspace and that person, so a forgotten tab cannot delete something tomorrow.
+3. `confirmDeletion` needs the token, the studio name **retyped exactly** (not trimmed, not
+   lowercased - retyping is the check), and the literal word DELETE.
+
+The audit record is written **before** the cascade, so a failure partway through still leaves
+evidence of what was attempted and by whom. 76 org-scoped tables are cascaded; the 8 without a
+`by_org` index are listed explicitly rather than discovered by catching an error, so the cost
+stays visible. The beta invite is **detached, not deleted** - the signature outlives the
+workspace on purpose.
+
+**1064 vitest green** (11 new for deletion), `next build` clean.
+**New config:** `CONVEX_SITE_URL` (email open pixel). Everything else already listed.

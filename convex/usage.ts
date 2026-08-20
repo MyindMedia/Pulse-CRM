@@ -3,6 +3,12 @@ import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
 import { PLAN_LIMITS, type TierKey, type TierLimits } from "./lib/plans";
+import { tierForOrg, tierForPlan } from "./lib/tier";
+
+// Tier resolution lives in lib/tier.ts (a leaf module) so the access engine
+// can gate on entitlements without an import cycle. Re-exported here because
+// a dozen callers already import it from usage.
+export { tierForOrg, tierForPlan };
 
 /* ============================================================
    Usage metering. A single usageCounters row per (orgId, period,
@@ -29,18 +35,6 @@ export function periodFor(metric: string, now: number = Date.now()): string {
   return `${d.getUTCFullYear()}-${month}`;
 }
 
-/**
- * Resolve a stored org/agency plan string into a valid PLAN_LIMITS tier.
- * orgs.tier is one of "studio" | "pro" | "agency"; agencies.plan can also be
- * "growth" | "enterprise" | "agency_plus". Unknown values fall back to
- * "agency" (the legacy generous tier) when the value isn't a public key,
- * otherwise "studio".
- */
-export function tierForPlan(plan: string | undefined): TierKey {
-  if (plan && plan in PLAN_LIMITS) return plan as TierKey;
-  if (plan === "agency_plus") return "agency";
-  return "studio";
-}
 
 /**
  * Plain upsert helper - increment usageCounters[orgId, period(metric), metric]
@@ -105,23 +99,6 @@ async function readCounter(
   return row?.value ?? 0;
 }
 
-/** Resolve an org's effective tier: its own `tier`, or its agency's `plan`
- *  when the org rolls up to an agency. */
-export async function tierForOrg(ctx: QueryCtx, orgId: string): Promise<TierKey> {
-  const org = await ctx.db
-    .query("orgs")
-    .withIndex("by_org", (q) => q.eq("orgId", orgId))
-    .first();
-  let planString: string | undefined = org?.tier;
-  if (org?.agencyId) {
-    const agency = await ctx.db
-      .query("agencies")
-      .withIndex("by_agency", (q) => q.eq("agencyId", org.agencyId!))
-      .first();
-    if (agency?.plan) planString = agency.plan;
-  }
-  return tierForPlan(planString);
-}
 
 /** Whether the org's plan white-labels client-facing pages (hides Pulse marks
  *  on booking/portal/sign). True for any tier whose `whitelabel` isn't false. */

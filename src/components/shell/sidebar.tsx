@@ -23,22 +23,109 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { api } from "@convex/_generated/api";
-import { Building2, GripVertical, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Building2, GripVertical, Lock, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { NAV, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { useCapabilities } from "@/lib/use-capabilities";
 import { PulseLogo } from "@/components/brand/pulse-logo";
+import { BrandLockup } from "@/components/brand/brand-lockup";
+import { PoweredByPulse } from "@/components/brand/powered-by-pulse";
 import { Tooltip } from "@/components/ui/tooltip";
+import { minTierFor } from "@convex/lib/entitlements";
+import { PLAN_LIMITS, priceLabel, type CapabilityKey } from "@convex/lib/plans";
 
-/* The Pulse wordmark - the official gold pulse glyph + "PULSE" lockup.
- * Stretches across the full sidebar rail. */
+/* The rail mark. On the Label (white-label) tier this is the studio's own
+ * logo with "Powered by Pulse" underneath; every tier below renders the Pulse
+ * wordmark. BrandLockup owns that decision so both branches stay in one place. */
 function Wordmark() {
-  // Two-thirds of the rail width - the source PNG is tightly cropped, so the
-  // height follows automatically (h-auto on the img).
+  return <BrandLockup />;
+}
+
+/* Features this workspace has not bought yet.
+ *
+ * They are listed rather than hidden: a studio that cannot see Payroll exists
+ * never asks for it. Each row names the tier that unlocks it and its price, so
+ * the upgrade decision is one click and zero questions. Rows are inert links
+ * to Settings, never to the feature itself - the route guard and the server
+ * would both refuse anyway.
+ *
+ * Only tier locks appear here. A feature the agency switched off stays fully
+ * hidden, because that is an operator decision, not a paywall. */
+function LockedFeatures({ onNavigate }: { onNavigate?: () => void }) {
+  const org = useQuery(api.orgs.current);
+  const locked = org?.tierLockedFeatures ?? [];
+  const agencyOff = React.useMemo(
+    () => new Set((org?.disabledFeatures ?? []).filter((k) => !locked.includes(k))),
+    [org?.disabledFeatures, locked],
+  );
+
+  const rows = React.useMemo(() => {
+    return NAV.filter(
+      (item) => item.feature && locked.includes(item.feature) && !agencyOff.has(item.feature),
+    ).map((item) => {
+      const need = minTierFor(item.feature as CapabilityKey);
+      return { item, need };
+    });
+  }, [locked, agencyOff]);
+
+  if (rows.length === 0) return null;
+
   return (
-    <div className="w-2/3">
-      <PulseLogo size="full" className="block" />
+    <div className="mt-3 px-2">
+      <p className="px-1 font-meta text-[0.5625rem] uppercase tracking-[0.12em] text-steel/50">
+        Locked on your plan
+      </p>
+      <ul className="mt-1.5 space-y-0.5">
+        {rows.map(({ item, need }) => (
+          <li key={item.href} className="list-none">
+            <Tooltip
+              label={
+                need
+                  ? `${PLAN_LIMITS[need].label} (${priceLabel(need)}/mo) unlocks ${item.label}`
+                  : `${item.label} is not on your plan`
+              }
+              side="right"
+            >
+              <Link
+                href="/settings"
+                onClick={onNavigate}
+                className="group flex min-h-9 items-center gap-3 rounded-chrome px-3 py-1.5 font-meta text-[0.7rem] uppercase tracking-[0.04em] text-steel/45 transition-colors hover:bg-coal/40 hover:text-steel"
+              >
+                <item.icon className="size-[1.1rem] shrink-0 text-steel/35 transition-colors group-hover:text-steel/60" />
+                <span className="truncate">{item.label}</span>
+                <Lock className="ml-auto size-3 shrink-0 text-steel/35 transition-colors group-hover:text-gold" />
+              </Link>
+            </Tooltip>
+          </li>
+        ))}
+      </ul>
     </div>
+  );
+}
+
+/* Footer credit. A white-labeled workspace shows its own name here, with the
+ * Powered by Pulse line kept underneath - the lockup is a condition of the
+ * tier, not a toggle. */
+function SidebarCredit() {
+  const org = useQuery(api.orgs.current);
+  const theme = useQuery(api.theme.get);
+  if (theme?.active) {
+    return (
+      <>
+        <p className="chrome-meta text-steel/80">
+          {theme.appName || org?.name || "Studio"}
+        </p>
+        <PoweredByPulse className="mt-0.5" size="xs" />
+      </>
+    );
+  }
+  return (
+    <>
+      <p className="chrome-meta text-steel/80">Pulse by Myind Sound</p>
+      <p className="mt-0.5 font-meta text-[0.625rem] text-steel/60">
+        {org?.tierLabel ? `v1.0 · ${org.tierLabel}` : "v1.0 · Studio edition"}
+      </p>
+    </>
   );
 }
 
@@ -232,8 +319,8 @@ export function Sidebar({
         )}
       >
         {collapsed ? (
-          <Link href="/dashboard" aria-label="Pulse home" className="block">
-            <img src="/icon-192.png" alt="Pulse" className="size-8 rounded-md" draggable={false} />
+          <Link href="/dashboard" aria-label="Home" className="block">
+            <BrandLockup collapsed />
           </Link>
         ) : (
           <Wordmark />
@@ -314,10 +401,10 @@ export function Sidebar({
               Agency console
             </Link>
           ))}
+        {!collapsed && <LockedFeatures onNavigate={onNavigate} />}
         {!collapsed && (
           <div className="px-2">
-            <p className="chrome-meta text-steel/80">Pulse by Myind Sound</p>
-            <p className="mt-0.5 font-meta text-[0.625rem] text-steel/60">v1.0 · Studio edition</p>
+            <SidebarCredit />
           </div>
         )}
       </div>

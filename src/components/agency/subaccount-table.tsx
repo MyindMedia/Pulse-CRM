@@ -46,6 +46,10 @@ export type SubaccountRow = {
   _creationTime: number;
   billingStatus?: string | null;
   trialEndsAt?: number | null;
+  /** Created from a signed beta invite. Provenance, not a permission. */
+  betaCohort?: boolean;
+  /** Set once they have been moved onto normal terms. */
+  graduatedAt?: number | null;
 };
 
 const BILLING_TONE: Record<string, NonNullable<React.ComponentProps<typeof Badge>["tone"]>> = {
@@ -193,7 +197,15 @@ export function SubaccountTable({ rows }: { rows: SubaccountRow[] }) {
                   />
                 )}
                 <div className="min-w-0">
-                  <p className="truncate font-medium text-bone">{row.name}</p>
+                  <p className="flex min-w-0 items-center gap-2">
+                    <span className="truncate font-medium text-bone">{row.name}</span>
+                    {/* Beta workspaces are real studios with real data. The
+                        badge says how they got here, not what they can do. */}
+                    {row.betaCohort && !row.graduatedAt && <Badge tone="gold">Beta</Badge>}
+                    {row.betaCohort && row.graduatedAt && (
+                      <Badge tone="positive">Graduated</Badge>
+                    )}
+                  </p>
                   <p className="truncate font-meta text-[0.6875rem] text-steel/70">/{row.slug}</p>
                 </div>
               </div>

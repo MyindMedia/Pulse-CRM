@@ -6,7 +6,7 @@
 
 ## Goal
 
-A brand-hype launch ad for **Pulse** (the song-centric studio CRM). Sells the *feeling* — a chaotic studio brought into one calm, gold-lit place — not a feature walkthrough. Produced programmatically in Remotion so it is fully on-brand, re-renderable, and version-controlled with the product. Real Pulse UI appears as tasteful glimpses, not a demo.
+A brand-hype launch ad for **Pulse** (the studio operating system). Sells the *feeling* — a chaotic studio brought into one calm, gold-lit place — not a feature walkthrough. Produced programmatically in Remotion so it is fully on-brand, re-renderable, and version-controlled with the product. Real Pulse UI appears as tasteful glimpses, not a demo.
 
 Three cuts from one shared scene system:
 

@@ -3,7 +3,7 @@ import { v } from "convex/values";
 
 /* ============================================================
    PULSE - Convex schema
-   A song-centric CRM. The `songs` table is the spine: one record
+   The studio operating system. The `songs` table is one spine: a record
    carries from inquiry → session → splits → delivery → release.
    Every business table is scoped by `orgId` (Clerk org id, or the
    "pulse-demo" workspace in demo mode). orgId is field #1 of every index.
@@ -212,10 +212,59 @@ export default defineSchema({
     // NEW (agency mode - cycle 1)
     agencyId: v.optional(v.string()),     // parent agency, null for base tier
     tier: v.optional(v.union(             // cached for cap-check perf
-      v.literal("studio"),
-      v.literal("pro"),
-      v.literal("agency"),
+      v.literal("flow"),                  // $0 + take rate - payments-monetized
+      v.literal("studio"),                // $149.99 - the money loop
+      v.literal("pro"),                   // $297.00 - the whole operation
+      v.literal("label"),                 // $499.99 - unlocked + white label
+      v.literal("enterprise"),
+      v.literal("growth"),                // legacy, superseded by "label"
+      v.literal("agency"),                // legacy
     )),
+    // ── White-label theme. Writable only on a tier whose plan whitelabel
+    //    level is "full" (Label). Unset = Pulse chrome. The Powered by Pulse
+    //    lockup under the studio logo is never removable, at any tier. ──
+    theme: v.optional(
+      v.object({
+        appName: v.optional(v.string()),
+        // Core palette (hex). Unset keys fall back to the Pulse defaults.
+        primary: v.optional(v.string()),
+        accent: v.optional(v.string()),
+        background: v.optional(v.string()),
+        surface: v.optional(v.string()),
+        text: v.optional(v.string()),
+        muted: v.optional(v.string()),
+        border: v.optional(v.string()),
+        // Typography - a font family name resolved against an allowlist.
+        fontHeading: v.optional(v.string()),
+        fontBody: v.optional(v.string()),
+        // Shape language.
+        radius: v.optional(v.union(
+          v.literal("sharp"),
+          v.literal("soft"),
+          v.literal("round"),
+        )),
+        density: v.optional(v.union(
+          v.literal("compact"),
+          v.literal("comfortable"),
+        )),
+        mode: v.optional(v.union(
+          v.literal("dark"),
+          v.literal("light"),
+          v.literal("system"),
+        )),
+        // Sign-in screen.
+        loginHeadline: v.optional(v.string()),
+        loginSubhead: v.optional(v.string()),
+        loginBackgroundId: v.optional(v.id("_storage")),
+        // Transactional email skin.
+        emailHeaderColor: v.optional(v.string()),
+        emailFooterText: v.optional(v.string()),
+        // Wordmark shown beside the logo in the app rail.
+        wordmark: v.optional(v.string()),
+        updatedAt: v.optional(v.number()),
+        updatedBy: v.optional(v.string()),
+      }),
+    ),
     // Per-service hourly rates (cents). Service keys mirror sessions.serviceType.
     // When unset, the room's hourlyRateCents is the source of truth.
     servicePricing: v.optional(
@@ -235,6 +284,43 @@ export default defineSchema({
     // interpreted in the viewer's timezone).
     payrollSchedule: v.optional(v.union(v.literal("monthly"), v.literal("biweekly"))),
     payrollAnchorDate: v.optional(v.string()),
+    // What one point is worth, for teammates on the points pay basis.
+    pointValueCents: v.optional(v.number()),
+    // ── Find a Studio directory ──
+    //    Opt-in, off by default. A listed studio appears on the public
+    //    directory with its rooms, rates and next open day, linking straight
+    //    to its own booking page. Pulse takes no commission on what it sends:
+    //    the whole point is to be a lead source rather than another cost.
+    directoryListed: v.optional(v.boolean()),
+    directoryBlurb: v.optional(v.string()),   // one line, the studio's own words
+    directoryCity: v.optional(v.string()),
+    directoryRegion: v.optional(v.string()),  // state / county / province
+    directoryTags: v.optional(v.array(v.string())), // "vocal booth", "SSL", "live room"
+    // ── Beta cohort ──
+    //    Set when a workspace was created from a signed beta invite. It is a
+    //    provenance flag, not a permission: a beta studio is a real studio
+    //    with a real tier. It exists so the agency console can tell the early
+    //    cohort apart and graduate them deliberately rather than losing track
+    //    of who was let in on what terms.
+    betaCohort: v.optional(v.boolean()),
+    betaInviteCode: v.optional(v.string()),
+    betaClaimedAt: v.optional(v.number()),
+    graduatedAt: v.optional(v.number()),
+    // ── Pending deletion ──
+    //    Set by step 2 of the deletion flow and cleared on cancel, timeout or
+    //    completion. Holds nothing but the one-time token and its window, so
+    //    a confirmation cannot be replayed or applied to a different studio.
+    pendingDeletion: v.optional(
+      v.object({
+        token: v.string(),
+        requestedAt: v.number(),
+        expiresAt: v.number(),
+        requestedBy: v.optional(v.string()),
+      }),
+    ),
+    // Queue engineer payouts automatically when a session completes.
+    // Off by default: a studio opts in, and nothing pays itself either way.
+    autoPayouts: v.optional(v.boolean()),
     // Custom discount codes the owner issues themselves (separate from
     // the AI rate-cut generator's deterministic codes). Stored on the
     // org so they're tenant-scoped and reusable across surfaces.
@@ -367,9 +453,11 @@ export default defineSchema({
     name: v.string(),
     slug: v.string(),                     // resolves /a/<slug>
     plan: v.union(
+      v.literal("flow"),
       v.literal("studio"),
       v.literal("pro"),
-      v.literal("growth"),
+      v.literal("label"),
+      v.literal("growth"),                // legacy, superseded by "label"
       v.literal("enterprise"),
       v.literal("agency"),                // legacy
       v.literal("agency_plus"),           // RESELL HOOK
@@ -767,8 +855,22 @@ export default defineSchema({
     // Payroll: how this teammate is paid. "hourly" => payRateCents is cents/hour
     // (multiplied by clocked hours); "salary" => payRateCents is the ANNUAL
     // salary in cents (prorated per pay period). Absent = unpaid / not tracked.
-    payType: v.optional(v.union(v.literal("hourly"), v.literal("salary"))),
+    //    "commission" => commissionPct of the session rate.
+    //    "points"     => pointsPerSession x the org's point value.
+    payType: v.optional(v.union(
+      v.literal("hourly"),
+      v.literal("salary"),
+      v.literal("commission"),
+      v.literal("points"),
+    )),
     payRateCents: v.optional(v.number()),
+    // Engineer's share of a session's rate, 0-100. Used when payType is
+    // "commission"; also the fallback split when an hourly engineer works a
+    // session the studio pays out on rather than on the clock.
+    commissionPct: v.optional(v.number()),
+    // Points model: a fixed number of points per session, valued by the org's
+    // pointValueCents. Studios that pay "a point a song" use this.
+    pointsPerSession: v.optional(v.number()),
     // Booking-page engineer profile: a short bio + notable credits, shown to
     // clients choosing an engineer (proof-of-work that lifts conversion).
     bio: v.optional(v.string()),
@@ -1805,6 +1907,197 @@ export default defineSchema({
   })
     .index("by_org", ["orgId"])
     .index("by_org_type", ["orgId", "actionType"]),
+
+  // ── Beta access - early-release recipients for the feature preview.
+  //
+  //    Each recipient gets their own code (or a link carrying it), so the
+  //    agency can see who opened what and who has signed. The gate is a real
+  //    server check: the code is verified on the server and the full content
+  //    is only ever returned to a signed session, never shipped to the
+  //    browser and hidden with CSS. ──
+  betaInvites: defineTable({
+    agencyId: v.optional(v.string()),
+    orgId: v.optional(v.string()),
+    email: v.string(),
+    name: v.optional(v.string()),
+    company: v.optional(v.string()),
+    // The access code. Unique, unguessable, one per recipient so opens and
+    // signatures attribute to a person rather than to "somebody".
+    code: v.string(),
+    status: v.union(
+      v.literal("created"),
+      v.literal("sent"),
+      v.literal("viewed"),
+      v.literal("signed"),
+      v.literal("claimed"),   // signed AND created their studio
+      v.literal("revoked"),
+      v.literal("expired"),
+    ),
+    // ── NDA signature ──
+    ndaVersion: v.string(),
+    signedName: v.optional(v.string()),
+    signedTitle: v.optional(v.string()),
+    signedCompany: v.optional(v.string()),
+    signedAt: v.optional(v.number()),
+    // A hash of the exact agreement text the person actually saw, so a later
+    // edit to the terms cannot be passed off as what they signed.
+    signedTermsHash: v.optional(v.string()),
+    signedUserAgent: v.optional(v.string()),
+    sentAt: v.optional(v.number()),
+    emailStatus: v.optional(v.string()),
+    // Opened the page at all (code typed OR link followed).
+    firstViewedAt: v.optional(v.number()),
+    lastViewedAt: v.optional(v.number()),
+    viewCount: v.number(),
+    // Followed the magic link specifically, as opposed to typing the code.
+    // Tracked separately because "the email worked" and "they found their way
+    // in" are different things to know when a send goes quiet.
+    clickedAt: v.optional(v.number()),
+    clickCount: v.optional(v.number()),
+    // The email was rendered in a mail client. Best-effort only: image
+    // blocking means a missing open proves nothing, so the UI says so rather
+    // than presenting silence as a rejection.
+    emailOpenedAt: v.optional(v.number()),
+    emailOpenCount: v.optional(v.number()),
+    // Signed in to the studio they built. The real engagement signal - the
+    // one that separates "curious" from "using it".
+    lastLoginAt: v.optional(v.number()),
+    firstLoginAt: v.optional(v.number()),
+    loginCount: v.optional(v.number()),
+    // The studio they created off the back of this invite. The whole funnel
+    // exists to produce this field.
+    claimedOrgId: v.optional(v.string()),
+    claimedSlug: v.optional(v.string()),
+    claimedAt: v.optional(v.number()),
+    expiresAt: v.optional(v.number()),
+    note: v.optional(v.string()),
+    createdBy: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_code", ["code"])
+    .index("by_agency", ["agencyId"])
+    .index("by_agency_status", ["agencyId", "status"])
+    .index("by_email", ["email"])
+    .index("by_claimed_org", ["claimedOrgId"]),
+
+  // ── Agent rules - a deterministic standing rule, usually promoted from an
+  //    insight the owner got tired of approving.
+  //
+  //    Distinct from agentAutomations on purpose: an automation is a PROMPT
+  //    the agent runs on a schedule and reasons about; a rule is an if-this-
+  //    then-that with no model in the loop. Once the owner has approved the
+  //    same suggestion three times, they do not want it reasoned about again,
+  //    they want it to just happen. ──
+  agentRules: defineTable({
+    orgId: v.string(),
+    name: v.string(),
+    trigger: v.union(
+      v.literal("session.completed"),
+      v.literal("session.no_show"),
+      v.literal("session.upcoming"),
+      v.literal("invoice.overdue"),
+      v.literal("client.dormant"),
+      v.literal("booking.created"),
+    ),
+    // Threshold the trigger reads, where it needs one: hours before a session,
+    // days an invoice is overdue, days since a client was last seen.
+    thresholdDays: v.optional(v.number()),
+    thresholdHours: v.optional(v.number()),
+    action: v.union(
+      v.literal("notify_team"),
+      v.literal("email_client"),
+      v.literal("sms_client"),
+      v.literal("flag_insight"),
+    ),
+    // Message body. Supports {client} and {studio}; substitution is done
+    // server-side against real records, never by concatenating user input.
+    template: v.string(),
+    enabled: v.boolean(),
+    // Provenance: which insight or approval this was promoted from, so the
+    // owner can see why the rule exists months later.
+    fromInsightId: v.optional(v.id("agentInsights")),
+    fromApprovalId: v.optional(v.id("agentApprovals")),
+    sourceNote: v.optional(v.string()),
+    runCount: v.number(),
+    lastRunAt: v.optional(v.number()),
+    createdBy: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_trigger", ["orgId", "trigger"])
+    .index("by_org_enabled", ["orgId", "enabled"]),
+
+  // ── Engineer payouts - what the studio owes a person for a session.
+  //    Queued automatically when a session completes, from whichever basis
+  //    that teammate is on (commission, points, or clocked hours). Never
+  //    pays itself: a payout sits in "queued" until a human approves it. ──
+  payouts: defineTable({
+    orgId: v.string(),
+    memberId: v.id("members"),
+    sessionId: v.optional(v.id("sessions")),
+    basis: v.union(
+      v.literal("commission"),   // pct of the session rate
+      v.literal("points"),       // points x point value
+      v.literal("hourly"),       // clocked hours x rate
+      v.literal("manual"),       // entered by a manager
+    ),
+    amountCents: v.number(),
+    // How the number was reached, in words, so an engineer disputing a payout
+    // can be shown the arithmetic rather than asked to trust it.
+    explanation: v.string(),
+    status: v.union(
+      v.literal("queued"),
+      v.literal("approved"),
+      v.literal("paid"),
+      v.literal("void"),
+    ),
+    // Snapshots taken at queue time. A later raise must not rewrite what was
+    // already earned.
+    sessionRateCents: v.optional(v.number()),
+    commissionPctSnapshot: v.optional(v.number()),
+    pointsSnapshot: v.optional(v.number()),
+    pointValueCentsSnapshot: v.optional(v.number()),
+    hoursSnapshot: v.optional(v.number()),
+    note: v.optional(v.string()),
+    createdAt: v.number(),
+    approvedAt: v.optional(v.number()),
+    approvedBy: v.optional(v.string()),
+    paidAt: v.optional(v.number()),
+    paidBy: v.optional(v.string()),
+    expenseId: v.optional(v.id("expenses")),  // set when posted to the P&L
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_status", ["orgId", "status"])
+    .index("by_org_member", ["orgId", "memberId"])
+    .index("by_session", ["sessionId"]),
+
+  // ── Booking funnel - anonymous page-visit events on the public booking
+  //    surface. No PII, no IP, no cookie: the client mints a random
+  //    visitorKey per browser session and sends it with each step, which is
+  //    enough to count people through the funnel and nothing more.
+  //    A "booked" row is written server-side by createBooking when the
+  //    visitor carried a key, so view -> booked -> paid joins in one table. ──
+  bookingVisits: defineTable({
+    orgId: v.string(),
+    visitorKey: v.string(),          // random per browser session, client-minted
+    step: v.union(
+      v.literal("page"),             // landed on /book/<slug>
+      v.literal("room"),             // opened a room
+      v.literal("checkout"),         // reached the deposit step
+      v.literal("booked"),           // server-written on a real booking
+    ),
+    day: v.string(),                 // "YYYY-MM-DD", for cheap range aggregation
+    roomId: v.optional(v.id("rooms")),
+    sessionId: v.optional(v.id("sessions")),  // set on "booked"
+    amountCents: v.optional(v.number()),      // booking value, set on "booked"
+    ref: v.optional(v.string()),     // ?ref= referral attribution
+    code: v.optional(v.string()),    // ?code= promo attribution
+    utmSource: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_org_day", ["orgId", "day"])
+    .index("by_org_visitor", ["orgId", "visitorKey"])
+    .index("by_org_step", ["orgId", "step"]),
 
   // ── Usage metering - one aggregate counter per (org, period, metric).
   //    period is "YYYY-MM" (or "all" for non-resetting totals like storage).

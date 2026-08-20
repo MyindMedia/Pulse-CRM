@@ -47,6 +47,8 @@ export default function AgencyOverviewPage() {
     _creationTime: s._creationTime,
     billingStatus: s.billingStatus ?? null,
     trialEndsAt: s.trialEndsAt ?? null,
+    betaCohort: s.betaCohort ?? false,
+    graduatedAt: s.graduatedAt ?? null,
   }));
 
   return (

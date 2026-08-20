@@ -89,7 +89,14 @@ export const createSetupIntent = action({
   handler: async (
     ctx,
     { artistId },
-  ): Promise<{ clientSecret: string | null; customerId: string }> => {
+  ): Promise<{
+    clientSecret: string | null;
+    customerId: string;
+    // Elements has to be mounted against the SAME connected account the
+    // SetupIntent was created on, or confirmation fails with a mismatched
+    // client secret. Returned here so the client cannot get it wrong.
+    stripeAccountId: string;
+  }> => {
     if (!process.env.STRIPE_SECRET_KEY) {
       throw new ConvexError("Payments aren't configured yet.");
     }
@@ -119,7 +126,7 @@ export const createSetupIntent = action({
       { customer: customerId, usage: "off_session", payment_method_types: ["card"] },
       { stripeAccount: c.stripeAccountId },
     );
-    return { clientSecret: si.client_secret, customerId };
+    return { clientSecret: si.client_secret, customerId, stripeAccountId: c.stripeAccountId };
   },
 });
 

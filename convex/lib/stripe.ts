@@ -23,8 +23,12 @@ export function stripeClient(): Stripe {
 /** Tier → Stripe price ID env var name. enterprise is custom (no self-serve
     checkout); agency is legacy. */
 export const TIER_PRICE_ENV: Record<TierKey, string> = {
+  // Flow has no subscription price: it is billed as a take rate on what the
+  // studio collects, not through a Stripe price object.
+  flow: "STRIPE_PRICE_FLOW_UNUSED",
   studio: "STRIPE_PRICE_STUDIO",
   pro: "STRIPE_PRICE_PRO",
+  label: "STRIPE_PRICE_LABEL",
   growth: "STRIPE_PRICE_GROWTH",
   enterprise: "STRIPE_PRICE_ENTERPRISE",
   agency: "STRIPE_PRICE_AGENCY",
@@ -39,7 +43,7 @@ export function priceIdForTier(tier: TierKey): string {
 
 /** Reverse lookup - used by the webhook to flip agencies.plan. */
 export function tierForPriceId(priceId: string): TierKey | null {
-  for (const tier of ["studio", "pro", "growth", "enterprise", "agency"] as TierKey[]) {
+  for (const tier of ["studio", "pro", "label", "growth", "enterprise", "agency"] as TierKey[]) {
     if (process.env[TIER_PRICE_ENV[tier]] === priceId) return tier;
   }
   return null;
