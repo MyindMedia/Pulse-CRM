@@ -7,5 +7,7 @@
   # NEXT_PUBLIC_* values are inlined into the client bundle by design
   # (publishable / public keys). Exclude them from Netlify's secret scan so
   # it does not false-flag the build. CLERK_SECRET_KEY is intentionally NOT
-  # listed here — it is a real secret and must never reach the bundle.
-  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,NEXT_PUBLIC_CONVEX_URL,NEXT_PUBLIC_CONVEX_SITE_URL"
+  # listed here - it is a real secret and must never reach the bundle. Neither
+  # is the Stripe SECRET key: only the publishable pk_ is inlined, which is
+  # what Stripe Elements needs in the browser.
+  SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,NEXT_PUBLIC_CONVEX_URL,NEXT_PUBLIC_CONVEX_SITE_URL,NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"
