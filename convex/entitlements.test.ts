@@ -300,3 +300,26 @@ describe("white label", () => {
     expect(tierAtLeast("pro", "pro")).toBe(true);
   });
 });
+
+describe("the take rate is actually taken", () => {
+  it("charges a platform fee only on the payments-monetized plan", () => {
+    // 2% of a $500 deposit.
+    expect(takeCents("flow", 50_000)).toBe(1_000);
+    // Subscription plans pay monthly and must never ALSO be charged a
+    // percentage of what they collect.
+    for (const t of ["studio", "pro", "label"] as const) {
+      expect(takeCents(t, 50_000), `${t} must take nothing per transaction`).toBe(0);
+    }
+  });
+
+  it("rounds the fee to whole cents", () => {
+    // Stripe rejects a fractional application_fee_amount.
+    const fee = takeCents("flow", 3_333);
+    expect(Number.isInteger(fee)).toBe(true);
+    expect(fee).toBe(67);
+  });
+
+  it("takes nothing from a zero-value charge", () => {
+    expect(takeCents("flow", 0)).toBe(0);
+  });
+});

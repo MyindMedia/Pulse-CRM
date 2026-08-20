@@ -1,4 +1,6 @@
 import { action, query, internalQuery, internalMutation } from "./_generated/server";
+import { takeCents } from "./lib/plans";
+import { tierForOrg } from "./lib/tier";
 import type { ActionCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
@@ -217,12 +219,18 @@ export const _depositContext = internalQuery({
     const session = await ctx.db.get(sessionId);
     if (!session || session.orgId !== orgId) return null;
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+    // The platform fee is a property of the studio's PLAN, resolved the same
+    // way every other entitlement is. A subscription plan has no take rate, so
+    // this is 0 for everyone except the payments-monetized tier.
+    const tier = await tierForOrg(ctx, orgId);
     return {
       title: session.title,
       depositCents: session.depositCents,
       stripeAccountId: org?.stripeAccountId ?? null,
       chargesEnabled: Boolean(org?.stripeChargesEnabled),
       slug: org?.slug ?? "",
+      tier,
+      applicationFeeCents: takeCents(tier, session.depositCents),
     };
   },
 });
@@ -259,7 +267,18 @@ export const createDepositCheckout = action({
         ],
         success_url: `${appUrl()}/book/${ctxData.slug}?deposit=paid`,
         cancel_url: `${appUrl()}/book/${ctxData.slug}?deposit=cancelled`,
-        metadata: { sessionId },
+        metadata: { sessionId, tier: ctxData.tier },
+        // Platform fee for payments-monetized plans. Omitted entirely on
+        // subscription plans, so a studio paying monthly is never also charged
+        // a percentage. On a direct charge the fee is taken from the studio's
+        // proceeds and settled to the platform account by Stripe.
+        ...(ctxData.applicationFeeCents > 0
+          ? {
+              payment_intent_data: {
+                application_fee_amount: ctxData.applicationFeeCents,
+              },
+            }
+          : {}),
       },
       { stripeAccount: ctxData.stripeAccountId }, // direct charge on the studio's account
     );

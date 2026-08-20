@@ -289,9 +289,11 @@ function PreviewContent({
             Everything Pulse does, and what it does next
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-relaxed text-steel">
-            {data.counts.modules} modules across {data.counts.areas} areas, and the{" "}
-            {data.counts.roadmap} moves still on the board. Confidential, under the agreement
-            you signed.
+            {data.counts.modules} modules across {data.counts.areas} areas.{" "}
+            {data.counts.roadmap > 0
+              ? `${data.counts.roadmap} more ${data.counts.roadmap === 1 ? "move is" : "moves are"} still on the board, and you are seeing those too.`
+              : "Everything on the roadmap when this list was written has since shipped."}{" "}
+            Confidential, under the agreement you signed.
           </p>
 
           <div className="mt-5 flex flex-wrap items-center gap-2 rounded-md border border-gold/25 bg-gold/8 px-3 py-2">
@@ -380,9 +382,12 @@ function PreviewContent({
 
         {data.shippedFromRoadmap.length > 0 && (
           <section className="mt-8">
-            <h2 className="font-grotesk text-sm font-semibold text-bone">
+            <h2 className="font-grotesk text-lg font-bold tracking-tight text-bone">
               Shipped since this list was written
             </h2>
+            <p className="mt-1.5 max-w-xl text-xs leading-relaxed text-steel">
+              These were the open questions on the roadmap. They are in the product now.
+            </p>
             <ul className="mt-2 flex flex-wrap gap-2">
               {data.shippedFromRoadmap.map((r) => (
                 <li

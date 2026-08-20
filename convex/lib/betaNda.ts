@@ -12,12 +12,12 @@
    before it goes to anyone who matters.
    ============================================================ */
 
-export const NDA_VERSION = "2026-08-20.1";
+export const NDA_VERSION = "2026-08-20.2";
 
 export const NDA_TITLE = "Pulse Early Access and Confidentiality Agreement";
 
 export const NDA_INTRO =
-  "You are being given access to an unreleased product. This agreement covers what you may do with what you see. Please read it, then type your name to accept.";
+  "You are being given access to an unreleased product, including features that are not built yet. This agreement covers what you may do with what you see: keep it to yourself, and use it only to decide whether Pulse is right for your studio. Please read it, then type your name to accept.";
 
 export const NDA_CLAUSES: { heading: string; body: string }[] = [
   {
@@ -34,6 +34,21 @@ export const NDA_CLAUSES: { heading: string; body: string }[] = [
     heading: "Who you may share it with",
     body:
       "People inside your own organization who need to evaluate Pulse with you, on the condition that you make them aware of these terms and remain responsible for them.",
+  },
+  {
+    heading: "What you may use it for",
+    body:
+      "Evaluating Pulse for your own studio, and nothing else. You may not use what you see here to build, specify, fund, or help anyone else build a product that competes with Pulse. This is the clause that matters most to us: you are being shown an unreleased roadmap, and we are relying on you not to take it somewhere else.",
+  },
+  {
+    heading: "No copying or reverse engineering",
+    body:
+      "Do not copy, recreate, or make derivative works from the Pulse interface, feature set, workflows, or documentation. Do not reverse engineer, decompile, or attempt to derive the source of anything you are given access to, or use automated tools to scrape or extract it.",
+  },
+  {
+    heading: "Who owns what",
+    body:
+      "Pulse, its interface, its underlying software, and everything on these pages remain the property of Myind Sound. Nothing here grants you a licence to use, reproduce, or build on any of it beyond looking at it to decide whether you want it. Your own business, data, recordings and material remain entirely yours.",
   },
   {
     heading: "What you may say publicly",

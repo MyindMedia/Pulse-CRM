@@ -180,7 +180,38 @@ describe("attribution", () => {
     });
     expect(b.reused).toBe(true);
     expect(b.code).toBe(a.code);
-    expect(a.code).toMatch(/^[A-HJ-NP-Z2-9]{5}-[A-HJ-NP-Z2-9]{5}$/);
+    // XXXX-XXXX-XXXX from a 32-symbol alphabet with no ambiguous characters.
+    expect(a.code).toMatch(/^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
+  });
+
+  it("gives two invitees different codes, and does not derive them from the email", async () => {
+    const t = convexTest(schema);
+    await agency(t);
+    const codes = new Set<string>();
+    for (let i = 0; i < 12; i++) {
+      const r = await t.mutation(internal.betaAccess._create, {
+        agencyId: "ag1", email: `person${i}@example.com`,
+      });
+      codes.add(r.code);
+    }
+    // Every invitee gets their own code: a shared code would make every
+    // "who opened it" answer meaningless and let one leak admit everybody.
+    expect(codes.size).toBe(12);
+  });
+
+  it("does not produce the same code twice for the same inputs", async () => {
+    const t = convexTest(schema);
+    await agency(t);
+    // The old generator was seeded from (timestamp, email), so the same
+    // person invited at the same instant got a predictable code. Real
+    // entropy means two agencies inviting the same address never collide.
+    const a = await t.mutation(internal.betaAccess._create, {
+      agencyId: "ag1", email: "same@example.com",
+    });
+    const b = await t.mutation(internal.betaAccess._create, {
+      agencyId: "ag2", email: "same@example.com",
+    });
+    expect(a.code).not.toBe(b.code);
   });
 
   it("keeps another agency's invites out of the list", async () => {

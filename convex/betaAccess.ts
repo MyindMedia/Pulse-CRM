@@ -25,23 +25,30 @@ import { ROADMAP, KIND_LABELS } from "./lib/roadmap";
    ============================================================ */
 
 const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"; // no I/O/0/1
-const CODE_LEN = 10;
+const CODE_LEN = 12;
 
-/** A readable, unguessable code. Ambiguous characters are left out because
- *  half of these get read down a phone. */
-function makeCode(seed: number, salt: string): string {
-  let h = 0x811c9dc5 ^ seed;
-  for (let i = 0; i < salt.length; i++) {
-    h ^= salt.charCodeAt(i);
-    h = Math.imul(h, 0x01000193) >>> 0;
-  }
+/**
+ * A readable, unguessable access code, unique to one invited person.
+ *
+ * Entropy comes from crypto.randomUUID(), NOT from a seed derived off the
+ * recipient's email and a timestamp. That earlier approach was predictable:
+ * anyone who knew an invitee's address could search a small timestamp space
+ * and land on their code. Twelve characters from a 32-symbol alphabet is
+ * about 60 bits, which makes guessing an unissued code infeasible rather
+ * than merely inconvenient.
+ *
+ * Ambiguous characters (I, O, 0, 1) are left out because half of these get
+ * read down a phone.
+ */
+function makeCode(): string {
+  const hex = (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
   let out = "";
   for (let i = 0; i < CODE_LEN; i++) {
-    h ^= h << 13; h >>>= 0;
-    h ^= h >> 17;
-    h ^= h << 5;  h >>>= 0;
-    out += CODE_ALPHABET[h % CODE_ALPHABET.length];
-    if (i === 4) out += "-";
+    // 3 hex digits (12 bits) per output symbol keeps the modulo bias far
+    // below the point where it would narrow the search space meaningfully.
+    const chunk = parseInt(hex.slice(i * 3, i * 3 + 3), 16);
+    out += CODE_ALPHABET[chunk % CODE_ALPHABET.length];
+    if (i === 3 || i === 7) out += "-";
   }
   return out;
 }
@@ -282,15 +289,16 @@ export const _create = internalMutation({
     if (existing) return { id: existing._id, code: existing.code, reused: true };
 
     const now = Date.now();
-    let code = makeCode(now, email);
-    // Collisions are vanishingly unlikely but not impossible; salt and retry.
+    // One code, one person. Re-rolled on the vanishingly unlikely collision so
+    // two invitees can never share an identity.
+    let code = makeCode();
     for (let i = 0; i < 5; i++) {
       const clash = await ctx.db
         .query("betaInvites")
         .withIndex("by_code", (q) => q.eq("code", code))
         .first();
       if (!clash) break;
-      code = makeCode(now + i + 1, email + i);
+      code = makeCode();
     }
 
     const id = await ctx.db.insert("betaInvites", {
