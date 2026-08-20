@@ -54,6 +54,16 @@ const isPublicRoute = createRouteMatcher([
   "/portal(.*)", // client concierge magic-link portal - token-authed, no login
   "/sign(.*)", // split-sheet e-signature magic-link - token-authed, no login
   "/visit/(.*)", // visitor QR self check-in - org derived from the slug, no login
+  // Public marketing + directory surfaces. These exist FOR people who have no
+  // account, so protecting them 404s exactly the audience they were built for
+  // (auth.protect() 404s rather than redirecting on the satellite host).
+  "/studios", // Find a Studio directory - artists searching, not customers
+  "/studios/(.*)",
+  "/vs", // comparison page - a search result, must be anonymous-reachable
+  // Beta preview: recipients are gated by their own access code and the signed
+  // agreement, checked server-side. They have no Pulse login yet by design.
+  "/preview",
+  "/preview/(.*)",
   "/__clerk(.*)", // satellite Frontend API proxy - handled by frontendApiProxy
 ]);
 
