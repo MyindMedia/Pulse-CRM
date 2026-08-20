@@ -20,6 +20,22 @@ import { stripEmDashes } from "./lib/text";
 /** Table -> the text fields on it that a human reads. */
 const TARGETS: { table: string; fields: string[] }[] = [
   { table: "sessions", fields: ["title", "notes"] },
+  // The pipeline board renders these. Missed on the first pass, which is
+  // exactly why the dashes were still visible there.
+  { table: "opportunities", fields: ["title"] },
+  { table: "syncOpportunities", fields: ["supervisorName", "outlet", "notes"] },
+  { table: "songs", fields: ["title", "notes"] },
+  { table: "releaseCampaigns", fields: ["title", "notes"] },
+  { table: "deliverables", fields: ["label", "notes"] },
+  { table: "packageProducts", fields: ["name", "description"] },
+  { table: "membershipPlans", fields: ["name", "description"] },
+  { table: "equipment", fields: ["name", "notes"] },
+  { table: "softwareLicenses", fields: ["name", "notes"] },
+  { table: "feeTemplates", fields: ["label"] },
+  { table: "reviews", fields: ["comment"] },
+  { table: "clientMessages", fields: ["body"] },
+  { table: "shifts", fields: ["note"] },
+  { table: "visitors", fields: ["note"] },
   { table: "notifications", fields: ["subject", "body"] },
   { table: "activity", fields: ["summary"] },
   { table: "insights", fields: ["title", "body"] },
