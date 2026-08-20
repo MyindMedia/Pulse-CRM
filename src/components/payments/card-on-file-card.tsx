@@ -7,7 +7,18 @@ import type { Id } from "@convex/_generated/dataModel";
 import { CreditCard, ShieldCheck } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { CardCapture } from "@/components/payments/card-capture";
+import dynamic from "next/dynamic";
+
+/* Stripe Elements is ~1.3MB and is only needed once somebody actually decides
+   to add a card. Loading it lazily keeps it off every client-profile page
+   view, which is the common case by a wide margin. */
+const CardCapture = dynamic(
+  () => import("@/components/payments/card-capture").then((m) => m.CardCapture),
+  {
+    ssr: false,
+    loading: () => <p className="text-xs text-steel">Loading the secure card form…</p>,
+  },
+);
 
 /* Card on file, on the client's own profile.
 
