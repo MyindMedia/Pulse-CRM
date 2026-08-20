@@ -31,8 +31,12 @@ import { tierForOrg, tierForPlan, DEMO_ORG } from "./lib/tier";
    that already paid for it. */
 
 describe("price book", () => {
-  it("sells four tiers at the published prices", () => {
-    expect(SELLABLE_TIERS).toEqual(["flow", "studio", "pro", "label"]);
+  it("sells three tiers at the published prices", () => {
+    // Flow is built but PARKED - it contradicts the founding "Pulse
+    // facilitates, not platform-collected" principle, so it is not sold
+    // until that is a deliberate decision.
+    expect(SELLABLE_TIERS).toEqual(["studio", "pro", "label"]);
+    expect(PLAN_LIMITS.flow.publicTier).toBe(false);
     expect(priceLabel("studio")).toBe("$149.99");
     expect(priceLabel("pro")).toBe("$297.00");
     expect(priceLabel("label")).toBe("$499.99");
@@ -129,17 +133,16 @@ describe("capability ladder", () => {
   });
 
   it("reports the cheapest tier that unlocks a capability", () => {
-    // Flow is now the cheapest way to get the money loop.
-    expect(minTierFor("bookings")).toBe("flow");
-    expect(minTierFor("noShowShield")).toBe("flow");
-    // The growth extras still start at Studio.
+    // Flow is parked, so Studio is again the cheapest sold tier.
+    expect(minTierFor("bookings")).toBe("studio");
+    expect(minTierFor("noShowShield")).toBe("studio");
     expect(minTierFor("reviewsReferrals")).toBe("studio");
     expect(minTierFor("discountCodes")).toBe("studio");
     expect(minTierFor("payroll")).toBe("pro");
     expect(minTierFor("patch")).toBe("label");
   });
 
-  it("keeps Flow to the money loop, so there is a reason to move up", () => {
+  it("keeps the parked Flow tier scoped to the money loop", () => {
     for (const cap of ["bookings", "payments", "cardOnFile", "noShowShield", "dunning"] as CapabilityKey[]) {
       expect(hasCapability("flow", cap), `${cap} must ship on Flow`).toBe(true);
     }

@@ -199,11 +199,20 @@ export const PLAN_LIMITS: Record<TierKey, TierLimits> = {
   //    "Google Calendar is free": so is this, until it makes you money.
   //    Deliberately capped at the money loop - the moment a studio needs
   //    staff, AI or reporting, Studio Pro is the upgrade.
+  // ── PARKED, not sold ──
+  //    Built but deliberately not public. It contradicts the founding
+  //    payments principle (Grilled.md, 2026-05-24): "each studio connects its
+  //    OWN Stripe and gets paid directly; Pulse facilitates, NOT
+  //    platform-collected". The code path stays so it can be switched on
+  //    after a deliberate decision and a test with one studio.
+  //
+  //    To sell it: set publicTier true, and first close the two gaps noted on
+  //    takeRateBps below.
   flow: {
     label: "Flow",
     tagline: "No monthly fee. Pulse earns when you get paid.",
     pitch: "Free to run. We take 2% of what you collect through Pulse, and nothing else.",
-    publicTier: true,
+    publicTier: false,
     custom: false,
     order: 0,
     subAccountCap: 1,
@@ -215,7 +224,13 @@ export const PLAN_LIMITS: Record<TierKey, TierLimits> = {
     roomCap: 1,
     staffCap: 2,
     priceCents: 0,
-    takeRateBps: 200,        // 2.00% of what Pulse collects
+    // 2.00%. TWO GAPS to close before this is ever sold:
+    //  1. Only the deposit checkout charges it. Invoices, memberships,
+    //     no-show fees and packages do not, so the "2% of what you collect"
+    //     claim is not yet true.
+    //  2. There is no cap, so a studio collecting $50k/mo would pay $1,000 -
+    //     twice the top subscription plan.
+    takeRateBps: 200,
     paymentsRequired: true,
     capabilities: FLOW_CAPS,
   },
@@ -342,7 +357,9 @@ export const PUBLIC_TIERS: TierKey[] = (
   .sort((a, b) => PLAN_LIMITS[a].order - PLAN_LIMITS[b].order);
 
 /** The three tiers we actually sell, cheapest first. */
-export const SELLABLE_TIERS: TierKey[] = ["flow", "studio", "pro", "label"];
+/** The tiers we actually sell, cheapest first. Flow is built but parked
+ *  (publicTier false), so it is deliberately absent here. */
+export const SELLABLE_TIERS: TierKey[] = ["studio", "pro", "label"];
 
 /** Formatted price, e.g. "$149.99". A payments-monetized plan prices in its
  *  take rate instead, and a custom tier has no price to show. */
