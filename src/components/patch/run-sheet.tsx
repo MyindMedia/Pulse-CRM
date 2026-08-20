@@ -225,7 +225,7 @@ function RunSheet({
                 ) : run.unassigned ? (
                   /* An empty cell reads as "nothing to do here". A run with no
                      cable chosen is the opposite: it is the work. */
-                  <span className="run-sheet-todo">— no cable assigned —</span>
+                  <span className="run-sheet-todo"> - no cable assigned - </span>
                 ) : (
                   <>
                     <span className="run-sheet-device">{run.cableName}</span>

@@ -250,7 +250,7 @@ export function AvailabilityPicker({
           <div className="flex items-end justify-between border-t border-graphite/50 pt-3">
             <div>
               <p className="text-xs text-steel/70">
-                {formatHour(startHour)} – {formatHour(startHour + durationHours)}
+                {formatHour(startHour)} - {formatHour(startHour + durationHours)}
               </p>
               <p className="font-grotesk text-xl font-semibold text-bone">
                 {money(rateCents)}

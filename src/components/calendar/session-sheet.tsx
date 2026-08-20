@@ -183,8 +183,7 @@ export function SessionSheet({
               </div>
               <SheetTitle>{detail.title}</SheetTitle>
               <SheetDescription>
-                {longDate(detail.startTime)} · {timeOfDay(detail.startTime)}–
-                {timeOfDay(detail.endTime)} ({duration(detail.startTime, detail.endTime)})
+                {longDate(detail.startTime)} · {timeOfDay(detail.startTime)} - {timeOfDay(detail.endTime)} ({duration(detail.startTime, detail.endTime)})
               </SheetDescription>
               {detail.status === "in_progress" && <LiveTimer startTime={detail.startTime} />}
             </SheetHeader>

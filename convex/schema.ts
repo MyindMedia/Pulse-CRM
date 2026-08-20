@@ -609,7 +609,7 @@ export default defineSchema({
     updatedAt: v.number(),
   }).index("by_phone", ["phone"]),
 
-  // ── Pulse Agent — tenant-isolated AI ops layer. Spec "workspace" == orgId.
+  // ── Pulse Agent - tenant-isolated AI ops layer. Spec "workspace" == orgId.
   //    New tables per the Agent spec; gated by the access engine; the model
   //    reasons/drafts while Convex authorizes, executes, meters, and audits. ──
   agentPolicies: defineTable({

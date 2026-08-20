@@ -208,7 +208,7 @@ export function SubaccountBilling({ orgId }: { orgId: string }) {
               <Input
                 value={override}
                 onChange={(e) => setOverride(e.target.value.replace(/[^0-9.]/g, ""))}
-                placeholder="—"
+                placeholder="-"
                 className="pl-7"
                 inputMode="decimal"
               />

@@ -568,7 +568,7 @@
   }
   .glass-edge:hover::before { opacity: 1; }
 
-  /* Specular hover sheen — a gold-tinted diagonal sweep across a surface.
+  /* Specular hover sheen - a gold-tinted diagonal sweep across a surface.
      Pair with overflow-hidden + relative (the .sheen base handles both). */
   .sheen { position: relative; overflow: hidden; isolation: isolate; }
   .sheen::after {
@@ -588,7 +588,7 @@
   }
   .sheen:hover::after { transform: translateX(130%); }
 
-  /* Physical press — spring scale-down on active, glassy settle. */
+  /* Physical press - spring scale-down on active, glassy settle. */
   .press {
     transition:
       transform var(--dur-press) var(--ease-spring),
@@ -598,7 +598,7 @@
   }
   .press:active { transform: scale(var(--press-scale)); }
 
-  /* Fixed studio-light bloom — gives the glass something warm to refract.
+  /* Fixed studio-light bloom - gives the glass something warm to refract.
      Drop one <div class="app-bloom" /> behind the app content. */
   /* The living backdrop the glass refracts. Static warm blooms plus two
      slow-drifting aurora blobs (gold + a whisper of signal blue) - transform

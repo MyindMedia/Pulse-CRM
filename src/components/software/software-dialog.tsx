@@ -235,7 +235,7 @@ export function SoftwareDialog({
                       {results === undefined ? (
                         <p className="px-3 py-2 text-xs text-steel/70">Loading…</p>
                       ) : grouped.length === 0 ? (
-                        <p className="px-3 py-2 text-xs text-steel/70">No match — use the custom option.</p>
+                        <p className="px-3 py-2 text-xs text-steel/70">No match - use the custom option.</p>
                       ) : (
                         grouped.map((g) => (
                           <div key={g.label}>

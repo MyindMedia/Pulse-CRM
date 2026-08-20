@@ -67,7 +67,7 @@ export function Contact() {
                 </span>
                 <div>
                   <p className="font-grotesk text-lg font-semibold text-bone">Message sent</p>
-                  <p className="text-sm text-mist/80">Thanks {name.split(" ")[0] || "there"} — we&apos;ll be in touch shortly.</p>
+                  <p className="text-sm text-mist/80">Thanks {name.split(" ")[0] || "there"} - we&apos;ll be in touch shortly.</p>
                 </div>
               </div>
             ) : (

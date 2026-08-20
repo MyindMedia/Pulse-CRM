@@ -175,7 +175,7 @@ export function DeviceList({ patchSpaceId }: { patchSpaceId: Id<"patchSpaces"> }
                         )}
                       </TD>
                       <TD className="font-meta text-[11px] text-steel">
-                        {device.equipment?.serialNumber ?? "—"}
+                        {device.equipment?.serialNumber ?? "-"}
                       </TD>
                       <TD className="whitespace-nowrap text-steel">
                         {inputs} in · {outputs} out

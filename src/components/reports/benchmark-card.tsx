@@ -16,7 +16,7 @@ import { cn } from "@/lib/utils";
    under the floor shows as withheld, not as a rounded guess. */
 
 function Delta({ value, unit, goodWhenHigh }: { value: number | null; unit: string; goodWhenHigh: boolean }) {
-  if (value === null) return <span className="text-steel/60">—</span>;
+  if (value === null) return <span className="text-steel/60">-</span>;
   const good = goodWhenHigh ? value >= 0 : value <= 0;
   const sign = value > 0 ? "+" : "";
   return (
@@ -67,15 +67,15 @@ export function BenchmarkCard({ windowDays = 90 }: { windowDays?: number }) {
             <div className="grid grid-cols-3 gap-px overflow-hidden rounded-md bg-graphite/40">
               <Tile
                 label="Median rate"
-                value={r.overall.medianHourlyCents !== null ? `${money(r.overall.medianHourlyCents)}/hr` : "—"}
+                value={r.overall.medianHourlyCents !== null ? `${money(r.overall.medianHourlyCents)}/hr` : "-"}
                 sub={
                   r.overall.p25HourlyCents !== null && r.overall.p75HourlyCents !== null
                     ? `${money(r.overall.p25HourlyCents)} to ${money(r.overall.p75HourlyCents)}`
                     : undefined
                 }
               />
-              <Tile label="Median utilization" value={`${r.overall.medianUtilizationPct ?? "—"}%`} />
-              <Tile label="Median no-shows" value={`${r.overall.medianNoShowPct ?? "—"}%`} />
+              <Tile label="Median utilization" value={`${r.overall.medianUtilizationPct ?? "-"}%`} />
+              <Tile label="Median no-shows" value={`${r.overall.medianNoShowPct ?? "-"}%`} />
             </div>
 
             {r.comparison && (

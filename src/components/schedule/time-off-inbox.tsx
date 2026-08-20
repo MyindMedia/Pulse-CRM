@@ -11,7 +11,7 @@ import { Avatar } from "@/components/ui/avatar";
 
 function range(a: number, b: number) {
   const o: Intl.DateTimeFormatOptions = { month: "short", day: "numeric" };
-  return `${new Date(a).toLocaleDateString("en-US", o)} – ${new Date(b).toLocaleDateString("en-US", o)}`;
+  return `${new Date(a).toLocaleDateString("en-US", o)} - ${new Date(b).toLocaleDateString("en-US", o)}`;
 }
 
 /** Manager inbox of pending time-off requests. Renders nothing for non-managers

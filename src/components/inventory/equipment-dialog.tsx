@@ -296,7 +296,7 @@ export function EquipmentDialog({
             {!isEdit && (
               <Field
                 label="Gear catalog"
-                hint="Pick a model to auto-fill name, category & price — or add a custom item."
+                hint="Pick a model to auto-fill name, category & price - or add a custom item."
               >
                 <div className="relative">
                   <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-steel/70" />
@@ -338,7 +338,7 @@ export function EquipmentDialog({
                       ) : catalogResults.length === 0 ? (
                         catalogQ.trim().length >= 1 ? (
                           <p className="px-3 py-2 text-xs text-steel/70">
-                            No catalog match — use the custom-item option above.
+                            No catalog match - use the custom-item option above.
                           </p>
                         ) : (
                           <p className="px-3 py-2 text-xs text-steel/70">Start typing to search the catalog.</p>

@@ -44,7 +44,7 @@ export function BookingSummary({ booking }: { booking: BookingSummaryData }) {
     {
       icon: Clock3,
       label: "Time",
-      value: `${timeOfDay(booking.startTime)} – ${timeOfDay(booking.endTime)} (${duration(
+      value: `${timeOfDay(booking.startTime)} - ${timeOfDay(booking.endTime)} (${duration(
         booking.startTime,
         booking.endTime,
       )})`,

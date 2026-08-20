@@ -89,7 +89,7 @@ export function AssetDocuments({
         <div>
           <p className="text-xs font-medium text-steel">Receipts &amp; documents</p>
           <p className="text-[0.6875rem] text-steel/70">
-            Purchase invoices, receipts &amp; warranties — for tax &amp; insurance records.
+            Purchase invoices, receipts &amp; warranties - for tax &amp; insurance records.
           </p>
         </div>
         <div className="flex items-center gap-2">

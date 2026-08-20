@@ -205,8 +205,8 @@ export function CableManager({
                         <Badge tone="caution">No cable</Badge>
                       )}
                     </TD>
-                    <TD className="font-meta text-[11px] text-steel">{run.cableTag ?? "—"}</TD>
-                    <TD className="text-steel">{run.lengthFt ? `${run.lengthFt} ft` : "—"}</TD>
+                    <TD className="font-meta text-[11px] text-steel">{run.cableTag ?? "-"}</TD>
+                    <TD className="text-steel">{run.lengthFt ? `${run.lengthFt} ft` : "-"}</TD>
                     <TD onClick={(event) => event.stopPropagation()}>
                       {run.cableName && !run.isNormalled && (
                         <Tooltip
@@ -360,10 +360,10 @@ export function CableManager({
                       <TD className="whitespace-nowrap text-steel">
                         {row.spec
                           ? `${connectorMeta(row.spec.connectorA).short} · ${connectorMeta(row.spec.connectorB).short}`
-                          : "—"}
+                          : "-"}
                       </TD>
                       <TD className="text-steel">
-                        {row.spec?.lengthFt ? `${row.spec.lengthFt} ft` : "—"}
+                        {row.spec?.lengthFt ? `${row.spec.lengthFt} ft` : "-"}
                       </TD>
                       <TD>{row.quantity}</TD>
                       <TD>{row.inUse}</TD>

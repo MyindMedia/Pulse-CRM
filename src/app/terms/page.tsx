@@ -36,7 +36,7 @@ export default function TermsOfService() {
       {/*
         The SMS block below is the section carrier / TCR campaign review reads.
         Program description, frequency, rates, STOP/HELP, and carrier liability
-        all have to be present and publicly reachable — do not gate this page.
+        all have to be present and publicly reachable - do not gate this page.
       */}
       <Section heading="SMS / text messaging program">
         <p>
@@ -54,7 +54,7 @@ export default function TermsOfService() {
         </p>
         <p>
           <strong className="text-mist">Message frequency.</strong> Message frequency varies and
-          depends on your booking activity — typically 1 to 5 messages per booking.
+          depends on your booking activity - typically 1 to 5 messages per booking.
         </p>
         <p>
           <strong className="text-mist">Cost.</strong> Message and data rates may apply. Pulse does

@@ -34,20 +34,20 @@ export default function PrivacyPolicy() {
         <p>We collect only what is needed to run a studio&rsquo;s bookings and communications:</p>
         <ul className="list-disc space-y-1.5 pl-5">
           <li>
-            <strong className="text-mist">Contact details</strong> — name, email address, and mobile
+            <strong className="text-mist">Contact details</strong> - name, email address, and mobile
             phone number, provided by you when you book a session, accept a staff invitation, or
             create an account.
           </li>
           <li>
-            <strong className="text-mist">Booking information</strong> — sessions, rooms, times,
+            <strong className="text-mist">Booking information</strong> - sessions, rooms, times,
             add-ons, and related notes.
           </li>
           <li>
-            <strong className="text-mist">Payment information</strong> — processed by Stripe. We do
+            <strong className="text-mist">Payment information</strong> - processed by Stripe. We do
             not store full card numbers on our systems.
           </li>
           <li>
-            <strong className="text-mist">Technical data</strong> — IP address, device and browser
+            <strong className="text-mist">Technical data</strong> - IP address, device and browser
             type, and log data used to keep the service secure and working.
           </li>
         </ul>
@@ -93,10 +93,10 @@ export default function PrivacyPolicy() {
           deliver the service:
         </p>
         <ul className="list-disc space-y-1.5 pl-5">
-          <li>Twilio — delivery of SMS messages.</li>
-          <li>Stripe — payment processing.</li>
-          <li>Clerk — account authentication.</li>
-          <li>Convex and Netlify — application hosting and data storage.</li>
+          <li>Twilio - delivery of SMS messages.</li>
+          <li>Stripe - payment processing.</li>
+          <li>Clerk - account authentication.</li>
+          <li>Convex and Netlify - application hosting and data storage.</li>
         </ul>
         <p>
           We may also disclose information where required by law, or to protect the rights, safety,

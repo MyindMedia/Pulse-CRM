@@ -162,7 +162,7 @@ export const fillYear = internalMutation({
 
         const sessionId = (await ctx.db.insert("sessions", {
           orgId,
-          title: `${cap(service)} — ${a.name}`,
+          title: `${cap(service)} - ${a.name}`,
           artistId: a._id as Id<"artists">,
           serviceType: service,
           roomId: room?._id,
@@ -188,7 +188,7 @@ export const fillYear = internalMutation({
           const email = a.email ?? `${a.name.toLowerCase().replace(/[^a-z]+/g, ".")}@demo.mail`;
           await ctx.db.insert("notifications", {
             orgId, channel: "email", recipient: email,
-            subject: `Booking confirmed - ${cap(service)} — ${a.name}`,
+            subject: `Booking confirmed - ${cap(service)} - ${a.name}`,
             body: `Hi ${first}, you're locked in for ${cap(service).toLowerCase()} on ${when} at ${at}${room ? ` in ${room.name}` : ""}. Deposit received - see you then.`,
             kind: "booking.confirmed", sessionId, status: "sent",
           });
@@ -292,10 +292,10 @@ export const fillYear = internalMutation({
       for (let i = 0; i < sg.n; i++) {
         const a = pick(artists, pr());
         const service = pick([...SERVICES], pr());
-        const valueCents = (2 + Math.floor(pr() * 14)) * 100_000; // $2k–$15k
+        const valueCents = (2 + Math.floor(pr() * 14)) * 100_000; // $2k-$15k
         await ctx.db.insert("opportunities", {
           orgId,
-          title: `${cap(service)} — ${a.name}`,
+          title: `${cap(service)} - ${a.name}`,
           artistId: a._id as Id<"artists">,
           stage: sg.stage,
           valueCents,

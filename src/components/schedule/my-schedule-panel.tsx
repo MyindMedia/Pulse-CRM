@@ -135,7 +135,7 @@ export function MySchedulePanel() {
           <div className="space-y-1">
             {(myTimeOff ?? []).map((r) => (
               <div key={r._id} className="flex items-center justify-between rounded-md border border-graphite/50 bg-coal-2 px-3 py-1.5 text-sm">
-                <span className="text-bone">{new Date(r.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – {new Date(r.endTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                <span className="text-bone">{new Date(r.startTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })} - {new Date(r.endTime).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
                 <Badge tone={TONE[r.status]}>{r.status}</Badge>
               </div>
             ))}

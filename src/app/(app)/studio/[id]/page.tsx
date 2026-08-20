@@ -407,7 +407,7 @@ export default function StudioDetailPage() {
           label="Sessions this week"
           value={<CountUp to={roomSessions.length} />}
           icon={CalendarClock}
-          hint={roomSessions.length === 0 ? "No bookings" : "Sun – Sat"}
+          hint={roomSessions.length === 0 ? "No bookings" : "Sun - Sat"}
         />
         <StatTile
           label="Deposit"

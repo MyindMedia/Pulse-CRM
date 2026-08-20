@@ -56,7 +56,7 @@ export default function SchedulePage() {
   const closures = useQuery(api.shifts.closedDaysInRange, { from: weekStart, to: weekEnd });
   const cancelShift = useMutation(api.shifts.cancel);
 
-  const weekLabel = `${new Date(weekStart).toLocaleDateString("en-US", { month: "short", day: "numeric" })} – ${new Date(weekEnd - DAY).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
+  const weekLabel = `${new Date(weekStart).toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${new Date(weekEnd - DAY).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
 
   const colorOf = React.useCallback(
     (memberId: string) => members?.find((m) => m._id === memberId)?.avatarColor ?? FALLBACK_COLOR,
@@ -199,7 +199,7 @@ export default function SchedulePage() {
                 <button key={s._id} onClick={() => openEdit(s)}
                   className="flex w-full items-center gap-3 rounded-lg border bg-coal/40 px-3 py-2.5 text-left"
                   style={{ borderLeftColor: colorOf(s.memberId), borderLeftWidth: 3 }}>
-                  <span className="font-meta text-xs text-steel/70">{fmtTime(s.startTime)}–{fmtTime(s.endTime)}</span>
+                  <span className="font-meta text-xs text-steel/70">{fmtTime(s.startTime)}-{fmtTime(s.endTime)}</span>
                   <Avatar name={s.memberName} src={s.memberPhotoUrl} color={colorOf(s.memberId)} size="xs" className="rounded-full" />
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-bone">{s.memberName}</p>
@@ -260,7 +260,7 @@ export default function SchedulePage() {
                               <button key={s._id} onClick={() => openEdit(s)} style={cp.style}
                                 className={cn("group/chip relative rounded-md border px-1.5 py-1 text-left text-[0.6875rem] leading-tight transition-shadow hover:shadow-elev-1", cp.className)}>
                                 <span className="flex items-center gap-1 font-meta">
-                                  {fmtTime(s.startTime)}–{fmtTime(s.endTime)}
+                                  {fmtTime(s.startTime)}-{fmtTime(s.endTime)}
                                   {s.status === "confirmed" && <Check className="size-2.5 text-positive" />}
                                 </span>
                                 {s.roomName && <span className="block truncate opacity-80"><DoorOpen className="mr-0.5 inline size-2.5" />{s.roomName}</span>}

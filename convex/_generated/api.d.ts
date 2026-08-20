@@ -136,6 +136,7 @@ import type * as maintenance from "../maintenance.js";
 import type * as members from "../members.js";
 import type * as memberships from "../memberships.js";
 import type * as migrations from "../migrations.js";
+import type * as migrations_dashes from "../migrations_dashes.js";
 import type * as modules from "../modules.js";
 import type * as notifications from "../notifications.js";
 import type * as onboarding from "../onboarding.js";
@@ -333,6 +334,7 @@ declare const fullApi: ApiFromModules<{
   members: typeof members;
   memberships: typeof memberships;
   migrations: typeof migrations;
+  migrations_dashes: typeof migrations_dashes;
   modules: typeof modules;
   notifications: typeof notifications;
   onboarding: typeof onboarding;

@@ -109,7 +109,7 @@ export function SoftwareTable({
                     <div className="min-w-0">
                       <p className="truncate font-medium text-bone">{s.name}</p>
                       <p className="truncate text-[0.6875rem] text-steel/70">
-                        {s.vendor ?? "—"}
+                        {s.vendor ?? "-"}
                         {s.licenseKey ? <KeyRound className="ml-1 inline size-3 text-steel/70" /> : null}
                         {s.seatHolder ? ` · ${s.seatHolder}` : ""}
                       </p>
@@ -122,9 +122,9 @@ export function SoftwareTable({
                   {money(s.costCents)}
                   <span className="text-steel/70">{INTERVAL_SUFFIX[s.billingInterval] ?? ""}</span>
                 </td>
-                <td className="px-3 py-2.5 text-center text-steel">{s.seats ?? "—"}</td>
+                <td className="px-3 py-2.5 text-center text-steel">{s.seats ?? "-"}</td>
                 <td className={cn("px-3 py-2.5 font-meta text-xs", renewPast ? "text-critical" : renewSoon ? "text-caution" : "text-steel/70")}>
-                  {s.renewalDate ? shortDate(s.renewalDate) : "—"}
+                  {s.renewalDate ? shortDate(s.renewalDate) : "-"}
                 </td>
                 <td className="px-3 py-2.5"><Badge tone={st.tone} dot>{st.label}</Badge></td>
                 <td className="px-3 py-2.5" onClick={(e) => e.stopPropagation()}>

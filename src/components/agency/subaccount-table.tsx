@@ -62,7 +62,7 @@ const BILLING_TONE: Record<string, NonNullable<React.ComponentProps<typeof Badge
 
 /** Compact billing pill: trial countdown when trialing, else the status. */
 function BillingCell({ status, trialEndsAt }: { status?: string | null; trialEndsAt?: number | null }) {
-  if (!status) return <span className="text-steel/40">—</span>;
+  if (!status) return <span className="text-steel/40">-</span>;
   if (status === "trialing" && trialEndsAt) {
     const days = Math.max(0, Math.ceil((trialEndsAt - Date.now()) / 86_400_000));
     return <Badge tone="info">{days === 0 ? "Trial ends today" : `Trial · ${days}d`}</Badge>;

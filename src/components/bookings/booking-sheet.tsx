@@ -231,8 +231,7 @@ export function BookingSheet({
               </div>
               <SheetTitle>{booking.title}</SheetTitle>
               <SheetDescription>
-                {longDate(booking.startTime)} · {timeOfDay(booking.startTime)}–
-                {timeOfDay(booking.endTime)} (
+                {longDate(booking.startTime)} · {timeOfDay(booking.startTime)} - {timeOfDay(booking.endTime)} (
                 {duration(booking.startTime, booking.endTime)})
               </SheetDescription>
             </SheetHeader>
