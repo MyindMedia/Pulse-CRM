@@ -26,7 +26,7 @@ import { FeatureTour } from "@/components/welcome/feature-tour";
 import { TERMS_VERSION } from "@/lib/terms";
 
 type StepKey = "basics" | "logo" | "contact" | "branding" | "payment" | "email" | "rooms" | "features";
-const STEPS: { key: StepKey; title: string; blurb: string }[] = [
+const ALL_STEPS: { key: StepKey; title: string; blurb: string }[] = [
   { key: "basics", title: "Studio basics", blurb: "Name your studio and its booking-page address." },
   { key: "logo", title: "Logo & color", blurb: "Upload your logo and pick an accent color." },
   { key: "contact", title: "Business info", blurb: "Company + contact details for invoices and your booking page." },
@@ -97,6 +97,16 @@ function Gate({ initial }: { initial: Mine }) {
 }
 
 function Wizard({ initial }: { initial: Mine }) {
+  /* An existing studio brought onto the beta already has a name, a slug and a
+     live booking page. Walking it through "create your studio" would invite a
+     duplicate, or a renamed slug that breaks links already in the wild. So the
+     basics step is dropped once it is genuinely done, and the rest of setup
+     runs normally. */
+  const STEPS = React.useMemo(
+    () => (initial.steps.basics ? ALL_STEPS.filter((x) => x.key !== "basics") : ALL_STEPS),
+    [initial.steps.basics],
+  );
+
   const router = useRouter();
   const saveBasics = useMutation(api.onboarding.saveBasics);
   const saveContact = useMutation(api.onboarding.saveContact);

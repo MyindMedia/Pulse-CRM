@@ -305,6 +305,11 @@ export default defineSchema({
     betaCohort: v.optional(v.boolean()),
     betaInviteCode: v.optional(v.string()),
     betaClaimedAt: v.optional(v.number()),
+    // The free-licence commitment made to a beta tester, as a date. Recorded
+    // separately from trialEndsAt so converting them onto a paid plan later
+    // does not erase what they were promised.
+    betaLicenseUntil: v.optional(v.number()),
+    betaWelcomeSentAt: v.optional(v.number()),
     graduatedAt: v.optional(v.number()),
     // ── Pending deletion ──
     //    Set by step 2 of the deletion flow and cleared on cancel, timeout or
