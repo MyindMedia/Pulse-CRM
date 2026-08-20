@@ -1,7 +1,7 @@
 import { action, query, internalQuery, internalMutation, internalAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { stripeClient, priceIdForTier } from "./lib/stripe";
+import { stripeClient, priceIdForTier, priceIdForTierInterval } from "./lib/stripe";
 import type { TierKey } from "./lib/plans";
 import { sendEmail } from "./lib/email";
 import { activationEmailSubject, activationEmailHtml } from "./lib/emailTemplates/activation";
@@ -23,12 +23,18 @@ const tierV = v.union(
 
 /** Public action - start a Stripe Checkout session for the chosen tier. */
 export const beginCheckout = action({
-  args: { tier: tierV, agencyName: v.optional(v.string()) },
+  args: {
+    tier: tierV,
+    agencyName: v.optional(v.string()),
+    /** Yearly is 15% cheaper. Defaults to monthly. */
+    interval: v.optional(v.union(v.literal("month"), v.literal("year"))),
+  },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("not signed in");
     const stripe = stripeClient();
-    const priceId = priceIdForTier(args.tier as TierKey);
+    const interval = args.interval ?? "month";
+    const priceId = priceIdForTierInterval(args.tier as TierKey, interval);
 
     const customer = await stripe.customers.create({
       email: identity.email ?? undefined,
@@ -37,6 +43,7 @@ export const beginCheckout = action({
         clerkUserId: identity.subject,
         intendedAgencyName: args.agencyName ?? "",
         intendedTier: args.tier,
+        intendedInterval: interval,
       },
     });
 

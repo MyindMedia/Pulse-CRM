@@ -11,6 +11,9 @@ export type BillingStatus = "trialing" | "active" | "past_due" | "comped" | "can
 
 /** The minimal billing shape the gate needs (subset of an org row). */
 export type BillingOrg = {
+  /** Beta programme fields. A beta licence hard-stops on its own date. */
+  betaCohort?: boolean;
+  betaLicenseUntil?: number;
   billingStatus?: BillingStatus;
   trialStartedAt?: number;
   trialEndsAt?: number;
@@ -35,6 +38,7 @@ export type BillingGate = {
     | "none"
     | "no_plan"
     | "comped"
+    | "beta_expired"
     | "trialing"
     | "trial_ending"
     | "trial_expired_needs_card"
@@ -60,6 +64,24 @@ export function evaluateBillingGate(
   now: number,
 ): BillingGate {
   const base = { locked: false, trialDaysLeft: null as number | null, inTrial: false };
+
+  /*
+   * A beta licence hard-stops on its own date.
+   *
+   * Checked FIRST, before the plan, and independently of
+   * requireCardAfterTrial. Two reasons: beta studios sit on a shared agency
+   * plan, so whether a beta year ends must not depend on a setting that also
+   * governs everyone else on it; and a studio that claimed its workspace from
+   * an invite has no agency plan at all, which would otherwise fall straight
+   * through to "no_plan" and never lock.
+   *
+   * An active paid subscription clears it. That is the whole point of the gate.
+   */
+  if (org?.betaCohort && org.betaLicenseUntil && now >= org.betaLicenseUntil) {
+    if (org.billingStatus !== "active") {
+      return { locked: true, trialDaysLeft: 0, inTrial: false, reason: "beta_expired" };
+    }
+  }
 
   if (!org || !org.billingStatus || !org.agencyPlanId || !plan) {
     return { ...base, reason: "no_plan" };

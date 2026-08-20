@@ -399,3 +399,45 @@ export function tierAtLeast(tier: TierKey, min: TierKey): boolean {
   };
   return rank(tier) >= rank(min);
 }
+
+
+/* ============================================================
+   Annual billing.
+
+   Paying for a year up front earns 15% off. Kept as arithmetic on the
+   monthly price rather than a second hand-maintained number, so a
+   repricing can never leave the annual figure quietly stale.
+   ============================================================ */
+
+export const ANNUAL_DISCOUNT_PCT = 15;
+
+/** What a year costs, in cents, with the discount applied. */
+export function annualPriceCents(tier: TierKey): number {
+  const monthly = PLAN_LIMITS[tier].priceCents;
+  if (!monthly) return 0;
+  return Math.round(monthly * 12 * (1 - ANNUAL_DISCOUNT_PCT / 100));
+}
+
+/** What they keep by paying yearly, in cents. */
+export function annualSavingCents(tier: TierKey): number {
+  const monthly = PLAN_LIMITS[tier].priceCents;
+  if (!monthly) return 0;
+  return monthly * 12 - annualPriceCents(tier);
+}
+
+/** The annual price expressed per month, which is how people compare it. */
+export function annualPerMonthCents(tier: TierKey): number {
+  const annual = annualPriceCents(tier);
+  return annual ? Math.round(annual / 12) : 0;
+}
+
+export type BillingInterval = "month" | "year";
+
+/** Formatted price for an interval, e.g. "$149.99" or "$1,529.90". */
+export function priceLabelFor(tier: TierKey, interval: BillingInterval): string {
+  const cents = interval === "year" ? annualPriceCents(tier) : PLAN_LIMITS[tier].priceCents;
+  if (!cents) return priceLabel(tier);
+  return `$${(cents / 100).toLocaleString("en-US", {
+    minimumFractionDigits: 2, maximumFractionDigits: 2,
+  })}`;
+}

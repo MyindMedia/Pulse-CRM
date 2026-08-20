@@ -41,6 +41,24 @@ export function priceIdForTier(tier: TierKey): string {
   return v;
 }
 
+/** Annual price ids, e.g. STRIPE_PRICE_STUDIO_ANNUAL. A tier can be sold
+ *  monthly-only; asking for a year without the price configured says so
+ *  plainly rather than silently charging the monthly price for a year. */
+export function priceIdForTierInterval(
+  tier: TierKey,
+  interval: "month" | "year",
+): string {
+  if (interval === "month") return priceIdForTier(tier);
+  const envKey = `${TIER_PRICE_ENV[tier]}_ANNUAL`;
+  const v = process.env[envKey];
+  if (!v) {
+    throw new Error(
+      `${envKey} not set - annual billing is not configured for this plan yet.`,
+    );
+  }
+  return v;
+}
+
 /** Reverse lookup - used by the webhook to flip agencies.plan. */
 export function tierForPriceId(priceId: string): TierKey | null {
   for (const tier of ["studio", "pro", "label", "growth", "enterprise", "agency"] as TierKey[]) {

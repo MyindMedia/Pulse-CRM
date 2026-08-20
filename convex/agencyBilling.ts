@@ -49,6 +49,9 @@ function billingView(org: Doc<"orgs">, plan: Doc<"agencyPlans"> | null, now: num
     priceCentsOverride: org.priceCentsOverride ?? null,
     effectivePriceCents: effectivePriceCents(org.priceCentsOverride, plan?.priceCents),
     billingNote: org.billingNote ?? null,
+    // Beta programme, so the lock screen can say what ended and when.
+    betaCohort: org.betaCohort === true,
+    betaLicenseUntil: org.betaLicenseUntil ?? null,
     ...gate,
   };
 }
