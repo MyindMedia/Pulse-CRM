@@ -1,6 +1,10 @@
 import { query, mutation, QueryCtx, MutationCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { currentOrg } from "./lib/tenant";
+import { orgGate } from "./lib/tier";
+import { capabilitiesForTier } from "./lib/entitlements";
+import { isToggleable, tierForModule } from "./lib/modules";
+import { PLAN_LIMITS, type CapabilityKey } from "./lib/plans";
 import { requireCapability } from "./lib/access";
 
 /* ============================================================
@@ -169,5 +173,104 @@ export const acceptTerms = mutation({
       termsAcceptedBy: identity?.email ?? identity?.subject ?? "unknown",
     });
     return { acceptedAt: Date.now() };
+  },
+});
+
+
+/* ============================================================
+   "Switch on what you use" - the last onboarding step.
+
+   Most owners never discover the patch bay, the phone clock-in or the
+   receptionist, because nothing ever puts them in front of them. One
+   screen at setup does more for adoption than a settings page nobody
+   opens.
+
+   Each switch writes real configuration, not a preference blob: module
+   toggles go through orgs.disabledFeatures (the same list the access
+   engine enforces), and the messaging switches write the fields the
+   crons already read. Turning something on here IS turning it on.
+   ============================================================ */
+
+/** What this workspace can switch on, and what is already on. */
+export const featureSetup = query({
+  args: {},
+  handler: async (ctx) => {
+    const orgId = await currentOrg(ctx);
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    const { tier, disabled } = await orgGate(ctx, orgId);
+    const owned = capabilitiesForTier(tier);
+
+    const mod = (key: CapabilityKey) => ({
+      owned: owned.has(key),
+      enabled: owned.has(key) && !disabled.has(key),
+      tier: tierForModule(key),
+      tierLabel: tierForModule(key) ? PLAN_LIMITS[tierForModule(key)!].label : null,
+    });
+
+    return {
+      tier,
+      timeClock: mod("timeClock"),
+      schedule: mod("schedule"),
+      patch: mod("patch"),
+      receptionist: {
+        ...mod("aiReceptionist"),
+        // The receptionist has its own explicit opt-in on top of the module,
+        // because it answers clients unprompted.
+        on: org?.aiReceptionistEnabled === true,
+      },
+      // Default ON when unset - the crons already treat it that way, and the
+      // switch must show what is actually happening.
+      clientReminders: org?.smsRemindersEnabled !== false,
+    };
+  },
+});
+
+/** Apply the onboarding switches. Partial: only what was passed is written. */
+export const setFeaturePrefs = mutation({
+  args: {
+    timeClock: v.optional(v.boolean()),
+    patch: v.optional(v.boolean()),
+    clientReminders: v.optional(v.boolean()),
+    receptionist: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args) => {
+    await requireCapability(ctx, "branding.edit");
+    const orgId = await currentOrg(ctx);
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    if (!org) throw new Error("Workspace not found.");
+
+    const { tier } = await orgGate(ctx, orgId);
+    const owned = capabilitiesForTier(tier);
+    const off = new Set(org.disabledFeatures ?? []);
+
+    // Module switches only ever move keys the plan actually includes, so a
+    // switch someone flicks on a locked card can never grant it.
+    const setModule = (key: CapabilityKey, on: boolean | undefined) => {
+      if (on === undefined || !owned.has(key)) return;
+      if (on) off.delete(key);
+      else off.add(key);
+    };
+    setModule("timeClock", args.timeClock);
+    // The phone clock-in lives on the Schedule surface, so switching it on
+    // without Schedule would leave a feature with nowhere to appear.
+    if (args.timeClock === true) setModule("schedule", true);
+    setModule("patch", args.patch);
+    setModule("aiReceptionist", args.receptionist);
+
+    await ctx.db.patch(org._id, {
+      disabledFeatures: [...off].filter(isToggleable),
+      ...(args.clientReminders !== undefined
+        ? { smsRemindersEnabled: args.clientReminders }
+        : {}),
+      ...(args.receptionist !== undefined && owned.has("aiReceptionist")
+        ? { aiReceptionistEnabled: args.receptionist }
+        : {}),
+    });
   },
 });

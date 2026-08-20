@@ -1,6 +1,8 @@
 "use client";
 
 import * as React from "react";
+import { motion, AnimatePresence, useReducedMotion } from "motion/react";
+import { FeatureStep } from "@/components/welcome/feature-step";
 import { BetaLinkRecovery } from "@/components/shell/beta-link-recovery";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
@@ -23,7 +25,7 @@ import { TermsStep } from "@/components/welcome/terms-step";
 import { FeatureTour } from "@/components/welcome/feature-tour";
 import { TERMS_VERSION } from "@/lib/terms";
 
-type StepKey = "basics" | "logo" | "contact" | "branding" | "payment" | "email" | "rooms";
+type StepKey = "basics" | "logo" | "contact" | "branding" | "payment" | "email" | "rooms" | "features";
 const STEPS: { key: StepKey; title: string; blurb: string }[] = [
   { key: "basics", title: "Studio basics", blurb: "Name your studio and its booking-page address." },
   { key: "logo", title: "Logo & color", blurb: "Upload your logo and pick an accent color." },
@@ -32,6 +34,11 @@ const STEPS: { key: StepKey; title: string; blurb: string }[] = [
   { key: "payment", title: "Payments", blurb: "Connect Stripe so clients pay deposits straight to you." },
   { key: "email", title: "Client email", blurb: "Choose how you send booking + client messages." },
   { key: "rooms", title: "First room", blurb: "Add a room so you can take bookings today." },
+  {
+    key: "features",
+    title: "Switch on what you use",
+    blurb: "The four most owners never find on their own. Change any of them later.",
+  },
 ];
 
 type Mine = NonNullable<FunctionReturnType<typeof api.onboarding.mine>>;
@@ -253,10 +260,15 @@ function Wizard({ initial }: { initial: Mine }) {
         </div>
 
         <div className="mt-8 flex-1">
-          <h1 className="font-grotesk text-2xl font-bold tracking-tight text-bone">{STEPS[step].title}</h1>
-          <p className="mt-1 text-sm text-steel">{STEPS[step].blurb}</p>
+          {/* One animated block per step, keyed so AnimatePresence swaps them.
+              Reduced motion collapses this to a fade: the wizard still reads
+              as moving forward, without the movement. */}
+          <AnimatePresence mode="wait">
+            <StepBody key={STEPS[step].key}>
+              <h1 className="font-grotesk text-2xl font-bold tracking-tight text-bone">{STEPS[step].title}</h1>
+              <p className="mt-1 text-sm text-steel">{STEPS[step].blurb}</p>
 
-          <div className="mt-6 space-y-4">
+              <div className="mt-6 space-y-4">
             {STEPS[step].key === "basics" && (
               <>
                 <Field label="Studio name" htmlFor="w-name">
@@ -372,6 +384,8 @@ function Wizard({ initial }: { initial: Mine }) {
               </div>
             )}
 
+            {STEPS[step].key === "features" && <FeatureStep />}
+
             {STEPS[step].key === "rooms" && (
               <>
                 <p className="rounded-md border border-graphite/50 bg-coal/40 px-3 py-2 text-xs text-steel/70">
@@ -397,7 +411,9 @@ function Wizard({ initial }: { initial: Mine }) {
                 </div>
               </>
             )}
-          </div>
+              </div>
+            </StepBody>
+          </AnimatePresence>
         </div>
 
         <div className="mt-8 flex items-center justify-between border-t border-graphite/50 pt-5">
@@ -519,5 +535,25 @@ function LiveScreen({
         </div>
       </div>
     </div>
+  );
+}
+
+
+/* One onboarding step, animated in.
+
+   Decorative motion only: the content is identical either way, so at
+   prefers-reduced-motion this collapses to a plain fade and the wizard still
+   reads as moving forward. */
+function StepBody({ children }: { children: React.ReactNode }) {
+  const reduced = useReducedMotion();
+  return (
+    <motion.div
+      initial={reduced ? { opacity: 0 } : { opacity: 0, y: 18, filter: "blur(5px)" }}
+      animate={reduced ? { opacity: 1 } : { opacity: 1, y: 0, filter: "blur(0px)" }}
+      exit={reduced ? { opacity: 0 } : { opacity: 0, y: -14, filter: "blur(5px)" }}
+      transition={{ type: "spring", stiffness: 280, damping: 30 }}
+    >
+      {children}
+    </motion.div>
   );
 }
