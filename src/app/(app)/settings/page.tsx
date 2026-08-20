@@ -6,12 +6,16 @@ import { api } from "@convex/_generated/api";
 import { Boxes, Building2, CreditCard, Crown, Database, Palette, Receipt, Users, Plug } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WorkspacePanel } from "@/components/settings/workspace-panel";
 import { TeamPanel } from "@/components/settings/team-panel";
 import { BillingPanel } from "@/components/settings/billing-panel";
 import { IntegrationsPanel } from "@/components/settings/integrations-panel";
 import { BrandingPanel } from "@/components/settings/branding-panel";
+import { WhiteLabelPanel } from "@/components/settings/white-label-panel";
+import { DirectoryPanel } from "@/components/settings/directory-panel";
+import { ModuleSwitchboard } from "@/components/modules/module-switchboard";
 import { TestimonialsPanel } from "@/components/settings/testimonials-panel";
 import { PricingPanel } from "@/components/settings/pricing-panel";
 import { CancellationPolicyPanel } from "@/components/settings/cancellation-policy-panel";
@@ -98,10 +102,24 @@ function SettingsView() {
 
           <TabsContent value="workspace">
             <WorkspacePanel org={org} />
+            <Card>
+              <CardContent className="space-y-4 pt-5">
+                <div>
+                  <p className="font-grotesk text-sm font-semibold text-bone">Modules</p>
+                  <p className="text-xs text-steel">
+                    Switch off what this studio does not use. Hidden modules leave the nav and
+                    stop responding, for everyone here.
+                  </p>
+                </div>
+                <ModuleSwitchboard />
+              </CardContent>
+            </Card>
           </TabsContent>
           <TabsContent value="branding">
             <div className="space-y-5">
               <BrandingPanel org={org} />
+              <WhiteLabelPanel />
+              <DirectoryPanel />
               <TestimonialsPanel org={org} />
             </div>
           </TabsContent>

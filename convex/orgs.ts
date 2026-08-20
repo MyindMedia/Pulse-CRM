@@ -6,7 +6,13 @@ import { currentOrg, currentActor, currentOrgWithCapability} from "./lib/tenant"
 import { AccessError } from "./lib/access";
 import { US_STATES, findState } from "./lib/usTaxRates";
 import { isValidTimezone } from "./lib/tz";
-import { meterStorageUpload } from "./usage";
+import { meterStorageUpload, tierForOrg } from "./usage";
+import { PLAN_LIMITS, priceLabel, POWERED_BY_PULSE_REQUIRED } from "./lib/plans";
+import {
+  effectiveDisabledFeatures,
+  tierLockedFeatures,
+  capabilitiesForTier,
+} from "./lib/entitlements";
 import { evaluateBillingGate, effectivePriceCents } from "./lib/billingGate";
 
 /** Internal: every active, non-demo studio subaccount's orgId. The cron
@@ -43,6 +49,10 @@ async function billingOf(ctx: QueryCtx, org: Doc<"orgs"> | null) {
 }
 
 async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
+  // Tier drives what the workspace can reach. Resolved the same way usage
+  // metering resolves it, so entitlements and quotas never disagree.
+  const tier = await tierForOrg(ctx, orgId);
+  const limits = PLAN_LIMITS[tier];
   return {
     orgId,
     name: org?.name ?? "Pulse Studio",
@@ -64,8 +74,31 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     // Public callback number printed in automated texts (see lib/smsTemplates).
     contactPhone: org?.contact?.phone ?? null,
     configured: Boolean(org),
-    // Feature toggles (nav gating) - keys the agency has disabled for this org.
-    disabledFeatures: org?.disabledFeatures ?? [],
+    // Feature toggles (nav gating). The effective list is the union of what
+    // the agency switched off and everything this tier never included, so a
+    // studio can never be handed a capability it did not pay for.
+    disabledFeatures: effectiveDisabledFeatures(tier, org?.disabledFeatures),
+    // Locked purely by price. The UI shows these as upgrade prompts rather
+    // than hiding them, so the studio can see what the next tier buys.
+    tierLockedFeatures: tierLockedFeatures(tier),
+    // Plan + entitlements, read by every gated surface.
+    tier,
+    tierLabel: limits.label,
+    tierPrice: priceLabel(tier),
+    capabilities: [...capabilitiesForTier(tier)],
+    limits: {
+      rooms: limits.roomCap,
+      staff: limits.staffCap,
+      subAccounts: limits.subAccountCap,
+      aiCreditsPerMonth: limits.aiCreditsPerMonth,
+      storageGb: limits.storageGb,
+      magicLinkGrantsPerMonth: limits.magicLinkGrantsPerMonth,
+    },
+    // White-label level: false | "studio_level" | "full". "full" swaps the
+    // whole app chrome for the studio's brand; the Powered by Pulse lockup
+    // under their logo is not removable at any tier.
+    whitelabel: limits.whitelabel,
+    poweredByPulse: POWERED_BY_PULSE_REQUIRED,
     // Pricing / discount / tax config (cycle: Pricing settings)
     servicePricing: org?.servicePricing ?? null,
     discountCodes: org?.discountCodes ?? [],

@@ -10,10 +10,14 @@ import { LeadSourceRoiReport } from "@/components/reports/lead-source-roi";
 import { StaffingReport } from "@/components/reports/staffing";
 import { CompsReport } from "@/components/reports/comps";
 import { BookingArchiveReport } from "@/components/reports/booking-archive";
+import { BookingFunnelCard } from "@/components/reports/booking-funnel-card";
+import { BenchmarkCard } from "@/components/reports/benchmark-card";
 import { AtRiskSessionsReport, PricingRecommendationsReport } from "@/components/reports/predictive-insights";
 import { CapabilityGuard } from "@/components/shell/capability-guard";
 
 const TABS = [
+  { value: "funnel", label: "Booking funnel" },
+  { value: "benchmark", label: "Benchmark" },
   { value: "aging", label: "Aging" },
   { value: "utilization", label: "Utilization" },
   { value: "staffing", label: "Staffing" },
@@ -51,6 +55,12 @@ function ReportsView() {
           ))}
         </TabsList>
 
+        <TabsContent value="funnel">
+          <BookingFunnelCard days={30} />
+        </TabsContent>
+        <TabsContent value="benchmark">
+          <BenchmarkCard windowDays={90} />
+        </TabsContent>
         <TabsContent value="aging">
           <UnpaidAgingReport />
         </TabsContent>

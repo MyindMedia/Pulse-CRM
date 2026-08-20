@@ -21,6 +21,7 @@ import {
 } from "@/components/ui/select";
 import { money } from "@/lib/format";
 import { SetPayDialog, type PayTarget } from "@/components/payroll/set-pay-dialog";
+import { PayoutsPanel } from "@/components/payroll/payouts-panel";
 import { useCapabilities } from "@/lib/use-capabilities";
 import { payPeriodFor, defaultAnchorDate, type PaySchedule } from "@/lib/pay-period";
 
@@ -117,6 +118,8 @@ export default function PayrollPage() {
         actions={
           <Button onClick={doPost} disabled={posting || !data || data.rows.length === 0}>
             <ArrowRightLeft className="size-4" />
+
+      <PayoutsPanel />
             {posting ? "Posting…" : "Post to expenses"}
           </Button>
         }

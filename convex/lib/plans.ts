@@ -1,102 +1,332 @@
 /* ============================================================
    Plan limits - single source of truth for what each tier gets.
    Used by createSubaccount, grants.issue, branding writes, usage
-   metering, and the billing webhook.
+   metering, entitlements, and the billing webhook.
 
-   Public self-serve tiers: studio (Starter), pro, growth.
-   enterprise is "contact us" (custom). `agency` is a LEGACY internal
-   key kept for existing agency workspaces - it is not sold as a
-   public tier (publicTier=false).
+   Three public self-serve tiers:
+     studio  $149.99  The money loop. Book it, deposit it, collect it.
+     pro     $297.00  The whole operation. Staff, AI, reporting, catalog.
+     label   $499.99  Fully unlocked + full white-label UI.
+
+   `enterprise` is "contact us" (custom). `growth` and `agency` are
+   LEGACY internal keys kept so existing workspaces keep resolving -
+   neither is sold publicly (publicTier=false).
+
+   WHITE LABEL LEVELS
+     false          Pulse-branded app chrome. The studio's logo still
+                    appears on its own booking page and client portal.
+     "studio_level" Studio logo + accent color inside the app.
+     "full"         Full UI customization: logo, palette, typography,
+                    login screen, email templates, custom domain.
+                    A "Powered by Pulse" lockup sits under their logo
+                    and is NOT removable at any price. See
+                    POWERED_BY_PULSE_REQUIRED.
    ============================================================ */
 
-export type TierKey = "studio" | "pro" | "growth" | "enterprise" | "agency";
+export type TierKey =
+  | "flow"
+  | "studio"
+  | "pro"
+  | "label"
+  | "enterprise"
+  | "growth"
+  | "agency";
+
+/** Every gateable capability in the app. Nav-surface keys mirror
+ *  src/lib/features.ts FeatureKey; the rest gate behaviour, not routes. */
+export type CapabilityKey =
+  // ── nav surfaces ──
+  | "agent"
+  | "songs"
+  | "clients"
+  | "pipeline"
+  | "inbox"
+  | "calendar"
+  | "schedule"
+  | "visitors"
+  | "bookings"
+  | "payments"
+  | "reports"
+  | "releases"
+  | "licensing"
+  | "studio"
+  | "inventory"
+  | "patch"
+  | "software"
+  // ── behaviours ──
+  | "cardOnFile"
+  | "noShowShield"
+  | "dunning"
+  | "clientPortal"
+  | "smsFlows"
+  | "reviewsReferrals"
+  | "discountCodes"
+  | "calendarSync"
+  | "timeClock"
+  | "payroll"
+  | "packages"
+  | "memberships"
+  | "expenses"
+  | "profitability"
+  | "rentals"
+  | "maintenance"
+  | "splitSheets"
+  | "aiReceptionist"
+  | "aiAutonomy"
+  | "apiExports"
+  | "customDomain"
+  | "whiteLabelUi"
+  | "multiStudio";
+
+export type WhitelabelLevel = false | "studio_level" | "full";
 
 export type TierLimits = {
   /** Customer-facing name. */
   label: string;
   tagline: string;
+  /** One line for the pricing page, in the studio owner's language. */
+  pitch: string;
   /** Shown on the pricing page / onboard picker. */
   publicTier: boolean;
   /** "Contact us" instead of self-serve checkout. */
   custom: boolean;
+  /** Display order on the pricing page. */
+  order: number;
   subAccountCap: number;
   magicLinkGrantsPerMonth: number;
-  whitelabel: false | "studio_level" | "agency_level";
+  whitelabel: WhitelabelLevel;
   customDomain: boolean;
   /** Monthly included AI credits (usage metering). */
   aiCreditsPerMonth: number;
   /** Storage quota in GB. */
   storageGb: number;
-  /** Monthly USD price in cents. 0 = custom/contact. */
+  /** Bookable rooms. */
+  roomCap: number;
+  /** Team members with a login. */
+  staffCap: number;
+  /** Monthly USD price in cents. 0 = custom/contact, or free. */
   priceCents: number;
+  /**
+   * Payments-monetized plans carry no monthly fee and earn on a take rate of
+   * what the studio collects through Pulse instead. Basis points of the
+   * transaction; null means the plan is a straight subscription.
+   */
+  takeRateBps?: number;
+  /** True when the plan requires payments to run through Pulse to exist. */
+  paymentsRequired?: true;
+  /** Everything this tier can reach. Enforced by lib/entitlements.ts. */
+  capabilities: CapabilityKey[];
 };
 
+const UNLIMITED = 999_999;
+
+/* ── Capability bundles. Each tier is the previous one plus its own adds,
+      so a capability can never be present at a lower tier and absent above. ── */
+
+/** $149.99 - the money loop, end to end. Nothing here is crippled: a solo
+ *  operator can take a booking, hold a card, keep a deposit and get paid. */
+const STUDIO_CAPS: CapabilityKey[] = [
+  "bookings",
+  "calendar",
+  "payments",
+  "clients",
+  "studio",
+  "cardOnFile",
+  "noShowShield",
+  "dunning",
+  "clientPortal",
+  "smsFlows",
+  "reviewsReferrals",
+  "discountCodes",
+];
+
+/** $297 - everything a staffed studio needs to run the floor and the books. */
+const PRO_ADDS: CapabilityKey[] = [
+  "agent",
+  "inbox",
+  "schedule",
+  "reports",
+  "pipeline",
+  "songs",
+  "visitors",
+  "inventory",
+  "calendarSync",
+  "timeClock",
+  "payroll",
+  "packages",
+  "memberships",
+  "expenses",
+  "profitability",
+  "rentals",
+  "maintenance",
+  "aiReceptionist",
+];
+
+/** $499.99 - the rest of the catalog, plus the studio's own skin on the app. */
+const LABEL_ADDS: CapabilityKey[] = [
+  "releases",
+  "licensing",
+  "patch",
+  "software",
+  "splitSheets",
+  "aiAutonomy",
+  "apiExports",
+  "customDomain",
+  "whiteLabelUi",
+  "multiStudio",
+];
+
+/** Flow is the money loop and nothing else: take a booking, hold the card,
+ *  collect the money. No referral loop, no promo codes, no portal extras -
+ *  those are what Studio is for. */
+const FLOW_CAPS: CapabilityKey[] = [
+  "bookings", "calendar", "payments", "clients", "studio",
+  "cardOnFile", "noShowShield", "dunning",
+];
+
+const PRO_CAPS: CapabilityKey[] = [...STUDIO_CAPS, ...PRO_ADDS];
+const LABEL_CAPS: CapabilityKey[] = [...PRO_CAPS, ...LABEL_ADDS];
+
+/** The "Powered by Pulse" lockup is a condition of the white-label tier, not
+ *  a feature flag. Nothing in the product may remove it. */
+export const POWERED_BY_PULSE_REQUIRED = true;
+
 export const PLAN_LIMITS: Record<TierKey, TierLimits> = {
-  studio: {
-    label: "Studio Starter",
-    tagline: "Solo producer, engineer, or one-room studio.",
+  // ── Payments-monetized entry plan ──
+  //    No monthly fee. Pulse earns a take rate on what the studio actually
+  //    collects through it, so the tool costs nothing on a quiet month and
+  //    grows with the studio rather than against it. It is the answer to
+  //    "Google Calendar is free": so is this, until it makes you money.
+  //    Deliberately capped at the money loop - the moment a studio needs
+  //    staff, AI or reporting, Studio Pro is the upgrade.
+  flow: {
+    label: "Flow",
+    tagline: "No monthly fee. Pulse earns when you get paid.",
+    pitch: "Free to run. We take 2% of what you collect through Pulse, and nothing else.",
     publicTier: true,
     custom: false,
+    order: 0,
     subAccountCap: 1,
-    magicLinkGrantsPerMonth: 5,
+    magicLinkGrantsPerMonth: 10,
+    whitelabel: false,
+    customDomain: false,
+    aiCreditsPerMonth: 25,
+    storageGb: 5,
+    roomCap: 1,
+    staffCap: 2,
+    priceCents: 0,
+    takeRateBps: 200,        // 2.00% of what Pulse collects
+    paymentsRequired: true,
+    capabilities: FLOW_CAPS,
+  },
+  studio: {
+    label: "Studio",
+    tagline: "Solo operators and one or two room studios.",
+    pitch: "Get the room booked, hold the card, collect the money.",
+    publicTier: true,
+    custom: false,
+    order: 1,
+    subAccountCap: 1,
+    magicLinkGrantsPerMonth: 15,
     whitelabel: false,
     customDomain: false,
     aiCreditsPerMonth: 100,
-    storageGb: 5,
-    priceCents: 4900,
+    storageGb: 10,
+    roomCap: 2,
+    staffCap: 3,
+    priceCents: 14999,
+    capabilities: STUDIO_CAPS,
   },
   pro: {
     label: "Studio Pro",
-    tagline: "Professional studio with repeat clients and engineers.",
+    tagline: "Staffed studios running a full weekly schedule.",
+    pitch: "Run the whole floor: staff, payroll, AI ops, real numbers.",
     publicTier: true,
     custom: false,
+    order: 2,
     subAccountCap: 1,
-    magicLinkGrantsPerMonth: 25,
+    magicLinkGrantsPerMonth: 50,
     whitelabel: "studio_level",
     customDomain: false,
-    aiCreditsPerMonth: 500,
-    storageGb: 50,
-    priceCents: 12900,
+    aiCreditsPerMonth: 1_000,
+    storageGb: 100,
+    roomCap: 6,
+    staffCap: 15,
+    priceCents: 29700,
+    capabilities: PRO_CAPS,
   },
-  growth: {
-    label: "Studio Growth",
-    tagline: "High-volume studio, production company, or producer collective.",
+  label: {
+    label: "Label",
+    tagline: "Labels, studio groups, and anyone who wants their own brand on it.",
+    pitch: "Everything unlocked, wearing your brand instead of ours.",
     publicTier: true,
     custom: false,
-    subAccountCap: 3,
-    magicLinkGrantsPerMonth: 100,
-    whitelabel: "studio_level",
+    order: 3,
+    subAccountCap: 5,
+    magicLinkGrantsPerMonth: UNLIMITED,
+    whitelabel: "full",
     customDomain: true,
-    aiCreditsPerMonth: 2000,
-    storageGb: 250,
-    priceCents: 19900,
+    aiCreditsPerMonth: 5_000,
+    storageGb: 1_000,
+    roomCap: UNLIMITED,
+    staffCap: UNLIMITED,
+    priceCents: 49999,
+    capabilities: LABEL_CAPS,
   },
   enterprise: {
     label: "Enterprise",
     tagline: "Schools, studio networks, and larger music organizations.",
+    pitch: "Custom scale, custom terms.",
     publicTier: true,
     custom: true,
+    order: 4,
     subAccountCap: 25,
-    magicLinkGrantsPerMonth: 999,
-    whitelabel: "agency_level",
+    magicLinkGrantsPerMonth: UNLIMITED,
+    whitelabel: "full",
     customDomain: true,
-    aiCreditsPerMonth: 999_999,
-    storageGb: 2000,
+    aiCreditsPerMonth: UNLIMITED,
+    storageGb: 2_000,
+    roomCap: UNLIMITED,
+    staffCap: UNLIMITED,
     priceCents: 0,
+    capabilities: LABEL_CAPS,
   },
-  // ── Legacy internal tier - existing agency workspaces. Not sold publicly. ──
-  agency: {
-    label: "Agency",
-    tagline: "Multi-studio operators (legacy plan).",
+  // ── Legacy internal tiers. Not sold publicly; kept so existing rows resolve. ──
+  growth: {
+    label: "Studio Growth (legacy)",
+    tagline: "Superseded by Label.",
+    pitch: "Legacy plan.",
     publicTier: false,
     custom: false,
-    subAccountCap: 999,
-    magicLinkGrantsPerMonth: 999,
-    whitelabel: "agency_level",
+    order: 90,
+    subAccountCap: 3,
+    magicLinkGrantsPerMonth: 100,
+    whitelabel: "studio_level",
     customDomain: true,
-    aiCreditsPerMonth: 999_999,
-    storageGb: 2000,
+    aiCreditsPerMonth: 2_000,
+    storageGb: 250,
+    roomCap: UNLIMITED,
+    staffCap: UNLIMITED,
+    priceCents: 19900,
+    capabilities: PRO_CAPS,
+  },
+  agency: {
+    label: "Agency (legacy)",
+    tagline: "Multi-studio operators on the original agency plan.",
+    pitch: "Legacy plan.",
+    publicTier: false,
+    custom: false,
+    order: 91,
+    subAccountCap: UNLIMITED,
+    magicLinkGrantsPerMonth: UNLIMITED,
+    whitelabel: "full",
+    customDomain: true,
+    aiCreditsPerMonth: UNLIMITED,
+    storageGb: 2_000,
+    roomCap: UNLIMITED,
+    staffCap: UNLIMITED,
     priceCents: 24900,
+    capabilities: LABEL_CAPS,
   },
 };
 
@@ -105,4 +335,50 @@ export function limitsFor(tier: TierKey): TierLimits {
 }
 
 /** Public self-serve tiers in display order. */
-export const PUBLIC_TIERS: TierKey[] = ["studio", "pro", "growth", "enterprise"];
+export const PUBLIC_TIERS: TierKey[] = (
+  Object.keys(PLAN_LIMITS) as TierKey[]
+)
+  .filter((k) => PLAN_LIMITS[k].publicTier)
+  .sort((a, b) => PLAN_LIMITS[a].order - PLAN_LIMITS[b].order);
+
+/** The three tiers we actually sell, cheapest first. */
+export const SELLABLE_TIERS: TierKey[] = ["flow", "studio", "pro", "label"];
+
+/** Formatted price, e.g. "$149.99". A payments-monetized plan prices in its
+ *  take rate instead, and a custom tier has no price to show. */
+export function priceLabel(tier: TierKey): string {
+  const p = PLAN_LIMITS[tier];
+  if (p.takeRateBps) return `${(p.takeRateBps / 100).toFixed(p.takeRateBps % 100 ? 2 : 0)}% of collections`;
+  if (!p.priceCents) return "";
+  return `$${(p.priceCents / 100).toFixed(2)}`;
+}
+
+/** What Pulse takes from a collected amount on this plan, in cents. */
+export function takeCents(tier: TierKey, collectedCents: number): number {
+  const bps = PLAN_LIMITS[tier].takeRateBps;
+  if (!bps) return 0;
+  return Math.round((collectedCents * bps) / 10_000);
+}
+
+/**
+ * The month where a subscription becomes cheaper than the take rate.
+ *
+ * Answers the only question a studio actually asks about this plan: at what
+ * point am I better off paying the monthly fee? Returned in cents collected.
+ */
+export function breakEvenCollectionsCents(from: TierKey, to: TierKey): number | null {
+  const bps = PLAN_LIMITS[from].takeRateBps;
+  const monthly = PLAN_LIMITS[to].priceCents;
+  if (!bps || !monthly) return null;
+  return Math.round((monthly * 10_000) / bps);
+}
+
+/** True when `tier` sits at or above `min` in the sellable ladder. Legacy and
+ *  enterprise tiers are treated as top-of-ladder. */
+export function tierAtLeast(tier: TierKey, min: TierKey): boolean {
+  const rank = (t: TierKey) => {
+    const i = SELLABLE_TIERS.indexOf(t);
+    return i === -1 ? SELLABLE_TIERS.length : i;
+  };
+  return rank(tier) >= rank(min);
+}

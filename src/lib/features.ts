@@ -1,44 +1,18 @@
-/* Toggleable nav features. The agency can disable any of these per sub-account
-   (stored on orgs.disabledFeatures); Dashboard and Settings are core and are
-   always on. Keys are matched against NavItem.feature in src/lib/nav.ts. */
-export type FeatureKey =
-  | "agent"
-  | "songs"
-  | "clients"
-  | "pipeline"
-  | "inbox"
-  | "calendar"
-  | "schedule"
-  | "visitors"
-  | "bookings"
-  | "payments"
-  | "reports"
-  | "releases"
-  | "licensing"
-  | "studio"
-  | "inventory"
-  | "patch"
-  | "software";
+import { MODULES, NAV_MODULE_KEYS } from "@convex/lib/modules";
 
-export const TOGGLEABLE_FEATURES: { key: FeatureKey; label: string; blurb: string }[] = [
-  { key: "agent", label: "Agent", blurb: "AI studio operations manager" },
-  { key: "songs", label: "Songs", blurb: "Song catalog" },
-  { key: "clients", label: "Clients", blurb: "Client directory" },
-  { key: "pipeline", label: "Pipeline", blurb: "Leads pipeline" },
-  { key: "inbox", label: "Inbox", blurb: "Agent approval inbox" },
-  { key: "calendar", label: "Calendar", blurb: "Sessions calendar" },
-  { key: "schedule", label: "Schedule", blurb: "Staff shifts" },
-  { key: "visitors", label: "Visitors", blurb: "Front-desk guest log + QR check-in" },
-  { key: "bookings", label: "Bookings", blurb: "Online bookings + deposits" },
-  { key: "payments", label: "Payments", blurb: "Invoices + cash flow" },
-  { key: "reports", label: "Reports", blurb: "Revenue command center" },
-  { key: "releases", label: "Releases", blurb: "Rollout campaigns" },
-  { key: "licensing", label: "Licensing", blurb: "Sync + beat licenses" },
-  { key: "studio", label: "Studio", blurb: "Rooms + team" },
-  { key: "inventory", label: "Inventory", blurb: "Equipment assets" },
-  { key: "patch", label: "Patch", blurb: "Signal routing + cable management" },
-  { key: "software", label: "Software", blurb: "Software + licenses" },
-];
+/* Nav feature keys, derived from the one module registry in
+   convex/lib/modules.ts. Kept as a thin re-export so nav gating, the
+   switchboard and the server entitlement check can never drift apart:
+   there is exactly one list of modules in this codebase. */
+
+export type FeatureKey = (typeof NAV_MODULE_KEYS)[number];
+
+export const TOGGLEABLE_FEATURES: { key: string; label: string; blurb: string }[] =
+  MODULES.filter((m) => m.nav && !m.core).map((m) => ({
+    key: m.key,
+    label: m.label,
+    blurb: m.blurb,
+  }));
 
 /** Map a route path to its feature key (for route-level gating), or null when
  *  the route is always available. */
@@ -66,6 +40,7 @@ export function featureForPath(pathname: string): FeatureKey | null {
     studio: "studio",
     inventory: "inventory",
     software: "software",
+    patch: "patch",
   };
   return map[seg] ?? null;
 }

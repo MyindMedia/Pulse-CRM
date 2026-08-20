@@ -6,7 +6,9 @@ import { searchSoftwareCatalog, SOFTWARE_CATALOG } from "./lib/softwareCatalog";
 
 async function ownerOf(t: ReturnType<typeof convexTest>, orgId: string, user: string) {
   await t.run(async (ctx) => {
-    await ctx.db.insert("orgs", { orgId, name: orgId, slug: orgId, plan: "studio", status: "active" });
+    // Software licenses ride the "licenses.edit" capability, which is a Label-tier
+    // entitlement. plan "label" maps to that tier.
+    await ctx.db.insert("orgs", { orgId, name: orgId, slug: orgId, plan: "label", status: "active" });
     await ctx.db.insert("members", { orgId, name: "Owner", role: "owner", clerkUserId: user, skills: [] });
   });
   return t.withIdentity({ subject: user, name: "Owner", orgId });

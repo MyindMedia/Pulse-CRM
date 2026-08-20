@@ -172,4 +172,32 @@ http.route({
   }),
 });
 
+/* ── Beta invite open pixel ───────────────────────────────────
+   A 1x1 transparent GIF. Mail clients that load images tell us the
+   invite was rendered; the many that block images tell us nothing,
+   which is why the dashboard labels a missing open as "unknown"
+   rather than as a rejection. No cookie, no redirect, no script. */
+http.route({
+  path: "/beta/open.gif",
+  method: "GET",
+  handler: httpAction(async (ctx, req) => {
+    const code = new URL(req.url).searchParams.get("c");
+    if (code) {
+      await ctx.runMutation(internal.betaAccess._recordEmailOpen, { code }).catch(() => {});
+    }
+    // 43-byte transparent GIF, inline so the route has no asset dependency.
+    const gif = Uint8Array.from([
+      0x47,0x49,0x46,0x38,0x39,0x61,0x01,0x00,0x01,0x00,0x80,0x00,0x00,0x00,0x00,0x00,
+      0xff,0xff,0xff,0x21,0xf9,0x04,0x01,0x00,0x00,0x00,0x00,0x2c,0x00,0x00,0x00,0x00,
+      0x01,0x00,0x01,0x00,0x00,0x02,0x02,0x44,0x01,0x00,0x3b,
+    ]);
+    return new Response(gif, {
+      headers: {
+        "Content-Type": "image/gif",
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+      },
+    });
+  }),
+});
+
 export default http;

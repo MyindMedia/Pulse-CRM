@@ -7,7 +7,9 @@ import { PLAN_LIMITS } from "./lib/plans";
 /* Plan-cap enforcement: assertWithinLimit (AI credits, magic links) and
    meterStorageUpload (storage GB) hard-block once a studio-tier org is at cap. */
 
-const DEMO = "pulse-demo";
+// NOT the demo sandbox: pulse-demo resolves to the top tier on purpose, so
+// caps never bite there. Use an ordinary Studio-tier workspace.
+const DEMO = "org_capped";
 const BYTES_PER_GB = 1024 * 1024 * 1024;
 
 async function seedStudioOrg(t: ReturnType<typeof convexTest>) {
@@ -43,7 +45,7 @@ describe("plan-cap enforcement", () => {
   });
 
   it("throws at the magic-link grant cap", async () => {
-    const cap = PLAN_LIMITS.studio.magicLinkGrantsPerMonth; // 5
+    const cap = PLAN_LIMITS.studio.magicLinkGrantsPerMonth;
     await t.run((ctx) => recordUsage(ctx, DEMO, "magic_links", cap));
     await expect(
       t.run((ctx) => assertWithinLimit(ctx, DEMO, "magic_links", 1)),
@@ -64,10 +66,11 @@ describe("plan-cap enforcement", () => {
     });
     expect(used).toBeGreaterThan(0);
 
-    // Pre-fill near the 5 GB cap, then a new upload should be rejected + deleted.
-    await t.run((ctx) =>
-      recordUsage(ctx, DEMO, "storage_bytes", 5 * BYTES_PER_GB),
-    );
+    // Pre-fill to the tier's storage cap, then a new upload must be rejected
+    // and deleted. Read the cap from PLAN_LIMITS so a repricing cannot make
+    // this test silently stop testing anything.
+    const capBytes = PLAN_LIMITS.studio.storageGb * BYTES_PER_GB;
+    await t.run((ctx) => recordUsage(ctx, DEMO, "storage_bytes", capBytes));
     const overId = await t.run((ctx) =>
       ctx.storage.store(new Blob(["x".repeat(1024)], { type: "text/plain" })),
     );
@@ -75,14 +78,14 @@ describe("plan-cap enforcement", () => {
       t.run((ctx) => meterStorageUpload(ctx, DEMO, overId)),
     ).rejects.toThrow();
     // The throw rolled the mutation back, so the over-cap bytes were NOT added
-    // to the counter (still exactly the pre-filled 5 GB + the first small file).
+    // to the counter (still exactly the pre-filled cap + the first small file).
     const after = await t.run(async (ctx) => {
       const row = (await ctx.db.query("usageCounters").collect()).find(
         (r) => r.orgId === DEMO && r.metric === "storage_bytes",
       );
       return row?.value ?? 0;
     });
-    expect(after).toBe(used + 5 * BYTES_PER_GB);
+    expect(after).toBe(used + capBytes);
   });
 
   it("does not throw on an unlimited (agency) tier", async () => {

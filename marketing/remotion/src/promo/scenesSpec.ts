@@ -52,7 +52,7 @@ export const pulsePromoScenes = [
     visual: 'Golden pulse line cuts through clutter; all elements snap into clean orbit around Pulse core.',
   },
   {
-    id: 'song-centric',
+    id: 'studio operating system',
     start: 840,
     duration: 240,
     timecode: '0:28-0:36',

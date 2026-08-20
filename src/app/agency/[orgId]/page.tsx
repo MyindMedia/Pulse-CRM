@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { DeleteSubaccount } from "@/components/agency/delete-subaccount";
+import { GraduateBeta } from "@/components/agency/graduate-beta";
 import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -32,7 +34,7 @@ import {
 import { DetailActions } from "@/components/agency/detail-actions";
 import { DemoModeToggle } from "@/components/agency/demo-mode-toggle";
 import { StageOnboardingButton } from "@/components/agency/stage-onboarding-button";
-import { FeatureToggles } from "@/components/agency/feature-toggles";
+import { ModuleSwitchboard } from "@/components/modules/module-switchboard";
 import { ActivityFeed } from "@/components/agency/activity-feed";
 import { ResendInviteButton } from "@/components/agency/resend-invite-button";
 import { SubaccountBilling } from "@/components/agency/subaccount-billing";
@@ -254,10 +256,15 @@ export default function SubaccountDetailPage() {
               their sidebar and stay off until you turn them back on - handy for rolling
               out new tools (like the Agent) gradually.
             </p>
-            <FeatureToggles
-              orgId={subaccount.orgId}
-              disabled={subaccount.disabledFeatures ?? []}
+            <GraduateBeta
+              orgId={orgId}
+              name={subaccount.name}
+              betaCohort={subaccount.betaCohort}
+              graduatedAt={subaccount.graduatedAt ?? null}
+              currentTier={subaccount.tier ?? null}
             />
+            <ModuleSwitchboard orgId={orgId} />
+            <DeleteSubaccount orgId={orgId} />
           </CardContent>
         </Card>
       </Section>

@@ -1,7 +1,7 @@
 # Beta Invite Flow — Design Spec
 
 **Date:** 2026-05-22
-**Project:** Pulse (song-centric studio CRM)
+**Project:** Pulse (studio operating system)
 **Status:** Approved design — ready for implementation plan
 
 ## Problem

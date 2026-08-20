@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useTrackBookingStep, visitorKey } from "@/lib/use-booking-funnel";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
@@ -58,6 +59,7 @@ function RoomDetailView() {
   // who referred them; validated server-side in createBooking.
   const refFromLink = searchParams.get("ref") ?? undefined;
   const room = useQuery(api.booking.room, { roomId: roomId as Id<"rooms"> });
+  useTrackBookingStep(slug, "room", { roomId: roomId as Id<"rooms"> });
   const createBooking = useMutation(api.booking.createBooking);
 
   const [selection, setSelection] = React.useState<SlotSelection | null>(null);
@@ -115,6 +117,14 @@ function RoomDetailView() {
   const liveDiscountCents = liveListCents - liveRateCents;
   const liveDepositCents = Math.round((liveRateCents * loadedRoom.depositPct) / 100);
 
+  // Reaching a valid selection IS the checkout step - the visitor is at the
+  // deposit. Fired from the effect rather than the click so an abandoned
+  // checkout still counts, which is the drop-off worth knowing about.
+  useTrackBookingStep(slug, "checkout", {
+    roomId: roomId as Id<"rooms">,
+    enabled: Boolean(selection && formValid),
+  });
+
   async function handleContinue() {
     if (!selection || !formValid || !promoOk) return;
     setSubmitting(true);
@@ -133,6 +143,8 @@ function RoomDetailView() {
         gearRequestNote: addOns.gearRequestNote || undefined,
         discountCode: promo.status === "valid" ? promo.code : undefined,
         ref: refFromLink,
+        // Closes the funnel this visitor started. Server-written from here on.
+        visitorKey: visitorKey() ?? undefined,
       });
       toast.success("Booking held - finish payment to confirm.");
       router.push(`/book/${slug}/checkout/${result.sessionId}`);

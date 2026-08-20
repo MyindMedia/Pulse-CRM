@@ -578,7 +578,7 @@ export function inviteEmailHtml(args: {
         </td></tr>
         <tr><td style="padding:34px 40px 8px">
           <h1 style="margin:0 0 14px;font-size:22px;color:#101015">You're in. Welcome to Pulse.</h1>
-          <p style="margin:0 0 18px;font-size:15px;line-height:1.6;color:#3a3a42">Hi ${ownerName}, <b>${inviterName}</b> set up a workspace for you on Pulse — the song-centric studio CRM built for producers, not spreadsheets.</p>
+          <p style="margin:0 0 18px;font-size:15px;line-height:1.6;color:#3a3a42">Hi ${ownerName}, <b>${inviterName}</b> set up a workspace for you on Pulse — the studio operating system.</p>
           <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="border:1px solid #e7e7ea;border-radius:12px;margin:0 0 24px">
             <tr>
               <td width="56" style="padding:16px 0 16px 18px"><div style="width:42px;height:42px;border-radius:10px;background:#101015;color:#fdb913;font-weight:800;font-size:16px;text-align:center;line-height:42px">${initials}</div></td>

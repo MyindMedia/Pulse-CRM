@@ -4,6 +4,8 @@ import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 import { useCollapsiblePanel } from "@/lib/use-collapsible-panel";
 import { Sidebar } from "@/components/shell/sidebar";
+import { WhiteLabelTheme } from "@/components/shell/white-label-theme";
+import { BetaLoginTracker } from "@/components/shell/beta-login-tracker";
 import { Topbar } from "@/components/shell/topbar";
 import { StudioBanner } from "@/components/shell/studio-banner";
 import { BillingBanner, BillingLock } from "@/components/shell/billing-gate";
@@ -59,6 +61,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <LiveToasts />
       <FeatureGuard />
       <OrgTheme>
+      {/* Paints the workspace's white-label palette onto :root. Renders
+          nothing; a non-Label tier gets Pulse's own values back. */}
+      <WhiteLabelTheme />
+      {/* Engagement signal for the beta cohort. Renders nothing. */}
+      <BetaLoginTracker />
       <div className="relative min-h-dvh bg-ink">
         {/* Studio-light bloom - warm backdrop for the glass to refract */}
         <div className="app-bloom" aria-hidden />

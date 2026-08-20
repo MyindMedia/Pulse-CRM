@@ -5,6 +5,7 @@ import { seedStarterWorkspace } from "./lib/starter";
 import { resolveViewer, requireCapability, AccessError } from "./lib/access";
 import { DEMO_ORG } from "./lib/tenant";
 import { PLAN_LIMITS, type TierKey } from "./lib/plans";
+import { isToggleable } from "./lib/modules";
 import { DAY_MS } from "./lib/billingGate";
 import { sendEmail } from "./lib/email";
 import { inviteEmailHtml, inviteEmailSubject } from "./lib/emailTemplates/invite";
@@ -646,9 +647,14 @@ export const setStatus = mutation({
   },
 });
 
-/** Enable/disable nav features for a sub-account. `disabledFeatures` is the
- *  full list of feature keys to turn OFF (everything else stays on). Agency
- *  only; the cap check enforces the org is under the caller's agency. */
+/** Switch modules on or off for a sub-account. `disabledFeatures` is the full
+ *  list of module keys to turn OFF (everything else stays on). Agency only;
+ *  the cap check enforces the org is under the caller's agency.
+ *
+ *  Filtered through the registry on the way in: unknown keys are dropped and
+ *  core modules can never be stored as off, so no client payload can leave a
+ *  studio unable to take a booking. Switching a module ON here does not grant
+ *  it - the tier still decides that (see effectiveDisabledFeatures). */
 export const setFeatures = mutation({
   args: { orgId: v.string(), disabledFeatures: v.array(v.string()) },
   handler: async (ctx, { orgId, disabledFeatures }) => {
@@ -658,7 +664,9 @@ export const setFeatures = mutation({
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .first();
     if (!org) throw new Error("Subaccount not found");
-    await ctx.db.patch(org._id, { disabledFeatures: [...new Set(disabledFeatures)] });
+    const clean = [...new Set(disabledFeatures)].filter(isToggleable);
+    await ctx.db.patch(org._id, { disabledFeatures: clean });
+    return { off: clean.length };
   },
 });
 
@@ -850,5 +858,84 @@ export const seedAgencyOwner = internalMutation({
       });
     }
     return { agencyId: args.agencyId, ownerClerkUserId: args.ownerClerkUserId, plan };
+  },
+});
+
+
+/* ============================================================
+   Graduating a beta studio.
+
+   A beta workspace is a real studio, not a trial shell: it has its
+   own data, its own bookings and its own clients. Graduating is
+   therefore a status change and a plan assignment, never a migration
+   or a re-creation - nothing moves, nothing is copied, and nothing
+   can be lost in the process.
+
+   The betaCohort flag is kept as history rather than cleared, so
+   "who did we let in early" survives the graduation. `graduatedAt`
+   is what says they are no longer on beta terms.
+   ============================================================ */
+
+export const graduateBeta = mutation({
+  args: {
+    orgId: v.string(),
+    tier: v.union(
+      v.literal("flow"),
+      v.literal("studio"),
+      v.literal("pro"),
+      v.literal("label"),
+    ),
+    agencyPlanId: v.optional(v.id("agencyPlans")),
+  },
+  handler: async (ctx, { orgId, tier, agencyPlanId }) => {
+    await requireCapability(ctx, "billing.edit", { orgId });
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    if (!org) throw new ConvexError("Subaccount not found");
+    if (!org.betaCohort) {
+      throw new ConvexError({
+        code: "NOT_BETA",
+        message: `${org.name} is not a beta workspace.`,
+      });
+    }
+    if (org.graduatedAt) {
+      throw new ConvexError({
+        code: "ALREADY_GRADUATED",
+        message: `${org.name} already graduated.`,
+      });
+    }
+
+    await ctx.db.patch(org._id, {
+      tier,
+      status: "active",
+      graduatedAt: Date.now(),
+      // betaCohort is deliberately left set: it is provenance, not a state.
+      ...(agencyPlanId ? { agencyPlanId } : {}),
+    });
+
+    await ctx.db.insert("activity", {
+      orgId,
+      kind: "account.graduated",
+      summary: `${org.name} graduated from beta onto ${tier}`,
+      accent: "gold",
+    });
+    return { orgId, tier };
+  },
+});
+
+/** Put a graduated studio back on beta terms - an undo for a misclick, not a
+ *  routine action. Keeps the same workspace and the same data. */
+export const revertGraduation = mutation({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    await requireCapability(ctx, "billing.edit", { orgId });
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    if (!org) throw new ConvexError("Subaccount not found");
+    await ctx.db.patch(org._id, { graduatedAt: undefined });
   },
 });

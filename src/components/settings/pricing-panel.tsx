@@ -226,28 +226,43 @@ function FeeRow({ fee }: { fee: FeeTemplate }) {
 /* ============================================================ */
 /** Short, hand-written inclusions per public tier (limits come from PLAN_LIMITS). */
 const TIER_BULLETS: Record<Exclude<TierKey, "agency">, string[]> = {
+  flow: [
+    "No monthly fee, ever",
+    "2% of what you collect through Pulse",
+    "Booking page, deposits, card on file",
+    "No-show shield + auto invoicing",
+    "1 room \u00b7 2 seats \u00b7 5 GB",
+  ],
   studio: [
-    "1 studio workspace",
-    "5 magic-link client grants / mo",
-    "100 AI credits · 5 GB storage",
-    "Booking, sessions, invoicing",
+    "Booking page, deposits, card on file",
+    "No-show shield + auto waitlist",
+    "Invoices with the 3/7/14 dunning ladder",
+    "2 rooms \u00b7 3 seats \u00b7 10 GB",
   ],
   pro: [
-    "Studio-level white-label",
-    "25 magic-link grants / mo",
-    "500 AI credits · 50 GB storage",
-    "Repeat-client tools + AI agents",
+    "Everything in Studio, plus:",
+    "Staff schedule, time clock, payroll",
+    "AI ops agent + SMS receptionist",
+    "Reports, pipeline, inventory, packages",
+    "6 rooms \u00b7 15 seats \u00b7 100 GB",
+  ],
+  label: [
+    "Everything in Pro, plus:",
+    "Full white-label UI: your logo, colors, fonts",
+    "Custom domain + branded sign-in and email",
+    "Releases, licensing, patch bay, split sheets",
+    "Unlimited rooms and seats \u00b7 1 TB",
   ],
   growth: [
+    "Legacy plan (superseded by Label)",
     "Up to 3 sub-accounts",
     "Custom domain + white-label",
-    "2,000 AI credits · 250 GB storage",
-    "100 magic-link grants / mo",
+    "2,000 AI credits \u00b7 250 GB storage",
   ],
   enterprise: [
     "Studio networks + schools",
-    "Unlimited AI credits · 2 TB storage",
-    "Agency-level white-label + domain",
+    "Unlimited AI credits \u00b7 2 TB storage",
+    "Full white-label + custom domain",
     "Dedicated onboarding & support",
   ],
 };

@@ -29,7 +29,10 @@ export type TimeEntryLite = {
 };
 
 export type MemberPayLite = {
-  payType?: "hourly" | "salary";
+  // Widened when engineer payouts landed. Only "hourly" and "salary" are paid
+  // through payroll; "commission" and "points" are paid per session through
+  // convex/payouts.ts, so they contribute 0 here rather than being double-paid.
+  payType?: "hourly" | "salary" | "commission" | "points";
   payRateCents?: number;
 };
 
