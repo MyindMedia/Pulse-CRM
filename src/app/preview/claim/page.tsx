@@ -44,6 +44,7 @@ function Claim() {
   const [step, setStep] = React.useState<Step>("name");
   const [studioName, setStudioName] = React.useState("");
   const [slug, setSlug] = React.useState("");
+  const [inviteToken, setInviteToken] = React.useState<string | null>(null);
   const [slugTouched, setSlugTouched] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
@@ -73,6 +74,7 @@ function Claim() {
     try {
       const res = await claim({ code, studioName, slug: effectiveSlug });
       setSlug(res.slug);
+      setInviteToken(res.inviteToken);
       setStep("done");
     } catch (e) {
       const d = (e as { data?: { message?: string } })?.data;
@@ -207,12 +209,19 @@ function Claim() {
             <Headline className="mt-6">{studioName} is live.</Headline>
             <Sub>
               Your booking page is up at{" "}
-              <span className="font-mono text-bone">studiopulse.tech/book/{slug}</span>. Next:
-              add a room, set your rate, and take a booking.
+              <span className="font-mono text-bone">studiopulse.tech/book/{slug}</span>. One
+              thing left: create your login, and the studio is yours.
             </Sub>
             <div className="mt-8 flex flex-wrap gap-2">
-              <Button onClick={() => router.push("/welcome")}>
-                Set up my studio
+              {/* Creating the login is what attaches this person to the
+                  workspace. Sending them to /welcome first leaves them signed
+                  out of a studio that exists but that they cannot open. */}
+              <Button
+                onClick={() =>
+                  router.push(inviteToken ? `/invite/${inviteToken}` : "/sign-up")
+                }
+              >
+                Create my login
                 <ArrowRight className="ml-1.5 size-4" />
               </Button>
               <Button variant="ghost" onClick={() => router.push(`/book/${slug}`)}>

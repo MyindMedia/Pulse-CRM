@@ -261,3 +261,102 @@ describe("the invite email", () => {
     expect(betaInviteSubject()).toBe("Your early look at Pulse");
   });
 });
+
+describe("claiming produces a workspace the owner can actually open", () => {
+  it("returns an account-creation token, so the Clerk user gets linked", async () => {
+    const t = convexTest(schema);
+    await agency(t);
+    await seedInvite(t, { status: "signed", signedName: "Ari", signedAt: Date.now() });
+
+    const res = await t.action(api.betaAccess.claim, {
+      code: "ABCDE-FGHJK", studioName: "Vault Studios", slug: "vault-studios",
+    });
+    expect(res.slug).toBe("vault-studios");
+    // Without this the owner lands in a studio the access engine cannot match
+    // them to, and every query throws.
+    expect(res.inviteToken).toBeTruthy();
+
+    const invite = (await t.run((ctx) => ctx.db.query("invites").collect()))[0];
+    expect(invite.orgId).toBe(res.orgId);
+    expect(invite.email).toBe("ari@example.com");
+    expect(invite.role).toBe("owner");
+  });
+
+  it("seeds the owner's member row against the email the link will match on", async () => {
+    const t = convexTest(schema);
+    await agency(t);
+    await seedInvite(t, { status: "signed", signedName: "Ari", signedAt: Date.now() });
+    const res = await t.action(api.betaAccess.claim, {
+      code: "ABCDE-FGHJK", studioName: "Vault", slug: "vault",
+    });
+    const member = (await t.run((ctx) => ctx.db.query("members").collect()))
+      .find((m) => m.orgId === res.orgId)!;
+    // invites.markAccepted matches on (orgId, email), so both must be present.
+    expect(member.email).toBe("ari@example.com");
+    expect(member.role).toBe("owner");
+    expect(member.clerkUserId).toBeUndefined();
+  });
+});
+
+describe("linkMe recovery", () => {
+  async function strandedOwner(t: ReturnType<typeof convexTest>) {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: "beta_vault", name: "Vault", slug: "vault", plan: "studio",
+        tier: "pro", status: "setup", betaCohort: true,
+      });
+      await ctx.db.insert("members", {
+        orgId: "beta_vault", name: "Ari", email: "ari@example.com",
+        role: "owner", skills: [],
+      });
+    });
+  }
+
+  it("attaches a signed-in owner to the seat waiting for them", async () => {
+    const t = convexTest(schema);
+    await strandedOwner(t);
+    const asAri = t.withIdentity({ subject: "user_ari", email: "ari@example.com" });
+    const res = await asAri.mutation(api.betaAccess.linkMe, {});
+    expect(res).toMatchObject({ linked: true, orgId: "beta_vault" });
+
+    const member = (await t.run((ctx) => ctx.db.query("members").collect()))[0];
+    expect(member.clerkUserId).toBe("user_ari");
+  });
+
+  it("matches on the caller's own email, and nobody else's", async () => {
+    const t = convexTest(schema);
+    await strandedOwner(t);
+    const someoneElse = t.withIdentity({ subject: "user_x", email: "x@example.com" });
+    expect(await someoneElse.mutation(api.betaAccess.linkMe, {}))
+      .toMatchObject({ linked: false, reason: "nothing_waiting" });
+  });
+
+  it("never takes over a seat that is already linked", async () => {
+    const t = convexTest(schema);
+    await strandedOwner(t);
+    await t.run(async (ctx) => {
+      const m = (await ctx.db.query("members").collect())[0];
+      await ctx.db.patch(m._id, { clerkUserId: "user_original" });
+    });
+    const attacker = t.withIdentity({ subject: "user_attacker", email: "ari@example.com" });
+    expect(await attacker.mutation(api.betaAccess.linkMe, {}))
+      .toMatchObject({ linked: false });
+    const member = (await t.run((ctx) => ctx.db.query("members").collect()))[0];
+    expect(member.clerkUserId).toBe("user_original");
+  });
+
+  it("only repairs beta workspaces", async () => {
+    const t = convexTest(schema);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: "org_normal", name: "Normal", slug: "normal", plan: "studio",
+      });
+      await ctx.db.insert("members", {
+        orgId: "org_normal", name: "Ari", email: "ari@example.com", role: "owner", skills: [],
+      });
+    });
+    const asAri = t.withIdentity({ subject: "user_ari", email: "ari@example.com" });
+    expect(await asAri.mutation(api.betaAccess.linkMe, {}))
+      .toMatchObject({ linked: false, reason: "not_beta" });
+  });
+});

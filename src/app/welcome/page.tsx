@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { BetaLinkRecovery } from "@/components/shell/beta-link-recovery";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
@@ -230,6 +231,8 @@ function Wizard({ initial }: { initial: Mine }) {
 
   return (
     <div className="min-h-dvh bg-ink">
+      {/* Repairs a beta owner whose account was created outside the invite flow. */}
+      <BetaLinkRecovery />
       <div className="app-bloom" aria-hidden />
       <div className="relative z-10 mx-auto flex min-h-dvh max-w-xl flex-col px-5 py-10">
         <div className="flex items-center justify-between">

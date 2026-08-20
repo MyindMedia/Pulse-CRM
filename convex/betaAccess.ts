@@ -568,7 +568,10 @@ export const claim = action({
     slug: v.string(),
     ownerName: v.optional(v.string()),
   },
-  handler: async (ctx, args): Promise<{ slug: string; orgId: string }> => {
+  handler: async (
+    ctx,
+    args,
+  ): Promise<{ slug: string; orgId: string; inviteToken: string | null }> => {
     const ctxInvite = await ctx.runQuery(internal.betaAccess._claimCtx, { code: args.code });
     if (!ctxInvite) throw new ConvexError({ code: "BAD_CODE", message: "That access code is not valid." });
     if (ctxInvite.status === "revoked") {
@@ -609,7 +612,74 @@ export const claim = action({
       orgId: created.orgId,
       slug: created.slug,
     });
-    return created;
+
+    /*
+     * Mint an account-creation token and hand the recipient to the EXISTING
+     * /invite flow rather than straight to /welcome.
+     *
+     * This is the bit that was broken: claiming created the workspace and the
+     * owner's members row, but nothing linked that row to a Clerk user. The
+     * access engine resolves a studio member by clerkUserId, so the person who
+     * had just built the studio could not open it - /welcome threw and the
+     * error boundary caught it.
+     *
+     * invites.accept already does the whole job: creates the Clerk user,
+     * writes clerkUserId onto the members row matched by (orgId, email), and
+     * routes owners to /welcome. Reusing it beats maintaining a second,
+     * subtly different account-creation path.
+     */
+    let inviteToken: string | null = null;
+    try {
+      inviteToken = await ctx.runMutation(internal.invites.record, {
+        orgId: created.orgId,
+        agencyId: ctxInvite.agencyId ?? undefined,
+        email: ctxInvite.email,
+        ownerName: args.ownerName?.trim() || ctxInvite.name || name,
+        studioName: name,
+        invitedBy: "beta-claim",
+        emailStatus: "simulated", // they are on the page; nothing needs sending
+        role: "owner",
+      });
+    } catch {
+      // A grant-quota trip must not strip someone of the studio they just
+      // built. Fall through with a null token; linkMe is the way back in.
+      inviteToken = null;
+    }
+
+    return { ...created, inviteToken };
+  },
+});
+
+/**
+ * Self-heal: attach the signed-in user to the beta studio that is waiting for
+ * them.
+ *
+ * For anyone who created a Clerk account outside the invite flow and landed in
+ * a workspace they cannot open. Matches strictly: the org must be beta cohort,
+ * the members row must carry their own verified email, and it must not already
+ * be linked - so this can attach an account to a waiting seat and can never
+ * take over somebody else's.
+ */
+export const linkMe = mutation({
+  args: {},
+  handler: async (ctx) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity?.email) return { linked: false as const, reason: "no_identity" as const };
+    const email = identity.email.toLowerCase();
+
+    const orphan = (await ctx.db.query("members").collect()).find(
+      (m) => !m.clerkUserId && (m.email ?? "").toLowerCase() === email,
+    );
+    if (!orphan) return { linked: false as const, reason: "nothing_waiting" as const };
+
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orphan.orgId))
+      .first();
+    if (!org?.betaCohort) return { linked: false as const, reason: "not_beta" as const };
+
+    await ctx.db.patch(orphan._id, { clerkUserId: identity.subject });
+    return { linked: true as const, orgId: org.orgId, slug: org.slug, name: org.name };
   },
 });
 
