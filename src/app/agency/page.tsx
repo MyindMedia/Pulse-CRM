@@ -22,6 +22,7 @@ import { EmptyState } from "@/components/ui/feedback";
 import { money } from "@/lib/format";
 import { TrendArea, HBars, CategoryDonut } from "@/components/charts";
 import { CreateSubaccountDialog } from "@/components/agency/create-subaccount-dialog";
+import { BetaInvitesButton } from "@/components/agency/beta-invites-button";
 import { InviteStudioDialog } from "@/components/agency/invite-studio-dialog";
 import { StageDemoDialog } from "@/components/agency/stage-demo-dialog";
 import {
@@ -59,6 +60,7 @@ export default function AgencyOverviewPage() {
         description="The whole network in one place - revenue, subscribers, pipelines, outreach, and the studios that drive it all."
         actions={
           <div className="flex items-center gap-2">
+            <BetaInvitesButton />
             <CreateSubaccountDialog />
             <InviteStudioDialog />
             <StageDemoDialog />
@@ -264,6 +266,7 @@ export default function AgencyOverviewPage() {
       {/* Full subaccount list */}
       <Section
         title={rows ? `${rows.length} subaccount${rows.length === 1 ? "" : "s"}` : "Subaccounts"}
+        trailing={<BetaInvitesButton />}
       >
         {rows === undefined ? (
           <SkeletonRows rows={6} />
