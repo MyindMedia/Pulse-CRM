@@ -14,6 +14,8 @@ export type BillingOrg = {
   /** Beta programme fields. A beta licence hard-stops on its own date. */
   betaCohort?: boolean;
   betaLicenseUntil?: number;
+  /** Moved onto normal terms. Ends the beta hard-stop, keeps the provenance. */
+  graduatedAt?: number;
   billingStatus?: BillingStatus;
   trialStartedAt?: number;
   trialEndsAt?: number;
@@ -76,8 +78,13 @@ export function evaluateBillingGate(
    * through to "no_plan" and never lock.
    *
    * An active paid subscription clears it. That is the whole point of the gate.
+   *
+   * So does graduating. `betaCohort` is kept forever as provenance and
+   * `betaLicenseUntil` is never rewound, so without this a studio moved onto a
+   * paid tier by hand would still be locked out the morning its old beta date
+   * passed - punished for the upgrade.
    */
-  if (org?.betaCohort && org.betaLicenseUntil && now >= org.betaLicenseUntil) {
+  if (org?.betaCohort && org.betaLicenseUntil && !org.graduatedAt && now >= org.betaLicenseUntil) {
     if (org.billingStatus !== "active") {
       return { locked: true, trialDaysLeft: 0, inTrial: false, reason: "beta_expired" };
     }

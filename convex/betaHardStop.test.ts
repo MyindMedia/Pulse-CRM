@@ -68,6 +68,19 @@ describe("the beta year actually stops", () => {
     expect(gate.reason).toBe("active");
   });
 
+  it("does not lock a studio that graduated onto a paid tier", () => {
+    /* graduateBeta keeps betaCohort (provenance) and never rewinds
+       betaLicenseUntil, so the old date still passes. Without the graduatedAt
+       check the studio gets locked out for having upgraded. */
+    const gate = evaluateBillingGate(
+      betaOrg({ graduatedAt: NOW - 10 * DAY, billingStatus: "trialing", trialEndsAt: NOW + 5 * DAY }),
+      plan,
+      NOW,
+    );
+    expect(gate.locked).toBe(false);
+    expect(gate.reason).not.toBe("beta_expired");
+  });
+
   it("leaves a non-beta comped studio alone", () => {
     const gate = evaluateBillingGate(
       { billingStatus: "comped", agencyPlanId: "plan1" as never },

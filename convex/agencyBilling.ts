@@ -52,6 +52,9 @@ function billingView(org: Doc<"orgs">, plan: Doc<"agencyPlans"> | null, now: num
     // Beta programme, so the lock screen can say what ended and when.
     betaCohort: org.betaCohort === true,
     betaLicenseUntil: org.betaLicenseUntil ?? null,
+    // Set once they have been moved onto normal terms - after that the
+    // countdown is an ordinary trial again and should read like one.
+    graduatedAt: org.graduatedAt ?? null,
     ...gate,
   };
 }

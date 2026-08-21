@@ -74,6 +74,13 @@ export function SubaccountBilling({ orgId }: { orgId: string }) {
   const activePlans = (plans ?? []).filter((p) => p.active);
   const status = billing.billingStatus;
   const trialLeft = billing.trialDaysLeft;
+  /* Beta studios sit on a licence, not a trial. The countdown is the same
+     number; the word is not, and the operator needs to see which deal they
+     are looking at before they "extend the trial" on a signed beta year. */
+  const beta = billing.betaCohort === true && !billing.graduatedAt;
+  const betaLeft = billing.betaLicenseUntil
+    ? Math.max(0, Math.ceil((billing.betaLicenseUntil - Date.now()) / 86_400_000))
+    : trialLeft;
 
   return (
     <Card>
@@ -82,8 +89,8 @@ export function SubaccountBilling({ orgId }: { orgId: string }) {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2.5">
             {status ? (
-              <Badge tone={STATUS_TONE[status] ?? "neutral"} dot>
-                {STATUS_LABEL[status] ?? status}
+              <Badge tone={beta && status === "trialing" ? "gold" : STATUS_TONE[status] ?? "neutral"} dot>
+                {beta && status === "trialing" ? "Beta" : STATUS_LABEL[status] ?? status}
               </Badge>
             ) : (
               <Badge tone="neutral">No plan</Badge>
@@ -108,8 +115,15 @@ export function SubaccountBilling({ orgId }: { orgId: string }) {
           )}
         </div>
 
-        {/* Trial countdown */}
-        {status === "trialing" && trialLeft != null && (
+        {/* Trial / beta countdown */}
+        {status === "trialing" && beta && betaLeft != null && (
+          <div className="flex items-center gap-2 rounded-md border border-gold-dim/30 bg-gold/[0.07] px-3 py-2 text-sm text-bone">
+            <Hourglass className="size-4 text-gold" />
+            {betaLeft === 0 ? "Beta ends today" : `${betaLeft} day${betaLeft === 1 ? "" : "s"} left in beta`}
+            <span className="text-steel">· then they pick a plan</span>
+          </div>
+        )}
+        {status === "trialing" && !beta && trialLeft != null && (
           <div className="flex items-center gap-2 rounded-md border border-info/30 bg-info/[0.07] px-3 py-2 text-sm text-bone">
             <Hourglass className="size-4 text-info" />
             {trialLeft === 0 ? "Trial ends today" : `${trialLeft} day${trialLeft === 1 ? "" : "s"} left in trial`}

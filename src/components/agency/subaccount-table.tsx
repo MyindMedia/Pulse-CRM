@@ -60,12 +60,27 @@ const BILLING_TONE: Record<string, NonNullable<React.ComponentProps<typeof Badge
   canceled: "neutral",
 };
 
-/** Compact billing pill: trial countdown when trialing, else the status. */
-function BillingCell({ status, trialEndsAt }: { status?: string | null; trialEndsAt?: number | null }) {
+/** Compact billing pill: trial (or beta) countdown when trialing, else the status. */
+function BillingCell({
+  status,
+  trialEndsAt,
+  betaCohort,
+}: {
+  status?: string | null;
+  trialEndsAt?: number | null;
+  betaCohort?: boolean;
+}) {
   if (!status) return <span className="text-steel/40">-</span>;
   if (status === "trialing" && trialEndsAt) {
     const days = Math.max(0, Math.ceil((trialEndsAt - Date.now()) / 86_400_000));
-    return <Badge tone="info">{days === 0 ? "Trial ends today" : `Trial · ${days}d`}</Badge>;
+    // A beta studio is running a licence, not a trial. Say so on the roster too,
+    // or the operator reading this list misreads the deal they were given.
+    const word = betaCohort ? "Beta" : "Trial";
+    return (
+      <Badge tone={betaCohort ? "gold" : "info"}>
+        {days === 0 ? `${word} ends today` : `${word} · ${days}d`}
+      </Badge>
+    );
   }
   const label =
     status === "past_due" ? "Past due"
@@ -219,7 +234,7 @@ export function SubaccountTable({ rows }: { rows: SubaccountRow[] }) {
               </Badge>
             </TD>
             <TD>
-              <BillingCell status={row.billingStatus} trialEndsAt={row.trialEndsAt} />
+              <BillingCell status={row.billingStatus} trialEndsAt={row.trialEndsAt} betaCohort={row.betaCohort} />
             </TD>
             <TD className="text-right font-meta text-steel">{row.roomCount}</TD>
             <TD className="text-right font-meta text-steel">{row.bookingCount}</TD>
