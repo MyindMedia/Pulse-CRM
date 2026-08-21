@@ -7,7 +7,7 @@ import { Avatar } from "@/components/ui/avatar";
 import { cn } from "@/lib/utils";
 import { money, percent } from "@/lib/format";
 import { titleCase } from "@/lib/labels";
-import { daysSince, serviceTint, type Opportunity } from "./constants";
+import { daysSince, serviceTint, type Opportunity, STALE_AFTER_DAYS } from "./constants";
 
 /** A single draggable opportunity card. */
 export function DealCard({
@@ -27,7 +27,7 @@ export function DealCard({
 
   const tint = serviceTint(opp.serviceType);
   const age = daysSince(opp.updatedAt);
-  const stale = age >= 14;
+  const stale = age >= STALE_AFTER_DAYS;
 
   return (
     <div

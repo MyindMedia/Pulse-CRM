@@ -3,15 +3,20 @@
 import * as React from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
+import { buildThemeVars, isDark } from "@/lib/theme-ramp";
 
 /**
  * Paints the workspace's white-label theme onto the document root.
  *
- * Values arrive already validated and merged server-side (theme.get returns
- * Pulse's own palette for any tier below Label), so this component never
- * decides what is allowed - it only applies. Anything it writes is a CSS
- * custom property, and every value was checked against a hex or enum
- * allowlist before it was stored.
+ * The earlier version wrote --brand-* variables that no stylesheet read, so a
+ * studio could pick a palette and watch nothing happen. This writes the tokens
+ * the app is actually styled against: the surface ladder, the hairlines, the
+ * four weights of text, the accent family and the brand-tinted shadows. Change
+ * the background here and the nav, the cards and the page all move with it.
+ *
+ * The values arrive validated server-side (hex or an enum, checked against an
+ * allowlist), and theme.get hands back Pulse's own palette for any tier below
+ * Label. This component only ever applies; it never decides what is allowed.
  */
 export function WhiteLabelTheme() {
   const theme = useQuery(api.theme.get);
@@ -21,26 +26,56 @@ export function WhiteLabelTheme() {
     const root = document.documentElement;
     const applied: string[] = [];
 
-    for (const [prop, value] of Object.entries(theme.cssVars ?? {})) {
-      if (typeof value !== "string") continue;
+    const set = (prop: string, value: string) => {
       root.style.setProperty(prop, value);
       applied.push(prop);
+    };
+
+    if (theme.active) {
+      const c = theme.colors;
+      // One ramp derived from what they picked, rather than eleven pickers
+      // and a mess.
+      for (const [prop, value] of Object.entries(
+        buildThemeVars({
+          background: c.background,
+          surface: c.surface,
+          text: c.text,
+          primary: c.primary,
+          accent: c.accent,
+          muted: c.muted,
+          border: c.border,
+        }),
+      )) {
+        set(prop, value);
+      }
+
+      // Shape and density, which are as much a part of a brand as its colour.
+      if (theme.cssVars?.["--radius"]) {
+        const r = theme.cssVars["--radius"];
+        set("--radius-chrome", r);
+        set("--radius-md", r);
+      }
+
+      // Tells the rest of the CSS which way round this theme is, so anything
+      // keyed on light or dark reacts instead of assuming.
+      root.dataset.themeMode = isDark(c.background) ? "dark" : "light";
     }
+
     if (theme.fontHeading) {
-      root.style.setProperty("--font-display", `"${theme.fontHeading}"`);
-      applied.push("--font-display");
+      set("--font-grotesk", `"${theme.fontHeading}", ui-sans-serif, sans-serif`);
+      set("--font-chrome", `"${theme.fontHeading}", ui-sans-serif, sans-serif`);
     }
     if (theme.fontBody) {
-      root.style.setProperty("--font-body", `"${theme.fontBody}"`);
-      applied.push("--font-body");
+      set("--font-inter", `"${theme.fontBody}", ui-sans-serif, sans-serif`);
     }
     root.dataset.whitelabel = theme.active ? "true" : "false";
 
-    // Clean up on unmount or tier change so a downgrade instantly reverts the
-    // shell to Pulse chrome without a reload.
+    // Clean up on unmount or tier change, so a downgrade reverts the whole
+    // interface to Pulse chrome without a reload.
     return () => {
       for (const prop of applied) root.style.removeProperty(prop);
       delete root.dataset.whitelabel;
+      delete root.dataset.themeMode;
     };
   }, [theme]);
 

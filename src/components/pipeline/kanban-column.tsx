@@ -5,6 +5,7 @@ import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { cn } from "@/lib/utils";
 import { money } from "@/lib/format";
 import { meta, PIPELINE_STAGE } from "@/lib/labels";
+import { stageTint } from "./constants";
 import { DealCard } from "./deal-card";
 import type { KanbanStage, Opportunity } from "./constants";
 
@@ -38,6 +39,11 @@ export function KanbanColumn({
               info.tone === "critical" && "bg-critical",
               info.tone === "solid" && "bg-bone",
             )}
+          />
+          <span
+            className="size-2 shrink-0 rounded-full"
+            style={{ background: stageTint(stage) }}
+            aria-hidden
           />
           <h3 className="font-grotesk text-sm font-semibold text-bone">{info.label}</h3>
           <span className="font-meta text-[0.6875rem] text-steel/70">{deals.length}</span>

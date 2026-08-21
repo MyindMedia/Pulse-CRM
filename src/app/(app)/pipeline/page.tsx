@@ -35,6 +35,7 @@ import { EmptyState } from "@/components/ui/feedback";
 import { money, percent } from "@/lib/format";
 import { meta, PIPELINE_STAGE } from "@/lib/labels";
 import { KanbanColumn } from "@/components/pipeline/kanban-column";
+import { PipelineLegend } from "@/components/pipeline/legend";
 import { DealCard } from "@/components/pipeline/deal-card";
 import { DealSheet } from "@/components/pipeline/deal-sheet";
 import { AddOpportunityDialog } from "@/components/pipeline/add-opportunity-dialog";
@@ -168,6 +169,9 @@ export default function PipelinePage() {
           />
         </div>
       )}
+
+      {/* Two colour systems run on this board. Say what they mean. */}
+      <PipelineLegend />
 
       {/* Board */}
       {board === undefined ? (
