@@ -272,7 +272,7 @@ function Kiosk({ authReady }: { authReady: boolean }) {
         <div className="flex min-w-0 flex-1 items-center gap-3 lg:flex-initial">
           {org?.logoUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={org.logoUrl} alt="" className="size-9 rounded object-contain" />
+            <img src={org.logoUrl} alt="" className="h-11 w-auto max-w-40 rounded object-contain object-left" />
           ) : (
             <span className="grid size-9 place-items-center rounded-md bg-gold text-gold-ink">
               <Disc3 className="size-5" />

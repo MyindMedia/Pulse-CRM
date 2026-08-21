@@ -35,7 +35,7 @@ export function BrandLockup({
           <img
             src={logoUrl}
             alt={name}
-            className="size-8 rounded-md object-contain"
+            className="size-9 rounded-md object-contain"
             draggable={false}
           />
         ) : (
@@ -54,10 +54,20 @@ export function BrandLockup({
   if (whiteLabeled && logoUrl) {
     return (
       <div className={cn("w-2/3", className)}>
+        {/*
+          Sized the same way the Pulse wordmark is: fill the rail's width and
+          let the height follow, so a wide logo sits across the rail exactly
+          like PLAYBACK does.
+
+          The max-height is the guard for the other shape. A square crest at
+          full rail width would be a 160px block pushing the nav down the page,
+          so it caps at 64 and object-contain letterboxes it. Left aligned,
+          because a logo centred over a left-aligned nav reads as a mistake.
+        */}
         <img
           src={logoUrl}
           alt={name}
-          className="block max-h-10 w-auto object-contain"
+          className="block h-auto max-h-16 w-full object-contain object-left"
           draggable={false}
         />
         <PoweredByPulse className="mt-1.5" />

@@ -113,7 +113,7 @@ export default function VisitPage() {
         <div className="mx-auto flex h-16 max-w-xl items-center gap-2.5 px-4">
           {studio?.logoUrl ? (
             /* eslint-disable-next-line @next/next/no-img-element */
-            <img src={studio.logoUrl} alt="" className="size-8 rounded object-contain" />
+            <img src={studio.logoUrl} alt="" className="h-10 w-auto max-w-36 rounded object-contain object-left" />
           ) : (
             <span className="grid size-9 place-items-center rounded-md bg-gold text-gold-ink">
               <Disc3 className="size-5" />

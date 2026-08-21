@@ -46,7 +46,7 @@ export default function BookLayout({ children }: { children: React.ReactNode }) 
               <img
                 src={front.org.logoUrl}
                 alt=""
-                className="size-6 rounded object-contain"
+                className="h-8 w-auto max-w-32 rounded object-contain object-left"
               />
             ) : (
               <span className="grid size-9 place-items-center rounded-md bg-gold text-gold-ink shadow-[0_1px_0_0_rgba(255,255,255,.25)_inset]">

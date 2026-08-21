@@ -300,7 +300,7 @@ function Wizard({ initial }: { initial: Mine }) {
                     style={{ backgroundColor: logoUrl ? undefined : accent + "22" }}>
                     {logoUrl ? (
                       // eslint-disable-next-line @next/next/no-img-element
-                      <img src={logoUrl} alt="Studio logo" className="size-full object-cover" />
+                      <img src={logoUrl} alt="Studio logo" className="size-full object-contain" />
                     ) : (
                       <ImagePlus className="size-5 text-steel/70" />
                     )}

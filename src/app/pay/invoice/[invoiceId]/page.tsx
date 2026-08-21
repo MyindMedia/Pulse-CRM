@@ -56,7 +56,7 @@ export default function InvoicePayPage() {
             <div className="flex items-center gap-3">
               {inv.logoUrl ? (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={inv.logoUrl} alt={inv.studioName} className="size-10 rounded-md object-cover" />
+                <img src={inv.logoUrl} alt={inv.studioName} className="h-10 w-auto max-w-32 rounded-md object-contain object-left" />
               ) : (
                 <span className="grid size-10 place-items-center rounded-md font-grotesk font-bold" style={{ backgroundColor: `${accent}22`, color: accent }}>
                   {inv.studioName.slice(0, 1)}
