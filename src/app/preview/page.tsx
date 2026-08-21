@@ -408,14 +408,14 @@ function PreviewContent({
           </h2>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-steel">
             {claimed
-              ? `You built your studio at /${claimedSlug}. Pick up where you left off.`
+              ? `Signed. Your studio at /${claimedSlug} is waiting, and everything in it is where you left it.`
               : "Your early-access place is held. Name your studio, pick your booking address, and it is live in about a minute."}
           </p>
           <a
-            href={claimed ? `/book/${claimedSlug}` : `/preview/claim?code=${encodeURIComponent(code)}`}
+            href={claimed ? "/welcome" : `/preview/claim?code=${encodeURIComponent(code)}`}
             className="mt-4 inline-flex items-center gap-2 rounded-full bg-gold px-6 py-3 font-grotesk text-sm font-bold text-gold-ink transition-opacity hover:opacity-90"
           >
-            {claimed ? "Open my booking page" : "Build my studio"}
+            {claimed ? "Go to my studio" : "Build my studio"}
             <ArrowRight className="size-4" />
           </a>
         </section>

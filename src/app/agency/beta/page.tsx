@@ -49,7 +49,9 @@ export default function BetaDashboardPage() {
 
   const [form, setForm] = React.useState({ email: "", name: "", company: "", note: "" });
   const [busy, setBusy] = React.useState(false);
-  const [filter, setFilter] = React.useState<"all" | "silent" | "stalled" | "signed" | "claimed">("all");
+  const [filter, setFilter] = React.useState<
+    "all" | "silent" | "stalled" | "unsigned" | "signed" | "claimed"
+  >("all");
 
   async function send(sendEmail: boolean) {
     if (!form.email.includes("@")) return toast.error("Enter an email address first.");
@@ -95,6 +97,9 @@ export default function BetaDashboardPage() {
     if (filter === "all") return items;
     if (filter === "silent") return items.filter((i) => i.sentAt && i.viewCount === 0 && i.status !== "revoked");
     if (filter === "stalled") return items.filter((i) => i.viewCount > 0 && !i.signedAt && i.status !== "revoked");
+    if (filter === "unsigned") {
+      return items.filter((i) => i.status === "claimed" && !i.signedAt);
+    }
     if (filter === "signed") return items.filter((i) => i.signedAt);
     return items.filter((i) => i.status === "claimed");
   }, [data?.items, filter]);
@@ -199,6 +204,7 @@ export default function BetaDashboardPage() {
               ["all", `Everyone${counts ? ` (${counts.total})` : ""}`],
               ["silent", `Sent, never opened${counts ? ` (${counts.silent})` : ""}`],
               ["stalled", `Opened, never signed${counts ? ` (${counts.stalled})` : ""}`],
+              ["unsigned", `Using it, unsigned${counts ? ` (${counts.unsigned})` : ""}`],
               ["signed", `Signed${counts ? ` (${counts.signed})` : ""}`],
               ["claimed", `Built a studio${counts ? ` (${counts.claimed})` : ""}`],
             ] as const).map(([key, label]) => (

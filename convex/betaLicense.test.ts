@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 /* Converting an EXISTING studio onto the beta programme.
 
@@ -84,14 +84,67 @@ describe("granting the licence", () => {
     expect(invites[0].note).toContain("converted");
   });
 
-  it("issues no usable access code - they already have a login", async () => {
+  it("issues a real signing code, because they still owe the agreement", async () => {
     const t = convexTest(schema);
     await existingStudio(t);
     await t.mutation(internal.betaLicense._grant, { orgId: ORG });
     const invite = (await t.run((ctx) => ctx.db.query("betaInvites").collect()))[0];
-    // A real code would invite exactly the duplicate this path avoids.
-    expect(invite.code.startsWith("CONVERTED-")).toBe(true);
-    expect(invite.ndaVersion).toBe("converted");
+    // Everyone on the beta signs, converted studios included - they are about
+    // to be shown an unreleased roadmap like everybody else.
+    expect(invite.code).toMatch(/^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
+    expect(invite.ndaVersion).not.toBe("converted");
+    expect(invite.signedAt).toBeUndefined();
+  });
+
+  it("the code cannot produce a duplicate studio", async () => {
+    const t = convexTest(schema);
+    await existingStudio(t);
+    await t.mutation(internal.betaLicense._grant, { orgId: ORG });
+    const invite = (await t.run((ctx) => ctx.db.query("betaInvites").collect()))[0];
+    // claimedOrgId is what makes the preview offer "go to my studio" rather
+    // than "build one", so a real code is safe to hand out here.
+    expect(invite.claimedOrgId).toBe(ORG);
+    expect(invite.status).toBe("claimed");
+  });
+
+  it("signing does not walk a claimed studio backwards", async () => {
+    const t = convexTest(schema);
+    await existingStudio(t);
+    await t.mutation(internal.betaLicense._grant, { orgId: ORG });
+    const code = (await t.run((ctx) => ctx.db.query("betaInvites").collect()))[0].code;
+
+    const { NDA_TERMS_HASH } = await import("./lib/betaNda");
+    await t.mutation(api.betaAccess.sign, {
+      code, signedName: "Steve White", termsHash: NDA_TERMS_HASH,
+    });
+
+    const invite = (await t.run((ctx) => ctx.db.query("betaInvites").collect()))[0];
+    // Still claimed - they have a real workspace - and now signed.
+    expect(invite.status).toBe("claimed");
+    expect(invite.signedAt).toBeTruthy();
+    expect(invite.signedName).toBe("Steve White");
+
+    // And the gate agrees: signed means signed, regardless of status.
+    const check = await t.query(api.betaAccess.check, { code });
+    expect(check.signed).toBe(true);
+    expect(check.claimed).toBe(true);
+  });
+
+  it("reissues a placeholder code from an earlier conversion", async () => {
+    const t = convexTest(schema);
+    await existingStudio(t);
+    await t.run((ctx) =>
+      ctx.db.insert("betaInvites", {
+        agencyId: "ag1", email: "dnment859@gmail.com", company: "Kamiza",
+        code: "CONVERTED-ABCD1234", status: "claimed", ndaVersion: "converted",
+        viewCount: 0, claimedOrgId: ORG, claimedSlug: "kamiza", createdAt: Date.now(),
+      } as never),
+    );
+    const res = await t.mutation(internal.betaLicense._ensureSigningCode, { orgId: ORG });
+    expect(res.reissued).toBe(true);
+    expect(res.code).toMatch(/^[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}-[A-HJ-NP-Z2-9]{4}$/);
+    const invite = (await t.run((ctx) => ctx.db.query("betaInvites").collect()))[0];
+    expect(invite.ndaVersion).not.toBe("converted");
   });
 
   it("does not queue them twice on a re-run", async () => {

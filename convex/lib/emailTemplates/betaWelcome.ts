@@ -23,6 +23,10 @@ export function betaWelcomeHtml(args: {
   studioName: string;
   welcomeUrl: string;
   untilLabel: string;
+  /** Everyone on the beta signs the agreement, converted studios included.
+   *  When they have not yet, the email asks for that first rather than
+   *  dropping them into setup and chasing the signature afterwards. */
+  needsSignature?: boolean;
 }): string {
   const hello = args.ownerName ? `Hi ${escapeEmailHtml(args.ownerName)},` : "Hi,";
   const studio = escapeEmailHtml(args.studioName);
@@ -49,13 +53,20 @@ export function betaWelcomeHtml(args: {
           Your account is now a beta account. Everything is unlocked and there is nothing to pay until ${escapeEmailHtml(args.untilLabel)}.
         </p>
         <p style="margin:0 0 14px 0;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.65;color:${FAINT};">
-          Use the same login you already have. The link below picks up your setup where you left it - your studio, rooms and booking page are all still there, so there is nothing to re-enter.
+          Use the same login you already have. Your studio, rooms and booking page are all still there, so there is nothing to re-enter.
         </p>
+        ${
+          args.needsSignature
+            ? `<p style="margin:0 0 14px 0;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.65;color:${FAINT};">
+          One thing first. The beta shows you features that are not announced yet, including the roadmap, so there is a short confidentiality agreement to sign. It takes a minute, and then you are straight in.
+        </p>`
+            : ""
+        }
       </td></tr>
 
       <tr><td align="center" style="padding:8px 28px 4px 28px;">
         <a href="${args.welcomeUrl}" style="display:inline-block;background:${GOLD};color:${GOLD_INK};font-family:Inter,Segoe UI,Arial,sans-serif;font-weight:700;font-size:14px;text-decoration:none;padding:13px 30px;border-radius:9999px;">
-          Finish setting up
+          ${args.needsSignature ? "Read and sign, then continue" : "Finish setting up"}
         </a>
       </td></tr>
 

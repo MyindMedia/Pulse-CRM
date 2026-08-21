@@ -2,6 +2,7 @@ import { mutation, query, action, internalMutation, internalQuery } from "./_gen
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { requireCapability, resolveViewer } from "./lib/access";
+import { currentOrg } from "./lib/tenant";
 import { sendEmail } from "./lib/email";
 import { betaInviteHtml, betaInviteSubject } from "./lib/emailTemplates/betaInvite";
 import {
@@ -92,7 +93,9 @@ export const check = query({
     }
     return {
       valid: true as const,
-      signed: invite.status === "signed" || invite.status === "claimed",
+      // Signed means signed. A converted studio can be claimed and unsigned,
+      // which is exactly the case this distinction exists for.
+      signed: Boolean(invite.signedAt),
       claimed: invite.status === "claimed",
       claimedSlug: invite.claimedSlug ?? null,
       suggestedName: invite.company ?? null,
@@ -184,7 +187,10 @@ export const sign = mutation({
     }
 
     await ctx.db.patch(invite._id, {
-      status: "signed",
+      // A studio converted in place is already "claimed" - it has a real
+      // workspace. Signing must not walk that backwards, so status only
+      // advances. signedAt is the source of truth for whether they signed.
+      status: invite.status === "claimed" ? "claimed" : "signed",
       signedName: name.slice(0, 120),
       signedTitle: args.signedTitle?.trim().slice(0, 120) || undefined,
       signedCompany: args.signedCompany?.trim().slice(0, 160) || invite.company,
@@ -240,6 +246,10 @@ export const list = query({
         silent: live.filter((r) => Boolean(r.sentAt) && r.viewCount === 0).length,
         // Read the terms and stopped. The most useful list on the page.
         stalled: live.filter((r) => r.viewCount > 0 && !r.signedAt).length,
+        // Has a workspace and a licence, but has not signed the agreement.
+        // They are already using the product, so this list is the one that
+        // needs chasing rather than ignoring.
+        unsigned: live.filter((r) => r.status === "claimed" && !r.signedAt).length,
       },
       rates: {
         openRate: rate(opened, sent),
@@ -451,7 +461,8 @@ export const preview = query({
 
     const ok =
       invite &&
-      invite.status === "signed" &&
+      Boolean(invite.signedAt) &&
+      invite.status !== "revoked" &&
       (!invite.expiresAt || invite.expiresAt >= Date.now());
     if (!ok) return { unlocked: false as const };
 
@@ -802,5 +813,34 @@ export const recordLogin = mutation({
       loginCount: (target.loginCount ?? 0) + 1,
     });
     return { ok: true as const };
+  },
+});
+
+
+/** Whether the SIGNED-IN studio still owes a signature, and the link to give
+ *  it. Drives the in-app prompt, so a converted studio that never opened the
+ *  email still gets asked. */
+export const myBetaSignature = query({
+  args: {},
+  handler: async (ctx) => {
+    const orgId = await currentOrg(ctx);
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    if (!org?.betaCohort) return { needed: false as const };
+
+    const invite = await ctx.db
+      .query("betaInvites")
+      .withIndex("by_claimed_org", (q) => q.eq("claimedOrgId", orgId))
+      .first();
+    if (!invite || invite.signedAt) return { needed: false as const };
+
+    return {
+      needed: true as const,
+      code: invite.code,
+      studioName: org.name,
+      licenseUntil: org.betaLicenseUntil ?? null,
+    };
   },
 });

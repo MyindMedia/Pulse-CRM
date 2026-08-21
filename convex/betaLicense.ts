@@ -3,6 +3,7 @@ import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { sendEmail } from "./lib/email";
 import { betaWelcomeHtml, betaWelcomeSubject } from "./lib/emailTemplates/betaWelcome";
+import { NDA_VERSION } from "./lib/betaNda";
 
 /* ============================================================
    Converting an EXISTING studio onto the beta programme.
@@ -19,6 +20,20 @@ import { betaWelcomeHtml, betaWelcomeSubject } from "./lib/emailTemplates/betaWe
    ============================================================ */
 
 const YEAR_MS = 365 * 24 * 60 * 60 * 1000;
+
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+/** A readable code for a converted studio. Random, not derived from the org
+ *  id, so knowing a workspace tells you nothing about its code. */
+function makeConversionCode(_orgId: string): string {
+  const hex = (crypto.randomUUID() + crypto.randomUUID()).replace(/-/g, "");
+  let out = "";
+  for (let i = 0; i < 12; i++) {
+    out += CODE_ALPHABET[parseInt(hex.slice(i * 3, i * 3 + 3), 16) % CODE_ALPHABET.length];
+    if (i === 3 || i === 7) out += "-";
+  }
+  return out;
+}
 
 export const _orgByEmail = internalQuery({
   args: { email: v.string() },
@@ -39,6 +54,45 @@ export const _orgByEmail = internalQuery({
       betaWelcomeSentAt: org.betaWelcomeSentAt ?? null,
       onboardingCompletedAt: org.onboardingCompletedAt ?? null,
     };
+  },
+});
+
+/** Replace a placeholder conversion code with a real random one, and make sure
+ *  the row is on the current agreement version. Idempotent: a code that is
+ *  already real is left alone, and a signature is never touched. */
+export const _ensureSigningCode = internalMutation({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const inv = await ctx.db
+      .query("betaInvites")
+      .withIndex("by_claimed_org", (q) => q.eq("claimedOrgId", orgId))
+      .first();
+    if (!inv) return { code: null as string | null, reissued: false };
+
+    const placeholder = inv.code.startsWith("CONVERTED-");
+    const code = placeholder ? makeConversionCode(orgId) : inv.code;
+    if (placeholder || inv.ndaVersion === "converted") {
+      await ctx.db.patch(inv._id, {
+        code,
+        // They were converted before the agreement was part of this path, so
+        // point them at the current version rather than a placeholder string.
+        ...(inv.signedAt ? {} : { ndaVersion: NDA_VERSION }),
+      });
+    }
+    return { code, reissued: placeholder };
+  },
+});
+
+/** The signing code and signature state for a converted studio. */
+export const _inviteForOrg = internalQuery({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const inv = await ctx.db
+      .query("betaInvites")
+      .withIndex("by_claimed_org", (q) => q.eq("claimedOrgId", orgId))
+      .first();
+    if (!inv) return null;
+    return { code: inv.code, signedAt: inv.signedAt ?? null, signedName: inv.signedName ?? null };
   },
 });
 
@@ -101,18 +155,20 @@ export const _grant = internalMutation({
         .withIndex("by_claimed_org", (q) => q.eq("claimedOrgId", orgId))
         .collect()
     )[0];
+    const code = makeConversionCode(orgId);
     if (!existingInvite && org.ownerEmail) {
       await ctx.db.insert("betaInvites", {
         agencyId: org.agencyId,
         email: org.ownerEmail.toLowerCase(),
         name: org.ownerName ?? undefined,
         company: org.name,
-        // Marks the row as a conversion rather than an issued code. Not usable
-        // as an access code: the gate normalizes and matches exactly, and this
-        // shape can never be typed in by accident.
-        code: `CONVERTED-${orgId.slice(-8).toUpperCase()}`,
+        // A REAL code, because they still have to sign the agreement and the
+        // signing page is reached by code. It cannot produce a duplicate
+        // studio: claimedOrgId is set below, so the preview offers "open your
+        // studio" rather than "build one".
+        code,
         status: "claimed",
-        ndaVersion: "converted",
+        ndaVersion: NDA_VERSION,
         viewCount: 0,
         claimedOrgId: orgId,
         claimedSlug: org.slug,
@@ -128,7 +184,10 @@ export const _grant = internalMutation({
       summary: `Beta licence granted to ${org.name} through ${new Date(until).toISOString().slice(0, 10)}`,
       accent: "gold",
     });
-    return { changed: true as const, until, name: org.name, slug: org.slug };
+    return {
+      changed: true as const, until, name: org.name, slug: org.slug,
+      code: existingInvite?.code ?? code,
+    };
   },
 });
 
@@ -165,10 +224,13 @@ export const convertExisting = action({
     tier: v.optional(v.union(v.literal("studio"), v.literal("pro"), v.literal("label"))),
     send: v.optional(v.boolean()),
     force: v.optional(v.boolean()),
+    /** Send again even if a welcome already went out. For the studios
+     *  converted before the agreement was part of this flow. */
+    resend: v.optional(v.boolean()),
   },
   handler: async (ctx, args): Promise<{
     orgId: string; name: string; until: number | null;
-    granted: boolean; emailStatus: string;
+    granted: boolean; emailStatus: string; signed: boolean;
   }> => {
     const found = await ctx.runQuery(internal.betaLicense._orgByEmail, { email: args.email });
     if (!found) throw new ConvexError(`No studio found with owner email ${args.email}`);
@@ -181,18 +243,33 @@ export const convertExisting = action({
     });
 
     // Send once. Re-running the conversion must not re-mail somebody.
+    // Make sure they have a real code to sign against before anything is sent.
+    await ctx.runMutation(internal.betaLicense._ensureSigningCode, {
+      orgId: found.orgId,
+    });
+
     let emailStatus = "skipped";
-    const alreadyWelcomed = Boolean(found.betaWelcomeSentAt);
+    const alreadyWelcomed = Boolean(found.betaWelcomeSentAt) && args.resend !== true;
     if (args.send !== false && !alreadyWelcomed) {
       const base = process.env.APP_URL ?? "https://studiopulse.tech";
       const until = grant.changed ? grant.until : found.betaLicenseUntil ?? Date.now();
+      const inv = await ctx.runQuery(internal.betaLicense._inviteForOrg, {
+        orgId: found.orgId,
+      });
+      // Send them to the agreement first. Everyone on the beta signs it, and
+      // an existing customer being converted is no exception - they are about
+      // to be shown an unreleased roadmap like everybody else.
+      const signUrl = inv?.code
+        ? `${base}/preview?code=${encodeURIComponent(inv.code)}`
+        : `${base}/welcome`;
       emailStatus = await sendEmail({
         to: found.ownerEmail ?? args.email,
         subject: betaWelcomeSubject(found.name),
         html: betaWelcomeHtml({
           ownerName: found.ownerName ?? undefined,
           studioName: found.name,
-          welcomeUrl: `${base}/welcome`,
+          welcomeUrl: signUrl,
+          needsSignature: !inv?.signedAt,
           untilLabel: new Date(until).toLocaleDateString("en-US", {
             year: "numeric", month: "long", day: "numeric",
           }),
@@ -210,6 +287,9 @@ export const convertExisting = action({
       until: grant.changed ? grant.until : found.betaLicenseUntil,
       granted: grant.changed,
       emailStatus: alreadyWelcomed ? "already_sent" : emailStatus,
+      signed: Boolean(
+        (await ctx.runQuery(internal.betaLicense._inviteForOrg, { orgId: found.orgId }))?.signedAt,
+      ),
     };
   },
 });

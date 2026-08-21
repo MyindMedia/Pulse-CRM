@@ -6,6 +6,7 @@ import { useCollapsiblePanel } from "@/lib/use-collapsible-panel";
 import { Sidebar } from "@/components/shell/sidebar";
 import { WhiteLabelTheme } from "@/components/shell/white-label-theme";
 import { BetaLoginTracker } from "@/components/shell/beta-login-tracker";
+import { BetaSignatureBanner } from "@/components/shell/beta-signature-banner";
 import { Topbar } from "@/components/shell/topbar";
 import { StudioBanner } from "@/components/shell/studio-banner";
 import { BillingBanner, BillingLock } from "@/components/shell/billing-gate";
@@ -96,7 +97,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           )}
         >
           <StudioBanner />
-          <BillingBanner />
+          <BetaSignatureBanner />
+            <BillingBanner />
           <Topbar onOpenMenu={() => setMobileNav(true)} />
           <main className="flex-1 px-4 py-6 pb-28 lg:px-8 lg:py-8 lg:pb-8">
             <AppTransition>{children}</AppTransition>
