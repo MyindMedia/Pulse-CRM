@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { PublicTheme } from "@/components/shell/public-theme";
 import { useParams, useSearchParams } from "next/navigation";
 import { motion } from "motion/react";
 import { useQuery } from "convex/react";
@@ -78,6 +79,7 @@ function StudioFrontView() {
       className="space-y-12"
       style={{ "--studio-accent": accent } as React.CSSProperties}
     >
+      <PublicTheme slug={slug} />
       {/* ── Cinematic hero: full-bleed background + dark faded hue ── */}
       <section className="relative left-1/2 w-screen -translate-x-1/2 -mt-8 lg:-mt-12 overflow-hidden">
         {/* Background layer */}

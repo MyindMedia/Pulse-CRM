@@ -4,7 +4,7 @@ import { internal } from "./_generated/api";
 import { currentOrg } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { sendEmail } from "./lib/email";
-import { studioEmailHtml } from "./lib/emailTemplates/layout";
+import { studioEmailHtml, readableEmailInk } from "./lib/emailTemplates/layout";
 import { googleConfigured, gmailSend } from "./lib/google";
 
 /* Client communications email (P4). A studio sends client email either through
@@ -50,6 +50,7 @@ export const _sendContext = internalQuery({
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     return {
       to: artist.email ?? null,
+      orgId,
       studioName: org?.name ?? "Studio",
       provider: org?.emailProvider ?? "internal",
       googleRefreshToken: org?.googleRefreshToken ?? null,
@@ -73,7 +74,15 @@ export const sendToClient = action({
 
     // Branded, studio-framed layout (white-label: the client sees the
     // STUDIO's name; Pulse only appears in the footer).
-    const html = studioEmailHtml({ studioName: c.studioName, bodyText: body });
+    // The studio's own colours on the studio's own client mail.
+    const brand = await ctx.runQuery(internal.theme._emailTheme, { orgId: c.orgId });
+    const html = studioEmailHtml({
+      studioName: brand.appName ?? c.studioName,
+      bodyText: body,
+      accent: brand.accent,
+      accentInk: readableEmailInk(brand.accent),
+      footerText: brand.footerText ?? undefined,
+    });
 
     let channel: "google" | "internal";
     let status: "sent" | "failed" | "simulated";

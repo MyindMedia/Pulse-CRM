@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { PublicTheme } from "@/components/shell/public-theme";
 import { useParams } from "next/navigation";
 import { useQuery, useAction, useConvex } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -38,6 +39,7 @@ export default function ClientPortalPage() {
 
   return (
     <div className="min-h-dvh bg-ink p-6">
+      <PublicTheme token={token} />
       <div
         aria-hidden
         className="pointer-events-none fixed inset-x-0 top-0 h-[380px]"

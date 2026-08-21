@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { SignIn } from "@clerk/nextjs";
 import { clerkAppearance } from "@/lib/clerk-appearance";
-import { PulseLogo } from "@/components/brand/pulse-logo";
+import { SignInBrand } from "@/components/shell/sign-in-brand";
 
 const CLERK_ENABLED = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
@@ -16,12 +16,7 @@ export default function SignInPage() {
           blobs; without them backdrop-blur reads as flat paint. */}
       <div aria-hidden className="app-bloom" />
       <div className="relative flex w-full max-w-md flex-col items-center gap-6">
-        <div className="flex flex-col items-center gap-2">
-          <PulseLogo size="lg" asLink={false} />
-          <p className="font-meta text-[0.6875rem] uppercase tracking-[0.2em] text-steel/70">
-            The studio operating system
-          </p>
-        </div>
+        <SignInBrand />
         {CLERK_ENABLED ? (
           <SignIn
             appearance={clerkAppearance}

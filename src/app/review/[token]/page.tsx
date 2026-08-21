@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { PublicTheme } from "@/components/shell/public-theme";
 import { useParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -52,6 +53,7 @@ export default function ReviewPage() {
 
   return (
     <div className="grain relative flex min-h-dvh flex-col bg-ink p-6 text-bone">
+      <PublicTheme token={token} />
       <div
         aria-hidden
         className="pointer-events-none fixed inset-x-0 top-0 h-[380px]"

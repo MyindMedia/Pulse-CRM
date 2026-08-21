@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { PublicTheme } from "@/components/shell/public-theme";
 import { useTrackBookingStep, visitorKey } from "@/lib/use-booking-funnel";
 import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
@@ -158,6 +159,7 @@ function RoomDetailView() {
 
   return (
     <div className="space-y-8">
+      <PublicTheme slug={slug} />
       <Link
         href={`/book/${slug}`}
         className="inline-flex items-center gap-1.5 text-sm text-steel hover:text-gold-bright"

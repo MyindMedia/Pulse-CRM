@@ -3,6 +3,7 @@
 import * as React from "react";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import { Lock, Palette, RotateCcw } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
@@ -41,6 +42,24 @@ export function WhiteLabelPanel() {
   const save = useMutation(api.theme.save);
   const reset = useMutation(api.theme.reset);
   const [busy, setBusy] = React.useState(false);
+  const [uploading, setUploading] = React.useState(false);
+  const genUploadUrl = useMutation(api.theme.generateUploadUrl);
+  const setLoginBackground = useMutation(api.theme.setLoginBackground);
+
+  async function uploadBackground(file: File) {
+    setUploading(true);
+    try {
+      const url = await genUploadUrl({});
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": file.type }, body: file });
+      const { storageId } = (await res.json()) as { storageId: string };
+      await setLoginBackground({ storageId: storageId as Id<"_storage"> });
+      toast.success("Sign-in background updated.");
+    } catch {
+      toast.error("Could not upload that image.");
+    } finally {
+      setUploading(false);
+    }
+  }
   const [draft, setDraft] = React.useState<Record<string, string>>({});
 
   // Seed the draft once the server answers, then leave it under the user's
@@ -56,6 +75,10 @@ export function WhiteLabelPanel() {
       fontBody: theme.fontBody ?? "",
       radius: theme.radius,
       density: theme.density,
+      loginHeadline: theme.loginHeadline ?? "",
+      loginSubhead: theme.loginSubhead ?? "",
+      emailHeaderColor: theme.emailHeaderColor ?? "",
+      emailFooterText: theme.emailFooterText ?? "",
     });
   }, [theme]);
 
@@ -117,6 +140,10 @@ export function WhiteLabelPanel() {
         fontBody: draft.fontBody || undefined,
         radius: draft.radius as "sharp" | "soft" | "round" | undefined,
         density: draft.density as "compact" | "comfortable" | undefined,
+        loginHeadline: draft.loginHeadline || undefined,
+        loginSubhead: draft.loginSubhead || undefined,
+        emailHeaderColor: draft.emailHeaderColor || undefined,
+        emailFooterText: draft.emailFooterText || undefined,
       });
       toast.success("Your brand is live across the app.");
     } catch (e) {
@@ -262,6 +289,101 @@ export function WhiteLabelPanel() {
               ))}
             </select>
           </label>
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block sm:col-span-2">
+            <span className="font-meta text-[0.65rem] uppercase tracking-[0.08em] text-steel">
+              Sign-in headline
+            </span>
+            <input
+              value={draft.loginHeadline ?? ""}
+              onChange={(e) => setDraft((d) => ({ ...d, loginHeadline: e.target.value }))}
+              placeholder="Welcome back"
+              className="mt-1 w-full rounded-md border border-graphite/60 bg-coal/40 px-3 py-2 text-sm text-bone outline-none focus:border-gold"
+            />
+          </label>
+          <label className="block sm:col-span-2">
+            <span className="font-meta text-[0.65rem] uppercase tracking-[0.08em] text-steel">
+              Sign-in subhead
+            </span>
+            <input
+              value={draft.loginSubhead ?? ""}
+              onChange={(e) => setDraft((d) => ({ ...d, loginSubhead: e.target.value }))}
+              placeholder="Everything your studio runs on, in one place."
+              className="mt-1 w-full rounded-md border border-graphite/60 bg-coal/40 px-3 py-2 text-sm text-bone outline-none focus:border-gold"
+            />
+          </label>
+          <label className="block">
+            <span className="font-meta text-[0.65rem] uppercase tracking-[0.08em] text-steel">
+              Email accent
+            </span>
+            <span className="mt-1 flex items-center gap-2">
+              <input
+                type="color"
+                value={draft.emailHeaderColor || draft.primary || PULSE_DEFAULT_COLORS.primary}
+                onChange={(e) => setDraft((d) => ({ ...d, emailHeaderColor: e.target.value }))}
+                className="size-8 shrink-0 cursor-pointer rounded border border-graphite/60 bg-transparent"
+                aria-label="Email accent colour"
+              />
+              <input
+                value={draft.emailHeaderColor ?? ""}
+                onChange={(e) => setDraft((d) => ({ ...d, emailHeaderColor: e.target.value }))}
+                placeholder="Matches your primary"
+                className="w-full min-w-0 rounded-md border border-graphite/60 bg-coal/40 px-2 py-1.5 font-mono text-[0.7rem] text-bone outline-none focus:border-gold"
+              />
+            </span>
+            <span className="mt-0.5 block text-[0.625rem] text-steel/70">
+              The rule and button colour on client emails.
+            </span>
+          </label>
+          <label className="block">
+            <span className="font-meta text-[0.65rem] uppercase tracking-[0.08em] text-steel">
+              Email footer line
+            </span>
+            <input
+              value={draft.emailFooterText ?? ""}
+              onChange={(e) => setDraft((d) => ({ ...d, emailFooterText: e.target.value }))}
+              placeholder="Vault Studios, 12 Bell Street, Atlanta"
+              className="mt-1 w-full rounded-md border border-graphite/60 bg-coal/40 px-3 py-2 text-sm text-bone outline-none focus:border-gold"
+            />
+            <span className="mt-0.5 block text-[0.625rem] text-steel/70">
+              Sits above the Pulse line, which stays.
+            </span>
+          </label>
+        </div>
+
+        <div>
+          <p className="font-meta text-[0.65rem] uppercase tracking-[0.08em] text-steel">
+            Sign-in background
+          </p>
+          <p className="mt-0.5 text-[0.625rem] text-steel/70">
+            Shown behind your sign-in form, under a scrim so the form stays readable
+            whatever you upload.
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            {theme?.loginBackgroundUrl && (
+              <img
+                src={theme.loginBackgroundUrl!}
+                alt=""
+                className="h-14 w-24 rounded-md border border-graphite/60 object-cover"
+              />
+            )}
+            <label className="cursor-pointer rounded-md border border-graphite/60 bg-coal/40 px-3 py-2 text-xs text-steel transition-colors hover:border-gold hover:text-bone">
+              {uploading ? "Uploading…" : theme?.loginBackgroundUrl ? "Replace image" : "Upload image"}
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                disabled={uploading}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) void uploadBackground(file);
+                  e.target.value = "";
+                }}
+              />
+            </label>
+          </div>
         </div>
 
         {/* Not a preview toggle. This is what every white-labeled workspace

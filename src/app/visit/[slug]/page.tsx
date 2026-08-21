@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { PublicTheme } from "@/components/shell/public-theme";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -102,6 +103,7 @@ export default function VisitPage() {
       className="grain relative flex min-h-dvh flex-col bg-ink text-bone"
       style={brandStyle(studio?.accentColor)}
     >
+      <PublicTheme slug={slug} />
       <div
         aria-hidden
         className="pointer-events-none fixed inset-x-0 top-0 h-[420px] bg-[radial-gradient(ellipse_60%_100%_at_50%_0%,rgba(253,185,19,0.10),transparent_70%)]"

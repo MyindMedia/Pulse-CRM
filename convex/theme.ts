@@ -1,4 +1,6 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalQuery } from "./_generated/server";
+import type { QueryCtx } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { ConvexError } from "convex/values";
 import { requireCapability } from "./lib/access";
@@ -220,5 +222,110 @@ export const canTheme = query({
   handler: async (ctx) => {
     const orgId = await currentOrg(ctx);
     return await orgHasFeature(ctx, orgId, "whiteLabelUi");
+  },
+});
+
+
+/* ============================================================
+   Public theming.
+
+   A studio's clients never sign in. They land on a booking page, a
+   portal link or a review form, and those are the surfaces that
+   most need to look like the studio rather than like Pulse.
+
+   Resolved from the slug or a grant token, so no auth is needed and
+   no private field is exposed - this returns colours and copy, and
+   nothing else.
+   ============================================================ */
+
+/** Shared shape builder, so the public and private paths cannot drift. */
+async function themeFor(ctx: QueryCtx, org: Doc<"orgs"> | null) {
+  const tier = org ? await tierForOrg(ctx, org.orgId) : "studio";
+  const active = Boolean(org) && PLAN_LIMITS[tier].whitelabel === "full";
+  const saved = org?.theme;
+
+  const colors: Record<string, string> = { ...PULSE_DEFAULT_COLORS };
+  if (active && saved) {
+    for (const k of COLOR_KEYS) {
+      const val = saved[k];
+      if (val && isHexColor(val)) colors[k] = val;
+    }
+  }
+  return { active, tier, saved, colors };
+}
+
+/** PUBLIC. The theme for a studio's client-facing pages, by booking slug. */
+export const publicBySlug = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .first();
+    const { active, colors, saved } = await themeFor(ctx, org ?? null);
+    return {
+      active,
+      // Never removable, on any surface.
+      poweredByPulse: true,
+      appName: (active && saved?.appName) || org?.name || null,
+      colors,
+      fontHeading: (active && saved?.fontHeading) || null,
+      fontBody: (active && saved?.fontBody) || null,
+      radius: (active && saved?.radius) || "soft",
+      logoUrl: org?.logoId ? await ctx.storage.getUrl(org.logoId) : null,
+      loginHeadline: (active && saved?.loginHeadline) || null,
+      loginSubhead: (active && saved?.loginSubhead) || null,
+      loginBackgroundUrl:
+        active && saved?.loginBackgroundId
+          ? await ctx.storage.getUrl(saved.loginBackgroundId)
+          : null,
+    };
+  },
+});
+
+/** PUBLIC. Same, resolved from a magic-link grant token (portal, review,
+ *  signature pages), which is how a client reaches those surfaces. */
+export const publicByGrant = query({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const grant = await ctx.db
+      .query("collaboratorGrants")
+      .withIndex("by_token", (q) => q.eq("token", token))
+      .first();
+    const org = grant
+      ? await ctx.db
+          .query("orgs")
+          .withIndex("by_org", (q) => q.eq("orgId", grant.orgId))
+          .first()
+      : null;
+    const { active, colors, saved } = await themeFor(ctx, org ?? null);
+    return {
+      active,
+      poweredByPulse: true,
+      appName: (active && saved?.appName) || org?.name || null,
+      colors,
+      fontHeading: (active && saved?.fontHeading) || null,
+      fontBody: (active && saved?.fontBody) || null,
+      radius: (active && saved?.radius) || "soft",
+      logoUrl: org?.logoId ? await ctx.storage.getUrl(org.logoId) : null,
+    };
+  },
+});
+
+/** INTERNAL. The colours an outgoing client email should wear. */
+export const _emailTheme = internalQuery({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    const { active, colors, saved } = await themeFor(ctx, org ?? null);
+    return {
+      active,
+      accent: (active && saved?.emailHeaderColor) || colors.primary,
+      footerText: (active && saved?.emailFooterText) || null,
+      appName: (active && saved?.appName) || org?.name || null,
+    };
   },
 });
