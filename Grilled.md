@@ -1616,3 +1616,43 @@ workspace on purpose.
 
 **1064 vitest green** (11 new for deletion), `next build` clean.
 **New config:** `CONVEX_SITE_URL` (email open pixel). Everything else already listed.
+
+## Epic: white labelling, finished end to end (2026-08-20)
+
+The tier's headline feature was stored far more completely than it was rendered.
+
+**Two failures, both silent.** `WhiteLabelTheme` set `--brand-*` variables that no
+stylesheet reads, so a studio could pick a palette and watch nothing change. And
+`loginHeadline`, `loginSubhead`, `loginBackgroundId`, `emailHeaderColor` and
+`emailFooterText` had **zero consumers** - written by the settings panel, read by nothing.
+
+- **Real tokens, derived.** `src/lib/theme-ramp.ts` computes the tokens the app is actually
+  styled against from three chosen colours: the surface ladder (`ink` -> `coal-3`),
+  hairlines, four weights of text, the accent family and brand-tinted shadows. Surfaces step
+  UP on a dark theme and DOWN on a light one; text on the brand colour flips black or white
+  by readability, because guessing white on gold is the classic white-label failure.
+- **Client-facing surfaces.** `theme.publicBySlug` / `publicByGrant` resolve a theme with no
+  auth, since a studio's clients never sign in. Booking page, room page, portal, review,
+  signature and visitor check-in all wear the studio's brand now.
+- **Sign-in.** Shared by every studio, so nothing in the URL says whose door it is. It brands
+  only on `?studio=<slug>`, which is what a white-labelled invite carries. Guessing would show
+  one studio another studio's branding. An uploaded background always sits under a scrim so
+  the form stays readable whatever is uploaded.
+- **Email.** Studio-to-client mail carries the studio's accent and footer. The colour is
+  hex-validated before it reaches a style attribute, and the button ink flips by readability.
+  The Pulse footer line stays.
+- **Below Label** every surface falls back to Pulse chrome and leaks nothing, even though the
+  row still holds the studio's saved work - so a downgrade reverts instantly and re-upgrading
+  restores it.
+
+**Also this pass:** pipeline legend + colour fix. The card stripe encoded SERVICE but used
+SEMANTIC colours (`mixing` amber, `rehearsal` green) while amber on the same card means going
+stale - every mixing deal was quietly shouting warning. Service tints are now categorical and
+clear of every semantic hue; stages are one ramp with a distinct step each (`qualified` and
+`proposal` used to render identically, as did `booked` and `in_progress`). A collapsible
+legend explains all three systems.
+
+**Em dashes** removed from 24 source files and from 4,879 stored fields across two passes -
+the second caught `opportunities`, which is what the pipeline board renders.
+
+**1120 vitest green**, `next build` clean, deployed to Convex prod and Netlify.

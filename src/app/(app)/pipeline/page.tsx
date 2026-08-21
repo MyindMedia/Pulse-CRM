@@ -36,6 +36,10 @@ import { money, percent } from "@/lib/format";
 import { meta, PIPELINE_STAGE } from "@/lib/labels";
 import { KanbanColumn } from "@/components/pipeline/kanban-column";
 import { PipelineLegend } from "@/components/pipeline/legend";
+import {
+  PipelineFilters, filterDeals, isFiltering, EMPTY_FILTER,
+  type PipelineFilter,
+} from "@/components/pipeline/filters";
 import { DealCard } from "@/components/pipeline/deal-card";
 import { DealSheet } from "@/components/pipeline/deal-sheet";
 import { AddOpportunityDialog } from "@/components/pipeline/add-opportunity-dialog";
@@ -70,6 +74,14 @@ export default function PipelinePage() {
     }));
   }, [board, optimisticStage]);
 
+  const [filter, setFilter] = useState<PipelineFilter>(EMPTY_FILTER);
+
+  /* Filtering narrows what is ON the board, never what a deal IS. Dragging a
+     filtered card still moves the real deal, and the totals above keep
+     counting everything - a filter that quietly changed the forecast would be
+     worse than no filter. */
+  const visible = useMemo(() => filterDeals(opps, filter), [opps, filter]);
+
   const columns = useMemo(() => {
     const map: Record<KanbanStage, Opportunity[]> = {
       inquiry: [],
@@ -80,15 +92,15 @@ export default function PipelinePage() {
       delivered: [],
       won: [],
     };
-    for (const o of opps) {
+    for (const o of visible) {
       if (o.stage !== "lost" && map[o.stage as KanbanStage]) {
         map[o.stage as KanbanStage].push(o);
       }
     }
     return map;
-  }, [opps]);
+  }, [visible]);
 
-  const lostDeals = useMemo(() => opps.filter((o) => o.stage === "lost"), [opps]);
+  const lostDeals = useMemo(() => visible.filter((o) => o.stage === "lost"), [visible]);
   const activeOpp = activeId ? opps.find((o) => o._id === activeId) ?? null : null;
 
   function handleDragStart(e: DragStartEvent) {
@@ -172,6 +184,10 @@ export default function PipelinePage() {
 
       {/* Two colour systems run on this board. Say what they mean. */}
       <PipelineLegend />
+
+      {opps.length > 0 && (
+        <PipelineFilters deals={opps} value={filter} onChange={setFilter} />
+      )}
 
       {/* Board */}
       {board === undefined ? (

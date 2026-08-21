@@ -28,18 +28,9 @@ export function KanbanColumn({
       {/* Column header */}
       <div className="mb-2.5 flex items-center justify-between gap-2 px-0.5">
         <div className="flex items-center gap-2">
-          <span
-            className={cn(
-              "size-2 rounded-full",
-              info.tone === "gold" && "bg-gold",
-              info.tone === "positive" && "bg-positive",
-              info.tone === "info" && "bg-info",
-              info.tone === "neutral" && "bg-ash-dim",
-              info.tone === "caution" && "bg-caution",
-              info.tone === "critical" && "bg-critical",
-              info.tone === "solid" && "bg-bone",
-            )}
-          />
+          {/* One dot, from the stage ramp. The old badge-tone dot rendered
+              beside it and duplicated every header, and it could not tell
+              qualified from proposal anyway - both were "info". */}
           <span
             className="size-2 shrink-0 rounded-full"
             style={{ background: stageTint(stage) }}
