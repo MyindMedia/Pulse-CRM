@@ -20,6 +20,7 @@ import { TestimonialsPanel } from "@/components/settings/testimonials-panel";
 import { PricingPanel } from "@/components/settings/pricing-panel";
 import { CancellationPolicyPanel } from "@/components/settings/cancellation-policy-panel";
 import { DataPanel } from "@/components/settings/data-panel";
+import { DEMO_ORG } from "@convex/lib/tier";
 import { UsagePanel } from "@/components/settings/usage-panel";
 import { ExportPanel } from "@/components/settings/export-panel";
 import { MembershipsPanel } from "@/components/settings/memberships-panel";
@@ -157,7 +158,10 @@ function SettingsView() {
             <div className="space-y-4">
               <UsagePanel />
               <ExportPanel />
-              <DataPanel />
+              {/* Rebuilding the demo workspace belongs to the demo workspace.
+                  A real studio has nothing here to reload, and the button
+                  wipes whatever it is pointed at. */}
+              {org.orgId === DEMO_ORG && <DataPanel />}
             </div>
           </TabsContent>
         </Tabs>

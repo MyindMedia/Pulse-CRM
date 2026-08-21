@@ -1,7 +1,8 @@
 import { mutation } from "./_generated/server";
 import { v } from "convex/values";
+import { ConvexError } from "convex/values";
 import { DEMO_ORG } from "./lib/tenant";
-import { requireCapability } from "./lib/access";
+import { requireCapability, resolveViewer } from "./lib/access";
 
 /* ============================================================
    PULSE - demo seed
@@ -44,11 +45,38 @@ export const run = mutation({
   args: { orgId: v.optional(v.string()), studioName: v.optional(v.string()) },
   handler: async (ctx, args) => {
     const orgId = args.orgId ?? DEMO_ORG;
-    // Destructive wipe+reseed: require owner/manager on the TARGET org. Blocks
-    // unauthenticated callers AND stops one org's member from wiping another by
-    // passing its id (requireCapability validates the org belongs to the
-    // caller). The seeded DEMO_ORG owner holds this in Clerk-disabled demo mode.
+
+    /* This is not "load some samples" - it DELETES every row in 18 tables for
+       the target org (sessions, invoices, artists, songs, split sheets,
+       licences) and rebuilds them as Myind Sound. There is no undo.
+    
+       So a studio owner must NOT be able to run it on their own workspace.
+       members.remove alone let them: every owner holds it, which meant one
+       click on a real, months-old studio wiped the lot. Seeding a live
+       sub-account is an agency action, done from the agency console, where
+       demoMode tracks each row so it can be withdrawn cleanly.
+    
+       The demo workspace itself is the one exception - it exists to be
+       rebuilt, and Clerk-disabled demo mode has no agency member to ask. */
     await requireCapability(ctx, "members.remove", { orgId });
+    if (orgId !== DEMO_ORG) {
+      const viewer = await resolveViewer(ctx);
+      if (viewer.kind !== "agency_member") {
+        throw new ConvexError(
+          "Demo data is loaded from the agency console, not from inside a studio.",
+        );
+      }
+      const target = await ctx.db
+        .query("orgs")
+        .withIndex("by_org", (q) => q.eq("orgId", orgId))
+        .first();
+      if (!target) throw new ConvexError("Sub-account not found.");
+      // An orphan org (no agencyId) counts as a mismatch, so one agency can
+      // never seed - and therefore wipe - another agency's studio.
+      if (target.agencyId !== viewer.agencyId) {
+        throw new ConvexError("This sub-account belongs to a different agency.");
+      }
+    }
     const preserveOrg = orgId !== DEMO_ORG; // keep the real org's identity fields
     const now = Date.now();
 
