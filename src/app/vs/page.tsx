@@ -127,7 +127,7 @@ export default function ComparisonPage() {
       </div>
 
       <p className="mt-4 text-[0.7rem] leading-relaxed text-steel/60">
-        Figures are from each product's published pricing at the time of writing. If any of it
+        Figures are from each product&apos;s published pricing at the time of writing. If any of it
         has changed, tell us and we will correct this page. We are not going to tell you their
         software is bad; plenty of studios run on it happily. We think the contract and the
         add-on pricing are the wrong shape for a room that has quiet months.

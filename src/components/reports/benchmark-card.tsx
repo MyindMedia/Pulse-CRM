@@ -58,7 +58,7 @@ export function BenchmarkCard({ windowDays = 90 }: { windowDays?: number }) {
             <Lock className="mt-0.5 size-4 shrink-0 text-steel/60" />
             <p className="text-xs leading-relaxed text-steel">
               Not enough studios yet. A number is only published once at least {r.minCohort}
-              {" "}studios contribute to it, so nobody's individual business can be read out of
+              {" "}studios contribute to it, so nobody&apos;s individual business can be read out of
               the average. Right now that is {r.contributingStudios}.
             </p>
           </div>

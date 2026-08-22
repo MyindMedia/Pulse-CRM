@@ -3,6 +3,10 @@ import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api } from "./_generated/api";
 
+/** Preserves the schema types on `t` - a bare ReturnType<typeof initT>
+ *  erases them and withIndex("by_org") stops type-checking. */
+const initT = () => convexTest(schema);
+
 /* seed:run is not "load some samples" - it deletes every row in 18 tables for
    the target org and rebuilds them as Myind Sound. There is no undo.
 
@@ -11,7 +15,7 @@ import { api } from "./_generated/api";
    workspace, and one agency cannot detonate another's. */
 
 /** A studio owner inside their own workspace - no agency membership. */
-async function studioOwner(t: ReturnType<typeof convexTest>, orgId: string, user: string) {
+async function studioOwner(t: ReturnType<typeof initT>, orgId: string, user: string) {
   await t.run(async (ctx) => {
     await ctx.db.insert("orgs", {
       orgId, name: "Real Studio", slug: orgId, plan: "studio", status: "active",
@@ -27,7 +31,7 @@ async function studioOwner(t: ReturnType<typeof convexTest>, orgId: string, user
 
 /** An agency owner whose agency owns `subOrgId`. */
 async function agencyOwner(
-  t: ReturnType<typeof convexTest>, agencyId: string, user: string, subOrgId: string,
+  t: ReturnType<typeof initT>, agencyId: string, user: string, subOrgId: string,
 ) {
   await t.run(async (ctx) => {
     await ctx.db.insert("agencies", {
@@ -43,8 +47,8 @@ async function agencyOwner(
 }
 
 describe("seed:run cannot be fired from inside a studio", () => {
-  let t: ReturnType<typeof convexTest>;
-  beforeEach(() => { t = convexTest(schema); });
+  let t: ReturnType<typeof initT>;
+  beforeEach(() => { t = initT(); });
 
   it("a studio owner cannot wipe and reseed their own workspace", async () => {
     const owner = await studioOwner(t, "org_real", "u_owner");
@@ -63,8 +67,11 @@ describe("seed:run cannot be fired from inside a studio", () => {
       });
     });
     await expect(owner.mutation(api.seed.run, { orgId: "org_real" })).rejects.toThrow();
-    const left = await t.run((ctx) =>
-      ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", "org_real")).collect(),
+    const left = await t.run(async (ctx) =>
+      await ctx.db
+        .query("artists")
+        .withIndex("by_org", (q) => q.eq("orgId", "org_real"))
+        .collect(),
     );
     expect(left).toHaveLength(1);
     expect(left[0].name).toBe("Their Real Artist");

@@ -167,7 +167,7 @@ function CardForm({ onSaved, returnUrl }: { onSaved?: () => void; returnUrl?: st
         </Button>
         <span className="flex items-center gap-1.5 text-[0.7rem] text-steel/70">
           <ShieldCheck className="size-3.5" />
-          Handled by Stripe. The card never touches this studio's systems.
+          Handled by Stripe. The card never touches this studio&apos;s systems.
         </span>
       </div>
       {message && (

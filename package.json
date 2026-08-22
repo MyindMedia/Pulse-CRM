@@ -10,7 +10,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "prebuild": "convex codegen --typecheck=disable"
+    "prebuild": "convex codegen --typecheck=disable && eslint"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.3.5",

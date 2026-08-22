@@ -73,6 +73,26 @@ function RoomDetailView() {
     setSelection(s);
   }, []);
 
+  /* Derived from form state alone, so it is computed before the loading and
+     not-found guards below - the funnel hook needs it and hooks cannot sit
+     under an early return. */
+  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.clientEmail.trim());
+  const formValid = form.clientName.trim().length > 1 && emailValid;
+
+  /* Reaching a valid selection IS the checkout step - the visitor is at the
+     deposit. Fired from the effect rather than the click so an abandoned
+     checkout still counts, which is the drop-off worth knowing about.
+
+     This MUST stay above the early returns. It used to sit further down, past
+     `if (room === undefined) return <Skeleton/>`, so the first render (room
+     still loading) ran one funnel hook and the second ran two - React saw the
+     hook count grow and threw #310. Every room booking link died on load.
+     `enabled` is the correct way to make a hook conditional; position is not. */
+  useTrackBookingStep(slug, "checkout", {
+    roomId: roomId as Id<"rooms">,
+    enabled: Boolean(room && selection && formValid),
+  });
+
   // Loading
   if (room === undefined) {
     return <RoomDetailSkeleton />;
@@ -99,8 +119,6 @@ function RoomDetailView() {
   // `room` is non-null past the guards above; bind a stable local for closures.
   const loadedRoom = room;
 
-  const emailValid = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.clientEmail.trim());
-  const formValid = form.clientName.trim().length > 1 && emailValid;
   // An invalid (or still-checking) code blocks submit: never book at full
   // price while a code sits in the box looking applied.
   const promoOk = promo.status === "none" || promo.status === "valid";
@@ -117,14 +135,6 @@ function RoomDetailView() {
     : liveListCents;
   const liveDiscountCents = liveListCents - liveRateCents;
   const liveDepositCents = Math.round((liveRateCents * loadedRoom.depositPct) / 100);
-
-  // Reaching a valid selection IS the checkout step - the visitor is at the
-  // deposit. Fired from the effect rather than the click so an abandoned
-  // checkout still counts, which is the drop-off worth knowing about.
-  useTrackBookingStep(slug, "checkout", {
-    roomId: roomId as Id<"rooms">,
-    enabled: Boolean(selection && formValid),
-  });
 
   async function handleContinue() {
     if (!selection || !formValid || !promoOk) return;
