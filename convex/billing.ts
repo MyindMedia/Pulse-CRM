@@ -8,6 +8,7 @@ import {
 } from "./lib/plans";
 import { sendEmail } from "./lib/email";
 import { activationEmailSubject, activationEmailHtml } from "./lib/emailTemplates/activation";
+import { allowClerkIdentifier } from "./lib/clerkAllowlist";
 
 // The three tiers a studio can buy without talking to anyone.
 // Flow is not in here: there is nothing to check out for: it is activated by
@@ -236,6 +237,9 @@ export const sendActivationEmail = internalAction({
   args: { email: v.string(), sessionId: v.string() },
   handler: async (_ctx, { email, sessionId }) => {
     if (!email) return;
+    /* They have paid. Clerk's allowlist would otherwise refuse them the
+       login the activation link is asking them to create. */
+    await allowClerkIdentifier(email);
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const activationUrl = `${baseUrl}/welcome/activate?session_id=${sessionId}`;
     await sendEmail({

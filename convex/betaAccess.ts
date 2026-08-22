@@ -11,6 +11,7 @@ import {
 import { moduleBoard, MODULES } from "./lib/modules";
 import { PLAN_LIMITS, SELLABLE_TIERS, priceLabel } from "./lib/plans";
 import { ROADMAP, KIND_LABELS } from "./lib/roadmap";
+import { allowClerkIdentifier } from "./lib/clerkAllowlist";
 
 /* ============================================================
    Beta access.
@@ -400,6 +401,11 @@ export const invite = action({
       expiresInDays: args.expiresInDays,
       createdBy: self.clerkUserId,
     });
+
+    /* Clerk's allowlist is on: an invited owner who is not on it cannot
+       create an account, whatever the invite says. Do it even when the mail
+       is suppressed - the code is still handed out by other means. */
+    await allowClerkIdentifier(args.email);
 
     if (args.send === false) {
       return { code: created.code, emailStatus: "not_sent", reused: created.reused };

@@ -5,6 +5,7 @@ import { sendEmail } from "./lib/email";
 import { betaWelcomeHtml, betaWelcomeSubject } from "./lib/emailTemplates/betaWelcome";
 import { NDA_VERSION } from "./lib/betaNda";
 import { requireCapability } from "./lib/access";
+import { allowClerkIdentifier } from "./lib/clerkAllowlist";
 
 /* ============================================================
    Converting an EXISTING studio onto the beta programme.
@@ -260,6 +261,11 @@ export const _convert = internalAction({
       tier: args.tier,
       force: args.force,
     });
+
+    /* Same gate as a fresh invite: the owner of a converted studio still has
+       to be able to create a login. Playback signed nothing for a day because
+       this step did not exist. */
+    await allowClerkIdentifier(found.ownerEmail ?? args.email);
 
     // Send once. Re-running the conversion must not re-mail somebody.
     // Make sure they have a real code to sign against before anything is sent.
