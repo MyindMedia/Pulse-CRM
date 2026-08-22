@@ -5,6 +5,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { stripeClient } from "./lib/stripe";
 import { currentOrg } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
+import { normalizeEmail, sameEmail } from "./lib/emailKey";
 
 /* ============================================================
    Studio memberships - recurring revenue billed via Stripe Connect.
@@ -473,13 +474,13 @@ export const _findOrCreateArtistForSub = internalMutation({
     const lower = email.toLowerCase();
     const existing = (
       await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
-    ).find((a) => a.email?.toLowerCase() === lower);
+    ).find((a) => sameEmail(a.email, lower));
     if (existing) return existing._id;
     return ctx.db.insert("artists", {
       orgId,
       name: name.trim() || email,
       type: "artist",
-      email: email.trim(),
+      email: normalizeEmail(email),
       genres: [],
       tags: [],
       status: "lead",

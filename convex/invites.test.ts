@@ -199,3 +199,75 @@ describe("invites - list never crashes the detail page", () => {
     expect(rows[0].email).toBe("o@sub.com");
   });
 });
+
+/* The regression that locked a studio owner out of his own workspace.
+
+   The seat was typed "Info@playbackrecording.com"; the invite stored
+   "info@playbackrecording.com". markAccepted matched them with ===, found
+   nothing, and wrote the Clerk id nowhere - and a studio owner with no Clerk
+   organization is resolved BY that member row. He signed in to an error
+   screen. */
+describe("an invite finds its seat whatever case the email was typed in", () => {
+  let t: ReturnType<typeof convexTest>;
+  beforeEach(() => { t = convexTest(schema); });
+
+  async function seedMixedCase(seatEmail: string | null) {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: "studio_pb", name: "Playback", slug: "playback", plan: "studio", status: "active",
+      } as never);
+      if (seatEmail !== null) {
+        await ctx.db.insert("members", {
+          orgId: "studio_pb", name: "OT", email: seatEmail, role: "owner", skills: [],
+        } as never);
+      }
+    });
+    return await t.mutation(internal.invites.record, {
+      orgId: "studio_pb", email: "info@playbackrecording.com", ownerName: "OT",
+      studioName: "Playback", invitedBy: "system", emailStatus: "sent",
+    });
+  }
+
+  async function inviteId(token: string) {
+    return await t.run(async (ctx) =>
+      (await ctx.db.query("invites").collect()).find((r) => r.token === token)!._id,
+    );
+  }
+
+  it("links the mixed-case seat", async () => {
+    const token = await seedMixedCase("Info@Playbackrecording.com");
+    await t.mutation(internal.invites.markAccepted, {
+      inviteId: await inviteId(token), clerkUserId: "user_ot",
+    });
+
+    const members = await t.run((ctx) => ctx.db.query("members").collect());
+    expect(members).toHaveLength(1);               // no duplicate seat
+    expect(members[0].clerkUserId).toBe("user_ot"); // and it is linked
+  });
+
+  it("creates a seat rather than completing into a workspace nobody can open", async () => {
+    const token = await seedMixedCase(null);
+    await t.mutation(internal.invites.markAccepted, {
+      inviteId: await inviteId(token), clerkUserId: "user_ot",
+    });
+
+    const members = await t.run((ctx) => ctx.db.query("members").collect());
+    expect(members).toHaveLength(1);
+    expect(members[0].clerkUserId).toBe("user_ot");
+    expect(members[0].role).toBe("owner");
+  });
+
+  it("stores the invite address lowercased, so an indexed lookup can find it", async () => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: "studio_pb2", name: "Playback", slug: "playback-2", plan: "studio", status: "active",
+      } as never);
+    });
+    await t.mutation(internal.invites.record, {
+      orgId: "studio_pb2", email: "  Info@Playbackrecording.COM ", ownerName: "OT",
+      studioName: "Playback", invitedBy: "system", emailStatus: "sent",
+    });
+    const rows = await t.run((ctx) => ctx.db.query("invites").collect());
+    expect(rows[0].email).toBe("info@playbackrecording.com");
+  });
+});

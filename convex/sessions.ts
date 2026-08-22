@@ -21,6 +21,7 @@ import { ensureSessionShift } from "./shifts";
 import { proposeWaitlistFill } from "./waitlist";
 import { scheduleGoogleCalendarPush, scheduleGoogleCalendarRemove } from "./googleCalendar";
 import { api, internal } from "./_generated/api";
+import { normalizeEmail } from "./lib/emailKey";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
@@ -207,7 +208,7 @@ export const create = mutation({
         orgId,
         name,
         type: "artist",
-        email: args.clientEmail?.trim() || undefined,
+        email: normalizeEmail(args.clientEmail) || undefined,
         phone: args.clientPhone?.trim() || undefined,
         genres: [],
         tags: [],

@@ -16,6 +16,7 @@ import {
 } from "./lib/plans";
 import { ROADMAP, KIND_LABELS } from "./lib/roadmap";
 import { allowClerkIdentifier } from "./lib/clerkAllowlist";
+import { normalizeEmail, sameEmail } from "./lib/emailKey";
 
 /* ============================================================
    Beta access.
@@ -655,7 +656,7 @@ export const claim = action({
       name,
       slug: args.slug,
       ownerName: args.ownerName?.trim() || ctxInvite.name || name,
-      ownerEmail: ctxInvite.email,
+      ownerEmail: normalizeEmail(ctxInvite.email),
       code: normalizeCode(args.code),
     });
 
@@ -685,7 +686,7 @@ export const claim = action({
       inviteToken = await ctx.runMutation(internal.invites.record, {
         orgId: created.orgId,
         agencyId: ctxInvite.agencyId ?? undefined,
-        email: ctxInvite.email,
+        email: normalizeEmail(ctxInvite.email),
         ownerName: args.ownerName?.trim() || ctxInvite.name || name,
         studioName: name,
         invitedBy: "beta-claim",
@@ -720,7 +721,7 @@ export const linkMe = mutation({
     const email = identity.email.toLowerCase();
 
     const orphan = (await ctx.db.query("members").collect()).find(
-      (m) => !m.clerkUserId && (m.email ?? "").toLowerCase() === email,
+      (m) => !m.clerkUserId && sameEmail(m.email, email),
     );
     if (!orphan) return { linked: false as const, reason: "nothing_waiting" as const };
 
@@ -788,7 +789,7 @@ export const _provision = internalMutation({
          starts at their first sign-in after signing, so no trialEndsAt here. */
       ...(betaPlanId ? { agencyPlanId: betaPlanId, billingStatus: "trialing" as const } : {}),
       ownerName: args.ownerName,
-      ownerEmail: args.ownerEmail,
+      ownerEmail: normalizeEmail(args.ownerEmail),
       createdByAgency: Boolean(args.agencyId),
       betaCohort: true,
       betaInviteCode: args.code,
@@ -797,7 +798,7 @@ export const _provision = internalMutation({
     await ctx.db.insert("members", {
       orgId,
       name: args.ownerName,
-      email: args.ownerEmail,
+      email: normalizeEmail(args.ownerEmail),
       role: "owner",
       skills: [],
     });

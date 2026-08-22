@@ -1,6 +1,7 @@
 import { mutation, query } from "./_generated/server";
 import { v } from "convex/values";
 import { requireCapability, resolveViewer } from "./lib/access";
+import { normalizeEmail } from "./lib/emailKey";
 
 /* ============================================================
    Agency staff CRUD + scope assignment. All mutations gated by
@@ -54,7 +55,7 @@ export const invite = mutation({
     const id = await ctx.db.insert("agencyMembers", {
       agencyId: viewer.agencyId,
       clerkUserId: stub,
-      email: args.email,
+      email: normalizeEmail(args.email),
       name: args.name,
       role: args.role,
       title: args.title?.trim() || undefined,

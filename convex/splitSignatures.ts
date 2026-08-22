@@ -4,6 +4,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { currentOrg, currentActor } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { whitelabelFor } from "./usage";
+import { sameEmail } from "./lib/emailKey";
 
 /* ============================================================
    Split-sheet e-signature.
@@ -62,7 +63,7 @@ export const issue = mutation({
         if (
           g.scope === "splitsheet" &&
           !g.revoked &&
-          g.email.toLowerCase() === c.email.toLowerCase()
+          sameEmail(g.email, c.email)
         ) {
           await ctx.db.patch(g._id, { revoked: true });
         }
@@ -105,7 +106,7 @@ export const lookup = query({
     const sheet = await ctx.db.get(grant.entityId as Id<"splitSheets">);
     if (!sheet) return null;
     const idx = sheet.contributors.findIndex(
-      (c) => c.email && c.email.toLowerCase() === grant.email.toLowerCase(),
+      (c) => sameEmail(c.email, grant.email),
     );
     if (idx < 0) return null;
 
@@ -177,7 +178,7 @@ export const sign = mutation({
     if (!sheet) throw new Error("Split sheet not found.");
 
     const idx = sheet.contributors.findIndex(
-      (c) => c.email && c.email.toLowerCase() === grant.email.toLowerCase(),
+      (c) => sameEmail(c.email, grant.email),
     );
     if (idx < 0) throw new Error("Signer not found on this split sheet.");
 

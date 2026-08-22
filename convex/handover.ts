@@ -4,6 +4,7 @@ import { v, ConvexError } from "convex/values";
 import { requireCapability } from "./lib/access";
 import { sendEmail } from "./lib/email";
 import { inviteEmailHtml, inviteEmailSubject } from "./lib/emailTemplates/invite";
+import { findByEmail, normalizeEmail } from "./lib/emailKey";
 
 /* ============================================================
    Handing a staged studio to its real owner.
@@ -79,7 +80,7 @@ export const _attachOwner = internalMutation({
       );
     }
 
-    await ctx.db.patch(org._id, { ownerName, ownerEmail: ownerEmail.trim() });
+    await ctx.db.patch(org._id, { ownerName, ownerEmail: normalizeEmail(ownerEmail) });
 
     // invites.accept matches the member by (orgId, email) and writes
     // clerkUserId onto it, so the row has to exist before the invite is sent.
@@ -87,9 +88,7 @@ export const _attachOwner = internalMutation({
       .query("members")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .collect();
-    const already = members.find(
-      (m) => (m.email ?? "").trim().toLowerCase() === incoming,
-    );
+    const already = findByEmail(members, incoming);
     let memberCreated = false;
     if (already) {
       if (already.role !== "owner") await ctx.db.patch(already._id, { role: "owner" });
@@ -97,7 +96,7 @@ export const _attachOwner = internalMutation({
       await ctx.db.insert("members", {
         orgId,
         name: ownerName,
-        email: ownerEmail.trim(),
+        email: normalizeEmail(ownerEmail),
         role: "owner",
         skills: [],
       });
@@ -150,7 +149,7 @@ export const _handOver = internalAction({
     const attached = await ctx.runMutation(internal.handover._attachOwner, {
       orgId: args.orgId,
       ownerName: args.ownerName,
-      ownerEmail: args.ownerEmail,
+      ownerEmail: normalizeEmail(args.ownerEmail),
       force: args.force,
     });
 
@@ -169,7 +168,7 @@ export const _handOver = internalAction({
       inviteToken = await ctx.runMutation(internal.invites.record, {
         orgId: attached.orgId,
         agencyId: attached.agencyId,
-        email: args.ownerEmail.trim(),
+        email: normalizeEmail(args.ownerEmail),
         ownerName: args.ownerName,
         studioName: attached.name,
         invitedBy: "handover",
@@ -196,7 +195,7 @@ export const _handOver = internalAction({
       orgId: attached.orgId,
       name: attached.name,
       slug: attached.slug,
-      ownerEmail: args.ownerEmail.trim(),
+      ownerEmail: normalizeEmail(args.ownerEmail),
       demoRowsRemoved,
       inviteToken,
       inviteEmailStatus,

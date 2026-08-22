@@ -56,6 +56,7 @@ import { tenantGuard, fenceUntrusted } from "./lib/aiGuard";
 import { sendEmail } from "./lib/email";
 import { sendSms } from "./lib/sms";
 import { studioHealthFor } from "./agentHealth";
+import { sameEmail } from "./lib/emailKey";
 
 /* ============================================================
    Pulse Agent - tenant-isolated AI ops manager, one org at a
@@ -772,7 +773,7 @@ async function resolveDraftSend(ctx: QueryCtx, orgId: string, a: Doc<"aiArtifact
   if (!artist && a.emailDraft.to) {
     const to = a.emailDraft.to.toLowerCase();
     const all = await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
-    artist = all.find((x) => x.email && x.email.toLowerCase() === to) ?? null;
+    artist = all.find((x) => sameEmail(x.email, to)) ?? null;
   }
   const roomId = a.roomId ?? session?.roomId;
   const room = roomId ? await ctx.db.get(roomId) : null;

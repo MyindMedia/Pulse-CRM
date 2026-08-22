@@ -9,6 +9,7 @@ import {
 import { sendEmail } from "./lib/email";
 import { activationEmailSubject, activationEmailHtml } from "./lib/emailTemplates/activation";
 import { allowClerkIdentifier } from "./lib/clerkAllowlist";
+import { normalizeEmail } from "./lib/emailKey";
 
 // The three tiers a studio can buy without talking to anyone.
 // Flow is not in here: there is nothing to check out for: it is activated by
@@ -301,7 +302,7 @@ export const provisionFromCheckout = internalMutation({
         plan: args.tier,
         status: "active",
         ownerClerkUserId: args.clerkUserId,
-        ownerEmail: args.email,
+        ownerEmail: normalizeEmail(args.email),
         stripeCustomerId: args.customerId,
         stripeSubscriptionId: args.subscriptionId,
       });
@@ -318,7 +319,7 @@ export const provisionFromCheckout = internalMutation({
       await ctx.db.insert("agencyMembers", {
         agencyId: agency.agencyId,
         clerkUserId: args.clerkUserId,
-        email: args.email,
+        email: normalizeEmail(args.email),
         name: args.agencyName,
         role: "owner",
         status: "active",

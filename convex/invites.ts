@@ -8,6 +8,7 @@ import { normalizePhone } from "./lib/phone";
 import { inviteEmailHtml, inviteEmailSubject } from "./lib/emailTemplates/invite";
 import { PLAN_LIMITS } from "./lib/plans";
 import { periodFor, tierForPlan } from "./usage";
+import { findByEmail, normalizeEmail } from "./lib/emailKey";
 
 /* ============================================================
    Beta studio-owner invitations. A token-backed row maps to an
@@ -82,7 +83,7 @@ export const record = internalMutation({
       orgId: args.orgId,
       clerkOrgId: args.clerkOrgId,
       agencyId: args.agencyId,
-      email: args.email.toLowerCase(),
+      email: normalizeEmail(args.email),
       phone: args.phone ? (normalizePhone(args.phone) ?? undefined) : undefined,
       ownerName: args.ownerName,
       studioName: args.studioName,
@@ -155,12 +156,11 @@ export const markAccepted = internalMutation({
        member, and since a studio owner with no Clerk organization is resolved
        BY that member row, the studio's owner signed in to "Pulse hit a snag"
        with a workspace sitting right there. */
-    const wanted = inv.email.trim().toLowerCase();
     const roster = await ctx.db
       .query("members")
       .withIndex("by_org", (q) => q.eq("orgId", inv.orgId))
       .collect();
-    const member = roster.find((m) => (m.email ?? "").trim().toLowerCase() === wanted);
+    const member = findByEmail(roster, inv.email);
 
     if (member) {
       await ctx.db.patch(member._id, {
@@ -194,12 +194,11 @@ export const markAccepted = internalMutation({
 export const _linkMember = internalMutation({
   args: { orgId: v.string(), email: v.string(), clerkUserId: v.string() },
   handler: async (ctx, { orgId, email, clerkUserId }) => {
-    const wanted = email.trim().toLowerCase();
     const roster = await ctx.db
       .query("members")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .collect();
-    const member = roster.find((m) => (m.email ?? "").trim().toLowerCase() === wanted);
+    const member = findByEmail(roster, email);
     if (!member) return { linked: false as const, reason: "no_such_member" as const };
     if (member.clerkUserId && member.clerkUserId !== clerkUserId) {
       return { linked: false as const, reason: "seat_taken" as const };

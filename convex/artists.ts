@@ -1,6 +1,7 @@
 import { query, mutation } from "./_generated/server";
 import { v } from "convex/values";
 import { currentOrg, currentOrgWithCapability} from "./lib/tenant";
+import { normalizeEmail } from "./lib/emailKey";
 
 const artistTypeV = v.union(
   v.literal("artist"),
@@ -104,7 +105,7 @@ export const create = mutation({
       orgId,
       name: args.name,
       type: args.type,
-      email: args.email,
+      email: normalizeEmail(args.email) || undefined,
       phone: args.phone,
       location: args.location,
       genres: args.genres ?? [],

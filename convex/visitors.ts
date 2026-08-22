@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { currentOrg } from "./lib/tenant";
 import { recomputeRoomStatus } from "./lib/roomStatus";
 import { scheduleGoogleCalendarPush } from "./googleCalendar";
+import { sameEmail } from "./lib/emailKey";
 
 /* ============================================================
    Visitors - the front-desk guest log.
@@ -76,7 +77,7 @@ async function matchAndCheckInSession(
 
   const visitorName = normalizeName(visitor.name);
   const emailMatches = candidates.filter(
-    (s) => artists.get(s.artistId)?.email?.toLowerCase() === visitor.email,
+    (s) => sameEmail(artists.get(s.artistId)?.email, visitor.email),
   );
   const nameMatches = candidates.filter(
     (s) => normalizeName(artists.get(s.artistId)?.name ?? "") === visitorName,
@@ -168,7 +169,7 @@ async function recordVisit(
   // first-touch source wins, contact details fill in when missing.
   const existing = (
     await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
-  ).find((a) => a.email?.toLowerCase() === email);
+  ).find((a) => sameEmail(a.email, email));
   let artistId: Id<"artists">;
   if (existing) {
     artistId = existing._id;

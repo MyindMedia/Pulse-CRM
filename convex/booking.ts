@@ -18,6 +18,7 @@ import {
   unitsOf,
   addOnsTotalCents,
 } from "./lib/gearRental";
+import { normalizeEmail, sameEmail } from "./lib/emailKey";
 
 /* Staff roles a client can request to run their session, on the public page. */
 const ENGINEER_ROLES = new Set(["owner", "engineer", "assistant_engineer", "producer"]);
@@ -568,7 +569,7 @@ export const createBooking = mutation({
     const email = args.clientEmail.trim().toLowerCase();
     const existing = (
       await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
-    ).find((a) => a.email?.toLowerCase() === email);
+    ).find((a) => sameEmail(a.email, email));
     let artistId;
     const clientName = args.clientName.trim();
     if (existing) {
@@ -588,7 +589,7 @@ export const createBooking = mutation({
         orgId,
         name: clientName,
         type: "artist",
-        email: args.clientEmail.trim(),
+        email: normalizeEmail(args.clientEmail),
         phone: args.clientPhone,
         genres: [],
         tags: ["Booked online"],

@@ -9,6 +9,7 @@ import { isToggleable } from "./lib/modules";
 import { DAY_MS } from "./lib/billingGate";
 import { sendEmail } from "./lib/email";
 import { inviteEmailHtml, inviteEmailSubject } from "./lib/emailTemplates/invite";
+import { normalizeEmail } from "./lib/emailKey";
 
 /* ============================================================
    Agency - the super-admin layer. Creates and manages studio
@@ -352,7 +353,7 @@ export const provision = internalMutation({
       depositPolicyText:
         "A deposit holds your booking. The balance is due up to 2 hours before your session.",
       ownerName: args.ownerName,
-      ownerEmail: args.ownerEmail,
+      ownerEmail: normalizeEmail(args.ownerEmail),
       clerkOrgId: args.clerkOrgId,
       createdByAgency: true,
       agencyId: args.agencyId,
@@ -361,7 +362,7 @@ export const provision = internalMutation({
     });
     await seedStarterWorkspace(ctx, args.orgId, {
       ownerName: args.ownerName,
-      ownerEmail: args.ownerEmail,
+      ownerEmail: normalizeEmail(args.ownerEmail),
     });
     return { orgId: args.orgId };
   },
@@ -469,7 +470,7 @@ export const createSubaccount = action({
         slug,
         plan: args.plan,
         ownerName: args.ownerName,
-        ownerEmail: args.ownerEmail,
+        ownerEmail: normalizeEmail(args.ownerEmail),
         agencyId,
         tier: "studio",
       });
@@ -485,7 +486,7 @@ export const createSubaccount = action({
           orgId,
           clerkOrgId,
           agencyId,
-          email: args.ownerEmail,
+          email: normalizeEmail(args.ownerEmail),
           ownerName: args.ownerName,
           studioName: args.name,
           invitedBy: issuer,
@@ -594,7 +595,7 @@ export const inviteStudio = action({
       const orgId = clerkOrgId ?? `studio_${slug}`;
       await ctx.runMutation(internal.agency.provision, {
         orgId, clerkOrgId, name, slug, plan,
-        ownerName: name, ownerEmail: email, agencyId, tier: "studio",
+        ownerName: name, ownerEmail: normalizeEmail(email), agencyId, tier: "studio",
       });
 
       // Branded invite (non-fatal - the studio is already provisioned).
@@ -832,12 +833,12 @@ export const seedAgencyOwner = internalMutation({
     if (existingAg) {
       await ctx.db.patch(existingAg._id, {
         name: args.name, slug: args.slug, plan, status: "active",
-        ownerClerkUserId: args.ownerClerkUserId, ownerEmail: args.ownerEmail,
+        ownerClerkUserId: args.ownerClerkUserId, ownerEmail: normalizeEmail(args.ownerEmail),
       });
     } else {
       await ctx.db.insert("agencies", {
         agencyId: args.agencyId, name: args.name, slug: args.slug, plan,
-        status: "active", ownerClerkUserId: args.ownerClerkUserId, ownerEmail: args.ownerEmail,
+        status: "active", ownerClerkUserId: args.ownerClerkUserId, ownerEmail: normalizeEmail(args.ownerEmail),
       });
     }
 
@@ -848,12 +849,12 @@ export const seedAgencyOwner = internalMutation({
       .first();
     if (existingMem) {
       await ctx.db.patch(existingMem._id, {
-        role: "owner", status: "active", email: args.ownerEmail, name: args.ownerEmail,
+        role: "owner", status: "active", email: normalizeEmail(args.ownerEmail), name: args.ownerEmail,
       });
     } else {
       await ctx.db.insert("agencyMembers", {
         agencyId: args.agencyId, clerkUserId: args.ownerClerkUserId,
-        email: args.ownerEmail, name: args.ownerEmail, role: "owner",
+        email: normalizeEmail(args.ownerEmail), name: args.ownerEmail, role: "owner",
         status: "active", invitedAt: Date.now(),
       });
     }

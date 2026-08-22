@@ -10,6 +10,7 @@ import {
   teammateEmailHtml,
   teammateEmailSubject,
 } from "./lib/emailTemplates/invite";
+import { normalizeEmail, sameEmail } from "./lib/emailKey";
 
 const roleV = v.union(
   v.literal("owner"),
@@ -169,7 +170,7 @@ export const create = mutation({
     return await ctx.db.insert("members", {
       orgId,
       name: args.name,
-      email: args.email,
+      email: normalizeEmail(args.email),
       phone: args.phone ? (normalizePhone(args.phone) ?? undefined) : undefined,
       role: args.role,
       skills: args.skills ?? [],
@@ -309,7 +310,7 @@ export const _prepareTeammate = internalMutation({
         .query("members")
         .withIndex("by_org", (q) => q.eq("orgId", orgId))
         .collect()
-    ).find((m) => m.email && m.email.toLowerCase() === args.email.toLowerCase());
+    ).find((m) => sameEmail(m.email, args.email));
 
     let memberId = existing?._id;
     if (existing) {
@@ -323,7 +324,7 @@ export const _prepareTeammate = internalMutation({
       memberId = await ctx.db.insert("members", {
         orgId,
         name: args.name,
-        email: args.email,
+        email: normalizeEmail(args.email),
         phone,
         role: args.role,
         skills: args.skills ?? [],
@@ -569,7 +570,7 @@ export const syncMyClerkLink = mutation({
     // Claim an un-linked member row that carries this verified email.
     const member = (
       await ctx.db.query("members").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
-    ).find((m) => m.email?.toLowerCase() === email && !m.clerkUserId);
+    ).find((m) => sameEmail(m.email, email) && !m.clerkUserId);
     if (!member) return { linked: false };
     await ctx.db.patch(member._id, { clerkUserId, ...(pictureUrl ? { clerkImageUrl: pictureUrl } : {}) });
 
@@ -577,7 +578,7 @@ export const syncMyClerkLink = mutation({
     const invite = (
       await ctx.db.query("invites").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
     )
-      .filter((i) => i.email.toLowerCase() === email && i.status === "pending")
+      .filter((i) => sameEmail(i.email, email) && i.status === "pending")
       .sort((a, b) => b._creationTime - a._creationTime)[0];
     if (invite) await ctx.db.patch(invite._id, { status: "accepted", acceptedAt: Date.now() });
 
@@ -685,7 +686,7 @@ export const _relinkClerkUser = internalMutation({
   handler: async (ctx, { orgId, email, clerkUserId }) => {
     const row = (
       await ctx.db.query("members").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
-    ).find((m) => m.email?.toLowerCase() === email.toLowerCase());
+    ).find((m) => sameEmail(m.email, email));
     if (!row) throw new Error("No member row with that email in that org");
     const previous = row.clerkUserId ?? null;
     await ctx.db.patch(row._id, { clerkUserId });

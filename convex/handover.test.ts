@@ -49,7 +49,11 @@ describe("handing a staged studio to its owner", () => {
       org: await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", "staged-playback")).first(),
       members: await ctx.db.query("members").withIndex("by_org", (q) => q.eq("orgId", "staged-playback")).collect(),
     }));
-    expect(org?.ownerEmail).toBe("Info@playbackrecording.com");
+    /* Stored lowercased, whatever case it was typed in. This exact address,
+       saved as "Info@...", is what stopped matching the invite for "info@..."
+       and left the studio's owner staring at an error screen. */
+    expect(org?.ownerEmail).toBe("info@playbackrecording.com");
+    expect(members[0].email).toBe("info@playbackrecording.com");
     expect(org?.ownerName).toBe("OT");
     expect(members).toHaveLength(1);
     expect(members[0].role).toBe("owner");

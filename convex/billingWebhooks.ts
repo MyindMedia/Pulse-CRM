@@ -6,6 +6,7 @@ import { settlePayment } from "./payments";
 import { settleInvoice } from "./invoicePay";
 import { applyPackagePurchase } from "./packages";
 import { internal } from "./_generated/api";
+import { normalizeEmail } from "./lib/emailKey";
 
 /* ============================================================
    Stripe webhook handlers. Idempotent via auditEvents-keyed
@@ -159,7 +160,7 @@ export const handle = internalMutation({
       // finish creating their login even if they closed the success page.
       if (meta.kind === "platform_signup" && ownerEmail) {
         await ctx.scheduler.runAfter(0, internal.billing.sendActivationEmail, {
-          email: ownerEmail,
+          email: normalizeEmail(ownerEmail),
           sessionId: obj.id as string,
         });
       }
@@ -186,7 +187,7 @@ export const handle = internalMutation({
         await ctx.db.insert("agencyMembers", {
           agencyId,
           clerkUserId,
-          email: ownerEmail,
+          email: normalizeEmail(ownerEmail),
           name: ownerEmail,
           role: "owner",
           status: "active",
