@@ -9,8 +9,9 @@ import {
   NDA_VERSION, NDA_TITLE, NDA_INTRO, NDA_CLAUSES, NDA_TERMS_HASH,
 } from "./lib/betaNda";
 import { moduleBoard, MODULES } from "./lib/modules";
+import { defaultAgencyPlanId } from "./lib/betaPlan";
 import {
-  PLAN_LIMITS, SELLABLE_TIERS, EARLY_ADOPTER_MONTHS, BETA_DEFAULT_MONTHS,
+  PLAN_LIMITS, SELLABLE_TIERS, EARLY_ADOPTER_MONTHS, BETA_DEFAULT_MONTHS, BETA_TIER,
   priceLabel, earlyAdopterApplies, earlyAdopterPriceCents,
 } from "./lib/plans";
 import { ROADMAP, KIND_LABELS } from "./lib/roadmap";
@@ -750,14 +751,22 @@ export const _provision = internalMutation({
 
     // Provisional org id until a real Clerk org exists at first sign-in.
     const orgId = `beta_${slug}_${Math.abs(hashSeed(slug + args.ownerEmail))}`;
+    const betaPlanId = await defaultAgencyPlanId(ctx, args.agencyId);
     await ctx.db.insert("orgs", {
       orgId,
       name: args.name.trim(),
       slug,
       plan: "studio",
-      tier: "pro",              // beta cohort runs on Pro so they see the product
+      /* Label: a beta tester is being asked to evaluate the product, and
+         evaluating it through a locked door is not an evaluation. */
+      tier: BETA_TIER,
       status: "setup",
       agencyId: args.agencyId,
+      /* On the Beta plan from the first minute. Without a plan row the
+         billing gate reads "no_plan": no countdown, no end-of-beta warnings
+         and nothing for the plan picker to convert. The clock itself still
+         starts at their first sign-in after signing, so no trialEndsAt here. */
+      ...(betaPlanId ? { agencyPlanId: betaPlanId, billingStatus: "trialing" as const } : {}),
       ownerName: args.ownerName,
       ownerEmail: args.ownerEmail,
       createdByAgency: Boolean(args.agencyId),

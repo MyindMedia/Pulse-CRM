@@ -174,3 +174,95 @@ describe("granting the licence", () => {
     ).rejects.toThrow();
   });
 });
+
+/* Every beta studio runs on Label and bills against the Beta plan. Pro was
+   the old default, and a studio with no plan row at all reads as "no_plan" at
+   the billing gate: no countdown, no end-of-beta warning, nothing to convert. */
+describe("the cohort is Label on the Beta plan", () => {
+  async function betaPlan(t: ReturnType<typeof convexTest>) {
+    return await t.run((ctx) =>
+      ctx.db.insert("agencyPlans", {
+        agencyId: "ag1",
+        name: "Beta - free for a year",
+        description: "The beta programme.",
+        priceCents: 0,
+        billingInterval: "month",
+        trialDays: 365,
+        requireCardAfterTrial: false,
+        isPromo: true,
+        isDefault: true,
+        active: true,
+        createdAt: 0,
+      } as never),
+    );
+  }
+
+  it("grants Label and the Beta plan without being asked", async () => {
+    const t = convexTest(schema);
+    const planId = await betaPlan(t);
+    await existingStudio(t);
+
+    await t.mutation(internal.betaLicense._grant, { orgId: ORG });
+
+    const org = (await t.run((ctx) => ctx.db.query("orgs").collect()))[0];
+    expect(org.tier).toBe("label");
+    expect(org.agencyPlanId).toBe(planId);
+    expect(org.billingStatus).toBe("trialing");
+    // Still no clock: the year begins at their first sign-in after signing.
+    expect(org.betaLicenseUntil).toBeUndefined();
+  });
+
+  it("still honours a tier the agency picked on purpose", async () => {
+    const t = convexTest(schema);
+    await betaPlan(t);
+    await existingStudio(t);
+    await t.mutation(internal.betaLicense._grant, { orgId: ORG, tier: "pro" });
+    const org = (await t.run((ctx) => ctx.db.query("orgs").collect()))[0];
+    expect(org.tier).toBe("pro");
+  });
+
+  it("normalizes studios granted before the rule, dates untouched", async () => {
+    const t = convexTest(schema);
+    const planId = await betaPlan(t);
+    const started = 1_700_000_000_000;
+    await existingStudio(t, {
+      tier: "pro",
+      betaCohort: true,
+      betaStartedAt: started,
+      betaLicenseUntil: started + 365 * 86_400_000,
+      billingStatus: "comped",
+    });
+
+    const dry = await t.mutation(internal.betaLicense._normalizeCohort, {});
+    expect(dry.applied).toBe(false);
+    expect(dry.changes).toHaveLength(1);
+
+    let org = (await t.run((ctx) => ctx.db.query("orgs").collect()))[0];
+    expect(org.tier).toBe("pro"); // a dry run changes nothing
+
+    await t.mutation(internal.betaLicense._normalizeCohort, { apply: true });
+    org = (await t.run((ctx) => ctx.db.query("orgs").collect()))[0];
+    expect(org.tier).toBe("label");
+    expect(org.agencyPlanId).toBe(planId);
+    expect(org.betaStartedAt).toBe(started);          // the year it already had
+    expect(org.betaLicenseUntil).toBe(started + 365 * 86_400_000);
+
+    // Idempotent: a second pass has nothing left to say.
+    const again = await t.mutation(internal.betaLicense._normalizeCohort, {});
+    expect(again.changes).toHaveLength(0);
+  });
+
+  it("leaves a graduated studio on the tier it is paying for", async () => {
+    const t = convexTest(schema);
+    await betaPlan(t);
+    await existingStudio(t, {
+      tier: "studio",
+      betaCohort: true,
+      graduatedAt: Date.now(),
+      billingStatus: "active",
+    });
+    await t.mutation(internal.betaLicense._normalizeCohort, { apply: true });
+    const org = (await t.run((ctx) => ctx.db.query("orgs").collect()))[0];
+    expect(org.tier).toBe("studio");
+  });
+});

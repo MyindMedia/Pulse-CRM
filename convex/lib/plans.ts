@@ -526,3 +526,11 @@ export function starterPlanNames(): string[] {
  *  (`orgs.betaMonths`), but this is the number the invite sheet quotes and
  *  the grant uses. */
 export const BETA_DEFAULT_MONTHS = 12;
+
+/** The tier a beta studio runs on.
+
+    Label, deliberately: a beta tester is being asked to evaluate the product,
+    and evaluating it through a locked door is not an evaluation. They see
+    everything, white label included, and pick the tier they actually want at
+    the end of the year. */
+export const BETA_TIER: TierKey = "label";

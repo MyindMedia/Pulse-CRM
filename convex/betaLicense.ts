@@ -6,6 +6,8 @@ import { betaWelcomeHtml, betaWelcomeSubject } from "./lib/emailTemplates/betaWe
 import { NDA_VERSION } from "./lib/betaNda";
 import { requireCapability } from "./lib/access";
 import { allowClerkIdentifier } from "./lib/clerkAllowlist";
+import { BETA_TIER } from "./lib/plans";
+import { defaultAgencyPlanId } from "./lib/betaPlan";
 
 /* ============================================================
    Converting an EXISTING studio onto the beta programme.
@@ -137,12 +139,17 @@ export const _grant = internalMutation({
        that took three weeks to respond was three weeks of a year they never
        had. betaLicenseUntil stays undefined until then, and the gate reads
        that as "granted, not started". */
+    /* Label unless the agency says otherwise: the beta exists to be
+       evaluated, and half a product is not one. And onto the Beta plan, so
+       the gate has a countdown to run and a plan to convert at the end. */
+    const betaPlanId = org.agencyPlanId ?? (await defaultAgencyPlanId(ctx, org.agencyId));
     await ctx.db.patch(org._id, {
       betaCohort: true,
       betaMonths: months,
       billingStatus: "trialing",
       trialStartedAt: org.trialStartedAt ?? now,
-      ...(tier ? { tier } : {}),
+      tier: tier ?? BETA_TIER,
+      ...(betaPlanId ? { agencyPlanId: betaPlanId } : {}),
       ...(force ? { betaLicenseUntil: undefined, betaStartedAt: undefined } : {}),
     });
 
@@ -198,6 +205,55 @@ export const _grant = internalMutation({
       changed: true as const, until: null, name: org.name, slug: org.slug,
       code: existingInvite?.code ?? code,
     };
+  },
+});
+
+/* Bring the cohort that predates the rule onto it.
+
+   Every beta studio runs on Label and bills against the Beta plan. The ones
+   granted before that was decided are on Pro, and one of them has no plan row
+   at all - which reads as "no_plan" at the gate, so no countdown, no warnings
+   and nothing to convert at the end of the year.
+
+   Dates are not touched. A studio whose year has started keeps its start; one
+   that has not signed stays unstarted. Idempotent, and dry by default. */
+export const _normalizeCohort = internalMutation({
+  args: { apply: v.optional(v.boolean()) },
+  handler: async (ctx, { apply }) => {
+    const orgs = await ctx.db.query("orgs").collect();
+    const changes: { org: string; tier?: string; plan?: string; billing?: string }[] = [];
+
+    for (const org of orgs) {
+      if (!org.betaCohort || org.graduatedAt) continue;
+
+      const patch: Record<string, unknown> = {};
+      const change: { org: string; tier?: string; plan?: string; billing?: string } = {
+        org: org.name,
+      };
+
+      if (org.tier !== BETA_TIER) {
+        patch.tier = BETA_TIER;
+        change.tier = `${org.tier ?? "none"} -> ${BETA_TIER}`;
+      }
+      if (!org.agencyPlanId) {
+        const planId = await defaultAgencyPlanId(ctx, org.agencyId);
+        if (planId) {
+          patch.agencyPlanId = planId;
+          const plan = await ctx.db.get(planId);
+          change.plan = `none -> ${plan?.name ?? "default"}`;
+        }
+      }
+      if (org.billingStatus !== "trialing" && org.billingStatus !== "active") {
+        patch.billingStatus = "trialing";
+        change.billing = `${org.billingStatus ?? "none"} -> trialing`;
+      }
+
+      if (Object.keys(patch).length === 0) continue;
+      changes.push(change);
+      if (apply) await ctx.db.patch(org._id, patch);
+    }
+
+    return { applied: Boolean(apply), changes };
   },
 });
 
