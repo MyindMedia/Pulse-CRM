@@ -81,6 +81,7 @@ import type * as lib_aiVerify from "../lib/aiVerify.js";
 import type * as lib_betaNda from "../lib/betaNda.js";
 import type * as lib_billingGate from "../lib/billingGate.js";
 import type * as lib_checklistTemplates from "../lib/checklistTemplates.js";
+import type * as lib_clerkAllowlist from "../lib/clerkAllowlist.js";
 import type * as lib_clerkErrors from "../lib/clerkErrors.js";
 import type * as lib_comp from "../lib/comp.js";
 import type * as lib_connectors from "../lib/connectors.js";
@@ -282,6 +283,7 @@ declare const fullApi: ApiFromModules<{
   "lib/betaNda": typeof lib_betaNda;
   "lib/billingGate": typeof lib_billingGate;
   "lib/checklistTemplates": typeof lib_checklistTemplates;
+  "lib/clerkAllowlist": typeof lib_clerkAllowlist;
   "lib/clerkErrors": typeof lib_clerkErrors;
   "lib/comp": typeof lib_comp;
   "lib/connectors": typeof lib_connectors;

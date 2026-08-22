@@ -305,15 +305,32 @@ function PreviewContent({
           </div>
         </header>
 
+        {/* Pricing. A studio signing a year-long agreement is owed the number
+            it converts to, and the launch offer is only an offer if they hear
+            about it while it is open. */}
         <div className="mt-8 grid gap-2 sm:grid-cols-3">
           {data.tiers.map((t) => (
             <div key={t.key} className="rounded-lg border border-graphite/50 bg-coal-2 p-4">
               <p className="font-grotesk text-sm font-semibold text-bone">{t.label}</p>
-              <p className="mt-0.5 font-mono text-lg tabular-nums text-gold">{t.price}</p>
+              <p className="mt-0.5 font-mono text-lg tabular-nums text-gold">{t.price}<span className="text-xs text-steel">/mo</span></p>
+              {t.intro && (
+                <p className="mt-0.5 font-mono text-[0.7rem] tabular-nums text-steel">
+                  {t.intro}/mo for your first {data.betaTerms.introMonths} paid months
+                </p>
+              )}
               <p className="mt-1.5 text-xs leading-relaxed text-steel">{t.pitch}</p>
             </div>
           ))}
         </div>
+
+        <p className="mt-3 text-xs leading-relaxed text-steel">
+          Your beta is {data.betaTerms.months} months, everything unlocked, no card. The
+          clock starts the first time you sign in after signing this agreement, not today.
+          When it ends you pick one of these plans and nothing in your studio is deleted or
+          locked away{data.betaTerms.offerOpen
+            ? `, and the launch price above is held for your first ${data.betaTerms.introMonths} paid months.`
+            : "."}
+        </p>
 
         <div className="mt-10 space-y-8">
           {data.areas.map((area) => (

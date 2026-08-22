@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { resolveViewer } from "./lib/access";
 import { sendEmail } from "./lib/email";
 import { betaEndingHtml, betaEndingSubject } from "./lib/emailTemplates/betaEnding";
+import { BETA_DEFAULT_MONTHS } from "./lib/plans";
 
 /* ============================================================
    When the beta year actually runs.
@@ -26,7 +27,7 @@ import { betaEndingHtml, betaEndingSubject } from "./lib/emailTemplates/betaEndi
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const MONTH_MS = 30 * DAY_MS;
-const DEFAULT_MONTHS = 12;
+const DEFAULT_MONTHS = BETA_DEFAULT_MONTHS;
 
 /** Days before the end at which a warning email goes out. */
 export const WARNING_DAYS = [30, 7, 1];

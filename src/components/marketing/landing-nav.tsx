@@ -8,10 +8,14 @@ import { useUser } from "@clerk/nextjs";
 import { PulseLogo } from "@/components/brand/pulse-logo";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { cn } from "@/lib/utils";
+import { PRICING_LIVE } from "@/components/marketing/pricing-tiers";
 
 const LINKS = [
   { href: "#features", label: "Features" },
   { href: "#workflow", label: "How it works" },
+  // Appears with the pricing section itself, so the link can never scroll to
+  // a section that is not on the page.
+  ...(PRICING_LIVE ? [{ href: "#pricing", label: "Pricing" }] : []),
   { href: "#contact", label: "Contact" },
 ];
 

@@ -11,8 +11,8 @@ const realFetch = globalThis.fetch;
 const realKey = process.env.CLERK_SECRET_KEY;
 
 function stubFetch(impl: (url: string, init: RequestInit) => Response | Promise<Response>) {
-  const spy = vi.fn(impl as never);
-  globalThis.fetch = spy as never;
+  const spy = vi.fn(impl);
+  globalThis.fetch = spy as unknown as typeof fetch;
   return spy;
 }
 
@@ -32,7 +32,7 @@ describe("allowClerkIdentifier", () => {
     const spy = stubFetch(() => new Response("{}", { status: 200 }));
     expect(await allowClerkIdentifier(" owner@studio.com ")).toBe("added");
 
-    const [url, init] = spy.mock.calls[0] as [string, RequestInit];
+    const [url, init] = spy.mock.calls[0];
     expect(url).toBe("https://api.clerk.com/v1/allowlist_identifiers");
     expect(init.method).toBe("POST");
     expect(JSON.parse(init.body as string)).toEqual({

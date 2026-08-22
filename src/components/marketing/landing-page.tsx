@@ -7,7 +7,8 @@ import { Chain } from "./chain";
 import { Features } from "./features";
 import { WorkSection } from "./work-section";
 import { LogoMarquee } from "./logo-marquee";
-// Pricing is hidden for now - kept in the repo (./pricing) to restore later.
+import { Pricing } from "./pricing";
+import { PRICING_LIVE } from "./pricing-tiers";
 import { Contact } from "./contact";
 import { Faq } from "./faq";
 import { FinalCta } from "./cta";
@@ -32,6 +33,8 @@ export function LandingPage() {
         <Features />
         <WorkSection />
         <LogoMarquee />
+        {/* Off until prices go public - see PRICING_LIVE in ./pricing-tiers. */}
+        {PRICING_LIVE && <Pricing />}
         <Contact />
         <Faq />
         <FinalCta />

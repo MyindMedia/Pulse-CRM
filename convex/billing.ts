@@ -189,8 +189,19 @@ export const checkoutSummary = action({
     const stripe = stripeClient();
     const s = await stripe.checkout.sessions.retrieve(sessionId);
     const studioField = (s.custom_fields ?? []).find((f) => f.key === "studio_name");
+    const email = s.customer_details?.email ?? s.customer_email ?? null;
+
+    /* The activation page calls this the moment it loads, which is the moment
+       before the buyer types a password. The webhook allowlists them too, but
+       a webhook is a race against a redirect - and losing that race tells
+       somebody who has just paid that they are "not allowed to access this
+       application". Allowlisting here is the deterministic half. */
+    if (email && (s.status === "complete" || s.payment_status === "paid")) {
+      await allowClerkIdentifier(email);
+    }
+
     return {
-      email: s.customer_details?.email ?? s.customer_email ?? null,
+      email,
       tier: (s.metadata?.intendedTier as string) ?? "studio",
       studioName: studioField?.text?.value ?? "",
       paid: s.status === "complete" || s.payment_status === "paid",

@@ -9,7 +9,10 @@ import {
   NDA_VERSION, NDA_TITLE, NDA_INTRO, NDA_CLAUSES, NDA_TERMS_HASH,
 } from "./lib/betaNda";
 import { moduleBoard, MODULES } from "./lib/modules";
-import { PLAN_LIMITS, SELLABLE_TIERS, priceLabel } from "./lib/plans";
+import {
+  PLAN_LIMITS, SELLABLE_TIERS, EARLY_ADOPTER_MONTHS, BETA_DEFAULT_MONTHS,
+  priceLabel, earlyAdopterApplies, earlyAdopterPriceCents,
+} from "./lib/plans";
 import { ROADMAP, KIND_LABELS } from "./lib/roadmap";
 import { allowClerkIdentifier } from "./lib/clerkAllowlist";
 
@@ -485,10 +488,21 @@ export const preview = query({
         areas: board.length,
         roadmap: ROADMAP.filter((r) => r.status !== "shipped").length,
       },
+      /* What the beta becomes. A studio signing a year-long agreement is
+         entitled to know the number it converts to, and the launch offer is
+         only an offer if they are told about it before it closes. */
+      betaTerms: {
+        months: BETA_DEFAULT_MONTHS,
+        introMonths: EARLY_ADOPTER_MONTHS,
+        offerOpen: SELLABLE_TIERS.some((t) => earlyAdopterApplies(t, "month")),
+      },
       tiers: SELLABLE_TIERS.map((t) => ({
         key: t,
         label: PLAN_LIMITS[t].label,
         price: priceLabel(t),
+        intro: earlyAdopterApplies(t, "month")
+          ? `$${(earlyAdopterPriceCents(t) / 100).toFixed(2)}`
+          : null,
         pitch: PLAN_LIMITS[t].pitch,
       })),
       areas: board.map((g) => ({

@@ -521,3 +521,8 @@ export function starterPlanNames(): string[] {
   }
   return names;
 }
+
+/** How long a beta licence runs by default. The org can override it
+ *  (`orgs.betaMonths`), but this is the number the invite sheet quotes and
+ *  the grant uses. */
+export const BETA_DEFAULT_MONTHS = 12;
