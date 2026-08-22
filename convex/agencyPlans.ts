@@ -4,8 +4,8 @@ import { v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { requireCapability, resolveViewer } from "./lib/access";
 import {
-  PLAN_LIMITS, SELLABLE_TIERS, EARLY_ADOPTER_MONTHS, EARLY_ADOPTER_OPEN,
-  earlyAdopterPriceCents, type TierKey,
+  PLAN_LIMITS, SELLABLE_TIERS, EARLY_ADOPTER_MONTHS, BETA_PLAN_NAME,
+  earlyAdopterApplies, earlyAdopterPriceCents, type TierKey,
 } from "./lib/plans";
 
 /* ============================================================
@@ -174,12 +174,6 @@ export const remove = mutation({
   },
 });
 
-/* The three first-adopter tiers, mirroring the public pricing page
-   (Solo / Studio / Label). Each seeds three packages:
-   - Free Forever: $0, not a promo, no trial -> comped (free with no end date, no card).
-   - 30 Day Free: priced at the tier rate with a 30-day promo trial and a
-     required card, so studios run free for a month, then convert to paid.
-   - 1 Year Free: same but with a 365-day promo trial. */
 /* ============================================================
    The price book, derived.
 
@@ -220,7 +214,7 @@ async function insertStarterPlans(
      plan, not by a card prompt against a plan that costs nothing. */
   const betaId = await ctx.db.insert("agencyPlans", {
     agencyId,
-    name: "Beta - free for a year",
+    name: BETA_PLAN_NAME,
     description:
       "The beta programme. Everything unlocked, free for 365 days. The year " +
       "starts on their first sign-in after signing the agreement, and ends " +
@@ -239,7 +233,7 @@ async function insertStarterPlans(
     const p = PLAN_LIMITS[tier as TierKey];
     const intro = earlyAdopterPriceCents(tier as TierKey);
 
-    if (EARLY_ADOPTER_OPEN && intro > 0) {
+    if (earlyAdopterApplies(tier as TierKey, "month")) {
       await ctx.db.insert("agencyPlans", {
         agencyId,
         name: `${p.label} - Early Adopter`,
@@ -330,7 +324,7 @@ export const reseedStarter = mutation({
     // Now that nothing points at them, drop the old plans.
     for (const p of oldPlans) await ctx.db.delete(p._id);
 
-    return { replaced: oldPlans.length, seeded, studiosMoved: moved };
+    return { replaced: oldPlans.length, seeded, studiosMoved: moved, defaultName: BETA_PLAN_NAME };
   },
 });
 
@@ -401,6 +395,6 @@ export const _reseedForAgency = internalMutation({
     const seeded = (
       await ctx.db.query("agencyPlans").withIndex("by_agency", (q) => q.eq("agencyId", agencyId)).collect()
     ).length;
-    return { replaced: oldPlans.length, seeded, studiosMoved: moved };
+    return { replaced: oldPlans.length, seeded, studiosMoved: moved, defaultName: BETA_PLAN_NAME };
   },
 });

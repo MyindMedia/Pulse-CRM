@@ -5,6 +5,7 @@ import { useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
 import { errorMessage } from "@/lib/errors";
+import type { TierKey } from "@convex/lib/plans";
 import { cn } from "@/lib/utils";
 
 /** Pay-first subscribe: launches Stripe Checkout (no account needed yet). The
@@ -14,7 +15,7 @@ export function SubscribeButton({
   label,
   featured,
 }: {
-  tier: "studio" | "pro" | "growth";
+  tier: TierKey;
   label: string;
   featured?: boolean;
 }) {

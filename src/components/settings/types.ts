@@ -1,4 +1,5 @@
 import type { Id } from "@convex/_generated/dataModel";
+import { PLAN_LIMITS, priceLabel, type TierKey } from "@convex/lib/plans";
 
 /* Shared Settings module types and config. */
 
@@ -69,51 +70,70 @@ export const SERVICES: { key: keyof ServicePricing; label: string }[] = [
   { key: "rehearsal", label: "Rehearsal" },
 ];
 
-/** Plan tiers - presentational billing config (no real Stripe). */
+/* ============================================================
+   Plan tiers shown in Settings -> Billing.
+
+   `OrgPlan` is the legacy three-value field stored on the org; the ladder
+   it names lives in PLAN_LIMITS. Both prices and names are derived, because
+   the hand-typed copy that used to sit here was still selling
+   "Solo $49 / Studio $129 / Label $199" months after the real ladder became
+   Studio $149.99 / Studio Pro $297 / Label $499.99.
+   ============================================================ */
+
+/** Legacy org plan value -> the tier in the real ladder it stands for. */
+export const ORG_PLAN_TIER: Record<OrgPlan, TierKey> = {
+  solo: "studio",
+  studio: "pro",
+  label: "label",
+};
+
+/** Blurb + inclusions are sales copy; the caps behind them are in PLAN_LIMITS. */
+const PLAN_COPY: Record<OrgPlan, { blurb: string; features: string[] }> = {
+  solo: {
+    blurb: "One engineer, one room. The money loop: book it, hold the card, get paid.",
+    features: [
+      "Online booking with deposits",
+      "Client CRM and pipeline",
+      "Invoices, payments and dunning",
+      "Card on file and no-show protection",
+    ],
+  },
+  studio: {
+    blurb: "A working studio with a team, a full weekly schedule and real numbers.",
+    features: [
+      "Everything in Studio",
+      "Staff scheduling, time clock and payroll",
+      "Inventory, rentals and maintenance",
+      "The AI studio manager",
+    ],
+  },
+  label: {
+    blurb: "A multi-room operation or imprint, running on its own brand.",
+    features: [
+      "Everything in Studio Pro",
+      "Multi-studio dashboard and reporting",
+      "Releases, licensing and split sheets",
+      "White-label UI and custom domain",
+    ],
+  },
+};
+
 export const PLAN_TIERS: {
   value: OrgPlan;
   label: string;
   price: string;
   blurb: string;
   features: string[];
-}[] = [
-  {
-    value: "solo",
-    label: "Solo",
-    price: "$49 / mo",
-    blurb: "One engineer, one room. The essentials to run a personal studio.",
-    features: [
-      "1 team member",
-      "Song catalog & sessions",
-      "Up to 3 rooms / gear items",
-      "Basic invoicing",
-    ],
-  },
-  {
-    value: "studio",
-    label: "Studio",
-    price: "$129 / mo",
-    blurb: "A working studio with a small team and a full booking pipeline.",
-    features: [
-      "Up to 8 team members",
-      "Unlimited rooms & gear",
-      "Pipeline & client CRM",
-      "Splits, deliverables & reports",
-    ],
-  },
-  {
-    value: "label",
-    label: "Label",
-    price: "$199 / mo",
-    blurb: "A multi-room operation or imprint running many artists at once.",
-    features: [
-      "Unlimited team members",
-      "Multi-room scheduling",
-      "Roster & release campaigns",
-      "Priority support & exports",
-    ],
-  },
-];
+}[] = (Object.keys(PLAN_COPY) as OrgPlan[]).map((value) => {
+  const tier = ORG_PLAN_TIER[value];
+  return {
+    value,
+    label: PLAN_LIMITS[tier].label,
+    price: `${priceLabel(tier)} / mo`,
+    blurb: PLAN_COPY[value].blurb,
+    features: PLAN_COPY[value].features,
+  };
+});
 
 /** Curated accent swatches - warm golds first (the house band), then a
  *  spectrum sweep. All sit in the UI-friendly mid-lightness range the

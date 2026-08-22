@@ -31,6 +31,7 @@ import {
 import { EmptyState } from "@/components/ui/feedback";
 import { SkeletonCards } from "@/components/ui/skeleton";
 import { money } from "@/lib/format";
+import { BETA_PLAN_NAME, starterPlanNames } from "@convex/lib/plans";
 
 type PlanDraft = {
   name: string;
@@ -51,6 +52,9 @@ const EMPTY: PlanDraft = {
   requireCardAfterTrial: true,
   isPromo: false,
 };
+
+/** The book a reset lays down, named from the same source the seeder uses. */
+const STARTER_PLANS = starterPlanNames();
 
 export default function AgencyPlansPage() {
   const plans = useQuery(api.agencyPlans.list, {});
@@ -78,7 +82,7 @@ export default function AgencyPlansPage() {
       const r = await reseedStarter({});
       toast.success(
         r.studiosMoved > 0
-          ? `Reset to ${r.seeded} starter plans. ${r.studiosMoved} studio${r.studiosMoved === 1 ? "" : "s"} moved to Studio: Free Forever.`
+          ? `Reset to ${r.seeded} starter plans. ${r.studiosMoved} studio${r.studiosMoved === 1 ? "" : "s"} moved to ${r.defaultName}.`
           : `Reset to ${r.seeded} starter plans.`,
       );
       setResetOpen(false);
@@ -477,9 +481,9 @@ export default function AgencyPlansPage() {
           <DialogHeader>
             <DialogTitle>Reset to starter plans?</DialogTitle>
             <DialogDescription>
-              This deletes your current plans and rebuilds the 9 first-adopter packages
-              (Free Forever, 30 Day Free, and 1 Year Free for Solo, Studio, and Label). Any
-              studio on an old plan is moved to Studio: Free Forever. This cannot be undone.
+              This deletes your current plans and rebuilds the {STARTER_PLANS.length} plans
+              priced from the current ladder ({STARTER_PLANS.join(", ")}). Any studio on an
+              old plan is moved to {BETA_PLAN_NAME}. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogBody>

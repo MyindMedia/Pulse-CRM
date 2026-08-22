@@ -1,6 +1,7 @@
 import { ImageResponse } from "next/og";
 import fs from "node:fs";
 import path from "node:path";
+import { fromPriceLabel } from "@/components/marketing/pricing-tiers";
 
 // Branded social share card (chrome/gold) shown when the site is linked on
 // social networks and messaging apps. Composites the real brand assets - the
@@ -173,7 +174,7 @@ export default async function Image() {
                 display: "flex",
               }}
             >
-              STUDIO OS · FROM $49/MO
+              {`STUDIO OS · ${fromPriceLabel().toUpperCase()}`}
             </div>
           </div>
         </div>

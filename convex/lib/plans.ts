@@ -498,3 +498,26 @@ export function earlyAdopterLabel(tier: TierKey): string {
     `$${(c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   return `${fmt(intro)}/mo for ${EARLY_ADOPTER_MONTHS} months, then ${fmt(full)}`;
 }
+
+/* ============================================================
+   The starter price book, by name.
+
+   convex/agencyPlans.ts lays these plans down and the agency console
+   describes them before it does ("this rebuilds N plans..."), so the names
+   are derived here rather than typed out in both places - the console spent
+   months promising a reset to "Free Forever, 30 Day Free and 1 Year Free",
+   plans the seeder had stopped creating.
+   ============================================================ */
+
+/** The beta plan is the trial, and the default every sub-account starts on. */
+export const BETA_PLAN_NAME = "Beta - free for a year";
+
+/** Every plan a reset lays down, in the order it lays them down. */
+export function starterPlanNames(): string[] {
+  const names = [BETA_PLAN_NAME];
+  for (const tier of SELLABLE_TIERS) {
+    if (earlyAdopterApplies(tier, "month")) names.push(`${PLAN_LIMITS[tier].label} - Early Adopter`);
+    names.push(PLAN_LIMITS[tier].label);
+  }
+  return names;
+}

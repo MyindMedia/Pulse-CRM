@@ -3,62 +3,14 @@ import { cn } from "@/lib/utils";
 import { Reveal } from "./reveal";
 import { SubscribeButton } from "./subscribe-button";
 import { GhostWord } from "./ghost-word";
+import { marketingTiers } from "./pricing-tiers";
 
-/* Pricing maps the marketing tiles to the billing tiers in convex/lib/plans.ts.
-   `tier` is the TierKey used at checkout (/onboard?tier=...). Prices here must
-   match PLAN_LIMITS[tier].priceCents. */
-const TIERS = [
-  {
-    name: "Solo",
-    tier: "studio",
-    price: "$49",
-    cadence: "/mo",
-    tagline: "For independent producers and engineers.",
-    features: [
-      "One studio workspace",
-      "Client and booking CRM",
-      "Bookings and deposits",
-      "Invoices and payments",
-      "Core reports",
-    ],
-    cta: "Subscribe",
-    featured: false,
-  },
-  {
-    name: "Studio",
-    tier: "pro",
-    price: "$129",
-    cadence: "/mo",
-    tagline: "For multi-room studios with a team.",
-    features: [
-      "Unlimited rooms",
-      "Staff scheduling",
-      "Inventory and assets",
-      "Automations and workflows",
-      "The AI Agent (coming soon)",
-    ],
-    cta: "Subscribe",
-    featured: true,
-  },
-  {
-    name: "Label",
-    tier: "growth",
-    price: "$199",
-    cadence: "/mo",
-    tagline: "For labels and multi-studio operators.",
-    features: [
-      "Everything in Studio",
-      "Up to 3 studio workspaces",
-      "Multi-studio dashboard",
-      "Cross-studio reporting",
-      "Priority support",
-    ],
-    cta: "Subscribe",
-    featured: false,
-  },
-];
+/* The tiles are derived from PLAN_LIMITS in convex/lib/plans.ts - see
+   pricing-tiers.ts for why nothing here is typed by hand any more. */
 
 export function Pricing() {
+  const tiers = marketingTiers();
+  const offerOpen = tiers.some((t) => t.introBadge);
   return (
     <section id="pricing" className="relative overflow-hidden bg-bone px-4 py-28 text-obsidian lg:px-8">
       <GhostWord word="PRICING" className="text-obsidian/[0.05]" />
@@ -75,7 +27,7 @@ export function Pricing() {
         </Reveal>
 
         <div className="mt-14 grid items-stretch gap-6 lg:grid-cols-3">
-          {TIERS.map((t, i) => (
+          {tiers.map((t, i) => (
             <Reveal key={t.name} delay={i * 90} className="h-full">
               <div
                 className={cn(
@@ -95,10 +47,18 @@ export function Pricing() {
                 </div>
                 <p className="font-grotesk mt-2 text-sm text-slate">{t.tagline}</p>
 
-                <div className="mt-6 flex items-baseline gap-1">
+                {t.introBadge && (
+                  <p className="chrome-meta mt-5 text-gold-deep">{t.introBadge}</p>
+                )}
+
+                <div className={cn("flex items-baseline gap-1", t.introBadge ? "mt-2" : "mt-6")}>
                   <span className="chrome-display chrome-fill-dark text-5xl leading-[1.1]">{t.price}</span>
                   <span className="font-meta text-xs text-slate">{t.cadence}</span>
                 </div>
+
+                {t.stepUp && (
+                  <p className="font-grotesk mt-1.5 text-xs text-slate">{t.stepUp}</p>
+                )}
 
                 <ul className="mt-6 space-y-3">
                   {t.features.map((f) => {
@@ -123,11 +83,7 @@ export function Pricing() {
                 </ul>
 
                 <div className="mt-8 pt-2">
-                  <SubscribeButton
-                    tier={t.tier as "studio" | "pro" | "growth"}
-                    label={t.cta}
-                    featured={t.featured}
-                  />
+                  <SubscribeButton tier={t.tier} label={t.cta} featured={t.featured} />
                 </div>
               </div>
             </Reveal>
@@ -135,8 +91,10 @@ export function Pricing() {
         </div>
 
         <p className="font-grotesk mt-8 text-center text-xs text-slate">
-          Prices shown are introductory and may change. Questions? Reach the team from
-          inside your account.
+          {offerOpen
+            ? "Launch pricing is monthly and applies to the first three months; the regular rate follows automatically. Yearly billing saves 15% instead. Cancel anytime."
+            : "Yearly billing saves 15%. Cancel anytime."}{" "}
+          Questions? Reach the team from inside your account.
         </p>
       </div>
     </section>

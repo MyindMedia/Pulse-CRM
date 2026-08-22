@@ -24,6 +24,34 @@ const tierV = v.union(
   v.literal("agency"),                    // legacy
 );
 
+/* Early adopter: half price for the first few months, expressed as a
+   repeating Stripe coupon rather than a second set of price objects. A
+   coupon is the only shape that steps back up on its own; a cheaper price
+   id would have to be migrated by hand in month four, and the one that
+   never gets migrated is the one that costs real money.
+
+   Monthly only. Stripe counts a repeating discount in months, so three
+   months against a yearly subscription lands entirely on that year's single
+   invoice - half off twelve months instead of three.
+
+   Both checkout paths go through here. The public one used to skip it
+   entirely, which meant the landing page advertised a launch offer and then
+   charged full price at the till. */
+async function earlyAdopterDiscounts(
+  stripe: ReturnType<typeof stripeClient>,
+  tier: TierKey,
+  interval: "month" | "year",
+): Promise<{ coupon: string }[] | undefined> {
+  if (!earlyAdopterApplies(tier, interval)) return undefined;
+  const coupon = await stripe.coupons.create({
+    percent_off: EARLY_ADOPTER_DISCOUNT_PCT,
+    duration: "repeating",
+    duration_in_months: EARLY_ADOPTER_MONTHS,
+    name: `Early adopter - ${EARLY_ADOPTER_DISCOUNT_PCT}% off for ${EARLY_ADOPTER_MONTHS} months`,
+  });
+  return [{ coupon: coupon.id }];
+}
+
 /** Public action - start a Stripe Checkout session for the chosen tier. */
 export const beginCheckout = action({
   args: {
@@ -50,26 +78,7 @@ export const beginCheckout = action({
       },
     });
 
-    /* Early adopter: half price for the first few months, expressed as a
-       repeating Stripe coupon rather than a second set of price objects. A
-       coupon is the only shape that steps back up on its own; a cheaper
-       price id would have to be migrated by hand in month four, and the one
-       that never gets migrated is the one that costs real money.
-
-       Monthly only. Stripe counts a repeating discount in months, so three
-       months against a yearly subscription lands entirely on that year's
-       single invoice - half off twelve months instead of three. */
-    const intro = earlyAdopterApplies(args.tier as TierKey, interval);
-    let discounts: { coupon: string }[] | undefined;
-    if (intro) {
-      const coupon = await stripe.coupons.create({
-        percent_off: EARLY_ADOPTER_DISCOUNT_PCT,
-        duration: "repeating",
-        duration_in_months: EARLY_ADOPTER_MONTHS,
-        name: `Early adopter - ${EARLY_ADOPTER_DISCOUNT_PCT}% off for ${EARLY_ADOPTER_MONTHS} months`,
-      });
-      discounts = [{ coupon: coupon.id }];
-    }
+    const discounts = await earlyAdopterDiscounts(stripe, args.tier as TierKey, interval);
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const session = await stripe.checkout.sessions.create({
@@ -82,7 +91,7 @@ export const beginCheckout = action({
       cancel_url: `${baseUrl}/onboard`,
     });
 
-    return { checkoutUrl: session.url, earlyAdopter: intro };
+    return { checkoutUrl: session.url, earlyAdopter: Boolean(discounts) };
   },
 });
 
@@ -148,11 +157,14 @@ export const beginPublicCheckout = action({
     if (!SELF_SERVE_TIERS.has(tier)) throw new Error("That tier is not self-serve.");
     const stripe = stripeClient();
     const priceId = priceIdForTier(tier as TierKey);
+    // The landing page sells the launch offer, so the till has to honour it.
+    const discounts = await earlyAdopterDiscounts(stripe, tier as TierKey, "month");
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const meta = { kind: "platform_signup", intendedTier: tier };
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
+      ...(discounts ? { discounts } : {}),
       custom_fields: [
         {
           key: "studio_name",
@@ -165,7 +177,7 @@ export const beginPublicCheckout = action({
       success_url: `${baseUrl}/welcome/activate?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/#pricing`,
     });
-    return { checkoutUrl: session.url };
+    return { checkoutUrl: session.url, earlyAdopter: Boolean(discounts) };
   },
 });
 

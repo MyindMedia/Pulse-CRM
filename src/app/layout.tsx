@@ -12,6 +12,7 @@ import { ConvexClientProvider } from "@/components/providers/convex-client-provi
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
 import "./globals.css";
+import { fromPriceLabel } from "@/components/marketing/pricing-tiers";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono", display: "swap" });
@@ -39,8 +40,12 @@ const ibmPlexMono = IBM_Plex_Mono({
 
 const SITE_URL = "https://pulse.myindsound.com";
 const SITE_TITLE = "Pulse: Recording Studio Management Software";
+// The entry price is derived, so a search result can never quote a number the
+// pricing section stopped charging. It sat at "$49/mo" for months after the
+// ladder moved.
 const SITE_DESCRIPTION =
-  "Recording studio management software with a built-in AI manager: online booking with deposits to your own Stripe (keep 100%), staff scheduling, inventory tracking, song splits and rights, and invoicing, all in one place. From $49/mo.";
+  "Recording studio management software with a built-in AI manager: online booking with deposits to your own Stripe (keep 100%), staff scheduling, inventory tracking, song splits and rights, and invoicing, all in one place. " +
+  `${fromPriceLabel()}.`;
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),

@@ -5,6 +5,7 @@ import { api } from "./_generated/api";
 import { evaluateBillingGate, effectivePriceCents, trialDaysLeft, DAY_MS } from "./lib/billingGate";
 import {
   PLAN_LIMITS, SELLABLE_TIERS, EARLY_ADOPTER_MONTHS, earlyAdopterPriceCents,
+  starterPlanNames,
 } from "./lib/plans";
 
 /* ── Pure gate logic ─────────────────────────────────────────── */
@@ -117,6 +118,12 @@ describe("agencyPlans + agencyBilling - integration", () => {
     const plans = await owner.query(api.agencyPlans.list, {});
     // Beta, plus Early Adopter + standard for Studio / Studio Pro / Label.
     expect(plans.length).toBe(1 + SELLABLE_TIERS.length * 2);
+
+    /* The agency console names this book in its reset dialog before the
+       seeder runs, so the two lists have to be the same list. They were not:
+       the dialog promised "Free Forever, 30 Day Free and 1 Year Free" long
+       after the seeder stopped creating any of them. */
+    expect([...plans.map((p) => p.name)].sort()).toEqual([...starterPlanNames()].sort());
 
     /* The beta IS the trial, and it is the only plan with a trial window.
        No card at the end: the beta hard stop asks them to pick a plan, which
