@@ -146,19 +146,69 @@ export const markAccepted = internalMutation({
     if (!inv) throw new Error("invite not found");
     if (inv.status === "accepted") throw new Error("invite already accepted");
 
-    const member = await ctx.db
+    /* Match the member by email CASE-INSENSITIVELY.
+
+       An exact match looked right and failed silently: invite emails are
+       lowercased on the way in, but a member row seeded from a form keeps
+       whatever was typed - "Info@playbackrecording.com" against
+       "info@playbackrecording.com". No match meant no clerkUserId on the
+       member, and since a studio owner with no Clerk organization is resolved
+       BY that member row, the studio's owner signed in to "Pulse hit a snag"
+       with a workspace sitting right there. */
+    const wanted = inv.email.trim().toLowerCase();
+    const roster = await ctx.db
       .query("members")
       .withIndex("by_org", (q) => q.eq("orgId", inv.orgId))
-      .filter((q) => q.eq(q.field("email"), inv.email))
-      .first();
+      .collect();
+    const member = roster.find((m) => (m.email ?? "").trim().toLowerCase() === wanted);
+
     if (member) {
       await ctx.db.patch(member._id, {
+        clerkUserId,
+        ...(phone ? { phone } : {}),
+      });
+    } else {
+      /* No seeded row to attach to. Create one rather than letting the invite
+         complete into a workspace the invitee cannot resolve. */
+      await ctx.db.insert("members", {
+        orgId: inv.orgId,
+        name: inv.ownerName,
+        email: inv.email,
+        role: inv.role,
+        skills: [],
         clerkUserId,
         ...(phone ? { phone } : {}),
       });
     }
 
     await ctx.db.patch(inviteId, { status: "accepted", acceptedAt: Date.now() });
+  },
+});
+
+/* Ops repair: attach a Clerk user to the seat waiting for them.
+
+   The same thing `betaAccess.linkMe` does for a signed-in owner, for the case
+   where they cannot get far enough into the app to run it. Matches on email
+   within one workspace and refuses to touch a seat that is already taken, so
+   it can fill an empty chair but never take someone else's. */
+export const _linkMember = internalMutation({
+  args: { orgId: v.string(), email: v.string(), clerkUserId: v.string() },
+  handler: async (ctx, { orgId, email, clerkUserId }) => {
+    const wanted = email.trim().toLowerCase();
+    const roster = await ctx.db
+      .query("members")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect();
+    const member = roster.find((m) => (m.email ?? "").trim().toLowerCase() === wanted);
+    if (!member) return { linked: false as const, reason: "no_such_member" as const };
+    if (member.clerkUserId && member.clerkUserId !== clerkUserId) {
+      return { linked: false as const, reason: "seat_taken" as const };
+    }
+    if (member.clerkUserId === clerkUserId) {
+      return { linked: false as const, reason: "already_linked" as const };
+    }
+    await ctx.db.patch(member._id, { clerkUserId });
+    return { linked: true as const, name: member.name, role: member.role };
   },
 });
 

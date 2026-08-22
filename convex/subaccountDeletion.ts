@@ -1,6 +1,6 @@
-import { mutation, query } from "./_generated/server";
+import { mutation, query, internalQuery } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { requireCapability } from "./lib/access";
 import type { Id } from "./_generated/dataModel";
 
@@ -24,7 +24,7 @@ import type { Id } from "./_generated/dataModel";
 
 /** Every table a studio owns. Kept explicit rather than derived, so adding a
  *  table is a deliberate decision about whether it dies with the workspace. */
-const ORG_TABLES = [
+export const ORG_TABLES = [
   "collaboratorGrants", "invites", "agentPolicies", "agentRuns", "agentMessages",
   "agentInsights", "agentApprovals", "agentUsage", "agentAuditLogs", "agentAutomations",
   "agentMemories", "studioGraphNodes", "studioGraphEdges", "studioJournal", "oauthStates",
@@ -116,6 +116,48 @@ export const impact = query({
         org.betaCohort && "This is a beta-cohort studio. Consider pausing it instead.",
       ].filter(Boolean) as string[],
       confirmPhrase: CONFIRM_PHRASE,
+    };
+  },
+});
+
+
+/* Ops read: what is actually inside one workspace, table by table, and how
+   much of it the demo filler put there.
+
+   Internal, because it is run from the CLI where there is no Clerk identity -
+   the console has `impact` for the same question. Read-only, and it exists so
+   that "wipe the demo data" can be preceded by looking at what is there and
+   followed by proving what left. */
+export const _orgContent = internalQuery({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    if (!org) return null;
+
+    const demoRows = await ctx.db
+      .query("demoRows")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect();
+    const demoByTable: Record<string, number> = {};
+    for (const r of demoRows) demoByTable[r.table] = (demoByTable[r.table] ?? 0) + 1;
+
+    const counts: Record<string, number> = {};
+    for (const table of ORG_TABLES) {
+      const n = (await orgRows(ctx, table, orgId)).length;
+      if (n > 0) counts[table] = n;
+    }
+
+    return {
+      name: org.name,
+      slug: org.slug,
+      demoMode: Boolean(org.demoMode),
+      onboardingCompletedAt: org.onboardingCompletedAt ?? null,
+      demoRowTotal: demoRows.length,
+      demoByTable,
+      counts,
     };
   },
 });
@@ -256,16 +298,19 @@ const NO_ORG_INDEX = new Set<string>([
  * for "any table in ORG_TABLES" - they all share the shape this touches, an
  * `_id` and an `orgId`.
  */
-async function orgRows(
-  ctx: MutationCtx,
+export async function orgRows(
+  ctx: QueryCtx,
   table: (typeof ORG_TABLES)[number],
   orgId: string,
+  /** Stop after this many. A workspace can hold more rows than one Convex
+   *  transaction may read, so callers that delete work in batches. */
+  limit?: number,
 ): Promise<{ _id: Id<"sessions"> }[]> {
   const q = ctx.db.query(table as "sessions");
-  if (NO_ORG_INDEX.has(table)) {
-    return await q.filter((f) => f.eq(f.field("orgId"), orgId)).collect();
-  }
-  return await q.withIndex("by_org", (ix) => ix.eq("orgId", orgId)).collect();
+  const scoped = NO_ORG_INDEX.has(table)
+    ? q.filter((f) => f.eq(f.field("orgId"), orgId))
+    : q.withIndex("by_org", (ix) => ix.eq("orgId", orgId));
+  return limit === undefined ? await scoped.collect() : await scoped.take(limit);
 }
 
 function hash(s: string): number {

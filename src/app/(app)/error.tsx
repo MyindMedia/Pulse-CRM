@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import Link from "next/link";
 import { ShieldAlert, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { BetaLinkRecovery } from "@/components/shell/beta-link-recovery";
 
 /**
  * Error boundary for the whole authenticated app shell. Without this, a single
@@ -33,6 +34,12 @@ export default function AppError({
 
   return (
     <div className="grid min-h-[60dvh] place-items-center px-4">
+      {/* The commonest cause of NO_STUDIO_MEMBER is an owner whose seat was
+          never linked to their Clerk account. This repairs that link once per
+          session and reloads - it used to run only on /welcome, which is not
+          where a stranded owner lands. Playback's owner signed in to this
+          screen with his studio sitting right there. */}
+      {isAuthError && <BetaLinkRecovery />}
       <div className="max-w-md space-y-5 text-center">
         <span className="mx-auto grid size-12 place-items-center rounded-chrome border border-graphite/60 bg-coal-2 text-warning">
           <ShieldAlert className="size-5" />

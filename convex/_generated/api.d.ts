@@ -148,6 +148,7 @@ import type * as onboarding from "../onboarding.js";
 import type * as opportunities from "../opportunities.js";
 import type * as opsActions from "../opsActions.js";
 import type * as opsBrain from "../opsBrain.js";
+import type * as orgReset from "../orgReset.js";
 import type * as orgs from "../orgs.js";
 import type * as packages from "../packages.js";
 import type * as patchCables from "../patchCables.js";
@@ -351,6 +352,7 @@ declare const fullApi: ApiFromModules<{
   opportunities: typeof opportunities;
   opsActions: typeof opsActions;
   opsBrain: typeof opsBrain;
+  orgReset: typeof orgReset;
   orgs: typeof orgs;
   packages: typeof packages;
   patchCables: typeof patchCables;
