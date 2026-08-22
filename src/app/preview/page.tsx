@@ -280,6 +280,11 @@ function PreviewContent({
     return <Shell><p className="text-sm text-steel">That code is no longer open.</p></Shell>;
   }
 
+  /* Staged by the agency: the workspace exists, the login does not. Send them
+     to the invite that creates it rather than to /welcome, which would bounce
+     them off the sign-in wall the moment after they signed. */
+  const needsLogin = Boolean(data.ownerInviteToken);
+
   return (
     <main className="min-h-dvh bg-ink px-5 py-12 sm:py-16">
       <div className="mx-auto w-full max-w-4xl">
@@ -421,18 +426,26 @@ function PreviewContent({
         {/* The end of the funnel: they have read it, signed it and seen it. */}
         <section className="mt-12 rounded-xl border border-gold/30 bg-gold/8 p-6">
           <h2 className="font-grotesk text-lg font-bold tracking-tight text-bone">
-            {claimed ? "Your studio is live" : "Want it?"}
+            {needsLogin ? "One step left" : claimed ? "Your studio is live" : "Want it?"}
           </h2>
           <p className="mt-2 max-w-xl text-sm leading-relaxed text-steel">
-            {claimed
-              ? `Signed. Your studio at /${claimedSlug} is waiting, and everything in it is where you left it.`
-              : "Your early-access place is held. Name your studio, pick your booking address, and it is live in about a minute."}
+            {needsLogin
+              ? `Signed. Set a password and /${claimedSlug} opens with everything already set up inside it.`
+              : claimed
+                ? `Signed. Your studio at /${claimedSlug} is waiting, and everything in it is where you left it.`
+                : "Your early-access place is held. Name your studio, pick your booking address, and it is live in about a minute."}
           </p>
           <a
-            href={claimed ? "/welcome" : `/preview/claim?code=${encodeURIComponent(code)}`}
+            href={
+              needsLogin
+                ? `/invite/${data.ownerInviteToken}`
+                : claimed
+                  ? "/welcome"
+                  : `/preview/claim?code=${encodeURIComponent(code)}`
+            }
             className="mt-4 inline-flex items-center gap-2 rounded-full bg-gold px-6 py-3 font-grotesk text-sm font-bold text-gold-ink transition-opacity hover:opacity-90"
           >
-            {claimed ? "Go to my studio" : "Build my studio"}
+            {needsLogin ? "Create my login" : claimed ? "Go to my studio" : "Build my studio"}
             <ArrowRight className="size-4" />
           </a>
         </section>

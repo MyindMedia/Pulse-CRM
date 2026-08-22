@@ -477,8 +477,28 @@ export const preview = query({
     if (!ok) return { unlocked: false as const };
 
     const board = moduleBoard();
+
+    /* A studio staged by the agency has a workspace but its owner has no
+       login yet, and the invite that creates one is a different link. Without
+       this the signature page's own button sent them to /welcome, which is
+       behind the sign-in wall - a dead end at the exact moment they had just
+       signed. Hand them the next step instead. */
+    let ownerInviteToken: string | null = null;
+    if (invite.claimedOrgId) {
+      const pending = (
+        await ctx.db
+          .query("invites")
+          .withIndex("by_org", (q) => q.eq("orgId", invite.claimedOrgId!))
+          .collect()
+      ).find(
+        (i) => i.role === "owner" && i.status === "pending" && i.expiresAt > Date.now(),
+      );
+      ownerInviteToken = pending?.token ?? null;
+    }
+
     return {
       unlocked: true as const,
+      ownerInviteToken,
       signedName: invite.signedName ?? null,
       signedAt: invite.signedAt ?? null,
       // Watermark: every rendered page names the person it was opened by.

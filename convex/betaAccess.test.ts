@@ -360,3 +360,63 @@ describe("linkMe recovery", () => {
       .toMatchObject({ linked: false, reason: "not_beta" });
   });
 });
+
+/* A studio staged by the agency has a workspace but no login for its owner,
+   and the link that creates one is a different link. The signature page used
+   to send them to /welcome, which is behind the sign-in wall: a dead end at
+   the exact moment they had just signed. */
+describe("a signed owner with no login yet", () => {
+  async function stagedStudio(t: ReturnType<typeof convexTest>, inviteOver: Record<string, unknown> = {}) {
+    await agency(t);
+    await seedInvite(t, {
+      signedAt: Date.now(),
+      signedName: "OT",
+      claimedOrgId: "staged-playback",
+      claimedSlug: "playback",
+      status: "claimed",
+    });
+    await t.run((ctx) =>
+      ctx.db.insert("invites", {
+        orgId: "staged-playback",
+        agencyId: "ag1",
+        email: "ari@example.com",
+        ownerName: "OT",
+        studioName: "Playback",
+        role: "owner",
+        token: "tok_playback",
+        status: "pending",
+        expiresAt: Date.now() + 86_400_000,
+        invitedBy: "u_ag",
+        emailStatus: "sent",
+        ...inviteOver,
+      } as never),
+    );
+  }
+
+  it("is handed the invite that creates the login", async () => {
+    const t = convexTest(schema);
+    await stagedStudio(t);
+    const data = await t.query(api.betaAccess.preview, { code: "ABCDE-FGHJK" });
+    expect(data.unlocked).toBe(true);
+    if (!data.unlocked) return;
+    expect(data.ownerInviteToken).toBe("tok_playback");
+  });
+
+  it("is not handed a spent or expired one", async () => {
+    for (const over of [{ status: "accepted" }, { expiresAt: Date.now() - 1000 }]) {
+      const t = convexTest(schema);
+      await stagedStudio(t, over);
+      const data = await t.query(api.betaAccess.preview, { code: "ABCDE-FGHJK" });
+      if (!data.unlocked) throw new Error("should be unlocked");
+      expect(data.ownerInviteToken).toBeNull();
+    }
+  });
+
+  it("is not handed a staff invite - it creates the wrong kind of account", async () => {
+    const t = convexTest(schema);
+    await stagedStudio(t, { role: "engineer" });
+    const data = await t.query(api.betaAccess.preview, { code: "ABCDE-FGHJK" });
+    if (!data.unlocked) throw new Error("should be unlocked");
+    expect(data.ownerInviteToken).toBeNull();
+  });
+});
