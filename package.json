@@ -7,10 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
+    "check": "tsc --noEmit && eslint && vitest run",
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
-    "prebuild": "convex codegen --typecheck=disable && eslint"
+    "prebuild": "convex codegen --typecheck=disable"
   },
   "dependencies": {
     "@clerk/nextjs": "^7.3.5",
