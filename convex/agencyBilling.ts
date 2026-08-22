@@ -7,7 +7,9 @@ import { requireCapability, resolveViewer } from "./lib/access";
 import { currentOrg } from "./lib/tenant";
 import { AccessError } from "./lib/access";
 import { stripeClient } from "./lib/stripe";
-import { evaluateBillingGate, effectivePriceCents, DAY_MS } from "./lib/billingGate";
+import {
+  evaluateBillingGate, effectivePriceCents, currentPriceCents, inIntroWindow, DAY_MS,
+} from "./lib/billingGate";
 import { sendEmail } from "./lib/email";
 import { escapeHtml } from "./lib/text";
 
@@ -40,6 +42,8 @@ function billingView(org: Doc<"orgs">, plan: Doc<"agencyPlans"> | null, now: num
           trialDays: plan.trialDays,
           requireCardAfterTrial: plan.requireCardAfterTrial,
           isPromo: plan.isPromo,
+          introPriceCents: plan.introPriceCents ?? null,
+          introMonths: plan.introMonths ?? null,
         }
       : null,
     billingStatus: org.billingStatus ?? null,
@@ -47,7 +51,12 @@ function billingView(org: Doc<"orgs">, plan: Doc<"agencyPlans"> | null, now: num
     trialEndsAt: org.trialEndsAt ?? null,
     paymentMethodOnFile: Boolean(org.paymentMethodOnFile),
     priceCentsOverride: org.priceCentsOverride ?? null,
-    effectivePriceCents: effectivePriceCents(org.priceCentsOverride, plan?.priceCents),
+    /* What they are charged today, which is not always the plan price: an
+       early-adopter plan bills its intro rate for the first few months. The
+       window is measured from when paid billing started. */
+    effectivePriceCents: currentPriceCents(org.priceCentsOverride, plan, org.paidSince, now),
+    listPriceCents: effectivePriceCents(org.priceCentsOverride, plan?.priceCents),
+    inIntroWindow: inIntroWindow(plan, org.paidSince, now),
     billingNote: org.billingNote ?? null,
     // Beta programme, so the lock screen can say what ended and when.
     betaCohort: org.betaCohort === true,
@@ -207,6 +216,8 @@ export const _markPaymentMethodOnFile = internalMutation({
     await ctx.db.patch(org._id, {
       paymentMethodOnFile: true,
       billingStatus: "active",
+      // First time they go active is when any intro window starts running.
+      ...(org.paidSince ? {} : { paidSince: Date.now() }),
       ...(customerId ? { billingCustomerId: customerId } : {}),
       ...(subscriptionId ? { billingSubscriptionId: subscriptionId } : {}),
     });

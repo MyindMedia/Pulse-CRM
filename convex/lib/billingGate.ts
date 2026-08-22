@@ -14,6 +14,8 @@ export type BillingOrg = {
   /** Beta programme fields. A beta licence hard-stops on its own date. */
   betaCohort?: boolean;
   betaLicenseUntil?: number;
+  /** Set on their first sign-in after signing. Absent = granted, not started. */
+  betaStartedAt?: number;
   /** Moved onto normal terms. Ends the beta hard-stop, keeps the provenance. */
   graduatedAt?: number;
   billingStatus?: BillingStatus;
@@ -26,6 +28,9 @@ export type BillingOrg = {
 export type GatePlan = {
   requireCardAfterTrial: boolean;
   priceCents: number;
+  /** Early-adopter intro: introPriceCents for the first introMonths. */
+  introPriceCents?: number;
+  introMonths?: number;
 };
 
 export type BillingGate = {
@@ -40,6 +45,7 @@ export type BillingGate = {
     | "none"
     | "no_plan"
     | "comped"
+    | "beta_pending"
     | "beta_expired"
     | "trialing"
     | "trial_ending"
@@ -84,8 +90,16 @@ export function evaluateBillingGate(
    * paid tier by hand would still be locked out the morning its old beta date
    * passed - punished for the upgrade.
    */
-  if (org?.betaCohort && org.betaLicenseUntil && !org.graduatedAt && now >= org.betaLicenseUntil) {
-    if (org.billingStatus !== "active") {
+  if (org?.betaCohort && !org.graduatedAt) {
+    /* Granted but not started. The clock begins on their first sign-in after
+       signing the agreement, so between the grant and that moment there is
+       no countdown to show and nothing that can expire. Reading the absence
+       of a date as "expired" would lock a studio out of a beta it had not
+       begun. */
+    if (!org.betaLicenseUntil) {
+      return { locked: false, trialDaysLeft: null, inTrial: false, reason: "beta_pending" };
+    }
+    if (now >= org.betaLicenseUntil && org.billingStatus !== "active") {
       return { locked: true, trialDaysLeft: 0, inTrial: false, reason: "beta_expired" };
     }
   }
@@ -124,4 +138,42 @@ export function effectivePriceCents(
 ): number {
   if (typeof priceCentsOverride === "number") return priceCentsOverride;
   return planPriceCents ?? 0;
+}
+
+/* ============================================================
+   Early-adopter intro pricing.
+
+   A plan can charge less for its first few months. The window runs from
+   when the studio started paying, so it is measured against the same
+   billing clock everything else uses rather than a second stored date
+   that could drift out of step with it.
+   ============================================================ */
+
+/** Whether a studio is still inside its plan's intro window. */
+export function inIntroWindow(
+  plan: { introPriceCents?: number; introMonths?: number } | null | undefined,
+  paidSince: number | undefined,
+  now: number,
+): boolean {
+  if (!plan?.introMonths || typeof plan.introPriceCents !== "number") return false;
+  if (!paidSince) return false;
+  return now < paidSince + plan.introMonths * 30 * DAY_MS;
+}
+
+/**
+ * What this studio is charged right now.
+ *
+ * Order matters and is deliberate: an agency's hand-set override beats
+ * everything (it is a decision about one studio), then the intro price
+ * while the window is open, then the plan's regular price.
+ */
+export function currentPriceCents(
+  priceCentsOverride: number | undefined,
+  plan: GatePlan | null | undefined,
+  paidSince: number | undefined,
+  now: number,
+): number {
+  if (typeof priceCentsOverride === "number") return priceCentsOverride;
+  if (inIntroWindow(plan, paidSince, now)) return plan!.introPriceCents!;
+  return plan?.priceCents ?? 0;
 }

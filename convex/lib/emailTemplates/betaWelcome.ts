@@ -22,7 +22,12 @@ export function betaWelcomeHtml(args: {
   ownerName?: string;
   studioName: string;
   welcomeUrl: string;
-  untilLabel: string;
+  /** The end date, when there is one. A freshly granted licence has none:
+   *  the year starts on their first sign-in after signing, so quoting a date
+   *  here would promise a window that has not begun. */
+  untilLabel?: string;
+  /** How long the licence runs, for the not-yet-started case. */
+  monthsLabel?: number;
   /** Everyone on the beta signs the agreement, converted studios included.
    *  When they have not yet, the email asks for that first rather than
    *  dropping them into setup and chasing the signature afterwards. */
@@ -50,7 +55,15 @@ export function betaWelcomeHtml(args: {
       <tr><td style="padding:14px 28px 0 28px;">
         <p style="margin:0 0 14px 0;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.65;color:${TEXT};">${hello}</p>
         <p style="margin:0 0 14px 0;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.65;color:${FAINT};">
-          Your account is now a beta account. Everything is unlocked and there is nothing to pay until ${escapeEmailHtml(args.untilLabel)}.
+          ${
+            args.untilLabel
+              ? `Your account is now a beta account. Everything is unlocked and there is nothing to pay until ${escapeEmailHtml(args.untilLabel)}.`
+              : `Your account is now a beta account. Everything is unlocked and there is nothing to pay for ${
+                  args.monthsLabel && args.monthsLabel !== 12
+                    ? `${args.monthsLabel} months`
+                    : "a full year"
+                }. The clock does not start today, it starts the first time you sign in after signing, so take as long as you need to get to it.`
+          }
         </p>
         <p style="margin:0 0 14px 0;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.65;color:${FAINT};">
           Use the same login you already have. Your studio, rooms and booking page are all still there, so there is nothing to re-enter.

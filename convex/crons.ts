@@ -88,4 +88,8 @@ crons.monthly(
 // Nightly, before anyone is awake to demo.
 crons.daily("demo-refresh", { hourUTC: 8, minuteUTC: 30 }, internal.demoRefresh.refreshAll);
 
+// The beta ends in a lock screen. Nobody should meet that cold, so warn at
+// 30, 7 and 1 days out - each exactly once, tracked on the org.
+crons.daily("beta-ending-warnings", { hourUTC: 16, minuteUTC: 0 }, internal.betaClock.sweepWarnings, {});
+
 export default crons;

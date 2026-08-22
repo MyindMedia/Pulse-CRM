@@ -117,27 +117,32 @@ export const _grant = internalMutation({
       .first();
     if (!org) throw new ConvexError(`No studio with orgId ${orgId}`);
 
-    if (org.betaCohort && org.betaLicenseUntil && !force) {
+    if (org.betaCohort && !force) {
       return {
         changed: false as const,
         reason: "already_granted" as const,
-        until: org.betaLicenseUntil,
+        until: org.betaLicenseUntil ?? null,
       };
     }
 
     const now = Date.now();
-    const until = months ? now + months * 30 * 24 * 60 * 60 * 1000 : now + YEAR_MS;
 
+    /* The grant does NOT start the clock.
+    
+       The year begins on their first sign-in after signing the agreement
+       (see betaClock.startIfNeeded). Starting it here charged a studio for
+       the days between the agency granting the licence and the owner
+       actually reading the agreement and getting in - which for a studio
+       that took three weeks to respond was three weeks of a year they never
+       had. betaLicenseUntil stays undefined until then, and the gate reads
+       that as "granted, not started". */
     await ctx.db.patch(org._id, {
       betaCohort: true,
-      betaLicenseUntil: until,
-      // A visible, honest countdown. The plan these studios sit on has
-      // requireCardAfterTrial false, so this shows the end date without ever
-      // locking anyone out of a studio they are actively running.
+      betaMonths: months,
       billingStatus: "trialing",
       trialStartedAt: org.trialStartedAt ?? now,
-      trialEndsAt: until,
       ...(tier ? { tier } : {}),
+      ...(force ? { betaLicenseUntil: undefined, betaStartedAt: undefined } : {}),
     });
 
     /*
@@ -179,14 +184,17 @@ export const _grant = internalMutation({
       });
     }
 
+    const monthsLabel = months ?? 12;
     await ctx.db.insert("activity", {
       orgId,
       kind: "account.beta_granted",
-      summary: `Beta licence granted to ${org.name} through ${new Date(until).toISOString().slice(0, 10)}`,
+      summary:
+        `Beta licence granted to ${org.name}: ${monthsLabel} months, ` +
+        `starting on their first sign-in after signing`,
       accent: "gold",
     });
     return {
-      changed: true as const, until, name: org.name, slug: org.slug,
+      changed: true as const, until: null, name: org.name, slug: org.slug,
       code: existingInvite?.code ?? code,
     };
   },
@@ -263,7 +271,9 @@ export const _convert = internalAction({
     const alreadyWelcomed = Boolean(found.betaWelcomeSentAt) && args.resend !== true;
     if (args.send !== false && !alreadyWelcomed) {
       const base = process.env.APP_URL ?? "https://studiopulse.tech";
-      const until = grant.changed ? grant.until : found.betaLicenseUntil ?? Date.now();
+      // Null until they start it by signing in. The template then sells the
+      // length rather than inventing a date.
+      const until = grant.changed ? grant.until : found.betaLicenseUntil;
       const inv = await ctx.runQuery(internal.betaLicense._inviteForOrg, {
         orgId: found.orgId,
       });
@@ -281,9 +291,12 @@ export const _convert = internalAction({
           studioName: found.name,
           welcomeUrl: signUrl,
           needsSignature: !inv?.signedAt,
-          untilLabel: new Date(until).toLocaleDateString("en-US", {
-            year: "numeric", month: "long", day: "numeric",
-          }),
+          monthsLabel: args.months ?? 12,
+          untilLabel: until
+            ? new Date(until).toLocaleDateString("en-US", {
+                year: "numeric", month: "long", day: "numeric",
+              })
+            : undefined,
         }),
       });
       await ctx.runMutation(internal.betaLicense._markWelcomeSent, {

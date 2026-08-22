@@ -3,6 +3,9 @@ import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api } from "./_generated/api";
 import { evaluateBillingGate, effectivePriceCents, trialDaysLeft, DAY_MS } from "./lib/billingGate";
+import {
+  PLAN_LIMITS, SELLABLE_TIERS, EARLY_ADOPTER_MONTHS, earlyAdopterPriceCents,
+} from "./lib/plans";
 
 /* ── Pure gate logic ─────────────────────────────────────────── */
 describe("billingGate - pure logic", () => {
@@ -108,48 +111,71 @@ describe("agencyPlans + agencyBilling - integration", () => {
     return t.withIdentity({ subject: "u_owner", name: "Owner", orgId: "org_ag", orgType: "agency" } as never);
   }
 
-  it("seedStarter creates free-forever + 30-day + 1-year-free packages for all three tiers", async () => {
+  it("seeds Beta plus an early-adopter and a standard plan per sellable tier", async () => {
     const owner = await seed();
     await owner.mutation(api.agencyPlans.seedStarter, {});
     const plans = await owner.query(api.agencyPlans.list, {});
-    // Solo / Studio / Label, each with a Free Forever, a 30 Day Free, and a 1 Year Free package.
-    expect(plans.length).toBe(9);
+    // Beta, plus Early Adopter + standard for Studio / Studio Pro / Label.
+    expect(plans.length).toBe(1 + SELLABLE_TIERS.length * 2);
 
-    // Free-forever packages are comped-style: $0, not a promo, no card, no end date.
-    const forever = plans.filter((p) => p.name.includes("Free Forever"));
-    expect(forever.length).toBe(3);
-    for (const p of forever) {
-      expect(p.priceCents).toBe(0);
-      expect(p.isPromo).toBe(false);
+    /* The beta IS the trial, and it is the only plan with a trial window.
+       No card at the end: the beta hard stop asks them to pick a plan, which
+       is a different conversation from a card prompt against a free plan. */
+    const beta = plans.find((p) => p.name.startsWith("Beta"))!;
+    expect(beta).toBeDefined();
+    expect(beta.priceCents).toBe(0);
+    expect(beta.trialDays).toBe(365);
+    expect(beta.requireCardAfterTrial).toBe(false);
+    expect(beta.isDefault).toBe(true);
+
+    // Nothing else offers a trial. Generic free-trial plans are gone.
+    for (const p of plans.filter((x) => x._id !== beta._id)) {
       expect(p.trialDays).toBe(0);
-      expect(p.requireCardAfterTrial).toBe(false);
-    }
-
-    // 30-day-free packages: 30-day promo trial, card required, tier price after.
-    const thirtyDay = plans.filter((p) => p.name.includes("30 Day Free"));
-    expect(thirtyDay.length).toBe(3);
-    for (const p of thirtyDay) {
-      expect(p.priceCents).toBeGreaterThan(0);
-      expect(p.isPromo).toBe(true);
-      expect(p.trialDays).toBe(30);
       expect(p.requireCardAfterTrial).toBe(true);
     }
 
-    // 1-year-free packages: 365-day promo trial, card required, tier price after.
-    const yearOne = plans.filter((p) => p.name.includes("1 Year Free"));
-    expect(yearOne.length).toBe(3);
-    for (const p of yearOne) {
-      expect(p.priceCents).toBeGreaterThan(0);
-      expect(p.isPromo).toBe(true);
-      expect(p.trialDays).toBe(365);
-      expect(p.requireCardAfterTrial).toBe(true);
+    /* Every price comes from PLAN_LIMITS. This is the assertion that would
+       have caught the console still offering $49/$129/$199 months after the
+       product stopped selling it. */
+    for (const t of SELLABLE_TIERS) {
+      const label = PLAN_LIMITS[t].label;
+      const standard = plans.find((p) => p.name === label)!;
+      expect(standard).toBeDefined();
+      expect(standard.priceCents).toBe(PLAN_LIMITS[t].priceCents);
+      expect(standard.introPriceCents ?? null).toBeNull();
+
+      const early = plans.find((p) => p.name === `${label} - Early Adopter`)!;
+      expect(early).toBeDefined();
+      expect(early.priceCents).toBe(PLAN_LIMITS[t].priceCents);
+      expect(early.introPriceCents).toBe(earlyAdopterPriceCents(t));
+      expect(early.introMonths).toBe(EARLY_ADOPTER_MONTHS);
     }
 
-    // Exactly one default, and it is the Studio free-forever package.
     const defaults = plans.filter((p) => p.isDefault);
     expect(defaults.length).toBe(1);
-    expect(defaults[0].name).toBe("Studio: Free Forever");
-    expect(defaults[0].priceCents).toBe(0);
+    expect(defaults[0].name).toBe(beta.name);
+  });
+
+  it("refuses an intro price that is not actually cheaper", async () => {
+    const owner = await seed();
+    await expect(
+      owner.mutation(api.agencyPlans.create, {
+        name: "Fake offer", priceCents: 10000, billingInterval: "month", trialDays: 0,
+        requireCardAfterTrial: true, isPromo: true,
+        introPriceCents: 10000, introMonths: 3,
+      }),
+    ).rejects.toThrow();
+  });
+
+  it("refuses half an intro offer", async () => {
+    const owner = await seed();
+    await expect(
+      owner.mutation(api.agencyPlans.create, {
+        name: "Half offer", priceCents: 10000, billingInterval: "month", trialDays: 0,
+        requireCardAfterTrial: true, isPromo: true,
+        introPriceCents: 5000,
+      }),
+    ).rejects.toThrow();
   });
 
   it("only one default at a time", async () => {

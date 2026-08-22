@@ -309,7 +309,23 @@ export default defineSchema({
     // separately from trialEndsAt so converting them onto a paid plan later
     // does not erase what they were promised.
     betaLicenseUntil: v.optional(v.number()),
+    // When the year actually began. The clock starts on their FIRST SIGN-IN
+    // AFTER SIGNING, not when the agency granted the licence - a studio that
+    // takes three weeks to read the agreement should still get twelve months.
+    // Undefined + betaCohort means "granted, not started": no countdown is
+    // shown and the hard stop cannot fire.
+    betaStartedAt: v.optional(v.number()),
+    // Length of the granted licence in months. Held from the grant so the
+    // clock, which starts later, knows how long to run for. Absent = 12.
+    betaMonths: v.optional(v.number()),
+    // When paid billing actually began. Early-adopter intro pricing is
+    // measured from here, so the discount window tracks the first charge
+    // rather than a date guessed from the trial.
+    paidSince: v.optional(v.number()),
     betaWelcomeSentAt: v.optional(v.number()),
+    // Which end-of-beta warnings have already gone out (30 / 7 / 1), so the
+    // daily sweep never mails the same warning twice.
+    betaWarningsSent: v.optional(v.array(v.number())),
     graduatedAt: v.optional(v.number()),
     // ── Pending deletion ──
     //    Set by step 2 of the deletion flow and cleared on cancel, timeout or
@@ -435,6 +451,10 @@ export default defineSchema({
     requireCardAfterTrial: v.boolean(),              // trial lapses → must add card or lock
     isPromo: v.boolean(),                            // "first adopter" plan
     promoEndsAt: v.optional(v.number()),             // offer closes to NEW assignments after this
+    // Early-adopter intro pricing: introPriceCents for the first introMonths
+    // billing periods, then priceCents. Both set or neither.
+    introPriceCents: v.optional(v.number()),
+    introMonths: v.optional(v.number()),
     featureCaps: v.optional(v.array(v.string())),    // feature keys disabled on assign
     isDefault: v.boolean(),                          // auto-assigned to new sub-accounts
     active: v.boolean(),

@@ -12,8 +12,8 @@ import {
 import { PulseLogo } from "@/components/brand/pulse-logo";
 import { money } from "@/lib/format";
 import {
-  PLAN_LIMITS, SELLABLE_TIERS, ANNUAL_DISCOUNT_PCT,
-  annualPriceCents, annualPerMonthCents,
+  PLAN_LIMITS, SELLABLE_TIERS, ANNUAL_DISCOUNT_PCT, EARLY_ADOPTER_MONTHS,
+  annualPriceCents, annualPerMonthCents, earlyAdopterPriceCents, earlyAdopterApplies,
 } from "@convex/lib/plans";
 
 /** The tiers a studio can actually buy from this screen. */
@@ -233,8 +233,12 @@ export function BetaPlanPicker({ cta }: { cta?: string }) {
       <div className="mt-5 space-y-2">
         {SELLABLE_TIERS.map((t) => {
           const chosen = t === tier;
-          const perMonth =
-            interval === "year" ? annualPerMonthCents(t) : PLAN_LIMITS[t].priceCents;
+          const full = PLAN_LIMITS[t].priceCents;
+          /* The launch offer is monthly only: a repeating Stripe discount
+             against a yearly plan would discount the whole year. Yearly
+             already carries its own 15%. */
+          const intro = earlyAdopterApplies(t, interval) ? earlyAdopterPriceCents(t) : 0;
+          const perMonth = interval === "year" ? annualPerMonthCents(t) : intro || full;
           return (
             <button
               key={t}
@@ -261,6 +265,14 @@ export function BetaPlanPicker({ cta }: { cta?: string }) {
                 {interval === "year" && (
                   <span className="mt-0.5 block text-[0.65rem] text-gold">
                     {money(annualPriceCents(t))} billed yearly
+                  </span>
+                )}
+                {/* Never the intro price on its own. Quoting the cheap number
+                    without the step-up is how month four feels like a bait
+                    and switch. */}
+                {intro > 0 && (
+                  <span className="mt-0.5 block text-[0.65rem] text-gold">
+                    first {EARLY_ADOPTER_MONTHS} months, then {money(full)}
                   </span>
                 )}
               </span>

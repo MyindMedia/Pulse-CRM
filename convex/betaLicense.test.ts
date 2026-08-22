@@ -30,7 +30,7 @@ async function existingStudio(t: ReturnType<typeof convexTest>, over: Record<str
 }
 
 describe("granting the licence", () => {
-  it("dates the licence a year out and shows an honest countdown", async () => {
+  it("badges the studio but does NOT start the year", async () => {
     const t = convexTest(schema);
     await existingStudio(t);
     const res = await t.mutation(internal.betaLicense._grant, { orgId: ORG, tier: "pro" });
@@ -40,12 +40,15 @@ describe("granting the licence", () => {
     expect(org.betaCohort).toBe(true);
     expect(org.tier).toBe("pro");
     expect(org.billingStatus).toBe("trialing");
-    // Both the commitment and the countdown, so converting them later cannot
-    // erase what they were promised.
-    expect(org.betaLicenseUntil).toBe(org.trialEndsAt);
-    const days = Math.round((org.betaLicenseUntil! - Date.now()) / 86_400_000);
-    expect(days).toBeGreaterThan(360);
-    expect(days).toBeLessThanOrEqual(365);
+
+    /* The clock starts on their first sign-in after signing, not here.
+       Dating it at grant time spent the licence on the days between the
+       agency deciding to let them in and the owner reading the agreement -
+       for a studio that took three weeks to reply, three weeks of a year
+       they never had. */
+    expect(org.betaLicenseUntil).toBeUndefined();
+    expect(org.betaStartedAt).toBeUndefined();
+    expect(res.until).toBeNull();
   });
 
   it("creates no second workspace", async () => {

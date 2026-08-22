@@ -441,3 +441,60 @@ export function priceLabelFor(tier: TierKey, interval: BillingInterval): string 
     minimumFractionDigits: 2, maximumFractionDigits: 2,
   })}`;
 }
+
+/* ============================================================
+   Early adopter pricing.
+
+   Half price for the first 3 months, then the regular rate. One
+   percentage, applied to the tier price, so a repricing can never leave
+   an intro number quietly stale:
+
+     Studio      $74.99  ->  $149.99
+     Studio Pro  $148.50 ->  $297.00
+     Label       $249.99 ->  $499.99
+
+   MONTHLY ONLY, and that is deliberate. Stripe expresses a repeating
+   discount in months, so a 3-month coupon against a yearly subscription
+   lands on the first (and only) invoice of that year - half off twelve
+   months instead of three. Annual billing already carries its own 15%,
+   which is the better deal anyway.
+   ============================================================ */
+
+/** Stripe measures repeating discounts in months, so the window is
+ *  expressed the same way. Three months is the ~90 day intro. */
+export const EARLY_ADOPTER_MONTHS = 3;
+export const EARLY_ADOPTER_DISCOUNT_PCT = 50;
+
+/** Whether the launch offer is open. Flip to false to retire it without
+ *  touching a price, a plan or a checkout path. */
+export const EARLY_ADOPTER_OPEN = true;
+
+/** Intro price per month, in cents. Floor keeps the familiar .99 endings
+ *  ($149.99 -> $74.99) rather than rounding up to a whole dollar. */
+export function earlyAdopterPriceCents(tier: TierKey): number {
+  const monthly = PLAN_LIMITS[tier].priceCents;
+  if (!monthly) return 0;
+  return Math.floor((monthly * (100 - EARLY_ADOPTER_DISCOUNT_PCT)) / 100);
+}
+
+/** True when this tier + interval can actually take the intro offer. */
+export function earlyAdopterApplies(tier: TierKey, interval: BillingInterval): boolean {
+  return (
+    EARLY_ADOPTER_OPEN &&
+    interval === "month" &&
+    SELLABLE_TIERS.includes(tier) &&
+    earlyAdopterPriceCents(tier) > 0
+  );
+}
+
+/** "$74.99/mo for 3 months, then $149.99" - the whole offer in one line,
+ *  because quoting the intro without the step-up is how people feel
+ *  tricked in month four. */
+export function earlyAdopterLabel(tier: TierKey): string {
+  const intro = earlyAdopterPriceCents(tier);
+  const full = PLAN_LIMITS[tier].priceCents;
+  if (!intro || !full) return "";
+  const fmt = (c: number) =>
+    `$${(c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  return `${fmt(intro)}/mo for ${EARLY_ADOPTER_MONTHS} months, then ${fmt(full)}`;
+}

@@ -7,6 +7,7 @@ import { Sidebar } from "@/components/shell/sidebar";
 import { WhiteLabelTheme } from "@/components/shell/white-label-theme";
 import { BetaLoginTracker } from "@/components/shell/beta-login-tracker";
 import { BetaSignatureBanner } from "@/components/shell/beta-signature-banner";
+import { BetaClockStarter } from "@/components/shell/beta-clock-starter";
 import { Topbar } from "@/components/shell/topbar";
 import { StudioBanner } from "@/components/shell/studio-banner";
 import { BillingBanner, BillingLock } from "@/components/shell/billing-gate";
@@ -97,6 +98,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           )}
         >
           <StudioBanner />
+          <BetaClockStarter />
           <BetaSignatureBanner />
             <BillingBanner />
           <Topbar onOpenMenu={() => setMobileNav(true)} />

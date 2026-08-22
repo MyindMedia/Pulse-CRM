@@ -3,6 +3,9 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { stripeClient, priceIdForTier, priceIdForTierInterval } from "./lib/stripe";
 import type { TierKey } from "./lib/plans";
+import {
+  EARLY_ADOPTER_MONTHS, EARLY_ADOPTER_DISCOUNT_PCT, earlyAdopterApplies,
+} from "./lib/plans";
 import { sendEmail } from "./lib/email";
 import { activationEmailSubject, activationEmailHtml } from "./lib/emailTemplates/activation";
 
@@ -47,17 +50,39 @@ export const beginCheckout = action({
       },
     });
 
+    /* Early adopter: half price for the first few months, expressed as a
+       repeating Stripe coupon rather than a second set of price objects. A
+       coupon is the only shape that steps back up on its own; a cheaper
+       price id would have to be migrated by hand in month four, and the one
+       that never gets migrated is the one that costs real money.
+
+       Monthly only. Stripe counts a repeating discount in months, so three
+       months against a yearly subscription lands entirely on that year's
+       single invoice - half off twelve months instead of three. */
+    const intro = earlyAdopterApplies(args.tier as TierKey, interval);
+    let discounts: { coupon: string }[] | undefined;
+    if (intro) {
+      const coupon = await stripe.coupons.create({
+        percent_off: EARLY_ADOPTER_DISCOUNT_PCT,
+        duration: "repeating",
+        duration_in_months: EARLY_ADOPTER_MONTHS,
+        name: `Early adopter - ${EARLY_ADOPTER_DISCOUNT_PCT}% off for ${EARLY_ADOPTER_MONTHS} months`,
+      });
+      discounts = [{ coupon: coupon.id }];
+    }
+
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       customer: customer.id,
       line_items: [{ price: priceId, quantity: 1 }],
+      ...(discounts ? { discounts } : {}),
       // No trial - charge immediately on subscribe.
       success_url: `${baseUrl}/onboard/done?session_id={CHECKOUT_SESSION_ID}`,
       cancel_url: `${baseUrl}/onboard`,
     });
 
-    return { checkoutUrl: session.url };
+    return { checkoutUrl: session.url, earlyAdopter: intro };
   },
 });
 
