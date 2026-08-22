@@ -1656,3 +1656,61 @@ legend explains all three systems.
 the second caught `opportunities`, which is what the pipeline board renders.
 
 **1120 vitest green**, `next build` clean, deployed to Convex prod and Netlify.
+
+## Epic: one price ladder, the beta as the trial, the launch offer (2026-08-22)
+
+**Ask:** the trial plans in the agency console were wrong; the beta should BE the trial and
+warn before it ends; add early-adopter pricing that holds one price for ~90 days and then
+steps up; every beta studio sits on the beta tier and is prompted to pay at the end of the
+365 days.
+
+**The shape of the bug, twice.** A price ladder written by hand in more than one file. The
+real one lives in `PLAN_LIMITS` (`convex/lib/plans.ts`): Studio $149.99, Studio Pro $297,
+Label $499.99. Four other copies had drifted to `$49 / $129 / $199` against tier names the
+product had not used for months - the agency price book (`agencyPlans.ts`), the public
+pricing tiles, Settings -> Billing, and the site metadata.
+
+- **The book is derived.** `agencyPlans.ts` seeds Beta + an Early Adopter and a standard plan
+  per sellable tier, all priced from `PLAN_LIMITS`, and a test asserts every seeded plan
+  matches. Prod reseeded: 6 old plans replaced by 7, 4 studios rehomed to Beta.
+- **The beta IS the trial.** "Free Forever" and "30 Day / 1 Year Free" are gone. Beta is the
+  default: $0, 365 days, no card. The end is handled by the beta hard stop (pick a plan), not
+  a card prompt against a plan that costs nothing.
+- **Early adopter = half price for 3 months**, one percentage applied to the tier price
+  ($74.99 / $148.50 / $249.99). Built as a Stripe **coupon**, not a second set of price
+  objects - a coupon steps back up on its own; a cheaper price id has to be migrated by hand
+  in month four, and that is the one that never gets migrated. **Monthly only**: Stripe counts
+  a repeating discount in months, so 3 months against a yearly subscription discounts that
+  year's single invoice - twelve months half price instead of three.
+- **The beta year starts at first sign-in after signing**, not at grant. Dating it at grant
+  spent the licence on the days between an agency deciding and the owner reading the
+  agreement. `betaLicenseUntil` stays undefined until then; the gate reads that as "granted,
+  not started". Backfilled on prod: Playback and Slang City reset to zero (neither had
+  signed), Kamiza and Beta Studio re-dated from their signature.
+- **No surprise lock.** A daily sweep warns at 30, 7 and 1 days out, each exactly once, with
+  the prices in the email.
+
+**The follow-through (same day).** Three hand-typed copies of the ladder survived the first
+pass. The public pricing tiles were the worst of them: `Solo $49 / Studio $129 / Label $199`,
+with the top tile starting checkout on `growth` - a LEGACY tier that grants less than the Label
+it advertised, so a flagship buyer would have paid $199 for a plan with no white label, no
+custom domain and no multi-studio. `beginPublicCheckout`, the button's own action, never
+attached the early-adopter coupon either, so the page could advertise half price and charge
+full price at the card form. **Nobody was actually charged wrong: the Pricing section is
+currently unmounted from `landing-page.tsx` ("hidden for now"), so no public self-serve
+checkout is live.** It was one import away from being live and wrong, which is the whole
+reason it is derived and tested now. The one copy that WAS live and wrong was the site
+metadata - "From $49/mo." in the description and the share card, the version a search result
+quotes.
+
+- Tiles derive from `PLAN_LIMITS` (`src/components/marketing/pricing-tiers.ts`); only the
+  sales bullets are hand-written. A test asserts every tile is a public sellable tier priced
+  at what the till will charge, and that an intro price is never shown without its step-up.
+- One coupon helper, both checkout paths.
+- Settings -> Billing derives the same ladder; the agency reset dialog names the plans the
+  seeder actually creates (it promised "Free Forever, 30 Day Free, 1 Year Free" long after
+  they stopped existing), and the seeded names are asserted to equal that list.
+- Site description and share card read the entry price instead of a frozen "From $49/mo"
+  (verified live: studiopulse.tech now serves "From $74.99/mo").
+
+**1174 vitest green**, `next build` clean, Convex prod deployed, Netlify shipped.
