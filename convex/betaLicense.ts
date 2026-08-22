@@ -1,9 +1,10 @@
-import { action, internalMutation, internalQuery } from "./_generated/server";
+import { action, internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { sendEmail } from "./lib/email";
 import { betaWelcomeHtml, betaWelcomeSubject } from "./lib/emailTemplates/betaWelcome";
 import { NDA_VERSION } from "./lib/betaNda";
+import { requireCapability } from "./lib/access";
 
 /* ============================================================
    Converting an EXISTING studio onto the beta programme.
@@ -217,7 +218,20 @@ export const _markWelcomeSent = internalMutation({
  * bulk operation: granting a year of free software to somebody is a decision
  * made one studio at a time.
  */
-export const convertExisting = action({
+type ConvertResult = {
+  orgId: string; name: string; until: number | null;
+  granted: boolean; emailStatus: string; signed: boolean;
+};
+
+/* Authorization lives on the wrapper below.
+
+   This used to be a single PUBLIC action with no caller check at all. The
+   Convex deployment URL ships in the client bundle, so anyone who guessed a
+   studio owner's email could hand that studio a free year and fire a Pulse
+   email at them. Granting a licence to somebody else's workspace is an
+   agency act; it now takes an agency capability, and ops/CLI runs use the
+   internal action directly. */
+export const _convert = internalAction({
   args: {
     email: v.string(),
     months: v.optional(v.number()),
@@ -228,10 +242,7 @@ export const convertExisting = action({
      *  converted before the agreement was part of this flow. */
     resend: v.optional(v.boolean()),
   },
-  handler: async (ctx, args): Promise<{
-    orgId: string; name: string; until: number | null;
-    granted: boolean; emailStatus: string; signed: boolean;
-  }> => {
+  handler: async (ctx, args): Promise<ConvertResult> => {
     const found = await ctx.runQuery(internal.betaLicense._orgByEmail, { email: args.email });
     if (!found) throw new ConvexError(`No studio found with owner email ${args.email}`);
 
@@ -291,5 +302,32 @@ export const convertExisting = action({
         (await ctx.runQuery(internal.betaLicense._inviteForOrg, { orgId: found.orgId }))?.signedAt,
       ),
     };
+  },
+});
+
+/** Agency console entry point: same conversion, gated on the caller actually
+ *  being an agency member over that studio. */
+export const convertExisting = action({
+  args: {
+    email: v.string(),
+    months: v.optional(v.number()),
+    tier: v.optional(v.union(v.literal("studio"), v.literal("pro"), v.literal("label"))),
+    send: v.optional(v.boolean()),
+    force: v.optional(v.boolean()),
+    resend: v.optional(v.boolean()),
+  },
+  handler: async (ctx, args): Promise<ConvertResult> => {
+    const found = await ctx.runQuery(internal.betaLicense._orgByEmail, { email: args.email });
+    if (!found) throw new ConvexError(`No studio found with owner email ${args.email}`);
+    await ctx.runQuery(internal.betaLicense._assertCanConvert, { orgId: found.orgId });
+    return await ctx.runAction(internal.betaLicense._convert, args);
+  },
+});
+
+export const _assertCanConvert = internalQuery({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    await requireCapability(ctx, "agency.subaccount.pause", { orgId });
+    return null;
   },
 });

@@ -92,12 +92,29 @@ export const setDemoMode = mutation({
 export const stageForOnboarding = mutation({
   args: { orgId: v.string() },
   handler: async (ctx, { orgId }) => {
-    const org = await requireAgencyOverOrg(ctx, orgId);
-    const removed = await clearDemo(ctx, orgId);
-    await ctx.db.patch(org._id, { demoMode: false, onboardingCompletedAt: undefined });
-    return { removed };
+    await requireAgencyOverOrg(ctx, orgId);
+    return await stage(ctx, orgId);
   },
 });
+
+/** The same staging, for callers that have already authorized (the staged
+ *  hand-over action). Keeping one implementation means the hand-over can
+ *  never drift from what the console button does. */
+export const _stageForOnboarding = internalMutation({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => await stage(ctx, orgId),
+});
+
+async function stage(ctx: MutationCtx, orgId: string) {
+  const org = await ctx.db
+    .query("orgs")
+    .withIndex("by_org", (q) => q.eq("orgId", orgId))
+    .first();
+  if (!org) throw new ConvexError("Sub-account not found.");
+  const removed = await clearDemo(ctx, orgId);
+  await ctx.db.patch(org._id, { demoMode: false, onboardingCompletedAt: undefined });
+  return { removed };
+}
 
 /** Internal fill for the staged-demo pipeline (auth handled by the caller). */
 export const fillInternal = internalMutation({
