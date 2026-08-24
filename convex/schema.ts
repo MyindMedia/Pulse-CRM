@@ -1151,6 +1151,11 @@ export default defineSchema({
        paid-in-full - and then the checkout page must not offer a deposit it
        does not accept. */
     paymentMode: v.optional(v.union(v.literal("deposit"), v.literal("full"))),
+    /* Whether the booking page lets a client choose their engineer. On by
+       default, because it always was. A studio that assigns the room's
+       engineer itself - or is the engineer - does not want a client picking a
+       name off a list and then being told no. */
+    offerEngineer: v.optional(v.boolean()),
     heroImageUrl: v.optional(v.string()), // hero photo shown on the room card (seeded URL)
     heroImageId: v.optional(v.id("_storage")), // uploaded hero photo (Convex storage)
     // "auto" -> room status is computed from the live calendar (in_use when

@@ -35,6 +35,7 @@ type FormState = {
   minimumHours: string;
   depositPct: string;
   paidInFull: boolean;
+  offerEngineer: boolean;
   bookable: boolean;
 };
 
@@ -46,6 +47,7 @@ const BLANK: FormState = {
   minimumHours: "",
   depositPct: "",
   paidInFull: false,
+  offerEngineer: true,
   bookable: true,
 };
 
@@ -59,6 +61,7 @@ export type EditableRoom = {
   minimumHours?: number;
   depositPct?: number;
   paymentMode?: "deposit" | "full";
+  offerEngineer?: boolean;
   bookable?: boolean;
 };
 
@@ -106,6 +109,7 @@ export function AddRoomDialog({
           minimumHours: room.minimumHours !== undefined ? String(room.minimumHours) : "",
           depositPct: room.depositPct !== undefined ? String(room.depositPct) : "",
           paidInFull: room.paymentMode === "full",
+          offerEngineer: room.offerEngineer !== false,
           bookable: room.bookable !== false,
         });
         const known = (ROOM_TYPES as readonly string[]).includes(room.roomType ?? "");
@@ -166,6 +170,7 @@ export function AddRoomDialog({
           // stored would show it again the moment the studio switched back.
           depositPct: form.paidInFull ? undefined : depositPct,
           paymentMode: form.paidInFull ? "full" : "deposit",
+          offerEngineer: form.offerEngineer,
           bookable: form.bookable,
         });
         toast.success(`${name} saved.`);
@@ -175,6 +180,10 @@ export function AddRoomDialog({
           roomType: roomType || undefined,
           hourlyRateCents,
           condition: form.condition.trim() || undefined,
+          minimumHours,
+          depositPct: form.paidInFull ? undefined : depositPct,
+          paymentMode: form.paidInFull ? "full" : "deposit",
+          offerEngineer: form.offerEngineer,
         });
         toast.success(`${name} added to the studio.`);
       }
@@ -276,9 +285,10 @@ export function AddRoomDialog({
               </Field>
             </div>
 
-            {/* Booking terms. Only on edit: a room is created first and priced
-                once the studio knows what it is selling. */}
-            {editing && (
+            {/* Booking terms - on create as well as edit. A room added the day
+                before it opens is priced then, not in a second visit nobody
+                remembers to make. */}
+            {(
               <>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field
@@ -359,6 +369,28 @@ export function AddRoomDialog({
                     checked={form.bookable}
                     onCheckedChange={(v) => set("bookable", v)}
                     aria-label="Bookable by clients"
+                  />
+                </div>
+
+                {/* The engineer chooser. A studio that assigns its own
+                    engineer does not want a client picking a name off a list
+                    and then being told no - and with this off the roster is
+                    not sent to the booking page at all. */}
+                <div className="flex items-start justify-between gap-4 rounded-lg border border-graphite/50 bg-coal/40 px-4 py-3">
+                  <div className="min-w-0 space-y-1">
+                    <p className="font-grotesk text-sm font-semibold text-bone">
+                      Clients choose their engineer
+                    </p>
+                    <p className="text-xs text-steel">
+                      {form.offerEngineer
+                        ? "The booking page shows your engineers, who is free, and their credits."
+                        : "You assign the engineer. Clients book the room and time only."}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={form.offerEngineer}
+                    onCheckedChange={(v) => set("offerEngineer", v)}
+                    aria-label="Clients choose their engineer"
                   />
                 </div>
               </>

@@ -317,6 +317,7 @@ export const service = query({
       // Inherited from the room: how a studio takes money is a property of the
       // studio, not of which product was bought.
       paymentMode: defaults(room).paymentMode,
+      offerEngineer: room.offerEngineer !== false,
       heroUrl: svc.heroImageId
         ? await ctx.storage.getUrl(svc.heroImageId)
         : svc.heroImageUrl ?? null,
@@ -391,6 +392,7 @@ export const room = query({
       depositPolicy: org?.depositPolicyText ?? null,
       showGear,
       paymentMode: defaults(room).paymentMode,
+      offerEngineer: room.offerEngineer !== false,
       equipment: equipment.sort((a, b) => a.name.localeCompare(b.name)),
       // Social proof for the room page trust strip.
       testimonials: proof.testimonials,
@@ -476,10 +478,15 @@ export const addOnOptions = query({
       )
       .collect();
 
-    const members = await ctx.db
-      .query("members")
-      .withIndex("by_org", (q) => q.eq("orgId", orgId))
-      .collect();
+    /* A studio that does not offer the choice does not ship its roster: names,
+       photos, bios and credits are staff data, and a list nobody is allowed to
+       pick from is a list that should not have been sent. */
+    const members = room.offerEngineer === false
+      ? []
+      : await ctx.db
+          .query("members")
+          .withIndex("by_org", (q) => q.eq("orgId", orgId))
+          .collect();
     const engineers = await Promise.all(
       members
         .filter((m) => ENGINEER_ROLES.has(m.role))

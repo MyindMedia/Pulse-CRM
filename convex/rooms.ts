@@ -86,6 +86,8 @@ export const create = mutation({
     condition: v.optional(v.string()),
     minimumHours: v.optional(v.number()),
     depositPct: v.optional(v.number()),
+    paymentMode: v.optional(v.union(v.literal("deposit"), v.literal("full"))),
+    offerEngineer: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const orgId = await currentOrg(ctx);
@@ -110,6 +112,7 @@ export const update = mutation({
     minimumHours: v.optional(v.number()),
     depositPct: v.optional(v.number()),
     paymentMode: v.optional(v.union(v.literal("deposit"), v.literal("full"))),
+    offerEngineer: v.optional(v.boolean()),
     bookable: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...patch }) => {

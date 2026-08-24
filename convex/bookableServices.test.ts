@@ -349,3 +349,63 @@ describe("a room sold paid in full", () => {
     expect(page?.paymentMode).toBe("full");
   });
 });
+
+/* The engineer chooser is the room's call. A studio that assigns its own
+   engineer does not want a client picking a name and being told no - and with
+   it off, the roster is not sent to the booking page at all. */
+describe("choosing an engineer", () => {
+  async function studio(t: ReturnType<typeof convexTest>, offerEngineer?: boolean) {
+    return await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: "orgE", name: "Eng", slug: "eng", plan: "studio", status: "active",
+      } as never);
+      const room = await ctx.db.insert("rooms", {
+        orgId: "orgE", name: "Studio A", status: "available", bookable: true,
+        hourlyRateCents: 10000, minimumHours: 2, depositPct: 25,
+        ...(offerEngineer === undefined ? {} : { offerEngineer }),
+      } as never);
+      await ctx.db.insert("members", {
+        orgId: "orgE", name: "Dre", email: "dre@x.com", role: "engineer", skills: [],
+        bio: "Twenty years on the desk.",
+      } as never);
+      return room;
+    });
+  }
+
+  const window = { startTime: Date.now() + 7 * 86_400_000, durationHours: 2 };
+
+  it("offers the roster by default - it always did", async () => {
+    const t = convexTest(schema);
+    const roomId = await studio(t, undefined);
+    const options = await t.query(api.booking.addOnOptions, { roomId, ...window });
+    expect(options.engineers.map((e) => e.name)).toEqual(["Dre"]);
+
+    const page = await t.query(api.booking.room, { roomId });
+    expect(page?.offerEngineer).toBe(true);
+  });
+
+  it("sends no roster at all when the studio assigns its own", async () => {
+    const t = convexTest(schema);
+    const roomId = await studio(t, false);
+    const options = await t.query(api.booking.addOnOptions, { roomId, ...window });
+    expect(options.engineers).toEqual([]);
+    // Not just hidden: the names, bios and photos never leave the server.
+    expect(JSON.stringify(options)).not.toContain("Dre");
+
+    const page = await t.query(api.booking.room, { roomId });
+    expect(page?.offerEngineer).toBe(false);
+  });
+
+  it("tells the service page too, since a service inherits its room", async () => {
+    const t = convexTest(schema);
+    const roomId = await studio(t, false);
+    const svc = await t.run((ctx) =>
+      ctx.db.insert("bookableServices", {
+        orgId: "orgE", name: "Podcast", pricingMode: "hourly", priceCents: 15000,
+        minimumHours: 2, roomId, order: 0, active: true, createdAt: 0,
+      } as never),
+    );
+    const service = await t.query(api.booking.service, { serviceId: svc });
+    expect(service?.offerEngineer).toBe(false);
+  });
+});

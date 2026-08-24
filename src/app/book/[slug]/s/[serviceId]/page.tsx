@@ -22,6 +22,11 @@ import {
   emptyBookingForm,
   type BookingFormValues,
 } from "@/components/book/booking-form";
+import {
+  AddOnsPicker,
+  emptyAddOns,
+  type AddOnSelection,
+} from "@/components/book/add-ons-picker";
 import { cn } from "@/lib/utils";
 import { useTrackBookingStep, visitorKey } from "@/lib/use-booking-funnel";
 
@@ -64,6 +69,9 @@ function ServiceBookingView() {
   const [selection, setSelection] = React.useState<SlotSelection | null>(null);
   const [form, setForm] = React.useState<BookingFormValues>(emptyBookingForm);
   const [chosenAddOns, setChosenAddOns] = React.useState<Id<"feeTemplates">[]>([]);
+  // Engineer + premium gear, the same picker the room-first page uses. The
+  // service resolves to a room, so availability is read against that room.
+  const [crew, setCrew] = React.useState<AddOnSelection>(emptyAddOns);
   const [submitting, setSubmitting] = React.useState(false);
 
   const handleSelection = React.useCallback((s: SlotSelection | null) => setSelection(s), []);
@@ -111,14 +119,18 @@ function ServiceBookingView() {
       ? svc.priceCents
       : svc.priceCents * selection.durationHours
     : 0;
-  const liveTotalCents = liveServiceCents + (selection ? addOnCents : 0);
+  const liveTotalCents =
+    liveServiceCents + (selection ? addOnCents + crew.addOnTotalCents : 0);
   /* On a paid-in-full room the amount due now IS the total - the server does
      the same sum in createBooking. */
   const fullOnly = svc.paymentMode === "full";
   const liveDepositCents = fullOnly
     ? liveTotalCents
     : Math.round((liveTotalCents * svc.depositPct) / 100);
-  const canSubmit = Boolean(selection) && formValid && !submitting;
+  /* An engineer declared as needed but not chosen is a booking the studio
+     cannot staff - the same guard the room page has. */
+  const engineerOk = !crew.needsEngineer || Boolean(crew.engineerId);
+  const canSubmit = Boolean(selection) && formValid && engineerOk && !submitting;
 
   function toggleAddOn(id: Id<"feeTemplates">) {
     setChosenAddOns((prev) =>
@@ -139,6 +151,9 @@ function ServiceBookingView() {
         durationHours: selection.durationHours,
         notes: form.notes.trim() || undefined,
         addOnFeeIds: chosenAddOns,
+        engineerId: crew.engineerId,
+        addOnEquipmentIds: crew.gear.map((g) => g.id),
+        gearRequestNote: crew.gearRequestNote || undefined,
         ref: refFromLink,
         visitorKey: visitorKey() ?? undefined,
       });
@@ -238,6 +253,25 @@ function ServiceBookingView() {
         </div>
       </section>
 
+      {/* Engineer and premium gear. Always rendered: before a time is picked
+          the component shows its own "pick a date and time" placeholder, so a
+          client knows the option exists instead of it appearing from nowhere
+          after they choose a slot. */}
+      <section className="space-y-3">
+        <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
+          {svc.offerEngineer ? "Engineer and add-ons" : "Add-ons"}
+        </h2>
+        <AddOnsPicker
+          roomId={svc.roomId}
+          selection={
+            selection
+              ? { startTime: selection.startTime, durationHours: selection.durationHours }
+              : null
+          }
+          onChange={setCrew}
+        />
+      </section>
+
       {/* Add-ons for THIS service. A podcast booking offers podcast edits; a
           vocal session does not offer a film crew. */}
       {svc.addOns.length > 0 && (
@@ -303,6 +337,18 @@ function ServiceBookingView() {
               {selection ? money(liveServiceCents) : "-"}
             </span>
           </div>
+          {crew.engineerName && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-steel">Engineer - {crew.engineerName}</span>
+              <span className="font-meta text-bone">Included</span>
+            </div>
+          )}
+          {crew.gear.map((g) => (
+            <div key={g.id} className="flex items-center justify-between text-sm">
+              <span className="text-steel">{g.name}</span>
+              <span className="font-meta text-bone">{money(g.priceCents)}</span>
+            </div>
+          ))}
           {svc.addOns
             .filter((a) => chosenAddOns.includes(a._id))
             .map((a) => (
