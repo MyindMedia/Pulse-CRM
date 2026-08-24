@@ -60,3 +60,82 @@ describe("gear on the booking page", () => {
     expect(room?.hourlyRateCents).toBe(10000);
   });
 });
+
+/* Three switches, most specific last: the studio can publish no gear at all,
+   one room can stay quiet while the others list theirs, and any single piece
+   can sit out. None of it is SENT when it is not shown - a list hidden with
+   CSS is one devtools panel away from published. */
+describe("choosing what gear a room publishes", () => {
+  async function room(
+    t: ReturnType<typeof convexTest>,
+    opts: { orgShows?: boolean; roomShows?: boolean; hidePiece?: boolean } = {},
+  ) {
+    return await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: "pulse-demo", name: "Studio", slug: "studio-g", plan: "studio", status: "active",
+        ...(opts.orgShows === undefined ? {} : { showGearOnBooking: opts.orgShows }),
+      } as never);
+      const r = await ctx.db.insert("rooms", {
+        orgId: "pulse-demo", name: "Room A", status: "available", bookable: true,
+        hourlyRateCents: 10000, minimumHours: 2, depositPct: 25,
+        ...(opts.roomShows === undefined ? {} : { showGear: opts.roomShows }),
+      } as never);
+      const gear = (name: string, hide?: boolean) =>
+        ctx.db.insert("equipment", {
+          orgId: "pulse-demo", name, category: "mic", status: "available", quantity: 1,
+          purchaseCents: 1000, currentValueCents: 1000, installedInRoomId: r,
+          ...(hide ? { hideOnBooking: true } : {}),
+        } as never);
+      await gear("Neumann U47");
+      await gear("Patch cable", opts.hidePiece);
+      return r;
+    });
+  }
+
+  it("lists everything installed by default", async () => {
+    const t = convexTest(schema);
+    const roomId = await room(t);
+    const page = await t.query(api.booking.room, { roomId });
+    expect(page?.showGear).toBe(true);
+    expect(page?.equipment.map((e) => e.name).sort()).toEqual(["Neumann U47", "Patch cable"]);
+  });
+
+  it("drops a piece the studio held back, and does not send it", async () => {
+    const t = convexTest(schema);
+    const roomId = await room(t, { hidePiece: true });
+    const page = await t.query(api.booking.room, { roomId });
+    expect(page?.equipment.map((e) => e.name)).toEqual(["Neumann U47"]);
+    expect(JSON.stringify(page?.equipment)).not.toContain("Patch cable");
+  });
+
+  it("keeps one room quiet while the studio still publishes gear", async () => {
+    const t = convexTest(schema);
+    const roomId = await room(t, { roomShows: false });
+    const page = await t.query(api.booking.room, { roomId });
+    expect(page?.showGear).toBe(false);
+    expect(page?.equipment).toEqual([]);
+  });
+
+  it("lets the studio-wide switch win over a room that wants to publish", async () => {
+    const t = convexTest(schema);
+    const roomId = await room(t, { orgShows: false, roomShows: true });
+    const page = await t.query(api.booking.room, { roomId });
+    expect(page?.showGear).toBe(false);
+    expect(page?.equipment).toEqual([]);
+  });
+
+  it("sets the whole list in one write, and flips pieces back on", async () => {
+    const t = convexTest(schema);
+    const roomId = await room(t);
+    const ids = await t.run((ctx) => ctx.db.query("equipment").collect());
+    const cable = ids.find((e) => e.name === "Patch cable")!._id;
+
+    await t.mutation(api.equipment.setBookingVisibility, { roomId, hiddenIds: [cable] });
+    let page = await t.query(api.booking.room, { roomId });
+    expect(page?.equipment.map((e) => e.name)).toEqual(["Neumann U47"]);
+
+    await t.mutation(api.equipment.setBookingVisibility, { roomId, hiddenIds: [] });
+    page = await t.query(api.booking.room, { roomId });
+    expect(page?.equipment).toHaveLength(2);
+  });
+});

@@ -36,6 +36,7 @@ type FormState = {
   depositPct: string;
   paidInFull: boolean;
   offerEngineer: boolean;
+  showGear: boolean;
   bookable: boolean;
 };
 
@@ -48,6 +49,7 @@ const BLANK: FormState = {
   depositPct: "",
   paidInFull: false,
   offerEngineer: true,
+  showGear: true,
   bookable: true,
 };
 
@@ -62,7 +64,16 @@ export type EditableRoom = {
   depositPct?: number;
   paymentMode?: "deposit" | "full";
   offerEngineer?: boolean;
+  showGear?: boolean;
   bookable?: boolean;
+};
+
+/** The room's installed gear, so the dialog can offer it piece by piece. */
+export type RoomGear = {
+  _id: Id<"equipment">;
+  name: string;
+  category: string;
+  hideOnBooking?: boolean;
 };
 
 function dollars(cents?: number): string {
@@ -83,13 +94,22 @@ export function AddRoomDialog({
   open,
   onOpenChange,
   room,
+  gear,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   room?: EditableRoom;
+  /** Installed gear, when the caller has it - enables the pick-list. */
+  gear?: RoomGear[];
 }) {
   const createRoom = useMutation(api.rooms.create);
   const updateRoom = useMutation(api.rooms.update);
+  const setGearVisibility = useMutation(api.equipment.setBookingVisibility);
+  /* Which pieces are held back. Tracked as the HIDDEN set rather than the
+     shown one so a piece installed after this dialog opened is listed by
+     default - new gear appearing on the page is the expected surprise; new
+     gear silently missing is not. */
+  const [hidden, setHidden] = React.useState<Set<string>>(new Set());
   const editing = Boolean(room);
   const [form, setForm] = React.useState<FormState>(BLANK);
   const [typeMode, setTypeMode] = React.useState<string>(NONE);
@@ -110,10 +130,12 @@ export function AddRoomDialog({
           depositPct: room.depositPct !== undefined ? String(room.depositPct) : "",
           paidInFull: room.paymentMode === "full",
           offerEngineer: room.offerEngineer !== false,
+          showGear: room.showGear !== false,
           bookable: room.bookable !== false,
         });
         const known = (ROOM_TYPES as readonly string[]).includes(room.roomType ?? "");
         setTypeMode(room.roomType ? (known ? room.roomType : CUSTOM) : NONE);
+        setHidden(new Set((gear ?? []).filter((g) => g.hideOnBooking).map((g) => String(g._id))));
       } else {
         setForm(BLANK);
         setTypeMode(NONE);
@@ -171,8 +193,15 @@ export function AddRoomDialog({
           depositPct: form.paidInFull ? undefined : depositPct,
           paymentMode: form.paidInFull ? "full" : "deposit",
           offerEngineer: form.offerEngineer,
+          showGear: form.showGear,
           bookable: form.bookable,
         });
+        if (gear?.length) {
+          await setGearVisibility({
+            roomId: room._id,
+            hiddenIds: gear.filter((g) => hidden.has(String(g._id))).map((g) => g._id),
+          });
+        }
         toast.success(`${name} saved.`);
       } else {
         await createRoom({
@@ -184,6 +213,7 @@ export function AddRoomDialog({
           depositPct: form.paidInFull ? undefined : depositPct,
           paymentMode: form.paidInFull ? "full" : "deposit",
           offerEngineer: form.offerEngineer,
+          showGear: form.showGear,
         });
         toast.success(`${name} added to the studio.`);
       }
@@ -392,6 +422,89 @@ export function AddRoomDialog({
                     onCheckedChange={(v) => set("offerEngineer", v)}
                     aria-label="Clients choose their engineer"
                   />
+                </div>
+
+                {/* The gear list is a sales page, not an asset register. A
+                    studio lists the desk and the U47, not forty cables and the
+                    spare kettle - so the room can stay quiet entirely, or
+                    publish the pieces worth naming. */}
+                <div className="space-y-3 rounded-lg border border-graphite/50 bg-coal/40 px-4 py-3">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="min-w-0 space-y-1">
+                      <p className="font-grotesk text-sm font-semibold text-bone">
+                        Show this room&apos;s gear
+                      </p>
+                      <p className="text-xs text-steel">
+                        {form.showGear
+                          ? "Clients see the list under \u201cIn this room\u201d."
+                          : "The gear section does not appear for this room."}
+                      </p>
+                    </div>
+                    <Switch
+                      checked={form.showGear}
+                      onCheckedChange={(v) => set("showGear", v)}
+                      aria-label="Show this room's gear on the booking page"
+                    />
+                  </div>
+
+                  {form.showGear && gear && gear.length > 0 && (
+                    <div className="space-y-2 border-t border-graphite/40 pt-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="font-meta text-[0.65rem] uppercase tracking-[0.06em] text-steel/70">
+                          {gear.length - hidden.size} of {gear.length} listed
+                        </p>
+                        <button
+                          type="button"
+                          className="font-meta text-[0.65rem] uppercase tracking-[0.06em] text-gold hover:text-gold-bright"
+                          onClick={() =>
+                            setHidden(
+                              hidden.size === 0
+                                ? new Set(gear.map((g) => String(g._id)))
+                                : new Set(),
+                            )
+                          }
+                        >
+                          {hidden.size === 0 ? "Hide all" : "Show all"}
+                        </button>
+                      </div>
+                      <ul className="max-h-52 space-y-1 overflow-y-auto pr-1">
+                        {gear.map((g) => {
+                          const off = hidden.has(String(g._id));
+                          return (
+                            <li key={String(g._id)}>
+                              <label className="flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-coal-2">
+                                <input
+                                  type="checkbox"
+                                  checked={!off}
+                                  onChange={() =>
+                                    setHidden((prev) => {
+                                      const next = new Set(prev);
+                                      if (off) next.delete(String(g._id));
+                                      else next.add(String(g._id));
+                                      return next;
+                                    })
+                                  }
+                                  className="size-3.5 accent-[var(--color-gold)]"
+                                />
+                                <span
+                                  className={
+                                    off
+                                      ? "min-w-0 flex-1 truncate text-sm text-steel/60 line-through"
+                                      : "min-w-0 flex-1 truncate text-sm text-bone"
+                                  }
+                                >
+                                  {g.name}
+                                </span>
+                                <span className="shrink-0 font-meta text-[0.6rem] uppercase tracking-[0.06em] text-steel/60">
+                                  {g.category}
+                                </span>
+                              </label>
+                            </li>
+                          );
+                        })}
+                      </ul>
+                    </div>
+                  )}
                 </div>
               </>
             )}

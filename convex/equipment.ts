@@ -316,6 +316,33 @@ export const importBulk = mutation({
   },
 });
 
+/* Set which of a room's pieces appear on the booking page, in one write.
+
+   The room dialog shows the installed list with a checkbox each; saving one
+   piece at a time would leave a half-applied list behind any interruption. */
+export const setBookingVisibility = mutation({
+  args: {
+    roomId: v.id("rooms"),
+    hiddenIds: v.array(v.id("equipment")),
+  },
+  handler: async (ctx, { roomId, hiddenIds }) => {
+    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
+    const room = await ctx.db.get(roomId);
+    assertOrg(room, orgId);
+    const hidden = new Set(hiddenIds.map(String));
+    const installed = await ctx.db
+      .query("equipment")
+      .withIndex("by_org_room", (q) => q.eq("orgId", orgId).eq("installedInRoomId", roomId))
+      .collect();
+    for (const item of installed) {
+      const shouldHide = hidden.has(String(item._id));
+      if (Boolean(item.hideOnBooking) === shouldHide) continue;
+      await ctx.db.patch(item._id, { hideOnBooking: shouldHide });
+    }
+    return { hidden: hidden.size, of: installed.length };
+  },
+});
+
 export const update = mutation({
   args: {
     id: v.id("equipment"),
@@ -330,6 +357,8 @@ export const update = mutation({
     notes: v.optional(v.string()),
     rentable: v.optional(v.boolean()),
     rentalPriceCents: v.optional(v.number()),
+    /** Keep this piece off the public booking page, without uninstalling it. */
+    hideOnBooking: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...patch }) => {
     const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
@@ -338,7 +367,9 @@ export const update = mutation({
     // `rentable` is a real boolean toggle, so it must survive the undefined
     // filter even when set to false; everything else only patches when present.
     const clean: Record<string, unknown> = Object.fromEntries(
-      Object.entries(patch).filter(([key, val]) => val !== undefined || key === "rentable"),
+      Object.entries(patch).filter(
+        ([key, val]) => val !== undefined || key === "rentable" || key === "hideOnBooking",
+      ),
     );
     await ctx.db.patch(id, clean);
   },

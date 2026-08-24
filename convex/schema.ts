@@ -1156,6 +1156,10 @@ export default defineSchema({
        engineer itself - or is the engineer - does not want a client picking a
        name off a list and then being told no. */
     offerEngineer: v.optional(v.boolean()),
+    /* Show this room's gear list on the booking page. The studio-wide switch
+       (orgs.showGearOnBooking) still wins when IT is off: a studio that
+       publishes no gear anywhere means it, room by room. */
+    showGear: v.optional(v.boolean()),
     heroImageUrl: v.optional(v.string()), // hero photo shown on the room card (seeded URL)
     heroImageId: v.optional(v.id("_storage")), // uploaded hero photo (Convex storage)
     // "auto" -> room status is computed from the live calendar (in_use when
@@ -1192,6 +1196,11 @@ export default defineSchema({
       v.literal("other"),
     ),
     installedInRoomId: v.optional(v.id("rooms")), // unset → in storage
+    /* Keep this piece off the public booking page while leaving it installed
+       and inventoried. The room's list is a sales page, not an asset
+       register: a studio lists the desk and the U47, not forty cables and the
+       spare kettle. */
+    hideOnBooking: v.optional(v.boolean()),
     // Authoritative while in storage; installed gear follows its room.
     status: v.union(
       v.literal("available"),

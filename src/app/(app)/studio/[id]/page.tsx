@@ -407,6 +407,8 @@ export default function StudioDetailPage() {
                 ? ` · ${room.depositPct}% deposit`
                 : ""}
             {room.bookable === false ? " · not bookable online" : ""}
+            {room.showGear === false ? " · gear list hidden" : ""}
+            {room.offerEngineer === false ? " · studio assigns the engineer" : ""}
           </p>
         </div>
         <Button variant="secondary" size="sm" onClick={() => setEditRoomOpen(true)}>
@@ -890,8 +892,16 @@ export default function StudioDetailPage() {
           minimumHours: room.minimumHours,
           depositPct: room.depositPct,
           paymentMode: room.paymentMode,
+          offerEngineer: room.offerEngineer,
+          showGear: room.showGear,
           bookable: room.bookable,
         }}
+        gear={room.equipment.map((e) => ({
+          _id: e._id,
+          name: e.name,
+          category: e.category,
+          hideOnBooking: e.hideOnBooking,
+        }))}
       />
 </div>
   );

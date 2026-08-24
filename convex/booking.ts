@@ -174,12 +174,16 @@ export const studioFront = query({
     const bookable = rooms.filter((r) => r.status !== "retired" && r.bookable !== false);
     const cards = await Promise.all(
       bookable.map(async (room) => {
-        const gear = await ctx.db
-          .query("equipment")
-          .withIndex("by_org_room", (q) =>
-            q.eq("orgId", orgId).eq("installedInRoomId", room._id),
-          )
-          .collect();
+        const gear = (
+          await ctx.db
+            .query("equipment")
+            .withIndex("by_org_room", (q) =>
+              q.eq("orgId", orgId).eq("installedInRoomId", room._id),
+            )
+            .collect()
+        ).filter(
+          (g) => !g.hideOnBooking && org?.showGearOnBooking !== false && room.showGear !== false,
+        );
         const gearPhotos = (await Promise.all(gear.map((g) => photoOf(ctx, g)))).filter(
           (p): p is string => Boolean(p),
         );
@@ -285,14 +289,16 @@ export const service = query({
       .filter((f): f is Doc<"feeTemplates"> => Boolean(f?.active))
       .map((f) => ({ _id: f._id, label: f.label, amountCents: f.amountCents, description: f.description ?? null }));
 
-    const showGear = org?.showGearOnBooking !== false;
+    const showGear = org?.showGearOnBooking !== false && room.showGear !== false;
     const gear = showGear
-      ? await ctx.db
-          .query("equipment")
-          .withIndex("by_org_room", (q) =>
-            q.eq("orgId", svc.orgId).eq("installedInRoomId", svc.roomId),
-          )
-          .collect()
+      ? (
+          await ctx.db
+            .query("equipment")
+            .withIndex("by_org_room", (q) =>
+              q.eq("orgId", svc.orgId).eq("installedInRoomId", svc.roomId),
+            )
+            .collect()
+        ).filter((g) => !g.hideOnBooking)
       : [];
 
     return {
@@ -361,14 +367,19 @@ export const room = query({
        and then it is not shipped to the browser either, because a list hidden
        with CSS is one devtools panel away from published. Undefined means on:
        a studio that never touched the switch has always shown its gear. */
-    const showGear = org?.showGearOnBooking !== false;
+    /* Two switches and a per-piece opt-out. The studio can publish no gear at
+       all, a single room can stay quiet while the others list theirs, and any
+       one piece can sit out - and none of it is SENT when it is not shown. */
+    const showGear = org?.showGearOnBooking !== false && room.showGear !== false;
     const gear = showGear
-      ? await ctx.db
-          .query("equipment")
-          .withIndex("by_org_room", (q) =>
-            q.eq("orgId", room.orgId).eq("installedInRoomId", roomId),
-          )
-          .collect()
+      ? (
+          await ctx.db
+            .query("equipment")
+            .withIndex("by_org_room", (q) =>
+              q.eq("orgId", room.orgId).eq("installedInRoomId", roomId),
+            )
+            .collect()
+        ).filter((g) => !g.hideOnBooking)
       : [];
     const equipment = await Promise.all(
       gear.map(async (g) => ({
