@@ -226,45 +226,52 @@ function RoomDetailView() {
         </div>
       </header>
 
-      {/* Gear gallery */}
+      {/* Gear list. Off is a real answer: a studio whose kit is half in storage
+          would rather say nothing than publish a list it has to keep true. */}
+      {room.showGear && (
+        <section className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Music4 className="size-4 text-gold" />
+            <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
+              In this room
+            </h2>
+            <span className="text-xs text-steel/70">
+              {room.equipment.length} {room.equipment.length === 1 ? "piece" : "pieces"}
+            </span>
+          </div>
+          <GearGallery equipment={room.equipment} />
+        </section>
+      )}
+
+      {/* Who they are, then when.
+
+          These sat side by side, which asked a client on a laptop to fill a
+          form and read a calendar at once, and on a phone put the form under
+          the calendar - so the details arrived after the decision. Stacked,
+          in the order the booking actually happens: name yourself, then pick
+          the time you want. */}
       <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Music4 className="size-4 text-gold" />
-          <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
-            In this room
-          </h2>
-          <span className="text-xs text-steel/70">
-            {room.equipment.length} {room.equipment.length === 1 ? "piece" : "pieces"}
-          </span>
+        <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
+          Your details
+        </h2>
+        <div className="space-y-5 rounded-lg border border-graphite/50 bg-coal p-5">
+          <BookingForm values={form} onChange={setForm} />
         </div>
-        <GearGallery equipment={room.equipment} />
       </section>
 
-      {/* Booking */}
-      <section className="grid gap-6 lg:grid-cols-[1.05fr_0.95fr]">
-        <div className="space-y-3">
-          <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
-            Pick your time
-          </h2>
-          <div className="rounded-lg border border-graphite/50 bg-coal p-5">
-            <AvailabilityPicker
-              roomId={room._id}
-              minimumHours={room.minimumHours}
-              hourlyRateCents={room.hourlyRateCents}
-              depositPct={room.depositPct}
-              closeHour={room.closeHour}
-              onChange={handleSelection}
-            />
-          </div>
-        </div>
-
-        <div className="space-y-3">
-          <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
-            Your details
-          </h2>
-          <div className="space-y-5 rounded-lg border border-graphite/50 bg-coal p-5">
-            <BookingForm values={form} onChange={setForm} />
-          </div>
+      <section className="space-y-3">
+        <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
+          Pick your time
+        </h2>
+        <div className="rounded-lg border border-graphite/50 bg-coal p-5">
+          <AvailabilityPicker
+            roomId={room._id}
+            minimumHours={room.minimumHours}
+            hourlyRateCents={room.hourlyRateCents}
+            depositPct={room.depositPct}
+            closeHour={room.closeHour}
+            onChange={handleSelection}
+          />
         </div>
       </section>
 
@@ -398,21 +405,15 @@ function RoomDetailSkeleton() {
           <Skeleton className="h-6 w-48" />
         </div>
       </div>
-      {/* Gear placeholder: name rows on mobile, photo grid on sm+ */}
-      <div className="space-y-2 sm:hidden">
+      {/* Gear placeholder: name rows, the shape the list actually loads into. */}
+      <div className="space-y-2">
         {Array.from({ length: 6 }).map((_, i) => (
           <Skeleton key={i} className="h-9 w-full" />
         ))}
       </div>
-      <div className="hidden gap-3 sm:grid sm:grid-cols-4">
-        {Array.from({ length: 8 }).map((_, i) => (
-          <Skeleton key={i} className="aspect-square w-full" />
-        ))}
-      </div>
-      <div className="grid gap-6 lg:grid-cols-2">
-        <Skeleton className="h-96 w-full" />
-        <Skeleton className="h-96 w-full" />
-      </div>
+      {/* Details, then the picker - the order the page settles into. */}
+      <Skeleton className="h-72 w-full" />
+      <Skeleton className="h-96 w-full" />
     </div>
   );
 }

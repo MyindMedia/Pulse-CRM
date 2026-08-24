@@ -55,3 +55,61 @@ describe("sessions.create - client name vs existing artist", () => {
     await expect(t.mutation(api.sessions.create, base())).rejects.toThrow(/client name|artist/i);
   });
 });
+
+/* Not every booking is a session. Owners block the calendar for a tour, a
+   maintenance day, a personal hold - real work that occupies a room and is
+   none of the seven services. */
+describe("sessions.create - a custom category", () => {
+  let t: ReturnType<typeof convexTest>;
+  beforeEach(async () => {
+    t = convexTest(schema);
+    await t.run((ctx) =>
+      ctx.db.insert("orgs", {
+        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active",
+      } as never),
+    );
+  });
+
+  const custom = (over: Record<string, unknown> = {}) => ({
+    title: "Label tour",
+    clientName: "Walk-in Wendy",
+    serviceType: "custom" as const,
+    customService: "Tour",
+    startTime: Date.now() + 3_600_000,
+    endTime: Date.now() + 7_200_000,
+    rateCents: 20000,
+    depositCents: 6000,
+    ...over,
+  });
+
+  it("books the studio's own category and keeps its name", async () => {
+    await t.mutation(api.sessions.create, custom());
+    const session = (await t.run((ctx) => ctx.db.query("sessions").collect()))[0];
+    expect(session.serviceType).toBe("custom");
+    expect(session.customService).toBe("Tour");
+  });
+
+  it("trims the name, so a stray space is not a different category", async () => {
+    await t.mutation(api.sessions.create, custom({ customService: "  Maintenance  " }));
+    const session = (await t.run((ctx) => ctx.db.query("sessions").collect()))[0];
+    expect(session.customService).toBe("Maintenance");
+  });
+
+  it("refuses a custom booking with no name - the point of it IS the name", async () => {
+    await expect(
+      t.mutation(api.sessions.create, custom({ customService: "   " })),
+    ).rejects.toThrow(/name the category/i);
+    await expect(
+      t.mutation(api.sessions.create, custom({ customService: undefined })),
+    ).rejects.toThrow(/name the category/i);
+  });
+
+  it("leaves the seven services alone - no label required, none stored", async () => {
+    await t.mutation(api.sessions.create, custom({
+      serviceType: "recording", customService: undefined, title: "Tracking",
+    }));
+    const session = (await t.run((ctx) => ctx.db.query("sessions").collect()))[0];
+    expect(session.serviceType).toBe("recording");
+    expect(session.customService).toBeUndefined();
+  });
+});

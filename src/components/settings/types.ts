@@ -39,6 +39,8 @@ export type Org = {
   accentColor: string;
   timezone: string | null;
   briefRequireAll: boolean;
+  /** Booking page: show the room's gear list to clients. */
+  showGearOnBooking: boolean;
   tagline: string;
   logoUrl: string | null;
   bookingHeroUrl: string | null;

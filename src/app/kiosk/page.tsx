@@ -24,7 +24,7 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { longDate, timeOfDay, duration, money } from "@/lib/format";
-import { meta, SESSION_STATUS, titleCase } from "@/lib/labels";
+import { SESSION_STATUS, meta, serviceLabel, titleCase } from "@/lib/labels";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
@@ -657,7 +657,7 @@ function KioskDay({
                   <p className="truncate text-sm text-steel/70">
                     {s.artistName}
                     {" · "}
-                    {titleCase(s.serviceType)}
+                    {serviceLabel(s.serviceType, s.customService)}
                     {s.roomName ? ` · ${s.roomName}` : ""}
                     {s.engineerName ? ` · ${s.engineerName}` : ""}
                   </p>
@@ -721,7 +721,7 @@ function KioskSessionDialog({
                 {session.artistName}
               </DetailRow>
               <DetailRow icon={Disc3} label="Service">
-                {titleCase(session.serviceType)}
+                {serviceLabel(session.serviceType, session.customService)}
               </DetailRow>
               {session.songTitle && (
                 <DetailRow icon={Music2} label="Song">

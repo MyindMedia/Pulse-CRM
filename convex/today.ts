@@ -74,6 +74,7 @@ export const today = query({
           roomName: room?.name ?? null,
           engineerName: engineer?.name ?? null,
           serviceType: s.serviceType,
+          customService: s.customService,
           startTime: s.startTime,
           endTime: s.endTime,
           status: s.status,

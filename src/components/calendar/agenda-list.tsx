@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
 import { EmptyState } from "@/components/ui/feedback";
 import { longDate, timeOfDay, duration } from "@/lib/format";
-import { meta, SESSION_STATUS, titleCase } from "@/lib/labels";
+import { SESSION_STATUS, meta, serviceLabel, titleCase } from "@/lib/labels";
 import { startOfDay, statusColor, type Session } from "./constants";
 
 /** Upcoming sessions grouped by day - the agenda alternative to the grid. */
@@ -83,7 +83,7 @@ export function AgendaList({
                           </Badge>
                         </div>
                         <p className="text-xs leading-relaxed text-steel/70">
-                          {titleCase(s.serviceType)}
+                          {serviceLabel(s.serviceType, s.customService)}
                           {s.roomName ? ` · ${s.roomName}` : ""}
                         </p>
                         <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-steel/70">

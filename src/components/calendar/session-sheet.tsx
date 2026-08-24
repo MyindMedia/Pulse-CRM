@@ -49,7 +49,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { money, longDate, timeOfDay, duration } from "@/lib/format";
-import { meta, SESSION_STATUS, titleCase } from "@/lib/labels";
+import { SESSION_STATUS, meta, serviceLabel, titleCase } from "@/lib/labels";
 import { PaymentPanel } from "@/components/bookings/payment-panel";
 import { statusColor } from "./constants";
 import { ChecklistsPanel } from "./checklists-panel";
@@ -179,7 +179,7 @@ export function SessionSheet({
                 <Badge tone={meta(SESSION_STATUS, detail.status).tone}>
                   {meta(SESSION_STATUS, detail.status).label}
                 </Badge>
-                <Badge tone="neutral">{titleCase(detail.serviceType)}</Badge>
+                <Badge tone="neutral">{serviceLabel(detail.serviceType, detail.customService)}</Badge>
               </div>
               <SheetTitle>{detail.title}</SheetTitle>
               <SheetDescription>
@@ -406,6 +406,7 @@ export function SessionSheet({
                   artistId: detail.artistId,
                   artistName: detail.artistName,
                   serviceType: detail.serviceType,
+                  customService: detail.customService,
                   roomId: detail.roomId ?? undefined,
                   engineerId: detail.engineerId ?? undefined,
                   songId: detail.songId ?? undefined,

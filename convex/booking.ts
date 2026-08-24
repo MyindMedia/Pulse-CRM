@@ -221,12 +221,20 @@ export const room = query({
       .query("orgs")
       .withIndex("by_org", (q) => q.eq("orgId", room.orgId))
       .first();
-    const gear = await ctx.db
-      .query("equipment")
-      .withIndex("by_org_room", (q) =>
-        q.eq("orgId", room.orgId).eq("installedInRoomId", roomId),
-      )
-      .collect();
+    /* The gear list is a studio's choice. A room whose kit is half in storage,
+       or a studio that would rather talk about gear on a call, turns it off -
+       and then it is not shipped to the browser either, because a list hidden
+       with CSS is one devtools panel away from published. Undefined means on:
+       a studio that never touched the switch has always shown its gear. */
+    const showGear = org?.showGearOnBooking !== false;
+    const gear = showGear
+      ? await ctx.db
+          .query("equipment")
+          .withIndex("by_org_room", (q) =>
+            q.eq("orgId", room.orgId).eq("installedInRoomId", roomId),
+          )
+          .collect()
+      : [];
     const equipment = await Promise.all(
       gear.map(async (g) => ({
         _id: g._id,
@@ -247,6 +255,7 @@ export const room = query({
       closeHour: CLOSE_HOUR,
       studioName: org?.name ?? "Pulse Studio",
       depositPolicy: org?.depositPolicyText ?? null,
+      showGear,
       equipment: equipment.sort((a, b) => a.name.localeCompare(b.name)),
       // Social proof for the room page trust strip.
       testimonials: proof.testimonials,

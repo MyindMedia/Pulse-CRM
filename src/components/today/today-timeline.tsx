@@ -6,7 +6,7 @@ import { CalendarClock, DoorOpen, Mic2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState } from "@/components/ui/feedback";
 import { money, timeOfDay, duration } from "@/lib/format";
-import { meta, SESSION_STATUS, titleCase } from "@/lib/labels";
+import { SESSION_STATUS, meta, serviceLabel, titleCase } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 
 type TodayData = FunctionReturnType<typeof api.today.today>;
@@ -75,7 +75,7 @@ export function TodayTimeline({
                 </div>
                 <p className="mt-0.5 truncate text-xs text-steel">
                   {s.clientName}
-                  <span className="text-steel/60"> · {titleCase(s.serviceType)}</span>
+                  <span className="text-steel/60"> · {serviceLabel(s.serviceType, s.customService)}</span>
                 </p>
                 <div className="mt-1.5 flex flex-wrap items-center gap-2 text-[0.6875rem] text-steel/70">
                   {s.roomName && (

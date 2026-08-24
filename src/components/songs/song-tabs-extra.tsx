@@ -20,7 +20,7 @@ import { Input } from "@/components/ui/field";
 import { Progress } from "@/components/ui/progress";
 import { EmptyState } from "@/components/ui/feedback";
 import { Skeleton } from "@/components/ui/skeleton";
-import { meta, SESSION_STATUS, SYNC_STAGE, CAMPAIGN_STATUS, ACCENT_TONE, titleCase } from "@/lib/labels";
+import { ACCENT_TONE, CAMPAIGN_STATUS, SESSION_STATUS, SYNC_STAGE, meta, serviceLabel, titleCase } from "@/lib/labels";
 import { longDate, shortDate, timeOfDay, duration, relativeTime, money } from "@/lib/format";
 import { cn } from "@/lib/utils";
 
@@ -33,6 +33,7 @@ type SessionRow = {
   endTime: number;
   status: string;
   serviceType?: string;
+  customService?: string;
   notes?: string;
 };
 
@@ -66,7 +67,7 @@ export function SessionsTab({ sessions }: { sessions: SessionRow[] }) {
                 <p className="truncate text-sm font-medium text-bone">{s.title}</p>
                 <p className="truncate font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                   {timeOfDay(s.startTime)} · {duration(s.startTime, s.endTime)}
-                  {s.serviceType ? ` · ${titleCase(s.serviceType)}` : ""}
+                  {s.serviceType ? ` · ${serviceLabel(s.serviceType, s.customService)}` : ""}
                 </p>
               </div>
               <Badge tone={st.tone}>{st.label}</Badge>

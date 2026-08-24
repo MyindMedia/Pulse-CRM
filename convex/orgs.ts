@@ -62,6 +62,9 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     accentColor: org?.accentColor ?? "#fdb913",
     timezone: org?.timezone ?? null,
     briefRequireAll: org?.briefRequireAll === true,
+    // Undefined means on - a studio that never touched the switch has always
+    // shown its gear on the booking page.
+    showGearOnBooking: org?.showGearOnBooking !== false,
     brandPalette: org?.brandPalette ?? null,
     tagline: org?.tagline ?? "Your music business runs itself.",
     logoUrl: org?.logoId ? await ctx.storage.getUrl(org.logoId) : null,
@@ -171,6 +174,8 @@ export const update = mutation({
     depositPolicyText: v.optional(v.string()),
     timezone: v.optional(v.string()),
     briefRequireAll: v.optional(v.boolean()),
+    /** Booking page: show the room's gear list to clients. */
+    showGearOnBooking: v.optional(v.boolean()),
     // Public callback number for this studio. Automated texts print it so
     // clients reach the studio rather than the shared 10DLC sender.
     contactPhone: v.optional(v.string()),

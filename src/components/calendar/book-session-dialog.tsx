@@ -29,7 +29,7 @@ import { Badge } from "@/components/ui/badge";
 import { Spinner } from "@/components/ui/feedback";
 import { cn } from "@/lib/utils";
 import { money, duration } from "@/lib/format";
-import { titleCase } from "@/lib/labels";
+import { serviceLabel, titleCase } from "@/lib/labels";
 import {
   SESSION_SERVICE_TYPES,
   combineDateTime,
@@ -52,6 +52,7 @@ export type SessionPrefill = {
   artistId?: string;
   artistName: string;
   serviceType?: string;
+  customService?: string;
   roomId?: string;
   engineerId?: string;
   songId?: string;
@@ -84,6 +85,10 @@ export function BookSessionDialog({
   const [songId, setSongId] = useState("");
   // Step 2
   const [serviceType, setServiceType] = useState<string>("recording");
+  /* The studio's own name for a booking that is not one of the seven services:
+     a tour, a maintenance day, a hold. The category is only useful if it says
+     what it is, so step 2 does not pass without it. */
+  const [customService, setCustomService] = useState("");
   const [roomId, setRoomId] = useState("");
   const [engineerId, setEngineerId] = useState("");
   // Step 3
@@ -168,6 +173,7 @@ export function BookSessionDialog({
     setDurationMins(120);
     setTitle("");
     setRate("");
+    setCustomService("");
     setDeposit("");
   }
 
@@ -185,6 +191,7 @@ export function BookSessionDialog({
         setClient({ artistId: prefillFrom.artistId, name: prefillFrom.artistName });
         if (prefillFrom.songId) setSongId(prefillFrom.songId);
         if (prefillFrom.serviceType) setServiceType(prefillFrom.serviceType);
+        if (prefillFrom.customService) setCustomService(prefillFrom.customService);
         if (prefillFrom.roomId) setRoomId(prefillFrom.roomId);
         if (prefillFrom.engineerId) setEngineerId(prefillFrom.engineerId);
         if (prefillFrom.title) setTitle(prefillFrom.title);
@@ -202,7 +209,7 @@ export function BookSessionDialog({
 
   const stepValid: boolean[] = [
     client.name.trim() !== "",
-    serviceType !== "",
+    serviceType !== "" && (serviceType !== "custom" || customService.trim() !== ""),
     date !== "" && time !== "" && durationMins > 0 && selectedSlotOk,
     title.trim().length > 0 && rateCents > 0 && depositCents <= rateCents,
   ];
@@ -229,7 +236,9 @@ export function BookSessionDialog({
           | "production"
           | "consultation"
           | "rehearsal"
-          | "writing",
+          | "writing"
+          | "custom",
+        customService: serviceType === "custom" ? customService.trim() : undefined,
         roomId: roomId ? (roomId as Id<"rooms">) : undefined,
         engineerId: engineerId ? (engineerId as Id<"members">) : undefined,
         startTime,
@@ -342,12 +351,32 @@ export function BookSessionDialog({
                   <SelectContent>
                     {SESSION_SERVICE_TYPES.map((s) => (
                       <SelectItem key={s} value={s}>
-                        {titleCase(s)}
+                        {s === "custom" ? "Custom category…" : titleCase(s)}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </Field>
+
+              {/* Not every booking is a session. A tour, a maintenance day, a
+                  hold on the room - the studio names it and the calendar says
+                  that name instead of squeezing it into "consultation". */}
+              {serviceType === "custom" && (
+                <Field
+                  label="Category name"
+                  htmlFor="sess-custom"
+                  hint="What this is called on the calendar."
+                >
+                  <Input
+                    id="sess-custom"
+                    value={customService}
+                    onChange={(e) => setCustomService(e.target.value)}
+                    placeholder="Tour, maintenance, blocked…"
+                    maxLength={40}
+                    autoFocus
+                  />
+                </Field>
+              )}
 
               <Field label="Room" hint="Where the session runs - optional.">
                 <Select value={roomId} onValueChange={setRoomId}>
@@ -482,7 +511,11 @@ export function BookSessionDialog({
                   id="sess-title"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
-                  placeholder={`${titleCase(serviceType)} session`}
+                  placeholder={
+                    serviceType === "custom"
+                      ? serviceLabel(serviceType, customService)
+                      : `${titleCase(serviceType)} session`
+                  }
                   autoFocus
                 />
               </Field>
@@ -523,7 +556,7 @@ export function BookSessionDialog({
                 <p className="overline">Summary</p>
                 <div className="flex flex-wrap items-center gap-1.5">
                   <Badge tone="gold">{artistName || "Artist"}</Badge>
-                  <Badge tone="neutral">{titleCase(serviceType)}</Badge>
+                  <Badge tone="neutral">{serviceLabel(serviceType, customService)}</Badge>
                   {date && (
                     <Badge tone="info">
                       {new Date(combineDateTime(date, time)).toLocaleDateString("en-US", {

@@ -26,6 +26,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/feedback";
 import { Field, Input, Textarea } from "@/components/ui/field";
+import { Switch } from "@/components/ui/toggle";
 import { AssetUploader } from "@/components/settings/asset-uploader";
 import { BookingLinkShare } from "@/components/settings/booking-link-share";
 import { cn } from "@/lib/utils";
@@ -67,6 +68,7 @@ export function BrandingPanel({ org }: { org: Org }) {
   const [headline, setHeadline] = React.useState(org.bookingHeadline ?? "");
   const [intro, setIntro] = React.useState(org.bookingIntro ?? "");
   const [deposit, setDeposit] = React.useState(org.depositPolicyText ?? "");
+  const [showGear, setShowGear] = React.useState(org.showGearOnBooking);
   const [submitting, setSubmitting] = React.useState(false);
 
   // Re-seed local state if the org record changes underneath us. We track a
@@ -89,6 +91,8 @@ export function BrandingPanel({ org }: { org: Org }) {
     setHeadline(org.bookingHeadline ?? "");
     setIntro(org.bookingIntro ?? "");
     setDeposit(org.depositPolicyText ?? "");
+    setShowGear(org.showGearOnBooking);
+    setShowGear(org.showGearOnBooking);
   }
 
   const accentTrim = accent.trim();
@@ -105,7 +109,8 @@ export function BrandingPanel({ org }: { org: Org }) {
       normalizedAccent.toLowerCase() !== org.accentColor.toLowerCase()) ||
     headline.trim() !== (org.bookingHeadline ?? "") ||
     intro.trim() !== (org.bookingIntro ?? "") ||
-    deposit.trim() !== (org.depositPolicyText ?? "");
+    deposit.trim() !== (org.depositPolicyText ?? "") ||
+    showGear !== org.showGearOnBooking;
 
   const [matchingColors, setMatchingColors] = React.useState(false);
 
@@ -181,6 +186,7 @@ export function BrandingPanel({ org }: { org: Org }) {
         bookingHeadline: headline.trim(),
         bookingIntro: intro.trim(),
         depositPolicyText: deposit.trim(),
+        showGearOnBooking: showGear,
       });
       toast.success("Branding saved.");
     } catch {
@@ -460,6 +466,26 @@ export function BrandingPanel({ org }: { org: Org }) {
               className="min-h-16"
             />
           </Field>
+
+          {/* Gear list on the booking page. Off is a real answer: a studio
+              whose kit is half in storage, or one that would rather talk
+              about gear on a call, publishes nothing rather than a list it
+              has to keep true. Off also means the list is never sent to the
+              browser at all. */}
+          <div className="flex items-start justify-between gap-4 rounded-lg border border-graphite/50 bg-coal/40 px-4 py-3">
+            <div className="min-w-0 space-y-1">
+              <p className="font-grotesk text-sm font-semibold text-bone">Show gear on the booking page</p>
+              <p className="text-xs text-steel">
+                Clients see the room&apos;s equipment as a list under &ldquo;In this room&rdquo;.
+                Turn it off and the section disappears.
+              </p>
+            </div>
+            <Switch
+              checked={showGear}
+              onCheckedChange={setShowGear}
+              aria-label="Show the gear list on the booking page"
+            />
+          </div>
 
           {/* Live preview */}
           <div className="space-y-2">

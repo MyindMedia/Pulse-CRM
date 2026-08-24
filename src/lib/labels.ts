@@ -121,3 +121,20 @@ export function meta(map: Record<string, Meta>, key?: string): Meta {
 }
 
 export { titleCase };
+
+/* ============================================================
+   What a booking is called.
+
+   Seven services, plus whatever the studio types. A tour, a maintenance day,
+   a personal hold: real work that occupies a room and is none of the seven.
+   The label lives on the session (`customService`), so every surface that
+   used to print titleCase(serviceType) reads this instead - otherwise a tour
+   shows up on the calendar as "Custom".
+   ============================================================ */
+export function serviceLabel(
+  serviceType: string | null | undefined,
+  customService?: string | null,
+): string {
+  if (serviceType === "custom") return customService?.trim() || "Custom";
+  return serviceType ? titleCase(serviceType) : "";
+}

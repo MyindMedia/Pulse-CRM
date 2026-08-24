@@ -2,7 +2,7 @@ import { query, mutation, QueryCtx, MutationCtx } from "./_generated/server";
 import { fireRules } from "./agentRules";
 import { queuePayoutForSession } from "./payouts";
 import { Doc, Id } from "./_generated/dataModel";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { currentOrg, currentOrgWithCapability} from "./lib/tenant";
 import { resolveViewer } from "./lib/access";
 import {
@@ -34,6 +34,7 @@ const serviceV = v.union(
   v.literal("consultation"),
   v.literal("rehearsal"),
   v.literal("writing"),
+  v.literal("custom"),   // label lives in customService
 );
 const statusV = v.union(
   v.literal("tentative"),
@@ -124,6 +125,7 @@ export async function insertSession(
     artistName: string;
     songId?: Id<"songs">;
     serviceType: Doc<"sessions">["serviceType"];
+    customService?: string;
     roomId?: Id<"rooms">;
     engineerId?: Id<"members">;
     startTime: number;
@@ -143,6 +145,7 @@ export async function insertSession(
     artistId: args.artistId,
     songId: args.songId,
     serviceType: args.serviceType,
+    customService: args.customService?.trim() || undefined,
     roomId: args.roomId,
     engineerId: args.engineerId,
     startTime: args.startTime,
@@ -183,6 +186,8 @@ export const create = mutation({
     clientPhone: v.optional(v.string()),
     songId: v.optional(v.id("songs")),
     serviceType: serviceV,
+    /** Required when serviceType is "custom" - the studio's own name for it. */
+    customService: v.optional(v.string()),
     roomId: v.optional(v.id("rooms")),
     engineerId: v.optional(v.id("members")),
     startTime: v.number(),
@@ -192,6 +197,12 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const orgId = await currentOrg(ctx);
+
+    /* A custom category with no name is a row on the calendar nobody can read.
+       The point of the category IS the label. */
+    if (args.serviceType === "custom" && !args.customService?.trim()) {
+      throw new ConvexError("Name the category - a custom booking needs one.");
+    }
 
     // Resolve the booker: an existing artist, or create a new "lead" client
     // on the fly from a typed name so walk-in / first-time bookers work too.
@@ -228,6 +239,7 @@ export const create = mutation({
       artistName,
       songId: args.songId,
       serviceType: args.serviceType,
+      customService: args.customService,
       roomId: args.roomId,
       engineerId: args.engineerId,
       startTime: args.startTime,

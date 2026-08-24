@@ -31,6 +31,15 @@ const songStage = v.union(
   v.literal("released"),
 );
 
+/* The studio's own categories, plus "custom".
+
+   A studio does not only sell sessions. Owners block the calendar for a tour,
+   a maintenance day, a personal hold - work that is real, occupies a room, and
+   is none of the seven services. "custom" carries a label the studio types
+   (`sessions.customService`), so the calendar can say "Tour" instead of
+   forcing every non-session into "consultation". It is INTERNAL: the public
+   booking form never offers it (see convex/booking.ts), because a client
+   inventing a category is a different thing entirely. */
 const serviceType = v.union(
   v.literal("recording"),
   v.literal("mixing"),
@@ -39,6 +48,7 @@ const serviceType = v.union(
   v.literal("consultation"),
   v.literal("rehearsal"),
   v.literal("writing"),
+  v.literal("custom"),
 );
 
 const sessionStatus = v.union(
@@ -292,6 +302,9 @@ export default defineSchema({
     //    to its own booking page. Pulse takes no commission on what it sends:
     //    the whole point is to be a lead source rather than another cost.
     directoryListed: v.optional(v.boolean()),
+    // Booking page: list the room's gear to clients. Undefined means on - a
+    // studio that has never touched the switch has always shown its gear.
+    showGearOnBooking: v.optional(v.boolean()),
     directoryBlurb: v.optional(v.string()),   // one line, the studio's own words
     directoryCity: v.optional(v.string()),
     directoryRegion: v.optional(v.string()),  // state / county / province
@@ -1200,6 +1213,8 @@ export default defineSchema({
     artistId: v.id("artists"),
     songId: v.optional(v.id("songs")),
     serviceType,
+    // What the studio calls this one, when serviceType is "custom".
+    customService: v.optional(v.string()),
     roomId: v.optional(v.id("rooms")),
     engineerId: v.optional(v.id("members")),
     // Public-booking engineer request lifecycle: pending until the engineer

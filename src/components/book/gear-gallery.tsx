@@ -1,9 +1,8 @@
 "use client";
 
 import { motion } from "motion/react";
-import { Badge } from "@/components/ui/badge";
 import { fadeUp, staggerChildren } from "@/lib/motion";
-import { CategoryIcon, GearPhoto } from "@/components/book/gear-photo";
+import { CategoryIcon } from "@/components/book/gear-photo";
 
 /** One equipment item as returned by `api.booking.room`. */
 export type GearItem = {
@@ -14,21 +13,16 @@ export type GearItem = {
   photo: string | null;
 };
 
-const CONDITION_TONE: Record<string, "positive" | "caution" | "critical" | "neutral"> = {
-  pristine: "positive",
-  excellent: "positive",
-  good: "positive",
-  fair: "caution",
-  worn: "caution",
-  poor: "critical",
-  needs_repair: "critical",
-};
+/* A list, at every width.
 
-function conditionTone(condition?: string) {
-  if (!condition) return "neutral" as const;
-  return CONDITION_TONE[condition.toLowerCase()] ?? "neutral";
-}
+   This used to be names on mobile and a grid of photo tiles from sm up. The
+   tiles read as a shop: four big squares saying "Neumann U87" tell a client
+   less than twenty lines do, and a room with thirty pieces became a wall of
+   pictures nobody scrolled to the end of. The list is what people actually
+   scan, so it is now the only thing rendered - which also means the photos
+   stop being downloaded on a page whose job is to take a booking.
 
+   Whether it appears at all is the studio's call: `showGearOnBooking`. */
 export function GearGallery({ equipment }: { equipment: GearItem[] }) {
   if (equipment.length === 0) {
     return (
@@ -39,61 +33,28 @@ export function GearGallery({ equipment }: { equipment: GearItem[] }) {
   }
 
   return (
-    <>
-      {/* Mobile: names only - no photos. The list stays light and scannable;
-          photos never load here because GearPhoto imgs are lazy and the grid
-          below is display:none until sm. */}
-      <ul className="divide-y divide-graphite/40 overflow-hidden rounded-lg border border-graphite/50 bg-coal sm:hidden">
-        {equipment.map((item) => (
-          <li key={item._id} className="flex items-center gap-2.5 px-3.5 py-2.5">
-            <CategoryIcon
-              category={item.category}
-              className="size-4 shrink-0 text-steel/70"
-            />
-            <span className="min-w-0 flex-1 text-sm font-medium text-bone">
-              {item.name}
-            </span>
-          </li>
-        ))}
-      </ul>
-
-      <motion.div
-        initial="hidden"
-        whileInView="show"
-        viewport={{ once: true, margin: "-40px" }}
-        variants={staggerChildren(0.04)}
-        className="hidden gap-3 sm:grid sm:grid-cols-3 lg:grid-cols-4"
-      >
-        {equipment.map((item) => (
-          <motion.div
-            key={item._id}
-            variants={fadeUp}
-            className="overflow-hidden rounded-lg border border-graphite/50 bg-coal"
-          >
-            <GearPhoto
-              photo={item.photo}
-              category={item.category}
-              alt={item.name}
-              className="aspect-square w-full rounded-none border-0"
-            />
-            <div className="space-y-1.5 p-3">
-              <p className="truncate text-sm font-medium text-bone" title={item.name}>
-                {item.name}
-              </p>
-              <div className="flex flex-wrap items-center gap-1.5">
-                <Badge tone="neutral" className="capitalize">
-                  {item.category}
-                </Badge>
-                {item.condition && (
-                  <Badge tone={conditionTone(item.condition)} className="capitalize">
-                    {item.condition.replace(/_/g, " ")}
-                  </Badge>
-                )}
-              </div>
-            </div>
-          </motion.div>
-        ))}
-      </motion.div>
-    </>
+    <motion.ul
+      initial="hidden"
+      whileInView="show"
+      viewport={{ once: true, margin: "-40px" }}
+      variants={staggerChildren(0.02)}
+      className="divide-y divide-graphite/40 overflow-hidden rounded-lg border border-graphite/50 bg-coal sm:columns-2 sm:gap-0 sm:divide-y-0 lg:columns-3"
+    >
+      {equipment.map((item) => (
+        <motion.li
+          key={item._id}
+          variants={fadeUp}
+          className="flex items-center gap-2.5 border-b border-graphite/40 px-3.5 py-2.5 last:border-b-0 sm:break-inside-avoid"
+        >
+          <CategoryIcon category={item.category} className="size-4 shrink-0 text-steel/70" />
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-bone" title={item.name}>
+            {item.name}
+          </span>
+          <span className="shrink-0 font-meta text-[0.65rem] uppercase tracking-[0.06em] text-steel/60">
+            {item.category}
+          </span>
+        </motion.li>
+      ))}
+    </motion.ul>
   );
 }

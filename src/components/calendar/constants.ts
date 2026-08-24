@@ -8,6 +8,7 @@ export type Session = {
   songId?: string;
   songTitle?: string;
   serviceType: string;
+  customService?: string;
   roomId?: string;
   roomName?: string;
   engineerId?: string;
@@ -22,6 +23,10 @@ export type Session = {
   notes?: string;
 };
 
+/* The seven services, plus the studio's own. "custom" is last on purpose: it
+   is the answer when none of the others is, and it carries a label the studio
+   types (sessions.customService) so a tour reads as "Tour" on the calendar.
+   INTERNAL only - the public booking form has its own list. */
 export const SESSION_SERVICE_TYPES = [
   "recording",
   "mixing",
@@ -30,6 +35,7 @@ export const SESSION_SERVICE_TYPES = [
   "consultation",
   "rehearsal",
   "writing",
+  "custom",
 ] as const;
 
 /** Status → swatch color (matches SESSION_STATUS badge tones). */
