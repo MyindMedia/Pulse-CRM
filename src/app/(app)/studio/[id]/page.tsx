@@ -75,6 +75,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, Input } from "@/components/ui/field";
 import { relativeTime } from "@/lib/format";
+import { AddRoomDialog } from "@/components/studio/add-room-dialog";
 
 const DAY_MS = 86_400_000;
 
@@ -138,6 +139,7 @@ export default function StudioDetailPage() {
   const [installOpen, setInstallOpen] = React.useState(false);
   const [installTarget, setInstallTarget] = React.useState<InstallTarget | null>(null);
   const [editing, setEditing] = React.useState<EditableEquipment | undefined>();
+  const [editRoomOpen, setEditRoomOpen] = React.useState(false);
   const [pending, setPending] = React.useState<Id<"equipment"> | null>(null);
   const [gearOpen, setGearOpen] = React.useState(false); // installed gear starts collapsed
 
@@ -388,6 +390,25 @@ export default function StudioDetailPage() {
           </div>
         </div>
       )}
+
+      {/* What this room costs is edited HERE. It used to be settable only when
+          the room was first added, so a studio that opened at the wrong number
+          - or simply raised its prices - had a read-only tile and a booking
+          page charging the old rate. */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="overline">Booking terms</p>
+          <p className="mt-0.5 text-sm text-steel">
+            {room.hourlyRateCents !== undefined ? money(room.hourlyRateCents) : "No rate"}
+            {room.minimumHours ? ` · ${room.minimumHours}h minimum` : ""}
+            {room.depositPct !== undefined ? ` · ${room.depositPct}% deposit` : ""}
+            {room.bookable === false ? " · not bookable online" : ""}
+          </p>
+        </div>
+        <Button variant="secondary" size="sm" onClick={() => setEditRoomOpen(true)}>
+          <Pencil className="size-4" /> Edit room
+        </Button>
+      </div>
 
       {/* Stats */}
       <div className="rise-stagger grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -853,6 +874,20 @@ export default function StudioDetailPage() {
           if (!open) setInstallTarget(null);
         }}
       />
-    </div>
+      <AddRoomDialog
+        open={editRoomOpen}
+        onOpenChange={setEditRoomOpen}
+        room={{
+          _id: room._id,
+          name: room.name,
+          roomType: room.roomType,
+          hourlyRateCents: room.hourlyRateCents,
+          condition: room.condition,
+          minimumHours: room.minimumHours,
+          depositPct: room.depositPct,
+          bookable: room.bookable,
+        }}
+      />
+</div>
   );
 }

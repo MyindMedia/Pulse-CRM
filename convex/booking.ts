@@ -194,6 +194,15 @@ export const studioFront = query({
         };
       }),
     );
+    /* The service catalogue, for a studio that sells what it DOES rather than
+       where it does it. Only shipped when the studio has switched to it and
+       has services to show - a catalogue page with nothing on it is worse
+       than the rooms it replaced. */
+    const services = await serviceCards(ctx, orgId, bookable);
+    const catalog = org?.bookingCatalog === "services" && services.length > 0
+      ? ("services" as const)
+      : ("rooms" as const);
+
     const proof = await socialProof(ctx, org, orgId);
     return {
       orgId,
@@ -201,12 +210,130 @@ export const studioFront = query({
       whitelabel: await whitelabelFor(ctx, orgId),
       openHour: OPEN_HOUR,
       closeHour: CLOSE_HOUR,
+      catalog,
+      services,
       rooms: cards.sort((a, b) => b.hourlyRateCents - a.hourlyRateCents),
       // Social proof + engineer credits - the conversion layer.
       testimonials: proof.testimonials,
       reviews: proof.reviews,
       reviewStats: proof.reviewStats,
       engineers: await engineerProfiles(ctx, orgId),
+    };
+  },
+});
+
+/* A service card: the product, with the room folded away behind it.
+
+   The room id is deliberately NOT returned. A client picking "Podcast" does
+   not need to know which four walls that happens in, and the moment the page
+   knows, someone will render it. */
+async function serviceCards(
+  ctx: QueryCtx,
+  orgId: string,
+  bookableRooms: Doc<"rooms">[],
+) {
+  const live = new Set(bookableRooms.map((r) => String(r._id)));
+  const rows = (
+    await ctx.db
+      .query("bookableServices")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect()
+  )
+    .filter((s) => s.active && live.has(String(s.roomId)))
+    .sort((a, b) => a.order - b.order);
+
+  return await Promise.all(
+    rows.map(async (s) => ({
+      _id: s._id,
+      name: s.name,
+      blurb: s.blurb ?? null,
+      pricingMode: s.pricingMode,
+      priceCents: s.priceCents,
+      minimumHours: s.minimumHours ?? null,
+      blockHours: s.blockHours ?? null,
+      heroUrl: s.heroImageId
+        ? await ctx.storage.getUrl(s.heroImageId)
+        : s.heroImageUrl ?? null,
+    })),
+  );
+}
+
+/** One service, with the room it consumes resolved for the availability
+ *  picker and its own add-ons. The room's name is returned for the studio's
+ *  own surfaces; the public page shows the service. */
+export const service = query({
+  args: { serviceId: v.id("bookableServices") },
+  handler: async (ctx, { serviceId }) => {
+    const svc = await ctx.db.get(serviceId);
+    if (!svc || !svc.active) return null;
+    const room = await ctx.db.get(svc.roomId);
+    if (!room || room.status === "retired") return null;
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", svc.orgId))
+      .first();
+
+    /* Add-ons for THIS service. A podcast booking offers podcast edits; a
+       vocal session does not offer a green screen film crew. */
+    const addOns = (
+      await Promise.all((svc.addOnFeeIds ?? []).map((id) => ctx.db.get(id)))
+    )
+      .filter((f): f is Doc<"feeTemplates"> => Boolean(f?.active))
+      .map((f) => ({ _id: f._id, label: f.label, amountCents: f.amountCents, description: f.description ?? null }));
+
+    const showGear = org?.showGearOnBooking !== false;
+    const gear = showGear
+      ? await ctx.db
+          .query("equipment")
+          .withIndex("by_org_room", (q) =>
+            q.eq("orgId", svc.orgId).eq("installedInRoomId", svc.roomId),
+          )
+          .collect()
+      : [];
+
+    return {
+      _id: svc._id,
+      orgId: svc.orgId,
+      name: svc.name,
+      blurb: svc.blurb ?? null,
+      pricingMode: svc.pricingMode,
+      priceCents: svc.priceCents,
+      // The picker speaks in hours and an hourly rate. A flat service is its
+      // block at its price, which is the same booking with the maths done.
+      hourlyRateCents:
+        svc.pricingMode === "hourly"
+          ? svc.priceCents
+          : Math.round(svc.priceCents / Math.max(1, svc.blockHours ?? 1)),
+      minimumHours:
+        svc.pricingMode === "flat"
+          ? svc.blockHours ?? 1
+          : svc.minimumHours ?? room.minimumHours ?? 1,
+      blockHours: svc.blockHours ?? null,
+      depositPct: svc.depositPct ?? room.depositPct ?? 30,
+      heroUrl: svc.heroImageId
+        ? await ctx.storage.getUrl(svc.heroImageId)
+        : svc.heroImageUrl ?? null,
+      // The room is the resource, not the product: its id is needed to read
+      // availability, its name is not shown to the client.
+      roomId: svc.roomId,
+      roomName: room.name,
+      studioName: org?.name ?? "Pulse Studio",
+      depositPolicy: org?.depositPolicyText ?? null,
+      openHour: OPEN_HOUR,
+      closeHour: CLOSE_HOUR,
+      showGear,
+      equipment: await Promise.all(
+        gear
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map(async (g) => ({
+            _id: g._id,
+            name: g.name,
+            category: g.category,
+            condition: g.condition,
+            photo: await photoOf(ctx, g),
+          })),
+      ),
+      addOns,
     };
   },
 });
@@ -435,7 +562,12 @@ export const booking = query({
 /** Create a held booking. Status starts "tentative" until the deposit clears. */
 export const createBooking = mutation({
   args: {
-    roomId: v.id("rooms"),
+    /* One of these two. `serviceId` is the service-catalogue path: the client
+       picked "Podcast" and the room it consumes is looked up here, because the
+       page does not know it and must not be trusted with it. `roomId` is the
+       original room-first path, unchanged. */
+    roomId: v.optional(v.id("rooms")),
+    serviceId: v.optional(v.id("bookableServices")),
     clientName: v.string(),
     clientEmail: v.string(),
     clientPhone: v.optional(v.string()),
@@ -451,6 +583,8 @@ export const createBooking = mutation({
     // Add-ons: a requested engineer + premium gear rented for this session.
     engineerId: v.optional(v.id("members")),
     addOnEquipmentIds: v.optional(v.array(v.id("equipment"))),
+    /** Service add-ons (feeTemplates offered with this service). */
+    addOnFeeIds: v.optional(v.array(v.id("feeTemplates"))),
     gearRequestNote: v.optional(v.string()),
     // Promo code (from ?code= links or typed in). Validated server-side
     // against orgs.discountCodes; invalid codes are a hard error, never a
@@ -461,7 +595,11 @@ export const createBooking = mutation({
     visitorKey: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const room = await ctx.db.get(args.roomId);
+    const svc = args.serviceId ? await ctx.db.get(args.serviceId) : null;
+    if (args.serviceId && !svc?.active) throw new Error("That service is no longer offered.");
+    const roomId = svc ? svc.roomId : args.roomId;
+    if (!roomId) throw new Error("Pick a room or a service.");
+    const room = await ctx.db.get(roomId);
     if (!room) throw new Error("Room not found.");
     if (room.status === "retired" || room.bookable === false) {
       throw new Error("This room is not open for booking.");
@@ -471,9 +609,31 @@ export const createBooking = mutation({
       .query("orgs")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .first();
-    const cfg = defaults(room);
+    /* A service prices itself. A flat service ("$150 for a two hour shoot")
+       is stored as its block and its price; the picker speaks hourly, so it
+       is divided back out here and multiplied by a duration the minimum has
+       already pinned to the block. */
+    const roomCfg = defaults(room);
+    const cfg = svc
+      ? {
+          ...roomCfg,
+          hourlyRateCents:
+            svc.pricingMode === "hourly"
+              ? svc.priceCents
+              : Math.round(svc.priceCents / Math.max(1, svc.blockHours ?? 1)),
+          minimumHours:
+            svc.pricingMode === "flat"
+              ? svc.blockHours ?? 1
+              : svc.minimumHours ?? roomCfg.minimumHours,
+          depositPct: svc.depositPct ?? roomCfg.depositPct,
+        }
+      : roomCfg;
     if (args.durationHours < cfg.minimumHours) {
-      throw new Error(`This room has a ${cfg.minimumHours}-hour minimum.`);
+      throw new Error(
+        svc
+          ? `${svc.name} has a ${cfg.minimumHours}-hour minimum.`
+          : `This room has a ${cfg.minimumHours}-hour minimum.`,
+      );
     }
     const endTime = args.startTime + args.durationHours * HOUR;
     if (args.startTime <= Date.now()) throw new Error("Pick a start time in the future.");
@@ -501,7 +661,7 @@ export const createBooking = mutation({
       .collect();
     const clash = around.some(
       (s) =>
-        s.roomId === args.roomId &&
+        s.roomId === roomId &&
         s.status !== "cancelled" &&
         s.status !== "no_show" &&
         s.startTime < endTime &&
@@ -542,7 +702,23 @@ export const createBooking = mutation({
       }
       addOns.push({ equipmentId: item._id, name: item.name, priceCents: item.rentalPriceCents ?? 0 });
     }
-    const addOnTotalCents = addOnsTotalCents(addOns);
+    /* Service add-ons: podcast edits, a photographer, a film crew. Priced from
+       the studio's own fee templates, never from the page - and only the ones
+       THIS service offers, so a vocal session cannot be sold a green screen
+       crew by editing a request. */
+    const offered = new Set((svc?.addOnFeeIds ?? []).map(String));
+    const serviceAddOns: { feeId: Id<"feeTemplates">; label: string; amountCents: number }[] = [];
+    for (const feeId of args.addOnFeeIds ?? []) {
+      if (!offered.has(String(feeId))) throw new Error("That add-on is not offered with this service.");
+      const fee = await ctx.db.get(feeId);
+      if (!fee || fee.orgId !== orgId || !fee.active) {
+        throw new Error("One of the add-ons is no longer available.");
+      }
+      serviceAddOns.push({ feeId: fee._id, label: fee.label, amountCents: fee.amountCents });
+    }
+    const serviceAddOnCents = serviceAddOns.reduce((sum, a) => sum + a.amountCents, 0);
+
+    const addOnTotalCents = addOnsTotalCents(addOns) + serviceAddOnCents;
     const gearRequestNote = args.gearRequestNote?.trim() || undefined;
 
     // ── Discount code: validate against the org's owner-issued list on the
@@ -622,10 +798,17 @@ export const createBooking = mutation({
     const depositCents = Math.round((rateCents * cfg.depositPct) / 100);
     const sessionId = await ctx.db.insert("sessions", {
       orgId,
-      title: `${args.clientName.trim()} - ${room.name}`,
+      title: `${args.clientName.trim()} - ${svc ? svc.name : room.name}`,
       artistId,
-      serviceType: args.serviceType ?? "recording",
-      roomId: args.roomId,
+      /* Filed under one of the seven when the service maps to one, otherwise
+         as a custom category carrying the service's name - so "Podcast" reads
+         as Podcast on the calendar instead of being squeezed into a service
+         type that does not describe it. */
+      serviceType: svc
+        ? svc.sessionServiceType ?? "custom"
+        : args.serviceType ?? "recording",
+      ...(svc && !svc.sessionServiceType ? { customService: svc.name } : {}),
+      roomId: roomId,
       startTime: args.startTime,
       endTime,
       status: "tentative",
@@ -635,6 +818,7 @@ export const createBooking = mutation({
       intakeCompleted: false,
       notes: args.notes,
       amountPaidCents: 0,
+      ...(serviceAddOns.length ? { serviceAddOns } : {}),
       source: "public_booking",
       holdExpiresAt: Date.now() + HOLD_MINUTES * 60_000,
       ...(engineerId ? { engineerId, engineerRequestStatus: "pending" as const } : {}),

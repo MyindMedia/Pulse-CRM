@@ -19,6 +19,7 @@ import { EmptyState } from "@/components/ui/feedback";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fadeUp, staggerChildren } from "@/lib/motion";
 import { RoomCard } from "@/components/book/room-card";
+import { ServiceCard } from "@/components/book/service-card";
 import { MembershipPlans } from "@/components/book/membership-plans";
 import { SocialProof, EngineerRoster } from "@/components/book/social-proof";
 import { useTrackBookingStep } from "@/lib/use-booking-funnel";
@@ -47,6 +48,9 @@ function StudioFrontView() {
   // the attribution survives the front -> room -> booking navigation.
   const refId = searchParams.get("ref") ?? undefined;
   const front = useQuery(api.booking.studioFront, { slug });
+  // The server decides: "services" only when the studio switched to it AND has
+  // services live, so the page can never render an empty catalogue.
+  const servicesFirst = front?.catalog === "services";
   // Anonymous funnel: how many people saw this page, against how many booked.
   useTrackBookingStep(slug, "page");
 
@@ -225,16 +229,20 @@ function StudioFrontView() {
         </motion.ol>
       </section>
 
-      {/* Rooms */}
+      {/* What is on offer: services for a studio that sells what it DOES,
+          rooms for one whose spaces are its products. The switch is the
+          studio's (orgs.bookingCatalog) and the server only reports
+          "services" when there are services to show. */}
       <section id="rooms" className="scroll-mt-24 space-y-5">
         <div className="flex items-baseline justify-between">
           <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
-            Bookable rooms
+            {servicesFirst ? "What do you want to do?" : "Bookable rooms"}
           </h2>
           {front && (
             <span className="text-xs text-steel/70">
-              {front.rooms.length} {front.rooms.length === 1 ? "room" : "rooms"}{" "}
-              available
+              {servicesFirst
+                ? `${front.services.length} ${front.services.length === 1 ? "service" : "services"}`
+                : `${front.rooms.length} ${front.rooms.length === 1 ? "room" : "rooms"} available`}
             </span>
           )}
         </div>
@@ -255,6 +263,17 @@ function StudioFrontView() {
               </div>
             ))}
           </div>
+        ) : servicesFirst ? (
+          <motion.div
+            initial="hidden"
+            animate="show"
+            variants={staggerChildren(0.06)}
+            className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
+          >
+            {front.services.map((service) => (
+              <ServiceCard key={service._id} service={service} slug={slug} refId={refId} />
+            ))}
+          </motion.div>
         ) : front.rooms.length === 0 ? (
           <EmptyState
             icon={Building2}

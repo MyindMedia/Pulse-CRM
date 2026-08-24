@@ -305,6 +305,15 @@ export default defineSchema({
     // Booking page: list the room's gear to clients. Undefined means on - a
     // studio that has never touched the switch has always shown its gear.
     showGearOnBooking: v.optional(v.boolean()),
+    /* What the public booking page offers first.
+
+       "rooms" (default) is the original: cards for each bookable room, and the
+       client picks a space. "services" is for a studio whose catalogue is what
+       it DOES rather than where it does it - Slang City sells recording,
+       podcast, green screen, interviews and photoshoots out of two rooms, so
+       asking a client to pick "Live Room / Work Space" asks them to know
+       something only the studio knows. */
+    bookingCatalog: v.optional(v.union(v.literal("rooms"), v.literal("services"))),
     directoryBlurb: v.optional(v.string()),   // one line, the studio's own words
     directoryCity: v.optional(v.string()),
     directoryRegion: v.optional(v.string()),  // state / county / province
@@ -1073,6 +1082,49 @@ export default defineSchema({
     .searchIndex("search_title", { searchField: "title", filterFields: ["orgId"] }),
 
   // ── Rooms - the bookable studios / spaces ──
+  // ── Bookable services - what the studio SELLS, over the rooms it sells it
+  //    in. A service is a product (Podcast, $150/hr, 2 hour minimum); a room
+  //    is the resource that product consumes. Several services can share one
+  //    room, and that is the point: booking the podcast at 3pm has to take the
+  //    green screen off the market at 3pm when they are the same four walls. ──
+  bookableServices: defineTable({
+    orgId: v.string(),
+    name: v.string(),
+    blurb: v.optional(v.string()),
+
+    /* Hourly or flat. A photoshoot is "$150 for a two hour session", not "$75
+       an hour" - quoting it hourly invites a one hour booking the studio does
+       not sell. Flat services book `blockHours` and charge `priceCents` once. */
+    pricingMode: v.union(v.literal("hourly"), v.literal("flat")),
+    priceCents: v.number(),
+    minimumHours: v.optional(v.number()),   // hourly only
+    blockHours: v.optional(v.number()),     // flat only - the length of the block
+    depositPct: v.optional(v.number()),     // falls back to the room's
+
+    /** The room this consumes. The service is what the client picks; this is
+     *  what the calendar books, so two services in one room cannot collide. */
+    roomId: v.id("rooms"),
+
+    /* What the session is filed as. One of the seven service types when it
+       maps cleanly (recording), otherwise the booking lands as a custom
+       category carrying this service's name - so a podcast reads "Podcast" on
+       the calendar rather than being squeezed into "consultation". */
+    sessionServiceType: v.optional(serviceType),
+
+    /** Add-ons offered with THIS service. Podcast edits belong on a podcast
+     *  booking and nowhere else; one shared list is how a client recording
+     *  vocals gets offered a green screen film crew. */
+    addOnFeeIds: v.optional(v.array(v.id("feeTemplates"))),
+
+    heroImageUrl: v.optional(v.string()),
+    heroImageId: v.optional(v.id("_storage")),
+    order: v.number(),                      // display order on the booking page
+    active: v.boolean(),                    // off = not sold, row kept
+    createdAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_room", ["orgId", "roomId"]),
+
   rooms: defineTable({
     orgId: v.string(),
     name: v.string(),
@@ -1256,6 +1308,19 @@ export default defineSchema({
           equipmentId: v.id("equipment"),
           name: v.string(),
           priceCents: v.number(),
+        }),
+      ),
+    ),
+    /* Service add-ons chosen at booking - a podcast edit, a photographer, a
+       film crew. Priced from feeTemplates on the server and copied here as
+       names and amounts, so an invoice still reads correctly after the studio
+       reprices or retires the template. */
+    serviceAddOns: v.optional(
+      v.array(
+        v.object({
+          feeId: v.id("feeTemplates"),
+          label: v.string(),
+          amountCents: v.number(),
         }),
       ),
     ),
