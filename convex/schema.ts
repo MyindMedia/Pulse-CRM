@@ -1144,6 +1144,13 @@ export default defineSchema({
     minimumHours: v.optional(v.number()), // shortest bookable block
     depositPct: v.optional(v.number()), // deposit as a % of the booking total
     bookable: v.optional(v.boolean()), // shown on the public /book page
+    /* How the room is paid for. "deposit" (the default) holds the slot with a
+       percentage and leaves a balance; "full" takes the whole amount up front.
+       A studio that has been burned by no-shows, or one whose sessions are
+       short enough that chasing a balance costs more than the balance, sells
+       paid-in-full - and then the checkout page must not offer a deposit it
+       does not accept. */
+    paymentMode: v.optional(v.union(v.literal("deposit"), v.literal("full"))),
     heroImageUrl: v.optional(v.string()), // hero photo shown on the room card (seeded URL)
     heroImageId: v.optional(v.id("_storage")), // uploaded hero photo (Convex storage)
     // "auto" -> room status is computed from the live calendar (in_use when

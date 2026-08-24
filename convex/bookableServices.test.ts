@@ -279,3 +279,73 @@ describe("importing a catalogue from a brochure", () => {
     expect(rows).toHaveLength(0);
   });
 });
+
+/* Paid in full: the studio's choice, not the client's. A studio burned by
+   no-shows sells the whole session up front - and then the checkout page must
+   not offer a deposit that would not actually hold the room. */
+describe("a room sold paid in full", () => {
+  const client = { clientName: "Nova", clientEmail: "nova@x.com" };
+
+  async function studio(t: ReturnType<typeof convexTest>, paymentMode?: "deposit" | "full") {
+    return await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: "orgF", name: "Full", slug: "full", plan: "studio", status: "active",
+      } as never);
+      const room = await ctx.db.insert("rooms", {
+        orgId: "orgF", name: "Studio A", status: "available", bookable: true,
+        hourlyRateCents: 10000, minimumHours: 2, depositPct: 25,
+        ...(paymentMode ? { paymentMode } : {}),
+      } as never);
+      const svc = await ctx.db.insert("bookableServices", {
+        orgId: "orgF", name: "Podcast", pricingMode: "hourly", priceCents: 15000,
+        minimumHours: 2, roomId: room, order: 0, active: true, createdAt: 0,
+      } as never);
+      return { room, svc };
+    });
+  }
+
+  it("takes the whole amount up front, not a percentage", async () => {
+    const t = convexTest(schema);
+    const { room } = await studio(t, "full");
+    const res = await t.mutation(api.booking.createBooking, {
+      roomId: room, ...client, startTime: Date.now() + 7 * DAY, durationHours: 2,
+    });
+    const session = await t.run((ctx) => ctx.db.get(res.sessionId));
+    expect(session?.rateCents).toBe(20000);
+    expect(session?.depositCents).toBe(20000);   // the whole thing, not 25%
+  });
+
+  it("still takes a deposit when the studio has not switched", async () => {
+    const t = convexTest(schema);
+    const { room } = await studio(t);
+    const res = await t.mutation(api.booking.createBooking, {
+      roomId: room, ...client, startTime: Date.now() + 7 * DAY, durationHours: 2,
+    });
+    const session = await t.run((ctx) => ctx.db.get(res.sessionId));
+    expect(session?.depositCents).toBe(5000);    // 25% of $200
+  });
+
+  it("applies to a service too - how a studio takes money is not per product", async () => {
+    const t = convexTest(schema);
+    const { svc } = await studio(t, "full");
+    const res = await t.mutation(api.booking.createBooking, {
+      serviceId: svc, ...client, startTime: Date.now() + 7 * DAY, durationHours: 2,
+    });
+    const session = await t.run((ctx) => ctx.db.get(res.sessionId));
+    expect(session?.rateCents).toBe(30000);      // 2 x $150
+    expect(session?.depositCents).toBe(30000);
+  });
+
+  it("tells the checkout page, so it never offers a deposit it will not take", async () => {
+    const t = convexTest(schema);
+    const { room } = await studio(t, "full");
+    const res = await t.mutation(api.booking.createBooking, {
+      roomId: room, ...client, startTime: Date.now() + 7 * DAY, durationHours: 2,
+    });
+    const booking = await t.query(api.booking.booking, { sessionId: res.sessionId });
+    expect(booking?.paymentMode).toBe("full");
+
+    const page = await t.query(api.booking.room, { roomId: room });
+    expect(page?.paymentMode).toBe("full");
+  });
+});

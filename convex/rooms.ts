@@ -109,6 +109,7 @@ export const update = mutation({
     condition: v.optional(v.string()),
     minimumHours: v.optional(v.number()),
     depositPct: v.optional(v.number()),
+    paymentMode: v.optional(v.union(v.literal("deposit"), v.literal("full"))),
     bookable: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...patch }) => {

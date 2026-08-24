@@ -134,7 +134,12 @@ function RoomDetailView() {
     ? Math.round((liveListCents * (100 - promoPct)) / 100)
     : liveListCents;
   const liveDiscountCents = liveListCents - liveRateCents;
-  const liveDepositCents = Math.round((liveRateCents * loadedRoom.depositPct) / 100);
+  /* A paid-in-full room takes the whole amount up front; the "deposit" is the
+     price. createBooking does the same sum server-side. */
+  const fullOnly = loadedRoom.paymentMode === "full";
+  const liveDepositCents = fullOnly
+    ? liveRateCents
+    : Math.round((liveRateCents * loadedRoom.depositPct) / 100);
 
   async function handleContinue() {
     if (!selection || !formValid || !promoOk) return;
@@ -216,7 +221,9 @@ function RoomDetailView() {
           </Badge>
           <Badge tone="gold">
             <ShieldCheck className="size-3" />
-            {room.depositPct}% deposit holds your booking
+            {room.paymentMode === "full"
+              ? "Paid in full to book"
+              : `${room.depositPct}% deposit holds your booking`}
           </Badge>
           {room.condition && (
             <Badge tone="neutral" className="capitalize">
@@ -340,7 +347,9 @@ function RoomDetailView() {
             </span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-steel">Deposit to hold ({loadedRoom.depositPct}%)</span>
+            <span className="text-steel">
+              {fullOnly ? "Due now" : `Deposit to hold (${loadedRoom.depositPct}%)`}
+            </span>
             <span className="font-meta text-gold-bright">
               {selection ? money(liveDepositCents) : "-"}
             </span>

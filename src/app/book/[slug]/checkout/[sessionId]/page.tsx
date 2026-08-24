@@ -62,6 +62,10 @@ export default function CheckoutPage() {
   }
 
   const notPaid = booking.paidCents === 0;
+  /* The studio sells this room paid-in-full, so there is no deposit to offer.
+     createBooking already set depositCents to the whole amount; this is the
+     page telling the truth about it. */
+  const fullOnly = booking.paymentMode === "full";
   const released = booking.status === "cancelled";
 
   // Real money only: every payment goes through hosted Stripe Checkout on the
@@ -133,7 +137,9 @@ export default function CheckoutPage() {
             Hold your session
           </h1>
           <p className="text-sm text-steel">
-            Pay a deposit to hold the room, or settle the full amount now.
+            {fullOnly
+              ? "This session is paid in full to confirm it."
+              : "Pay a deposit to hold the room, or settle the full amount now."}
           </p>
         </div>
       )}
@@ -151,42 +157,48 @@ export default function CheckoutPage() {
           <div className="flex items-center gap-2">
             <Wallet className="size-4 text-gold" />
             <h2 className="font-grotesk text-base font-semibold text-bone">
-              Choose how to pay
+              {fullOnly ? "Payment" : "Choose how to pay"}
             </h2>
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
-            <ChoiceCard
-              active={choice === "deposit"}
-              onClick={() => setChoice("deposit")}
-              title="Pay deposit to hold"
-              amountCents={booking.depositCents}
-              note="Holds the room now."
-            />
-            <ChoiceCard
-              active={choice === "full"}
-              onClick={() => setChoice("full")}
-              title="Pay in full"
-              amountCents={booking.rateCents}
-              note="Nothing left to pay."
-            />
-          </div>
+          {/* A studio that sells paid-in-full is not offered a deposit here.
+              Showing the choice and then refusing it is how a client ends up
+              believing they have held a room they have not. */}
+          {!fullOnly && (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <ChoiceCard
+                active={choice === "deposit"}
+                onClick={() => setChoice("deposit")}
+                title="Pay deposit to hold"
+                amountCents={booking.depositCents}
+                note="Holds the room now."
+              />
+              <ChoiceCard
+                active={choice === "full"}
+                onClick={() => setChoice("full")}
+                title="Pay in full"
+                amountCents={booking.rateCents}
+                note="Nothing left to pay."
+              />
+            </div>
+          )}
 
           <div className="flex items-start gap-2 rounded-md border border-graphite/60 bg-coal-2 px-3 py-2.5 text-xs text-steel">
             <Info className="size-3.5 shrink-0 text-gold-dim" />
-            A deposit holds your booking; the balance is due up to 2 hours before
-            your session, or the hold is released.
+            {fullOnly
+              ? "This studio confirms sessions on payment in full. Nothing is held until it clears."
+              : "A deposit holds your booking; the balance is due up to 2 hours before your session, or the hold is released."}
           </div>
 
           <div className="border-t border-graphite/50 pt-4">
             {booking.stripeCheckout ? (
               <StripePayButton
                 amountCents={
-                  choice === "deposit" ? booking.depositCents : booking.rateCents
+                  choice === "deposit" && !fullOnly ? booking.depositCents : booking.rateCents
                 }
-                actionLabel={choice === "deposit" ? "Pay deposit" : "Pay in full"}
+                actionLabel={choice === "deposit" && !fullOnly ? "Pay deposit" : "Pay in full"}
                 busy={busy}
-                onClick={() => pay(choice === "deposit" ? "deposit" : "full")}
+                onClick={() => pay(choice === "deposit" && !fullOnly ? "deposit" : "full")}
               />
             ) : (
               <NoOnlinePayments />

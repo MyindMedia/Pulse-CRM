@@ -112,7 +112,12 @@ function ServiceBookingView() {
       : svc.priceCents * selection.durationHours
     : 0;
   const liveTotalCents = liveServiceCents + (selection ? addOnCents : 0);
-  const liveDepositCents = Math.round((liveTotalCents * svc.depositPct) / 100);
+  /* On a paid-in-full room the amount due now IS the total - the server does
+     the same sum in createBooking. */
+  const fullOnly = svc.paymentMode === "full";
+  const liveDepositCents = fullOnly
+    ? liveTotalCents
+    : Math.round((liveTotalCents * svc.depositPct) / 100);
   const canSubmit = Boolean(selection) && formValid && !submitting;
 
   function toggleAddOn(id: Id<"feeTemplates">) {
@@ -313,7 +318,7 @@ function ServiceBookingView() {
             </span>
           </div>
           <div className="flex items-center justify-between text-sm">
-            <span className="text-steel">Due now to hold it</span>
+            <span className="text-steel">{fullOnly ? "Due now" : "Due now to hold it"}</span>
             <span className="font-meta text-gold">
               {selection ? money(liveDepositCents) : "-"}
             </span>

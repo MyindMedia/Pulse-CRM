@@ -34,6 +34,7 @@ type FormState = {
   condition: string;
   minimumHours: string;
   depositPct: string;
+  paidInFull: boolean;
   bookable: boolean;
 };
 
@@ -44,6 +45,7 @@ const BLANK: FormState = {
   condition: "",
   minimumHours: "",
   depositPct: "",
+  paidInFull: false,
   bookable: true,
 };
 
@@ -56,6 +58,7 @@ export type EditableRoom = {
   condition?: string;
   minimumHours?: number;
   depositPct?: number;
+  paymentMode?: "deposit" | "full";
   bookable?: boolean;
 };
 
@@ -102,6 +105,7 @@ export function AddRoomDialog({
           condition: room.condition ?? "",
           minimumHours: room.minimumHours !== undefined ? String(room.minimumHours) : "",
           depositPct: room.depositPct !== undefined ? String(room.depositPct) : "",
+          paidInFull: room.paymentMode === "full",
           bookable: room.bookable !== false,
         });
         const known = (ROOM_TYPES as readonly string[]).includes(room.roomType ?? "");
@@ -158,7 +162,10 @@ export function AddRoomDialog({
           hourlyRateCents,
           condition: form.condition.trim() || undefined,
           minimumHours,
-          depositPct,
+          // A paid-in-full room has no deposit to set; leaving the old number
+          // stored would show it again the moment the studio switched back.
+          depositPct: form.paidInFull ? undefined : depositPct,
+          paymentMode: form.paidInFull ? "full" : "deposit",
           bookable: form.bookable,
         });
         toast.success(`${name} saved.`);
@@ -294,7 +301,11 @@ export function AddRoomDialog({
                   <Field
                     label="Deposit"
                     htmlFor="room-deposit"
-                    hint="Percent of the total, taken to hold the slot."
+                    hint={
+                      form.paidInFull
+                        ? "Not used - this room is paid in full."
+                        : "Percent of the total, taken to hold the slot."
+                    }
                   >
                     <Input
                       id="room-deposit"
@@ -303,12 +314,36 @@ export function AddRoomDialog({
                       max={100}
                       step="1"
                       inputMode="numeric"
-                      value={form.depositPct}
+                      value={form.paidInFull ? "" : form.depositPct}
                       onChange={(e) => set("depositPct", e.target.value)}
                       placeholder="30"
                       autoComplete="off"
+                      disabled={form.paidInFull}
                     />
                   </Field>
+                </div>
+
+                {/* Deposit or the whole thing. A studio burned by no-shows,
+                    or one whose sessions are short enough that chasing a
+                    balance costs more than the balance, sells paid-in-full -
+                    and then the client is never offered a deposit that would
+                    not actually hold the room. */}
+                <div className="flex items-start justify-between gap-4 rounded-lg border border-graphite/50 bg-coal/40 px-4 py-3">
+                  <div className="min-w-0 space-y-1">
+                    <p className="font-grotesk text-sm font-semibold text-bone">
+                      Paid in full to book
+                    </p>
+                    <p className="text-xs text-steel">
+                      {form.paidInFull
+                        ? "Clients pay the whole session up front. No deposit, no balance to chase."
+                        : `Clients pay ${form.depositPct.trim() || "30"}% to hold it, and the balance before the session.`}
+                    </p>
+                  </div>
+                  <Switch
+                    checked={form.paidInFull}
+                    onCheckedChange={(v) => set("paidInFull", v)}
+                    aria-label="Require payment in full"
+                  />
                 </div>
 
                 <div className="flex items-start justify-between gap-4 rounded-lg border border-graphite/50 bg-coal/40 px-4 py-3">

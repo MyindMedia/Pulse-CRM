@@ -401,7 +401,11 @@ export default function StudioDetailPage() {
           <p className="mt-0.5 text-sm text-steel">
             {room.hourlyRateCents !== undefined ? money(room.hourlyRateCents) : "No rate"}
             {room.minimumHours ? ` · ${room.minimumHours}h minimum` : ""}
-            {room.depositPct !== undefined ? ` · ${room.depositPct}% deposit` : ""}
+            {room.paymentMode === "full"
+              ? " · paid in full"
+              : room.depositPct !== undefined
+                ? ` · ${room.depositPct}% deposit`
+                : ""}
             {room.bookable === false ? " · not bookable online" : ""}
           </p>
         </div>
@@ -885,6 +889,7 @@ export default function StudioDetailPage() {
           condition: room.condition,
           minimumHours: room.minimumHours,
           depositPct: room.depositPct,
+          paymentMode: room.paymentMode,
           bookable: room.bookable,
         }}
       />

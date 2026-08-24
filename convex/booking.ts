@@ -55,6 +55,10 @@ const defaults = (room: Doc<"rooms">) => ({
   minimumHours: room.minimumHours ?? 2,
   depositPct: room.depositPct ?? 30,
   hourlyRateCents: room.hourlyRateCents ?? 0,
+  // Undefined means deposit: every room that predates the switch was sold
+  // that way, and a silent flip to paid-in-full is a studio's pricing changed
+  // without them touching it.
+  paymentMode: room.paymentMode ?? ("deposit" as const),
 });
 
 /** Look one submitted code up in the org's owner-issued list
@@ -310,6 +314,9 @@ export const service = query({
           : svc.minimumHours ?? room.minimumHours ?? 1,
       blockHours: svc.blockHours ?? null,
       depositPct: svc.depositPct ?? room.depositPct ?? 30,
+      // Inherited from the room: how a studio takes money is a property of the
+      // studio, not of which product was bought.
+      paymentMode: defaults(room).paymentMode,
       heroUrl: svc.heroImageId
         ? await ctx.storage.getUrl(svc.heroImageId)
         : svc.heroImageUrl ?? null,
@@ -383,6 +390,7 @@ export const room = query({
       studioName: org?.name ?? "Pulse Studio",
       depositPolicy: org?.depositPolicyText ?? null,
       showGear,
+      paymentMode: defaults(room).paymentMode,
       equipment: equipment.sort((a, b) => a.name.localeCompare(b.name)),
       // Social proof for the room page trust strip.
       testimonials: proof.testimonials,
@@ -545,6 +553,9 @@ export const booking = query({
       clientEmail: artist?.email ?? null,
       engineerName: engineer?.name ?? null,
       addOns: session.addOns ?? [],
+      serviceAddOns: session.serviceAddOns ?? [],
+      // The checkout page must not offer a deposit the studio does not accept.
+      paymentMode: room ? defaults(room).paymentMode : ("deposit" as const),
       payments: payments.sort((a, b) => a._creationTime - b._creationTime),
       paidCents: paid,
       balanceCents: Math.max(0, session.rateCents - paid),
@@ -795,7 +806,13 @@ export const createBooking = mutation({
     const rateCents = discount
       ? Math.round((listRateCents * (100 - discount.pct)) / 100)
       : listRateCents;
-    const depositCents = Math.round((rateCents * cfg.depositPct) / 100);
+    /* What is due now. On a paid-in-full room that is the whole thing - the
+       "deposit" is the price, so the hold clears the moment it is paid and no
+       balance is left to chase. */
+    const depositCents =
+      cfg.paymentMode === "full"
+        ? rateCents
+        : Math.round((rateCents * cfg.depositPct) / 100);
     const sessionId = await ctx.db.insert("sessions", {
       orgId,
       title: `${args.clientName.trim()} - ${svc ? svc.name : room.name}`,
