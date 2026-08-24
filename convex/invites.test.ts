@@ -271,3 +271,54 @@ describe("an invite finds its seat whatever case the email was typed in", () => 
     expect(rows[0].email).toBe("info@playbackrecording.com");
   });
 });
+
+/* Reissuing a link used to leave the old row "pending" beside the new one, so
+   the owner who clicked the older email was told to ask an admin for an invite
+   - having just been sent one. Keon's had expired in June. */
+describe("reissuing an invite leaves exactly one live link", () => {
+  let t: ReturnType<typeof convexTest>;
+  beforeEach(() => { t = convexTest(schema); });
+
+  async function org() {
+    await t.run((ctx) =>
+      ctx.db.insert("orgs", {
+        orgId: "studio_sc", name: "Slang City", slug: "slang-city", plan: "studio",
+        status: "active", ownerEmail: "slangcitystudios@gmail.com", ownerName: "Keon Hall",
+      } as never),
+    );
+  }
+
+  const issue = (over: Record<string, unknown> = {}) =>
+    t.mutation(internal.invites.record, {
+      orgId: "studio_sc", email: "slangcitystudios@gmail.com", ownerName: "Keon Hall",
+      studioName: "Slang City", invitedBy: "system", emailStatus: "sent", ...over,
+    });
+
+  it("revokes the previous pending invite for the same seat", async () => {
+    await org();
+    const first = await issue({ ttlMs: -1000 });   // already expired, like the real one
+    const second = await issue();
+
+    const rows = await t.run((ctx) => ctx.db.query("invites").collect());
+    expect(rows.find((r) => r.token === first)?.status).toBe("revoked");
+    expect(rows.find((r) => r.token === second)?.status).toBe("pending");
+    expect(rows.filter((r) => r.status === "pending")).toHaveLength(1);
+  });
+
+  it("leaves another person's invite alone", async () => {
+    await org();
+    const engineer = await issue({ email: "engineer@slangcity.com", role: "engineer" });
+    await issue();
+
+    const rows = await t.run((ctx) => ctx.db.query("invites").collect());
+    expect(rows.find((r) => r.token === engineer)?.status).toBe("pending");
+  });
+
+  it("supersedes across case, since the seat is the same seat", async () => {
+    await org();
+    const first = await issue({ email: "SlangCityStudios@gmail.com" });
+    await issue();
+    const rows = await t.run((ctx) => ctx.db.query("invites").collect());
+    expect(rows.find((r) => r.token === first)?.status).toBe("revoked");
+  });
+});

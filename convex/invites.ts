@@ -1,4 +1,4 @@
-import { mutation, query, action, internalMutation, internalQuery } from "./_generated/server";
+import { mutation, query, action, internalAction, internalMutation, internalQuery } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import { requireCapability, AccessError } from "./lib/access";
@@ -8,7 +8,7 @@ import { normalizePhone } from "./lib/phone";
 import { inviteEmailHtml, inviteEmailSubject } from "./lib/emailTemplates/invite";
 import { PLAN_LIMITS } from "./lib/plans";
 import { periodFor, tierForPlan } from "./usage";
-import { findByEmail, normalizeEmail } from "./lib/emailKey";
+import { findByEmail, normalizeEmail, sameEmail } from "./lib/emailKey";
 
 /* ============================================================
    Beta studio-owner invitations. A token-backed row maps to an
@@ -77,6 +77,23 @@ export const record = internalMutation({
         `Magic-link grant limit reached (${used}/${cap} this month). Upgrade your plan to send more invites.`,
       );
     }
+
+    /* One live link per seat. Reissuing used to leave the old row "pending"
+       next to the new one, so a studio owner clicking the older email was told
+       to ask an admin for an invite - having just been sent one. Supersede
+       them here rather than leaving a trap in somebody's inbox. */
+    const superseded = (
+      await ctx.db
+        .query("invites")
+        .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
+        .collect()
+    ).filter(
+      (i) =>
+        i.status === "pending" &&
+        i.role === (args.role ?? "owner") &&
+        sameEmail(i.email, args.email),
+    );
+    for (const stale of superseded) await ctx.db.patch(stale._id, { status: "revoked" });
 
     const token = makeToken();
     await ctx.db.insert("invites", {
@@ -357,6 +374,45 @@ export const revoke = mutation({
 });
 
 /** Agency console - re-issue + re-send the branded invite for a sub-account owner. */
+/* The resend, without the console session.
+
+   Same issuance and the same email as the button, for ops running it from the
+   CLI where there is no Clerk identity to authorize. `send: false` reissues
+   the link silently, which is what you want when the person is about to
+   receive it inside another email - the beta agreement hands them a fresh
+   invite at the end. */
+export const _resendOwnerInvite = internalAction({
+  args: { orgId: v.string(), send: v.optional(v.boolean()) },
+  handler: async (
+    ctx,
+    { orgId, send },
+  ): Promise<{ token: string; emailStatus: string; studio: string; to: string }> => {
+    const org = await ctx.runQuery(internal.invites._orgForResend, { orgId });
+    if (!org) throw new Error("sub-account not found, or it has no owner on file");
+    const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+    const token: string = await ctx.runMutation(internal.invites.record, {
+      orgId, clerkOrgId: org.clerkOrgId, agencyId: org.agencyId,
+      email: org.ownerEmail, ownerName: org.ownerName, studioName: org.name,
+      invitedBy: "system", emailStatus: "simulated",
+    });
+
+    if (send === false) {
+      return { token, emailStatus: "not_sent", studio: org.name, to: org.ownerEmail };
+    }
+    const status = await sendEmail({
+      to: org.ownerEmail,
+      subject: inviteEmailSubject(org.name),
+      html: inviteEmailHtml({
+        ownerName: org.ownerName, studioName: org.name,
+        inviterName: "your Pulse administrator", acceptUrl: `${appUrl}/invite/${token}`,
+        logoUrl: `${appUrl}/pulse-logo.png`,
+      }),
+    });
+    await ctx.runMutation(internal.invites.setEmailStatus, { token, emailStatus: status });
+    return { token, emailStatus: status, studio: org.name, to: org.ownerEmail };
+  },
+});
+
 export const resend = action({
   args: { orgId: v.string() },
   handler: async (ctx, { orgId }): Promise<{ inviteSent: boolean }> => {
