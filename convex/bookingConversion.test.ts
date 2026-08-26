@@ -16,6 +16,8 @@ describe("booking conversion + referral", () => {
   let roomA: Id<"rooms">;
   let referrer: Id<"artists">; // an org1 artist who can refer others
   let foreignReferrer: Id<"artists">; // an org2 artist - must be ignored cross-org
+  let orgPost: Id<"socialPosts">; // an org1 socialPosts row usable as ?src=
+  let foreignPost: Id<"socialPosts">; // an org2 socialPosts row - must be ignored cross-org
   let start: number;
 
   beforeEach(async () => {
@@ -42,11 +44,20 @@ describe("booking conversion + referral", () => {
         genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0,
         reliability: "solid",
       });
-      return { a, ref, foreign };
+      const postBase = {
+        template: "custom" as const, status: "published" as const, caption: "x",
+        media: [], accountIds: [], scheduledFor: 0, timezone: "UTC",
+        ghlType: "post" as const, submittedBy: "u", createdAt: 0, updatedAt: 0,
+      };
+      const post = await ctx.db.insert("socialPosts", { orgId: "org1", ...postBase });
+      const foreignP = await ctx.db.insert("socialPosts", { orgId: "org2", ...postBase });
+      return { a, ref, foreign, post, foreignP };
     });
     roomA = ids.a;
     referrer = ids.ref;
     foreignReferrer = ids.foreign;
+    orgPost = ids.post;
+    foreignPost = ids.foreignP;
   });
 
   async function artistByEmail(email: string) {
@@ -95,6 +106,40 @@ describe("booking conversion + referral", () => {
     const rae = await artistByEmail("rae@x.com");
     expect(rae?.source).toBe("web_booking");
     expect(rae?.referredByArtistId).toBeUndefined();
+  });
+
+  it("a valid same-org src resolves to postId on the booked bookingVisits row", async () => {
+    await t.mutation(api.booking.createBooking, {
+      roomId: roomA, clientName: "Ivy", clientEmail: "ivy@x.com",
+      startTime: start, durationHours: 2, visitorKey: "visitor-src1", src: orgPost,
+    });
+    const rows = await t.run((ctx) => ctx.db.query("bookingVisits").collect());
+    const booked = rows.find((r) => r.step === "booked");
+    expect(booked?.postId).toBe(orgPost);
+  });
+
+  it("a cross-org src is silently ignored (postId undefined, booking still succeeds)", async () => {
+    const res = await t.mutation(api.booking.createBooking, {
+      roomId: roomA, clientName: "Jude", clientEmail: "jude@x.com",
+      startTime: start, durationHours: 2, visitorKey: "visitor-src2", src: foreignPost,
+    });
+    expect(res.sessionId).toBeDefined();
+    const rows = await t.run((ctx) => ctx.db.query("bookingVisits").collect());
+    const booked = rows.find((r) => r.step === "booked");
+    expect(booked).toBeDefined();
+    expect(booked?.postId).toBeUndefined();
+  });
+
+  it("a garbage src is silently ignored (postId undefined, booking still succeeds)", async () => {
+    const res = await t.mutation(api.booking.createBooking, {
+      roomId: roomA, clientName: "Kit", clientEmail: "kit@x.com",
+      startTime: start, durationHours: 2, visitorKey: "visitor-src3", src: "not-a-real-id",
+    });
+    expect(res.sessionId).toBeDefined();
+    const rows = await t.run((ctx) => ctx.db.query("bookingVisits").collect());
+    const booked = rows.find((r) => r.step === "booked");
+    expect(booked).toBeDefined();
+    expect(booked?.postId).toBeUndefined();
   });
 
   it("studioFront exposes curated testimonials + engineer bios/credits", async () => {
