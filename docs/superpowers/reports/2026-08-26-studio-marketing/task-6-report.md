@@ -37,7 +37,7 @@ The brief's note says to add `"social_accounts"` to whatever list makes `periodF
 
 ## TDD Evidence
 
-**RED** — `npx vitest run convex/marketing/accounts.test.ts` (before `accounts.ts` existed):
+**RED** - `npx vitest run convex/marketing/accounts.test.ts` (before `accounts.ts` existed):
 ```
 FAIL  convex/marketing/accounts.test.ts > marketing accounts > insertInternal refuses a GHL account id already owned by another org
 Error: Could not find module for: "marketing/accounts"
@@ -46,7 +46,7 @@ Test Files  1 failed (1)
      Tests  4 failed (4)
 ```
 
-**GREEN (first pass, 3/4)** — after writing `accounts.ts` and patching `api.d.ts`:
+**GREEN (first pass, 3/4)** - after writing `accounts.ts` and patching `api.d.ts`:
 ```
 ❯ convex/marketing/accounts.test.ts (4 tests | 1 failed) 53ms
      × studio tier caps connected accounts at 3
@@ -59,21 +59,21 @@ AssertionError: promise resolved "'000000000000010008socialAccounts'" instead of
 
 **Diagnosis:** `insertInternal` calls `assertWithinLimit` -> `tierForOrg(ctx, orgId)`. `tierForOrg` prefers `org.tier`; when absent it falls back to `PLAN_TO_TIER[org.plan]` (`convex/lib/tier.ts`). `PLAN_TO_TIER` maps the legacy `orgs.plan` literal `"studio"` to the new TierKey `"pro"` (comment: legacy plan naming and the new, finer-grained TierKey naming don't line up 1:1; legacy `"studio"` was the old mid-tier, which now corresponds to `"pro"`, not the new cheaper `"studio"` TierKey). The seeded org only set `plan: "studio"` and no `tier`, so it resolved to tier `"pro"`, whose `socialAccountCap` is unlimited (`convex/lib/plans.ts`), so the 4th insert never hit the cap. This is a pre-existing, repo-wide convention (81 other test files seed `plan: "studio"` purely as schema-required filler, not to assert a specific tier), not a bug introduced by this task. Fixed by seeding `tier: "studio"` explicitly on the two test orgs, which is the only way to exercise the actual "studio" TierKey's cap of 3 from `convex/lib/plans.ts`.
 
-**GREEN (final)** — `npx vitest run convex/marketing/accounts.test.ts`:
+**GREEN (final)** - `npx vitest run convex/marketing/accounts.test.ts`:
 ```
 Test Files  1 passed (1)
      Tests  4 passed (4)
 ```
 
-**Full suite** — `npm test`:
+**Full suite** - `npm test`:
 ```
 Test Files  151 passed (151)
      Tests  1296 passed (1296)
 ```
 
-**Typecheck** — `npm run typecheck`: no output, exit 0.
+**Typecheck** - `npm run typecheck`: no output, exit 0.
 
-**Lint** — `npx eslint convex/marketing/accounts.ts convex/marketing/accounts.test.ts`: no output, exit 0.
+**Lint** - `npx eslint convex/marketing/accounts.ts convex/marketing/accounts.test.ts`: no output, exit 0.
 
 ## Files Changed
 
