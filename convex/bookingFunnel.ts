@@ -55,6 +55,7 @@ export const track = mutation({
     ref: v.optional(v.string()),
     code: v.optional(v.string()),
     utmSource: v.optional(v.string()),
+    src: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const key = cleanKey(args.visitorKey);
@@ -69,6 +70,17 @@ export const track = mutation({
     const orgId = org.orgId;
     const now = Date.now();
     const day = dayKey(now);
+
+    // src is only honoured when it resolves to a real socialPosts row in the
+    // same org - garbage and foreign ids are silently ignored, never thrown on.
+    let postId: Id<"socialPosts"> | undefined;
+    if (args.src) {
+      const id = ctx.db.normalizeId("socialPosts", args.src);
+      if (id) {
+        const post = await ctx.db.get(id);
+        if (post && post.orgId === orgId) postId = id;
+      }
+    }
 
     // Dedupe: the same person hitting the same step for the same room again
     // is the same person, not a second visit.
@@ -96,6 +108,7 @@ export const track = mutation({
       ref: cleanTag(args.ref),
       code: cleanTag(args.code),
       utmSource: cleanTag(args.utmSource),
+      postId,
       createdAt: now,
     });
     return { ok: true as const };
@@ -110,7 +123,7 @@ export async function recordBooked(
   visitorKey: string | undefined,
   sessionId: Id<"sessions">,
   amountCents: number,
-  extra: { ref?: string; code?: string } = {},
+  extra: { ref?: string; code?: string; postId?: Id<"socialPosts"> } = {},
 ): Promise<void> {
   if (!visitorKey) return;
   const key = cleanKey(visitorKey);
@@ -125,6 +138,7 @@ export async function recordBooked(
     amountCents,
     ref: cleanTag(extra.ref),
     code: cleanTag(extra.code),
+    postId: extra.postId,
     createdAt: now,
   });
 }

@@ -59,6 +59,9 @@ function RoomDetailView() {
   // Referral share links (?ref=<artistId>) attribute the booking to the client
   // who referred them; validated server-side in createBooking.
   const refFromLink = searchParams.get("ref") ?? undefined;
+  // Post attribution (?src=<postId>) from a tracked social link; validated
+  // server-side in createBooking.
+  const srcFromLink = searchParams.get("src") ?? undefined;
   const room = useQuery(api.booking.room, { roomId: roomId as Id<"rooms"> });
   useTrackBookingStep(slug, "room", { roomId: roomId as Id<"rooms"> });
   const createBooking = useMutation(api.booking.createBooking);
@@ -159,6 +162,7 @@ function RoomDetailView() {
         gearRequestNote: addOns.gearRequestNote || undefined,
         discountCode: promo.status === "valid" ? promo.code : undefined,
         ref: refFromLink,
+        src: srcFromLink,
         // Closes the funnel this visitor started. Server-written from here on.
         visitorKey: visitorKey() ?? undefined,
       });

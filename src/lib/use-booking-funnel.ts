@@ -66,6 +66,7 @@ export function useTrackBookingStep(
       ref: params.get("ref") ?? undefined,
       code: params.get("code") ?? undefined,
       utmSource: params.get("utm_source") ?? undefined,
+      src: params.get("src") ?? undefined,
     }).catch(() => {
       // Measurement is best-effort. Never surface this to the visitor.
     });

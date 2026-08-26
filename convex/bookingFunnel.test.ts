@@ -83,6 +83,25 @@ describe("visit tracking", () => {
     await t.mutation(api.bookingFunnel.track, { ...base, roomId: roomB });
     expect(await t.run((ctx) => ctx.db.query("bookingVisits").collect())).toHaveLength(2);
   });
+
+  it("records the post id from ?src= on a page visit and ignores foreign or garbage ids", async () => {
+    const t = convexTest(schema);
+    const { postId, foreign } = await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: "org1", name: "S", slug: "studio", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org2", name: "T", slug: "other", plan: "studio", status: "active" });
+      const base = { template: "custom" as const, status: "published" as const, caption: "x", media: [], accountIds: [], scheduledFor: 0, timezone: "UTC", ghlType: "post" as const, submittedBy: "u", createdAt: 0, updatedAt: 0 };
+      const postId = await ctx.db.insert("socialPosts", { orgId: "org1", ...base });
+      const foreign = await ctx.db.insert("socialPosts", { orgId: "org2", ...base });
+      return { postId, foreign };
+    });
+    await t.mutation(api.bookingFunnel.track, { slug: "studio", visitorKey: "visitor-v1", step: "page", src: postId });
+    await t.mutation(api.bookingFunnel.track, { slug: "studio", visitorKey: "visitor-v2", step: "page", src: foreign });
+    await t.mutation(api.bookingFunnel.track, { slug: "studio", visitorKey: "visitor-v3", step: "page", src: "not-an-id" });
+    const rows = await t.run((ctx) => ctx.db.query("bookingVisits").collect());
+    expect(rows.find((r) => r.visitorKey === "visitor-v1")?.postId).toBe(postId);
+    expect(rows.find((r) => r.visitorKey === "visitor-v2")?.postId).toBeUndefined();
+    expect(rows.find((r) => r.visitorKey === "visitor-v3")?.postId).toBeUndefined();
+  });
 });
 
 describe("the funnel", () => {

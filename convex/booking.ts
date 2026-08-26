@@ -609,6 +609,9 @@ export const createBooking = mutation({
     // Anonymous funnel key minted by the booking page. Optional and
     // untrusted: it only ever attributes a visit, never authorizes anything.
     visitorKey: v.optional(v.string()),
+    // Post attribution: a ?src=<postId> tracked link. Its own arg, resolved
+    // independently of the room/service path below.
+    src: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const svc = args.serviceId ? await ctx.db.get(args.serviceId) : null;
@@ -767,6 +770,18 @@ export const createBooking = mutation({
     }
     const effectiveSource = referredByArtistId ? "referral" : leadSource;
 
+    // ── Post attribution: a ?src=<postId> tracked link. Resolve it to a real
+    // socialPosts row in THIS org (normalizeId never throws on garbage).
+    // Anything invalid or foreign is silently ignored. ──
+    let postId: Id<"socialPosts"> | undefined;
+    if (args.src) {
+      const srcId = ctx.db.normalizeId("socialPosts", args.src);
+      if (srcId) {
+        const post = await ctx.db.get(srcId);
+        if (post && post.orgId === orgId) postId = srcId;
+      }
+    }
+
     const email = args.clientEmail.trim().toLowerCase();
     const existing = (
       await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
@@ -863,6 +878,7 @@ export const createBooking = mutation({
     await recordBooked(ctx, orgId, args.visitorKey, sessionId, rateCents, {
       ref: args.ref,
       code: discount?.code,
+      postId,
     });
     if (discount?.promoId) await recordRedemption(ctx, discount.promoId);
 
