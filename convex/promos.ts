@@ -79,7 +79,10 @@ export const update = mutation({
     const p = await ctx.db.get(id);
     if (!p || p.orgId !== orgId) throw new Error("Not found");
     validate(args);
-    await ctx.db.patch(id, { ...args, code: normalizeCode(args.code), pct: Math.round(args.pct) });
+    const code = normalizeCode(args.code);
+    const dup = await ctx.db.query("promos").withIndex("by_org_code", (q) => q.eq("orgId", orgId).eq("code", code)).filter((q) => q.eq(q.field("active"), true)).first();
+    if (dup && dup._id !== id) throw new Error(`Code ${code} is already active. Deactivate it first or pick another code.`);
+    await ctx.db.patch(id, { ...args, code, pct: Math.round(args.pct) });
   },
 });
 
@@ -107,6 +110,7 @@ export const list = query({
 export const createInternal = internalMutation({
   args: { orgId: v.string(), ...promoArgs, source: v.union(v.literal("owner"), v.literal("rate_cut")) },
   handler: async (ctx, args) => {
+    validate(args);
     const code = normalizeCode(args.code);
     const existing = await ctx.db.query("promos").withIndex("by_org_code", (q) => q.eq("orgId", args.orgId).eq("code", code)).filter((q) => q.eq(q.field("active"), true)).first();
     if (existing) {

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 
 const DAY = 86_400_000;
@@ -62,5 +62,57 @@ describe("promos", () => {
     await t.run(async (ctx) => { await ctx.db.insert("members", { orgId: "org1", name: "Eng", role: "engineer", clerkUserId: "u2", skills: [] }); });
     const eng = t.withIdentity({ subject: "u2", name: "Eng", orgId: "org1" });
     await expect(eng.mutation(api.promos.create, { code: "X", pct: 5, startsAt: now, endsAt: now + DAY })).rejects.toThrow();
+  });
+
+  it("a real booking with a promo code increments its redemption count by 1", async () => {
+    const id = await owner().mutation(api.promos.create, {
+      code: "REDEEM1", pct: 25, startsAt: now - DAY, endsAt: now + DAY, roomId: room,
+    });
+    await t.mutation(api.booking.createBooking, {
+      roomId: room,
+      clientName: "Nova",
+      clientEmail: "nova@x.com",
+      startTime: now + 7 * DAY,
+      durationHours: 2,
+      discountCode: "redeem1",
+      visitorKey: "visitor-1",
+    });
+    const promo = await t.run((ctx) => ctx.db.get(id));
+    expect(promo?.redemptions).toBe(1);
+  });
+
+  it("a promo that matches the code but fails its window blocks fallback to a legacy code of the same name", async () => {
+    // SHARED15 exists both as an active legacy org code (pct 15) and as an
+    // EXPIRED promo (pct 30). The promo match wins the lookup and its window
+    // check fails, so the resolver must return null - never fall through to
+    // the legacy code underneath it.
+    await t.run(async (ctx) => {
+      const org = (await ctx.db.query("orgs").collect()).find((o) => o.orgId === "org1");
+      if (org) {
+        await ctx.db.patch(org._id, {
+          discountCodes: [...(org.discountCodes ?? []), { code: "SHARED15", pct: 15, active: true }],
+        });
+      }
+    });
+    await owner().mutation(api.promos.create, {
+      code: "SHARED15", pct: 30, startsAt: now - 3 * DAY, endsAt: now - DAY,
+    });
+    expect(await t.query(api.booking.validateCode, { roomId: room, code: "SHARED15" })).toEqual({ valid: false });
+  });
+
+  it("createInternal rejects an out-of-range percent, same as create", async () => {
+    await expect(
+      t.mutation(internal.promos.createInternal, {
+        orgId: "org1", code: "RATECUT", pct: 95, startsAt: now, endsAt: now + DAY, source: "rate_cut",
+      }),
+    ).rejects.toThrow(/between 1 and 90/);
+  });
+
+  it("update rejects a code already active on another promo", async () => {
+    await owner().mutation(api.promos.create, { code: "ONE", pct: 10, startsAt: now - DAY, endsAt: now + DAY });
+    const two = await owner().mutation(api.promos.create, { code: "TWO", pct: 10, startsAt: now - DAY, endsAt: now + DAY });
+    await expect(
+      owner().mutation(api.promos.update, { id: two, code: "ONE", pct: 10, startsAt: now - DAY, endsAt: now + DAY }),
+    ).rejects.toThrow(/already active/);
   });
 });
