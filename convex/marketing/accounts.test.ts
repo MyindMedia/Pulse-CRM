@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, vi, afterEach } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "../schema";
 import { api, internal } from "../_generated/api";
+import type { Id } from "../_generated/dataModel";
 
 describe("marketing accounts", () => {
   let t: ReturnType<typeof convexTest>;
@@ -58,5 +59,47 @@ describe("marketing accounts", () => {
     await owner().mutation(api.marketing.accounts.remove, { id });
     expect(await owner().query(api.marketing.accounts.list, {})).toEqual([]);
     expect((await owner2().query(api.marketing.accounts.list, {})).map((a) => a.name)).toEqual(["Other"]);
+  });
+
+  it("remove-then-reattach the same ghlAccountId at cap keeps the cap honest", async () => {
+    const ids: Id<"socialAccounts">[] = [];
+    for (const n of [1, 2, 3]) {
+      ids.push(await t.mutation(internal.marketing.accounts.insertInternal, {
+        orgId: "org1", platform: "facebook", ghlAccountId: `acc_${n}`, ghlLocationId: "loc", name: `P${n}`, connectedBy: "u1",
+      }));
+    }
+    await owner().mutation(api.marketing.accounts.remove, { id: ids[0] });
+    // Reattaching the removed account must not free a permanent slot: the
+    // org is back to 3 live rows, so a 4th distinct account is still refused.
+    await t.mutation(internal.marketing.accounts.insertInternal, {
+      orgId: "org1", platform: "facebook", ghlAccountId: "acc_1", ghlLocationId: "loc", name: "P1 reattached", connectedBy: "u1",
+    });
+    await expect(t.mutation(internal.marketing.accounts.insertInternal, {
+      orgId: "org1", platform: "facebook", ghlAccountId: "acc_4", ghlLocationId: "loc", name: "P4", connectedBy: "u1",
+    })).rejects.toThrow(/LIMIT_REACHED|limit/i);
+    const live = await owner().query(api.marketing.accounts.list, {});
+    expect(live.length).toBe(3);
+    const usage = await t.run(async (ctx) => {
+      const rows = await ctx.db.query("usageCounters").collect();
+      return rows.find((r) => r.orgId === "org1" && r.metric === "social_accounts")?.value;
+    });
+    expect(usage).toBe(3);
+  });
+
+  it("reviving a needs_reconnect row does not change the usage counter", async () => {
+    const id = await t.mutation(internal.marketing.accounts.insertInternal, {
+      orgId: "org1", platform: "instagram", ghlAccountId: "acc_1", ghlLocationId: "loc", name: "Studio IG", connectedBy: "u1",
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.patch(id, { status: "needs_reconnect" });
+    });
+    await t.mutation(internal.marketing.accounts.insertInternal, {
+      orgId: "org1", platform: "instagram", ghlAccountId: "acc_1", ghlLocationId: "loc", name: "Studio IG reconnected", connectedBy: "u1",
+    });
+    const usage = await t.run(async (ctx) => {
+      const rows = await ctx.db.query("usageCounters").collect();
+      return rows.find((r) => r.orgId === "org1" && r.metric === "social_accounts")?.value;
+    });
+    expect(usage).toBe(1);
   });
 });

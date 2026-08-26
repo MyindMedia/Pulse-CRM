@@ -22,6 +22,11 @@ export const startConnect = action({
   args: { platform: platformArg, reconnect: v.optional(v.boolean()) },
   handler: async (ctx, { platform, reconnect }): Promise<{ url: string } | { simulated: true }> => {
     const orgId = await ctx.runQuery(api.marketing.accounts.myOrgForConnect, {});
+    // A fresh connect needs a new slot; a reconnect of an account the org
+    // already owns does not, so only gate the fresh-connect path here.
+    if (!reconnect) {
+      await ctx.runQuery(internal.usage.checkLimit, { orgId, metric: "social_accounts", add: 1 });
+    }
     const org = await ctx.runQuery(internal.marketing.accounts.orgContext, { orgId });
     const g = ghlFromEnv(org);
     if (!g) return { simulated: true };
@@ -31,13 +36,14 @@ export const startConnect = action({
   },
 });
 
-/** Capability + cap check for the connect flow, callable from an action. */
+/** Capability check for the connect flow, callable from an action. Cap
+ *  enforcement is NOT here: a reconnect of an already-owned account needs no
+ *  new slot, so the cap check lives in startConnect (fresh connects only)
+ *  and insertInternal (fresh inserts only). */
 export const myOrgForConnect = query({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrgWithCapability(ctx, "marketing.approve");
-    await assertWithinLimit(ctx, orgId, "social_accounts", 1);
-    return orgId;
+    return await currentOrgWithCapability(ctx, "marketing.approve");
   },
 });
 
@@ -48,7 +54,11 @@ export const choices = action({
     const org = await ctx.runQuery(internal.marketing.accounts.orgContext, { orgId });
     const g = ghlFromEnv(org);
     if (!g) return [{ id: ghlAccountId, name: "Simulated account" }];
-    return await listOAuthAccounts(g, platform as Platform, ghlAccountId);
+    try {
+      return await listOAuthAccounts(g, platform as Platform, ghlAccountId);
+    } catch {
+      throw new ConvexError({ code: "GHL_UNAVAILABLE", message: "Could not read the connected account. Reconnect and try again." });
+    }
   },
 });
 
@@ -86,7 +96,18 @@ export const insertInternal = internalMutation({
       throw new ConvexError({ code: "ACCOUNT_TAKEN", message: "That profile is already connected to another studio." });
     }
     if (owned) {
+      // Only a row that was actually removed freed its slot; reviving a
+      // needs_reconnect or already-connected row must not touch usage, and
+      // reviving a removed row must re-claim a slot under the cap (a
+      // remove-then-reattach loop must never bypass the cap).
+      const wasRemoved = owned.status === "removed";
+      if (wasRemoved) {
+        await assertWithinLimit(ctx, args.orgId, "social_accounts", 1);
+      }
       await ctx.db.patch(owned._id, { status: "connected", name: args.name, avatarUrl: args.avatarUrl, lastCheckedAt: Date.now() });
+      if (wasRemoved) {
+        await recordUsage(ctx, args.orgId, "social_accounts", 1);
+      }
       return owned._id;
     }
     await assertWithinLimit(ctx, args.orgId, "social_accounts", 1);
