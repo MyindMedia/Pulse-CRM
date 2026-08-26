@@ -98,7 +98,69 @@ convex/marketing/accounts.ts      118 lines (new)
 - The `PLAN_TO_TIER` legacy-plan-to-new-tier mapping (`convex/lib/tier.ts`) is a landmine for any future test or seed script that sets `orgs.plan` expecting it to imply the same-named `orgs.tier`/TierKey: legacy `"studio"` silently resolves to the new `"pro"` (unlimited) tier unless `tier` is set explicitly. This bit this task's own brief-supplied test fixture. Worth a one-line comment or a lint rule if it recurs; not fixed here since it's pre-existing behavior outside Task 6's scope, and 81 other test files already depend on the current mapping.
 - `choices` and `attach`'s simulated-mode branches (GHL unconfigured) are implemented but have no direct unit test in this task; only `startConnect`'s simulated branch is asserted. Low risk since the guard (`ghlFromEnv(org)` returning `null`) is the same function already covered by Task 2's `ghl.test.ts`.
 
-## Commits
+## Commits (initial implementation)
 
 1. **df585cb** Marketing: connect, attach, list and remove social accounts through GHL
-   - Pushed to `origin/feat/studio-marketing` (confirmed: `origin/feat/studio-marketing` is at `df585cb`).
+   - Pushed to `origin/feat/studio-marketing`.
+2. **33708ac** Task 6 report
+3. **4c848b1** Remove em dashes from task 6 report
+
+## Fix Round 1
+
+Coordinator review found three real defects, all confirmed and fixed. The spec's cap constraint ("connected-account count is capped per tier") is the binding authority, so the code was fixed, not the constraint.
+
+### Finding 1: cap bypass via remove-then-reattach
+
+`insertInternal`'s revive branch (an existing `socialAccounts` row for the same `ghlAccountId`, same org) patched the row back to `connected` unconditionally, with no `recordUsage` call. `remove` always ran `recordUsage(-1)`. Sequence: attach 3 at the studio cap, remove 1 (counter drops to 2, row still exists with `status: "removed"`), reattach the same account (counter stays 2 but the row is live again), attach a 4th distinct account (passes because the counter reads 2, not 3). Result: 4 live rows against a cap of 3.
+
+Fix in `convex/marketing/accounts.ts`, `insertInternal`: capture `wasRemoved = owned.status === "removed"` before patching. Only when `wasRemoved`: call `assertWithinLimit(ctx, args.orgId, "social_accounts", 1)` before the patch, and `recordUsage(ctx, args.orgId, "social_accounts", 1)` after it. Reviving a `needs_reconnect` or already-`connected` row (a slot that was never decremented) now touches neither the cap check nor the counter.
+
+### Finding 2: reconnect wrongly blocked at cap
+
+`myOrgForConnect` unconditionally called `assertWithinLimit(ctx, orgId, "social_accounts", 1)`, so re-authorizing an account the org already owns (a `reconnect: true` call) failed with `LIMIT_REACHED` whenever the org was already at its cap, even though a reconnect claims no new slot.
+
+Fix: `myOrgForConnect` is now capability-only (`return await currentOrgWithCapability(ctx, "marketing.approve");`, nothing else). The cap assert moved into `startConnect`, gated on `!reconnect`, calling the existing `internal.usage.checkLimit` internal query (already present in `convex/usage.ts`, built for exactly this: action callers with no `ctx.db`). `choices` and `attach` no longer duplicate a cap check; `attach`'s fresh-insert path is still capped by `insertInternal` (Finding 1 made that path reconnect-aware), and its reconnect path is correctly uncapped.
+
+### Finding 3: raw GHL failure from `choices`
+
+`choices` returned `await listOAuthAccounts(...)` directly with no guard, unlike `startConnect`/`attach`, which both check their GHL client call's result and throw a `ConvexError` on failure. Wrapped the call in try/catch; a failure now throws `ConvexError({ code: "GHL_UNAVAILABLE", message: "Could not read the connected account. Reconnect and try again." })` instead of surfacing a raw error.
+
+### Tests added (both in `convex/marketing/accounts.test.ts`)
+
+1. `remove-then-reattach the same ghlAccountId at cap keeps the cap honest`: attaches 3 (cap), removes one, reattaches the same `ghlAccountId`, asserts a 4th distinct account is still refused with `LIMIT_REACHED`, asserts `list` returns exactly 3 live rows, and asserts the `usageCounters` row for `social_accounts` equals 3 (not 2, not 4).
+2. `reviving a needs_reconnect row does not change the usage counter`: inserts one account (counter = 1), patches its status to `needs_reconnect` directly via `t.run`, reattaches the same `ghlAccountId`, asserts the counter is still 1.
+
+Both orgs in `beforeEach` already carried `tier: "studio"` explicitly from the prior round's fixture fix, so no further fixture change was needed for these two tests.
+
+One incidental typecheck fix along the way: the new test's `ids` array was inferred as `string[]`, which does not satisfy `Id<"socialAccounts">`. Typed it explicitly as `Id<"socialAccounts">[]` and added `import type { Id } from "../_generated/dataModel";` to the test file.
+
+### Commands and output
+
+**Targeted run** - `npx vitest run convex/marketing/accounts.test.ts`:
+```
+Test Files  1 passed (1)
+     Tests  6 passed (6)
+```
+
+**Full suite** - `npm test`:
+```
+Test Files  151 passed (151)
+     Tests  1298 passed (1298)
+```
+
+**Typecheck** - `npm run typecheck`: no output, exit 0.
+
+**Lint** - `npx eslint convex/marketing/accounts.ts convex/marketing/accounts.test.ts`: no output, exit 0.
+
+### Files changed (Fix Round 1)
+
+```
+2 files changed, 69 insertions(+), 5 deletions(-)
+convex/marketing/accounts.ts      31 changed lines
+convex/marketing/accounts.test.ts 43 insertions (2 new tests + Id import)
+```
+
+### Commit (Fix Round 1)
+
+**3eb021d** Marketing: keep the connected-account cap honest across remove and reconnect
+Pushed to `origin/feat/studio-marketing` (confirmed: `origin/feat/studio-marketing` is at `3eb021d` before this report commit).
