@@ -381,6 +381,10 @@ export default defineSchema({
     // an underused window. When unset the recommender uses its rule-based
     // default (15% / 20%).
     defaultRateCutPct: v.optional(v.number()),
+    // Marketing: which GHL location this org publishes through. Absent means
+    // the platform default (GHL_LOCATION_ID + GHL_API_KEY). tokenRef names an
+    // env var; the token itself is never stored in the database.
+    ghl: v.optional(v.object({ locationId: v.string(), tokenRef: v.string() })),
     // No-Show Shield: the studio's cancellation policy. Cancelling inside
     // `cancellationWindowHours` of the start (or a no-show) forfeits the deposit
     // and/or assesses `cancellationFeePct` of the booking rate.
@@ -945,6 +949,8 @@ export default defineSchema({
     tags: v.array(v.string()),
     avatarColor: v.optional(v.string()),
     instagram: v.optional(v.string()),
+    // Marketing: the artist agreed to be named in the studio's posts.
+    okToFeature: v.optional(v.boolean()),
     spotify: v.optional(v.string()),
     notes: v.optional(v.string()),
     status: v.union(v.literal("lead"), v.literal("active"), v.literal("dormant"), v.literal("vip")),
@@ -1971,6 +1977,7 @@ export default defineSchema({
       // (note_only, internal recommendations surfaced in the inbox).
       v.literal("profit_improvement"),
       v.literal("studio_risk"),
+      v.literal("social_post_draft"),
     ),
     priority: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
     title: v.string(),
@@ -1992,6 +1999,7 @@ export default defineSchema({
         newStatus: v.union(v.literal("confirmed"), v.literal("cancelled")),
       }),
       v.object({ kind: v.literal("note_only") }),
+      v.object({ kind: v.literal("social_post"), postId: v.id("socialPosts") }),
     ),
     status: v.union(
       v.literal("proposed"),
@@ -2219,6 +2227,7 @@ export default defineSchema({
     ref: v.optional(v.string()),     // ?ref= referral attribution
     code: v.optional(v.string()),    // ?code= promo attribution
     utmSource: v.optional(v.string()),
+    postId: v.optional(v.id("socialPosts")),  // ?src=<postId> post attribution
     createdAt: v.number(),
   })
     .index("by_org_day", ["orgId", "day"])
@@ -2398,6 +2407,99 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])
     .index("by_artist", ["artistId"]),
+
+  // ── Marketing: a studio's own social profiles, attached through GHL. ──
+  socialAccounts: defineTable({
+    orgId: v.string(),
+    platform: v.union(
+      v.literal("google"), v.literal("facebook"), v.literal("instagram"),
+      v.literal("linkedin"), v.literal("tiktok"), v.literal("tiktok-business"),
+      v.literal("youtube"), v.literal("pinterest"), v.literal("threads"), v.literal("bluesky"),
+    ),
+    ghlAccountId: v.string(),
+    ghlLocationId: v.string(),
+    name: v.string(),
+    avatarUrl: v.optional(v.string()),
+    status: v.union(v.literal("connected"), v.literal("needs_reconnect"), v.literal("removed")),
+    connectedBy: v.string(),
+    connectedAt: v.number(),
+    lastCheckedAt: v.optional(v.number()),
+    stats: v.optional(v.object({
+      followers: v.optional(v.number()),
+      reach: v.optional(v.number()),
+      refreshedAt: v.number(),
+    })),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_ghl_account", ["ghlAccountId"]),
+
+  // ── Marketing: time-boxed promo codes. Checkout resolves these before
+  //    the legacy orgs.discountCodes list. ──
+  promos: defineTable({
+    orgId: v.string(),
+    code: v.string(),
+    pct: v.number(),
+    label: v.optional(v.string()),
+    startsAt: v.number(),
+    endsAt: v.number(),
+    roomId: v.optional(v.id("rooms")),
+    maxRedemptions: v.optional(v.number()),
+    redemptions: v.number(),
+    source: v.union(v.literal("owner"), v.literal("rate_cut")),
+    active: v.boolean(),
+    createdBy: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_code", ["orgId", "code"]),
+
+  // ── Marketing: one scheduled post. Pulse is the source of truth; GHL
+  //    holds and fires it. ──
+  socialPosts: defineTable({
+    orgId: v.string(),
+    template: v.union(
+      v.literal("session_bts"), v.literal("before_after"), v.literal("client_win"),
+      v.literal("room_gear"), v.literal("tip"), v.literal("rate_promo"),
+      v.literal("open_slot"), v.literal("engineer_story"), v.literal("custom"),
+    ),
+    status: v.union(
+      v.literal("draft"), v.literal("approved"), v.literal("scheduled"),
+      v.literal("published"), v.literal("failed"), v.literal("cancelled"),
+    ),
+    caption: v.string(),
+    captionOverrides: v.optional(v.record(v.string(), v.string())),
+    media: v.array(v.object({
+      storageId: v.optional(v.id("_storage")),
+      brandCard: v.optional(v.union(v.literal("rate_card"), v.literal("open_slot"), v.literal("promo"))),
+      type: v.union(v.literal("image"), v.literal("video")),
+    })),
+    accountIds: v.array(v.id("socialAccounts")),
+    scheduledFor: v.number(),
+    timezone: v.string(),
+    promoId: v.optional(v.id("promos")),
+    link: v.optional(v.string()),
+    artistId: v.optional(v.id("artists")),
+    roomId: v.optional(v.id("rooms")),
+    sourceActionId: v.optional(v.id("opsActions")),
+    ghlPostId: v.optional(v.string()),
+    ghlType: v.union(v.literal("post"), v.literal("story"), v.literal("reel")),
+    submittedBy: v.string(),
+    approvedBy: v.optional(v.string()),
+    approvedAt: v.optional(v.number()),
+    publishedAt: v.optional(v.number()),
+    failure: v.optional(v.string()),
+    stats: v.optional(v.object({
+      impressions: v.optional(v.number()),
+      engagements: v.optional(v.number()),
+      refreshedAt: v.number(),
+    })),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_status", ["orgId", "status"])
+    .index("by_org_scheduled", ["orgId", "scheduledFor"])
+    .index("by_ghl_post", ["ghlPostId"]),
 
   // ── Membership plans - studio-defined monthly/yearly tiers (priority booking,
   //    bundled hours, member discount) billed via Stripe Connect. ──

@@ -238,6 +238,9 @@ export const ENTITLEMENT_FOR_CAPABILITY: Record<string, CapabilityKey> = {
   "splitsheet.edit": "splitSheets",
   // Full white-label theming.
   "theme.edit": "whiteLabelUi",
+  "marketing.read": "marketing",
+  "marketing.edit": "marketing",
+  "marketing.approve": "marketing",
 };
 
 /** Entitlement required by a permission capability, or null when unmetered. */

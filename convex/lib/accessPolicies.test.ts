@@ -140,3 +140,18 @@ describe("access-policies", () => {
     });
   });
 });
+
+describe("marketing capabilities", () => {
+  it("owner and manager can approve posts", () => {
+    expect(STUDIO_ROLE_CAPABILITIES.owner).toContain("marketing.approve");
+    expect(STUDIO_ROLE_CAPABILITIES.manager).toContain("marketing.approve");
+  });
+  it("engineer can submit but not approve", () => {
+    expect(STUDIO_ROLE_CAPABILITIES.engineer).toContain("marketing.edit");
+    expect(STUDIO_ROLE_CAPABILITIES.engineer).not.toContain("marketing.approve");
+  });
+  it("intern can read only", () => {
+    expect(STUDIO_ROLE_CAPABILITIES.intern).toContain("marketing.read");
+    expect(STUDIO_ROLE_CAPABILITIES.intern).not.toContain("marketing.edit");
+  });
+});

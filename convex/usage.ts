@@ -117,6 +117,10 @@ function capForMetric(metric: string, limits: TierLimits): number | null {
       return limits.storageGb * BYTES_PER_GB;
     case "subaccounts":
       return limits.subAccountCap;
+    case "social_accounts":
+      return limits.socialAccountCap;
+    case "social_posts":
+      return limits.socialPostsPerMonth;
     default:
       return null;
   }

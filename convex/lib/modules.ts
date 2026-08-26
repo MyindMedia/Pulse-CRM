@@ -168,6 +168,8 @@ export const MODULES: ModuleDef[] = [
   // ── Communication ──
   { key: "smsFlows", label: "SMS & reminders", area: "comms", nav: false,
     blurb: "Confirmations and the 48h / 24h / 2h reminder ladder" },
+  { key: "marketing", label: "Marketing", area: "comms", nav: true,
+    blurb: "Scheduled social posts, promos and results" },
 
   // ── Reporting ──
   { key: "reports", label: "Reports", area: "reporting", nav: true,

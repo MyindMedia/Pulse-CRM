@@ -46,6 +46,7 @@ export const AGENCY_ROLE_CAPABILITIES: Record<AgencyRole, ReadonlyArray<Capabili
     "ops.action.approve",
     "ops.autonomy.manage",
     "activity.read",
+    "marketing.read", "marketing.edit", "marketing.approve",
   ],
   admin: [
     "agency.subaccount.create",
@@ -80,6 +81,7 @@ export const AGENCY_ROLE_CAPABILITIES: Record<AgencyRole, ReadonlyArray<Capabili
     "insights.read",
     "ops.action.approve",
     "activity.read",
+    "marketing.read", "marketing.edit", "marketing.approve",
   ],
   staff: [
     "agency.subaccount.pause",       // scoped - engine enforces by sub-account list
@@ -121,6 +123,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "ops.action.approve",
     "ops.autonomy.manage",
     "activity.read",
+    "marketing.read", "marketing.edit", "marketing.approve",
   ],
   manager: [
     "songs.read", "songs.edit", "songs.delete",
@@ -146,6 +149,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "insights.read",
     "ops.action.approve",
     "activity.read",
+    "marketing.read", "marketing.edit", "marketing.approve",
   ],
   engineer: [
     "songs.read", "songs.edit",
@@ -164,6 +168,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     // No "insights.read" - exec/revenue analytics are leadership-only
     // (owner / manager / accountant). Engineers see operations, not the books.
     "activity.read",
+    "marketing.read", "marketing.edit",
   ],
   assistant_engineer: [
     "songs.read", "songs.edit",
@@ -176,6 +181,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "equipment.read",
     "patch.read", "patch.edit",
     "activity.read",
+    "marketing.read", "marketing.edit",
   ],
   artist_relations: [
     "songs.read",
@@ -191,6 +197,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "syncOpportunities.read", "syncOpportunities.edit",
     "opportunities.read", "opportunities.edit",
     "activity.read",
+    "marketing.read", "marketing.edit",
   ],
   producer: [
     "songs.read", "songs.edit",
@@ -207,6 +214,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "licenses.read", "licenses.edit",
     "syncOpportunities.read", "syncOpportunities.edit",
     "activity.read",
+    "marketing.read", "marketing.edit",
   ],
   intern: [
     "songs.read",
@@ -219,6 +227,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     // Read only. An intern can trace a signal path but cannot repatch the map.
     "patch.read",
     "activity.read",
+    "marketing.read",
   ],
   accountant: [
     "songs.read",
@@ -230,6 +239,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "licenses.read", "licenses.edit",
     "insights.read",   // finance role sees revenue analytics / Reports
     "activity.read",
+    "marketing.read",
   ],
 };
 

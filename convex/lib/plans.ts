@@ -76,7 +76,8 @@ export type CapabilityKey =
   | "apiExports"
   | "customDomain"
   | "whiteLabelUi"
-  | "multiStudio";
+  | "multiStudio"
+  | "marketing";
 
 export type WhitelabelLevel = false | "studio_level" | "full";
 
@@ -104,6 +105,10 @@ export type TierLimits = {
   roomCap: number;
   /** Team members with a login. */
   staffCap: number;
+  /** Connected social accounts (Marketing). */
+  socialAccountCap: number;
+  /** Scheduled social posts per month (Marketing). */
+  socialPostsPerMonth: number;
   /** Monthly USD price in cents. 0 = custom/contact, or free. */
   priceCents: number;
   /**
@@ -138,6 +143,7 @@ const STUDIO_CAPS: CapabilityKey[] = [
   "smsFlows",
   "reviewsReferrals",
   "discountCodes",
+  "marketing",
 ];
 
 /** $297 - everything a staffed studio needs to run the floor and the books. */
@@ -223,6 +229,8 @@ export const PLAN_LIMITS: Record<TierKey, TierLimits> = {
     storageGb: 5,
     roomCap: 1,
     staffCap: 2,
+    socialAccountCap: 3,
+    socialPostsPerMonth: 20,
     priceCents: 0,
     // 2.00%. TWO GAPS to close before this is ever sold:
     //  1. Only the deposit checkout charges it. Invoices, memberships,
@@ -249,6 +257,8 @@ export const PLAN_LIMITS: Record<TierKey, TierLimits> = {
     storageGb: 10,
     roomCap: 2,
     staffCap: 3,
+    socialAccountCap: 3,
+    socialPostsPerMonth: 20,
     priceCents: 14999,
     capabilities: STUDIO_CAPS,
   },
@@ -267,6 +277,8 @@ export const PLAN_LIMITS: Record<TierKey, TierLimits> = {
     storageGb: 100,
     roomCap: 6,
     staffCap: 15,
+    socialAccountCap: UNLIMITED,
+    socialPostsPerMonth: UNLIMITED,
     priceCents: 29700,
     capabilities: PRO_CAPS,
   },
@@ -285,6 +297,8 @@ export const PLAN_LIMITS: Record<TierKey, TierLimits> = {
     storageGb: 1_000,
     roomCap: UNLIMITED,
     staffCap: UNLIMITED,
+    socialAccountCap: UNLIMITED,
+    socialPostsPerMonth: UNLIMITED,
     priceCents: 49999,
     capabilities: LABEL_CAPS,
   },
@@ -303,6 +317,8 @@ export const PLAN_LIMITS: Record<TierKey, TierLimits> = {
     storageGb: 2_000,
     roomCap: UNLIMITED,
     staffCap: UNLIMITED,
+    socialAccountCap: UNLIMITED,
+    socialPostsPerMonth: UNLIMITED,
     priceCents: 0,
     capabilities: LABEL_CAPS,
   },
@@ -322,6 +338,8 @@ export const PLAN_LIMITS: Record<TierKey, TierLimits> = {
     storageGb: 250,
     roomCap: UNLIMITED,
     staffCap: UNLIMITED,
+    socialAccountCap: UNLIMITED,
+    socialPostsPerMonth: UNLIMITED,
     priceCents: 19900,
     capabilities: PRO_CAPS,
   },
@@ -340,6 +358,8 @@ export const PLAN_LIMITS: Record<TierKey, TierLimits> = {
     storageGb: 2_000,
     roomCap: UNLIMITED,
     staffCap: UNLIMITED,
+    socialAccountCap: UNLIMITED,
+    socialPostsPerMonth: UNLIMITED,
     priceCents: 24900,
     capabilities: LABEL_CAPS,
   },
