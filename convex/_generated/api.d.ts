@@ -164,6 +164,7 @@ import type * as portal from "../portal.js";
 import type * as predictions from "../predictions.js";
 import type * as pricingImport from "../pricingImport.js";
 import type * as profitability from "../profitability.js";
+import type * as promos from "../promos.js";
 import type * as push from "../push.js";
 import type * as pushAlerts from "../pushAlerts.js";
 import type * as pushSend from "../pushSend.js";
@@ -372,6 +373,7 @@ declare const fullApi: ApiFromModules<{
   predictions: typeof predictions;
   pricingImport: typeof pricingImport;
   profitability: typeof profitability;
+  promos: typeof promos;
   push: typeof push;
   pushAlerts: typeof pushAlerts;
   pushSend: typeof pushSend;

@@ -19,6 +19,7 @@ import {
   addOnsTotalCents,
 } from "./lib/gearRental";
 import { normalizeEmail, sameEmail } from "./lib/emailKey";
+import { resolveCode, recordRedemption } from "./promos";
 
 /* Staff roles a client can request to run their session, on the public page. */
 const ENGINEER_ROLES = new Set(["owner", "engineer", "assistant_engineer", "producer"]);
@@ -60,20 +61,6 @@ const defaults = (room: Doc<"rooms">) => ({
   // without them touching it.
   paymentMode: room.paymentMode ?? ("deposit" as const),
 });
-
-/** Look one submitted code up in the org's owner-issued list
- *  (orgs.discountCodes). Codes are stored normalized (uppercase) and
- *  `active` is the on/off switch - the owner pauses a code to expire it.
- *  Returns the single match or null; never the list itself. */
-function findDiscount(org: Doc<"orgs"> | null, raw: string | undefined) {
-  const code = raw?.trim().toUpperCase();
-  if (!code) return null;
-  const match = (org?.discountCodes ?? []).find((c) => c.code === code && c.active);
-  if (!match) return null;
-  // Clamp so a mis-entered percent can never zero out or invert the price.
-  const pct = Math.min(Math.max(match.pct, 0), 100);
-  return { code: match.code, pct, label: match.label ?? null };
-}
 
 /** The studio's branding block for the public page. */
 async function brand(ctx: QueryCtx, org: Doc<"orgs"> | null) {
@@ -427,9 +414,9 @@ export const validateCode = query({
       .query("orgs")
       .withIndex("by_org", (q) => q.eq("orgId", room.orgId))
       .first();
-    const match = findDiscount(org, code);
+    const match = await resolveCode(ctx, org, code, roomId, Date.now());
     if (!match) return { valid: false as const };
-    return { valid: true as const, code: match.code, pct: match.pct, label: match.label };
+    return { valid: true as const, code: match.code, pct: match.pct, label: match.label, ...(match.expiresAt ? { expiresAt: match.expiresAt } : {}) };
   },
 });
 
@@ -754,9 +741,9 @@ export const createBooking = mutation({
     // server, then apply to the room + add-on total below. An unknown or
     // paused code throws - the page must never show a code as applied while
     // the session silently bills full price. ──
-    let discount: { code: string; pct: number; label: string | null } | null = null;
+    let discount: Awaited<ReturnType<typeof resolveCode>> = null;
     if (args.discountCode?.trim()) {
-      discount = findDiscount(org, args.discountCode);
+      discount = await resolveCode(ctx, org, args.discountCode, roomId, Date.now());
       if (!discount) {
         throw new Error(
           "That discount code isn't valid or is no longer active. Remove it to book at the standard rate.",
@@ -877,6 +864,7 @@ export const createBooking = mutation({
       ref: args.ref,
       code: discount?.code,
     });
+    if (discount?.promoId) await recordRedemption(ctx, discount.promoId);
 
     // Standing rules that fire on a new booking.
     await fireRules(ctx, orgId, "booking.created", {
