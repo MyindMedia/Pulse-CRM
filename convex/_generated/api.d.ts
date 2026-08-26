@@ -141,6 +141,7 @@ import type * as lib_tz from "../lib/tz.js";
 import type * as lib_usTaxRates from "../lib/usTaxRates.js";
 import type * as licensing from "../licensing.js";
 import type * as maintenance from "../maintenance.js";
+import type * as marketing_accounts from "../marketing/accounts.js";
 import type * as members from "../members.js";
 import type * as memberships from "../memberships.js";
 import type * as migrations from "../migrations.js";
@@ -350,6 +351,7 @@ declare const fullApi: ApiFromModules<{
   "lib/usTaxRates": typeof lib_usTaxRates;
   licensing: typeof licensing;
   maintenance: typeof maintenance;
+  "marketing/accounts": typeof marketing_accounts;
   members: typeof members;
   memberships: typeof memberships;
   migrations: typeof migrations;
