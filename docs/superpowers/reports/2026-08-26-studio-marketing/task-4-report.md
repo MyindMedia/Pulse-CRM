@@ -171,3 +171,101 @@ None. The one deviation (visitor key length) is a pre-existing, unrelated constr
 in `cleanKey()` that the brief's literal test values did not satisfy; the fix is
 test-fixture-only and does not change any production code path or the security
 invariant under test.
+
+## Fix round 1: test coverage for createBooking's own src to postId resolution
+
+### The finding
+
+Review found that `bookingFunnel.test.ts` only exercised the `src` to `postId`
+resolution inside `bookingFunnel.track`. The independent copy of that same
+resolution inside `booking.ts` `createBooking` (lines 776-781) had no test of its
+own: the foreign-org and garbage-id rejection paths on the booking mutation were
+unverified, only asserted for the sibling `track` mutation.
+
+### What changed
+
+Extended `convex/bookingConversion.test.ts`, which already had the exact test
+shape for the sibling `ref` argument (valid same-org / foreign / garbage cases
+against `createBooking`). Added:
+
+- `orgPost` and `foreignPost`: an org1 and an org2 `socialPosts` row, inserted in
+  the existing `beforeEach` alongside `referrer`/`foreignReferrer`, using the same
+  minimal-row shape (`template`, `status`, `caption`, `media: []`, `accountIds:
+  []`, `scheduledFor`, `timezone`, `ghlType`, `submittedBy`, `createdAt`,
+  `updatedAt`) already established in `bookingFunnel.test.ts`.
+- Three new tests calling `api.booking.createBooking` directly with a
+  `visitorKey` (required for `recordBooked` to write a row at all; anything
+  shorter than 8 characters after `cleanKey()` writes nothing) and a `src`:
+  1. A valid same-org `orgPost` id resolves to `postId` on the `booked`
+     `bookingVisits` row.
+  2. A `foreignPost` id (real row, different org) is silently ignored: `postId`
+     is `undefined` on the booked row, and the booking still returns a
+     `sessionId`.
+  3. A garbage string (`"not-a-real-id"`) is silently ignored the same way.
+
+Each test reads back with `t.run((ctx) => ctx.db.query("bookingVisits").collect())`
+and finds the row where `step === "booked"` (no `.withIndex()` inside `t.run()`,
+per the same convex-test typing gap noted for the `by_org`/`by_org_visitor`
+indexes elsewhere on this branch). Since each test runs against a freshly
+`initT()`-created `t` from the block's `beforeEach` and only ever calls
+`createBooking` once, exactly one `bookingVisits` row exists per test and its
+`step` is always `"booked"`.
+
+### Verifying the tests actually test something
+
+Before trusting the three new cases, temporarily broke the org check in
+`convex/booking.ts` (`if (post && post.orgId === orgId) postId = srcId;` to
+`if (post) postId = srcId;`) and reran. The cross-org case failed exactly as
+expected:
+
+```
+FAIL  convex/bookingConversion.test.ts > booking conversion + referral > a cross-org src is silently ignored (postId undefined, booking still succeeds)
+AssertionError: expected '000000000000000010006socialPosts' to be undefined
+```
+
+Reverted the sabotage (`git diff convex/booking.ts` clean afterward) and reran;
+all green. This confirms the new tests exercise the real guard rather than
+passing vacuously.
+
+Against the unmodified implementation on the branch, all three new cases passed
+on the first run: `createBooking`'s `src` resolution already matched the brief
+and the sibling `track` behavior. No production code changed in this fix round.
+
+### Commands run and output
+
+```
+$ npx vitest run convex/bookingConversion.test.ts convex/bookingFunnel.test.ts convex/promos.test.ts
+ Test Files  3 passed (3)
+      Tests  34 passed (34)
+```
+
+```
+$ npm run typecheck
+> tsc --noEmit
+(clean, no output)
+```
+
+```
+$ npm test
+> vitest run
+ Test Files  149 passed (149)
+      Tests  1287 passed (1287)
+```
+
+(1287, up from 1284 before this fix: the 3 new tests.)
+
+Node: ran under `/opt/homebrew/opt/node@22/bin` (node 22), same as the original
+task-4 work, matching the branch's established Convex-codegen gotcha with node 25.
+
+### Files changed
+
+- `convex/bookingConversion.test.ts`: added `orgPost`/`foreignPost` fixtures to
+  the `beforeEach` and three tests covering `createBooking`'s own `src` to
+  `postId` resolution (valid same-org, cross-org, garbage).
+
+### Concerns
+
+None. The finding was a genuine test-coverage gap, not a production bug: the
+existing `createBooking` implementation already enforced the same-org check
+correctly, and the new tests now prove it directly instead of only by analogy
+to `bookingFunnel.track`'s coverage.
