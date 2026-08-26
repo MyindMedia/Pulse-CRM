@@ -2488,6 +2488,10 @@ export default defineSchema({
     approvedAt: v.optional(v.number()),
     publishedAt: v.optional(v.number()),
     failure: v.optional(v.string()),
+    // The usage period ("YYYY-MM") this post already consumed a social_posts
+    // scheduling slot in, so a retry after a failure or a re-approve after an
+    // edit does not burn extra monthly cap on the same post.
+    meteredPeriod: v.optional(v.string()),
     stats: v.optional(v.object({
       impressions: v.optional(v.number()),
       engagements: v.optional(v.number()),

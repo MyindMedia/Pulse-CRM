@@ -4,7 +4,7 @@ import { v, ConvexError } from "convex/values";
 import { internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { currentOrgWithCapability, currentActor } from "../lib/tenant";
-import { assertWithinLimit, recordUsage } from "../usage";
+import { assertWithinLimit, recordUsage, periodFor } from "../usage";
 import { stripEmDashes } from "../lib/text";
 import { validateForPlatform, type MediaKind } from "./rules";
 import { ghlFromEnv, createScheduledPost, deletePost, listPosts, type GhlPostInput } from "../lib/ghl";
@@ -107,10 +107,20 @@ export const approve = mutation({
       const artist = post.artistId ? await ctx.db.get(post.artistId) : null;
       if (!artist?.okToFeature) throw new Error("This artist has not given the OK to feature. Ask them, tick it on their profile, then approve.");
     }
-    await assertWithinLimit(ctx, orgId, "social_posts", 1);
+    // Meter a post once per period: a retry after a failure or a re-approve
+    // after an edit reuses the same scheduling slot it already paid for this
+    // period, so it must not burn the cap again. A post approved again in a
+    // later period (its status looped back to draft/failed and enough time
+    // passed) correctly meters again, since it now occupies a slot that period.
+    const period = periodFor("social_posts");
+    const alreadyMetered = post.meteredPeriod === period;
+    if (!alreadyMetered) await assertWithinLimit(ctx, orgId, "social_posts", 1);
     const actor = await currentActor(ctx);
-    await ctx.db.patch(id, { status: "approved", approvedBy: actor, approvedAt: Date.now(), failure: undefined, updatedAt: Date.now() });
-    await recordUsage(ctx, orgId, "social_posts", 1);
+    await ctx.db.patch(id, {
+      status: "approved", approvedBy: actor, approvedAt: Date.now(), failure: undefined, updatedAt: Date.now(),
+      ...(alreadyMetered ? {} : { meteredPeriod: period }),
+    });
+    if (!alreadyMetered) await recordUsage(ctx, orgId, "social_posts", 1);
     await ctx.scheduler.runAfter(0, internal.marketing.posts.schedule, { id });
   },
 });

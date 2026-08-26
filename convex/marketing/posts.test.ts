@@ -4,6 +4,7 @@ import schema from "../schema";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { buildTrackedLink } from "./posts";
+import { periodFor } from "../usage";
 
 const HOUR = 3_600_000;
 
@@ -18,8 +19,8 @@ describe("marketing posts", () => {
     vi.useFakeTimers();
     t = convexTest(schema);
     const ids = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org1", name: "S", slug: "studio", plan: "studio", status: "active" });
-      await ctx.db.insert("orgs", { orgId: "org2", name: "T", slug: "other", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org1", name: "S", slug: "studio", plan: "studio", tier: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org2", name: "T", slug: "other", plan: "studio", tier: "studio", status: "active" });
       await ctx.db.insert("members", { orgId: "org1", name: "Owner", role: "owner", clerkUserId: "u1", skills: [] });
       await ctx.db.insert("members", { orgId: "org1", name: "Eng", role: "engineer", clerkUserId: "u3", skills: [] });
       const ig = await ctx.db.insert("socialAccounts", { orgId: "org1", platform: "instagram", ghlAccountId: "acc_1", ghlLocationId: "loc", name: "IG", status: "connected", connectedBy: "u1", connectedAt: now });
@@ -85,6 +86,43 @@ describe("marketing posts", () => {
     expect(body.accountIds).toEqual(["acc_1"]);
     expect(body.status).toBe("scheduled");
     expect((await owner().query(api.marketing.posts.get, { id }))?.ghlPostId).toBe("ghl_9");
+  });
+
+  it("a failed approval does not double-meter on retry", async () => {
+    vi.stubEnv("GHL_API_KEY", "pit"); vi.stubEnv("GHL_LOCATION_ID", "loc"); vi.stubEnv("GHL_SOCIAL_USER_ID", "user");
+    const fetchMock = vi.fn(async () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }));
+    vi.stubGlobal("fetch", fetchMock);
+    const id = await owner().mutation(api.marketing.posts.create, { ...base, accountIds: [ig] });
+    await owner().mutation(api.marketing.posts.approve, { id });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await owner().query(api.marketing.posts.get, { id }))?.status).toBe("failed");
+    await owner().mutation(api.marketing.posts.approve, { id });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await owner().query(api.marketing.posts.get, { id }))?.status).toBe("failed");
+    const usage = await t.run((ctx) => ctx.db.query("usageCounters").collect());
+    expect(usage.find((u) => u.metric === "social_posts")?.value).toBe(1);
+  });
+
+  it("an edit and re-approve after a first approve does not double-meter", async () => {
+    vi.stubEnv("GHL_API_KEY", "");
+    const id = await owner().mutation(api.marketing.posts.create, { ...base, accountIds: [ig] });
+    await owner().mutation(api.marketing.posts.approve, { id });
+    expect((await owner().query(api.marketing.posts.get, { id }))?.status).toBe("approved");
+    await owner().mutation(api.marketing.posts.update, { ...base, id, accountIds: [ig] });
+    expect((await owner().query(api.marketing.posts.get, { id }))?.status).toBe("draft");
+    await owner().mutation(api.marketing.posts.approve, { id });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    expect((await owner().query(api.marketing.posts.get, { id }))?.status).toBe("scheduled");
+    const usage = await t.run((ctx) => ctx.db.query("usageCounters").collect());
+    expect(usage.find((u) => u.metric === "social_posts")?.value).toBe(1);
+  });
+
+  it("a studio already at its 20 posts/month cap is refused on the 21st distinct post", async () => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("usageCounters", { orgId: "org1", period: periodFor("social_posts"), metric: "social_posts", value: 20, updatedAt: now });
+    });
+    const id = await owner().mutation(api.marketing.posts.create, { ...base, accountIds: [ig] });
+    await expect(owner().mutation(api.marketing.posts.approve, { id })).rejects.toThrow(/LIMIT_REACHED|limit/i);
   });
 
   it("buildTrackedLink carries src and code", () => {
