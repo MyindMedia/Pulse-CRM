@@ -108,6 +108,48 @@ And `npm run typecheck`: exit 0, no output (clean).
 
 1. **`label` and `enterprise` tiers were not explicitly named by the brief.** The brief's sentence is: "Set on every tier: the $0 flow tier and `studio`: `socialAccountCap: 3, socialPostsPerMonth: 20`; `pro`, `growth`, `agency`, and the custom tier: `socialAccountCap: UNLIMITED, socialPostsPerMonth: UNLIMITED`." The codebase has 7 `TierLimits` entries (`flow, studio, pro, label, enterprise, growth, agency`); the brief's enumeration covers 6 of them by name (treating "the custom tier" as `enterprise`, which has `custom: true`) but never mentions `label`. Since `TierLimits.socialAccountCap`/`socialPostsPerMonth` are non-optional, every tier needed a value regardless. I set `label` to `UNLIMITED`/`UNLIMITED`, matching the file's own established pattern (every numeric cap - `roomCap`, `staffCap`, `magicLinkGrantsPerMonth` - is monotonically non-decreasing as tiers go up, and `label` already sits between `pro` and `enterprise`, both UNLIMITED on every other cap). No test exercises `label` or `enterprise` directly for these two fields, so this is inference, not verified requirement. Flagging for controller confirmation; low risk given the monotonicity argument, but it is a real gap in the brief's text rather than something I verified against an explicit instruction.
 
-2. **`social_posts` was not added to `usage.ts`'s `MONTHLY_METRICS` set.** The brief's Step 4 code block only asks for the `capForMetric` switch cases (which were added exactly as given). `MONTHLY_METRICS` (`ai_credits`, `email`, `sms`, `exports`, `magic_links`) controls whether `periodFor()` resets a counter every calendar month or treats it as cumulative forever. The field is literally named `socialPostsPerMonth` and the Global Constraints say "20 scheduled posts per month" - if `social_posts` is never added to `MONTHLY_METRICS`, the cap will behave as a lifetime cap, not a monthly one, once a later task actually calls `recordUsage`/`assertWithinLimit` with that metric. Task 1 makes no `recordUsage` calls (that is `convex/marketing/posts.ts` in a later task), so nothing here is untested or broken today, but the wiring gap exists and whichever task first calls `assertWithinLimit(ctx, orgId, "social_posts", 1)` should add `"social_posts"` to `MONTHLY_METRICS` at that point. Not fixed here since it was outside this task's explicit instructions and outside its test coverage (YAGNI: no code in Task 1 reads `MONTHLY_METRICS` for this metric).
+2. ~~**`social_posts` was not added to `usage.ts`'s `MONTHLY_METRICS` set.**~~ **RESOLVED in Fix round 1 below** (coordinator confirmed this was a real gap). See that section.
 
-Neither concern blocks Task 2+ or breaks a test; both are documented so the controller (or whoever picks up the task that first calls `recordUsage("social_posts", ...)`) can confirm or correct.
+Concern 1 (label/enterprise = UNLIMITED) was reviewed by the coordinator and confirmed correct as implemented; no change needed.
+
+## Fix round 1
+
+Coordinator flagged concern 2 as a real gap and asked for it to be fixed before review. Concern 1 was confirmed correct as-is.
+
+**What changed:**
+
+1. `convex/usage.ts` - added `"social_posts"` to `MONTHLY_METRICS` (now `["ai_credits", "email", "sms", "exports", "magic_links", "social_posts"]`). `"social_accounts"` was deliberately left out of the set, so `periodFor("social_accounts", ...)` still returns `"all"` (a live count, not a monthly rate).
+2. `convex/lib/marketingEntitlement.test.ts` - added `import { periodFor } from "../usage";` and a third test:
+
+```ts
+it("social posts reset monthly, connected accounts do not", () => {
+  expect(periodFor("social_posts", Date.UTC(2026, 7, 26))).toBe("2026-08");
+  expect(periodFor("social_accounts", Date.UTC(2026, 7, 26))).toBe("all");
+});
+```
+
+   Tried the direct import first, as the coordinator's message allowed falling back to a new `convex/usage.test.ts` if importing `../usage` (which pulls `convex/_generated/server`) broke under plain vitest. It did not break - `convex/usage.ts`'s Convex-server imports (`query`, `internalQuery`, `internalMutation` from `./_generated/server`) resolved fine under the existing vitest config, consistent with `periodFor` being a plain exported function with no Convex context dependency. No fallback needed; the test stayed in `convex/lib/marketingEntitlement.test.ts` as the coordinator's primary instruction specified.
+
+**Test run** - command: `npx vitest run convex/lib/marketingEntitlement.test.ts`:
+
+```
+ RUN  v4.1.6 ...
+
+ Test Files  1 passed (1)
+      Tests  3 passed (3)
+```
+
+**Full suite** - command: `npm test`:
+
+```
+ Test Files  147 passed (147)
+      Tests  1266 passed (1266)
+```
+
+(1266 = the prior 1265 plus the one new `periodFor` test.)
+
+**Typecheck** - command: `npm run typecheck`: exit 0, no output (clean).
+
+**Commit:** `9d5abb4` "Usage: social posts meter monthly" (`convex/usage.ts`, `convex/lib/marketingEntitlement.test.ts`; 2 files changed, 6 insertions(+), 1 deletion(-)). Pushed to `origin/feat/studio-marketing`.
+
+Both concerns from the original report are now closed: concern 1 confirmed correct by the coordinator, concern 2 fixed and verified.
