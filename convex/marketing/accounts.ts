@@ -138,3 +138,13 @@ export const remove = mutation({
     await recordUsage(ctx, orgId, "social_accounts", -1);
   },
 });
+
+/** GHL account ids currently connected for an org, for the status-sync
+ *  action (which has no ctx.db and cannot filter by org itself). */
+export const ghlAccountIdsForOrg = internalQuery({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const rows = await ctx.db.query("socialAccounts").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
+    return rows.filter((r) => r.status !== "removed").map((r) => r.ghlAccountId);
+  },
+});
