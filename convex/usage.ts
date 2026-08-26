@@ -21,7 +21,7 @@ export { tierForOrg, tierForPlan };
    ============================================================ */
 
 /** Metrics that reset every calendar month. Everything else is cumulative. */
-const MONTHLY_METRICS = new Set(["ai_credits", "email", "sms", "exports", "magic_links"]);
+const MONTHLY_METRICS = new Set(["ai_credits", "email", "sms", "exports", "magic_links", "social_posts"]);
 
 const BYTES_PER_GB = 1024 * 1024 * 1024;
 /** Count-metric sentinel for "effectively unlimited" (storage is never this). */
