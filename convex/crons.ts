@@ -75,6 +75,11 @@ crons.weekly(
 // Marketing: GHL has no post webhooks, so poll for published/failed.
 crons.interval("social-status-sync", { minutes: 30 }, internal.marketing.posts.syncStatusAll, {});
 
+// Marketing: pull follower/reach stats for every connected social account,
+// grouped by org so one org's GHL call never carries another org's
+// accountIds.
+crons.daily("social-stats", { hourUTC: 9, minuteUTC: 0 }, internal.marketing.results.refreshStatsAll, {});
+
 // Monthly "Recovered by Pulse" recap: on the 1st, email each org owner what
 // Pulse recovered for them last month (forfeited deposits, no-show fees,
 // waitlist backfills, reminder-driven payments). Fires once, skips $0 orgs,
