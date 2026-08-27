@@ -44,6 +44,12 @@ const isPublicRoute = createRouteMatcher([
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",
+  // GHL's Social Planner fetches this PNG server to server, signed out, to
+  // composite it into a post - a 307 to /sign-in here would hand it an HTML
+  // redirect instead of an image and silently break every brand-card post.
+  // The post id is unguessable and the data query exposes display fields
+  // only, so anonymous access carries no secret.
+  "/api/brand-card(.*)",
   // NOTE: these matchers need the explicit "/" before "(.*)" - a bare
   // "/book(.*)" also matches sibling APP routes (/bookings, /payments,
   // /visitors), silently exempting them from the sign-in redirect.
