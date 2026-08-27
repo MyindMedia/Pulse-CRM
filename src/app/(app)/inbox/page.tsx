@@ -43,6 +43,7 @@ const AGENT_META: Record<string, { label: string; group: string; order: number }
   pricing_opportunity: { label: "Pricing", group: "Revenue Ops", order: 11 },
   weak_lead_source: { label: "Lead Source ROI", group: "Revenue Ops", order: 11 },
   promote_underused_room: { label: "Promote Room", group: "Revenue Ops", order: 11 },
+  social_post_draft: { label: "Social Post", group: "Marketing", order: 12 },
 };
 
 const PRIORITY_TONE: Record<string, "critical" | "gold" | "neutral"> = {
@@ -97,6 +98,15 @@ function InboxCard({ action, onOpen }: { action: Doc<"opsActions">; onOpen: (a: 
               {p.kind === "email" && <span className="truncate">{p.to ?? "no recipient"}</span>}
               {p.kind === "session_status" && <span>will set → {p.newStatus}</span>}
               {p.kind === "note_only" && <span>{action.artifactId ? "draft attached" : "internal note"}</span>}
+              {p.kind === "social_post" && (
+                <a
+                  href={`/marketing/compose?post=${p.postId}`}
+                  className="underline"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  open in composer
+                </a>
+              )}
             </div>
           </div>
           <ChevronRight className="mt-0.5 size-4 shrink-0 text-steel/70" />

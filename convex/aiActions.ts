@@ -407,6 +407,40 @@ async function writeRateCutPromos(ctx: ActionCtx, data: NonNullable<RateCutData>
         pct: rec.cutPct,
         label: `${rec.roomName} ${rec.windowLabel}`,
       });
+
+      // Marketing: the same recommendation as a time-boxed Promo plus a Draft
+      // post in the approval inbox. Window = the next four weeks of that slot.
+      // Skip when a still-open row (proposed, approved, snoozed or executing)
+      // already exists for this room+code, so a second weekly sweep does not
+      // leave a duplicate promo and a duplicate draft post orphaned behind an
+      // owner who already approved (but has not yet had it execute) the first.
+      const draftDedupeKey = `social_post_draft:${rec.roomId}:${rec.discountCode}`;
+      const alreadyDrafted = await ctx.runQuery(internal.opsActions.openDedupeExists, {
+        orgId: data.orgId,
+        dedupeKey: draftDedupeKey,
+      });
+      if (!alreadyDrafted) {
+        const startsAt = Date.now();
+        const endsAt = startsAt + 28 * 86_400_000;
+        const promoId = await ctx.runMutation(internal.promos.createInternal, {
+          orgId: data.orgId, code: rec.discountCode, pct: rec.cutPct, label: `${rec.roomName} ${rec.windowLabel}`,
+          startsAt, endsAt, roomId: rec.roomId, source: "rate_cut",
+        });
+        const caption = `${rec.windowLabel} in ${rec.roomName} is open. Book it for ${rec.cutPct}% off with code ${rec.discountCode}: ${fmtCents(rec.newRateCents)}/hr instead of ${fmtCents(rec.currentRateCents)}/hr. Link in bio or tap the link.`;
+        const postId = await ctx.runMutation(internal.marketing.posts.createInternal, {
+          orgId: data.orgId, template: "rate_promo", caption, media: [{ type: "image", brandCard: "promo" }],
+          accountIds: [], scheduledFor: Date.now() + 26 * 3_600_000, timezone: "America/Los_Angeles",
+          promoId, roomId: rec.roomId, ghlType: "post", includeBookingLink: true,
+        });
+        await ctx.runMutation(internal.opsActions.insertInternal, {
+          orgId: data.orgId, type: "social_post_draft", priority: "low",
+          title: `Post: ${rec.cutPct}% off ${rec.roomName}, ${rec.windowLabel}`,
+          rationale: `${rec.roomName} runs ${rec.lowUtilHours}h under 40% utilization in that window. A promo post with code ${rec.discountCode} fills it.`,
+          entityType: "socialPost", entityId: postId,
+          payload: { kind: "social_post", postId }, dedupeKey: draftDedupeKey,
+        });
+      }
+
       const bookingLink = `${baseBookingUrl}/${rec.roomId}?code=${rec.discountCode}`;
       const minBlockLabel = `${fmtCents(rec.minBlockCents)} for the ${rec.minimumHours}h minimum`;
       const facts = `Studio: ${data.orgName}

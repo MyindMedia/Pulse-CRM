@@ -9,7 +9,7 @@
    ============================================================ */
 import { v } from "convex/values";
 import { query, mutation, internalQuery, internalMutation, internalAction } from "./_generated/server";
-import type { MutationCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { invoicePayUrl } from "./lib/links";
 import type { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
@@ -18,9 +18,22 @@ import { requireCapability } from "./lib/access";
 import { sendEmail } from "./lib/email";
 import { studioEmailHtml } from "./lib/emailTemplates/layout";
 import { recordApprovalLearning, recordDismissLearning } from "./predictions";
+import { approvePost } from "./marketing/posts";
 
 const PRIORITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
+// Open row statuses for dedupe: matches upsertProposed's OPEN set (not just
+// proposed/snoozed). An approved-but-unexecuted row is still open work; a
+// second sweep must not duplicate the promo/post/inbox card it produced.
+const OPEN_ACTION_STATUSES = new Set(["proposed", "approved", "snoozed", "executing"]);
+
+async function hasOpenDedupe(ctx: QueryCtx | MutationCtx, orgId: string, dedupeKey: string): Promise<boolean> {
+  const existing = await ctx.db
+    .query("opsActions")
+    .withIndex("by_org_dedupe", (q) => q.eq("orgId", orgId).eq("dedupeKey", dedupeKey))
+    .collect();
+  return existing.some((r) => OPEN_ACTION_STATUSES.has(r.status));
+}
 
 /** Open queue for the active org: proposed actions plus snoozes that are due. */
 export const list = query({
@@ -64,6 +77,42 @@ export const getInternal = internalQuery({
     if (!action) return null;
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", action.orgId)).first();
     return { ...action, orgName: org?.name ?? "Your studio" };
+  },
+});
+
+/** Internal: true when an open row (proposed/approved/snoozed/executing)
+ * already carries this dedupeKey. AI drafters that must create side effects
+ * (a Promo, a Draft post) before the opsActions row itself exists need to
+ * check first, so a duplicate isn't left orphaned when the row is skipped. */
+export const openDedupeExists = internalQuery({
+  args: { orgId: v.string(), dedupeKey: v.string() },
+  handler: async (ctx, { orgId, dedupeKey }) => hasOpenDedupe(ctx, orgId, dedupeKey),
+});
+
+/** Internal: insert one rule-sourced opsActions row, skipping when an open
+ * row with the same dedupeKey already exists. Mirrors upsertProposed's
+ * insert shape for the single-candidate case (currently: AI social drafts). */
+export const insertInternal = internalMutation({
+  args: {
+    orgId: v.string(),
+    type: v.literal("social_post_draft"),
+    priority: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
+    title: v.string(),
+    rationale: v.string(),
+    entityType: v.optional(v.string()),
+    entityId: v.optional(v.string()),
+    payload: v.object({ kind: v.literal("social_post"), postId: v.id("socialPosts") }),
+    dedupeKey: v.string(),
+  },
+  handler: async (ctx, args) => {
+    if (await hasOpenDedupe(ctx, args.orgId, args.dedupeKey)) return null;
+    return await ctx.db.insert("opsActions", {
+      ...args,
+      status: "proposed",
+      autonomy: false,
+      source: "rule",
+      createdAt: Date.now(),
+    });
   },
 });
 
@@ -290,6 +339,12 @@ export const approve = mutation({
       }
     }
 
+    if (action.payload.kind === "social_post") {
+      // Approving the inbox card approves the post itself; the post's own
+      // guards (OK to feature, monthly cap, foreign accounts) run here.
+      await approvePost(ctx, action.orgId, action.payload.postId, actor);
+    }
+
     await ctx.db.patch(id, patch);
     await bumpTrust(ctx, action.orgId, action.type, "approved");
     // Learning loop: an owner edit becomes a style note the enricher reuses.
@@ -391,6 +446,11 @@ export const finalize = internalMutation({
       } else {
         result = "session not found";
       }
+    } else if (p.kind === "social_post") {
+      // The post itself was already approved and scheduled in `approve`
+      // (before this action was scheduled). No notifications row: the post's
+      // own lifecycle (scheduled/published/failed) is the record of it.
+      result = "Post approved and scheduled";
     }
 
     await ctx.db.insert("activity", {

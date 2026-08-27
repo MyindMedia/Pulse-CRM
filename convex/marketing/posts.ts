@@ -96,32 +96,48 @@ export const update = mutation({
   },
 });
 
+/** Shared approval body: the post's own guards (draft/failed status, OK to
+ *  feature, monthly cap metered once per period) plus the schedule kick.
+ *  Called from the UI mutation with the caller's own identity, and from the
+ *  approval inbox (an opsActions row) with the actor already resolved. */
+export async function approvePost(ctx: MutationCtx, orgId: string, id: Id<"socialPosts">, actor: string) {
+  const post = await ctx.db.get(id);
+  if (!post || post.orgId !== orgId) throw new Error("Not found");
+  if (post.status !== "draft" && post.status !== "failed") throw new Error(`Cannot approve a ${post.status} post.`);
+  if (post.template === "client_win") {
+    const artist = post.artistId ? await ctx.db.get(post.artistId) : null;
+    if (!artist?.okToFeature) throw new Error("This artist has not given the OK to feature. Ask them, tick it on their profile, then approve.");
+  }
+  // Meter a post once per period: a retry after a failure or a re-approve
+  // after an edit reuses the same scheduling slot it already paid for this
+  // period, so it must not burn the cap again. A post approved again in a
+  // later period (its status looped back to draft/failed and enough time
+  // passed) correctly meters again, since it now occupies a slot that period.
+  const period = periodFor("social_posts");
+  const alreadyMetered = post.meteredPeriod === period;
+  if (!alreadyMetered) await assertWithinLimit(ctx, orgId, "social_posts", 1);
+  await ctx.db.patch(id, {
+    status: "approved", approvedBy: actor, approvedAt: Date.now(), failure: undefined, updatedAt: Date.now(),
+    ...(alreadyMetered ? {} : { meteredPeriod: period }),
+  });
+  if (!alreadyMetered) await recordUsage(ctx, orgId, "social_posts", 1);
+  await ctx.scheduler.runAfter(0, internal.marketing.posts.schedule, { id });
+}
+
 export const approve = mutation({
   args: { id: v.id("socialPosts") },
   handler: async (ctx, { id }) => {
     const orgId = await currentOrgWithCapability(ctx, "marketing.approve");
-    const post = await ctx.db.get(id);
-    if (!post || post.orgId !== orgId) throw new Error("Not found");
-    if (post.status !== "draft" && post.status !== "failed") throw new Error(`Cannot approve a ${post.status} post.`);
-    if (post.template === "client_win") {
-      const artist = post.artistId ? await ctx.db.get(post.artistId) : null;
-      if (!artist?.okToFeature) throw new Error("This artist has not given the OK to feature. Ask them, tick it on their profile, then approve.");
-    }
-    // Meter a post once per period: a retry after a failure or a re-approve
-    // after an edit reuses the same scheduling slot it already paid for this
-    // period, so it must not burn the cap again. A post approved again in a
-    // later period (its status looped back to draft/failed and enough time
-    // passed) correctly meters again, since it now occupies a slot that period.
-    const period = periodFor("social_posts");
-    const alreadyMetered = post.meteredPeriod === period;
-    if (!alreadyMetered) await assertWithinLimit(ctx, orgId, "social_posts", 1);
-    const actor = await currentActor(ctx);
-    await ctx.db.patch(id, {
-      status: "approved", approvedBy: actor, approvedAt: Date.now(), failure: undefined, updatedAt: Date.now(),
-      ...(alreadyMetered ? {} : { meteredPeriod: period }),
-    });
-    if (!alreadyMetered) await recordUsage(ctx, orgId, "social_posts", 1);
-    await ctx.scheduler.runAfter(0, internal.marketing.posts.schedule, { id });
+    await approvePost(ctx, orgId, id, await currentActor(ctx));
+  },
+});
+
+/** Internal: same approval path, for callers (the ops approval inbox) that
+ *  have already resolved orgId + actor rather than the caller's own identity. */
+export const approveInternal = internalMutation({
+  args: { id: v.id("socialPosts"), orgId: v.string(), actor: v.string() },
+  handler: async (ctx, { id, orgId, actor }) => {
+    await approvePost(ctx, orgId, id, actor);
   },
 });
 
