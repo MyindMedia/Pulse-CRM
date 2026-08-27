@@ -188,14 +188,18 @@ export type GhlAccountStatus = {
  *  sweep to tell a live authorisation from an expired, deleted or revoked
  *  one.
  *
+ *  GHL nests the roster as `results.accounts`, not `results` itself -
+ *  `results` also carries a sibling `groups` array this caller has no use
+ *  for.
+ *
  *  Returns null, never [], when the call itself failed or came back in a
  *  shape this cannot trust (a non-2xx, a network error, or a missing/
- *  malformed `results` array) - a caller that treated null the same as an
- *  empty list would read "GHL is unreachable" as "every account is gone,"
- *  which is exactly the failure mode the sweep must not have. */
+ *  malformed `results.accounts` array) - a caller that treated null the same
+ *  as an empty list would read "GHL is unreachable" as "every account is
+ *  gone," which is exactly the failure mode the sweep must not have. */
 export async function listAccounts(g: GhlCtx): Promise<GhlAccountStatus[] | null> {
-  const r = await ghlFetch<{ results?: GhlAccountStatus[] }>(g, `/social-media-posting/${g.locationId}/accounts`);
+  const r = await ghlFetch<{ results?: { accounts?: GhlAccountStatus[] } }>(g, `/social-media-posting/${g.locationId}/accounts`);
   if (!r.ok) return null;
-  const results = r.data?.results;
-  return Array.isArray(results) ? results : null;
+  const accounts = r.data?.results?.accounts;
+  return Array.isArray(accounts) ? accounts : null;
 }

@@ -152,8 +152,8 @@ describe("account health sweep", () => {
   async function statusOf(id: Id<"socialAccounts">) {
     return (await t.run(async (ctx) => ctx.db.get(id)))!.status;
   }
-  function ghlResponse(results: Array<{ id: string; isExpired?: boolean; deleted?: boolean }>) {
-    return vi.fn(async () => new Response(JSON.stringify({ results }), { status: 200 }));
+  function ghlResponse(accounts: Array<{ id: string; isExpired?: boolean; deleted?: boolean }>) {
+    return vi.fn(async () => new Response(JSON.stringify({ results: { accounts, groups: [] } }), { status: 200 }));
   }
 
   it("marks an expired account needs_reconnect", async () => {
@@ -244,10 +244,10 @@ describe("account health sweep", () => {
     // flip too.
     const fetchMock = vi.fn(async (url: string) => {
       if (url.includes("/loc_default/")) {
-        return new Response(JSON.stringify({ results: [{ id: "acc_org1", isExpired: false, deleted: false }] }), { status: 200 });
+        return new Response(JSON.stringify({ results: { accounts: [{ id: "acc_org1", isExpired: false, deleted: false }], groups: [] } }), { status: 200 });
       }
       if (url.includes("/loc_org2/")) {
-        return new Response(JSON.stringify({ results: [] }), { status: 200 });
+        return new Response(JSON.stringify({ results: { accounts: [], groups: [] } }), { status: 200 });
       }
       throw new Error(`unexpected GHL url ${url}`);
     });

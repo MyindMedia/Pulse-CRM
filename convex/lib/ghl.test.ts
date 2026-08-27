@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { ghlFromEnv, ghlFetch, startOAuth, createScheduledPost } from "./ghl";
+import { ghlFromEnv, ghlFetch, startOAuth, createScheduledPost, listAccounts } from "./ghl";
 
 describe("ghl client", () => {
   beforeEach(() => {
@@ -110,5 +110,58 @@ describe("ghl client", () => {
       accountIds: ["acc_1"], summary: "x", media: [], scheduleDate: "2026-09-01T18:00:00.000Z", type: "post",
     });
     expect(res).toEqual({ error: "Invalid JWT" });
+  });
+
+  describe("listAccounts", () => {
+    // Captured verbatim from a live call against the production location.
+    const realAccount = {
+      id: "67b6cc129cf4905aae7eec62_F0yle6iHmWc14SpOyijl_204147845460_page",
+      oauthId: "67b6cc129cf4905aae7eec62",
+      profileId: "67b6cc240ed1f7b7c21e8f53",
+      name: "Mindkilla Music",
+      avatar: "https://storage.googleapis.com/highlevel-backend.appspot.com/...jpg",
+      platform: "facebook",
+      type: "page",
+      expire: "2026-10-14T03:56:42.707Z",
+      isExpired: false,
+      originId: "204147845460",
+      deleted: false,
+      updatedAt: "2026-08-15T04:00:32.000Z",
+    };
+
+    it("unwraps the real results.accounts envelope", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({
+        success: true,
+        statusCode: 200,
+        message: "Fetched Accounts",
+        results: { accounts: [realAccount], groups: [] },
+      }), { status: 200 })));
+      const res = await listAccounts(ghlFromEnv(null)!);
+      expect(res).toEqual([realAccount]);
+    });
+
+    it("returns null when results is missing entirely", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ success: true }), { status: 200 })));
+      const res = await listAccounts(ghlFromEnv(null)!);
+      expect(res).toBeNull();
+    });
+
+    it("returns null when results has no accounts key", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ results: { groups: [] } }), { status: 200 })));
+      const res = await listAccounts(ghlFromEnv(null)!);
+      expect(res).toBeNull();
+    });
+
+    it("returns null when accounts is present but not an array", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ results: { accounts: "not-an-array" } }), { status: 200 })));
+      const res = await listAccounts(ghlFromEnv(null)!);
+      expect(res).toBeNull();
+    });
+
+    it("returns null on a non-2xx response", async () => {
+      vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ message: "Invalid JWT" }), { status: 401 })));
+      const res = await listAccounts(ghlFromEnv(null)!);
+      expect(res).toBeNull();
+    });
   });
 });
