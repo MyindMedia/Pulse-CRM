@@ -36,6 +36,7 @@ export function featureForPath(pathname: string): FeatureKey | null {
     payments: "payments",
     reports: "reports",
     releases: "releases",
+    marketing: "marketing",
     licensing: "licensing",
     studio: "studio",
     inventory: "inventory",

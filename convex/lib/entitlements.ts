@@ -40,6 +40,7 @@ export const NAV_CAPABILITIES = [
   "payments",
   "reports",
   "releases",
+  "marketing",
   "licensing",
   "studio",
   "inventory",

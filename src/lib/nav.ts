@@ -23,6 +23,7 @@ import {
   Package,
   AppWindow,
   Settings,
+  Megaphone,
   type LucideIcon,
 } from "lucide-react";
 
@@ -59,6 +60,7 @@ export const NAV: NavItem[] = [
   { label: "Payroll", href: "/payroll", icon: Clock3, blurb: "Staff hours, rates and labor cost", feature: "schedule", capability: "insights.read" },
   { label: "Reports", href: "/reports", icon: BarChart3, blurb: "Revenue command center - where money leaks", feature: "reports", capability: "insights.read" },
   { label: "Releases", href: "/releases", icon: Rocket, blurb: "Rollout campaigns", feature: "releases" },
+  { label: "Marketing", href: "/marketing", icon: Megaphone, blurb: "Scheduled posts, promos and results", feature: "marketing", capability: "marketing.read" },
   { label: "Licensing", href: "/licensing", icon: ScrollText, blurb: "Sync placements and beat licenses", feature: "licensing" },
   { label: "Studio", href: "/studio", icon: SlidersHorizontal, blurb: "Rooms and the team", feature: "studio" },
   { label: "Inventory", href: "/inventory", icon: Boxes, blurb: "Equipment assets and their value", feature: "inventory" },
