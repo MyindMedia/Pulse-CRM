@@ -139,6 +139,9 @@ export const update = mutation({
     reliability: v.optional(v.union(v.literal("solid"), v.literal("watch"), v.literal("flagged"))),
     instagram: v.optional(v.string()),
     spotify: v.optional(v.string()),
+    // Marketing: the artist agreed to be named in the studio's posts. Gates
+    // approving a "client win" post in convex/marketing/posts.ts.
+    okToFeature: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...patch }) => {
     const orgId = await currentOrgWithCapability(ctx, "artists.edit");

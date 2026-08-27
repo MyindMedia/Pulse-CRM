@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
+import { Switch } from "@/components/ui/toggle";
 import {
   Select,
   SelectTrigger,
@@ -30,6 +31,8 @@ import {
   type ArtistStatusValue,
   type ReliabilityValue,
 } from "@/components/roster/constants";
+import { errorMessage } from "@/lib/errors";
+import { useCapabilities } from "@/lib/use-capabilities";
 
 export type EditableArtist = {
   _id: Id<"artists">;
@@ -38,6 +41,7 @@ export type EditableArtist = {
   reliability: string;
   instagram?: string;
   spotify?: string;
+  okToFeature?: boolean;
 };
 
 type FormState = {
@@ -46,6 +50,7 @@ type FormState = {
   reliability: ReliabilityValue;
   instagram: string;
   spotify: string;
+  okToFeature: boolean;
 };
 
 function toForm(artist: EditableArtist): FormState {
@@ -55,6 +60,7 @@ function toForm(artist: EditableArtist): FormState {
     reliability: artist.reliability as ReliabilityValue,
     instagram: artist.instagram ?? "",
     spotify: artist.spotify ?? "",
+    okToFeature: artist.okToFeature ?? false,
   };
 }
 
@@ -69,6 +75,8 @@ export function EditArtistDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const updateArtist = useMutation(api.artists.update);
+  const { can } = useCapabilities();
+  const canFeature = can("artists.edit");
   const [form, setForm] = React.useState<FormState>(() => toForm(artist));
   const [submitting, setSubmitting] = React.useState(false);
 
@@ -99,11 +107,12 @@ export function EditArtistDialog({
         reliability: form.reliability,
         instagram: form.instagram.trim() || undefined,
         spotify: form.spotify.trim() || undefined,
+        okToFeature: form.okToFeature,
       });
       toast.success("Profile updated.");
       onOpenChange(false);
-    } catch {
-      toast.error("Could not save changes. Try again.");
+    } catch (err) {
+      toast.error(errorMessage(err, "Could not save changes. Try again."));
     } finally {
       setSubmitting(false);
     }
@@ -193,6 +202,23 @@ export function EditArtistDialog({
                 autoComplete="off"
               />
             </Field>
+
+            <div className="flex items-start justify-between gap-4 rounded-md border border-graphite/50 bg-coal/40 px-3.5 py-3">
+              <div>
+                <p className="text-sm font-medium text-bone">
+                  OK to feature in the studio&apos;s posts
+                </p>
+                <p className="mt-0.5 text-xs text-steel/70">
+                  Ask the artist first. Client-win posts need this on.
+                </p>
+              </div>
+              <Switch
+                checked={form.okToFeature}
+                disabled={!canFeature}
+                onCheckedChange={(checked) => set("okToFeature", checked)}
+                aria-label="OK to feature in the studio's posts"
+              />
+            </div>
           </DialogBody>
           <DialogFooter>
             <Button

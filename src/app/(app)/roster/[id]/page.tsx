@@ -121,6 +121,7 @@ export default function ArtistDetailPage() {
     reliability: data.reliability,
     instagram: data.instagram,
     spotify: data.spotify,
+    okToFeature: data.okToFeature,
   };
 
   return (
