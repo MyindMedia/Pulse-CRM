@@ -38,6 +38,32 @@ describe("AI social drafts", () => {
     expect(action?.status).toBe("executed");
   });
 
+  it("a draft with no connected accounts cannot be approved through the inbox", async () => {
+    // Every draft the rate-cut sweep creates carries accountIds: [] (the
+    // owner picks accounts in the composer before approving). Nothing may
+    // approve that shape as-is: with no GHL env the post would sail through
+    // schedule()'s account-count check (0 === 0) straight to "scheduled" and
+    // then "published" by the status-sync cron, having reached no network.
+    vi.useFakeTimers();
+    const t = convexTest(schema);
+    const now = Date.now();
+    const { actionId, postId } = await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: "org1", name: "S", slug: "studio", plan: "studio", tier: "pro", status: "active" });
+      await ctx.db.insert("members", { orgId: "org1", name: "Owner", role: "owner", clerkUserId: "u1", skills: [] });
+      const postId = await ctx.db.insert("socialPosts", { orgId: "org1", template: "rate_promo", status: "draft", caption: "20% off Tuesdays", media: [], accountIds: [], scheduledFor: now + 3_600_000, timezone: "UTC", ghlType: "post", submittedBy: "pulse-ai", createdAt: now, updatedAt: now });
+      const actionId = await ctx.db.insert("opsActions", { orgId: "org1", type: "social_post_draft", priority: "low", title: "Post: 20% off Tuesdays", rationale: "Room A is empty on Tuesday afternoons.", payload: { kind: "social_post", postId }, status: "proposed", autonomy: false, source: "rule", dedupeKey: `social_post_draft:${postId}`, createdAt: now });
+      return { actionId, postId };
+    });
+    const owner = t.withIdentity({ subject: "u1", name: "Owner", orgId: "org1" });
+    await expect(owner.mutation(api.opsActions.approve, { id: actionId })).rejects.toThrow(/connected account/i);
+    // Nothing was scheduled by the rejected mutation; draining confirms it.
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    const post = await t.run((ctx) => ctx.db.get(postId));
+    expect(post?.status).toBe("draft");
+    const action = await t.run((ctx) => ctx.db.get(actionId));
+    expect(action?.status).toBe("proposed");
+  });
+
   it("the rate-cut sweep creates a promo and a draft post for each recommendation", async () => {
     vi.stubEnv("OPENAI_API_KEY", ""); // deterministic fallback body, no live call
     const t = convexTest(schema);

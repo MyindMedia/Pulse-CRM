@@ -226,3 +226,95 @@ run Convex codegen (Node 25 breaks it, per the plan's standing note).
 No other deviations. `convex/opsActions.ts` and `convex/aiActions.ts` did not
 fight me; both additions follow existing patterns in-file (`upsertProposed`'s
 OPEN set and insert shape; `writeRateCutPromos`'s existing per-rec loop).
+
+## Fix Round 1
+
+Preconditions reconfirmed before starting: `git rev-parse HEAD` was
+`2950010`; `node_modules/convex-test` is still a real local directory (not a
+symlink), confirmed by `require.resolve('convex-test')` and its realpath
+both resolving inside this worktree, not the main checkout.
+
+### Item 1: zero-account drafts could be approved and recorded as published
+
+Fixed inside `approvePost` (`convex/marketing/posts.ts`), the single shared
+path both `posts.approve` and `opsActions.approve` call. Added, right after
+the draft/failed status guard and before the `client_win` check:
+
+```ts
+if (post.accountIds.length === 0) throw new Error("Pick at least one connected account before approving this post.");
+```
+
+with a comment explaining why: `payloadContext`/`schedule`'s mismatch guard
+compares `accounts.length !== post.accountIds.length`, which is `0 !== 0`
+(false) for an AI draft's `accountIds: []`, so it never catches the empty
+case and the post would sail through to `"scheduled"` (then `"published"`
+by the status-sync cron) having reached no network.
+
+Added test `"a draft with no connected accounts cannot be approved through
+the inbox"` in `convex/marketing/drafts.test.ts`: seeds a `socialPosts` row
+with `accountIds: []` (the exact shape `writeRateCutPromos` produces) behind
+an `opsActions` row, calls `owner.mutation(api.opsActions.approve, ...)`,
+asserts it rejects with `/connected account/i`, drains scheduled functions,
+and asserts the post is still `"draft"` and the action is still
+`"proposed"` (the whole mutation transaction rolled back, so neither row's
+patch nor the schedule kick took effect).
+
+### Item 2: removed `posts.approveInternal`
+
+Deleted the internal mutation and its doc comment from
+`convex/marketing/posts.ts`. Confirmed with
+`grep -rn "approveInternal" . --include="*.ts" --include="*.tsx"` (excluding
+`node_modules`) that nothing referenced it anywhere in `convex/` or `src/`
+after removal. `opsActions.approve` already calls the shared `approvePost`
+function directly, which is the only real caller this task has.
+
+### Item 3: tightened the comment at `convex/opsActions.ts`'s `approve`
+
+Old comment said "the post's own guards (OK to feature, monthly cap, foreign
+accounts) run here," which is wrong about foreign accounts (never checked in
+`approvePost`) and was already wrong about completeness even before this
+round (didn't mention Item 1's new no-accounts guard). New comment lists
+what actually runs in `approvePost` at that point (status, at least one
+account picked, OK-to-feature, once-per-period metering) and says explicitly
+that account ownership is checked later, downstream, in
+`payloadContext`/`schedule` when the scheduled action fires.
+
+### Tests run
+
+Covering tests only, plus typecheck, per the coordinator's instruction:
+
+```
+$ npx vitest run convex/marketing/drafts.test.ts convex/marketing/posts.test.ts convex/opsBrain.test.ts
+ Test Files  3 passed (3)
+      Tests  23 passed (23)
+
+$ npm run typecheck
+> pulse@0.1.0 typecheck
+> tsc --noEmit
+```
+
+Also ran the full suite once as a sanity check (not required by the
+instruction, but cheap and confirms nothing else broke):
+
+```
+$ npx vitest run
+ Test Files  154 passed (154)
+      Tests  1314 passed (1314)
+```
+
+(1314 vs. the original report's 1313: the one new test in Item 1.)
+
+### Files changed this round
+
+- `convex/marketing/posts.ts` (added the zero-accounts guard in
+  `approvePost`; removed `approveInternal`)
+- `convex/opsActions.ts` (comment only, no logic change)
+- `convex/marketing/drafts.test.ts` (added the covering test)
+
+### Not addressed (explicitly out of scope per the coordinator)
+
+The four Minor findings deferred to the final whole-branch review: the
+missing `social_post` case in the inbox `PayloadIcon`, the dedupe test
+covering only the `"approved"` member of the four-status open set, the
+theoretical concurrent-sweep duplicate, and anything else outside these
+three items. Not touched.

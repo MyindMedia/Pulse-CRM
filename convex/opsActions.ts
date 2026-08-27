@@ -340,8 +340,13 @@ export const approve = mutation({
     }
 
     if (action.payload.kind === "social_post") {
-      // Approving the inbox card approves the post itself; the post's own
-      // guards (OK to feature, monthly cap, foreign accounts) run here.
+      // Approving the inbox card approves the post itself. approvePost()
+      // enforces the post's own guards at THIS point: draft/failed status,
+      // at least one connected account picked, OK-to-feature, and the
+      // monthly cap metered once per period. Account ownership (that every
+      // accountId is this org's own, never a foreign org's) is not checked
+      // here - that guard lives downstream, in payloadContext/schedule
+      // (posts.ts), which runs later when the scheduled action fires.
       await approvePost(ctx, action.orgId, action.payload.postId, actor);
     }
 

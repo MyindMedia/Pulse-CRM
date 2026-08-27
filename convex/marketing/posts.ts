@@ -104,6 +104,13 @@ export async function approvePost(ctx: MutationCtx, orgId: string, id: Id<"socia
   const post = await ctx.db.get(id);
   if (!post || post.orgId !== orgId) throw new Error("Not found");
   if (post.status !== "draft" && post.status !== "failed") throw new Error(`Cannot approve a ${post.status} post.`);
+  // AI drafts (the rate-cut sweep) are created with accountIds: [] - the owner
+  // picks accounts in the composer before approving. A post must never be
+  // approved with none picked: payloadContext/schedule would see accounts
+  // length equal to post.accountIds length (0 === 0), the mismatch guard would
+  // never fire, and the post would be marked "scheduled" (then "published" by
+  // the status-sync cron) having reached no network at all.
+  if (post.accountIds.length === 0) throw new Error("Pick at least one connected account before approving this post.");
   if (post.template === "client_win") {
     const artist = post.artistId ? await ctx.db.get(post.artistId) : null;
     if (!artist?.okToFeature) throw new Error("This artist has not given the OK to feature. Ask them, tick it on their profile, then approve.");
@@ -129,15 +136,6 @@ export const approve = mutation({
   handler: async (ctx, { id }) => {
     const orgId = await currentOrgWithCapability(ctx, "marketing.approve");
     await approvePost(ctx, orgId, id, await currentActor(ctx));
-  },
-});
-
-/** Internal: same approval path, for callers (the ops approval inbox) that
- *  have already resolved orgId + actor rather than the caller's own identity. */
-export const approveInternal = internalMutation({
-  args: { id: v.id("socialPosts"), orgId: v.string(), actor: v.string() },
-  handler: async (ctx, { id, orgId, actor }) => {
-    await approvePost(ctx, orgId, id, actor);
   },
 });
 
