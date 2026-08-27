@@ -72,3 +72,51 @@ Found and fixed during review, before running the final test pass: the "load an 
 - The render-proof gap above (no live Convex backend reachable from this environment) is the main open item. It affects verification, not the implementation itself, but the controller should decide whether that's acceptable or whether someone needs to re-run the brief's Step 6 manual walkthrough (create an `open_slot` draft with a brand card, save, reopen via `?post=<id>`, approve, confirm `scheduled` + `simulated:` + `?src=`) against a live deployment before this is considered fully proven.
 - Two judgment calls worth a second look: the Room section's placement/existence (item 2 above), and hardcoding `ghlType: "post"` (item 5).
 - Minor known gaps, both called out above and low-risk: media items don't clear when template changes (item 6), and `PhotoUpload` buttons in the composer aren't disabled during Save/Approve (item 7).
+
+## Fix Round 1
+
+Confirmed `git rev-parse HEAD` == `fef5bd9b3b0712ab6ced8f961a9444ff5a32dbd0` before starting.
+
+### Item 1: includeBookingLink froze permanently after the first save
+
+Root cause confirmed exactly as diagnosed: `setLinkTouched(true)` in the load-existing-draft effect fired on the ordinary "create then `router.replace("?post=<id>")`" path too (not only on a genuine reopen), permanently disabling the auto-default effect for the rest of the session. `finalCaption()` was also append-only, so a stale "Link in bio" survived a widened account mix.
+
+**Fix, in two parts:**
+
+1. Deleted `linkTouched` entirely. Replaced the sticky-flag effect with a change-detecting one: a `mixBaselineRef` ref records the last-seen value of `allInstagramSelected`, and `setIncludeBookingLink(!allInstagramSelected)` only fires when that value actually *transitions*. Crucially, the effect does nothing at all, not even capturing an initial baseline, until the loaded post (if any) has already been hydrated (`loadedForRef.current === initialPostId`, the same ref the post-load effect already used). This was the part that needed care: `initialPostId` is a stable prop from the very first render in the reopen case (read synchronously from `useSearchParams()` in `page.tsx`), so the guard blocks the mix effect for the entire hydration window regardless of whether the independent `accounts` query resolves before or after the post query - there is no order-dependent window where a pre-load baseline (e.g. `false` from an empty `accountIds`) gets captured and then "changes" the instant the post's real `accountIds` land. I traced this ordering explicitly before trusting it, because an earlier draft of this fix in my head had exactly the bug the ticket warned against reintroducing: capturing a baseline before the post loaded, then overriding the just-restored value in the very same commit.
+2. Extracted the append/retract logic into `src/components/social/link-in-bio.ts`, `applyLinkInBioSuffix(caption, { allInstagramSelected, includeBookingLink })`. Symmetric by construction: append adds exactly `"\n\nLink in bio"` to the end of the caption; retract removes exactly that trailing text if present. Idempotent in both directions - repeated calls with the same inputs never duplicate, and a caption that never had the suffix is a no-op to retract. This also fixes a round-trip case the original code didn't handle: a caption loaded from a previously-saved Instagram-only post already has the suffix baked into the stored text (the old `finalCaption()` folded it into what got persisted), so reopening such a draft and then widening the account mix now correctly strips the phrase from the restored text rather than leaving it stuck.
+
+Dropped the old `caption.trim()` before appending, since trimming would break the append/retract symmetry (retract could no longer exactly reverse append if the base text had been silently trimmed first). Minor, intentional behavior change, called out here rather than left silent.
+
+`finalCaption()` in `composer.tsx` is now a one-line call into the extracted function; `buildArgs()`/the composer itself hold no suffix logic anymore.
+
+**Tests** (`src/components/social/link-in-bio.test.ts`, 8 cases): appends when Instagram-only and the link is off; does not append when the link is on; does not append when the mix is not Instagram-only; does not duplicate on repeated calls; retracts when the mix later changes away from Instagram-only; retracts when the owner turns the link back on; a no-op retracting a caption that never had the suffix; and leaves a manually-typed mid-caption occurrence of the phrase alone (only the trailing auto-added instance is ever touched).
+
+Command: `npx vitest run src/components/social/link-in-bio.test.ts --reporter=verbose` - **8 passed (8)**.
+
+### Item 2: reopening a non-editable post gave no warning
+
+Added `loadedStatus` state, set from `existingPost.status` in the same load effect (alongside the existing field restores). `EDITABLE_STATUSES = new Set(["draft", "approved", "failed"])` mirrors `convex/marketing/posts.ts` `update()`'s own check exactly. `readOnlyStatus = loadedStatus !== null && !EDITABLE_STATUSES.has(loadedStatus)`.
+
+- A status banner now renders at the top of the form whenever a post is loaded (any status), showing a human label (`STATUS_LABEL` map: Draft/Approved/Scheduled/Published/Failed to schedule/Cancelled).
+- When `readOnlyStatus` is true, the banner adds an explanation ("This post can no longer be edited here. Its content is shown below for reference only.") in a critical-tinted style, and a new `locked = busy || readOnlyStatus` constant now gates every interactive control in the form (template picker, media picker, room/promo/artist selects, caption textarea, account checkboxes, the booking-link switch, the schedule picker, the Draft-with-AI button, and both footer buttons), replacing the previous `busy`-only gate everywhere it appeared.
+- Both `handleSaveDraft` and `handleApproveAndSchedule` also bail out immediately if `readOnlyStatus` is true, as a defense-in-depth check behind the already-disabled buttons.
+
+Net effect: the owner sees the post is Scheduled/Published/Cancelled and cannot edit it, immediately, with the whole form visibly locked, not an unexplained save failure after typing.
+
+### Item 3: wrong error copy on a fast click
+
+Replaced the duplicated `"Pick a template first."` toast in both handlers with a `missingReason()` helper that checks `!templateKey` and `!schedule` separately and returns the matching message: `"Pick a template first."` or `"Still loading the schedule. Try again in a moment."` Both `handleSaveDraft`/`handleApproveAndSchedule` call this before `buildArgs()` and toast whichever reason applies; `buildArgs()` itself is unchanged (still returns `null` for either missing precondition, now backed by an unreachable-in-practice generic fallback message instead of the always-wrong "pick a template" one). Did not add extra button-disabling for the `!schedule` window beyond what was asked (the ticket's ask was specifically the copy, not preventing the click) and beyond what `locked` already covers for the `readOnlyStatus` case.
+
+### Full verification after all three fixes
+
+- `npm run typecheck` - clean, no errors.
+- `npm run lint` - **0 errors, 84 warnings** (down 1 from the prior round's 85, since consolidating the two link-related effects into one removed one `react-hooks/set-state-in-effect` warning; no new warning classes introduced).
+- `npx vitest run` - **159 test files, 1344 tests, all passing** (up from 158/1336: the new `link-in-bio.test.ts`'s 8 cases). Re-confirmed against this worktree specifically with `npx vitest run src/components/social/link-in-bio.test.ts --reporter=verbose` (RUN banner cwd matches this worktree's path).
+- No em dashes or en dashes introduced (checked every touched file, no hits).
+
+### Files changed in this round
+
+- `src/components/social/composer.tsx` - modified (all three fixes).
+- `src/components/social/link-in-bio.ts` - new (pure suffix logic).
+- `src/components/social/link-in-bio.test.ts` - new (8 tests).

@@ -23,8 +23,8 @@ import { MediaPicker, type MediaItem } from "./media-picker";
 import { SchedulePicker, type ScheduleValue } from "./schedule-picker";
 import { previewWarnings } from "./rules-preview";
 import { scheduleSuggestions } from "./schedule-math";
-
-const LINK_IN_BIO = "Link in bio";
+import { applyLinkInBioSuffix } from "./link-in-bio";
+import { cn } from "@/lib/utils";
 
 /** Facts handed to suggestCaption: whatever the composer already knows about
  *  the room, promo and artist, in plain sentences the model can quote from
@@ -49,6 +49,22 @@ function buildFacts(opts: {
   if (lines.length === 0) lines.push("No specific facts given. Keep it general, warm and inviting.");
   return lines.join("\n");
 }
+
+// A loaded post's editable window: update() (convex/marketing/posts.ts)
+// rejects anything outside draft/approved/failed with a status-specific
+// message, but nothing in the UI said so before that throw. Shown as a
+// banner the moment a post loads, and used to lock the whole form so a
+// scheduled/published/cancelled post never lets an owner type into a form
+// that cannot be saved.
+const STATUS_LABEL: Record<string, string> = {
+  draft: "Draft",
+  approved: "Approved",
+  scheduled: "Scheduled",
+  published: "Published",
+  failed: "Failed to schedule",
+  cancelled: "Cancelled",
+};
+const EDITABLE_STATUSES = new Set(["draft", "approved", "failed"]);
 
 export function Composer({
   initialPostId,
@@ -87,13 +103,18 @@ export function Composer({
   const [promoIdState, setPromoIdState] = React.useState<Id<"promos"> | undefined>(promoId ?? undefined);
   const [artistIdState, setArtistIdState] = React.useState<Id<"artists"> | undefined>(undefined);
   const [includeBookingLink, setIncludeBookingLink] = React.useState(true);
-  const [linkTouched, setLinkTouched] = React.useState(false);
   const [schedule, setSchedule] = React.useState<ScheduleValue | null>(null);
   const [scheduleTouched, setScheduleTouched] = React.useState(false);
   const [saving, setSaving] = React.useState(false);
   const [approving, setApproving] = React.useState(false);
   const [aiBusy, setAiBusy] = React.useState(false);
   const [notFound, setNotFound] = React.useState(false);
+  // The loaded post's own status (null for a fresh, unsaved compose). Drives
+  // the status banner and locks the whole form once a post has moved past
+  // the editable window - update() rejects a scheduled/published/cancelled
+  // post server-side, so the UI has to say so before the owner types rather
+  // than surface that as a save-time error.
+  const [loadedStatus, setLoadedStatus] = React.useState<string | null>(null);
 
   // Load an existing draft into local state exactly once per post id - a
   // later revalidation of the SAME id (e.g. the status-sync cron touching
@@ -120,9 +141,9 @@ export function Composer({
     setPromoIdState(existingPost.promoId);
     setArtistIdState(existingPost.artistId);
     setIncludeBookingLink(Boolean(existingPost.link));
-    setLinkTouched(true);
     setSchedule({ scheduledFor: existingPost.scheduledFor, timezone: existingPost.timezone });
     setScheduleTouched(true);
+    setLoadedStatus(existingPost.status);
   }, [existingPost, initialPostId]);
 
   // Default the schedule to the studio's own timezone once org data resolves
@@ -138,12 +159,30 @@ export function Composer({
     accountIds.length > 0 && accounts !== undefined && accountIds.every((id) => accounts.find((a) => a._id === id)?.platform === "instagram");
 
   // "Link in bio" beats a dead link: Instagram does not render a clickable
-  // link in a caption, so the default flips off there unless the owner has
-  // explicitly chosen otherwise.
+  // link in a caption, so the default flips off there. This re-applies
+  // whenever the account MIX changes (not on every render, and not via a
+  // sticky "touched" flag) so three things are all true at once: reopening a
+  // draft restores its persisted includeBookingLink untouched; widening or
+  // narrowing the account selection later re-applies the sensible default
+  // for the new mix; and a manual toggle survives until the mix actually
+  // changes again. The baseline is only captured once a post (if any) has
+  // finished loading, so hydrating a saved draft's own accountIds is never
+  // itself mistaken for a "mix changed" event that overrides the value the
+  // load effect just restored.
+  const mixBaselineRef = React.useRef<boolean | null>(null);
   React.useEffect(() => {
-    if (linkTouched) return;
+    if (accounts === undefined) return; // mix unknown until accounts resolve
+    if (initialPostId && loadedForRef.current !== initialPostId) return; // post not hydrated yet
+    if (mixBaselineRef.current === null) {
+      mixBaselineRef.current = allInstagramSelected; // first known-settled mix - not a change
+      return;
+    }
+    if (mixBaselineRef.current === allInstagramSelected) return;
+    mixBaselineRef.current = allInstagramSelected;
     setIncludeBookingLink(!allInstagramSelected);
-  }, [allInstagramSelected, linkTouched]);
+  }, [accounts, allInstagramSelected, initialPostId]);
+
+  const readOnlyStatus = loadedStatus !== null && !EDITABLE_STATUSES.has(loadedStatus);
 
   const selectedRoom = rooms?.find((r) => r._id === roomIdState) ?? null;
   const selectedPromo = promos?.find((p) => p._id === promoIdState) ?? null;
@@ -192,8 +231,7 @@ export function Composer({
   }
 
   function finalCaption(): string {
-    if (!allInstagramSelected || includeBookingLink) return caption;
-    return caption.includes(LINK_IN_BIO) ? caption : `${caption.trim()}\n\n${LINK_IN_BIO}`;
+    return applyLinkInBioSuffix(caption, { allInstagramSelected, includeBookingLink });
   }
 
   function buildArgs() {
@@ -213,10 +251,28 @@ export function Composer({
     };
   }
 
+  /** Why buildArgs() would refuse to build: distinct copy for a template not
+   *  yet picked (the owner's move) versus a schedule that has not defaulted
+   *  yet (a race - the org-timezone effect resolves within a render or two
+   *  of mount, and the footer buttons render before that finishes). Without
+   *  this, a fast click during "Loading schedule" told the owner to pick a
+   *  template they had already picked. */
+  function missingReason(): string | null {
+    if (!templateKey) return "Pick a template first.";
+    if (!schedule) return "Still loading the schedule. Try again in a moment.";
+    return null;
+  }
+
   async function handleSaveDraft() {
+    if (readOnlyStatus) return;
+    const reason = missingReason();
+    if (reason) {
+      toast.error(reason);
+      return;
+    }
     const args = buildArgs();
     if (!args) {
-      toast.error("Pick a template first.");
+      toast.error("Could not save this draft. Try again.");
       return;
     }
     setSaving(true);
@@ -237,9 +293,15 @@ export function Composer({
   }
 
   async function handleApproveAndSchedule() {
+    if (readOnlyStatus) return;
+    const reason = missingReason();
+    if (reason) {
+      toast.error(reason);
+      return;
+    }
     const args = buildArgs();
     if (!args) {
-      toast.error("Pick a template first.");
+      toast.error("Could not approve this post. Try again.");
       return;
     }
     setApproving(true);
@@ -294,24 +356,37 @@ export function Composer({
   }
 
   const busy = saving || approving;
+  const locked = busy || readOnlyStatus;
 
   return (
     <div className="space-y-8">
+      {loadedStatus && (
+        <div
+          className={cn(
+            "rounded-lg border px-4 py-3 text-sm",
+            readOnlyStatus ? "border-critical/40 bg-critical/10 text-critical" : "border-graphite/50 bg-coal-2 text-steel",
+          )}
+        >
+          <span className="font-medium">Status: {STATUS_LABEL[loadedStatus] ?? loadedStatus}.</span>{" "}
+          {readOnlyStatus &&
+            "This post can no longer be edited here. Its content is shown below for reference only."}
+        </div>
+      )}
       <Section title="Template">
-        <TemplatePicker value={templateKey} onPick={setTemplateKey} disabled={busy} />
+        <TemplatePicker value={templateKey} onPick={setTemplateKey} disabled={locked} />
       </Section>
 
       {templateKey && (
         <>
           <Section title="Media">
-            <MediaPicker value={media} onChange={setMedia} template={templateKey} postId={postId} disabled={busy} />
+            <MediaPicker value={media} onChange={setMedia} template={templateKey} postId={postId} disabled={locked} />
           </Section>
 
           <Section title="Room">
             <Select
               value={roomIdState ?? "none"}
               onValueChange={(v) => setRoomIdState(v === "none" ? undefined : (v as Id<"rooms">))}
-              disabled={busy}
+              disabled={locked}
             >
               <SelectTrigger>
                 <SelectValue placeholder="No specific room" />
@@ -330,7 +405,7 @@ export function Composer({
           <Section
             title="Caption"
             trailing={
-              <Button variant="outline" size="sm" onClick={() => void handleDraftWithAI()} disabled={busy || aiBusy}>
+              <Button variant="outline" size="sm" onClick={() => void handleDraftWithAI()} disabled={locked || aiBusy}>
                 <Sparkles className="size-3.5" />
                 {aiBusy ? "Drafting..." : "Draft with AI"}
               </Button>
@@ -340,7 +415,7 @@ export function Composer({
               value={caption}
               onChange={(e) => setCaption(e.target.value)}
               rows={6}
-              disabled={busy}
+              disabled={locked}
               placeholder="What happened, and what should they do next."
             />
           </Section>
@@ -367,7 +442,7 @@ export function Composer({
                       <label className="flex cursor-pointer items-center gap-3">
                         <Checkbox
                           checked={checked}
-                          disabled={busy}
+                          disabled={locked}
                           onCheckedChange={(v) => toggleAccount(a._id, Boolean(v))}
                         />
                         <meta.icon className="size-4 shrink-0 text-steel/70" />
@@ -402,7 +477,7 @@ export function Composer({
               <Select
                 value={promoIdState ?? "none"}
                 onValueChange={(v) => setPromoIdState(v === "none" ? undefined : (v as Id<"promos">))}
-                disabled={busy}
+                disabled={locked}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="No promo" />
@@ -426,7 +501,7 @@ export function Composer({
               <Select
                 value={artistIdState ?? "none"}
                 onValueChange={(v) => setArtistIdState(v === "none" ? undefined : (v as Id<"artists">))}
-                disabled={busy}
+                disabled={locked}
               >
                 <SelectTrigger>
                   <SelectValue placeholder="Pick an artist" />
@@ -454,11 +529,8 @@ export function Composer({
             <label className="flex cursor-pointer items-center gap-3">
               <Switch
                 checked={includeBookingLink}
-                disabled={busy}
-                onCheckedChange={(v) => {
-                  setLinkTouched(true);
-                  setIncludeBookingLink(v);
-                }}
+                disabled={locked}
+                onCheckedChange={setIncludeBookingLink}
               />
               <span className="text-sm text-bone">Include the booking link</span>
             </label>
@@ -477,7 +549,7 @@ export function Composer({
                   setScheduleTouched(true);
                   setSchedule(next);
                 }}
-                disabled={busy}
+                disabled={locked}
               />
             ) : (
               <LoadingPanel label="Loading schedule" />
@@ -485,11 +557,11 @@ export function Composer({
           </Section>
 
           <div className="flex flex-wrap items-center gap-3 border-t border-graphite/40 pt-6">
-            <Button onClick={() => void handleSaveDraft()} disabled={busy}>
+            <Button onClick={() => void handleSaveDraft()} disabled={locked}>
               {saving ? "Saving..." : "Save draft"}
             </Button>
             {canApprove ? (
-              <Button variant="secondary" onClick={() => void handleApproveAndSchedule()} disabled={busy}>
+              <Button variant="secondary" onClick={() => void handleApproveAndSchedule()} disabled={locked}>
                 {approving ? "Scheduling..." : "Approve and schedule"}
               </Button>
             ) : (
