@@ -87,7 +87,33 @@ Verify: a session reminder sends a real SMS and an inbound reply is captured.
   the client concierge. Without it the app uses Gemini (`GEMINI_API_KEY`, already
   set) and then deterministic templates - everything still works, just less rich.
 
-## 6. Other env already in play
+## 6. Studio Marketing - social posting via GHL (currently simulated)
+
+Posts are scheduled through the GoHighLevel Social Planner on the location
+Pulse already uses for SMS. With none of these set, the whole module runs in
+**simulated mode**: drafts, approvals, the calendar and Results all work, and
+nothing is ever sent to a real social account.
+
+- `GHL_API_KEY` - private integration token for the GHL location. Without it
+  every GHL call short-circuits to simulated.
+- `GHL_LOCATION_ID` - the GHL sub-account (location) id that owns the
+  Connected Accounts. A studio can be moved onto its own sub-account later via
+  `orgs.ghl`; this is the platform default.
+- `GHL_SOCIAL_USER_ID` - the GHL user id posts are created as. Required
+  alongside the two above; missing it alone also falls back to simulated.
+
+All three must be present together. Verify: **Settings - Social** lists real
+Connected Accounts instead of the simulated set, and an approved post appears
+in the GHL Social Planner at its scheduled time.
+
+- `PULSE_PUBLIC_HOST` - **optional.** The public origin used for the tracked
+  booking link in each caption and for the brand-card image URL GHL fetches.
+  Leave it unset unless the public booking host differs from `APP_URL`: unset,
+  it follows `APP_URL`, which is what every other module builds public links
+  from. Setting it wrong publishes dead links and a 404 in place of the card
+  image, and a published post cannot be retracted.
+
+## 7. Other env already in play
 
 - `CLERK_SECRET_KEY`, `CLERK_JWT_ISSUER_DOMAIN`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
   (auth; dev instance today).

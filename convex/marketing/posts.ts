@@ -9,8 +9,39 @@ import { stripEmDashes } from "../lib/text";
 import { validateForPlatform, type MediaKind } from "./rules";
 import { ghlFromEnv, createScheduledPost, deletePost, listPosts, type GhlPostInput } from "../lib/ghl";
 import { complete } from "../lib/openai";
+import { appUrl } from "../lib/links";
 
-export const APP_HOST = process.env.PULSE_PUBLIC_HOST ?? "https://pulse.myindsound.com";
+/** Public origin for the two links a post puts on the open internet: the
+ *  tracked booking link in the caption, and the brand-card image URL that GHL
+ *  fetches server-side.
+ *
+ *  This chains through `appUrl()` (APP_URL) rather than standing on its own.
+ *  It used to read `PULSE_PUBLIC_HOST ?? "https://pulse.myindsound.com"`, a
+ *  variable set nowhere and named nowhere else in the repo, which made it a
+ *  second source of truth for the app's public host: deploy without setting
+ *  the new variable and the literal won, so if the app was not served at that
+ *  host every published post carried a dead link and GHL fetched an HTML 404
+ *  in place of the card image. Neither is retractable once a post is out.
+ *
+ *  `PULSE_PUBLIC_HOST` survives as an OPTIONAL override for the case where
+ *  the public booking host genuinely differs from APP_URL. Unset (the normal
+ *  case) this is exactly the origin every other module already builds links
+ *  from, so it cannot silently disagree with them.
+ *
+ *  The final fallback is `appUrl()`'s own `http://localhost:3000`, on
+ *  purpose: production Convex already has APP_URL set, so the fallback is
+ *  only ever reached in dev or on a misconfigured deployment, and there a
+ *  loudly wrong localhost link beats a plausible domain that fails silently.
+ *  Read at call time, not module load, so a test can stub the env. */
+export function appHost(): string {
+  const override = process.env.PULSE_PUBLIC_HOST?.trim();
+  // `appUrl()` guards with `??`, which catches an unset APP_URL but not one
+  // set to an empty string; that would return "" and publish a RELATIVE link
+  // to the open internet. Guarded here rather than in links.ts so this fix
+  // does not change behaviour for the twenty other callers of appUrl().
+  const base = override || appUrl().trim() || "http://localhost:3000";
+  return base.replace(/\/+$/, "");
+}
 
 export function buildTrackedLink(a: { host: string; slug: string; roomId?: string; postId: string; code?: string }): string {
   const path = a.roomId ? `/book/${a.slug}/${a.roomId}` : `/book/${a.slug}`;
@@ -82,7 +113,7 @@ export const create = mutation({
 async function linkFor(ctx: MutationCtx, orgId: string, postId: Id<"socialPosts">, roomId?: Id<"rooms">, promoId?: Id<"promos">) {
   const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
   const promo = promoId ? await ctx.db.get(promoId) : null;
-  return buildTrackedLink({ host: APP_HOST, slug: org?.slug ?? orgId, roomId, postId, code: promo?.code });
+  return buildTrackedLink({ host: appHost(), slug: org?.slug ?? orgId, roomId, postId, code: promo?.code });
 }
 
 export const update = mutation({
@@ -162,7 +193,7 @@ export const payloadContext = internalQuery({
         const url = await ctx.storage.getUrl(m.storageId);
         if (url) media.push({ url, type: m.type === "video" ? "video/mp4" : "image/jpeg" });
       } else if (m.brandCard) {
-        media.push({ url: `${APP_HOST}/api/brand-card/${post._id}?kind=${m.brandCard}&v=${post.updatedAt}`, type: "image/png" });
+        media.push({ url: `${appHost()}/api/brand-card/${post._id}?kind=${m.brandCard}&v=${post.updatedAt}`, type: "image/png" });
       }
     }
     const promo = post.promoId ? await ctx.db.get(post.promoId) : null;
@@ -325,11 +356,26 @@ export const createInternal = internalMutation({
   },
 });
 
-/** Cron: pull status for every scheduled post whose time has passed. */
+/** Cron: pull status for every scheduled post whose time has passed.
+ *
+ *  Reads the due window off `by_status_scheduled`, not the whole table. This
+ *  used to be an unbounded `.withIndex("by_org_status").collect()`, which read
+ *  every socialPosts row in every org - drafts, published, cancelled, none of
+ *  which are ever deleted. A hundred studios at the 20-posts-a-month cap is
+ *  24,000 rows inside a year, past Convex's 16,384-document read limit, and
+ *  when it tripped this query threw and status sync stopped platform-wide and
+ *  silently: posts would sit on "Scheduled" forever and Results, which keys on
+ *  `status: "published"`, would report nothing for anyone.
+ *
+ *  The selected set is identical to before (scheduled and overdue); only the
+ *  rows READ to find it changed. */
 export const scheduledDue = internalQuery({
   args: {},
   handler: async (ctx) => {
-    const rows = await ctx.db.query("socialPosts").withIndex("by_org_status").collect();
+    const rows = await ctx.db
+      .query("socialPosts")
+      .withIndex("by_status_scheduled", (q) => q.eq("status", "scheduled").lte("scheduledFor", Date.now()))
+      .collect();
     const isDue = (r: Doc<"socialPosts">) => r.status === "scheduled" && r.scheduledFor <= Date.now();
     const due = rows.filter((r) => isDue(r) && r.ghlPostId && !r.ghlPostId.startsWith("simulated:"));
     const simulated = rows.filter((r) => isDue(r) && r.ghlPostId && r.ghlPostId.startsWith("simulated:"));

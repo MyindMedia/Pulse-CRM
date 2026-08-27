@@ -62,6 +62,11 @@ function ServiceBookingView() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const refFromLink = searchParams.get("ref") ?? undefined;
+  // Post attribution (?src=<postId>) from a tracked social link, carried down
+  // from the studio front by the service card. Validated server-side in
+  // createBooking; without it a services-first studio's booking lands with no
+  // postId and the post that drove it reports nothing.
+  const srcFromLink = searchParams.get("src") ?? undefined;
 
   const service = useQuery(api.booking.service, { serviceId });
   const createBooking = useMutation(api.booking.createBooking);
@@ -155,6 +160,7 @@ function ServiceBookingView() {
         addOnEquipmentIds: crew.gear.map((g) => g.id),
         gearRequestNote: crew.gearRequestNote || undefined,
         ref: refFromLink,
+        src: srcFromLink,
         visitorKey: visitorKey() ?? undefined,
       });
       toast.success("Booking held - finish payment to confirm.");

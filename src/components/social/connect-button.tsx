@@ -65,7 +65,9 @@ export function ConnectButton({ platform, disabled }: { platform: Platform; disa
 
   useEffect(() => {
     function onMessage(e: MessageEvent) {
-      if (!isOwnGhlCloseMessage(e.data, platform)) return;
+      // Origin first: the popup we opened, and anything it navigates to,
+      // holds window.opener and can post a forged close message otherwise.
+      if (!isOwnGhlCloseMessage(e.origin, e.data, platform)) return;
       popup.current?.close();
       popup.current = null;
       handling.current = true;

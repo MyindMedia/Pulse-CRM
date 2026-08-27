@@ -3,7 +3,7 @@ import { convexTest } from "convex-test";
 import schema from "../schema";
 import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
-import { buildTrackedLink } from "./posts";
+import { buildTrackedLink, appHost } from "./posts";
 import { periodFor } from "../usage";
 
 const HOUR = 3_600_000;
@@ -154,5 +154,34 @@ describe("marketing posts", () => {
       .toBe("https://pulse.myindsound.com/book/studio/r1?src=p1&code=THU20");
     expect(buildTrackedLink({ host: "https://pulse.myindsound.com", slug: "studio", postId: "p1" }))
       .toBe("https://pulse.myindsound.com/book/studio?src=p1");
+  });
+
+  it("appHost follows APP_URL, and PULSE_PUBLIC_HOST is only an override", () => {
+    // The whole point: no second source of truth for the public host. A
+    // deployment that sets APP_URL and nothing else gets the same origin here
+    // as the other modules that build public links, instead of a literal that
+    // silently disagrees with them.
+    vi.stubEnv("PULSE_PUBLIC_HOST", "");
+    vi.stubEnv("APP_URL", "https://studio.example.com");
+    expect(appHost()).toBe("https://studio.example.com");
+
+    // The override still wins when a deploy genuinely needs a different
+    // public booking host.
+    vi.stubEnv("PULSE_PUBLIC_HOST", "https://book.example.com");
+    expect(appHost()).toBe("https://book.example.com");
+
+    // A trailing slash on either would otherwise produce "//book/..".
+    vi.stubEnv("PULSE_PUBLIC_HOST", "https://book.example.com/");
+    expect(appHost()).toBe("https://book.example.com");
+    expect(buildTrackedLink({ host: appHost(), slug: "studio", postId: "p1" }))
+      .toBe("https://book.example.com/book/studio?src=p1");
+
+    // Nothing configured is a dev machine. Localhost is deliberate: it is
+    // loudly wrong rather than a plausible domain that fails silently. A
+    // blank APP_URL counts as unset - appUrl()'s own `??` does not catch it,
+    // and "" would publish a relative link to the open internet.
+    vi.stubEnv("PULSE_PUBLIC_HOST", "");
+    vi.stubEnv("APP_URL", "");
+    expect(appHost()).toBe("http://localhost:3000");
   });
 });

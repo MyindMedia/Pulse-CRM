@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { money } from "@/lib/format";
 import { fadeUp } from "@/lib/motion";
 import { RoomCover } from "@/components/book/room-cover";
+import { withTracking, type TrackingParams } from "@/lib/tracking-links";
 
 /** Shape of one room card from `api.booking.studioFront`. */
 export type RoomCardData = {
@@ -24,16 +25,17 @@ export type RoomCardData = {
 export function RoomCard({
   room,
   slug,
-  refId,
+  tracking,
 }: {
   room: RoomCardData;
   slug: string;
-  /** Referral artistId from a ?ref= share link, threaded onto the room link. */
-  refId?: string;
+  /** Attribution params off the studio-front URL (?ref=, ?src=, ?code=,
+   *  ?utm_source=), threaded onto the room link. A tracked post with no room
+   *  links to the studio front, so this is the only hop that carries ?src=
+   *  and ?code= down to the page that reads them. */
+  tracking?: TrackingParams;
 }) {
-  const href = refId
-    ? `/book/${slug}/${room._id}?ref=${encodeURIComponent(refId)}`
-    : `/book/${slug}/${room._id}`;
+  const href = withTracking(`/book/${slug}/${room._id}`, tracking ?? {});
   return (
     <motion.div variants={fadeUp}>
       <Link

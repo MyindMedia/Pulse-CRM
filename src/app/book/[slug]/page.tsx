@@ -23,6 +23,7 @@ import { ServiceCard } from "@/components/book/service-card";
 import { MembershipPlans } from "@/components/book/membership-plans";
 import { SocialProof, EngineerRoster } from "@/components/book/social-proof";
 import { useTrackBookingStep } from "@/lib/use-booking-funnel";
+import { readTrackingParams } from "@/lib/tracking-links";
 
 const STEPS = [
   { icon: MousePointerClick, label: "Pick a room", note: "Browse rooms and gear." },
@@ -44,9 +45,15 @@ export default function StudioSlugFrontPage() {
 function StudioFrontView() {
   const { slug } = useParams<{ slug: string }>();
   const searchParams = useSearchParams();
-  // Referral share links (?ref=<artistId>) are threaded onto every room link so
-  // the attribution survives the front -> room -> booking navigation.
-  const refId = searchParams.get("ref") ?? undefined;
+  // Attribution params are threaded onto every card link so they survive the
+  // front -> room/service -> booking navigation. This page is where a tracked
+  // social link for a post with NO room lands, which makes it the only place
+  // ?src= and ?code= can be carried down to the page that reads them; a
+  // referral share link (?ref=<artistId>) rides along the same way.
+  const tracking = React.useMemo(
+    () => readTrackingParams(searchParams),
+    [searchParams],
+  );
   const front = useQuery(api.booking.studioFront, { slug });
   // The server decides: "services" only when the studio switched to it AND has
   // services live, so the page can never render an empty catalogue.
@@ -271,7 +278,7 @@ function StudioFrontView() {
             className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
           >
             {front.services.map((service) => (
-              <ServiceCard key={service._id} service={service} slug={slug} refId={refId} />
+              <ServiceCard key={service._id} service={service} slug={slug} tracking={tracking} />
             ))}
           </motion.div>
         ) : front.rooms.length === 0 ? (
@@ -288,7 +295,7 @@ function StudioFrontView() {
             className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
           >
             {front.rooms.map((room) => (
-              <RoomCard key={room._id} room={room} slug={slug} refId={refId} />
+              <RoomCard key={room._id} room={room} slug={slug} tracking={tracking} />
             ))}
           </motion.div>
         )}

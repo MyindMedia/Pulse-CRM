@@ -4,6 +4,7 @@ import Link from "next/link";
 import { motion } from "motion/react";
 import { ArrowRight } from "lucide-react";
 import { fadeUp } from "@/lib/motion";
+import { withTracking, type TrackingParams } from "@/lib/tracking-links";
 
 /* A service card: what the studio does, at what price.
 
@@ -32,11 +33,15 @@ function money(cents: number): string {
 export function ServiceCard({
   service,
   slug,
-  refId,
+  tracking,
 }: {
   service: ServiceCardData;
   slug: string;
-  refId?: string;
+  /** Attribution params off the studio-front URL, threaded onto the service
+   *  link the same way the room card threads them. A services-first studio
+   *  is the only route a tracked post's visitor takes, so dropping them here
+   *  loses the attribution outright. */
+  tracking?: TrackingParams;
 }) {
   const flat = service.pricingMode === "flat";
   const terms = flat
@@ -48,7 +53,7 @@ export function ServiceCard({
   return (
     <motion.div variants={fadeUp}>
       <Link
-        href={`/book/${slug}/s/${service._id}${refId ? `?ref=${encodeURIComponent(refId)}` : ""}`}
+        href={withTracking(`/book/${slug}/s/${service._id}`, tracking ?? {})}
         className="group flex h-full flex-col overflow-hidden rounded-lg border border-graphite/50 bg-coal transition-all hover:-translate-y-0.5 hover:border-gold-dim"
       >
         {service.heroUrl && (

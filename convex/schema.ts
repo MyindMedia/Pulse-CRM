@@ -2503,6 +2503,11 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])
     .index("by_org_scheduled", ["orgId", "scheduledFor"])
+    // Status-first, so the every-30-minutes cron can read the posts that are
+    // actually due ACROSS every org without an orgId prefix. The org-prefixed
+    // indexes above cannot serve that query, which is why it used to scan the
+    // whole table.
+    .index("by_status_scheduled", ["status", "scheduledFor"])
     .index("by_ghl_post", ["ghlPostId"]),
 
   // ── Membership plans - studio-defined monthly/yearly tiers (priority booking,
