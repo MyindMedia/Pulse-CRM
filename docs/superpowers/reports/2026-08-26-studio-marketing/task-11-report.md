@@ -187,3 +187,100 @@ imports and maps `marketing/accounts`). This task touched no Convex handler code
   `AskUserQuestion` tool available to pick between two connected Chrome sessions). Relied on
   curl-based SSR verification plus the full test suite; see the render-proof section above for
   exactly what was and was not checked.
+
+## Fix Round 1
+
+Confirmed `git rev-parse HEAD` = `3e69c559d22defbb9eff9ec32546a2bdfd190d84` before starting.
+
+### Item 1: Connect and Remove are not capability-gated client-side
+
+`myOrgForConnect` (behind `startConnect`/`choices`/`attach`) and `remove` both require
+`marketing.approve` (owner/manager, agency owner/admin only) - six of eight studio roles hold
+only `marketing.read` and would previously see both controls, click them, and get a raw
+`AccessError` message surfaced through `errorMessage()`.
+
+- `src/components/social/account-row.tsx` - `AccountRow` now takes a required `canRemove:
+  boolean` prop and renders the Remove button only when true (`{canRemove && <Button
+  ...>Remove</Button>}`), matching the hide-not-disable shape of
+  `src/app/(app)/studio/page.tsx`'s `can("rooms.edit") && <Button>` precedent rather than a new
+  disabled-with-tooltip style.
+- `src/app/(app)/marketing/accounts/page.tsx` - added `useCapabilities()`, computed `canApprove
+  = can("marketing.approve")`, passed it to every `AccountRow` as `canRemove`, and gated the
+  entire "Add an account" grid behind it. A `marketing.read`-only viewer sees the connected
+  list (without a Remove button per row) and, once capabilities finish loading, a single line
+  under "Add an account": "Ask a studio owner or manager to connect accounts." The message is
+  gated on `loaded` (not shown during the load window) so it does not flash for a viewer who
+  turns out to hold the capability once the query resolves - `canApprove` itself defaults false
+  before load, which is what would otherwise cause a one-frame flash of the denial copy.
+- Did not add capability checks inside `connect-button.tsx` itself: the established precedent
+  (`rooms.edit`, `patch.edit`) always checks at the render call site in the page, not inside a
+  reusable leaf component, and `ConnectButton` is only ever invoked from this one page's grid,
+  so hiding the grid achieves the same effect with one `useCapabilities()` call instead of ten
+  redundant ones.
+- The self-review claim in the original report ("no other page in this codebase pre-emptively
+  hides actions a role cannot perform") was wrong, as the coordinator's message pointed out
+  directly - `studio/page.tsx`, `patch/page.tsx`, `patch/device-list.tsx`, and `payroll/page.tsx`
+  all do exactly this. Retracting that claim here rather than leaving it standing in the
+  original Self-review section above.
+
+### Item 2: the route was not wrapped in CapabilityGuard
+
+- `src/app/(app)/marketing/layout.tsx` - wrapped the entire layout body (header, tab strip, and
+  `{children}`) in `<CapabilityGuard cap="marketing.read">`, matching
+  `src/app/(app)/payments/page.tsx:152`'s shape exactly. Placed it in the shared layout rather
+  than in `accounts/page.tsx` alone so every sub-route tasks 12-14 add under `/marketing/*`
+  inherits the guard automatically, with nothing to remember - this is the propagation the
+  coordinator flagged.
+- Verified the guard does not crash the demo viewer: `npm test` still 100% green (see below),
+  and a live request to `/marketing/accounts` still returns `200` with a clean server log (see
+  render-proof note below on why the SSR body itself now looks different).
+
+### Item 3: extracted and tested the postMessage predicate
+
+- `src/components/social/ghl-message.ts` (new) - `isOwnGhlCloseMessage(data: unknown, platform:
+  Platform)`, a pure type-predicate function lifted out of `connect-button.tsx`'s `onMessage`
+  handler. Kept the current accept-on-omitted-platform behavior unchanged, documented in the
+  function's own comment as an open question about GHL's actual contract, per the coordinator's
+  instruction not to change it.
+- `src/components/social/ghl-message.test.ts` (new) - 7 tests: accepts a well-formed message;
+  rejects wrong `actionType`; rejects wrong `page`; rejects missing `accountId`; rejects a
+  mismatched `platform`; accepts an omitted `platform` (documents, does not assert correctness
+  of, the current behavior); rejects non-object/null/undefined `data` (bonus coverage beyond
+  the six asked for).
+- `src/components/social/connect-button.tsx` - `onMessage` now calls `isOwnGhlCloseMessage(e.data,
+  platform)` and, once it returns true, reads `e.data.accountId` directly - TypeScript narrows
+  `e.data` through the predicate's `data is GhlCloseMessage & { accountId: string }` return
+  type, so no separate cast was needed at the call site.
+
+### Commands run and results
+
+- `npm run typecheck` - clean, no errors.
+- `npm run lint` - 0 errors, 80 warnings (identical count and set to the pre-fix-round baseline
+  once two transient warnings from an early draft of `ghl-message.test.ts`, both
+  `@typescript-eslint/no-unused-vars` on destructuring-omitted `_accountId`/`_platform`, were
+  fixed by constructing the fixture objects directly instead of destructuring them out of
+  `wellFormed`). Verified with `npm run lint 2>&1 | grep -E "social/|marketing/layout|marketing/accounts|capability-guard"`
+  - the only match left is `ghl-message.test.ts`'s two lines, both clean after the rewrite.
+- Focused covering tests: `npx vitest run src/components/social/ghl-message.test.ts
+  --reporter=verbose` - **7/7 passed** (the new Item 3 tests). `npx vitest run
+  convex/entitlements.test.ts convex/marketing/accounts.test.ts
+  src/components/social/ghl-message.test.ts --reporter=verbose` - **46/46 passed** (adds the nav-
+  capability wiring test and the accounts backend capability/cap tests that Items 1 and 2 rely
+  on server-side).
+- `npm test` (full suite) - **156 test files, 1324 tests, all passing** (up from 155/1317 -
+  exactly the one new file and its 7 tests).
+- Render proof, redone: `PORT=3311 npx next dev --webpack`, `curl -s -o /dev/null -w
+  "%{http_code}" http://localhost:3311/marketing/accounts` -> `200`, clean server log, no
+  errors. The **response body itself now looks different from Task 11's original proof** -
+  server-rendered HTML shows only `CapabilityGuard`'s loading spinner (`animate-spin`, `grid
+  min-h-[40vh]`), not the page's title/sections/platform buttons. This is expected, not a
+  regression: `useCapabilities()`'s `loaded` flag is deliberately pinned to `false` during SSR
+  (see its own doc comment on avoiding a hydration mismatch), so `CapabilityGuard` always
+  renders only its spinner branch server-side and defers the guarded content to the client
+  render after hydration. Confirmed this is the existing, shipped behavior and not something
+  Item 2 introduced incorrectly by curling `/payments` (which has used this exact
+  `CapabilityGuard` pattern in production) side by side - byte-for-byte the same shape: one
+  `animate-spin` hit, no page-body text, `200` status, clean log. Real content on both routes
+  only appears client-side once the capabilities query resolves. As in the original report, I
+  do not have interactive browser access (no `AskUserQuestion` tool) to confirm the
+  post-hydration paint visually; this is stated plainly rather than claimed.

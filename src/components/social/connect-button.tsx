@@ -7,6 +7,7 @@ import type { Platform } from "@convex/lib/ghl";
 import { Button } from "@/components/ui/button";
 import { errorMessage } from "@/lib/errors";
 import { PLATFORM_META } from "./platforms";
+import { isOwnGhlCloseMessage } from "./ghl-message";
 
 type Choice = { id: string; name: string; type?: string };
 
@@ -64,13 +65,11 @@ export function ConnectButton({ platform, disabled }: { platform: Platform; disa
 
   useEffect(() => {
     function onMessage(e: MessageEvent) {
-      const d = e.data as { actionType?: string; page?: string; platform?: string; accountId?: string } | undefined;
-      if (!d || d.actionType !== "close" || d.page !== "social-media-posting" || !d.accountId) return;
-      if (d.platform && d.platform !== platform) return;
+      if (!isOwnGhlCloseMessage(e.data, platform)) return;
       popup.current?.close();
       popup.current = null;
       handling.current = true;
-      const accountId = d.accountId;
+      const accountId = e.data.accountId;
       void (async () => {
         setBusy(true);
         try {
