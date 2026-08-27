@@ -14,8 +14,15 @@ export const data = query({
     if (!post) return null;
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", post.orgId)).first();
     if (!org) return null;
-    const room = post.roomId ? await ctx.db.get(post.roomId) : null;
-    const promo = post.promoId ? await ctx.db.get(post.promoId) : null;
+    // Defense in depth: this is a public, unauthenticated route, so it must
+    // not trust that the write path correctly rejected a foreign roomId or
+    // promoId - a room or promo that does not belong to this post's org is
+    // treated as absent, not surfaced. See posts.ts's validateInput for the
+    // write-side fix; this check stands on its own regardless of it.
+    const roomDoc = post.roomId ? await ctx.db.get(post.roomId) : null;
+    const room = roomDoc && roomDoc.orgId === post.orgId ? roomDoc : null;
+    const promoDoc = post.promoId ? await ctx.db.get(post.promoId) : null;
+    const promo = promoDoc && promoDoc.orgId === post.orgId ? promoDoc : null;
     const logoUrl = org.logoId ? await ctx.storage.getUrl(org.logoId) : null;
     const rate = room?.hourlyRateCents ?? 0;
     return {

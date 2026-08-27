@@ -35,7 +35,7 @@ const postInput = {
 
 /** Shared validation for create/update: accounts belong to this org, media
  *  and caption satisfy every chosen platform. Throws the first problem. */
-async function validateInput(ctx: MutationCtx, orgId: string, input: { caption: string; media: { type: MediaKind }[]; accountIds: Id<"socialAccounts">[]; includeBookingLink: boolean; scheduledFor: number; promoId?: Id<"promos"> }) {
+async function validateInput(ctx: MutationCtx, orgId: string, input: { caption: string; media: { type: MediaKind }[]; accountIds: Id<"socialAccounts">[]; includeBookingLink: boolean; scheduledFor: number; promoId?: Id<"promos">; roomId?: Id<"rooms"> }) {
   if (input.accountIds.length === 0) throw new Error("Pick at least one account.");
   if (input.scheduledFor < Date.now() + 5 * 60_000) throw new Error("Schedule at least five minutes from now.");
   const accounts: Doc<"socialAccounts">[] = [];
@@ -49,6 +49,10 @@ async function validateInput(ctx: MutationCtx, orgId: string, input: { caption: 
   if (input.promoId) {
     const p = await ctx.db.get(input.promoId);
     if (!p || p.orgId !== orgId) throw new Error("That promo does not belong to this studio.");
+  }
+  if (input.roomId) {
+    const r = await ctx.db.get(input.roomId);
+    if (!r || r.orgId !== orgId) throw new Error("That room does not belong to this studio.");
   }
   const media = input.media.map((m) => m.type);
   for (const a of accounts) {

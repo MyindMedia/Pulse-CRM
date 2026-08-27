@@ -218,3 +218,89 @@ deployment could not be pushed to for reasons outside this change.
   worktree is reused for further verification.
 - Left the temporary manual-render-check test file's output PNGs in the scratchpad directory
   (not the repo) for inspection; they are not part of the commit.
+
+## Fix Round 1
+
+Confirmed `git rev-parse HEAD` = `1d4ee3a03589d83cb074a8891f05bdcf6ffb7b5b` before starting.
+
+### Item 1: cross-org data exposure through the public brand-card route
+
+Root cause was exactly as described: `validateInput` in `convex/marketing/posts.ts` checked
+`accountIds` (throws `FOREIGN_ACCOUNT`) and `promoId` (org-checked) but never looked at
+`roomId` at all, even though `roomId` is part of `postInput` and reaches `validateInput`
+through the full `args` spread in both `create` and `update`. `convex/marketing/brandCard.ts`
+then trusted `post.roomId`/`post.promoId` with a bare `ctx.db.get`, so a post carrying
+another org's room or promo id would have that org's room name, hourly rate, promo code,
+percent, and label served through the public, unauthenticated card route.
+
+Fixed both ends:
+
+1. **Write side** (`convex/marketing/posts.ts`): added `roomId?: Id<"rooms">` to
+   `validateInput`'s parameter type and a room-ownership check mirroring the existing promo
+   check exactly (`if (input.roomId) { const r = await ctx.db.get(input.roomId); if (!r ||
+   r.orgId !== orgId) throw new Error("That room does not belong to this studio."); }`).
+   Confirmed both `create` and `update` already route their full `args` (including `roomId`)
+   through `validateInput` - no call-site change needed, only the function itself.
+2. **Read side** (`convex/marketing/brandCard.ts`): `room` and `promo` are now only used when
+   `.orgId === post.orgId`; a foreign one resolves to `null`, exactly like an absent one. This
+   does not depend on the write-side fix - the read-side check stands alone.
+
+**Covering tests:**
+
+- `convex/marketing/brandCard.test.ts`: new test `"never leaks another org's room or promo,
+  even if a post carries a foreign id"` - seeds an org1 post whose `roomId`/`promoId` point at
+  an org2 room and promo (simulating a write-side bypass or a pre-fix row), asserts
+  `roomName`, `rateLabel`, `promoCode`, `promoPct` and `windowLabel` are all `null`.
+  - RED (read-side fix reverted, write-side fix left in): `npx vitest run
+    convex/marketing/brandCard.test.ts` failed with `expected { accent: '#FDB913', … } to
+    deeply equal { studioName: 'Slang City', … }`, diff showing `promoCode: "RIVAL50"`,
+    `promoPct: 50`, `rateLabel: "$120/hr"`, `roomName: "Rival Room"`, `windowLabel: "Rival's
+    secret sale"` all leaking through. Confirmed the test genuinely exercises the bug.
+  - GREEN (fix restored): `npx vitest run convex/marketing/brandCard.test.ts` - both tests in
+    the file pass.
+- `convex/marketing/posts.test.ts`: new test `"create and update both reject a room that
+  belongs to another org"` - added a `foreignRoom` (org2) fixture to `beforeEach`, asserts
+  both `create` and `update` reject it with `/does not belong to this studio/`.
+  - RED (write-side fix reverted): `npx vitest run convex/marketing/posts.test.ts -t "reject a
+    room"` failed with `AssertionError: promise resolved
+    "'000000000000000010008socialPosts'" instead of rejecting` - `create` silently accepted
+    and stored the foreign room id.
+  - GREEN (fix restored): `npx vitest run convex/marketing/posts.test.ts` - all 11 tests in
+    the file pass, including this one.
+
+Both reverts were done by editing the file directly, confirmed RED, then restored from a
+saved copy and diffed byte-for-byte against the saved copy to confirm an exact restore before
+moving on.
+
+### Item 2: middleware matcher convention
+
+`src/middleware.ts`: changed `"/api/brand-card(.*)"` to `"/api/brand-card/(.*)"`, matching the
+file's own documented convention (the comment two lines below it, about `/book/(.*)` vs a bare
+`/book(.*)`). The route always carries a `postId` path segment, so no legitimate request stops
+matching; a future `/api/brand-card-something-else` route no longer becomes public by
+accident. No dedicated test for this - it's a route-matcher string, and the existing
+route-render proof already showed a signed-out request to `/api/brand-card/<id>` reaching the
+handler (`x-middleware-rewrite`, not a redirect); that same request shape still matches under
+the corrected pattern by construction (a concrete path always has something after the slash).
+
+### Full verification after both fixes
+
+- `npx vitest run convex/marketing` → **6 files, 30 tests, all passed** (28 before this round,
+  2 new: the brandCard leak-regression test and the posts.ts foreign-room test).
+- `npm run typecheck` (`tsc --noEmit`) → clean.
+- `npx vitest run` (full suite) → **155 files, 1317 tests, all passed**.
+
+### Files changed (this round)
+
+- `convex/marketing/posts.ts` (write-side room-ownership check)
+- `convex/marketing/posts.test.ts` (new regression test + `foreignRoom` fixture)
+- `convex/marketing/brandCard.ts` (read-side defense in depth)
+- `convex/marketing/brandCard.test.ts` (new regression test)
+- `src/middleware.ts` (matcher slash convention)
+
+### Not acted on (per coordinator's explicit scope)
+
+Did not touch: the end-to-end render-proof gap (coordinator's to carry), the partial-font-
+failure case inherited from `opengraph-image.tsx`, `preserveSymlinks` being a global resolve
+option, or commit-message mood - all deferred to the final whole-branch review per the
+coordinator's message.

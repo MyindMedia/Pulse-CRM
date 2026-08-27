@@ -12,6 +12,7 @@ describe("marketing posts", () => {
   let t: ReturnType<typeof convexTest>;
   let ig: Id<"socialAccounts">;
   let foreignIg: Id<"socialAccounts">;
+  let foreignRoom: Id<"rooms">;
   let artist: Id<"artists">;
   const now = Date.now();
 
@@ -25,13 +26,14 @@ describe("marketing posts", () => {
       await ctx.db.insert("members", { orgId: "org1", name: "Eng", role: "engineer", clerkUserId: "u3", skills: [] });
       const ig = await ctx.db.insert("socialAccounts", { orgId: "org1", platform: "instagram", ghlAccountId: "acc_1", ghlLocationId: "loc", name: "IG", status: "connected", connectedBy: "u1", connectedAt: now });
       const foreignIg = await ctx.db.insert("socialAccounts", { orgId: "org2", platform: "instagram", ghlAccountId: "acc_2", ghlLocationId: "loc", name: "Other IG", status: "connected", connectedBy: "u2", connectedAt: now });
+      const foreignRoom = await ctx.db.insert("rooms", { orgId: "org2", name: "Rival Room", status: "available" });
       const artist = await ctx.db.insert("artists", {
         orgId: "org1", name: "Sky", type: "artist", genres: [], tags: [], okToFeature: false,
         status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
       });
-      return { ig, foreignIg, artist };
+      return { ig, foreignIg, foreignRoom, artist };
     });
-    ig = ids.ig; foreignIg = ids.foreignIg; artist = ids.artist;
+    ig = ids.ig; foreignIg = ids.foreignIg; foreignRoom = ids.foreignRoom; artist = ids.artist;
   });
   afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); vi.useRealTimers(); });
 
@@ -47,6 +49,12 @@ describe("marketing posts", () => {
 
   it("a post can never reference another org's account", async () => {
     await expect(owner().mutation(api.marketing.posts.create, { ...base, accountIds: [ig, foreignIg] })).rejects.toThrow(/not one of this studio/);
+  });
+
+  it("create and update both reject a room that belongs to another org", async () => {
+    await expect(owner().mutation(api.marketing.posts.create, { ...base, accountIds: [ig], roomId: foreignRoom })).rejects.toThrow(/does not belong to this studio/);
+    const id = await owner().mutation(api.marketing.posts.create, { ...base, accountIds: [ig] });
+    await expect(owner().mutation(api.marketing.posts.update, { id, ...base, accountIds: [ig], roomId: foreignRoom })).rejects.toThrow(/does not belong to this studio/);
   });
 
   it("per-platform rules block an invalid draft", async () => {
