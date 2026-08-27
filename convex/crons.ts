@@ -75,6 +75,14 @@ crons.weekly(
 // Marketing: GHL has no post webhooks, so poll for published/failed.
 crons.interval("social-status-sync", { minutes: 30 }, internal.marketing.posts.syncStatusAll, {});
 
+// Marketing: ask GHL which connected social accounts still hold a live
+// authorisation and mark the rest needs_reconnect (or recover them back to
+// connected). A token expires roughly every 60 days, so hourly is frequent
+// enough to catch a break well inside that window without hammering GHL for
+// every org every few minutes - this is a health check, not the post-status
+// poll above, so it does not share that cron's 30-minute cadence.
+crons.interval("social-account-health", { hours: 1 }, internal.marketing.accounts.accountHealthSweep, {});
+
 // Marketing: pull follower/reach stats for every connected social account,
 // grouped by org so one org's GHL call never carries another org's
 // accountIds.
