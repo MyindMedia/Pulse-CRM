@@ -8,7 +8,7 @@ import { errorMessage } from "@/lib/errors";
 import { PLATFORM_META } from "./platforms";
 import { isOwnGhlCloseMessage } from "./ghl-message";
 
-type Choice = { id: string; name: string; type?: string };
+type Choice = { id: string; name: string; type?: string; avatar?: string };
 
 /**
  * The GHL OAuth-popup flow, shared by ConnectButton (add a brand-new account)

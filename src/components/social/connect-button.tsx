@@ -8,10 +8,10 @@ import { useConnectFlow } from "./use-connect-flow";
  *  ({ actionType: "close", page: "social-media-posting", platform, accountId }),
  *  then lets the owner pick which page or profile to attach.
  *
- *  listOAuthAccounts (convex/lib/ghl.ts) returns an empty array rather than
- *  throwing when GHL errors, so an empty picker here is not proof the account
- *  has nothing to offer - it is at least as likely the connection broke. The
- *  empty-list branch below says so instead of rendering a silent blank list.
+ *  `choices` (convex/marketing/accounts.ts) throws GHL_UNAVAILABLE when GHL
+ *  cannot be reached rather than returning an empty array, so an empty
+ *  picker here is a genuine "nothing on this platform," not a swallowed
+ *  failure - a real GHL error surfaces as the `error` state below instead.
  *
  *  Popup/message/attach plumbing lives in useConnectFlow, shared with
  *  ReconnectAction (account-row.tsx) which drives the same flow with

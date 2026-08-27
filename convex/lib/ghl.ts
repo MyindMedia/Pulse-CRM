@@ -103,6 +103,15 @@ export async function startOAuth(g: GhlCtx, platform: Platform, reconnect = fals
 
 export type GhlChoice = { id: string; name: string; type?: string; avatar?: string };
 
+/** Unused by the connect flow as of the roster-based rewrite in
+ *  convex/marketing/accounts.ts: proven live against production, the PIT
+ *  this app runs under is not authorised for this endpoint's scope ("The
+ *  token is not authorized for this scope."), and fixing that needs the
+ *  account owner to log into the GHL UI - not something Pulse can do for
+ *  itself. Left in place, not deleted, in case that scope is ever granted:
+ *  attachOAuthAccount below still calls the sibling POST on this same path
+ *  as the fallback for any account not already on the plain accounts
+ *  roster (listAccounts), so the oauth path is not fully dead either way. */
 export async function listOAuthAccounts(g: GhlCtx, platform: Platform, accountId: string): Promise<GhlChoice[]> {
   const r = await ghlFetch<{ results?: { pages?: GhlChoice[]; accounts?: GhlChoice[]; profiles?: GhlChoice[] } }>(
     g, `/social-media-posting/oauth/${g.locationId}/${platform}/accounts/${accountId}`,
@@ -176,6 +185,7 @@ export type GhlAccountStatus = {
   id: string;
   oauthId?: string;
   name?: string;
+  avatar?: string;
   platform?: string;
   type?: string;
   expire?: string;

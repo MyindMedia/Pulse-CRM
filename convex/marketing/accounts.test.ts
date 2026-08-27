@@ -23,9 +23,99 @@ describe("marketing accounts", () => {
   const owner = () => t.withIdentity({ subject: "u1", name: "Owner", orgId: "org1" });
   const owner2 = () => t.withIdentity({ subject: "u2", name: "Owner2", orgId: "org2" });
 
+  function stubGhlEnv() {
+    vi.stubEnv("GHL_API_KEY", "pit_default");
+    vi.stubEnv("GHL_LOCATION_ID", "loc_default");
+    vi.stubEnv("GHL_SOCIAL_USER_ID", "user_pulse");
+  }
+  type RosterEntry = { id: string; oauthId?: string; name?: string; avatar?: string; platform?: string; type?: string; deleted?: boolean };
+  function rosterResponse(accounts: RosterEntry[]) {
+    return vi.fn(async () => new Response(JSON.stringify({ results: { accounts, groups: [] } }), { status: 200 }));
+  }
+
   it("startConnect is simulated without GHL env", async () => {
     vi.stubEnv("GHL_API_KEY", "");
     expect(await owner().action(api.marketing.accounts.startConnect, { platform: "instagram" })).toEqual({ simulated: true });
+  });
+
+  it("choices maps the roster to picker choices for the requested platform", async () => {
+    stubGhlEnv();
+    vi.stubGlobal("fetch", rosterResponse([
+      { id: "acc_fb_1", oauthId: "oauth_1", name: "Page One", avatar: "https://x/1.jpg", platform: "facebook", type: "page", deleted: false },
+      { id: "acc_ig_1", oauthId: "oauth_1", name: "IG One", platform: "instagram", type: "page", deleted: false },
+    ]));
+    const result = await owner().action(api.marketing.accounts.choices, { platform: "facebook", ghlAccountId: "oauth_1" });
+    expect(result).toEqual([{ id: "acc_fb_1", name: "Page One", type: "page", avatar: "https://x/1.jpg" }]);
+  });
+
+  it("choices excludes deleted accounts", async () => {
+    stubGhlEnv();
+    vi.stubGlobal("fetch", rosterResponse([
+      { id: "acc_1", oauthId: "oauth_1", name: "Live", platform: "facebook", deleted: false },
+      { id: "acc_2", oauthId: "oauth_1", name: "Gone", platform: "facebook", deleted: true },
+    ]));
+    const result = await owner().action(api.marketing.accounts.choices, { platform: "facebook", ghlAccountId: "oauth_1" });
+    expect(result.map((c) => c.id)).toEqual(["acc_1"]);
+  });
+
+  it("choices returns empty for a platform with no accounts, not an error", async () => {
+    stubGhlEnv();
+    vi.stubGlobal("fetch", rosterResponse([
+      { id: "acc_1", oauthId: "oauth_1", name: "FB Page", platform: "facebook", deleted: false },
+    ]));
+    const result = await owner().action(api.marketing.accounts.choices, { platform: "tiktok", ghlAccountId: "oauth_1" });
+    expect(result).toEqual([]);
+  });
+
+  it("choices falls back to every non-deleted account on the platform when the oauthId does not match", async () => {
+    stubGhlEnv();
+    vi.stubGlobal("fetch", rosterResponse([
+      { id: "acc_1", oauthId: "oauth_other", name: "P1", platform: "facebook", deleted: false },
+      { id: "acc_2", oauthId: "oauth_other2", name: "P2", platform: "facebook", deleted: false },
+    ]));
+    const result = await owner().action(api.marketing.accounts.choices, { platform: "facebook", ghlAccountId: "oauth_stale" });
+    expect(result.map((c) => c.id).sort()).toEqual(["acc_1", "acc_2"]);
+  });
+
+  it("choices surfaces GHL_UNAVAILABLE, not an empty list, when the roster call fails", async () => {
+    stubGhlEnv();
+    vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ message: "Invalid JWT" }), { status: 401 })));
+    await expect(owner().action(api.marketing.accounts.choices, { platform: "facebook", ghlAccountId: "oauth_1" }))
+      .rejects.toThrow(/GHL_UNAVAILABLE/);
+  });
+
+  it("attach binds a roster account directly, without calling the oauth attach endpoint", async () => {
+    stubGhlEnv();
+    const fetchMock = vi.fn(async (url: string) => {
+      if (url.includes("/oauth/")) throw new Error(`must not call the oauth attach endpoint: ${url}`);
+      return new Response(JSON.stringify({ results: { accounts: [
+        { id: "acc_fb_1", oauthId: "oauth_1", name: "Page One", avatar: "https://x/1.jpg", platform: "facebook", type: "page", deleted: false },
+      ], groups: [] } }), { status: 200 });
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const id = await owner().action(api.marketing.accounts.attach, {
+      platform: "facebook", ghlAccountId: "oauth_1",
+      choice: { id: "acc_fb_1", name: "Page One (stale)", type: "page" },
+    });
+    const row = await t.run(async (ctx) => ctx.db.get(id));
+    expect(row?.ghlAccountId).toBe("acc_fb_1");
+    expect(row?.name).toBe("Page One");
+    expect(row?.avatarUrl).toBe("https://x/1.jpg");
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("attach still enforces ACCOUNT_TAKEN when a roster account belongs to another org", async () => {
+    await t.mutation(internal.marketing.accounts.insertInternal, {
+      orgId: "org1", platform: "facebook", ghlAccountId: "acc_fb_1", ghlLocationId: "loc", name: "Page One", connectedBy: "u1",
+    });
+    stubGhlEnv();
+    vi.stubGlobal("fetch", rosterResponse([
+      { id: "acc_fb_1", oauthId: "oauth_1", name: "Page One", platform: "facebook", type: "page", deleted: false },
+    ]));
+    await expect(owner2().action(api.marketing.accounts.attach, {
+      platform: "facebook", ghlAccountId: "oauth_1",
+      choice: { id: "acc_fb_1", name: "Page One", type: "page" },
+    })).rejects.toThrow(/already connected/);
   });
 
   it("insertInternal refuses a GHL account id already owned by another org", async () => {
