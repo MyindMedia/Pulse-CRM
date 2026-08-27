@@ -31,8 +31,17 @@ function selectionFor(days: RangeDays): Selection {
 
 /** Results: what each published post actually drove, per
  *  `marketing/results.perPost` - clicks, bookings attributed within 7 days
- *  of publish, revenue, and code redemptions, plus GHL impressions/
- *  engagements once the daily stats refresh has populated them. */
+ *  of publish, revenue, and code redemptions.
+ *
+ *  The GHL impressions/engagements columns always read "Not available":
+ *  GHL's `/social-media-posting/statistics` endpoint (the only stats
+ *  endpoint this app calls, see `accountStats` in `lib/ghl.ts`) returns
+ *  metrics aggregated per account, never broken out per post, so
+ *  `socialPosts.stats` has nowhere to be written from. The daily
+ *  `refreshStatsAll` cron writes what that endpoint actually returns -
+ *  follower/reach counts onto `socialAccounts`, visible on the Accounts
+ *  page - not onto individual posts. Do not change the copy below to imply
+ *  a future sync without first wiring a real per-post data source. */
 export default function ResultsPage() {
   // `selection` is a snapshot taken once at mount and re-taken only when a
   // range chip is clicked - never `Date.now()` read fresh on every render.
@@ -116,7 +125,7 @@ export default function ResultsPage() {
                 <TH className="text-right">
                   <Tooltip
                     label="GoHighLevel per-post stats"
-                    hint="Syncs from your connected GHL accounts once available. Shows &quot;Not synced&quot; until then."
+                    hint="GoHighLevel does not provide per-post impression counts through this app's connection. Account-level reach and followers sync daily instead, on the Accounts page."
                   >
                     <span className="inline-flex cursor-help items-center gap-1">
                       GHL impressions
@@ -127,7 +136,7 @@ export default function ResultsPage() {
                 <TH className="text-right">
                   <Tooltip
                     label="GoHighLevel per-post stats"
-                    hint="Syncs from your connected GHL accounts once available. Shows &quot;Not synced&quot; until then."
+                    hint="GoHighLevel does not provide per-post engagement counts through this app's connection. Account-level reach and followers sync daily instead, on the Accounts page."
                   >
                     <span className="inline-flex cursor-help items-center gap-1">
                       GHL engagements
@@ -159,8 +168,8 @@ export default function ResultsPage() {
                     <TD className="text-right">{r.bookings}</TD>
                     <TD className="text-right">{money(r.revenueCents)}</TD>
                     <TD className="text-right">{r.redemptions}</TD>
-                    <TD className="text-right text-steel/50">{r.stats?.impressions ?? "Not synced"}</TD>
-                    <TD className="text-right text-steel/50">{r.stats?.engagements ?? "Not synced"}</TD>
+                    <TD className="text-right text-steel/50">{r.stats?.impressions ?? "Not available"}</TD>
+                    <TD className="text-right text-steel/50">{r.stats?.engagements ?? "Not available"}</TD>
                   </TR>
                 );
               })}

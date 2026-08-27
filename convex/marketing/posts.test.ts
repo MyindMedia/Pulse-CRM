@@ -78,6 +78,17 @@ describe("marketing posts", () => {
     expect((await owner().query(api.marketing.posts.get, { id }))?.status).toBe("draft");
   });
 
+  it("approve refuses a post whose selected account needs reconnecting", async () => {
+    // The account-health sweep writes needs_reconnect on a token GHL reports
+    // expired, deleted, or missing. Approve must treat that exactly like
+    // removed: the account is not usable, so the guard must not let a
+    // needs_reconnect account through just because it is not "removed".
+    const id = await owner().mutation(api.marketing.posts.create, { ...base, accountIds: [ig] });
+    await t.run(async (ctx) => { await ctx.db.patch(ig, { status: "needs_reconnect" }); });
+    await expect(owner().mutation(api.marketing.posts.approve, { id })).rejects.toThrow(/no longer connected/);
+    expect((await owner().query(api.marketing.posts.get, { id }))?.status).toBe("draft");
+  });
+
   it("approve meters the monthly cap and schedules through GHL in simulated mode", async () => {
     vi.stubEnv("GHL_API_KEY", "");
     const id = await owner().mutation(api.marketing.posts.create, { ...base, accountIds: [ig] });

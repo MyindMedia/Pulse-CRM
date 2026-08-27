@@ -156,7 +156,7 @@ export async function approvePost(ctx: MutationCtx, orgId: string, id: Id<"socia
   // for it again before the window to fix it closes.
   for (const accountId of post.accountIds) {
     const account = await ctx.db.get(accountId);
-    if (!account || account.orgId !== orgId || account.status === "removed") {
+    if (!account || account.orgId !== orgId || account.status !== "connected") {
       throw new Error("One of the selected accounts is no longer connected. Reconnect it, or remove it from this post, before approving.");
     }
   }
@@ -198,7 +198,7 @@ export const payloadContext = internalQuery({
     const accounts = [];
     for (const aid of post.accountIds) {
       const a = await ctx.db.get(aid);
-      if (a && a.orgId === post.orgId && a.status !== "removed") accounts.push({ ghlAccountId: a.ghlAccountId, platform: a.platform });
+      if (a && a.orgId === post.orgId && a.status === "connected") accounts.push({ ghlAccountId: a.ghlAccountId, platform: a.platform });
     }
     const media: { url: string; type: string }[] = [];
     for (const m of post.media) {
