@@ -2,6 +2,7 @@ import { query, internalAction, internalMutation, internalQuery } from "../_gene
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { currentOrgWithCapability } from "../lib/tenant";
+import { dayKey } from "../bookingFunnel";
 import { ghlFromEnv, accountStats } from "../lib/ghl";
 
 const WINDOW = 7 * 86_400_000;
@@ -25,9 +26,22 @@ export const perPost = query({
     for (const p of posts) {
       if (p.promoId) { const promo = await ctx.db.get(p.promoId); if (promo) promoCode.set(p._id, promo.code); }
     }
+    // Two published posts sharing one promo code: only the first keeps the
+    // code in this map, so a code-only booking (no postId) always attributes
+    // to the earliest of them. That is inherent, not a bug - a booking that
+    // carries only a code cannot say which post drove it, and the tracked
+    // link (postId) is what disambiguates when it is present.
     const codeToPost = new Map<string, string>();
     for (const [postId, code] of promoCode) if (!codeToPost.has(code)) codeToPost.set(code, postId);
-    const visits = await ctx.db.query("bookingVisits").withIndex("by_org_step", (q) => q.eq("orgId", orgId)).collect();
+    // Bound by day, not a full-history scan: bookingVisits is a high-volume
+    // event table (up to 5000 rows/day/org, convex/bookingFunnel.ts:94), and
+    // every relevant row falls within the post window plus the 7-day
+    // attribution window on either side.
+    const sinceDay = dayKey(from - WINDOW);
+    const untilDay = dayKey(to + WINDOW);
+    const visits = await ctx.db.query("bookingVisits")
+      .withIndex("by_org_day", (q) => q.eq("orgId", orgId).gte("day", sinceDay).lte("day", untilDay))
+      .collect();
     const acc = new Map(posts.map((p) => [p._id as string, { clicks: 0, bookings: 0, revenueCents: 0, redemptions: 0 }]));
     const publishedAt = new Map(posts.map((p) => [p._id as string, p.publishedAt ?? p.scheduledFor]));
     for (const vRow of visits) {

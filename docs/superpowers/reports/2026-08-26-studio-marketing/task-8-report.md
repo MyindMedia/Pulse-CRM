@@ -91,3 +91,63 @@ Test Files  4 passed (4)
 
 - The environment workaround above (local `convex-test` copy) is not part of the shipped diff and doesn't affect the committed/pushed code, but the underlying worktree `node_modules` gap is a real risk for whoever picks up task 9 onward in a similarly bare worktree - flagging it so it isn't rediscovered from scratch.
 - My assigned worktree directory was, at task start, checked out on an unrelated branch (`worktree-agent-a5e900d733bce97e5`, a gear/room-publishing feature) rather than `feat/studio-marketing` at `9d925cf`. I created a new local branch `task8-results` from `9d925cf` inside the same worktree to get the correct base without touching the branch already checked out in the shared main checkout, then pushed `task8-results:feat/studio-marketing` to origin. Flagging this in case worktree provisioning for this plan needs a look.
+
+## Fix Round 1
+
+Two Important findings from review, addressed against `HEAD a8a3f87`.
+
+### Finding 1: `perPost` scanned the org's entire `bookingVisits` history
+
+`convex/marketing/results.ts` queried `bookingVisits` with `by_org_step` bound only on `orgId`, pulling every visit row the org has ever written. Fixed to bound by `by_org_day` instead, following the sibling `funnel` query's pattern in `convex/bookingFunnel.ts:150-158`:
+
+```ts
+const sinceDay = dayKey(from - WINDOW);
+const untilDay = dayKey(to + WINDOW);
+const visits = await ctx.db.query("bookingVisits")
+  .withIndex("by_org_day", (q) => q.eq("orgId", orgId).gte("day", sinceDay).lte("day", untilDay))
+  .collect();
+```
+
+`dayKey` is imported from `../bookingFunnel` (the existing exported helper, not a new formatter). The bound is a superset of every row the per-post logic can use: `booked` rows are only ever counted within `[publishedAt, publishedAt + WINDOW]` and `publishedAt` is already restricted to `[from, to]`, so `[from - WINDOW, to + WINDOW]` covers every in-scope `booked` row with a full week of slack on both sides, and `page` rows (clicks, uncounted by time in the existing logic) fall inside the same practical range since a tracked link can't be clicked before the post that carries its `postId` exists. Counting semantics in the loop are untouched: `postId` still beats `code`, `page` steps still count as clicks unconditionally, `booked` steps are still filtered to `[publishedAt, publishedAt + 7 days]` per post.
+
+### Finding 2: no test for the per-org GHL grouping
+
+Added a second test to `convex/marketing/results.test.ts` that inserts two orgs' `socialAccounts` (org1: two `connected` plus one `removed`; org2: one `connected`), calls `t.query(internal.marketing.results.orgsWithAccounts, {})`, and asserts:
+- exactly 2 groups,
+- org1's group contains only `["acc_1a", "acc_1b"]` (the removed account's `ghlAccountId` is excluded),
+- org2's group contains only `["acc_2"]`,
+- neither group's account list contains the other org's `ghlAccountId`.
+
+This is the regression net named in the finding: if `orgsWithAccounts` or `refreshStatsAll` ever flattened accounts across groups before calling `accountStats`, this test would fail.
+
+### Comment added
+
+A one-line-plus-context comment above `codeToPost` explaining that when two published posts in the window share one promo code, only the first is kept, so code-only bookings attribute to the earliest of them - inherent (a code-only booking cannot say which post drove it) rather than a defect.
+
+### Not in scope (per instruction)
+
+Did not touch: the duplicated per-org GHL context resolution between `posts.ts` and `results.ts`, the sequential promo lookups in the `perPost` loop, or the unindexed date filter on the published-posts query. Deferred to the final whole-branch review.
+
+### Tests covering the amended code
+
+- `convex/marketing/results.test.ts` - both tests (the original `perPost` attribution test, unchanged in assertions, still passes against the new day-bounded query; the new `orgsWithAccounts` cross-org grouping test)
+
+**Command:**
+```
+npx vitest run convex/marketing/results.test.ts
+```
+**Output:**
+```
+Test Files  1 passed (1)
+     Tests  2 passed (2)
+```
+
+**Typecheck:**
+```
+npm run typecheck
+```
+Output: no errors, exit clean.
+
+### Environment note
+
+Confirmed `git rev-parse HEAD` was `a8a3f87` before editing. The local `node_modules/convex-test` copy from the original task run (a real directory copy, not a symlink, gitignored) was still present in this worktree from the prior session and continued to correctly anchor `convexTest(schema)`'s default module glob to this worktree's own `convex/` tree, confirmed by both tests passing against the newly-written code rather than a stale sibling checkout.
