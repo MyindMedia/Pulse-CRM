@@ -387,7 +387,14 @@ export function Composer({
       {templateKey && (
         <>
           <Section title="Media">
-            <MediaPicker value={media} onChange={setMedia} template={templateKey} postId={postId} disabled={locked} />
+            <MediaPicker
+              value={media}
+              onChange={setMedia}
+              template={templateKey}
+              postId={postId}
+              updatedAt={existingPost?.updatedAt}
+              disabled={locked}
+            />
           </Section>
 
           <Section title="Room">

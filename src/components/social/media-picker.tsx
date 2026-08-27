@@ -8,6 +8,7 @@ import { ImagePlus, Video, X } from "lucide-react";
 import { PhotoUpload } from "@/components/ui/photo-upload";
 import { Switch } from "@/components/ui/toggle";
 import { Label } from "@/components/ui/field";
+import { brandCardPath } from "@convex/lib/brandCardUrl";
 import type { TemplateKey } from "./template-picker";
 
 export type MediaItem = {
@@ -19,8 +20,9 @@ export type MediaItem = {
 type BrandCardKind = "rate_card" | "open_slot" | "promo";
 
 /** A studio-branded PNG the composer can attach in place of (or alongside)
- *  real photos - rendered server-side by src/app/api/brand-card/[postId], so
- *  it only exists once the draft has an id. Shows the real thing once
+ *  real photos - rendered server-side by
+ *  src/app/api/brand-card/[postId]/[kind]/[version], so it only exists once
+ *  the draft has an id. Shows the real thing once
  *  `postId` is set, otherwise a placeholder that says why there is nothing
  *  to look at yet. */
 function BrandCardToggle({
@@ -29,6 +31,7 @@ function BrandCardToggle({
   hint,
   active,
   postId,
+  updatedAt,
   disabled,
   onToggle,
 }: {
@@ -37,6 +40,7 @@ function BrandCardToggle({
   hint: string;
   active: boolean;
   postId?: Id<"socialPosts">;
+  updatedAt?: number;
   disabled?: boolean;
   onToggle: (next: boolean) => void;
 }) {
@@ -45,9 +49,15 @@ function BrandCardToggle({
       {active ? (
         postId ? (
           // Rendered by our own dynamic route (src/app/api/brand-card), not a
-          // static asset next/image can optimize.
+          // static asset next/image can optimize. postId/kind/version are all
+          // path segments (brandCardPath) - a query string would be dropped
+          // by the CDN's cache key, which is exactly what froze this preview
+          // on the first kind ever fetched for a post and left it stuck
+          // there through every later edit. `updatedAt` falls back to 0 for
+          // the brief render between creating a draft and the reload that
+          // hands this component the saved post's real updatedAt.
           <img
-            src={`/api/brand-card/${postId}?kind=${kind}`}
+            src={brandCardPath(postId, kind, updatedAt ?? 0)}
             alt={`${label} preview`}
             className="h-24 w-20 rounded-md border border-graphite/60 object-cover"
           />
@@ -83,12 +93,14 @@ export function MediaPicker({
   onChange,
   template,
   postId,
+  updatedAt,
   disabled,
 }: {
   value: MediaItem[];
   onChange: (next: MediaItem[]) => void;
   template: TemplateKey | null;
   postId?: Id<"socialPosts">;
+  updatedAt?: number;
   disabled?: boolean;
 }) {
   const generateUploadUrl = useMutation(api.marketing.posts.generateUploadUrl);
@@ -156,6 +168,7 @@ export function MediaPicker({
             hint="A studio-branded card with the code and the discount."
             active={hasBrandCard("promo")}
             postId={postId}
+            updatedAt={updatedAt}
             disabled={disabled}
             onToggle={(on) => setBrandCard("promo", on)}
           />
@@ -167,6 +180,7 @@ export function MediaPicker({
             hint="A studio-branded card calling out the open window."
             active={hasBrandCard("open_slot")}
             postId={postId}
+            updatedAt={updatedAt}
             disabled={disabled}
             onToggle={(on) => setBrandCard("open_slot", on)}
           />
@@ -177,6 +191,7 @@ export function MediaPicker({
           hint="A studio-branded card with the room's rate. Works with any template."
           active={hasBrandCard("rate_card")}
           postId={postId}
+          updatedAt={updatedAt}
           disabled={disabled}
           onToggle={(on) => setBrandCard("rate_card", on)}
         />

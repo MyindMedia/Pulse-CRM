@@ -49,6 +49,13 @@ const isPublicRoute = createRouteMatcher([
   // redirect instead of an image and silently break every brand-card post.
   // The post id is unguessable and the data query exposes display fields
   // only, so anonymous access carries no secret.
+  //
+  // The route is /api/brand-card/[postId]/[kind]/[version] (kind and the
+  // post's updatedAt live in the path, not a query string, so Netlify's
+  // path-only CDN cache key actually varies with them - see
+  // convex/lib/brandCardUrl.ts). `(.*)` matches every segment after
+  // /api/brand-card/ including the slashes between them, so this one
+  // matcher still covers the full three-segment path.
   "/api/brand-card/(.*)",
   // NOTE: these matchers need the explicit "/" before "(.*)" - a bare
   // "/book(.*)" also matches sibling APP routes (/bookings, /payments,

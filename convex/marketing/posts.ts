@@ -10,6 +10,7 @@ import { validateForPlatform, type MediaKind } from "./rules";
 import { ghlFromEnv, createScheduledPost, deletePost, listPosts, type GhlPostInput } from "../lib/ghl";
 import { complete } from "../lib/openai";
 import { appUrl } from "../lib/links";
+import { brandCardPath } from "../lib/brandCardUrl";
 
 /** Public origin for the two links a post puts on the open internet: the
  *  tracked booking link in the caption, and the brand-card image URL that GHL
@@ -193,7 +194,11 @@ export const payloadContext = internalQuery({
         const url = await ctx.storage.getUrl(m.storageId);
         if (url) media.push({ url, type: m.type === "video" ? "video/mp4" : "image/jpeg" });
       } else if (m.brandCard) {
-        media.push({ url: `${appHost()}/api/brand-card/${post._id}?kind=${m.brandCard}&v=${post.updatedAt}`, type: "image/png" });
+        // postId/kind/updatedAt all live in the PATH (brandCardPath), not a
+        // query string - see convex/lib/brandCardUrl.ts. Netlify's CDN keys
+        // its cache on path only, so a query-string cache-buster or kind
+        // selector never actually varied the cached object.
+        media.push({ url: `${appHost()}${brandCardPath(post._id, m.brandCard, post.updatedAt)}`, type: "image/png" });
       }
     }
     const promo = post.promoId ? await ctx.db.get(post.promoId) : null;

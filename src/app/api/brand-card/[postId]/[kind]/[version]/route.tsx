@@ -35,9 +35,13 @@ async function loadGoogleFont(family: string, text: string): Promise<ArrayBuffer
 // per request rather than fixed at build time.
 const BASE_GLYPHS = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 %$/:.,-'";
 
-export async function GET(req: Request, { params }: { params: Promise<{ postId: string }> }) {
-  const { postId } = await params;
-  const kind = new URL(req.url).searchParams.get("kind") ?? "promo";
+// postId, kind, and version (the post's updatedAt) are all path segments,
+// not query parameters - see convex/lib/brandCardUrl.ts for why. `version`
+// is read only to be part of the route match; it plays no role in what
+// gets rendered, since Convex is always queried fresh for the post's
+// current content.
+export async function GET(_req: Request, { params }: { params: Promise<{ postId: string; kind: string; version: string }> }) {
+  const { postId, kind } = await params;
 
   // Same resolution the browser client uses (src/lib/convex-url.ts), so this
   // route and convex-client-provider.tsx can never disagree about which

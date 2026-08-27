@@ -2,7 +2,7 @@ import { query } from "../_generated/server";
 import { v } from "convex/values";
 
 /** Display-only fields for the studio-branded card image at
- *  /api/brand-card/[postId]. Deliberately excludes anything that isn't
+ *  /api/brand-card/[postId]/[kind]/[version]. Deliberately excludes anything that isn't
  *  meant to render on the card - no ids, no internal status, no secrets.
  *  The post id is unguessable, so this query is public with no auth check:
  *  GHL's Social Planner fetches the rendered PNG server to server, signed
