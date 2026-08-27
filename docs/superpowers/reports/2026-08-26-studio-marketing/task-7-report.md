@@ -126,3 +126,33 @@ convex/marketing/posts.ts     305 lines (new)
 
 1. **abde56d** Marketing: post lifecycle, GHL scheduling and status sync
    - Pushed to `origin/feat/studio-marketing` (confirmed: `f5df77e..abde56d`, `HEAD -> feat/studio-marketing`).
+
+---
+
+## Fix Round 1
+
+Written by the controller. The fix implementer pushed its code commit and then terminated before appending this section, so the evidence below was gathered by the controller from the pushed commit and a local test run.
+
+**Finding addressed (1 Important, plan-mandated and real):** `approve` double-counts `social_posts` on a retry after a failure or a re-approve after an edit, so a studio burns cap it already paid for and hits its monthly limit early.
+
+**Ruling carried into the fix:** stamp `socialPosts.meteredPeriod` and meter once per post per period.
+
+**Fix commit:** `7b91ad9` "Marketing: meter a scheduled post once per period, not once per approve"
+
+**What changed:**
+- `convex/schema.ts`: added `meteredPeriod: v.optional(v.string())` to `socialPosts`, the usage period ("YYYY-MM") the post already consumed a scheduling slot in.
+- `convex/marketing/posts.ts`: `approve` now computes `periodFor("social_posts")`, skips both `assertWithinLimit` and `recordUsage` when `post.meteredPeriod` already equals that period, and stamps `meteredPeriod` on the patch only on the metering pass. A post re-approved in a later period meters again, since it occupies a slot in that period.
+- `convex/marketing/posts.test.ts`: 3 new tests covering re-approve inside the same period, re-approve in a later period, and the cap interaction.
+
+**Covering tests:** `convex/marketing/posts.test.ts`
+
+**Command run:** `npx vitest run convex/marketing/posts.test.ts`
+
+**Output:**
+```
+ Test Files  1 passed (1)
+      Tests  10 passed (10)
+   Duration  465ms
+```
+
+7 tests before the fix, 10 after.
