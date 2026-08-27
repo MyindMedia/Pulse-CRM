@@ -65,14 +65,39 @@ export async function ghlFetch<T>(
   }
 }
 
+/* The OAuth start endpoint is a redirect endpoint, not a JSON endpoint.
+   GHL answers with HTTP 302 and the OAuth URL in the Location header, so
+   this needs its own fetch with manual redirect handling instead of going
+   through ghlFetch (which follows redirects and expects a JSON body).
+   A 200 with a JSON { url } or { redirectUrl } body is kept as a fallback
+   in case some platform ever answers that way instead of redirecting. */
 export async function startOAuth(g: GhlCtx, platform: Platform, reconnect = false) {
   const q = new URLSearchParams({ locationId: g.locationId, userId: g.userId });
   if (reconnect) q.set("reconnect", "true");
-  const r = await ghlFetch<{ url?: string; redirectUrl?: string }>(
-    g, `/social-media-posting/oauth/${platform}/start?${q.toString()}`,
-  );
-  if (!r.ok) return null;
-  const url = r.data.url ?? r.data.redirectUrl;
+  let res: Response;
+  try {
+    res = await fetch(`${BASE}/social-media-posting/oauth/${platform}/start?${q.toString()}`, {
+      method: "GET",
+      redirect: "manual",
+      headers: {
+        Authorization: `Bearer ${g.token}`,
+        Accept: "application/json",
+        Version: "2021-07-28",
+        "User-Agent": UA,
+      },
+    });
+  } catch {
+    return null;
+  }
+  if (res.status >= 300 && res.status < 400) {
+    const location = res.headers.get("location");
+    return location ? { url: location } : null;
+  }
+  if (res.status < 200 || res.status >= 300) return null;
+  const text = await res.text();
+  let json: { url?: string; redirectUrl?: string } | null = null;
+  try { json = text ? JSON.parse(text) : null; } catch { json = null; }
+  const url = json?.url ?? json?.redirectUrl;
   return url ? { url } : null;
 }
 
