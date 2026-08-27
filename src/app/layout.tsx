@@ -56,7 +56,7 @@ export const metadata: Metadata = {
   // Installable-to-home-screen support on iOS (Next auto-links app/manifest.ts).
   appleWebApp: { capable: true, title: "Pulse", statusBarStyle: "black-translucent" },
   icons: { apple: "/apple-touch-icon.png" },
-  authors: [{ name: "Myind Sound" }],
+  authors: [{ name: "ThaMyind" }],
   openGraph: {
     type: "website",
     siteName: "Pulse",

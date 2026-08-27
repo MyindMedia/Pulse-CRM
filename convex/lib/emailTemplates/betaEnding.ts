@@ -110,7 +110,7 @@ export function betaEndingHtml(args: {
             <span style="color:${FAINT};word-break:break-all;">${args.chooseUrl}</span>
           </p>
           <p style="margin:10px 0 0 0;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:11px;color:#5f5a52;">
-            Pulse by Myind Sound &middot; studiopulse.tech
+            Pulse by ThaMyind &middot; studiopulse.tech
           </p>
         </div>
       </td></tr>

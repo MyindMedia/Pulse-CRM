@@ -451,7 +451,7 @@ function PreviewContent({
         </section>
 
         <footer className="mt-12 border-t border-graphite/50 pt-5 text-xs text-steel/60">
-          Confidential. Pulse by Myind Sound · studiopulse.tech
+          Confidential. Pulse by ThaMyind · studiopulse.tech
         </footer>
       </div>
     </main>

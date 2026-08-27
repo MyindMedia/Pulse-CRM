@@ -136,7 +136,7 @@ export function LogoMarquee() {
       <div className="mx-auto max-w-6xl px-4 lg:px-8">
         <p className="chrome-meta text-steel">Client studios</p>
         <p className="font-grotesk mt-3 max-w-prose text-[17px] font-medium tracking-[-0.01em] text-mist">
-          Studios that trust Myind Sound.
+          Studios that trust ThaMyind.
         </p>
       </div>
 

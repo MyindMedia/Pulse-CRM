@@ -2,7 +2,7 @@ import { AbsoluteFill, Img, interpolate, spring, staticFile, useCurrentFrame, us
 import { C, body, beatFrames, GOLD_GLOW } from "../theme";
 import { COPY } from "../copy";
 
-// Clean end card: the logo (which already reads "Pulse · by Myind Sound") over
+// Clean end card: the logo (which already reads "Pulse · by ThaMyind") over
 // the gold gradient, with the studio-function options springing in beneath it.
 // No tagline, no URL — the logo carries the brand and the options carry the
 // pitch: this runs the whole studio. The logo breathes on the beat and the

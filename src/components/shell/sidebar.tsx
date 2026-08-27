@@ -121,7 +121,7 @@ function SidebarCredit() {
   }
   return (
     <>
-      <p className="chrome-meta text-steel/80">Pulse by Myind Sound</p>
+      <p className="chrome-meta text-steel/80">Pulse by ThaMyind</p>
       <p className="mt-0.5 font-meta text-[0.625rem] text-steel/60">
         {org?.tierLabel ? `v1.0 · ${org.tierLabel}` : "v1.0 · Studio edition"}
       </p>

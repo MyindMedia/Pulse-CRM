@@ -4,8 +4,8 @@ import { cn } from "@/lib/utils";
 
 /** Pulse brand logo. Two variants:
  *  - "main" (default): the clean gold pulse glyph + "PULSE" wordmark. Used in
- *    the site header and app (no "by Myind Sound" subtext).
- *  - "footer": the lockup that includes "by Myind Sound". Reserved for footers.
+ *    the site header and app (no "by ThaMyind" subtext).
+ *  - "footer": the lockup that includes "by ThaMyind". Reserved for footers.
  *
  * Both PNGs are width-cropped, so sizes fix the width and let height adapt. */
 export function PulseLogo({

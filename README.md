@@ -2,7 +2,7 @@
 
 The studio operating system. Bookings, deposits, staff, invoices and the whole client relationship for recording studios, producers and labels, on one unbroken chain from inquiry to paid.
 
-Built by Myind Sound. Next.js 16 (App Router) · Convex · Clerk · Tailwind v4 · TypeScript.
+Built by ThaMyind. Next.js 16 (App Router) · Convex · Clerk · Tailwind v4 · TypeScript.
 
 ## Stack
 

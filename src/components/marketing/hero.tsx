@@ -573,7 +573,7 @@ export function Hero() {
         top of the desk image. */}
     <div className="relative z-10 flex items-center gap-6 border-b border-t border-graphite/40 bg-obsidian px-4 py-4 lg:px-8">
       <div className="chrome-meta hidden shrink-0 items-center gap-5 text-steel/80 lg:flex">
-        <span>Pulse by Myind Sound</span>
+        <span>Pulse by ThaMyind</span>
         <span className="text-steel/40">\u00B7</span>
         <span>Studio OS</span>
         <span className="text-steel/40">\u00B7</span>
