@@ -24,6 +24,7 @@ describe("marketing posts", () => {
       await ctx.db.insert("orgs", { orgId: "org2", name: "T", slug: "other", plan: "studio", tier: "studio", status: "active" });
       await ctx.db.insert("members", { orgId: "org1", name: "Owner", role: "owner", clerkUserId: "u1", skills: [] });
       await ctx.db.insert("members", { orgId: "org1", name: "Eng", role: "engineer", clerkUserId: "u3", skills: [] });
+      await ctx.db.insert("members", { orgId: "org1", name: "Intern", role: "intern", clerkUserId: "u4", skills: [] });
       const ig = await ctx.db.insert("socialAccounts", { orgId: "org1", platform: "instagram", ghlAccountId: "acc_1", ghlLocationId: "loc", name: "IG", status: "connected", connectedBy: "u1", connectedAt: now });
       const foreignIg = await ctx.db.insert("socialAccounts", { orgId: "org2", platform: "instagram", ghlAccountId: "acc_2", ghlLocationId: "loc", name: "Other IG", status: "connected", connectedBy: "u2", connectedAt: now });
       const foreignRoom = await ctx.db.insert("rooms", { orgId: "org2", name: "Rival Room", status: "available" });
@@ -39,6 +40,7 @@ describe("marketing posts", () => {
 
   const owner = () => t.withIdentity({ subject: "u1", name: "Owner", orgId: "org1" });
   const eng = () => t.withIdentity({ subject: "u3", name: "Eng", orgId: "org1" });
+  const intern = () => t.withIdentity({ subject: "u4", name: "Intern", orgId: "org1" });
   const base = { template: "custom" as const, caption: "Open Thursday", captionOverrides: undefined, media: [{ type: "image" as const, brandCard: "open_slot" as const }], scheduledFor: now + 2 * HOUR, timezone: "America/Los_Angeles", ghlType: "post" as const, includeBookingLink: true };
 
   it("engineer creates a draft; approving requires marketing.approve", async () => {
@@ -131,6 +133,20 @@ describe("marketing posts", () => {
     });
     const id = await owner().mutation(api.marketing.posts.create, { ...base, accountIds: [ig] });
     await expect(owner().mutation(api.marketing.posts.approve, { id })).rejects.toThrow(/LIMIT_REACHED|limit/i);
+  });
+
+  it("generateUploadUrl requires marketing.edit", async () => {
+    await expect(intern().mutation(api.marketing.posts.generateUploadUrl, {})).rejects.toThrow();
+    await expect(eng().mutation(api.marketing.posts.generateUploadUrl, {})).resolves.toEqual(expect.any(String));
+  });
+
+  it("suggestCaption requires marketing.edit and degrades to null without an OpenAI key", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+    // A viewer with only marketing.read cannot reach a paid AI action just by
+    // knowing its name - this is the auth gap the brief's original sketch
+    // (a bare currentActor call, which never throws) left open.
+    await expect(intern().action(api.marketing.posts.suggestCaption, { template: "tip", facts: "Room A" })).rejects.toThrow();
+    await expect(eng().action(api.marketing.posts.suggestCaption, { template: "tip", facts: "Room A" })).resolves.toBeNull();
   });
 
   it("buildTrackedLink carries src and code", () => {

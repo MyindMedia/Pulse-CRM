@@ -3,7 +3,7 @@
 import * as React from "react";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
-import { ImagePlus, RefreshCw, X } from "lucide-react";
+import { ImagePlus, RefreshCw, Video, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/feedback";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,7 @@ export function PhotoUpload({
   onClear,
   shape = "rect",
   hint,
+  accept = "image/*",
   className,
 }: {
   photo: string | null | undefined;
@@ -31,16 +32,24 @@ export function PhotoUpload({
   onClear?: () => Promise<unknown>;
   shape?: "circle" | "rect";
   hint?: string;
+  /** MIME accept filter for the underlying <input type="file">, e.g.
+   *  "video/mp4" for the composer's video slot. Defaults to "image/*" so
+   *  every existing caller (none of which pass this) renders and validates
+   *  exactly as before. The local file-type check and the copy below key off
+   *  the same value, since an image-only guard written before this prop
+   *  existed would otherwise reject a video for a video-mode caller. */
+  accept?: string;
   className?: string;
 }) {
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = React.useState(false);
   const [localPreview, setLocalPreview] = React.useState<string | null>(null);
   const shown = localPreview ?? photo ?? null;
+  const kind = accept.startsWith("video/") ? "video" : "image";
 
   async function handleFile(file: File) {
-    if (!file.type.startsWith("image/")) {
-      toast.error("Pick an image file.");
+    if (!file.type.startsWith(`${kind}/`)) {
+      toast.error(kind === "video" ? "Pick a video file." : "Pick an image file.");
       return;
     }
     setUploading(true);
@@ -57,10 +66,10 @@ export function PhotoUpload({
       await onStorageId(storageId as Id<"_storage">);
       objectUrl = URL.createObjectURL(file);
       setLocalPreview(objectUrl);
-      toast.success("Photo updated.");
+      toast.success(kind === "video" ? "Video updated." : "Photo updated.");
     } catch (err) {
       if (objectUrl) URL.revokeObjectURL(objectUrl);
-      toast.error(errorMessage(err, "Could not upload the photo."));
+      toast.error(errorMessage(err, kind === "video" ? "Could not upload the video." : "Could not upload the photo."));
     } finally {
       setUploading(false);
     }
@@ -82,7 +91,7 @@ export function PhotoUpload({
           radius,
         )}
       >
-        {shown ? (
+        {shown && kind === "image" ? (
           /* 80px is enough to know a photo exists and no use for reading what
              is written on it, which is the whole point of photographing the
              back of a rack unit. Clicking opens it properly. */
@@ -92,6 +101,11 @@ export function PhotoUpload({
             caption={hint}
             className={cn("size-full", radius)}
           />
+        ) : shown && kind === "video" ? (
+          // A video object URL is not something an <img> can decode into a
+          // thumbnail, so this stays a plain marker rather than a broken
+          // image icon. Real thumbnailing is out of scope for this control.
+          <Video className="size-6 text-steel/70" />
         ) : (
           <ImagePlus className="size-6 text-steel/70" />
         )}
@@ -111,7 +125,7 @@ export function PhotoUpload({
             onClick={() => inputRef.current?.click()}
           >
             {shown ? <RefreshCw className="size-3.5" /> : <ImagePlus className="size-3.5" />}
-            {uploading ? "Uploading…" : shown ? "Replace photo" : "Upload photo"}
+            {uploading ? "Uploading…" : shown ? `Replace ${kind}` : `Upload ${kind}`}
           </Button>
           {shown && onClear && (
             <button
@@ -133,13 +147,13 @@ export function PhotoUpload({
           )}
         </div>
         <p className="text-[0.6875rem] text-steel/70">
-          {hint ?? "JPG or PNG. Use your camera or photo library on mobile."}
+          {hint ?? (kind === "video" ? "MP4 video." : "JPG or PNG. Use your camera or photo library on mobile.")}
         </p>
       </div>
       <input
         ref={inputRef}
         type="file"
-        accept="image/*"
+        accept={accept}
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];

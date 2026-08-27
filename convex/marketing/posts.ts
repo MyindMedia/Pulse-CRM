@@ -1,13 +1,14 @@
-import { mutation, query, internalMutation, internalAction, internalQuery } from "../_generated/server";
+import { mutation, query, action, internalMutation, internalAction, internalQuery } from "../_generated/server";
 import type { MutationCtx } from "../_generated/server";
 import { v, ConvexError } from "convex/values";
-import { internal } from "../_generated/api";
+import { api, internal } from "../_generated/api";
 import type { Doc, Id } from "../_generated/dataModel";
 import { currentOrgWithCapability, currentActor } from "../lib/tenant";
 import { assertWithinLimit, recordUsage, periodFor } from "../usage";
 import { stripEmDashes } from "../lib/text";
 import { validateForPlatform, type MediaKind } from "./rules";
 import { ghlFromEnv, createScheduledPost, deletePost, listPosts, type GhlPostInput } from "../lib/ghl";
+import { complete } from "../lib/openai";
 
 export const APP_HOST = process.env.PULSE_PUBLIC_HOST ?? "https://pulse.myindsound.com";
 
@@ -270,6 +271,44 @@ export const get = query({
     const orgId = await currentOrgWithCapability(ctx, "marketing.read");
     const post = await ctx.db.get(id);
     return post && post.orgId === orgId ? post : null;
+  },
+});
+
+/** Signed URL for the composer's media picker (org-gated on marketing.edit,
+ *  the same capability create/update require). */
+export const generateUploadUrl = mutation({
+  args: {},
+  handler: async (ctx) => {
+    await currentOrgWithCapability(ctx, "marketing.edit");
+    return await ctx.storage.generateUploadUrl();
+  },
+});
+
+/** Capability check for suggestCaption, callable from an action. Actions
+ *  have no ctx.auth-backed ctx.db of their own, so a capability check has to
+ *  go through a query - same pattern as accounts.myOrgForConnect, gated here
+ *  on marketing.edit (the capability create/update already require) rather
+ *  than marketing.approve, since drafting a caption is an edit, not an
+ *  approval. Without this, suggestCaption (as originally sketched with a
+ *  bare currentActor call, which never throws) would be a public action that
+ *  drives paid OpenAI completions for anyone who can reach it. */
+export const myOrgForCompose = query({
+  args: {},
+  handler: async (ctx) => {
+    return await currentOrgWithCapability(ctx, "marketing.edit");
+  },
+});
+
+export const suggestCaption = action({
+  args: { template: v.string(), facts: v.string(), platform: v.optional(v.string()) },
+  handler: async (ctx, { template, facts, platform }) => {
+    await ctx.runQuery(api.marketing.posts.myOrgForCompose, {});
+    const limit = platform === "bluesky" ? 280 : platform === "threads" ? 480 : 600;
+    const ai = await complete(
+      `Write a social caption for a recording studio. Template: ${template}. Facts:\n${facts}\n\nUnder ${limit} characters. One idea, one call to action. No hashtags spam (max 3). Output only the caption.`,
+      { system: "You are the social voice of an indie recording studio: warm, specific, never salesy.", maxOutputTokens: 300 },
+    );
+    return ai?.text?.trim() ?? null;
   },
 });
 
