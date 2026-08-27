@@ -101,6 +101,7 @@ import type * as lib_emailTemplates_layout from "../lib/emailTemplates/layout.js
 import type * as lib_entitlements from "../lib/entitlements.js";
 import type * as lib_gearCatalog from "../lib/gearCatalog.js";
 import type * as lib_gearRental from "../lib/gearRental.js";
+import type * as lib_ghl from "../lib/ghl.js";
 import type * as lib_google from "../lib/google.js";
 import type * as lib_guardrails from "../lib/guardrails.js";
 import type * as lib_holidays from "../lib/holidays.js";
@@ -145,6 +146,7 @@ import type * as marketing_accounts from "../marketing/accounts.js";
 import type * as marketing_brandCard from "../marketing/brandCard.js";
 import type * as marketing_posts from "../marketing/posts.js";
 import type * as marketing_results from "../marketing/results.js";
+import type * as marketing_rules from "../marketing/rules.js";
 import type * as members from "../members.js";
 import type * as memberships from "../memberships.js";
 import type * as migrations from "../migrations.js";
@@ -314,6 +316,7 @@ declare const fullApi: ApiFromModules<{
   "lib/entitlements": typeof lib_entitlements;
   "lib/gearCatalog": typeof lib_gearCatalog;
   "lib/gearRental": typeof lib_gearRental;
+  "lib/ghl": typeof lib_ghl;
   "lib/google": typeof lib_google;
   "lib/guardrails": typeof lib_guardrails;
   "lib/holidays": typeof lib_holidays;
@@ -358,6 +361,7 @@ declare const fullApi: ApiFromModules<{
   "marketing/brandCard": typeof marketing_brandCard;
   "marketing/posts": typeof marketing_posts;
   "marketing/results": typeof marketing_results;
+  "marketing/rules": typeof marketing_rules;
   members: typeof members;
   memberships: typeof memberships;
   migrations: typeof migrations;
