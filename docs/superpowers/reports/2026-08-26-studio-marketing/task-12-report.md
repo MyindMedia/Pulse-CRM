@@ -120,3 +120,41 @@ Replaced the duplicated `"Pick a template first."` toast in both handlers with a
 - `src/components/social/composer.tsx` - modified (all three fixes).
 - `src/components/social/link-in-bio.ts` - new (pure suffix logic).
 - `src/components/social/link-in-bio.test.ts` - new (8 tests).
+
+## Fix Round 2
+
+Base confirmed: `git rev-parse HEAD` was `37ed7ad2038...` before pulling; fast-forwarded to `68a3b553a43ea7352260a4c99a73e6b407113b4f` (`origin/feat/studio-marketing`'s one extra commit, `convex/_generated/api.d.ts` only, unrelated) via `git merge --ff-only origin/feat/studio-marketing` before touching anything.
+
+### The one issue: `mixBaselineRef` never reset on a post switch
+
+Confirmed the exact failure traced in the review: `mixBaselineRef` was declared and reset nowhere except its own initializer, so opening draft A then navigating client-side to a different draft B (two "open in composer" inbox links in one mount, no full reload) left A's settled baseline in place. The mix effect then compared B's freshly-restored `allInstagramSelected` against A's stale baseline, read a real difference between two unrelated posts as a "change," and immediately overwrote the `includeBookingLink` value the load effect had just restored from `Boolean(existingPost.link)` for B - the same failure class as round 1's bug, one post later than round 1 checked.
+
+**Fix:**
+
+1. Moved the `mixBaselineRef` declaration up next to `loadedForRef` (both now declared together before the load effect, previously `mixBaselineRef` was declared much lower, next to the mix effect itself).
+2. Added `mixBaselineRef.current = null;` in the load effect immediately after `loadedForRef.current = initialPostId;` - the same line that already marks "a (possibly different) post has settled," now also clearing the baseline so the mix effect starts from a clean slate for whichever post just loaded.
+
+I traced why resetting to `null` here is safe in every case, not just the reopen-a-different-post case the ticket named: the same reset also fires on the ordinary "create then `router.replace`" path from round 1 (the load effect runs again once the just-created post round-trips through `posts.get`). In that case the reset briefly clears a baseline that was already correct, but the very next run of the mix effect immediately recaptures the current (identical, since nothing changed) mix as the new baseline without reapplying the default - `nextMixBaseline(null, current)` never reapplies on a first sighting. So the reset is unconditionally safe: it either fixes a genuine stale-baseline bug (post switch) or is a harmless no-op recapture (same-post round-trip).
+
+### Extracted the stateful decision into a pure function
+
+Added `nextMixBaseline(previousBaseline: boolean | null, current: boolean): { reapplyDefault: boolean; baseline: boolean }` to `link-in-bio.ts`, alongside `applyLinkInBioSuffix`. Three cases, matching the ticket's own framing: `previousBaseline === current` -> no reapply, keep the baseline; `previousBaseline === null` -> no reapply (nothing to compare against yet), baseline becomes `current`; otherwise -> reapply, baseline becomes `current`. The mix effect in `composer.tsx` is now three lines calling this function, a ref read, and a ref write - it holds no branching logic of its own anymore.
+
+This was the right shape for this state (a plain previous/current comparison with no async or subscription concerns), so no alternative was needed.
+
+**Tests added to `link-in-bio.test.ts`** (`describe("nextMixBaseline", ...)`, 5 cases, matching the four the ticket asked for plus one): no reapply on the first settled mix in either direction (`null, true` and `null, false`); reapplies on a genuine transition from not-Instagram-only to Instagram-only; reapplies on a genuine transition from Instagram-only to not-Instagram-only; does not reapply when the mix has not actually changed (both `true,true` and `false,false`); and does not spuriously reapply when a null baseline follows a post switch (the exact case this round's bug lived in - asserts `nextMixBaseline(null, true)` behaves identically to a fresh mount's first call, which is precisely the property the composer's reset now guarantees).
+
+Command: `npx vitest run src/components/social/link-in-bio.test.ts --reporter=verbose` - **13 passed (13)** (the prior 8 suffix tests plus these 5).
+
+### Full verification after this fix
+
+- `npm run typecheck` - clean, no errors.
+- `npm run lint` (`src/components/social/composer.tsx`, `link-in-bio.ts`, `link-in-bio.test.ts` directly, then the full repo) - **0 errors, 84 warnings**, unchanged from round 1 (the same two pre-existing `react-hooks/set-state-in-effect` warnings in `composer.tsx`, no new ones).
+- `npx vitest run` - **159 test files, 1349 tests, all passing** (up from 159/1344: the 5 new `nextMixBaseline` cases).
+- No em dashes or en dashes introduced (checked every touched file, no hits).
+
+### Files changed in this round
+
+- `src/components/social/composer.tsx` - modified (moved `mixBaselineRef`, added the reset, rewired the mix effect onto `nextMixBaseline`).
+- `src/components/social/link-in-bio.ts` - modified (added `nextMixBaseline` + `MixBaselineResult`).
+- `src/components/social/link-in-bio.test.ts` - modified (added 5 tests).

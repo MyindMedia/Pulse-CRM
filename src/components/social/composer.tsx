@@ -23,7 +23,7 @@ import { MediaPicker, type MediaItem } from "./media-picker";
 import { SchedulePicker, type ScheduleValue } from "./schedule-picker";
 import { previewWarnings } from "./rules-preview";
 import { scheduleSuggestions } from "./schedule-math";
-import { applyLinkInBioSuffix } from "./link-in-bio";
+import { applyLinkInBioSuffix, nextMixBaseline } from "./link-in-bio";
 import { cn } from "@/lib/utils";
 
 /** Facts handed to suggestCaption: whatever the composer already knows about
@@ -123,10 +123,19 @@ export function Composer({
   // (two inbox rows opened in sequence) must load the new one. Keyed on the
   // id itself, not a bare "have I ever loaded anything" flag.
   const loadedForRef = React.useRef<Id<"socialPosts"> | undefined>(undefined);
+  // Baseline for the account-mix watcher below - declared here, alongside
+  // loadedForRef, so the load effect can reset it the moment a DIFFERENT
+  // post's data lands. Every other field-restoring setState below has this
+  // same "new post, clean slate" property; this ref needs it too, or a
+  // stale baseline from post A gets compared against post B's freshly
+  // restored mix and overwrites the includeBookingLink value just restored
+  // for B.
+  const mixBaselineRef = React.useRef<boolean | null>(null);
   React.useEffect(() => {
     if (!initialPostId || loadedForRef.current === initialPostId) return;
     if (existingPost === undefined) return; // still loading this id
     loadedForRef.current = initialPostId;
+    mixBaselineRef.current = null;
     if (existingPost === null) {
       setNotFound(true);
       return;
@@ -168,18 +177,17 @@ export function Composer({
   // changes again. The baseline is only captured once a post (if any) has
   // finished loading, so hydrating a saved draft's own accountIds is never
   // itself mistaken for a "mix changed" event that overrides the value the
-  // load effect just restored.
-  const mixBaselineRef = React.useRef<boolean | null>(null);
+  // load effect just restored - and the load effect resets the baseline to
+  // null whenever a DIFFERENT post lands, so the same is true switching
+  // between two posts in one mount. The three-way decision (first sighting,
+  // genuine change, no change) is a pure function - see nextMixBaseline in
+  // link-in-bio.ts and its own tests - so this effect is just wiring.
   React.useEffect(() => {
     if (accounts === undefined) return; // mix unknown until accounts resolve
     if (initialPostId && loadedForRef.current !== initialPostId) return; // post not hydrated yet
-    if (mixBaselineRef.current === null) {
-      mixBaselineRef.current = allInstagramSelected; // first known-settled mix - not a change
-      return;
-    }
-    if (mixBaselineRef.current === allInstagramSelected) return;
-    mixBaselineRef.current = allInstagramSelected;
-    setIncludeBookingLink(!allInstagramSelected);
+    const { reapplyDefault, baseline } = nextMixBaseline(mixBaselineRef.current, allInstagramSelected);
+    mixBaselineRef.current = baseline;
+    if (reapplyDefault) setIncludeBookingLink(!allInstagramSelected);
   }, [accounts, allInstagramSelected, initialPostId]);
 
   const readOnlyStatus = loadedStatus !== null && !EDITABLE_STATUSES.has(loadedStatus);

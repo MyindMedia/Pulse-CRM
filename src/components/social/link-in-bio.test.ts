@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyLinkInBioSuffix, LINK_IN_BIO } from "./link-in-bio";
+import { applyLinkInBioSuffix, nextMixBaseline, LINK_IN_BIO } from "./link-in-bio";
 
 describe("applyLinkInBioSuffix", () => {
   it("appends when every account is Instagram and the link is off", () => {
@@ -45,5 +45,35 @@ describe("applyLinkInBioSuffix", () => {
     const caption = "Link in bio is a classic Instagram move.";
     const out = applyLinkInBioSuffix(caption, { allInstagramSelected: false, includeBookingLink: true });
     expect(out).toBe(caption);
+  });
+});
+
+describe("nextMixBaseline", () => {
+  it("does not reapply on the first settled mix (baseline capture is a no-op)", () => {
+    expect(nextMixBaseline(null, true)).toEqual({ reapplyDefault: false, baseline: true });
+    expect(nextMixBaseline(null, false)).toEqual({ reapplyDefault: false, baseline: false });
+  });
+
+  it("reapplies on a genuine transition from not-Instagram-only to Instagram-only", () => {
+    expect(nextMixBaseline(false, true)).toEqual({ reapplyDefault: true, baseline: true });
+  });
+
+  it("reapplies on a genuine transition from Instagram-only to not-Instagram-only", () => {
+    expect(nextMixBaseline(true, false)).toEqual({ reapplyDefault: true, baseline: false });
+  });
+
+  it("does not reapply when the mix has not actually changed", () => {
+    expect(nextMixBaseline(true, true)).toEqual({ reapplyDefault: false, baseline: true });
+    expect(nextMixBaseline(false, false)).toEqual({ reapplyDefault: false, baseline: false });
+  });
+
+  it("does not spuriously reapply when a null baseline follows a post switch", () => {
+    // Composer resets the ref to null the moment a different post's data
+    // lands, regardless of what the previous post's settled mix was - the
+    // very next check must behave exactly like a fresh mount's first call,
+    // not compare against the old post's baseline.
+    const afterSwitch = nextMixBaseline(null, true);
+    expect(afterSwitch.reapplyDefault).toBe(false);
+    expect(afterSwitch.baseline).toBe(true);
   });
 });
