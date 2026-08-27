@@ -2,6 +2,7 @@ import { ImageResponse } from "next/og";
 import { ConvexHttpClient } from "convex/browser";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
+import { resolveConvexUrl } from "@/lib/convex-url";
 
 // Studio-branded post image: rendered from the studio's own logo and accent
 // colour so a post about a rate promo or an open slot always has something
@@ -38,8 +39,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ postId: 
   const { postId } = await params;
   const kind = new URL(req.url).searchParams.get("kind") ?? "promo";
 
-  const convexUrl = process.env.NEXT_PUBLIC_CONVEX_URL;
-  if (!convexUrl) return new Response("Not found", { status: 404 });
+  // Same resolution the browser client uses (src/lib/convex-url.ts), so this
+  // route and convex-client-provider.tsx can never disagree about which
+  // deployment to hit. resolveConvexUrl() always falls back to the
+  // production URL, so this branch is defense in depth, not the normal
+  // path - but if it is ever reached, it must not look like a missing post.
+  // A bare 404 here is exactly what let a real misconfiguration (the env var
+  // unset on production) hide behind "the post doesn't exist" for as long as
+  // it did.
+  const convexUrl = resolveConvexUrl();
+  if (!convexUrl) {
+    console.error("[brand-card] Convex URL could not be resolved; check NEXT_PUBLIC_CONVEX_URL");
+    return new Response("Brand card misconfigured: Convex URL is not resolvable", { status: 500 });
+  }
 
   const client = new ConvexHttpClient(convexUrl);
   let d;

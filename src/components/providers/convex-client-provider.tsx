@@ -4,6 +4,7 @@ import { ReactNode, useCallback, useMemo } from "react";
 import { ConvexReactClient, ConvexProvider, ConvexProviderWithAuth } from "convex/react";
 import { ClerkProvider, useAuth } from "@clerk/nextjs";
 import { clerkAppearance } from "@/lib/clerk-appearance";
+import { resolveConvexUrl } from "@/lib/convex-url";
 
 /*
  * Pulse boots in two modes so it runs whether or not Clerk is configured yet:
@@ -38,12 +39,9 @@ const ALLOWED_REDIRECT_ORIGINS = [
   `https://www.${SATELLITE_DOMAIN}`,
 ];
 
-/* The Convex deployment URL. `NEXT_PUBLIC_CONVEX_URL` (written by
- * `npx convex dev` locally) takes precedence; when it is absent - e.g. a
- * hosting environment where the build var was not configured - we fall back
- * to the production deployment. A Convex URL is public by design. */
-const CONVEX_URL =
-  process.env.NEXT_PUBLIC_CONVEX_URL ?? "https://pastel-corgi-340.convex.cloud";
+/* The Convex deployment URL. See src/lib/convex-url.ts for why the fallback
+ * exists and why it lives in one shared place. */
+const CONVEX_URL = resolveConvexUrl();
 
 function MissingConvex() {
   return (
