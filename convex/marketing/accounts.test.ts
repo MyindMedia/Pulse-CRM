@@ -102,4 +102,28 @@ describe("marketing accounts", () => {
     });
     expect(usage).toBe(1);
   });
+
+  it("limitStatus reports usage against the studio cap and null for an unlimited tier", async () => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: "org3", name: "U", slug: "unlimited", plan: "studio", tier: "pro", status: "active" });
+      await ctx.db.insert("members", { orgId: "org3", name: "Owner3", role: "owner", clerkUserId: "u3", skills: [] });
+    });
+    const owner3 = t.withIdentity({ subject: "u3", name: "Owner3", orgId: "org3" });
+
+    expect(await owner().query(api.marketing.accounts.limitStatus, {})).toEqual({ used: 0, cap: 3, tierLabel: "Studio" });
+
+    for (const n of [1, 2]) {
+      await t.mutation(internal.marketing.accounts.insertInternal, {
+        orgId: "org1", platform: "facebook", ghlAccountId: `acc_${n}`, ghlLocationId: "loc", name: `P${n}`, connectedBy: "u1",
+      });
+    }
+    expect(await owner().query(api.marketing.accounts.limitStatus, {})).toEqual({ used: 2, cap: 3, tierLabel: "Studio" });
+
+    await t.mutation(internal.marketing.accounts.insertInternal, {
+      orgId: "org3", platform: "facebook", ghlAccountId: "acc_unlimited_1", ghlLocationId: "loc", name: "P1", connectedBy: "u3",
+    });
+    const unlimited = await owner3.query(api.marketing.accounts.limitStatus, {});
+    expect(unlimited.cap).toBeNull();
+    expect(unlimited.used).toBe(1);
+  });
 });

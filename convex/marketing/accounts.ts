@@ -5,9 +5,16 @@ import { api, internal } from "../_generated/api";
 import type { Id } from "../_generated/dataModel";
 import { currentOrgWithCapability, currentActor } from "../lib/tenant";
 import { assertWithinLimit, recordUsage } from "../usage";
+import { tierForOrg } from "../lib/tier";
+import { PLAN_LIMITS } from "../lib/plans";
 import { ghlFromEnv, startOAuth, listOAuthAccounts, attachOAuthAccount, PLATFORMS, type Platform } from "../lib/ghl";
 
 const platformArg = v.union(...PLATFORMS.map((p) => v.literal(p)));
+
+/** Count-metric sentinel for "effectively unlimited" - mirrors usage.ts's
+ *  UNLIMITED, which is not exported (a leaf-module boundary this file has no
+ *  reason to cross for one comparison). */
+const UNLIMITED_CAP = 999_999;
 
 /** Org doc + GHL override for actions (they have no ctx.db). */
 export const orgContext = internalQuery({
@@ -136,6 +143,26 @@ export const remove = mutation({
     if (!row || row.orgId !== orgId) throw new Error("Not found");
     await ctx.db.patch(id, { status: "removed" });
     await recordUsage(ctx, orgId, "social_accounts", -1);
+  },
+});
+
+/** Connected-account count against the plan cap, for the accounts page's
+ *  limit indicator. `cap: null` means the tier has no ceiling (pro and
+ *  above) - the UI shows a plain count instead of a bar. Gated on
+ *  marketing.read like `list`: a viewer who cannot connect accounts can
+ *  still see how many are connected. */
+export const limitStatus = query({
+  args: {},
+  handler: async (ctx) => {
+    const orgId = await currentOrgWithCapability(ctx, "marketing.read");
+    const limits = PLAN_LIMITS[await tierForOrg(ctx, orgId)];
+    const rows = await ctx.db.query("socialAccounts").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
+    const used = rows.filter((r) => r.status !== "removed").length;
+    return {
+      used,
+      cap: limits.socialAccountCap >= UNLIMITED_CAP ? null : limits.socialAccountCap,
+      tierLabel: limits.label,
+    };
   },
 });
 
