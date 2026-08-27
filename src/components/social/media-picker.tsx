@@ -6,6 +6,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { ImagePlus, Video, X } from "lucide-react";
 import { PhotoUpload } from "@/components/ui/photo-upload";
+import { ExpandableImage } from "@/components/ui/image-lightbox";
 import { Switch } from "@/components/ui/toggle";
 import { Label } from "@/components/ui/field";
 import { brandCardPath } from "@convex/lib/brandCardUrl";
@@ -56,10 +57,17 @@ function BrandCardToggle({
           // there through every later edit. `updatedAt` falls back to 0 for
           // the brief render between creating a draft and the reload that
           // hands this component the saved post's real updatedAt.
-          <img
+          //
+          // An 80px thumbnail is enough to know a card was generated and no
+          // use at all for reading what it actually says - which is exactly
+          // how a broken subline (overlapping room and promo text) shipped
+          // to a real studio's Facebook and Instagram unnoticed. Clicking it
+          // opens the same PNG GHL fetches, at its real 1080x1350 size.
+          <ExpandableImage
             src={brandCardPath(postId, kind, updatedAt ?? 0)}
             alt={`${label} preview`}
-            className="h-24 w-20 rounded-md border border-graphite/60 object-cover"
+            caption={`${label} preview`}
+            className="h-24 w-20 shrink-0 rounded-md border border-graphite/60"
           />
         ) : (
           <div className="grid h-24 w-20 shrink-0 place-items-center rounded-md border border-dashed border-graphite/60 bg-coal-3 px-1.5 text-center text-[10px] leading-tight text-steel/70">

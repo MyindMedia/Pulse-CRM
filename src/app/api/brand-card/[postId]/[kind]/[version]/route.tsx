@@ -3,6 +3,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { resolveConvexUrl } from "@/lib/convex-url";
+import { composeSubline } from "../../../subline";
 
 // Studio-branded post image: rendered from the studio's own logo and accent
 // colour so a post about a rate promo or an open slot always has something
@@ -74,7 +75,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ postId:
   const sub =
     kind === "rate_card" ? (d.roomName ?? d.studioName)
     : kind === "open_slot" ? (d.windowLabel ?? d.roomName ?? "")
-    : [d.roomName, d.windowLabel].filter(Boolean).join(", ");
+    : composeSubline([d.roomName, d.windowLabel]);
 
   const glyphText = BASE_GLYPHS + headline + sub + d.studioName + (d.promoCode ?? "");
   const [headlineFont, boldFont, mediumFont] = await Promise.all([

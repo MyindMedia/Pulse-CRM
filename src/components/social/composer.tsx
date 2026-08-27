@@ -21,7 +21,7 @@ import { PLATFORM_META } from "./platforms";
 import { TemplatePicker, isTemplateKey, type TemplateKey } from "./template-picker";
 import { MediaPicker, type MediaItem } from "./media-picker";
 import { SchedulePicker, type ScheduleValue } from "./schedule-picker";
-import { previewWarnings } from "./rules-preview";
+import { previewWarnings, tightestCaptionLimit } from "./rules-preview";
 import { scheduleSuggestions } from "./schedule-math";
 import { applyLinkInBioSuffix, nextMixBaseline } from "./link-in-bio";
 import { cn } from "@/lib/utils";
@@ -196,16 +196,42 @@ export function Composer({
   const selectedPromo = promos?.find((p) => p._id === promoIdState) ?? null;
   const selectedArtist = artists?.find((a) => a._id === artistIdState) ?? null;
 
+  // finalCaption(), not the raw caption state: it is what actually gets
+  // sent to validateInput on save (see buildArgs below), so a caption that
+  // only goes over the limit once "Link in bio" is appended must warn here
+  // too, not just once the owner has already saved and hit the server-side
+  // check.
   const warningsByAccount = React.useMemo(() => {
     if (!accounts) return new Map<string, string[]>();
     const candidates = accounts.map((a) => ({ _id: a._id, platform: a.platform }));
     const problems = previewWarnings(candidates, {
-      caption,
+      caption: finalCaption(),
       media: media.map((m) => m.type),
       hasLink: includeBookingLink,
     });
     return new Map(problems.map((p) => [p.accountId, p.problems]));
-  }, [accounts, caption, media, includeBookingLink]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accounts, caption, media, includeBookingLink, allInstagramSelected]);
+
+  // The single number the caption box shows while typing: the tightest
+  // limit among the accounts actually picked, and which of them is the
+  // binding one - a global caption box has no other way to tell an owner
+  // before Approve (or, worse, before GHL) that what they typed is too long
+  // for Instagram specifically, even though Facebook would have been fine.
+  const selectedPlatforms = React.useMemo(
+    () =>
+      accountIds
+        .map((id) => accounts?.find((a) => a._id === id)?.platform)
+        .filter((p): p is Platform => Boolean(p)),
+    [accountIds, accounts],
+  );
+  const bindingLimit = React.useMemo(
+    () => tightestCaptionLimit(selectedPlatforms.map((platform) => ({ platform }))),
+    [selectedPlatforms],
+  );
+  const captionLength = finalCaption().length;
+  const overCaptionLimit = bindingLimit !== null && captionLength > bindingLimit.limit;
+  const mixedPlatformsSelected = new Set(selectedPlatforms).size > 1;
 
   function toggleAccount(id: Id<"socialAccounts">, on: boolean) {
     setAccountIds((prev) => (on ? [...prev, id] : prev.filter((x) => x !== id)));
@@ -305,6 +331,15 @@ export function Composer({
     const reason = missingReason();
     if (reason) {
       toast.error(reason);
+      return;
+    }
+    // Stop an over-limit post here rather than let it save as "approved" and
+    // fail later at GHL, where the owner already saw a success toast and has
+    // no reason to go looking for it again.
+    if (overCaptionLimit && bindingLimit) {
+      toast.error(
+        `The caption is ${(captionLength - bindingLimit.limit).toLocaleString("en-US")} characters over ${PLATFORM_META[bindingLimit.platform].label}'s limit. Shorten it before approving.`,
+      );
       return;
     }
     const args = buildArgs();
@@ -433,6 +468,16 @@ export function Composer({
               disabled={locked}
               placeholder="What happened, and what should they do next."
             />
+            {bindingLimit && (
+              <p className={cn("mt-1.5 text-xs", overCaptionLimit ? "font-medium text-critical" : "text-steel/70")}>
+                {captionLength.toLocaleString("en-US")} / {bindingLimit.limit.toLocaleString("en-US")} characters
+                {mixedPlatformsSelected
+                  ? ` for ${PLATFORM_META[bindingLimit.platform].label}, the tightest limit among the accounts picked.`
+                  : ` for ${PLATFORM_META[bindingLimit.platform].label}.`}
+                {overCaptionLimit &&
+                  ` This is ${(captionLength - bindingLimit.limit).toLocaleString("en-US")} characters over. It will be blocked at approval.`}
+              </p>
+            )}
           </Section>
 
           <Section title="Accounts">

@@ -148,6 +148,18 @@ export async function approvePost(ctx: MutationCtx, orgId: string, id: Id<"socia
   // never fire, and the post would be marked "scheduled" (then "published" by
   // the status-sync cron) having reached no network at all.
   if (post.accountIds.length === 0) throw new Error("Pick at least one connected account before approving this post.");
+  // The same check payloadContext/schedule apply when they build the GHL
+  // payload, done here too so a disconnected account fails loudly at
+  // approve time instead of quietly reaching schedule() as a mismatch: an
+  // owner who clicks "Approve and schedule" and gets a success toast for a
+  // post that then lands in "failed" a moment later has no reason to look
+  // for it again before the window to fix it closes.
+  for (const accountId of post.accountIds) {
+    const account = await ctx.db.get(accountId);
+    if (!account || account.orgId !== orgId || account.status === "removed") {
+      throw new Error("One of the selected accounts is no longer connected. Reconnect it, or remove it from this post, before approving.");
+    }
+  }
   if (post.template === "client_win") {
     const artist = post.artistId ? await ctx.db.get(post.artistId) : null;
     if (!artist?.okToFeature) throw new Error("This artist has not given the OK to feature. Ask them, tick it on their profile, then approve.");
