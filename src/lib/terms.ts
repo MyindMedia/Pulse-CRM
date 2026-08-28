@@ -7,13 +7,13 @@
    Bump TERMS_VERSION when this text changes - studios re-accept.
    ============================================================ */
 
-export const TERMS_VERSION = "2026-06-12.1";
+export const TERMS_VERSION = "2026-08-28.1";
 
 export const TERMS_SECTIONS: { title: string; body: string[] }[] = [
   {
     title: "1. The service",
     body: [
-      "Pulse is studio-management software operated by Myind Sound (\"Pulse\", \"we\", \"us\"). It provides booking pages, scheduling, client and team management, inventory, invoicing, messaging, and related tools for recording studios and creative spaces (each a \"Studio\", \"you\").",
+      "Pulse is studio-management software operated by ThaMyind (\"Pulse\", \"we\", \"us\"). It provides booking pages, scheduling, client and team management, inventory, invoicing, messaging, and related tools for recording studios and creative spaces (each a \"Studio\", \"you\").",
       "By creating an account, completing onboarding, or using the service, you agree to these Terms on behalf of the Studio you represent and confirm you have authority to do so.",
     ],
   },
@@ -61,7 +61,7 @@ export const TERMS_SECTIONS: { title: string; body: string[] }[] = [
   {
     title: "8. Limitation of liability",
     body: [
-      "To the maximum extent permitted by law, Pulse and Myind Sound will not be liable for indirect, incidental, special, consequential, or punitive damages, or for lost profits, revenue, data, or goodwill. Our total liability for any claim relating to the service is limited to the subscription fees you paid to Pulse in the twelve months before the event giving rise to the claim. For clarity and without limiting Section 3, Pulse has no liability for payment transactions processed by Stripe.",
+      "To the maximum extent permitted by law, Pulse and ThaMyind will not be liable for indirect, incidental, special, consequential, or punitive damages, or for lost profits, revenue, data, or goodwill. Our total liability for any claim relating to the service is limited to the subscription fees you paid to Pulse in the twelve months before the event giving rise to the claim. For clarity and without limiting Section 3, Pulse has no liability for payment transactions processed by Stripe.",
     ],
   },
   {
@@ -73,7 +73,7 @@ export const TERMS_SECTIONS: { title: string; body: string[] }[] = [
   {
     title: "10. Contact",
     body: [
-      "Questions about these Terms: support@myindsound.com. These Terms are governed by the laws of the State of California, USA.",
+      "Questions about these Terms: support@thamyind.com. These Terms are governed by the laws of the State of California, USA.",
     ],
   },
 ];

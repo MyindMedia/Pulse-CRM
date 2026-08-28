@@ -101,7 +101,7 @@ export function Contact() {
                   >
                     {busy ? <Loader2 className="size-4 animate-spin" /> : <>Send message <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" /></>}
                   </button>
-                  <a href="mailto:support@myindsound.com" className="font-meta text-xs uppercase tracking-[0.04em] text-steel transition-colors hover:text-gold">
+                  <a href="mailto:support@thamyind.com" className="font-meta text-xs uppercase tracking-[0.04em] text-steel transition-colors hover:text-gold">
                     or email us directly
                   </a>
                 </div>

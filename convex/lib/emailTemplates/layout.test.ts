@@ -9,8 +9,8 @@ describe("branded studio email layout", () => {
   });
 
   it("keeps invoice/pay URLs clickable after escaping", () => {
-    const html = textToEmailHtml("Pay here: https://pulse.myindsound.com/pay/abc?x=1&y=2");
-    expect(html).toContain('<a href="https://pulse.myindsound.com/pay/abc?x=1&y=2"');
+    const html = textToEmailHtml("Pay here: https://studiopulse.tech/pay/abc?x=1&y=2");
+    expect(html).toContain('<a href="https://studiopulse.tech/pay/abc?x=1&y=2"');
   });
 
   it("splits paragraphs and line breaks", () => {
@@ -31,9 +31,9 @@ describe("branded studio email layout", () => {
       studioName: "Myind Sound",
       bodyText: "Confirm your session",
       ctaLabel: "Confirm booking",
-      ctaUrl: "https://pulse.myindsound.com/book/myind-sound",
+      ctaUrl: "https://studiopulse.tech/book/myind-sound",
     });
     expect(html).toContain("Confirm booking");
-    expect(html).toContain('href="https://pulse.myindsound.com/book/myind-sound"');
+    expect(html).toContain('href="https://studiopulse.tech/book/myind-sound"');
   });
 });

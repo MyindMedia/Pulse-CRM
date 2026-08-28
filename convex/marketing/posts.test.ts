@@ -168,10 +168,10 @@ describe("marketing posts", () => {
   });
 
   it("buildTrackedLink carries src and code", () => {
-    expect(buildTrackedLink({ host: "https://pulse.myindsound.com", slug: "studio", roomId: "r1", postId: "p1", code: "THU20" }))
-      .toBe("https://pulse.myindsound.com/book/studio/r1?src=p1&code=THU20");
-    expect(buildTrackedLink({ host: "https://pulse.myindsound.com", slug: "studio", postId: "p1" }))
-      .toBe("https://pulse.myindsound.com/book/studio?src=p1");
+    expect(buildTrackedLink({ host: "https://studiopulse.tech", slug: "studio", roomId: "r1", postId: "p1", code: "THU20" }))
+      .toBe("https://studiopulse.tech/book/studio/r1?src=p1&code=THU20");
+    expect(buildTrackedLink({ host: "https://studiopulse.tech", slug: "studio", postId: "p1" }))
+      .toBe("https://studiopulse.tech/book/studio?src=p1");
   });
 
   it("appHost follows APP_URL, and PULSE_PUBLIC_HOST is only an override", () => {

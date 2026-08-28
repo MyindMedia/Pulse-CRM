@@ -150,7 +150,7 @@ export const TreatmentEndCard: React.FC<{ data?: number[] }> = () => {
       <div style={{ fontFamily: display, color: C.ash, fontSize: "1.3vw", letterSpacing: "0.03em", maxWidth: "74%", textAlign: "center", fontWeight: 500 }}>
         Bookings · Calendars · Clients · Payments · Splits · Releases · AI operations
       </div>
-      <Text3D text="pulse.myindsound.com" delay={22} sizeVw={3} gold depth={8} />
+      <Text3D text="studiopulse.tech" delay={22} sizeVw={3} gold depth={8} />
       <div style={{ fontFamily: display, color: C.gold, fontSize: "1.5vw", fontWeight: 700 }}>Get early access</div>
     </AbsoluteFill>
   );

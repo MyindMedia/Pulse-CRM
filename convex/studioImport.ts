@@ -43,7 +43,7 @@ async function fetchWithTimeout(url: string) {
     return await fetch(url, {
       signal: controller.signal,
       headers: {
-        "User-Agent": "Pulse-StudioOS/1.0 (https://pulse.myindsound.com)",
+        "User-Agent": "Pulse-StudioOS/1.0 (https://studiopulse.tech)",
         Accept: "text/html,application/xhtml+xml,image/*;q=0.9,*/*;q=0.8",
       },
     });

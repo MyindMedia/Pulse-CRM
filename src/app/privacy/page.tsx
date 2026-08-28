@@ -26,7 +26,7 @@ export default function PrivacyPolicy() {
           Pulse is recording studio management software operated by {LEGAL_ENTITY} (&ldquo;Pulse&rdquo;,
           &ldquo;we&rdquo;, &ldquo;us&rdquo;), {LEGAL_ADDRESS}. This policy explains what personal
           information we collect, why we collect it, and the choices you have. It covers
-          pulse.myindsound.com and the studio booking pages we host on behalf of our customers.
+          studiopulse.tech and the studio booking pages we host on behalf of our customers.
         </p>
       </Section>
 

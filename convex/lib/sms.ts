@@ -31,7 +31,7 @@ async function sendGhl({ to, body }: { to: string; body: string }): Promise<SmsS
     Authorization: `Bearer ${key}`,
     "Content-Type": "application/json",
     // GHL's Cloudflare rejects non-browser default user agents (error 1010).
-    "User-Agent": "Pulse/1.0 (+https://pulse.myindsound.com)",
+    "User-Agent": "Pulse/1.0 (+https://studiopulse.tech)",
   };
   try {
     const upsert = await fetch("https://services.leadconnectorhq.com/contacts/upsert", {

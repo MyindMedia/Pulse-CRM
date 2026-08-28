@@ -68,9 +68,9 @@ describe("tracked link to attributed booking", () => {
     // 1. The composer's default: a post with no room. The link lands on the
     //    studio front, one level above the page that reads these params.
     const link = buildTrackedLink({
-      host: "https://pulse.myindsound.com", slug: SLUG, postId, code: "SAVE20",
+      host: "https://studiopulse.tech", slug: SLUG, postId, code: "SAVE20",
     });
-    expect(link).toBe(`https://pulse.myindsound.com/book/${SLUG}?src=${postId}&code=SAVE20`);
+    expect(link).toBe(`https://studiopulse.tech/book/${SLUG}?src=${postId}&code=SAVE20`);
 
     // 2. Visitor lands, clicks a room card.
     const roomQuery = clickRoomCardFrom(link, SLUG, roomId);
@@ -120,7 +120,7 @@ describe("tracked link to attributed booking", () => {
     const { roomId, postId } = await seed(t, now);
 
     const link = buildTrackedLink({
-      host: "https://pulse.myindsound.com", slug: SLUG, postId, code: "SAVE20",
+      host: "https://studiopulse.tech", slug: SLUG, postId, code: "SAVE20",
     });
     // The old room-card href: ?ref= only, so src and code die at the click.
     const roomQuery = new URLSearchParams(
@@ -155,7 +155,7 @@ describe("tracked link to attributed booking", () => {
     // The services catalogue is the other route off the front page, and it
     // dropped src and code exactly the same way.
     const link = buildTrackedLink({
-      host: "https://pulse.myindsound.com", slug: SLUG, postId: "p1", code: "SAVE20",
+      host: "https://studiopulse.tech", slug: SLUG, postId: "p1", code: "SAVE20",
     });
     const carried = readTrackingParams(new URL(link).search);
     expect(withTracking(`/book/${SLUG}/s/svc1`, carried)).toBe(

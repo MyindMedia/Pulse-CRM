@@ -980,7 +980,7 @@ export const createBooking = mutation({
       });
     }
     if (engineerEmail) {
-      const appUrl = process.env.APP_URL ?? "https://pulse.myindsound.com";
+      const appUrl = process.env.APP_URL ?? "https://studiopulse.tech";
       await notify(ctx, {
         orgId,
         channel: "email",

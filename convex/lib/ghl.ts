@@ -14,7 +14,7 @@ export const PLATFORMS: Platform[] = [
 ];
 
 const BASE = "https://services.leadconnectorhq.com";
-const UA = "Pulse/1.0 (+https://pulse.myindsound.com)";
+const UA = "Pulse/1.0 (+https://studiopulse.tech)";
 
 export function ghlFromEnv(
   org: { ghl?: { locationId: string; tokenRef: string } } | null,

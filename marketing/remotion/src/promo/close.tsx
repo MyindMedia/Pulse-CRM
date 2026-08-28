@@ -20,7 +20,7 @@ export const PromoEndCard: React.FC<{ data?: number[] }> = () => {
       <div style={{ fontFamily: body, color: C.ash, fontSize: "1.3vw", letterSpacing: "0.03em", maxWidth: "72%", textAlign: "center" }}>
         Bookings · Calendars · Clients · Payments · Splits · Releases · AI operations
       </div>
-      <Text3D text="pulse.myindsound.com" delay={22} sizeVw={3} gold depth={8} />
+      <Text3D text="studiopulse.tech" delay={22} sizeVw={3} gold depth={8} />
       <div style={{ fontFamily: body, color: C.gold, fontSize: "1.4vw" }}>Join the invite-only beta</div>
     </AbsoluteFill>
   );

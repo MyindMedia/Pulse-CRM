@@ -35,7 +35,7 @@ def call(method, path, body=None, version="2021-07-28"):
             "Content-Type": "application/json",
             "Accept": "application/json",
             # GHL's Cloudflare bans the default Python-urllib UA (error 1010)
-            "User-Agent": "Pulse/1.0 (+https://pulse.myindsound.com)",
+            "User-Agent": "Pulse/1.0 (+https://studiopulse.tech)",
         },
     )
     try:

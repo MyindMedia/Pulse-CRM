@@ -38,7 +38,7 @@ const ibmPlexMono = IBM_Plex_Mono({
   display: "swap",
 });
 
-const SITE_URL = "https://pulse.myindsound.com";
+const SITE_URL = "https://studiopulse.tech";
 const SITE_TITLE = "Pulse: Recording Studio Management Software";
 // The entry price is derived, so a search result can never quote a number the
 // pricing section stopped charging. It sat at "$49/mo" for months after the

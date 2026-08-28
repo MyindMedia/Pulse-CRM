@@ -227,7 +227,7 @@ export default function SignSplitSheetPage() {
               <p className="pb-4 text-center text-[0.625rem] text-steel/70">
                 Powered by{" "}
                 <a
-                  href="https://pulse.myindsound.com/?ref=sign"
+                  href="https://studiopulse.tech/?ref=sign"
                   target="_blank"
                   rel="noreferrer"
                   className="font-medium underline-offset-2 transition-colors hover:text-gold-bright hover:underline"

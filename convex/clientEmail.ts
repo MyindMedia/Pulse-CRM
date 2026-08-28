@@ -100,7 +100,7 @@ export const sendToClient = action({
         to: c.to,
         subject,
         html,
-        from: `${c.studioName} via Pulse <support@myindsound.com>`,
+        from: `${c.studioName} via Pulse <support@thamyind.com>`,
       });
     }
 

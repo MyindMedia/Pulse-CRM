@@ -30,7 +30,7 @@ export const submit = action({
     if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Please enter a valid email.");
     if (message.length < 5) throw new Error("Please add a short message.");
 
-    const to = process.env.CONTACT_EMAIL ?? "support@myindsound.com";
+    const to = process.env.CONTACT_EMAIL ?? "support@thamyind.com";
     const html = `<div style="font-family:system-ui,sans-serif;font-size:14px;line-height:1.7;color:#111">
       <p style="font-size:16px"><b>New Pulse contact request</b></p>
       <p><b>Name:</b> ${esc(name)}</p>

@@ -3,7 +3,7 @@
 Pulse is a **Connect platform**: each studio (sub-account) connects or creates its
 **own** Stripe account and collects client money **directly into its own bank**.
 Pulse never holds funds — it facilitates. This doc is the **platform-owner side**:
-what *you* (Lawrence / Myind Sound) do once in the Stripe dashboard so every studio
+what *you* (Lawrence / ThaMyind) do once in the Stripe dashboard so every studio
 can self-onboard.
 
 ## What's already built in Pulse (no code work needed)
@@ -52,7 +52,7 @@ Stripe dashboard: Connect → **Settings → Express Dashboard** (logo, color, n
 Settings → **Connect → Branding** (and Settings → **Branding**): business name,
 icon/logo, brand color. This brands the Stripe-hosted screens your studios walk
 through, so it feels like Pulse, not a stranger's Stripe.
-Use: gold `#FDB913`, ink `#141417`, logo `https://pulse.myindsound.com/pulse-logo.png`.
+Use: gold `#FDB913`, ink `#141417`, logo `https://studiopulse.tech/pulse-logo.png`.
 
 ### 5. Public details (shown to the studios' clients)
 Settings → **Public details / Customer support**: support email, statement

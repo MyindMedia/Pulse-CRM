@@ -4,7 +4,7 @@ export const COPY = {
   hook: { text: "You didn't get into music to babysit spreadsheets.", gold: ["music"] },
   payoff: { text: "Less chaos. More music.", gold: ["music"] },
   ctaTagline: { text: "Run your studio like a hit.", gold: ["hit"] },
-  ctaUrl: "pulse.myindsound.com",
+  ctaUrl: "studiopulse.tech",
   turn: "Pulse changes that.",
 
   // End-card "options" — the studio functions the platform runs. Leads with

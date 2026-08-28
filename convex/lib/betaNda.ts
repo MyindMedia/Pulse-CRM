@@ -12,7 +12,7 @@
    before it goes to anyone who matters.
    ============================================================ */
 
-export const NDA_VERSION = "2026-08-20.2";
+export const NDA_VERSION = "2026-08-28.1";
 
 export const NDA_TITLE = "Pulse Early Access and Confidentiality Agreement";
 
@@ -28,7 +28,7 @@ export const NDA_CLAUSES: { heading: string; body: string }[] = [
   {
     heading: "What you agree not to do",
     body:
-      "Do not share, publish, post, screenshot, forward, or describe this material to anyone outside your own organization without written permission from Myind Sound. That includes social media, group chats, and newsletters.",
+      "Do not share, publish, post, screenshot, forward, or describe this material to anyone outside your own organization without written permission from ThaMyind. That includes social media, group chats, and newsletters.",
   },
   {
     heading: "Who you may share it with",
@@ -48,7 +48,7 @@ export const NDA_CLAUSES: { heading: string; body: string }[] = [
   {
     heading: "Who owns what",
     body:
-      "Pulse, its interface, its underlying software, and everything on these pages remain the property of Myind Sound. Nothing here grants you a licence to use, reproduce, or build on any of it beyond looking at it to decide whether you want it. Your own business, data, recordings and material remain entirely yours.",
+      "Pulse, its interface, its underlying software, and everything on these pages remain the property of ThaMyind. Nothing here grants you a licence to use, reproduce, or build on any of it beyond looking at it to decide whether you want it. Your own business, data, recordings and material remain entirely yours.",
   },
   {
     heading: "What you may say publicly",

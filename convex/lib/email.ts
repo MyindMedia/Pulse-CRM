@@ -12,7 +12,7 @@ export async function sendEmail(args: {
 }): Promise<EmailStatus> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return "simulated";
-  const from = args.from ?? process.env.RESEND_FROM ?? "Pulse <support@myindsound.com>";
+  const from = args.from ?? process.env.RESEND_FROM ?? "Pulse <support@thamyind.com>";
   try {
     const res = await fetch("https://api.resend.com/emails", {
       method: "POST",

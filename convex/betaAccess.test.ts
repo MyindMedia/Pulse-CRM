@@ -12,7 +12,7 @@ import { betaInviteHtml, betaInviteSubject } from "./lib/emailTemplates/betaInvi
 async function agency(t: ReturnType<typeof convexTest>) {
   await t.run(async (ctx) => {
     await ctx.db.insert("agencies", {
-      agencyId: "ag1", name: "Myind Sound", slug: "myind", plan: "label",
+      agencyId: "ag1", name: "ThaMyind", slug: "myind", plan: "label",
       status: "active", ownerClerkUserId: "u_ag", ownerEmail: "ag@example.com",
     });
     await ctx.db.insert("agencyMembers", {

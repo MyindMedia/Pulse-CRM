@@ -109,7 +109,7 @@ export const pulsePromoScenes = [
     title: 'AI operations',
     voiceover: 'Then bring in AI operations agents for booking, pipeline follow-up, collections, client success, and studio insights — with approvals when it matters.',
     onScreenText: 'AI operations. Human approval.',
-    visual: 'Five AI agent cards appear with approval checkpoint glowing in Myind Sound yellow.',
+    visual: 'Five AI agent cards appear with approval checkpoint glowing in ThaMyind yellow.',
   },
   {
     id: 'scale',

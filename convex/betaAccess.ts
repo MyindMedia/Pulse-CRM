@@ -378,7 +378,7 @@ export const _agencyCtx = internalQuery({
       .query("agencies")
       .withIndex("by_agency", (q) => q.eq("agencyId", agencyId))
       .first();
-    return { name: ag?.name ?? "Myind Sound" };
+    return { name: ag?.name ?? "ThaMyind" };
   },
 });
 

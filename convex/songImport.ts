@@ -31,7 +31,7 @@ const FETCH_TIMEOUT_MS = 8000;
 const MAX_COVER_BYTES = 4 * 1024 * 1024;
 const MB_HEADERS = {
   // MusicBrainz requires an identifying User-Agent on API traffic.
-  "User-Agent": "Pulse-StudioOS/1.0 (https://pulse.myindsound.com)",
+  "User-Agent": "Pulse-StudioOS/1.0 (https://studiopulse.tech)",
   Accept: "application/json",
 };
 

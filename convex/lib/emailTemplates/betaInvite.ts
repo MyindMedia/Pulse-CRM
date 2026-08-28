@@ -35,7 +35,7 @@ export function betaInviteHtml(args: {
   const hello = args.recipientName
     ? `Hi ${escapeEmailHtml(args.recipientName)},`
     : "Hi,";
-  const from = escapeEmailHtml(args.fromName ?? "Lawrence at Myind Sound");
+  const from = escapeEmailHtml(args.fromName ?? "Lawrence at ThaMyind");
   const url = args.accessUrl;
   const code = escapeEmailHtml(args.code);
 
