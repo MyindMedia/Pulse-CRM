@@ -160,7 +160,7 @@ export default async function Image() {
               display: "flex",
             }}
           >
-            155 FEATURES · THE CALL · THE OBJECTIONS
+            155 FEATURES · 14 GROUPS · 3 PLANS
           </div>
 
           <div

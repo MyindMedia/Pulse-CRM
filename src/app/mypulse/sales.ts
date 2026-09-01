@@ -1,4 +1,15 @@
-/* The selling half of /mypulse.
+/* PARKED. Nothing in this file is rendered right now.
+ *
+ * /mypulse was cut back to the facts of the system so the sales team can
+ * write their own copy from it. This is the selling layer that used to sit on
+ * top: eight call stages, tonality rules, a question bank, a third-party story,
+ * one rule about price, and twelve objections. It is kept rather than deleted
+ * because it was reviewed against the method and is correct, and because the
+ * removal was described as for now. To put it back, import STAGES, TONE,
+ * QUESTIONS, OBJECTIONS, PITCH, PITCH_WARNING, STORY and PRICE_RULE into
+ * page.tsx again.
+ *
+ * The selling half of /mypulse.
  *
  * Built on NEPQ (Neuro-Emotional Persuasion Questioning). The method is NOT
  * named anywhere a reader sees, on purpose: reps do not need the label and it
