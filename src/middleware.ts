@@ -77,6 +77,11 @@ const isPublicRoute = createRouteMatcher([
   // agreement, checked server-side. They have no Pulse login yet by design.
   "/preview",
   "/preview/(.*)",
+  // Sales enablement. Gated by its own shared password (src/app/mypulse/auth.ts),
+  // not by Clerk - the people who read it are reps and partners with no Pulse
+  // login, and auth.protect() 404s them on the satellite host.
+  "/mypulse",
+  "/mypulse/(.*)",
   "/__clerk(.*)", // satellite Frontend API proxy - handled by frontendApiProxy
 ]);
 
