@@ -160,10 +160,8 @@ export default async function MyPulsePage() {
         <section className="mt-16">
           <Overline>How to run the call</Overline>
           <p className="mt-3 max-w-2xl text-[0.975rem] leading-relaxed text-ash">
-            This follows a method called NEPQ, short for Neuro-Emotional Persuasion
-            Questioning. The short version: you ask questions and they talk themselves
-            into it. You do not pitch or argue, and you let them name their own problem.
-            Eight steps, in order.
+            You ask questions and they talk themselves into it. You do not pitch or
+            argue, and you let them name their own problem. Eight steps, in order.
           </p>
           <ol className="mt-5 space-y-2.5">
             {STAGES.map((s) => (

@@ -1,6 +1,9 @@
 /* The selling half of /mypulse.
  *
- * Built on NEPQ (Neuro-Emotional Persuasion Questioning): the rep asks
+ * Built on NEPQ (Neuro-Emotional Persuasion Questioning). The method is NOT
+ * named anywhere a reader sees, on purpose: reps do not need the label and it
+ * is not ours to teach. These comments are for whoever maintains the file.
+ * The rep asks
  * questions, the buyer talks themselves into it, and nobody argues. Nothing
  * in OBJECTIONS below is a rebuttal. Each one gets three questions instead:
  * clarify what they actually mean, discuss what it is costing them in their
@@ -106,7 +109,7 @@ export const TONE: { rule: string; why: string }[] = [
   },
   {
     rule: "Never say but.",
-    why: "The word but tells them you were waiting for your turn to speak. Say I am curious instead. This one is general advice rather than NEPQ doctrine, and it still works.",
+    why: "The word but tells them you were waiting for your turn to speak. Say I am curious instead.",
   },
   {
     rule: "When they stop talking, wait.",
