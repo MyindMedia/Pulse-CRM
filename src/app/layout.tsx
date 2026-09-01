@@ -40,6 +40,10 @@ const ibmPlexMono = IBM_Plex_Mono({
 
 const SITE_URL = "https://studiopulse.tech";
 const SITE_TITLE = "Pulse: Recording Studio Management Software";
+// What a shared link says. The page <title> stays keyword-shaped for search;
+// the social card leads with the category line instead, and every shared link
+// resolves to studiopulse.tech.
+const SHARE_TITLE = "Pulse. The studio operating system.";
 // The entry price is derived, so a search result can never quote a number the
 // pricing section stopped charging. It sat at "$49/mo" for months after the
 // ladder moved.
@@ -61,12 +65,12 @@ export const metadata: Metadata = {
     type: "website",
     siteName: "Pulse",
     url: SITE_URL,
-    title: SITE_TITLE,
+    title: SHARE_TITLE,
     description: SITE_DESCRIPTION,
   },
   twitter: {
     card: "summary_large_image",
-    title: SITE_TITLE,
+    title: SHARE_TITLE,
     description: SITE_DESCRIPTION,
   },
 };

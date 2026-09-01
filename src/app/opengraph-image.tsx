@@ -132,9 +132,9 @@ export default async function Image() {
               letterSpacing: 1,
             }}
           >
-            <span>RUN YOUR STUDIO.</span>
-            <span>EVERY SCREEN,</span>
-            <span style={{ color: "#fdb913" }}>ONE PULSE.</span>
+            <span>THE STUDIO</span>
+            <span>OPERATING</span>
+            <span style={{ color: "#fdb913" }}>SYSTEM.</span>
           </div>
           <div
             style={{
@@ -174,7 +174,7 @@ export default async function Image() {
                 display: "flex",
               }}
             >
-              {`STUDIO OS · ${fromPriceLabel().toUpperCase()}`}
+              {fromPriceLabel().toUpperCase()}
             </div>
           </div>
         </div>
