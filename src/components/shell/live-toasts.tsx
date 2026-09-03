@@ -6,6 +6,7 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
 import { useCapabilities } from "@/lib/use-capabilities";
+import { inNativeShell, shellNotify } from "@/lib/shell";
 
 /**
  * Live pop-up notifications for owners + managers (schedule.manage): when a
@@ -60,6 +61,9 @@ export function LiveToasts() {
         description: row.summary,
         action: { label: "View", onClick: () => router.push(pop.route) },
       });
+      // In the macOS/iOS app the window is often behind other work, so the
+      // same event also goes to the OS notification center. Best-effort.
+      if (inNativeShell()) void shellNotify(pop.title, row.summary);
     }
   }, [feed, manager, me, router]);
 

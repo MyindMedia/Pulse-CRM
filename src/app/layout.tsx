@@ -9,6 +9,7 @@ import {
   IBM_Plex_Mono,
 } from "next/font/google";
 import { ConvexClientProvider } from "@/components/providers/convex-client-provider";
+import { NativeShellBridge } from "@/components/shell/native-shell-bridge";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
 import "./globals.css";
@@ -140,7 +141,12 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             public surfaces (booking, kiosk, portal) can label their icon
             controls too. */}
         <TooltipProvider delayDuration={300}>
-          <ConvexClientProvider isSatellite={isSatellite}>{children}</ConvexClientProvider>
+          <ConvexClientProvider isSatellite={isSatellite}>
+            {/* Turns pulse:// links into navigation inside the macOS/iOS app. A
+                no-op in a browser (src/lib/shell.ts). */}
+            <NativeShellBridge />
+            {children}
+          </ConvexClientProvider>
         </TooltipProvider>
         <Toaster
           theme="dark"
