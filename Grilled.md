@@ -1714,3 +1714,22 @@ quotes.
   (verified live: studiopulse.tech now serves "From $74.99/mo").
 
 **1174 vitest green**, `next build` clean, Convex prod deployed, Netlify shipped.
+
+## Epic: native macOS + iOS apps (Tauri v2 shell) (started 2026-09-03, /goal)
+
+**Trigger:** "What would it take to make this app a Mac OS app?" then "/goal ... I want full mac os and ios apps go." Lawrence chose the Tauri shell over PWA-only and over a SwiftUI rewrite.
+
+**Goal:** a signed macOS app and an iOS app that open the hosted Pulse, with native notifications and deep links, sold on the web (no in-app purchase).
+
+**Where:** separate repo `~/Dev/pulse-desktop` (outside Dropbox: spaces in this path break Xcode script phases; Dropbox wrecks node_modules and would sync Rust `target/`). Full plan in that repo's `docs/PLAN.md`.
+
+**Decisions made without grilling** (he said go; each is one line to change):
+- Shell loads `pulse.myindsound.com` (primary Clerk origin) so sign-in has no satellite handshake; `studiopulse.tech` allowed.
+- Rust `on_navigation` allowlist keeps Pulse + Clerk + Google + Stripe in-window (their `return_url`s come back to Pulse); everything else opens in the system browser.
+- Injected script patches `window.open` / `target=_blank` (24 uses in `src/`), which WKWebView otherwise drops.
+- Bundle id `tech.studiopulse.pulse`. Scheme `pulse://` on desktop; Universal Links on iOS later (needs AASA on studiopulse.tech).
+- Web push (`push-sw.js`) does not fire in a shell: `convex/pushSend.ts` + `src/lib/push.ts` need a desktop/ios device type through the Tauri notification plugin. Phase 3, in THIS repo.
+
+**Needs Lawrence:** Developer ID Application cert + notarization credentials (only *Apple Development* certs exist, teams 2598PMN9X8 / W27MPUX2JT); which team is the company; TestFlight before App Store (4.2 web-wrapper risk is why native integrations come first).
+
+**Non-goals for now:** offline mode, Windows, Android (Tauri can, not asked), Mac App Store (sandbox + IAP conflict with Stripe billing).
