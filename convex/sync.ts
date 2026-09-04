@@ -23,10 +23,18 @@ function pageSize(requested?: number): number {
   return Math.min(requested, MAX_PAGE);
 }
 
-/** The tables a client may mirror, so a device can discover the set it should hold. */
+/** The tables a client may mirror, so a device can discover the set it should hold.
+ *
+ *  Gated like every other sync read. The list itself is not a secret, but every
+ *  Convex function is publicly invocable at the deployment URL, and a sync
+ *  surface with one ungated door on it is the kind of inconsistency that later
+ *  gets copied into a function where it does matter. */
 export const mirroredTables = query({
   args: {},
-  handler: async () => [...MIRRORED_TABLES],
+  handler: async (ctx) => {
+    await currentOrg(ctx);
+    return [...MIRRORED_TABLES];
+  },
 });
 
 /**
