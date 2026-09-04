@@ -1733,3 +1733,39 @@ quotes.
 **Needs Lawrence:** Developer ID Application cert + notarization credentials (only *Apple Development* certs exist, teams 2598PMN9X8 / W27MPUX2JT); which team is the company; TestFlight before App Store (4.2 web-wrapper risk is why native integrations come first).
 
 **Non-goals for now:** offline mode, Windows, Android (Tauri can, not asked), Mac App Store (sandbox + IAP conflict with Stripe billing).
+
+## Epic: native macOS app, offline-first (grilled 2026-09-04)
+
+Reverses the "shell, not a bundle" decision in `~/Dev/pulse-desktop/docs/PLAN.md`.
+Lawrence: the Tauri shell "seems to just be a container for the web app" - he wants a
+full macOS application, all functions rebuilt, local data when there is no internet,
+changes synced when the connection returns.
+
+**Measured before deciding:** 75 routes, 90 tables, 864 Convex functions (541 public),
+56,455 LOC of module UI across 298 files, 1,618 direct `ctx.db` write call sites, and
+only 14 of 90 tables carrying `updatedAt`. Cost stated as 18-30 months to parity.
+
+**Decisions (grilled, 4 questions):**
+- **Native SwiftUI rewrite**, all 29 modules, in dependency order - chosen over an
+  offline-first web core with the double-maintenance cost stated explicitly.
+- **Purpose-built delta sync**: `convex-helpers` triggers -> a `changeLog` table ->
+  an org-scoped `sync.pullChanges` query. Authorization stays inside Convex functions.
+- **macOS first, iOS after**; SwiftUI project multiplatform from day one; the Tauri
+  shell keeps shipping as the interim app and retires per-platform.
+- **Server-authoritative intent replay**: offline edits queue as intents, the server
+  re-runs the real mutation on reconnect, rejections land in a "needs attention" queue.
+
+**Rejected:** PowerSync's Convex integration (experimental, and it demands
+reimplementing read authorization as Sync Streams - the cross-tenant leak surface);
+adding `updatedAt` to 90 tables (1,618 call sites, no wrapper); Convex Streaming
+Export (deployment-wide and admin-authed, so a per-studio client cannot call it).
+
+**Quality bar:** Things 3 - launch-to-interactive under 400ms with the network off,
+zero dropped writes across 1,000 queued offline mutations. Built via a gauntlet loop
+(builder + separate harsh critic per piece, blind A/B against the bar).
+
+**Full design:** `docs/superpowers/specs/2026-09-04-pulse-native-macos-design.md`.
+**New repo:** `MyindMedia/Pulse-Native` at `~/Dev/pulse-native` (outside Dropbox).
+
+**Non-goals:** replacing the web app (it stays the product); App Store IAP
+(subscriptions stay on the web); `patch` and `marketing` in early waves.
