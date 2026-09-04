@@ -2900,5 +2900,7 @@ export default defineSchema({
   })
     .index("by_org_ts", ["orgId", "ts"])
     // Pruning walks the whole log by age, across every org.
-    .index("by_ts", ["ts"]),
+    .index("by_ts", ["ts"])
+    // Workspace deletion sweeps every org-owned table through `by_org`.
+    .index("by_org", ["orgId"]),
 });

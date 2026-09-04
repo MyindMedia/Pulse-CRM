@@ -37,6 +37,13 @@ async function visibleOrgs(ctx: QueryCtx) {
   } catch {
     return [];
   }
+  // A studio member is not an agency console user. Without this the filter
+  // below simply never ran for them and every org on the deployment came back
+  // raw - refresh tokens, Stripe ids, billing ids - with revenue rollups
+  // attached. The singular sibling (`subaccount`) was already fixed for exactly
+  // this; the plural was missed, and the test only covered the agency-owner
+  // case so nothing caught it.
+  if (viewer?.kind !== "agency_member") return [];
   let orgs = (await ctx.db.query("orgs").collect()).filter((o) => o.orgId !== DEMO_ORG);
   if (viewer?.kind === "agency_member") {
     orgs = orgs.filter((o) => o.agencyId === viewer.agencyId);

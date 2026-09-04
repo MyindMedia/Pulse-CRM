@@ -176,3 +176,74 @@ describe("sync: retention", () => {
     expect(none.usable).toBe(true);
   });
 });
+
+/* The green suite did not catch any of these. The isolation test only used two
+   plain studio viewers with different orgIds, which says nothing about what a
+   single document contains or what one role may read. */
+describe("sync: what a device is allowed to hold", () => {
+  const seedOrg = async (t: ReturnType<typeof convexTest>) => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active",
+        // The fields that must never reach a device.
+        googleRefreshToken: "1//refresh-token-grants-gmail-access",
+        stripeAccountId: "acct_live_123",
+        billingSubscriptionId: "sub_live_456",
+        taxRate: 9.5,
+      });
+    });
+  };
+
+  it("never ships the org's secrets, even to its own owner", async () => {
+    const t = convexTest(schema);
+    await seedOrg(t);
+
+    const snap = await t.query(api.sync.snapshot, { table: "orgs" });
+    const org = snap.docs[0] as Record<string, unknown>;
+
+    // The thing that matters: a refresh token grants Gmail and Calendar access
+    // to the owner's Google account outside Pulse entirely.
+    expect(org.googleRefreshToken).toBeUndefined();
+    expect(org.stripeAccountId).toBeUndefined();
+    expect(org.billingSubscriptionId).toBeUndefined();
+    expect(org.taxRate).toBeUndefined();
+
+    // And it still carries what the app actually needs.
+    expect(org.name).toBe("Demo");
+    expect(org._id).toBeDefined();
+  });
+
+  it("keeps payroll off the device", async () => {
+    const t = convexTest(schema);
+    await seedOrg(t);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("members", {
+        orgId: "pulse-demo", name: "Ellis", role: "engineer", email: "e@demo.com",
+        skills: [], payRateCents: 4500, commissionPct: 12,
+      });
+    });
+
+    const snap = await t.query(api.sync.snapshot, { table: "members" });
+    const member = snap.docs[0] as Record<string, unknown>;
+
+    expect(member.payRateCents).toBeUndefined();
+    expect(member.commissionPct).toBeUndefined();
+    expect(member.name).toBe("Ellis");
+    expect(member.role).toBe("engineer");
+  });
+
+  it("gates the tables that need a capability, and says so in the table list", async () => {
+    const t = convexTest(schema);
+    await seedOrg(t);
+
+    // The demo viewer resolves as an owner, who does hold schedule.manage.
+    const tables = await t.query(api.sync.mirroredTables, {});
+    expect(tables).toContain("timeOff");
+    expect(tables).toContain("availability");
+
+    // And the gate itself exists on the read path.
+    await expect(
+      t.query(api.sync.snapshot, { table: "notATable" }),
+    ).rejects.toThrow(/not mirrored/);
+  });
+});

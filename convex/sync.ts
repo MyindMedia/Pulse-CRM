@@ -12,7 +12,26 @@ import { internalMutation } from "./functions";
 import { v } from "convex/values";
 import type { Id, TableNames } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
-import { MIRRORED_TABLES, isMirroredTable } from "./lib/mirroredTables";
+import { resolveViewer } from "./lib/access";
+import {
+  MIRRORED_TABLES,
+  MIRRORED_CAPABILITY,
+  isMirroredTable,
+  projectDoc,
+  tablesFor,
+} from "./lib/mirroredTables";
+
+/** The caller's org plus what they may actually read.
+ *
+ *  currentOrg answers "who" and stops there, which is the right shape for a
+ *  table whose own list query is org-gated and nothing more. It is the wrong
+ *  shape for a feed that hands over eleven tables at once, because the strictest
+ *  of them sets the bar. Resolving the viewer once gives both answers. */
+async function syncViewer(ctx: Parameters<typeof currentOrg>[0]) {
+  const orgId = await currentOrg(ctx);
+  const viewer = await resolveViewer(ctx);
+  return { orgId, capabilities: viewer.capabilities as Set<string> };
+}
 
 /** Convex caps a page at 1000; 500 keeps a pull comfortably inside a round trip. */
 const MAX_PAGE = 500;
@@ -32,8 +51,11 @@ function pageSize(requested?: number): number {
 export const mirroredTables = query({
   args: {},
   handler: async (ctx) => {
-    await currentOrg(ctx);
-    return [...MIRRORED_TABLES];
+    // Only the tables this caller may hold. An intern asking what to mirror is
+    // told about nine tables, not eleven, so the client never even tries for
+    // the two it would be refused.
+    const { capabilities } = await syncViewer(ctx);
+    return tablesFor(capabilities);
   },
 });
 
@@ -50,9 +72,13 @@ export const snapshot = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, { table, cursor, limit }) => {
-    const orgId = await currentOrg(ctx);
+    const { orgId, capabilities } = await syncViewer(ctx);
     if (!isMirroredTable(table)) {
       throw new Error(`Table "${table}" is not mirrored`);
+    }
+    const needed = MIRRORED_CAPABILITY[table];
+    if (needed && !capabilities.has(needed)) {
+      throw new Error(`Table "${table}" requires ${needed}`);
     }
     // Every mirrored table carries an `orgId`-first `by_org` index, but the
     // index builder cannot be typed against a union of eleven table names. The
@@ -66,7 +92,9 @@ export const snapshot = query({
 
     return {
       table,
-      docs: result.page as unknown as Record<string, unknown>[],
+      docs: (result.page as unknown as Record<string, unknown>[]).map((doc) =>
+        projectDoc(table, doc),
+      ),
       cursor: result.continueCursor,
       isDone: result.isDone,
       // Every snapshot page is stamped, so a device knows the point in time its
@@ -118,9 +146,10 @@ export const pullChanges = query({
     tables: v.optional(v.array(v.string())),
   },
   handler: async (ctx, { cursor, limit, tables }) => {
-    const orgId = await currentOrg(ctx);
+    const { orgId, capabilities } = await syncViewer(ctx);
+    const permitted = new Set<string>(tablesFor(capabilities));
     const wanted = tables?.length
-      ? new Set(tables.filter(isMirroredTable))
+      ? new Set(tables.filter((t) => isMirroredTable(t) && permitted.has(t)))
       : null;
     const max = pageSize(limit);
     const since = parseCursor(cursor);
@@ -155,6 +184,7 @@ export const pullChanges = query({
       next = formatCursor(row);
 
       if (!isMirroredTable(row.tableName)) continue;
+      if (!permitted.has(row.tableName)) continue;
       if (wanted && !wanted.has(row.tableName)) continue;
 
       let doc = null;
@@ -173,7 +203,7 @@ export const pullChanges = query({
         docId: row.docId,
         op: row.op,
         ts: row.ts,
-        doc,
+        doc: doc ? projectDoc(row.tableName, doc as Record<string, unknown>) : null,
       });
     }
 

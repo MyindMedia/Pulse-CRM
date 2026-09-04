@@ -26,6 +26,8 @@ import type { Id } from "./_generated/dataModel";
 /** Every table a studio owns. Kept explicit rather than derived, so adding a
  *  table is a deliberate decision about whether it dies with the workspace. */
 export const ORG_TABLES = [
+  // The price list outlived deletion too.
+  "bookableServices",
   "collaboratorGrants", "invites", "agentPolicies", "agentRuns", "agentMessages",
   "agentInsights", "agentApprovals", "agentUsage", "agentAuditLogs", "agentAutomations",
   "agentMemories", "studioGraphNodes", "studioGraphEdges", "studioJournal", "oauthStates",
@@ -40,6 +42,10 @@ export const ORG_TABLES = [
   "timeEntries", "smsPrompts", "availability", "timeOff", "clientMessages", "waitlistEntries",
   "membershipPlans", "memberships", "patchSpaces", "deviceInstances", "patchVocabGaps",
   "patchAnnotations", "patchGroups", "ports", "connections", "patchAudit",
+  // Last on purpose. Every delete above fires a trigger that appends here, so
+  // sweeping the feed first would leave a fresh activity trace - orgId, table,
+  // docId, timestamps - of a workspace that was told it was destroyed.
+  "changeLog",
 ] as const;
 
 /** How long a confirmation token stays good. Long enough to read the warning,
