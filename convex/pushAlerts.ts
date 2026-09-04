@@ -1,4 +1,4 @@
-import { internalMutation } from "./_generated/server";
+import { internalMutation } from "./functions";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { computeT10Alerts, type T10Session, type T10Shift } from "./lib/t10";

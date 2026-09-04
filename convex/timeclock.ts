@@ -1,4 +1,5 @@
-import { query, mutation, type QueryCtx } from "./_generated/server";
+import { query, type QueryCtx } from "./_generated/server";
+import { mutation } from "./functions";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { resolveViewer } from "./lib/access";

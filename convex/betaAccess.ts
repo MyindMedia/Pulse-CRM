@@ -1,4 +1,5 @@
-import { mutation, query, action, internalMutation, internalQuery } from "./_generated/server";
+import { query, action, internalQuery } from "./_generated/server";
+import { mutation, internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { requireCapability, resolveViewer } from "./lib/access";

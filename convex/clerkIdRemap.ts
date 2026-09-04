@@ -1,4 +1,5 @@
-import { internalMutation, internalAction } from "./_generated/server";
+import { internalAction } from "./_generated/server";
+import { internalMutation } from "./functions";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import schema from "./schema";

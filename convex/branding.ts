@@ -1,4 +1,4 @@
-import { mutation } from "./_generated/server";
+import { mutation } from "./functions";
 import { v } from "convex/values";
 import { requireCapability } from "./lib/access";
 import { PLAN_LIMITS } from "./lib/plans";

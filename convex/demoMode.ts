@@ -1,4 +1,5 @@
-import { mutation, query, internalMutation, MutationCtx } from "./_generated/server";
+import { query, MutationCtx } from "./_generated/server";
+import { mutation, internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
 import { Id, TableNames } from "./_generated/dataModel";
 import { resolveViewer } from "./lib/access";

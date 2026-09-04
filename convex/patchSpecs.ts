@@ -1,12 +1,6 @@
 import { v, ConvexError } from "convex/values";
-import {
-  action,
-  internalAction,
-  mutation,
-  query,
-  internalMutation,
-  internalQuery,
-} from "./_generated/server";
+import { action, internalAction, query, internalQuery } from "./_generated/server";
+import { mutation, internalMutation } from "./functions";
 import { internal } from "./_generated/api";
 import { currentOrgWithCapability, currentActor } from "./lib/tenant";
 import { conventionalPortGender } from "./lib/connectors";

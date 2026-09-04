@@ -10,7 +10,8 @@
    because node-ical needs the Node.js runtime.
    ============================================================ */
 import { v } from "convex/values";
-import { mutation, query, internalMutation, internalQuery } from "./_generated/server";
+import { query, internalQuery } from "./_generated/server";
+import { mutation, internalMutation } from "./functions";
 import { currentOrg } from "./lib/tenant";
 
 /** Guess the source from an iCal URL host. */

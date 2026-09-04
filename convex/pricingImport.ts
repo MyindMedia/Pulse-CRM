@@ -1,4 +1,4 @@
-import { internalMutation } from "./_generated/server";
+import { internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
 import type { MutationCtx } from "./_generated/server";
 

@@ -22,7 +22,8 @@
    autonomy-graduation rail in opsActions.
    ============================================================ */
 import { v } from "convex/values";
-import { query, internalQuery, internalMutation } from "./_generated/server";
+import { query, internalQuery } from "./_generated/server";
+import { internalMutation } from "./functions";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import { currentOrgWithCapability } from "./lib/tenant";
 import { money } from "./lib/money";

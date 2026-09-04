@@ -1,4 +1,5 @@
-import { query, mutation, MutationCtx } from "./_generated/server";
+import { query, MutationCtx } from "./_generated/server";
+import { mutation } from "./functions";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { currentOrg } from "./lib/tenant";

@@ -1,4 +1,5 @@
-import { query, internalAction, internalMutation, internalQuery } from "../_generated/server";
+import { query, internalAction, internalQuery } from "../_generated/server";
+import { internalMutation } from "../functions";
 import { v } from "convex/values";
 import { internal } from "../_generated/api";
 import { currentOrgWithCapability } from "../lib/tenant";

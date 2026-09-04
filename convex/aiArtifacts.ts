@@ -3,7 +3,8 @@
    prep packets, reminders, briefings, rate-cut promos).
    ============================================================ */
 import { v } from "convex/values";
-import { mutation, query, internalMutation } from "./_generated/server";
+import { query } from "./_generated/server";
+import { mutation, internalMutation } from "./functions";
 import { currentOrg } from "./lib/tenant";
 
 /** Newest-first list, optionally filtered by kind. Used by the dashboard

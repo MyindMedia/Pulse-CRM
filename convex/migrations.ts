@@ -1,4 +1,4 @@
-import { internalMutation } from "./_generated/server";
+import { internalMutation } from "./functions";
 
 /* ============================================================
    One-shot migrations. Each one is idempotent: safe to run on

@@ -1,4 +1,5 @@
-import { mutation, internalMutation, MutationCtx } from "./_generated/server";
+import { MutationCtx } from "./_generated/server";
+import { mutation, internalMutation } from "./functions";
 import { internal } from "./_generated/api";
 import { currentOrgWithCapability } from "./lib/tenant";
 import { notify, notifyTeam } from "./lib/notify";

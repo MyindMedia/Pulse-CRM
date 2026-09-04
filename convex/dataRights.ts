@@ -17,7 +17,8 @@
    clients) and audited. Erasure requires an owner/manager capability.
    ============================================================ */
 import { v } from "convex/values";
-import { query, mutation } from "./_generated/server";
+import { query } from "./_generated/server";
+import { mutation } from "./functions";
 import { currentOrgWithCapability, currentActor } from "./lib/tenant";
 import { redactText, piiTerms } from "./lib/redact";
 

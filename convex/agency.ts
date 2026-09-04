@@ -1,4 +1,5 @@
-import { query, mutation, internalMutation, internalQuery, action, QueryCtx } from "./_generated/server";
+import { query, internalQuery, action, QueryCtx } from "./_generated/server";
+import { mutation, internalMutation } from "./functions";
 import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import { seedStarterWorkspace } from "./lib/starter";

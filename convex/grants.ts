@@ -1,4 +1,5 @@
-import { mutation, query, internalMutation } from "./_generated/server";
+import { query } from "./_generated/server";
+import { mutation, internalMutation } from "./functions";
 import { v } from "convex/values";
 import { requireCapability } from "./lib/access";
 import { GUEST_SCOPE_CAPABILITIES, GUEST_SCOPE_DEFAULT_TTL_MS } from "./lib/accessPolicies";

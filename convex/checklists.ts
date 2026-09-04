@@ -9,7 +9,8 @@
    "Post-session checklist ready" with one click into the session.
    ============================================================ */
 import { v } from "convex/values";
-import { query, mutation, MutationCtx } from "./_generated/server";
+import { query, MutationCtx } from "./_generated/server";
+import { mutation } from "./functions";
 import type { Id } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
 import {

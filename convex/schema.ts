@@ -2882,4 +2882,20 @@ export default defineSchema({
   })
     .index("by_patchSpace_at", ["patchSpaceId", "at"])
     .index("by_org_at", ["orgId", "at"]),
+  /* ── Native-client change feed ──
+     Append-only. One row per write to a mirrored table, written by the triggers
+     in `convex/functions.ts`. This is what lets a Mac app that has been offline
+     ask "what changed since my cursor" without every table carrying an
+     `updatedAt` (only 14 of 90 do) and without a 1,618-call-site migration.
+
+     A delete leaves a row here and nothing else, which is exactly the tombstone
+     a local mirror needs to drop its copy. Pruned past a retention horizon; a
+     client whose cursor is older than the horizon re-snapshots. */
+  changeLog: defineTable({
+    orgId: v.string(),
+    tableName: v.string(),
+    docId: v.string(),
+    op: v.union(v.literal("insert"), v.literal("update"), v.literal("delete")),
+    ts: v.number(),
+  }).index("by_org_ts", ["orgId", "ts"]),
 });

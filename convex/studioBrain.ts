@@ -13,7 +13,8 @@
    test asserting exactly that.
    ============================================================ */
 import { v } from "convex/values";
-import { query, internalMutation, internalQuery } from "./_generated/server";
+import { query, internalQuery } from "./_generated/server";
+import { internalMutation } from "./functions";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { currentOrgWithCapability } from "./lib/tenant";

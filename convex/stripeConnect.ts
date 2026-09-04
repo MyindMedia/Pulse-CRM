@@ -1,4 +1,5 @@
-import { action, query, internalQuery, internalMutation } from "./_generated/server";
+import { action, query, internalQuery } from "./_generated/server";
+import { internalMutation } from "./functions";
 import { takeCents } from "./lib/plans";
 import { tierForOrg } from "./lib/tier";
 import type { ActionCtx } from "./_generated/server";

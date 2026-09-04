@@ -1,4 +1,5 @@
-import { action, query, internalQuery, internalMutation, internalAction } from "./_generated/server";
+import { action, query, internalQuery, internalAction } from "./_generated/server";
+import { internalMutation } from "./functions";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { stripeClient, priceIdForTier, priceIdForTierInterval } from "./lib/stripe";

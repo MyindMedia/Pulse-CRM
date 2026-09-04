@@ -8,7 +8,8 @@
    re-running an already-executed action is a no-op.
    ============================================================ */
 import { v } from "convex/values";
-import { query, mutation, internalQuery, internalMutation, internalAction } from "./_generated/server";
+import { query, internalQuery, internalAction } from "./_generated/server";
+import { mutation, internalMutation } from "./functions";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { invoicePayUrl } from "./lib/links";
 import type { Id } from "./_generated/dataModel";

@@ -1,4 +1,4 @@
-import { mutation } from "./_generated/server";
+import { mutation } from "./functions";
 import { v } from "convex/values";
 import { currentOrgWithCapability } from "./lib/tenant";
 import { normalizePhone } from "./lib/phone";

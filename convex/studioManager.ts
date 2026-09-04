@@ -14,7 +14,8 @@
    studio A's graph, metrics, and history.
    ============================================================ */
 import { v } from "convex/values";
-import { internalQuery, internalMutation, internalAction } from "./_generated/server";
+import { internalQuery, internalAction } from "./_generated/server";
+import { internalMutation } from "./functions";
 import { internal } from "./_generated/api";
 import { buildReport, gatherProfitCounts } from "./profitability";
 import { gatherRiskFlags } from "./risk";

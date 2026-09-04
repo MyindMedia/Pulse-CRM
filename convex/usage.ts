@@ -1,4 +1,5 @@
-import { query, internalQuery, internalMutation, type QueryCtx, type MutationCtx } from "./_generated/server";
+import { query, internalQuery, type QueryCtx, type MutationCtx } from "./_generated/server";
+import { internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";

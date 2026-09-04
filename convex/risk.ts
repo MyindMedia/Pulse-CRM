@@ -12,7 +12,8 @@
        without approval).
    ============================================================ */
 import { v } from "convex/values";
-import { query, internalQuery, internalMutation } from "./_generated/server";
+import { query, internalQuery } from "./_generated/server";
+import { internalMutation } from "./functions";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import { currentOrgWithCapability } from "./lib/tenant";
 import { allRiskFlags, type RiskFlag, type RiskSeverity } from "./lib/guardrails";

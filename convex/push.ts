@@ -1,4 +1,5 @@
-import { query, mutation, internalQuery, internalMutation } from "./_generated/server";
+import { query, internalQuery } from "./_generated/server";
+import { mutation, internalMutation } from "./functions";
 import { v } from "convex/values";
 import { currentOrg } from "./lib/tenant";
 

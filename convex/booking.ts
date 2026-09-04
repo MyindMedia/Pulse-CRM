@@ -1,4 +1,5 @@
-import { query, mutation, action, internalQuery, QueryCtx } from "./_generated/server";
+import { query, action, internalQuery, QueryCtx } from "./_generated/server";
+import { mutation } from "./functions";
 import { recordBooked } from "./bookingFunnel";
 import { fireRules } from "./agentRules";
 import { Doc, Id } from "./_generated/dataModel";

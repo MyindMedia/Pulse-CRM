@@ -1,4 +1,5 @@
-import { action, internalAction, internalMutation, internalQuery } from "./_generated/server";
+import { action, internalAction, internalQuery } from "./_generated/server";
+import { internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { sendEmail } from "./lib/email";

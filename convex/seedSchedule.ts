@@ -1,4 +1,4 @@
-import { mutation } from "./_generated/server";
+import { mutation } from "./functions";
 import { v } from "convex/values";
 import { DEMO_ORG } from "./lib/tenant";
 import { requireCapability } from "./lib/access";

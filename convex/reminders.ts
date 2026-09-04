@@ -1,4 +1,4 @@
-import { internalMutation } from "./_generated/server";
+import { internalMutation } from "./functions";
 import { v } from "convex/values";
 import { notify } from "./lib/notify";
 import { orgTz, whenLabel, clockTime } from "./lib/tz";

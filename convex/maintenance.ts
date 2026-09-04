@@ -1,5 +1,5 @@
 /* Background maintenance entry points. Called from convex/crons.ts. */
-import { internalMutation } from "./_generated/server";
+import { internalMutation } from "./functions";
 import type { Id } from "./_generated/dataModel";
 import { recomputeRoomStatus } from "./lib/roomStatus";
 
