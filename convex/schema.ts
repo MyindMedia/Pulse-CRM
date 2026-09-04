@@ -2897,5 +2897,8 @@ export default defineSchema({
     docId: v.string(),
     op: v.union(v.literal("insert"), v.literal("update"), v.literal("delete")),
     ts: v.number(),
-  }).index("by_org_ts", ["orgId", "ts"]),
+  })
+    .index("by_org_ts", ["orgId", "ts"])
+    // Pruning walks the whole log by age, across every org.
+    .index("by_ts", ["ts"]),
 });

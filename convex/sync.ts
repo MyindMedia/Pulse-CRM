@@ -8,6 +8,7 @@
  * in step.
  */
 import { query } from "./_generated/server";
+import { internalMutation } from "./functions";
 import { v } from "convex/values";
 import type { Id, TableNames } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
@@ -169,5 +170,55 @@ export const pullChanges = query({
     }
 
     return { changes, cursor: next, isDone };
+  },
+});
+
+/* ── Retention ──
+   The log is append-only, so without this it grows for as long as the studio
+   uses Pulse. Two weeks is comfortably longer than any device is realistically
+   away - a Mac shut in a drawer over a holiday still resumes from its cursor -
+   and a device that has been gone longer than the horizon re-snapshots rather
+   than silently missing rows.
+
+   RETENTION_MS is deliberately generous: the cost of keeping a fortnight of
+   change rows is small, and the cost of a device quietly missing a delete is a
+   row that never disappears from someone's screen. */
+export const RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
+
+/** Drop change rows past the horizon. Batched so one run cannot time out. */
+export const pruneChangeLog = internalMutation({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, { limit }) => {
+    const cutoff = Date.now() - RETENTION_MS;
+    const batch = Math.min(limit ?? 2000, 4000);
+
+    const stale = await ctx.db
+      .query("changeLog")
+      .withIndex("by_ts", (q) => q.lt("ts", cutoff))
+      .order("asc")
+      .take(batch);
+
+    for (const row of stale) await ctx.db.delete(row._id);
+    return { deleted: stale.length, cutoff };
+  },
+});
+
+/**
+ * Whether a device's cursor is still inside the retention window.
+ *
+ * A client calls this before trusting its cursor. False means the log no longer
+ * reaches back that far and the device must re-snapshot instead of pulling a
+ * feed with a hole in it.
+ */
+export const cursorIsUsable = query({
+  args: { cursor: v.optional(v.union(v.string(), v.null())) },
+  handler: async (ctx, { cursor }) => {
+    await currentOrg(ctx);
+    const since = parseCursor(cursor);
+    if (!since) return { usable: true, reason: "no cursor, will snapshot" };
+    const oldest = Date.now() - RETENTION_MS;
+    return since.ts >= oldest
+      ? { usable: true, reason: "inside the retention window" }
+      : { usable: false, reason: "cursor older than retention; re-snapshot" };
   },
 });

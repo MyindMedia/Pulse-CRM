@@ -16,6 +16,11 @@ const crons = cronJobs();
 crons.interval("booking-automation", { minutes: 15 }, internal.automation.tick);
 
 // Recompute every room's auto status from the live calendar.
+// The native clients' change feed is append-only. Two weeks of history is more
+// than any device is realistically away; past that a client re-snapshots rather
+// than pulling a feed with a hole in it.
+crons.interval("changelog-prune", { hours: 6 }, internal.sync.pruneChangeLog, {});
+
 crons.interval("room-status", { minutes: 15 }, internal.maintenance.recomputeAllRoomStatuses);
 
 // Team-device push alerts: T-10 arrival / wrap-up / shift change and

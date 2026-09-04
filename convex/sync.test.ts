@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 
 /* The delta feed the native macOS client syncs against.
    The demo viewer resolves to org "pulse-demo", so writes made through the real
@@ -128,5 +128,51 @@ describe("sync: the native-client change feed", () => {
     // Platform-level tables are never mirrored to a studio's device.
     expect(tables).not.toContain("users");
     expect(tables).not.toContain("agencies");
+  });
+});
+
+describe("sync: retention", () => {
+  it("prunes only what is past the horizon, and says the cursor is stale", async () => {
+    const t = convexTest(schema);
+    const now = Date.now();
+    const old = now - 20 * 24 * 60 * 60 * 1000; // 20 days, past the fortnight
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active",
+      });
+      await ctx.db.insert("changeLog", {
+        orgId: "pulse-demo", tableName: "artists", docId: "gone", op: "insert", ts: old,
+      });
+      await ctx.db.insert("changeLog", {
+        orgId: "pulse-demo", tableName: "artists", docId: "kept", op: "insert", ts: now,
+      });
+    });
+
+    const result = await t.mutation(internal.sync.pruneChangeLog, {});
+    expect(result.deleted).toBe(1);
+
+    const left = await t.run(async (ctx) => ctx.db.query("changeLog").collect());
+    expect(left.length).toBe(1);
+    expect(left[0].docId).toBe("kept");
+  });
+
+  it("tells a device whether its cursor still reaches back far enough", async () => {
+    const t = convexTest(schema);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active",
+      });
+    });
+
+    const fresh = await t.query(api.sync.cursorIsUsable, { cursor: `${Date.now()}:1` });
+    expect(fresh.usable).toBe(true);
+
+    const ancient = Date.now() - 30 * 24 * 60 * 60 * 1000;
+    const stale = await t.query(api.sync.cursorIsUsable, { cursor: `${ancient}:1` });
+    expect(stale.usable).toBe(false);
+
+    // A device that has never synced has no cursor and simply snapshots.
+    const none = await t.query(api.sync.cursorIsUsable, {});
+    expect(none.usable).toBe(true);
   });
 });
