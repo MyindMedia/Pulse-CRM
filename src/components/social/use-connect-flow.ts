@@ -6,7 +6,7 @@ import { api } from "@convex/_generated/api";
 import type { Platform } from "@convex/lib/ghl";
 import { errorMessage } from "@/lib/errors";
 import { PLATFORM_META } from "./platforms";
-import { isOwnGhlCloseMessage } from "./ghl-message";
+import { describeUnusableGhlClose, isOwnGhlCloseMessage } from "./ghl-message";
 
 type Choice = { id: string; name: string; type?: string; avatar?: string };
 
@@ -69,7 +69,20 @@ export function useConnectFlow(platform: Platform, reconnect: boolean) {
     function onMessage(e: MessageEvent) {
       // Origin first: the popup we opened, and anything it navigates to,
       // holds window.opener and can post a forged close message otherwise.
-      if (!isOwnGhlCloseMessage(e.origin, e.data, platform)) return;
+      if (!isOwnGhlCloseMessage(e.origin, e.data, platform)) {
+        // GHL spoke, and we could not use what it said. Never drop that
+        // silently: an unusable close message is the one failure that leaves
+        // the owner staring at a blank popup with nothing to report.
+        const unusable = describeUnusableGhlClose(e.origin, e.data, platform);
+        if (unusable) {
+          console.warn("[pulse] unusable GHL close message", e.origin, e.data);
+          popup.current?.close();
+          popup.current = null;
+          setError(`${unusable} Nothing was connected - tell support what you were connecting.`);
+          setBusy(false);
+        }
+        return;
+      }
       popup.current?.close();
       popup.current = null;
       handling.current = true;

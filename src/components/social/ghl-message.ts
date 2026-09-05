@@ -44,6 +44,23 @@ export function isGhlOrigin(origin: string): boolean {
   return GHL_ORIGIN_DOMAINS.some((domain) => host === domain || host.endsWith(`.${domain}`));
 }
 
+/* What GHL puts in `page`, and why both spellings are here.
+ *
+ * GHL documents this field twice and contradicts itself. The response table on
+ * the Social Planner OAuth pages says `page` is "social-media-posting"; the
+ * code sample directly above it - the one every integrator copies and runs -
+ * compares `e.data.page === 'social_media_posting'`. Underscores.
+ *
+ * Pulse required the hyphenated form alone, so every close message GHL posted
+ * failed this check, the popup was never closed, `choices` was never called and
+ * no error was ever set. The owner authenticated with Instagram and then sat
+ * looking at a blank popup forever, with nothing anywhere to say why.
+ *
+ * Both are accepted because both are GHL's own documented value for the same
+ * field and neither can be ruled out from here. This is not a loose match: the
+ * two literals are the whole set. */
+const GHL_PAGE_VALUES = ["social_media_posting", "social-media-posting"] as const;
+
 /**
  * True when a `message` event is GHL's own "connection closed" signal for
  * `platform`: sent from a GHL origin, with the right actionType and page, and
@@ -70,7 +87,41 @@ export function isOwnGhlCloseMessage(
   if (!isGhlOrigin(origin)) return false;
   if (!data || typeof data !== "object") return false;
   const d = data as GhlCloseMessage;
-  if (d.actionType !== "close" || d.page !== "social-media-posting" || !d.accountId) return false;
+  if (d.actionType !== "close" || !d.accountId) return false;
+  if (!GHL_PAGE_VALUES.some((page) => d.page === page)) return false;
   if (d.platform && d.platform !== platform) return false;
   return true;
+}
+
+/**
+ * Why a message that came from GHL and looks like a close signal still cannot
+ * be used - or null when there is nothing wrong with it.
+ *
+ * This exists because of how the underscore bug presented. A real close message
+ * arrived, failed one equality check, and was dropped on the floor: no error, no
+ * log, popup left open on a blank page. The only symptom available to anyone was
+ * "I authenticated and nothing happened," which is indistinguishable from a
+ * dozen other causes and points at none of them.
+ *
+ * Deliberately narrow. It answers only for messages that are FROM GHL and are
+ * already `actionType: "close"` for this platform, so the nine other
+ * ConnectButtons on the page, and every unrelated `message` event in the
+ * browser, stay silent. Anything it does return is a broken contract with GHL
+ * and should reach a human.
+ */
+export function describeUnusableGhlClose(
+  origin: string,
+  data: unknown,
+  platform: Platform,
+): string | null {
+  if (!isGhlOrigin(origin)) return null;
+  if (!data || typeof data !== "object") return null;
+  const d = data as GhlCloseMessage;
+  if (d.actionType !== "close") return null;
+  if (d.platform && d.platform !== platform) return null;
+  if (!GHL_PAGE_VALUES.some((page) => d.page === page)) {
+    return `GHL sent an unrecognised page value (${JSON.stringify(d.page)}).`;
+  }
+  if (!d.accountId) return "GHL finished the connection without sending an account id.";
+  return null;
 }
