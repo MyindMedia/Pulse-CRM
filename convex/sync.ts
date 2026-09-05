@@ -9,6 +9,7 @@
  */
 import { query } from "./_generated/server";
 import { internalMutation } from "./functions";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id, TableNames } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
@@ -225,7 +226,17 @@ export const pullChanges = query({
    row that never disappears from someone's screen. */
 export const RETENTION_MS = 14 * 24 * 60 * 60 * 1000;
 
-/** Drop change rows past the horizon. Batched so one run cannot time out. */
+/** Drop change rows past the horizon. Batched so one run cannot time out.
+ *
+ * A batch that comes back full means there is more behind it, so the run
+ * reschedules itself rather than waiting six hours for the next tick. The cron
+ * interval decides how often pruning STARTS; it must not also decide the most a
+ * deployment may write in a day. Twenty-eight mirrored tables across every
+ * studio on the deployment is a rate a single fixed batch can lose to, and the
+ * failure mode is silent: the log simply never comes down.
+ *
+ * The drain terminates because `cutoff` is fixed for the chain and only rows
+ * older than it are ever taken. */
 export const pruneChangeLog = internalMutation({
   args: { limit: v.optional(v.number()) },
   handler: async (ctx, { limit }) => {
@@ -239,7 +250,12 @@ export const pruneChangeLog = internalMutation({
       .take(batch);
 
     for (const row of stale) await ctx.db.delete(row._id);
-    return { deleted: stale.length, cutoff };
+
+    const more = stale.length === batch;
+    if (more) {
+      await ctx.scheduler.runAfter(0, internal.sync.pruneChangeLog, { limit });
+    }
+    return { deleted: stale.length, cutoff, more };
   },
 });
 

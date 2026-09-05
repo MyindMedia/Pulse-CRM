@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect, beforeEach, vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
@@ -154,6 +154,40 @@ describe("sync: retention", () => {
     const left = await t.run(async (ctx) => ctx.db.query("changeLog").collect());
     expect(left.length).toBe(1);
     expect(left[0].docId).toBe("kept");
+  });
+
+  it("keeps draining when one batch is not enough", async () => {
+    // Fake timers before anything schedules, or the continuation is registered
+    // against the real clock and never runs inside the test.
+    vi.useFakeTimers();
+    try {
+      const t = convexTest(schema);
+      const old = Date.now() - 20 * 24 * 60 * 60 * 1000;
+      await t.run(async (ctx) => {
+        await ctx.db.insert("orgs", {
+          orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active",
+        });
+        // Five rows past the horizon, drained two at a time.
+        for (let i = 0; i < 5; i++) {
+          await ctx.db.insert("changeLog", {
+            orgId: "pulse-demo", tableName: "artists", docId: `d${i}`, op: "insert", ts: old + i,
+          });
+        }
+      });
+
+      const first = await t.mutation(internal.sync.pruneChangeLog, { limit: 2 });
+      expect(first.deleted).toBe(2);
+      // A full batch means more is waiting, and the run schedules its own
+      // successor rather than leaving the remainder for six hours' time.
+      expect(first.more).toBe(true);
+
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+
+      const left = await t.run(async (ctx) => ctx.db.query("changeLog").collect());
+      expect(left.length).toBe(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("tells a device whether its cursor still reaches back far enough", async () => {

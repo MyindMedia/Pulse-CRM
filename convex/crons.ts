@@ -15,12 +15,14 @@ const crons = cronJobs();
 // forfeit, session progression. Already all-org safe.
 crons.interval("booking-automation", { minutes: 15 }, internal.automation.tick);
 
-// Recompute every room's auto status from the live calendar.
 // The native clients' change feed is append-only. Two weeks of history is more
 // than any device is realistically away; past that a client re-snapshots rather
-// than pulling a feed with a hole in it.
+// than pulling a feed with a hole in it. One run is batched, and drains itself
+// by rescheduling while rows past the horizon remain, so a busy deployment
+// cannot outrun the six-hour tick.
 crons.interval("changelog-prune", { hours: 6 }, internal.sync.pruneChangeLog, {});
 
+// Recompute every room's auto status from the live calendar.
 crons.interval("room-status", { minutes: 15 }, internal.maintenance.recomputeAllRoomStatuses);
 
 // Team-device push alerts: T-10 arrival / wrap-up / shift change and
