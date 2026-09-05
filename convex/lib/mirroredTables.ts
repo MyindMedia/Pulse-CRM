@@ -46,6 +46,18 @@ export const MIRRORED_TABLES = [
   "reviews",
   // W6 - client comms.
   "clientMessages",
+  // W7 - the patch map. Six tables, not seven: `deviceProfiles` is deliberately
+  // absent because a GLOBAL profile has no orgId at all, and this mirror pulls
+  // by an orgId-first index. Mirroring it would hand every device a profile the
+  // device could never find - a silent hole rather than an error. A read-only
+  // canvas does not need it: `ports` carries the pin names and belongs to the
+  // device, org-scoped like everything else here.
+  "patchSpaces",
+  "deviceInstances",
+  "ports",
+  "connections",
+  "patchAnnotations",
+  "patchGroups",
 ] as const;
 
 export type MirroredTable = (typeof MIRRORED_TABLES)[number];
@@ -179,6 +191,14 @@ export const MIRRORED_CAPABILITY: Partial<Record<MirroredTable, string>> = {
   payouts: "insights.read",
   timeEntries: "insights.read",
   reviews: "insights.read",
+  // The patch map. `patch.read` is what the web app requires to open a canvas,
+  // and everyone from intern up holds it - tracing a signal path is the job.
+  patchSpaces: "patch.read",
+  deviceInstances: "patch.read",
+  ports: "patch.read",
+  connections: "patch.read",
+  patchAnnotations: "patch.read",
+  patchGroups: "patch.read",
 };
 
 /** Strip a document to the fields a device may hold. */
