@@ -14,7 +14,6 @@ import type { Id, TableNames } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
 import { resolveViewer } from "./lib/access";
 import {
-  MIRRORED_TABLES,
   MIRRORED_CAPABILITY,
   isMirroredTable,
   projectDoc,
@@ -25,8 +24,9 @@ import {
  *
  *  currentOrg answers "who" and stops there, which is the right shape for a
  *  table whose own list query is org-gated and nothing more. It is the wrong
- *  shape for a feed that hands over eleven tables at once, because the strictest
- *  of them sets the bar. Resolving the viewer once gives both answers. */
+ *  shape for a feed that hands over twenty-eight tables at once, because the
+ *  strictest of them sets the bar. Resolving the viewer once gives both
+ *  answers. */
 async function syncViewer(ctx: Parameters<typeof currentOrg>[0]) {
   const orgId = await currentOrg(ctx);
   const viewer = await resolveViewer(ctx);
@@ -52,8 +52,9 @@ export const mirroredTables = query({
   args: {},
   handler: async (ctx) => {
     // Only the tables this caller may hold. An intern asking what to mirror is
-    // told about nine tables, not eleven, so the client never even tries for
-    // the two it would be refused.
+    // told about the seventeen that need nothing beyond membership, not all
+    // twenty-eight, so the client never even tries for the ones it would be
+    // refused.
     const { capabilities } = await syncViewer(ctx);
     return tablesFor(capabilities);
   },
@@ -81,7 +82,8 @@ export const snapshot = query({
       throw new Error(`Table "${table}" requires ${needed}`);
     }
     // Every mirrored table carries an `orgId`-first `by_org` index, but the
-    // index builder cannot be typed against a union of eleven table names. The
+    // index builder cannot be typed against a union of twenty-eight table
+    // names. The
     // query is built against one concrete table and the rows go back as opaque
     // documents - the client decodes them per table anyway, and `sync.test.ts`
     // asserts the real behaviour rather than the cast.
