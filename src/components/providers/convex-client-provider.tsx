@@ -17,27 +17,21 @@ import { resolveConvexUrl } from "@/lib/convex-url";
  * Either way you only need `npx convex dev` to see the app come alive.
  */
 
+import {
+  PRIMARY_ORIGIN,
+  SATELLITE_PROXY_URL,
+  ALLOWED_REDIRECT_ORIGINS,
+} from "@/lib/clerk-domains";
+
 const CLERK_KEY = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
 
 /*
- * Multi-domain: studiopulse.tech is a Clerk SATELLITE of the primary
- * pulse.myindsound.com (see src/middleware.ts). The satellite decision comes
- * in as a PROP from the root layout (request Host header) - it must be known
- * during SSR because ClerkJS's script tag is server-rendered with this
- * config baked in; a window check here would hydrate too late.
+ * Multi-domain. The primary/satellite pair lives in src/lib/clerk-domains.ts;
+ * the satellite decision itself comes in as a PROP from the root layout
+ * (request Host header) because it must be known during SSR - ClerkJS's script
+ * tag is server-rendered with this config baked in, and a window check here
+ * would hydrate too late.
  */
-const PRIMARY_ORIGIN = "https://pulse.myindsound.com";
-const SATELLITE_DOMAIN = "studiopulse.tech";
-// PROXY mode: the satellite's Frontend API is served same-origin at /__clerk
-// (see src/middleware.ts) because Clerk never issued the CNAME cert for
-// clerk.studiopulse.tech.
-const SATELLITE_PROXY_URL = `https://${SATELLITE_DOMAIN}/__clerk`;
-// The primary must allowlist the satellite for the post-sign-in return trip;
-// harmless everywhere else.
-const ALLOWED_REDIRECT_ORIGINS = [
-  `https://${SATELLITE_DOMAIN}`,
-  `https://www.${SATELLITE_DOMAIN}`,
-];
 
 /* The Convex deployment URL. See src/lib/convex-url.ts for why the fallback
  * exists and why it lives in one shared place. */

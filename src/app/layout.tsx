@@ -11,6 +11,7 @@ import {
 import { ConvexClientProvider } from "@/components/providers/convex-client-provider";
 import { NativeShellBridge } from "@/components/shell/native-shell-bridge";
 import { TooltipProvider } from "@/components/ui/tooltip";
+import { isSatelliteHost } from "@/lib/clerk-domains";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { fromPriceLabel } from "@/components/marketing/pricing-tiers";
@@ -96,13 +97,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
    * Clerk multi-domain: the satellite decision MUST be made server-side, per
    * request. ClerkJS's <script> tag is SSR-rendered with the provider's
    * config baked into data- attributes; a client-only window.location check
-   * leaves the satellite (studiopulse.tech) with primary-domain config and
+   * leaves the satellite with primary-domain config and
    * ClerkJS dies with "Missing domain and proxyUrl". Reading the Host header
    * makes routes render dynamically - acceptable: the landing page already
    * is, and everything else is an auth-gated client-data app.
    */
   const host = (await headers()).get("host") ?? "";
-  const isSatellite = host === "studiopulse.tech" || host.endsWith(".studiopulse.tech");
+  const isSatellite = isSatelliteHost(host);
   return (
     <html
       lang="en"
