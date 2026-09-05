@@ -85,6 +85,12 @@ export const get = query({
       poweredByPulse: true,
       appName: (active && saved?.appName) || null,
       wordmark: (active && saved?.wordmark) || null,
+      // The studio's logo, which is not part of the theme and is not gated on
+      // the tier: a studio owns its own mark at any price. The public theme
+      // queries already returned it; the signed-in one did not, which meant the
+      // native clients had a name and colours for a workspace and no way to
+      // show its logo.
+      logoUrl: org?.logoId ? await ctx.storage.getUrl(org.logoId) : null,
       colors,
       // Custom-property name -> value. Typed loosely on purpose: the keys are
       // derived from THEME_COLOR_VARS, so a literal type here would drift the
