@@ -1,7 +1,8 @@
 # Pulse native macOS app: design
 
 **Date:** 2026-09-04
-**Status:** approved, implementation not started
+**Status:** approved. P1 (the backend change feed) is built and lives in this
+repo; everything Swift is not started.
 **Supersedes:** the "shell, not a bundle" decision in `~/Dev/pulse-desktop/docs/PLAN.md`
 
 ## Why
@@ -143,6 +144,36 @@ reconnect, watch it land. If that is not clean, nothing after it matters.
   SwiftUI has no equivalent. Treat it as its own project, scheduled last.
 - **`marketing` is 7,139 LOC** and is inherently online (GHL, social posting).
   Most of it stays online-only regardless of platform.
+
+## What has landed
+
+P1 only, all of it server-side in this repo. The Swift work (P0, P2, W1-W6) has
+not started and lives in `~/Dev/pulse-native` when it does.
+
+- `convex/functions.ts` - the triggered `mutation` / `internalMutation`. Every
+  file in `convex/` imports from here; an ESLint rule fails the build on a file
+  that reaches past it to `_generated/server`, because a mutation that skips the
+  trigger writes rows no device will ever see and nothing else would say so.
+- `convex/lib/mirroredTables.ts` - the table list, the per-table field allowlist,
+  and the capability gate. Twenty-eight of ninety-one tables.
+- `convex/sync.ts` - `snapshot`, `pullChanges`, `mirroredTables`,
+  `cursorIsUsable`, `pruneChangeLog`.
+- `changeLog` in the schema, indexed `by_org_ts` for the feed and `by_ts` for
+  the pruner; a six-hourly cron that drains rather than taking one batch.
+
+Two things the implementation settled differently from this document:
+
+**The cursor is a position in the log, not `since`.** Convex's `continueCursor`
+is an end-cursor: once a page reaches the end of a table, feeding it back returns
+an empty page forever and rows appended later are never seen. `pullChanges`
+encodes `ts:_creationTime`, which is exactly the `by_org_ts` index's own ordering,
+so two rows written in the same millisecond still resume in the right place.
+
+**The feed does not hand back whole documents.** `orgs` alone carries
+`googleRefreshToken`, which grants Gmail and Calendar access to the owner's
+Google account outside Pulse. A device gets an allowlisted projection, and each
+table's mirror gate is the capability its own org-wide read already requires in
+the web app - so the mirror is never the cheaper way into a table.
 
 ## Quality bar
 
