@@ -7,6 +7,7 @@ import type { Platform } from "@convex/lib/ghl";
 import { errorMessage } from "@/lib/errors";
 import { PLATFORM_META } from "./platforms";
 import { describeUnusableGhlClose, isOwnGhlCloseMessage } from "./ghl-message";
+import { inDesktopShell, SHELL_CONNECT_MESSAGE } from "./shell";
 
 type Choice = { id: string; name: string; type?: string; avatar?: string };
 
@@ -113,6 +114,16 @@ export function useConnectFlow(platform: Platform, reconnect: boolean) {
   }, [platform, choices, meta.label, finish]);
 
   const begin = useCallback(async () => {
+    // The desktop shell cannot finish this, and finding out the hard way costs
+    // a real OAuth round trip: its window.open shim hands the URL to the system
+    // browser and returns null, so Pulse never gets a popup handle and GHL's
+    // finish page has no opener to post its result back to. The owner
+    // authenticates in their browser and is left on a blank tab. Say so before
+    // sending them through it, rather than reporting a blocked popup afterwards.
+    if (inDesktopShell()) {
+      setError(SHELL_CONNECT_MESSAGE);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -124,6 +135,8 @@ export function useConnectFlow(platform: Platform, reconnect: boolean) {
       }
       popup.current = window.open(r.url, "pulse-connect", "width=640,height=760");
       if (!popup.current) {
+        // A real browser blocking a popup is the only way to land here now -
+        // the shell is turned away above, before GHL is ever called.
         setError("Your browser blocked the popup. Allow popups for Pulse and try again.");
         setBusy(false);
       }
