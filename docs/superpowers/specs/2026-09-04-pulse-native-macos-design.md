@@ -3,7 +3,8 @@
 **Date:** 2026-09-04
 **Status:** approved. P1 (the backend change feed) is built and lives in this
 repo; everything Swift is not started.
-**Supersedes:** the "shell, not a bundle" decision in `~/Dev/pulse-desktop/docs/PLAN.md`
+**Supersedes:** the "shell, not a bundle" decision in `~/Dev/pulse-desktop/docs/PLAN.md`,
+which was never Lawrence's call to begin with
 
 ## Why
 
@@ -23,8 +24,16 @@ Four, all made 2026-09-04 after measuring the codebase.
 2. **Purpose-built delta sync** over Convex, not query mirroring and not
    read-only offline.
 3. **macOS first, iOS after.** The SwiftUI project is structured multiplatform
-   from day one but only the Mac target ships first. The Tauri shell stays alive
-   as the interim app and is retired per-platform as native replaces it.
+   from day one but only the Mac target ships first.
+
+   An earlier draft of this line had the Tauri shell staying alive as the interim
+   app. Lawrence corrected that on 2026-09-04: *"i dint pick any shell I need a
+   full swift rewrite of this app."* The shell in `~/Dev/pulse-desktop` was built,
+   not chosen. It is not the interim app, it is not a fallback, and it is not a
+   way to ship sooner - do not plan around it. What is worth keeping from that
+   repo is the Rust/Xcode toolchain setup and the code-signing findings (only
+   Apple Development certs exist on this Mac; a notarized build needs a Developer
+   ID Application cert, and the team id is Lawrence's to give).
 4. **Server-authoritative intent replay.** Offline edits queue as intents, not as
    rows. The server re-runs the real mutation on reconnect, so business rules
    apply exactly as they do online. Rejections surface in a queue.
