@@ -53,6 +53,48 @@ const themeArgs = {
 
 const COLOR_KEYS = Object.keys(THEME_COLOR_VARS) as ThemeColorKey[];
 
+/* The palette a workspace paints with.
+ *
+ * Written once and used by every caller - the signed-in shell, the booking
+ * page, the portal, the outgoing email - because two copies of this drifted
+ * once already and a studio's app does not get to be a different colour from
+ * its own booking page.
+ *
+ * Precedence, weakest first:
+ *   1. Pulse's own defaults
+ *   2. orgs.accentColor - the "Accent color" in Settings > Workspace
+ *   3. the saved white-label theme
+ *
+ * (2) is the one that was missing. That control is set per sub-account and had
+ * always coloured the CLIENT-facing surfaces - booking, kiosk, invoice - while
+ * the app itself stayed Pulse gold. An agency switching between sub-accounts
+ * saw the logo change and the colour not, which reads as broken rather than as
+ * two separate settings, because nobody has the schema in their head. A studio
+ * that wants finer control still has the white-label panel, and it wins.
+ */
+function paletteFor(
+  org: Doc<"orgs"> | null,
+  active: boolean,
+): Record<string, string> {
+  const colors: Record<string, string> = { ...PULSE_DEFAULT_COLORS };
+  if (!active) return colors;
+
+  const accent = org?.accentColor;
+  if (accent && isHexColor(accent)) {
+    colors.primary = accent.trim();
+    colors.accent = accent.trim();
+  }
+
+  const saved = org?.theme;
+  if (saved) {
+    for (const k of COLOR_KEYS) {
+      const val = saved[k];
+      if (val && isHexColor(val)) colors[k] = val;
+    }
+  }
+  return colors;
+}
+
 /**
  * The theme the shell should paint, already merged over the Pulse defaults.
  * Returns `active: false` for any tier below Label, so a downgrade instantly
@@ -69,14 +111,7 @@ export const get = query({
     const tier = await tierForOrg(ctx, orgId);
     const active = PLAN_LIMITS[tier].whitelabel === "full";
     const saved = org?.theme;
-
-    const colors: Record<string, string> = { ...PULSE_DEFAULT_COLORS };
-    if (active && saved) {
-      for (const k of COLOR_KEYS) {
-        const val = saved[k];
-        if (val && isHexColor(val)) colors[k] = val;
-      }
-    }
+    const colors = paletteFor(org ?? null, active);
 
     return {
       active,
@@ -250,15 +285,7 @@ async function themeFor(ctx: QueryCtx, org: Doc<"orgs"> | null) {
   const tier = org ? await tierForOrg(ctx, org.orgId) : "studio";
   const active = Boolean(org) && PLAN_LIMITS[tier].whitelabel === "full";
   const saved = org?.theme;
-
-  const colors: Record<string, string> = { ...PULSE_DEFAULT_COLORS };
-  if (active && saved) {
-    for (const k of COLOR_KEYS) {
-      const val = saved[k];
-      if (val && isHexColor(val)) colors[k] = val;
-    }
-  }
-  return { active, tier, saved, colors };
+  return { active, tier, saved, colors: paletteFor(org, active) };
 }
 
 /** PUBLIC. The theme for a studio's client-facing pages, by booking slug. */
