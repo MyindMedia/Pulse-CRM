@@ -281,3 +281,87 @@ describe("sync: what a device is allowed to hold", () => {
     ).rejects.toThrow(/not mirrored/);
   });
 });
+
+describe("sync: a person's own rows", () => {
+  /* An engineer holds no `insights.read`, so the studio-wide clock is not
+     theirs to mirror - but their OWN punches are, or the phone can never show
+     them as clocked in. Two engineers, one studio; each device gets its own. */
+  const seed = async (t: ReturnType<typeof convexTest>) => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active",
+      });
+      const me = await ctx.db.insert("members", {
+        orgId: "pulse-demo", name: "Ellis", role: "engineer", email: "e@demo.com",
+        skills: [], clerkUserId: "user_ellis",
+      });
+      const them = await ctx.db.insert("members", {
+        orgId: "pulse-demo", name: "Rae", role: "engineer", email: "r@demo.com",
+        skills: [], clerkUserId: "user_rae",
+      });
+      return { me, them };
+    });
+  };
+
+  it("snapshots only the caller's punches for an engineer", async () => {
+    const t = convexTest(schema);
+    await seed(t);
+    const ellis = t.withIdentity({ subject: "user_ellis", name: "Ellis" });
+    const rae = t.withIdentity({ subject: "user_rae", name: "Rae" });
+
+    // Both clock in through the real mutation, so the change log fires.
+    await ellis.mutation(api.timeclock.clockIn, {});
+    await rae.mutation(api.timeclock.clockIn, {});
+
+    const tables = await ellis.query(api.sync.mirroredTables, {});
+    expect(tables).toContain("timeEntries");
+    expect(tables).not.toContain("payments");
+
+    const snap = await ellis.query(api.sync.snapshot, { table: "timeEntries" });
+    const names = await Promise.all(
+      (snap.docs as { memberId: string }[]).map((d) =>
+        t.run(async (ctx) => (await ctx.db.get(d.memberId as never) as { name: string } | null)?.name),
+      ),
+    );
+    expect(names).toEqual(["Ellis"]);
+  });
+
+  it("filters the change feed the same way", async () => {
+    const t = convexTest(schema);
+    await seed(t);
+    const ellis = t.withIdentity({ subject: "user_ellis", name: "Ellis" });
+    const rae = t.withIdentity({ subject: "user_rae", name: "Rae" });
+
+    await ellis.mutation(api.timeclock.clockIn, {});
+    await rae.mutation(api.timeclock.clockIn, {});
+
+    const feed = await ellis.query(api.sync.pullChanges, {});
+    const punches = feed.changes.filter((c) => c.table === "timeEntries");
+    expect(punches.length).toBe(1);
+    // The cursor still walks past Rae's row, so the device is not stuck on it.
+    expect(feed.isDone).toBe(true);
+  });
+
+  it("moves the tip when anything in the studio changes", async () => {
+    const t = convexTest(schema);
+    await seed(t);
+    const ellis = t.withIdentity({ subject: "user_ellis", name: "Ellis" });
+
+    const before = await ellis.query(api.sync.tip, {});
+    await ellis.mutation(api.timeclock.clockIn, {});
+    const after = await ellis.query(api.sync.tip, {});
+    expect(after).not.toBeNull();
+    expect(after).not.toEqual(before);
+  });
+
+  it("tells the phone which flow it is", async () => {
+    const t = convexTest(schema);
+    await seed(t);
+    const ellis = t.withIdentity({ subject: "user_ellis", name: "Ellis" });
+    const session = await ellis.query(api.session.current, {});
+    expect(session.role).toBe("engineer");
+    expect(session.memberId).not.toBeNull();
+    expect(session.capabilities).toContain("patch.edit");
+    expect(session.capabilities).not.toContain("insights.read");
+  });
+});

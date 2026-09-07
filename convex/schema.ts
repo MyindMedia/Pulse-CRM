@@ -991,7 +991,10 @@ export default defineSchema({
     attribution: v.optional(
       v.array(v.object({ step: v.string(), by: v.string(), at: v.number() })),
     ),
-  }).index("by_org_session", ["orgId", "sessionId"]),
+  })
+    .index("by_org_session", ["orgId", "sessionId"])
+    // The native clients snapshot every mirrored table by this name.
+    .index("by_org", ["orgId"]),
 
   // Web-push subscriptions for team devices (PWA/browser). One row per
   // device endpoint; pruned automatically when the push service says gone.
@@ -1004,6 +1007,26 @@ export default defineSchema({
   })
     .index("by_org", ["orgId"])
     .index("by_endpoint", ["endpoint"]),
+
+  // Apple push tokens for the native apps. A separate table from
+  // pushSubscriptions rather than optional columns on it: web push is an
+  // endpoint URL plus two encryption keys, APNs is an opaque device token and
+  // a topic, and a row that is half one and half the other is a row every
+  // reader has to guess about.
+  //
+  // One row per install. The token changes when the app is reinstalled or
+  // restored to a new device, so it is the key and re-registering replaces.
+  apnsDevices: defineTable({
+    orgId: v.string(),
+    clerkUserId: v.string(),
+    token: v.string(),           // hex device token from APNs
+    bundleId: v.string(),        // the APNs topic
+    environment: v.union(v.literal("sandbox"), v.literal("production")),
+    deviceName: v.optional(v.string()),
+    lastSeenAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_token", ["token"]),
 
   // Dedupe ledger for scheduled device alerts (T-10 arrival / wrap /
   // shift-change / studio-refresh) - one row per alert key, insert-if-absent.

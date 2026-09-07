@@ -33,6 +33,9 @@ export const current = query({
         orgName: null,
         needsStudio: false,
         studios: [],
+        role: null,
+        memberId: null,
+        capabilities: [],
       };
     }
 
@@ -64,6 +67,18 @@ export const current = query({
     const needsStudio =
       viewer.kind === "agency_member" && (orgId === "pulse-demo" || org === null);
 
+    // Which flow the phone opens to is decided here, not on the device. An
+    // engineer and an owner do not want the same first screen, and the only
+    // honest source for "which one is this" is the same policy table that
+    // gates every write. The capability list is what the web app's own
+    // `useCapabilities` reads; sending it lets the phone hide what the server
+    // would refuse instead of guessing from which tables happened to arrive.
+    const memberId =
+      viewer.kind === "studio_member" &&
+      viewer.memberId !== ("demo" as unknown as typeof viewer.memberId)
+        ? (viewer.memberId as unknown as string)
+        : null;
+
     return {
       signedIn: identity !== null,
       email: identity?.email ?? null,
@@ -72,6 +87,11 @@ export const current = query({
       orgName: org?.name ?? null,
       needsStudio,
       studios,
+      // A guest (a portal link) has no role; the phone treats that as the
+      // narrowest flow rather than guessing one.
+      role: "role" in viewer ? viewer.role : null,
+      memberId,
+      capabilities: [...(viewer.capabilities as Set<string>)].sort(),
     };
   },
 });

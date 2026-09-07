@@ -15,10 +15,11 @@ import type { Id, TableNames } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
 import { resolveViewer } from "./lib/access";
 import {
-  MIRRORED_CAPABILITY,
   isMirroredTable,
   projectDoc,
+  rowAllowed,
   tablesFor,
+  type MirrorViewer,
 } from "./lib/mirroredTables";
 
 /** The caller's org plus what they may actually read.
@@ -28,10 +29,20 @@ import {
  *  shape for a feed that hands over twenty-eight tables at once, because the
  *  strictest of them sets the bar. Resolving the viewer once gives both
  *  answers. */
-async function syncViewer(ctx: Parameters<typeof currentOrg>[0]) {
+async function syncViewer(
+  ctx: Parameters<typeof currentOrg>[0],
+): Promise<{ orgId: string; viewer: MirrorViewer }> {
   const orgId = await currentOrg(ctx);
-  const viewer = await resolveViewer(ctx);
-  return { orgId, capabilities: viewer.capabilities as Set<string> };
+  const resolved = await resolveViewer(ctx);
+  // A studio member's own row id, so a table they hold only for themselves
+  // (their own clock punches) can be filtered to their rows. The demo owner
+  // and an agency member acting as a studio have no row and get none.
+  const memberId =
+    resolved.kind === "studio_member" &&
+    resolved.memberId !== ("demo" as unknown as typeof resolved.memberId)
+      ? (resolved.memberId as unknown as string)
+      : undefined;
+  return { orgId, viewer: { capabilities: resolved.capabilities as Set<string>, memberId } };
 }
 
 /** Convex caps a page at 1000; 500 keeps a pull comfortably inside a round trip. */
@@ -56,8 +67,29 @@ export const mirroredTables = query({
     // told about the seventeen that need nothing beyond membership, not all
     // twenty-eight, so the client never even tries for the ones it would be
     // refused.
-    const { capabilities } = await syncViewer(ctx);
-    return tablesFor(capabilities);
+    const { viewer } = await syncViewer(ctx);
+    return tablesFor(viewer);
+  },
+});
+
+/* The tip of this studio's change log.
+ *
+ * A device subscribes to this rather than polling `pullChanges`: it is one
+ * indexed read of one row, it changes exactly when there is something to pull,
+ * and Convex pushes the new value over the socket the moment it does. The
+ * device then pulls from its own cursor. Subscribing to `pullChanges` itself
+ * would work too, but a subscription's arguments are fixed when it is opened,
+ * so every re-run would replay everything since the cursor it was opened with. */
+export const tip = query({
+  args: {},
+  handler: async (ctx) => {
+    const { orgId } = await syncViewer(ctx);
+    const latest = await ctx.db
+      .query("changeLog")
+      .withIndex("by_org_ts", (q) => q.eq("orgId", orgId))
+      .order("desc")
+      .first();
+    return latest ? `${latest.ts}:${latest._creationTime}` : null;
   },
 });
 
@@ -74,13 +106,12 @@ export const snapshot = query({
     limit: v.optional(v.number()),
   },
   handler: async (ctx, { table, cursor, limit }) => {
-    const { orgId, capabilities } = await syncViewer(ctx);
+    const { orgId, viewer } = await syncViewer(ctx);
     if (!isMirroredTable(table)) {
       throw new Error(`Table "${table}" is not mirrored`);
     }
-    const needed = MIRRORED_CAPABILITY[table];
-    if (needed && !capabilities.has(needed)) {
-      throw new Error(`Table "${table}" requires ${needed}`);
+    if (!tablesFor(viewer).includes(table)) {
+      throw new Error(`Table "${table}" is not mirrored for this caller`);
     }
     // Every mirrored table carries an `orgId`-first `by_org` index, but the
     // index builder cannot be typed against a union of twenty-eight table
@@ -95,9 +126,13 @@ export const snapshot = query({
 
     return {
       table,
-      docs: (result.page as unknown as Record<string, unknown>[]).map((doc) =>
-        projectDoc(table, doc),
-      ),
+      // A table held only for oneself is filtered here, row by row. The page
+      // may come back short of `limit`; the cursor still advances, so a device
+      // paginating an engineer's timeEntries walks the studio's rows and keeps
+      // its own.
+      docs: (result.page as unknown as Record<string, unknown>[])
+        .filter((doc) => rowAllowed(table, doc, viewer))
+        .map((doc) => projectDoc(table, doc)),
       cursor: result.continueCursor,
       isDone: result.isDone,
       // Every snapshot page is stamped, so a device knows the point in time its
@@ -149,8 +184,8 @@ export const pullChanges = query({
     tables: v.optional(v.array(v.string())),
   },
   handler: async (ctx, { cursor, limit, tables }) => {
-    const { orgId, capabilities } = await syncViewer(ctx);
-    const permitted = new Set<string>(tablesFor(capabilities));
+    const { orgId, viewer } = await syncViewer(ctx);
+    const permitted = new Set<string>(tablesFor(viewer));
     const wanted = tables?.length
       ? new Set(tables.filter((t) => isMirroredTable(t) && permitted.has(t)))
       : null;
@@ -199,6 +234,8 @@ export const pullChanges = query({
         // Deleted after the log entry was written; a later entry carries the
         // delete, so skipping here just avoids sending a null-doc update.
         if (!doc) continue;
+        // Somebody else's row in a table this caller holds only for themselves.
+        if (!rowAllowed(row.tableName, doc as Record<string, unknown>, viewer)) continue;
       }
 
       changes.push({

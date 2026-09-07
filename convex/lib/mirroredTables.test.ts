@@ -12,6 +12,7 @@ import {
   MIRRORED_FIELDS,
   MIRRORED_CAPABILITY,
   projectDoc,
+  rowAllowed,
   tablesFor,
 } from "./mirroredTables";
 import {
@@ -130,5 +131,40 @@ describe("who is told to mirror what", () => {
     expect(forAccountant).toContain("invoices");
     expect(forAccountant).toContain("expenses");
     expect(forAccountant).not.toContain("timeOff");
+  });
+});
+
+describe("what a person may hold about themselves", () => {
+  const engineer = new Set<string>(STUDIO_ROLE_CAPABILITIES.engineer);
+
+  it("sends an engineer their own clock, and only their own", () => {
+    // With a members row the table is on the list; the rows are then
+    // filtered to the ones carrying that id.
+    const me = { capabilities: engineer, memberId: "m_me" };
+    expect(tablesFor(me)).toContain("timeEntries");
+    expect(rowAllowed("timeEntries", { memberId: "m_me" }, me)).toBe(true);
+    expect(rowAllowed("timeEntries", { memberId: "m_them" }, me)).toBe(false);
+    // The books are still nowhere near them.
+    expect(tablesFor(me)).not.toContain("payments");
+    expect(tablesFor(me)).not.toContain("invoices");
+  });
+
+  it("gives a caller with no members row nothing for themselves", () => {
+    // The demo owner and an agency member acting as a studio have no row, so
+    // an own-row table without the capability is simply not on the list.
+    const nobody = { capabilities: engineer };
+    expect(tablesFor(nobody)).not.toContain("timeEntries");
+    expect(rowAllowed("timeEntries", { memberId: "m_me" }, nobody)).toBe(false);
+  });
+
+  it("does not filter a table the caller holds outright", () => {
+    const owner = { capabilities: new Set<string>(STUDIO_ROLE_CAPABILITIES.owner), memberId: "m_o" };
+    expect(rowAllowed("timeEntries", { memberId: "m_them" }, owner)).toBe(true);
+    expect(rowAllowed("sessions", { memberId: "m_them" }, owner)).toBe(true);
+  });
+
+  it("mirrors both checklists to every member", () => {
+    expect(tablesFor(new Set(STUDIO_ROLE_CAPABILITIES.intern))).toContain("sessionChecklists");
+    expect(tablesFor(new Set(STUDIO_ROLE_CAPABILITIES.intern))).toContain("arrivalPrep");
   });
 });

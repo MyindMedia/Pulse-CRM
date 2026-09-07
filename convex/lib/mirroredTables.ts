@@ -58,6 +58,13 @@ export const MIRRORED_TABLES = [
   "connections",
   "patchAnnotations",
   "patchGroups",
+  // W8 - the checklists. Both are org-scoped and read by every member on the
+  // web (`checklists.forSession`, `arrivalPrep.forSessions` gate on nothing but
+  // membership), so they carry no capability here either. A session's pre and
+  // post checklist and the front desk's arrival, wrap-up and refresh steps
+  // are the things an engineer is standing in a room for.
+  "sessionChecklists",
+  "arrivalPrep",
 ] as const;
 
 export type MirroredTable = (typeof MIRRORED_TABLES)[number];
@@ -221,10 +228,60 @@ export function projectDoc(
   return nested ? nested(out) : out;
 }
 
-/** The tables this caller may mirror, given the capabilities they hold. */
-export function tablesFor(capabilities: Set<string>): MirroredTable[] {
-  return MIRRORED_TABLES.filter((table) => {
-    const needed = MIRRORED_CAPABILITY[table];
-    return !needed || capabilities.has(needed);
-  });
+/* Rows a person may hold about THEMSELVES, whatever their role.
+ *
+ * `timeEntries` is gated on `insights.read` because the studio-wide view of the
+ * clock is payroll, and an engineer does not get payroll. But an engineer's OWN
+ * punches are not payroll - they are the answer to "am I clocked in", which is
+ * the first thing the phone is taken out for. Without this an engineer's clock
+ * card could never turn green: the write landed, and the row that proved it
+ * was never sent back. The same holds for a person's own time-off requests and
+ * availability, gated on `schedule.manage` for everyone else's.
+ *
+ * The rule: a table named here is mirrored to every studio member, and a
+ * viewer who lacks the capability receives only the rows whose named field is
+ * their own member id. `sync.snapshot` and `sync.pullChanges` apply it row by
+ * row; a viewer WITH the capability gets the whole table as before. */
+export const MIRRORED_OWN_ROWS: Partial<Record<MirroredTable, string>> = {
+  timeEntries: "memberId",
+  timeOff: "memberId",
+  availability: "memberId",
+};
+
+/** Who is asking, as far as the mirror cares. */
+export type MirrorViewer = {
+  capabilities: Set<string>;
+  /** The caller's own members row, when they have one. The demo owner and an
+   *  agency member acting as a studio do not, and get no own-row mirror. */
+  memberId?: string;
+};
+
+/** Whether this caller receives this table at all. */
+function mayMirror(table: MirroredTable, viewer: MirrorViewer): boolean {
+  const needed = MIRRORED_CAPABILITY[table];
+  if (!needed || viewer.capabilities.has(needed)) return true;
+  return MIRRORED_OWN_ROWS[table] !== undefined && viewer.memberId !== undefined;
+}
+
+/** The tables this caller may mirror, given who they are. */
+export function tablesFor(viewer: MirrorViewer | Set<string>): MirroredTable[] {
+  const v: MirrorViewer = viewer instanceof Set ? { capabilities: viewer } : viewer;
+  return MIRRORED_TABLES.filter((table) => mayMirror(table, v));
+}
+
+/** Whether one row of a table may be handed to this caller.
+ *
+ *  A table the caller holds outright passes every row. A table they hold only
+ *  for themselves passes the rows carrying their own member id and nothing
+ *  else - so the change feed can be filtered without a second query. */
+export function rowAllowed(
+  table: MirroredTable,
+  doc: Record<string, unknown>,
+  viewer: MirrorViewer,
+): boolean {
+  const needed = MIRRORED_CAPABILITY[table];
+  if (!needed || viewer.capabilities.has(needed)) return true;
+  const field = MIRRORED_OWN_ROWS[table];
+  if (!field || !viewer.memberId) return false;
+  return doc[field] === viewer.memberId;
 }
