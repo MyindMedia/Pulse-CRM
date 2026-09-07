@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { computeT10Alerts, type T10Shift } from "./t10";
+import { computeT10Alerts, phoneSchedulesItself, type T10Shift } from "./t10";
 
 const NOW = 1_700_000_000_000;
 const MIN = 60_000;
@@ -72,5 +72,20 @@ describe("shift alerts", () => {
 
   it("ignores a cancelled shift entirely", () => {
     expect(keys([shift({ startTime: NOW - 10 * MIN, status: "cancelled" })])).toEqual([]);
+  });
+});
+
+describe("what the phone raises on its own", () => {
+  it("is the two personal clock alerts and nothing else", () => {
+    // The app schedules these locally from its mirror; a device that said so
+    // must not be pushed the same words a second time.
+    expect(phoneSchedulesItself("you10:sh1")).toBe(true);
+    expect(phoneSchedulesItself("nc:sh1")).toBe(true);
+    // Crew alerts are the studio's to send, to every phone.
+    expect(phoneSchedulesItself("s10:sh1")).toBe(false);
+    expect(phoneSchedulesItself("b15:s1")).toBe(false);
+    expect(phoneSchedulesItself("w10:s1")).toBe(false);
+    expect(phoneSchedulesItself("r:s1")).toBe(false);
+    expect(phoneSchedulesItself(undefined)).toBe(false);
   });
 });

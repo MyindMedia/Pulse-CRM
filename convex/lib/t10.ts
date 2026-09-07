@@ -47,6 +47,20 @@ export type T10Alert = {
 
 const MIN = 60_000;
 
+/* The two alerts the iPhone app raises on its own.
+ *
+ * "Your shift starts in 10 minutes" and "you're on the schedule and not
+ * clocked in" are about one person and are computed from that person's own
+ * rota, which their phone holds in its mirror. The app schedules both as local
+ * notifications so they fire in a basement with no signal. A device that has
+ * said so (`apnsDevices.localClock`) must not also be pushed them, or every
+ * shift opens with the same words twice. Crew alerts - the brief, the wrap,
+ * the room turnover - are the studio's to send and still go to every phone. */
+export function phoneSchedulesItself(tag: string | undefined): boolean {
+  if (!tag) return false;
+  return tag.startsWith("you10:") || tag.startsWith("nc:");
+}
+
 function clock(ts: number, tz: string): string {
   return new Date(ts).toLocaleTimeString("en-US", {
     hour: "numeric",

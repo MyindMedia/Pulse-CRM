@@ -107,8 +107,9 @@ export const registerApns = mutation({
     bundleId: v.string(),
     environment: v.union(v.literal("sandbox"), v.literal("production")),
     deviceName: v.optional(v.string()),
+    localClock: v.optional(v.boolean()),
   },
-  handler: async (ctx, { token, bundleId, environment, deviceName }) => {
+  handler: async (ctx, { token, bundleId, environment, deviceName, localClock }) => {
     const orgId = await currentOrg(ctx);
     const identity = await ctx.auth.getUserIdentity();
     const clerkUserId = identity?.subject ?? "demo";
@@ -120,12 +121,12 @@ export const registerApns = mutation({
       .first();
     if (existing) {
       await ctx.db.patch(existing._id, {
-        orgId, clerkUserId, bundleId, environment, deviceName, lastSeenAt: now,
+        orgId, clerkUserId, bundleId, environment, deviceName, localClock, lastSeenAt: now,
       });
       return { updated: true };
     }
     await ctx.db.insert("apnsDevices", {
-      orgId, clerkUserId, token, bundleId, environment, deviceName, lastSeenAt: now,
+      orgId, clerkUserId, token, bundleId, environment, deviceName, localClock, lastSeenAt: now,
     });
     return { updated: false };
   },

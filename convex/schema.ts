@@ -1023,6 +1023,11 @@ export default defineSchema({
     bundleId: v.string(),        // the APNs topic
     environment: v.union(v.literal("sandbox"), v.literal("production")),
     deviceName: v.optional(v.string()),
+    /* The app on this device schedules the personal clock reminders itself,
+       from its mirror, so they fire with no signal. The sweep then must NOT
+       push the same two alerts to it, or every shift starts with a doubled
+       notification. See lib/t10.ts `phoneSchedulesItself`. */
+    localClock: v.optional(v.boolean()),
     lastSeenAt: v.number(),
   })
     .index("by_org", ["orgId"])

@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { createSign } from "node:crypto";
 import http2 from "node:http2";
+import { phoneSchedulesItself } from "./lib/t10";
 
 /* ============================================================
    Apple Push Notification service.
@@ -133,6 +134,8 @@ export const sendToOrg = internalAction({
       // it is addressed to one person, who is the only one who may read it.
       if (targeted.length > 0 || strictAudience) devices = targeted;
     }
+    // A phone that schedules this alert locally already has it. See t10.ts.
+    if (phoneSchedulesItself(tag)) devices = devices.filter((d) => !d.localClock);
     if (devices.length === 0) return { sent: 0, reason: "no-devices" };
 
     const jwt = providerToken(keyId, teamId, privateKey);
