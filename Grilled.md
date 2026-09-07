@@ -1822,3 +1822,12 @@ device:** the App ID does not carry App Groups and Xcode has no signed-in
 account ("No Accounts"), so `./tools/iphone.sh device` needs `PULSE_GROUPS=0`
 until Lawrence signs into Xcode once; the island works without the group, the
 widgets stay empty until it is there.
+
+**Device proof (2026-09-07 12:57 PT):** Lawrence's phone, signed in as
+`berlaw@gmail.com` (manager, the account refused all morning), hydrated all
+30 mirrored tables in 8 seconds on first launch of the new build; the two
+clock-ins queued since 10:34 were sent and landed with their original time;
+outbox empty; zero errors in the last 1000 prod log entries. A no-op
+`sync:touch` on the studio row reached the phone's feed cursor inside 8 s with
+the app open. Open items for the studio itself: Theo Park (demo seed engineer)
+has an open time entry on prod since 2026-09-04 23:30.
