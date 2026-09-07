@@ -24,8 +24,17 @@ export const current = query({
     let viewer;
     try {
       viewer = await resolveViewer(ctx);
-    } catch {
+    } catch (error) {
+      // Signed in to Clerk and turned away by the studio: say which, so the
+      // phone can show the reason instead of an empty app labelled offline.
+      const reason =
+        error instanceof Error && "code" in error
+          ? String((error as { code: unknown }).code)
+          : error instanceof Error
+            ? error.message
+            : "UNKNOWN";
       return {
+        reason,
         signedIn: identity !== null,
         email: identity?.email ?? null,
         kind: "none" as const,
@@ -80,6 +89,7 @@ export const current = query({
         : null;
 
     return {
+      reason: null,
       signedIn: identity !== null,
       email: identity?.email ?? null,
       kind: viewer.kind,

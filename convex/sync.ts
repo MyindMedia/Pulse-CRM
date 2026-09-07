@@ -86,7 +86,7 @@ export const tip = query({
     const { orgId } = await syncViewer(ctx);
     const latest = await ctx.db
       .query("changeLog")
-      .withIndex("by_org_ts", (q) => q.eq("orgId", orgId))
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .order("desc")
       .first();
     return latest ? `${latest.ts}:${latest._creationTime}` : null;
@@ -192,11 +192,20 @@ export const pullChanges = query({
     const max = pageSize(limit);
     const since = parseCursor(cursor);
 
+    /* Ordered by `_creationTime`, not by `ts`.
+       `ts` is stamped when the mutation RUNS, and a mutation commits some time
+       after it runs, so two mutations in flight together can commit in the
+       opposite order to their stamps. A client that pulled between the two
+       commits would have saved a cursor past the slower one's stamp and never
+       been handed that row until a fortnightly re-snapshot. `_creationTime` is
+       the commit's own clock and advances with every commit, so a cursor on
+       it cannot skip a row. The cursor still carries `ts` for the retention
+       check; the position is the second half. */
     const rows = ctx.db
       .query("changeLog")
-      .withIndex("by_org_ts", (q) =>
+      .withIndex("by_org", (q) =>
         since
-          ? q.eq("orgId", orgId).gte("ts", since.ts)
+          ? q.eq("orgId", orgId).gt("_creationTime", since.at)
           : q.eq("orgId", orgId),
       )
       .order("asc");
@@ -207,10 +216,6 @@ export const pullChanges = query({
     let isDone = true;
 
     for await (const row of rows) {
-      // `gte` re-reads the boundary millisecond, so drop what was already sent.
-      if (since && row.ts === since.ts && row._creationTime <= since.at) {
-        continue;
-      }
       if (examined >= max) {
         isDone = false;
         break;

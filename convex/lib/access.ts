@@ -206,22 +206,53 @@ export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
     }
 
     // Studio-tier Clerk org (default)
+    //
+    // The claim is the CLERK org id. For most studios that is also the Pulse
+    // orgId, but not for all: a studio imported or staged before its Clerk org
+    // existed keeps a synthetic orgId and records the Clerk one in
+    // `orgs.clerkOrgId`, and a person can be in a Clerk org that has no Pulse
+    // studio behind it at all. The iPhone app is the one client that mints a
+    // token carrying this claim (the web sends the plain session token and
+    // always takes the by-user path below), so for a while every phone sign-in
+    // by a non-owner threw here while the same person's laptop worked.
+    //
+    // So: try the claim as given, then translated, and if neither finds a row
+    // fall through to the by-user resolution rather than refusing.
     if (orgId) {
-      const member = await ctx.db
+      let member = await ctx.db
         .query("members")
         .withIndex("by_org_clerk", (q) => q.eq("orgId", orgId).eq("clerkUserId", clerkUserId))
         .first();
-      if (!member) throw new AccessError("NO_STUDIO_MEMBER", "No members row for caller");
-      const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
-      return {
-        kind: "studio_member",
-        orgId,
-        agencyId: org?.agencyId,
-        memberId: member._id,
-        clerkUserId,
-        role: member.role,
-        capabilities: buildStudioCaps(member.role, member.capabilityOverrides),
-      };
+      let resolvedOrgId = orgId;
+      if (!member) {
+        const mapped = await ctx.db
+          .query("orgs")
+          .filter((q) => q.eq(q.field("clerkOrgId"), orgId))
+          .first();
+        if (mapped && mapped.orgId !== orgId) {
+          member = await ctx.db
+            .query("members")
+            .withIndex("by_org_clerk", (q) =>
+              q.eq("orgId", mapped.orgId).eq("clerkUserId", clerkUserId))
+            .first();
+          resolvedOrgId = mapped.orgId;
+        }
+      }
+      if (member) {
+        const org = await ctx.db
+          .query("orgs")
+          .withIndex("by_org", (q) => q.eq("orgId", resolvedOrgId))
+          .first();
+        return {
+          kind: "studio_member",
+          orgId: resolvedOrgId,
+          agencyId: org?.agencyId,
+          memberId: member._id,
+          clerkUserId,
+          role: member.role,
+          capabilities: buildStudioCaps(member.role, member.capabilityOverrides),
+        };
+      }
     }
 
     // No org claim on the token. Clerk only stamps orgId once the session has
@@ -232,7 +263,7 @@ export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
     // maps to exactly ONE studio. Ambiguity (multi-studio user) still denies -
     // those sessions need the org claim, which ActiveOrgSync establishes
     // client-side right after sign-in.
-    if (!orgId) {
+    {
       const rows = await ctx.db
         .query("members")
         .withIndex("by_clerk", (q) => q.eq("clerkUserId", clerkUserId))

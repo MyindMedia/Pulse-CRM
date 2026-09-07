@@ -19,6 +19,45 @@ describe("access engine - resolveViewer", () => {
     expect(result.role).toBe("owner");
   });
 
+  it("translates a Clerk org claim through orgs.clerkOrgId", async () => {
+    // The phone's token names the CLERK org. A studio staged before its Clerk
+    // org existed keeps a synthetic orgId and records the Clerk one alongside.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: "staged-playback", clerkOrgId: "org_clerk_pb", name: "Playback",
+        slug: "playback", plan: "studio", status: "active",
+      });
+      await ctx.db.insert("members", {
+        orgId: "staged-playback", name: "Mgr", role: "manager",
+        clerkUserId: "user_mgr", skills: [],
+      });
+    });
+    const asMgr = t.withIdentity({ subject: "user_mgr", name: "Mgr", orgId: "org_clerk_pb" });
+    const result = await asMgr.query(api.testHarness.resolve, {});
+    expect(result.kind).toBe("studio_member");
+    expect(result.role).toBe("manager");
+    expect(result.orgId).toBe("staged-playback");
+  });
+
+  it("falls through to the by-user path when the org claim matches nothing", async () => {
+    // A person can sit in a Clerk org with no Pulse studio behind it. The
+    // laptop (no claim) resolved them fine; the phone (claim) was refused.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: "org_home", name: "Home", slug: "home", plan: "studio", status: "active",
+      });
+      await ctx.db.insert("members", {
+        orgId: "org_home", name: "Mgr", role: "manager",
+        clerkUserId: "user_two_orgs", skills: [],
+      });
+    });
+    const phone = t.withIdentity({ subject: "user_two_orgs", name: "Mgr", orgId: "org_somewhere_else" });
+    const result = await phone.query(api.testHarness.resolve, {});
+    expect(result.kind).toBe("studio_member");
+    expect(result.orgId).toBe("org_home");
+    expect(result.role).toBe("manager");
+  });
+
   it("studio member with Clerk identity resolves with their role", async () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
