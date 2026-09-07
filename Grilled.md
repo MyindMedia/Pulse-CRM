@@ -1769,3 +1769,56 @@ zero dropped writes across 1,000 queued offline mutations. Built via a gauntlet 
 
 **Non-goals:** replacing the web app (it stays the product); App Store IAP
 (subscriptions stay on the web); `patch` and `marketing` in early waves.
+
+## Epic: iPhone app, two flows, live sync, the floor and the books (2026-09-07, /gauntlet-loop)
+
+**Owner ask:** "fully functioning with all syncing"; clock not working; non-owners
+see nothing after sign-in; engineers manage patching, schedules, checklists and
+the welcome flow; managers and owners get dashboards with graphs and drill-downs;
+tiles over lists, smooth transitions. Bar (picked by Lawrence after rejecting
+Square Appointments): Apple Home for patching, Apple Health for dashboards, Apple
+Reminders for checklists, the Pulse web app for data and roles.
+
+**Root causes found by the assessment team (3 agents) and fixed on the server:**
+- The phone's Clerk `convex` JWT template carries `orgId` (Clerk org id) and
+  `resolveViewer` threw `NO_STUDIO_MEMBER` before trying the by-user path the
+  web takes; non-owners were refused on the phone only. Now translates through
+  `orgs.clerkOrgId` and falls through (`convex/lib/access.ts`).
+- `timeEntries` was mirrored only for `insights.read`, so an engineer's own
+  punch never came back to the phone: the clock could not turn green.
+  `MIRRORED_OWN_ROWS` sends everyone their own rows (`convex/lib/mirroredTables.ts`).
+- `sessionChecklists` and `arrivalPrep` were not mirrored at all.
+- `session:current` now states `role`, `memberId`, `capabilities`, `reason`.
+- `sync:tip` is the one-row query a device subscribes to for live pulls; the
+  feed pages on `_creationTime` so a slow commit cannot be skipped.
+
+**Client (`~/Dev/pulse-native`):** two tab bars by flow (engineer: Today,
+Schedule, Patch, Prep, More; owner: Dashboard, Today, Schedule, Money, More);
+`ClockRules` repeats the server's clock-in / clock-out / overtime rules from
+the mirror and schedules local notifications; Arrival prep with three lists per
+session and queued ticks shown as waiting; every patch port opens its switches
+and a patch-to picker, cables run or pulled; Dashboard computed from the mirror
+with the web's own definitions (tested); live sync via `sync:tip`; coalesced
+sync; cached session for offline launches; `connect()` once per launch.
+
+**Decisions:** the opener (rule, eyebrow, display word) survives at 26pt with the
+mark on the eyebrow's line; screens keep the web app's names ("Arrival prep" is
+the web's /brief title); gold is spent once per screen; refused writes and
+queued ticks are drawn as waiting, never as done.
+
+**Not done / needs Lawrence:** unlock the phone and open the app once (the new
+build is installed; remote launch is refused while locked); the stopwatch run
+of web-to-phone latency on a signed-in device; the "one real Myind Sound day"
+timed run; agency members still share one global active studio (`enterAs`).
+
+**Addendum (same day, Lawrence): "compensate for the notch, and use the notch
+and widgets."** Built: a Live Activity for the running clock in the Dynamic
+Island and on the Lock Screen (Clock out button runs in the app via a
+LiveActivityIntent), two WidgetKit widgets (On the clock; Next arrival) fed by
+a state file in App Group `group.tech.studiopulse.pulse`, a `PulseShared`
+package target the extension links alone. Every screen respects the safe
+areas; the connection line moved under the status bar. **Blocker for the
+device:** the App ID does not carry App Groups and Xcode has no signed-in
+account ("No Accounts"), so `./tools/iphone.sh device` needs `PULSE_GROUPS=0`
+until Lawrence signs into Xcode once; the island works without the group, the
+widgets stay empty until it is there.

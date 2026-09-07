@@ -256,6 +256,25 @@ export const pullChanges = query({
   },
 });
 
+/* A no-op write on a studio's own row, for timing the feed.
+ *
+ * Patching a document with its own value still goes through the trigger, so
+ * one changeLog row appears and every device holding that studio pulls. Used
+ * from the CLI with the deploy key to measure how long a web-side change
+ * takes to reach a phone; it changes nothing anyone can see. */
+export const touch = internalMutation({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    if (!org) throw new Error("No such org");
+    await ctx.db.patch(org._id, { name: org.name });
+    return { at: Date.now() };
+  },
+});
+
 /* ── Retention ──
    The log is append-only, so without this it grows for as long as the studio
    uses Pulse. Two weeks is comfortably longer than any device is realistically
