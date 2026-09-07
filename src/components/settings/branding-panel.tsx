@@ -225,7 +225,7 @@ export function BrandingPanel({ org }: { org: Org }) {
           {/* Logo */}
           <Field
             label="Logo"
-            hint="Square works best. PNG, JPG, WEBP or SVG up to 5 MB."
+            hint="A wide lockup, about 800 x 263 - the shape Playback's logo is. Transparent PNG, WEBP or SVG up to 5 MB."
           >
             <div className="flex flex-wrap items-center gap-4">
               <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-md border border-graphite/60 bg-coal-2">
@@ -265,10 +265,21 @@ export function BrandingPanel({ org }: { org: Org }) {
                     </Button>
                   )}
                 </div>
+                {/*
+                  The hint used to say "square works best", and it was wrong.
+                  BrandLockup fills the sidebar rail's width and lets the height
+                  follow, capping at 64px - so a wide lockup sits across the
+                  rail as intended and a square crest gets letterboxed into a
+                  64px block with dead space either side. Playback's logo is the
+                  reference because it is the shape the rail was built around:
+                  800 x 263, roughly 3:1, transparent.
+                */}
                 <p className="text-[0.6875rem] text-steel/70">
                   {org.logoUrl
                     ? "Uploading replaces the current logo immediately."
-                    : "No logo yet - Pulse falls back to a disc mark."}
+                    : "No logo yet - Pulse falls back to a disc mark."}{" "}
+                  Roughly 3:1 is the shape to aim for; a square mark still works
+                  but sits small in the rail.
                 </p>
               </div>
             </div>

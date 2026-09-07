@@ -3,6 +3,7 @@ import { mutation } from "./functions";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { resolveViewer } from "./lib/access";
+import { punchedAt } from "./lib/punch";
 
 /* ============================================================
    Time clock - self-service clock in / out for studio staff.
@@ -126,8 +127,8 @@ export const myStatus = query({
 
 /** Clock in. Idempotent - if already on the clock, returns the open entry. */
 export const clockIn = mutation({
-  args: { shiftId: v.optional(v.id("shifts")) },
-  handler: async (ctx, { shiftId }) => {
+  args: { shiftId: v.optional(v.id("shifts")), at: v.optional(v.number()) },
+  handler: async (ctx, { shiftId, at }) => {
     const cm = await currentMember(ctx);
     if (!cm) throw new Error("Only studio team members can clock in.");
     const { orgId, member } = cm;
@@ -143,7 +144,7 @@ export const clockIn = mutation({
       orgId,
       memberId: member._id,
       shiftId,
-      clockInAt: Date.now(),
+      clockInAt: punchedAt(at, Date.now()),
       status: "active",
       rateCentsSnapshot: member.payType === "hourly" ? member.payRateCents : undefined,
       source: "self",
@@ -164,13 +165,15 @@ export const clockIn = mutation({
 
 /** Clock out - closes your open entry. */
 export const clockOut = mutation({
-  args: { note: v.optional(v.string()) },
-  handler: async (ctx, { note }) => {
+  args: { note: v.optional(v.string()), at: v.optional(v.number()) },
+  handler: async (ctx, { note, at }) => {
     const cm = await currentMember(ctx);
     if (!cm) throw new Error("Only studio team members can clock out.");
     const open = await activeEntry(ctx, cm.member._id);
     if (!open) return null;
-    const now = Date.now();
+    // Never before the punch it closes: a clamped clock-out that landed ahead
+    // of its own clock-in would read as a negative shift.
+    const now = Math.max(punchedAt(at, Date.now()), open.clockInAt);
     await ctx.db.patch(open._id, {
       clockOutAt: now,
       status: "completed",

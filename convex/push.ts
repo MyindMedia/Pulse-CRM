@@ -87,3 +87,80 @@ export const _prune = internalMutation({
     if (row) await ctx.db.delete(row._id);
   },
 });
+
+/* ============================================================
+   Apple push - the native apps.
+
+   Same idea as the web subscriptions above and a separate table, because the
+   two transports have nothing in common but the word "push": web push is an
+   endpoint URL and two encryption keys, APNs is an opaque device token and a
+   topic.
+
+   The token is the key. iOS issues a new one when the app is reinstalled or
+   restored onto another device, so registering the same token twice is an
+   update and never a duplicate row.
+   ============================================================ */
+
+export const registerApns = mutation({
+  args: {
+    token: v.string(),
+    bundleId: v.string(),
+    environment: v.union(v.literal("sandbox"), v.literal("production")),
+    deviceName: v.optional(v.string()),
+  },
+  handler: async (ctx, { token, bundleId, environment, deviceName }) => {
+    const orgId = await currentOrg(ctx);
+    const identity = await ctx.auth.getUserIdentity();
+    const clerkUserId = identity?.subject ?? "demo";
+    const now = Date.now();
+
+    const existing = await ctx.db
+      .query("apnsDevices")
+      .withIndex("by_token", (q) => q.eq("token", token))
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        orgId, clerkUserId, bundleId, environment, deviceName, lastSeenAt: now,
+      });
+      return { updated: true };
+    }
+    await ctx.db.insert("apnsDevices", {
+      orgId, clerkUserId, token, bundleId, environment, deviceName, lastSeenAt: now,
+    });
+    return { updated: false };
+  },
+});
+
+/** Stop pushing to this device - alerts turned off, or signing out. */
+export const unregisterApns = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const row = await ctx.db
+      .query("apnsDevices")
+      .withIndex("by_token", (q) => q.eq("token", token))
+      .first();
+    if (row) await ctx.db.delete(row._id);
+    return { removed: row !== null };
+  },
+});
+
+export const _apnsForOrg = internalQuery({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) =>
+    await ctx.db
+      .query("apnsDevices")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect(),
+});
+
+/** Drop a token Apple has told us is dead (410 Unregistered). */
+export const _pruneApns = internalMutation({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const row = await ctx.db
+      .query("apnsDevices")
+      .withIndex("by_token", (q) => q.eq("token", token))
+      .first();
+    if (row) await ctx.db.delete(row._id);
+  },
+});

@@ -19,8 +19,16 @@ export const sendToOrg = internalAction({
     tag: v.optional(v.string()),
     // When set, only these users' devices are pinged (e.g. on-shift staff).
     clerkUserIds: v.optional(v.array(v.string())),
+    /* When true, `clerkUserIds` is the ONLY audience.
+     *
+     * The fallback below - ping everybody when the named people have no device
+     * - is right for "the room turns over in ten minutes", which anybody on
+     * shift can act on. It is wrong for "you have not clocked in", which would
+     * then tell the whole studio about one person. An alert addressed to
+     * somebody who is not reachable should go nowhere. */
+    strictAudience: v.optional(v.boolean()),
   },
-  handler: async (ctx, { orgId, title, body, url, tag, clerkUserIds }) => {
+  handler: async (ctx, { orgId, title, body, url, tag, clerkUserIds, strictAudience }) => {
     const publicKey = process.env.VAPID_PUBLIC_KEY;
     const privateKey = process.env.VAPID_PRIVATE_KEY;
     if (!publicKey || !privateKey) return { sent: 0, reason: "vapid-unset" };
@@ -34,8 +42,9 @@ export const sendToOrg = internalAction({
     if (clerkUserIds && clerkUserIds.length > 0) {
       const targeted = subs.filter((s) => clerkUserIds.includes(s.clerkUserId));
       // Fall back to the whole team rather than dropping the alert when the
-      // on-shift staff have no registered devices.
-      if (targeted.length > 0) subs = targeted;
+      // on-shift staff have no registered devices - unless the alert is
+      // addressed to one person, in which case nobody else may read it.
+      if (targeted.length > 0 || strictAudience) subs = targeted;
     }
     let sent = 0;
     for (const sub of subs) {

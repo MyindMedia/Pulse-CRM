@@ -13,9 +13,19 @@ export const sweep = internalMutation({
   handler: async (ctx, { nowMs }) => {
     const now = nowMs ?? Date.now();
 
-    // Only orgs that actually have devices listening.
-    const subs = await ctx.db.query("pushSubscriptions").collect();
-    const orgIds = [...new Set(subs.map((s) => s.orgId))];
+    /* Only orgs that actually have devices listening - on EITHER transport.
+     *
+     * This read was `pushSubscriptions` alone, which is browsers. A studio
+     * whose crew carry the iPhone app and never installed the web app had no
+     * rows in that table, so the sweep skipped it entirely and it received no
+     * alerts at all - silently, and looking exactly like a studio with nothing
+     * due. convex/notify.ts already fans out to both; the gate in front of it
+     * has to as well. */
+    const [subs, phones] = await Promise.all([
+      ctx.db.query("pushSubscriptions").collect(),
+      ctx.db.query("apnsDevices").collect(),
+    ]);
+    const orgIds = [...new Set([...subs, ...phones].map((s) => s.orgId))];
     let fired = 0;
 
     for (const orgId of orgIds) {
@@ -75,19 +85,41 @@ export const sweep = internalMutation({
         }),
       );
 
+      /* Shifts about to start, and shifts that just did.
+       *
+       * The window used to end at the T-10 line because "shift change in ten
+       * minutes" was the only shift alert. The nudge for somebody who is on the
+       * schedule and has not clocked in fires ten minutes AFTER the start, so
+       * the window has to reach back past it. */
       const shiftRows = await ctx.db
         .query("shifts")
         .withIndex("by_org_start", (q) =>
-          q.eq("orgId", orgId).gte("startTime", now + 8 * 60_000).lte("startTime", now + 11 * 60_000),
+          q.eq("orgId", orgId).gte("startTime", now - 15 * 60_000).lte("startTime", now + 11 * 60_000),
         )
         .collect();
       const shifts: T10Shift[] = await Promise.all(
-        shiftRows.map(async (sh) => ({
-          _id: sh._id,
-          startTime: sh.startTime,
-          status: sh.status,
-          memberName: (await ctx.db.get(sh.memberId))?.name ?? "A team member",
-        })),
+        shiftRows.map(async (sh) => {
+          const member = await ctx.db.get(sh.memberId);
+          // Whether their clock is running right now. Read per shift rather
+          // than per org: a studio's roster is small and this only runs for
+          // shifts inside a 26-minute window.
+          const open = member
+            ? await ctx.db
+                .query("timeEntries")
+                .withIndex("by_member_status", (q) =>
+                  q.eq("memberId", sh.memberId).eq("status", "active"),
+                )
+                .first()
+            : null;
+          return {
+            _id: sh._id,
+            startTime: sh.startTime,
+            status: sh.status,
+            memberName: member?.name ?? "A team member",
+            clerkUserId: member?.clerkUserId ?? null,
+            clockedIn: open !== null,
+          };
+        }),
       );
 
       // "On schedule" targeting: staff whose shift covers RIGHT NOW (plus a
@@ -119,13 +151,21 @@ export const sweep = internalMutation({
           .first();
         if (seen) continue;
         await ctx.db.insert("pushAlerts", { orgId, key: alert.key, sentAt: now });
-        await ctx.scheduler.runAfter(0, internal.pushSend.sendToOrg, {
+        // Every device the studio has, browser and phone. See convex/notify.ts
+        // for why this is not a direct call to one transport.
+        await ctx.scheduler.runAfter(0, internal.notify.toOrg, {
           orgId,
           title: alert.title,
           body: alert.body,
           url: alert.url,
           tag: alert.key,
-          clerkUserIds: onShiftClerkIds.length > 0 ? onShiftClerkIds : undefined,
+          // An alert that names its own audience owns it: "you have not clocked
+          // in" goes to one person, never to the crew. Everything else falls
+          // back to whoever is on shift.
+          clerkUserIds:
+            alert.clerkUserIds ??
+            (onShiftClerkIds.length > 0 ? onShiftClerkIds : undefined),
+          strictAudience: alert.strictAudience,
         });
         fired += 1;
       }

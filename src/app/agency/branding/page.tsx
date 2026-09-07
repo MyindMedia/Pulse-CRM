@@ -130,7 +130,7 @@ export default function BrandingPage() {
             </CardHeader>
             <CardContent className="space-y-6">
               {/* Logo */}
-              <Field label="Logo" hint="Square works best. PNG, JPG, WEBP or SVG up to 5 MB.">
+              <Field label="Logo" hint="A wide lockup, about 800 x 263 - the shape Playback's logo is. Transparent PNG, WEBP or SVG up to 5 MB.">
                 <div className="flex flex-wrap items-center gap-4">
                   <div className="grid size-16 shrink-0 place-items-center overflow-hidden rounded-md border border-graphite/60 bg-coal-2">
                     {summary?.logoUrl ? (
