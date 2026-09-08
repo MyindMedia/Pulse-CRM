@@ -1,9 +1,12 @@
-import { query, type QueryCtx } from "./_generated/server";
+import { query, type QueryCtx, type MutationCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { resolveViewer } from "./lib/access";
 import { punchedAt } from "./lib/punch";
+import { punchAlert, punchAudience, type Punch } from "./lib/punchAlert";
+import { orgTz } from "./lib/tz";
+import { internal } from "./_generated/api";
 
 /* ============================================================
    Time clock - self-service clock in / out for studio staff.
@@ -14,6 +17,38 @@ import { punchedAt } from "./lib/punch";
    ============================================================ */
 
 const HOUR = 3_600_000;
+
+/* Tell the owners and managers, on their devices.
+ *
+ * The activity row (below, at each punch) is the web app's bell. This is the
+ * phone in a pocket: the studio's owners and managers, and only them, get a
+ * push for every clock-in and clock-out on the team. Never the person who
+ * punched, and never the whole studio: `strictAudience` stops the transport
+ * falling back to every device when no manager has one. */
+async function tellManagers(
+  ctx: MutationCtx,
+  orgId: string,
+  punchingMemberId: string,
+  punch: Punch,
+  entryId: string,
+) {
+  const team = await ctx.db
+    .query("members")
+    .withIndex("by_org", (q) => q.eq("orgId", orgId))
+    .collect();
+  const clerkUserIds = punchAudience(team, punchingMemberId);
+  if (clerkUserIds.length === 0) return;
+  const alert = punchAlert(punch, entryId);
+  await ctx.scheduler.runAfter(0, internal.notify.toOrg, {
+    orgId,
+    title: alert.title,
+    body: alert.body,
+    url: alert.url,
+    tag: alert.tag,
+    clerkUserIds,
+    strictAudience: true,
+  });
+}
 const MIN = 60_000;
 
 /** The viewer's own member row, or null (unauthenticated / demo sentinel /
@@ -140,15 +175,25 @@ export const clockIn = mutation({
         throw new Error("That shift isn't yours.");
       }
     }
+    const clockInAt = punchedAt(at, Date.now());
     const entryId = await ctx.db.insert("timeEntries", {
       orgId,
       memberId: member._id,
       shiftId,
-      clockInAt: punchedAt(at, Date.now()),
+      clockInAt,
       status: "active",
       rateCentsSnapshot: member.payType === "hourly" ? member.payRateCents : undefined,
       source: "self",
     });
+    {
+      const shift = shiftId ? await ctx.db.get(shiftId) : null;
+      const room = shift?.roomId ? await ctx.db.get(shift.roomId) : null;
+      const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+      await tellManagers(ctx, orgId, member._id, {
+        kind: "in", memberName: member.name, at: clockInAt, tz: orgTz(org),
+        roomName: room?.name ?? null, onRota: Boolean(shift),
+      }, entryId);
+    }
     // Surface the punch to owners/managers (notification bell + live toasts).
     await ctx.db.insert("activity", {
       orgId,
@@ -180,6 +225,12 @@ export const clockOut = mutation({
       note: note ?? open.note,
     });
     const hours = Math.round(((now - open.clockInAt) / HOUR) * 10) / 10;
+    {
+      const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", cm.orgId)).first();
+      await tellManagers(ctx, cm.orgId, cm.member._id, {
+        kind: "out", memberName: cm.member.name, at: now, tz: orgTz(org), hours,
+      }, open._id);
+    }
     await ctx.db.insert("activity", {
       orgId: cm.orgId,
       kind: "staff.clocked_out",
