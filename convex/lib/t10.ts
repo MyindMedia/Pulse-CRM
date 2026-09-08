@@ -43,6 +43,10 @@ export type T10Alert = {
    * wrong answer for "you have not clocked in", which would then be read by
    * everyone except the person it is about. */
   strictAudience?: boolean;
+  /* Who NOT to tell. The crew's "shift change in ten minutes" names the
+   * person walking in, and that person's own phone already says so (`you10`,
+   * or its local twin); telling them twice in the same minute is noise. */
+  exceptClerkUserIds?: string[];
 };
 
 const MIN = 60_000;
@@ -133,6 +137,7 @@ export function computeT10Alerts(
         title: "Shift change in 10 minutes",
         body: `${sh.memberName} starts at ${clock(sh.startTime, tz)}.`,
         url: "/schedule",
+        exceptClerkUserIds: mine,
       });
       // And the personal one, which is the only one that reaches the phone in
       // somebody's pocket on their way in.

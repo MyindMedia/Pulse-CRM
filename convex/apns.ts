@@ -116,8 +116,9 @@ export const sendToOrg = internalAction({
      * then tell the whole studio about one person. An alert addressed to
      * somebody who is not reachable should go nowhere. */
     strictAudience: v.optional(v.boolean()),
+    exceptClerkUserIds: v.optional(v.array(v.string())),
   },
-  handler: async (ctx, { orgId, title, body, url, tag, clerkUserIds, strictAudience }): Promise<{ sent: number; of?: number; reason?: string }> => {
+  handler: async (ctx, { orgId, title, body, url, tag, clerkUserIds, strictAudience, exceptClerkUserIds }): Promise<{ sent: number; of?: number; reason?: string }> => {
     const keyId = process.env.APNS_KEY_ID;
     const teamId = process.env.APNS_TEAM_ID;
     const privateKey = process.env.APNS_PRIVATE_KEY;
@@ -136,6 +137,7 @@ export const sendToOrg = internalAction({
     }
     // A phone that schedules this alert locally already has it. See t10.ts.
     if (phoneSchedulesItself(tag)) devices = devices.filter((d) => !d.localClock);
+    if (exceptClerkUserIds?.length) devices = devices.filter((d) => !exceptClerkUserIds.includes(d.clerkUserId));
     if (devices.length === 0) return { sent: 0, reason: "no-devices" };
 
     const jwt = providerToken(keyId, teamId, privateKey);

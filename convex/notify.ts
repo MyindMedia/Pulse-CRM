@@ -28,6 +28,8 @@ export const toOrg = internalAction({
      * then tell the whole studio about one person. An alert addressed to
      * somebody who is not reachable should go nowhere. */
     strictAudience: v.optional(v.boolean()),
+    /** Never these people, whatever the audience resolves to. */
+    exceptClerkUserIds: v.optional(v.array(v.string())),
   },
   // The explicit return type is load-bearing. Without it Convex's generated
   // api.d.ts has to infer through notify -> apns -> internal.push -> ... and

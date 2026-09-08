@@ -27,8 +27,9 @@ export const sendToOrg = internalAction({
      * then tell the whole studio about one person. An alert addressed to
      * somebody who is not reachable should go nowhere. */
     strictAudience: v.optional(v.boolean()),
+    exceptClerkUserIds: v.optional(v.array(v.string())),
   },
-  handler: async (ctx, { orgId, title, body, url, tag, clerkUserIds, strictAudience }) => {
+  handler: async (ctx, { orgId, title, body, url, tag, clerkUserIds, strictAudience, exceptClerkUserIds }) => {
     const publicKey = process.env.VAPID_PUBLIC_KEY;
     const privateKey = process.env.VAPID_PRIVATE_KEY;
     if (!publicKey || !privateKey) return { sent: 0, reason: "vapid-unset" };
@@ -46,6 +47,7 @@ export const sendToOrg = internalAction({
       // addressed to one person, in which case nobody else may read it.
       if (targeted.length > 0 || strictAudience) subs = targeted;
     }
+    if (exceptClerkUserIds?.length) subs = subs.filter((s) => !exceptClerkUserIds.includes(s.clerkUserId));
     let sent = 0;
     for (const sub of subs) {
       try {

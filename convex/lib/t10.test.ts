@@ -89,3 +89,13 @@ describe("what the phone raises on its own", () => {
     expect(phoneSchedulesItself(undefined)).toBe(false);
   });
 });
+
+describe("the crew's shift-change alert", () => {
+  it("is not sent to the person it is about, whose own phone already says so", () => {
+    const alerts = computeT10Alerts(NOW, [], [shift()]);
+    const crew = alerts.find((a) => a.key.startsWith("s10:"))!;
+    expect(crew.exceptClerkUserIds).toEqual(["user_dana"]);
+    const personal = alerts.find((a) => a.key.startsWith("you10:"))!;
+    expect(personal.clerkUserIds).toEqual(["user_dana"]);
+  });
+});

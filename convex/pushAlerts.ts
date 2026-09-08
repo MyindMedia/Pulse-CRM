@@ -166,6 +166,7 @@ export const sweep = internalMutation({
             alert.clerkUserIds ??
             (onShiftClerkIds.length > 0 ? onShiftClerkIds : undefined),
           strictAudience: alert.strictAudience,
+          exceptClerkUserIds: alert.exceptClerkUserIds,
         });
         fired += 1;
       }
