@@ -1,5 +1,5 @@
 import { query, type QueryCtx, type MutationCtx } from "./_generated/server";
-import { mutation } from "./functions";
+import { mutation, internalMutation } from "./functions";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { resolveViewer } from "./lib/access";
@@ -269,5 +269,29 @@ export const myEntries = query({
       .withIndex("by_org_member", (q) => q.eq("orgId", cm.orgId).eq("memberId", cm.member._id))
       .collect();
     return rows.sort((a, b) => b.clockInAt - a.clockInAt).slice(0, limit ?? 20);
+  },
+});
+
+/* Delete clock entries by id, from the command line only.
+ *
+ * For test rows that were never anybody's shift - a demo engineer's open
+ * entry from a seed, a stray punch on the demo studio - which the app's own
+ * `payroll.removeEntry` cannot reach without a signed-in manager. Internal,
+ * so only a deploy key runs it; it goes through the same triggers, so every
+ * phone drops the rows on its next pull.
+ *
+ *   npx convex run timeclock:_purgeEntries '{"ids":["t17…","t17…"]}'
+ */
+export const _purgeEntries = internalMutation({
+  args: { ids: v.array(v.id("timeEntries")) },
+  handler: async (ctx, { ids }) => {
+    let removed = 0;
+    for (const id of ids) {
+      const row = await ctx.db.get(id);
+      if (!row) continue;
+      await ctx.db.delete(id);
+      removed += 1;
+    }
+    return { removed };
   },
 });
