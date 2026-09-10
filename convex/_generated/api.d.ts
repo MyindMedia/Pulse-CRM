@@ -9,6 +9,7 @@
  */
 
 import type * as access from "../access.js";
+import type * as account from "../account.js";
 import type * as activity from "../activity.js";
 import type * as agency from "../agency.js";
 import type * as agencyBilling from "../agencyBilling.js";
@@ -124,6 +125,7 @@ import type * as lib_plans from "../lib/plans.js";
 import type * as lib_pnl from "../lib/pnl.js";
 import type * as lib_portTemplates from "../lib/portTemplates.js";
 import type * as lib_punch from "../lib/punch.js";
+import type * as lib_punchAlert from "../lib/punchAlert.js";
 import type * as lib_redact from "../lib/redact.js";
 import type * as lib_roadmap from "../lib/roadmap.js";
 import type * as lib_roomStatus from "../lib/roomStatus.js";
@@ -232,6 +234,7 @@ import type {
 
 declare const fullApi: ApiFromModules<{
   access: typeof access;
+  account: typeof account;
   activity: typeof activity;
   agency: typeof agency;
   agencyBilling: typeof agencyBilling;
@@ -347,6 +350,7 @@ declare const fullApi: ApiFromModules<{
   "lib/pnl": typeof lib_pnl;
   "lib/portTemplates": typeof lib_portTemplates;
   "lib/punch": typeof lib_punch;
+  "lib/punchAlert": typeof lib_punchAlert;
   "lib/redact": typeof lib_redact;
   "lib/roadmap": typeof lib_roadmap;
   "lib/roomStatus": typeof lib_roomStatus;
