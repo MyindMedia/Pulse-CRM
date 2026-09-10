@@ -32,6 +32,7 @@ const isPublicRoute = createRouteMatcher([
   // "no privacy policy" - which is exactly why a campaign was rejected before.
   "/privacy",
   "/terms",
+  "/support", // the App Store listing's support URL - App Review opens it signed out
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",
