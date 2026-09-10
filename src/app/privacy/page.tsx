@@ -20,7 +20,7 @@ export const dynamic = "force-static";
 
 export default function PrivacyPolicy() {
   return (
-    <LegalShell title="Privacy Policy" updated="July 21, 2026">
+    <LegalShell title="Privacy Policy" updated="September 10, 2026">
       <Section heading="Who we are">
         <p>
           Pulse is recording studio management software operated by {LEGAL_ENTITY} (&ldquo;Pulse&rdquo;,
@@ -95,8 +95,14 @@ export default function PrivacyPolicy() {
         <ul className="list-disc space-y-1.5 pl-5">
           <li>Twilio - delivery of SMS messages.</li>
           <li>Stripe - payment processing.</li>
-          <li>Clerk - account authentication.</li>
+          <li>Clerk - account authentication, including sign-in with Google or Apple when you choose it.</li>
           <li>Convex and Netlify - application hosting and data storage.</li>
+          <li>
+            Apple Push Notification service - delivery of alerts to the Pulse iPhone app. The app
+            sends Apple&rsquo;s push token for your device and the device&rsquo;s name so that
+            shift and clock alerts reach the right phone. Browser alerts use your browser&rsquo;s
+            push service the same way.
+          </li>
         </ul>
         <p>
           We may also disclose information where required by law, or to protect the rights, safety,
@@ -122,7 +128,12 @@ export default function PrivacyPolicy() {
           <li>Unsubscribe from email using the link in any message.</li>
           <li>Request a copy of the personal information we hold about you.</li>
           <li>Ask us to correct information that is inaccurate.</li>
-          <li>Ask us to delete your personal information.</li>
+          <li>
+            Ask us to delete your personal information, or delete your account yourself in the
+            iPhone app under More, then Delete account. This removes your login and closes your
+            seat on every studio; the studio keeps its own records of shifts and sessions with
+            your name removed.
+          </li>
         </ul>
         <p>
           To exercise any of these, email{" "}
