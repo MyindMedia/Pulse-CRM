@@ -1859,3 +1859,33 @@ Requests from Lawrence during the App Store pass, in his words where it matters:
 - **Versioning:** keep a per-version record of what changed in the iPhone app (version, build, date, changes) so it can be monitored over time; build and push to distribution once these fixes land.
 
 **Shipped 2026-09-10 (night):** money visibility, the owner's manager switch, gated money writes, owner-only permission extras with manager-grantable inventory editing, and the change log (`changeAudit`, `/changes`) are deployed to Convex prod and live on the web (`main` cbdfdc8, merged from `feat/studio-marketing` with main's Clerk/support hotfixes). iPhone 1.1 (97) is archived with the staff dashboard, logo header, Patch devices-first, change log and owner switch; it uploads after this server deploy. The App Store review login's workspace (`pulse-demo`) was empty and was filled with demo mode's data plus a year of bookings and finance; the nightly refresh keeps it current. Still open: financial add/edit parity on the iPhone, and the Messages decision (A/B/C). Not run: the `/pentest` gate (no Docker on this Mac).
+
+### Addendum 2026-09-10 (late) — full edit parity on the iPhone
+
+- **Lawrence:** "we need to be able to edit everything like on web as an owner or manager (manager permissions toggled by owner)". Trigger: inventory is still view-only on the phone after money editing shipped (iPhone 1.1 (99)).
+- **Scope:** every add, change, update and delete the web gives an owner or manager for running the studio. Each phone action is gated on the capability the server checks (`equipment.edit`, `rooms.edit`, `artists.edit`, `members.invite`, `schedule.manage`, `patch.edit`, `songs.edit`, `releases.edit`, `licenses.edit`, `opportunities.edit`, `invoices.send`, `insights.read`), so the owner's toggles (managers see money, per-member overrides) apply on the phone unchanged.
+- **Order:** inventory, rooms, clients, team and shifts, software, pipeline, songs and releases, licensing, patch editing, visitors and waitlist, deliverables and split sheets, remaining money settings (fees, memberships, service prices, payroll schedule), studio settings.
+- **Assumed web-only unless Lawrence says otherwise:** agency console, plan and billing admin, onboarding, imports and exports, theme and brand editing, marketing.
+- **Messages:** still awaiting A, B or C.
+
+### Addendum 2026-09-11 — Messages: workflow and plan (proposed, awaiting Lawrence's go)
+
+**How it works today (read from the code):**
+- A text to a client goes out through `sms.sendClientSms` from the one shared Myind Sound number, prefixed with the studio's name, and is logged to `clientMessages`.
+- A reply arrives at `/sms/inbound` (GHL "Customer Replied" webhook). STOP/START and the two-way prompts (booking confirms and the like) are handled first. The text then goes to the first client, in any studio, whose phone matches (`sms._handleInbound`), so one phone known to two studios lands wherever it is found first.
+- Email goes out through `clientEmail.sendToClient`, branded per studio.
+- "Waiting" means only that the newest message in a thread is from the client. Nothing records that someone dealt with it, so it clears only by replying.
+- The phone reads threads and cannot reply or clear Waiting.
+
+**Workflow to build:**
+1. A client texts in. The server picks the studio: the open two-way prompt's studio, else the studio that last messaged that phone in the past 30 days, else the only studio that has the phone. With no clear answer it goes to an Unrouted list for the agency owner instead of a guess.
+2. The studio is told: a push to owners and managers (and the booking's engineer when the text is about a booking), and the thread shows Waiting.
+3. Someone acts, on the phone or the web: reply by text (the default when the client last texted), reply by email, or Mark handled when no reply is needed. A reply says plainly why it cannot go (no phone on file, client opted out).
+4. Waiting clears on a reply or Mark handled, and comes back when the client writes again.
+
+**Phases:**
+- Phase 1, about a day: routing rule above, `clientMessages` handled-at and handled-by with a `markHandled` mutation (mirrored), the inbound push, the phone's reply bar and Mark handled, Mark handled on the web. Server deploy plus an app build.
+- Phase 2, two to three days: an in-app thread in the client portal (option A). Every studio text carries a short portal link; replies there route exactly, with no phone matching.
+- Phase 3, optional and per studio: its own number (option B), routed by the number texted. Costs a number and an A2P registration per studio.
+
+**Needs Lawrence:** go on phase 1; who gets the inbound push; whether ambiguous texts go to the agency owner's Unrouted list.
