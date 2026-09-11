@@ -1889,3 +1889,11 @@ Requests from Lawrence during the App Store pass, in his words where it matters:
 - Phase 3, optional and per studio: its own number (option B), routed by the number texted. Costs a number and an A2P registration per studio.
 
 **Needs Lawrence:** go on phase 1; who gets the inbound push; whether ambiguous texts go to the agency owner's Unrouted list.
+
+### Addendum 2026-09-11 (later) — Messages: C and A approved
+
+- **Lawrence:** "Ok lets do C and A, B will be later if we decide it's causing issues."
+- **Defaults taken (proposed, not objected to):** inbound alerts go to owners and managers, plus the booking's engineer when the text is about a booking; ambiguous texts go to an Unrouted list.
+- **Unrouted visibility:** owners and admins of the agency that runs every candidate studio. When candidate studios do not share an agency, the text goes to the studio with the client's most recent booking or message, marked "routed by best guess", so no studio sees a text that may not be theirs.
+- **Compliance check (compliance-ops, SOC 2 + GDPR):** no new vendors; AI stays out of the new paths (the portal thread never calls the concierge); push alerts carry the client's name only; Unrouted pruned at 30 days and contacts at 90; erasure and sub-account deletion cover the new tables. Data-flow map and vendor checklist: `docs/compliance/messages.md`. DPA confirmations are action items for Lawrence.
+- **Not in scope:** option B (a number per studio), unknown numbers that match no client (still not threaded), AI on portal messages.

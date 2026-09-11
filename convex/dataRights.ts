@@ -21,6 +21,7 @@ import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { currentOrgWithCapability, currentActor } from "./lib/tenant";
 import { redactText, piiTerms } from "./lib/redact";
+import { normalizePhone } from "./lib/phone";
 
 /** EXPORT: everything the studio holds about one client. Gated by
  *  `artists.read` (the PII-read capability). Org-scoped. */
@@ -131,6 +132,29 @@ export const eraseArtist = mutation({
     for (const o of opps) {
       await ctx.db.patch(o._id, { title: redactText(o.title, terms) ?? o.title });
       scrubbed++;
+    }
+
+    // 4b. Routing records for the client's phone: which studio texted it, and
+    //     any held-back text from it that lists this studio as a candidate.
+    const erasedPhone = artist.phone ? normalizePhone(artist.phone) : null;
+    if (erasedPhone) {
+      const contacts = await ctx.db
+        .query("smsContacts")
+        .withIndex("by_phone_org", (q) => q.eq("phone", erasedPhone).eq("orgId", orgId))
+        .collect();
+      for (const c of contacts) {
+        await ctx.db.delete(c._id);
+        scrubbed++;
+      }
+      const held = await ctx.db.query("unroutedMessages").withIndex("by_phone", (q) => q.eq("phone", erasedPhone)).collect();
+      for (const h of held) {
+        if (!h.candidateOrgIds.includes(orgId)) continue;
+        // The text may be another studio's client writing; only this studio's claim goes.
+        const others = h.candidateOrgIds.filter((id) => id !== orgId);
+        if (others.length > 0) await ctx.db.patch(h._id, { candidateOrgIds: others });
+        else await ctx.db.delete(h._id);
+        scrubbed++;
+      }
     }
 
     // 5. Outbound notifications addressed to the client's email.

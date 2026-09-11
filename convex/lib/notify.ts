@@ -1,6 +1,7 @@
 import { MutationCtx } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
+import { recordSmsContact } from "./smsContacts";
 
 /* ============================================================
    notify() - the messaging seam.
@@ -24,6 +25,8 @@ export async function notify(
   },
 ): Promise<void> {
   const id = await ctx.db.insert("notifications", { ...args, status: "simulated" });
+  // Which studio last texted this phone, for routing its reply (lib/smsRouting.ts).
+  if (args.channel === "sms") await recordSmsContact(ctx, args.orgId, args.recipient);
   await ctx.scheduler.runAfter(0, internal.notifications.deliver, { id });
 }
 

@@ -3,11 +3,11 @@
 import * as React from "react";
 import { PublicTheme } from "@/components/shell/public-theme";
 import { useParams } from "next/navigation";
-import { useQuery, useAction, useConvex } from "convex/react";
+import { useQuery, useAction, useConvex, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { errorMessage } from "@/lib/errors";
-import { Loader2, Music2, CalendarCheck, Receipt, Sparkles, SendHorizontal, CalendarPlus, ArrowUpRight, Download, Play, Lock, FileAudio } from "lucide-react";
+import { Loader2, MessageSquare, Music2, CalendarCheck, Receipt, Sparkles, SendHorizontal, CalendarPlus, ArrowUpRight, Download, Play, Lock, FileAudio } from "lucide-react";
 
 const usd = (c: number) => `$${(c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const when = (ts: number) => new Date(ts).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -74,6 +74,9 @@ export default function ClientPortalPage() {
                 </a>
               )}
             </header>
+
+            {/* Messages: to the people at the studio, never the concierge */}
+            <PortalMessages token={token} studioName={data.studioName} />
 
             {/* Concierge */}
             <section className="rounded-chrome border border-graphite/50 bg-coal/60 p-5 shadow-elev-2">
@@ -307,3 +310,88 @@ function PortalList({
     </section>
   );
 }
+
+/** The client's conversation with the studio. What they write here reaches that
+ *  studio's team directly, with nothing routed by phone number and no AI. */
+function PortalMessages({ token, studioName }: { token: string; studioName: string }) {
+  const thread = useQuery(api.portal.thread, { token });
+  const send = useMutation(api.portal.sendMessage);
+  const [draft, setDraft] = React.useState("");
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+  const listRef = React.useRef<HTMLOListElement>(null);
+
+  React.useEffect(() => {
+    const el = listRef.current;
+    if (el) el.scrollTop = el.scrollHeight;
+  }, [thread?.length]);
+
+  async function handleSend(e: React.FormEvent) {
+    e.preventDefault();
+    const body = draft.trim();
+    if (!body || busy) return;
+    setBusy(true);
+    setError(null);
+    try {
+      await send({ token, body });
+      setDraft("");
+    } catch (err) {
+      setError(errorMessage(err, "Your message did not send. Try again."));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <section className="rounded-chrome border border-graphite/50 bg-coal/60 p-5 shadow-elev-2">
+      <div className="flex items-center gap-2">
+        <MessageSquare className="size-4 text-gold" />
+        <h2 className="font-grotesk text-sm font-semibold text-bone">Messages</h2>
+      </div>
+      <p className="mt-1 text-xs text-steel">Write to the team at {studioName}. A person reads every message.</p>
+      {thread && thread.length > 0 && (
+        <ol ref={listRef} className="mt-3 max-h-80 space-y-2 overflow-y-auto pr-1" aria-label={`Messages with ${studioName}`}>
+          {thread.map((m) => (
+            <li key={m.id} className={m.fromStudio ? "flex justify-start" : "flex justify-end"}>
+              <div
+                className={
+                  m.fromStudio
+                    ? "max-w-[85%] rounded-lg border border-graphite/50 bg-obsidian px-3 py-2"
+                    : "max-w-[85%] rounded-lg border border-gold/30 bg-gold/10 px-3 py-2"
+                }
+              >
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-bone">{m.body}</p>
+                <p className="mt-1 font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
+                  {m.fromStudio ? studioName : "You"} · {when(m.at)}
+                </p>
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+      <form onSubmit={handleSend} className="mt-3 flex items-end gap-2">
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={2}
+          maxLength={2000}
+          aria-label={`Message ${studioName}`}
+          placeholder="Write a message..."
+          className="flex-1 resize-none rounded-md border border-graphite/50 bg-obsidian px-3 py-2 text-sm text-bone outline-none placeholder:text-steel/70 focus-visible:ring-2 focus-visible:ring-gold/30"
+        />
+        <button
+          type="submit"
+          disabled={busy || !draft.trim()}
+          aria-label="Send message"
+          className="inline-flex items-center gap-1.5 rounded-md bg-gold px-3 py-2 text-sm font-semibold text-ink transition-opacity disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="size-4 animate-spin" /> : <SendHorizontal className="size-4" />}
+        </button>
+      </form>
+      {error && (
+        <p role="alert" className="mt-2 rounded-md border border-graphite/50 bg-obsidian p-3 text-sm text-bone">{error}</p>
+      )}
+    </section>
+  );
+}
+

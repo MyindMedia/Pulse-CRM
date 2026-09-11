@@ -41,6 +41,7 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
               <Link href="/agency/agents" className="hover:text-bone">Agents</Link>
               <Link href="/agency/autopilot" className="hover:text-bone">Autopilot</Link>
               <Link href="/agency/staff" className="hover:text-bone">Staff</Link>
+              <Link href="/agency/unrouted" className="hover:text-bone">Unrouted texts</Link>
               <Link href="/agency/branding" className="hover:text-bone">Branding</Link>
               <Link href="/agency/audit" className="hover:text-bone">Audit</Link>
               <Link href="/agency/settings" className="hover:text-bone">Settings</Link>

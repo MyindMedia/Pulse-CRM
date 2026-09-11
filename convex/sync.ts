@@ -322,6 +322,8 @@ export const pruneChangeLog = internalMutation({
     } else {
       // The owners' change log keeps a year; its sweep rides this schedule.
       await ctx.scheduler.runAfter(0, internal.changeAudit.prune, {});
+      // Held texts and texted-contact records keep 30 and 90 days.
+      await ctx.scheduler.runAfter(0, internal.messages.prune, {});
     }
     return { deleted: stale.length, cutoff, more };
   },

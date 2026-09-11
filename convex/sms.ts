@@ -8,6 +8,9 @@ import { currentOrg } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { sendSms, type SmsStatus } from "./lib/sms";
 import { normalizePhone } from "./lib/phone";
+import { recordSmsContact } from "./lib/smsContacts";
+import { routeInboundText } from "./lib/smsRouting";
+import { alertStudioOfClientMessage } from "./lib/messageAlerts";
 import {
   renderSms,
   displayPhone,
@@ -91,6 +94,7 @@ export const _logSms = internalMutation({
       status: args.status,
       sentBy: args.sentBy,
     });
+    if (args.direction === "out") await recordSmsContact(ctx, artist.orgId, artist.phone);
   },
 });
 
@@ -104,7 +108,13 @@ export const sendClientSms = action({
     if (await ctx.runQuery(internal.sms._isOptedOut, { phone: c.phone })) {
       return { ok: false, status: "opted_out" };
     }
-    const text = renderSms(MANUAL_CLIENT, { studio: c.studioName, body });
+    // Every studio text carries the client's portal link, where a reply finds
+    // this studio exactly instead of by phone number.
+    const link: string | null = await ctx.runMutation(internal.messages._portalLinkFor, { artistId });
+    const text = renderSms(MANUAL_CLIENT, {
+      studio: c.studioName,
+      body: link ? `${body}\nReply in your portal: ${link}` : body,
+    });
     const status = await sendSms({ to: c.phone, body: text });
     const identity = await ctx.auth.getUserIdentity();
     await ctx.runMutation(internal.sms._logSms, {
@@ -338,10 +348,23 @@ export const _handleInbound = internalMutation({
     // prompt, plus the standalone HELP/RESCHEDULE/LATE keywords.
     const consumed = await routeInbound(ctx, phone, body);
 
-    // Best-effort: route the reply into the thread of an artist with this phone.
-    const artists = await ctx.db.query("artists").collect();
-    const match = artists.find((a) => a.phone && normalizePhone(a.phone) === phone);
-    if (match) {
+    // Which studio is this for? Every studio texts from one shared number, so
+    // the reply is routed on who wrote to this phone last (lib/smsRouting.ts),
+    // and held for the agency when that is not clear.
+    const route = await routeInboundText(ctx, phone);
+    if (route.kind === "unrouted") {
+      await ctx.db.insert("unroutedMessages", {
+        phone,
+        body,
+        candidateOrgIds: route.candidateOrgIds,
+        agencyId: route.agencyId,
+        receivedAt: Date.now(),
+        status: "open",
+      });
+      return;
+    }
+    const match = route.kind === "routed" ? route.artist : null;
+    if (match && route.kind === "routed") {
       const clientMessageId = await ctx.db.insert("clientMessages", {
         orgId: match.orgId,
         artistId: match._id,
@@ -350,7 +373,10 @@ export const _handleInbound = internalMutation({
         body,
         channel: "sms",
         status: "received",
+        routedBy: route.routedBy,
       });
+      // The two-way flows answered for themselves; a free-form reply needs a person.
+      if (!consumed) await alertStudioOfClientMessage(ctx, match);
 
       // AI receptionist (opt-in, Tier 4): when the studio has enabled it, hand
       // the inbound off to an action that may auto-reply with the booking link.

@@ -605,6 +605,9 @@ export default defineSchema({
     // portal token so one valid link can't drive unbounded cost).
     askWindowStart: v.optional(v.number()),
     askCount: v.optional(v.number()),
+    // The same, for messages written in the portal thread.
+    messageWindowStart: v.optional(v.number()),
+    messageCount: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])
     .index("by_token", ["token"])
@@ -2408,12 +2411,55 @@ export default defineSchema({
     direction: v.union(v.literal("out"), v.literal("in")),
     subject: v.string(),
     body: v.string(),
-    channel: v.union(v.literal("google"), v.literal("internal"), v.literal("sms")),
+    // portal: written in, or to, the client's portal thread (/portal/<token>).
+    channel: v.union(v.literal("google"), v.literal("internal"), v.literal("sms"), v.literal("portal")),
     status: v.union(v.literal("sent"), v.literal("failed"), v.literal("simulated"), v.literal("received")),
     sentBy: v.optional(v.string()),
+    // Someone dealt with this inbound message without replying (Mark handled).
+    handledAt: v.optional(v.number()),
+    handledBy: v.optional(v.string()),
+    // How an inbound message found this studio. Texts arrive on one shared
+    // number, so this is recorded rather than assumed (lib/smsRouting.ts).
+    routedBy: v.optional(v.union(
+      v.literal("only_match"),
+      v.literal("last_texted"),
+      v.literal("best_guess"),
+      v.literal("assigned"),
+      v.literal("portal"),
+    )),
   })
     .index("by_org", ["orgId"])
     .index("by_artist", ["artistId"]),
+
+  // Which studio last texted a phone, and when. Every studio texts from the one
+  // shared number, so a reply is routed to the studio that last wrote to it.
+  // Pruned after 90 days (messages.prune) and erased with the client.
+  smsContacts: defineTable({
+    phone: v.string(), // normalized E.164
+    orgId: v.string(),
+    lastSentAt: v.number(),
+  })
+    .index("by_phone", ["phone"])
+    .index("by_phone_org", ["phone", "orgId"])
+    .index("by_org", ["orgId"])
+    .index("by_last_sent", ["lastSentAt"]),
+
+  // An inbound text that could belong to more than one studio, held for the
+  // agency that runs them all rather than guessed at. Pruned after 30 days.
+  unroutedMessages: defineTable({
+    phone: v.string(),
+    body: v.string(),
+    candidateOrgIds: v.array(v.string()),
+    agencyId: v.string(),
+    receivedAt: v.number(),
+    status: v.union(v.literal("open"), v.literal("assigned"), v.literal("dismissed")),
+    assignedOrgId: v.optional(v.string()),
+    resolvedBy: v.optional(v.string()),
+    resolvedAt: v.optional(v.number()),
+  })
+    .index("by_agency_status", ["agencyId", "status"])
+    .index("by_phone", ["phone"])
+    .index("by_received", ["receivedAt"]),
 
   // ── Waitlist - artists waiting for an open slot. When a hold expires or a
   //    booking is cancelled, smart-fill ranks matching entries and proposes a

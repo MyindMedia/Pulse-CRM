@@ -1,5 +1,7 @@
 import { query, action, internalQuery } from "./_generated/server";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
+import { mutation } from "./functions";
+import { alertStudioOfClientMessage } from "./lib/messageAlerts";
 import type { QueryCtx } from "./_generated/server";
 import type { Doc } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
@@ -280,3 +282,84 @@ export const ask = action({
     return { answer: fallbackAnswer(c), source: "fallback" };
   },
 });
+
+/* ── The portal thread ──────────────────────────────────────────────────
+   The client writes to the studio here and reads what the studio sent. A
+   message written here belongs to exactly one client and one studio, which is
+   the point: texts arrive on a shared number and have to be routed, these do
+   not. Never passed to the concierge's AI (docs/compliance/messages.md). */
+
+const THREAD_LIMIT = 100;
+const MESSAGE_MAX = 2000;
+const MESSAGE_WINDOW_MS = 3_600_000;
+const MESSAGE_LIMIT = 20;
+
+/** Public, token-scoped: this client's conversation with the studio, oldest first. */
+export const thread = query({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const grant = await loadGrant(ctx, token);
+    if (!grant) return null;
+    const artistId = ctx.db.normalizeId("artists", grant.entityId);
+    const artist = artistId ? await ctx.db.get(artistId) : null;
+    if (!artist || artist.orgId !== grant.orgId) return null;
+    const rows = await ctx.db
+      .query("clientMessages")
+      .withIndex("by_artist", (q) => q.eq("artistId", artist._id))
+      .collect();
+    return rows
+      // "internal" rows are the studio's own record of automated email, not conversation.
+      .filter((m) => m.channel !== "internal")
+      .sort((a, b) => a._creationTime - b._creationTime)
+      .slice(-THREAD_LIMIT)
+      .map((m) => ({ id: m._id, fromStudio: m.direction === "out", body: m.body, at: m._creationTime }));
+  },
+});
+
+/** Public, token-scoped: the client writes to the studio. Rate limited per link. */
+export const sendMessage = mutation({
+  args: { token: v.string(), body: v.string() },
+  handler: async (ctx, { token, body }) => {
+    const grant = await loadGrant(ctx, token);
+    if (!grant) throw new ConvexError("This portal link is no longer valid. Ask the studio for a fresh one.");
+    const artistId = ctx.db.normalizeId("artists", grant.entityId);
+    const artist = artistId ? await ctx.db.get(artistId) : null;
+    if (!artist || artist.orgId !== grant.orgId || artist.erasedAt) {
+      throw new ConvexError("This portal link is no longer valid. Ask the studio for a fresh one.");
+    }
+    const text = body.trim();
+    if (!text) throw new ConvexError("Write a message first.");
+    if (text.length > MESSAGE_MAX) throw new ConvexError(`Keep it under ${MESSAGE_MAX} characters.`);
+
+    const now = Date.now();
+    let count = grant.messageCount ?? 0;
+    let start = grant.messageWindowStart ?? 0;
+    if (now - start > MESSAGE_WINDOW_MS) {
+      count = 0;
+      start = now;
+    }
+    if (count >= MESSAGE_LIMIT) {
+      throw new ConvexError("That is a lot of messages in a short time. Give it a few minutes.");
+    }
+    await ctx.db.patch(grant._id, {
+      messageCount: count + 1,
+      messageWindowStart: start,
+      lastUsedAt: now,
+      firstUsedAt: grant.firstUsedAt ?? now,
+      useCount: grant.useCount + 1,
+    });
+    await ctx.db.insert("clientMessages", {
+      orgId: grant.orgId,
+      artistId: artist._id,
+      direction: "in",
+      subject: "Portal message",
+      body: text,
+      channel: "portal",
+      status: "received",
+      routedBy: "portal",
+    });
+    await alertStudioOfClientMessage(ctx, artist);
+    return null;
+  },
+});
+
