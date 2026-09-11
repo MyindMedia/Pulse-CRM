@@ -20,6 +20,7 @@ import {
   internalMutation as rawInternalMutation,
 } from "./_generated/server";
 import type { DataModel } from "./_generated/dataModel";
+import { ConvexError } from "convex/values";
 import { Triggers } from "convex-helpers/server/triggers";
 import {
   customCtx,
@@ -61,8 +62,40 @@ for (const table of AUDITED_TABLES) {
   });
 }
 
-export const mutation = customMutation(rawMutation, customCtx(triggers.wrapDB));
-export const internalMutation = customMutation(
-  rawInternalMutation,
-  customCtx(triggers.wrapDB),
-);
+/* Refusals say why, in production too.
+ *
+ * A production deployment hides the text of a plain thrown Error from every
+ * client and sends "Server Error" in its place, and most refusals in this
+ * codebase are plain Errors written for people ("This booking is already paid
+ * in full."). The phone filed "Server Error" as the reason a write was refused,
+ * which reads like a blip and invited retries that could never work. A
+ * ConvexError's data does reach the client, so a plain Error thrown by a
+ * handler leaves as one, with the same words. Anything already a ConvexError
+ * (AccessError and its codes, plan limits) passes through untouched, and so do
+ * TypeError and the like: those are bugs, not refusals, and stay in the logs.
+ * Actions are not covered here; they are not queued by the apps. */
+function sayWhy<T>(definition: T): T {
+  const wrap =
+    (handler: (...args: never[]) => unknown) =>
+    async (...args: never[]) => {
+      try {
+        return await handler(...args);
+      } catch (err) {
+        if (err instanceof Error && !(err instanceof ConvexError) && err.constructor === Error) {
+          throw new ConvexError(err.message);
+        }
+        throw err;
+      }
+    };
+  if (typeof definition === "function") return wrap(definition as never) as T;
+  const d = definition as { handler: (...args: never[]) => unknown };
+  return { ...d, handler: wrap(d.handler) } as T;
+}
+
+const triggeredMutation = customMutation(rawMutation, customCtx(triggers.wrapDB));
+const triggeredInternalMutation = customMutation(rawInternalMutation, customCtx(triggers.wrapDB));
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export const mutation = ((definition: any) => triggeredMutation(sayWhy(definition))) as typeof triggeredMutation;
+export const internalMutation = ((definition: any) => // eslint-disable-line @typescript-eslint/no-explicit-any
+  triggeredInternalMutation(sayWhy(definition))) as typeof triggeredInternalMutation;
