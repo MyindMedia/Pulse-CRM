@@ -1,5 +1,10 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
-import { NextResponse } from "next/server";
+import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
+import {
+  PRIMARY_ORIGIN,
+  SATELLITE_PROXY_URL,
+  isSatelliteHost,
+} from "@/lib/clerk-domains";
 
 /*
  * Clerk middleware - only enforced when Clerk is configured.
@@ -10,26 +15,12 @@ import { NextResponse } from "next/server";
 const CLERK_ENABLED = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
 /*
- * Multi-domain: studiopulse.tech is a Clerk SATELLITE of the primary
- * pulse.myindsound.com (different eTLD+1, so the session cookie cannot be
- * shared - Clerk's satellite handshake bridges it). Sign-in itself can only
- * happen on the primary; satellite visitors bounce there and return signed in.
+ * Multi-domain. Which host is primary and which is the satellite lives in one
+ * place - see src/lib/clerk-domains.ts, and read the note there before moving
+ * either, because the publishable key has to move with it. Sign-in itself can
+ * only happen on the primary; satellite visitors bounce there and return
+ * signed in.
  */
-const PRIMARY_ORIGIN = "https://pulse.myindsound.com";
-const SATELLITE_DOMAIN = "studiopulse.tech";
-/*
- * PROXY mode (not CNAME mode): Clerk's cert for clerk.studiopulse.tech never
- * issued, so the satellite's Frontend API is served through this app at
- * /__clerk instead - same-origin, covered by the site's own certificate.
- * clerkMiddleware's frontendApiProxy forwards those requests to Clerk over
- * the primary's FAPI TLS. If Clerk ever issues the CNAME cert, this can be
- * reverted to `domain: SATELLITE_DOMAIN` and the /__clerk plumbing removed.
- */
-const SATELLITE_PROXY_URL = `https://${SATELLITE_DOMAIN}/__clerk`;
-
-function isSatelliteHost(hostname: string): boolean {
-  return hostname === SATELLITE_DOMAIN || hostname.endsWith(`.${SATELLITE_DOMAIN}`);
-}
 
 const isPublicRoute = createRouteMatcher([
   "/",
@@ -41,6 +32,7 @@ const isPublicRoute = createRouteMatcher([
   // "no privacy policy" - which is exactly why a campaign was rejected before.
   "/privacy",
   "/terms",
+  "/support", // the App Store listing's support URL - App Review opens it signed out
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/api/webhooks(.*)",
@@ -137,7 +129,52 @@ const handler = CLERK_ENABLED
     )
   : () => NextResponse.next();
 
-export default handler;
+/*
+ * A client cookie left over from the proxy era.
+ *
+ * From July to September studiopulse.tech was the SATELLITE, served through
+ * /__clerk, and Clerk set its `__client` cookie on studiopulse.tech itself
+ * with a ten-year life. Now studiopulse.tech is the PRIMARY and the live
+ * client cookie belongs to clerk.studiopulse.tech. A browser that visited
+ * during those months still holds the old one, and because it is scoped to
+ * the parent domain it rides along on every request to clerk.studiopulse.tech
+ * AHEAD of the new cookie. Clerk reads the stale token, finds no client, and
+ * mints a fresh one on every call - so the sign-in attempt that started
+ * Google lives on a client the OAuth callback never sees, and Google sign-in
+ * ends in "authorization_invalid" for anyone who used the site before the
+ * move. Reproduced 2026-09-07 in two Chrome profiles; a fresh cookie jar
+ * signs in fine.
+ *
+ * The live cookie is never sent to this host (its Domain is the subdomain),
+ * so a `__client` arriving here is stale by definition. Expire it, in both
+ * scopes it could have been set with, and only on the primary: on the
+ * satellite, still in proxy mode, that cookie is the real one.
+ */
+const STALE_CLIENT_COOKIE = "__client";
+
+function expireStaleClientCookie(req: NextRequest, res: Awaited<ReturnType<typeof handler>>): Response {
+  const out: Response = (res as Response | null | undefined) ?? NextResponse.next();
+  if (isSatelliteHost(req.nextUrl.hostname) || !req.cookies.has(STALE_CLIENT_COOKIE)) return out;
+  const host = req.nextUrl.hostname;
+  const gone = (scope: string) =>
+    `${STALE_CLIENT_COOKIE}=; Path=/; ${scope}Max-Age=0; Expires=Thu, 01 Jan 1970 00:00:00 GMT; Secure; HttpOnly; SameSite=Lax`;
+  try {
+    out.headers.append("set-cookie", gone(`Domain=${host}; `));
+    out.headers.append("set-cookie", gone(""));
+    return out;
+  } catch {
+    // Immutable headers (a bare Response): rebuild it as one we can write to.
+    const rebuilt = new NextResponse(out.body, { status: out.status, headers: out.headers });
+    rebuilt.headers.append("set-cookie", gone(`Domain=${host}; `));
+    rebuilt.headers.append("set-cookie", gone(""));
+    return rebuilt;
+  }
+}
+
+export default async function middleware(req: NextRequest, event: NextFetchEvent) {
+  const res = await handler(req, event);
+  return expireStaleClientCookie(req, res);
+}
 
 export const config = {
   matcher: [
