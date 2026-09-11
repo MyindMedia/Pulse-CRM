@@ -3,7 +3,7 @@ import { mutation } from "./functions";
 import { v, ConvexError } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import type { QueryCtx } from "./_generated/server";
-import { currentOrgWithCapability, currentActor, assertOrg } from "./lib/tenant";
+import { currentOrgWithCapability, currentActor, assertOrg, currentMoneySight } from "./lib/tenant";
 import { connectorV, signalLevelV, genderV } from "./lib/patchValidators";
 import { cableFit, type Gender } from "./lib/connectors";
 
@@ -500,6 +500,11 @@ export const createStock = mutation({
   },
   handler: async (ctx, args) => {
     const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
+    // What cable stock cost is money; its length and connectors are not.
+    if (!(await currentMoneySight(ctx)).money) {
+      args.purchaseCents = 0;
+      args.currentValueCents = undefined;
+    }
 
     if (!args.name.trim()) throw new ConvexError("Give the cable a name.");
     if (args.quantity < 1) throw new ConvexError("Quantity must be at least 1.");
@@ -745,6 +750,10 @@ export const updateStock = mutation({
     assertOrg(item, orgId);
     if (item.category !== "cable") {
       throw new ConvexError("That inventory item is not cable stock.");
+    }
+    if (!(await currentMoneySight(ctx)).money) {
+      delete patch.purchaseCents;
+      delete patch.currentValueCents;
     }
 
     if (patch.installedInRoomId) {

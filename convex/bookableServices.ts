@@ -1,8 +1,9 @@
 import { query } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
-import { currentOrg, assertOrg } from "./lib/tenant";
+import { currentOrg, assertOrg, currentMoneySight, currentOrgWithCapability } from "./lib/tenant";
 
+import { redactMoney } from "./lib/money";
 /* ============================================================
    Bookable services - the studio's catalogue.
 
@@ -43,6 +44,7 @@ export const list = query({
         .collect()
     ).sort((a, b) => a.order - b.order);
 
+    const sight = await currentMoneySight(ctx);
     return await Promise.all(
       rows.map(async (s) => {
         const room = await ctx.db.get(s.roomId);
@@ -50,9 +52,9 @@ export const list = query({
           await Promise.all((s.addOnFeeIds ?? []).map((id) => ctx.db.get(id)))
         )
           .filter((f) => f !== null)
-          .map((f) => ({ _id: f._id, label: f.label, amountCents: f.amountCents }));
+          .map((f) => (sight.money ? { _id: f._id, label: f.label, amountCents: f.amountCents } : { _id: f._id, label: f.label }));
         return {
-          ...s,
+          ...redactMoney("bookableServices", s, sight),
           roomName: room?.name ?? "Room removed",
           roomBookable: room?.bookable !== false && room?.status !== "retired",
           addOns,
@@ -99,7 +101,8 @@ export const create = mutation({
     heroImageUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const orgId = await currentOrg(ctx);
+    // A service is a price list entry. Setting one is a money write.
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
     const name = args.name.trim();
     if (!name) throw new ConvexError("Give the service a name.");
     const room = await ctx.db.get(args.roomId);
@@ -142,7 +145,7 @@ export const update = mutation({
     active: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...patch }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
     const svc = await ctx.db.get(id);
     assertOrg(svc, orgId);
     if (patch.roomId) {

@@ -64,8 +64,13 @@ export default function SoftwarePage() {
 
       <div className="rise-stagger grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
         <StatTile label="Licenses" value={summary ? <CountUp to={summary.count} /> : "-"} icon={AppWindow} accent hint={summary ? `${summary.subscriptions} subscriptions` : ""} />
-        <StatTile label="Recurring / yr" value={summary ? <CountUp to={summary.annualRecurring} format={(n) => money(n, { compact: true })} /> : "-"} icon={RefreshCw} hint={summary ? `${money(summary.monthlyRecurring)}/mo` : ""} />
-        <StatTile label="Perpetual value" value={summary ? <CountUp to={summary.perpetualValue} format={(n) => money(n, { compact: true })} /> : "-"} icon={InfinityIcon} hint="one-time licenses" />
+        {/* What software costs is money: null from the server for anyone without it. */}
+        {summary?.annualRecurring !== null && (
+          <StatTile label="Recurring / yr" value={summary && summary.annualRecurring !== null ? <CountUp to={summary.annualRecurring} format={(n) => money(n, { compact: true })} /> : "-"} icon={RefreshCw} hint={summary && summary.monthlyRecurring !== null ? `${money(summary.monthlyRecurring)}/mo` : ""} />
+        )}
+        {summary?.perpetualValue !== null && (
+          <StatTile label="Perpetual value" value={summary && summary.perpetualValue !== null ? <CountUp to={summary.perpetualValue} format={(n) => money(n, { compact: true })} /> : "-"} icon={InfinityIcon} hint="one-time licenses" />
+        )}
         <StatTile label="Renewals soon" value={summary ? <CountUp to={summary.upcomingRenewals} /> : "-"} icon={CalendarClock} hint="next 60 days" />
         <StatTile label="Expired" value={summary ? <CountUp to={summary.expired} /> : "-"} icon={Layers} hint="need attention" />
       </div>

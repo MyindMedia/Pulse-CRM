@@ -2,10 +2,11 @@ import { query, QueryCtx, MutationCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { Doc, Id } from "./_generated/dataModel";
 import { v, ConvexError } from "convex/values";
-import { currentOrg, assertOrg, currentOrgWithCapability} from "./lib/tenant";
+import { currentOrg, assertOrg, currentOrgWithCapability, currentMoneySight } from "./lib/tenant";
 import { searchGearCatalog } from "./lib/gearCatalog";
 import { meterStorageUpload } from "./usage";
 
+import { redactEach } from "./lib/money";
 /* ============================================================
    Equipment - gear assets. Each item is either installed in a
    room or sitting in storage. Installed gear inherits its room's
@@ -88,7 +89,8 @@ export const list = query({
       rows = rows.filter((r) => r.installedInRoomId === location);
     }
     const hydrated = await Promise.all(rows.map((r) => hydrate(ctx, r)));
-    return hydrated.sort((a, b) => a.name.localeCompare(b.name));
+    // What the gear cost and is worth stays with whoever may see money.
+    return redactEach("equipment", hydrated.sort((a, b) => a.name.localeCompare(b.name)), await currentMoneySight(ctx));
   },
 });
 
@@ -104,7 +106,10 @@ export const forRoom = query({
     const withPhotos = await Promise.all(
       rows.map(async (r) => ({ ...r, photo: await photoOf(ctx, r) })),
     );
-    return withPhotos.sort((a, b) => b.currentValueCents - a.currentValueCents);
+    const sight = await currentMoneySight(ctx);
+    return sight.money
+      ? withPhotos.sort((a, b) => b.currentValueCents - a.currentValueCents)
+      : redactEach("equipment", withPhotos.sort((a, b) => a.name.localeCompare(b.name)), sight);
   },
 });
 
@@ -117,7 +122,7 @@ export const storage = query({
       .query("equipment")
       .withIndex("by_org_room", (q) => q.eq("orgId", orgId).eq("installedInRoomId", undefined))
       .collect();
-    return rows.sort((a, b) => a.name.localeCompare(b.name));
+    return redactEach("equipment", rows.sort((a, b) => a.name.localeCompare(b.name)), await currentMoneySight(ctx));
   },
 });
 
@@ -139,22 +144,25 @@ export const summary = query({
     const sum = (arr: typeof rows, k: "purchaseCents" | "currentValueCents") =>
       arr.reduce((s, r) => s + r[k] * qty(r), 0);
     const units = rows.reduce((s, r) => s + qty(r), 0);
+    // Counts are the inventory; totals are money.
+    const sight = await currentMoneySight(ctx);
+    const figure = (cents: number) => (sight.money ? cents : null);
     return {
       count: rows.length,
       units,
       installed,
       inStorage: rows.length - installed,
-      purchaseTotal,
-      currentTotal,
-      depreciation: purchaseTotal - currentTotal,
+      purchaseTotal: figure(purchaseTotal),
+      currentTotal: figure(currentTotal),
+      depreciation: figure(purchaseTotal - currentTotal),
       maintenance: rows.filter((r) => !r.installedInRoomId && r.status === "maintenance").length,
       // Cost separation: gear/hardware vs furniture & space.
       gearCount: gear.length,
-      gearCurrent: sum(gear, "currentValueCents"),
-      gearPurchase: sum(gear, "purchaseCents"),
+      gearCurrent: figure(sum(gear, "currentValueCents")),
+      gearPurchase: figure(sum(gear, "purchaseCents")),
       furnitureCount: furniture.length,
-      furnitureCurrent: sum(furniture, "currentValueCents"),
-      furniturePurchase: sum(furniture, "purchaseCents"),
+      furnitureCurrent: figure(sum(furniture, "currentValueCents")),
+      furniturePurchase: figure(sum(furniture, "purchaseCents")),
     };
   },
 });
@@ -189,6 +197,12 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
+    // What gear cost, is worth and rents for is money.
+    if (!(await currentMoneySight(ctx)).money) {
+      args.purchaseCents = 0;
+      args.currentValueCents = 0;
+      args.rentalPriceCents = undefined;
+    }
     if (args.installedInRoomId) {
       const room = await ctx.db.get(args.installedInRoomId);
       assertOrg(room, orgId);
@@ -365,6 +379,11 @@ export const update = mutation({
     const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
+    if (!(await currentMoneySight(ctx)).money) {
+      delete patch.purchaseCents;
+      delete patch.currentValueCents;
+      delete patch.rentalPriceCents;
+    }
     // `rentable` is a real boolean toggle, so it must survive the undefined
     // filter even when set to false; everything else only patches when present.
     const clean: Record<string, unknown> = Object.fromEntries(
@@ -418,7 +437,8 @@ export const setRentable = mutation({
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
     const patch: Record<string, unknown> = { rentable };
-    if (rentalPriceCents !== undefined) {
+    // Offering gear for rent is inventory; its price is money.
+    if (rentalPriceCents !== undefined && (await currentMoneySight(ctx)).money) {
       patch.rentalPriceCents = Math.max(0, Math.round(rentalPriceCents));
     }
     await ctx.db.patch(id, patch);
@@ -436,6 +456,7 @@ export const rentableBoard = query({
       ctx.db.query("sessions").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect(),
     ]);
     const now = Date.now();
+    const sight = await currentMoneySight(ctx);
     const upcomingByItem = new Map<string, number>();
     for (const s of sessions) {
       if (s.endTime <= now || s.status === "cancelled" || s.status === "no_show") continue;
@@ -445,7 +466,7 @@ export const rentableBoard = query({
     }
     const rentable: {
       _id: Id<"equipment">; name: string; category: string; quantity: number;
-      photo: string | null; rentalPriceCents: number; upcomingRentals: number;
+      photo: string | null; rentalPriceCents: number | null; upcomingRentals: number;
     }[] = [];
     const candidates: {
       _id: Id<"equipment">; name: string; category: string; quantity: number; photo: string | null;
@@ -456,7 +477,7 @@ export const rentableBoard = query({
       if (e.rentable) {
         rentable.push({
           ...base,
-          rentalPriceCents: e.rentalPriceCents ?? 0,
+          rentalPriceCents: sight.money ? (e.rentalPriceCents ?? 0) : null,
           upcomingRentals: upcomingByItem.get(e._id) ?? 0,
         });
       } else if (!isFurniture(e.category)) {

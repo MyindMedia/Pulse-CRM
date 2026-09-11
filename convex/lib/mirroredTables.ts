@@ -1,3 +1,5 @@
+import { moneySight, redactMoney, PROCESSOR_FIELDS } from "./money";
+
 /* Tables the native clients keep a local copy of.
  *
  * Every entry must be orgId-scoped and carry an `orgId`-first index, because a
@@ -106,6 +108,8 @@ export const MIRRORED_FIELDS: Partial<Record<MirroredTable, readonly string[]>> 
     "orgId", "name", "slug", "plan", "status", "agencyId",
     "logoId", "accentColor", "tagline", "timezone",
     "onboardingCompletedAt",
+    // The phone draws the owner's toggle, and needs its current position.
+    "managersSeeMoney",
   ],
   // payRateCents and commissionPct are payroll. members.list already returns
   // them to anyone in the org, which is its own bug, but a mirror keeps them
@@ -181,7 +185,7 @@ const NESTED_PROJECTORS: Partial<
  * date, a bereavement - and the only way to read anyone else's is
  * `availability.pendingTimeOff`, which requires `schedule.manage`. Mirroring
  * either wholesale would grant a capability the product never defined. */
-export const MIRRORED_CAPABILITY: Partial<Record<MirroredTable, string>> = {
+export const MIRRORED_CAPABILITY: Partial<Record<MirroredTable, string | readonly string[]>> = {
   timeOff: "schedule.manage",
   availability: "schedule.manage",
   // Money. `invoices.read` is what `payments.recent`, `invoices.list`,
@@ -196,7 +200,10 @@ export const MIRRORED_CAPABILITY: Partial<Record<MirroredTable, string>> = {
   // not what the studio banked.
   expenses: "insights.read",
   payouts: "insights.read",
-  timeEntries: "insights.read",
+  // The studio-wide clock: payroll to whoever holds the books, the rota to
+  // whoever runs the schedule. A manager whose owner has hidden money still
+  // sees who is on shift; each punch's pay rate is stripped (lib/money.ts).
+  timeEntries: ["insights.read", "schedule.manage"],
   reviews: "insights.read",
   // The patch map. `patch.read` is what the web app requires to open a canvas,
   // and everyone from intern up holds it - tracing a signal path is the job.
@@ -212,6 +219,7 @@ export const MIRRORED_CAPABILITY: Partial<Record<MirroredTable, string>> = {
 export function projectDoc(
   table: string,
   doc: Record<string, unknown>,
+  viewer: MirrorViewer,
 ): Record<string, unknown> {
   const allowed = MIRRORED_FIELDS[table as MirroredTable];
   let out: Record<string, unknown>;
@@ -225,7 +233,45 @@ export function projectDoc(
     out = doc;
   }
   const nested = NESTED_PROJECTORS[table as MirroredTable];
-  return nested ? nested(out) : out;
+  const shaped = nested ? nested(out) : out;
+  // Processor handles leave for everyone. Money leaves for whoever may not see
+  // it, and a device copy is exactly where that matters most.
+  const processor = PROCESSOR_FIELDS[table];
+  let clean = shaped;
+  if (processor?.some((field) => field in shaped)) {
+    clean = { ...shaped };
+    for (const field of processor) delete clean[field];
+  }
+  return redactMoney(table, clean, moneySight(viewer.capabilities), "placeholder");
+}
+
+/** Whether a caller holds a table's gate: one capability, or any of several. */
+function holdsGate(
+  needed: string | readonly string[] | undefined,
+  capabilities: ReadonlySet<string>,
+): boolean {
+  if (needed === undefined) return true;
+  return typeof needed === "string"
+    ? capabilities.has(needed)
+    : needed.some((cap) => capabilities.has(cap));
+}
+
+/* A device's copy is only as right as the permissions it was fetched under.
+ *
+ * The change-feed cursor carries this tag, and `sync.cursorIsUsable` refuses a
+ * cursor whose tag is not the caller's current one. A manager whose owner has
+ * just hidden money, anyone promoted or demoted, a studio that changed a table
+ * gate: each re-snapshots instead of keeping rows fetched under the old answer.
+ * The epoch moves whenever what a projection strips changes, so every device
+ * re-fetches once. */
+const MIRROR_EPOCH = "m2";
+
+export function mirrorSightTag(viewer: MirrorViewer): string {
+  const sight = moneySight(viewer.capabilities);
+  const tables = tablesFor(viewer).join(",");
+  let hash = 5381;
+  for (let i = 0; i < tables.length; i++) hash = ((hash * 33) ^ tables.charCodeAt(i)) >>> 0;
+  return `${MIRROR_EPOCH}.${hash.toString(36)}.${sight.money ? "c" : ""}${sight.books ? "b" : ""}`;
 }
 
 /* Rows a person may hold about THEMSELVES, whatever their role.
@@ -258,8 +304,7 @@ export type MirrorViewer = {
 
 /** Whether this caller receives this table at all. */
 function mayMirror(table: MirroredTable, viewer: MirrorViewer): boolean {
-  const needed = MIRRORED_CAPABILITY[table];
-  if (!needed || viewer.capabilities.has(needed)) return true;
+  if (holdsGate(MIRRORED_CAPABILITY[table], viewer.capabilities)) return true;
   return MIRRORED_OWN_ROWS[table] !== undefined && viewer.memberId !== undefined;
 }
 
@@ -279,8 +324,7 @@ export function rowAllowed(
   doc: Record<string, unknown>,
   viewer: MirrorViewer,
 ): boolean {
-  const needed = MIRRORED_CAPABILITY[table];
-  if (!needed || viewer.capabilities.has(needed)) return true;
+  if (holdsGate(MIRRORED_CAPABILITY[table], viewer.capabilities)) return true;
   const field = MIRRORED_OWN_ROWS[table];
   if (!field || !viewer.memberId) return false;
   return doc[field] === viewer.memberId;

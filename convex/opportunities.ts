@@ -2,9 +2,10 @@ import { query, MutationCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
-import { currentOrg, currentOrgWithCapability} from "./lib/tenant";
+import { currentOrg, currentOrgWithCapability, currentMoneySight } from "./lib/tenant";
 import { insertSession } from "./sessions";
 
+import { redactMoney, redactEach } from "./lib/money";
 const stageV = v.union(
   v.literal("inquiry"),
   v.literal("qualified"),
@@ -50,13 +51,17 @@ export const board = query({
         .filter(Boolean)
         .map((a) => [a!._id, a!]),
     );
-    return rows
-      .map((r) => ({
-        ...r,
-        artistName: artists.get(r.artistId)?.name ?? "Unknown",
-        artistType: artists.get(r.artistId)?.type ?? "other",
-      }))
-      .sort((a, b) => b.updatedAt - a.updatedAt);
+    return redactEach(
+      "opportunities",
+      rows
+        .map((r) => ({
+          ...r,
+          artistName: artists.get(r.artistId)?.name ?? "Unknown",
+          artistType: artists.get(r.artistId)?.type ?? "other",
+        }))
+        .sort((a, b) => b.updatedAt - a.updatedAt),
+      await currentMoneySight(ctx),
+    );
   },
 });
 
@@ -75,10 +80,11 @@ export const metrics = query({
     const won = rows.filter((r) => r.stage === "won").length;
     const lost = rows.filter((r) => r.stage === "lost").length;
     const closed = won + lost;
+    const sight = await currentMoneySight(ctx);
     return {
       openCount: open.length,
-      totalValue,
-      weightedValue: Math.round(weightedValue),
+      totalValue: sight.money ? totalValue : null,
+      weightedValue: sight.money ? Math.round(weightedValue) : null,
       winRate: closed ? won / closed : 0,
     };
   },
@@ -94,7 +100,7 @@ export const get = query({
       ctx.db.get(opp.artistId),
       opp.songId ? ctx.db.get(opp.songId) : null,
     ]);
-    return { ...opp, artist, songTitle: song?.title ?? null };
+    return { ...redactMoney("opportunities", opp, await currentMoneySight(ctx)), artist, songTitle: song?.title ?? null };
   },
 });
 
@@ -109,6 +115,9 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const orgId = await currentOrgWithCapability(ctx, "opportunities.edit");
+    // Artist relations works the pipeline without its figures; a deal they log
+    // is valued by someone who can see money.
+    if (!(await currentMoneySight(ctx)).money) args.valueCents = 0;
     const artist = await ctx.db.get(args.artistId);
     if (!artist || artist.orgId !== orgId) throw new Error("Artist not found");
     const id = await ctx.db.insert("opportunities", {
@@ -327,6 +336,7 @@ export const update = mutation({
     const orgId = await currentOrgWithCapability(ctx, "opportunities.edit");
     const opp = await ctx.db.get(id);
     if (!opp || opp.orgId !== orgId) throw new Error("Not found");
+    if (!(await currentMoneySight(ctx)).money) delete patch.valueCents;
     const clean = Object.fromEntries(Object.entries(patch).filter(([, val]) => val !== undefined));
     await ctx.db.patch(id, { ...clean, updatedAt: Date.now() });
   },

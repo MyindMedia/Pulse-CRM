@@ -3,7 +3,7 @@ import { mutation, internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
-import { currentOrg, currentOrgWithCapability } from "./lib/tenant";
+import { currentOrg, currentOrgWithCapability, currentMoneySight } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { stripeClient } from "./lib/stripe";
 import { money } from "./lib/money";
@@ -194,6 +194,7 @@ export const creditsForArtist = query({
   handler: async (ctx, { artistId }) => {
     const orgId = await currentOrg(ctx);
     await requireCapability(ctx, "sessions.read", { orgId });
+    const sight = await currentMoneySight(ctx);
     const rows = await ctx.db
       .query("packageCredits")
       .withIndex("by_org_artist", (q) => q.eq("orgId", orgId).eq("artistId", artistId))
@@ -207,7 +208,7 @@ export const creditsForArtist = query({
         hoursTotal: c.hoursTotal,
         hoursRemaining: c.hoursRemaining,
         // Per-hour value the studio credits back when hours are applied.
-        perHourCents: c.hoursTotal > 0 ? Math.round(c.priceCents / c.hoursTotal) : 0,
+        perHourCents: !sight.money ? null : c.hoursTotal > 0 ? Math.round(c.priceCents / c.hoursTotal) : 0,
       }));
   },
 });

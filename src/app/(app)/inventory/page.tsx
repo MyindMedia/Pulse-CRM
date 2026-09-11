@@ -175,25 +175,45 @@ export default function InventoryPage() {
         </div>
       ) : (
         <div className="rise-stagger grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
-          <StatTile
-            label="Total value"
-            value={<CountUp to={summary.currentTotal} format={(n) => money(n, { compact: true })} />}
-            icon={Wallet}
-            accent
-            hint={`${summary.count} ${summary.count === 1 ? "item" : "items"}`}
-          />
-          <StatTile
-            label="Gear value"
-            value={<CountUp to={summary.gearCurrent} format={(n) => money(n, { compact: true })} />}
-            icon={Cpu}
-            hint={`${summary.gearCount} hardware items`}
-          />
-          <StatTile
-            label="Furniture value"
-            value={<CountUp to={summary.furnitureCurrent} format={(n) => money(n, { compact: true })} />}
-            icon={Sofa}
-            hint={`${summary.furnitureCount} furniture & space`}
-          />
+          {/* What the gear is worth is money; the server sends null to anyone
+              without it, and the tiles become counts. */}
+          {summary.currentTotal !== null ? (
+            <StatTile
+              label="Total value"
+              value={<CountUp to={summary.currentTotal} format={(n) => money(n, { compact: true })} />}
+              icon={Wallet}
+              accent
+              hint={`${summary.count} ${summary.count === 1 ? "item" : "items"}`}
+            />
+          ) : (
+            <StatTile
+              label="Items"
+              value={<CountUp to={summary.units} />}
+              icon={Cpu}
+              accent
+              hint={`${summary.count} ${summary.count === 1 ? "record" : "records"}`}
+            />
+          )}
+          {summary.gearCurrent !== null ? (
+            <StatTile
+              label="Gear value"
+              value={<CountUp to={summary.gearCurrent} format={(n) => money(n, { compact: true })} />}
+              icon={Cpu}
+              hint={`${summary.gearCount} hardware items`}
+            />
+          ) : (
+            <StatTile label="Gear" value={<CountUp to={summary.gearCount} />} icon={Cpu} hint="hardware items" />
+          )}
+          {summary.furnitureCurrent !== null ? (
+            <StatTile
+              label="Furniture value"
+              value={<CountUp to={summary.furnitureCurrent} format={(n) => money(n, { compact: true })} />}
+              icon={Sofa}
+              hint={`${summary.furnitureCount} furniture & space`}
+            />
+          ) : (
+            <StatTile label="Furniture" value={<CountUp to={summary.furnitureCount} />} icon={Sofa} hint="furniture & space" />
+          )}
           <StatTile
             label="Installed"
             value={<CountUp to={summary.installed} />}

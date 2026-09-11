@@ -162,18 +162,23 @@ export default function PipelinePage() {
       ) : (
         <div className="rise-stagger grid grid-cols-2 gap-3 md:grid-cols-4">
           <StatTile label="Open deals" value={<CountUp to={metrics.openCount} />} icon={Layers} />
-          <StatTile
-            label="Pipeline value"
-            value={<CountUp to={metrics.totalValue} format={(n) => money(n, { compact: true })} />}
-            icon={Wallet}
-            accent
-          />
-          <StatTile
-            label="Weighted value"
-            value={<CountUp to={metrics.weightedValue} format={(n) => money(n, { compact: true })} />}
-            icon={Percent}
-            hint="probability-adjusted"
-          />
+          {/* Deal values are money: null from the server for anyone without it. */}
+          {metrics.totalValue !== null && (
+            <StatTile
+              label="Pipeline value"
+              value={<CountUp to={metrics.totalValue} format={(n) => money(n, { compact: true })} />}
+              icon={Wallet}
+              accent
+            />
+          )}
+          {metrics.weightedValue !== null && (
+            <StatTile
+              label="Weighted value"
+              value={<CountUp to={metrics.weightedValue} format={(n) => money(n, { compact: true })} />}
+              icon={Percent}
+              hint="probability-adjusted"
+            />
+          )}
           <StatTile
             label="Win rate"
             value={<CountUp to={metrics.winRate} format={(n) => percent(n)} />}

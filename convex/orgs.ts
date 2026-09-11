@@ -4,7 +4,7 @@ import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { currentOrg, currentActor, currentOrgWithCapability} from "./lib/tenant";
-import { AccessError } from "./lib/access";
+import { AccessError, resolveViewer } from "./lib/access";
 import { US_STATES, findState } from "./lib/usTaxRates";
 import { isValidTimezone } from "./lib/tz";
 import { meterStorageUpload, tierForOrg } from "./usage";
@@ -66,6 +66,8 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     // Undefined means on - a studio that never touched the switch has always
     // shown its gear on the booking page.
     showGearOnBooking: org?.showGearOnBooking !== false,
+    // Undefined means on: managers have always seen money until an owner says not.
+    managersSeeMoney: org?.managersSeeMoney !== false,
     brandPalette: org?.brandPalette ?? null,
     tagline: org?.tagline ?? "Your music business runs itself.",
     logoUrl: org?.logoId ? await ctx.storage.getUrl(org.logoId) : null,
@@ -439,5 +441,37 @@ export const setAiReceptionist = mutation({
     const org = await ensureOrg(ctx, orgId);
     if (!org) throw new Error("Org not found");
     await ctx.db.patch(org._id, { aiReceptionistEnabled: enabled });
+  },
+});
+
+/** Whether managers see money. Owner only; on unless an owner turns it off.
+ *
+ *  Off, a manager keeps running the studio - bookings, the schedule, the team,
+ *  who is on the clock - and loses every figure: invoices, payments, rates,
+ *  deposits, payroll, expenses, reports. Nothing here re-decides that per
+ *  screen. lib/access.ts withholds the money capabilities, so the web app, the
+ *  phone and every device's mirror change together, and a manager's phone
+ *  re-fetches without the figures on its next sync (lib/mirroredTables.ts). */
+export const setManagersSeeMoney = mutation({
+  args: { enabled: v.boolean() },
+  handler: async (ctx, { enabled }) => {
+    const orgId = await currentOrg(ctx);
+    const viewer = await resolveViewer(ctx);
+    const role = "role" in viewer ? viewer.role : undefined;
+    if (role !== "owner") {
+      throw new AccessError("OWNER_ONLY", "Only an owner can decide whether managers see money.");
+    }
+    const org = await ensureOrg(ctx, orgId);
+    if (!org) throw new Error("Org not found");
+    await ctx.db.patch(org._id, { managersSeeMoney: enabled });
+    await ctx.db.insert("activity", {
+      orgId,
+      kind: "settings.managers_money",
+      summary: enabled ? "Managers can see money again" : "Money is now hidden from managers",
+      entityType: "org",
+      entityId: org._id,
+      accent: "info",
+    });
+    return null;
   },
 });

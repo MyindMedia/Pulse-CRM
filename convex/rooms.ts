@@ -1,11 +1,12 @@
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v, ConvexError } from "convex/values";
-import { currentOrg, assertOrg } from "./lib/tenant";
+import { currentOrg, assertOrg, currentMoneySight, currentOrgWithCapability } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { recomputeRoomStatus } from "./lib/roomStatus";
 import { meterStorageUpload } from "./usage";
 
+import { redactMoney, redactEach } from "./lib/money";
 /* Rooms are the bookable studios. Gear lives in the `equipment` table and
    links back here via `installedInRoomId`. */
 
@@ -25,6 +26,7 @@ export const list = query({
       .query("rooms")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .collect();
+    const sight = await currentMoneySight(ctx);
     return Promise.all(
       rooms.map(async (room) => {
         const gear = await ctx.db
@@ -34,10 +36,10 @@ export const list = query({
           )
           .collect();
         return {
-          ...room,
+          ...redactMoney("rooms", room, sight),
           heroUrl: room.heroImageId ? await ctx.storage.getUrl(room.heroImageId) : (room.heroImageUrl ?? null),
           equipmentCount: gear.length,
-          equipmentValueCents: gear.reduce((s, g) => s + g.currentValueCents, 0),
+          equipmentValueCents: sight.money ? gear.reduce((s, g) => s + g.currentValueCents, 0) : null,
         };
       }),
     );
@@ -55,11 +57,20 @@ export const get = query({
       .query("equipment")
       .withIndex("by_org_room", (q) => q.eq("orgId", orgId).eq("installedInRoomId", id))
       .collect();
+    const sight = await currentMoneySight(ctx);
     return {
-      ...room,
+      ...redactMoney("rooms", room, sight),
       heroUrl: room.heroImageId ? await ctx.storage.getUrl(room.heroImageId) : (room.heroImageUrl ?? null),
-      equipment: equipment.sort((a, b) => b.currentValueCents - a.currentValueCents),
-      equipmentValueCents: equipment.reduce((s, g) => s + g.currentValueCents, 0),
+      // One type either way: most valuable first for someone who may see value,
+      // alphabetical for everyone else, so the order itself does not tell.
+      equipment: redactEach(
+        "equipment",
+        sight.money
+          ? equipment.sort((a, b) => b.currentValueCents - a.currentValueCents)
+          : equipment.sort((a, b) => a.name.localeCompare(b.name)),
+        sight,
+      ),
+      equipmentValueCents: sight.money ? equipment.reduce((s, g) => s + g.currentValueCents, 0) : null,
     };
   },
 });
@@ -92,7 +103,14 @@ export const create = mutation({
     showGear: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "rooms.edit");
+    // Rates and deposit terms are money: set only by someone who may see it.
+    if (!(await currentMoneySight(ctx)).money) {
+      const fields = args as Record<string, unknown>;
+      delete fields.hourlyRateCents;
+      delete fields.depositPct;
+      delete fields.paymentMode;
+    }
     return await ctx.db.insert("rooms", {
       orgId,
       status: "available",
@@ -119,9 +137,14 @@ export const update = mutation({
     bookable: v.optional(v.boolean()),
   },
   handler: async (ctx, { id, ...patch }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "rooms.edit");
     const room = await ctx.db.get(id);
     assertOrg(room, orgId);
+    if (!(await currentMoneySight(ctx)).money) {
+      delete patch.hourlyRateCents;
+      delete patch.depositPct;
+      delete patch.paymentMode;
+    }
     const clean = Object.fromEntries(Object.entries(patch).filter(([, val]) => val !== undefined));
     await ctx.db.patch(id, clean);
   },

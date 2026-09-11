@@ -1,6 +1,7 @@
 import { QueryCtx, MutationCtx } from "../_generated/server";
 import { resolveViewer, requireCapability } from "./access";
 import type { Capability } from "./accessTypes";
+import { moneySight, type MoneySight } from "./money";
 
 /* The seeded workspace used whenever Clerk auth is not configured. */
 export const DEMO_ORG = "pulse-demo";
@@ -43,4 +44,11 @@ export function assertOrg<T extends { orgId: string } | null>(
   orgId: string,
 ): asserts doc is NonNullable<T> {
   if (!doc || doc.orgId !== orgId) throw new Error("Not found");
+}
+
+/** What money this caller may see (lib/money.ts). One resolve, for a read that
+ *  returns rows carrying rates, values or pay and must strip them for the floor. */
+export async function currentMoneySight(ctx: Ctx): Promise<MoneySight> {
+  const viewer = await resolveViewer(ctx);
+  return moneySight(viewer.capabilities as ReadonlySet<string>);
 }

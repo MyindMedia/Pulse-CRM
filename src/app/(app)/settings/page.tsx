@@ -26,6 +26,7 @@ import { ExportPanel } from "@/components/settings/export-panel";
 import { MembershipsPanel } from "@/components/settings/memberships-panel";
 import { InventoryImportPanel } from "@/components/settings/inventory-import-panel";
 import { AiReceptionistPanel } from "@/components/settings/ai-receptionist-panel";
+import { ManagersMoneyPanel } from "@/components/settings/managers-money-panel";
 import type { Org } from "@/components/settings/types";
 import { CapabilityGuard } from "@/components/shell/capability-guard";
 
@@ -131,7 +132,10 @@ function SettingsView() {
             </div>
           </TabsContent>
           <TabsContent value="team">
-            <TeamPanel />
+            <div className="space-y-5">
+              <TeamPanel />
+              <ManagersMoneyPanel org={org} />
+            </div>
           </TabsContent>
           <TabsContent value="integrations">
             <div className="space-y-5">

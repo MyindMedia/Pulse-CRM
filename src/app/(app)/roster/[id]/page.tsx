@@ -251,13 +251,16 @@ export default function ArtistDetailPage() {
           value={<CountUp to={data.sessionCount} />}
           icon={CalendarCheck}
         />
-        <StatTile
-          label="Outstanding"
-          value={<CountUp to={data.outstandingCents} format={(n) => money(n, { compact: true })} />}
-          icon={Wallet}
-          hint={outstandingHint(data.invoices)}
-          onClick={data.outstandingCents > 0 ? () => setTab("invoices") : undefined}
-        />
+        {/* A client's balance is money: null for anyone without it. */}
+        {data.outstandingCents !== null && (
+          <StatTile
+            label="Outstanding"
+            value={<CountUp to={data.outstandingCents} format={(n) => money(n, { compact: true })} />}
+            icon={Wallet}
+            hint={outstandingHint(data.invoices)}
+            onClick={data.outstandingCents > 0 ? () => setTab("invoices") : undefined}
+          />
+        )}
         <StatTile
           label="Last contact"
           value={data.lastContactAt ? relativeTime(data.lastContactAt) : "-"}

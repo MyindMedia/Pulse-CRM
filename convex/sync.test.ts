@@ -2,6 +2,8 @@ import { describe, it, expect, beforeEach, vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
+import { mirrorSightTag } from "./lib/mirroredTables";
+import { STUDIO_ROLE_CAPABILITIES } from "./lib/accessPolicies";
 
 /* The delta feed the native macOS client syncs against.
    The demo viewer resolves to org "pulse-demo", so writes made through the real
@@ -198,11 +200,13 @@ describe("sync: retention", () => {
       });
     });
 
-    const fresh = await t.query(api.sync.cursorIsUsable, { cursor: `${Date.now()}:1` });
+    // The demo viewer is an owner; a cursor carries who its rows were shaped for.
+    const tag = mirrorSightTag({ capabilities: new Set<string>(STUDIO_ROLE_CAPABILITIES.owner) });
+    const fresh = await t.query(api.sync.cursorIsUsable, { cursor: `${Date.now()}:1:${tag}` });
     expect(fresh.usable).toBe(true);
 
     const ancient = Date.now() - 30 * 24 * 60 * 60 * 1000;
-    const stale = await t.query(api.sync.cursorIsUsable, { cursor: `${ancient}:1` });
+    const stale = await t.query(api.sync.cursorIsUsable, { cursor: `${ancient}:1:${tag}` });
     expect(stale.usable).toBe(false);
 
     // A device that has never synced has no cursor and simply snapshots.

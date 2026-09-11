@@ -59,6 +59,7 @@ export type Org = {
   taxRate: number | null;
   taxApply: boolean;
   aiReceptionistEnabled: boolean;
+  managersSeeMoney: boolean;
 };
 
 /** Service keys mirror sessions.serviceType. */

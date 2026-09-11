@@ -26,6 +26,9 @@ type TableDef = {
 };
 const tables = schema.tables as unknown as Record<string, TableDef>;
 
+/** Whoever sees everything, so these checks are about projection, not money. */
+const OWNER = { capabilities: new Set<string>(STUDIO_ROLE_CAPABILITIES.owner) };
+
 describe("the mirror list agrees with the schema", () => {
   it.each(MIRRORED_TABLES)("%s exists, is org-scoped, and has an orgId-first index", (name) => {
     const table = tables[name];
@@ -57,7 +60,7 @@ describe("the mirror list agrees with the schema", () => {
       ...Object.values(STUDIO_ROLE_CAPABILITIES).flat(),
       ...Object.values(AGENCY_ROLE_CAPABILITIES).flat(),
     ]);
-    for (const cap of Object.values(MIRRORED_CAPABILITY)) {
+    for (const cap of Object.values(MIRRORED_CAPABILITY).flatMap((c) => (typeof c === "string" ? [c] : [...(c ?? [])]))) {
       expect(real.has(cap as string), `${cap} is held by no role`).toBe(true);
     }
   });
@@ -71,7 +74,7 @@ describe("what projectDoc refuses to hand over", () => {
       billingInterval: "monthly", status: "active", createdAt: 1,
       licenseKey: "PT-XXXX-YYYY-ZZZZ",
     };
-    const out = projectDoc("softwareLicenses", row);
+    const out = projectDoc("softwareLicenses", row, OWNER);
     expect(out.licenseKey).toBeUndefined();
     // Still the inventory row the app needs.
     expect(out.name).toBe("Pro Tools");
@@ -90,7 +93,7 @@ describe("what projectDoc refuses to hand over", () => {
           signatureKind: "drawn", signedFromUa: "Mozilla/5.0",
         },
       ],
-    });
+    }, OWNER);
     const c = (out.contributors as Record<string, unknown>[])[0];
     expect(c.signature).toBeUndefined();
     expect(c.email).toBeUndefined();
@@ -104,7 +107,7 @@ describe("what projectDoc refuses to hand over", () => {
 
   it("leaves an ungated, unlisted table whole", () => {
     const row = { _id: "r1", _creationTime: 1, orgId: "o", title: "Anything" };
-    expect(projectDoc("opportunities", row)).toEqual(row);
+    expect(projectDoc("opportunities", row, OWNER)).toEqual(row);
   });
 });
 

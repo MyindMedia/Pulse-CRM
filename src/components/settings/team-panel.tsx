@@ -306,6 +306,7 @@ export function TeamPanel() {
             credits: editMember.credits,
             spotifyUrl: editMember.spotifyUrl,
             playlistUrls: editMember.playlistUrls,
+            capabilityOverrides: editMember.capabilityOverrides,
           }}
           open
           onOpenChange={(open) => {

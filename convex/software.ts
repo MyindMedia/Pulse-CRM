@@ -1,9 +1,10 @@
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v, ConvexError } from "convex/values";
-import { currentOrg, currentOrgWithCapability} from "./lib/tenant";
+import { currentOrg, currentOrgWithCapability, currentMoneySight } from "./lib/tenant";
 import { searchSoftwareCatalog } from "./lib/softwareCatalog";
 
+import { redactEach } from "./lib/money";
 /* ============================================================
    Software + license management - DAWs, plugins, sample
    libraries and subscriptions. Tenant-scoped (currentOrg),
@@ -40,7 +41,7 @@ export const list = query({
       .collect();
     if (category) rows = rows.filter((r) => r.category === category);
     if (status) rows = rows.filter((r) => r.status === status);
-    return rows.sort((a, b) => a.name.localeCompare(b.name));
+    return redactEach("softwareLicenses", rows.sort((a, b) => a.name.localeCompare(b.name)), await currentMoneySight(ctx));
   },
 });
 
@@ -62,11 +63,12 @@ export const summary = query({
       (r) => r.licenseType === "subscription" && r.renewalDate && r.renewalDate <= soon && r.status === "active",
     ).length;
     const expired = rows.filter((r) => r.status === "expired").length;
+    const sight = await currentMoneySight(ctx);
     return {
       count: rows.length,
-      annualRecurring,
-      monthlyRecurring: Math.round(annualRecurring / 12),
-      perpetualValue,
+      annualRecurring: sight.money ? annualRecurring : null,
+      monthlyRecurring: sight.money ? Math.round(annualRecurring / 12) : null,
+      perpetualValue: sight.money ? perpetualValue : null,
       upcomingRenewals,
       expired,
       subscriptions: rows.filter((r) => r.licenseType === "subscription").length,
@@ -101,6 +103,8 @@ export const create = mutation({
   },
   handler: async (ctx, args) => {
     const orgId = await currentOrgWithCapability(ctx, "licenses.edit");
+    // What software costs is money; the seat and the renewal date are not.
+    if (!(await currentMoneySight(ctx)).money) args.costCents = 0;
     const name = args.name.trim();
     if (!name) throw new ConvexError("Give the software a name.");
     if (!Number.isFinite(args.costCents) || args.costCents < 0) {
@@ -156,6 +160,7 @@ export const update = mutation({
     const orgId = await currentOrgWithCapability(ctx, "licenses.edit");
     const row = await ctx.db.get(id);
     if (!row || row.orgId !== orgId) throw new ConvexError("Software not found.");
+    if (!(await currentMoneySight(ctx)).money) delete patch.costCents;
     const clean: Record<string, unknown> = {};
     for (const [k, val] of Object.entries(patch)) {
       if (val === undefined) continue;

@@ -2,7 +2,7 @@ import { query, action, internalQuery, internalAction, QueryCtx, MutationCtx, Ac
 import { mutation, internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
-import { currentOrg, currentActor } from "./lib/tenant";
+import { currentOrg, currentActor, currentMoneySight } from "./lib/tenant";
 import { requireCapability, resolveViewer } from "./lib/access";
 import { meterStorageUpload } from "./usage";
 import { sendEmail } from "./lib/email";
@@ -13,6 +13,8 @@ import {
 } from "./lib/emailTemplates/invite";
 import { normalizeEmail, sameEmail } from "./lib/emailKey";
 
+import { redactMoney } from "./lib/money";
+import { MANAGER_GRANTABLE_OVERRIDES } from "./lib/accessPolicies";
 const roleV = v.union(
   v.literal("owner"),
   v.literal("manager"),
@@ -107,6 +109,8 @@ export const list = query({
     }
     const now = Date.now();
 
+    // Pay rates are the books: insights.read, not membership.
+    const sight = await currentMoneySight(ctx);
     const annotated = await Promise.all(
       rows.map(async (r) => {
         let inviteStatus: InviteStatus = "none";
@@ -123,7 +127,7 @@ export const list = query({
           }
         }
         return {
-          ...r,
+          ...redactMoney("members", r, sight),
           photoUrl: r.photoId ? await ctx.storage.getUrl(r.photoId) : (r.clerkImageUrl ?? null),
           inviteStatus,
           invitedAt,
@@ -156,6 +160,33 @@ export const engineers = query({
   },
 });
 
+function isOwnerViewer(viewer: object): boolean {
+  return "role" in viewer && (viewer as { role?: string }).role === "owner";
+}
+
+/** Inventory editing for someone whose role does not include it: the one extra
+ *  an owner or manager switches at invite time or later. */
+function withInventory(existing: string[] | undefined, enabled: boolean): string[] | undefined {
+  const rest = (existing ?? []).filter((token) => token !== "+equipment.edit" && token !== "-equipment.edit");
+  if (enabled) return [...rest, "+equipment.edit"];
+  return rest.length ? rest : undefined;
+}
+
+/** The extras this caller may set. An owner sets any. Anyone else may only
+ *  switch MANAGER_GRANTABLE_OVERRIDES, and whatever an owner set stays put. */
+function mergeOverrides(
+  viewer: object,
+  requested: string[] | undefined,
+  existing: string[] | undefined,
+): string[] | undefined {
+  if (requested === undefined) return existing;
+  if (isOwnerViewer(viewer)) return requested;
+  const grantable = new Set<string>(MANAGER_GRANTABLE_OVERRIDES);
+  const refused = requested.filter((token) => !grantable.has(token));
+  if (refused.length) throw new ConvexError(`Only an owner can grant ${refused.join(", ")}.`);
+  return [...(existing ?? []).filter((token) => !grantable.has(token)), ...requested];
+}
+
 export const create = mutation({
   args: {
     name: v.string(),
@@ -168,6 +199,9 @@ export const create = mutation({
   handler: async (ctx, args) => {
     const viewer = await requireCapability(ctx, "members.invite");
     const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
+    if (args.role === "owner" && !isOwnerViewer(viewer)) {
+      throw new ConvexError("Only an owner can add another owner.");
+    }
     return await ctx.db.insert("members", {
       orgId,
       name: args.name,
@@ -175,7 +209,7 @@ export const create = mutation({
       phone: args.phone ? (normalizePhone(args.phone) ?? undefined) : undefined,
       role: args.role,
       skills: args.skills ?? [],
-      capabilityOverrides: args.capabilityOverrides,
+      capabilityOverrides: mergeOverrides(viewer, args.capabilityOverrides, undefined),
     });
   },
 });
@@ -197,6 +231,14 @@ export const update = mutation({
     if (!member || member.orgId !== orgId) throw new Error("Not found");
     if (member.role === "owner" && patch.role && patch.role !== "owner") {
       throw new Error("cannot demote owner");
+    }
+    // Roles and extras are how a studio decides who sees money. A manager may
+    // not make anyone an owner, nor hand out anything but inventory editing.
+    if (patch.role === "owner" && member.role !== "owner" && !isOwnerViewer(viewer)) {
+      throw new ConvexError("Only an owner can make someone an owner.");
+    }
+    if (patch.capabilityOverrides !== undefined) {
+      patch.capabilityOverrides = mergeOverrides(viewer, patch.capabilityOverrides, member.capabilityOverrides);
     }
     const clean: Record<string, unknown> = Object.fromEntries(
       Object.entries(patch).filter(([, val]) => val !== undefined),
@@ -255,6 +297,13 @@ export const setPay = mutation({
   },
   handler: async (ctx, { id, payType, payRateCents }) => {
     const viewer = await requireCapability(ctx, "members.invite");
+    // Pay is the books. Inviting people is not the same as setting what they earn.
+    // Checked against the capability itself, not through requireCapability,
+    // which also applies the plan's Reports entitlement: a studio on a tier
+    // without Reports still pays its people.
+    if (!(await currentMoneySight(ctx)).books) {
+      throw new ConvexError("Only someone who can see payroll can set pay.");
+    }
     const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
     const member = await ctx.db.get(id);
     if (!member || member.orgId !== orgId) throw new Error("Not found");
@@ -265,6 +314,21 @@ export const setPay = mutation({
       payType: payType === null ? undefined : payType,
       payRateCents: payType === null ? undefined : payRateCents,
     });
+  },
+});
+
+/** Let a teammate edit inventory whatever their role, or stop them. Owners and
+ *  managers already can; this is for the floor. Every edit they make lands in
+ *  the change log with their name on it. */
+export const setInventoryEdit = mutation({
+  args: { id: v.id("members"), enabled: v.boolean() },
+  handler: async (ctx, { id, enabled }) => {
+    const viewer = await requireCapability(ctx, "members.invite");
+    const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
+    const member = await ctx.db.get(id);
+    if (!member || member.orgId !== orgId) throw new ConvexError("Team member not found.");
+    await ctx.db.patch(id, { capabilityOverrides: withInventory(member.capabilityOverrides, enabled) });
+    return null;
   },
 });
 
@@ -292,6 +356,7 @@ export const _prepareTeammate = internalMutation({
     phone: v.optional(v.string()),
     role: roleV,
     skills: v.optional(v.array(v.string())),
+    canEditInventory: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const viewer = await requireCapability(ctx, "members.invite");
@@ -303,6 +368,9 @@ export const _prepareTeammate = internalMutation({
       .first();
     const inviterName = await currentActor(ctx);
     const phone = args.phone ? (normalizePhone(args.phone) ?? undefined) : undefined;
+    if (args.role === "owner" && !isOwnerViewer(viewer)) {
+      throw new ConvexError("Only an owner can invite another owner.");
+    }
 
     // Reuse an existing un-claimed member with the same email (avoids dupes if
     // the inviter re-sends); otherwise create the row.
@@ -320,6 +388,9 @@ export const _prepareTeammate = internalMutation({
         role: args.role,
         skills: args.skills ?? existing.skills,
         ...(phone ? { phone } : {}),
+        ...(args.canEditInventory !== undefined
+          ? { capabilityOverrides: withInventory(existing.capabilityOverrides, args.canEditInventory) }
+          : {}),
       });
     } else {
       memberId = await ctx.db.insert("members", {
@@ -329,6 +400,7 @@ export const _prepareTeammate = internalMutation({
         phone,
         role: args.role,
         skills: args.skills ?? [],
+        ...(args.canEditInventory ? { capabilityOverrides: ["+equipment.edit"] } : {}),
       });
     }
 
@@ -357,6 +429,8 @@ export const inviteTeammate = action({
     phone: v.optional(v.string()),
     role: roleV,
     skills: v.optional(v.array(v.string())),
+    /** Inventory editing for a role that does not include it. */
+    canEditInventory: v.optional(v.boolean()),
   },
   handler: async (
     ctx,
@@ -374,6 +448,7 @@ export const inviteTeammate = action({
       phone: args.phone,
       role: args.role,
       skills: args.skills,
+      canEditInventory: args.canEditInventory,
     });
 
     const inviteSent = await sendTeammateInvite(ctx, {

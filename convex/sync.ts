@@ -16,6 +16,7 @@ import { currentOrg } from "./lib/tenant";
 import { resolveViewer } from "./lib/access";
 import {
   isMirroredTable,
+  mirrorSightTag,
   projectDoc,
   rowAllowed,
   tablesFor,
@@ -132,7 +133,7 @@ export const snapshot = query({
       // its own.
       docs: (result.page as unknown as Record<string, unknown>[])
         .filter((doc) => rowAllowed(table, doc, viewer))
-        .map((doc) => projectDoc(table, doc)),
+        .map((doc) => projectDoc(table, doc, viewer)),
       cursor: result.continueCursor,
       isDone: result.isDone,
       // Every snapshot page is stamped, so a device knows the point in time its
@@ -154,20 +155,22 @@ export const snapshot = query({
  * `_creationTime` to every index - so `ts:_creationTime` is exactly the index's
  * own ordering, and two rows written in the same millisecond still resume in the
  * right place. */
-type LogCursor = { ts: number; at: number };
+/** `tag` is who the rows were projected for (lib/mirroredTables.ts); null on a
+ *  cursor issued before tags existed. */
+type LogCursor = { ts: number; at: number; tag: string | null };
 
 function parseCursor(cursor: string | null | undefined): LogCursor | null {
   if (!cursor) return null;
-  const at = cursor.indexOf(":");
-  if (at < 1) return null;
-  const ts = Number(cursor.slice(0, at));
-  const creation = Number(cursor.slice(at + 1));
+  const [tsPart, atPart, tag] = cursor.split(":");
+  if (!tsPart || atPart === undefined) return null;
+  const ts = Number(tsPart);
+  const creation = Number(atPart);
   if (!Number.isFinite(ts) || !Number.isFinite(creation)) return null;
-  return { ts, at: creation };
+  return { ts, at: creation, tag: tag ?? null };
 }
 
-const formatCursor = (row: { ts: number; _creationTime: number }): string =>
-  `${row.ts}:${row._creationTime}`;
+const formatCursor = (row: { ts: number; _creationTime: number }, tag: string): string =>
+  `${row.ts}:${row._creationTime}:${tag}`;
 
 /**
  * Everything that changed in this studio since `cursor`, oldest first.
@@ -191,6 +194,7 @@ export const pullChanges = query({
       : null;
     const max = pageSize(limit);
     const since = parseCursor(cursor);
+    const tag = mirrorSightTag(viewer);
 
     /* Ordered by `_creationTime`, not by `ts`.
        `ts` is stamped when the mutation RUNS, and a mutation commits some time
@@ -224,7 +228,7 @@ export const pullChanges = query({
       // The cursor advances past every row we look at, including ones filtered
       // out below. Otherwise a client asking for one table would re-walk every
       // other table's changes on every call.
-      next = formatCursor(row);
+      next = formatCursor(row, tag);
 
       if (!isMirroredTable(row.tableName)) continue;
       if (!permitted.has(row.tableName)) continue;
@@ -248,7 +252,7 @@ export const pullChanges = query({
         docId: row.docId,
         op: row.op,
         ts: row.ts,
-        doc: doc ? projectDoc(row.tableName, doc as Record<string, unknown>) : null,
+        doc: doc ? projectDoc(row.tableName, doc as Record<string, unknown>, viewer) : null,
       });
     }
 
@@ -330,9 +334,15 @@ export const pruneChangeLog = internalMutation({
 export const cursorIsUsable = query({
   args: { cursor: v.optional(v.union(v.string(), v.null())) },
   handler: async (ctx, { cursor }) => {
-    await currentOrg(ctx);
+    const { viewer } = await syncViewer(ctx);
     const since = parseCursor(cursor);
     if (!since) return { usable: true, reason: "no cursor, will snapshot" };
+    // Rows fetched under different permissions are not this person's to keep:
+    // a manager whose owner has just hidden money, a promotion, a demotion. A
+    // cursor from before tags existed is treated the same way, exactly once.
+    if (since.tag !== mirrorSightTag(viewer)) {
+      return { usable: false, reason: "what this person may see has changed; re-snapshot" };
+    }
     const oldest = Date.now() - RETENTION_MS;
     return since.ts >= oldest
       ? { usable: true, reason: "inside the retention window" }

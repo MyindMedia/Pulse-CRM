@@ -6,6 +6,7 @@ import { Command } from "cmdk";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { NAV } from "@/lib/nav";
+import { useCapabilities } from "@/lib/use-capabilities";
 import { Music2, Users, ArrowRight, Plus } from "lucide-react";
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 
@@ -14,11 +15,11 @@ export function openCommandPalette() {
   window.dispatchEvent(new CustomEvent("pulse:command"));
 }
 
-const QUICK_ACTIONS = [
+const QUICK_ACTIONS: { label: string; href: string; icon: typeof Plus; feature: string; capability?: string }[] = [
   { label: "New song", href: "/songs?new=1", icon: Plus, feature: "songs" },
   { label: "Add artist", href: "/roster?new=1", icon: Plus, feature: "clients" },
   { label: "Book a session", href: "/calendar?new=1", icon: Plus, feature: "calendar" },
-  { label: "Create invoice", href: "/payments?new=1", icon: Plus, feature: "payments" },
+  { label: "Create invoice", href: "/payments?new=1", icon: Plus, feature: "payments", capability: "invoices.send" },
 ];
 
 export function CommandPalette() {
@@ -29,8 +30,12 @@ export function CommandPalette() {
   // Hide nav features the agency has disabled for this sub-account (matches sidebar).
   const org = useQuery(api.orgs.current);
   const disabled = new Set(org?.disabledFeatures ?? []);
-  const navItems = NAV.filter((item) => !item.feature || !disabled.has(item.feature));
-  const quickActions = QUICK_ACTIONS.filter((a) => !disabled.has(a.feature));
+  // And what this person's role cannot reach, the way the sidebar hides it: a
+  // search box that offers Payroll to an engineer is the same leak as a link.
+  const { can, loaded } = useCapabilities();
+  const allowed = (capability?: string) => !capability || (loaded && can(capability));
+  const navItems = NAV.filter((item) => (!item.feature || !disabled.has(item.feature)) && allowed(item.capability));
+  const quickActions = QUICK_ACTIONS.filter((a) => !disabled.has(a.feature) && allowed(a.capability));
 
   React.useEffect(() => {
     const onKey = (e: KeyboardEvent) => {

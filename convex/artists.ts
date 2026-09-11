@@ -1,9 +1,10 @@
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
-import { currentOrg, currentOrgWithCapability} from "./lib/tenant";
+import { currentOrg, currentOrgWithCapability, currentMoneySight } from "./lib/tenant";
 import { normalizeEmail } from "./lib/emailKey";
 
+import { redactMoney, redactEach } from "./lib/money";
 const artistTypeV = v.union(
   v.literal("artist"),
   v.literal("producer"),
@@ -35,7 +36,12 @@ export const list = query({
         .withIndex("by_org", (q) => q.eq("orgId", orgId))
         .collect();
     }
-    return rows.sort((a, b) => b.lifetimeValueCents - a.lifetimeValueCents);
+    const sight = await currentMoneySight(ctx);
+    // Ranked by what a client is worth only for someone allowed to know it.
+    const ordered = sight.money
+      ? rows.sort((a, b) => b.lifetimeValueCents - a.lifetimeValueCents)
+      : rows.sort((a, b) => a.name.localeCompare(b.name));
+    return redactEach("artists", ordered, sight);
   },
 });
 
@@ -70,7 +76,19 @@ export const get = query({
       .filter((i) => i.status === "sent" || i.status === "viewed" || i.status === "overdue")
       .reduce((s, i) => s + i.amountCents, 0);
 
-    return { ...artist, songs, sessions, invoices, outstandingCents: outstanding };
+    const sight = await currentMoneySight(ctx);
+    // Invoices and the balance belong to whoever may see money. Everyone else
+    // gets the relationship: the songs and the sessions, without their figures.
+    if (!sight.money) {
+      return {
+        ...redactMoney("artists", artist, sight),
+        songs,
+        sessions: redactEach("sessions", sessions, sight),
+        invoices: [] as typeof invoices,
+        outstandingCents: null,
+      };
+    }
+    return { ...artist, songs, sessions, invoices, outstandingCents: outstanding as number | null };
   },
 });
 

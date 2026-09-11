@@ -1,8 +1,9 @@
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
-import { currentOrg, assertOrg, currentOrgWithCapability} from "./lib/tenant";
+import { currentOrg, assertOrg, currentOrgWithCapability, currentMoneySight } from "./lib/tenant";
 
+import { redactEach } from "./lib/money";
 /* ============================================================
    Licensing - two revenue streams off the song catalog:
    sync placements (film/TV/ad/game) and beat licenses.
@@ -38,9 +39,13 @@ export const syncBoard = query({
         .filter(Boolean)
         .map((s) => [s!._id, s!]),
     );
-    return rows
-      .map((r) => ({ ...r, songTitle: songs.get(r.songId)?.title ?? "Unknown" }))
-      .sort((a, b) => b.updatedAt - a.updatedAt);
+    return redactEach(
+      "syncOpportunities",
+      rows
+        .map((r) => ({ ...r, songTitle: songs.get(r.songId)?.title ?? "Unknown" }))
+        .sort((a, b) => b.updatedAt - a.updatedAt),
+      await currentMoneySight(ctx),
+    );
   },
 });
 
@@ -53,6 +58,7 @@ export const createSync = mutation({
   },
   handler: async (ctx, args) => {
     const orgId = await currentOrgWithCapability(ctx, "licenses.edit");
+    if (!(await currentMoneySight(ctx)).money) args.feeCents = undefined;
     const song = await ctx.db.get(args.songId);
     assertOrg(song, orgId);
     const id = await ctx.db.insert("syncOpportunities", {
@@ -89,6 +95,7 @@ export const updateSync = mutation({
     const orgId = await currentOrgWithCapability(ctx, "licenses.edit");
     const row = await ctx.db.get(id);
     assertOrg(row, orgId);
+    if (!(await currentMoneySight(ctx)).money) delete patch.feeCents;
     const clean = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== undefined));
     await ctx.db.patch(id, { ...clean, updatedAt: Date.now() });
   },
@@ -124,7 +131,7 @@ export const licensesForSong = query({
       .query("licenses")
       .withIndex("by_song", (q) => q.eq("songId", songId))
       .collect();
-    return rows.filter((r) => r.orgId === orgId).sort((a, b) => b.soldAt - a.soldAt);
+    return redactEach("licenses", rows.filter((r) => r.orgId === orgId).sort((a, b) => b.soldAt - a.soldAt), await currentMoneySight(ctx));
   },
 });
 
@@ -142,9 +149,13 @@ export const allLicenses = query({
         .filter(Boolean)
         .map((s) => [s!._id, s!]),
     );
-    return rows
-      .map((r) => ({ ...r, songTitle: songs.get(r.songId)?.title ?? "Unknown" }))
-      .sort((a, b) => b.soldAt - a.soldAt);
+    return redactEach(
+      "licenses",
+      rows
+        .map((r) => ({ ...r, songTitle: songs.get(r.songId)?.title ?? "Unknown" }))
+        .sort((a, b) => b.soldAt - a.soldAt),
+      await currentMoneySight(ctx),
+    );
   },
 });
 
@@ -160,6 +171,8 @@ export const sellLicense = mutation({
   },
   handler: async (ctx, args) => {
     const orgId = await currentOrgWithCapability(ctx, "licenses.edit");
+    // A sale has a price. Recording one is a money write.
+    await currentOrgWithCapability(ctx, "invoices.send");
     const song = await ctx.db.get(args.songId);
     assertOrg(song, orgId);
     // Exclusive licenses retire the beat from the non-exclusive market.

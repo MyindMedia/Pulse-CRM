@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useMutation, useAction } from "convex/react";
+import { Switch } from "@/components/ui/toggle";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
@@ -40,7 +41,11 @@ export type EditableMember = {
   credits?: string[];
   spotifyUrl?: string;
   playlistUrls?: string[];
+  capabilityOverrides?: string[];
 };
+
+/** Roles that edit inventory already; everyone else can be given it. */
+const LEADERSHIP_ROLES = new Set(["owner", "manager"]);
 
 /** Roles that get a client-facing engineer profile (mirrors the server). */
 const ENGINEER_ROLES = new Set(["owner", "engineer", "assistant_engineer", "producer"]);
@@ -55,6 +60,8 @@ type FormState = {
   credits: string;
   spotifyUrl: string;
   playlists: string;
+  /** Inventory editing for a role that does not include it. */
+  canEditInventory: boolean;
 };
 
 const BLANK: FormState = {
@@ -67,6 +74,7 @@ const BLANK: FormState = {
   credits: "",
   spotifyUrl: "",
   playlists: "",
+  canEditInventory: false,
 };
 
 function toForm(member: EditableMember): FormState {
@@ -80,6 +88,7 @@ function toForm(member: EditableMember): FormState {
     credits: (member.credits ?? []).join("\n"),
     spotifyUrl: member.spotifyUrl ?? "",
     playlists: (member.playlistUrls ?? []).join("\n"),
+    canEditInventory: (member.capabilityOverrides ?? []).includes("+equipment.edit"),
   };
 }
 
@@ -100,6 +109,7 @@ export function MemberDialog({
   const createMember = useMutation(api.members.create);
   const inviteTeammate = useAction(api.members.inviteTeammate);
   const updateMember = useMutation(api.members.update);
+  const setInventoryEdit = useMutation(api.members.setInventoryEdit);
   const setProfile = useMutation(api.members.setProfile);
   const genPhotoUrl = useMutation(api.members.generateUploadUrl);
   const setPhoto = useMutation(api.members.setPhoto);
@@ -138,6 +148,10 @@ export function MemberDialog({
           role: form.role,
           skills: form.skills,
         });
+        const hadInventory = (member.capabilityOverrides ?? []).includes("+equipment.edit");
+        if (!LEADERSHIP_ROLES.has(form.role) && form.canEditInventory !== hadInventory) {
+          await setInventoryEdit({ id: member._id, enabled: form.canEditInventory });
+        }
         if (ENGINEER_ROLES.has(form.role)) {
           await setProfile({
             id: member._id,
@@ -154,14 +168,16 @@ export function MemberDialog({
         if (email) {
           // Email present → create the member AND email them a branded invite
           // with their role, so they can claim an account and onboard.
-          const res = await inviteTeammate({ name, email, phone, role: form.role, skills });
+          const canEditInventory = !LEADERSHIP_ROLES.has(form.role) && form.canEditInventory ? true : undefined;
+          const res = await inviteTeammate({ name, email, phone, role: form.role, skills, canEditInventory });
           toast.success(
             res.inviteSent
               ? `Invite sent to ${email}.`
               : `${name} added - invite email couldn't send, you can resend it.`,
           );
         } else {
-          await createMember({ name, phone, role: form.role, skills });
+          const capabilityOverrides = !LEADERSHIP_ROLES.has(form.role) && form.canEditInventory ? ["+equipment.edit"] : undefined;
+          await createMember({ name, phone, role: form.role, skills, capabilityOverrides });
           toast.success(`${name} added to the team.`);
         }
       }
@@ -266,6 +282,23 @@ export function MemberDialog({
             <p className="rounded-md border border-graphite/50 bg-coal-2 px-3 py-2 text-[0.6875rem] text-steel/70">
               {MEMBER_ROLES.find((r) => r.value === form.role)?.blurb}
             </p>
+
+            {!LEADERSHIP_ROLES.has(form.role) && (
+              <div className="flex items-start justify-between gap-4 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2">
+                <div>
+                  <p className="text-sm font-semibold text-bone">Can edit inventory</p>
+                  <p className="text-[0.6875rem] text-steel/70">
+                    Add, move and update gear and cable stock. Every change they make is logged with
+                    their name for owners and managers.
+                  </p>
+                </div>
+                <Switch
+                  checked={form.canEditInventory}
+                  onCheckedChange={(v) => set("canEditInventory", v)}
+                  aria-label="Let this teammate edit inventory"
+                />
+              </div>
+            )}
 
             <Field
               label="Skills"

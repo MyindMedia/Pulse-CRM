@@ -392,6 +392,10 @@ export default defineSchema({
     cancellationFeePct: v.optional(v.number()), // 0-100
     // AI receptionist: opt-in auto-reply to inbound SMS booking inquiries.
     aiReceptionistEnabled: v.optional(v.boolean()),
+    // Whether managers see money. Unset means yes. Only an owner may turn it
+    // off (orgs.setManagersSeeMoney); lib/access.ts then withholds the money
+    // capabilities from every manager here, on the web, the phone and the mirror.
+    managersSeeMoney: v.optional(v.boolean()),
     // Booking-page social proof: short client testimonials the studio curates.
     testimonials: v.optional(
       v.array(

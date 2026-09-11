@@ -89,7 +89,8 @@ export const createPlan = mutation({
   },
   handler: async (ctx, args) => {
     const orgId = await currentOrg(ctx);
-    await requireCapability(ctx, "sessions.edit", { orgId });
+    // A plan is a price. Creating one is a money write, not a booking edit.
+    await requireCapability(ctx, "invoices.send", { orgId });
     if (args.priceCents <= 0) throw new ConvexError("Price must be positive.");
     if (args.memberDiscountPct != null && (args.memberDiscountPct < 0 || args.memberDiscountPct > 100)) {
       throw new ConvexError("Member discount must be between 0 and 100.");
@@ -155,6 +156,8 @@ export const _planStripeContext = internalQuery({
   args: { planId: v.optional(v.id("membershipPlans")) },
   handler: async (ctx, { planId }) => {
     const orgId = await currentOrg(ctx);
+    // Every caller prices or links a plan on the studio's Stripe account.
+    await requireCapability(ctx, "invoices.send", { orgId });
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     let plan: Doc<"membershipPlans"> | null = null;
     if (planId) {

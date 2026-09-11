@@ -589,7 +589,7 @@ function ApplyPackagePanel({
         <SelectContent>
           {credits.map((c) => (
             <SelectItem key={c._id} value={c._id}>
-              {c.name} · {c.hoursRemaining}h left · {money(c.perHourCents)}/hr
+              {c.name} · {c.hoursRemaining}h left{c.perHourCents !== null ? ` · ${money(c.perHourCents)}/hr` : ""}
             </SelectItem>
           ))}
         </SelectContent>

@@ -243,6 +243,23 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
   ],
 };
 
+/** The permission extras someone other than an owner may switch on a teammate.
+ *  Everything else in `capabilityOverrides` is an owner's decision: without this
+ *  a manager could hand an engineer the books in one call, whatever the owner
+ *  had decided about money. */
+export const MANAGER_GRANTABLE_OVERRIDES: ReadonlyArray<string> = ["+equipment.edit"];
+
+/** What a manager gives up when the owner turns "Managers can see money" off.
+ *  Applied by resolveViewer in lib/access.ts, so every read, the web app, the
+ *  phone and the device mirror change together. Scheduling, bookings and the
+ *  team stay theirs; only the figures go. */
+export const MONEY_CAPABILITIES: ReadonlyArray<Capability> = [
+  "invoices.read",
+  "invoices.send",
+  "finance.refund",
+  "insights.read",
+];
+
 // ── Guest grant scopes (5) ──────────────────────────────────
 export const GUEST_SCOPE_CAPABILITIES: Record<GrantScope, ReadonlyArray<Capability>> = {
   session: [

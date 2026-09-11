@@ -5,6 +5,7 @@ import {
   STUDIO_ROLE_CAPABILITIES,
   GUEST_SCOPE_CAPABILITIES,
   SENSITIVE_CAPABILITIES,
+  MONEY_CAPABILITIES,
   applyOverrides,
 } from "./accessPolicies";
 import type {
@@ -82,6 +83,20 @@ function buildStudioCaps(role: StudioRole, overrides?: string[]): Set<Capability
   return applyOverrides(STUDIO_ROLE_CAPABILITIES[role], overrides);
 }
 
+/** A manager without money, when the owner has said so (`orgs.managersSeeMoney`).
+ *  Decided here, once, so the web app, the phone and the device mirror cannot
+ *  disagree: the capabilities are simply not held. Owners are never affected,
+ *  and neither is anyone who never had money to lose. */
+function applyOrgMoneyPolicy(
+  caps: Set<Capability>,
+  role: StudioRole,
+  org: { managersSeeMoney?: boolean } | null | undefined,
+): Set<Capability> {
+  if (role !== "manager" || org?.managersSeeMoney !== false) return caps;
+  const out = new Set(caps);
+  for (const cap of MONEY_CAPABILITIES) out.delete(cap);
+  return out;
+}
 function buildGuestCaps(scope: GrantScope, extra?: string[]): Set<Capability> {
   return applyOverrides(GUEST_SCOPE_CAPABILITIES[scope], extra?.map((c) => "+" + c));
 }
@@ -250,7 +265,7 @@ export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
           memberId: member._id,
           clerkUserId,
           role: member.role,
-          capabilities: buildStudioCaps(member.role, member.capabilityOverrides),
+          capabilities: applyOrgMoneyPolicy(buildStudioCaps(member.role, member.capabilityOverrides), member.role, org),
         };
       }
     }
@@ -281,7 +296,7 @@ export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
           memberId: member._id,
           clerkUserId,
           role: member.role,
-          capabilities: buildStudioCaps(member.role, member.capabilityOverrides),
+          capabilities: applyOrgMoneyPolicy(buildStudioCaps(member.role, member.capabilityOverrides), member.role, org),
         };
       }
     }

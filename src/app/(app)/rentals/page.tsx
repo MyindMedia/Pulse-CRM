@@ -150,7 +150,7 @@ export default function RentalsPage() {
             ) : (
               <div className="space-y-2">
                 {board.rentable.map((item) => {
-                  const value = draftFor(item._id, item.rentalPriceCents);
+                  const value = draftFor(item._id, item.rentalPriceCents ?? 0);
                   const dirty = drafts[item._id] !== undefined;
                   return (
                     <div
@@ -172,6 +172,9 @@ export default function RentalsPage() {
                           )}
                         </p>
                       </div>
+                      {/* The price is money: null from the server for anyone without it,
+                          who can still offer or withdraw the gear. */}
+                      {item.rentalPriceCents !== null && (
                       <div className="flex items-center gap-1.5">
                         <span className="text-sm text-steel">$</span>
                         <Input
@@ -186,6 +189,8 @@ export default function RentalsPage() {
                         />
                         <span className="text-xs text-steel/60">/session</span>
                       </div>
+                      )}
+                      {item.rentalPriceCents !== null && (
                       <Button
                         size="sm"
                         variant={dirty ? "primary" : "secondary"}
@@ -195,6 +200,7 @@ export default function RentalsPage() {
                         <Check className="size-4" />
                         Save
                       </Button>
+                      )}
                       <Button
                         size="sm"
                         variant="ghost"

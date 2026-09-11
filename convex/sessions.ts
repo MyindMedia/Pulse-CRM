@@ -4,7 +4,7 @@ import { fireRules } from "./agentRules";
 import { queuePayoutForSession } from "./payouts";
 import { Doc, Id } from "./_generated/dataModel";
 import { v, ConvexError } from "convex/values";
-import { currentOrg, currentOrgWithCapability} from "./lib/tenant";
+import { currentOrg, currentOrgWithCapability, currentMoneySight } from "./lib/tenant";
 import { resolveViewer } from "./lib/access";
 import {
   assertNoBufferConflict,
@@ -15,7 +15,7 @@ import {
   gearAvailable,
   addOnsTotalCents,
 } from "./lib/gearRental";
-import { money } from "./lib/money";
+import { money, redactMoney, redactEach } from "./lib/money";
 import { notify } from "./lib/notify";
 import { stageChecklistsFor, dropPreChecklistFor } from "./checklists";
 import { ensureSessionShift } from "./shifts";
@@ -71,7 +71,8 @@ export const list = query({
       ? await ctx.db.query("sessions").withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", status)).collect()
       : await ctx.db.query("sessions").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
     const hydrated = await Promise.all(rows.map((r) => hydrate(ctx, r)));
-    return hydrated.sort((a, b) => a.startTime - b.startTime);
+    // Rates, deposits and balances stay with whoever may see money (lib/money.ts).
+    return redactEach("sessions", hydrated.sort((a, b) => a.startTime - b.startTime), await currentMoneySight(ctx));
   },
 });
 
@@ -83,7 +84,7 @@ export const inRange = query({
       .query("sessions")
       .withIndex("by_org_start", (q) => q.eq("orgId", orgId).gte("startTime", from).lte("startTime", to))
       .collect();
-    return Promise.all(rows.map((r) => hydrate(ctx, r)));
+    return redactEach("sessions", await Promise.all(rows.map((r) => hydrate(ctx, r))), await currentMoneySight(ctx));
   },
 });
 
@@ -96,7 +97,7 @@ export const upcoming = query({
       .query("sessions")
       .withIndex("by_org_start", (q) => q.eq("orgId", orgId).gte("startTime", now))
       .take(limit ?? 8);
-    return Promise.all(rows.map((r) => hydrate(ctx, r)));
+    return redactEach("sessions", await Promise.all(rows.map((r) => hydrate(ctx, r))), await currentMoneySight(ctx));
   },
 });
 
@@ -107,7 +108,7 @@ export const get = query({
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) return null;
     const log = await ctx.db.query("engineeringLogs").withIndex("by_session", (q) => q.eq("sessionId", id)).first();
-    return { ...(await hydrate(ctx, s)), engineeringLog: log };
+    return { ...redactMoney("sessions", await hydrate(ctx, s), await currentMoneySight(ctx)), engineeringLog: log };
   },
 });
 
@@ -193,11 +194,14 @@ export const create = mutation({
     engineerId: v.optional(v.id("members")),
     startTime: v.number(),
     endTime: v.number(),
-    rateCents: v.number(),
+    /** Omitted, or ignored for someone who may not see money: the room's own
+     *  hourly rate prices the booking, so the floor can book without a figure. */
+    rateCents: v.optional(v.number()),
     depositCents: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
     const orgId = await currentOrg(ctx);
+    const sight = await currentMoneySight(ctx);
 
     /* A custom category with no name is a row on the calendar nobody can read.
        The point of the category IS the label. */
@@ -233,6 +237,15 @@ export const create = mutation({
       artistName = name;
     }
 
+    // Someone who may not see money cannot set it either. The room's hourly rate
+    // prices the booking, and the studio's default deposit applies.
+    let rateCents = sight.money ? args.rateCents : undefined;
+    const depositCents = sight.money ? args.depositCents : undefined;
+    if (rateCents === undefined) {
+      const room = args.roomId ? await ctx.db.get(args.roomId) : null;
+      const hours = Math.max(0, (args.endTime - args.startTime) / 3_600_000);
+      rateCents = room && room.orgId === orgId ? Math.round((room.hourlyRateCents ?? 0) * hours) : 0;
+    }
     const sessionId = await insertSession(ctx, {
       orgId,
       title: args.title,
@@ -245,8 +258,8 @@ export const create = mutation({
       engineerId: args.engineerId,
       startTime: args.startTime,
       endTime: args.endTime,
-      rateCents: args.rateCents,
-      depositCents: args.depositCents,
+      rateCents,
+      depositCents,
     });
 
     // Staff scheduling: auto-create the engineer's shift for this session and
@@ -306,7 +319,8 @@ export const setComp = mutation({
     compReason: v.optional(v.string()),
   },
   handler: async (ctx, { id, compType, listValueCents, chargedCents, compReason }) => {
-    const orgId = await currentOrgWithCapability(ctx, "sessions.edit");
+    // Comping sets what a session costs, so it is a money write, not a booking edit.
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) throw new Error("Not found");
 
@@ -357,7 +371,8 @@ export const setComp = mutation({
 export const payDeposit = mutation({
   args: { id: v.id("sessions") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrg(ctx);
+    // Records money taken, into the ledger: the same bar as recording a payment.
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) throw new Error("Not found");
     // Ledger first: a manually-recorded deposit lands as a real payments row
@@ -999,6 +1014,9 @@ export const payLink = query({
   args: { id: v.id("sessions") },
   handler: async (ctx, { id }) => {
     const orgId = await currentOrg(ctx);
+    // A balance and a checkout link are money. Null, not a throw: a query that
+    // throws takes down the page that asked for it.
+    if (!(await currentMoneySight(ctx)).money) return null;
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) return null;
     const org = await ctx.db
@@ -1024,7 +1042,8 @@ export const payLink = query({
 export const sendPayLinkSms = mutation({
   args: { id: v.id("sessions") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrgWithCapability(ctx, "sessions.edit");
+    // The text states the client's balance, so sending it is a money action.
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) throw new Error("Not found");
     const artist = await ctx.db.get(s.artistId);

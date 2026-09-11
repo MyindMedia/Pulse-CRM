@@ -51,6 +51,8 @@ export type TeamMember = {
   playlistUrls?: string[];
   inviteStatus?: "active" | "pending" | "expired" | "none";
   invitedAt?: number;
+  /** Permission extras, e.g. "+equipment.edit" for inventory editing. */
+  capabilityOverrides?: string[];
 };
 
 function toEditable(member: TeamMember): EditableMember {
