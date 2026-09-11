@@ -319,6 +319,9 @@ export const pruneChangeLog = internalMutation({
     const more = stale.length === batch;
     if (more) {
       await ctx.scheduler.runAfter(0, internal.sync.pruneChangeLog, { limit });
+    } else {
+      // The owners' change log keeps a year; its sweep rides this schedule.
+      await ctx.scheduler.runAfter(0, internal.changeAudit.prune, {});
     }
     return { deleted: stale.length, cutoff, more };
   },

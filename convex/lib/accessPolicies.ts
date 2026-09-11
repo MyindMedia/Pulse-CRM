@@ -123,6 +123,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "ops.action.approve",
     "ops.autonomy.manage",
     "activity.read",
+    "audit.read",
     "marketing.read", "marketing.edit", "marketing.approve",
   ],
   manager: [
@@ -149,6 +150,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "insights.read",
     "ops.action.approve",
     "activity.read",
+    "audit.read",
     "marketing.read", "marketing.edit", "marketing.approve",
   ],
   engineer: [

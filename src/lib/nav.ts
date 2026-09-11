@@ -24,6 +24,7 @@ import {
   AppWindow,
   Settings,
   Megaphone,
+  History,
   type LucideIcon,
 } from "lucide-react";
 
@@ -59,6 +60,7 @@ export const NAV: NavItem[] = [
   { label: "Expenses", href: "/expenses", icon: Wallet, blurb: "Costs and profit - the other half of the books", capability: "insights.read" },
   { label: "Payroll", href: "/payroll", icon: Clock3, blurb: "Staff hours, rates and labor cost", feature: "schedule", capability: "insights.read" },
   { label: "Reports", href: "/reports", icon: BarChart3, blurb: "Revenue command center - where money leaks", feature: "reports", capability: "insights.read" },
+  { label: "Change log", href: "/changes", icon: History, blurb: "Who changed what, and when - patch, inventory, check-ins, checklists, bookings", capability: "audit.read" },
   { label: "Releases", href: "/releases", icon: Rocket, blurb: "Rollout campaigns", feature: "releases" },
   { label: "Marketing", href: "/marketing", icon: Megaphone, blurb: "Scheduled posts, promos and results", feature: "marketing", capability: "marketing.read" },
   { label: "Licensing", href: "/licensing", icon: ScrollText, blurb: "Sync placements and beat licenses", feature: "licensing" },

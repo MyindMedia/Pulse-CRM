@@ -2914,6 +2914,34 @@ export default defineSchema({
   })
     .index("by_patchSpace_at", ["patchSpaceId", "at"])
     .index("by_org_at", ["orgId", "at"]),
+  /* The change log owners and managers read: who changed what, and when.
+     Written by a trigger on every signed-in write to an audited table
+     (convex/functions.ts), so no mutation has to remember to log itself.
+     Scheduled jobs are not people and are not recorded. Unlike changeLog,
+     which exists for devices and is pruned at a fortnight, this is kept a year
+     (changeAudit.prune). Values are kept only for small scalar fields; money
+     values are hidden again on read from anyone who may not see money. */
+  changeAudit: defineTable({
+    orgId: v.string(),
+    tableName: v.string(),
+    docId: v.string(),
+    op: v.union(v.literal("insert"), v.literal("update"), v.literal("delete")),
+    at: v.number(),
+    actorClerkUserId: v.string(),
+    actorMemberId: v.optional(v.id("members")),
+    actorName: v.string(),
+    /** The row's own name when it changed: "Studio A", "Neve 1073". */
+    label: v.optional(v.string()),
+    /** Top-level fields an update changed; empty for an insert or delete. */
+    fields: v.array(v.string()),
+    before: v.optional(v.any()),
+    after: v.optional(v.any()),
+  })
+    .index("by_org_at", ["orgId", "at"])
+    .index("by_at", ["at"])
+    // Workspace deletion sweeps every org-owned table through `by_org`.
+    .index("by_org", ["orgId"]),
+
   /* ── Native-client change feed ──
      Append-only. One row per write to a mirrored table, written by the triggers
      in `convex/functions.ts`. This is what lets a Mac app that has been offline
