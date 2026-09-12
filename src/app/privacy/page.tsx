@@ -20,7 +20,7 @@ export const dynamic = "force-static";
 
 export default function PrivacyPolicy() {
   return (
-    <LegalShell title="Privacy Policy" updated="September 10, 2026">
+    <LegalShell title="Privacy Policy" updated="September 12, 2026">
       <Section heading="Who we are">
         <p>
           Pulse is recording studio management software operated by {LEGAL_ENTITY} (&ldquo;Pulse&rdquo;,
@@ -58,6 +58,10 @@ export default function PrivacyPolicy() {
           <li>To create, confirm, change, and remind you about studio bookings.</li>
           <li>To send account and service notifications you have asked to receive.</li>
           <li>To take payment and issue invoices and receipts.</li>
+          <li>
+            To provide the AI features a studio uses in Pulse, such as drafted client replies,
+            session recaps, and weekly briefings.
+          </li>
           <li>To provide customer support and respond to your enquiries.</li>
           <li>To secure the service, prevent abuse, and meet our legal obligations.</li>
         </ul>
@@ -93,10 +97,26 @@ export default function PrivacyPolicy() {
           deliver the service:
         </p>
         <ul className="list-disc space-y-1.5 pl-5">
-          <li>Twilio - delivery of SMS messages.</li>
+          <li>HighLevel (LeadConnector) - delivery of text messages.</li>
+          <li>Resend - delivery of email, such as invitations, reminders, and invoices.</li>
           <li>Stripe - payment processing.</li>
           <li>Clerk - account authentication, including sign-in with Google or Apple when you choose it.</li>
           <li>Convex and Netlify - application hosting and data storage.</li>
+          <li>
+            OpenAI - AI features in Pulse, such as drafted client replies, session recaps, and
+            weekly briefings. Only the studio records a request needs, which can include client names
+            and session details, are sent to OpenAI&rsquo;s API, and OpenAI does not use data sent
+            through its API to train its models.
+          </li>
+          <li>
+            Google - Gemini creates a studio&rsquo;s booking page header image from its name and
+            brand colours. Gmail and Google Calendar are used only when a studio connects its Google
+            account, to send its email and keep its calendar in sync.
+          </li>
+          <li>
+            Ollama - looking up audio equipment specifications by make and model. No personal
+            information is sent.
+          </li>
           <li>
             Apple Push Notification service - delivery of alerts to the Pulse iPhone app. The app
             sends Apple&rsquo;s push token for your device and the device&rsquo;s name so that
