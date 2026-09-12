@@ -6,6 +6,7 @@ import { currentOrg, currentActor, currentMoneySight } from "./lib/tenant";
 import { requireCapability, resolveViewer } from "./lib/access";
 import { meterStorageUpload } from "./usage";
 import { sendEmail } from "./lib/email";
+import { allowClerkIdentifier } from "./lib/clerkAllowlist";
 import { normalizePhone } from "./lib/phone";
 import {
   teammateEmailHtml,
@@ -47,6 +48,12 @@ type InviteContext = {
  *  whether the email actually sent; never throws on a send hiccup. */
 async function sendTeammateInvite(ctx: ActionCtx, c: InviteContext): Promise<boolean> {
   try {
+    // Production Clerk only lets allowlisted addresses create an account, and
+    // owners were the only people ever put on it: every staff invitation ended
+    // on "<email> is not allowed to access this application". Soft by design,
+    // like the owner path - a Clerk hiccup must not cost the invitation, and
+    // invites.accept allowlists again before creating the account.
+    await allowClerkIdentifier(c.email);
     const appUrl = process.env.APP_URL ?? "http://localhost:3000";
     const token = await ctx.runMutation(internal.invites.record, {
       orgId: c.orgId,

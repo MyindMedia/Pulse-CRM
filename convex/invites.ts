@@ -5,6 +5,7 @@ import { v, ConvexError } from "convex/values";
 import { requireCapability, AccessError } from "./lib/access";
 import { classifyClerkCreateUserError } from "./lib/clerkErrors";
 import { sendEmail } from "./lib/email";
+import { allowClerkIdentifier } from "./lib/clerkAllowlist";
 import { normalizePhone } from "./lib/phone";
 import { inviteEmailHtml, inviteEmailSubject } from "./lib/emailTemplates/invite";
 import { PLAN_LIMITS } from "./lib/plans";
@@ -256,6 +257,11 @@ export const accept = action({
 
     const secret = process.env.CLERK_SECRET_KEY;
     if (!secret) return { ok: false as const, reason: "not_configured" as const };
+
+    // The token is the proof this person was invited, so put the address on
+    // Clerk's allowlist before asking Clerk to create the account. Covers
+    // invitations sent before teammates were allowlisted at invite time.
+    await allowClerkIdentifier(inv.email);
 
     const [firstName, ...rest] = args.name.trim().split(" ");
     const lastName = rest.join(" ");
