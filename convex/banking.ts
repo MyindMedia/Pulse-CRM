@@ -624,6 +624,32 @@ export const _disconnected = internalMutation({
   },
 });
 
+/** Sandbox only, never client-callable: connect one of Plaid's test banks to a
+ *  studio without Link, for end-to-end checks and demo workspaces. Refuses to
+ *  run against production Plaid. */
+export const connectSandboxForOrg = internalAction({
+  args: { orgId: v.string(), institutionId: v.optional(v.string()) },
+  handler: async (ctx, { orgId, institutionId }): Promise<{ connectionId: Id<"bankConnections"> }> => {
+    if (plaidEnv() !== "sandbox") throw new ConvexError("Sandbox connections are refused outside Plaid sandbox.");
+    const inst = institutionId ?? "ins_109508";
+    const { public_token } = await plaid.sandboxPublicToken(inst);
+    const exchanged = await plaid.publicTokenExchange(public_token);
+    const sealed = await seal(exchanged.access_token);
+    const institutionName = (await plaid.institutionName(inst)) ?? "Sandbox bank";
+    const connectionId = await ctx.runMutation(internal.banking._createConnection, {
+      orgId,
+      plaidItemId: exchanged.item_id,
+      institutionId: inst,
+      institutionName,
+      tokenCiphertext: sealed.ciphertext,
+      tokenIv: sealed.iv,
+      connectedBy: "Pulse sandbox check",
+    });
+    await ctx.runAction(internal.banking.syncConnection, { connectionId });
+    return { connectionId };
+  },
+});
+
 /** Workspace deletion: remove each Plaid item. Tokens arrive sealed. */
 export const removeItems = internalAction({
   args: { sealed: v.array(v.object({ ciphertext: v.string(), iv: v.string() })) },

@@ -263,3 +263,13 @@ describe("disconnecting", () => {
     expect(txns).toHaveLength(0);
   });
 });
+
+describe("sandbox helper", () => {
+  it("refuses to run against production Plaid", async () => {
+    const s = await studio();
+    process.env.PLAID_ENV = "production";
+    const calls = stubPlaid(() => ({}));
+    await expect(s.t.action(internal.banking.connectSandboxForOrg, { orgId: "pulse-demo" })).rejects.toThrow(/sandbox/);
+    expect(calls).toHaveLength(0);
+  });
+});

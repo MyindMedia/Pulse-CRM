@@ -160,11 +160,25 @@ export const autoMatch = internalMutation({
 
 const kindV = v.union(v.literal("receipt"), v.literal("expense"), v.literal("transaction"));
 
+const TABLE_FOR: Record<MatchKind, "receipts" | "expenses" | "bankTransactions"> = {
+  receipt: "receipts", expense: "expenses", transaction: "bankTransactions",
+};
+
+/** A client-supplied reference, proven to be a row of that kind in this studio. */
+async function ownedRef(ctx: QueryCtx, orgId: string, ref: { kind: MatchKind; id: string }) {
+  const table = TABLE_FOR[ref.kind];
+  const id = ctx.db.normalizeId(table, ref.id);
+  const row = id ? await ctx.db.get(id) : null;
+  if (!row || (row as { orgId?: string }).orgId !== orgId) throw new ConvexError("That item is not in this studio.");
+  return { kind: ref.kind, id: id as string };
+}
+
 /** Suggested counterparts for one item, best first. */
 export const suggestions = query({
   args: { kind: kindV, id: v.string() },
-  handler: async (ctx, { kind, id }) => {
+  handler: async (ctx, { kind, id: rawId }) => {
     const orgId = await currentOrgWithCapability(ctx, "insights.read");
+    const { id } = await ownedRef(ctx, orgId, { kind, id: rawId });
     const rejected = await rejectedKeys(ctx, orgId);
     const out: Array<{ kind: MatchKind; id: string; label: string; sub?: string; amountCents: number; dateMs: number; score: number; reasons: string[]; alreadyMatched: boolean }> = [];
     const push = (ranked: ReturnType<typeof rankCandidates<Candidate>>) => {
@@ -209,16 +223,21 @@ const refV = v.object({ kind: kindV, id: v.string() });
 
 export const confirm = mutation({
   args: { a: refV, b: refV, score: v.optional(v.number()), reasons: v.optional(v.array(v.string())) },
-  handler: async (ctx, { a, b, score, reasons }) => {
+  handler: async (ctx, { a: rawA, b: rawB, score, reasons }) => {
     const orgId = await currentOrgWithCapability(ctx, "invoices.send");
+    const a = await ownedRef(ctx, orgId, rawA);
+    const b = await ownedRef(ctx, orgId, rawB);
     await link(ctx, orgId, a, b, { actorType: "user", actorName: await currentActor(ctx), score, reasons });
   },
 });
 
 export const reject = mutation({
   args: { a: refV, b: refV },
-  handler: async (ctx, { a, b }) => {
+  handler: async (ctx, { a: rawA, b: rawB }) => {
     const orgId = await currentOrgWithCapability(ctx, "invoices.send");
+    const a = await ownedRef(ctx, orgId, rawA);
+    const b = await ownedRef(ctx, orgId, rawB);
+    if (a.kind === b.kind) throw new ConvexError("Those two can't be matched.");
     const key = pairKey(a.kind, a.id, b.kind, b.id);
     const existing = await ctx.db.query("financeMatchRejections").withIndex("by_org_key", (q) => q.eq("orgId", orgId).eq("key", key)).first();
     if (!existing) await ctx.db.insert("financeMatchRejections", { orgId, key, at: Date.now() });
@@ -238,8 +257,10 @@ function ids(ref: { kind: MatchKind; id: string }) {
 /** Undo a link. Remembers the pair so it is never suggested again. */
 export const unmatch = mutation({
   args: { a: refV, b: refV },
-  handler: async (ctx, { a, b }) => {
+  handler: async (ctx, { a: rawA, b: rawB }) => {
     const orgId = await currentOrgWithCapability(ctx, "invoices.send");
+    const a = await ownedRef(ctx, orgId, rawA);
+    const b = await ownedRef(ctx, orgId, rawB);
     const actor = { actorType: "user" as const, actorName: await currentActor(ctx) };
     const kinds = [a.kind, b.kind].sort().join("+");
     const get = (k: MatchKind) => (a.kind === k ? a.id : b.id);
