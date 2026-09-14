@@ -105,6 +105,7 @@ import type * as lib_emailTemplates_betaWelcome from "../lib/emailTemplates/beta
 import type * as lib_emailTemplates_invite from "../lib/emailTemplates/invite.js";
 import type * as lib_emailTemplates_layout from "../lib/emailTemplates/layout.js";
 import type * as lib_entitlements from "../lib/entitlements.js";
+import type * as lib_financeMatch from "../lib/financeMatch.js";
 import type * as lib_gearCatalog from "../lib/gearCatalog.js";
 import type * as lib_gearRental from "../lib/gearRental.js";
 import type * as lib_ghl from "../lib/ghl.js";
@@ -124,6 +125,7 @@ import type * as lib_patchValidators from "../lib/patchValidators.js";
 import type * as lib_payoutMath from "../lib/payoutMath.js";
 import type * as lib_payroll from "../lib/payroll.js";
 import type * as lib_phone from "../lib/phone.js";
+import type * as lib_plaid from "../lib/plaid.js";
 import type * as lib_plans from "../lib/plans.js";
 import type * as lib_pnl from "../lib/pnl.js";
 import type * as lib_portTemplates from "../lib/portTemplates.js";
@@ -134,6 +136,7 @@ import type * as lib_redact from "../lib/redact.js";
 import type * as lib_roadmap from "../lib/roadmap.js";
 import type * as lib_roomStatus from "../lib/roomStatus.js";
 import type * as lib_ruleSpec from "../lib/ruleSpec.js";
+import type * as lib_secretBox from "../lib/secretBox.js";
 import type * as lib_sms from "../lib/sms.js";
 import type * as lib_smsContacts from "../lib/smsContacts.js";
 import type * as lib_smsKeywords from "../lib/smsKeywords.js";
@@ -337,6 +340,7 @@ declare const fullApi: ApiFromModules<{
   "lib/emailTemplates/invite": typeof lib_emailTemplates_invite;
   "lib/emailTemplates/layout": typeof lib_emailTemplates_layout;
   "lib/entitlements": typeof lib_entitlements;
+  "lib/financeMatch": typeof lib_financeMatch;
   "lib/gearCatalog": typeof lib_gearCatalog;
   "lib/gearRental": typeof lib_gearRental;
   "lib/ghl": typeof lib_ghl;
@@ -356,6 +360,7 @@ declare const fullApi: ApiFromModules<{
   "lib/payoutMath": typeof lib_payoutMath;
   "lib/payroll": typeof lib_payroll;
   "lib/phone": typeof lib_phone;
+  "lib/plaid": typeof lib_plaid;
   "lib/plans": typeof lib_plans;
   "lib/pnl": typeof lib_pnl;
   "lib/portTemplates": typeof lib_portTemplates;
@@ -366,6 +371,7 @@ declare const fullApi: ApiFromModules<{
   "lib/roadmap": typeof lib_roadmap;
   "lib/roomStatus": typeof lib_roomStatus;
   "lib/ruleSpec": typeof lib_ruleSpec;
+  "lib/secretBox": typeof lib_secretBox;
   "lib/sms": typeof lib_sms;
   "lib/smsContacts": typeof lib_smsContacts;
   "lib/smsKeywords": typeof lib_smsKeywords;

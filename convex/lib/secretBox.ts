@@ -29,9 +29,9 @@ function toBase64(bytes: Uint8Array): string {
   return btoa(s);
 }
 
-function fromBase64(value: string): Uint8Array {
+function fromBase64(value: string): Uint8Array<ArrayBuffer> {
   const raw = atob(value);
-  const out = new Uint8Array(raw.length);
+  const out = new Uint8Array(new ArrayBuffer(raw.length));
   for (let i = 0; i < raw.length; i++) out[i] = raw.charCodeAt(i);
   return out;
 }
@@ -39,7 +39,7 @@ function fromBase64(value: string): Uint8Array {
 async function key(): Promise<CryptoKey> {
   const encoded = process.env.PLAID_TOKEN_KEY;
   if (!encoded) throw new SecretBoxError("PLAID_TOKEN_KEY is not set on this deployment.");
-  let bytes: Uint8Array;
+  let bytes: Uint8Array<ArrayBuffer>;
   try {
     bytes = fromBase64(encoded);
   } catch {

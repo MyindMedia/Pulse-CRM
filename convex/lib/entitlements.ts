@@ -216,6 +216,7 @@ export const ENTITLEMENT_FOR_CAPABILITY: Record<string, CapabilityKey> = {
   "songs.edit": "songs",
   "songs.delete": "songs",
   "insights.read": "reports",             // reports, P&L, payroll summaries
+  "banking.manage": "reports",            // bank connections feed the books
   "ops.action.approve": "agent",
   "ops.autonomy.manage": "aiAutonomy",
   "opportunities.read": "pipeline",

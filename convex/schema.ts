@@ -1717,10 +1717,173 @@ export default defineSchema({
     receiptId: v.optional(v.id("_storage")),
     notes: v.optional(v.string()),
     createdBy: v.optional(v.string()),
+    // Where the expense came from. Absent = typed in by hand (older rows).
+    source: v.optional(v.union(v.literal("manual"), v.literal("receipt"), v.literal("bank"))),
+    // The receipt record and bank line this expense is reconciled with.
+    receiptDocId: v.optional(v.id("receipts")),
+    bankTransactionId: v.optional(v.id("bankTransactions")),
   })
     .index("by_org", ["orgId"])
     .index("by_org_date", ["orgId", "date"])
-    .index("by_org_member", ["orgId", "memberId"]),
+    .index("by_org_member", ["orgId", "memberId"])
+    .index("by_bank_transaction", ["bankTransactionId"]),
+
+  // ── Banking (Plaid) - openspec/changes/add-bank-sync-receipts ─────────────
+  // One Plaid Item per institution login. The access token is sealed with
+  // PLAID_TOKEN_KEY (lib/secretBox) and never leaves internal functions; no
+  // public query returns tokenCiphertext, tokenIv, cursor or plaidItemId, and
+  // none of these tables is mirrored to devices.
+  bankConnections: defineTable({
+    orgId: v.string(),
+    plaidItemId: v.string(),
+    institutionId: v.optional(v.string()),
+    institutionName: v.string(),
+    status: v.union(
+      v.literal("active"),
+      v.literal("syncing"),
+      v.literal("login_required"),
+      v.literal("expiring"),
+      v.literal("revoked"),
+      v.literal("error"),
+    ),
+    tokenCiphertext: v.optional(v.string()),
+    tokenIv: v.optional(v.string()),
+    cursor: v.optional(v.string()),
+    lastSyncedAt: v.optional(v.number()),
+    lastSyncError: v.optional(v.string()),
+    newAccountsAvailable: v.optional(v.boolean()),
+    consentExpiresAt: v.optional(v.number()),
+    connectedBy: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_item", ["plaidItemId"]),
+
+  bankAccounts: defineTable({
+    orgId: v.string(),
+    connectionId: v.id("bankConnections"),
+    plaidAccountId: v.string(),
+    name: v.string(),
+    officialName: v.optional(v.string()),
+    mask: v.optional(v.string()),
+    type: v.string(), // depository | credit | loan | investment | other
+    subtype: v.optional(v.string()),
+    currentCents: v.optional(v.number()),
+    availableCents: v.optional(v.number()),
+    limitCents: v.optional(v.number()),
+    currency: v.string(),
+    balanceAsOf: v.number(),
+    hidden: v.optional(v.boolean()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_connection", ["connectionId"])
+    .index("by_plaid_account", ["plaidAccountId"]),
+
+  bankTransactions: defineTable({
+    orgId: v.string(),
+    connectionId: v.id("bankConnections"),
+    accountId: v.id("bankAccounts"),
+    plaidTransactionId: v.string(),
+    pendingTransactionId: v.optional(v.string()),
+    date: v.number(), // UTC midnight of the posted (or pending) day
+    authorizedDate: v.optional(v.number()),
+    amountCents: v.number(), // always positive; direction says which way
+    direction: v.union(v.literal("in"), v.literal("out")),
+    currency: v.string(),
+    name: v.string(),
+    merchantName: v.optional(v.string()),
+    pfcPrimary: v.optional(v.string()),
+    pfcDetailed: v.optional(v.string()),
+    pending: v.boolean(),
+    removed: v.optional(v.boolean()),
+    excluded: v.optional(v.boolean()),
+    excludeReason: v.optional(v.union(
+      v.literal("transfer"),
+      v.literal("card_payment"),
+      v.literal("loan"),
+      v.literal("personal"),
+      v.literal("other"),
+    )),
+    category: v.optional(v.string()), // an expenses category, suggested or chosen
+    expenseId: v.optional(v.id("expenses")),
+    receiptId: v.optional(v.id("receipts")),
+    updatedAt: v.number(),
+  })
+    .index("by_org_date", ["orgId", "date"])
+    .index("by_plaid_txn", ["plaidTransactionId"])
+    .index("by_account_date", ["accountId", "date"])
+    .index("by_connection", ["connectionId"])
+    .index("by_expense", ["expenseId"])
+    .index("by_receipt", ["receiptId"]),
+
+  // ── Receipts - a photo or PDF, what the AI read from it, and its links ────
+  receipts: defineTable({
+    orgId: v.string(),
+    storageId: v.id("_storage"),
+    fileName: v.string(),
+    fileType: v.string(),
+    sizeBytes: v.number(),
+    uploadedBy: v.string(),
+    uploadedAt: v.number(),
+    status: v.union(
+      v.literal("reading"),
+      v.literal("ready"),
+      v.literal("needs_review"),
+      v.literal("failed"),
+    ),
+    vendor: v.optional(v.string()),
+    date: v.optional(v.number()),
+    totalCents: v.optional(v.number()),
+    taxCents: v.optional(v.number()),
+    currency: v.optional(v.string()),
+    cardLast4: v.optional(v.string()),
+    confidence: v.optional(v.number()),
+    model: v.optional(v.string()),
+    extractedAt: v.optional(v.number()),
+    error: v.optional(v.string()),
+    expenseId: v.optional(v.id("expenses")),
+    bankTransactionId: v.optional(v.id("bankTransactions")),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_status", ["orgId", "status"])
+    .index("by_org_date", ["orgId", "date"])
+    .index("by_expense", ["expenseId"])
+    .index("by_transaction", ["bankTransactionId"]),
+
+  // ── Finance audit - append-only record of every upload, extraction, match,
+  // unmatch, categorization and bank sync, including automated ones that
+  // changeAudit cannot see (no signed-in user). Never edited or deleted except
+  // with the whole workspace.
+  financeAudit: defineTable({
+    orgId: v.string(),
+    at: v.number(),
+    action: v.string(),
+    actorType: v.union(v.literal("user"), v.literal("system"), v.literal("ai")),
+    actorName: v.optional(v.string()),
+    receiptId: v.optional(v.id("receipts")),
+    expenseId: v.optional(v.id("expenses")),
+    bankTransactionId: v.optional(v.id("bankTransactions")),
+    connectionId: v.optional(v.id("bankConnections")),
+    score: v.optional(v.number()),
+    reasons: v.optional(v.array(v.string())),
+    model: v.optional(v.string()),
+    before: v.optional(v.any()),
+    after: v.optional(v.any()),
+    detail: v.optional(v.string()),
+  })
+    .index("by_org_at", ["orgId", "at"])
+    .index("by_receipt", ["receiptId"])
+    .index("by_expense", ["expenseId"])
+    .index("by_transaction", ["bankTransactionId"]),
+
+  // A suggestion a person turned down is never offered again for that pair.
+  financeMatchRejections: defineTable({
+    orgId: v.string(),
+    key: v.string(), // lib/financeMatch.pairKey
+    at: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_key", ["orgId", "key"]),
 
   // ── Software + license management - DAWs, plugins, sample libraries and
   //    subscriptions the studio owns. Tracks cost, seats, renewal, and the
