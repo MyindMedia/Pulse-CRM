@@ -1809,6 +1809,7 @@ export default defineSchema({
     receiptId: v.optional(v.id("receipts")),
     updatedAt: v.number(),
   })
+    .index("by_org", ["orgId"])
     .index("by_org_date", ["orgId", "date"])
     .index("by_plaid_txn", ["plaidTransactionId"])
     .index("by_account_date", ["accountId", "date"])
@@ -1871,6 +1872,7 @@ export default defineSchema({
     after: v.optional(v.any()),
     detail: v.optional(v.string()),
   })
+    .index("by_org", ["orgId"])
     .index("by_org_at", ["orgId", "at"])
     .index("by_receipt", ["receiptId"])
     .index("by_expense", ["expenseId"])

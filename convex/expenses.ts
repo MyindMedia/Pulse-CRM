@@ -1,7 +1,8 @@
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
-import { currentOrgWithCapability } from "./lib/tenant";
+import { currentActor, currentOrgWithCapability } from "./lib/tenant";
+import { financeLog } from "./lib/financeLinks";
 import { plSummary, monthlyRunRateCents } from "./lib/pnl";
 
 /* ============================================================
@@ -100,6 +101,24 @@ export const remove = mutation({
     const orgId = await currentOrgWithCapability(ctx, "invoices.send");
     const row = await ctx.db.get(id);
     if (!row || row.orgId !== orgId) throw new Error("Expense not found.");
+    // A deleted expense lets go of its receipt and bank line; neither is
+    // deleted, both go back to needing attention, and the history says why.
+    const actor = { actorType: "user" as const, actorName: await currentActor(ctx) };
+    if (row.receiptDocId) {
+      const r = await ctx.db.get(row.receiptDocId);
+      if (r && r.expenseId === id) await ctx.db.patch(row.receiptDocId, { expenseId: undefined });
+    }
+    if (row.bankTransactionId) {
+      const t = await ctx.db.get(row.bankTransactionId);
+      if (t && t.expenseId === id) await ctx.db.patch(row.bankTransactionId, { expenseId: undefined, updatedAt: Date.now() });
+    }
+    if (row.receiptDocId || row.bankTransactionId || row.source) {
+      await financeLog(ctx, orgId, {
+        action: "expense.deleted", ...actor, expenseId: id,
+        receiptId: row.receiptDocId, bankTransactionId: row.bankTransactionId,
+        before: { amountCents: row.amountCents, category: row.category, date: row.date, vendor: row.vendor ?? null, source: row.source ?? "manual" },
+      });
+    }
     await ctx.db.delete(id);
   },
 });
@@ -209,6 +228,46 @@ export const plReport = query({
       0,
     );
 
+    // The bank's view of the same period (openspec add-bank-sync-receipts,
+    // finance/pnl-report). Cash in and out exclude transfers, card and loan
+    // payments, removed and pending lines. It never feeds profit: expenses
+    // added from the bank are already in `expenses`, so profit stays
+    // collected revenue minus expenses and nothing counts twice.
+    const bankRows = await ctx.db
+      .query("bankTransactions")
+      .withIndex("by_org_date", (q) => q.eq("orgId", orgId).gte("date", start).lt("date", end))
+      .collect();
+    const counted = bankRows.filter((t) => !t.removed && !t.excluded && !t.pending);
+    const bankOutByCategory = new Map<string, number>();
+    let bankInCents = 0;
+    let bankOutCents = 0;
+    for (const t of counted) {
+      if (t.direction === "in") bankInCents += t.amountCents;
+      else {
+        bankOutCents += t.amountCents;
+        const key = t.category ?? "uncategorized";
+        bankOutByCategory.set(key, (bankOutByCategory.get(key) ?? 0) + t.amountCents);
+      }
+    }
+    const connections = await ctx.db.query("bankConnections").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
+    const live = new Set(connections.filter((c) => c.status !== "revoked").map((c) => c._id));
+    const accounts = await ctx.db.query("bankAccounts").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
+    let cashOnHandCents = 0;
+    let cardOwedCents = 0;
+    let balanceAsOf: number | null = null;
+    for (const a of accounts) {
+      if (a.hidden || !live.has(a.connectionId)) continue;
+      if (a.type === "depository") cashOnHandCents += a.currentCents ?? 0;
+      if (a.type === "credit") cardOwedCents += a.currentCents ?? 0;
+      balanceAsOf = balanceAsOf === null ? a.balanceAsOf : Math.min(balanceAsOf, a.balanceAsOf);
+    }
+
+    const receipts = await ctx.db.query("receipts").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
+    const inPeriod = receipts.filter((r) => {
+      const at = r.date ?? r.uploadedAt;
+      return at >= start && at < end;
+    });
+
     return {
       ...summary,
       revenueFromPaymentsCents: paymentRevenue,
@@ -216,6 +275,27 @@ export const plReport = query({
       paymentsByMethod,
       expenseCount: expenses.length,
       monthlyRecurringCents,
+      bank: {
+        connected: live.size > 0,
+        needsAttention: connections.filter((c) => c.status === "login_required" || c.status === "error" || c.status === "expiring").length,
+        inCents: bankInCents,
+        outCents: bankOutCents,
+        netCents: bankInCents - bankOutCents,
+        outByCategory: [...bankOutByCategory.entries()]
+          .map(([category, amountCents]) => ({ category, amountCents }))
+          .sort((a, b) => b.amountCents - a.amountCents),
+        cashOnHandCents,
+        cardOwedCents,
+        balanceAsOf,
+      },
+      reconciliation: {
+        unmatchedOutflows: counted.filter((t) => t.direction === "out" && !t.expenseId).length,
+        receiptsUnmatched: inPeriod.filter((r) => r.status === "ready" && !r.expenseId).length,
+        receiptsNeedingReview: inPeriod.filter((r) => r.status === "needs_review").length,
+        expensesWithoutReceipt: expenses.filter(
+          (e) => !e.receiptId && !e.receiptDocId && e.category !== "payroll" && e.category !== "adjustment",
+        ).length,
+      },
     };
   },
 });

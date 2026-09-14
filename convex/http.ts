@@ -3,6 +3,7 @@ import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { stripeClient } from "./lib/stripe";
 import { exchangeCode, emailFromIdToken } from "./lib/google";
+import { plaid, verifyPlaidWebhook } from "./lib/plaid";
 
 const http = httpRouter();
 
@@ -197,6 +198,37 @@ http.route({
         "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
       },
     });
+  }),
+});
+
+/* Plaid webhook - bank feed updates and connection status.
+   openspec add-bank-sync-receipts (finance/bank-sync). Nothing is trusted until
+   the Plaid-Verification JWT checks out against Plaid's key for its kid, is no
+   older than five minutes, and signs this exact body. A forged or stale request
+   gets 401 and changes nothing. Handling is idempotent: a sync only moves the
+   stored cursor forward. */
+http.route({
+  path: "/plaid/webhook",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    const body = await req.text();
+    const ok = await verifyPlaidWebhook(body, req.headers.get("plaid-verification"), (kid) => plaid.webhookVerificationKey(kid));
+    if (!ok) return new Response("unverified", { status: 401 });
+    let parsed: { webhook_type?: string; webhook_code?: string; item_id?: string; error?: { error_code?: string } | null };
+    try {
+      parsed = JSON.parse(body);
+    } catch {
+      return new Response("bad body", { status: 400 });
+    }
+    if (parsed.item_id && parsed.webhook_type && parsed.webhook_code) {
+      await ctx.runMutation(internal.banking._handleWebhook, {
+        itemId: parsed.item_id,
+        type: parsed.webhook_type,
+        code: parsed.webhook_code,
+        errorCode: parsed.error?.error_code ?? undefined,
+      });
+    }
+    return new Response("ok", { status: 200 });
   }),
 });
 

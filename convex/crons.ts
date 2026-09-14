@@ -59,6 +59,10 @@ crons.interval("email-reminders", { minutes: 30 }, internal.reminders.sweep, {})
 // into busy blocks (incremental via syncToken). The read half of two-way sync.
 crons.interval("google-calendar-pull", { minutes: 10 }, internal.googleCalendarSync.pullAllOrgs);
 
+// Bank feeds (Plaid): a safety-net pull every six hours on top of Plaid's
+// SYNC_UPDATES_AVAILABLE webhooks. Staggered per connection.
+crons.interval("bank-sync", { hours: 6 }, internal.banking.syncAll);
+
 // Ops brain: per-org operational scan that proposes/auto-executes actions.
 crons.daily("ops-brain", { hourUTC: 13, minuteUTC: 0 }, internal.opsBrain.scanAllOrgs);
 

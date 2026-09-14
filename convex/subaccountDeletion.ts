@@ -1,3 +1,4 @@
+import { internal } from "./_generated/api";
 import { query, internalQuery } from "./_generated/server";
 import { mutation } from "./functions";
 import { v, ConvexError } from "convex/values";
@@ -42,6 +43,10 @@ export const ORG_TABLES = [
   "timeEntries", "smsPrompts", "availability", "timeOff", "clientMessages", "smsContacts", "changeAudit", "waitlistEntries",
   "membershipPlans", "memberships", "patchSpaces", "deviceInstances", "patchVocabGaps",
   "patchAnnotations", "patchGroups", "ports", "connections", "patchAudit",
+  // Banking and receipts (openspec add-bank-sync-receipts). Plaid items are
+  // removed at Plaid and receipt files deleted before these rows go.
+  "bankTransactions", "bankAccounts", "bankConnections", "receipts",
+  "financeMatchRejections", "financeAudit",
   // Last on purpose. Every delete above fires a trigger that appends here, so
   // sweeping the feed first would leave a fresh activity trace - orgId, table,
   // docId, timestamps - of a workspace that was told it was destroyed.
@@ -255,6 +260,17 @@ export const confirmDeletion = mutation({
       result: "allow",
       reason: `Deleted "${org.name}" (/${org.slug}) after three-step confirmation`,
     });
+
+    // Banking and receipts hold things outside this database: a live Plaid
+    // item and uploaded files. Release both before their rows disappear.
+    const bankConns = await ctx.db.query("bankConnections").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
+    const sealed = bankConns
+      .filter((c) => c.tokenCiphertext && c.tokenIv)
+      .map((c) => ({ ciphertext: c.tokenCiphertext!, iv: c.tokenIv! }));
+    if (sealed.length > 0) await ctx.scheduler.runAfter(0, internal.banking.removeItems, { sealed });
+    for (const r of await ctx.db.query("receipts").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()) {
+      await ctx.storage.delete(r.storageId);
+    }
 
     let deleted = 0;
     for (const table of ORG_TABLES) {

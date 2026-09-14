@@ -50,6 +50,10 @@ const KEEP = new Set<string>([
   "pushSubscriptions",  // devices already registered for alerts
   // The patchbay is a drawing of the room, not a record of what happened in it.
   "patchSpaces", "deviceInstances", "ports", "connections", "patchGroups",
+  // A connected bank and what it imported are real, not staged: a reset never
+  // strands a live Plaid item, orphans receipt files or rewrites the finance log.
+  "bankConnections", "bankAccounts", "bankTransactions", "receipts",
+  "financeMatchRejections", "financeAudit",
 ]);
 
 async function orgOrThrow(ctx: MutationCtx, orgId: string) {

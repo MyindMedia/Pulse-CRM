@@ -214,3 +214,47 @@ async function completeGemini(
     return null;
   }
 }
+
+/* Vision: read one document image or PDF into JSON.
+
+   Used for receipts, which are customer financial documents, so this path is
+   OpenAI only (the covered commercial API) and never falls back to Gemini or to
+   the Ollama device reader. The document is untrusted input: the system prompt
+   carries the injection guard, the caller validates every field, and nothing
+   the model returns is executed or used as an instruction.
+
+   Images go as `input_image` data URLs; PDFs as `input_file`. The response is
+   forced into `schema`. Returns null when OpenAI is not configured or nothing
+   usable comes back, so the caller can mark the document for a person. */
+export async function completeVisionJSON<T = unknown>(
+  prompt: string,
+  file: { mimeType: string; base64: string; fileName: string },
+  opts: { system: string; schema: { name: string; schema: Record<string, unknown> }; model?: string; maxOutputTokens?: number },
+): Promise<{ model: string; data: T } | null> {
+  const c = client();
+  if (!c) return null;
+  const model = opts.model ?? DEFAULT_MODEL;
+  const system = `${opts.system}\n\n${INJECTION_GUARD}\n\n${NO_EM_DASH_RULE}\n\nRespond with ONLY a single valid JSON object.`;
+  const part = file.mimeType === "application/pdf"
+    ? { type: "input_file", filename: file.fileName, file_data: `data:application/pdf;base64,${file.base64}` }
+    : { type: "input_image", image_url: `data:${file.mimeType};base64,${file.base64}`, detail: "high" };
+  try {
+    const req: Record<string, unknown> = {
+      model,
+      input: [
+        { role: "system", content: system },
+        { role: "user", content: [{ type: "input_text", text: prompt }, part] },
+      ],
+      max_output_tokens: opts.maxOutputTokens ?? 2500,
+      text: { format: { type: "json_schema", name: opts.schema.name, schema: opts.schema.schema, strict: true } },
+    };
+    if (/^gpt-5|^o\d/.test(model)) req.reasoning = { effort: "low" };
+    const res = (await c.responses.create(req as Parameters<typeof c.responses.create>[0])) as { output_text?: string };
+    const j = extractJson(res.output_text ?? "");
+    if (!j) return null;
+    return { model, data: JSON.parse(j) as T };
+  } catch (err) {
+    console.error("[openai.completeVisionJSON] error", err instanceof Error ? err.message : "unknown");
+    return null;
+  }
+}
