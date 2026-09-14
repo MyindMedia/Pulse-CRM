@@ -20,7 +20,7 @@ export const dynamic = "force-static";
 
 export default function PrivacyPolicy() {
   return (
-    <LegalShell title="Privacy Policy" updated="September 12, 2026">
+    <LegalShell title="Privacy Policy" updated="September 14, 2026">
       <Section heading="Who we are">
         <p>
           Pulse is recording studio management software operated by {LEGAL_ENTITY} (&ldquo;Pulse&rdquo;,
@@ -47,6 +47,16 @@ export default function PrivacyPolicy() {
             not store full card numbers on our systems.
           </li>
           <li>
+            <strong className="text-mist">Bank and card data</strong> - when a studio connects its
+            business accounts through Plaid: account names, the last four digits, balances, and
+            transactions. You sign in to your bank inside Plaid, so Pulse never receives bank
+            usernames, passwords, or full account numbers.
+          </li>
+          <li>
+            <strong className="text-mist">Receipts</strong> - photos or PDFs that studio staff upload,
+            and the vendor, date, total, tax, and last four card digits read from them.
+          </li>
+          <li>
             <strong className="text-mist">Technical data</strong> - IP address, device and browser
             type, and log data used to keep the service secure and working.
           </li>
@@ -58,6 +68,10 @@ export default function PrivacyPolicy() {
           <li>To create, confirm, change, and remind you about studio bookings.</li>
           <li>To send account and service notifications you have asked to receive.</li>
           <li>To take payment and issue invoices and receipts.</li>
+          <li>
+            To import a studio&rsquo;s bank transactions and balances, read uploaded receipts, and match
+            them to its expenses so its books and profit reports are complete.
+          </li>
           <li>
             To provide the AI features a studio uses in Pulse, such as drafted client replies,
             session recaps, and weekly briefings.
@@ -97,14 +111,20 @@ export default function PrivacyPolicy() {
           deliver the service:
         </p>
         <ul className="list-disc space-y-1.5 pl-5">
+          <li>
+            Plaid - connecting a studio&rsquo;s bank and card accounts and retrieving balances and
+            transactions for its books. Plaid&rsquo;s handling of your bank data is described in the
+            Plaid End User Privacy Policy shown when you connect.
+          </li>
           <li>HighLevel (LeadConnector) - delivery of text messages.</li>
           <li>Resend - delivery of email, such as invitations, reminders, and invoices.</li>
           <li>Stripe - payment processing.</li>
           <li>Clerk - account authentication, including sign-in with Google or Apple when you choose it.</li>
           <li>Convex and Netlify - application hosting and data storage.</li>
           <li>
-            OpenAI - AI features in Pulse, such as drafted client replies, session recaps, and
-            weekly briefings. Only the studio records a request needs, which can include client names
+            OpenAI - AI features in Pulse, such as drafted client replies, session recaps, weekly
+            briefings, and reading uploaded receipts. Bank transactions and balances are never sent to
+            OpenAI. Only the studio records a request needs, which can include client names
             and session details, are sent to OpenAI&rsquo;s API, and OpenAI does not use data sent
             through its API to train its models.
           </li>

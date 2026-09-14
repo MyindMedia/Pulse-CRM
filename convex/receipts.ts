@@ -334,7 +334,7 @@ export const createExpense = mutation({
       orgId,
       category,
       amountCents: r.totalCents,
-      date: r.date,
+      date: r.date + 12 * 3_600_000, // noon UTC, as the expense form stores local noon
       vendor: r.vendor,
       description,
       source: "receipt",

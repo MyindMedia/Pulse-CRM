@@ -3,7 +3,10 @@
 import * as React from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Wallet, TrendingDown, TrendingUp, Percent, RefreshCw, Plus, Pencil } from "lucide-react";
+import { Wallet, TrendingDown, TrendingUp, Percent, RefreshCw, Plus, Pencil, Landmark, History, Paperclip, ExternalLink } from "lucide-react";
+import Link from "next/link";
+import { toast } from "sonner";
+import type { Id } from "@convex/_generated/dataModel";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
@@ -18,6 +21,10 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { money, percent, shortDate } from "@/lib/format";
+import { errorMessage } from "@/lib/errors";
+import { Badge } from "@/components/ui/badge";
+import { ReceiptsPanel, useReceiptUpload } from "@/components/finance/receipts-panel";
+import { FinanceHistorySheet } from "@/components/finance/finance-history-sheet";
 import { meta, PAYMENT_METHOD } from "@/lib/labels";
 import {
   ExpenseDialog,
@@ -46,7 +53,13 @@ function rangeFor(r: Range): { start: number; end: number } {
   };
 }
 
-type ExpenseRow = EditableExpense & { memberName: string | null; receiptUrl: string | null };
+type ExpenseRow = EditableExpense & {
+  memberName: string | null;
+  receiptUrl: string | null;
+  source?: "manual" | "receipt" | "bank";
+  receiptDocId?: Id<"receipts">;
+  bankTransactionId?: Id<"bankTransactions">;
+};
 
 export default function ExpensesPage() {
   const [range, setRange] = React.useState<Range>("month");
@@ -57,6 +70,13 @@ export default function ExpensesPage() {
   const { start, end } = rangeFor(range);
   const pl = useQuery(api.expenses.plReport, { start, end });
   const rows = useQuery(api.expenses.list, { start, end }) as ExpenseRow[] | undefined;
+
+  const banking = useQuery(api.banking.overview, {});
+  const canEdit = banking?.canEdit ?? false;
+  const upload = useReceiptUpload();
+  const [historyFor, setHistoryFor] = React.useState<ExpenseRow | null>(null);
+  const attachFor = React.useRef<ExpenseRow | null>(null);
+  const attachInput = React.useRef<HTMLInputElement>(null);
 
   const loading = rows === undefined;
   const profitable = (pl?.netCents ?? 0) >= 0;
@@ -105,6 +125,28 @@ export default function ExpensesPage() {
         <StatTile label="Recurring / mo" value={pl ? <CountUp to={pl.monthlyRecurringCents} format={(n) => money(n, { compact: true })} /> : "-"} icon={RefreshCw} hint="fixed cost run-rate" />
       </div>
 
+      {pl && (
+        pl.bank.connected ? (
+          <div className="rise-stagger grid grid-cols-2 gap-3 md:grid-cols-4">
+            <StatTile label="Bank money in" value={money(pl.bank.inCents, { compact: true })} icon={TrendingUp} hint="this period, transfers excluded" />
+            <StatTile label="Bank money out" value={money(pl.bank.outCents, { compact: true })} icon={TrendingDown} hint="this period, transfers excluded" />
+            <StatTile label="Cash on hand" value={money(pl.bank.cashOnHandCents, { compact: true })} icon={Landmark} hint={pl.bank.cardOwedCents > 0 ? `${money(pl.bank.cardOwedCents, { compact: true })} owed on cards` : "checking and savings"} />
+            <StatTile label="To reconcile" value={String(pl.reconciliation.unmatchedOutflows)} icon={Paperclip} hint={`${pl.reconciliation.receiptsUnmatched} receipts waiting · ${pl.reconciliation.expensesWithoutReceipt} expenses without a receipt`} />
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-graphite/50 bg-coal/40 px-4 py-3 text-sm">
+            <span className="text-steel">Connect the studio bank to see cash in, cash out and balances here, and to match receipts automatically.</span>
+            <Button asChild size="sm" variant="secondary"><Link href="/banking"><Landmark className="size-3.5" /> Banking</Link></Button>
+          </div>
+        )
+      )}
+
+      {pl && pl.bank.connected && pl.reconciliation.unmatchedOutflows > 0 && (
+        <p className="text-xs text-caution">
+          {pl.reconciliation.unmatchedOutflows} bank {pl.reconciliation.unmatchedOutflows === 1 ? "charge isn't" : "charges aren't"} in the books yet. <Link href="/banking" className="underline">Reconcile in Banking</Link>.
+        </p>
+      )}
+
       {pl && pl.paymentsByMethod.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
           <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
@@ -140,15 +182,16 @@ export default function ExpensesPage() {
             <TH>Category</TH>
             <TH>Vendor</TH>
             <TH>Description</TH>
+            <TH>Receipt</TH>
             <TH className="text-right">Amount</TH>
-            <TH className="w-10" />
+            <TH className="w-20" />
           </TR>
         </THead>
         <TBody>
           {loading ? (
-            <TR><TD colSpan={6} className="py-8 text-center text-steel/70">Loading…</TD></TR>
+            <TR><TD colSpan={7} className="py-8 text-center text-steel/70">Loading…</TD></TR>
           ) : rows.length === 0 ? (
-            <TR><TD colSpan={6} className="py-8 text-center text-steel/70">No expenses logged for this period. Click “Log expense” to add your first cost.</TD></TR>
+            <TR><TD colSpan={7} className="py-8 text-center text-steel/70">No expenses logged for this period. Click “Log expense” to add your first cost.</TD></TR>
           ) : (
             rows.map((r) => (
               <TR key={r._id}>
@@ -158,18 +201,70 @@ export default function ExpensesPage() {
                   {r.recurring && <span className="ml-2 rounded-full border border-graphite/50 px-1.5 py-0.5 text-[0.625rem] uppercase tracking-wide text-steel/70">{r.recurring}</span>}
                 </TD>
                 <TD className="text-steel">{r.vendor ?? "-"}</TD>
-                <TD className="text-steel">{r.description ?? "-"}</TD>
+                <TD className="text-steel">
+                  {r.description ?? "-"}
+                  {r.source === "bank" && <Badge tone="info" className="ml-2">Bank</Badge>}
+                  {r.source === "receipt" && <Badge tone="info" className="ml-2">Receipt</Badge>}
+                </TD>
+                <TD>
+                  {r.receiptUrl ? (
+                    <a href={r.receiptUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-gold hover:underline">
+                      <ExternalLink className="size-3" /> View
+                    </a>
+                  ) : canEdit ? (
+                    <Button size="sm" variant="ghost" onClick={() => { attachFor.current = r; attachInput.current?.click(); }}>
+                      <Paperclip className="size-3.5" /> Attach
+                    </Button>
+                  ) : (
+                    <span className="text-xs text-steel/60">None</span>
+                  )}
+                </TD>
                 <TD className="text-right font-meta text-bone">{money(r.amountCents)}</TD>
                 <TD>
-                  <IconButton variant="ghost" size="icon" label="Edit this expense" onClick={() => openEdit(r)}>
-                    <Pencil className="size-4" />
-                  </IconButton>
+                  <div className="flex justify-end">
+                    <IconButton variant="ghost" size="icon" label="History for this expense" onClick={() => setHistoryFor(r)}>
+                      <History className="size-4" />
+                    </IconButton>
+                    <IconButton variant="ghost" size="icon" label="Edit this expense" onClick={() => openEdit(r)}>
+                      <Pencil className="size-4" />
+                    </IconButton>
+                  </div>
                 </TD>
               </TR>
             ))
           )}
         </TBody>
       </Table>
+
+      <input
+        ref={attachInput}
+        type="file"
+        accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+        className="hidden"
+        onChange={async (e) => {
+          const file = e.target.files?.[0];
+          const target = attachFor.current;
+          e.target.value = "";
+          if (!file || !target) return;
+          try {
+            await upload(file, target._id as Id<"expenses">);
+            toast.success("Receipt attached. Reading it now.");
+          } catch (err) {
+            toast.error(errorMessage(err));
+          } finally {
+            attachFor.current = null;
+          }
+        }}
+      />
+
+      <ReceiptsPanel canEdit={canEdit} />
+
+      <FinanceHistorySheet
+        open={historyFor !== null}
+        onOpenChange={(o) => { if (!o) setHistoryFor(null); }}
+        title={historyFor ? `${historyFor.vendor ?? CATEGORY_LABEL.get(historyFor.category) ?? "Expense"} · ${money(historyFor.amountCents)}` : ""}
+        expenseId={historyFor?._id as Id<"expenses"> | undefined}
+      />
 
       <ExpenseDialog open={addOpen} onOpenChange={setAddOpen} />
       <ExpenseDialog item={editItem} open={editOpen} onOpenChange={(o) => { setEditOpen(o); if (!o) setEditItem(undefined); }} />

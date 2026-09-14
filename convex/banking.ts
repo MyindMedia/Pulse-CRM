@@ -694,7 +694,9 @@ export const addToBooks = mutation({
       orgId,
       category,
       amountCents: t.amountCents,
-      date: t.date,
+      // Noon UTC on the bank's day, like the expense form's local noon, so the
+      // day reads the same in every US time zone.
+      date: t.date + 12 * 3_600_000,
       vendor: (vendor ?? t.merchantName ?? t.name).slice(0, 120),
       description,
       source: "bank",

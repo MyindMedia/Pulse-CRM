@@ -25,6 +25,7 @@ import {
   Settings,
   Megaphone,
   History,
+  Landmark,
   type LucideIcon,
 } from "lucide-react";
 
@@ -58,6 +59,7 @@ export const NAV: NavItem[] = [
   { label: "Payments", href: "/payments", icon: Receipt, blurb: "Invoices and cash flow", feature: "payments", capability: "invoices.read" },
   { label: "Packages", href: "/packages", icon: Package, blurb: "Prepaid hour blocks - sell studio time up front", capability: "invoices.read" },
   { label: "Expenses", href: "/expenses", icon: Wallet, blurb: "Costs and profit - the other half of the books", capability: "insights.read" },
+  { label: "Banking", href: "/banking", icon: Landmark, blurb: "Bank and card accounts, synced - balances, transactions and reconciliation", capability: "insights.read" },
   { label: "Payroll", href: "/payroll", icon: Clock3, blurb: "Staff hours, rates and labor cost", feature: "schedule", capability: "insights.read" },
   { label: "Reports", href: "/reports", icon: BarChart3, blurb: "Revenue command center - where money leaks", feature: "reports", capability: "insights.read" },
   { label: "Change log", href: "/changes", icon: History, blurb: "Who changed what, and when - patch, inventory, check-ins, checklists, bookings", capability: "audit.read" },

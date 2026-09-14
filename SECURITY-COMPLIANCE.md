@@ -53,6 +53,7 @@ Confirm each holds **SOC 2 Type II + an executed DPA** and add to the sub-proces
 - [ ] **Netlify** (frontend hosting / SSR) — DPA.
 - [ ] **OpenAI** (AI sub-processor) — **DPA + ZDR / no-train** confirmation.
 - [ ] **Google Cloud / Gemini** — DPA before enabling `AI_ALLOW_GEMINI_FALLBACK`.
+- [ ] **Plaid** (bank and card data for studio books, Transactions product only) — SOC 2 Type II + ISO 27001 per Plaid trust center; confirm the Plaid end-user privacy terms and developer policy obligations (encrypted access tokens, deletion on disconnect, data minimization). Production use for Pulse needs Plaid to approve the use case. See `docs/compliance/banking-and-receipts.md`.
 
 ## The six SOC 2 builder controls — status
 
@@ -74,6 +75,7 @@ Confirm each holds **SOC 2 Type II + an executed DPA** and add to the sub-proces
 2. **Collect/execute DPAs** for the vendor checklist; maintain a published sub-processor list.
 3. ~~Formalize a GDPR erasure/export flow per data subject.~~ **Done** (`convex/dataRights.ts`).
 4. Keep `AI_ALLOW_GEMINI_FALLBACK` off until the Google DPA is in place.
+5. **Plaid production approval for Pulse** before `PLAID_ENV=production`; record `PLAID_TOKEN_KEY` in 1Password so a lost deployment key does not strand connections. Receipts add financial documents to the OpenAI path, which raises item 1.
 
 ## Platform vulnerability audit + remediation (2026-06-29)
 
