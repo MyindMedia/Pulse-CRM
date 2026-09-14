@@ -56,3 +56,5 @@
 - 7.1: Plaid Link is loaded from Plaid's CDN by a small hook (`src/components/finance/use-plaid-link.ts`) instead of the `react-plaid-link` package.
 - 3.2: refusals are returned, not thrown, so the file delete commits; the real file type is sniffed from its bytes before any AI call.
 - 8.4: security review found one issue (reconcile.reject accepted another studio's ids into the audit log); fixed with `ownedRef` on every client-supplied reference and a test. `/pentest` (Strix) needs Docker, which is not installed here, so no automated pentest was run.
+- Verification locations: 3.1 request shape is checked in `receipts.test.ts` ("sends the image to OpenAI"); 5.1 P&L counts in `banking.test.ts` ("the books"); 2.6 cron fan-out and 2.4 route-level verification are covered by `plaid.test.ts` (signature checks) and `banking.test.ts` (`_handleWebhook`), not a separate cron test.
+- Gap: 6.1 has no dedicated test that workspace deletion removes Plaid items and receipt files; it is type-checked and the existing deletion tests pass. Follow-up.
