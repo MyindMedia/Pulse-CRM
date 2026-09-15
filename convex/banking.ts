@@ -34,6 +34,13 @@ const excludeReasonV = v.union(
 );
 
 const CHUNK = 200;
+// Longer than Convex's ten-minute action limit, so a timed-out worker can be replaced.
+const SYNC_LEASE_MS = 11 * 60_000;
+
+function ownsSync(connection: Doc<"bankConnections"> | null, generation: number): boolean {
+  return Boolean(connection && connection.status !== "revoked" &&
+    connection.syncStartedAt !== undefined && connection.syncGeneration === generation);
+}
 
 function friendly(err: unknown): string {
   if (err instanceof PlaidError) return err.message || `Plaid error ${err.code}`;
@@ -80,6 +87,7 @@ export const createLinkToken = action({
 /** A Link token in update mode, to repair a connection that needs sign-in. */
 export const createUpdateLinkToken = action({
   args: { connectionId: v.id("bankConnections") },
+  returns: v.object({ linkToken: v.string(), environment: v.string() }),
   handler: async (ctx, { connectionId }): Promise<{ linkToken: string; environment: string }> => {
     const me = await ctx.runQuery(internal.banking._viewer, { capability: "banking.manage" });
     const conn = await ctx.runQuery(internal.banking._sealedConnection, { connectionId });
@@ -91,6 +99,7 @@ export const createUpdateLinkToken = action({
       const res = await plaid.linkTokenCreate({
         clientUserId: `${me.orgId}:${me.subject}`,
         accessToken,
+        accountSelectionEnabled: true,
         webhook: process.env.CONVEX_SITE_URL ? `${process.env.CONVEX_SITE_URL}/plaid/webhook` : undefined,
       });
       return { linkToken: res.link_token, environment: plaidEnv() };
@@ -206,20 +215,42 @@ export const _sealedConnection = internalQuery({
 
 // ───────────────────────────────────────────────────────── sync
 
-export const syncConnection = internalAction({
+/** Claim one import atomically. Webhooks arriving during it request another pass. */
+export const _claimSync = internalMutation({
   args: { connectionId: v.id("bankConnections") },
+  returns: v.union(v.null(), v.object({
+    generation: v.number(), tokenCiphertext: v.string(), tokenIv: v.string(), cursor: v.optional(v.string()),
+  })),
   handler: async (ctx, { connectionId }) => {
-    const conn = await ctx.runQuery(internal.banking._sealedConnection, { connectionId });
-    if (!conn || !conn.tokenCiphertext || !conn.tokenIv) return;
-    if (conn.status === "revoked" || conn.status === "login_required") return;
+    const c = await ctx.db.get(connectionId);
+    if (!c || !c.tokenCiphertext || !c.tokenIv || c.status === "revoked" || c.status === "login_required") return null;
+    const now = Date.now();
+    if (c.syncStartedAt !== undefined && now - c.syncStartedAt < SYNC_LEASE_MS) {
+      await ctx.db.patch(connectionId, { syncRequested: true });
+      return null;
+    }
+    const generation = (c.syncGeneration ?? 0) + 1;
+    await ctx.db.patch(connectionId, {
+      syncGeneration: generation, syncStartedAt: now, syncRequested: undefined,
+      ...(c.status === "expiring" ? {} : { status: "syncing" as const }),
+    });
+    return { generation, tokenCiphertext: c.tokenCiphertext, tokenIv: c.tokenIv, cursor: c.cursor };
+  },
+});
 
-    await ctx.runMutation(internal.banking._setStatus, { connectionId, status: "syncing" });
+export const syncConnection = internalAction({
+  args: { connectionId: v.id("bankConnections"), attempt: v.optional(v.number()) },
+  returns: v.null(),
+  handler: async (ctx, { connectionId, attempt }) => {
+    const conn = await ctx.runMutation(internal.banking._claimSync, { connectionId });
+    if (!conn) return;
+    const generation = conn.generation;
     let accessToken: string;
     try {
       accessToken = await open({ ciphertext: conn.tokenCiphertext, iv: conn.tokenIv });
     } catch {
       await ctx.runMutation(internal.banking._syncFailed, {
-        connectionId, status: "error", message: "The stored bank credentials can't be read. Reconnect this bank.",
+        connectionId, generation, status: "error", message: "The stored bank credentials can't be read. Reconnect this bank.",
       });
       return;
     }
@@ -229,6 +260,7 @@ export const syncConnection = internalAction({
     let modified: TransactionRow[] = [];
     let removed: string[] = [];
     let restarts = 0;
+    let historyPending = false;
     for (;;) {
       try {
         const page = await plaid.transactionsSync(accessToken, cursor);
@@ -236,6 +268,8 @@ export const syncConnection = internalAction({
         modified = modified.concat(page.modified.map(toTransactionRow));
         removed = removed.concat(page.removed.map((r) => r.transaction_id));
         cursor = page.next_cursor;
+        historyPending = page.transactions_update_status === "NOT_READY" ||
+          page.transactions_update_status === "INITIAL_UPDATE_COMPLETE";
         if (!page.has_more) break;
       } catch (err) {
         if (err instanceof PlaidError && err.code === "TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION" && restarts < 3) {
@@ -247,7 +281,7 @@ export const syncConnection = internalAction({
         const loginNeeded = err instanceof PlaidError &&
           (err.code === "ITEM_LOGIN_REQUIRED" || err.code === "PENDING_EXPIRATION" || err.code === "ACCESS_NOT_GRANTED");
         await ctx.runMutation(internal.banking._syncFailed, {
-          connectionId,
+          connectionId, generation,
           status: loginNeeded ? "login_required" : "error",
           message: loginNeeded ? "The bank needs you to sign in again." : friendly(err),
         });
@@ -258,7 +292,7 @@ export const syncConnection = internalAction({
     try {
       const accounts = await plaid.accountsGet(accessToken);
       await ctx.runMutation(internal.banking._upsertAccounts, {
-        connectionId,
+        connectionId, generation,
         accounts: accounts.accounts.map((a) => ({
           plaidAccountId: a.account_id,
           name: a.name,
@@ -273,47 +307,69 @@ export const syncConnection = internalAction({
         })),
       });
     } catch (err) {
-      await ctx.runMutation(internal.banking._syncFailed, { connectionId, status: "error", message: friendly(err) });
+      await ctx.runMutation(internal.banking._syncFailed, { connectionId, generation, status: "error", message: friendly(err) });
       return;
     }
 
-    // Posted rows first so a pending row they replace is relinked before it goes.
-    const rows = [...added, ...modified].sort((a, b) => Number(a.pending) - Number(b.pending));
-    let earliest: number | undefined;
-    for (let i = 0; i < rows.length; i += CHUNK) {
-      const res = await ctx.runMutation(internal.banking._applyTransactions, { connectionId, rows: rows.slice(i, i + CHUNK) });
-      if (res.earliest !== undefined) earliest = earliest === undefined ? res.earliest : Math.min(earliest, res.earliest);
+    try {
+      // Posted rows first so a pending row they replace is relinked before it goes.
+      const rows = [...added, ...modified].sort((a, b) => Number(a.pending) - Number(b.pending));
+      let earliest: number | undefined;
+      for (let i = 0; i < rows.length; i += CHUNK) {
+        const res = await ctx.runMutation(internal.banking._applyTransactions, { connectionId, generation, rows: rows.slice(i, i + CHUNK) });
+        if (res.earliest !== undefined) earliest = earliest === undefined ? res.earliest : Math.min(earliest, res.earliest);
+      }
+      for (let i = 0; i < removed.length; i += CHUNK) {
+        await ctx.runMutation(internal.banking._removeTransactions, { connectionId, generation, plaidTransactionIds: removed.slice(i, i + CHUNK) });
+      }
+      await ctx.runMutation(internal.banking._finishSync, {
+        connectionId, generation, cursor, added: added.length, modified: modified.length, removed: removed.length, earliest,
+        // A new bank is still pulling history; check back rather than wait for the cron if the webhook is missed.
+        retryAttempt: historyPending ? (attempt ?? 0) + 1 : undefined,
+      });
+    } catch (err) {
+      await ctx.runMutation(internal.banking._syncFailed, {
+        connectionId, generation, status: "error", message: friendly(err),
+      });
     }
-    for (let i = 0; i < removed.length; i += CHUNK) {
-      await ctx.runMutation(internal.banking._removeTransactions, { connectionId, plaidTransactionIds: removed.slice(i, i + CHUNK) });
-    }
-    await ctx.runMutation(internal.banking._finishSync, {
-      connectionId, cursor, added: added.length, modified: modified.length, removed: removed.length, earliest,
-    });
   },
 });
+
+const NOT_READY_RETRIES = 10;
 
 export const _setStatus = internalMutation({
   args: {
     connectionId: v.id("bankConnections"),
     status: v.union(v.literal("active"), v.literal("syncing"), v.literal("login_required"), v.literal("expiring"), v.literal("revoked"), v.literal("error")),
   },
+  returns: v.null(),
   handler: async (ctx, { connectionId, status }) => {
     const c = await ctx.db.get(connectionId);
-    if (c && c.status !== "revoked") await ctx.db.patch(connectionId, { status });
+    if (!c || c.status === "revoked" || c.status === "login_required") return;
+    // Syncing does not renew the owner's consent. Keep the repair prompt.
+    if (c.status === "expiring" && status === "syncing") return;
+    await ctx.db.patch(connectionId, { status });
   },
 });
 
 export const _syncFailed = internalMutation({
   args: {
-    connectionId: v.id("bankConnections"),
+    connectionId: v.id("bankConnections"), generation: v.number(),
     status: v.union(v.literal("login_required"), v.literal("error")),
     message: v.string(),
   },
-  handler: async (ctx, { connectionId, status, message }) => {
+  returns: v.null(),
+  handler: async (ctx, { connectionId, generation, status, message }) => {
     const c = await ctx.db.get(connectionId);
-    if (!c) return;
-    await ctx.db.patch(connectionId, { status, lastSyncError: message });
+    if (!ownsSync(c, generation) || !c) return;
+    await ctx.db.patch(connectionId, {
+      syncStartedAt: undefined, syncRequested: undefined,
+      ...(c.status === "login_required" || c.status === "expiring" && status === "error"
+        ? {} : { status, lastSyncError: message }),
+    });
+    if (c.syncRequested && status !== "login_required" && c.status !== "login_required") {
+      await ctx.scheduler.runAfter(60_000, internal.banking.syncConnection, { connectionId });
+    }
     await financeLog(ctx, c.orgId, {
       action: status === "login_required" ? "bank.login_required" : "bank.sync_failed",
       actorType: "system", connectionId, detail: message,
@@ -323,7 +379,7 @@ export const _syncFailed = internalMutation({
 
 export const _upsertAccounts = internalMutation({
   args: {
-    connectionId: v.id("bankConnections"),
+    connectionId: v.id("bankConnections"), generation: v.number(),
     accounts: v.array(v.object({
       plaidAccountId: v.string(),
       name: v.string(),
@@ -337,9 +393,10 @@ export const _upsertAccounts = internalMutation({
       currency: v.string(),
     })),
   },
-  handler: async (ctx, { connectionId, accounts }) => {
+  returns: v.null(),
+  handler: async (ctx, { connectionId, generation, accounts }) => {
     const conn = await ctx.db.get(connectionId);
-    if (!conn) return;
+    if (!ownsSync(conn, generation) || !conn) return;
     const now = Date.now();
     for (const a of accounts) {
       const existing = await ctx.db
@@ -347,10 +404,17 @@ export const _upsertAccounts = internalMutation({
         .withIndex("by_plaid_account", (q) => q.eq("plaidAccountId", a.plaidAccountId))
         .first();
       if (existing && existing.connectionId === connectionId) {
-        await ctx.db.patch(existing._id, { ...a, balanceAsOf: now });
+        await ctx.db.patch(existing._id, { ...a, hidden: undefined, balanceAsOf: now });
       } else {
         await ctx.db.insert("bankAccounts", { orgId: conn.orgId, connectionId, ...a, balanceAsOf: now });
       }
+    }
+    // /accounts/get is the complete current selection. Retain history for
+    // accounts no longer shared, but remove their stale balances from totals.
+    const selected = new Set(accounts.map((a) => a.plaidAccountId));
+    const saved = await ctx.db.query("bankAccounts").withIndex("by_connection", (q) => q.eq("connectionId", connectionId)).take(1000);
+    for (const a of saved) {
+      if (!selected.has(a.plaidAccountId)) await ctx.db.patch(a._id, { hidden: true });
     }
   },
 });
@@ -375,10 +439,11 @@ const rowV = v.object({
 });
 
 export const _applyTransactions = internalMutation({
-  args: { connectionId: v.id("bankConnections"), rows: v.array(rowV) },
-  handler: async (ctx, { connectionId, rows }) => {
+  args: { connectionId: v.id("bankConnections"), generation: v.number(), rows: v.array(rowV) },
+  returns: v.object({ earliest: v.optional(v.number()) }),
+  handler: async (ctx, { connectionId, generation, rows }) => {
     const conn = await ctx.db.get(connectionId);
-    if (!conn) return { earliest: undefined };
+    if (!ownsSync(conn, generation) || !conn) return {};
     const accountIds = new Map<string, Id<"bankAccounts">>();
     let earliest: number | undefined;
     const now = Date.now();
@@ -450,10 +515,11 @@ export const _applyTransactions = internalMutation({
 });
 
 export const _removeTransactions = internalMutation({
-  args: { connectionId: v.id("bankConnections"), plaidTransactionIds: v.array(v.string()) },
-  handler: async (ctx, { connectionId, plaidTransactionIds }) => {
+  args: { connectionId: v.id("bankConnections"), generation: v.number(), plaidTransactionIds: v.array(v.string()) },
+  returns: v.null(),
+  handler: async (ctx, { connectionId, generation, plaidTransactionIds }) => {
     const conn = await ctx.db.get(connectionId);
-    if (!conn) return;
+    if (!ownsSync(conn, generation) || !conn) return;
     for (const pid of plaidTransactionIds) {
       const row = await ctx.db
         .query("bankTransactions")
@@ -475,21 +541,35 @@ export const _removeTransactions = internalMutation({
 
 export const _finishSync = internalMutation({
   args: {
-    connectionId: v.id("bankConnections"),
+    connectionId: v.id("bankConnections"), generation: v.number(),
     cursor: v.optional(v.string()),
     added: v.number(),
     modified: v.number(),
     removed: v.number(),
     earliest: v.optional(v.number()),
+    retryAttempt: v.optional(v.number()),
   },
+  returns: v.null(),
   handler: async (ctx, args) => {
     const c = await ctx.db.get(args.connectionId);
-    if (!c) return;
+    if (!ownsSync(c, args.generation) || !c) return;
+    const needsRepair = c.status === "expiring" || c.status === "login_required";
+    const retry = args.retryAttempt !== undefined && args.retryAttempt <= NOT_READY_RETRIES;
+    if ((retry || c.syncRequested) && c.status !== "login_required") {
+      await ctx.scheduler.runAfter(c.syncRequested ? 0 : 60_000, internal.banking.syncConnection, {
+        connectionId: args.connectionId, attempt: args.retryAttempt,
+      });
+    }
     await ctx.db.patch(args.connectionId, {
+      syncStartedAt: undefined, syncRequested: undefined,
       cursor: args.cursor,
       lastSyncedAt: Date.now(),
-      lastSyncError: undefined,
-      ...(c.status === "revoked" ? {} : { status: "active" as const }),
+      ...(needsRepair ? {} : {
+        status: args.retryAttempt === undefined ? "active" as const : retry ? "syncing" as const : "error" as const,
+        lastSyncError: args.retryAttempt !== undefined && !retry
+          ? "The bank is still preparing transaction history. Pulse will check again automatically, or you can sync now."
+          : undefined,
+      }),
     });
     await financeLog(ctx, c.orgId, {
       action: "bank.synced", actorType: "system", connectionId: args.connectionId,
@@ -504,15 +584,19 @@ export const _finishSync = internalMutation({
 
 /** Cron: every active connection, staggered so Plaid is not hit at once. */
 export const syncAll = internalMutation({
-  args: {},
-  handler: async (ctx) => {
-    const all = await ctx.db.query("bankConnections").collect();
+  args: { cursor: v.optional(v.string()) },
+  returns: v.null(),
+  handler: async (ctx, { cursor }) => {
+    const batch = await ctx.db.query("bankConnections").paginate({ cursor: cursor ?? null, numItems: 100 });
     let delay = 0;
-    for (const c of all) {
-      if (c.status !== "active" && c.status !== "error" && c.status !== "expiring") continue;
-      if (!c.tokenCiphertext) continue;
+    for (const c of batch.page) {
+      if (c.status === "revoked" || c.status === "login_required" || !c.tokenCiphertext) continue;
+      if (c.syncStartedAt !== undefined && Date.now() - c.syncStartedAt < SYNC_LEASE_MS) continue;
       await ctx.scheduler.runAfter(delay, internal.banking.syncConnection, { connectionId: c._id });
       delay += 2000;
+    }
+    if (!batch.isDone) {
+      await ctx.scheduler.runAfter(delay, internal.banking.syncAll, { cursor: batch.continueCursor });
     }
   },
 });
@@ -520,8 +604,9 @@ export const syncAll = internalMutation({
 // ───────────────────────────────────────────────────────── webhook
 
 export const _handleWebhook = internalMutation({
-  args: { itemId: v.string(), type: v.string(), code: v.string(), errorCode: v.optional(v.string()) },
-  handler: async (ctx, { itemId, type, code, errorCode }) => {
+  args: { itemId: v.string(), type: v.string(), code: v.string(), errorCode: v.optional(v.string()), accountId: v.optional(v.string()) },
+  returns: v.object({ handled: v.boolean() }),
+  handler: async (ctx, { itemId, type, code, errorCode, accountId }) => {
     const c = await ctx.db
       .query("bankConnections")
       .withIndex("by_item", (q) => q.eq("plaidItemId", itemId))
@@ -539,9 +624,21 @@ export const _handleWebhook = internalMutation({
       } else if (code === "PENDING_EXPIRATION" || code === "PENDING_DISCONNECT") {
         await ctx.db.patch(c._id, { status: "expiring" });
         await financeLog(ctx, c.orgId, { action: "bank.expiring", actorType: "system", connectionId: c._id, detail: code });
-      } else if (code === "USER_PERMISSION_REVOKED" || code === "USER_ACCOUNT_REVOKED") {
+      } else if (code === "USER_PERMISSION_REVOKED") {
         await ctx.db.patch(c._id, { status: "revoked", tokenCiphertext: undefined, tokenIv: undefined, cursor: undefined });
         await financeLog(ctx, c.orgId, { action: "bank.revoked_at_bank", actorType: "system", connectionId: c._id, detail: code });
+      } else if (code === "USER_ACCOUNT_REVOKED") {
+        if (!accountId) return { handled: false };
+        const account = await ctx.db.query("bankAccounts").withIndex("by_plaid_account", (q) => q.eq("plaidAccountId", accountId)).first();
+        if (account?.connectionId === c._id) await ctx.db.patch(account._id, { hidden: true });
+        // Invalidate any response fetched before consent changed; other
+        // accounts on the Item remain connected and can keep syncing.
+        await ctx.db.patch(c._id, {
+          newAccountsAvailable: true, syncGeneration: (c.syncGeneration ?? 0) + 1,
+          syncStartedAt: undefined, syncRequested: undefined,
+        });
+        await financeLog(ctx, c.orgId, { action: "bank.account_revoked", actorType: "system", connectionId: c._id, detail: "Access to one account was revoked; other accounts remain connected." });
+        await ctx.scheduler.runAfter(0, internal.banking.syncConnection, { connectionId: c._id });
       } else if (code === "NEW_ACCOUNTS_AVAILABLE") {
         await ctx.db.patch(c._id, { newAccountsAvailable: true });
       } else if (code === "LOGIN_REPAIRED") {
@@ -558,15 +655,19 @@ export const _handleWebhook = internalMutation({
 
 /** Pull now instead of waiting for the bank. Owner only. */
 export const refresh = mutation({
-  args: { connectionId: v.id("bankConnections") },
-  handler: async (ctx, { connectionId }) => {
+  args: { connectionId: v.id("bankConnections"), linkCompleted: v.optional(v.boolean()) },
+  returns: v.null(),
+  handler: async (ctx, { connectionId, linkCompleted }) => {
     const orgId = await currentOrgWithCapability(ctx, "banking.manage");
     const c = await ctx.db.get(connectionId);
     if (!c || c.orgId !== orgId) throw new ConvexError("Bank connection not found.");
     if (c.status === "revoked") throw new ConvexError("That bank is disconnected.");
-    if (c.status === "login_required") {
-      // Plaid said sign-in is needed; after Link update mode succeeds, try again.
-      await ctx.db.patch(connectionId, { status: "active", lastSyncError: undefined });
+    if (linkCompleted) {
+      // Called only after Link update mode succeeds. Routine refresh cannot
+      // dismiss consent warnings or pretend the account selection was updated.
+      await ctx.db.patch(connectionId, { status: "active", lastSyncError: undefined, newAccountsAvailable: undefined });
+    } else if (c.status === "login_required") {
+      throw new ConvexError("Reconnect this bank to sign in again before syncing.");
     }
     await ctx.scheduler.runAfter(0, internal.banking.syncConnection, { connectionId });
   },
@@ -574,6 +675,7 @@ export const refresh = mutation({
 
 export const disconnect = action({
   args: { connectionId: v.id("bankConnections"), keepHistory: v.boolean() },
+  returns: v.null(),
   handler: async (ctx, { connectionId, keepHistory }) => {
     const me = await ctx.runQuery(internal.banking._viewer, { capability: "banking.manage" });
     const conn = await ctx.runQuery(internal.banking._sealedConnection, { connectionId });
@@ -584,8 +686,11 @@ export const disconnect = action({
         const token = await open({ ciphertext: conn.tokenCiphertext, iv: conn.tokenIv });
         await plaid.itemRemove(token);
         removedAtPlaid = true;
-      } catch {
-        // An item Plaid already forgot still gets its token destroyed here.
+      } catch (err) {
+        // A temporary outage must leave credentials available for a retry.
+        if (!itemAlreadyRemoved(err)) {
+          throw new ConvexError("The bank could not be disconnected. Your connection and history are still saved. Please try again.");
+        }
       }
     }
     await ctx.runMutation(internal.banking._disconnected, {
@@ -632,7 +737,10 @@ export const connectSandboxForOrg = internalAction({
   handler: async (ctx, { orgId, institutionId }): Promise<{ connectionId: Id<"bankConnections"> }> => {
     if (plaidEnv() !== "sandbox") throw new ConvexError("Sandbox connections are refused outside Plaid sandbox.");
     const inst = institutionId ?? "ins_109508";
-    const { public_token } = await plaid.sandboxPublicToken(inst);
+    const { public_token } = await plaid.sandboxPublicToken(
+      inst,
+      process.env.CONVEX_SITE_URL ? `${process.env.CONVEX_SITE_URL}/plaid/webhook` : undefined,
+    );
     const exchanged = await plaid.publicTokenExchange(public_token);
     const sealed = await seal(exchanged.access_token);
     const institutionName = (await plaid.institutionName(inst)) ?? "Sandbox bank";
@@ -652,17 +760,31 @@ export const connectSandboxForOrg = internalAction({
 
 /** Workspace deletion: remove each Plaid item. Tokens arrive sealed. */
 export const removeItems = internalAction({
-  args: { sealed: v.array(v.object({ ciphertext: v.string(), iv: v.string() })) },
-  handler: async (_ctx, { sealed }) => {
+  args: {
+    sealed: v.array(v.object({ ciphertext: v.string(), iv: v.string() })),
+    attempt: v.optional(v.number()),
+  },
+  returns: v.null(),
+  handler: async (ctx, { sealed, attempt = 0 }) => {
+    const failed: typeof sealed = [];
     for (const box of sealed) {
       try {
         await plaid.itemRemove(await open(box));
-      } catch {
-        // Already gone at Plaid, or the key changed; nothing more to release.
+      } catch (err) {
+        if (!itemAlreadyRemoved(err)) failed.push(box);
       }
     }
+    if (failed.length === 0) return;
+    if (attempt >= 5) throw new Error(`Plaid cleanup failed for ${failed.length} item(s) after retries. Retry this scheduled action after restoring Plaid access.`);
+    await ctx.scheduler.runAfter(60_000 * 2 ** attempt, internal.banking.removeItems, {
+      sealed: failed, attempt: attempt + 1,
+    });
   },
 });
+
+function itemAlreadyRemoved(err: unknown): boolean {
+  return err instanceof PlaidError && (err.code === "ITEM_NOT_FOUND" || err.code === "INVALID_ACCESS_TOKEN");
+}
 
 // ───────────────────────────────────────────────────────── books
 
@@ -713,6 +835,7 @@ export const addToBooks = mutation({
     const orgId = await currentOrgWithCapability(ctx, "invoices.send");
     const t = await loadTxn(ctx, id, orgId);
     if (t.direction !== "out") throw new ConvexError("Only money going out can be added as an expense.");
+    if (t.pending) throw new ConvexError("Wait for this charge to post before adding it to the books. Its amount may still change.");
     if (t.expenseId) throw new ConvexError("This line is already in the books.");
     if (t.excluded) throw new ConvexError("This line is excluded. Include it first.");
     const actorName = await currentActor(ctx);

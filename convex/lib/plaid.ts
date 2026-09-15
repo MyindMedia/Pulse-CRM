@@ -94,7 +94,7 @@ export type PlaidTransaction = {
 };
 
 export const plaid = {
-  linkTokenCreate: (args: { clientUserId: string; webhook?: string; accessToken?: string }) =>
+  linkTokenCreate: (args: { clientUserId: string; webhook?: string; accessToken?: string; accountSelectionEnabled?: boolean }) =>
     call<{ link_token: string; expiration: string }>("/link/token/create", {
       client_name: "Pulse",
       language: "en",
@@ -102,7 +102,7 @@ export const plaid = {
       user: { client_user_id: args.clientUserId },
       ...(args.webhook ? { webhook: args.webhook } : {}),
       ...(args.accessToken
-        ? { access_token: args.accessToken }
+        ? { access_token: args.accessToken, ...(args.accountSelectionEnabled ? { update: { account_selection_enabled: true } } : {}) }
         : { products: ["transactions"], transactions: { days_requested: 730 } }),
     }),
 
@@ -136,6 +136,7 @@ export const plaid = {
       removed: Array<{ transaction_id: string }>;
       next_cursor: string;
       has_more: boolean;
+      transactions_update_status?: "NOT_READY" | "INITIAL_UPDATE_COMPLETE" | "HISTORICAL_UPDATE_COMPLETE";
     }>("/transactions/sync", {
       access_token: accessToken,
       count: 500,
@@ -157,11 +158,11 @@ export const plaid = {
   },
 
   /** Sandbox only: an item without going through Link, for end-to-end checks. */
-  sandboxPublicToken: (institutionId: string) =>
+  sandboxPublicToken: (institutionId: string, webhook?: string) =>
     call<{ public_token: string }>("/sandbox/public_token/create", {
       institution_id: institutionId,
       initial_products: ["transactions"],
-      options: { transactions: { days_requested: 730 } },
+      options: { ...(webhook ? { webhook } : {}), transactions: { days_requested: 730 } },
     }),
 };
 

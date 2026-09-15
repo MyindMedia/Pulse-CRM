@@ -4,9 +4,9 @@ import { StripeConnectCard } from "@/components/payments/stripe-connect-card";
 import { EmailConnectCard } from "@/components/email/email-connect-card";
 import { CalendarSyncCard } from "@/components/calendar/calendar-sync-card";
 import { SmsRemindersCard } from "@/components/sms/sms-reminders-card";
+import { PlaidConnectCard } from "@/components/finance/plaid-connect-card";
 
-/** Studio integrations - connect Stripe to collect deposits, choose how client
- *  email is sent, and control automated text reminders. */
+/** Connect the studio's payments, banking, messaging, and calendar services. */
 export function IntegrationsPanel() {
   return (
     <div className="space-y-4">
@@ -15,6 +15,12 @@ export function IntegrationsPanel() {
         <p className="text-sm text-steel">Connect Stripe so clients pay deposits straight into your account.</p>
       </div>
       <StripeConnectCard />
+
+      <div className="pt-2">
+        <h2 className="font-grotesk text-base font-semibold text-bone">Banking</h2>
+        <p className="text-sm text-steel">Connect your bank with Plaid to keep studio finances up to date.</p>
+      </div>
+      <PlaidConnectCard />
 
       <div className="pt-2">
         <h2 className="font-grotesk text-base font-semibold text-bone">Client email</h2>

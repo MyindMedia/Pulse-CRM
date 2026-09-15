@@ -72,7 +72,7 @@ export default function BankingPage() {
     onSuccess: async (publicToken) => {
       try {
         if (repairing.current) {
-          await refresh({ connectionId: repairing.current });
+          await refresh({ connectionId: repairing.current, linkCompleted: true });
           toast.success("Bank reconnected. Syncing now.");
         } else {
           const res = await exchange({ publicToken });
@@ -177,8 +177,9 @@ export default function BankingPage() {
                       <Badge tone={st.tone} dot>{st.label}</Badge>
                     </div>
                     {c.lastSyncError && <p className="text-xs text-caution">{c.lastSyncError}</p>}
+                    {c.newAccountsAvailable && <p className="text-xs text-caution">Your bank account access has changed. Review which accounts you share with Pulse.</p>}
                     <ul className="divide-y divide-graphite/40">
-                      {c.accounts.map((a) => (
+                      {c.accounts.filter((a) => !a.hidden).map((a) => (
                         <li key={a._id} className="flex items-center justify-between py-2 text-sm">
                           <span className="text-steel">
                             {a.name}{a.mask ? ` ••${a.mask}` : ""}
@@ -190,8 +191,8 @@ export default function BankingPage() {
                     </ul>
                     {overview.canManage && c.status !== "revoked" && (
                       <div className="flex flex-wrap gap-2">
-                        {(c.status === "login_required" || c.status === "expiring") ? (
-                          <Button size="sm" onClick={() => reconnect(c._id)} disabled={connecting}>Reconnect</Button>
+                        {(c.status === "login_required" || c.status === "expiring" || c.newAccountsAvailable) ? (
+                          <Button size="sm" onClick={() => reconnect(c._id)} disabled={connecting}>{c.newAccountsAvailable && c.status === "active" ? "Review accounts" : "Reconnect"}</Button>
                         ) : (
                           <Button size="sm" variant="secondary" onClick={async () => {
                             try { await refresh({ connectionId: c._id }); toast.success("Syncing now."); } catch (err) { toast.error(errorMessage(err)); }

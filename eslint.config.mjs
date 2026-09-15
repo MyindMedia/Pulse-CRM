@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Convex codegen output — generated, not linted.
     "convex/_generated/**",
+    // Local code-graph database and generated CLI runner.
+    ".gitnexus/**",
   ]),
   {
     rules: {

@@ -214,7 +214,7 @@ http.route({
     const body = await req.text();
     const ok = await verifyPlaidWebhook(body, req.headers.get("plaid-verification"), (kid) => plaid.webhookVerificationKey(kid));
     if (!ok) return new Response("unverified", { status: 401 });
-    let parsed: { webhook_type?: string; webhook_code?: string; item_id?: string; error?: { error_code?: string } | null };
+    let parsed: { webhook_type?: string; webhook_code?: string; item_id?: string; account_id?: string; error?: { error_code?: string } | null };
     try {
       parsed = JSON.parse(body);
     } catch {
@@ -226,6 +226,7 @@ http.route({
         type: parsed.webhook_type,
         code: parsed.webhook_code,
         errorCode: parsed.error?.error_code ?? undefined,
+        accountId: parsed.account_id,
       });
     }
     return new Response("ok", { status: 200 });

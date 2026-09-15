@@ -44,14 +44,27 @@ export function usePlaidLink(opts: {
   onExit?: (message: string | null) => void;
 }) {
   const handler = React.useRef<PlaidHandler | null>(null);
+  const mounted = React.useRef(false);
+  const request = React.useRef(0);
   const optsRef = React.useRef(opts);
   React.useEffect(() => {
     optsRef.current = opts;
   });
-  React.useEffect(() => () => handler.current?.destroy(), []);
+  React.useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+      request.current += 1;
+      handler.current?.destroy();
+      handler.current = null;
+    };
+  }, []);
 
   return React.useCallback(async (token: string) => {
+    if (!mounted.current) return;
+    const currentRequest = ++request.current;
     const Plaid = await loadPlaid();
+    if (!mounted.current || currentRequest !== request.current) return;
     handler.current?.destroy();
     handler.current = Plaid.create({
       token,

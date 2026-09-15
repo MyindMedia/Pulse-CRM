@@ -1,7 +1,8 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema";
-import { api } from "./_generated/api";
+import { seal } from "./lib/secretBox";
+import { api, internal } from "./_generated/api";
 
 /* This destroys a real business's records. These tests exist to prove the
    three gates actually gate, that the cascade is complete, and that the
@@ -217,5 +218,69 @@ describe("the deletion itself", () => {
     expect(invite.claimedOrgId).toBeUndefined();
     expect(invite.status).toBe("signed");
     expect(invite.note).toContain("Workspace deleted");
+  });
+});
+
+describe("banking and receipt cleanup", () => {
+  it("deletes the studio's receipt files and schedules encrypted Plaid cleanup while keeping other studios", async () => {
+    vi.useFakeTimers();
+    vi.stubEnv("PLAID_CLIENT_ID", "client-test");
+    vi.stubEnv("PLAID_SECRET", "secret-test");
+    vi.stubEnv("PLAID_ENV", "sandbox");
+    vi.stubEnv("PLAID_TOKEN_KEY", btoa(String.fromCharCode(...new Uint8Array(32).fill(7))));
+    try {
+      const t = convexTest(schema);
+      const { orgId, as } = await setup(t);
+      const box = await seal("access-sandbox-deletion-test");
+      const fixture = await t.run(async (ctx) => {
+        const storageId = await ctx.storage.store(new Blob(["test receipt"], { type: "image/png" }));
+        const safeStorageId = await ctx.storage.store(new Blob(["safe receipt"], { type: "image/png" }));
+        const connectionId = await ctx.db.insert("bankConnections", {
+          orgId, plaidItemId: "doomed-item", institutionName: "Test", status: "active",
+          tokenCiphertext: box.ciphertext, tokenIv: box.iv, createdAt: Date.now(),
+        });
+        const accountId = await ctx.db.insert("bankAccounts", {
+          orgId, connectionId, plaidAccountId: "doomed-account", name: "Checking",
+          type: "depository", currency: "USD", balanceAsOf: Date.now(),
+        });
+        await ctx.db.insert("bankTransactions", {
+          orgId, connectionId, accountId, plaidTransactionId: "doomed-transaction",
+          date: Date.now(), amountCents: 1000, direction: "out", currency: "USD", name: "Test", pending: false, updatedAt: Date.now(),
+        });
+        await ctx.db.insert("receipts", {
+          orgId, storageId, fileName: "test.png", fileType: "image/png", sizeBytes: 12,
+          uploadedBy: "Test", uploadedAt: Date.now(), status: "ready",
+        });
+        const safeReceipt = await ctx.db.insert("receipts", {
+          orgId: "org_safe", storageId: safeStorageId, fileName: "safe.png", fileType: "image/png", sizeBytes: 12,
+          uploadedBy: "Test", uploadedAt: Date.now(), status: "ready",
+        });
+        return { storageId, safeStorageId, safeReceipt };
+      });
+      const { token } = await as.mutation(api.subaccountDeletion.requestDeletion, { orgId });
+      await as.mutation(api.subaccountDeletion.confirmDeletion, { orgId, token, typedName: "Vault Studios", typedPhrase: "DELETE" });
+      const state = await t.run(async (ctx) => ({
+        fileExists: (await ctx.storage.get(fixture.storageId)) !== null, safeFileExists: (await ctx.storage.get(fixture.safeStorageId)) !== null,
+        safeReceipt: await ctx.db.get(fixture.safeReceipt),
+        connections: await ctx.db.query("bankConnections").collect(), accounts: await ctx.db.query("bankAccounts").collect(),
+        transactions: await ctx.db.query("bankTransactions").collect(), jobs: await ctx.db.system.query("_scheduled_functions").collect(),
+      }));
+      expect(state.fileExists).toBe(false);
+      expect(state.safeFileExists).toBe(true);
+      expect(state.safeReceipt).not.toBeNull();
+      expect(state.connections).toHaveLength(0);
+      expect(state.accounts).toHaveLength(0);
+      expect(state.transactions).toHaveLength(0);
+      const job = state.jobs.find((f) => f.name.includes("removeItems"))!;
+      expect(job.args[0]).toEqual({ sealed: [box] });
+      expect(JSON.stringify(job.args)).not.toContain("access-sandbox-deletion-test");
+      vi.stubGlobal("fetch", vi.fn(async () => new Response(JSON.stringify({ request_id: "removed" }))));
+      await t.action(internal.banking.removeItems, { sealed: [box] });
+      expect(fetch).toHaveBeenCalledWith("https://sandbox.plaid.com/item/remove", expect.objectContaining({ method: "POST" }));
+    } finally {
+      vi.unstubAllEnvs();
+      vi.unstubAllGlobals();
+      vi.useRealTimers();
+    }
   });
 });
