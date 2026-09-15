@@ -10,11 +10,11 @@
 
 - [x] 2.1 `banking.createLinkToken` / `createUpdateLinkToken` actions gated by `banking.manage`; verify: test refuses a manager.
 - [x] 2.2 `banking.exchangePublicToken` → seal token, insert connection + accounts, schedule sync, audit `bank.connected`; verify: test with mocked Plaid stores ciphertext only.
-- [x] 2.3 `banking.syncConnection` internal action + `_applyPage` mutation (upsert, modified, removed, pending → posted relink, exclusion defaults) + balances + cursor + audit `bank.synced`; verify: test applies a page twice without duplicates and relinks a pending match.
-- [x] 2.4 `/plaid/webhook` route with verification and code handling; verify: test forged request changes nothing; verified SYNC_UPDATES_AVAILABLE schedules a sync.
-- [x] 2.5 `banking.disconnect` (item/remove, clear token, keep or delete history, audit) and `refresh`; verify: test token cleared and status revoked.
-- [x] 2.6 Cron `bank-sync` every 6 h fan-out; verify: test schedules only active connections.
-- [x] 2.7 Queries `banking.overview` (safe projection, balances, attention counts) and `banking.transactions` (filters, paginated); verify: test no token/cursor/item id in any response; engineer refused.
+- [x] 2.3 `banking.syncConnection` internal action + guarded account/transaction mutations (upsert, modified, removed, pending → posted relink, exclusion defaults) + balances + cursor + audit `bank.synced`; verify: repeat sync is idempotent, pending matches migrate, concurrent requests coalesce, and stale workers cannot write after replacement or disconnect.
+- [x] 2.4 `/plaid/webhook` route with verification and code handling; verify: route tests reject an unsigned request without changes and forward a signed account-level revocation; handler tests cover sync scheduling and item/account revocation.
+- [x] 2.5 `banking.disconnect` (item/remove, clear token, keep or delete history, audit) and `refresh`; verify: temporary removal failures retain credentials/history for retry, already-removed items can be forgotten, and expiry/account-access warnings clear only after completed Link update.
+- [x] 2.6 Cron `bank-sync` every 6 h, with 100-connection pages; verify: schedules eligible connections, recovers expired workers, and skips live leases, revoked items and connections needing sign-in.
+- [x] 2.7 Queries `banking.overview` (safe projection, balances, attention counts) and `banking.transactions` (filters, bounded list); verify: test no token/cursor/item id in any response; engineer refused. User-facing pagination remains a follow-up.
 - [x] 2.8 Mutations `categorize`, `exclude/include`, `addToBooks` (creates expense source bank + link + audit); verify: test expense created once, second call refused.
 
 ## 3. Receipts (server)
@@ -35,26 +35,37 @@
 
 ## 6. Registration, deletion, compliance
 
-- [x] 6.1 Add tables to `ORG_TABLES`; workspace deletion removes Plaid items and receipt files; verify: `subaccountDeletion.test.ts` addition.
+- [x] 6.1 Add tables to `ORG_TABLES`; workspace deletion removes receipt files and schedules encrypted Plaid cleanup; verify: `subaccountDeletion.test.ts` covers bank-row/file deletion and another studio's isolation, and `banking.test.ts` covers failed-item retries and retry exhaustion.
 - [x] 6.2 `docs/compliance/banking-and-receipts.md` data-flow map + vendor checklist; `SECURITY-COMPLIANCE.md` Plaid row; privacy policy names Plaid and receipt reading; verify: page renders, no em dashes.
 
 ## 7. Web
 
-- [x] 7.1 Add `react-plaid-link`; `/banking` page (connect, status, reconnect, refresh, disconnect dialog, balances, transactions table with filters and row actions); nav entry; verify: `tsc` + eslint clean, page loads in the browser against sandbox.
-- [x] 7.2 `/expenses` receipts panel (upload, statuses, edit, suggestions, create expense), receipt column + attach on expense rows, history drawer; verify: upload a sample receipt end to end.
+- [x] 7.1 Load Plaid Link through `use-plaid-link.ts`; `/banking` page (connect, status, reconnect, refresh, disconnect dialog, balances, transactions table with filters and row actions); nav entry; verify: type-check and lint pass, Banking loads against sandbox, and Connect opens Plaid Link.
+- [x] 7.2 `/expenses` receipts panel (upload, statuses, edit, suggestions, create expense), receipt column + attach on expense rows, history drawer; verify: receipt tests and a live synthetic upload through the public actions, followed by correction, automatic matching and audit checks. Live AI extraction remains blocked as recorded in 8.3.
 - [x] 7.3 P&L bank tiles + reconciliation counts on `/expenses`; verify: renders with and without a bank.
+- [x] 7.4 Settings → Integrations has a Plaid card with direct “Connect with Plaid” signup, connected-bank status, sandbox labeling and “Manage banking”; verify: four UI tests cover Reports availability, financial-read access, viewer restrictions and owner signup. Live deployment verification is part of 8.2.
 
 ## 8. Verify and ship
 
-- [x] 8.1 `npm run check` green (tsc, eslint, vitest).
-- [ ] 8.2 Set Convex prod env (`PLAID_ENV=sandbox`, client id, sandbox secret, generated `PLAID_TOKEN_KEY`); deploy Convex, push main.
-- [ ] 8.3 End to end on the demo studio: create a sandbox item via `/sandbox/public_token/create`, exchange through the real action, confirm accounts, balances and transactions import; upload a sample receipt and confirm extraction and a match; confirm audit entries.
+- [x] 8.1 `npm run check` green (tsc, eslint, vitest): 191 files / 1,678 tests pass; lint has 0 errors and 86 existing warnings (2026-09-14).
+- [x] 8.2 Deploy and verify both app surfaces.
+  - [x] Verify Convex prod env (`PLAID_ENV=sandbox`, client id, sandbox secret, `PLAID_TOKEN_KEY`) and deploy backend fixes to `pastel-corgi-340`.
+  - [x] Commit frontend changes as `91a577c` and push to main.
+  - [x] Confirm the deployed Settings → Integrations signup opens Plaid Link. Netlify deploy `6aa89ff5eae8e70009cb9b68` published `91a577c`; live browser verified the card and “Pulse uses Plaid to connect your account” sandbox dialog on 2026-09-14.
+- [ ] 8.3 End to end on the demo studio.
+  - [x] Confirm the imported First Platypus Bank sandbox feed has 14 accounts and 394 transactions. Two live sync passes preserve the transaction count, finish active and release the lease.
+  - [x] Upload a synthetic $5.40 Uber receipt through the real public actions; verify the failed-read fallback, manual correction, automatic match (score 100), and `receipt.uploaded`, `receipt.read_failed`, `receipt.corrected` and `match.auto` audit entries.
+  - [ ] Verify successful live AI extraction after the configured OpenAI account has API credits. The current request returns HTTP 429; it reaches `needs_review` and remains manually correctable.
+  - [x] Remove the synthetic verification receipt and confirm its stored file and match are cleared.
 - [x] 8.4 Security review of the new surface (webhook, token handling, upload validation, access checks); record results.
 
 ## Notes from implementation
 
-- 7.1: Plaid Link is loaded from Plaid's CDN by a small hook (`src/components/finance/use-plaid-link.ts`) instead of the `react-plaid-link` package.
+- 7.1 / 7.4: Both Banking and Settings → Integrations use the same Plaid CDN loader (`src/components/finance/use-plaid-link.ts`). Signup is offered only to users with `banking.manage`; users without financial access or Reports do not issue the banking overview query.
 - 3.2: refusals are returned, not thrown, so the file delete commits; the real file type is sniffed from its bytes before any AI call.
 - 8.4: security review found one issue (reconcile.reject accepted another studio's ids into the audit log); fixed with `ownedRef` on every client-supplied reference and a test. `/pentest` (Strix) needs Docker, which is not installed here, so no automated pentest was run.
-- Verification locations: 3.1 request shape is checked in `receipts.test.ts` ("sends the image to OpenAI"); 5.1 P&L counts in `banking.test.ts` ("the books"); 2.6 cron fan-out and 2.4 route-level verification are covered by `plaid.test.ts` (signature checks) and `banking.test.ts` (`_handleWebhook`), not a separate cron test.
-- Gap: 6.1 has no dedicated test that workspace deletion removes Plaid items and receipt files; it is type-checked and the existing deletion tests pass. Follow-up.
+- Verification locations: 3.1 request shape is checked in `receipts.test.ts` ("sends the image to OpenAI"); 5.1 P&L counts in `banking.test.ts` ("the books"); 2.6 cron recovery/fan-out in `banking.test.ts`; 2.4 route-level verification in `bankingWebhook.test.ts`, with signature primitives in `plaid.test.ts`; 6.1 workspace deletion and receipt storage cleanup in `subaccountDeletion.test.ts`.
+- Sync resilience: an 11-minute lease and generation guard protect every sync write; overlapping requests request one follow-up pass. Initial history is polled at one-minute intervals for at most ten retries, then reported as still preparing so a later refresh/cron can retry.
+- Build verification: the production frontend build passed on 2026-09-14; publication and live Integrations verification are complete as recorded in 8.2.
+- Removal resilience: disconnect keeps credentials and history when Plaid removal fails temporarily. Workspace cleanup retains encrypted retry arguments and retries only failed items after 1, 2, 4, 8 and 16 minutes; exhaustion requires operator recovery.
+- Review follow-ups: user-facing transaction pagination and bounded deletion batches remain scale improvements. Plaid production approval is still unconfirmed; real-bank signup is not enabled by this sandbox deployment. iPhone integration remains outside this change.
