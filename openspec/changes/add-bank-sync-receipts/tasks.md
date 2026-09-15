@@ -57,10 +57,10 @@
   - [x] Verify Convex prod env (`PLAID_ENV=sandbox`, client id, sandbox secret, `PLAID_TOKEN_KEY`) and deploy backend fixes to `pastel-corgi-340`.
   - [x] Commit frontend changes as `91a577c` and push to main.
   - [x] Confirm the deployed Settings → Integrations signup opens Plaid Link. Netlify deploy `6aa89ff5eae8e70009cb9b68` published `91a577c`; live browser verified the card and “Pulse uses Plaid to connect your account” sandbox dialog on 2026-09-14.
-- [ ] 8.3 End to end on the demo studio.
+- [x] 8.3 End-to-end fixture verification across demo banking and the live Myind Sound receipt flow.
   - [x] Confirm the imported First Platypus Bank sandbox feed has 14 accounts and 394 transactions. Two live sync passes preserve the transaction count, finish active and release the lease.
   - [x] Upload a synthetic $5.40 Uber receipt through the real public actions; verify the failed-read fallback, manual correction, automatic match (score 100), and `receipt.uploaded`, `receipt.read_failed`, `receipt.corrected` and `match.auto` audit entries.
-  - [ ] Verify successful live AI extraction after the configured OpenAI account has API credits. The current request returns HTTP 429; it reaches `needs_review` and remains manually correctable.
+  - [x] Successful live AI extraction verified 2026-09-15 after the user selected paid Gemini. Image and PDF uploads reached ready with exact vendor/date/total/tax/currency/card suffix; both audit trails record `gemini-3.5-flash-lite`. The older OpenAI quota failure and manual fallback were verified separately.
   - [x] Remove the synthetic verification receipt and confirm its stored file and match are cleared.
 - [x] 8.4 Security review of the new surface (webhook, token handling, upload validation, access checks); record results.
 - [x] 8.5 Verify and deploy the completion pass (transaction pagination, P&L accuracy and permanent reconciliation history).
@@ -71,7 +71,7 @@
 
 - Suggestion-audit release (2026-09-14): `npm run check` passes **197 files / 1,716 tests**, TypeScript, and ESLint with 0 errors / 86 existing warnings. Production build passes. Convex added only the `financeAudit.by_org_suggestion` index and deployed successfully. Source `cade081` is published in Netlify deploy `6aa8ac10b6c78d000809f3b7` at 19:24 PDT. Nine new regressions verify the audit behavior; no production receipt or ledger fixture was created in this pass.
 - Suggestion-audit graph review: full structured detection includes 8 staged files / 37 symbols / 10 indexed processes, high risk, without a result-level partial/truncated flag. The refreshed graph still reports sampling limits in its process catalog; focused source review and tests supplement the graph.
-- Completion is blocked on successful live AI extraction and confirmed Plaid production setup. The Plaid dashboard currently requires sign-in to inspect access. Account approvals, API credits, and a successful extraction run remain required; sandbox verification does not establish these.
+- The earlier Plaid/account and receipt-extraction blockers were resolved on 2026-09-15: limited Plaid production testing is configured and Link opens from Integrations; paid Gemini receipt extraction passes direct and live web upload tests. Real-bank consent, authenticated native/device OAuth and TestFlight release remain separate checks.
 
 - 7.1 / 7.4: Both Banking and Settings → Integrations use the same Plaid CDN loader (`src/components/finance/use-plaid-link.ts`). Signup is offered only to users with `banking.manage`; users without financial access or Reports do not issue the banking overview query.
 - 3.2: refusals are returned, not thrown, so the file delete commits; the real file type is sniffed from its bytes before any AI call.
@@ -84,4 +84,15 @@
 - Report query keys use a stable next-local-midnight boundary for This year/All time; they do not shift on every render. Final browser verification is part of 8.5.
 - Launch recheck on 2026-09-14: production still reports `PLAID_ENV=sandbox`; a new synthetic receipt-image request using the configured OpenAI key/model returns HTTP 429, `credit_balance_exhausted` / `insufficient_quota`. Successful receipt extraction remains blocked by the external API balance.
 - Completion-pass graph verification: refreshed index; full structured `detect_changes(scope=all)` includes all 17 staged files, 175 symbols and 25 indexed affected processes, critical risk, with no partial/truncated result flag. The graph's sampled process catalog is supplemented by focused source reviews, 29 added regressions, and the full checks above.
-- Review follow-ups: bounded deletion and large-report read limits remain scale improvements. Plaid production approval is still unconfirmed; real-bank signup is not enabled by this sandbox deployment. iPhone integration remains outside this change.
+- Review follow-ups: bounded deletion and large-report read limits remain scale improvements. Plaid has limited production-testing access, not unrestricted commercial approval. User expanded iPhone scope; implementation and release checks are tracked in Pulse-Native draft PR #1.
+
+## Gemini receipt activation (2026-09-15)
+
+- User selected the paid Gemini recommendation and authorized the existing 1Password credential. It matches the already-configured backend `GEMINI_API_KEY`; no secret was changed. Google AI Studio confirms paid Tier 1. `RECEIPT_AI_PROVIDER=gemini` and `GEMINI_RECEIPT_MODEL=gemini-3.5-flash-lite` were set and read back after Convex deployment.
+- Source `84a0f0b`; Netlify deploy `6aa8faf74eae890008a10fab` published at 2026-09-15 08:01:36 UTC. The public privacy page now describes paid Gemini receipt reading and limited retention accurately. Other AI features retain their current providers; OpenAI is an explicit receipt rollback, never an automatic fallback.
+- Full `npm run check`: 198 files / 1,741 tests, TypeScript passed, ESLint 0 errors / 86 existing warnings. Independent review found no new blocking issue. Native FinanceClient's 11 contract tests passed; no new native binary was built.
+- Five real API smoke requests (clear PNG, rotated JPEG, faded JPEG, PDF, WebP) matched every expected synthetic field in 1.36–2.10 seconds. GIF correctly made no provider request and returned manual-review guidance. Fixtures are a wiring/basic-reading check, not a general accuracy benchmark.
+- Two live uploads in Myind Sound reached ready with vendor PULSE TEST SUPPLIES, date 2026-09-12, total 3910 cents, tax 260 cents, currency USD and card suffix 4242. Existing audit stores the Gemini model. No expense or bank match was created. Synthetic receipt/file cleanup awaits the requested browser deletion confirmation.
+- GitNexus full rebuild resolved corrupt symbol identities. Final staged implementation detection: 9 files / 60 symbols / 4 indexed processes / MEDIUM, no partial/truncated flags. The scheduler and route dispatch boundaries require source/test evidence beyond empty graph caller sets.
+- Google shows required migration from postpay to prepay to prevent interruption. API requests currently succeed. No billing migration, purchase, new credential or unrelated account change was made.
+- Existing reliability follow-up: storage-read or later usage-write exceptions can still leave a receipt in reading. Provider error/timeout/invalid-output paths are covered and preserve manual review.

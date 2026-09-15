@@ -134,6 +134,7 @@ import type * as lib_portTemplates from "../lib/portTemplates.js";
 import type * as lib_portalLink from "../lib/portalLink.js";
 import type * as lib_punch from "../lib/punch.js";
 import type * as lib_punchAlert from "../lib/punchAlert.js";
+import type * as lib_receiptAI from "../lib/receiptAI.js";
 import type * as lib_redact from "../lib/redact.js";
 import type * as lib_roadmap from "../lib/roadmap.js";
 import type * as lib_roomStatus from "../lib/roomStatus.js";
@@ -373,6 +374,7 @@ declare const fullApi: ApiFromModules<{
   "lib/portalLink": typeof lib_portalLink;
   "lib/punch": typeof lib_punch;
   "lib/punchAlert": typeof lib_punchAlert;
+  "lib/receiptAI": typeof lib_receiptAI;
   "lib/redact": typeof lib_redact;
   "lib/roadmap": typeof lib_roadmap;
   "lib/roomStatus": typeof lib_roomStatus;
