@@ -145,23 +145,28 @@ export const autoMatch = internalMutation({
     phase: v.optional(v.union(v.literal("receipts"), v.literal("expenses"))),
     cursor: v.optional(v.string()),
     expenseSince: v.optional(v.number()),
+    receiptId: v.optional(v.id("receipts")),
   },
   returns: v.object({ linked: v.number() }),
-  handler: async (ctx, { orgId, phase, cursor, expenseSince }) => {
+  handler: async (ctx, { orgId, phase, cursor, expenseSince, receiptId }) => {
     const rejected = await rejectedKeys(ctx, orgId);
     const actor: LinkMeta = { actorType: "system", automatic: true };
     let linked = 0;
     const since = expenseSince ?? Date.now() - 730 * DAY;
     // Helper pagination supports both phases in one small pass and stable continuation.
     const reader = paginator(ctx.db, schema);
-    const receiptPage = phase !== "expenses"
+    const targetReceipt = receiptId ? await ctx.db.get(receiptId) : null;
+    if (receiptId && (!targetReceipt || targetReceipt.orgId !== orgId || targetReceipt.status !== "ready")) return { linked };
+    const receiptPage = !receiptId && phase !== "expenses"
       ? await reader.query("receipts").withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", "ready"))
         .paginate({ cursor: cursor ?? null, numItems: 100 })
       : null;
 
-    for (const r0 of receiptPage?.page ?? []) {
+    for (const r0 of targetReceipt ? [targetReceipt] : receiptPage?.page ?? []) {
       const r = await ctx.db.get(r0._id);
-      if (!r || (r.expenseId && r.bankTransactionId)) continue;
+      if (!r) continue;
+      if (r.matchingPending) await ctx.db.patch(r._id, { matchingPending: false });
+      if (r.expenseId && r.bankTransactionId) continue;
       const side = receiptSide(r);
       if (!side) continue;
       if (!r.bankTransactionId) {
@@ -183,6 +188,9 @@ export const autoMatch = internalMutation({
       }
     }
 
+    // A new upload only needs its own matching pass. The link helpers complete
+    // its three-way chain; bank sync continues to run the full studio sweep.
+    if (receiptId) return { linked };
     if (receiptPage && !receiptPage.isDone) {
       await ctx.scheduler.runAfter(0, internal.reconcile.autoMatch, {
         orgId, phase: "receipts", cursor: receiptPage.continueCursor, expenseSince: since,

@@ -1829,6 +1829,7 @@ export default defineSchema({
     sizeBytes: v.number(),
     uploadedBy: v.string(),
     uploadedAt: v.number(),
+    matchingPending: v.optional(v.boolean()),
     status: v.union(
       v.literal("reading"),
       v.literal("ready"),

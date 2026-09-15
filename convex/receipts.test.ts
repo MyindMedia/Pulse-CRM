@@ -372,3 +372,126 @@ describe("expense documentation retention", () => {
     await expect(s.engineer.query(api.receipts.list, { expenseId })).rejects.toThrow();
   });
 });
+
+
+describe("automatic reconciliation on upload", () => {
+  it.each([
+    ["complete", 1, 1, 0.95],
+    ["ambiguous", 2, 2, 0.95],
+    ["expense only", 1, 0, 0.95],
+    ["bank only", 0, 1, 0.95],
+    ["unmatched", 0, 0, 0.95],
+    ["uncertain read", 1, 1, 0.2],
+  ] as const)("automatically finishes the %s upload without a manual matching call", async (scenario, expenseCount, bankCount, confidence) => {
+    vi.useFakeTimers();
+    process.env.RECEIPT_AI_PROVIDER = "gemini";
+    process.env.GEMINI_API_KEY = "test-only";
+    try {
+      const s = await studio();
+      for (let i = 0; i < expenseCount; i++) {
+        await s.manager.mutation(api.expenses.create, { category: "supplies", amountCents: 2000, date: day("2026-09-01"), vendor: "Studio Supply" });
+      }
+      for (let i = 0; i < bankCount; i++) await bankLine(s.t, `charge-${i}`, 2000, day("2026-09-01"), "Studio Supply");
+      globalThis.fetch = vi.fn(async () => new Response(JSON.stringify({ candidates: [{
+        finishReason: "STOP", content: { parts: [{ text: JSON.stringify({ vendor: "Studio Supply", date: "2026-09-01", total: 20, tax: 0, currency: "USD", cardLast4: null, confidence }) }] },
+      }] }))) as typeof fetch;
+      const storageId = await stored(s.t, "image/png");
+      const receiptId = await attachOk(s.manager, storageId, "auto.png");
+      expect((await s.owner.query(api.receipts.list, { status: "processing" })).map((r) => r._id)).toContain(receiptId);
+      // Runs the upload's extract -> save -> automatic reconciliation scheduled chain.
+      await s.t.finishAllScheduledFunctions(vi.runAllTimers);
+      const receipt = (await s.owner.query(api.receipts.list, { status: "all" })).find((r) => r._id === receiptId)!;
+      expect(receipt).toMatchObject({ vendor: "Studio Supply", totalCents: 2000, matchingPending: false });
+      expect(receipt.url).toEqual(expect.any(String));
+      const attention = await s.owner.query(api.receipts.list, { status: "needs_attention" });
+      const counts = await s.owner.query(api.receipts.counts, {});
+      expect(counts.processing).toBe(0);
+      if (scenario === "complete") {
+        expect(receipt.expense).not.toBeNull();
+        expect(receipt.transaction).not.toBeNull();
+        expect(receipt.needsAttention).toBe(false);
+        expect(attention).toHaveLength(0);
+        expect(counts.fullyMatched).toBe(1);
+        expect((await s.owner.query(api.receipts.list, { status: "reconciled" })).map((r) => r._id)).toContain(receiptId);
+        const expense = (await s.owner.query(api.expenses.list, {}))[0];
+        expect(expense.receiptId).toBe(storageId);
+        expect(expense.bankTransactionId).toBe(receipt.transaction!._id);
+        expect((await s.owner.query(api.reconcile.history, { receiptId })).some((r) => r.action === "match.auto")).toBe(true);
+      } else {
+        expect(receipt.needsAttention).toBe(true);
+        expect(receipt.attentionReason).toEqual(expect.any(String));
+        expect(attention.map((r) => r._id)).toContain(receiptId);
+        expect(counts.needsAttention).toBe(1);
+        if (scenario === "expense only") {
+          expect(receipt.expense).not.toBeNull(); expect(receipt.transaction).toBeNull();
+        } else if (scenario === "bank only") {
+          expect(receipt.expense).toBeNull(); expect(receipt.transaction).not.toBeNull();
+        } else {
+          expect(receipt.expense).toBeNull(); expect(receipt.transaction).toBeNull();
+        }
+      }
+      expect(await s.owner.query(api.expenses.list, {})).toHaveLength(expenseCount);
+    } finally { vi.useRealTimers(); }
+  });
+
+  it("only matches the upload's sub-account and leaves another studio's identical records untouched", async () => {
+    const s = await studio();
+    const otherExpense = await s.t.run(async (ctx) => await ctx.db.insert("expenses", {
+      orgId: "other-studio", category: "supplies", amountCents: 2000, date: day("2026-09-01"), vendor: "Shop",
+    }));
+    const otherBank = await bankLine(s.t, "other-bank", 2000, day("2026-09-01"), "Shop");
+    await s.t.run(async (ctx) => { await ctx.db.patch(otherBank, { orgId: "other-studio" }); });
+    const receiptId = await readyReceipt(s, "Shop", 20, "2026-09-01");
+    await s.t.mutation(internal.reconcile.autoMatch, { orgId: "pulse-demo", receiptId });
+    const receipt = (await s.owner.query(api.receipts.list, { status: "needs_attention" }))[0];
+    expect(receipt).toMatchObject({ _id: receiptId, expense: null, transaction: null, needsAttention: true, matchingPending: false });
+    expect((await s.t.run(async (ctx) => await ctx.db.get(otherExpense)))!.receiptDocId).toBeUndefined();
+    expect((await s.t.run(async (ctx) => await ctx.db.get(otherBank)))!.receiptId).toBeUndefined();
+    await s.t.run(async (ctx) => { await ctx.db.patch(receiptId, { matchingPending: true }); });
+    await s.t.mutation(internal.reconcile.autoMatch, { orgId: "other-studio", receiptId });
+    expect((await s.t.run(async (ctx) => await ctx.db.get(receiptId)))!.matchingPending).toBe(true);
+  });
+
+  it("surfaces unexpected file-read failures for attention while retaining the original", async () => {
+    const s = await studio();
+    const receiptId = await attachOk(s.manager, await stored(s.t, "image/png"), "original.png");
+    vi.spyOn(Blob.prototype, "arrayBuffer").mockRejectedValueOnce(new Error("storage interrupted"));
+    await s.t.action(internal.receipts.extract, { receiptId });
+    const receipt = (await s.owner.query(api.receipts.list, { status: "needs_attention" }))[0];
+    expect(receipt).toMatchObject({ _id: receiptId, status: "needs_review", needsAttention: true, matchingPending: false });
+    expect(receipt.error).toMatch(/did not finish/);
+    expect(receipt.url).toEqual(expect.any(String));
+  });
+});
+
+
+describe("reviewing a receipt uploaded against existing books", () => {
+  it("preserves the original attachment but flags OCR values incompatible with an already reconciled expense", async () => {
+    const s = await studio();
+    const transactionId = await bankLine(s.t, "booked", 2000, day("2026-09-01"), "Shop");
+    const expenseId = await s.manager.mutation(api.banking.addToBooks, { id: transactionId, category: "supplies" });
+    const storageId = await stored(s.t, "image/png");
+    const out = await s.manager.mutation(api.receipts.attach, { storageId, fileName: "different-amount.png", expenseId });
+    if (!out.ok) throw new Error(out.message);
+    await s.t.mutation(internal.receipts._saveExtraction, { receiptId: out.receiptId, vendor: "Shop", date: "2026-09-01", total: 200, confidence: 0.99 });
+    const receipt = (await s.owner.query(api.receipts.list, { status: "needs_attention" }))[0];
+    expect(receipt).toMatchObject({ _id: out.receiptId, status: "needs_review", needsAttention: true, matchingPending: false, totalCents: 20000 });
+    expect(receipt.error).toMatch(/do not match/);
+    expect(await s.owner.query(api.receipts.list, { status: "reconciled" })).toHaveLength(0);
+    const expense = (await s.owner.query(api.expenses.list, {}))[0];
+    expect(expense).toMatchObject({ _id: expenseId, receiptId: storageId, receiptDocId: out.receiptId, amountCents: 2000, bankTransactionId: transactionId });
+    expect(expense.receiptUrl).toEqual(expect.any(String));
+  });
+
+  it("targeted matching does not sweep unrelated expenses", async () => {
+    const s = await studio();
+    const unrelated = await s.manager.mutation(api.expenses.create, { category: "software", amountCents: 9900, date: day("2026-09-01"), vendor: "Software" });
+    await bankLine(s.t, "unrelated", 9900, day("2026-09-01"), "Software");
+    const receiptId = await readyReceipt(s, "Shop", 20, "2026-09-01");
+    await s.t.mutation(internal.reconcile.autoMatch, { orgId: "pulse-demo", receiptId });
+    expect((await s.t.run(async (ctx) => await ctx.db.get(unrelated)))!.bankTransactionId).toBeUndefined();
+    expect((await s.t.run(async (ctx) => await ctx.db.get(receiptId)))!.matchingPending).toBe(false);
+    await s.t.mutation(internal.reconcile.autoMatch, { orgId: "pulse-demo" });
+    expect((await s.t.run(async (ctx) => await ctx.db.get(unrelated)))!.bankTransactionId).toBeTruthy();
+  });
+});

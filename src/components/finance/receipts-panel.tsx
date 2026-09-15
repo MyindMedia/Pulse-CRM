@@ -20,11 +20,11 @@ import { MatchSuggestions } from "./match-suggestions";
 import { RECEIPT_STATUS, bankDay, dayFromInput, dayInputValue } from "./finance-labels";
 
 /* Receipts - upload a photo or PDF, Pulse reads the vendor, date and total,
-   then proposes the expense and bank line it belongs to
+   then matches the expense and bank line or highlights what needs attention
    (openspec add-bank-sync-receipts, finance/receipt-capture). */
 
 type ReceiptRow = FunctionReturnType<typeof api.receipts.list>[number];
-type Filter = "unmatched" | "needs_review" | "matched" | "all";
+type Filter = "needs_attention" | "processing" | "reconciled" | "all";
 
 const ACCEPT = "image/jpeg,image/png,image/webp,image/gif,application/pdf";
 
@@ -43,7 +43,7 @@ export function useReceiptUpload() {
 }
 
 export function ReceiptsPanel({ canEdit }: { canEdit: boolean }) {
-  const [filter, setFilter] = React.useState<Filter>("unmatched");
+  const [filter, setFilter] = React.useState<Filter>("needs_attention");
   const rows = useQuery(api.receipts.list, { status: filter });
   const counts = useQuery(api.receipts.counts, {});
   const upload = useReceiptUpload();
@@ -54,11 +54,12 @@ export function ReceiptsPanel({ canEdit }: { canEdit: boolean }) {
   async function handleFiles(files: FileList | File[]) {
     const list = Array.from(files);
     if (list.length === 0) return;
+    setFilter("all");
     setUploading((n) => n + list.length);
     for (const f of list) {
       try {
         await upload(f);
-        toast.success(`${f.name} uploaded. Reading it now.`);
+        toast.success(`${f.name} uploaded. Reading and matching automatically.`);
       } catch (err) {
         toast.error(`${f.name}: ${errorMessage(err)}`);
       } finally {
@@ -73,17 +74,17 @@ export function ReceiptsPanel({ canEdit }: { canEdit: boolean }) {
         <h2 className="font-grotesk text-lg text-bone">Receipts</h2>
         {counts && (
           <span className="font-meta text-[0.6875rem] text-steel/80">
-            {counts.matched} matched · {counts.unmatched} waiting · {counts.needsReview} to check
+            {counts.fullyMatched} matched · {counts.processing} processing · {counts.needsAttention} need attention
           </span>
         )}
         <div className="ml-auto flex flex-wrap gap-1">
           {([
-            ["unmatched", "Waiting"],
-            ["needs_review", "To check"],
-            ["matched", "Matched"],
+            ["needs_attention", "Needs attention"],
+            ["processing", "Processing"],
+            ["reconciled", "Matched"],
             ["all", "All"],
           ] as const).map(([value, label]) => (
-            <Button key={value} size="sm" variant={filter === value ? "primary" : "ghost"} onClick={() => setFilter(value)}>{label}</Button>
+            <Button key={value} size="sm" variant={filter === value ? "primary" : "ghost"} aria-pressed={filter === value} onClick={() => setFilter(value)}>{label}</Button>
           ))}
         </div>
       </div>
@@ -97,7 +98,7 @@ export function ReceiptsPanel({ canEdit }: { canEdit: boolean }) {
         >
           <div>
             <p className="text-sm text-bone">Drop receipts here</p>
-            <p className="text-xs text-steel/80">Photos or PDFs up to 10 MB. Pulse reads the vendor, date and total, then finds the match.</p>
+            <p className="text-xs text-steel/80">Photos or PDFs up to 10 MB. Pulse fills in the details and matches expenses and bank transactions in this studio automatically. Anything uncertain appears in Needs attention. The original file stays with the expense.</p>
           </div>
           <input ref={inputRef} type="file" accept={ACCEPT} multiple className="hidden" onChange={(e) => { if (e.target.files) void handleFiles(e.target.files); e.target.value = ""; }} />
           <Button variant="secondary" onClick={() => inputRef.current?.click()} disabled={uploading > 0}>
@@ -109,7 +110,7 @@ export function ReceiptsPanel({ canEdit }: { canEdit: boolean }) {
       {rows === undefined ? (
         <p className="text-sm text-steel/70">Loading receipts…</p>
       ) : rows.length === 0 ? (
-        <p className="rounded-md border border-dashed border-graphite/60 px-4 py-6 text-center text-sm text-steel/70">No receipts here.</p>
+        <p className="rounded-md border border-dashed border-graphite/60 px-4 py-6 text-center text-sm text-steel/70">{filter === "needs_attention" ? "No receipts need attention. New uploads are read and matched automatically." : filter === "processing" ? "No receipts are processing." : filter === "reconciled" ? "No receipts are fully matched yet." : "No receipts uploaded yet."}</p>
       ) : (
         <ul className="space-y-2">
           {rows.map((r) => <ReceiptItem key={r._id} r={r} canEdit={canEdit} />)}
@@ -125,14 +126,19 @@ function ReceiptItem({ r, canEdit }: { r: ReceiptRow; canEdit: boolean }) {
   const [history, setHistory] = React.useState(false);
   const remove = useMutation(api.receipts.remove);
   const unmatch = useMutation(api.reconcile.unmatch);
-  const st = RECEIPT_STATUS[r.status] ?? RECEIPT_STATUS.ready;
+  const processing = r.status === "reading" || r.matchingPending;
+  const st = processing
+    ? { label: r.status === "reading" ? "Reading" : "Matching", tone: "info" as const }
+    : r.needsAttention
+      ? { label: r.status === "ready" ? "Needs attention" : RECEIPT_STATUS[r.status]?.label ?? "Needs attention", tone: r.status === "failed" ? "critical" as const : "caution" as const }
+      : { label: "Matched", tone: "positive" as const };
 
   async function run(fn: () => Promise<unknown>, ok: string) {
     try { await fn(); toast.success(ok); } catch (err) { toast.error(errorMessage(err)); }
   }
 
   return (
-    <li className="rounded-lg border border-graphite/50 bg-coal/60">
+    <li className={`rounded-lg border bg-coal/60 ${r.needsAttention ? "border-caution/50" : "border-graphite/50"}`}>
       <div className="flex flex-wrap items-center gap-3 px-4 py-3">
         <FileText className="size-4 shrink-0 text-steel" />
         <div className="min-w-0 flex-1">
@@ -141,12 +147,14 @@ function ReceiptItem({ r, canEdit }: { r: ReceiptRow; canEdit: boolean }) {
             {r.date ? bankDay(r.date, true) : "no date"} · uploaded by {r.uploadedBy}
             {r.cardLast4 ? ` · card ••${r.cardLast4}` : ""}
           </p>
+          {r.needsAttention && r.attentionReason && <p className="mt-1 text-xs text-caution">{r.attentionReason}</p>}
+          {processing && <p className="mt-1 text-xs text-steel">Reading and matching automatically. You can leave this page.</p>}
         </div>
         <span className="font-meta text-sm text-bone">{r.totalCents !== null ? money(r.totalCents) : "-"}</span>
         <Badge tone={st.tone} dot>{st.label}</Badge>
         {r.expense && <Badge tone="positive">In books</Badge>}
         {r.transaction && <Badge tone="info">Bank matched</Badge>}
-        <Button size="icon" variant="ghost" aria-label={open ? "Hide receipt" : "Show receipt"} onClick={() => setOpen(!open)}>
+        <Button size="icon" variant="ghost" aria-label={open ? "Hide receipt" : "Show receipt"} aria-expanded={open} onClick={() => setOpen(!open)}>
           {open ? <ChevronUp className="size-4" /> : <ChevronDown className="size-4" />}
         </Button>
       </div>
@@ -154,7 +162,7 @@ function ReceiptItem({ r, canEdit }: { r: ReceiptRow; canEdit: boolean }) {
       {open && (
         <div className="space-y-3 border-t border-graphite/40 px-4 py-3">
           {r.error && <p className="text-xs text-caution">{r.error}</p>}
-          {canEdit && r.status !== "reading" && r.status !== "failed" && (
+          {canEdit && !processing && r.status !== "failed" && (
             <ReceiptEditor key={`${r.vendor}|${r.date}|${r.totalCents}`} r={r} />
           )}
           <div className="flex flex-wrap gap-2">
@@ -163,14 +171,14 @@ function ReceiptItem({ r, canEdit }: { r: ReceiptRow; canEdit: boolean }) {
                 <a href={r.url} target="_blank" rel="noreferrer"><ExternalLink className="size-3.5" /> View file</a>
               </Button>
             )}
-            {canEdit && !r.expense && r.totalCents !== null && r.date !== null && (
+            {canEdit && !processing && !r.expense && r.totalCents !== null && r.date !== null && (
               <Button size="sm" onClick={() => setCreating(true)}><BookPlus className="size-3.5" /> Create expense</Button>
             )}
             {canEdit && r.expense && (
-              <Button size="sm" variant="ghost" onClick={() => run(() => unmatch({ a: { kind: "receipt", id: r._id }, b: { kind: "expense", id: r.expense!._id } }), "Receipt unmatched from the expense.")}>Undo expense match</Button>
+              <Button size="sm" variant="ghost" disabled={processing} onClick={() => run(() => unmatch({ a: { kind: "receipt", id: r._id }, b: { kind: "expense", id: r.expense!._id } }), "Receipt unmatched from the expense.")}>Undo expense match</Button>
             )}
             {canEdit && r.transaction && (
-              <Button size="sm" variant="ghost" onClick={() => run(() => unmatch({ a: { kind: "receipt", id: r._id }, b: { kind: "transaction", id: r.transaction!._id } }), "Receipt unmatched from the bank line.")}>Undo bank match</Button>
+              <Button size="sm" variant="ghost" disabled={processing} onClick={() => run(() => unmatch({ a: { kind: "receipt", id: r._id }, b: { kind: "transaction", id: r.transaction!._id } }), "Receipt unmatched from the bank line.")}>Undo bank match</Button>
             )}
             <Button size="sm" variant="ghost" onClick={() => setHistory(true)}><History className="size-3.5" /> History</Button>
             {canEdit && (
@@ -181,7 +189,7 @@ function ReceiptItem({ r, canEdit }: { r: ReceiptRow; canEdit: boolean }) {
           </div>
           {r.expense && <p className="text-xs text-steel">Expense: {r.expense.vendor ?? r.expense.category}, {money(r.expense.amountCents)}</p>}
           {r.transaction && <p className="text-xs text-steel">Bank line: {r.transaction.name}, {money(r.transaction.amountCents)} on {bankDay(r.transaction.date)}</p>}
-          {r.status === "ready" && (!r.expense || !r.transaction) && <MatchSuggestions kind="receipt" id={r._id} canEdit={canEdit} />}
+          {r.status === "ready" && !processing && (!r.expense || !r.transaction) && <MatchSuggestions kind="receipt" id={r._id} canEdit={canEdit} />}
         </div>
       )}
 
