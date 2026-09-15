@@ -1,7 +1,7 @@
 # Data-Flow Map and Vendor Checklist: Banking (Plaid) and Receipts
 
 **Prepared by:** Compliance Ops (build-time guardrail, not legal advice)
-**Date:** 2026-09-14
+**Date:** 2026-09-15
 **Change:** `openspec/changes/add-bank-sync-receipts`
 **Regimes:** SOC 2 (customer data); FTC Safeguards Rule principles as required by Plaid's developer policy; PCI-DSS scope check; GDPR if EU studios are onboarded
 **Protected data class:** a studio's business bank and card data (account names, last four digits, balances, transactions), receipt documents (vendor, amounts, sometimes card last four, sometimes a cashier or customer name), and the staff identities who act on them
@@ -30,7 +30,7 @@
 | Plaid webhook `/plaid/webhook` | Item id, event codes only | 2 (minimal) | Convex HTTP action | ES256 JWT verified, body hash checked, 5-minute freshness |
 | Banking and Expenses pages | Yes: shown to authorized staff | 2 | Netlify serves the page; data flows browser to Convex directly | Netlify: no bank data passes through Netlify functions |
 | Receipt upload and storage (`receipts`) | Yes: receipt document | 2 | Convex file storage | Type from storage metadata plus byte sniff; 10 MB cap; metered |
-| Receipt reading (`receipts.extract`) | Yes: receipt image or PDF | 2 | OpenAI API via `lib/openai.completeVisionJSON` | **Confirm OpenAI API DPA executed and zero data retention** (existing open item, now higher priority). No Gemini or Ollama fallback on this path. |
+| Receipt reading (`receipts.extract`) | Yes: receipt image or PDF | 2 | Configured paid Gemini API via `lib/receiptAI.completeReceiptVisionJSON`; explicit OpenAI rollback | Paid Gemini project verified on 2026-09-15. Paid terms incorporate Google's processor DPA and exclude product-improvement use; limited abuse/legal retention still applies. No automatic cross-provider fallback. |
 | Matching (`lib/financeMatch`, `reconcile.ts`) | Yes: amounts, dates, vendor names | 2 | Convex only | Deterministic code; **no AI, bank data never sent to any model** |
 | Finance audit trail (`financeAudit`) | Minimal: ids, amounts, actor names | 2 | Convex | Append-only; readable with `insights.read` |
 | Staff sign-in | Staff identity | 1 (adjacent) | Clerk | DPA for staff personal data; confirm executed |
@@ -59,11 +59,12 @@ Receipt
    → staff browser → Convex upload URL → Convex storage
    → receipts.attach checks type and size → receipts.extract
    → bytes sniffed; not an image or PDF → marked failed, never sent anywhere
-   → OpenAI Responses API (image or PDF, strict JSON schema, injection guard)   [OpenAI]
+   → configured paid Gemini API (image/PDF, JSON schema, injection guard)      [Google]
+   → or explicitly configured OpenAI Responses API; never automatic fallback
    → every field validated; only 4-digit card suffix kept → stored
    → reconcile.autoMatch (code only)
 
-AI: only the receipt document goes to OpenAI. Bank transactions, balances and tokens never do.
+AI: only the receipt document goes to the configured provider. Bank transactions, balances and tokens never do. Gemini requests use `store:false`, which does not establish zero abuse-monitoring retention. GIF receipts remain available for manual review.
 ```
 
 ## Controls built into this feature
@@ -80,13 +81,15 @@ AI: only the receipt document goes to OpenAI. Bank transactions, balances and to
 ## Vendor agreement checklist
 
 - [ ] Plaid: production approval for Pulse; developer policy and end-user privacy policy reviewed; Plaid listed as a sub-processor (privacy policy updated 2026-09-14).
-- [ ] OpenAI: API DPA executed; zero data retention or equivalent confirmed for receipt documents.
+- [x] Paid Gemini API project verified; [paid-service data-use terms](https://ai.google.dev/gemini-api/terms) reviewed on 2026-09-15. They incorporate the processor DPA; this does not claim a separate negotiated agreement or zero retention.
+- [ ] Follow Google's required postpay-to-prepay migration notice to prevent service interruption. No billing change was made by this integration task.
+- [ ] OpenAI rollback: API DPA/retention account evidence remains open.
 - [ ] Convex: SOC 2 Type II report reviewed; DPA executed.
 - [ ] Record `PLAID_TOKEN_KEY` in 1Password.
 
 ## Not yet covered
 
-- iPhone receipt capture and banking screens (follow-up after App Review approves 1.1).
+- Authenticated native verification and release remain open; iPhone receipt/banking implementation is in Pulse-Native draft PR #1.
 - EU studios: Plaid EU coverage, SCCs with Plaid and OpenAI, EU data residency. Not enabled.
 - Independent penetration test of the new surface: the `/pentest` tool needs Docker, which is not installed on this machine. A code-level security review was done instead (see the change's tasks).
 

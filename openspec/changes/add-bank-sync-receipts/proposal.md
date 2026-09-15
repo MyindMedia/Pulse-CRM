@@ -26,8 +26,8 @@ Studios see revenue in Pulse but not where the money actually goes. Expenses are
 
 ## Impact
 
-- Convex: new tables `bankConnections`, `bankAccounts`, `bankTransactions`, `receipts`, `financeAudit`; new optional fields on `expenses` (`source`, `receiptDocId`, `bankTransactionId`); new modules `banking.ts`, `receipts.ts`, `lib/plaid.ts`, `lib/secretBox.ts`, `lib/financeMatch.ts`; OpenAI vision helper in `lib/openai.ts`; `/plaid/webhook` HTTP route; a 6-hourly sync cron; deletion and access-policy registration.
+- Convex: new tables `bankConnections`, `bankAccounts`, `bankTransactions`, `receipts`, `financeAudit`; new optional fields on `expenses` (`source`, `receiptDocId`, `bankTransactionId`); new modules `banking.ts`, `receipts.ts`, `lib/plaid.ts`, `lib/secretBox.ts`, `lib/financeMatch.ts`; receipt provider adapter in `lib/receiptAI.ts` and retained OpenAI vision helper in `lib/openai.ts`; `/plaid/webhook` HTTP route; a 6-hourly sync cron; deletion and access-policy registration.
 - Web: new `/banking` page, receipts section and receipt column on `/expenses`, bank figures on the P&L, nav entry.
 - Environment (Convex prod): `PLAID_CLIENT_ID`, `PLAID_SECRET`, `PLAID_ENV`, `PLAID_TOKEN_KEY`.
-- New sub-processor: Plaid. AI: receipt images only, through the OpenAI API path already used; bank data never goes to an AI.
+- New sub-processor: Plaid. AI: uploaded receipt images/PDFs through the configured paid Gemini API or explicitly selected OpenAI API; bank data never goes to an AI.
 - iPhone: not in this change (follow-up after 1.1 is approved).

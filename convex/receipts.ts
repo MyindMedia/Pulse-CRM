@@ -5,7 +5,7 @@ import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { currentActor, currentOrgWithCapability } from "./lib/tenant";
 import { meterStorageUpload } from "./usage";
-import { completeVisionJSON } from "./lib/openai";
+import { completeReceiptVisionJSON } from "./lib/receiptAI";
 import { dayFromIso, scorePair, type MatchSide } from "./lib/financeMatch";
 import { financeLog, linkReceiptExpense, unlink } from "./lib/financeLinks";
 
@@ -19,7 +19,7 @@ import { financeLog, linkReceiptExpense, unlink } from "./lib/financeLinks";
 
    The file type and size are read from Convex's own storage record,
    never from what the browser claimed. The AI reads the document
-   through lib/openai (the covered commercial path) and returns
+   through the configured receipt provider in lib/receiptAI and returns
    vendor, date, total, tax, currency and card last four; every field
    is validated here before it is stored, and a full card number can
    never be kept because only exactly four digits are accepted.
@@ -120,16 +120,6 @@ export const _forExtract = internalQuery({
   },
 });
 
-type Extracted = {
-  vendor: string | null;
-  date: string | null;
-  total: number | null;
-  tax: number | null;
-  currency: string | null;
-  cardLast4: string | null;
-  confidence: number;
-};
-
 const EXTRACT_SCHEMA = {
   name: "receipt",
   schema: {
@@ -159,9 +149,10 @@ function toBase64(bytes: Uint8Array): string {
 
 export const extract = internalAction({
   args: { receiptId: v.id("receipts") },
+  returns: v.null(),
   handler: async (ctx, { receiptId }) => {
     const r = await ctx.runQuery(internal.receipts._forExtract, { receiptId });
-    if (!r) return;
+    if (!r) return null;
 
     try {
       await ctx.runQuery(internal.usage.checkLimit, { orgId: r.orgId, metric: "ai_credits", add: 1 });
@@ -169,13 +160,13 @@ export const extract = internalAction({
       await ctx.runMutation(internal.receipts._saveExtraction, {
         receiptId, error: "This month's AI reading allowance is used up. Enter the details by hand.",
       });
-      return;
+      return null;
     }
 
     const blob = await ctx.storage.get(r.storageId);
     if (!blob) {
       await ctx.runMutation(internal.receipts._saveExtraction, { receiptId, error: "The file is missing." });
-      return;
+      return null;
     }
     const bytes = new Uint8Array(await blob.arrayBuffer());
     const actual = sniffType(bytes);
@@ -183,11 +174,11 @@ export const extract = internalAction({
       await ctx.runMutation(internal.receipts._saveExtraction, {
         receiptId, error: "This file isn't a readable image or PDF.", notAReceipt: true,
       });
-      return;
+      return null;
     }
     const base64 = toBase64(bytes);
     const today = new Date().toISOString().slice(0, 10);
-    const result = await completeVisionJSON<Extracted>(
+    const result = await completeReceiptVisionJSON(
       `Read this receipt or invoice. Today is ${today}. Report the business name, purchase date, the final total charged, tax, currency and the last four card digits if printed. Use null for anything you cannot read. Never report more than four card digits.`,
       { mimeType: actual, base64, fileName: r.fileName },
       {
@@ -195,24 +186,25 @@ export const extract = internalAction({
         schema: EXTRACT_SCHEMA,
       },
     );
-    if (!result) {
+    if (!result.ok) {
       await ctx.runMutation(internal.receipts._saveExtraction, {
-        receiptId, error: "The receipt couldn't be read automatically. Enter the details by hand.",
+        receiptId, error: result.error,
       });
-      return;
+      return null;
     }
     await ctx.runMutation(internal.usage.record, { orgId: r.orgId, metric: "ai_credits", amount: 1 });
     await ctx.runMutation(internal.receipts._saveExtraction, {
       receiptId,
       model: result.model,
-      vendor: result.data.vendor ?? undefined,
-      date: result.data.date ?? undefined,
-      total: result.data.total ?? undefined,
-      tax: result.data.tax ?? undefined,
-      currency: result.data.currency ?? undefined,
-      cardLast4: result.data.cardLast4 ?? undefined,
-      confidence: typeof result.data.confidence === "number" ? result.data.confidence : undefined,
+      vendor: typeof result.data.vendor === "string" ? result.data.vendor : undefined,
+      date: typeof result.data.date === "string" ? result.data.date : undefined,
+      total: typeof result.data.total === "number" && Number.isFinite(result.data.total) ? result.data.total : undefined,
+      tax: typeof result.data.tax === "number" && Number.isFinite(result.data.tax) ? result.data.tax : undefined,
+      currency: typeof result.data.currency === "string" ? result.data.currency : undefined,
+      cardLast4: typeof result.data.cardLast4 === "string" ? result.data.cardLast4 : undefined,
+      confidence: typeof result.data.confidence === "number" && Number.isFinite(result.data.confidence) ? result.data.confidence : undefined,
     });
+    return null;
   },
 });
 

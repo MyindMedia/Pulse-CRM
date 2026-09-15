@@ -20,7 +20,7 @@ export const dynamic = "force-static";
 
 export default function PrivacyPolicy() {
   return (
-    <LegalShell title="Privacy Policy" updated="September 14, 2026">
+    <LegalShell title="Privacy Policy" updated="September 15, 2026">
       <Section heading="Who we are">
         <p>
           Pulse is recording studio management software operated by {LEGAL_ENTITY} (&ldquo;Pulse&rdquo;,
@@ -123,14 +123,18 @@ export default function PrivacyPolicy() {
           <li>Convex and Netlify - application hosting and data storage.</li>
           <li>
             OpenAI - AI features in Pulse, such as drafted client replies, session recaps, weekly
-            briefings, and reading uploaded receipts. Bank transactions and balances are never sent to
+            briefings, and receipt reading when configured. Bank transactions and balances are never sent to
             OpenAI. Only the studio records a request needs, which can include client names
             and session details, are sent to OpenAI&rsquo;s API, and OpenAI does not use data sent
             through its API to train its models.
           </li>
           <li>
-            Google - Gemini creates a studio&rsquo;s booking page header image from its name and
-            brand colours. Gmail and Google Calendar are used only when a studio connects its Google
+            Google - Gemini reads uploaded receipt images and PDFs through its paid API to extract
+            vendor, date, amounts, currency, and the last four card digits. Google does not use
+            these paid API inputs or responses to improve its products; limited retention for abuse
+            prevention and legal obligations can apply. Bank transactions, balances, and bank access
+            tokens are not sent to Gemini. Gemini also creates a studio&rsquo;s booking page header
+            image from its name and brand colours. Gmail and Google Calendar are used only when a studio connects its Google
             account, to send its email and keep its calendar in sync.
           </li>
           <li>

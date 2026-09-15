@@ -23,6 +23,7 @@ The AI layer routes through one chokepoint: `convex/lib/openai.ts → complete()
 |---|---|---|---|
 | **OpenAI API** (gpt-5 / gpt-5-mini, Responses API) | primary | Commercial Terms + **DPA**, **no training on API data**, request **ZDR** (zero data retention) | API-key (commercial path). **Action: confirm DPA executed + ZDR enabled.** |
 | **Google Gemini** (text fallback) | fallback | Paid (no-train) tier under Google Cloud **DPA** | **Gated OFF by default** (`AI_ALLOW_GEMINI_FALLBACK`). Enable only after the DPA is in place; otherwise OpenAI outage degrades to deterministic templates, not Gemini. |
+| **Google Gemini receipt reading** | receipt extraction | Paid API terms include processor DPA and no product-improvement use; limited abuse/legal retention | Explicit `RECEIPT_AI_PROVIDER=gemini`; paid project verified 2026-09-15. No automatic fallback. `store:false` does not claim zero retention. |
 | **Gemini image** (brand hero) | studio-aesthetic image gen | low risk — prompt is about room aesthetic, no client PII | OK |
 | **Consumer Claude.ai / ChatGPT / Gemini app** | — | NEVER in the data path | not used (API keys only) |
 
@@ -75,7 +76,7 @@ Confirm each holds **SOC 2 Type II + an executed DPA** and add to the sub-proces
 2. **Collect/execute DPAs** for the vendor checklist; maintain a published sub-processor list.
 3. ~~Formalize a GDPR erasure/export flow per data subject.~~ **Done** (`convex/dataRights.ts`).
 4. Keep `AI_ALLOW_GEMINI_FALLBACK` off until the Google DPA is in place.
-5. **Plaid production approval for Pulse** before `PLAID_ENV=production`; record `PLAID_TOKEN_KEY` in 1Password so a lost deployment key does not strand connections. Receipts add financial documents to the OpenAI path, which raises item 1.
+5. **Plaid production approval for Pulse** before `PLAID_ENV=production`; record `PLAID_TOKEN_KEY` in 1Password so a lost deployment key does not strand connections. Receipts use the separately configured paid Gemini path; account-level billing migration is still required per Google's dashboard notice. OpenAI remains an explicit rollback option.
 
 ## Platform vulnerability audit + remediation (2026-06-29)
 
