@@ -62,9 +62,9 @@
   - [ ] Verify successful live AI extraction after the configured OpenAI account has API credits. The current request returns HTTP 429; it reaches `needs_review` and remains manually correctable.
   - [x] Remove the synthetic verification receipt and confirm its stored file and match are cleared.
 - [x] 8.4 Security review of the new surface (webhook, token handling, upload validation, access checks); record results.
-- [ ] 8.5 Verify and deploy the completion pass (transaction pagination, P&L accuracy and permanent reconciliation history).
+- [x] 8.5 Verify and deploy the completion pass (transaction pagination, P&L accuracy and permanent reconciliation history).
   - [x] Run the final combined `npm run check` and production build. On 2026-09-14, 195 test files / 1,707 tests pass, TypeScript passes, and ESLint reports no errors (86 existing warnings). Production Next.js build passes.
-  - [ ] Deploy the updated backend and frontend, then verify the affected live views.
+  - [x] Deploy the updated backend and frontend, then verify the affected live views. Convex production deploy passed; source `72befcb` was pushed to main and Netlify deploy `6aa8a71862cf53000824f7bc` published it on 2026-09-14 at 19:03 PDT. Live browser verified the populated bank report and no-bank view, All time report loading, preserved September report bounds, All history, 50→100 transaction pagination, and the Integrations signup card. The original workspace view was restored and the temporary tab closed.
 
 ## Notes from implementation
 
@@ -77,4 +77,5 @@
 - Removal resilience: disconnect keeps credentials and history when Plaid removal fails temporarily. Workspace cleanup retains encrypted retry arguments and retries only failed items after 1, 2, 4, 8 and 16 minutes; exhaustion requires operator recovery.
 - Completion-pass focused verification: 65 P&L, booking, money-reconciliation and invoice tests passed, plus TypeScript and scoped lint. These do not replace the final combined checks in 8.5.
 - Report query keys use a stable next-local-midnight boundary for This year/All time; they do not shift on every render. Final browser verification is part of 8.5.
+- Completion-pass graph verification: refreshed index; full structured `detect_changes(scope=all)` includes all 17 staged files, 175 symbols and 25 indexed affected processes, critical risk, with no partial/truncated result flag. The graph's sampled process catalog is supplemented by focused source reviews, 29 added regressions, and the full checks above.
 - Review follow-ups: bounded deletion and large-report read limits remain scale improvements. Plaid production approval is still unconfirmed; real-bank signup is not enabled by this sandbox deployment. iPhone integration remains outside this change.
