@@ -99,6 +99,16 @@ describe("who may touch the bank feed", () => {
     expect(ok.linkToken).toBe("link-sandbox-x");
   });
 
+  it("adds the fixed native callback only for iOS Link tokens", async () => {
+    const s = await studio();
+    const calls = stubPlaid(() => ({ link_token: "link-sandbox-x", expiration: "2030-01-01T00:00:00Z" }));
+    await s.owner.action(api.banking.createLinkToken, {});
+    expect(calls[0].body.redirect_uri).toBeUndefined();
+    await s.owner.action(api.banking.createLinkToken, { platform: "ios" });
+    expect(calls[1].body.redirect_uri).toBe("https://studiopulse.tech/plaid/oauth");
+    await expect(s.manager.action(api.banking.createLinkToken, { platform: "ios" })).rejects.toThrow();
+  });
+
   it("an engineer cannot read banking; a manager can", async () => {
     const s = await studio();
     await expect(s.engineer.query(api.banking.overview, {})).rejects.toThrow();
@@ -486,6 +496,10 @@ describe("bank lifecycle regressions", () => {
     await s.owner.action(api.banking.createUpdateLinkToken, { connectionId: s.connectionId });
     expect(calls[0].body).toMatchObject({ access_token: "access-sandbox-SECRET-TOKEN", update: { account_selection_enabled: true } });
     expect(calls[0].body.products).toBeUndefined();
+    expect(calls[0].body.redirect_uri).toBeUndefined();
+    await s.owner.action(api.banking.createUpdateLinkToken, { connectionId: s.connectionId, platform: "ios" });
+    expect(calls[1].body.redirect_uri).toBe("https://studiopulse.tech/plaid/oauth");
+    expect(calls[1].body.update).toEqual({ account_selection_enabled: true });
     expect((await s.t.run((ctx) => ctx.db.get(s.connectionId)))?.newAccountsAvailable).toBe(true);
     await s.owner.mutation(api.banking.refresh, { connectionId: s.connectionId, linkCompleted: true });
     expect((await s.t.run((ctx) => ctx.db.get(s.connectionId)))?.newAccountsAvailable).toBeUndefined();

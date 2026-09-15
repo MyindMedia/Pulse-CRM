@@ -94,13 +94,14 @@ export type PlaidTransaction = {
 };
 
 export const plaid = {
-  linkTokenCreate: (args: { clientUserId: string; webhook?: string; accessToken?: string; accountSelectionEnabled?: boolean }) =>
+  linkTokenCreate: (args: { clientUserId: string; webhook?: string; redirectUri?: string; accessToken?: string; accountSelectionEnabled?: boolean }) =>
     call<{ link_token: string; expiration: string }>("/link/token/create", {
       client_name: "Pulse",
       language: "en",
       country_codes: ["US"],
       user: { client_user_id: args.clientUserId },
       ...(args.webhook ? { webhook: args.webhook } : {}),
+      ...(args.redirectUri ? { redirect_uri: args.redirectUri } : {}),
       ...(args.accessToken
         ? { access_token: args.accessToken, ...(args.accountSelectionEnabled ? { update: { account_selection_enabled: true } } : {}) }
         : { products: ["transactions"], transactions: { days_requested: 730 } }),

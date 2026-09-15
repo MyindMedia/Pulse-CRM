@@ -71,13 +71,16 @@ export const _viewer = internalQuery({
 
 /** A Plaid Link token for connecting a new bank. Owner only. */
 export const createLinkToken = action({
-  args: {},
-  handler: async (ctx): Promise<{ linkToken: string; environment: string }> => {
+  args: { platform: v.optional(v.literal("ios")) },
+  returns: v.object({ linkToken: v.string(), environment: v.string() }),
+  handler: async (ctx, { platform }): Promise<{ linkToken: string; environment: string }> => {
     const me = await ctx.runQuery(internal.banking._viewer, { capability: "banking.manage" });
     if (!plaidConfigured()) throw new ConvexError("Bank connections are not set up on this deployment yet.");
     try {
       const res = await plaid.linkTokenCreate({
         clientUserId: `${me.orgId}:${me.subject}`,
+        // Fixed app-owned Universal Link; never accept a caller-controlled redirect.
+        redirectUri: platform === "ios" ? "https://studiopulse.tech/plaid/oauth" : undefined,
         webhook: process.env.CONVEX_SITE_URL ? `${process.env.CONVEX_SITE_URL}/plaid/webhook` : undefined,
       });
       return { linkToken: res.link_token, environment: plaidEnv() };
@@ -89,9 +92,9 @@ export const createLinkToken = action({
 
 /** A Link token in update mode, to repair a connection that needs sign-in. */
 export const createUpdateLinkToken = action({
-  args: { connectionId: v.id("bankConnections") },
+  args: { connectionId: v.id("bankConnections"), platform: v.optional(v.literal("ios")) },
   returns: v.object({ linkToken: v.string(), environment: v.string() }),
-  handler: async (ctx, { connectionId }): Promise<{ linkToken: string; environment: string }> => {
+  handler: async (ctx, { connectionId, platform }): Promise<{ linkToken: string; environment: string }> => {
     const me = await ctx.runQuery(internal.banking._viewer, { capability: "banking.manage" });
     const conn = await ctx.runQuery(internal.banking._sealedConnection, { connectionId });
     if (!conn || conn.orgId !== me.orgId || !conn.tokenCiphertext || !conn.tokenIv) {
@@ -101,6 +104,8 @@ export const createUpdateLinkToken = action({
     try {
       const res = await plaid.linkTokenCreate({
         clientUserId: `${me.orgId}:${me.subject}`,
+        // Fixed app-owned Universal Link; never accept a caller-controlled redirect.
+        redirectUri: platform === "ios" ? "https://studiopulse.tech/plaid/oauth" : undefined,
         accessToken,
         accountSelectionEnabled: true,
         webhook: process.env.CONVEX_SITE_URL ? `${process.env.CONVEX_SITE_URL}/plaid/webhook` : undefined,
