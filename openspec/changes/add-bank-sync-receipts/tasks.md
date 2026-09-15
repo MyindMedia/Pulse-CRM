@@ -69,6 +69,10 @@
 
 ## Notes from implementation
 
+- Suggestion-audit release (2026-09-14): `npm run check` passes **197 files / 1,716 tests**, TypeScript, and ESLint with 0 errors / 86 existing warnings. Production build passes. Convex added only the `financeAudit.by_org_suggestion` index and deployed successfully. Source `cade081` is published in Netlify deploy `6aa8ac10b6c78d000809f3b7` at 19:24 PDT. Nine new regressions verify the audit behavior; no production receipt or ledger fixture was created in this pass.
+- Suggestion-audit graph review: full structured detection includes 8 staged files / 37 symbols / 10 indexed processes, high risk, without a result-level partial/truncated flag. The refreshed graph still reports sampling limits in its process catalog; focused source review and tests supplement the graph.
+- Completion is blocked on successful live AI extraction and confirmed Plaid production setup. The Plaid dashboard currently requires sign-in to inspect access. Account approvals, API credits, and a successful extraction run remain required; sandbox verification does not establish these.
+
 - 7.1 / 7.4: Both Banking and Settings → Integrations use the same Plaid CDN loader (`src/components/finance/use-plaid-link.ts`). Signup is offered only to users with `banking.manage`; users without financial access or Reports do not issue the banking overview query.
 - 3.2: refusals are returned, not thrown, so the file delete commits; the real file type is sniffed from its bytes before any AI call.
 - 8.4: security review found one issue (reconcile.reject accepted another studio's ids into the audit log); fixed with `ownedRef` on every client-supplied reference and a test. `/pentest` (Strix) needs Docker, which is not installed here, so no automated pentest was run.
