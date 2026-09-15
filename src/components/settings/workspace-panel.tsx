@@ -315,8 +315,8 @@ export function WorkspacePanel({ org }: { org: Org }) {
           <div className="flex items-start gap-2 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5">
             <Info className="mt-0.5 size-3.5 shrink-0 text-info" />
             <p className="text-[0.6875rem] text-steel/70">
-              This workspace is running in demo mode. Settings persist to the
-              Convex backend but no real billing or external accounts are touched.
+              Changes saved here update your workspace. Use Billing for your
+              subscription and Integrations to connect or manage external accounts.
             </p>
           </div>
         </CardContent>
