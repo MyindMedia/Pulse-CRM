@@ -2,6 +2,8 @@
 
 import * as React from "react";
 import { useAction, useMutation, useQuery } from "convex/react";
+import { usePaginatedQuery } from "convex-helpers/react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import type { FunctionReturnType } from "convex/server";
@@ -32,7 +34,7 @@ import { CONNECTION_STATUS, EXCLUDE_REASON_LABEL, bankDay } from "@/components/f
    the books. Everything here reads from and writes to the server, which
    enforces who may do what. */
 
-type Range = "30" | "90" | "month" | "last" | "year";
+type Range = "30" | "90" | "month" | "last" | "year" | "all" | "custom";
 type Filter = "attention" | "matched" | "excluded" | "in" | "all";
 
 const DAY = 86_400_000;
@@ -42,9 +44,10 @@ function utcMidnight(d: Date) {
   return Date.UTC(d.getFullYear(), d.getMonth(), d.getDate());
 }
 
-function rangeFor(r: Range): { start: number; end: number } {
+function rangeFor(r: Exclude<Range, "custom">): { start: number; end: number } {
   const now = new Date();
   const end = utcMidnight(now) + DAY;
+  if (r === "all") return { start: 0, end };
   if (r === "30") return { start: end - 30 * DAY, end };
   if (r === "90") return { start: end - 90 * DAY, end };
   if (r === "year") return { start: Date.UTC(now.getFullYear(), 0, 1), end };
@@ -53,12 +56,34 @@ function rangeFor(r: Range): { start: number; end: number } {
 }
 
 export default function BankingPage() {
+  return <React.Suspense fallback={<LoadingPanel label="Loading banking" />}><BankingRoute /></React.Suspense>;
+}
+
+function BankingRoute() {
+  const params = useSearchParams();
+  const from = Number(params.get("start") ?? NaN);
+  const to = Number(params.get("end") ?? NaN);
+  const reportRange = Number.isSafeInteger(from) && Number.isSafeInteger(to) && from >= 0 && from < to && to <= 8.64e15
+    ? { start: from, end: to } : null;
+  const requestedFilter = params.get("filter");
+  const initialFilter = (["attention", "matched", "excluded", "in", "all"] as const).find((value) => value === requestedFilter) ?? "attention";
+  return <BankingView key={params.toString()} reportRange={reportRange} initialFilter={initialFilter} />;
+}
+
+function BankingView({ reportRange, initialFilter }: { reportRange: { start: number; end: number } | null; initialFilter: Filter }) {
   const overview = useQuery(api.banking.overview, {});
-  const [range, setRange] = React.useState<Range>("90");
-  const [filter, setFilter] = React.useState<Filter>("attention");
+  const [range, setRange] = React.useState<Range>(reportRange ? "custom" : "90");
+  const [filter, setFilter] = React.useState<Filter>(initialFilter);
   const [search, setSearch] = React.useState("");
-  const { start, end } = rangeFor(range);
-  const txns = useQuery(api.banking.transactions, { start, end, filter, search: search.trim() || undefined });
+  const { start, end } = range === "custom" && reportRange ? reportRange : rangeFor(range === "custom" ? "90" : range);
+  const { results: transactions, status: transactionStatus, loadMore } = usePaginatedQuery(
+    api.banking.transactionsPage, { start, end, filter, search: search.trim() || undefined }, { initialNumItems: 50 },
+  );
+  React.useEffect(() => {
+    // Sparse filters can exhaust a scan budget before finding any rows. Keep
+    // searching so an empty intermediate page is never presented as no results.
+    if (transactionStatus === "CanLoadMore" && transactions.length === 0) loadMore(50);
+  }, [transactionStatus, transactions.length, loadMore]);
 
   const createLinkToken = useAction(api.banking.createLinkToken);
   const createUpdateLinkToken = useAction(api.banking.createUpdateLinkToken);
@@ -234,13 +259,24 @@ export default function BankingPage() {
                       <SelectItem value="month">This month</SelectItem>
                       <SelectItem value="last">Last month</SelectItem>
                       <SelectItem value="year">This year</SelectItem>
+                      <SelectItem value="all">All history</SelectItem>
+                      {reportRange && <SelectItem value="custom">Report period</SelectItem>}
                     </SelectContent>
                   </Select>
                 </div>
               </div>
             </div>
 
-            <TransactionsTable rows={txns?.rows} truncated={txns?.truncated ?? false} canEdit={overview.canEdit} />
+            {range === "custom" && <p className="text-xs text-steel">Report period: {bankDay(start, true)} to {bankDay(end - 1, true)}</p>}
+            <TransactionsTable rows={transactionStatus !== "Exhausted" && transactions.length === 0 ? undefined : transactions} canEdit={overview.canEdit} />
+            {transactions.length > 0 && transactionStatus !== "Exhausted" && (
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs text-steel">{transactions.length.toLocaleString()} transactions loaded</p>
+                <Button size="sm" variant="secondary" disabled={transactionStatus !== "CanLoadMore"} onClick={() => loadMore(50)}>
+                  {transactionStatus === "LoadingMore" ? "Loading…" : "Load more transactions"}
+                </Button>
+              </div>
+            )}
           </section>
         </>
       )}
@@ -250,9 +286,9 @@ export default function BankingPage() {
   );
 }
 
-type TxnRow = FunctionReturnType<typeof api.banking.transactions>["rows"][number];
+type TxnRow = FunctionReturnType<typeof api.banking.transactionsPage>["page"][number];
 
-function TransactionsTable({ rows, truncated, canEdit }: { rows: TxnRow[] | undefined; truncated: boolean; canEdit: boolean }) {
+function TransactionsTable({ rows, canEdit }: { rows: TxnRow[] | undefined; canEdit: boolean }) {
   const [open, setOpen] = React.useState<string | null>(null);
   const [adding, setAdding] = React.useState<TxnRow | null>(null);
   const [history, setHistory] = React.useState<TxnRow | null>(null);
@@ -355,7 +391,6 @@ function TransactionsTable({ rows, truncated, canEdit }: { rows: TxnRow[] | unde
           })}
         </TBody>
       </Table>
-      {truncated && <p className="text-xs text-steel/70">Showing the latest 1,000. Narrow the period to see older lines.</p>}
       <AddToBooksDialog row={adding} onClose={() => setAdding(null)} />
       <FinanceHistorySheet
         open={history !== null}

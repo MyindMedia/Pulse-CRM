@@ -20,7 +20,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { money, percent, shortDate } from "@/lib/format";
+import { money, percent, shortDate, longDate, timeOfDay } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
 import { Badge } from "@/components/ui/badge";
 import { ReceiptsPanel, useReceiptUpload } from "@/components/finance/receipts-panel";
@@ -36,20 +36,29 @@ type Range = "month" | "last" | "year" | "all";
 
 const CATEGORY_LABEL = new Map<string, string>(EXPENSE_CATEGORIES.map((c) => [c.value, c.label]));
 
-function rangeFor(r: Range): { start: number; end: number } {
+function rangeFor(r: Range): { start: number; end: number; bankStart: number; bankEnd: number } {
   const now = new Date();
-  const farEnd = Date.now() + 86_400_000;
-  if (r === "all") return { start: 1, end: farEnd };
-  if (r === "year") return { start: new Date(now.getFullYear(), 0, 1).getTime(), end: farEnd };
+  const year = now.getFullYear();
+  const month = now.getMonth();
+  const farEnd = new Date(year, month, now.getDate() + 1).getTime();
+  // Plaid and receipt dates represent calendar days at UTC midnight; revenue,
+  // payroll and other collected-at timestamps use the viewer's local period.
+  const bankTodayEnd = Date.UTC(year, month, now.getDate() + 1);
+  if (r === "all") return { start: 1, end: farEnd, bankStart: 1, bankEnd: bankTodayEnd };
+  if (r === "year") return { start: new Date(year, 0, 1).getTime(), end: farEnd, bankStart: Date.UTC(year, 0, 1), bankEnd: bankTodayEnd };
   if (r === "last") {
     return {
-      start: new Date(now.getFullYear(), now.getMonth() - 1, 1).getTime(),
-      end: new Date(now.getFullYear(), now.getMonth(), 1).getTime(),
+      start: new Date(year, month - 1, 1).getTime(),
+      end: new Date(year, month, 1).getTime(),
+      bankStart: Date.UTC(year, month - 1, 1),
+      bankEnd: Date.UTC(year, month, 1),
     };
   }
   return {
-    start: new Date(now.getFullYear(), now.getMonth(), 1).getTime(),
-    end: new Date(now.getFullYear(), now.getMonth() + 1, 1).getTime(),
+    start: new Date(year, month, 1).getTime(),
+    end: new Date(year, month + 1, 1).getTime(),
+    bankStart: Date.UTC(year, month, 1),
+    bankEnd: Date.UTC(year, month + 1, 1),
   };
 }
 
@@ -67,8 +76,9 @@ export default function ExpensesPage() {
   const [editItem, setEditItem] = React.useState<EditableExpense | undefined>(undefined);
   const [editOpen, setEditOpen] = React.useState(false);
 
-  const { start, end } = rangeFor(range);
-  const pl = useQuery(api.expenses.plReport, { start, end });
+  const { start, end, bankStart, bankEnd } = rangeFor(range);
+  const reconcileHref = `/banking?start=${bankStart}&end=${bankEnd}&filter=attention`;
+  const pl = useQuery(api.expenses.plReport, { start, end, bankStart, bankEnd });
   const rows = useQuery(api.expenses.list, { start, end }) as ExpenseRow[] | undefined;
 
   const banking = useQuery(api.banking.overview, {});
@@ -127,12 +137,34 @@ export default function ExpensesPage() {
 
       {pl && (
         pl.bank.connected ? (
-          <div className="rise-stagger grid grid-cols-2 gap-3 md:grid-cols-4">
-            <StatTile label="Bank money in" value={money(pl.bank.inCents, { compact: true })} icon={TrendingUp} hint="this period, transfers excluded" />
-            <StatTile label="Bank money out" value={money(pl.bank.outCents, { compact: true })} icon={TrendingDown} hint="this period, transfers excluded" />
-            <StatTile label="Cash on hand" value={money(pl.bank.cashOnHandCents, { compact: true })} icon={Landmark} hint={pl.bank.cardOwedCents > 0 ? `${money(pl.bank.cardOwedCents, { compact: true })} owed on cards` : "checking and savings"} />
-            <StatTile label="To reconcile" value={String(pl.reconciliation.unmatchedOutflows)} icon={Paperclip} hint={`${pl.reconciliation.receiptsUnmatched} receipts waiting · ${pl.reconciliation.expensesWithoutReceipt} expenses without a receipt`} />
-          </div>
+          <section className="space-y-3" aria-labelledby="bank-view-heading">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 id="bank-view-heading" className="font-grotesk text-sm font-semibold text-bone">Bank activity</h2>
+              <p className="text-xs text-steel">
+                {pl.bank.balanceAsOf === null
+                  ? "Balances are waiting for the first sync."
+                  : `Balances as of ${longDate(pl.bank.balanceAsOf)}, ${timeOfDay(pl.bank.balanceAsOf)}`}
+              </p>
+            </div>
+            <div className="rise-stagger grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+              <StatTile label="Bank money in" value={money(pl.bank.inCents, { compact: true })} icon={TrendingUp} hint="this period, transfers excluded" />
+              <StatTile label="Bank money out" value={money(pl.bank.outCents, { compact: true })} icon={TrendingDown} hint="this period, transfers excluded" />
+              <StatTile label="Net cash flow" value={money(pl.bank.netCents, { compact: true })} icon={Wallet} hint="bank money in minus money out" />
+              <StatTile label="Cash on hand" value={money(pl.bank.cashOnHandCents, { compact: true })} icon={Landmark} hint="current checking and savings" />
+              <StatTile label="Owed on cards" value={money(pl.bank.cardOwedCents, { compact: true })} icon={Landmark} hint="current credit card balances" />
+            </div>
+            {pl.bank.outByCategory.length > 0 && (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">Bank spending by category</span>
+                {pl.bank.outByCategory.map((category) => (
+                  <span key={category.category} className="inline-flex items-center gap-2 rounded-full border border-graphite/50 bg-coal-2 px-3 py-1 text-xs text-bone">
+                    <span className="text-steel/80">{category.category === "uncategorized" ? "Uncategorized" : CATEGORY_LABEL.get(category.category) ?? category.category}</span>
+                    <span className="font-meta text-gold">{money(category.amountCents)}</span>
+                  </span>
+                ))}
+              </div>
+            )}
+          </section>
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-graphite/50 bg-coal/40 px-4 py-3 text-sm">
             <span className="text-steel">Connect the studio bank to see cash in, cash out and balances here, and to match receipts automatically.</span>
@@ -141,10 +173,21 @@ export default function ExpensesPage() {
         )
       )}
 
-      {pl && pl.bank.connected && pl.reconciliation.unmatchedOutflows > 0 && (
-        <p className="text-xs text-caution">
-          {pl.reconciliation.unmatchedOutflows} bank {pl.reconciliation.unmatchedOutflows === 1 ? "charge isn't" : "charges aren't"} in the books yet. <Link href="/banking" className="underline">Reconcile in Banking</Link>.
-        </p>
+      {pl && (
+        <section className="space-y-3" aria-labelledby="reconciliation-heading">
+          <h2 id="reconciliation-heading" className="font-grotesk text-sm font-semibold text-bone">Reconciliation this period</h2>
+          <div className="rise-stagger grid grid-cols-2 gap-3 md:grid-cols-4">
+            <StatTile label="Bank charges to reconcile" value={String(pl.reconciliation.unmatchedOutflows)} icon={Landmark} hint="posted spending not in the books" />
+            <StatTile label="Unmatched receipts" value={String(pl.reconciliation.receiptsUnmatched)} icon={Paperclip} hint={`${pl.reconciliation.receiptsToBook} ready receipts still need an expense`} />
+            <StatTile label="Receipts needing review" value={String(pl.reconciliation.receiptsNeedingReview)} icon={Pencil} hint="check the receipt details" />
+            <StatTile label="Expenses without receipts" value={String(pl.reconciliation.expensesWithoutReceipt)} icon={Paperclip} hint="excluding payroll and adjustments" />
+          </div>
+          {pl.reconciliation.unmatchedOutflows > 0 && (
+            <p className="text-xs text-caution">
+              {pl.reconciliation.unmatchedOutflows} bank {pl.reconciliation.unmatchedOutflows === 1 ? "charge isn't" : "charges aren't"} in the books yet. <Link href={reconcileHref} className="underline">Reconcile in Banking</Link>.
+            </p>
+          )}
+        </section>
       )}
 
       {pl && pl.paymentsByMethod.length > 0 && (

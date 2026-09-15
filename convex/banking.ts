@@ -1,4 +1,7 @@
 import { v, ConvexError } from "convex/values";
+import { paginationOptsValidator, paginationResultValidator } from "convex/server";
+import { stream } from "convex-helpers/server/stream";
+import schema from "./schema";
 import { action, internalAction, internalQuery, query } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { internal } from "./_generated/api";
@@ -979,5 +982,63 @@ export const transactions = query({
       });
     }
     return { rows: out, truncated };
+  },
+});
+
+const transactionSummaryV = v.object({
+  _id: v.id("bankTransactions"), date: v.number(), amountCents: v.number(),
+  direction: v.union(v.literal("in"), v.literal("out")), name: v.string(),
+  merchantName: v.union(v.string(), v.null()), pending: v.boolean(),
+  category: v.union(v.string(), v.null()), excluded: v.boolean(),
+  excludeReason: v.union(v.string(), v.null()), pfcPrimary: v.union(v.string(), v.null()),
+  account: v.union(v.object({ name: v.string(), mask: v.union(v.string(), v.null()) }), v.null()),
+  expense: v.union(v.object({ _id: v.id("expenses"), category: v.string(), vendor: v.union(v.string(), v.null()) }), v.null()),
+  receipt: v.union(v.object({ _id: v.id("receipts"), fileName: v.string() }), v.null()),
+});
+
+/** Cursor-based history for the web feed. Retain transactions for older clients. */
+export const transactionsPage = query({
+  args: {
+    start: v.number(), end: v.number(), paginationOpts: paginationOptsValidator,
+    filter: v.optional(v.union(v.literal("attention"), v.literal("matched"), v.literal("excluded"), v.literal("in"), v.literal("all"))),
+    accountId: v.optional(v.id("bankAccounts")), search: v.optional(v.string()),
+  },
+  returns: paginationResultValidator(transactionSummaryV),
+  handler: async (ctx, { start, end, filter, accountId, search, paginationOpts }) => {
+    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+    if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) throw new ConvexError("Choose a valid period.");
+    const needle = search?.trim().toLowerCase();
+    // The index bounds the studio and date range. The stream handles arbitrary
+    // combinations of text/status filters without collecting the whole history.
+    // A sparse match can continue across a bounded scan via its returned cursor.
+    const result = await stream(ctx.db, schema).query("bankTransactions")
+      .withIndex("by_org_date", (q) => q.eq("orgId", orgId).gte("date", start).lt("date", end))
+      .order("desc")
+      .filterWith(async (t) => {
+        if (t.removed || accountId && t.accountId !== accountId) return false;
+        if (filter === "attention" && (t.direction !== "out" || t.excluded || t.expenseId || t.pending)) return false;
+        if (filter === "matched" && !t.expenseId && !t.receiptId) return false;
+        if (filter === "excluded" && !t.excluded) return false;
+        if (filter === "in" && t.direction !== "in") return false;
+        return !needle || `${t.name} ${t.merchantName ?? ""}`.toLowerCase().includes(needle);
+      })
+      .paginate({ ...paginationOpts, numItems: Math.max(1, Math.min(100, paginationOpts.numItems)), maximumRowsRead: 500 });
+    const accountCache = new Map<string, Doc<"bankAccounts"> | null>();
+    const page = [];
+    for (const t of result.page) {
+      if (!accountCache.has(t.accountId)) accountCache.set(t.accountId, await ctx.db.get(t.accountId));
+      const account = accountCache.get(t.accountId);
+      const expense = t.expenseId ? await ctx.db.get(t.expenseId) : null;
+      const receipt = t.receiptId ? await ctx.db.get(t.receiptId) : null;
+      page.push({
+        _id: t._id, date: t.date, amountCents: t.amountCents, direction: t.direction, name: t.name,
+        merchantName: t.merchantName ?? null, pending: t.pending, category: t.category ?? null,
+        excluded: Boolean(t.excluded), excludeReason: t.excludeReason ?? null, pfcPrimary: t.pfcPrimary ?? null,
+        account: account ? { name: account.name, mask: account.mask ?? null } : null,
+        expense: expense ? { _id: expense._id, category: expense.category, vendor: expense.vendor ?? null } : null,
+        receipt: receipt ? { _id: receipt._id, fileName: receipt.fileName } : null,
+      });
+    }
+    return { ...result, page };
   },
 });

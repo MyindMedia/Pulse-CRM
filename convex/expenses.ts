@@ -161,16 +161,43 @@ export const list = query({
 });
 
 /**
- * Profit-and-loss roll-up for a window. Collected revenue = paid `invoices`
- * (the app's canonical revenue, same as the dashboard) PLUS paid `payments`
- * (booking deposits/balances) for any session NOT already counted via a paid
- * invoice - so a session billed both ways isn't double-counted. Minus expenses
- * in the window. Also returns the monthly recurring expense run-rate.
+ * Profit-and-loss roll-up for a window. Collected revenue = paid invoices plus
+ * paid booking payments, each at its collection timestamp. Completion invoices
+ * contain only the balance remaining AFTER booking payments, and settling an
+ * invoice does not create a payment row. A shared session is not a duplicate
+ * collection. Minus expenses; also returns the monthly recurring run-rate.
  */
 export const plReport = query({
-  args: { start: v.number(), end: v.number() },
-  handler: async (ctx, { start, end }) => {
+  args: {
+    start: v.number(), end: v.number(),
+    bankStart: v.optional(v.number()), bankEnd: v.optional(v.number()),
+  },
+  returns: v.object({
+    revenueCents: v.number(), expensesCents: v.number(), netCents: v.number(), marginPct: v.number(),
+    byCategory: v.array(v.object({ category: v.string(), amountCents: v.number() })),
+    revenueFromPaymentsCents: v.number(), revenueFromInvoicesCents: v.number(),
+    paymentsByMethod: v.array(v.object({ method: v.string(), amountCents: v.number() })),
+    expenseCount: v.number(), monthlyRecurringCents: v.number(),
+    bank: v.object({
+      connected: v.boolean(), needsAttention: v.number(), inCents: v.number(), outCents: v.number(), netCents: v.number(),
+      outByCategory: v.array(v.object({ category: v.string(), amountCents: v.number() })),
+      cashOnHandCents: v.number(), cardOwedCents: v.number(), balanceAsOf: v.union(v.number(), v.null()),
+    }),
+    reconciliation: v.object({
+      unmatchedOutflows: v.number(), receiptsUnmatched: v.number(), receiptsToBook: v.number(),
+      receiptsNeedingReview: v.number(), expensesWithoutReceipt: v.number(),
+    }),
+  }),
+  handler: async (ctx, { start, end, bankStart, bankEnd }) => {
     const orgId = await currentOrgWithCapability(ctx, "insights.read");
+    // Callers may supply UTC calendar bounds for date-only bank/receipt rows.
+    // Legacy callers retain the original range; collected-at timestamps keep
+    // their local-time boundaries so late-night payments stay in the right month.
+    const calendarStart = bankStart ?? start;
+    const calendarEnd = bankEnd ?? end;
+    if (![start, end, calendarStart, calendarEnd].every(Number.isFinite) || start >= end || calendarStart >= calendarEnd) {
+      throw new Error("Choose a valid report period.");
+    }
 
     const invoices = await ctx.db
       .query("invoices")
@@ -180,34 +207,32 @@ export const plReport = query({
       (i) => i.status === "paid" && i.paidAt && i.paidAt >= start && i.paidAt < end,
     );
     const invoiceRevenue = paidInvoices.reduce((s, i) => s + i.amountCents, 0);
-    const invoicedSessions = new Set(paidInvoices.map((i) => i.sessionId).filter(Boolean));
 
     const payments = await ctx.db
       .query("payments")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .collect();
-    const paymentRevenue = payments
+    const paidPayments = payments
       .filter((p) => p.status === "paid")
       .filter((p) => {
         const at = p.paidAt ?? p._creationTime;
         return at >= start && at < end;
-      })
-      .filter((p) => !invoicedSessions.has(p.sessionId)) // session already counted via its invoice
-      .reduce((s, p) => s + p.amountCents, 0);
+      });
+    const paymentRevenue = paidPayments.reduce((s, p) => s + p.amountCents, 0);
 
     const revenueCents = invoiceRevenue + paymentRevenue;
 
-    // Collected totals per payment type: invoice paymentMethod (venmo/cash/
-    // cashapp/zelle/credit, "card" from the online path) plus session payments,
-    // which only settle through Stripe checkout and therefore count as card.
-    // Invoices paid before the field existed land in "unrecorded".
+    // Invoice methods are explicit. Stripe booking payments count as card;
+    // manual/simulated booking rows do not record a method, so keep it unknown.
+    // Invoices paid before the field existed also land in "unrecorded".
     const methodTotals = new Map<string, number>();
     for (const i of paidInvoices) {
       const key = i.paymentMethod ?? "unrecorded";
       methodTotals.set(key, (methodTotals.get(key) ?? 0) + i.amountCents);
     }
-    if (paymentRevenue > 0) {
-      methodTotals.set("card", (methodTotals.get("card") ?? 0) + paymentRevenue);
+    for (const payment of paidPayments) {
+      const key = payment.provider === "stripe" ? "card" : "unrecorded";
+      methodTotals.set(key, (methodTotals.get(key) ?? 0) + payment.amountCents);
     }
     const paymentsByMethod = [...methodTotals.entries()]
       .map(([method, amountCents]) => ({ method, amountCents }))
@@ -235,7 +260,7 @@ export const plReport = query({
     // collected revenue minus expenses and nothing counts twice.
     const bankRows = await ctx.db
       .query("bankTransactions")
-      .withIndex("by_org_date", (q) => q.eq("orgId", orgId).gte("date", start).lt("date", end))
+      .withIndex("by_org_date", (q) => q.eq("orgId", orgId).gte("date", calendarStart).lt("date", calendarEnd))
       .collect();
     const counted = bankRows.filter((t) => !t.removed && !t.excluded && !t.pending);
     const bankOutByCategory = new Map<string, number>();
@@ -264,8 +289,8 @@ export const plReport = query({
 
     const receipts = await ctx.db.query("receipts").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
     const inPeriod = receipts.filter((r) => {
-      const at = r.date ?? r.uploadedAt;
-      return at >= start && at < end;
+      if (r.date !== undefined) return r.date >= calendarStart && r.date < calendarEnd;
+      return r.uploadedAt >= start && r.uploadedAt < end;
     });
 
     return {
@@ -290,7 +315,8 @@ export const plReport = query({
       },
       reconciliation: {
         unmatchedOutflows: counted.filter((t) => t.direction === "out" && !t.expenseId).length,
-        receiptsUnmatched: inPeriod.filter((r) => r.status === "ready" && !r.expenseId).length,
+        receiptsUnmatched: inPeriod.filter((r) => !r.expenseId && !r.bankTransactionId).length,
+        receiptsToBook: inPeriod.filter((r) => r.status === "ready" && !r.expenseId).length,
         receiptsNeedingReview: inPeriod.filter((r) => r.status === "needs_review").length,
         expensesWithoutReceipt: expenses.filter(
           (e) => !e.receiptId && !e.receiptDocId && e.category !== "payroll" && e.category !== "adjustment",

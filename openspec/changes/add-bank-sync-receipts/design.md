@@ -64,7 +64,11 @@ Score out of 100:
 Auto-link when score ≥ 85, next candidate ≤ score − 15, both sides unmatched, pair not rejected. Suggest when score ≥ 50. Alternatives considered: AI matching (rejected: sends bank data to a model, non-deterministic, not auditable); exact-amount only (rejected: misses tips and posting delays).
 
 ### D8. Where matches live
-Links are stored on the rows (`receipts.expenseId/bankTransactionId`, `bankTransactions.expenseId/receiptId`, `expenses.receiptDocId/bankTransactionId/receiptId`) and kept consistent by one internal helper `linkChain` that propagates receipt↔transaction↔expense and refuses a link that would give either side a second counterpart. Suggestions are computed on read (bounded candidate windows via date indexes), not stored.
+Links are stored on the rows (`receipts.expenseId/bankTransactionId`, `bankTransactions.expenseId/receiptId`, `expenses.receiptDocId/bankTransactionId/receiptId`) and kept consistent by shared link helpers that propagate receipt↔transaction↔expense and refuse a link that would give either side a second counterpart. Suggestions are computed on read (bounded candidate windows via date indexes), not stored.
+
+The link helpers preflight the entire proposed chain, including indirect links left after an undo. Candidate ranking excludes incompatible chains before choosing an automatic match. Auto-match uses scheduled continuation through 100-row receipt and expense pages. Correcting receipt details detaches impossible matches with audit entries; it preserves expense amounts and the existing expense-to-bank link.
+
+History uses the root item's immutable match events to recover former counterparts after unmatch or receipt deletion. Expansion is one hop from the requested item: it includes the receipt's upload/read evidence without recursively pulling unrelated later counterpart history. Tenant checks apply before audit references are followed.
 
 ### D9. Capabilities and tiers
 New `banking.manage` on studio `owner`, agency `owner` and `admin`; added to `SENSITIVE_CAPABILITIES`; entitlement `reports` (same tier as the books). Reads use `insights.read`, writes `invoices.send`. Actions verify capability through an internal query before any Plaid call.
@@ -72,9 +76,18 @@ New `banking.manage` on studio `owner`, agency `owner` and `admin`; added to `SE
 ### D10. Web
 Settings → Integrations contains a Plaid card with a direct “Connect with Plaid” button, connected-bank status, an explicit sandbox label, and a “Manage banking” link. It uses the same client-side CDN loader (`use-plaid-link.ts`) as Banking. Only users with `banking.manage` receive signup controls. The card waits for capability/Reports availability before querying financial data, and explains unavailable access or setup without breaking Settings.
 
-`/banking` (Finance nav, `insights.read`): connect button, connection cards with status and reconnect/refresh/disconnect for banking managers, balance tiles, transactions table with filters (needs attention, matched, excluded, all), per-row actions (add a posted outflow to books with category, match suggestions, exclude). The transaction list is currently bounded; user-facing pagination remains a follow-up. `/expenses`: receipts panel (multi-file drop/upload, status, extracted fields editable, suggestions with confirm/reject, create expense), receipt column on the expense table with view and attach, history drawer (audit). P&L tiles for bank in/out, cash on hand, card owed, and reconciliation counts.
+`/banking` (Finance nav, `insights.read`): connect button, connection cards with status and reconnect/refresh/disconnect for banking managers, balance tiles, transaction filters (needs attention, matched, excluded, all), per-row actions (add a posted outflow to books with category, match suggestions, exclude). The web uses `transactionsPage` to load 50 rows at a time, scans at most 500 source rows per request for sparse filters, and follows the cursor until complete. All history and `start`/`end`/`filter` URL arguments let reporting links reach the same period and attention list. The previous bounded endpoint remains available for older clients.
 
-### D11. Deletion and erasure
+`/expenses`: receipts panel (multi-file drop/upload, status, extracted fields editable, suggestions with confirm/reject, create expense), receipt column on the expense table with view and attach, history drawer (audit). P&L shows bank in/out/net, bank spending categories, cash on hand, card owed and the oldest included balance timestamp. Reconciliation counts distinguish receipts with no match from ready receipts still needing an expense; review counts remain visible without a connected bank.
+
+### D11. Periods and collected revenue
+Bank and extracted-receipt dates represent calendar days at UTC midnight. The web supplies optional `bankStart`/`bankEnd` bounds for those records; collected invoice/payment timestamps, stored expense timestamps and undated receipt upload times retain the local report's `start`/`end`. Legacy callers that omit calendar bounds keep their original range behavior. Bank/receipt-generated expenses are stored at noon UTC, manual expense dates at local noon, and payroll/credit-adjustment rows use actual timestamps; existing stored dates are preserved.
+
+This year/All time uses the next local midnight as a stable upper timestamp boundary, with the corresponding next UTC calendar day for bank records. Query arguments stay stable across renders instead of moving with every `Date.now()` call.
+
+Revenue adds paid booking ledger rows and paid invoices at their own collection timestamps. `createCompletionInvoice` already subtracts deposits from the amount due, and paying the resulting invoice does not create another booking payment row. A shared session ID therefore cannot identify a duplicate payment. Removing the previous session-wide suppression fixes the concrete $100 deposit + $200 balance invoice case, including across monthly boundaries. Explicit invoice payment methods are retained; Stripe booking rows are card, while manual rows without a recorded method remain unrecorded. Bank cash flow never feeds profit directly.
+
+### D12. Deletion and erasure
 Disconnect calls `item/remove` before clearing the token or deleting optional history. A temporary Plaid/network/decryption failure leaves credentials and history available for retry; `ITEM_NOT_FOUND` and `INVALID_ACCESS_TOKEN` are treated as already removed. A concurrent sync loses ownership before it can restore data.
 
 New tables join `ORG_TABLES` (financeAudit and rejections included, before `changeLog`). Workspace deletion schedules `item/remove` with encrypted token boxes and deletes receipt files and bank rows. Cleanup retries only the failed token boxes after 1, 2, 4, 8 and 16 minutes; exhausted retries surface a failure with encrypted arguments available for operator recovery. Tests exercise deletion, stored-file cleanup, retries and other-studio isolation. Bank rows are financial records: client erasure (`dataRights`) keeps them, consistent with existing financial-record retention.
@@ -86,7 +99,7 @@ New tables join `ORG_TABLES` (financeAudit and rejections included, before `chan
 - [OCR misreads] → confidence gate, `needs_review`, editable fields, no automatic expense creation from receipts.
 - [Receipt AI unavailable or out of API credits] → preserve the uploaded receipt for manual correction and matching; do not claim successful extraction. Live verification on 2026-09-14 reached this fallback because OpenAI returned HTTP 429.
 - [Auto-match errors] → strict threshold + margin, labelled automatic, one-click undo, rejection memory.
-- [Large first import (two years)] → chunked sync mutations and date-indexed P&L reads. The current transaction list is bounded and history deletion is not batched; user-facing pagination and bounded deletion remain scale follow-ups.
+- [Large first import (two years)] → chunked sync mutations and cursor-based transaction pages. History deletion is not batched and large/all-time report queries can still reach Convex read limits; these remain scale follow-ups.
 - [Convex function limits during sync] → ≤ 200 rows per mutation; cursor saved only after full apply.
 - [Webhook key fetch latency] → one extra Plaid call per webhook; acceptable at webhook volume.
 

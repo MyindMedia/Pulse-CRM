@@ -33,6 +33,19 @@ When a receipt is linked to a bank transaction that already has an expense, the 
 - **WHEN** an outflow was already added to the books and its receipt is later matched to that outflow
 - **THEN** the receipt is attached to the existing expense and no new expense is created
 
+#### Scenario: Two candidates belong to different existing expense chains
+- **WHEN** a receipt belongs to one expense and a proposed bank match belongs to another
+- **THEN** confirmation is refused before any links change, and automatic matching considers only compatible candidates
+
+#### Scenario: A correction invalidates a receipt match
+- **WHEN** a corrected receipt's amount or date makes its existing matches impossible
+- **THEN** the receipt's links are undone with an audit reason and matching is rerun, while the existing expense amount and bank-to-expense link remain intact
+
+#### Scenario: Multiple receipts or expenses compete for one counterpart
+- **WHEN** two eligible receipts or expenses score equally or within the confidence margin for one charge or expense
+- **THEN** neither is linked automatically; a person may confirm the correct match
+- **AND** automatic matches require a confident, unique choice in both directions
+
 ### Requirement: Any link can be undone
 People with `invoices.send` SHALL be able to unmatch any link, automatic or manual. Unmatching SHALL restore both sides to unmatched without deleting the expense, receipt or transaction, and a rejected suggestion SHALL not be proposed again for the same pair.
 
@@ -46,6 +59,11 @@ The system SHALL append an audit entry for: receipt uploaded, extraction result,
 #### Scenario: See why an expense is linked
 - **WHEN** an owner opens the history of an expense
 - **THEN** they see who uploaded the receipt, what the AI read, the match score and reasons, and whether a person confirmed it
+
+#### Scenario: A former receipt was unlinked or deleted
+- **WHEN** an owner opens the former expense's history
+- **THEN** the receipt's upload, extraction, match, undo and deletion evidence remains visible through the immutable audit references
+- **AND** unrelated later expense histories are not pulled into that history
 
 #### Scenario: Automated sync recorded
 - **WHEN** the scheduled sync imports 14 transactions with no one signed in

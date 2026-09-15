@@ -6,7 +6,7 @@ import type { Id } from "./_generated/dataModel";
 import { currentActor, currentOrgWithCapability } from "./lib/tenant";
 import { meterStorageUpload } from "./usage";
 import { completeVisionJSON } from "./lib/openai";
-import { dayFromIso } from "./lib/financeMatch";
+import { dayFromIso, scorePair, type MatchSide } from "./lib/financeMatch";
 import { financeLog, linkReceiptExpense, unlink } from "./lib/financeLinks";
 
 /* ============================================================
@@ -281,6 +281,7 @@ export const update = mutation({
     totalCents: v.optional(v.number()),
     taxCents: v.optional(v.number()),
   },
+  returns: v.null(),
   handler: async (ctx, { id, ...patch }) => {
     const orgId = await currentOrgWithCapability(ctx, "invoices.send");
     const r = await ctx.db.get(id);
@@ -296,12 +297,33 @@ export const update = mutation({
       taxCents: patch.taxCents ?? r.taxCents,
     };
     const status = next.date !== undefined && next.totalCents !== undefined ? "ready" : "needs_review";
+    const actor = { actorType: "user" as const, actorName: await currentActor(ctx) };
+    if (next.date !== r.date || next.totalCents !== r.totalCents || next.vendor !== r.vendor) {
+      const side: MatchSide | null = next.date !== undefined && next.totalCents !== undefined
+        ? { kind: "receipt", id, dateMs: next.date, amountCents: next.totalCents, vendor: next.vendor }
+        : null;
+      const expense = r.expenseId ? await ctx.db.get(r.expenseId) : null;
+      const txn = r.bankTransactionId ? await ctx.db.get(r.bankTransactionId) : null;
+      const expenseFits = !expense || (side && scorePair(side, {
+        kind: "expense", id: expense._id, amountCents: expense.amountCents, dateMs: expense.date, vendor: expense.vendor ?? expense.description,
+      }));
+      const transactionFits = !txn || (!txn.removed && side && scorePair(side, {
+        kind: "transaction", id: txn._id, amountCents: txn.amountCents, dateMs: txn.date, vendor: txn.merchantName ?? txn.name, direction: txn.direction,
+      }));
+      if (!expenseFits || !transactionFits) {
+        // Detach the receipt from the whole chain; the existing ledger and bank link stay intact.
+        const detail = "receipt corrected; previous match no longer fits";
+        if (r.expenseId) await unlink(ctx, orgId, { kind: "receipt_expense", receiptId: id, expenseId: r.expenseId }, actor, detail);
+        if (r.bankTransactionId) await unlink(ctx, orgId, { kind: "receipt_transaction", receiptId: id, bankTransactionId: r.bankTransactionId }, actor, detail);
+      }
+    }
     await ctx.db.patch(id, { ...next, status, error: undefined });
     await financeLog(ctx, orgId, {
-      action: "receipt.corrected", actorType: "user", actorName: await currentActor(ctx), receiptId: id,
+      action: "receipt.corrected", ...actor, receiptId: id,
       before, after: { vendor: next.vendor ?? null, date: next.date ?? null, totalCents: next.totalCents ?? null, taxCents: next.taxCents ?? null },
     });
     if (status === "ready") await ctx.scheduler.runAfter(0, internal.reconcile.autoMatch, { orgId });
+    return null;
   },
 });
 

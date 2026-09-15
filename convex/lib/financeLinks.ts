@@ -12,7 +12,7 @@
    and write the audit entries for every link they make.
    ============================================================ */
 import { ConvexError } from "convex/values";
-import type { MutationCtx } from "../_generated/server";
+import type { MutationCtx, QueryCtx } from "../_generated/server";
 import type { Doc, Id } from "../_generated/dataModel";
 
 export type Actor = { actorType: "user" | "system" | "ai"; actorName?: string };
@@ -45,11 +45,51 @@ function chainMeta(meta: LinkMeta): LinkMeta {
   return { actorType: meta.actorType, actorName: meta.actorName, automatic: meta.automatic, chained: true, reasons: ["completes the chain"] };
 }
 
+type ChainIds = { receiptId?: Id<"receipts">; expenseId?: Id<"expenses">; bankTransactionId?: Id<"bankTransactions"> };
+export type FinanceChainCache = Map<string, Doc<"receipts"> | Doc<"expenses"> | Doc<"bankTransactions"> | null>;
+
+/** Check the whole proposed chain before writing, including links left after an undo. */
+export async function canJoinFinanceChain(
+  ctx: Pick<QueryCtx, "db">, orgId: string, initial: ChainIds, cache?: FinanceChainCache,
+): Promise<boolean> {
+  const ids: ChainIds = { ...initial };
+  const visited = new Set<keyof ChainIds>();
+  for (;;) {
+    const kind = (Object.keys(ids) as Array<keyof ChainIds>).find((key) => ids[key] && !visited.has(key));
+    if (!kind) return true;
+    visited.add(kind);
+    const id = ids[kind]!;
+    const row = cache?.has(id) ? cache.get(id)! : await ctx.db.get(id);
+    cache?.set(id, row);
+    if (!row || row.orgId !== orgId) return false;
+    let related: ChainIds;
+    if (kind === "receiptId") {
+      const r = row as Doc<"receipts">;
+      related = { expenseId: r.expenseId, bankTransactionId: r.bankTransactionId };
+    } else if (kind === "expenseId") {
+      const e = row as Doc<"expenses">;
+      related = { receiptId: e.receiptDocId, bankTransactionId: e.bankTransactionId };
+    } else {
+      const t = row as Doc<"bankTransactions">;
+      related = { receiptId: t.receiptId, expenseId: t.expenseId };
+    }
+    for (const key of Object.keys(related) as Array<keyof ChainIds>) {
+      const id = related[key];
+      if (!id) continue;
+      if (ids[key] && ids[key] !== id) return false;
+      Object.assign(ids, { [key]: id });
+    }
+  }
+}
+
+const CHAIN_CONFLICT = "These items belong to different matches. Undo the conflicting match first.";
+
 export async function linkReceiptExpense(
   ctx: MutationCtx, orgId: string, receiptId: Id<"receipts">, expenseId: Id<"expenses">, meta: LinkMeta,
 ): Promise<void> {
   const receipt = await load(ctx, orgId, "receipts", receiptId);
   const expense = await load(ctx, orgId, "expenses", expenseId);
+  if (!await canJoinFinanceChain(ctx, orgId, { receiptId, expenseId })) throw new ConvexError(CHAIN_CONFLICT);
   if (receipt.expenseId === expenseId && expense.receiptDocId === receiptId) return;
   if (receipt.expenseId && receipt.expenseId !== expenseId) throw new ConvexError("That receipt is already matched to another expense.");
   if (expense.receiptDocId && expense.receiptDocId !== receiptId) throw new ConvexError("That expense already has a receipt.");
@@ -75,6 +115,7 @@ export async function linkReceiptTransaction(
 ): Promise<void> {
   const receipt = await load(ctx, orgId, "receipts", receiptId);
   const txn = await load(ctx, orgId, "bankTransactions", txnId);
+  if (!await canJoinFinanceChain(ctx, orgId, { receiptId, bankTransactionId: txnId })) throw new ConvexError(CHAIN_CONFLICT);
   if (txn.direction !== "out" || txn.removed) throw new ConvexError("Receipts can only match money going out.");
   if (receipt.bankTransactionId === txnId && txn.receiptId === receiptId) return;
   if (receipt.bankTransactionId && receipt.bankTransactionId !== txnId) throw new ConvexError("That receipt is already matched to another bank line.");
@@ -101,6 +142,7 @@ export async function linkExpenseTransaction(
 ): Promise<void> {
   const expense = await load(ctx, orgId, "expenses", expenseId);
   const txn = await load(ctx, orgId, "bankTransactions", txnId);
+  if (!await canJoinFinanceChain(ctx, orgId, { expenseId, bankTransactionId: txnId })) throw new ConvexError(CHAIN_CONFLICT);
   if (txn.direction !== "out" || txn.removed) throw new ConvexError("Expenses can only match money going out.");
   if (expense.bankTransactionId === txnId && txn.expenseId === expenseId) return;
   if (expense.bankTransactionId && expense.bankTransactionId !== txnId) throw new ConvexError("That expense is already matched to another bank line.");

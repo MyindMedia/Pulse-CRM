@@ -59,6 +59,11 @@ The system SHALL sync transactions incrementally from Plaid using a stored curso
 - **WHEN** a sync is retried after a partial failure
 - **THEN** no transaction is stored twice
 
+#### Scenario: Browse a long bank history
+- **WHEN** a studio has more than 1,000 imported transactions or transactions from a previous year
+- **THEN** Banking offers All history and cursor-based loading that can reach every matching transaction without duplicates
+- **AND** a bounded scan that finds no match continues searching rather than declaring the history empty
+
 #### Scenario: Pending transaction posts
 - **WHEN** a pending card charge later posts with a new transaction id that names the pending one
 - **THEN** only the posted transaction remains in the list and in totals, and any match on the pending one moves to the posted one
