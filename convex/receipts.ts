@@ -387,9 +387,23 @@ export const remove = mutation({
 export const list = query({
   args: {
     status: v.optional(v.union(v.literal("unmatched"), v.literal("needs_review"), v.literal("matched"), v.literal("all"))),
+    expenseId: v.optional(v.id("expenses")),
   },
-  handler: async (ctx, { status }) => {
+  returns: v.array(v.object({
+    _id: v.id("receipts"), fileName: v.string(), fileType: v.string(),
+    url: v.union(v.string(), v.null()), uploadedBy: v.string(), uploadedAt: v.number(),
+    status: v.union(v.literal("reading"), v.literal("ready"), v.literal("needs_review"), v.literal("failed")),
+    vendor: v.union(v.string(), v.null()), date: v.union(v.number(), v.null()),
+    totalCents: v.union(v.number(), v.null()), taxCents: v.union(v.number(), v.null()),
+    cardLast4: v.union(v.string(), v.null()), confidence: v.union(v.number(), v.null()), error: v.union(v.string(), v.null()),
+    expense: v.union(v.object({ _id: v.id("expenses"), category: expenseCategoryV, amountCents: v.number(), vendor: v.union(v.string(), v.null()) }), v.null()),
+    transaction: v.union(v.object({ _id: v.id("bankTransactions"), name: v.string(), amountCents: v.number(), date: v.number() }), v.null()),
+  })),
+  handler: async (ctx, { status, expenseId }) => {
     const orgId = await currentOrgWithCapability(ctx, "insights.read");
+    const expense = expenseId ? await ctx.db.get(expenseId) : null;
+    if (expenseId && (!expense || expense.orgId !== orgId)) throw new ConvexError("Expense not found.");
+    const attached = expense?.receiptDocId ? await ctx.db.get(expense.receiptDocId) : null;
     let rows = await ctx.db.query("receipts").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
     const s = status ?? "all";
     if (s === "unmatched") rows = rows.filter((r) => !r.expenseId && r.status !== "needs_review" && r.status !== "reading");
@@ -397,6 +411,13 @@ export const list = query({
     if (s === "matched") rows = rows.filter((r) => Boolean(r.expenseId));
     rows.sort((a, b) => b.uploadedAt - a.uploadedAt);
     rows = rows.slice(0, 300);
+    // An expense's documentation must remain accessible even after its receipt
+    // falls outside the recent-upload page. Keep existing unlinked choices too.
+    if (attached && attached.orgId === orgId && attached.expenseId === expenseId
+      && (s === "all" || s === "matched" || (s === "needs_review" && attached.status === "needs_review"))
+      && !rows.some((r) => r._id === attached._id)) {
+      rows.push(attached);
+    }
     return await Promise.all(rows.map(async (r) => {
       const expense = r.expenseId ? await ctx.db.get(r.expenseId) : null;
       const txn = r.bankTransactionId ? await ctx.db.get(r.bankTransactionId) : null;
