@@ -6,6 +6,7 @@
      PLAID_ENV        sandbox (default) | production
      PLAID_CLIENT_ID
      PLAID_SECRET     the secret for PLAID_ENV
+     PLAID_LINK_CUSTOMIZATION_NAME (optional; otherwise Plaid's default)
    Only the Transactions product is requested. Pulse never asks
    for account or routing numbers (Auth), identity, or balance
    pulls: cached balances from /accounts/get are enough for books.
@@ -100,6 +101,9 @@ export const plaid = {
       language: "en",
       country_codes: ["US"],
       user: { client_user_id: args.clientUserId },
+      ...(process.env.PLAID_LINK_CUSTOMIZATION_NAME
+        ? { link_customization_name: process.env.PLAID_LINK_CUSTOMIZATION_NAME }
+        : {}),
       ...(args.webhook ? { webhook: args.webhook } : {}),
       ...(args.redirectUri ? { redirect_uri: args.redirectUri } : {}),
       ...(args.accessToken

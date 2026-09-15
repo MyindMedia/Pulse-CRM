@@ -1,5 +1,72 @@
-import { describe, it, expect, beforeAll } from "vitest";
-import { verifyPlaidWebhook, exclusionFor, categoryFor, toTransactionRow } from "./plaid";
+import { describe, it, expect, beforeAll, beforeEach, afterEach, vi } from "vitest";
+import { plaid, verifyPlaidWebhook, exclusionFor, categoryFor, toTransactionRow } from "./plaid";
+
+describe("Plaid Link customization", () => {
+  const requests: Array<{ url: string; body: Record<string, unknown> }> = [];
+
+  beforeEach(() => {
+    requests.length = 0;
+    vi.stubEnv("PLAID_ENV", "production");
+    vi.stubEnv("PLAID_CLIENT_ID", "test-client");
+    vi.stubEnv("PLAID_SECRET", "test-secret");
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
+      requests.push({ url, body: JSON.parse(String(init.body)) });
+      return Response.json({ link_token: "test-link", expiration: "2026-09-15T12:00:00Z" });
+    }));
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+    vi.unstubAllGlobals();
+  });
+
+  it("uses the configured customization for new iPhone Link sessions", async () => {
+    vi.stubEnv("PLAID_LINK_CUSTOMIZATION_NAME", "pulse_us");
+    await expect(plaid.linkTokenCreate({
+      clientUserId: "studio:member",
+      redirectUri: "https://studiopulse.tech/plaid/oauth",
+      webhook: "https://example.convex.site/plaid/webhook",
+    })).resolves.toMatchObject({ link_token: "test-link" });
+
+    expect(requests).toEqual([{
+      url: "https://production.plaid.com/link/token/create",
+      body: {
+        client_id: "test-client", secret: "test-secret", client_name: "Pulse",
+        language: "en", country_codes: ["US"], user: { client_user_id: "studio:member" },
+        link_customization_name: "pulse_us",
+        redirect_uri: "https://studiopulse.tech/plaid/oauth",
+        webhook: "https://example.convex.site/plaid/webhook",
+        products: ["transactions"], transactions: { days_requested: 730 },
+      },
+    }]);
+  });
+
+  it("keeps update-mode account selection and the web redirect default", async () => {
+    vi.stubEnv("PLAID_LINK_CUSTOMIZATION_NAME", "pulse_us");
+    await plaid.linkTokenCreate({
+      clientUserId: "studio:member", accessToken: "test-access", accountSelectionEnabled: true,
+    });
+
+    expect(requests[0].body).toMatchObject({
+      link_customization_name: "pulse_us", access_token: "test-access",
+      country_codes: ["US"], language: "en", update: { account_selection_enabled: true },
+    });
+    expect(requests[0].body).not.toHaveProperty("products");
+    expect(requests[0].body).not.toHaveProperty("transactions");
+    expect(requests[0].body).not.toHaveProperty("redirect_uri");
+  });
+
+  it.each([undefined, ""])("retains Plaid's default when customization is %s", async (name) => {
+    vi.stubEnv("PLAID_LINK_CUSTOMIZATION_NAME", name);
+    await plaid.linkTokenCreate({ clientUserId: "studio:member" });
+    await plaid.linkTokenCreate({ clientUserId: "studio:member", accessToken: "test-access" });
+
+    expect(requests).toHaveLength(2);
+    for (const request of requests) {
+      expect(request.body).not.toHaveProperty("link_customization_name");
+    }
+  });
+});
 
 /* A Plaid webhook starts a bank sync and changes connection status, so a
    forged one must change nothing. Plaid signs each webhook with an ES256 JWT in
