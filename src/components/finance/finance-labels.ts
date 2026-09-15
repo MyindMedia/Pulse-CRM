@@ -56,6 +56,7 @@ const ACTION_LABEL: Record<string, string> = {
   "match.undone": "Match undone",
   "match.moved_to_posted": "Pending charge posted",
   "suggestion.rejected": "Suggestion rejected",
+  "suggestion.shown": "Match suggested for confirmation",
   "expense.created_from_receipt": "Expense created from receipt",
   "expense.created_from_transaction": "Added to the books from the bank",
   "expense.deleted": "Expense deleted",

@@ -23,7 +23,16 @@ export function MatchSuggestions({ kind, id, canEdit, compact }: { kind: Kind; i
   const suggestions = useQuery(api.reconcile.suggestions, { kind, id });
   const confirm = useMutation(api.reconcile.confirm);
   const reject = useMutation(api.reconcile.reject);
+  const recordShown = useMutation(api.reconcile.recordSuggestionsShown);
   const [busy, setBusy] = React.useState<string | null>(null);
+  const visible = React.useMemo(() => suggestions?.slice(0, compact ? 2 : 5), [suggestions, compact]);
+
+  React.useEffect(() => {
+    if (!visible?.length) return;
+    // Server-side deduplication covers rerenders, remounts and multiple tabs.
+    void recordShown({ kind, id, candidates: visible.map((candidate) => ({ kind: candidate.kind, id: candidate.id, displayVersion: candidate.displayVersion })) })
+      .catch((error) => { console.error("Could not record displayed match suggestions", error); });
+  }, [kind, id, visible, recordShown]);
 
   if (suggestions === undefined) return <p className="text-xs text-steel/70">Looking for matches…</p>;
   if (suggestions.length === 0) return compact ? null : <p className="text-xs text-steel/70">No likely matches yet.</p>;
@@ -42,7 +51,7 @@ export function MatchSuggestions({ kind, id, canEdit, compact }: { kind: Kind; i
 
   return (
     <ul className="space-y-2">
-      {suggestions.slice(0, compact ? 2 : 5).map((s) => {
+      {visible!.map((s) => {
         const key = `${s.kind}:${s.id}`;
         return (
           <li key={key} className="flex flex-wrap items-center gap-2 rounded-md border border-graphite/50 bg-coal-2/60 px-3 py-2">

@@ -60,6 +60,11 @@ The system SHALL append an audit entry for: receipt uploaded, extraction result,
 - **WHEN** an owner opens the history of an expense
 - **THEN** they see who uploaded the receipt, what the AI read, the match score and reasons, and whether a person confirmed it
 
+#### Scenario: Suggested matches are shown for review
+- **WHEN** a person sees suggested counterparts for an item
+- **THEN** the history records the displayed suggestions, their server-calculated scores and reasons, and the viewer
+- **AND** routine rerenders do not duplicate the same suggestion event for that viewer
+
 #### Scenario: A former receipt was unlinked or deleted
 - **WHEN** an owner opens the former expense's history
 - **THEN** the receipt's upload, extraction, match, undo and deletion evidence remains visible through the immutable audit references

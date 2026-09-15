@@ -1874,12 +1874,14 @@ export default defineSchema({
     before: v.optional(v.any()),
     after: v.optional(v.any()),
     detail: v.optional(v.string()),
+    suggestionKey: v.optional(v.string()), // actor + displayed suggestion version, for durable deduplication
   })
     .index("by_org", ["orgId"])
     .index("by_org_at", ["orgId", "at"])
     .index("by_receipt", ["receiptId"])
     .index("by_expense", ["expenseId"])
-    .index("by_transaction", ["bankTransactionId"]),
+    .index("by_transaction", ["bankTransactionId"])
+    .index("by_org_suggestion", ["orgId", "suggestionKey"]),
 
   // A suggestion a person turned down is never offered again for that pair.
   financeMatchRejections: defineTable({

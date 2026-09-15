@@ -30,6 +30,7 @@
 - [x] 4.2 Auto-match after extraction and after sync; suggestions on read; `reconcile.confirm`, `reconcile.reject` (rejection memory), `reconcile.unmatch`; all audited with score and reasons. Auto-match continues through 100-row receipt/expense pages instead of stopping after the first 300 receipts or 1,000 expenses; verify: continuation tests reach later eligible records.
 - [x] 4.3 Receipt corrections detach matches that no longer fit and audit the undo without rewriting the expense ledger; compatible tax/capitalization corrections keep the chain. Verify: corrected amount can match a different bank line after detachment.
 - [x] 4.4 Require automatic-match confidence from both sides of a pair, leaving competing receipts/expenses for manual confirmation. Four ambiguity regressions fail before the fix and pass afterward; unique existing chains still complete. The focused finance group passes 72 tests.
+- [x] 4.5 Record displayed match suggestions with the viewer, server-derived score/reasons and durable duplicate protection. The server verifies the displayed version to avoid auditing a changed snapshot. Nine new tests cover actor attribution, duplicate protection, stale/forged candidates, history direction and the rendered 2/5-row subset. The focused finance/UI group passes 41 tests.
 
 ## 5. P&L
 
@@ -77,5 +78,6 @@
 - Removal resilience: disconnect keeps credentials and history when Plaid removal fails temporarily. Workspace cleanup retains encrypted retry arguments and retries only failed items after 1, 2, 4, 8 and 16 minutes; exhaustion requires operator recovery.
 - Completion-pass focused verification: 65 P&L, booking, money-reconciliation and invoice tests passed, plus TypeScript and scoped lint. These do not replace the final combined checks in 8.5.
 - Report query keys use a stable next-local-midnight boundary for This year/All time; they do not shift on every render. Final browser verification is part of 8.5.
+- Launch recheck on 2026-09-14: production still reports `PLAID_ENV=sandbox`; a new synthetic receipt-image request using the configured OpenAI key/model returns HTTP 429, `credit_balance_exhausted` / `insufficient_quota`. Successful receipt extraction remains blocked by the external API balance.
 - Completion-pass graph verification: refreshed index; full structured `detect_changes(scope=all)` includes all 17 staged files, 175 symbols and 25 indexed affected processes, critical risk, with no partial/truncated result flag. The graph's sampled process catalog is supplemented by focused source reviews, 29 added regressions, and the full checks above.
 - Review follow-ups: bounded deletion and large-report read limits remain scale improvements. Plaid production approval is still unconfirmed; real-bank signup is not enabled by this sandbox deployment. iPhone integration remains outside this change.

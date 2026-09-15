@@ -6,6 +6,7 @@ import { query, type QueryCtx } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import type { Doc, Id } from "./_generated/dataModel";
 import { currentActor, currentOrgWithCapability } from "./lib/tenant";
+import { resolveViewer } from "./lib/access";
 import {
   rankCandidates, autoLinkDecision, pairKey, type MatchSide, type MatchKind,
 } from "./lib/financeMatch";
@@ -226,20 +227,22 @@ async function ownedRef(ctx: QueryCtx, orgId: string, ref: { kind: MatchKind; id
   return { kind: ref.kind, id: id as string };
 }
 
-/** Suggested counterparts for one item, best first. */
-export const suggestions = query({
-  args: { kind: kindV, id: v.string() },
-  handler: async (ctx, { kind, id: rawId }) => {
-    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+/** Shared authoritative suggestion projection for reads and display auditing. */
+async function suggestionsFor(ctx: Ctx, orgId: string, kind: MatchKind, rawId: string) {
     const { id } = await ownedRef(ctx, orgId, { kind, id: rawId });
     const rejected = await rejectedKeys(ctx, orgId);
-    const out: Array<{ kind: MatchKind; id: string; label: string; sub?: string; amountCents: number; dateMs: number; score: number; reasons: string[]; alreadyMatched: boolean }> = [];
+    const out: Array<{ kind: MatchKind; id: string; label: string; sub?: string; amountCents: number; dateMs: number; score: number; reasons: string[]; alreadyMatched: boolean; displayVersion: string }> = [];
     const push = (ranked: ReturnType<typeof rankCandidates<Candidate>>) => {
       for (const r of ranked.slice(0, 5)) {
+        const displayVersion = JSON.stringify([
+          r.candidate.kind, r.candidate.id, r.candidate.label, r.candidate.sub ?? null,
+          r.candidate.amountCents, r.candidate.dateMs, r.score, r.reasons, Boolean(r.candidate.matched),
+        ]);
         out.push({
           kind: r.candidate.kind, id: r.candidate.id, label: r.candidate.label, sub: r.candidate.sub,
           amountCents: r.candidate.amountCents, dateMs: r.candidate.dateMs, score: r.score, reasons: r.reasons,
           alreadyMatched: Boolean(r.candidate.matched),
+          displayVersion,
         });
       }
     };
@@ -269,10 +272,66 @@ export const suggestions = query({
       if (!t.receiptId) push(await rankCompatibleCandidates(ctx, orgId, side, await receiptCandidates(ctx, orgId, t.date - 8 * DAY, t.date + 2 * DAY, "transaction"), rejected));
     }
     return out.sort((a, b) => b.score - a.score);
+}
+
+/** Suggested counterparts for one item, best first. */
+export const suggestions = query({
+  args: { kind: kindV, id: v.string() },
+  returns: v.array(v.object({
+    kind: kindV, id: v.string(), label: v.string(), sub: v.optional(v.string()),
+    amountCents: v.number(), dateMs: v.number(), score: v.number(),
+    reasons: v.array(v.string()), alreadyMatched: v.boolean(), displayVersion: v.string(),
+  })),
+  handler: async (ctx, { kind, id }) => {
+    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+    return await suggestionsFor(ctx, orgId, kind, id);
   },
 });
 
 const refV = v.object({ kind: kindV, id: v.string() });
+
+/** Record only the counterparts the UI displayed, using current server values. */
+export const recordSuggestionsShown = mutation({
+  args: {
+    kind: kindV, id: v.string(),
+    candidates: v.array(v.object({ kind: kindV, id: v.string(), displayVersion: v.string() })),
+  },
+  returns: v.object({ recorded: v.number() }),
+  handler: async (ctx, { kind, id, candidates }) => {
+    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+    if (candidates.length > 5) throw new ConvexError("At most five displayed suggestions can be recorded.");
+    const source = await ownedRef(ctx, orgId, { kind, id });
+    const requested = new Map<string, string>();
+    for (const ref of candidates) {
+      const candidate = await ownedRef(ctx, orgId, ref);
+      if (candidate.kind === source.kind) throw new ConvexError("Those two can't be matched.");
+      requested.set(`${candidate.kind}:${candidate.id}`, ref.displayVersion);
+    }
+    const available = (await suggestionsFor(ctx, orgId, kind, id)).slice(0, 5);
+    const viewer = await resolveViewer(ctx);
+    const actorId = viewer.kind === "guest" ? viewer.grantId : viewer.clerkUserId;
+    const actorName = await currentActor(ctx);
+    let recorded = 0;
+    for (const candidate of available) {
+      // A reactive update may race the effect: never audit values the viewer did not see.
+      if (requested.get(`${candidate.kind}:${candidate.id}`) !== candidate.displayVersion) continue;
+      const version = JSON.stringify([actorId, kind, id, candidate.displayVersion]);
+      const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(version)));
+      const suggestionKey = Array.from(digest, (byte) => byte.toString(16).padStart(2, "0")).join("");
+      const existing = await ctx.db.query("financeAudit")
+        .withIndex("by_org_suggestion", (q) => q.eq("orgId", orgId).eq("suggestionKey", suggestionKey)).first();
+      if (existing) continue;
+      await financeLog(ctx, orgId, {
+        action: "suggestion.shown", actorType: "user", actorName, suggestionKey,
+        ...ids(source), ...ids(candidate), score: candidate.score, reasons: candidate.reasons,
+        detail: "Shown for confirmation",
+        after: { label: candidate.label, amountCents: candidate.amountCents, date: candidate.dateMs },
+      });
+      recorded++;
+    }
+    return { recorded };
+  },
+});
 
 export const confirm = mutation({
   args: { a: refV, b: refV, score: v.optional(v.number()), reasons: v.optional(v.array(v.string())) },
