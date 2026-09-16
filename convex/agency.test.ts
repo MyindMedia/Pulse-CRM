@@ -85,7 +85,57 @@ describe("agency - enterAs (view as client) ownership guard", () => {
     });
     const asOwner = t.withIdentity({ subject: "user_ag", name: "Owner" });
     await asOwner.mutation(api.agency.enterAs, { orgId: "sub_mine" }); // ok
-    await expect(asOwner.mutation(api.agency.enterAs, { orgId: "sub_other" })).rejects.toThrow(/your agency/i);
+    await expect(asOwner.mutation(api.agency.enterAs, { orgId: "sub_other" })).rejects.toThrow(/not under this agency/i);
+  });
+
+  it("keeps each authenticated agency user's selected studio private", async () => {
+    const t = convexTest(schema);
+    await t.run(async (ctx) => {
+      for (const user of ["user_one", "user_two"]) {
+        await ctx.db.insert("agencyMembers", {
+          agencyId: "org_mine", clerkUserId: user, email: `${user}@x.com`,
+          name: user, role: "owner", status: "active", invitedAt: 0,
+        });
+      }
+      await ctx.db.insert("orgs", { orgId: "sub_one", name: "One", slug: "one", plan: "studio", status: "active", agencyId: "org_mine" });
+      await ctx.db.insert("orgs", { orgId: "sub_two", name: "Two", slug: "two", plan: "studio", status: "active", agencyId: "org_mine" });
+      await ctx.db.insert("appState", { key: "demo", activeOrgId: "sub_two" });
+    });
+    const one = t.withIdentity({ subject: "user_one", name: "One" });
+    const two = t.withIdentity({ subject: "user_two", name: "Two" });
+    await one.mutation(api.agency.enterAs, { orgId: "sub_one" });
+    await two.mutation(api.agency.enterAs, { orgId: "sub_two" });
+
+    expect((await one.query(api.testHarness.resolve, {})).orgId).toBe("sub_one");
+    expect((await two.query(api.testHarness.resolve, {})).orgId).toBe("sub_two");
+
+    await one.mutation(api.agency.enterAs, {});
+    expect((await one.query(api.testHarness.resolve, {})).orgId).toBeUndefined();
+    expect((await two.query(api.testHarness.resolve, {})).orgId).toBe("sub_two");
+    const demoState = await t.run(async (ctx) =>
+      await ctx.db.query("appState").withIndex("by_key", (q) => q.eq("key", "demo")).first());
+    expect(demoState?.activeOrgId).toBe("sub_two");
+  });
+
+  it("drops a stale selection after an agency staff scope change", async () => {
+    const t = convexTest(schema);
+    await t.run(async (ctx) => {
+      const memberId = await ctx.db.insert("agencyMembers", {
+        agencyId: "org_mine", clerkUserId: "user_staff", email: "staff@x.com",
+        name: "Staff", role: "staff", status: "active", invitedAt: 0,
+      });
+      await ctx.db.insert("orgs", { orgId: "sub_allowed", name: "Allowed", slug: "allowed", plan: "studio", status: "active", agencyId: "org_mine" });
+      await ctx.db.insert("orgs", { orgId: "sub_removed", name: "Removed", slug: "removed", plan: "studio", status: "active", agencyId: "org_mine" });
+      await ctx.db.insert("agencyMemberScopes", { agencyId: "org_mine", agencyMemberId: memberId, subAccountOrgId: "sub_allowed" });
+      await ctx.db.insert("agencyWorkspaceSelections", {
+        agencyId: "org_mine", clerkUserId: "user_staff", orgId: "sub_removed", updatedAt: 1,
+      });
+    });
+    const staff = t.withIdentity({ subject: "user_staff", name: "Staff" });
+    expect((await staff.query(api.testHarness.resolve, {})).orgId).toBeUndefined();
+    expect(await staff.mutation(api.testHarness.require_, {
+      cap: "act_as_studio", orgId: "sub_removed",
+    })).toEqual({ ok: false, code: "SCOPE_DENIED" });
   });
 });
 

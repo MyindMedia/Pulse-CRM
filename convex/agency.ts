@@ -781,25 +781,39 @@ export const adoptOrphanSubaccounts = internalMutation({
   },
 });
 
-/** Demo-mode "enter as" - point the workspace at a studio. With Clerk you
-    switch organizations through Clerk instead. */
+/** Choose the client workspace for this caller. Authenticated agency users get
+    a private selection row; the shared appState selector is demo-only. */
 export const enterAs = mutation({
   args: { orgId: v.optional(v.string()) },
   handler: async (ctx, { orgId }) => {
-    // "View as client" - an agency member may only step into a sub-account that
-    // belongs to their own agency. (orgId omitted = exit back to the console.)
-    if (orgId) {
-      const viewer = await resolveViewer(ctx).catch(() => null);
-      if (viewer?.kind === "agency_member") {
-        const target = await ctx.db
-          .query("orgs")
-          .withIndex("by_org", (q) => q.eq("orgId", orgId))
-          .first();
-        if (!target || target.agencyId !== viewer.agencyId) {
-          throw new Error("That studio isn't under your agency.");
-        }
+    const identity = await ctx.auth.getUserIdentity();
+    if (identity) {
+      const viewer = await resolveViewer(ctx);
+      if (viewer.kind !== "agency_member") {
+        throw new Error("Only agency members can choose a client workspace.");
       }
+      if (orgId) await requireCapability(ctx, "act_as_studio", { orgId });
+      const existing = await ctx.db
+        .query("agencyWorkspaceSelections")
+        .withIndex("by_agency_and_clerk", (q) =>
+          q.eq("agencyId", viewer.agencyId).eq("clerkUserId", identity.subject))
+        .first();
+      if (!orgId) {
+        if (existing) await ctx.db.delete(existing._id);
+      } else if (existing) {
+        await ctx.db.patch(existing._id, { orgId, updatedAt: Date.now() });
+      } else {
+        await ctx.db.insert("agencyWorkspaceSelections", {
+          agencyId: viewer.agencyId,
+          clerkUserId: identity.subject,
+          orgId,
+          updatedAt: Date.now(),
+        });
+      }
+      return;
     }
+
+    // Local/demo mode has no identity, so its one shared selector remains.
     const state = await ctx.db
       .query("appState")
       .withIndex("by_key", (q) => q.eq("key", "demo"))

@@ -101,6 +101,31 @@ function buildGuestCaps(scope: GrantScope, extra?: string[]): Set<Capability> {
   return applyOverrides(GUEST_SCOPE_CAPABILITIES[scope], extra?.map((c) => "+" + c));
 }
 
+/** The client workspace selected by this authenticated agency user. Recheck
+ * ownership and staff scope on every resolve so a stale selection cannot
+ * survive an org transfer or a staff-scope change. */
+async function selectedAgencyOrgId(
+  ctx: Ctx,
+  agencyId: string,
+  clerkUserId: string,
+  scopedSubAccountOrgIds: string[] | "all",
+): Promise<string | undefined> {
+  const selection = await ctx.db
+    .query("agencyWorkspaceSelections")
+    .withIndex("by_agency_and_clerk", (q) =>
+      q.eq("agencyId", agencyId).eq("clerkUserId", clerkUserId))
+    .first();
+  if (!selection) return undefined;
+  if (scopedSubAccountOrgIds !== "all" && !scopedSubAccountOrgIds.includes(selection.orgId)) {
+    return undefined;
+  }
+  const org = await ctx.db
+    .query("orgs")
+    .withIndex("by_org", (q) => q.eq("orgId", selection.orgId))
+    .first();
+  return org?.agencyId === agencyId ? selection.orgId : undefined;
+}
+
 // ── resolveViewer ───────────────────────────────────────────
 /**
  * Resolve the caller into a Viewer.
@@ -138,10 +163,9 @@ export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
           .collect();
         scoped = scopes.map((s) => s.subAccountOrgId);
       }
-      const state = await ctx.db
-        .query("appState")
-        .withIndex("by_key", (q) => q.eq("key", "demo"))
-        .first();
+      const selectedOrgId = await selectedAgencyOrgId(
+        ctx, agMembership.agencyId, clerkUserId, scoped,
+      );
       return {
         kind: "agency_member",
         agencyId: agMembership.agencyId,
@@ -150,8 +174,7 @@ export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
         role: agMembership.role,
         scopedSubAccountOrgIds: scoped,
         capabilities: buildAgencyCaps(agMembership.role, agMembership.capabilityOverrides),
-        // An agency member "acts as" a studio via appState.activeOrgId.
-        orgId: state?.activeOrgId,
+        orgId: selectedOrgId,
       };
     }
 
@@ -171,10 +194,7 @@ export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
           .collect();
         scoped = scopes.map((s) => s.subAccountOrgId);
       }
-      const state = await ctx.db
-        .query("appState")
-        .withIndex("by_key", (q) => q.eq("key", "demo"))
-        .first();
+      const selectedOrgId = await selectedAgencyOrgId(ctx, orgId, clerkUserId, scoped);
       return {
         kind: "agency_member",
         agencyId: orgId,
@@ -183,7 +203,7 @@ export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
         role: member.role,
         scopedSubAccountOrgIds: scoped,
         capabilities: buildAgencyCaps(member.role, member.capabilityOverrides),
-        orgId: state?.activeOrgId,
+        orgId: selectedOrgId,
       };
     }
 
@@ -203,10 +223,9 @@ export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
     if (email && allow.includes(email)) {
       const agencies = await ctx.db.query("agencies").take(2);
       if (agencies.length === 1) {
-        const state = await ctx.db
-          .query("appState")
-          .withIndex("by_key", (q) => q.eq("key", "demo"))
-          .first();
+        const selectedOrgId = await selectedAgencyOrgId(
+          ctx, agencies[0].agencyId, clerkUserId, "all",
+        );
         return {
           kind: "agency_member",
           agencyId: agencies[0].agencyId,
@@ -215,7 +234,7 @@ export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
           role: "owner",
           scopedSubAccountOrgIds: "all",
           capabilities: buildAgencyCaps("owner"),
-          orgId: state?.activeOrgId,
+          orgId: selectedOrgId,
         };
       }
     }

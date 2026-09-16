@@ -50,12 +50,12 @@ function friendly(err: unknown): string {
 
 /** Resolve the caller for an action. Throws unless they hold `capability`. */
 export const _viewer = internalQuery({
-  args: { capability: v.string() },
-  handler: async (ctx, { capability }) => {
-    const viewer = await requireCapability(ctx, capability);
+  args: { capability: v.string(), orgId: v.optional(v.string()) },
+  handler: async (ctx, { capability, orgId }) => {
+    const viewer = await requireCapability(ctx, capability, orgId ? { orgId } : undefined);
     const identity = await ctx.auth.getUserIdentity();
     return {
-      orgId: viewer.orgId ?? DEMO_ORG,
+      orgId: orgId ?? viewer.orgId ?? DEMO_ORG,
       actorName: identity?.name ?? identity?.email ?? "Studio",
       subject: identity?.subject ?? "demo",
     };
@@ -66,10 +66,10 @@ export const _viewer = internalQuery({
 
 /** A Plaid Link token for connecting a new bank. Owner only. */
 export const createLinkToken = action({
-  args: { platform: v.optional(v.literal("ios")) },
+  args: { platform: v.optional(v.literal("ios")), orgId: v.optional(v.string()) },
   returns: v.object({ linkToken: v.string(), environment: v.string() }),
-  handler: async (ctx, { platform }): Promise<{ linkToken: string; environment: string }> => {
-    const me = await ctx.runQuery(internal.banking._viewer, { capability: "banking.manage" });
+  handler: async (ctx, { platform, orgId }): Promise<{ linkToken: string; environment: string }> => {
+    const me = await ctx.runQuery(internal.banking._viewer, { capability: "banking.manage", orgId });
     if (!plaidConfigured()) throw new ConvexError("Bank connections are not set up on this deployment yet.");
     try {
       const res = await plaid.linkTokenCreate({
@@ -87,10 +87,10 @@ export const createLinkToken = action({
 
 /** A Link token in update mode, to repair a connection that needs sign-in. */
 export const createUpdateLinkToken = action({
-  args: { connectionId: v.id("bankConnections"), platform: v.optional(v.literal("ios")) },
+  args: { connectionId: v.id("bankConnections"), platform: v.optional(v.literal("ios")), orgId: v.optional(v.string()) },
   returns: v.object({ linkToken: v.string(), environment: v.string() }),
-  handler: async (ctx, { connectionId, platform }): Promise<{ linkToken: string; environment: string }> => {
-    const me = await ctx.runQuery(internal.banking._viewer, { capability: "banking.manage" });
+  handler: async (ctx, { connectionId, platform, orgId }): Promise<{ linkToken: string; environment: string }> => {
+    const me = await ctx.runQuery(internal.banking._viewer, { capability: "banking.manage", orgId });
     const conn = await ctx.runQuery(internal.banking._sealedConnection, { connectionId });
     if (!conn || conn.orgId !== me.orgId || !conn.tokenCiphertext || !conn.tokenIv) {
       throw new ConvexError("That bank connection can't be repaired. Connect it again.");
@@ -114,9 +114,9 @@ export const createUpdateLinkToken = action({
 
 /** Finish Plaid Link: exchange the public token server-side and start the import. */
 export const exchangePublicToken = action({
-  args: { publicToken: v.string() },
-  handler: async (ctx, { publicToken }): Promise<{ connectionId: Id<"bankConnections">; institutionName: string }> => {
-    const me = await ctx.runQuery(internal.banking._viewer, { capability: "banking.manage" });
+  args: { publicToken: v.string(), orgId: v.optional(v.string()) },
+  handler: async (ctx, { publicToken, orgId }): Promise<{ connectionId: Id<"bankConnections">; institutionName: string }> => {
+    const me = await ctx.runQuery(internal.banking._viewer, { capability: "banking.manage", orgId });
     let exchanged: { access_token: string; item_id: string };
     try {
       exchanged = await plaid.publicTokenExchange(publicToken);
@@ -660,10 +660,10 @@ export const _handleWebhook = internalMutation({
 
 /** Pull now instead of waiting for the bank. Owner only. */
 export const refresh = mutation({
-  args: { connectionId: v.id("bankConnections"), linkCompleted: v.optional(v.boolean()) },
+  args: { connectionId: v.id("bankConnections"), linkCompleted: v.optional(v.boolean()), orgId: v.optional(v.string()) },
   returns: v.null(),
-  handler: async (ctx, { connectionId, linkCompleted }) => {
-    const orgId = await currentOrgWithCapability(ctx, "banking.manage");
+  handler: async (ctx, { connectionId, linkCompleted, orgId: requestedOrgId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "banking.manage", requestedOrgId);
     const c = await ctx.db.get(connectionId);
     if (!c || c.orgId !== orgId) throw new ConvexError("Bank connection not found.");
     if (c.status === "revoked") throw new ConvexError("That bank is disconnected.");
@@ -679,10 +679,10 @@ export const refresh = mutation({
 });
 
 export const disconnect = action({
-  args: { connectionId: v.id("bankConnections"), keepHistory: v.boolean() },
+  args: { connectionId: v.id("bankConnections"), keepHistory: v.boolean(), orgId: v.optional(v.string()) },
   returns: v.null(),
-  handler: async (ctx, { connectionId, keepHistory }) => {
-    const me = await ctx.runQuery(internal.banking._viewer, { capability: "banking.manage" });
+  handler: async (ctx, { connectionId, keepHistory, orgId }) => {
+    const me = await ctx.runQuery(internal.banking._viewer, { capability: "banking.manage", orgId });
     const conn = await ctx.runQuery(internal.banking._sealedConnection, { connectionId });
     if (!conn || conn.orgId !== me.orgId) throw new ConvexError("Bank connection not found.");
     let removedAtPlaid = false;
@@ -853,9 +853,9 @@ async function recordedMoneyInCandidates(
 }
 
 export const setCategory = mutation({
-  args: { id: v.id("bankTransactions"), category: expenseCategoryV },
-  handler: async (ctx, { id, category }) => {
-    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
+  args: { id: v.id("bankTransactions"), category: expenseCategoryV, orgId: v.optional(v.string()) },
+  handler: async (ctx, { id, category, orgId: requestedOrgId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send", requestedOrgId);
     const t = await loadTxn(ctx, id, orgId);
     await ctx.db.patch(id, { category, updatedAt: Date.now() });
     if (t.expenseId) await ctx.db.patch(t.expenseId, { category });
@@ -867,9 +867,9 @@ export const setCategory = mutation({
 });
 
 export const setExcluded = mutation({
-  args: { id: v.id("bankTransactions"), excluded: v.boolean(), reason: v.optional(excludeReasonV) },
-  handler: async (ctx, { id, excluded, reason }) => {
-    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
+  args: { id: v.id("bankTransactions"), excluded: v.boolean(), reason: v.optional(excludeReasonV), orgId: v.optional(v.string()) },
+  handler: async (ctx, { id, excluded, reason, orgId: requestedOrgId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send", requestedOrgId);
     const t = await loadTxn(ctx, id, orgId);
     if (excluded && t.expenseId) throw new ConvexError("This line is already in the books. Remove the match first.");
     await ctx.db.patch(id, { excluded, excludeReason: excluded ? (reason ?? "other") : undefined, updatedAt: Date.now() });
@@ -892,10 +892,11 @@ export const classifyMoneyIn = mutation({
     note: v.optional(v.string()),
     linkedRevenueType: v.optional(v.union(v.literal("payment"), v.literal("invoice"))),
     linkedRevenueId: v.optional(v.string()),
+    orgId: v.optional(v.string()),
   },
   returns: v.null(),
-  handler: async (ctx, { id, kind, incomeCategory, note, linkedRevenueType, linkedRevenueId }) => {
-    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
+  handler: async (ctx, { id, kind, incomeCategory, note, linkedRevenueType, linkedRevenueId, orgId: requestedOrgId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send", requestedOrgId);
     const t = await loadTxn(ctx, id, orgId);
     if (t.direction !== "in") throw new ConvexError("Only money coming in can be classified here.");
     if (t.pending) throw new ConvexError("Wait for this deposit to post before classifying it.");
@@ -963,13 +964,13 @@ export const classifyMoneyIn = mutation({
 });
 
 export const moneyInCandidates = query({
-  args: { id: v.id("bankTransactions") },
+  args: { id: v.id("bankTransactions"), orgId: v.optional(v.string()) },
   returns: v.array(v.object({
     sourceType: v.union(v.literal("payment"), v.literal("invoice")),
     sourceId: v.string(), label: v.string(), amountCents: v.number(), collectedAt: v.number(),
   })),
-  handler: async (ctx, { id }) => {
-    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+  handler: async (ctx, { id, orgId: requestedOrgId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "insights.read", requestedOrgId);
     const transaction = await loadTxn(ctx, id, orgId);
     if (transaction.direction !== "in" || transaction.pending) return [];
     return await recordedMoneyInCandidates(ctx, orgId, transaction);
@@ -983,9 +984,10 @@ export const addToBooks = mutation({
     category: expenseCategoryV,
     vendor: v.optional(v.string()),
     description: v.optional(v.string()),
+    orgId: v.optional(v.string()),
   },
-  handler: async (ctx, { id, category, vendor, description }) => {
-    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
+  handler: async (ctx, { id, category, vendor, description, orgId: requestedOrgId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send", requestedOrgId);
     const t = await loadTxn(ctx, id, orgId);
     if (t.direction !== "out") throw new ConvexError("Only money going out can be added as an expense.");
     if (t.pending) throw new ConvexError("Wait for this charge to post before adding it to the books. Its amount may still change.");
@@ -1019,9 +1021,9 @@ export const addToBooks = mutation({
 const DAY = 86_400_000;
 
 export const overview = query({
-  args: {},
-  handler: async (ctx) => {
-    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+  args: { orgId: v.optional(v.string()) },
+  handler: async (ctx, { orgId: requestedOrgId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "insights.read", requestedOrgId);
     const viewer = await resolveViewer(ctx);
     const canManage = (viewer.capabilities as ReadonlySet<string>).has("banking.manage");
     const canEdit = (viewer.capabilities as ReadonlySet<string>).has("invoices.send");
@@ -1167,11 +1169,11 @@ export const transactionsPage = query({
   args: {
     start: v.number(), end: v.number(), paginationOpts: paginationOptsValidator,
     filter: v.optional(v.union(v.literal("attention"), v.literal("matched"), v.literal("excluded"), v.literal("in"), v.literal("all"))),
-    accountId: v.optional(v.id("bankAccounts")), search: v.optional(v.string()),
+    accountId: v.optional(v.id("bankAccounts")), search: v.optional(v.string()), orgId: v.optional(v.string()),
   },
   returns: paginationResultValidator(transactionSummaryV),
-  handler: async (ctx, { start, end, filter, accountId, search, paginationOpts }) => {
-    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+  handler: async (ctx, { start, end, filter, accountId, search, paginationOpts, orgId: requestedOrgId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "insights.read", requestedOrgId);
     if (!Number.isFinite(start) || !Number.isFinite(end) || start >= end) throw new ConvexError("Choose a valid period.");
     const needle = search?.trim().toLowerCase();
     // The index bounds the studio and date range. The stream handles arbitrary

@@ -144,8 +144,9 @@ describe("access engine - AGENCY_ADMIN_EMAILS allowlist", () => {
         orgId: "org_sub", name: "Sub", slug: "sub", plan: "studio",
         status: "active", agencyId: "org_sole",
       });
-      // The operator is "entered into" the sub-account (global active org).
-      await ctx.db.insert("appState", { key: "demo", activeOrgId: "org_sub" });
+      await ctx.db.insert("agencyWorkspaceSelections", {
+        agencyId: "org_sole", clerkUserId: "user_admin", orgId: "org_sub", updatedAt: 1,
+      });
     });
   }
 
@@ -156,7 +157,7 @@ describe("access engine - AGENCY_ADMIN_EMAILS allowlist", () => {
     const result = await asAdmin.query(api.testHarness.resolve, {});
     expect(result.kind).toBe("agency_member");
     expect(result.role).toBe("owner");
-    expect(result.orgId).toBe("org_sub"); // acts-as the entered sub-account
+    expect(result.orgId).toBe("org_sub");
     expect(result.caps).toContain("sessions.read");
   });
 

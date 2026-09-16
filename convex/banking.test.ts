@@ -116,6 +116,44 @@ describe("who may touch the bank feed", () => {
     expect(o.canManage).toBe(false);
     expect(o.canEdit).toBe(true);
   });
+
+  it("uses an explicitly authorized agency sub-account for reads and Plaid writes", async () => {
+    const t = convexTest(schema);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencyMembers", {
+        agencyId: "agency_one", clerkUserId: "agency_owner", email: "owner@x.com",
+        name: "Agency Owner", role: "owner", status: "active", invitedAt: 0,
+      });
+      await ctx.db.insert("orgs", { orgId: "studio_one", name: "One", slug: "one", plan: "studio", status: "active", agencyId: "agency_one" });
+      await ctx.db.insert("orgs", { orgId: "studio_two", name: "Two", slug: "two", plan: "studio", status: "active", agencyId: "agency_one" });
+      await ctx.db.insert("orgs", { orgId: "foreign_studio", name: "Foreign", slug: "foreign", plan: "studio", status: "active", agencyId: "agency_two" });
+      await ctx.db.insert("bankConnections", {
+        orgId: "studio_one", plaidItemId: "existing-one", institutionName: "Studio One Bank",
+        status: "active", createdAt: 1,
+      });
+      await ctx.db.insert("agencyWorkspaceSelections", {
+        agencyId: "agency_one", clerkUserId: "agency_owner", orgId: "studio_one", updatedAt: 1,
+      });
+    });
+    const owner = t.withIdentity({ subject: "agency_owner", name: "Agency Owner" });
+    const studioTwo = await owner.query(api.banking.overview, { orgId: "studio_two" });
+    expect(studioTwo.connections).toEqual([]);
+    await expect(owner.query(api.banking.overview, { orgId: "foreign_studio" })).rejects.toThrow();
+
+    stubPlaid((path) => {
+      if (path === "/item/public_token/exchange") return { access_token: "access-explicit", item_id: "item-explicit" };
+      if (path === "/item/get") return { item: { item_id: "item-explicit", institution_id: "ins_explicit" } };
+      if (path === "/institutions/get_by_id") return { institution: { name: "Studio Two Bank" } };
+      return {};
+    });
+    const created = await owner.action(api.banking.exchangePublicToken, {
+      publicToken: "public-explicit", orgId: "studio_two",
+    });
+    const row = await t.run(async (ctx) => await ctx.db.get(created.connectionId));
+    expect(row?.orgId).toBe("studio_two");
+    expect((await owner.query(api.banking.overview, {})).connections[0].institutionName).toBe("Studio One Bank");
+    expect((await owner.query(api.banking.overview, { orgId: "studio_two" })).connections[0].institutionName).toBe("Studio Two Bank");
+  });
 });
 
 describe("connecting", () => {

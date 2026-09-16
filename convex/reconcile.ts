@@ -284,14 +284,14 @@ async function suggestionsFor(ctx: Ctx, orgId: string, kind: MatchKind, rawId: s
 
 /** Suggested counterparts for one item, best first. */
 export const suggestions = query({
-  args: { kind: kindV, id: v.string() },
+  args: { kind: kindV, id: v.string(), orgId: v.optional(v.string()) },
   returns: v.array(v.object({
     kind: kindV, id: v.string(), label: v.string(), sub: v.optional(v.string()),
     amountCents: v.number(), dateMs: v.number(), score: v.number(),
     reasons: v.array(v.string()), alreadyMatched: v.boolean(), displayVersion: v.string(),
   })),
-  handler: async (ctx, { kind, id }) => {
-    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+  handler: async (ctx, { kind, id, orgId: requestedOrgId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "insights.read", requestedOrgId);
     return await suggestionsFor(ctx, orgId, kind, id);
   },
 });
@@ -303,10 +303,11 @@ export const recordSuggestionsShown = mutation({
   args: {
     kind: kindV, id: v.string(),
     candidates: v.array(v.object({ kind: kindV, id: v.string(), displayVersion: v.string() })),
+    orgId: v.optional(v.string()),
   },
   returns: v.object({ recorded: v.number() }),
-  handler: async (ctx, { kind, id, candidates }) => {
-    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+  handler: async (ctx, { kind, id, candidates, orgId: requestedOrgId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "insights.read", requestedOrgId);
     if (candidates.length > 5) throw new ConvexError("At most five displayed suggestions can be recorded.");
     const source = await ownedRef(ctx, orgId, { kind, id });
     const requested = new Map<string, string>();
@@ -342,9 +343,9 @@ export const recordSuggestionsShown = mutation({
 });
 
 export const confirm = mutation({
-  args: { a: refV, b: refV, score: v.optional(v.number()), reasons: v.optional(v.array(v.string())) },
-  handler: async (ctx, { a: rawA, b: rawB, score, reasons }) => {
-    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
+  args: { a: refV, b: refV, score: v.optional(v.number()), reasons: v.optional(v.array(v.string())), orgId: v.optional(v.string()) },
+  handler: async (ctx, { a: rawA, b: rawB, score, reasons, orgId: requestedOrgId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send", requestedOrgId);
     const a = await ownedRef(ctx, orgId, rawA);
     const b = await ownedRef(ctx, orgId, rawB);
     await link(ctx, orgId, a, b, { actorType: "user", actorName: await currentActor(ctx), score, reasons });
@@ -352,9 +353,9 @@ export const confirm = mutation({
 });
 
 export const reject = mutation({
-  args: { a: refV, b: refV },
-  handler: async (ctx, { a: rawA, b: rawB }) => {
-    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
+  args: { a: refV, b: refV, orgId: v.optional(v.string()) },
+  handler: async (ctx, { a: rawA, b: rawB, orgId: requestedOrgId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send", requestedOrgId);
     const a = await ownedRef(ctx, orgId, rawA);
     const b = await ownedRef(ctx, orgId, rawB);
     if (a.kind === b.kind) throw new ConvexError("Those two can't be matched.");
@@ -376,9 +377,9 @@ function ids(ref: { kind: MatchKind; id: string }) {
 
 /** Undo a link. Remembers the pair so it is never suggested again. */
 export const unmatch = mutation({
-  args: { a: refV, b: refV },
-  handler: async (ctx, { a: rawA, b: rawB }) => {
-    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
+  args: { a: refV, b: refV, orgId: v.optional(v.string()) },
+  handler: async (ctx, { a: rawA, b: rawB, orgId: requestedOrgId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send", requestedOrgId);
     const a = await ownedRef(ctx, orgId, rawA);
     const b = await ownedRef(ctx, orgId, rawB);
     const actor = { actorType: "user" as const, actorName: await currentActor(ctx) };
@@ -405,6 +406,7 @@ export const history = query({
     receiptId: v.optional(v.id("receipts")),
     expenseId: v.optional(v.id("expenses")),
     bankTransactionId: v.optional(v.id("bankTransactions")),
+    orgId: v.optional(v.string()),
   },
   returns: v.array(v.object({
     _id: v.id("financeAudit"), at: v.number(), action: v.string(),
@@ -414,7 +416,7 @@ export const history = query({
     before: v.any(), after: v.any(), detail: v.union(v.string(), v.null()),
   })),
   handler: async (ctx, args) => {
-    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+    const orgId = await currentOrgWithCapability(ctx, "insights.read", args.orgId);
     const receiptIds = new Set<string>();
     const expenseIds = new Set<string>();
     const txnIds = new Set<string>();

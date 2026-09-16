@@ -166,6 +166,7 @@ export const plReport = query({
   args: {
     start: v.number(), end: v.number(),
     bankStart: v.optional(v.number()), bankEnd: v.optional(v.number()),
+    orgId: v.optional(v.string()),
   },
   returns: v.object({
     revenueCents: v.number(), expensesCents: v.number(), netCents: v.number(), marginPct: v.number(),
@@ -193,8 +194,8 @@ export const plReport = query({
       receiptsNeedingReview: v.number(), expensesWithoutReceipt: v.number(),
     }),
   }),
-  handler: async (ctx, { start, end, bankStart, bankEnd }) => {
-    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+  handler: async (ctx, { start, end, bankStart, bankEnd, orgId: requestedOrgId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "insights.read", requestedOrgId);
     // Callers may supply UTC calendar bounds for date-only bank/receipt rows.
     // Legacy callers retain the original range; collected-at timestamps keep
     // their local-time boundaries so late-night payments stay in the right month.

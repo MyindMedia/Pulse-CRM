@@ -879,6 +879,17 @@ export default defineSchema({
     activeOrgId: v.optional(v.string()),
   }).index("by_key", ["key"]),
 
+  // Authenticated agency users choose a client workspace independently. A
+  // shared appState value is safe for the single-user demo, but would let one
+  // real agency session change the active studio underneath every other
+  // browser and phone session.
+  agencyWorkspaceSelections: defineTable({
+    agencyId: v.string(),
+    clerkUserId: v.string(),
+    orgId: v.string(),
+    updatedAt: v.number(),
+  }).index("by_agency_and_clerk", ["agencyId", "clerkUserId"]),
+
   // ── OAuth CSRF state nonces. The Google connect flow passes a random,
   //    single-use, short-lived nonce as the OAuth `state`, bound server-side to
   //    the initiating org, so the callback can't be forged to attach an

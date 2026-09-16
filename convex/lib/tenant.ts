@@ -14,9 +14,17 @@ type Ctx = QueryCtx | MutationCtx;
  * member without the role can't pull the data by calling the query directly.
  * Throws AccessError when the role lacks the capability.
  */
-export async function currentOrgWithCapability(ctx: Ctx, capability: Capability): Promise<string> {
-  const viewer = await requireCapability(ctx, capability);
-  return viewer.orgId ?? DEMO_ORG;
+export async function currentOrgWithCapability(
+  ctx: Ctx,
+  capability: Capability,
+  requestedOrgId?: string,
+): Promise<string> {
+  const viewer = await requireCapability(
+    ctx,
+    capability,
+    requestedOrgId ? { orgId: requestedOrgId } : undefined,
+  );
+  return requestedOrgId ?? viewer.orgId ?? DEMO_ORG;
 }
 
 /**
@@ -27,7 +35,7 @@ export async function currentOrgWithCapability(ctx: Ctx, capability: Capability)
 export async function currentOrg(ctx: Ctx): Promise<string> {
   const viewer = await resolveViewer(ctx);
   // Agency viewers expose orgId only when they've "entered" a sub-account
-  // (appState.activeOrgId). Fall back to DEMO_ORG so reads from the
+  // (their per-user agency selection). Fall back to DEMO_ORG so reads from the
   // agency console land somewhere sane.
   return viewer.orgId ?? DEMO_ORG;
 }

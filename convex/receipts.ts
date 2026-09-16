@@ -32,9 +32,9 @@ export const RECEIPT_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "
 const CONFIDENT = 0.6;
 
 export const generateUploadUrl = mutation({
-  args: {},
-  handler: async (ctx) => {
-    await currentOrgWithCapability(ctx, "invoices.send");
+  args: { orgId: v.optional(v.string()) },
+  handler: async (ctx, { orgId }) => {
+    await currentOrgWithCapability(ctx, "invoices.send", orgId);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -64,11 +64,12 @@ export const attach = mutation({
     storageId: v.id("_storage"),
     fileName: v.string(),
     expenseId: v.optional(v.id("expenses")),
+    orgId: v.optional(v.string()),
   },
-  handler: async (ctx, { storageId, fileName, expenseId }): Promise<
+  handler: async (ctx, { storageId, fileName, expenseId, orgId: requestedOrgId }): Promise<
     { ok: true; receiptId: Id<"receipts"> } | { ok: false; message: string }
   > => {
-    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send", requestedOrgId);
     const meta = await ctx.db.system.get(storageId);
     if (!meta) return { ok: false, message: "That upload didn't arrive. Try again." };
     const type = (meta.contentType ?? typeFromName(fileName)).toLowerCase();
@@ -294,10 +295,11 @@ export const update = mutation({
     date: v.optional(v.number()),
     totalCents: v.optional(v.number()),
     taxCents: v.optional(v.number()),
+    orgId: v.optional(v.string()),
   },
   returns: v.null(),
-  handler: async (ctx, { id, ...patch }) => {
-    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
+  handler: async (ctx, { id, orgId: requestedOrgId, ...patch }) => {
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send", requestedOrgId);
     const r = await ctx.db.get(id);
     if (!r || r.orgId !== orgId) throw new ConvexError("Receipt not found.");
     if (patch.totalCents !== undefined && (!Number.isInteger(patch.totalCents) || patch.totalCents < 0)) {
@@ -347,9 +349,10 @@ export const createExpense = mutation({
     id: v.id("receipts"),
     category: expenseCategoryV,
     description: v.optional(v.string()),
+    orgId: v.optional(v.string()),
   },
-  handler: async (ctx, { id, category, description }) => {
-    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
+  handler: async (ctx, { id, category, description, orgId: requestedOrgId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send", requestedOrgId);
     const r = await ctx.db.get(id);
     if (!r || r.orgId !== orgId) throw new ConvexError("Receipt not found.");
     if (r.expenseId) throw new ConvexError("This receipt is already in the books.");
@@ -386,9 +389,9 @@ export const createExpense = mutation({
 });
 
 export const remove = mutation({
-  args: { id: v.id("receipts") },
-  handler: async (ctx, { id }) => {
-    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
+  args: { id: v.id("receipts"), orgId: v.optional(v.string()) },
+  handler: async (ctx, { id, orgId: requestedOrgId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send", requestedOrgId);
     const r = await ctx.db.get(id);
     if (!r || r.orgId !== orgId) throw new ConvexError("Receipt not found.");
     const actor = { actorType: "user" as const, actorName: await currentActor(ctx) };
@@ -410,6 +413,7 @@ export const list = query({
   args: {
     status: v.optional(v.union(v.literal("unmatched"), v.literal("needs_review"), v.literal("matched"), v.literal("all"), v.literal("needs_attention"), v.literal("processing"), v.literal("reconciled"))),
     expenseId: v.optional(v.id("expenses")),
+    orgId: v.optional(v.string()),
   },
   returns: v.array(v.object({
     _id: v.id("receipts"), fileName: v.string(), fileType: v.string(),
@@ -422,8 +426,8 @@ export const list = query({
     expense: v.union(v.object({ _id: v.id("expenses"), category: expenseCategoryV, amountCents: v.number(), vendor: v.union(v.string(), v.null()) }), v.null()),
     transaction: v.union(v.object({ _id: v.id("bankTransactions"), name: v.string(), amountCents: v.number(), date: v.number() }), v.null()),
   })),
-  handler: async (ctx, { status, expenseId }) => {
-    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+  handler: async (ctx, { status, expenseId, orgId: requestedOrgId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "insights.read", requestedOrgId);
     const expense = expenseId ? await ctx.db.get(expenseId) : null;
     if (expenseId && (!expense || expense.orgId !== orgId)) throw new ConvexError("Expense not found.");
     const attached = expense?.receiptDocId ? await ctx.db.get(expense.receiptDocId) : null;
@@ -476,13 +480,13 @@ export const list = query({
 });
 
 export const counts = query({
-  args: {},
+  args: { orgId: v.optional(v.string()) },
   returns: v.object({
     total: v.number(), matched: v.number(), needsReview: v.number(), unmatched: v.number(), reading: v.number(),
     needsAttention: v.number(), processing: v.number(), fullyMatched: v.number(),
   }),
-  handler: async (ctx) => {
-    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+  handler: async (ctx, { orgId: requestedOrgId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "insights.read", requestedOrgId);
     const rows = await ctx.db.query("receipts").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
     return {
       total: rows.length,
