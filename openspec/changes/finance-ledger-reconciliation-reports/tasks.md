@@ -14,4 +14,4 @@
 - [x] Add printable report output for Save as PDF.
 - [x] Update iOS models, labels, Money In actions, and financial report presentation.
 - [x] Add backend, web, and iOS regression tests for all accounting invariants.
-- [ ] Run GitNexus change analysis, Convex codegen/typecheck, focused finance tests, full checks, web QA, and iOS simulator tests.
+- [x] Run GitNexus change analysis, Convex codegen/typecheck, focused finance tests, full checks, web QA, and iOS simulator tests.
