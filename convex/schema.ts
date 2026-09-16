@@ -1,5 +1,6 @@
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
+import { expenseCategoryV, incomeCategoryV, moneyInKindV } from "./lib/financeValidators";
 
 /* ============================================================
    PULSE - Convex schema
@@ -1435,6 +1436,7 @@ export default defineSchema({
     paidAt: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])
+    .index("by_org_paidAt", ["orgId", "paidAt"])
     .index("by_session", ["sessionId"]),
 
   // ── Notifications - confirmation / reminder messages. The notify() seam
@@ -1600,6 +1602,7 @@ export default defineSchema({
   })
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])
+    .index("by_org_paidAt", ["orgId", "paidAt"])
     .index("by_artist", ["artistId"]),
 
   // ── Reusable invoice fee templates - flat one-off charges (mix/master
@@ -1688,24 +1691,7 @@ export default defineSchema({
   //    real margin into the profitability + manager surfaces. Tenant-scoped. ──
   expenses: defineTable({
     orgId: v.string(),
-    category: v.union(
-      v.literal("rent"),
-      v.literal("utilities"),
-      v.literal("software"),
-      v.literal("gear"),
-      v.literal("repairs"),
-      v.literal("payroll"),
-      v.literal("contractor"),
-      v.literal("marketing"),
-      v.literal("supplies"),
-      v.literal("insurance"),
-      v.literal("travel"),
-      v.literal("fees"),
-      // P&L adjustments - non-cash offsets like studio credit applied to an
-      // invoice (auto-posted when an invoice is recorded paid by credit).
-      v.literal("adjustment"),
-      v.literal("other"),
-    ),
+    category: expenseCategoryV,
     vendor: v.optional(v.string()),
     description: v.optional(v.string()),
     amountCents: v.number(),
@@ -1725,6 +1711,7 @@ export default defineSchema({
   })
     .index("by_org", ["orgId"])
     .index("by_org_date", ["orgId", "date"])
+    .index("by_org_category_date", ["orgId", "category", "date"])
     .index("by_org_member", ["orgId", "memberId"])
     .index("by_bank_transaction", ["bankTransactionId"]),
 
@@ -1808,6 +1795,17 @@ export default defineSchema({
       v.literal("other"),
     )),
     category: v.optional(v.string()), // an expenses category, suggested or chosen
+    // Money In classification. Optional for historical rows and unresolved
+    // deposits. A Stripe payout or transfer is cash movement, never revenue.
+    moneyInKind: v.optional(moneyInKindV),
+    incomeCategory: v.optional(incomeCategoryV),
+    moneyInNote: v.optional(v.string()),
+    linkedRevenueType: v.optional(v.union(
+      v.literal("payment"), v.literal("invoice"), v.literal("package"), v.literal("membership"),
+    )),
+    linkedRevenueId: v.optional(v.string()),
+    stripePayoutId: v.optional(v.id("stripePayouts")),
+    reconciledAt: v.optional(v.number()),
     expenseId: v.optional(v.id("expenses")),
     receiptId: v.optional(v.id("receipts")),
     updatedAt: v.number(),
@@ -1818,7 +1816,88 @@ export default defineSchema({
     .index("by_account_date", ["accountId", "date"])
     .index("by_connection", ["connectionId"])
     .index("by_expense", ["expenseId"])
-    .index("by_receipt", ["receiptId"]),
+    .index("by_receipt", ["receiptId"])
+    .index("by_org_linked_revenue", ["orgId", "linkedRevenueType", "linkedRevenueId"]),
+
+  // Immutable Stripe clearing activity on each studio's connected account.
+  stripeLedgerEntries: defineTable({
+    orgId: v.string(),
+    stripeAccountId: v.string(),
+    balanceTransactionId: v.string(),
+    sourceId: v.optional(v.string()),
+    payoutProviderId: v.optional(v.string()),
+    type: v.string(),
+    reportingCategory: v.optional(v.string()),
+    grossCents: v.number(),
+    feeCents: v.number(),
+    netCents: v.number(),
+    currency: v.string(),
+    occurredAt: v.number(),
+    availableAt: v.optional(v.number()),
+    description: v.optional(v.string()),
+    revenueType: v.optional(v.union(
+      v.literal("payment"), v.literal("invoice"), v.literal("package"), v.literal("membership"),
+    )),
+    revenueId: v.optional(v.string()),
+    importedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_occurred", ["orgId", "occurredAt"])
+    .index("by_account_balance_transaction", ["stripeAccountId", "balanceTransactionId"])
+    .index("by_org_payout", ["orgId", "payoutProviderId"])
+    .index("by_source", ["stripeAccountId", "sourceId"]),
+
+  stripePayouts: defineTable({
+    orgId: v.string(),
+    stripeAccountId: v.string(),
+    stripePayoutId: v.string(),
+    amountCents: v.number(),
+    currency: v.string(),
+    status: v.union(
+      v.literal("pending"), v.literal("in_transit"), v.literal("paid"),
+      v.literal("failed"), v.literal("canceled"),
+    ),
+    method: v.optional(v.string()),
+    arrivalDate: v.optional(v.number()),
+    grossCents: v.optional(v.number()),
+    feeCents: v.optional(v.number()),
+    refundCents: v.optional(v.number()),
+    disputeCents: v.optional(v.number()),
+    adjustmentCents: v.optional(v.number()),
+    netCents: v.optional(v.number()),
+    reconciliationStatus: v.union(
+      v.literal("pending"), v.literal("ready"), v.literal("matched"),
+      v.literal("needs_review"), v.literal("failed"),
+    ),
+    bankTransactionId: v.optional(v.id("bankTransactions")),
+    transactionCount: v.optional(v.number()),
+    lastError: v.optional(v.string()),
+    syncedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_arrival", ["orgId", "arrivalDate"])
+    .index("by_account_payout", ["stripeAccountId", "stripePayoutId"])
+    .index("by_org_status", ["orgId", "reconciliationStatus"])
+    .index("by_bank_transaction", ["bankTransactionId"]),
+
+  // Revenue streams that are collected outside the session payment and
+  // invoice tables. Provider references make webhook retries idempotent.
+  revenueEntries: defineTable({
+    orgId: v.string(),
+    sourceType: v.union(v.literal("package"), v.literal("membership")),
+    sourceId: v.string(),
+    provider: v.literal("stripe"),
+    providerReference: v.optional(v.string()),
+    incomeCategory: incomeCategoryV,
+    amountCents: v.number(),
+    currency: v.string(),
+    collectedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_collected", ["orgId", "collectedAt"])
+    .index("by_provider_reference", ["provider", "providerReference"])
+    .index("by_org_source", ["orgId", "sourceType", "sourceId"]),
 
   // ── Receipts - a photo or PDF, what the AI read from it, and its links ────
   receipts: defineTable({
@@ -1852,6 +1931,7 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])
     .index("by_org_date", ["orgId", "date"])
+    .index("by_org_uploaded", ["orgId", "uploadedAt"])
     .index("by_expense", ["expenseId"])
     .index("by_transaction", ["bankTransactionId"]),
 

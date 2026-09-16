@@ -265,6 +265,15 @@ describe("webhooks", () => {
 });
 
 describe("the books", () => {
+  it("keeps Stripe-labeled deposits in review until a payout is verified", () => {
+    const row = toTransactionRow(plaidTxn("stripe-looking", -97, "2026-09-03", {
+      name: "STRIPE TRANSFER",
+      merchant_name: "STRIPE",
+    }));
+    expect(row).not.toHaveProperty("moneyInKind");
+    expect(row.excluded).not.toBe(true);
+  });
+
   it("adds an outflow once, keeps transfers out of spending, and counts it once in the P&L", async () => {
     const s = await studio();
     const { connectionId } = await connect(s);
@@ -282,6 +291,7 @@ describe("the books", () => {
     const rows = await s.t.run(async (ctx) => await ctx.db.query("bankTransactions").collect());
     const rent = rows.find((r) => r.plaidTransactionId === "rent")!;
     const xfer = rows.find((r) => r.plaidTransactionId === "xfer")!;
+    const gig = rows.find((r) => r.plaidTransactionId === "gig")!;
     expect(rent.category).toBe("rent");
     expect(xfer).toMatchObject({ excluded: true, excludeReason: "transfer" });
 
@@ -289,15 +299,81 @@ describe("the books", () => {
     const expenseId = await s.manager.mutation(api.banking.addToBooks, { id: rent._id, category: "rent" });
     await expect(s.manager.mutation(api.banking.addToBooks, { id: rent._id, category: "rent" })).rejects.toThrow(/already in the books/);
     await expect(s.manager.mutation(api.banking.addToBooks, { id: xfer._id, category: "other" })).rejects.toThrow();
+    await s.manager.mutation(api.banking.classifyMoneyIn, {
+      id: gig._id,
+      kind: "income",
+      incomeCategory: "recording_sessions",
+      note: "Walk-in session",
+    });
 
     const pl = await s.owner.query(api.expenses.plReport, { start: day("2026-09-01"), end: day("2026-10-01") });
+    expect(pl.revenueCents).toBe(150000);
+    expect(pl.revenueFromBankCents).toBe(150000);
+    expect(pl.byIncomeCategory).toEqual([{ category: "recording_sessions", amountCents: 150000 }]);
     expect(pl.expensesCents).toBe(30000);
     expect(pl.bank.outCents).toBe(30000);
     expect(pl.bank.inCents).toBe(150000);
     expect(pl.reconciliation.unmatchedOutflows).toBe(0);
+    expect(pl.reconciliation.unmatchedInflows).toBe(0);
 
     const audit = await s.owner.query(api.reconcile.history, { expenseId: expenseId as Id<"expenses"> });
     expect(audit.map((a) => a.action)).toEqual(expect.arrayContaining(["expense.created_from_transaction", "match.confirmed"]));
+  });
+
+  it("matches a bank deposit to one recorded payment without counting revenue twice", async () => {
+    const s = await studio();
+    const date = day("2026-09-10");
+    const transactionId = await s.t.run(async (ctx) => {
+      const connectionId = await ctx.db.insert("bankConnections", {
+        orgId: "pulse-demo", plaidItemId: "recorded-item", institutionName: "Bank", status: "active", createdAt: date,
+      });
+      const accountId = await ctx.db.insert("bankAccounts", {
+        orgId: "pulse-demo", connectionId, plaidAccountId: "recorded-checking", name: "Checking",
+        type: "depository", currency: "USD", balanceAsOf: date,
+      });
+      const artistId = await ctx.db.insert("artists", {
+        orgId: "pulse-demo", name: "Nova", type: "artist", status: "active", genres: [], tags: [],
+        sessionCount: 0, reliability: "solid", lifetimeValueCents: 0,
+      });
+      const sessionId = await ctx.db.insert("sessions", {
+        orgId: "pulse-demo", title: "Studio session", artistId, serviceType: "recording",
+        startTime: date, endTime: date + 3_600_000, status: "completed", rateCents: 5_000,
+        depositCents: 0, depositPaid: false, intakeCompleted: true,
+      });
+      await ctx.db.insert("payments", {
+        orgId: "pulse-demo", sessionId, kind: "full", amountCents: 5_000,
+        provider: "stripe", status: "paid", paidAt: date,
+      });
+      return ctx.db.insert("bankTransactions", {
+        orgId: "pulse-demo", connectionId, accountId, plaidTransactionId: "recorded-deposit", date,
+        amountCents: 5_000, direction: "in", currency: "USD", name: "Client payment", pending: false, updatedAt: date,
+      });
+    });
+
+    const candidates = await s.manager.query(api.banking.moneyInCandidates, { id: transactionId });
+    expect(candidates).toHaveLength(1);
+    await s.manager.mutation(api.banking.classifyMoneyIn, { id: transactionId, kind: "recorded_payment" });
+    const transaction = await s.t.run(async (ctx) => ctx.db.get(transactionId));
+    expect(transaction).toMatchObject({
+      moneyInKind: "recorded_payment", linkedRevenueType: "payment", linkedRevenueId: candidates[0].sourceId, excluded: true,
+    });
+    const report = await s.owner.query(api.expenses.plReport, { start: date, end: date + 86_400_000 });
+    expect(report.revenueCents).toBe(5_000);
+    expect(report.bank.cashInCents).toBe(5_000);
+
+    const secondTransactionId = await s.t.run(async (ctx) => {
+      const original = await ctx.db.get(transactionId);
+      return ctx.db.insert("bankTransactions", {
+        orgId: "pulse-demo", connectionId: original!.connectionId, accountId: original!.accountId,
+        plaidTransactionId: "recorded-deposit-2", date: date + 86_400_000,
+        amountCents: 5_000, direction: "in", currency: "USD", name: "Second deposit",
+        pending: false, updatedAt: date + 86_400_000,
+      });
+    });
+    expect(await s.manager.query(api.banking.moneyInCandidates, { id: secondTransactionId })).toEqual([]);
+    await expect(s.manager.mutation(api.banking.classifyMoneyIn, {
+      id: secondTransactionId, kind: "recorded_payment",
+    })).rejects.toThrow(/No matching recorded payment/);
   });
 });
 

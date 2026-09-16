@@ -18,7 +18,7 @@ describe("invoice payment methods", () => {
     t = convexTest(schema);
     invoiceId = await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: ORG, name: "Skyline", slug: "demo", plan: "studio", status: "active",
+        orgId: ORG, name: "Skyline", slug: "demo", plan: "studio", status: "active", stripeAccountId: "acct_studio",
       });
       const artistId = await ctx.db.insert("artists", {
         orgId: ORG, name: "Nova", type: "artist", genres: [], tags: [],
@@ -82,6 +82,7 @@ describe("invoice payment methods", () => {
       event: {
         id: "evt_pm1",
         type: "checkout.session.completed",
+        account: "acct_studio",
         data: { object: { metadata: { invoiceId }, payment_intent: "pi_pm" } },
       },
     });

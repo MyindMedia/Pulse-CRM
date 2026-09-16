@@ -56,22 +56,59 @@ async function markProcessed(ctx: MutationCtx, eventId: string, eventType: strin
   });
 }
 
+async function connectedAccountOwnsOrg(ctx: MutationCtx, stripeAccountId: string | undefined, orgId: string): Promise<boolean> {
+  if (!stripeAccountId) return false;
+  const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+  return org?.stripeAccountId === stripeAccountId;
+}
+
 export const handle = internalMutation({
   args: { event: eventV },
-  handler: async (ctx, { event }) => {
+  returns: v.union(
+    v.object({ duplicate: v.literal(true) }),
+    v.object({ duplicate: v.literal(false) }),
+    v.object({ ok: v.literal(true) }),
+  ),
+  handler: async (ctx, { event }): Promise<
+    { duplicate: true } | { duplicate: false } | { ok: true }
+  > => {
     if (await alreadyProcessed(ctx, event.id)) return { duplicate: true };
     const e = event as { id: string; type: string; data: { object: Record<string, unknown> } };
     const obj = e.data.object;
+
+    if (
+      event.account &&
+      typeof obj.id === "string" &&
+      (e.type === "payout.created" ||
+        e.type === "payout.updated" ||
+        e.type === "payout.paid" ||
+        e.type === "payout.failed" ||
+        e.type === "payout.canceled" ||
+        e.type === "payout.reconciliation_completed")
+    ) {
+      await ctx.scheduler.runAfter(0, internal.stripeLedger.syncPayout, {
+        stripeAccountId: event.account,
+        stripePayoutId: obj.id,
+      });
+      await markProcessed(ctx, event.id, e.type);
+      return { ok: true };
+    }
 
     if (e.type === "checkout.session.completed") {
       const meta = (obj.metadata as Record<string, string>) ?? {};
 
       // Public booking deposit/balance paid on a studio's connected account.
       if (meta.sessionId) {
+        const sessionId = ctx.db.normalizeId("sessions", meta.sessionId);
+        const session = sessionId ? await ctx.db.get(sessionId) : null;
+        if (!session || !await connectedAccountOwnsOrg(ctx, event.account, session.orgId)) {
+          await markProcessed(ctx, event.id, `${e.type}.account_mismatch`);
+          return { ok: true };
+        }
         const kind = (meta.kind as "deposit" | "balance" | "full") ?? "deposit";
         try {
           await settlePayment(ctx, {
-            sessionId: meta.sessionId as Id<"sessions">,
+            sessionId: session._id,
             kind,
             provider: "stripe",
             reference: (obj.payment_intent as string) ?? (obj.id as string),
@@ -91,6 +128,10 @@ export const handle = internalMutation({
       // event-id guard above makes this idempotent (a Stripe retry short-circuits
       // at alreadyProcessed, so the credit is never double-created).
       if (meta.kind === "package" && meta.productId && meta.artistId && meta.orgId) {
+        if (!await connectedAccountOwnsOrg(ctx, event.account, meta.orgId)) {
+          await markProcessed(ctx, event.id, `${e.type}.account_mismatch`);
+          return { ok: true };
+        }
         try {
           await applyPackagePurchase(ctx, {
             orgId: meta.orgId,
@@ -107,8 +148,14 @@ export const handle = internalMutation({
 
       // Public invoice paid on a studio's connected account.
       if (meta.invoiceId) {
+        const invoiceId = ctx.db.normalizeId("invoices", meta.invoiceId);
+        const invoice = invoiceId ? await ctx.db.get(invoiceId) : null;
+        if (!invoice || !await connectedAccountOwnsOrg(ctx, event.account, invoice.orgId)) {
+          await markProcessed(ctx, event.id, `${e.type}.account_mismatch`);
+          return { ok: true };
+        }
         try {
-          await settleInvoice(ctx, meta.invoiceId as Id<"invoices">);
+          await settleInvoice(ctx, invoice._id);
         } catch (err) {
           console.error("[webhook] invoice settle skipped:", (err as Error).message);
         }
@@ -118,6 +165,12 @@ export const handle = internalMutation({
 
       // Studio membership subscription completed checkout on a Connect account.
       if (meta.membershipId) {
+        const membershipId = ctx.db.normalizeId("memberships", meta.membershipId);
+        const membership = membershipId ? await ctx.db.get(membershipId) : null;
+        if (!membership || !await connectedAccountOwnsOrg(ctx, event.account, membership.orgId)) {
+          await markProcessed(ctx, event.id, `${e.type}.account_mismatch`);
+          return { ok: true };
+        }
         const subscriptionId = obj.subscription as string | undefined;
         const customerId = obj.customer as string | undefined;
         if (subscriptionId) {
@@ -125,7 +178,7 @@ export const handle = internalMutation({
             stripeSubscriptionId: subscriptionId,
             stripeCustomerId: customerId,
             status: "active",
-            membershipIdHint: meta.membershipId as Id<"memberships">,
+            membershipIdHint: membership._id,
           });
         }
         await markProcessed(ctx, event.id, e.type);
@@ -195,6 +248,60 @@ export const handle = internalMutation({
           invitedAt: Date.now(),
         });
       }
+    }
+
+    // Recurring membership invoices are earned revenue. Store one normalized
+    // entry per Stripe invoice so payment_succeeded and invoice.paid cannot
+    // double count the same collection.
+    if (event.account && (e.type === "invoice.paid" || e.type === "invoice.payment_succeeded")) {
+      const subscriptionDetails = (obj.parent as { subscription_details?: { subscription?: unknown; metadata?: Record<string, string> } } | undefined)?.subscription_details
+        ?? (obj.subscription_details as { subscription?: unknown; metadata?: Record<string, string> } | undefined);
+      const subscriptionValue = obj.subscription ?? subscriptionDetails?.subscription;
+      const subscriptionId = typeof subscriptionValue === "string"
+        ? subscriptionValue
+        : subscriptionValue && typeof subscriptionValue === "object" && typeof (subscriptionValue as { id?: unknown }).id === "string"
+          ? (subscriptionValue as { id: string }).id
+          : undefined;
+      const invoiceId = typeof obj.id === "string" ? obj.id : undefined;
+      const amountPaid = typeof obj.amount_paid === "number" ? Math.round(obj.amount_paid) : 0;
+      if (subscriptionId && invoiceId && amountPaid > 0) {
+        let membership = await ctx.db
+          .query("memberships")
+          .withIndex("by_stripe_subscription", (q) => q.eq("stripeSubscriptionId", subscriptionId))
+          .first();
+        if (!membership && subscriptionDetails?.metadata?.membershipId) {
+          const membershipId = ctx.db.normalizeId("memberships", subscriptionDetails.metadata.membershipId);
+          membership = membershipId ? await ctx.db.get(membershipId) : null;
+        }
+        const org = membership
+          ? await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", membership.orgId)).first()
+          : null;
+        const prior = await ctx.db
+          .query("revenueEntries")
+          .withIndex("by_provider_reference", (q) => q.eq("provider", "stripe").eq("providerReference", invoiceId))
+          .first();
+        if (membership && org?.stripeAccountId === event.account && !prior) {
+          if (membership.stripeSubscriptionId === undefined) {
+            await ctx.db.patch(membership._id, { stripeSubscriptionId: subscriptionId });
+          }
+          await ctx.db.insert("revenueEntries", {
+            orgId: membership.orgId,
+            sourceType: "membership",
+            sourceId: membership._id,
+            provider: "stripe",
+            providerReference: invoiceId,
+            incomeCategory: "memberships",
+            amountCents: amountPaid,
+            currency: typeof obj.currency === "string" ? obj.currency.toUpperCase() : "USD",
+            collectedAt: typeof obj.status_transitions === "object" && obj.status_transitions !== null
+              && typeof (obj.status_transitions as { paid_at?: unknown }).paid_at === "number"
+              ? (obj.status_transitions as { paid_at: number }).paid_at * 1000
+              : Date.now(),
+          });
+        }
+      }
+      await markProcessed(ctx, event.id, e.type);
+      return { ok: true };
     }
 
     // Stripe Connect: a studio's connected account changed (finished onboarding,

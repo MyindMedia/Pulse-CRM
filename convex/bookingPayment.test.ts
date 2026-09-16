@@ -12,7 +12,7 @@ describe("public booking - stripe deposit", () => {
     t = convexTest(schema);
     delete process.env.STRIPE_SECRET_KEY;
     sessionId = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active", stripeAccountId: "acct_studio" });
       const artistId = await ctx.db.insert("artists", {
         orgId: "pulse-demo", name: "Nova", type: "artist", email: "nova@x.com",
         genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
@@ -34,7 +34,7 @@ describe("public booking - stripe deposit", () => {
   it("webhook checkout.session.completed settles the deposit + confirms the session", async () => {
     await t.mutation(internal.billingWebhooks.handle, {
       event: {
-        id: "evt_pay1", type: "checkout.session.completed",
+        id: "evt_pay1", type: "checkout.session.completed", account: "acct_studio",
         data: { object: { metadata: { sessionId, kind: "deposit" }, payment_intent: "pi_abc" } },
       },
     });
@@ -45,5 +45,17 @@ describe("public booking - stripe deposit", () => {
       (await ctx.db.query("payments").collect()).find((p) => p.sessionId === sessionId));
     expect(pay?.provider).toBe("stripe");
     expect(pay?.amountCents).toBe(6000);
+  });
+
+  it("refuses settlement metadata from a different connected account", async () => {
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: {
+        id: "evt_wrong_account", type: "checkout.session.completed", account: "acct_someone_else",
+        data: { object: { metadata: { sessionId, kind: "deposit" }, payment_intent: "pi_wrong" } },
+      },
+    });
+    const session = await t.run(async (ctx) => ctx.db.get(sessionId as never)) as { status: string; depositPaid: boolean };
+    expect(session).toMatchObject({ status: "tentative", depositPaid: false });
+    expect(await t.run(async (ctx) => ctx.db.query("payments").collect())).toHaveLength(0);
   });
 });

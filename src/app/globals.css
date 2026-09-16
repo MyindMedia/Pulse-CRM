@@ -135,6 +135,25 @@
   --animate-sim-screen-in: sim-screen-in 0.4s ease-out;
 }
 
+@media print {
+  body * { visibility: hidden; }
+  #pulse-financial-report,
+  #pulse-financial-report * { visibility: visible; }
+  #pulse-financial-report {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    background: white !important;
+  }
+  #pulse-financial-report * {
+    color: #171717 !important;
+    background-color: white !important;
+    box-shadow: none !important;
+  }
+  #pulse-financial-report table { break-inside: avoid; }
+  @page { margin: 0.55in; }
+}
+
 /* ============================================================
    transitions.dev motion tokens - the shared motion scale every
    surface transition reads from (durations / easings / distances /

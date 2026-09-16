@@ -4,6 +4,8 @@ import { v } from "convex/values";
 import { currentActor, currentOrgWithCapability } from "./lib/tenant";
 import { financeLog } from "./lib/financeLinks";
 import { plSummary, monthlyRunRateCents } from "./lib/pnl";
+import { expenseCategoryV } from "./lib/financeValidators";
+import { EXPENSE_TAX_GROUP } from "./lib/financeCategories";
 
 /* ============================================================
    Expenses - the money-OUT half of the books. Manual entry of
@@ -16,27 +18,11 @@ import { plSummary, monthlyRunRateCents } from "./lib/pnl";
    insights.read (the finance/analytics tier).
    ============================================================ */
 
-const categoryV = v.union(
-  v.literal("rent"),
-  v.literal("utilities"),
-  v.literal("software"),
-  v.literal("gear"),
-  v.literal("repairs"),
-  v.literal("payroll"),
-  v.literal("contractor"),
-  v.literal("marketing"),
-  v.literal("supplies"),
-  v.literal("insurance"),
-  v.literal("travel"),
-  v.literal("fees"),
-  v.literal("adjustment"),
-  v.literal("other"),
-);
 const recurringV = v.union(v.literal("monthly"), v.literal("annual"));
 
 export const create = mutation({
   args: {
-    category: categoryV,
+    category: expenseCategoryV,
     amountCents: v.number(),
     date: v.number(),
     vendor: v.optional(v.string()),
@@ -69,7 +55,7 @@ export const create = mutation({
 export const update = mutation({
   args: {
     id: v.id("expenses"),
-    category: v.optional(categoryV),
+    category: v.optional(expenseCategoryV),
     amountCents: v.optional(v.number()),
     date: v.optional(v.number()),
     vendor: v.optional(v.string()),
@@ -138,17 +124,26 @@ export const list = query({
   args: {
     start: v.optional(v.number()),
     end: v.optional(v.number()),
-    category: v.optional(categoryV),
+    category: v.optional(expenseCategoryV),
   },
   handler: async (ctx, { start, end, category }) => {
     const orgId = await currentOrgWithCapability(ctx, "insights.read");
-    let rows = await ctx.db
-      .query("expenses")
-      .withIndex("by_org", (q) => q.eq("orgId", orgId))
-      .collect();
-    if (start !== undefined) rows = rows.filter((r) => r.date >= start);
-    if (end !== undefined) rows = rows.filter((r) => r.date < end);
-    if (category) rows = rows.filter((r) => r.category === category);
+    const rows = category
+      ? start !== undefined && end !== undefined
+        ? await ctx.db.query("expenses").withIndex("by_org_category_date", (q) => q.eq("orgId", orgId).eq("category", category).gte("date", start).lt("date", end)).take(5001)
+        : start !== undefined
+          ? await ctx.db.query("expenses").withIndex("by_org_category_date", (q) => q.eq("orgId", orgId).eq("category", category).gte("date", start)).take(5001)
+          : end !== undefined
+            ? await ctx.db.query("expenses").withIndex("by_org_category_date", (q) => q.eq("orgId", orgId).eq("category", category).lt("date", end)).take(5001)
+            : await ctx.db.query("expenses").withIndex("by_org_category_date", (q) => q.eq("orgId", orgId).eq("category", category)).take(5001)
+      : start !== undefined && end !== undefined
+        ? await ctx.db.query("expenses").withIndex("by_org_date", (q) => q.eq("orgId", orgId).gte("date", start).lt("date", end)).take(5001)
+        : start !== undefined
+          ? await ctx.db.query("expenses").withIndex("by_org_date", (q) => q.eq("orgId", orgId).gte("date", start)).take(5001)
+          : end !== undefined
+            ? await ctx.db.query("expenses").withIndex("by_org_date", (q) => q.eq("orgId", orgId).lt("date", end)).take(5001)
+            : await ctx.db.query("expenses").withIndex("by_org", (q) => q.eq("orgId", orgId)).take(5001);
+    if (rows.length > 5000) throw new Error("More than 5,000 expenses match this view. Choose a shorter period.");
     rows.sort((a, b) => b.date - a.date);
     return await Promise.all(
       rows.map(async (r) => ({
@@ -175,16 +170,26 @@ export const plReport = query({
   returns: v.object({
     revenueCents: v.number(), expensesCents: v.number(), netCents: v.number(), marginPct: v.number(),
     byCategory: v.array(v.object({ category: v.string(), amountCents: v.number() })),
-    revenueFromPaymentsCents: v.number(), revenueFromInvoicesCents: v.number(),
+    byTaxCategory: v.array(v.object({ taxCategory: v.string(), amountCents: v.number() })),
+    byIncomeCategory: v.array(v.object({ category: v.string(), amountCents: v.number() })),
+    revenueFromPaymentsCents: v.number(), revenueFromInvoicesCents: v.number(), revenueFromBankCents: v.number(),
+    revenueFromPackagesCents: v.number(), revenueFromMembershipsCents: v.number(),
     paymentsByMethod: v.array(v.object({ method: v.string(), amountCents: v.number() })),
     expenseCount: v.number(), monthlyRecurringCents: v.number(),
+    stripe: v.object({
+      grossSalesCents: v.number(), feesCents: v.number(), refundsCents: v.number(), disputesCents: v.number(),
+      adjustmentsCents: v.number(), clearingNetCents: v.number(), payoutsCents: v.number(), unmatchedPayouts: v.number(),
+      foreignCurrencyEntries: v.number(), foreignCurrencyPayouts: v.number(),
+    }),
     bank: v.object({
       connected: v.boolean(), needsAttention: v.number(), inCents: v.number(), outCents: v.number(), netCents: v.number(),
+      cashInCents: v.number(), cashOutCents: v.number(), cashNetCents: v.number(),
       outByCategory: v.array(v.object({ category: v.string(), amountCents: v.number() })),
       cashOnHandCents: v.number(), cardOwedCents: v.number(), balanceAsOf: v.union(v.number(), v.null()),
+      foreignCurrencyRows: v.number(), foreignCurrencyAccounts: v.number(),
     }),
     reconciliation: v.object({
-      unmatchedOutflows: v.number(), receiptsUnmatched: v.number(), receiptsToBook: v.number(),
+      unmatchedOutflows: v.number(), unmatchedInflows: v.number(), receiptsUnmatched: v.number(), receiptsToBook: v.number(),
       receiptsNeedingReview: v.number(), expensesWithoutReceipt: v.number(),
     }),
   }),
@@ -199,28 +204,28 @@ export const plReport = query({
       throw new Error("Choose a valid report period.");
     }
 
-    const invoices = await ctx.db
-      .query("invoices")
-      .withIndex("by_org", (q) => q.eq("orgId", orgId))
-      .collect();
-    const paidInvoices = invoices.filter(
-      (i) => i.status === "paid" && i.paidAt && i.paidAt >= start && i.paidAt < end,
+    const [currentInvoices, legacyInvoices] = await Promise.all([
+      ctx.db.query("invoices").withIndex("by_org_paidAt", (q) => q.eq("orgId", orgId).gte("paidAt", start).lt("paidAt", end)).take(5001),
+      ctx.db.query("invoices").withIndex("by_org_paidAt", (q) => q.eq("orgId", orgId).eq("paidAt", undefined)).take(1001),
+    ]);
+    if (currentInvoices.length > 5000 || legacyInvoices.length > 1000) throw new Error("This report period is too large. Choose a shorter period or migrate legacy invoice dates.");
+    const paidInvoices = [...currentInvoices, ...legacyInvoices].filter(
+      (i) => i.status === "paid" && (i.paidAt ?? i._creationTime) >= start && (i.paidAt ?? i._creationTime) < end,
     );
     const invoiceRevenue = paidInvoices.reduce((s, i) => s + i.amountCents, 0);
 
-    const payments = await ctx.db
-      .query("payments")
-      .withIndex("by_org", (q) => q.eq("orgId", orgId))
-      .collect();
-    const paidPayments = payments
+    const [currentPayments, legacyPayments] = await Promise.all([
+      ctx.db.query("payments").withIndex("by_org_paidAt", (q) => q.eq("orgId", orgId).gte("paidAt", start).lt("paidAt", end)).take(5001),
+      ctx.db.query("payments").withIndex("by_org_paidAt", (q) => q.eq("orgId", orgId).eq("paidAt", undefined)).take(1001),
+    ]);
+    if (currentPayments.length > 5000 || legacyPayments.length > 1000) throw new Error("This report period is too large. Choose a shorter period or migrate legacy payment dates.");
+    const paidPayments = [...currentPayments, ...legacyPayments]
       .filter((p) => p.status === "paid")
       .filter((p) => {
         const at = p.paidAt ?? p._creationTime;
         return at >= start && at < end;
       });
     const paymentRevenue = paidPayments.reduce((s, p) => s + p.amountCents, 0);
-
-    const revenueCents = invoiceRevenue + paymentRevenue;
 
     // Invoice methods are explicit. Stripe booking payments count as card;
     // manual/simulated booking rows do not record a method, so keep it unknown.
@@ -234,35 +239,93 @@ export const plReport = query({
       const key = payment.provider === "stripe" ? "card" : "unrecorded";
       methodTotals.set(key, (methodTotals.get(key) ?? 0) + payment.amountCents);
     }
-    const paymentsByMethod = [...methodTotals.entries()]
-      .map(([method, amountCents]) => ({ method, amountCents }))
-      .sort((a, b) => b.amountCents - a.amountCents);
-
     const expenses = await ctx.db
       .query("expenses")
       .withIndex("by_org_date", (q) => q.eq("orgId", orgId).gte("date", start).lt("date", end))
-      .collect();
+      .take(5001);
+    if (expenses.length > 5000) throw new Error("This report period has more than 5,000 expenses. Choose a shorter period.");
 
+    // The bank's view of the same period (openspec add-bank-sync-receipts,
+    // finance/pnl-report). Cash in and out exclude transfers, card and loan
+    // payments, removed and pending lines. Only deposits explicitly classified
+    // as business income feed profit. Stripe payouts and already-recorded
+    // payments stay cash movement so the original sale is counted once.
+    const bankRows = await ctx.db
+      .query("bankTransactions")
+      .withIndex("by_org_date", (q) => q.eq("orgId", orgId).gte("date", calendarStart).lt("date", calendarEnd))
+      .take(5001);
+    if (bankRows.length > 5000) throw new Error("This period has more than 5,000 bank transactions. Choose a shorter report period.");
+    const postedBankRows = bankRows.filter((t) => !t.removed && !t.pending);
+    const usdBankRows = postedBankRows.filter((t) => t.currency.toUpperCase() === "USD");
+    const directBankIncome = usdBankRows.filter((t) => t.direction === "in" && t.moneyInKind === "income");
+    const bankIncomeCents = directBankIncome.reduce((sum, row) => sum + row.amountCents, 0);
+    const supplementalRevenue = await ctx.db
+      .query("revenueEntries")
+      .withIndex("by_org_collected", (q) => q.eq("orgId", orgId).gte("collectedAt", start).lt("collectedAt", end))
+      .take(5001);
+    if (supplementalRevenue.length > 5000) throw new Error("This period has more than 5,000 package or membership collections. Choose a shorter report period.");
+    const packageRevenueCents = supplementalRevenue
+      .filter((entry) => entry.sourceType === "package")
+      .reduce((sum, entry) => sum + entry.amountCents, 0);
+    const membershipRevenueCents = supplementalRevenue
+      .filter((entry) => entry.sourceType === "membership")
+      .reduce((sum, entry) => sum + entry.amountCents, 0);
+    const stripeEntries = await ctx.db
+      .query("stripeLedgerEntries")
+      .withIndex("by_org_occurred", (q) => q.eq("orgId", orgId).gte("occurredAt", start).lt("occurredAt", end))
+      .take(5001);
+    if (stripeEntries.length > 5000) throw new Error("This period has more than 5,000 Stripe entries. Choose a shorter report period.");
+    const usdStripeEntries = stripeEntries.filter((entry) => entry.currency.toUpperCase() === "USD");
+    const stripeGrossSalesCents = usdStripeEntries
+      .filter((entry) => entry.grossCents > 0 && `${entry.type} ${entry.reportingCategory ?? ""}`.toLowerCase().match(/charge|payment/))
+      .reduce((sum, entry) => sum + entry.grossCents, 0);
+    const stripeFeesCents = Math.max(0, usdStripeEntries.reduce((sum, entry) => sum + entry.feeCents, 0));
+    const stripeRefundsCents = usdStripeEntries
+      .filter((entry) => {
+        const label = `${entry.type} ${entry.reportingCategory ?? ""}`.toLowerCase();
+        return /refund|reversal/.test(label) && !/dispute|chargeback/.test(label);
+      })
+      .reduce((sum, entry) => sum + Math.abs(Math.min(0, entry.grossCents)), 0);
+    const stripeDisputesCents = usdStripeEntries
+      .filter((entry) => `${entry.type} ${entry.reportingCategory ?? ""}`.toLowerCase().match(/dispute|chargeback/))
+      .reduce((sum, entry) => sum + Math.abs(Math.min(0, entry.grossCents)), 0);
+    const stripeClearingNetCents = usdStripeEntries.reduce((sum, entry) => sum + entry.netCents, 0);
+    const stripeAdjustmentsCents = stripeClearingNetCents - stripeGrossSalesCents
+      + stripeRefundsCents + stripeDisputesCents + stripeFeesCents;
+    const stripePayouts = await ctx.db
+      .query("stripePayouts")
+      .withIndex("by_org_arrival", (q) => q.eq("orgId", orgId).gte("arrivalDate", calendarStart).lt("arrivalDate", calendarEnd))
+      .take(5001);
+    if (stripePayouts.length > 5000) throw new Error("This period has more than 5,000 Stripe payouts. Choose a shorter report period.");
+    const stripePayoutsCents = stripePayouts
+      .filter((payout) => payout.status === "paid" && payout.currency.toUpperCase() === "USD")
+      .reduce((sum, payout) => sum + payout.amountCents, 0);
+    const revenueCents = invoiceRevenue + paymentRevenue + bankIncomeCents
+      + packageRevenueCents + membershipRevenueCents;
+    if (bankIncomeCents > 0) methodTotals.set("bank_deposit", bankIncomeCents);
+    const byIncomeCategory = new Map<string, number>();
+    for (const row of directBankIncome) {
+      const category = row.incomeCategory ?? "other_income";
+      byIncomeCategory.set(category, (byIncomeCategory.get(category) ?? 0) + row.amountCents);
+    }
+    for (const entry of supplementalRevenue) {
+      byIncomeCategory.set(entry.incomeCategory, (byIncomeCategory.get(entry.incomeCategory) ?? 0) + entry.amountCents);
+    }
     const summary = plSummary(
       revenueCents,
       expenses.map((e) => ({ category: e.category, amountCents: e.amountCents })),
     );
-
+    const taxTotals = new Map<string, number>();
+    for (const expense of expenses) {
+      const group = EXPENSE_TAX_GROUP.get(expense.category) ?? "Other expenses";
+      taxTotals.set(group, (taxTotals.get(group) ?? 0) + expense.amountCents);
+    }
     const monthlyRecurringCents = expenses.reduce(
       (s, e) => s + monthlyRunRateCents(e.amountCents, e.recurring),
       0,
     );
 
-    // The bank's view of the same period (openspec add-bank-sync-receipts,
-    // finance/pnl-report). Cash in and out exclude transfers, card and loan
-    // payments, removed and pending lines. It never feeds profit: expenses
-    // added from the bank are already in `expenses`, so profit stays
-    // collected revenue minus expenses and nothing counts twice.
-    const bankRows = await ctx.db
-      .query("bankTransactions")
-      .withIndex("by_org_date", (q) => q.eq("orgId", orgId).gte("date", calendarStart).lt("date", calendarEnd))
-      .collect();
-    const counted = bankRows.filter((t) => !t.removed && !t.excluded && !t.pending);
+    const counted = usdBankRows.filter((t) => !t.excluded);
     const bankOutByCategory = new Map<string, number>();
     let bankInCents = 0;
     let bankOutCents = 0;
@@ -274,6 +337,8 @@ export const plReport = query({
         bankOutByCategory.set(key, (bankOutByCategory.get(key) ?? 0) + t.amountCents);
       }
     }
+    const cashInCents = usdBankRows.filter((t) => t.direction === "in").reduce((sum, t) => sum + t.amountCents, 0);
+    const cashOutCents = usdBankRows.filter((t) => t.direction === "out").reduce((sum, t) => sum + t.amountCents, 0);
     const connections = await ctx.db.query("bankConnections").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
     const live = new Set(connections.filter((c) => c.status !== "revoked").map((c) => c._id));
     const accounts = await ctx.db.query("bankAccounts").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
@@ -281,40 +346,73 @@ export const plReport = query({
     let cardOwedCents = 0;
     let balanceAsOf: number | null = null;
     for (const a of accounts) {
-      if (a.hidden || !live.has(a.connectionId)) continue;
+      if (a.hidden || !live.has(a.connectionId) || a.currency.toUpperCase() !== "USD") continue;
       if (a.type === "depository") cashOnHandCents += a.currentCents ?? 0;
       if (a.type === "credit") cardOwedCents += a.currentCents ?? 0;
       balanceAsOf = balanceAsOf === null ? a.balanceAsOf : Math.min(balanceAsOf, a.balanceAsOf);
     }
 
-    const receipts = await ctx.db.query("receipts").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
-    const inPeriod = receipts.filter((r) => {
-      if (r.date !== undefined) return r.date >= calendarStart && r.date < calendarEnd;
-      return r.uploadedAt >= start && r.uploadedAt < end;
-    });
+    const [datedReceipts, uploadedReceipts] = await Promise.all([
+      ctx.db.query("receipts").withIndex("by_org_date", (q) => q.eq("orgId", orgId).gte("date", calendarStart).lt("date", calendarEnd)).take(5001),
+      ctx.db.query("receipts").withIndex("by_org_uploaded", (q) => q.eq("orgId", orgId).gte("uploadedAt", start).lt("uploadedAt", end)).take(5001),
+    ]);
+    if (datedReceipts.length > 5000 || uploadedReceipts.length > 5000) throw new Error("This period has more than 5,000 receipts. Choose a shorter report period.");
+    const inPeriod = [
+      ...datedReceipts,
+      ...uploadedReceipts.filter((receipt) => receipt.date === undefined),
+    ];
 
     return {
       ...summary,
       revenueFromPaymentsCents: paymentRevenue,
       revenueFromInvoicesCents: invoiceRevenue,
-      paymentsByMethod,
+      revenueFromBankCents: bankIncomeCents,
+      revenueFromPackagesCents: packageRevenueCents,
+      revenueFromMembershipsCents: membershipRevenueCents,
+      paymentsByMethod: [...methodTotals.entries()]
+        .map(([method, amountCents]) => ({ method, amountCents }))
+        .sort((a, b) => b.amountCents - a.amountCents),
+      byIncomeCategory: [...byIncomeCategory.entries()]
+        .map(([category, amountCents]) => ({ category, amountCents }))
+        .sort((a, b) => b.amountCents - a.amountCents),
+      byTaxCategory: [...taxTotals.entries()]
+        .map(([taxCategory, amountCents]) => ({ taxCategory, amountCents }))
+        .sort((a, b) => b.amountCents - a.amountCents),
       expenseCount: expenses.length,
       monthlyRecurringCents,
+      stripe: {
+        grossSalesCents: stripeGrossSalesCents,
+        feesCents: stripeFeesCents,
+        refundsCents: stripeRefundsCents,
+        disputesCents: stripeDisputesCents,
+        adjustmentsCents: stripeAdjustmentsCents,
+        clearingNetCents: stripeClearingNetCents,
+        payoutsCents: stripePayoutsCents,
+        unmatchedPayouts: stripePayouts.filter((payout) => payout.reconciliationStatus !== "matched").length,
+        foreignCurrencyEntries: stripeEntries.length - usdStripeEntries.length,
+        foreignCurrencyPayouts: stripePayouts.filter((payout) => payout.currency.toUpperCase() !== "USD").length,
+      },
       bank: {
         connected: live.size > 0,
         needsAttention: connections.filter((c) => c.status === "login_required" || c.status === "error" || c.status === "expiring").length,
         inCents: bankInCents,
         outCents: bankOutCents,
         netCents: bankInCents - bankOutCents,
+        cashInCents,
+        cashOutCents,
+        cashNetCents: cashInCents - cashOutCents,
         outByCategory: [...bankOutByCategory.entries()]
           .map(([category, amountCents]) => ({ category, amountCents }))
           .sort((a, b) => b.amountCents - a.amountCents),
         cashOnHandCents,
         cardOwedCents,
         balanceAsOf,
+        foreignCurrencyRows: postedBankRows.length - usdBankRows.length,
+        foreignCurrencyAccounts: accounts.filter((a) => !a.hidden && live.has(a.connectionId) && a.currency.toUpperCase() !== "USD").length,
       },
       reconciliation: {
         unmatchedOutflows: counted.filter((t) => t.direction === "out" && !t.expenseId).length,
+        unmatchedInflows: postedBankRows.filter((t) => t.direction === "in" && !t.moneyInKind).length,
         receiptsUnmatched: inPeriod.filter((r) => !r.expenseId && !r.bankTransactionId).length,
         receiptsToBook: inPeriod.filter((r) => r.status === "ready" && !r.expenseId).length,
         receiptsNeedingReview: inPeriod.filter((r) => r.status === "needs_review").length,

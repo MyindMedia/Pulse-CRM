@@ -106,8 +106,10 @@ import type * as lib_emailTemplates_betaWelcome from "../lib/emailTemplates/beta
 import type * as lib_emailTemplates_invite from "../lib/emailTemplates/invite.js";
 import type * as lib_emailTemplates_layout from "../lib/emailTemplates/layout.js";
 import type * as lib_entitlements from "../lib/entitlements.js";
+import type * as lib_financeCategories from "../lib/financeCategories.js";
 import type * as lib_financeLinks from "../lib/financeLinks.js";
 import type * as lib_financeMatch from "../lib/financeMatch.js";
+import type * as lib_financeValidators from "../lib/financeValidators.js";
 import type * as lib_gearCatalog from "../lib/gearCatalog.js";
 import type * as lib_gearRental from "../lib/gearRental.js";
 import type * as lib_ghl from "../lib/ghl.js";
@@ -228,6 +230,7 @@ import type * as splitSheets from "../splitSheets.js";
 import type * as splitSignatures from "../splitSignatures.js";
 import type * as stageDemo from "../stageDemo.js";
 import type * as stripeConnect from "../stripeConnect.js";
+import type * as stripeLedger from "../stripeLedger.js";
 import type * as studioBrain from "../studioBrain.js";
 import type * as studioImport from "../studioImport.js";
 import type * as studioManager from "../studioManager.js";
@@ -347,8 +350,10 @@ declare const fullApi: ApiFromModules<{
   "lib/emailTemplates/invite": typeof lib_emailTemplates_invite;
   "lib/emailTemplates/layout": typeof lib_emailTemplates_layout;
   "lib/entitlements": typeof lib_entitlements;
+  "lib/financeCategories": typeof lib_financeCategories;
   "lib/financeLinks": typeof lib_financeLinks;
   "lib/financeMatch": typeof lib_financeMatch;
+  "lib/financeValidators": typeof lib_financeValidators;
   "lib/gearCatalog": typeof lib_gearCatalog;
   "lib/gearRental": typeof lib_gearRental;
   "lib/ghl": typeof lib_ghl;
@@ -469,6 +474,7 @@ declare const fullApi: ApiFromModules<{
   splitSignatures: typeof splitSignatures;
   stageDemo: typeof stageDemo;
   stripeConnect: typeof stripeConnect;
+  stripeLedger: typeof stripeLedger;
   studioBrain: typeof studioBrain;
   studioImport: typeof studioImport;
   studioManager: typeof studioManager;

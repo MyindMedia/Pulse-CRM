@@ -9,7 +9,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import type { FunctionReturnType } from "convex/server";
 import { toast } from "sonner";
 import {
-  Landmark, CreditCard, AlertTriangle, RefreshCw, Plus, Link2, History, BookPlus, Ban, Undo2, ChevronDown, ChevronUp, Search,
+  Landmark, CreditCard, AlertTriangle, RefreshCw, Plus, Link2, History, BookPlus, Ban, Undo2, ChevronDown, ChevronUp, Search, Tags,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
@@ -23,6 +23,7 @@ import { Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, Dia
 import { money, relativeTime } from "@/lib/format";
 import { errorMessage } from "@/lib/errors";
 import { EXPENSE_CATEGORIES } from "@/components/expenses/expense-dialog";
+import { INCOME_CATEGORIES, MONEY_IN_KINDS, INCOME_CATEGORY_LABEL, MONEY_IN_KIND_LABEL } from "@convex/lib/financeCategories";
 import { usePlaidLink } from "@/components/finance/use-plaid-link";
 import { FinanceHistorySheet } from "@/components/finance/finance-history-sheet";
 import { MatchSuggestions } from "@/components/finance/match-suggestions";
@@ -174,7 +175,7 @@ function BankingView({ reportRange, initialFilter }: { reportRange: { start: num
           <div className="rise-stagger grid grid-cols-2 gap-3 md:grid-cols-4">
             <StatTile label="Cash on hand" value={money(overview.cashOnHandCents, { compact: true })} icon={Landmark} accent hint="checking and savings" />
             <StatTile label="Owed on cards" value={money(overview.cardOwedCents, { compact: true })} icon={CreditCard} hint="card balances" />
-            <StatTile label="To reconcile" value={String(overview.unmatchedOutflows)} icon={AlertTriangle} hint="spending not in the books, 90 days" />
+            <StatTile label="To reconcile" value={String(overview.unmatchedOutflows + overview.unmatchedInflows)} icon={AlertTriangle} hint={`${overview.unmatchedOutflows} spending · ${overview.unmatchedInflows} deposits, 90 days`} />
             <StatTile label="Connected" value={String(live.length)} icon={Link2} hint={live.length === 1 ? "bank" : "banks"} />
           </div>
 
@@ -291,6 +292,7 @@ type TxnRow = FunctionReturnType<typeof api.banking.transactionsPage>["page"][nu
 function TransactionsTable({ rows, canEdit }: { rows: TxnRow[] | undefined; canEdit: boolean }) {
   const [open, setOpen] = React.useState<string | null>(null);
   const [adding, setAdding] = React.useState<TxnRow | null>(null);
+  const [classifying, setClassifying] = React.useState<TxnRow | null>(null);
   const [history, setHistory] = React.useState<TxnRow | null>(null);
   const setExcluded = useMutation(api.banking.setExcluded);
   const setCategory = useMutation(api.banking.setCategory);
@@ -340,7 +342,10 @@ function TransactionsTable({ rows, canEdit }: { rows: TxnRow[] | undefined; canE
                         </SelectContent>
                       </Select>
                     ) : (
-                      <span className="text-steel">{t.excluded ? "-" : t.category ? CATEGORY_LABEL.get(t.category) ?? t.category : out ? "-" : "Income"}</span>
+                      <span className="text-steel">{out
+                        ? t.excluded ? "-" : t.category ? CATEGORY_LABEL.get(t.category) ?? t.category : "-"
+                        : t.incomeCategory ? INCOME_CATEGORY_LABEL.get(t.incomeCategory) ?? t.incomeCategory
+                          : t.moneyInKind ? MONEY_IN_KIND_LABEL.get(t.moneyInKind) ?? t.moneyInKind : "Needs review"}</span>
                     )}
                   </TD>
                   <TD>
@@ -349,6 +354,8 @@ function TransactionsTable({ rows, canEdit }: { rows: TxnRow[] | undefined; canE
                       {t.receipt && <Badge tone="info">Receipt</Badge>}
                       {t.excluded && <Badge>{EXCLUDE_REASON_LABEL[t.excludeReason ?? "other"]}</Badge>}
                       {out && !t.expense && !t.excluded && <Badge tone="caution">Not in books</Badge>}
+                      {!out && t.moneyInKind && <Badge tone={t.moneyInKind === "income" ? "positive" : "info"}>{MONEY_IN_KIND_LABEL.get(t.moneyInKind) ?? t.moneyInKind}</Badge>}
+                      {!out && !t.moneyInKind && !t.pending && <Badge tone="caution">Needs review</Badge>}
                     </div>
                   </TD>
                   <TD className={`text-right font-meta ${out ? "text-bone" : "text-positive"}`}>{out ? "-" : "+"}{money(t.amountCents)}</TD>
@@ -365,6 +372,9 @@ function TransactionsTable({ rows, canEdit }: { rows: TxnRow[] | undefined; canE
                         <div className="flex flex-wrap gap-2">
                           {canEdit && out && !t.expense && !t.excluded && !t.pending && (
                             <Button size="sm" onClick={() => setAdding(t)}><BookPlus className="size-3.5" /> Add to books</Button>
+                          )}
+                          {canEdit && !out && !t.pending && (
+                            <Button size="sm" onClick={() => setClassifying(t)}><Tags className="size-3.5" /> {t.moneyInKind ? "Change classification" : "Classify money in"}</Button>
                           )}
                           {canEdit && out && !t.expense && (
                             t.excluded ? (
@@ -392,12 +402,109 @@ function TransactionsTable({ rows, canEdit }: { rows: TxnRow[] | undefined; canE
         </TBody>
       </Table>
       <AddToBooksDialog row={adding} onClose={() => setAdding(null)} />
+      <MoneyInDialog row={classifying} onClose={() => setClassifying(null)} />
       <FinanceHistorySheet
         open={history !== null}
         onOpenChange={(o) => { if (!o) setHistory(null); }}
         title={history ? `${history.merchantName ?? history.name} · ${money(history.amountCents)}` : ""}
         bankTransactionId={history?._id}
       />
+    </>
+  );
+}
+
+function MoneyInDialog({ row, onClose }: { row: TxnRow | null; onClose: () => void }) {
+  return (
+    <Dialog open={row !== null} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent size="sm">
+        {row && <MoneyInForm key={row._id} row={row} onClose={onClose} />}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function MoneyInForm({ row, onClose }: { row: TxnRow; onClose: () => void }) {
+  const classify = useMutation(api.banking.classifyMoneyIn);
+  const candidates = useQuery(api.banking.moneyInCandidates, { id: row._id });
+  const [kind, setKind] = React.useState(row.moneyInKind ?? "income");
+  const [incomeCategory, setIncomeCategory] = React.useState(row.incomeCategory ?? "recording_sessions");
+  const [note, setNote] = React.useState(row.moneyInNote ?? "");
+  const [recordedMatch, setRecordedMatch] = React.useState(
+    row.linkedRevenueType && row.linkedRevenueId ? `${row.linkedRevenueType}:${row.linkedRevenueId}` : "",
+  );
+  const [saving, setSaving] = React.useState(false);
+  return (
+    <>
+      <DialogHeader>
+        <DialogTitle>Classify money in</DialogTitle>
+        <DialogDescription>
+          {`${row.merchantName ?? row.name}, ${money(row.amountCents)} on ${bankDay(row.date, true)}. Choose what this deposit represents so it is counted once.`}
+        </DialogDescription>
+      </DialogHeader>
+      <DialogBody className="space-y-4">
+        <Field label="What is it?" htmlFor="money-in-kind">
+          <Select value={kind} onValueChange={(value) => setKind(value as typeof kind)}>
+            <SelectTrigger id="money-in-kind"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {MONEY_IN_KINDS.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </Field>
+        {kind === "income" && (
+          <Field label="Income category" htmlFor="income-category">
+            <Select value={incomeCategory} onValueChange={(value) => setIncomeCategory(value as typeof incomeCategory)}>
+              <SelectTrigger id="income-category"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                {INCOME_CATEGORIES.map((item) => <SelectItem key={item.value} value={item.value}>{item.label}</SelectItem>)}
+              </SelectContent>
+            </Select>
+          </Field>
+        )}
+        {kind === "recorded_payment" && (
+          <Field label="Recorded payment" htmlFor="recorded-payment">
+            <Select value={recordedMatch || (candidates?.length === 1 ? `${candidates[0].sourceType}:${candidates[0].sourceId}` : "")} onValueChange={setRecordedMatch}>
+              <SelectTrigger id="recorded-payment"><SelectValue placeholder={candidates === undefined ? "Finding matches…" : "Choose a match"} /></SelectTrigger>
+              <SelectContent>
+                {(candidates ?? []).map((candidate) => (
+                  <SelectItem key={`${candidate.sourceType}:${candidate.sourceId}`} value={`${candidate.sourceType}:${candidate.sourceId}`}>
+                    {candidate.label} · {bankDay(candidate.collectedAt, true)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {candidates?.length === 0 && <p className="mt-1.5 text-xs text-caution">No same-amount payment was found within seven days. Choose another classification or check the recorded payment date.</p>}
+          </Field>
+        )}
+        <Field label="Note or reference (optional)" htmlFor="money-in-note">
+          <Input id="money-in-note" maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} placeholder="Invoice, transfer, or payout reference" />
+        </Field>
+      </DialogBody>
+      <DialogFooter>
+        <Button variant="ghost" onClick={onClose}>Cancel</Button>
+        <Button disabled={saving} onClick={async () => {
+          setSaving(true);
+          try {
+            const matchValue = recordedMatch || (candidates?.length === 1 ? `${candidates[0].sourceType}:${candidates[0].sourceId}` : "");
+            const separator = matchValue.indexOf(":");
+            const linkedRevenueType = separator > 0 ? matchValue.slice(0, separator) as "payment" | "invoice" : undefined;
+            const linkedRevenueId = separator > 0 ? matchValue.slice(separator + 1) : undefined;
+            await classify({
+              id: row._id,
+              kind: kind as never,
+              incomeCategory: kind === "income" ? incomeCategory as never : undefined,
+              note: note.trim() || undefined,
+              linkedRevenueType: kind === "recorded_payment" ? linkedRevenueType : undefined,
+              linkedRevenueId: kind === "recorded_payment" ? linkedRevenueId : undefined,
+            });
+            toast.success("Money in classified.");
+            onClose();
+          } catch (err) {
+            toast.error(errorMessage(err));
+          } finally {
+            setSaving(false);
+          }
+        }}>Save classification</Button>
+      </DialogFooter>
     </>
   );
 }

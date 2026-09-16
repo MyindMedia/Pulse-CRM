@@ -121,7 +121,7 @@ describe("bank activity in the P&L", () => {
       ],
     });
     expect(report.reconciliation).toEqual({
-      unmatchedOutflows: 1, receiptsUnmatched: 3, receiptsToBook: 2, receiptsNeedingReview: 2, expensesWithoutReceipt: 2,
+      unmatchedOutflows: 1, unmatchedInflows: 1, receiptsUnmatched: 3, receiptsToBook: 2, receiptsNeedingReview: 2, expensesWithoutReceipt: 2,
     });
   });
 

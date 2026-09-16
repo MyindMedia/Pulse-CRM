@@ -9,7 +9,7 @@ describe("invoice pay link + settle", () => {
   beforeEach(async () => {
     t = convexTest(schema);
     invoiceId = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Skyline", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Skyline", slug: "demo", plan: "studio", status: "active", stripeAccountId: "acct_studio" });
       const artistId = await ctx.db.insert("artists", { orgId: "pulse-demo", name: "Nova", type: "artist", genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
       return ctx.db.insert("invoices", { orgId: "pulse-demo", number: "PLS-100390", artistId, status: "sent", amountCents: 50000, dueDate: Date.now() - 86400000, lineItems: [{ label: "Podcast editing", amountCents: 50000 }] });
     });
@@ -30,7 +30,7 @@ describe("invoice pay link + settle", () => {
 
   it("checkout.session.completed with invoiceId marks the invoice paid", async () => {
     await t.mutation(internal.billingWebhooks.handle, {
-      event: { id: "evt_inv1", type: "checkout.session.completed", data: { object: { metadata: { invoiceId }, payment_intent: "pi_x" } } },
+      event: { id: "evt_inv1", type: "checkout.session.completed", account: "acct_studio", data: { object: { metadata: { invoiceId }, payment_intent: "pi_x" } } },
     });
     const inv = await t.query(api.invoicePay.get, { invoiceId: invoiceId as never });
     expect(inv?.status).toBe("paid");

@@ -53,6 +53,7 @@ const KEEP = new Set<string>([
   // A connected bank and what it imported are real, not staged: a reset never
   // strands a live Plaid item, orphans receipt files or rewrites the finance log.
   "bankConnections", "bankAccounts", "bankTransactions", "receipts",
+  "stripeLedgerEntries", "stripePayouts", "revenueEntries",
   "financeMatchRejections", "financeAudit",
 ]);
 

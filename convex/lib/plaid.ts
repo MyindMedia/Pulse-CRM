@@ -1,3 +1,5 @@
+import type { ExpenseCategory } from "./financeCategories";
+
 /* ============================================================
    Plaid, over plain fetch.
 
@@ -239,9 +241,6 @@ export async function verifyPlaidWebhook(
 // ---------------------------------------------------------------- categories
 
 export type ExcludeReason = "transfer" | "card_payment" | "loan" | "personal" | "other";
-export type ExpenseCategory =
-  | "rent" | "utilities" | "software" | "gear" | "repairs" | "payroll" | "contractor"
-  | "marketing" | "supplies" | "insurance" | "travel" | "fees" | "adjustment" | "other";
 
 /** Money that moves between the studio's own accounts is not spending. */
 export function exclusionFor(primary?: string | null, detailed?: string | null): ExcludeReason | undefined {
@@ -253,18 +252,31 @@ export function exclusionFor(primary?: string | null, detailed?: string | null):
 }
 
 /** A starting category for the books; a person can always change it. */
-export function categoryFor(primary?: string | null, detailed?: string | null): ExpenseCategory | undefined {
+export function categoryFor(primary?: string | null, detailed?: string | null, merchantOrName?: string | null): ExpenseCategory | undefined {
   if (!primary) return undefined;
+  const detail = detailed ?? "";
+  const merchant = (merchantOrName ?? "").toLowerCase();
+  if (/spotify|apple music|tidal|soundcloud|splice|landr|distrokid|tunecore|ascap|bmi\b|sesac/.test(merchant)) return "music_licensing";
+  if (/adobe|dropbox|google workspace|microsoft 365|notion|slack|zoom|canva|quickbooks|xero/.test(merchant)) return "subscriptions";
+  if (/facebook|instagram|meta ads|google ads|tiktok ads|mailchimp|constant contact/.test(merchant)) return "marketing";
+  if (/guitar center|sweetwater|reverb|sam ash|vintage king/.test(merchant)) return "gear";
+  if (/eventbrite|ticketmaster|live nation/.test(merchant)) return "events_showcases";
   if (detailed === "RENT_AND_UTILITIES_RENT") return "rent";
   if (primary === "RENT_AND_UTILITIES") return "utilities";
   if (detailed === "GENERAL_MERCHANDISE_ELECTRONICS") return "gear";
   if (detailed === "GENERAL_SERVICES_INSURANCE") return "insurance";
+  if (detail.includes("ADVERTISING") || detail.includes("MARKETING")) return "marketing";
+  if (detail.includes("ACCOUNTING") || detail.includes("LEGAL") || detail.includes("CONSULTING")) return "professional_services";
+  if (detail.includes("EDUCATION") || detail.includes("TRAINING")) return "education_training";
+  if (detail.includes("GOVERNMENT") || detail.includes("TAX") || detail.includes("LICENSE")) return "taxes_licenses";
+  if (primary === "FOOD_AND_DRINK") return "team_meals";
+  if (primary === "ENTERTAINMENT") return "events_showcases";
   if (primary === "BANK_FEES") return "fees";
   if (primary === "TRAVEL" || primary === "TRANSPORTATION") return "travel";
   if (primary === "HOME_IMPROVEMENT") return "repairs";
   if (primary === "GENERAL_MERCHANDISE") return "supplies";
-  if (primary === "GOVERNMENT_AND_NON_PROFIT") return "fees";
-  if (primary === "GENERAL_SERVICES") return "other";
+  if (primary === "GOVERNMENT_AND_NON_PROFIT") return "taxes_licenses";
+  if (primary === "GENERAL_SERVICES") return "professional_services";
   if (primary === "INCOME" || primary === "TRANSFER_IN" || primary === "TRANSFER_OUT" || primary === "LOAN_PAYMENTS") {
     return undefined;
   }
@@ -316,7 +328,9 @@ export function toTransactionRow(t: PlaidTransaction): TransactionRow {
     ...(primary ? { pfcPrimary: primary } : {}),
     ...(detailed ? { pfcDetailed: detailed } : {}),
     pending: Boolean(t.pending),
-    ...(direction === "out" && !reason && categoryFor(primary, detailed) ? { category: categoryFor(primary, detailed) } : {}),
+    ...(direction === "out" && !reason && categoryFor(primary, detailed, t.merchant_name ?? t.name)
+      ? { category: categoryFor(primary, detailed, t.merchant_name ?? t.name) }
+      : {}),
     ...(reason ? { excluded: true, excludeReason: reason } : {}),
   };
 }

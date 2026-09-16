@@ -359,6 +359,17 @@ export async function applyPackagePurchase(
     purchasedAt: Date.now(),
     stripeReference: args.stripeReference,
   });
+  await ctx.db.insert("revenueEntries", {
+    orgId: args.orgId,
+    sourceType: "package",
+    sourceId: creditId,
+    provider: "stripe",
+    providerReference: args.stripeReference,
+    incomeCategory: "packages_prepaid",
+    amountCents: product.priceCents,
+    currency: "USD",
+    collectedAt: Date.now(),
+  });
   await ctx.db.insert("activity", {
     orgId: args.orgId,
     kind: "package.purchased",

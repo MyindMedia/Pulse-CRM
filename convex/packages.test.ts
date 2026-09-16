@@ -12,7 +12,7 @@ import type { Id } from "./_generated/dataModel";
 /** Seed an org + owner and return an identity-bound client for it. */
 async function ownerOf(t: ReturnType<typeof convexTest>, orgId: string, user: string) {
   await t.run(async (ctx) => {
-    await ctx.db.insert("orgs", { orgId, name: orgId, slug: orgId, plan: "studio", status: "active" });
+    await ctx.db.insert("orgs", { orgId, name: orgId, slug: orgId, plan: "studio", status: "active", stripeAccountId: `acct_${orgId}` });
     await ctx.db.insert("members", { orgId, name: "Owner", role: "owner", clerkUserId: user, skills: [] });
   });
   return t.withIdentity({ subject: user, name: "Owner", orgId });
@@ -119,6 +119,11 @@ describe("packages - credit creation from purchase", () => {
     expect(credits[0].hoursTotal).toBe(10);
     expect(credits[0].hoursRemaining).toBe(10);
     expect(credits[0].perHourCents).toBe(8500);
+    const revenue = await t.run(async (ctx) => ctx.db.query("revenueEntries").collect());
+    expect(revenue).toHaveLength(1);
+    expect(revenue[0]).toMatchObject({ sourceType: "package", incomeCategory: "packages_prepaid", amountCents: 85000, providerReference: "pi_1" });
+    const report = await owner.query(api.expenses.plReport, { start: 0, end: Date.now() + 1 });
+    expect(report.revenueFromPackagesCents).toBe(85000);
   });
 
   it("webhook checkout.session.completed (kind=package) creates the credit once", async () => {
@@ -126,7 +131,7 @@ describe("packages - credit creation from purchase", () => {
     const productId = await owner.mutation(api.packages.create, { name: "5h", hours: 5, priceCents: 50000 });
     const artistId = await seedArtist(t, "org_a", "Nova");
     const event = {
-      id: "evt_pkg1", type: "checkout.session.completed" as const,
+      id: "evt_pkg1", type: "checkout.session.completed" as const, account: "acct_org_a",
       data: { object: { metadata: { kind: "package", productId, artistId, orgId: "org_a" }, payment_intent: "pi_x" } },
     };
     await t.mutation(internal.billingWebhooks.handle, { event });
@@ -136,6 +141,8 @@ describe("packages - credit creation from purchase", () => {
     expect(credits).toHaveLength(1);
     expect(credits[0].hoursTotal).toBe(5);
     expect(credits[0].artistName).toBe("Nova");
+    const revenue = await t.run(async (ctx) => ctx.db.query("revenueEntries").collect());
+    expect(revenue).toHaveLength(1);
   });
 });
 

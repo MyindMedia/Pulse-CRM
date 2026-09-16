@@ -16,6 +16,7 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { EXPENSE_CATEGORIES, type ExpenseCategory } from "@convex/lib/financeCategories";
 import { Field, Input, Textarea } from "@/components/ui/field";
 import {
   Select,
@@ -25,24 +26,8 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 
-export const EXPENSE_CATEGORIES = [
-  { value: "rent", label: "Rent" },
-  { value: "utilities", label: "Utilities" },
-  { value: "software", label: "Software" },
-  { value: "gear", label: "Gear" },
-  { value: "repairs", label: "Repairs" },
-  { value: "payroll", label: "Payroll" },
-  { value: "contractor", label: "Contractor / engineer payout" },
-  { value: "marketing", label: "Marketing" },
-  { value: "supplies", label: "Supplies" },
-  { value: "insurance", label: "Insurance" },
-  { value: "adjustment", label: "P&L adjustment" },
-  { value: "travel", label: "Travel" },
-  { value: "fees", label: "Fees" },
-  { value: "other", label: "Other" },
-] as const;
-
-export type ExpenseCategory = (typeof EXPENSE_CATEGORIES)[number]["value"];
+export { EXPENSE_CATEGORIES };
+export type { ExpenseCategory };
 
 export type EditableExpense = {
   _id: Id<"expenses">;

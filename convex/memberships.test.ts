@@ -69,6 +69,7 @@ describe("plans + memberships", () => {
 
   it("_applySubscriptionEvent activates a pending membership by subscription id", async () => {
     const { membershipId } = await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", plan: "studio", stripeAccountId: "acct_studio" });
       const artistId = await ctx.db.insert("artists", {
         orgId: ORG, name: "Nova", type: "artist", genres: [], tags: [],
         status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
@@ -247,6 +248,13 @@ describe("webhook -> membership activation", () => {
 
   it("checkout.session.completed with metadata.membershipId activates the membership", async () => {
     const { membershipId } = await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: ORG,
+        name: "Demo",
+        slug: "demo",
+        plan: "studio",
+        stripeAccountId: "acct_studio",
+      });
       const artistId = await ctx.db.insert("artists", {
         orgId: ORG, name: "Nova", type: "artist", genres: [], tags: [],
         status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
@@ -283,5 +291,80 @@ describe("webhook -> membership activation", () => {
     expect(m?.status).toBe("active");
     expect(m?.stripeSubscriptionId).toBe("sub_ZZZ");
     expect(m?.stripeCustomerId).toBe("cus_ZZZ");
+  });
+
+  it("records one revenue entry when a connected membership invoice is paid", async () => {
+    const { membershipId } = await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: ORG, name: "Pulse Demo", slug: "pulse-demo", plan: "studio", stripeAccountId: "acct_studio",
+      });
+      const artistId = await ctx.db.insert("artists", {
+        orgId: ORG, name: "Nova", type: "artist", genres: [], tags: [],
+        status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
+      });
+      const planId = await ctx.db.insert("membershipPlans", {
+        orgId: ORG, name: "Producer Pass", priceCents: 24900, billingInterval: "month",
+        active: true, stripePriceId: "price_test", createdAt: Date.now(),
+      });
+      const membershipId = await ctx.db.insert("memberships", {
+        orgId: ORG, artistId, planId, status: "pending",
+        hoursUsedThisPeriod: 0, createdAt: Date.now(),
+      });
+      return { membershipId };
+    });
+
+    const invoice = {
+      id: "in_paid_1", amount_paid: 24900, currency: "usd",
+      parent: { subscription_details: { subscription: "sub_paid", metadata: { membershipId } } },
+      status_transitions: { paid_at: 1_789_000_000 },
+    };
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: { id: "evt_invoice_paid", type: "invoice.paid", account: "acct_studio", data: { object: invoice } },
+    });
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: { id: "evt_invoice_succeeded", type: "invoice.payment_succeeded", account: "acct_studio", data: { object: invoice } },
+    });
+
+    const revenue = await t.run(async (ctx) => ctx.db.query("revenueEntries").collect());
+    expect(revenue).toHaveLength(1);
+    expect(revenue[0]).toMatchObject({ sourceType: "membership", sourceId: membershipId, amountCents: 24900, incomeCategory: "memberships" });
+    const membership = await t.run(async (ctx) => ctx.db.get(membershipId));
+    expect(membership?.stripeSubscriptionId).toBe("sub_paid");
+    const report = await t.query(api.expenses.plReport, { start: 0, end: 1_789_000_000_001 });
+    expect(report.revenueFromMembershipsCents).toBe(24900);
+  });
+
+  it("does not mutate a membership from another connected Stripe account", async () => {
+    const membershipId = await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", {
+        orgId: ORG, name: "Pulse Demo", slug: "pulse-demo", plan: "studio", stripeAccountId: "acct_right",
+      });
+      const artistId = await ctx.db.insert("artists", {
+        orgId: ORG, name: "Nova", type: "artist", genres: [], tags: [], status: "active",
+        lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
+      });
+      const planId = await ctx.db.insert("membershipPlans", {
+        orgId: ORG, name: "Pass", priceCents: 1000, billingInterval: "month",
+        active: true, stripePriceId: "price_test", createdAt: Date.now(),
+      });
+      return ctx.db.insert("memberships", {
+        orgId: ORG, artistId, planId, status: "pending", hoursUsedThisPeriod: 0, createdAt: Date.now(),
+      });
+    });
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: {
+        id: "evt_wrong_account", type: "invoice.paid", account: "acct_wrong",
+        data: { object: {
+          id: "in_wrong", amount_paid: 1000, currency: "usd",
+          parent: { subscription_details: { subscription: "sub_wrong", metadata: { membershipId } } },
+        } },
+      },
+    });
+    const state = await t.run(async (ctx) => ({
+      membership: await ctx.db.get(membershipId),
+      revenue: await ctx.db.query("revenueEntries").collect(),
+    }));
+    expect(state.membership?.stripeSubscriptionId).toBeUndefined();
+    expect(state.revenue).toEqual([]);
   });
 });

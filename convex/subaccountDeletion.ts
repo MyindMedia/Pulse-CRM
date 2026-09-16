@@ -46,6 +46,7 @@ export const ORG_TABLES = [
   // Banking and receipts (openspec add-bank-sync-receipts). Plaid items are
   // removed at Plaid and receipt files deleted before these rows go.
   "bankTransactions", "bankAccounts", "bankConnections", "receipts",
+  "stripeLedgerEntries", "stripePayouts", "revenueEntries",
   "financeMatchRejections", "financeAudit",
   // Last on purpose. Every delete above fires a trigger that appends here, so
   // sweeping the feed first would leave a fresh activity trace - orgId, table,

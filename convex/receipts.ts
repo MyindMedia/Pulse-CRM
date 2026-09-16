@@ -9,6 +9,7 @@ import { completeReceiptVisionJSON } from "./lib/receiptAI";
 import { dayFromIso, scorePair, type MatchSide } from "./lib/financeMatch";
 import { financeLog, linkReceiptExpense, unlink } from "./lib/financeLinks";
 import { receiptAttention } from "./lib/receiptAttention";
+import { expenseCategoryV } from "./lib/financeValidators";
 
 /* ============================================================
    Receipts - a photo or PDF of what was bought, what it says, and
@@ -29,13 +30,6 @@ import { receiptAttention } from "./lib/receiptAttention";
 export const MAX_RECEIPT_BYTES = 10 * 1024 * 1024;
 export const RECEIPT_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"]);
 const CONFIDENT = 0.6;
-
-const expenseCategoryV = v.union(
-  v.literal("rent"), v.literal("utilities"), v.literal("software"), v.literal("gear"),
-  v.literal("repairs"), v.literal("payroll"), v.literal("contractor"), v.literal("marketing"),
-  v.literal("supplies"), v.literal("insurance"), v.literal("travel"), v.literal("fees"),
-  v.literal("adjustment"), v.literal("other"),
-);
 
 export const generateUploadUrl = mutation({
   args: {},

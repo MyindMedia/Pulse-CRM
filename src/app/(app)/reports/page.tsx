@@ -13,9 +13,11 @@ import { BookingArchiveReport } from "@/components/reports/booking-archive";
 import { BookingFunnelCard } from "@/components/reports/booking-funnel-card";
 import { BenchmarkCard } from "@/components/reports/benchmark-card";
 import { AtRiskSessionsReport, PricingRecommendationsReport } from "@/components/reports/predictive-insights";
+import { FinancialReport } from "@/components/reports/financials";
 import { CapabilityGuard } from "@/components/shell/capability-guard";
 
 const TABS = [
+  { value: "financials", label: "Financials" },
   { value: "funnel", label: "Booking funnel" },
   { value: "benchmark", label: "Benchmark" },
   { value: "aging", label: "Aging" },
@@ -46,7 +48,7 @@ function ReportsView() {
         description="Where the money is - unpaid balances, room utilization, dormant clients, no-show risk and which lead sources actually pay off."
       />
 
-      <Tabs defaultValue="aging" className="space-y-5">
+      <Tabs defaultValue="financials" className="space-y-5">
         <TabsList>
           {TABS.map((t) => (
             <TabsTrigger key={t.value} value={t.value}>
@@ -55,6 +57,9 @@ function ReportsView() {
           ))}
         </TabsList>
 
+        <TabsContent value="financials">
+          <FinancialReport />
+        </TabsContent>
         <TabsContent value="funnel">
           <BookingFunnelCard days={30} />
         </TabsContent>

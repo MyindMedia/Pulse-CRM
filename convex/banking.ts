@@ -2,7 +2,7 @@ import { v, ConvexError } from "convex/values";
 import { paginationOptsValidator, paginationResultValidator } from "convex/server";
 import { stream } from "convex-helpers/server/stream";
 import schema from "./schema";
-import { action, internalAction, internalQuery, query } from "./_generated/server";
+import { action, internalAction, internalQuery, query, type QueryCtx, type MutationCtx } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
@@ -11,6 +11,7 @@ import { currentActor, currentOrgWithCapability, DEMO_ORG } from "./lib/tenant";
 import { seal, open } from "./lib/secretBox";
 import { plaid, PlaidError, plaidEnv, plaidConfigured, toCents, toTransactionRow, type TransactionRow } from "./lib/plaid";
 import { financeLog, linkExpenseTransaction, unlink } from "./lib/financeLinks";
+import { expenseCategoryV, incomeCategoryV, moneyInKindV } from "./lib/financeValidators";
 
 /* ============================================================
    Banking - the studio's bank feed, through Plaid.
@@ -26,12 +27,6 @@ import { financeLog, linkExpenseTransaction, unlink } from "./lib/financeLinks";
    token, its IV, the sync cursor or the Plaid item id.
    ============================================================ */
 
-const expenseCategoryV = v.union(
-  v.literal("rent"), v.literal("utilities"), v.literal("software"), v.literal("gear"),
-  v.literal("repairs"), v.literal("payroll"), v.literal("contractor"), v.literal("marketing"),
-  v.literal("supplies"), v.literal("insurance"), v.literal("travel"), v.literal("fees"),
-  v.literal("adjustment"), v.literal("other"),
-);
 const excludeReasonV = v.union(
   v.literal("transfer"), v.literal("card_payment"), v.literal("loan"), v.literal("personal"), v.literal("other"),
 );
@@ -444,6 +439,7 @@ const rowV = v.object({
   category: v.optional(v.string()),
   excluded: v.optional(v.boolean()),
   excludeReason: v.optional(excludeReasonV),
+  moneyInKind: v.optional(v.literal("stripe_payout")),
 });
 
 export const _applyTransactions = internalMutation({
@@ -586,6 +582,7 @@ export const _finishSync = internalMutation({
     });
     if (args.added + args.modified > 0) {
       await ctx.scheduler.runAfter(0, internal.reconcile.autoMatch, { orgId: c.orgId });
+      await ctx.scheduler.runAfter(0, internal.stripeLedger.matchReadyPayouts, { orgId: c.orgId });
     }
   },
 });
@@ -802,6 +799,59 @@ async function loadTxn(ctx: { db: { get: (id: Id<"bankTransactions">) => Promise
   return t;
 }
 
+type MoneyInCandidate = {
+  sourceType: "payment" | "invoice";
+  sourceId: string;
+  label: string;
+  amountCents: number;
+  collectedAt: number;
+};
+
+async function recordedMoneyInCandidates(
+  ctx: QueryCtx | MutationCtx,
+  orgId: string,
+  transaction: Doc<"bankTransactions">,
+): Promise<MoneyInCandidate[]> {
+  const windowMs = 7 * 86_400_000;
+  const start = transaction.date - windowMs;
+  const end = transaction.date + windowMs + 1;
+  const [payments, invoices] = await Promise.all([
+    ctx.db.query("payments").withIndex("by_org_paidAt", (q) => q.eq("orgId", orgId).gte("paidAt", start).lt("paidAt", end)).collect(),
+    ctx.db.query("invoices").withIndex("by_org_paidAt", (q) => q.eq("orgId", orgId).gte("paidAt", start).lt("paidAt", end)).collect(),
+  ]);
+  const candidates: MoneyInCandidate[] = [];
+  for (const payment of payments) {
+    if (payment.status !== "paid" || payment.amountCents !== transaction.amountCents || payment.paidAt === undefined) continue;
+    candidates.push({
+      sourceType: "payment",
+      sourceId: payment._id,
+      label: "Booking payment",
+      amountCents: payment.amountCents,
+      collectedAt: payment.paidAt,
+    });
+  }
+  for (const invoice of invoices) {
+    if (invoice.status !== "paid" || invoice.paymentMethod === "credit" || invoice.amountCents !== transaction.amountCents || invoice.paidAt === undefined) continue;
+    candidates.push({
+      sourceType: "invoice",
+      sourceId: invoice._id,
+      label: `Invoice ${invoice.number}`,
+      amountCents: invoice.amountCents,
+      collectedAt: invoice.paidAt,
+    });
+  }
+  const available: MoneyInCandidate[] = [];
+  for (const candidate of candidates) {
+    const claim = await ctx.db.query("bankTransactions")
+      .withIndex("by_org_linked_revenue", (q) => q.eq("orgId", orgId)
+        .eq("linkedRevenueType", candidate.sourceType)
+        .eq("linkedRevenueId", candidate.sourceId))
+      .first();
+    if (!claim || claim._id === transaction._id) available.push(candidate);
+  }
+  return available.sort((a, b) => Math.abs(a.collectedAt - transaction.date) - Math.abs(b.collectedAt - transaction.date));
+}
+
 export const setCategory = mutation({
   args: { id: v.id("bankTransactions"), category: expenseCategoryV },
   handler: async (ctx, { id, category }) => {
@@ -828,6 +878,101 @@ export const setExcluded = mutation({
       bankTransactionId: id, before: { excluded: Boolean(t.excluded), reason: t.excludeReason ?? null },
       after: { excluded, reason: excluded ? (reason ?? "other") : null },
     });
+  },
+});
+
+/** Classify a posted deposit so cash movement and earned revenue stay separate.
+ * Stripe payouts, transfers, contributions, loans and already-recorded sales
+ * remain visible in cash reporting without being counted as new revenue. */
+export const classifyMoneyIn = mutation({
+  args: {
+    id: v.id("bankTransactions"),
+    kind: moneyInKindV,
+    incomeCategory: v.optional(incomeCategoryV),
+    note: v.optional(v.string()),
+    linkedRevenueType: v.optional(v.union(v.literal("payment"), v.literal("invoice"))),
+    linkedRevenueId: v.optional(v.string()),
+  },
+  returns: v.null(),
+  handler: async (ctx, { id, kind, incomeCategory, note, linkedRevenueType, linkedRevenueId }) => {
+    const orgId = await currentOrgWithCapability(ctx, "invoices.send");
+    const t = await loadTxn(ctx, id, orgId);
+    if (t.direction !== "in") throw new ConvexError("Only money coming in can be classified here.");
+    if (t.pending) throw new ConvexError("Wait for this deposit to post before classifying it.");
+    if (kind === "income" && !incomeCategory) throw new ConvexError("Choose an income category.");
+    if ((kind === "income" || kind === "recorded_payment" || kind === "stripe_payout") && t.currency.toUpperCase() !== "USD") {
+      throw new ConvexError("This financial report currently records revenue and Stripe settlement in USD only.");
+    }
+    if (note && note.trim().length > 500) throw new ConvexError("Keep the note under 500 characters.");
+
+    const before = {
+      kind: t.moneyInKind ?? null,
+      incomeCategory: t.incomeCategory ?? null,
+      note: t.moneyInNote ?? null,
+    };
+    const cleanNote = note?.trim() || undefined;
+    let recordedMatch: MoneyInCandidate | undefined;
+    if (kind === "recorded_payment") {
+      const candidates = await recordedMoneyInCandidates(ctx, orgId, t);
+      recordedMatch = linkedRevenueType && linkedRevenueId
+        ? candidates.find((candidate) => candidate.sourceType === linkedRevenueType && candidate.sourceId === linkedRevenueId)
+        : candidates.length === 1 ? candidates[0] : undefined;
+      if (!recordedMatch) {
+        throw new ConvexError(candidates.length > 1
+          ? "Choose which recorded payment matches this deposit."
+          : "No matching recorded payment was found within seven days.");
+      }
+      const alreadyClaimed = await ctx.db.query("bankTransactions")
+        .withIndex("by_org_linked_revenue", (q) => q.eq("orgId", orgId)
+          .eq("linkedRevenueType", recordedMatch!.sourceType)
+          .eq("linkedRevenueId", recordedMatch!.sourceId))
+        .first();
+      if (alreadyClaimed && alreadyClaimed._id !== id) {
+        throw new ConvexError("That recorded payment is already matched to another bank deposit.");
+      }
+    }
+    await ctx.db.patch(id, {
+      moneyInKind: kind,
+      incomeCategory: kind === "income" ? incomeCategory : undefined,
+      moneyInNote: cleanNote,
+      linkedRevenueType: recordedMatch?.sourceType,
+      linkedRevenueId: recordedMatch?.sourceId,
+      reconciledAt: Date.now(),
+      // The legacy operating-cash rollup excludes movements already recorded
+      // elsewhere. Raw cash reporting still includes every posted line.
+      excluded: kind === "income" ? false : true,
+      excludeReason: kind === "internal_transfer" ? "transfer" : kind === "loan_proceeds" ? "loan" : kind === "income" ? undefined : "other",
+      updatedAt: Date.now(),
+    });
+    await financeLog(ctx, orgId, {
+      action: "transaction.inflow_classified",
+      actorType: "user",
+      actorName: await currentActor(ctx),
+      bankTransactionId: id,
+      before,
+      after: {
+        kind,
+        incomeCategory: kind === "income" ? incomeCategory ?? null : null,
+        note: cleanNote ?? null,
+        linkedRevenueType: recordedMatch?.sourceType ?? null,
+        linkedRevenueId: recordedMatch?.sourceId ?? null,
+      },
+    });
+    return null;
+  },
+});
+
+export const moneyInCandidates = query({
+  args: { id: v.id("bankTransactions") },
+  returns: v.array(v.object({
+    sourceType: v.union(v.literal("payment"), v.literal("invoice")),
+    sourceId: v.string(), label: v.string(), amountCents: v.number(), collectedAt: v.number(),
+  })),
+  handler: async (ctx, { id }) => {
+    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+    const transaction = await loadTxn(ctx, id, orgId);
+    if (transaction.direction !== "in" || transaction.pending) return [];
+    return await recordedMoneyInCandidates(ctx, orgId, transaction);
   },
 });
 
@@ -901,6 +1046,9 @@ export const overview = query({
     const unmatchedOutflows = recent.filter(
       (t) => !t.removed && !t.pending && t.direction === "out" && !t.excluded && !t.expenseId,
     ).length;
+    const unmatchedInflows = recent.filter(
+      (t) => !t.removed && !t.pending && t.direction === "in" && !t.moneyInKind,
+    ).length;
 
     return {
       configured: plaidConfigured(),
@@ -910,6 +1058,7 @@ export const overview = query({
       cashOnHandCents,
       cardOwedCents,
       unmatchedOutflows,
+      unmatchedInflows,
       connections: connections
         .sort((a, b) => b.createdAt - a.createdAt)
         .map((c) => ({
@@ -946,12 +1095,13 @@ export const transactions = query({
     let rows = await ctx.db
       .query("bankTransactions")
       .withIndex("by_org_date", (q) => q.eq("orgId", orgId).gte("date", start).lt("date", end))
-      .collect();
+      .take(5001);
+    const hitReadLimit = rows.length === 5001;
     rows = rows.filter((t) => !t.removed);
     if (accountId) rows = rows.filter((t) => t.accountId === accountId);
     const f = filter ?? "all";
-    if (f === "attention") rows = rows.filter((t) => t.direction === "out" && !t.excluded && !t.expenseId && !t.pending);
-    if (f === "matched") rows = rows.filter((t) => Boolean(t.expenseId || t.receiptId));
+    if (f === "attention") rows = rows.filter((t) => !t.pending && (t.direction === "in" ? !t.moneyInKind : !t.excluded && !t.expenseId));
+    if (f === "matched") rows = rows.filter((t) => Boolean(t.expenseId || t.receiptId || t.moneyInKind));
     if (f === "excluded") rows = rows.filter((t) => Boolean(t.excluded));
     if (f === "in") rows = rows.filter((t) => t.direction === "in");
     if (search?.trim()) {
@@ -959,7 +1109,7 @@ export const transactions = query({
       rows = rows.filter((t) => `${t.name} ${t.merchantName ?? ""}`.toLowerCase().includes(needle));
     }
     rows.sort((a, b) => b.date - a.date || b._creationTime - a._creationTime);
-    const truncated = rows.length > 1000;
+    const truncated = rows.length > 1000 || hitReadLimit;
     rows = rows.slice(0, 1000);
 
     const accountCache = new Map<string, Doc<"bankAccounts"> | null>();
@@ -973,6 +1123,7 @@ export const transactions = query({
         _id: t._id,
         date: t.date,
         amountCents: t.amountCents,
+        currency: t.currency,
         direction: t.direction,
         name: t.name,
         merchantName: t.merchantName ?? null,
@@ -981,6 +1132,12 @@ export const transactions = query({
         excluded: Boolean(t.excluded),
         excludeReason: t.excludeReason ?? null,
         pfcPrimary: t.pfcPrimary ?? null,
+        moneyInKind: t.moneyInKind ?? null,
+        incomeCategory: t.incomeCategory ?? null,
+        moneyInNote: t.moneyInNote ?? null,
+        reconciledAt: t.reconciledAt ?? null,
+        linkedRevenueType: t.linkedRevenueType ?? null,
+        linkedRevenueId: t.linkedRevenueId ?? null,
         account: acct ? { name: acct.name, mask: acct.mask ?? null } : null,
         expense: expense ? { _id: expense._id, category: expense.category, vendor: expense.vendor ?? null } : null,
         receipt: receipt ? { _id: receipt._id, fileName: receipt.fileName } : null,
@@ -992,10 +1149,14 @@ export const transactions = query({
 
 const transactionSummaryV = v.object({
   _id: v.id("bankTransactions"), date: v.number(), amountCents: v.number(),
+  currency: v.string(),
   direction: v.union(v.literal("in"), v.literal("out")), name: v.string(),
   merchantName: v.union(v.string(), v.null()), pending: v.boolean(),
   category: v.union(v.string(), v.null()), excluded: v.boolean(),
   excludeReason: v.union(v.string(), v.null()), pfcPrimary: v.union(v.string(), v.null()),
+  moneyInKind: v.union(moneyInKindV, v.null()), incomeCategory: v.union(incomeCategoryV, v.null()),
+  moneyInNote: v.union(v.string(), v.null()), reconciledAt: v.union(v.number(), v.null()),
+  linkedRevenueType: v.union(v.string(), v.null()), linkedRevenueId: v.union(v.string(), v.null()),
   account: v.union(v.object({ name: v.string(), mask: v.union(v.string(), v.null()) }), v.null()),
   expense: v.union(v.object({ _id: v.id("expenses"), category: v.string(), vendor: v.union(v.string(), v.null()) }), v.null()),
   receipt: v.union(v.object({ _id: v.id("receipts"), fileName: v.string() }), v.null()),
@@ -1021,8 +1182,8 @@ export const transactionsPage = query({
       .order("desc")
       .filterWith(async (t) => {
         if (t.removed || accountId && t.accountId !== accountId) return false;
-        if (filter === "attention" && (t.direction !== "out" || t.excluded || t.expenseId || t.pending)) return false;
-        if (filter === "matched" && !t.expenseId && !t.receiptId) return false;
+        if (filter === "attention" && (t.pending || (t.direction === "in" ? Boolean(t.moneyInKind) : Boolean(t.excluded || t.expenseId)))) return false;
+        if (filter === "matched" && !t.expenseId && !t.receiptId && !t.moneyInKind) return false;
         if (filter === "excluded" && !t.excluded) return false;
         if (filter === "in" && t.direction !== "in") return false;
         return !needle || `${t.name} ${t.merchantName ?? ""}`.toLowerCase().includes(needle);
@@ -1036,9 +1197,12 @@ export const transactionsPage = query({
       const expense = t.expenseId ? await ctx.db.get(t.expenseId) : null;
       const receipt = t.receiptId ? await ctx.db.get(t.receiptId) : null;
       page.push({
-        _id: t._id, date: t.date, amountCents: t.amountCents, direction: t.direction, name: t.name,
+        _id: t._id, date: t.date, amountCents: t.amountCents, currency: t.currency, direction: t.direction, name: t.name,
         merchantName: t.merchantName ?? null, pending: t.pending, category: t.category ?? null,
         excluded: Boolean(t.excluded), excludeReason: t.excludeReason ?? null, pfcPrimary: t.pfcPrimary ?? null,
+        moneyInKind: t.moneyInKind ?? null, incomeCategory: t.incomeCategory ?? null,
+        moneyInNote: t.moneyInNote ?? null, reconciledAt: t.reconciledAt ?? null,
+        linkedRevenueType: t.linkedRevenueType ?? null, linkedRevenueId: t.linkedRevenueId ?? null,
         account: account ? { name: account.name, mask: account.mask ?? null } : null,
         expense: expense ? { _id: expense._id, category: expense.category, vendor: expense.vendor ?? null } : null,
         receipt: receipt ? { _id: receipt._id, fileName: receipt.fileName } : null,
