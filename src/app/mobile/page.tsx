@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import Image from "next/image";
 import Link from "next/link";
 import { DownloadBlock, APP_STORE_URL } from "./download-block";
-import { Phone3DMount } from "./phone-3d-mount";
+import { StudioMockup } from "./studio-mockup";
 
 /* studiopulse.tech/mobile - the download page for My Studio Pulse.
  *
@@ -12,9 +11,10 @@ import { Phone3DMount } from "./phone-3d-mount";
  * place that argument should spring a leak. Studios are onboarded by
  * invitation, so the only call to action here is "get the app", never "buy".
  *
- * Screenshots are the real App Store set. next/image serves them with a
- * one-year immutable cache keyed on the PATH, so a replacement screenshot needs
- * a new filename - overwriting public/mobile/1-today.png ships nothing. */
+ * One screen only: the photographed device in the hero, with the real app
+ * playing in it. The App Store screenshot rail that used to sit below was cut -
+ * the App Store page already carries those, and a second gallery of the same
+ * images on the page that links to it was saying it twice. */
 
 const TITLE = "My Studio Pulse for iPhone";
 const DESCRIPTION =
@@ -33,84 +33,6 @@ export const metadata: Metadata = {
   twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 
-type Screen = { src: string; alt: string; label: string; note: string };
-
-/* Order is the order a studio meets the app: the shift, then the day, then the
-   room, then the money. */
-const SCREENS: Screen[] = [
-  {
-    src: "/mobile/1-today.png",
-    alt: "The Today screen showing a running shift, who else is on, and what is booked next",
-    label: "Today",
-    note: "One tap to clock in. The running shift lives in the Dynamic Island and on the Lock Screen, so clocking out never needs the app open.",
-  },
-  {
-    src: "/mobile/5-schedule.png",
-    alt: "Seven days of sessions across every room, with a session open for edit",
-    label: "Schedule",
-    note: "Seven days across every room. Confirm, reschedule, extend or assign an engineer from the session itself.",
-  },
-  {
-    src: "/mobile/3-prep.png",
-    alt: "The arrival prep checklist for a session, ready before the client walks in",
-    label: "Prep",
-    note: "Arrival prep and session checklists, so the room is ready before the client walks in and closed out properly after they leave.",
-  },
-  {
-    src: "/mobile/2-patch.png",
-    alt: "The patch record showing every device in the room and what is connected to what",
-    label: "Patch",
-    note: "Every device in the room, every input and output, and what is connected to what. Change it on the phone and the studio's record changes.",
-  },
-  {
-    src: "/mobile/4-dashboard.png",
-    alt: "The dashboard with bookings, invoices and payments at a glance",
-    label: "Money",
-    note: "Bookings, invoices and payments at a glance. Record a payment or send a reminder without sitting down.",
-  },
-  {
-    src: "/mobile/6-shift.png",
-    alt: "The team shift board showing who is rostered and who is clocked in",
-    label: "Team",
-    note: "Who is rostered, who is actually clocked in, and who has not turned up yet.",
-  },
-];
-
-/* A phone. Bezel, Dynamic Island, screen. Sized by its parent's width so the
-   hero device and the rail devices share one component. */
-function Phone({
-  screen,
-  priority = false,
-  className = "",
-}: {
-  screen: Screen;
-  priority?: boolean;
-  className?: string;
-}) {
-  return (
-    <div
-      className={`relative rounded-[2.6rem] bg-obsidian p-[0.6rem] shadow-[0_2px_0_rgba(255,255,255,0.06)_inset,0_40px_80px_-30px_rgba(0,0,0,0.9)] ring-1 ring-hairline ${className}`}
-    >
-      <div className="relative overflow-hidden rounded-[2.1rem] bg-ink">
-        <Image
-          src={screen.src}
-          alt={screen.alt}
-          width={607}
-          height={1320}
-          priority={priority}
-          sizes="(max-width: 640px) 70vw, 320px"
-          className="block h-auto w-full"
-        />
-        {/* Dynamic Island */}
-        <div
-          aria-hidden
-          className="absolute left-1/2 top-[1.6%] h-[3.4%] w-[30%] -translate-x-1/2 rounded-full bg-black"
-        />
-      </div>
-    </div>
-  );
-}
-
 function Spec({ k, v }: { k: string; v: string }) {
   return (
     <div className="flex flex-col gap-1 border-l border-hairline pl-4">
@@ -125,7 +47,7 @@ export default function IosPage() {
     <main className="bg-ink text-bone">
       {/* ---------- Hero ---------- */}
       <section className="mx-auto w-full max-w-6xl px-5 pb-20 pt-16 sm:pt-24">
-        <div className="grid items-center gap-14 lg:grid-cols-[1.05fr_0.95fr] lg:gap-20">
+        <div className="grid items-center gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16">
           <div className="flex flex-col items-start gap-7">
             <p className="font-meta text-[0.6875rem] uppercase tracking-[0.18em] text-gold">
               Now on the App Store
@@ -154,51 +76,12 @@ export default function IosPage() {
             </dl>
           </div>
 
-          <div className="relative mx-auto w-[min(76vw,21rem)] lg:w-full lg:max-w-[23rem]">
-            {/* A single soft gold wash behind the device - the one warm thing
-                on the page, so it reads as light rather than decoration. */}
-            <div
-              aria-hidden
-              className="pointer-events-none absolute -inset-16 -z-10 rounded-full bg-[radial-gradient(closest-side,rgba(253,185,19,0.16),transparent_72%)] blur-2xl"
-            />
-            <Phone3DMount />
-            <p className="mt-5 text-center font-meta text-[0.625rem] uppercase tracking-[0.14em] text-slate">
-              iPhone 17 Pro Max. Recorded on a physical device, real build.
+          <div className="relative w-full">
+            <StudioMockup />
+            <p className="mt-4 font-meta text-[0.625rem] uppercase tracking-[0.14em] text-slate">
+              The real build, recorded on a physical iPhone
             </p>
           </div>
-        </div>
-      </section>
-
-      {/* ---------- Screens ---------- */}
-      <section className="border-t border-hairline bg-ink-2">
-        <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:py-24">
-          <header className="flex max-w-2xl flex-col gap-3">
-            <p className="font-meta text-[0.6875rem] uppercase tracking-[0.18em] text-slate">
-              What you get
-            </p>
-            <h2 className="font-grotesk text-2xl font-bold tracking-tight text-bone sm:text-3xl">
-              Six screens, no dashboard tourism.
-            </h2>
-            <p className="text-sm leading-relaxed text-steel">
-              These are the real screens, not renders. Everything here is the same workspace the
-              studio runs on the web, with the same permissions, so an engineer sees the session
-              and an owner sees the money.
-            </p>
-          </header>
-
-          <ul className="mt-14 grid grid-cols-1 gap-x-10 gap-y-16 sm:grid-cols-2 lg:grid-cols-3">
-            {SCREENS.map((s) => (
-              <li key={s.src} className="flex flex-col gap-6">
-                <Phone screen={s} className="w-[min(62vw,16rem)] sm:w-full" />
-                <div className="flex flex-col gap-2">
-                  <h3 className="font-meta text-[0.6875rem] uppercase tracking-[0.16em] text-gold">
-                    {s.label}
-                  </h3>
-                  <p className="text-sm leading-relaxed text-steel">{s.note}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
         </div>
       </section>
 
