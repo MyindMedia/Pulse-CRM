@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-/* The hero: a photograph of an iPhone 17 Pro on a stand in a studio, with the
+/* The hero: a photograph of an iPhone 17 Pro on a wooden stand in a studio, with the
  * real app playing in the screen.
  *
  * The loop is 22 silent seconds cut from the App Review screen recording - a
@@ -10,25 +10,34 @@ import * as React from "react";
  * More menu and a client message. Real build on a physical device, which is the
  * whole reason to use it rather than a simulated UI.
  *
- * GEOMETRY IS MEASURED, NOT EYEBALLED. Thresholding the source JPEG
- * (2732x1536) for near-white pixels in the phone's column and fitting straight
- * lines to the left and right edges over ~680 rows gives
+ * GEOMETRY IS MEASURED, NOT EYEBALLED. Every number below comes from fitting the
+ * 2048x1151 JPEG in public/mobile to sub-pixel precision:
  *
- *     left  x = -0.04876 y + 2036.02
- *     right x = -0.02482 y + 2418.50
+ *   - The left, right and top screen edges are straight lines fitted to the
+ *     50% luminance crossing on ~500 rows / ~170 columns each, rms error under
+ *     0.1px. They are not perpendicular: the sides lean 1.6 degrees clockwise
+ *     while the top edge rises 0.84 degrees to the right, which is the signature
+ *     of a phone pitched back in its stand and yawed with its right side nearer
+ *     the camera. No rotate() can express that, so the video is mapped with a
+ *     real homography.
+ *   - The bottom edge is HIDDEN behind the stand, so it is recovered from the
+ *     parts of the bottom corner arcs that are still visible above the wood,
+ *     template-matched against the fully visible top corners (rms 0.4-0.7px).
+ *     The screen runs 12px behind the wood on both sides; the video is mapped
+ *     onto the whole screen and then clipped, because mapping it onto only the
+ *     visible part would squash the picture.
+ *   - The wooden lip that cuts the screen off is a straight line to within
+ *     0.2px across the full width, sloping down to the right by 3.9%. It is cut
+ *     with a clip-path polygon along that exact line, not a horizontal inset.
+ *   - Cross-check: the phone's physical Dynamic Island, mapped back through the
+ *     inverse homography, lands centred at x=361.7 of 720 in video space with
+ *     its top at 11pt, which is Apple's own inset. The fit is right.
  *
- * The two edges converge going up, so the screen is a TRAPEZOID, not a rotated
- * rectangle: 394px across the top, 413px across the bottom. A CSS rotate cannot
- * express that, which is why this maps the video with a real homography instead.
- *
- * The top edge is the first row carrying any white (y=411); full width arrives
- * at y=464, so the corner radius is 53px, 13.2% of the screen width - which is
- * what a real iPhone measures. The bottom is derived from the video's own
- * 720x1564 aspect rather than measured, BECAUSE IT IS NOT VISIBLE: the wooden
- * stand crosses at y=1268 and the screen truly ends at y=1282. Those last 14px
- * are behind the wood, so the video is mapped onto the whole screen and then
- * clipped at the stand line. Mapping it onto only the visible part would
- * squash the picture by 2%.
+ * The photograph's own screen has been painted black (the mockup shipped with a
+ * white placeholder). Any sub-pixel seam between the video and the bezel is
+ * therefore black-on-black and invisible, so no bleed is needed, the content is
+ * not scaled up to hide edges, and if the video ever fails to load the phone
+ * simply looks switched off instead of showing placeholder text.
  */
 
 const MOCKUP_SRC = "/mobile/studio-mockup.jpg";
@@ -36,30 +45,28 @@ const VIDEO_SRC = "/mobile/app-loop.mp4";
 const VIDEO_WEBM = "/mobile/app-loop.webm";
 const POSTER_SRC = "/mobile/app-loop-poster.jpg";
 
-/* The screen's four corners, as fractions of the frame. Clockwise from top left. */
+/* The screen's four virtual corners (where the straight edges would meet if the
+   corners were not rounded), as fractions of the frame. Clockwise from top left. */
 const QUAD = [
-  [0.73791, 0.26758], // TL
-  [0.88151, 0.26758], // TR
-  [0.87361, 0.83490], // BR
-  [0.72236, 0.83490], // BL
+  [0.73572, 0.26882], // TL
+  [0.8817, 0.26499], // TR
+  [0.87377, 0.84415], // BR
+  [0.72543, 0.83505], // BL
 ] as const;
 
-/* Where the wooden stand crosses in front of the phone, as a fraction of the
-   frame height. Everything below this is wood, never screen. */
-const STAND_CUT = 0.82552;
+/* The top edge of the wooden lip, as fractions of the frame height where the
+   line crosses x=0 and x=100%. Everything below it is wood, never screen. */
+const LIP_LEFT = 0.77392;
+const LIP_RIGHT = 0.84299;
 
-/* Corner radius as a fraction of the screen's width. */
-const RADIUS = 0.132;
+/* Corner radius as a fraction of the screen's width, from the top corner arcs.
+   Apple's continuous corner is not a true circle, but the difference is under a
+   pixel and lands on the black bezel. */
+const RADIUS = 0.1468;
 
-/* Outward bleed. The edge fit is good to a few pixels, not to the pixel, and a
-   few pixels short shows as a pale sliver of the mockup's own white screen down
-   the side - the one thing that gives the composite away. So the quad is grown
-   about its centre and allowed to run UNDER the bezel, which is roughly 10px of
-   dark metal on a 400px screen at this scale. 1.5% per side is about 6px: enough
-   to bury the error, not enough to climb onto the frame. The bottom gets extra
-   because the stand mask eats it anyway. */
-const BLEED = 1.03;
-const BLEED_BOTTOM = 0.03;
+/* A hair of outward growth, about half a pixel at source resolution, so browser
+   rasterisation rounding can never leave the video short of the bezel. */
+const BLEED = 1.004;
 
 /* ---------- homography ----------
    Solve the 8 unknowns of the projective map taking the source rectangle's
@@ -136,6 +143,8 @@ function usePrefersReducedMotion() {
   );
 }
 
+const LIP_CLIP = `polygon(0 0, 100% 0, 100% ${(LIP_RIGHT * 100).toFixed(3)}%, 0 ${(LIP_LEFT * 100).toFixed(3)}%)`;
+
 export function StudioMockup() {
   const reduced = usePrefersReducedMotion();
   const figureRef = React.useRef<HTMLElement>(null);
@@ -156,11 +165,9 @@ export function StudioMockup() {
       const raw = QUAD.map(([fx, fy]) => [fx * W, fy * Hh] as [number, number]);
       const cx = raw.reduce((t, q) => t + q[0], 0) / 4;
       const cy = raw.reduce((t, q) => t + q[1], 0) / 4;
-      const dst = raw.map(([x, y], i) => {
-        const p: [number, number] = [cx + (x - cx) * BLEED, cy + (y - cy) * BLEED];
-        if (i >= 2) p[1] += (raw[3][1] - raw[0][1]) * BLEED_BOTTOM; // BR and BL
-        return p;
-      });
+      const dst = raw.map(
+        ([x, y]) => [cx + (x - cx) * BLEED, cy + (y - cy) * BLEED] as [number, number],
+      );
       /* The source box is the quad's own average size, so the video is never
          asked to stretch much before the homography does the real work. */
       const w = ((dst[1][0] - dst[0][0]) + (dst[2][0] - dst[3][0])) / 2;
@@ -218,13 +225,10 @@ export function StudioMockup() {
         className="block h-auto w-full"
       />
 
-      {/* The stand mask. Everything below this line is wood, so the screen
-          layer is cut here and can never paint over it. */}
-      <div
-        aria-hidden="true"
-        className="absolute inset-0"
-        style={{ clipPath: `inset(0 0 ${((1 - STAND_CUT) * 100).toFixed(3)}% 0)` }}
-      >
+      {/* The stand mask: the wooden lip's top edge, as a line. Everything below
+          it is wood, so the screen layer is cut there and can never paint over
+          it. */}
+      <div aria-hidden="true" className="absolute inset-0" style={{ clipPath: LIP_CLIP }}>
         <div
           ref={screenRef}
           className="absolute left-0 top-0 overflow-hidden bg-black"
