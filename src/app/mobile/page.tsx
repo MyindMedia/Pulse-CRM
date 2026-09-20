@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CalendarDays, Cable, Clock, ListChecks, Receipt, Users, type LucideIcon } from "lucide-react";
 import { DownloadBlock, APP_STORE_URL } from "./download-block";
 import { StudioMockup } from "./studio-mockup";
 
@@ -32,6 +33,44 @@ export const metadata: Metadata = {
   },
   twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
+
+
+type Capability = { icon: LucideIcon; label: string; note: string };
+
+/* What the app actually does, in the order a studio meets it: the shift, the
+   day, the room, the money, the people. Every line is a screen that exists. */
+const CAPABILITIES: Capability[] = [
+  {
+    icon: Clock,
+    label: "Today",
+    note: "Clock in and out with one tap. The running shift shows in the Dynamic Island and on the Lock Screen, so clocking out never needs the app open.",
+  },
+  {
+    icon: CalendarDays,
+    label: "Schedule",
+    note: "Seven days of sessions across every room. Confirm, reschedule, extend or assign an engineer from the session itself.",
+  },
+  {
+    icon: ListChecks,
+    label: "Prep",
+    note: "Arrival prep and session checklists, so the room is ready before the client walks in and closed out properly after they leave.",
+  },
+  {
+    icon: Cable,
+    label: "Patch",
+    note: "Every device in the room, every input and output, and what is connected to what. Change a connection here and the studio's record changes.",
+  },
+  {
+    icon: Receipt,
+    label: "Money",
+    note: "Bookings, invoices and payments at a glance. Record a payment, send a reminder or capture a receipt without sitting down.",
+  },
+  {
+    icon: Users,
+    label: "Team",
+    note: "Who is rostered, who is actually clocked in, and who has not turned up yet.",
+  },
+];
 
 function Spec({ k, v }: { k: string; v: string }) {
   return (
@@ -82,6 +121,41 @@ export default function IosPage() {
               The real build, recorded on a physical iPhone
             </p>
           </div>
+        </div>
+      </section>
+
+      {/* ---------- What it does ---------- */}
+      <section className="border-t border-hairline bg-ink-2">
+        <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:py-24">
+          <header className="flex max-w-2xl flex-col gap-3">
+            <p className="font-meta text-[0.6875rem] uppercase tracking-[0.18em] text-slate">
+              What it does
+            </p>
+            <h2 className="font-grotesk text-2xl font-bold tracking-tight text-bone sm:text-3xl">
+              The floor, not the back office.
+            </h2>
+            <p className="text-sm leading-relaxed text-steel">
+              The same workspace the studio runs on the web, with the same permissions, so an
+              engineer sees the session and an owner sees the money.
+            </p>
+          </header>
+
+          <dl className="mt-12 grid gap-x-14 sm:grid-cols-2">
+            {CAPABILITIES.map(({ icon: Icon, label, note }) => (
+              <div
+                key={label}
+                className="flex gap-5 border-t border-hairline py-7 first:border-t-0 sm:[&:nth-child(2)]:border-t-0"
+              >
+                <Icon className="mt-0.5 size-5 shrink-0 text-gold" strokeWidth={1.5} aria-hidden />
+                <div className="flex flex-col gap-1.5">
+                  <dt className="font-meta text-[0.6875rem] uppercase tracking-[0.16em] text-bone">
+                    {label}
+                  </dt>
+                  <dd className="text-sm leading-relaxed text-steel">{note}</dd>
+                </div>
+              </div>
+            ))}
+          </dl>
         </div>
       </section>
 
