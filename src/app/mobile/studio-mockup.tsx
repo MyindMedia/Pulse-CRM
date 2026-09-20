@@ -219,7 +219,7 @@ export function StudioMockup() {
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={MOCKUP_SRC}
-        alt="An iPhone 17 Pro on a wooden stand on a studio desk, running My Studio Pulse, with a guitarist and a mixing console out of focus behind it"
+        alt="My Studio Pulse running on an iPhone in a wooden stand on a recording studio desk, with a guitarist and a mixing console out of focus behind it"
         width={2048}
         height={1151}
         className="block h-auto w-full"

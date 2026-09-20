@@ -13,7 +13,7 @@ import { QRCodeSVG } from "qrcode.react";
  * guidelines. Do not redraw it, do not recolour it, do not set it in a box
  * smaller than the link target below. */
 
-export const APP_STORE_URL = "https://apps.apple.com/app/id6810760056";
+import { APP_STORE_URL } from "./app-store";
 
 export function DownloadBlock({ compact = false }: { compact?: boolean }) {
   return (
@@ -52,7 +52,7 @@ export function DownloadBlock({ compact = false }: { compact?: boolean }) {
           />
         </div>
         <p className="font-meta text-[0.625rem] uppercase leading-[1.6] tracking-[0.14em] text-slate">
-          Point a camera
+          Point your camera
           <br />
           at the code
         </p>

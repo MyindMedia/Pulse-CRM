@@ -1,25 +1,29 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CalendarDays, Cable, Clock, ListChecks, Receipt, Users, type LucideIcon } from "lucide-react";
-import { DownloadBlock, APP_STORE_URL } from "./download-block";
+import { DownloadBlock } from "./download-block";
+import { APP_STORE_URL } from "./app-store";
 import { StudioMockup } from "./studio-mockup";
 
-/* studiopulse.tech/mobile - the download page for My Studio Pulse.
+/* studiopulse.tech/mobile - the download page for My Studio Pulse, the iPhone
+ * app for studios that run on Pulse.
  *
- * Deliberately says nothing about what Pulse costs. The iPhone app is free and
- * sells nothing, which is the whole basis of the 3.1.3(f) companion-app case we
- * made to App Review; a price on the page that fronts the download is the last
- * place that argument should spring a leak. Studios are onboarded by
- * invitation, so the only call to action here is "get the app", never "buy".
+ * Says nothing about what Pulse costs. The iPhone app is free and sells
+ * nothing, which is the whole basis of the 3.1.3(f) companion-app case made to
+ * App Review; a price on the page that fronts the download is the last place
+ * that argument should spring a leak. Studios are onboarded by invitation, so
+ * the only call to action here is "get the app", never "buy".
  *
- * One screen only: the photographed device in the hero, with the real app
- * playing in it. The App Store screenshot rail that used to sit below was cut -
- * the App Store page already carries those, and a second gallery of the same
- * images on the page that links to it was saying it twice. */
+ * Search: the <title> is keyword-shaped like the site root ("Pulse: Recording
+ * Studio Management Software"), the h1 and h2s carry "studio" and "iPhone" in
+ * plain sentences, and a SoftwareApplication record tells Google this is a
+ * free iOS app with its App Store link. The App Store page itself carries the
+ * screenshots, so none are repeated here. */
 
-const TITLE = "My Studio Pulse for iPhone";
+const SITE_URL = "https://studiopulse.tech";
+const TITLE = "My Studio Pulse: Recording Studio App for iPhone";
 const DESCRIPTION =
-  "Clock in from the Lock Screen, run the day's sessions, prep the room and check the money without leaving it. Free on the App Store for studios already running Pulse.";
+  "Free iPhone app for recording studios on Pulse: clock in from the Lock Screen, run today's sessions, check the patch bay and what clients owe. On the App Store.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -30,25 +34,40 @@ export const metadata: Metadata = {
     description: DESCRIPTION,
     url: "/mobile",
     type: "website",
+    siteName: "Pulse",
   },
   twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION },
 };
 
+/* Structured data for the app itself. Price 0 is a fact the copy also states;
+   nothing here names a plan or a tier. */
+const APP_JSON_LD = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "My Studio Pulse",
+  applicationCategory: "BusinessApplication",
+  operatingSystem: "iOS 17 or later",
+  offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+  installUrl: APP_STORE_URL,
+  url: `${SITE_URL}/mobile`,
+  description: DESCRIPTION,
+  publisher: { "@type": "Organization", name: "Pulse", url: SITE_URL },
+};
 
 type Capability = { icon: LucideIcon; label: string; note: string };
 
-/* What the app actually does, in the order a studio meets it: the shift, the
-   day, the room, the money, the people. Every line is a screen that exists. */
+/* What the app does, in the order a studio meets it: the shift, the day, the
+   room, the money, the people. Every line is a screen that exists. */
 const CAPABILITIES: Capability[] = [
   {
     icon: Clock,
     label: "Today",
-    note: "Clock in and out with one tap. The running shift shows in the Dynamic Island and on the Lock Screen, so clocking out never needs the app open.",
+    note: "Clock in and out with one tap. The running shift shows in the Dynamic Island and on the Lock Screen, so you can clock out without opening the app.",
   },
   {
     icon: CalendarDays,
     label: "Schedule",
-    note: "Seven days of sessions across every room. Confirm, reschedule, extend or assign an engineer from the session itself.",
+    note: "Seven days of studio sessions across every room. Confirm, reschedule, extend or assign an engineer from the session itself.",
   },
   {
     icon: ListChecks,
@@ -58,12 +77,12 @@ const CAPABILITIES: Capability[] = [
   {
     icon: Cable,
     label: "Patch",
-    note: "Every device in the room, every input and output, and what is connected to what. Change a connection here and the studio's record changes.",
+    note: "The patch bay for every room: each device, its inputs and outputs, and what is connected to what. Change a connection on the phone and the studio’s record changes with it.",
   },
   {
     icon: Receipt,
     label: "Money",
-    note: "Bookings, invoices and payments at a glance. Record a payment, send a reminder or capture a receipt without sitting down.",
+    note: "Bookings, invoices and payments at a glance. Record a payment, send a reminder or capture a receipt without sitting down at a desk.",
   },
   {
     icon: Users,
@@ -84,25 +103,34 @@ function Spec({ k, v }: { k: string; v: string }) {
 export default function IosPage() {
   return (
     <main className="bg-ink text-bone">
+      <script
+        type="application/ld+json"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(APP_JSON_LD).replace(/</g, "\\u003c") }}
+      />
+
       {/* ---------- Hero ---------- */}
       <section className="mx-auto w-full max-w-6xl px-5 pb-20 pt-16 sm:pt-24">
         <div className="grid items-center gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16">
           <div className="flex flex-col items-start gap-7">
             <p className="font-meta text-[0.6875rem] uppercase tracking-[0.18em] text-gold">
-              Now on the App Store
+              My Studio Pulse &middot; Now on the App Store
             </p>
 
-            {/* Anton is condensed and very wide at display sizes; a manual
-                break here fought the wrap and produced a three-line stagger.
-                Let it flow inside a measure sized for it. */}
-            <h1 className="max-w-[11ch] font-chrome text-[clamp(2.6rem,6.4vw,4.5rem)] uppercase leading-[0.86] tracking-[-0.005em] text-bone">
-              Run the room from your pocket
+            {/* chrome-display is the site's Anton setting. Its caps are nearly a
+                full em tall, so the tight hand-rolled leading this page used to
+                carry made the lines collide; 1.06 keeps a clear gap without
+                opening the block up into three separate words. */}
+            <h1
+              className="chrome-display max-w-[14ch] text-balance text-[clamp(2.6rem,6vw,4.25rem)] text-bone"
+              style={{ lineHeight: 1.06 }}
+            >
+              Run the studio from your iPhone
             </h1>
 
             <p className="max-w-[46ch] text-base leading-relaxed text-steel sm:text-lg">
-              My Studio Pulse is the staff app for studios already running Pulse. Clock in from
-              the Lock Screen, work the day&rsquo;s sessions, prep the room and check the money
-              without going back to a desk.
+              My Studio Pulse is the free iPhone app for recording studios that run on Pulse.
+              Clock in from the Lock Screen, work today&rsquo;s sessions, prep the room and check
+              what a client owes, on the same account you use on the web.
             </p>
 
             <DownloadBlock />
@@ -111,14 +139,14 @@ export default function IosPage() {
               <Spec k="Price" v="Free" />
               <Spec k="Requires" v="iOS 17 or later" />
               <Spec k="Built for" v="iPhone" />
-              <Spec k="Offline" v="Edits queue and sync" />
+              <Spec k="Offline" v="Keeps working, syncs later" />
             </dl>
           </div>
 
           <div className="relative w-full">
             <StudioMockup />
             <p className="mt-4 font-meta text-[0.625rem] uppercase tracking-[0.14em] text-slate">
-              The real build, recorded on a physical iPhone
+              The shipping app, recorded on an iPhone
             </p>
           </div>
         </div>
@@ -127,16 +155,16 @@ export default function IosPage() {
       {/* ---------- What it does ---------- */}
       <section className="border-t border-hairline bg-ink-2">
         <div className="mx-auto w-full max-w-6xl px-5 py-20 sm:py-24">
-          <header className="flex max-w-2xl flex-col gap-3">
+          <header className="flex max-w-2xl flex-col gap-4">
             <p className="font-meta text-[0.6875rem] uppercase tracking-[0.18em] text-slate">
               What it does
             </p>
-            <h2 className="font-grotesk text-2xl font-bold tracking-tight text-bone sm:text-3xl">
-              Everything you reach for mid-session.
+            <h2 className="chrome-display text-balance text-4xl text-bone sm:text-5xl">
+              The studio day, from clock-in to invoice
             </h2>
             <p className="text-sm leading-relaxed text-steel">
-              The same workspace the studio runs on the web, with the same permissions, so an
-              engineer sees the session and an owner sees the money.
+              It is the same studio workspace as the web app, with the same permissions: an
+              engineer sees the session, an owner also sees the money.
             </p>
           </header>
 
@@ -162,22 +190,26 @@ export default function IosPage() {
       {/* ---------- Access ---------- */}
       <section className="border-t border-hairline">
         <div className="mx-auto flex w-full max-w-6xl flex-col gap-10 px-5 py-20 sm:py-24 lg:flex-row lg:items-center lg:justify-between">
-          <div className="flex max-w-xl flex-col gap-4">
-            <h2 className="font-grotesk text-2xl font-bold tracking-tight text-bone sm:text-3xl">
-              You need a studio account first.
+          <div className="flex max-w-xl flex-col gap-5">
+            <h2 className="chrome-display text-balance text-4xl text-bone sm:text-5xl">
+              You need a studio account first
             </h2>
             <p className="text-sm leading-relaxed text-steel">
-              The app signs you in to your studio&rsquo;s workspace, so there has to be one. Owners
-              and managers invite their team from More &rsaquo; Team, or on the web. If your studio
-              already runs Pulse, ask whoever set it up to send you an invite, then come back and
-              download it.
+              The app signs you in to your studio&rsquo;s workspace, so there has to be one. An
+              owner or manager invites you from the web app, and the invitation links your login to
+              your seat on the team. If your studio already runs Pulse, ask whoever set it up for
+              an invite, then come back and download the app.
             </p>
             <p className="text-sm leading-relaxed text-steel">
               Not on Pulse yet?{" "}
+              <Link href="/" className="text-gold underline-offset-4 hover:underline">
+                See what Pulse runs for a recording studio
+              </Link>
+              , or{" "}
               <Link href="/support" className="text-gold underline-offset-4 hover:underline">
-                Talk to us
+                talk to us
               </Link>{" "}
-              and we&rsquo;ll set your studio up.
+              and we will set your studio up.
             </p>
           </div>
 
