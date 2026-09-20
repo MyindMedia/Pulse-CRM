@@ -5,12 +5,12 @@ import { LandingNav } from "./landing-nav";
 import { Hero } from "./hero";
 import { Chain } from "./chain";
 import { Features } from "./features";
+import { MobileAppSection } from "./mobile-app";
 import { LogoMarquee } from "./logo-marquee";
 import { Pricing } from "./pricing";
 import { PRICING_LIVE } from "./pricing-tiers";
 import { Contact } from "./contact";
 import { Faq } from "./faq";
-import { FinalCta } from "./cta";
 import { Footer } from "./footer";
 
 /** The public Pulse marketing site, served at the root URL for logged-out
@@ -30,12 +30,12 @@ export function LandingPage() {
         <Hero />
         <Chain />
         <Features />
+        <MobileAppSection />
         <LogoMarquee />
         {/* Off until prices go public - see PRICING_LIVE in ./pricing-tiers. */}
         {PRICING_LIVE && <Pricing />}
         <Contact />
         <Faq />
-        <FinalCta />
       </main>
       <Footer />
     </div>

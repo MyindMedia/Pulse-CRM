@@ -4,15 +4,15 @@ import { Reveal } from "./reveal";
 import { DownloadBlock } from "./download-block";
 import { StudioMockup } from "./studio-mockup";
 
-/* The closing section: the iPhone app, inside the same gold-edged, glowing
- * container the site has always ended on. The photograph on the right is the
+/* The iPhone app, inside the gold-edged, glowing container that used to close
+ * the page and now follows the features section. The photograph on the right is the
  * /mobile hero (the real app playing in a phone on a studio desk), cropped
  * tight on the phone: the figure is laid out at 260% of its column and
  * offset so the handset sits centred in a 4:5 window. The mockup component
  * measures its own box, so a plain width and offset keep its screen mapping
  * exact; a CSS scale would not. */
 
-export function FinalCta() {
+export function MobileAppSection() {
   return (
     <section className="relative px-4 py-24 lg:px-8">
       <Reveal className="mx-auto max-w-5xl">
