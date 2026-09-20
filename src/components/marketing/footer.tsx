@@ -36,7 +36,7 @@ export function Footer() {
           <PulseLogo size="md" href="/" variant="footer" />
           <p className="font-grotesk max-w-xs text-sm text-mist/75">
             The operating system for recording studios. Bookings, rooms, staff,
-            inventory and payments, automated.
+            inventory and payments, with the busywork automated.
           </p>
         </div>
 

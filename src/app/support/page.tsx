@@ -28,9 +28,9 @@ export default function Support() {
       <Section heading="Signing in">
         <p>
           Pulse uses the same account on the web and in the iPhone app. Sign in with the email a
-          studio invited, with your phone number, with Google, or with Apple on iPhone. A code is
-          sent to the address or number on the account; check spam once, then ask us and we will
-          resend the invitation.
+          studio invited, with your phone number, with Google, or with Apple on iPhone. Pulse sends
+          a code to the address or number on the account; check spam once, then ask us and we
+          will resend the invitation.
         </p>
         <p>
           If the app says you are not on any studio&rsquo;s team, the studio owner adds you from

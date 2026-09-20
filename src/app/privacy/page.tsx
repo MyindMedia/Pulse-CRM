@@ -34,30 +34,30 @@ export default function PrivacyPolicy() {
         <p>We collect only what is needed to run a studio&rsquo;s bookings and communications:</p>
         <ul className="list-disc space-y-1.5 pl-5">
           <li>
-            <strong className="text-mist">Contact details</strong> - name, email address, and mobile
+            <strong className="text-mist">Contact details</strong>: name, email address, and mobile
             phone number, provided by you when you book a session, accept a staff invitation, or
             create an account.
           </li>
           <li>
-            <strong className="text-mist">Booking information</strong> - sessions, rooms, times,
+            <strong className="text-mist">Booking information</strong>: sessions, rooms, times,
             add-ons, and related notes.
           </li>
           <li>
-            <strong className="text-mist">Payment information</strong> - processed by Stripe. We do
+            <strong className="text-mist">Payment information</strong>: processed by Stripe. We do
             not store full card numbers on our systems.
           </li>
           <li>
-            <strong className="text-mist">Bank and card data</strong> - when a studio connects its
+            <strong className="text-mist">Bank and card data</strong>: when a studio connects its
             business accounts through Plaid: account names, the last four digits, balances, and
             transactions. You sign in to your bank inside Plaid, so Pulse never receives bank
             usernames, passwords, or full account numbers.
           </li>
           <li>
-            <strong className="text-mist">Receipts</strong> - photos or PDFs that studio staff upload,
+            <strong className="text-mist">Receipts</strong>: photos or PDFs that studio staff upload,
             and the vendor, date, total, tax, and last four card digits read from them.
           </li>
           <li>
-            <strong className="text-mist">Technical data</strong> - IP address, device and browser
+            <strong className="text-mist">Technical data</strong>: IP address, device and browser
             type, and log data used to keep the service secure and working.
           </li>
         </ul>
@@ -112,24 +112,24 @@ export default function PrivacyPolicy() {
         </p>
         <ul className="list-disc space-y-1.5 pl-5">
           <li>
-            Plaid - connecting a studio&rsquo;s bank and card accounts and retrieving balances and
+            Plaid: connecting a studio&rsquo;s bank and card accounts and retrieving balances and
             transactions for its books. Plaid&rsquo;s handling of your bank data is described in the
             Plaid End User Privacy Policy shown when you connect.
           </li>
-          <li>HighLevel (LeadConnector) - delivery of text messages.</li>
-          <li>Resend - delivery of email, such as invitations, reminders, and invoices.</li>
-          <li>Stripe - payment processing.</li>
-          <li>Clerk - account authentication, including sign-in with Google or Apple when you choose it.</li>
-          <li>Convex and Netlify - application hosting and data storage.</li>
+          <li>HighLevel (LeadConnector): delivery of text messages.</li>
+          <li>Resend: delivery of email, such as invitations, reminders, and invoices.</li>
+          <li>Stripe: payment processing.</li>
+          <li>Clerk: account authentication, including sign-in with Google or Apple when you choose it.</li>
+          <li>Convex and Netlify: application hosting and data storage.</li>
           <li>
-            OpenAI - AI features in Pulse, such as drafted client replies, session recaps, weekly
+            OpenAI: AI features in Pulse, such as drafted client replies, session recaps, weekly
             briefings, and receipt reading when configured. Bank transactions and balances are never sent to
             OpenAI. Only the studio records a request needs, which can include client names
             and session details, are sent to OpenAI&rsquo;s API, and OpenAI does not use data sent
             through its API to train its models.
           </li>
           <li>
-            Google - Gemini reads uploaded receipt images and PDFs through its paid API to extract
+            Google: Gemini reads uploaded receipt images and PDFs through its paid API to extract
             vendor, date, amounts, currency, and the last four card digits. Google does not use
             these paid API inputs or responses to improve its products; limited retention for abuse
             prevention and legal obligations can apply. Bank transactions, balances, and bank access
@@ -138,11 +138,11 @@ export default function PrivacyPolicy() {
             account, to send its email and keep its calendar in sync.
           </li>
           <li>
-            Ollama - looking up audio equipment specifications by make and model. No personal
+            Ollama: looking up audio equipment specifications by make and model. No personal
             information is sent.
           </li>
           <li>
-            Apple Push Notification service - delivery of alerts to the Pulse iPhone app. The app
+            Apple Push Notification service: delivery of alerts to the Pulse iPhone app. The app
             sends Apple&rsquo;s push token for your device and the device&rsquo;s name so that
             shift and clock alerts reach the right phone. Browser alerts use your browser&rsquo;s
             push service the same way.

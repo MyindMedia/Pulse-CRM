@@ -44,8 +44,8 @@ export default function StudiosPage() {
           Real rooms, real rates, real open dates.
         </h1>
         <p className="mt-3 text-sm leading-relaxed text-steel">
-          Every studio here runs on Pulse, so the availability is the actual calendar and
-          the booking goes straight to them. No commission, no middleman.
+          Every studio here runs on Pulse, so the open dates come from its live calendar and
+          the booking goes straight to the studio, with no commission taken.
         </p>
       </header>
 

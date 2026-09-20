@@ -25,7 +25,7 @@ const SHARE_DESC =
   "Internal fact sheet. Everything Pulse does today, in plain words, with the plan that unlocks each part.";
 
 export const metadata: Metadata = {
-  title: "Pulse - Sales enablement",
+  title: "Sales enablement | Pulse",
   description: SHARE_DESC,
   // The primary address for anything anyone shares is studiopulse.tech.
   metadataBase: new URL("https://studiopulse.tech"),
@@ -85,13 +85,12 @@ export default async function MyPulsePage() {
           <h1 className="chrome-display chrome-fill mt-3 text-[2.6rem] leading-[1.05] sm:text-[3.6rem]">
             Everything Pulse
             <br />
-            actually does
+            does today
           </h1>
           <p className="mt-5 max-w-2xl text-[0.975rem] leading-relaxed text-ash">
-            Every part of Pulse that is built and working today, written in plain words.
-            These are the facts of the system. The words you sell it with are yours to
-            write. Open a section to read it, or use the search box. Everything here is
-            built and working except the list at the bottom, which is marked as not built.
+            Every part of Pulse that is built and working today, in plain words. The words
+            you sell it with are yours to write. Open a section to read it, or use the search
+            box. The one exception is the list at the bottom, which is marked as not built.
           </p>
 
           <dl className="mt-9 grid grid-cols-2 gap-px overflow-hidden rounded-chrome border border-hairline bg-hairline sm:grid-cols-4">
@@ -201,12 +200,11 @@ export default async function MyPulsePage() {
         <section className="mt-16">
           <div className="flex items-center gap-2">
             <ShieldAlert className="size-4 text-caution" />
-            <Overline tone="caution">Not built yet. These do not exist.</Overline>
+            <Overline tone="caution">Not built yet</Overline>
           </div>
           <p className="mt-3 max-w-2xl text-[0.975rem] leading-relaxed text-ash">
-            These are on the list but they are not built. They are here so nobody
-            describes them as if they work. If a customer needs one of them, tell us, and
-            never give anyone a date.
+            These are on the list and not built. They are here so nobody describes them
+            as working. If a customer needs one, tell us, and never give anyone a date.
           </p>
           <div className="mt-5 space-y-2.5">
             {ROADMAP.map((r) => (

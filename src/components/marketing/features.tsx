@@ -32,7 +32,7 @@ const FEATURES = [
     icon: Boxes,
     title: "Inventory tracking",
     blurb:
-      "Track every mic, plugin and piece of furniture, check gear out to rooms and sessions, and stay ahead of each license renewal, repair and asset value.",
+      "Track every mic, plugin and piece of furniture, check gear out to rooms and sessions, see license renewals and repairs coming, and know what each item is worth.",
   },
   {
     icon: Music2,
@@ -44,7 +44,7 @@ const FEATURES = [
     icon: Receipt,
     title: "Payments and cash flow",
     blurb:
-      "Invoices, deposits and revenue in one place, so you always know what is owed, what is overdue and where money is leaking.",
+      "Invoices, deposits and revenue in one place, so you always know what is owed and what is overdue.",
   },
 ];
 
@@ -56,7 +56,7 @@ export function Features() {
         <Reveal className="mx-auto max-w-2xl text-center">
           <p className="chrome-meta text-slate">Recording studio management software</p>
           <h2 className="chrome-display chrome-fill-dark mt-4 text-4xl sm:text-5xl">
-            Run the <span className="not-italic text-gold-deep">whole</span> studio, not ten apps
+            Run the <span className="not-italic text-gold-deep">whole</span> studio from one place
           </h2>
           <p className="font-grotesk mt-5 text-[17px] font-medium leading-relaxed tracking-[-0.01em] text-slate">
             Bookings, scheduling, inventory, payments and song rights live in one

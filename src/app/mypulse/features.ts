@@ -240,7 +240,7 @@ export const SECTIONS: Section[] = [
     note: "Emails to clients can go out from Pulse, or from the studio's own Gmail. The studio picks which.",
     items: [
       { name: "Email that works on day one", desc: "Pulse sends the studio's client emails from the first minute, and the studio does not have to set anything up first.", tier: "Studio" },
-      { name: "Text messages", desc: "Texting, with the phone company paperwork already done, so the messages actually arrive instead of being blocked.", tier: "Studio" },
+      { name: "Text messages", desc: "Texting, with the phone company paperwork already done, so the messages arrive instead of being blocked.", tier: "Studio" },
       { name: "STOP means stop", desc: "If someone replies STOP, they stop getting texts for good, and Pulse writes that down.", tier: "Studio" },
       { name: "Reminders before the session", desc: "2 days before, 1 day before, and 2 hours before. Reminders cut missed sessions more than any other setting in the app.", tier: "Studio" },
       { name: "The conversation stays with the client", desc: "Messages are saved under the client's name in the app, where any member of staff can open them.", tier: "Studio" },
@@ -330,7 +330,7 @@ export const ROADMAP: Roadmap[] = [
   {
     kind: "Big bet",
     title: "A public list of studios on Pulse",
-    what: "A free page anyone can search, showing every studio using Pulse and the hours they actually have free. Artists find a studio and book it there and then.",
+    what: "A free page anyone can search, showing every studio using Pulse and the hours they have free. Artists find a studio and book it there and then.",
     why: "Today Pulse is a cost to the studio. This would make it bring work in, which is the thing every owner says they need.",
   },
   {

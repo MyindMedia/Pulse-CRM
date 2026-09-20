@@ -3,9 +3,9 @@ import Link from "next/link";
 import { Check, X, Clock, ShieldCheck } from "lucide-react";
 
 export const metadata: Metadata = {
-  title: "Pulse vs StudioHero: an honest comparison",
+  title: "Pulse vs StudioHero: cost and commitment, compared",
   description:
-    "Month to month against an annual contract, everything included against paid add-ons. What each one actually costs a recording studio.",
+    "Month to month against an annual contract, everything included against paid add-ons. What each one costs a recording studio.",
 };
 
 /* The comparison page.
@@ -76,15 +76,15 @@ export default function ComparisonPage() {
   return (
     <main className="mx-auto w-full max-w-3xl px-5 py-14 sm:py-20">
       <p className="font-meta text-[0.6875rem] uppercase tracking-[0.16em] text-gold">
-        An honest comparison
+        Pulse vs StudioHero
       </p>
       <h1 className="mt-3 font-grotesk text-3xl font-bold tracking-tight text-bone sm:text-4xl">
         Pulse against the incumbent
       </h1>
       <p className="mt-4 max-w-2xl text-sm leading-relaxed text-steel">
         Most studios look at this the morning after a bad week: a no-show Friday, an invoice
-        nobody chased, two artists booked into the same room. So here is the plain version, on
-        the two things that actually decide it. What it costs, and how long you are tied in.
+        nobody chased, two artists booked into the same room. The two things that decide it are
+        what it costs and how long you are tied in.
       </p>
 
       <div className="mt-9 overflow-x-auto">
@@ -128,9 +128,9 @@ export default function ComparisonPage() {
 
       <p className="mt-4 text-[0.7rem] leading-relaxed text-steel/60">
         Figures are from each product&apos;s published pricing at the time of writing. If any of it
-        has changed, tell us and we will correct this page. We are not going to tell you their
-        software is bad; plenty of studios run on it happily. We think the contract and the
-        add-on pricing are the wrong shape for a room that has quiet months.
+        has changed, tell us and we will correct this page. Plenty of studios run on their
+        software happily. Our objection is to the contract and the add-on pricing, which are the
+        wrong shape for a room that has quiet months.
       </p>
 
       {/* The migration guarantee, stated where the decision is made. */}

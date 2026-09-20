@@ -1,9 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CalendarDays, Cable, Clock, ListChecks, Receipt, Users, type LucideIcon } from "lucide-react";
-import { DownloadBlock } from "./download-block";
-import { APP_STORE_URL } from "./app-store";
-import { StudioMockup } from "./studio-mockup";
+import { DownloadBlock } from "@/components/marketing/download-block";
+import { APP_STORE_URL } from "@/components/marketing/app-store";
+import { StudioMockup } from "@/components/marketing/studio-mockup";
 
 /* studiopulse.tech/mobile - the download page for My Studio Pulse, the iPhone
  * app for studios that run on Pulse.

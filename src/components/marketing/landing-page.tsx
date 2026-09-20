@@ -5,7 +5,6 @@ import { LandingNav } from "./landing-nav";
 import { Hero } from "./hero";
 import { Chain } from "./chain";
 import { Features } from "./features";
-import { WorkSection } from "./work-section";
 import { LogoMarquee } from "./logo-marquee";
 import { Pricing } from "./pricing";
 import { PRICING_LIVE } from "./pricing-tiers";
@@ -31,7 +30,6 @@ export function LandingPage() {
         <Hero />
         <Chain />
         <Features />
-        <WorkSection />
         <LogoMarquee />
         {/* Off until prices go public - see PRICING_LIVE in ./pricing-tiers. */}
         {PRICING_LIVE && <Pricing />}

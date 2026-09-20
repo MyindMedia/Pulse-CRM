@@ -24,7 +24,7 @@ const toMin = (s: string) => { const [h, m] = s.split(":").map(Number); return h
 type Slot = { weekday: number; startMinutes: number; endMinutes: number };
 type StepKey = "intro" | "photo" | "availability";
 const STEPS: { key: StepKey; title: string; blurb: string }[] = [
-  { key: "intro", title: "Welcome to the team", blurb: "Here's what your role can do in Pulse." },
+  { key: "intro", title: "Welcome to the team", blurb: "What your role can do in Pulse." },
   { key: "photo", title: "Add your photo", blurb: "So the team knows who's who across sessions and the schedule." },
   { key: "availability", title: "Your weekly availability", blurb: "Set the hours you usually work so you get scheduled right." },
 ];
@@ -46,7 +46,7 @@ export default function WelcomeTeamPage() {
           <PulseLogo className="mx-auto h-7" />
           <p className="text-sm text-steel">
             We couldn&apos;t link your profile to your login yet. If you just accepted an invite, give
-            it a moment and refresh - or ask your studio to re-send your invite.
+            it a moment and refresh, or ask your studio to resend your invite.
           </p>
           <WelcomeTeamSkip />
         </div>
@@ -174,7 +174,7 @@ function Wizard({
               <div className="space-y-2">
                 {editable.length === 0 && (
                   <p className="rounded-md border border-graphite/50 bg-coal/40 px-3 py-2 text-xs text-steel/70">
-                    No hours yet. Add the days you usually work - you can change this anytime from the Schedule page.
+                    No hours yet. Add the days you usually work. You can change this any time from the Schedule page.
                   </p>
                 )}
                 {editable.map((s, i) => (
