@@ -105,7 +105,7 @@ export default function StudioPage() {
             label="In maintenance"
             value={<CountUp to={counts.maintenance} />}
             icon={Wrench}
-            hint="off the floor"
+            hint="out of service"
           />
           <StatTile
             label="Team size"

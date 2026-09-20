@@ -49,7 +49,7 @@ export function ManagersMoneyPanel({ org }: { org: Org }) {
               <p className="text-xs text-steel">
                 Off, managers still run bookings, the schedule and the team, but see no invoices,
                 payments, rates, deposits, payroll, expenses or reports, here or on their phones.
-                Engineers and the rest of the floor never see money. Owners always do.
+                Engineers and assistants never see money. Owners always do.
               </p>
             </div>
           </div>

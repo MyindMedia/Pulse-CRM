@@ -19,7 +19,7 @@ import { StudioMockup } from "./studio-mockup";
 
 const TITLE = "My Studio Pulse for iPhone";
 const DESCRIPTION =
-  "The studio floor in your pocket. Clock in from the Lock Screen, run the day's sessions, prep the room and check the money. Free on the App Store for studios already running Pulse.";
+  "Clock in from the Lock Screen, run the day's sessions, prep the room and check the money without leaving it. Free on the App Store for studios already running Pulse.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -96,7 +96,7 @@ export default function IosPage() {
                 break here fought the wrap and produced a three-line stagger.
                 Let it flow inside a measure sized for it. */}
             <h1 className="max-w-[11ch] font-chrome text-[clamp(2.6rem,6.4vw,4.5rem)] uppercase leading-[0.86] tracking-[-0.005em] text-bone">
-              The studio floor, in your pocket
+              Run the room from your pocket
             </h1>
 
             <p className="max-w-[46ch] text-base leading-relaxed text-steel sm:text-lg">
@@ -132,7 +132,7 @@ export default function IosPage() {
               What it does
             </p>
             <h2 className="font-grotesk text-2xl font-bold tracking-tight text-bone sm:text-3xl">
-              The floor, not the back office.
+              Everything you reach for mid-session.
             </h2>
             <p className="text-sm leading-relaxed text-steel">
               The same workspace the studio runs on the web, with the same permissions, so an

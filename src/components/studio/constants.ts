@@ -197,7 +197,7 @@ export const MEMBER_ROLES: { value: MemberRole; label: string; blurb: string }[]
   {
     value: "engineer",
     label: "Engineer",
-    blurb: "Works the floor - runs sessions, logs takes and updates song progress.",
+    blurb: "Runs sessions, logs takes and updates song progress.",
   },
   {
     value: "assistant_engineer",
