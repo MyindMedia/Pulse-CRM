@@ -33,6 +33,7 @@ const isPublicRoute = createRouteMatcher([
   "/privacy",
   "/terms",
   "/support", // the App Store listing's support URL - App Review opens it signed out
+  "/mobile", // the App Store download page - must be reachable signed out and scrapeable
   "/.well-known/apple-app-site-association", // iOS Universal Link verification
   "/plaid/oauth", // native bank OAuth returns without requiring a web login
   "/sign-in(.*)",
