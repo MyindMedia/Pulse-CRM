@@ -44,7 +44,7 @@ const FEATURES = [
     icon: Receipt,
     title: "Payments and cash flow",
     blurb:
-      "Invoices, deposits and revenue in one place, so you always know what is owed and what is overdue.",
+      "Invoices, deposits and revenue in one place, with your bank balances beside them. Snap a receipt and Pulse matches it to the transaction and the expense, then builds the profit and loss from all of it.",
   },
 ];
 

@@ -23,7 +23,7 @@ import { StudioMockup } from "@/components/marketing/studio-mockup";
 const SITE_URL = "https://studiopulse.tech";
 const TITLE = "My Studio Pulse: Recording Studio App for iPhone";
 const DESCRIPTION =
-  "Free iPhone app for recording studios on Pulse: clock in from the Lock Screen, run today's sessions, check the patch bay and what clients owe. On the App Store.";
+  "Free iPhone app for recording studios on Pulse: your team clocks in from the Lock Screen and runs today's sessions; you see balances, receipts and the P&L. On the App Store.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -62,7 +62,7 @@ const CAPABILITIES: Capability[] = [
   {
     icon: Clock,
     label: "Today",
-    note: "Clock in and out with one tap. The running shift shows in the Dynamic Island and on the Lock Screen, so you can clock out without opening the app.",
+    note: "Your team clocks in and out with one tap. The running shift shows on their Lock Screen and in the Dynamic Island, and you see who is actually in.",
   },
   {
     icon: CalendarDays,
@@ -77,12 +77,12 @@ const CAPABILITIES: Capability[] = [
   {
     icon: Cable,
     label: "Patch",
-    note: "The patch bay for every room: each device, its inputs and outputs, and what is connected to what. Change a connection on the phone and the studio’s record changes with it.",
+    note: "The patch bay for every room: each device, its inputs and outputs, and what is connected to what. A connection changed on the phone updates the studio’s record.",
   },
   {
     icon: Receipt,
     label: "Money",
-    note: "Bookings, invoices and payments at a glance. Record a payment, send a reminder or capture a receipt without sitting down at a desk.",
+    note: "Bank balances next to what is due today, invoices and payments. Snap a receipt and Pulse reads it and matches it to the bank transaction and the expense; the profit and loss report is built from the same figures.",
   },
   {
     icon: Users,
@@ -129,8 +129,9 @@ export default function IosPage() {
 
             <p className="max-w-[46ch] text-base leading-relaxed text-steel sm:text-lg">
               My Studio Pulse is the free iPhone app for recording studios that run on Pulse.
-              Clock in from the Lock Screen, work today&rsquo;s sessions, prep the room and check
-              what a client owes, on the same account you use on the web.
+              Your team clocks in from the Lock Screen, works today&rsquo;s sessions and preps the
+              room from their pockets. You see who is in, what each client owes and the money as it
+              moves, on the same accounts you use on the web.
             </p>
 
             <DownloadBlock />
@@ -160,7 +161,7 @@ export default function IosPage() {
               What it does
             </p>
             <h2 className="chrome-display text-balance text-4xl text-bone sm:text-5xl">
-              The studio day, from clock-in to invoice
+              The studio day, from clock-in to P&amp;L
             </h2>
             <p className="text-sm leading-relaxed text-steel">
               It is the same studio workspace as the web app, with the same permissions: an
