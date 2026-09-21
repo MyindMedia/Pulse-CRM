@@ -128,11 +128,24 @@ export function Hero() {
               { autoAlpha: 1, duration: 1.0 },
               "-=0.5",
             )
+            // The swing is the entrance; the opacity ramp is only there so
+            // nothing flashes before GSAP owns the element. It used to run
+            // the full 1.1s, and a near-black frame on a near-black page is
+            // invisible below ~60% opacity while the white text and gold
+            // chart on the screen read at 20%, so the screen appeared to
+            // arrive before the monitor around it. A quarter-second ramp
+            // makes frame and screen appear as one object.
             .fromTo(
               "[data-hero-monitor]",
-              { scale: 0.55, opacity: 0, rotateY: 84 },
-              { ...settle, opacity: 1, duration: 1.1, ease: "power2.out" },
+              { scale: 0.55, rotateY: 84 },
+              { ...settle, duration: 1.1, ease: "power2.out" },
               "-=0.7",
+            )
+            .fromTo(
+              "[data-hero-monitor]",
+              { opacity: 0 },
+              { opacity: 1, duration: 0.25, ease: "power1.out" },
+              "<",
             )
             .fromTo(
               "[data-hero-fade]",
