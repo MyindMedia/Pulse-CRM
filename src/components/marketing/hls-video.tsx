@@ -27,10 +27,20 @@ export function HlsVideo({
     if (!video) return;
 
     const isHls = src.endsWith(".m3u8");
-    // Plain file, or native HLS (Safari/iOS): point the element straight at it.
+    // Plain file, or native HLS (Safari/iOS): point the element straight at
+    // it, but only once the page has finished loading. This loop is
+    // decorative and sits at low opacity behind everything, so it must never
+    // compete with the hero's images for bandwidth during the first paint.
     if (!isHls || video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = src;
-      return;
+      const attach = () => {
+        video.src = src;
+      };
+      if (document.readyState === "complete") {
+        attach();
+        return;
+      }
+      window.addEventListener("load", attach, { once: true });
+      return () => window.removeEventListener("load", attach);
     }
 
     let cancelled = false;

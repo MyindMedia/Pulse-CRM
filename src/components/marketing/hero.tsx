@@ -24,6 +24,9 @@ const CAPABILITIES = [
   "Sessions", "Inventory", "Invoices", "Payments", "Automations",
 ];
 
+const MONITOR_SRC = "/monitor-stand.webp";
+const DESK_SRC = "/hero-scene.webp";
+
 export function Hero() {
   const root = React.useRef<HTMLElement>(null);
 
@@ -55,9 +58,25 @@ export function Hero() {
   }, []);
 
   useGSAP(
-    () => {
+    (_context, contextSafe) => {
       if (typeof window === "undefined") return;
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+      // The entrance fades the monitor group in as one unit, and that group is
+      // a rendered frame (an image) around a live DOM screen. If the timeline
+      // ran on its fixed timer the DOM screen would appear on cue while the
+      // frame was still downloading, then pop in around it. So the setup
+      // waits until the frame and the desk under it have DECODED, capped at
+      // 4s so a slow connection degrades to the old behaviour instead of a
+      // blank hero. The wait is subtracted from the entrance delay, so on a
+      // fast connection the timing against the SiteReveal wipe is unchanged.
+      const mountedAt = performance.now();
+      let started = false;
+      const setUp = () => {
+        if (started) return;
+        started = true;
+        const waited = (performance.now() - mountedAt) / 1000;
+        const entranceDelay = Math.max(0, 1.35 - waited);
 
       // The monitor's transform-origin is its BASE (bottom center), and the
       // desk render is sized + welded to that base in the markup, so every
@@ -92,7 +111,7 @@ export function Hero() {
           // monitor swivels up into its settle pose standing on the desk, then
           // the supporting copy/CTAs fade up. Delayed so it begins as the
           // SiteReveal columns wipe away.
-          const tl = gsap.timeline({ defaults: { ease: "power3.out" }, delay: 1.35 });
+          const tl = gsap.timeline({ defaults: { ease: "power3.out" }, delay: entranceDelay });
           tl.fromTo(
             "[data-hero-line]",
             { yPercent: 115, clipPath: "inset(0 0 100% 0)" },
@@ -253,12 +272,31 @@ export function Hero() {
           // and holds there - no rotation past flat, none during phase 2.
         },
       );
+      };
+      const build = contextSafe ? contextSafe(setUp) : setUp;
+
+      const stageImages = Array.from(
+        root.current?.querySelectorAll<HTMLImageElement>("[data-hero-stage] img") ?? [],
+      );
+      const settled = Promise.all(stageImages.map((img) => img.decode().catch(() => undefined)));
+      const cap = window.setTimeout(build, 4000);
+      void settled.then(build);
+      return () => {
+        started = true;
+        window.clearTimeout(cap);
+      };
     },
     { scope: root },
   );
 
   return (
     <>
+    {/* The monitor frame and the desk it stands on are the two images the
+        entrance waits for. React hoists these hints into <head>, so the
+        browser asks for them at the top of the waterfall instead of when the
+        parser reaches the stage markup. */}
+    <link rel="preload" as="image" href={MONITOR_SRC} fetchPriority="high" />
+    <link rel="preload" as="image" href={DESK_SRC} fetchPriority="high" />
     <section
       ref={root}
       className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-ink px-4 pb-24 pt-28 lg:px-8"
@@ -285,8 +323,12 @@ export function Hero() {
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
-            src="/speaker-main.png"
+            src="/speaker-main.webp"
             alt=""
+            width={418}
+            height={1200}
+            loading="lazy"
+            decoding="async"
             draggable={false}
             className="h-[min(64vh,580px)] w-auto"
             style={{
@@ -327,11 +369,14 @@ export function Hero() {
                 <span className="sr-only">Pulse</span>
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src="/pulse-logo-main.png"
+                  src="/pulse-logo-main.webp"
                   alt=""
                   aria-hidden
+                  width={1000}
+                  height={297}
+                  fetchPriority="high"
                   draggable={false}
-                  className="mx-auto block w-[clamp(10rem,32vw,28rem)] select-none"
+                  className="mx-auto block h-auto w-[clamp(10rem,32vw,28rem)] select-none"
                 />
               </span>
             </span>
@@ -381,7 +426,7 @@ export function Hero() {
             >
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
-                src="/hero-scene.webp"
+                src={DESK_SRC}
                 alt=""
                 draggable={false}
                 className="block w-full"
@@ -441,11 +486,15 @@ export function Hero() {
                 3D stand below, which rotates with the panel. */}
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
-              src="/monitor-stand.png"
+              src={MONITOR_SRC}
               alt=""
               aria-hidden
+              width={734}
+              height={573}
+              fetchPriority="high"
+              decoding="async"
               draggable={false}
-              className="block w-full select-none drop-shadow-[0_50px_120px_rgba(0,0,0,0.7)]"
+              className="block h-auto w-full select-none drop-shadow-[0_50px_120px_rgba(0,0,0,0.7)]"
               style={{ clipPath: "inset(0 0 21.6% 0)" }}
             />
             {/* CSS 3D stand. Geometry measured from the render: column 5% wide

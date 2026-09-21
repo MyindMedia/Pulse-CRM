@@ -144,7 +144,7 @@ export default function IosPage() {
           </div>
 
           <div className="relative w-full">
-            <StudioMockup />
+            <StudioMockup priority />
             <p className="mt-4 font-meta text-[0.625rem] uppercase tracking-[0.14em] text-slate">
               The shipping app, recorded on an iPhone
             </p>

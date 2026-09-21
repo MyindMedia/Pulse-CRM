@@ -145,7 +145,12 @@ function usePrefersReducedMotion() {
 
 const LIP_CLIP = `polygon(0 0, 100% 0, 100% ${(LIP_RIGHT * 100).toFixed(3)}%, 0 ${(LIP_LEFT * 100).toFixed(3)}%)`;
 
-export function StudioMockup() {
+/* `priority` is for the page where this IS the hero (/mobile): the photo is
+   fetched at high priority and the video buffers at once. Everywhere else the
+   photo lazy-loads and the video does not fetch a byte until the figure is
+   within 600px of the viewport, so a 1MB loop never competes with the page's
+   real first paint. */
+export function StudioMockup({ priority = false }: { priority?: boolean } = {}) {
   const reduced = usePrefersReducedMotion();
   const figureRef = React.useRef<HTMLElement>(null);
   const screenRef = React.useRef<HTMLDivElement>(null);
@@ -198,7 +203,7 @@ export function StudioMockup() {
         if (e.isIntersecting) void video.play().catch(() => {});
         else video.pause();
       },
-      { threshold: 0.05 },
+      { threshold: 0.05, rootMargin: "600px 0px" },
     );
     io.observe(fig);
 
@@ -212,7 +217,7 @@ export function StudioMockup() {
       io.disconnect();
       video.removeEventListener("canplay", onReady);
     };
-  }, [reduced]);
+  }, [reduced, priority]);
 
   return (
     <figure ref={figureRef} className="relative m-0 w-full overflow-hidden rounded-2xl">
@@ -222,6 +227,9 @@ export function StudioMockup() {
         alt="My Studio Pulse running on an iPhone in a wooden stand on a recording studio desk, with a guitarist and a mixing console out of focus behind it"
         width={2048}
         height={1151}
+        loading={priority ? "eager" : "lazy"}
+        fetchPriority={priority ? "high" : "auto"}
+        decoding="async"
         className="block h-auto w-full"
       />
 
@@ -240,11 +248,13 @@ export function StudioMockup() {
           ) : (
             <video
               ref={videoRef}
-              autoPlay
+              /* autoplay makes the browser fetch media regardless of preload,
+                 so below the fold the observer starts playback instead. */
+              autoPlay={priority}
               muted
               loop
               playsInline
-              preload="auto"
+              preload={priority ? "auto" : "none"}
               poster={POSTER_SRC}
               className="block size-full object-cover"
             >

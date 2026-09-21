@@ -364,7 +364,7 @@ export function DashboardSim({ start = 0 }: { start?: number }) {
       <aside className="flex w-[22%] flex-col gap-[0.3em] border-r border-graphite/50 bg-obsidian/90 p-[0.8em]">
         <div className="mb-[0.5em] flex items-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/pulse-logo-main.png" alt="" aria-hidden draggable={false} className="h-[1.15em] w-auto select-none" />
+          <img src="/pulse-logo-main.webp" alt="" aria-hidden draggable={false} className="h-[1.15em] w-auto select-none" />
         </div>
         {NAV.map((item, idx) => {
           const active = idx === navIdx;
