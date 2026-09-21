@@ -60,7 +60,7 @@ export function Footer() {
 
         <div>
           <p className="chrome-meta text-steel">Made by</p>
-          <p className="font-grotesk mt-4 text-sm text-mist/75">Lawrence &ldquo;ThaMyind&rdquo; Berment</p>
+          <p className="font-grotesk mt-4 whitespace-nowrap text-sm text-mist/75">Lawrence &ldquo;ThaMyind&rdquo; Berment</p>
         </div>
       </div>
 
