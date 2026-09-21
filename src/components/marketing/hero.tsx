@@ -125,26 +125,29 @@ export function Hero() {
             .fromTo(
               "[data-hero-ledge]",
               { autoAlpha: 0 },
-              { autoAlpha: 1, duration: 1.0 },
+              { autoAlpha: 1, duration: 0.5 },
               "-=0.5",
             )
-            // The swing is the entrance; the opacity ramp is only there so
-            // nothing flashes before GSAP owns the element. It used to run
-            // the full 1.1s, and a near-black frame on a near-black page is
-            // invisible below ~60% opacity while the white text and gold
-            // chart on the screen read at 20%, so the screen appeared to
-            // arrive before the monitor around it. A quarter-second ramp
-            // makes frame and screen appear as one object.
+            // The swing is the entrance. Three things keep the frame and the
+            // screen reading as ONE object while it happens:
+            //  - it starts with the desk (same instant), not 0.3s after it,
+            //    so the surface and the thing standing on it arrive together;
+            //  - it starts at 62 degrees, not 84: near edge-on, a dark frame
+            //    is a sliver on a dark page while the screen's white text and
+            //    gold chart still register, which read as "screen first";
+            //  - opacity snaps in over 0.1s. It only exists so nothing flashes
+            //    before GSAP owns the element; a longer ramp shows the bright
+            //    screen before the near-black frame around it.
             .fromTo(
               "[data-hero-monitor]",
-              { scale: 0.55, rotateY: 84 },
-              { ...settle, duration: 1.1, ease: "power2.out" },
-              "-=0.7",
+              { scale: 0.6, rotateY: 62 },
+              { ...settle, duration: 1.0, ease: "power2.out" },
+              "<",
             )
             .fromTo(
               "[data-hero-monitor]",
               { opacity: 0 },
-              { opacity: 1, duration: 0.25, ease: "power1.out" },
+              { opacity: 1, duration: 0.1, ease: "none" },
               "<",
             )
             .fromTo(
