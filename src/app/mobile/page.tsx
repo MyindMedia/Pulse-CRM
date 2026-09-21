@@ -23,7 +23,7 @@ import { StudioMockup } from "@/components/marketing/studio-mockup";
 const SITE_URL = "https://studiopulse.tech";
 const TITLE = "My Studio Pulse: Recording Studio App for iPhone";
 const DESCRIPTION =
-  "Free iPhone app for recording studios on Pulse: your team clocks in from the Lock Screen and runs today's sessions; you see balances, receipts and the P&L. On the App Store.";
+  "Free iPhone app for recording studios on Pulse: your team clocks in from their phones and tracks the schedule; you see balances, receipts and the P&L. On the App Store.";
 
 export const metadata: Metadata = {
   title: TITLE,
@@ -62,7 +62,7 @@ const CAPABILITIES: Capability[] = [
   {
     icon: Clock,
     label: "Today",
-    note: "Your team clocks in and out with one tap. The running shift shows on their Lock Screen and in the Dynamic Island, and you see who is actually in.",
+    note: "Your team clocks in and out from their phones with one tap, and you see who is actually in.",
   },
   {
     icon: CalendarDays,
@@ -129,9 +129,9 @@ export default function IosPage() {
 
             <p className="max-w-[46ch] text-base leading-relaxed text-steel sm:text-lg">
               My Studio Pulse is the free iPhone app for recording studios that run on Pulse.
-              Your team clocks in from the Lock Screen, works today&rsquo;s sessions and preps the
-              room from their pockets. You see who is in, what each client owes and the money as it
-              moves, on the same accounts you use on the web.
+              Your team clocks in from their phones, tracks the schedule and preps the room from
+              wherever they are. You see who is in, what each client owes and the money as it moves,
+              on the same accounts you use on the web.
             </p>
 
             <DownloadBlock />

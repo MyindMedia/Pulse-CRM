@@ -38,9 +38,9 @@ export function MobileAppSection() {
                 Run the studio from your iPhone
               </h2>
               <p className="font-grotesk max-w-[44ch] text-[17px] font-medium tracking-[-0.01em] text-mist/80">
-                The free iPhone app for studios on Pulse. Your team clocks in from the Lock Screen
-                and runs today&rsquo;s sessions from their pockets. You see bank balances, receipts
-                matched automatically and what each client owes, on the same accounts you use here.
+                The free iPhone app for studios on Pulse. Your team clocks in from their phones
+                and tracks the schedule. You see bank balances, receipts matched automatically and
+                what each client owes, on the same accounts you use here.
               </p>
 
               <DownloadBlock />
