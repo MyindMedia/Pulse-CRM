@@ -203,13 +203,13 @@ export default function IosPage() {
             <p className="text-sm leading-relaxed text-steel">
               Not on Pulse yet?{" "}
               <Link href="/" className="text-gold underline-offset-4 hover:underline">
-                See what Pulse runs for a recording studio
+                See what Pulse does
               </Link>
               , or{" "}
               <Link href="/support" className="text-gold underline-offset-4 hover:underline">
                 talk to us
               </Link>{" "}
-              and we will set your studio up.
+              and we will get your studio set up.
             </p>
           </div>
 
