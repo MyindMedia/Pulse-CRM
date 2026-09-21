@@ -58,25 +58,17 @@ export function Hero() {
   }, []);
 
   useGSAP(
-    (_context, contextSafe) => {
+    () => {
       if (typeof window === "undefined") return;
       if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
 
-      // The entrance fades the monitor group in as one unit, and that group is
-      // a rendered frame (an image) around a live DOM screen. If the timeline
-      // ran on its fixed timer the DOM screen would appear on cue while the
-      // frame was still downloading, then pop in around it. So the setup
-      // waits until the frame and the desk under it have DECODED, capped at
-      // 4s so a slow connection degrades to the old behaviour instead of a
-      // blank hero. The wait is subtracted from the entrance delay, so on a
-      // fast connection the timing against the SiteReveal wipe is unchanged.
+      // Everything that reacts to SCROLL is created right here, synchronously,
+      // so the pin and its spacer exist before SmoothScroll's refresh at
+      // 600ms and the window load refresh measure the page. Only the
+      // ENTRANCE waits (below) for the stage images to decode. Creating the
+      // pin late was what stalled the wheel: two viewports of pin spacer that
+      // Lenis had never measured.
       const mountedAt = performance.now();
-      let started = false;
-      const setUp = () => {
-        if (started) return;
-        started = true;
-        const waited = (performance.now() - mountedAt) / 1000;
-        const entranceDelay = Math.max(0, 1.35 - waited);
 
       // The monitor's transform-origin is its BASE (bottom center), and the
       // desk render is sized + welded to that base in the markup, so every
@@ -107,55 +99,64 @@ export function Hero() {
             monitorEl.style.willChange = "auto";
           }
 
-          // Entrance: headline lines clip + rise, the desk fades up, then the
-          // monitor swivels up into its settle pose standing on the desk, then
-          // the supporting copy/CTAs fade up. Delayed so it begins as the
-          // SiteReveal columns wipe away.
-          const tl = gsap.timeline({ defaults: { ease: "power3.out" }, delay: entranceDelay });
-          tl.fromTo(
-            "[data-hero-line]",
-            { yPercent: 115, clipPath: "inset(0 0 100% 0)" },
-            { yPercent: 0, clipPath: "inset(0 0 -10% 0)", duration: 0.9, stagger: 0.12 },
-          )
-            // The studio desk is visible from the start - it is the surface
-            // the monitor stands on, not a late-arriving backdrop. This is the
-            // ONLY tween that touches the ledge: a second (scrub) tween on the
-            // same property re-renders the hidden from-state when scrubbing
-            // backwards past it, blinking the desk out.
-            .fromTo(
-              "[data-hero-ledge]",
-              { autoAlpha: 0 },
-              { autoAlpha: 1, duration: 0.5 },
-              "-=0.5",
+          // The entrance is built once the frame, the desk and the sim's logo
+          // have DECODED (capped at 4s), so the DOM screen can never appear
+          // on cue while the frame is still downloading. The wait is
+          // subtracted from the entrance delay, so on a fast connection the
+          // timing against the SiteReveal wipe is unchanged.
+          const buildEntrance = () => {
+            // Entrance: headline lines clip + rise, the desk fades up, then the
+            // monitor swivels up into its settle pose standing on the desk, then
+            // the supporting copy/CTAs fade up. Delayed so it begins as the
+            // SiteReveal columns wipe away.
+            const waited = (performance.now() - mountedAt) / 1000;
+              const entranceDelay = Math.max(0, 1.35 - waited);
+              const tl = gsap.timeline({ defaults: { ease: "power3.out" }, delay: entranceDelay });
+            tl.fromTo(
+              "[data-hero-line]",
+              { yPercent: 115, clipPath: "inset(0 0 100% 0)" },
+              { yPercent: 0, clipPath: "inset(0 0 -10% 0)", duration: 0.9, stagger: 0.12 },
             )
-            // The swing is the entrance. Three things keep the frame and the
-            // screen reading as ONE object while it happens:
-            //  - it starts with the desk (same instant), not 0.3s after it,
-            //    so the surface and the thing standing on it arrive together;
-            //  - it starts at 62 degrees, not 84: near edge-on, a dark frame
-            //    is a sliver on a dark page while the screen's white text and
-            //    gold chart still register, which read as "screen first";
-            //  - opacity snaps in over 0.1s. It only exists so nothing flashes
-            //    before GSAP owns the element; a longer ramp shows the bright
-            //    screen before the near-black frame around it.
-            .fromTo(
-              "[data-hero-monitor]",
-              { scale: 0.6, rotateY: 62 },
-              { ...settle, duration: 1.0, ease: "power2.out" },
-              "<",
-            )
-            .fromTo(
-              "[data-hero-monitor]",
-              { opacity: 0 },
-              { opacity: 1, duration: 0.1, ease: "none" },
-              "<",
-            )
-            .fromTo(
-              "[data-hero-fade]",
-              { y: 24, opacity: 0 },
-              { y: 0, opacity: 1, duration: 0.7, stagger: 0.1 },
-              "-=0.6",
-            );
+              // The studio desk is visible from the start - it is the surface
+              // the monitor stands on, not a late-arriving backdrop. This is the
+              // ONLY tween that touches the ledge: a second (scrub) tween on the
+              // same property re-renders the hidden from-state when scrubbing
+              // backwards past it, blinking the desk out.
+              .fromTo(
+                "[data-hero-ledge]",
+                { autoAlpha: 0 },
+                { autoAlpha: 1, duration: 0.5 },
+                "-=0.5",
+              )
+              // The swing is the entrance. Three things keep the frame and the
+              // screen reading as ONE object while it happens:
+              //  - it starts with the desk (same instant), not 0.3s after it,
+              //    so the surface and the thing standing on it arrive together;
+              //  - it starts at 62 degrees, not 84: near edge-on, a dark frame
+              //    is a sliver on a dark page while the screen's white text and
+              //    gold chart still register, which read as "screen first";
+              //  - opacity snaps in over 0.1s. It only exists so nothing flashes
+              //    before GSAP owns the element; a longer ramp shows the bright
+              //    screen before the near-black frame around it.
+              .fromTo(
+                "[data-hero-monitor]",
+                { scale: 0.6, rotateY: 62 },
+                { ...settle, duration: 1.0, ease: "power2.out" },
+                "<",
+              )
+              .fromTo(
+                "[data-hero-monitor]",
+                { opacity: 0 },
+                { opacity: 1, duration: 0.1, ease: "none" },
+                "<",
+              )
+              .fromTo(
+                "[data-hero-fade]",
+                { y: 24, opacity: 0 },
+                { y: 0, opacity: 1, duration: 0.7, stagger: 0.1 },
+                "-=0.6",
+              );
+          };
 
           // Scroll scrub + pin handoff. Runs on BOTH desktop and mobile so the
           // monitor swings flat as you scroll on a phone too - just tuned so
@@ -286,21 +287,26 @@ export function Hero() {
             .to("[data-hero-glow]", { opacity: 0.12, ease: "none", duration: 0.6 }, 1.05);
           // The swing reaches dead-on flat (rotateY 0) at the END of phase 1
           // and holds there - no rotation past flat, none during phase 2.
+
+          let started = false;
+          const start = () => {
+            if (started) return;
+            started = true;
+            // ctx.add records the tweens in this matchMedia context so a
+            // breakpoint change or unmount reverts them with everything else.
+            ctx.add(buildEntrance);
+          };
+          const stageImages = Array.from(
+            root.current?.querySelectorAll<HTMLImageElement>("[data-hero-stage] img") ?? [],
+          );
+          void Promise.all(stageImages.map((img) => img.decode().catch(() => undefined))).then(start);
+          const cap = window.setTimeout(start, 4000);
+          return () => {
+            started = true;
+            window.clearTimeout(cap);
+          };
         },
       );
-      };
-      const build = contextSafe ? contextSafe(setUp) : setUp;
-
-      const stageImages = Array.from(
-        root.current?.querySelectorAll<HTMLImageElement>("[data-hero-stage] img") ?? [],
-      );
-      const settled = Promise.all(stageImages.map((img) => img.decode().catch(() => undefined)));
-      const cap = window.setTimeout(build, 4000);
-      void settled.then(build);
-      return () => {
-        started = true;
-        window.clearTimeout(cap);
-      };
     },
     { scope: root },
   );
