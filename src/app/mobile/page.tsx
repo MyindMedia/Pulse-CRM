@@ -77,7 +77,7 @@ const CAPABILITIES: Capability[] = [
   {
     icon: Cable,
     label: "Patch",
-    note: "The patch bay for every room, showing what is wired to what. When an engineer moves a cable or re-patches a rack, they update it from the phone, so the wiring on record always matches the wiring in the room.",
+    note: "Every connection in every room: what is plugged into what, and how. When an engineer re-patches or moves a cable, they log it from the phone, so you always have the current wiring and a record of every change.",
   },
   {
     icon: Receipt,
