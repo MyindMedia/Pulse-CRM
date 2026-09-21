@@ -33,7 +33,7 @@ export function Footer() {
       {/* 5 cells: brand blurb + Product + Account + Legal + Made by. */}
       <div className="mx-auto grid max-w-6xl gap-10 sm:grid-cols-2 lg:grid-cols-5">
         <div className="space-y-4">
-          <PulseLogo size="md" href="/" variant="footer" />
+          <PulseLogo size="md" href="/" />
           <p className="font-grotesk max-w-xs text-sm text-mist/75">
             The operating system for recording studios. Bookings, rooms, staff,
             inventory and payments, with the busywork automated.

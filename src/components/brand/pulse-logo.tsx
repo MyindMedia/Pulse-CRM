@@ -2,12 +2,13 @@ import * as React from "react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-/** Pulse brand logo. Two variants:
- *  - "main" (default): the clean gold pulse glyph + "PULSE" wordmark. Used in
- *    the site header and app (no "by ThaMyind" subtext).
- *  - "footer": the lockup that includes "by ThaMyind". Reserved for footers.
+/** Pulse brand logo: the gold pulse glyph + "PULSE" wordmark, the one mark
+ * used everywhere on the site and in the app. There used to be a second
+ * "by ThaMyind" lockup for footers; it was retired 2026-09-20 so the brand
+ * shows a single logo. The `variant` prop is kept so callers need not change
+ * but no longer selects a different file.
  *
- * Both PNGs are width-cropped, so sizes fix the width and let height adapt. */
+ * The image is width-cropped, so sizes fix the width and let height adapt. */
 export function PulseLogo({
   size = "md",
   href = "/dashboard",
@@ -31,13 +32,16 @@ export function PulseLogo({
     full: "w-full",
   }[size];
 
-  const src = variant === "footer" ? "/pulse-logo.png" : "/pulse-logo-main.png";
+  void variant;
+  const src = "/pulse-logo-main.webp";
 
   const img = (
     /* eslint-disable-next-line @next/next/no-img-element */
     <img
       src={src}
       alt="Pulse"
+      width={1000}
+      height={297}
       className={cn("h-auto select-none", sizeCls, className)}
       draggable={false}
     />

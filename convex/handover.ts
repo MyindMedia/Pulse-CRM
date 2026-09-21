@@ -183,7 +183,7 @@ export const _handOver = internalAction({
           studioName: attached.name,
           inviterName: "your Pulse administrator",
           acceptUrl: `${appUrl}/invite/${inviteToken}`,
-          logoUrl: `${appUrl}/pulse-logo.png`,
+          logoUrl: `${appUrl}/pulse-logo-main.png`,
         }),
       });
       await ctx.runMutation(internal.invites.setEmailStatus, {

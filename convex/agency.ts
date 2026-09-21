@@ -509,7 +509,7 @@ export const createSubaccount = action({
             studioName: args.name,
             inviterName: "your Pulse administrator",
             acceptUrl,
-            logoUrl: `${appUrl}/pulse-logo.png`,
+            logoUrl: `${appUrl}/pulse-logo-main.png`,
           }),
         });
         await ctx.runMutation(internal.invites.setEmailStatus, { token, emailStatus: status });
@@ -620,7 +620,7 @@ export const inviteStudio = action({
           subject: inviteEmailSubject(name),
           html: inviteEmailHtml({
             ownerName: name, studioName: name, inviterName: "your Pulse administrator",
-            acceptUrl: `${appUrl}/invite/${token}`, logoUrl: `${appUrl}/pulse-logo.png`,
+            acceptUrl: `${appUrl}/invite/${token}`, logoUrl: `${appUrl}/pulse-logo-main.png`,
           }),
         });
         await ctx.runMutation(internal.invites.setEmailStatus, { token, emailStatus: status });

@@ -76,7 +76,7 @@ async function sendTeammateInvite(ctx: ActionCtx, c: InviteContext): Promise<boo
         inviterName: c.inviterName,
         role: c.role,
         acceptUrl: `${appUrl}/invite/${token}`,
-        logoUrl: `${appUrl}/pulse-logo.png`,
+        logoUrl: `${appUrl}/pulse-logo-main.png`,
       }),
     });
     await ctx.runMutation(internal.invites.setEmailStatus, { token, emailStatus: status });

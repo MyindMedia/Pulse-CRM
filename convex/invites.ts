@@ -412,7 +412,7 @@ export const _resendOwnerInvite = internalAction({
       html: inviteEmailHtml({
         ownerName: org.ownerName, studioName: org.name,
         inviterName: "your Pulse administrator", acceptUrl: `${appUrl}/invite/${token}`,
-        logoUrl: `${appUrl}/pulse-logo.png`,
+        logoUrl: `${appUrl}/pulse-logo-main.png`,
       }),
     });
     await ctx.runMutation(internal.invites.setEmailStatus, { token, emailStatus: status });
@@ -447,7 +447,7 @@ export const resend = action({
       html: inviteEmailHtml({
         ownerName: org.ownerName, studioName: org.name,
         inviterName: "your Pulse administrator", acceptUrl: `${appUrl}/invite/${token}`,
-        logoUrl: `${appUrl}/pulse-logo.png`,
+        logoUrl: `${appUrl}/pulse-logo-main.png`,
       }),
     });
     await ctx.runMutation(internal.invites.setEmailStatus, { token, emailStatus: status });
