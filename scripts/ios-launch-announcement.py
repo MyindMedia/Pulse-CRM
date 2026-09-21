@@ -25,7 +25,7 @@ SCENE_IMG = "https://studiopulse.tech/mobile/app-announce.jpg"
 PHONE_IMG = "https://studiopulse.tech/mobile/app-announce-phone.jpg"
 LOGO = "https://studiopulse.tech/pulse-logo-main.png"
 
-REPLY_TO = "lawrence@myindmedia.org"  # replies to announcements go to the business address, never a personal Gmail
+REPLY_TO = "lawrenceb@myindmedia.org"  # replies to announcements go to the business address, never a personal Gmail
 SUBJECT = "The Pulse iPhone app is on the App Store"
 FONT = "Inter,Segoe UI,Arial,sans-serif"
 
