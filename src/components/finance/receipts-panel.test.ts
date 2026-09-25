@@ -84,8 +84,10 @@ describe("receipt matching attention", () => {
   it("retains access to the original document while its details need review", () => {
     state.rows = [receipt({ status: "needs_review", attentionReason: "Check the receipt details before matching." })];
     const html = render(false);
-    expect(html).toContain('href="https://files.example/receipt-original.png"');
-    expect(html).toContain("View file");
+    // The original opens in the in-app viewer, from its thumbnail or the button.
+    expect(html).toContain('src="https://files.example/receipt-original.png"');
+    expect(html).toContain('aria-label="View receipt: Receipt supplier"');
+    expect(html).toContain("View receipt");
     expect(html).toContain("Check the receipt details before matching.");
     expect(html).not.toContain("Upload receipts");
     expect(html).not.toContain("Delete");

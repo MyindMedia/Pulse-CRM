@@ -4,26 +4,29 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { toast } from "sonner";
+import { CalendarCheck, CalendarClock, CalendarPlus, Clock, LogOut, UserRoundCheck, UserRoundX, type LucideIcon } from "lucide-react";
+import { island } from "@/components/shell/dynamic-island";
+import type { IslandTone } from "@/lib/dynamic-island";
 import { useCapabilities } from "@/lib/use-capabilities";
 import { inNativeShell, shellNotify } from "@/lib/shell";
 
 /**
  * Live pop-up notifications for owners + managers (schedule.manage): when a
- * teammate clocks in or out and when a booking lands, a toast pops in real
+ * teammate clocks in or out and when a booking lands, the Dynamic Island drops
+ * a notice in real
  * time via the same reactive activity feed that fills the notification bell.
  * Only events that happen AFTER mount pop (no replay flood on page load), the
  * viewer's own punches are skipped (the clock UI already confirms those), and
- * every event remains in the bell for anyone who missed the toast.
+ * every event remains in the bell for anyone who missed the notice.
  */
-const POP: Record<string, { title: string; route: string }> = {
-  "booking.created": { title: "New booking", route: "/bookings" },
-  "booking.held": { title: "Booking hold placed", route: "/bookings" },
-  "staff.clocked_in": { title: "Staff on the clock", route: "/payroll" },
-  "staff.clocked_out": { title: "Staff off the clock", route: "/payroll" },
-  "engineer.requested": { title: "Engineer requested", route: "/bookings" },
-  "engineer.confirmed": { title: "Booking finalized", route: "/bookings" },
-  "engineer.declined": { title: "Session needs restaffing", route: "/bookings" },
+const POP: Record<string, { title: string; route: string; icon: LucideIcon; tone: IslandTone }> = {
+  "booking.created": { title: "New booking", route: "/bookings", icon: CalendarPlus, tone: "gold" },
+  "booking.held": { title: "Booking hold placed", route: "/bookings", icon: CalendarClock, tone: "info" },
+  "staff.clocked_in": { title: "Staff on the clock", route: "/payroll", icon: Clock, tone: "positive" },
+  "staff.clocked_out": { title: "Staff off the clock", route: "/payroll", icon: LogOut, tone: "neutral" },
+  "engineer.requested": { title: "Engineer requested", route: "/bookings", icon: UserRoundCheck, tone: "info" },
+  "engineer.confirmed": { title: "Booking finalized", route: "/bookings", icon: CalendarCheck, tone: "positive" },
+  "engineer.declined": { title: "Session needs restaffing", route: "/bookings", icon: UserRoundX, tone: "critical" },
 };
 
 export function LiveToasts() {
@@ -57,9 +60,13 @@ export function LiveToasts() {
         me?.member?._id != null &&
         row.entityId === me.member._id;
       if (isOwnPunch) continue;
-      toast(pop.title, {
-        description: row.summary,
-        action: { label: "View", onClick: () => router.push(pop.route) },
+      island.show({
+        title: pop.title,
+        message: row.summary,
+        icon: pop.icon,
+        tone: pop.tone,
+        actionLabel: "View",
+        onPress: () => router.push(pop.route),
       });
       // In the macOS/iOS app the window is often behind other work, so the
       // same event also goes to the OS notification center. Best-effort.

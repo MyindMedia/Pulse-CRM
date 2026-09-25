@@ -119,7 +119,7 @@ export const generateReceiptUploadUrl = mutation({
 });
 
 /** Expense rows in a date range (newest first), hydrated with member name +
- *  receipt URL. */
+ *  receipt URL and file type. */
 export const list = query({
   args: {
     start: v.optional(v.number()),
@@ -150,6 +150,8 @@ export const list = query({
         ...r,
         memberName: r.memberId ? (await ctx.db.get(r.memberId))?.name ?? null : null,
         receiptUrl: r.receiptId ? await ctx.storage.getUrl(r.receiptId) : null,
+        // Image or PDF, so the list can draw a thumbnail of the right kind.
+        receiptFileType: r.receiptId ? (await ctx.db.system.get(r.receiptId))?.contentType ?? null : null,
       })),
     );
   },
