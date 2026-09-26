@@ -16,6 +16,7 @@ import { ActiveOrgSync } from "@/components/shell/active-org-sync";
 import { TimezoneSync } from "@/components/shell/timezone-sync";
 import { AuthGate } from "@/components/shell/auth-gate";
 import { LiveToasts } from "@/components/shell/live-toasts";
+import { DynamicIsland } from "@/components/shell/dynamic-island";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { ClockWidget } from "@/components/timeclock/clock-widget";
 import { MobileTabBar } from "@/components/shell/mobile-tabbar";
@@ -109,6 +110,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <BillingLock />
         <CommandPalette />
+        <DynamicIsland />
         <ClockWidget />
         <MobileTabBar onOpenMore={() => setMobileNav(true)} />
       </div>
