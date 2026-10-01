@@ -6,6 +6,9 @@ import { exchangeCode, emailFromIdToken } from "./lib/google";
 import { plaid, verifyPlaidWebhook } from "./lib/plaid";
 
 const http = httpRouter();
+import { bland as pulseBland, booking as pulseBooking } from "./pulseWalkthrough/http";
+http.route({ path: "/pulse-walkthrough/bland", method: "POST", handler: pulseBland });
+http.route({ path: "/pulse-walkthrough/booking", method: "POST", handler: pulseBooking });
 
 /* GHL "Customer Replied" workflow webhook payload (the fields we read). */
 type GhlInbound = {
