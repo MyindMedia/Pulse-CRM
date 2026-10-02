@@ -6,8 +6,10 @@ import {TARGET,eligible,reminder,sameMeeting} from './policy';
 import {providers} from './providers';
 import {ref} from './refs';
 import {verify} from './http';
-const discovered=import.meta.glob(['../_generated/*.js','./*.ts']);
-const modules=Object.fromEntries(Object.entries(discovered).map(([key,value])=>[key.startsWith('./')?'../pulseWalkthrough/'+key.slice(2):key,value]));
+type ModuleLoader=()=>Promise<any>;
+// import.meta.glob is a Vite feature; the app's tsconfig does not load Vite's types, so type it here.
+const discovered=(import.meta as unknown as {glob:(patterns:string[])=>Record<string,ModuleLoader>}).glob(['../_generated/*.js','./*.ts']);
+const modules:Record<string,ModuleLoader>=Object.fromEntries(Object.entries(discovered).map(([key,value])=>[key.startsWith('./')?'../pulseWalkthrough/'+key.slice(2):key,value]));
 const fixture=()=>({id:'appt1',contactId:'contact1',locationId:TARGET.location,calendarId:TARGET.calendar,start:Date.now()+3600_000,timezone:'America/Los_Angeles',phone:'+12025550123',name:'Mock',status:'confirmed',consent:true,dnd:false,consentEvidence:'Synthetic test consent'});
 const setup=()=>convexTest(defineSchema(pulseWalkthroughTables),modules);
 beforeEach(()=>vi.useFakeTimers());
