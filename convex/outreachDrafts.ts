@@ -5,6 +5,7 @@ import { AccessError } from "./lib/access";
 import { agencyScope, requireAgencyScope, logEvent } from "./outreach/scope";
 import type { Id } from "./_generated/dataModel";
 import { PERSONAS, TEMPLATES, renderEmail, contentHash, type PersonaKey, type TemplateKey } from "./outreach/templates";
+import { inlineImagesFor, withDataUris } from "./outreach/signatures";
 
 /* ============================================================
    Outreach drafts: the email prepared for one queued prospect, and its
@@ -14,7 +15,7 @@ import { PERSONAS, TEMPLATES, renderEmail, contentHash, type PersonaKey, type Te
 
 const APPROVAL_TTL_MS = 24 * 60 * 60 * 1000;
 const personaV = v.union(v.literal("maxb"), v.literal("lawrence"));
-const modeV = v.union(v.literal("original"), v.literal("static"));
+const modeV = v.union(v.literal("image"), v.literal("original"), v.literal("static"));
 
 async function requireManager(ctx: Parameters<typeof requireAgencyScope>[0]) {
   const scope = await requireAgencyScope(ctx);
@@ -33,7 +34,7 @@ async function isSuppressed(ctx: Parameters<typeof requireAgencyScope>[0], agenc
 /** What defines the message: anything here changing invalidates an approval. */
 function hashParts(d: { recipient: string; persona: PersonaKey; subject: string; html: string; text: string }) {
   const p = PERSONAS[d.persona];
-  return [d.recipient, d.subject, d.html, d.text, `${p.fromName} <${p.fromEmail}>`, p.replyTo];
+  return [d.recipient, d.subject, d.html, d.text, `${p.fromName} <${p.fromEmail}>`, p.replyTo, ...inlineImagesFor(d.html).map((i) => i.base64)];
 }
 
 export const options = query({
@@ -87,7 +88,8 @@ export const preview = query({
     if (!d || d.agencyId !== scope.agencyId) return null;
     const p = PERSONAS[d.persona];
     const links = [...new Set([...d.html.matchAll(/(?:href|src)="([^"]+)"/g)].map((m) => m[1]))];
-    return { html: d.html, text: d.text, subject: d.subject, from: `${p.fromName} <${p.fromEmail}>`, to: d.recipient, links, signatureMode: d.signatureMode };
+    const inline = inlineImagesFor(d.html).map((i) => i.filename);
+    return { html: withDataUris(d.html), text: d.text, subject: d.subject, from: `${p.fromName} <${p.fromEmail}>`, to: d.recipient, links, inline, signatureMode: d.signatureMode };
   },
 });
 

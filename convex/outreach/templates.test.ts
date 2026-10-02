@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { renderEmail, PERSONAS, TEMPLATES, contentHash } from "./templates";
-import { ORIGINAL_ROVERTO, ORIGINAL_LAWRENCE, STATIC_ROVERTO, signatureHtml } from "./signatures";
+import { ORIGINAL_ROVERTO, ORIGINAL_LAWRENCE, STATIC_ROVERTO, signatureHtml, inlineImagesFor, withDataUris } from "./signatures";
 
 const base = { template: "maxb_system" as const, studio: "MIX Recording Studio", postalAddress: "1 Main St, Los Angeles, CA 90001" };
 
@@ -68,5 +68,19 @@ describe("renderEmail", () => {
     const a = renderEmail(base), b = renderEmail({ ...base, signatureMode: "static" });
     expect(await contentHash([a.html])).not.toBe(await contentHash([b.html]));
     expect(await contentHash([a.html])).toBe(await contentHash([a.html]));
+  });
+
+  it("image mode references an inline picture, never the original HTML, and can be previewed", () => {
+    const r = renderEmail({ ...base, signatureMode: "image" });
+    expect(r.html).toContain("cid:pulse-signature-roverto");
+    expect(r.html).not.toContain(ORIGINAL_ROVERTO);
+    expect(r.html).toContain("mailto:info@studiopulse.tech");
+    const imgs = inlineImagesFor(r.html);
+    expect(imgs).toHaveLength(1);
+    expect(imgs[0]).toMatchObject({ contentId: "pulse-signature-roverto", contentType: "image/jpeg" });
+    expect(Buffer.from(imgs[0].base64, "base64").subarray(0, 2).toString("hex")).toBe("ffd8"); // a real JPEG
+    expect(withDataUris(r.html)).toContain("data:image/jpeg;base64,");
+    expect(withDataUris(r.html)).not.toContain("cid:");
+    expect(inlineImagesFor(renderEmail(base).html)).toEqual([]); // original mode needs no attachment
   });
 });

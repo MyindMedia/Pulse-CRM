@@ -461,7 +461,7 @@ export function Prospects() {
   const [msg, setMsg] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   const [sites, setSites] = React.useState<Record<string, string>>({});
-  const [prep, setPrep] = React.useState<Record<string, { email?: string; sig?: "original" | "static"; routing?: boolean }>>({});
+  const [prep, setPrep] = React.useState<Record<string, { email?: string; sig?: "original" | "static" | "image"; routing?: boolean }>>({});
 
   if (data === undefined) return <LoadingPanel label="Loading prospects" />;
   if (data === null) return <Unauthorized />;
@@ -620,10 +620,11 @@ export function Prospects() {
                               <option value="lawrence" disabled>Lawrence (no approved copy yet)</option>
                             </select>
                             <label htmlFor={`sig-${p.id}`} className="text-steel">Signature</label>
-                            <select id={`sig-${p.id}`} value={cur.sig ?? "original"} onChange={(e) => setPrep((m) => ({ ...m, [p.id]: { ...cur, sig: e.target.value as "original" | "static" } }))}
+                            <select id={`sig-${p.id}`} value={cur.sig ?? "original"} onChange={(e) => setPrep((m) => ({ ...m, [p.id]: { ...cur, sig: e.target.value as "original" | "static" | "image" } }))}
                               className="rounded border border-graphite/60 bg-obsidian px-2 py-1 text-bone">
                               <option value="original">Original (your HTML file)</option>
-                              <option value="static">Email-safe version</option>
+                              <option value="image">Exact picture of it (fallback)</option>
+                              <option value="static">Email-safe rebuild</option>
                             </select>
                           </div>
                           {chosen?.generic && (
@@ -755,7 +756,7 @@ export function Drafts() {
                     <div className="space-y-1">
                       <p className="font-grotesk text-sm font-semibold text-bone">{d.studio}</p>
                       <p className="text-xs text-steel">To {d.recipient} · from {d.from}</p>
-                      <p className="text-xs text-steel/70">{d.subject} · {d.signatureMode === "original" ? "original signature" : "email-safe signature"}</p>
+                      <p className="text-xs text-steel/70">{d.subject} · {d.signatureMode === "original" ? "original signature" : d.signatureMode === "image" ? "signature as picture" : "email-safe signature"}</p>
                     </div>
                     <div className="space-y-1 text-right">
                       <Badge tone={DRAFT_TONE[d.status] ?? "neutral"}>{d.status}</Badge>
