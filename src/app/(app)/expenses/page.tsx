@@ -3,9 +3,8 @@
 import * as React from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Wallet, TrendingDown, TrendingUp, Percent, RefreshCw, Plus, Pencil, Landmark, History, Paperclip, ExternalLink } from "lucide-react";
+import { Wallet, TrendingDown, TrendingUp, Percent, RefreshCw, Plus, Pencil, Landmark, History, Paperclip, Check } from "lucide-react";
 import Link from "next/link";
-import { toast } from "sonner";
 import type { Id } from "@convex/_generated/dataModel";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
@@ -21,9 +20,16 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { money, percent, shortDate, longDate, timeOfDay } from "@/lib/format";
-import { errorMessage } from "@/lib/errors";
 import { Badge } from "@/components/ui/badge";
-import { ReceiptsPanel, useReceiptUpload } from "@/components/finance/receipts-panel";
+import {
+  ReceiptsPanel,
+  RECEIPT_ACCEPT,
+  localPreview,
+  releasePreview,
+  uploadReceiptWithNotice,
+  useReceiptUpload,
+} from "@/components/finance/receipts-panel";
+import { ReceiptThumb, ReceiptViewer, type ReceiptFile } from "@/components/finance/receipt-viewer";
 import { FinanceHistorySheet } from "@/components/finance/finance-history-sheet";
 import { meta, PAYMENT_METHOD } from "@/lib/labels";
 import {
@@ -62,9 +68,14 @@ function rangeFor(r: Range): { start: number; end: number; bankStart: number; ba
   };
 }
 
+/** A receipt picked for an expense this session: shown straight away from the
+ *  local file, before (and briefly after) the server has it. */
+type LocalReceipt = { preview: string | null; fileType: string; status: "uploading" | "attached" };
+
 type ExpenseRow = EditableExpense & {
   memberName: string | null;
   receiptUrl: string | null;
+  receiptFileType?: string | null;
   source?: "manual" | "receipt" | "bank";
   receiptDocId?: Id<"receipts">;
   bankTransactionId?: Id<"bankTransactions">;
@@ -87,6 +98,39 @@ export default function ExpensesPage() {
   const [historyFor, setHistoryFor] = React.useState<ExpenseRow | null>(null);
   const attachFor = React.useRef<ExpenseRow | null>(null);
   const attachInput = React.useRef<HTMLInputElement>(null);
+  const [localReceipts, setLocalReceipts] = React.useState<Record<string, LocalReceipt>>({});
+  const [viewing, setViewing] = React.useState<ReceiptFile | null>(null);
+
+  function expenseLabel(r: ExpenseRow) {
+    return `${r.vendor ?? CATEGORY_LABEL.get(r.category) ?? "Expense"} · ${money(r.amountCents)}`;
+  }
+
+  async function attachReceipt(file: File, target: ExpenseRow) {
+    const id = target._id as string;
+    const preview = localPreview(file);
+    setLocalReceipts((m) => ({ ...m, [id]: { preview, fileType: file.type, status: "uploading" } }));
+    const ok = await uploadReceiptWithNotice(upload, file, {
+      preview,
+      expenseId: target._id as Id<"expenses">,
+      expenseLabel: expenseLabel(target),
+    });
+    if (ok) {
+      setLocalReceipts((m) => ({ ...m, [id]: { preview, fileType: file.type, status: "attached" } }));
+      // Long enough for the tick to pop and the server's copy to arrive.
+      setTimeout(() => setLocalReceipts((m) => {
+        const next = { ...m };
+        delete next[id];
+        return next;
+      }), 6000);
+    } else {
+      setLocalReceipts((m) => {
+        const next = { ...m };
+        delete next[id];
+        return next;
+      });
+    }
+    releasePreview(preview);
+  }
 
   const loading = rows === undefined;
   const profitable = (pl?.netCents ?? 0) >= 0;
@@ -250,10 +294,12 @@ export default function ExpensesPage() {
                   {r.source === "receipt" && <Badge tone="info" className="ml-2">Receipt</Badge>}
                 </TD>
                 <TD>
-                  {r.receiptUrl ? (
-                    <a href={r.receiptUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-xs text-gold hover:underline">
-                      <ExternalLink className="size-3" /> View
-                    </a>
+                  {r.receiptUrl || localReceipts[r._id] ? (
+                    <ReceiptCell
+                      row={r}
+                      local={localReceipts[r._id]}
+                      onView={(file) => setViewing({ ...file, title: expenseLabel(r), subtitle: shortDate(r.date) })}
+                    />
                   ) : canEdit ? (
                     <Button size="sm" variant="ghost" onClick={() => { attachFor.current = r; attachInput.current?.click(); }}>
                       <Paperclip className="size-3.5" /> Attach
@@ -282,23 +328,18 @@ export default function ExpensesPage() {
       <input
         ref={attachInput}
         type="file"
-        accept="image/jpeg,image/png,image/webp,image/gif,application/pdf"
+        accept={RECEIPT_ACCEPT}
         className="hidden"
-        onChange={async (e) => {
+        onChange={(e) => {
           const file = e.target.files?.[0];
           const target = attachFor.current;
           e.target.value = "";
-          if (!file || !target) return;
-          try {
-            await upload(file, target._id as Id<"expenses">);
-            toast.success("Receipt attached. Reading it now.");
-          } catch (err) {
-            toast.error(errorMessage(err));
-          } finally {
-            attachFor.current = null;
-          }
+          attachFor.current = null;
+          if (file && target) void attachReceipt(file, target);
         }}
       />
+
+      <ReceiptViewer file={viewing} onOpenChange={(o) => { if (!o) setViewing(null); }} />
 
       <ReceiptsPanel canEdit={canEdit} />
 
@@ -311,6 +352,41 @@ export default function ExpensesPage() {
 
       <ExpenseDialog open={addOpen} onOpenChange={setAddOpen} />
       <ExpenseDialog item={editItem} open={editOpen} onOpenChange={(o) => { setEditOpen(o); if (!o) setEditItem(undefined); }} />
+    </div>
+  );
+}
+
+/** The receipt column: a small preview with a tick once it is attached. */
+function ReceiptCell({
+  row,
+  local,
+  onView,
+}: {
+  row: ExpenseRow;
+  local: LocalReceipt | undefined;
+  onView: (file: { url: string; fileType?: string | null }) => void;
+}) {
+  const uploading = local?.status === "uploading";
+  // Prefer the server's copy; the local file covers the gap until it arrives.
+  const url = row.receiptUrl ?? local?.preview ?? null;
+  const fileType = row.receiptFileType ?? local?.fileType ?? null;
+  return (
+    <div className="flex items-center gap-2.5">
+      <ReceiptThumb
+        url={url}
+        fileType={fileType}
+        label={row.vendor ?? "this expense"}
+        status={uploading ? "uploading" : "attached"}
+        pop={local?.status === "attached"}
+        onOpen={url && !uploading ? () => onView({ url, fileType }) : undefined}
+      />
+      {uploading ? (
+        <span className="text-xs text-steel">Uploading…</span>
+      ) : (
+        <span className="inline-flex items-center gap-1 text-xs text-positive">
+          <Check className="size-3" strokeWidth={3} /> Attached
+        </span>
+      )}
     </div>
   );
 }

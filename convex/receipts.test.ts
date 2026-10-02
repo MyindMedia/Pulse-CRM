@@ -328,6 +328,8 @@ describe("expense documentation retention", () => {
     const expense = (await s.owner.query(api.expenses.list, {})).find((row) => row._id === expenseId)!;
     expect(expense).toMatchObject({ receiptId: storageId, receiptDocId: receiptId, category: "gear" });
     expect(expense.receiptUrl).toEqual(expect.any(String));
+    // The list's preview draws a picture or a PDF tile from this.
+    expect(expense.receiptFileType).toBe(mimeType);
     const receipt = (await s.owner.query(api.receipts.list, { expenseId, status: "all" })).find((row) => row._id === receiptId)!;
     expect(receipt.url).toBe(expense.receiptUrl);
     expect(await s.t.run(async (ctx) => Array.from(new Uint8Array(await (await ctx.storage.get(storageId))!.arrayBuffer())))).toEqual(original);
@@ -336,12 +338,14 @@ describe("expense documentation retention", () => {
   it("keeps an upload attached to an existing expense even when AI cannot read it", async () => {
     const s = await studio();
     const expenseId = await s.manager.mutation(api.expenses.create, { category: "supplies", amountCents: 2000, date: day("2026-09-01") });
+    const bare = (await s.owner.query(api.expenses.list, {})).find((row) => row._id === expenseId)!;
+    expect(bare).toMatchObject({ receiptUrl: null, receiptFileType: null });
     const storageId = await stored(s.t, "image/png");
     const attached = await s.manager.mutation(api.receipts.attach, { storageId, fileName: "receipt.png", expenseId });
     if (!attached.ok) throw new Error(attached.message);
     await s.t.mutation(internal.receipts._saveExtraction, { receiptId: attached.receiptId, error: "Unable to read; enter details manually." });
     const expense = (await s.owner.query(api.expenses.list, {})).find((row) => row._id === expenseId)!;
-    expect(expense).toMatchObject({ receiptId: storageId, receiptDocId: attached.receiptId });
+    expect(expense).toMatchObject({ receiptId: storageId, receiptDocId: attached.receiptId, receiptFileType: "image/png" });
     expect(expense.receiptUrl).toEqual(expect.any(String));
     expect(await s.t.run(async (ctx) => (await ctx.storage.get(storageId))!.size)).toBe(2048);
   });
