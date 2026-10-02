@@ -37,12 +37,12 @@ describe("ghl summaries", () => {
 
 describe("ghlGet", () => {
   it("only talks to the GHL host and reports refusals plainly", async () => {
-    const f = vi.fn(async () => new Response("{}", { status: 401 }));
+    const f = vi.fn(async (_url: string, _init?: RequestInit) => new Response("{}", { status: 401 }));
     vi.stubGlobal("fetch", f);
     const r = await ghlGet("/calendars/cal1", "k");
     expect(r).toEqual({ ok: false, reason: "GHL refused the key (HTTP 401)" });
     expect(String(f.mock.calls[0][0]).startsWith("https://services.leadconnectorhq.com/")).toBe(true);
-    expect((f.mock.calls[0][1] as RequestInit).method).toBe("GET");
+    expect(f.mock.calls[0][1]?.method).toBe("GET");
     expect((await ghlGet("https://evil.example/", "k")).ok).toBe(false); // not a path
   });
 });
