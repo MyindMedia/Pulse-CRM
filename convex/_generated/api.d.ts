@@ -15,6 +15,7 @@ import type * as agency from "../agency.js";
 import type * as agencyBilling from "../agencyBilling.js";
 import type * as agencyOps from "../agencyOps.js";
 import type * as outreach from "../outreach.js";
+import type * as outreachProspects from "../outreachProspects.js";
 import type * as agencyPlans from "../agencyPlans.js";
 import type * as agencyProfile from "../agencyProfile.js";
 import type * as agencySettings from "../agencySettings.js";
@@ -260,6 +261,7 @@ declare const fullApi: ApiFromModules<{
   agencyBilling: typeof agencyBilling;
   agencyOps: typeof agencyOps;
   outreach: typeof outreach;
+  outreachProspects: typeof outreachProspects;
   agencyPlans: typeof agencyPlans;
   agencyProfile: typeof agencyProfile;
   agencySettings: typeof agencySettings;

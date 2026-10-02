@@ -17,6 +17,27 @@ export const commStatusV = v.union(
   v.literal("unknown"),
 );
 
+
+export const prospectStatusV = v.union(
+  v.literal("needs_website"),
+  v.literal("ready_to_scrape"),
+  v.literal("scraping"),
+  v.literal("scraped"),
+  v.literal("no_contact"),
+  v.literal("blocked"),
+  v.literal("queued"),
+  v.literal("suppressed"),
+);
+
+export const prospectContactsV = v.object({
+  emails: v.array(v.object({ address: v.string(), generic: v.boolean(), rank: v.number(), sourceUrl: v.string() })),
+  phones: v.array(v.object({ number: v.string(), sourceUrl: v.string() })),
+  socials: v.array(v.object({ platform: v.string(), url: v.string() })),
+  booking: v.array(v.string()),
+  pages: v.array(v.string()),
+  scrapedAt: v.number(),
+});
+
 export const outreachTables = {
   /* One row per agency. Provider mapping (GHL location/calendar, senders,
      booking URL) is written only by operator-run internal mutations, never by
@@ -89,4 +110,28 @@ export const outreachTables = {
     result: v.union(v.literal("ok"), v.literal("denied"), v.literal("unknown")),
     detail: v.optional(v.string()),
   }).index("by_agency", ["agencyId", "at"]),
+  /* A studio to pitch. Contact data is what the studio itself published on its
+     own website: published, not verified. */
+  outreachProspects: defineTable({
+    agencyId: v.string(),
+    dedupeKey: v.string(),
+    handle: v.optional(v.string()),
+    name: v.optional(v.string()),
+    websiteUrl: v.optional(v.string()),
+    source: v.union(v.literal("paste"), v.literal("shortcut"), v.literal("instaloader")),
+    status: prospectStatusV,
+    note: v.optional(v.string()),
+    contacts: v.optional(prospectContactsV),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_agency", ["agencyId", "createdAt"])
+    .index("by_agency_key", ["agencyId", "dedupeKey"]),
+
+  outreachSuppressions: defineTable({
+    agencyId: v.string(),
+    email: v.string(),
+    reason: v.string(),
+    at: v.number(),
+  }).index("by_agency_email", ["agencyId", "email"]),
 };

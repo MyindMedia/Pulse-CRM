@@ -5,12 +5,13 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import {
   AlertTriangle, CalendarClock, CheckCircle2, CircleDashed, Link2, Lock, MailCheck, PauseCircle,
-  PlayCircle, ShieldAlert, XCircle,
+  PlayCircle, ShieldAlert, Users, XCircle,
 } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingPanel } from "@/components/ui/feedback";
+import type { Id } from "@convex/_generated/dataModel";
 
 /* Outreach - the agency console's outbound communications tab.
    Test-only: this screen reads state and offers one write, the overall pause.
@@ -426,6 +427,205 @@ export function Settings() {
           </ul>
         </CardContent>
       </Card>
+    </div>
+  );
+}
+
+/* -------------------------------- Prospects -------------------------------- */
+
+const PROSPECT_STATUS: Record<string, { tone: Tone; meaning: string }> = {
+  needs_website: { tone: "caution", meaning: "Waiting for you to confirm the studio's website. A guessed site is never used." },
+  ready_to_scrape: { tone: "info", meaning: "Website confirmed. Ready to read its public pages." },
+  scraping: { tone: "info", meaning: "Reading the studio's public pages now." },
+  scraped: { tone: "positive", meaning: "Published contact info found. Not verified." },
+  no_contact: { tone: "caution", meaning: "No published email on the pages read." },
+  blocked: { tone: "critical", meaning: "Could not be read, or the site's robots.txt disallows it." },
+  queued: { tone: "positive", meaning: "In the review queue. Nothing has been sent." },
+  suppressed: { tone: "caution", meaning: "Every address has opted out. Will not be contacted." },
+};
+
+function hostName(url: string) {
+  try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; }
+}
+
+export function Prospects() {
+  const data = useQuery(api.outreachProspects.list, {});
+  const add = useMutation(api.outreachProspects.add);
+  const setWebsite = useMutation(api.outreachProspects.setWebsite);
+  const requestScrape = useMutation(api.outreachProspects.requestScrape);
+  const queue = useMutation(api.outreachProspects.queueForReview);
+  const suppress = useMutation(api.outreachProspects.suppressEmail);
+  const remove = useMutation(api.outreachProspects.remove);
+  const [text, setText] = React.useState("");
+  const [msg, setMsg] = React.useState<string | null>(null);
+  const [err, setErr] = React.useState<string | null>(null);
+  const [sites, setSites] = React.useState<Record<string, string>>({});
+
+  if (data === undefined) return <LoadingPanel label="Loading prospects" />;
+  if (data === null) return <Unauthorized />;
+  const manage = data.canManage;
+
+  async function run(fn: () => Promise<unknown>, ok?: string) {
+    setErr(null);
+    setMsg(null);
+    try {
+      await fn();
+      if (ok) setMsg(ok);
+    } catch (e) {
+      setErr(e instanceof Error ? e.message.replace(/^[\s\S]*Uncaught (Convex)?Error:?\s*/, "").slice(0, 200) : "Something went wrong.");
+    }
+  }
+
+  return (
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle>Add studios</CardTitle>
+          <CardDescription>
+            Paste Instagram handles, Instagram links or websites, one per line. Contact info is read only from the
+            studio&apos;s own public website, never from Instagram. Nothing is emailed from here.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <label htmlFor="prospect-lines" className="sr-only">Handles, links or websites</label>
+          <textarea
+            id="prospect-lines"
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            rows={4}
+            disabled={!manage}
+            placeholder={"@icecreamsound\nhttps://instagram.com/mixrecordingstudio\nunionrecordingstudio.com"}
+            className="w-full rounded border border-graphite/60 bg-obsidian px-3 py-2 text-sm text-bone placeholder:text-steel/50"
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <Button
+              variant="secondary"
+              disabled={!manage || text.trim() === ""}
+              onClick={() => void run(async () => {
+                const r = await add({ lines: text.split("\n") });
+                setText("");
+                setMsg(`${r.added} added, ${r.duplicates} already on the list, ${r.invalid} not recognised.`);
+              })}
+            >
+              Add to list
+            </Button>
+            {!manage && <span className="text-xs text-steel">Only an owner or admin can add or change prospects.</span>}
+          </div>
+          {msg && <p role="status" className="text-sm text-positive">{msg}</p>}
+          {err && <p role="alert" className="text-sm text-critical">{err}</p>}
+        </CardContent>
+      </Card>
+
+      {data.rows.length === 0 ? (
+        <EmptyState icon={Users} title="No prospects yet" description="Paste a few handles or websites above to start a list." />
+      ) : (
+        <ul className="space-y-3">
+          {data.rows.map((p) => {
+            const st = PROSPECT_STATUS[p.status] ?? { tone: "neutral" as Tone, meaning: "" };
+            const title = p.name ?? (p.handle ? `@${p.handle}` : p.websiteUrl ? hostName(p.websiteUrl) : "Link");
+            return (
+              <li key={p.id}>
+                <Card>
+                  <CardContent className="space-y-3 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="space-y-1">
+                        <p className="font-grotesk text-sm font-semibold text-bone">{title}</p>
+                        <p className="text-xs text-steel/70">
+                          {p.handle ? `@${p.handle} · ` : ""}{p.websiteUrl ? hostName(p.websiteUrl) : "no website yet"} · added via {p.source}
+                        </p>
+                      </div>
+                      <div className="space-y-1 text-right">
+                        <Badge tone={st.tone}>{p.status.replace("_", " ")}</Badge>
+                        <p className="max-w-xs text-xs text-steel/70">{p.note ?? st.meaning}</p>
+                      </div>
+                    </div>
+
+                    {p.status === "needs_website" && manage && (
+                      <div className="flex flex-wrap items-center gap-2">
+                        <label htmlFor={`site-${p.id}`} className="sr-only">Confirm website for {title}</label>
+                        <input
+                          id={`site-${p.id}`}
+                          value={sites[p.id] ?? ""}
+                          onChange={(e) => setSites((s) => ({ ...s, [p.id]: e.target.value }))}
+                          placeholder="studio-website.com"
+                          className="min-w-0 flex-1 rounded border border-graphite/60 bg-obsidian px-3 py-2 text-sm text-bone"
+                        />
+                        <Button
+                          variant="secondary"
+                          disabled={!(sites[p.id] ?? "").trim()}
+                          onClick={() => void run(() => setWebsite({ id: p.id as Id<"outreachProspects">, url: sites[p.id] }), "Website confirmed.")}
+                        >
+                          Confirm website
+                        </Button>
+                      </div>
+                    )}
+
+                    {p.contacts && (
+                      <div className="grid gap-3 rounded-md border border-graphite/40 bg-coal/40 p-3 text-xs sm:grid-cols-2">
+                        <div className="space-y-1">
+                          <p className="font-meta uppercase tracking-wide text-steel/70">Emails (published, not verified)</p>
+                          {p.contacts.emails.length === 0 ? <p className="text-steel">None found.</p> : (
+                            <ul className="space-y-1">
+                              {p.contacts.emails.map((e) => (
+                                <li key={e.address} className="flex flex-wrap items-center gap-2 text-bone">
+                                  <span className="break-all">{e.address}</span>
+                                  {e.generic && <Badge tone="caution">generic inbox</Badge>}
+                                  {e.suppressed && <Badge tone="critical">opted out</Badge>}
+                                  <span className="text-steel/60">from {hostName(e.sourceUrl)}</span>
+                                  {manage && !e.suppressed && (
+                                    <button
+                                      type="button"
+                                      className="text-steel underline hover:text-bone"
+                                      onClick={() => void run(() => suppress({ email: e.address, reason: "opt-out" }), `${e.address} will not be contacted.`)}
+                                    >
+                                      mark opted out
+                                    </button>
+                                  )}
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                          {p.contacts.emails.some((e) => e.generic) && (
+                            <p className="text-steel/70">A generic inbox is not a confirmed decision-maker. Confirm routing before pitching.</p>
+                          )}
+                        </div>
+                        <div className="space-y-1">
+                          <p className="font-meta uppercase tracking-wide text-steel/70">Phones, social, booking</p>
+                          <p className="text-bone">{p.contacts.phones.map((x) => x.number).join(", ") || "No phone found."}</p>
+                          <p className="break-all text-steel">{p.contacts.socials.map((x) => `${x.platform}: ${x.url.replace("https://", "")}`).join(" · ") || "No social links."}</p>
+                          <p className="text-steel">{p.contacts.booking.length ? `Booking: ${p.contacts.booking.join(", ")}` : "No booking platform detected."}</p>
+                          <p className="text-steel/60">Read {when(p.contacts.scrapedAt)}</p>
+                        </div>
+                      </div>
+                    )}
+
+                    {manage && (
+                      <div className="flex flex-wrap gap-2">
+                        {["ready_to_scrape", "no_contact", "blocked", "scraped"].includes(p.status) && p.websiteUrl && (
+                          <Button variant="secondary" onClick={() => void run(() => requestScrape({ id: p.id as Id<"outreachProspects"> }), "Reading the site now.")}>
+                            {p.status === "ready_to_scrape" ? "Find contact info" : "Read again"}
+                          </Button>
+                        )}
+                        {p.status === "scraped" && (
+                          <Button variant="primary" onClick={() => void run(() => queue({ id: p.id as Id<"outreachProspects"> }), "Added to the review queue. Nothing was sent.")}>
+                            Queue for review
+                          </Button>
+                        )}
+                        <Button variant="ghost" onClick={() => void run(() => remove({ id: p.id as Id<"outreachProspects"> }), "Removed.")}>
+                          Remove
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {data.suppressedCount > 0 && (
+        <p className="text-xs text-steel">{data.suppressedCount} address(es) are on the opt-out list and will never be queued.</p>
+      )}
     </div>
   );
 }

@@ -27,9 +27,12 @@
   },
   "include": [
     "src/app/agency/outreach/page.tsx",
+    "src/components/agency/outreach-panels.tsx",
     "convex/outreach.ts",
+    "convex/outreachProspects.ts",
     "convex/outreach/*.ts",
     "convex/outreach.test.ts",
+    "convex/outreachProspects.test.ts",
     "next-env.d.ts"
   ]
 }

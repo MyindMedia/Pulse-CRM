@@ -1,7 +1,8 @@
 import { query, internalQuery, QueryCtx, MutationCtx } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { v } from "convex/values";
-import { resolveViewer, AccessError } from "./lib/access";
+import { AccessError } from "./lib/access";
+import { agencyScope, requireAgencyScope, logEvent } from "./outreach/scope";
 import { commStatusV } from "./outreach/tables";
 import {
   readiness, redact, maskPhone, callEligibility, canTransition, FAILED_STATUSES, STATUS_MEANING,
@@ -17,51 +18,12 @@ import { TARGET } from "./pulseWalkthrough/policy";
    ============================================================ */
 
 type Ctx = QueryCtx | MutationCtx;
-type AgencyScope = { agencyId: string; actor: string; role: string; canManage: boolean };
-
-/** The caller's agency scope, or null for anyone who is not an agency member
- *  (anonymous, demo, studio member). Queries degrade to "unauthorized". */
-async function agencyScope(ctx: Ctx): Promise<AgencyScope | null> {
-  let viewer;
-  try {
-    viewer = await resolveViewer(ctx);
-  } catch {
-    return null;
-  }
-  if (viewer.kind !== "agency_member") return null;
-  return {
-    agencyId: viewer.agencyId,
-    actor: viewer.clerkUserId,
-    role: viewer.role,
-    canManage: viewer.role === "owner" || viewer.role === "admin",
-  };
-}
-
-async function requireAgencyScope(ctx: Ctx): Promise<AgencyScope> {
-  const scope = await agencyScope(ctx);
-  if (!scope) throw new AccessError("FORBIDDEN", "Agency access required");
-  return scope;
-}
 
 async function settingsFor(ctx: Ctx, agencyId: string) {
   return await ctx.db
     .query("outreachSettings")
     .withIndex("by_agency", (q) => q.eq("agencyId", agencyId))
     .unique();
-}
-
-async function logEvent(
-  ctx: MutationCtx,
-  agencyId: string,
-  actor: string,
-  action: string,
-  result: "ok" | "denied" | "unknown",
-  resource?: string,
-  detail?: string,
-) {
-  await ctx.db.insert("outreachEvents", {
-    agencyId, at: Date.now(), actor, action, result, resource, detail: redact(detail),
-  });
 }
 
 const walkthroughEnabled = () => process.env.PULSE_WALKTHROUGH_ENABLED === "true";

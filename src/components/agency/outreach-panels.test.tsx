@@ -11,10 +11,11 @@ vi.mock("convex/react", () => ({
   useMutation: () => async () => null,
 }));
 
-import { Overview, Communications, Meetings, Links, Activity, Settings, TestOnlyBanner } from "./outreach-panels";
+import { Overview, Communications, Meetings, Links, Activity, Settings, TestOnlyBanner, Prospects } from "./outreach-panels";
 
 const html = (el: React.ReactElement) => renderToStaticMarkup(el);
 const set = (name: string, v: unknown) => { fixtures[`outreach:${name}`] = v; };
+const setP = (v: unknown) => { fixtures["outreachProspects:list"] = v; };
 
 beforeEach(() => { for (const k of Object.keys(fixtures)) delete fixtures[k]; });
 
@@ -30,14 +31,15 @@ const overview = {
 
 describe("Outreach panels", () => {
   it("every panel shows loading while data is undefined", () => {
-    for (const el of [<Overview />, <Communications />, <Meetings />, <Links />, <Activity />, <Settings />]) {
+    for (const el of [<Overview />, <Communications />, <Meetings />, <Links />, <Activity />, <Settings />, <Prospects />]) {
       expect(html(el)).toMatch(/Loading/i);
     }
   });
 
   it("every panel shows the agency-required state when the server returns null", () => {
     for (const n of ["overview", "communications", "templates", "meetings", "links", "activity"]) set(n, null);
-    for (const el of [<Overview />, <Communications />, <Meetings />, <Links />, <Activity />, <Settings />]) {
+    fixtures["outreachProspects:list"] = null;
+    for (const el of [<Overview />, <Communications />, <Meetings />, <Links />, <Activity />, <Settings />, <Prospects />]) {
       expect(html(el)).toContain("Agency membership required");
     }
   });
@@ -116,5 +118,36 @@ describe("Outreach panels", () => {
     expect(out).toContain("Test only.");
     expect(out).toContain("Nothing is sent, called or texted");
     expect(out).toContain("paused");
+  });
+
+  it("prospects: empty state, and non-managers cannot add", () => {
+    setP({ canManage: false, suppressedCount: 0, rows: [] });
+    const out = html(<Prospects />);
+    expect(out).toContain("No prospects yet");
+    expect(out).toContain("Only an owner or admin can add or change prospects.");
+    expect(out).toMatch(/<textarea[^>]*disabled/);
+  });
+
+  it("prospects: shows published-not-verified labels, generic-inbox warning and the website prompt", () => {
+    setP({
+      canManage: true, suppressedCount: 1,
+      rows: [
+        { id: "p1", handle: "acme", name: null, websiteUrl: null, source: "paste", status: "needs_website", note: null, createdAt: 0, contacts: null },
+        { id: "p2", handle: null, name: "Ice Cream Sound", websiteUrl: "https://icecreamsound.com", source: "paste", status: "scraped", note: null, createdAt: 0,
+          contacts: {
+            emails: [{ address: "studio@icecreamsound.com", generic: true, rank: 73, sourceUrl: "https://icecreamsound.com/contact", suppressed: false }],
+            phones: [{ number: "(323) 760-7557", sourceUrl: "https://icecreamsound.com" }],
+            socials: [{ platform: "instagram", url: "https://instagram.com/icecreamsound" }], booking: ["GoHighLevel"], scrapedAt: 0,
+          } },
+      ],
+    });
+    const out = html(<Prospects />);
+    expect(out).toContain("Confirm website");
+    expect(out).toContain("published, not verified");
+    expect(out).toContain("generic inbox");
+    expect(out).toContain("Confirm routing before pitching");
+    expect(out).toContain("Queue for review");
+    expect(out).toContain("opt-out list");
+    expect(out).not.toMatch(/>\s*Send\s*</i);
   });
 });
