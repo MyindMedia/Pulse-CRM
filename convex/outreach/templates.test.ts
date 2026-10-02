@@ -105,4 +105,12 @@ describe("renderEmail", () => {
     expect(r.html).toContain('bgcolor="#fdb913"');
     expect(r.html).toContain("max-width:480px"); // mobile padding rule
   });
+
+  it("animated mode points at the hosted GIF, needs no attachment, and keeps the links row", () => {
+    const r = renderEmail({ ...base, signatureMode: "animated" });
+    expect(r.html).toContain("https://studiopulse.tech/email/signature-roverto.gif");
+    expect(r.html).not.toContain("cid:");
+    expect(r.html).toContain("mailto:info@studiopulse.tech");
+    expect(inlineImagesFor(r.html)).toEqual([]);
+  });
 });

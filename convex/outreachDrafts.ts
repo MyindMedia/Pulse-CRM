@@ -15,7 +15,7 @@ import { inlineImagesFor, withDataUris } from "./outreach/signatures";
 
 const APPROVAL_TTL_MS = 24 * 60 * 60 * 1000;
 const personaV = v.union(v.literal("maxb"), v.literal("lawrence"));
-const modeV = v.union(v.literal("image"), v.literal("original"), v.literal("static"));
+const modeV = v.union(v.literal("image"), v.literal("animated"), v.literal("original"), v.literal("static"));
 
 async function requireManager(ctx: Parameters<typeof requireAgencyScope>[0]) {
   const scope = await requireAgencyScope(ctx);

@@ -147,7 +147,7 @@ export const outreachTables = {
     recipient: v.string(),
     persona: v.union(v.literal("maxb"), v.literal("lawrence")),
     templateKey: v.string(),
-    signatureMode: v.union(v.literal("image"), v.literal("original"), v.literal("static")),
+    signatureMode: v.union(v.literal("image"), v.literal("animated"), v.literal("original"), v.literal("static")),
     observation: v.optional(v.string()),
     subject: v.string(),
     html: v.string(),
