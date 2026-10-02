@@ -101,38 +101,35 @@ export function renderEmail(input: RenderInput): Rendered {
   if (input.observation?.trim()) paragraphs.push(input.observation.trim());
   paragraphs.push(...t.paragraphs);
 
-  const sig = signatureHtml(persona.signature, input.signatureMode ?? "original");
+  const sig = signatureHtml(persona.signature, input.signatureMode ?? "image");
 
   const html = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(t.subject)}</title></head>
-<body style="margin:0; padding:0; background:#0a0a0b; font-family:'Segoe UI', -apple-system, Helvetica, Arial, sans-serif;">
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><meta name="color-scheme" content="dark"><meta name="supported-color-schemes" content="dark"><title>${esc(t.subject)}</title>
+<style>@media only screen and (max-width:480px){.pad{padding:28px 20px !important}.head{padding:32px 20px 26px !important}.hl{font-size:23px !important}}</style></head>
+<body bgcolor="#0a0a0b" style="margin:0; padding:0; background:#0a0a0b; font-family:'Segoe UI', -apple-system, Helvetica, Arial, sans-serif;">
 <div style="display:none;max-height:0;overflow:hidden">A personal invitation to see Pulse around ${esc(studio)}'s workflow.</div>
-<center style="width:100%; background:#0a0a0b;">
-  <div style="max-width:620px; width:100%; margin:0 auto; background:#0d0d0f; border:1px solid #232326; border-radius:16px; overflow:hidden;">
-    <div style="background:#0d0d0f; padding:48px 44px 36px; text-align:center; border-bottom:1px solid #232326;">
-  <div style="display:inline-block;"><img src="${LOGO_URL}" alt="Pulse" width="220" style="display:block; width:220px; max-width:100%; height:auto;" /></div>
-  <div style="margin-top:18px; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:#b9b8b4;">The studio operating system</div>
-</div>
-    <div style="padding:44px;">
-      <div style="font-size:27px; line-height:1.3; color:#ffffff; font-weight:700; letter-spacing:-0.01em; margin-bottom:18px;">
-        Your studio has a sound. <span style="color:#fdb913;">Now give it a system.</span>
+<table role="presentation" width="100%" cellspacing="0" cellpadding="0" border="0" bgcolor="#0a0a0b" style="background:#0a0a0b;width:100%"><tr><td align="center" bgcolor="#0a0a0b" style="background:#0a0a0b">
+<table role="presentation" width="620" cellspacing="0" cellpadding="0" border="0" bgcolor="#0d0d0f" style="width:100%;max-width:620px;background:#0d0d0f;border:1px solid #232326;border-radius:16px;border-collapse:separate">
+<tr><td class="head" align="center" bgcolor="#0d0d0f" style="background:#0d0d0f;padding:48px 44px 36px;text-align:center;border-bottom:1px solid #232326;border-radius:16px 16px 0 0">
+  <img src="${LOGO_URL}" alt="Pulse" width="220" style="display:block;margin:0 auto;width:220px;max-width:100%;height:auto;border:0" />
+  <div style="margin-top:18px;font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:#b9b8b4">The studio operating system</div>
+</td></tr>
+<tr><td class="pad" align="center" bgcolor="#0d0d0f" style="background:#0d0d0f;padding:44px;text-align:center;border-radius:0 0 16px 16px">
+      <div class="hl" style="font-size:27px;line-height:1.3;color:#ffffff;font-weight:700;letter-spacing:-0.01em;margin-bottom:18px">
+        Your studio has a sound. <span style="color:#fdb913">Now give it a system.</span>
       </div>
-${paragraphs.map((p) => `      <p style="font-size:15px; line-height:1.75; color:#d6d5d2; margin:0 0 18px;">${esc(p)}</p>`).join("\n")}
-
-<div style="text-align:center; margin:34px 0;">
-  <a href="${esc(cta)}" style="display:inline-block; background:#fdb913; color:#0a0a0b; text-decoration:none; padding:16px 40px; font-size:14px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; border-radius:12px;">${t.cta}</a>
+${paragraphs.map((p) => `      <p style="font-size:15px;line-height:1.75;color:#d6d5d2;margin:0 0 18px">${esc(p)}</p>`).join("\n")}
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" align="center" style="margin:34px auto"><tr><td align="center" bgcolor="#fdb913" style="background:#fdb913;border-radius:12px">
+  <a href="${esc(cta)}" style="display:inline-block;padding:16px 40px;font-size:14px;font-weight:700;letter-spacing:.05em;text-transform:uppercase;color:#0a0a0b;text-decoration:none">${t.cta}</a>
+</td></tr></table>
+<div style="margin-top:8px;text-align:left">${sig}</div>
+<div style="margin-top:30px;padding-top:24px;border-top:1px solid #232326;text-align:center">
+  <div style="font-size:12px;color:#8f8c86">Built by a Grammy-nominated producer, not a SaaS company.</div>
+  <div style="margin-top:6px"><a href="${SITE_URL}" style="color:#fdb913;text-decoration:none;font-size:13px">studiopulse.tech</a></div>
+  <div style="margin-top:14px;font-size:11px;line-height:1.6;color:#8f8c86">Pulse<br>${esc(addressLine)}<br>Not relevant? Reply <strong>unsubscribe</strong> and we will stop contacting you.</div>
 </div>
-
-<div style="margin-top:8px; text-align:left;">${sig}</div>
-
-<div style="margin-top:30px; padding-top:24px; border-top:1px solid #232326; text-align:center;">
-  <div style="font-size:12px; color:#8f8c86;">Built by a Grammy-nominated producer, not a SaaS company.</div>
-  <div style="margin-top:6px;"><a href="${SITE_URL}" style="color:#fdb913; text-decoration:none; font-size:13px;">studiopulse.tech</a></div>
-  <div style="margin-top:14px; font-size:11px; line-height:1.6; color:#8f8c86;">Pulse<br>${esc(addressLine)}<br>Not relevant? Reply <strong>unsubscribe</strong> and we will stop contacting you.</div>
-</div>
-    </div>
-  </div>
-</center>
+</td></tr></table>
+</td></tr></table>
 </body></html>`;
 
   const text = [

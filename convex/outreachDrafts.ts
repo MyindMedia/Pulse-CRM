@@ -117,7 +117,7 @@ export const prepare = mutation({
 
     const settings = await settingsFor(ctx, scope.agencyId);
     const studio = prospect.name ?? (prospect.handle ? prospect.handle : prospect.websiteUrl ?? "your");
-    const mode = a.signatureMode ?? "original";
+    const mode = a.signatureMode ?? "image";
     const r = renderEmail({
       template: a.templateKey as TemplateKey, studio, observation: a.observation,
       bookingUrl: settings?.bookingUrl, postalAddress: settings?.postalAddress, signatureMode: mode,

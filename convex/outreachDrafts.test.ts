@@ -43,7 +43,9 @@ describe("outreach drafts and approval", () => {
     const p = await ua.query(api.outreachDrafts.preview, { id });
     expect(p?.from).toBe("MaxB | Pulse <info@studiopulse.tech>");
     expect(p?.to).toBe("booking@mix.com");
-    expect(p?.html).toContain(ORIGINAL_ROVERTO);
+    expect(p?.html).toContain("data:image/jpeg;base64,"); // the signature picture, inlined for the preview
+    expect(p?.html).not.toContain(ORIGINAL_ROVERTO);
+    expect(p?.inline).toEqual(["signature-roverto.jpg"]);
     expect(p?.subject).toBe("Your studio has a sound. Now give it a system.");
     expect(p?.links).toContain("https://studiopulse.tech");
   });

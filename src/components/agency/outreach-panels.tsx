@@ -620,10 +620,10 @@ export function Prospects() {
                               <option value="lawrence" disabled>Lawrence (no approved copy yet)</option>
                             </select>
                             <label htmlFor={`sig-${p.id}`} className="text-steel">Signature</label>
-                            <select id={`sig-${p.id}`} value={cur.sig ?? "original"} onChange={(e) => setPrep((m) => ({ ...m, [p.id]: { ...cur, sig: e.target.value as "original" | "static" | "image" } }))}
+                            <select id={`sig-${p.id}`} value={cur.sig ?? "image"} onChange={(e) => setPrep((m) => ({ ...m, [p.id]: { ...cur, sig: e.target.value as "original" | "static" | "image" } }))}
                               className="rounded border border-graphite/60 bg-obsidian px-2 py-1 text-bone">
-                              <option value="original">Original (your HTML file)</option>
-                              <option value="image">Exact picture of it (fallback)</option>
+                              <option value="image">Exact picture of your Final signature (recommended)</option>
+                              <option value="original">Your HTML file as-is (breaks in Gmail)</option>
                               <option value="static">Email-safe rebuild</option>
                             </select>
                           </div>
@@ -638,7 +638,7 @@ export function Prospects() {
                             disabled={!chosen}
                             onClick={() => void run(() => prepare({
                               prospectId: p.id as Id<"outreachProspects">, email: chosen!.address, persona: "maxb",
-                              templateKey: "maxb_system", signatureMode: cur.sig ?? "original", routingConfirmed: !!cur.routing,
+                              templateKey: "maxb_system", signatureMode: cur.sig ?? "image", routingConfirmed: !!cur.routing,
                             }), "Draft prepared. Open the Review queue tab to preview it. Nothing was sent.")}
                           >
                             Prepare email

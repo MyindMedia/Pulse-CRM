@@ -14,10 +14,19 @@ describe("renderEmail", () => {
     expect(r.html).toContain("See Pulse in action");
     expect(r.html).toContain("The studio operating system");
     expect(r.html).toContain("max-width:620px");
+    expect(r.html).toContain('bgcolor="#0d0d0f"'); // table backgrounds survive Gmail on phones
+    expect(r.html).toContain('name="color-scheme" content="dark"');
   });
 
-  it("embeds the original Roverto signature verbatim by default", () => {
+  it("defaults to the exact picture of the Final signature, because Gmail breaks the HTML", () => {
     const r = renderEmail(base);
+    expect(r.html).toContain("cid:pulse-signature-roverto");
+    expect(r.html).not.toContain(ORIGINAL_ROVERTO);
+    expect(r.html).not.toContain("<style>.pw"); // none of the signature's CSS
+  });
+
+  it("can embed the Final Roverto HTML verbatim when asked", () => {
+    const r = renderEmail({ ...base, signatureMode: "original" });
     expect(r.html).toContain(ORIGINAL_ROVERTO);
     expect(r.html).not.toContain(ORIGINAL_LAWRENCE);
   });
@@ -83,10 +92,17 @@ describe("renderEmail", () => {
     expect(Buffer.from(imgs[0].base64, "base64").subarray(0, 2).toString("hex")).toBe("ffd8"); // a real JPEG
     expect(withDataUris(r.html)).toContain("data:image/jpeg;base64,");
     expect(withDataUris(r.html)).not.toContain("cid:");
-    expect(inlineImagesFor(renderEmail(base).html)).toEqual([]); // original mode needs no attachment
+    expect(inlineImagesFor(renderEmail({ ...base, signatureMode: "original" }).html)).toEqual([]); // original mode needs no attachment
   });
 
   it("the signature is left-aligned inside the centred layout so it matches the source file", () => {
-    expect(renderEmail(base).html).toContain('text-align:left;">' + ORIGINAL_ROVERTO.slice(0, 40));
+    expect(renderEmail({ ...base, signatureMode: "original" }).html).toContain('text-align:left">' + ORIGINAL_ROVERTO.slice(0, 40));
+  });
+
+  it("the page background and card use bgcolor attributes, not only CSS, for phone mail apps", () => {
+    const r = renderEmail(base);
+    expect(r.html).toContain('bgcolor="#0a0a0b"');
+    expect(r.html).toContain('bgcolor="#fdb913"');
+    expect(r.html).toContain("max-width:480px"); // mobile padding rule
   });
 });

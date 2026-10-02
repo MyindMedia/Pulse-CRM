@@ -1,10 +1,11 @@
 /* Signature fragments for outreach email.
 
    Modes:
-   - "original" (default, Lawrence's choice after the owner test): the HTML files as-is.
-   - "image": a pixel-exact picture of the finished original design, sent as an inline
-     attachment (see signatureImages.ts and scripts/outreach/render_signatures.py).
-     A fallback for clients that strip the original's CSS.
+   - "image" (default): a pixel-exact picture of the finished Final design, sent as an
+     inline attachment (see signatureImages.ts and scripts/outreach/render_signatures.py).
+     Looks identical in every mail client. Chosen because Gmail on iPhone strips the
+     original HTML's CSS and the card falls apart (owner test, 2026-10-01).
+   - "original": the Final HTML files as-is. Renders correctly in browsers, not in Gmail.
    - "static": the same design rebuilt with inline styles and tables.
 
    ORIGINAL_* are Lawrence's own FINAL signature files, byte for byte, copied from
