@@ -3,8 +3,9 @@ import { signatureHtml, type SignatureKey, type SignatureMode } from "./signatur
 /* Outreach email templates and the pure renderer. No network, no database.
 
    Copy is Version B, the MaxB-authored canonical pitch from Lawrence's
-   pulse-outreach EMAILS.md, unchanged. Layout is the branded dark card from
-   that package's preview files. */
+   pulse-outreach EMAILS.md, unchanged. Layout is the original Pulse email
+   design from the 01-04 studio emails (620px dark card, centred logo header,
+   gold button), which Lawrence prefers over the pulse-outreach preview layout. */
 
 export type PersonaKey = "maxb" | "lawrence";
 
@@ -49,7 +50,7 @@ export const TEMPLATES = {
       "I’m MaxB, reaching out for Lawrence “ThaMyind” Berment, a Grammy-nominated producer and songwriter with credits with Kanye West and Pusha T. He built Pulse for the business behind the music.",
       "Open to 15 minutes with Lawrence? He’ll show you how your bookings, inventory and financials can work together, so there’s less to manage between sessions.",
     ],
-    cta: "SEE YOUR STUDIO, CONNECTED",
+    cta: "See Pulse in action",
     textSignoff: ["MaxB", "On behalf of Lawrence “ThaMyind” Berment", "Founder of Pulse"],
   },
 } as const;
@@ -101,20 +102,38 @@ export function renderEmail(input: RenderInput): Rendered {
   paragraphs.push(...t.paragraphs);
 
   const sig = signatureHtml(persona.signature, input.signatureMode ?? "original");
-  const body = paragraphs
-    .map((p) => `<p style="margin:0 0 18px;color:#f6f6f5;font-size:16px;line-height:1.7">${esc(p)}</p>`)
-    .join("");
 
-  const html = `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${esc(t.subject)}</title></head>
-<body style="margin:0;background:#0a0a0b;font-family:Arial,Helvetica,sans-serif">
+  const html = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${esc(t.subject)}</title></head>
+<body style="margin:0; padding:0; background:#0a0a0b; font-family:'Segoe UI', -apple-system, Helvetica, Arial, sans-serif;">
 <div style="display:none;max-height:0;overflow:hidden">A personal invitation to see Pulse around ${esc(studio)}'s workflow.</div>
-<table role="presentation" width="100%" cellspacing="0" cellpadding="0" bgcolor="#0a0a0b"><tr><td align="center" style="padding:32px 12px">
-<table role="presentation" width="600" cellspacing="0" cellpadding="0" style="width:100%;max-width:600px;background:#111113;border:1px solid #2a2a2e;border-radius:16px">
-<tr><td style="padding:32px 32px 24px;border-bottom:1px solid #2a2a2e"><a href="${SITE_URL}"><img src="${LOGO_URL}" alt="Pulse" width="130" style="display:block;border:0;width:130px;height:auto"></a><p style="margin:16px 0 0;color:#fdb913;font-size:11px;letter-spacing:2px">BUILT FOR THE STUDIO. BY A PRODUCER.</p></td></tr>
-<tr><td style="padding:32px"><h1 style="margin:0 0 24px;color:#f6f6f5;font-size:28px;line-height:1.25">Your studio has a sound.<br><span style="color:#fdb913">Now give it a system.</span></h1>${body}
-<table role="presentation" cellspacing="0" cellpadding="0"><tr><td bgcolor="#fdb913" style="border-radius:8px"><a href="${esc(cta)}" style="display:inline-block;padding:16px 24px;color:#0a0a0b;font-weight:bold;font-size:14px;text-decoration:none">${t.cta}</a></td></tr></table>
-<div style="margin-top:28px">${sig}</div></td></tr>
-<tr><td style="padding:24px 32px;border-top:1px solid #2a2a2e;color:#c9c7cc;font-size:12px;line-height:1.6">Pulse<br>${esc(addressLine)}<br>Not relevant? Reply <strong>unsubscribe</strong> and we will stop contacting you.<br><a href="${SITE_URL}" style="color:#fdb913">studiopulse.tech</a></td></tr></table></td></tr></table></body></html>`;
+<center style="width:100%; background:#0a0a0b;">
+  <div style="max-width:620px; width:100%; margin:0 auto; background:#0d0d0f; border:1px solid #232326; border-radius:16px; overflow:hidden;">
+    <div style="background:#0d0d0f; padding:48px 44px 36px; text-align:center; border-bottom:1px solid #232326;">
+  <div style="display:inline-block;"><img src="${LOGO_URL}" alt="Pulse" width="220" style="display:block; width:220px; max-width:100%; height:auto;" /></div>
+  <div style="margin-top:18px; font-size:11px; letter-spacing:.24em; text-transform:uppercase; color:#b9b8b4;">The studio operating system</div>
+</div>
+    <div style="padding:44px;">
+      <div style="font-size:27px; line-height:1.3; color:#ffffff; font-weight:700; letter-spacing:-0.01em; margin-bottom:18px;">
+        Your studio has a sound. <span style="color:#fdb913;">Now give it a system.</span>
+      </div>
+${paragraphs.map((p) => `      <p style="font-size:15px; line-height:1.75; color:#d6d5d2; margin:0 0 18px;">${esc(p)}</p>`).join("\n")}
+
+<div style="text-align:center; margin:34px 0;">
+  <a href="${esc(cta)}" style="display:inline-block; background:#fdb913; color:#0a0a0b; text-decoration:none; padding:16px 40px; font-size:14px; font-weight:700; letter-spacing:.05em; text-transform:uppercase; border-radius:12px;">${t.cta}</a>
+</div>
+
+<div style="margin-top:8px; text-align:left;">${sig}</div>
+
+<div style="margin-top:30px; padding-top:24px; border-top:1px solid #232326; text-align:center;">
+  <div style="font-size:12px; color:#8f8c86;">Built by a Grammy-nominated producer, not a SaaS company.</div>
+  <div style="margin-top:6px;"><a href="${SITE_URL}" style="color:#fdb913; text-decoration:none; font-size:13px;">studiopulse.tech</a></div>
+  <div style="margin-top:14px; font-size:11px; line-height:1.6; color:#8f8c86;">Pulse<br>${esc(addressLine)}<br>Not relevant? Reply <strong>unsubscribe</strong> and we will stop contacting you.</div>
+</div>
+    </div>
+  </div>
+</center>
+</body></html>`;
 
   const text = [
     paragraphs.join("\n\n"),
@@ -124,7 +143,7 @@ export function renderEmail(input: RenderInput): Rendered {
   ].join("\n\n");
 
   // Campaign rule from the workflow doc: no em dashes anywhere in what recipients read.
-  const readable = [t.subject, body, text, addressLine].join("\n");
+  const readable = [t.subject, paragraphs.join("\n"), text, addressLine].join("\n");
   if (readable.includes("—")) throw new Error("Em dash is not allowed in campaign copy");
 
   const links = [...new Set([...html.matchAll(/(?:href|src)="([^"]+)"/g)].map((m) => m[1]))];

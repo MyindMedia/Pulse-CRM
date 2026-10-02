@@ -11,7 +11,9 @@ describe("renderEmail", () => {
     expect(r.text).toContain("Hey MIX Recording Studio team,");
     expect(r.text).toContain("Your best work happens in the studio. Running the studio shouldn’t take you away from it.");
     expect(r.text).toContain("Open to 15 minutes with Lawrence?");
-    expect(r.html).toContain("SEE YOUR STUDIO, CONNECTED");
+    expect(r.html).toContain("See Pulse in action");
+    expect(r.html).toContain("The studio operating system");
+    expect(r.html).toContain("max-width:620px");
   });
 
   it("embeds the original Roverto signature verbatim by default", () => {
@@ -82,5 +84,9 @@ describe("renderEmail", () => {
     expect(withDataUris(r.html)).toContain("data:image/jpeg;base64,");
     expect(withDataUris(r.html)).not.toContain("cid:");
     expect(inlineImagesFor(renderEmail(base).html)).toEqual([]); // original mode needs no attachment
+  });
+
+  it("the signature is left-aligned inside the centred layout so it matches the source file", () => {
+    expect(renderEmail(base).html).toContain('text-align:left;">' + ORIGINAL_ROVERTO.slice(0, 40));
   });
 });
