@@ -37,6 +37,8 @@ export type ReadinessInput = {
   approvedTemplates: number;
   walkthroughEnabled: boolean;
   walkthroughSchemaAudited: boolean;
+  emailProviderConfigured?: boolean;
+  mode?: "test_only" | "live";
 };
 
 export function readiness(i: ReadinessInput): ReadinessItem[] {
@@ -84,6 +86,18 @@ export function readiness(i: ReadinessInput): ReadinessItem[] {
       label: "Owner test confirmed",
       state: s?.testConfirmedAt ? "ready" : "missing",
       detail: s?.testConfirmedAt ? "You confirmed a test email landed and looked right." : "No owner test has been confirmed. Prospect emails cannot be approved until one is.",
+    },
+    {
+      key: "email_provider",
+      label: "Email provider (Resend)",
+      state: i.emailProviderConfigured ? "ready" : "missing",
+      detail: i.emailProviderConfigured ? "A sending key is configured on the server. The value is never shown." : "No Resend key is configured on the server, so nothing can send.",
+    },
+    {
+      key: "live_sending",
+      label: "Live sending",
+      state: i.mode === "live" ? "ready" : "disabled",
+      detail: i.mode === "live" ? "On. Every email still needs your approval and a Send click." : "Off. Approved emails cannot be sent until an owner turns live sending on.",
     },
     {
       key: "calling",
@@ -145,4 +159,17 @@ export function canTransition(from: CommStatus, to: CommStatus): boolean {
   if (TERMINAL.includes(from)) return false;
   if (to === "draft") return false;
   return true;
+}
+
+/** What must be true before an owner may switch live sending on. */
+export function liveBlockers(i: {
+  postalAddress?: string; testConfirmedAt?: number; senders: Array<{ verified: boolean }>; approvedTemplates: number; emailProviderConfigured: boolean;
+}): string[] {
+  const out: string[] = [];
+  if (!i.postalAddress) out.push("Set the business mailing address");
+  if (!i.testConfirmedAt) out.push("Confirm an owner test email");
+  if (!i.senders.some((s) => s.verified)) out.push("Verify a sending identity");
+  if (i.approvedTemplates < 1) out.push("Approve a template");
+  if (!i.emailProviderConfigured) out.push("Configure the Resend key on the server");
+  return out;
 }

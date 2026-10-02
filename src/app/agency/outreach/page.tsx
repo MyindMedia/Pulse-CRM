@@ -17,7 +17,7 @@ export default function OutreachPage() {
           Outbound email, meetings, booking links and calendars in one place.
         </p>
       </header>
-      {overview && <TestOnlyBanner paused={overview.paused} />}
+      {overview && <TestOnlyBanner paused={overview.paused} mode={overview.mode} />}
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList aria-label="Outreach sections">
           <TabsTrigger value="overview">Overview</TabsTrigger>

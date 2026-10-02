@@ -35,6 +35,10 @@
     "convex/outreach.test.ts",
     "convex/outreachProspects.test.ts",
     "convex/outreachDrafts.test.ts",
+    "convex/outreachCalendar.ts",
+    "convex/outreachSend.ts",
+    "convex/outreachCalendar.test.ts",
+    "convex/outreachSend.test.ts",
     "next-env.d.ts"
   ]
 }

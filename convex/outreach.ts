@@ -5,7 +5,7 @@ import { AccessError } from "./lib/access";
 import { agencyScope, requireAgencyScope, logEvent } from "./outreach/scope";
 import { commStatusV } from "./outreach/tables";
 import {
-  readiness, redact, maskPhone, callEligibility, canTransition, FAILED_STATUSES, STATUS_MEANING,
+  readiness, redact, maskPhone, callEligibility, canTransition, FAILED_STATUSES, STATUS_MEANING, liveBlockers,
 } from "./outreach/policy";
 import { TARGET } from "./pulseWalkthrough/policy";
 
@@ -54,12 +54,19 @@ export const overview = query({
       approvedTemplates: templates.filter((t) => t.approval === "approved").length,
       walkthroughEnabled: walkthroughEnabled(),
       walkthroughSchemaAudited: walkthroughAudited(),
+      emailProviderConfigured: !!process.env.RESEND_API_KEY,
+      mode: settings?.mode ?? "test_only",
     });
     return {
       canManage: scope.canManage,
       configured: settings !== null,
       paused: settings?.paused ?? true,
       mode: settings?.mode ?? ("test_only" as const),
+      isOwner: scope.role === "owner",
+      liveBlockers: liveBlockers({
+        postalAddress: settings?.postalAddress, testConfirmedAt: settings?.testConfirmedAt, senders: settings?.senders ?? [],
+        approvedTemplates: templates.filter((t) => t.approval === "approved").length, emailProviderConfigured: !!process.env.RESEND_API_KEY,
+      }),
       readiness: items,
       counts,
       failures: comms
@@ -203,6 +210,42 @@ export const setPaused = mutation({
     await logEvent(ctx, scope.agencyId, scope.actor, paused ? "outreach.paused" : "outreach.resumed", "ok");
     return null;
   },
+});
+
+/** Turns live sending on or off. Owner only. Turning it on needs every gate
+ *  met and the word SEND typed. Nothing is sent by this: each email still
+ *  needs its own approval and its own Send click. */
+export const setLive = mutation({
+  args: { enabled: v.boolean(), confirm: v.optional(v.string()) },
+  handler: async (ctx, a) => {
+    const scope = await requireAgencyScope(ctx);
+    if (scope.role !== "owner") throw new AccessError("FORBIDDEN", "Only the agency owner can change live sending");
+    const existing = await settingsFor(ctx, scope.agencyId);
+    if (a.enabled) {
+      if (a.confirm !== "SEND") throw new Error('Type SEND to confirm');
+      const templates = await ctx.db.query("outreachTemplates").withIndex("by_agency", (q) => q.eq("agencyId", scope.agencyId)).collect();
+      const blockers = liveBlockers({
+        postalAddress: existing?.postalAddress, testConfirmedAt: existing?.testConfirmedAt, senders: existing?.senders ?? [],
+        approvedTemplates: templates.filter((t) => t.approval === "approved").length, emailProviderConfigured: !!process.env.RESEND_API_KEY,
+      });
+      if (blockers.length) throw new Error(`Not ready: ${blockers.join("; ")}`);
+    }
+    const mode = a.enabled ? ("live" as const) : ("test_only" as const);
+    if (existing) await ctx.db.patch(existing._id, { mode, updatedAt: Date.now(), updatedBy: scope.actor });
+    else await ctx.db.insert("outreachSettings", { agencyId: scope.agencyId, paused: true, mode, senders: [], updatedAt: Date.now(), updatedBy: scope.actor });
+    await logEvent(ctx, scope.agencyId, scope.actor, a.enabled ? "outreach.live_enabled" : "outreach.live_disabled", "ok");
+    return null;
+  },
+});
+
+/** Booleans only: which server settings exist. Never returns a value. */
+export const _env = internalQuery({
+  args: {},
+  handler: async () => ({
+    resend: !!process.env.RESEND_API_KEY, ghl: !!process.env.PULSE_WALKTHROUGH_GHL_KEY,
+    intake: !!process.env.OUTREACH_INTAKE_SECRET && !!process.env.OUTREACH_INTAKE_AGENCY_ID,
+    walkthroughEnabled: walkthroughEnabled(), walkthroughAudited: walkthroughAudited(),
+  }),
 });
 
 /* ------------------- operator-only (internal) mutations ------------------- */

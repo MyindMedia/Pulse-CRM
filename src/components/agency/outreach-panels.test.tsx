@@ -16,11 +16,13 @@ import { Overview, Communications, Meetings, Links, Activity, Settings, TestOnly
 const html = (el: React.ReactElement) => renderToStaticMarkup(el);
 const set = (name: string, v: unknown) => { fixtures[`outreach:${name}`] = v; };
 const setP = (v: unknown) => { fixtures["outreachProspects:list"] = v; };
+const snap = (v: unknown) => { fixtures["outreachCalendar:snapshot"] = v; };
+const baseSnap = { canManage: true, mapped: false, keyConfigured: true, fetchedAt: null, ok: null, error: null, calendar: null, slots: [], appointments: [] };
 
 beforeEach(() => { for (const k of Object.keys(fixtures)) delete fixtures[k]; });
 
 const overview = {
-  canManage: true, configured: false, paused: true, mode: "test_only" as const,
+  canManage: true, isOwner: true, liveBlockers: ["Set the business mailing address"], configured: false, paused: true, mode: "test_only" as const,
   readiness: [
     { key: "sender", label: "Verified sender", state: "missing", detail: "No sending identity has been verified for this agency." },
     { key: "calling", label: "Automatic calling", state: "disabled", detail: "Off. The walkthrough integration is disabled and its provider schema is not audited." },
@@ -40,6 +42,7 @@ describe("Outreach panels", () => {
     for (const n of ["overview", "communications", "templates", "meetings", "links", "activity"]) set(n, null);
     fixtures["outreachProspects:list"] = null;
     fixtures["outreachDrafts:list"] = null;
+    fixtures["outreachCalendar:snapshot"] = null;
     for (const el of [<Overview />, <Communications />, <Meetings />, <Links />, <Activity />, <Settings />, <Prospects />, <Drafts />]) {
       expect(html(el)).toContain("Agency membership required");
     }
@@ -66,23 +69,26 @@ describe("Outreach panels", () => {
     const out = html(<Communications />);
     expect(out).toContain("not inbox delivery");
     expect(out).toContain("test");
+    expect(out).toContain("Check delivery status");
     expect(out).not.toMatch(/>\s*Send\s*</i);
   });
 
   it("communications empty state states that sending is not enabled", () => {
     set("communications", []);
     set("templates", []);
-    expect(html(<Communications />)).toContain("sending is not enabled");
+    expect(html(<Communications />)).toContain("sent from the Review queue");
   });
 
   it("meetings: unmapped shows the no-calendar state, not fake rows", () => {
     set("meetings", { mapped: false, rows: [] });
+    snap(baseSnap);
     const out = html(<Meetings />);
     expect(out).toContain("No calendar connected");
     expect(out).toMatch(/click is not a booking/i);
   });
 
   it("meetings: shows masked phone and why a call is not possible", () => {
+    snap(baseSnap);
     set("meetings", { mapped: true, rows: [{
       id: "appt1", name: "Test", start: 0, timezone: "America/Los_Angeles", status: "confirmed",
       phone: "••• 23", version: 1,
@@ -95,8 +101,10 @@ describe("Outreach panels", () => {
   });
 
   it("links: unconfigured says nothing is verified, configured shows provenance", () => {
+    snap(baseSnap);
     set("links", { configured: false, bookingUrl: null, calendarId: null, locationId: null, durationMin: null, timezone: null, verifiedAt: null, senders: [] });
     expect(html(<Links />)).toContain("Nothing verified yet");
+    snap({ ...baseSnap, mapped: true, calendar: { id: "c", name: "Pulse Walkthrough", active: true, durationMin: 30, widgetSlug: "pulse-walkthrough", formId: "f", autoConfirm: true }, slots: [{ date: "2026-10-05", count: 8, first: "x" }], fetchedAt: 1 });
     set("links", {
       configured: true, bookingUrl: "https://api.leadconnectorhq.com/widget/bookings/pulse-walkthrough",
       calendarId: "cal", locationId: "loc", durationMin: 30, timezone: "America/Los_Angeles", verifiedAt: 0,
@@ -105,6 +113,10 @@ describe("Outreach panels", () => {
     const out = html(<Links />);
     expect(out).toContain("30 minutes");
     expect(out).toContain("unverified");
+    expect(out).toContain("Live calendar");
+    expect(out).toContain("Pulse Walkthrough");
+    expect(out).toContain("8 across 1 day");
+    expect(out).toContain("Refresh from GoHighLevel");
   });
 
   it("settings: pause control is disabled for non-managers", () => {
@@ -176,5 +188,46 @@ describe("Outreach panels", () => {
     expect(held).not.toContain("Approve this email");
     fixtures["outreachDrafts:list"] = { canManage: true, gates: { postalAddress: true, ownerTestConfirmed: true }, rows: [] };
     expect(html(<Drafts />)).toContain("No drafts yet");
+  });
+
+  it("meetings: shows live GHL appointments even when the walkthrough ledger is unmapped", () => {
+    snap({ ...baseSnap, mapped: true, fetchedAt: 1, calendar: { id: "c", name: "Pulse Walkthrough", active: true, durationMin: 30, widgetSlug: "p", formId: "f", autoConfirm: true },
+      appointments: [{ id: "e1", title: "Pulse demo", start: Date.now() + 86_400_000, end: Date.now() + 90_000_000, status: "confirmed", contactName: "Jane Smith" }] });
+    set("meetings", { mapped: false, rows: [] });
+    const out = html(<Meetings />);
+    expect(out).toContain("Jane Smith");
+    expect(out).toContain("Read live from GoHighLevel");
+    expect(out).toContain("calling stays off");
+  });
+
+  it("review queue: Send is hidden until live sending is on, and is a two-step action", () => {
+    const row = { id: "d1", studio: "MIX", recipient: "jane@mix.com", persona: "MaxB", from: "x", subject: "s", signatureMode: "image", status: "approved", holdReason: null, approvedAt: 1, createdAt: 0 };
+    fixtures["outreachDrafts:list"] = { canManage: true, gates: { postalAddress: true, ownerTestConfirmed: true, live: false }, rows: [row] };
+    const off = html(<Drafts />);
+    expect(off).toContain("Sending is off. An owner can turn it on in Settings.");
+    expect(off).not.toContain("Send now");
+    fixtures["outreachDrafts:list"] = { canManage: true, gates: { postalAddress: true, ownerTestConfirmed: true, live: true }, rows: [row] };
+    const on = html(<Drafts />);
+    expect(on).toContain("Send now");
+    expect(on).not.toContain("Confirm: send to"); // only after the first click
+  });
+
+  it("settings: live sending lists what is missing, and only the owner can change it", () => {
+    set("overview", { ...overview });
+    const blocked = html(<Settings />);
+    expect(blocked).toContain("Live sending");
+    expect(blocked).toContain("Not ready to turn on");
+    expect(blocked).toContain("Set the business mailing address");
+    set("overview", { ...overview, liveBlockers: [], isOwner: false });
+    const nonOwner = html(<Settings />);
+    expect(nonOwner).toContain("Only the agency owner can change this.");
+    expect(nonOwner).toMatch(/<input[^>]*id="live-confirm"[^>]*disabled/);
+  });
+
+  it("banner: live mode says every email still needs approval and a click", () => {
+    const out = html(<TestOnlyBanner paused={false} mode="live" />);
+    expect(out).toContain("Live sending is on.");
+    expect(out).toContain("still needs your approval and your Send click");
+    expect(out).not.toContain("Test only.");
   });
 });

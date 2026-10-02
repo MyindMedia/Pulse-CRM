@@ -158,6 +158,8 @@ export const outreachTables = {
       v.literal("draft"),
       v.literal("hold"),
       v.literal("approved"),
+      v.literal("sending"),
+      v.literal("sent"),
       v.literal("cancelled"),
       v.literal("superseded"),
     ),
@@ -169,4 +171,19 @@ export const outreachTables = {
   })
     .index("by_agency", ["agencyId", "createdAt"])
     .index("by_prospect", ["prospectId"]),
+  /* The latest read-only snapshot of the agency's mapped GHL calendar. */
+  outreachCalendar: defineTable({
+    agencyId: v.string(),
+    fetchedAt: v.number(),
+    ok: v.boolean(),
+    error: v.optional(v.string()),
+    calendar: v.optional(v.object({
+      id: v.string(), name: v.string(), active: v.boolean(), durationMin: v.union(v.number(), v.null()),
+      widgetSlug: v.union(v.string(), v.null()), formId: v.union(v.string(), v.null()), autoConfirm: v.boolean(),
+    })),
+    slots: v.array(v.object({ date: v.string(), count: v.number(), first: v.union(v.string(), v.null()) })),
+    appointments: v.array(v.object({
+      id: v.string(), title: v.string(), start: v.number(), end: v.number(), status: v.string(), contactName: v.union(v.string(), v.null()),
+    })),
+  }).index("by_agency", ["agencyId"]),
 };
