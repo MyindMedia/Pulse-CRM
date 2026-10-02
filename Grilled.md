@@ -1897,3 +1897,20 @@ Requests from Lawrence during the App Store pass, in his words where it matters:
 - **Unrouted visibility:** owners and admins of the agency that runs every candidate studio. When candidate studios do not share an agency, the text goes to the studio with the client's most recent booking or message, marked "routed by best guess", so no studio sees a text that may not be theirs.
 - **Compliance check (compliance-ops, SOC 2 + GDPR):** no new vendors; AI stays out of the new paths (the portal thread never calls the concierge); push alerts carry the client's name only; Unrouted pruned at 30 days and contacts at 90; erasure and sub-account deletion cover the new tables. Data-flow map and vendor checklist: `docs/compliance/messages.md`. DPA confirmations are action items for Lawrence.
 - **Not in scope:** option B (a number per studio), unknown numbers that match no client (still not threaded), AI on portal messages.
+
+---
+
+## Epic: Agency Outreach tab - prospect pipeline (grilled 2026-10-01)
+
+**Goal:** the agency console's Outreach tab takes a list of Instagram accounts (and posts shared from a phone), finds each studio's published contact info, and queues them for an approval-gated B2B email outreach.
+
+**Decisions (Lawrence):**
+- Contact discovery layer: **Instaloader logged-out (on his Mac) + plain website fetch (in Pulse)**. No Apify, no Agent Reach, no logged-in Instagram automation. Volumes are small.
+- Contact info is read **only from the studio's own public website**, never from Instagram. A handle with no website waits as `needs_website` until the operator confirms one (a guessed site is never trusted).
+- Every message is **approved individually**. No batch send, no automatic follow-ups (day 3/7/14 each need a new approval).
+- Saved-folder capture replaced by an **iPhone Share Sheet shortcut** posting to a secured intake endpoint (Instagram has no supported way to watch Saved).
+
+**Constraints:** CAN-SPAM postal address in every footer (not yet provided, not invented), working opt-out and suppression list, robots.txt respected, no invented numbers, no em dashes in copy. Email sending, calling and SMS stay disabled until separately approved.
+
+**Open:** the email template and signature choice; business postal address; sending-domain/sender approval; verified Convex deployment for the intake URL.
+
