@@ -49,7 +49,18 @@ function Unauthorized() {
   );
 }
 
-export function TestOnlyBanner({ paused }: { paused: boolean }) {
+export function TestOnlyBanner({ paused, mode = "test_only" }: { paused: boolean; mode?: "test_only" | "live" }) {
+  if (mode === "live") {
+    return (
+      <div role="status" className="flex items-start gap-3 rounded-lg border border-positive/30 bg-positive/10 px-4 py-3 text-sm text-bone">
+        <MailCheck className="mt-0.5 size-4 shrink-0 text-positive" aria-hidden />
+        <p>
+          <strong className="font-semibold">Live sending is on.</strong>{paused ? " Outreach is paused, so nothing will go out." : ""} Each email
+          still needs your approval and your Send click. Automatic calls and SMS stay off.
+        </p>
+      </div>
+    );
+  }
   return (
     <div
       role="status"
@@ -141,10 +152,18 @@ export function Overview() {
 export function Communications() {
   const rows = useQuery(api.outreach.communications, {});
   const templates = useQuery(api.outreach.templates, {});
+  const checkStatuses = useMutation(api.outreachSend.checkStatuses);
+  const [checkMsg, setCheckMsg] = React.useState<string | null>(null);
   if (rows === undefined || templates === undefined) return <LoadingPanel label="Loading messages" />;
   if (rows === null || templates === null) return <Unauthorized />;
   return (
     <div className="space-y-6">
+      <div className="flex flex-wrap items-center gap-3">
+        <Button variant="secondary" onClick={() => { setCheckMsg(null); void checkStatuses({}).then(() => setCheckMsg("Asked the email provider. Refresh in a few seconds.")).catch(() => setCheckMsg("Could not check right now.")); }}>
+          Check delivery status
+        </Button>
+        {checkMsg && <span role="status" className="text-xs text-steel">{checkMsg}</span>}
+      </div>
       <div className="overflow-x-auto rounded-lg border border-graphite/50 bg-coal/40">
         <table className="w-full text-sm">
           <caption className="sr-only">Recorded outbound email</caption>
@@ -180,7 +199,7 @@ export function Communications() {
             {rows.length === 0 && (
               <tr>
                 <td colSpan={5} className="p-6 text-center text-sm text-steel/70">
-                  No messages recorded yet. There is no send button here: sending is not enabled.
+                  No messages recorded yet. Approved emails are sent from the Review queue.
                 </td>
               </tr>
             )}
@@ -221,8 +240,28 @@ export function Communications() {
 
 export function Meetings() {
   const data = useQuery(api.outreach.meetings, {});
-  if (data === undefined) return <LoadingPanel label="Loading meetings" />;
-  if (data === null) return <Unauthorized />;
+  const cal = useQuery(api.outreachCalendar.snapshot, {});
+  if (data === undefined || cal === undefined) return <LoadingPanel label="Loading meetings" />;
+  if (data === null || cal === null) return <Unauthorized />;
+  const upcoming = cal.appointments.length > 0 && (
+    <Card>
+      <CardHeader>
+        <CardTitle>Booked on the {cal.calendar?.name ?? "calendar"}</CardTitle>
+        <CardDescription>Read live from GoHighLevel{cal.fetchedAt ? `, ${when(cal.fetchedAt)}` : ""}. A booking is not a call: calling stays off.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <ul className="divide-y divide-hairline text-sm">
+          {cal.appointments.map((a) => (
+            <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-2">
+              <span className="text-bone">{a.contactName ?? a.title} <span className="text-xs text-steel/70">{a.title}</span></span>
+              <span className="text-xs text-steel">{when(a.start)} <Badge tone={a.status === "cancelled" ? "critical" : "info"}>{a.status}</Badge></span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+  if (!data.mapped && upcoming) return <div className="space-y-4">{upcoming}</div>;
   if (!data.mapped) {
     return (
       <EmptyState
@@ -233,10 +272,13 @@ export function Meetings() {
     );
   }
   if (data.rows.length === 0) {
-    return <EmptyState icon={CalendarClock} title="No appointments recorded" description="Nothing has been received from the calendar yet." />;
+    return upcoming
+      ? <div className="space-y-4">{upcoming}</div>
+      : <EmptyState icon={CalendarClock} title="No appointments yet" description="Nothing is booked on the calendar. Use Refresh in Links & calendars to read it from GoHighLevel." />;
   }
   return (
     <div className="space-y-3">
+      {upcoming}
       {data.rows.map((m) => (
         <Card key={m.id}>
           <CardContent className="flex flex-wrap items-start justify-between gap-3 p-4">
@@ -270,6 +312,50 @@ function Field({ label, value }: { label: string; value: React.ReactNode }) {
   );
 }
 
+function CalendarLive() {
+  const cal = useQuery(api.outreachCalendar.snapshot, {});
+  const refresh = useMutation(api.outreachCalendar.refresh);
+  const [err, setErr] = React.useState<string | null>(null);
+  const [msg, setMsg] = React.useState<string | null>(null);
+  if (cal === undefined) return <LoadingPanel label="Loading calendar" />;
+  if (cal === null) return <Unauthorized />;
+  if (!cal.mapped) return null;
+  const open = cal.slots.reduce((n, d) => n + d.count, 0);
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Live calendar</CardTitle>
+        <CardDescription>Read from GoHighLevel. Nothing here changes the calendar.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {cal.calendar ? (
+          <dl className="grid gap-3 sm:grid-cols-2">
+            <Field label="Calendar" value={cal.calendar.name} />
+            <Field label="Status" value={<Badge tone={cal.calendar.active ? "positive" : "critical"}>{cal.calendar.active ? "active" : "inactive"}</Badge>} />
+            <Field label="Meeting length" value={cal.calendar.durationMin ? `${cal.calendar.durationMin} minutes` : "Not set"} />
+            <Field label="Open slots, next 7 days" value={`${open} across ${cal.slots.length} day(s)`} />
+          </dl>
+        ) : (
+          <p className="text-sm text-steel">{cal.keyConfigured ? "Not read yet. Use Refresh." : "The GHL key is not configured on the server."}</p>
+        )}
+        {cal.slots.length > 0 && (
+          <p className="text-xs text-steel/70">{cal.slots.map((d) => `${d.date}: ${d.count}`).join(" · ")}</p>
+        )}
+        {cal.ok === false && <p role="alert" className="text-sm text-critical">Last refresh failed: {cal.error}</p>}
+        <div className="flex flex-wrap items-center gap-3">
+          <Button variant="secondary" disabled={!cal.canManage || !cal.keyConfigured}
+            onClick={() => { setErr(null); setMsg(null); void refresh({}).then(() => setMsg("Refreshing from GoHighLevel. Reload this tab in a few seconds.")).catch((e: unknown) => setErr(e instanceof Error ? e.message.replace(/^[\s\S]*Uncaught (Convex)?Error:?\s*/, "").slice(0, 160) : "Could not refresh.")); }}>
+            Refresh from GoHighLevel
+          </Button>
+          {cal.fetchedAt && <span className="text-xs text-steel/70">Last read {when(cal.fetchedAt)}</span>}
+        </div>
+        {msg && <p role="status" className="text-sm text-positive">{msg}</p>}
+        {err && <p role="alert" className="text-sm text-critical">{err}</p>}
+      </CardContent>
+    </Card>
+  );
+}
+
 export function Links() {
   const data = useQuery(api.outreach.links, {});
   if (data === undefined) return <LoadingPanel label="Loading links" />;
@@ -284,6 +370,8 @@ export function Links() {
     );
   }
   return (
+    <div className="space-y-4">
+    <CalendarLive />
     <div className="grid gap-4 lg:grid-cols-2">
       <Card>
         <CardHeader>
@@ -323,6 +411,7 @@ export function Links() {
           )}
         </CardContent>
       </Card>
+    </div>
     </div>
   );
 }
@@ -368,6 +457,8 @@ export function Activity() {
 export function Settings() {
   const data = useQuery(api.outreach.overview, {});
   const setPaused = useMutation(api.outreach.setPaused);
+  const setLive = useMutation(api.outreach.setLive);
+  const [liveText, setLiveText] = React.useState("");
   const [busy, setBusy] = React.useState(false);
   const [error, setError] = React.useState<string | null>(null);
   if (data === undefined) return <LoadingPanel label="Loading settings" />;
@@ -409,6 +500,43 @@ export function Settings() {
             {!data.canManage && <span className="text-xs text-steel">Only an owner or admin can change this.</span>}
           </div>
           {error && <p role="alert" className="text-sm text-critical">{error}</p>}
+        </CardContent>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>Live sending</CardTitle>
+          <CardDescription>
+            Off by default. Turning it on does not send anything: each email still needs its own approval and its own Send click.
+            Only the agency owner can change this.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex flex-wrap items-center gap-3">
+            <Badge tone={data.mode === "live" ? "positive" : "neutral"}>{data.mode === "live" ? "live sending on" : "live sending off"}</Badge>
+            {data.mode === "live" && (
+              <Button variant="secondary" disabled={busy || !data.isOwner} onClick={() => void (async () => { setBusy(true); setError(null); try { await setLive({ enabled: false }); } catch (e) { setError(e instanceof Error ? e.message : "Could not change live sending."); } finally { setBusy(false); } })()}>
+                Turn live sending off
+              </Button>
+            )}
+          </div>
+          {data.mode !== "live" && (
+            data.liveBlockers.length > 0 ? (
+              <div className="text-sm text-steel">
+                <p>Not ready to turn on:</p>
+                <ul className="list-disc pl-5">{data.liveBlockers.map((b) => <li key={b}>{b}</li>)}</ul>
+              </div>
+            ) : (
+              <div className="flex flex-wrap items-center gap-2">
+                <label htmlFor="live-confirm" className="text-sm text-steel">Type SEND to turn live sending on</label>
+                <input id="live-confirm" value={liveText} onChange={(e) => setLiveText(e.target.value)} disabled={!data.isOwner}
+                  className="w-28 rounded border border-graphite/60 bg-obsidian px-3 py-2 text-sm text-bone" />
+                <Button variant="primary" disabled={busy || !data.isOwner || liveText !== "SEND"} onClick={() => void (async () => { setBusy(true); setError(null); try { await setLive({ enabled: true, confirm: liveText }); setLiveText(""); } catch (e) { setError(e instanceof Error ? e.message : "Could not change live sending."); } finally { setBusy(false); } })()}>
+                  Turn live sending on
+                </Button>
+              </div>
+            )
+          )}
+          {!data.isOwner && <p className="text-xs text-steel">Only the agency owner can change this.</p>}
         </CardContent>
       </Card>
       <Card>
@@ -682,7 +810,7 @@ export function Prospects() {
 /* ------------------------------- Review queue ------------------------------- */
 
 const DRAFT_TONE: Record<string, Tone> = {
-  draft: "info", hold: "caution", approved: "positive", expired: "caution", cancelled: "neutral",
+  draft: "info", hold: "caution", approved: "positive", expired: "caution", cancelled: "neutral", sending: "info", sent: "positive",
 };
 
 function DraftPreview({ id }: { id: Id<"outreachDrafts"> }) {
@@ -717,6 +845,8 @@ export function Drafts() {
   const data = useQuery(api.outreachDrafts.list, {});
   const approve = useMutation(api.outreachDrafts.approve);
   const cancel = useMutation(api.outreachDrafts.cancel);
+  const send = useMutation(api.outreachSend.send);
+  const [confirming, setConfirming] = React.useState<string | null>(null);
   const [open, setOpen] = React.useState<string | null>(null);
   const [msg, setMsg] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
@@ -736,11 +866,12 @@ export function Drafts() {
       <Card>
         <CardHeader>
           <CardTitle>Before anything can be approved</CardTitle>
-          <CardDescription>Approval is tied to the exact email and expires in 24 hours. Approving does not send: sending is not enabled yet.</CardDescription>
+          <CardDescription>Approval is tied to the exact email and expires in 24 hours. Approving does not send: each approved email is sent with its own Send click, and only while live sending is on.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3 text-sm">
           <Badge tone={data.gates.postalAddress ? "positive" : "caution"}>postal address {data.gates.postalAddress ? "set" : "missing"}</Badge>
           <Badge tone={data.gates.ownerTestConfirmed ? "positive" : "caution"}>owner test {data.gates.ownerTestConfirmed ? "confirmed" : "not confirmed"}</Badge>
+          <Badge tone={data.gates.live ? "positive" : "neutral"}>live sending {data.gates.live ? "on" : "off"}</Badge>
         </CardContent>
       </Card>
       {msg && <p role="status" className="text-sm text-positive">{msg}</p>}
@@ -774,7 +905,23 @@ export function Drafts() {
                         Approve this email
                       </Button>
                     )}
-                    {data.canManage && !["cancelled", "approved"].includes(d.status) && (
+                    {data.canManage && d.status === "approved" && (
+                      data.gates.live ? (
+                        confirming === d.id ? (
+                          <>
+                            <Button variant="primary" onClick={() => { setConfirming(null); void run(() => send({ id: d.id as Id<"outreachDrafts"> }), `Sending to ${d.recipient}. Check the Communications tab for the result.`); }}>
+                              Confirm: send to {d.recipient}
+                            </Button>
+                            <Button variant="ghost" onClick={() => setConfirming(null)}>Not yet</Button>
+                          </>
+                        ) : (
+                          <Button variant="primary" onClick={() => setConfirming(d.id)}>Send now</Button>
+                        )
+                      ) : (
+                        <span className="self-center text-xs text-steel">Sending is off. An owner can turn it on in Settings.</span>
+                      )
+                    )}
+                    {data.canManage && !["cancelled", "approved", "sending", "sent"].includes(d.status) && (
                       <Button variant="ghost" onClick={() => void run(() => cancel({ id: d.id as Id<"outreachDrafts"> }), "Draft cancelled.")}>Cancel</Button>
                     )}
                   </div>

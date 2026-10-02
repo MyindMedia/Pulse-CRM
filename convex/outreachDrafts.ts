@@ -61,7 +61,7 @@ export const list = query({
     const now = Date.now();
     return {
       canManage: scope.canManage,
-      gates: { postalAddress: !!settings?.postalAddress, ownerTestConfirmed: !!settings?.testConfirmedAt },
+      gates: { postalAddress: !!settings?.postalAddress, ownerTestConfirmed: !!settings?.testConfirmedAt, live: settings?.mode === "live" && settings.paused === false },
       rows: rows
         .filter((d) => d.status !== "superseded")
         .map((d) => {
