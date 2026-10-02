@@ -30,6 +30,8 @@ export type ReadinessInput = {
     ghlLocationId?: string;
     ghlCalendarId?: string;
     bookingUrl?: string;
+    postalAddress?: string;
+    testConfirmedAt?: number;
     senders: Array<{ address: string; verified: boolean }>;
   } | null;
   approvedTemplates: number;
@@ -70,6 +72,18 @@ export function readiness(i: ReadinessInput): ReadinessItem[] {
       label: "Booking link",
       state: s?.bookingUrl ? "ready" : "missing",
       detail: s?.bookingUrl ? s.bookingUrl : "No verified booking link is configured.",
+    },
+    {
+      key: "postal_address",
+      label: "Postal address (CAN-SPAM)",
+      state: s?.postalAddress ? "ready" : "missing",
+      detail: s?.postalAddress ? "A business mailing address is set for the email footer." : "No business mailing address is set. Required in every email footer before any approval.",
+    },
+    {
+      key: "owner_test",
+      label: "Owner test confirmed",
+      state: s?.testConfirmedAt ? "ready" : "missing",
+      detail: s?.testConfirmedAt ? "You confirmed a test email landed and looked right." : "No owner test has been confirmed. Prospect emails cannot be approved until one is.",
     },
     {
       key: "calling",

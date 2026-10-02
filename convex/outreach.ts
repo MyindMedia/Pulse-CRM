@@ -314,6 +314,35 @@ export const updateCommunicationStatus = internalMutation({
   },
 });
 
+export const setPostalAddress = internalMutation({
+  args: { agencyId: v.string(), address: v.string(), operator: v.string() },
+  handler: async (ctx, a) => {
+    const address = a.address.trim();
+    if (address.length < 10) throw new Error("Enter the full business mailing address");
+    const existing = await settingsFor(ctx, a.agencyId);
+    const now = Date.now();
+    if (existing) await ctx.db.patch(existing._id, { postalAddress: address, updatedAt: now, updatedBy: a.operator });
+    else await ctx.db.insert("outreachSettings", { agencyId: a.agencyId, paused: true, mode: "test_only", senders: [], postalAddress: address, updatedAt: now, updatedBy: a.operator });
+    await logEvent(ctx, a.agencyId, a.operator, "outreach.postal_address_set", "ok");
+    return null;
+  },
+});
+
+/** The operator records that an owner-only test email landed and looked right. */
+export const confirmOwnerTest = internalMutation({
+  args: { agencyId: v.string(), operator: v.string(), note: v.string() },
+  handler: async (ctx, a) => {
+    if (a.note.trim().length < 10) throw new Error("Say what was checked (inbox, signature, link)");
+    const existing = await settingsFor(ctx, a.agencyId);
+    const now = Date.now();
+    const patch = { testConfirmedAt: now, testConfirmedNote: a.note.slice(0, 300), updatedAt: now, updatedBy: a.operator };
+    if (existing) await ctx.db.patch(existing._id, patch);
+    else await ctx.db.insert("outreachSettings", { agencyId: a.agencyId, paused: true, mode: "test_only", senders: [], ...patch });
+    await logEvent(ctx, a.agencyId, a.operator, "outreach.owner_test_confirmed", "ok", undefined, a.note);
+    return null;
+  },
+});
+
 export const _settings = internalQuery({
   args: { agencyId: v.string() },
   handler: async (ctx, { agencyId }) => await settingsFor(ctx, agencyId),

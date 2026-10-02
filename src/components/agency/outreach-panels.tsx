@@ -456,10 +456,12 @@ export function Prospects() {
   const queue = useMutation(api.outreachProspects.queueForReview);
   const suppress = useMutation(api.outreachProspects.suppressEmail);
   const remove = useMutation(api.outreachProspects.remove);
+  const prepare = useMutation(api.outreachDrafts.prepare);
   const [text, setText] = React.useState("");
   const [msg, setMsg] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   const [sites, setSites] = React.useState<Record<string, string>>({});
+  const [prep, setPrep] = React.useState<Record<string, { email?: string; sig?: "original" | "static"; routing?: boolean }>>({});
 
   if (data === undefined) return <LoadingPanel label="Loading prospects" />;
   if (data === null) return <Unauthorized />;
@@ -599,6 +601,51 @@ export function Prospects() {
                       </div>
                     )}
 
+                    {p.status === "queued" && manage && p.contacts && (() => {
+                      const open = p.contacts.emails.filter((e) => !e.suppressed);
+                      const cur = prep[p.id] ?? {};
+                      const chosen = open.find((e) => e.address === (cur.email ?? open[0]?.address));
+                      return (
+                        <div className="space-y-2 rounded-md border border-graphite/40 bg-coal/40 p-3 text-xs">
+                          <p className="font-meta uppercase tracking-wide text-steel/70">Prepare the email</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <label htmlFor={`to-${p.id}`} className="text-steel">To</label>
+                            <select id={`to-${p.id}`} value={chosen?.address ?? ""} onChange={(e) => setPrep((m) => ({ ...m, [p.id]: { ...cur, email: e.target.value } }))}
+                              className="rounded border border-graphite/60 bg-obsidian px-2 py-1 text-bone">
+                              {open.map((e) => <option key={e.address} value={e.address}>{e.address}</option>)}
+                            </select>
+                            <label htmlFor={`from-${p.id}`} className="text-steel">From</label>
+                            <select id={`from-${p.id}`} defaultValue="maxb" className="rounded border border-graphite/60 bg-obsidian px-2 py-1 text-bone">
+                              <option value="maxb">MaxB | Pulse (Roverto signature)</option>
+                              <option value="lawrence" disabled>Lawrence (no approved copy yet)</option>
+                            </select>
+                            <label htmlFor={`sig-${p.id}`} className="text-steel">Signature</label>
+                            <select id={`sig-${p.id}`} value={cur.sig ?? "original"} onChange={(e) => setPrep((m) => ({ ...m, [p.id]: { ...cur, sig: e.target.value as "original" | "static" } }))}
+                              className="rounded border border-graphite/60 bg-obsidian px-2 py-1 text-bone">
+                              <option value="original">Original (your HTML file)</option>
+                              <option value="static">Email-safe version</option>
+                            </select>
+                          </div>
+                          {chosen?.generic && (
+                            <label className="flex items-start gap-2 text-steel">
+                              <input type="checkbox" checked={!!cur.routing} onChange={(e) => setPrep((m) => ({ ...m, [p.id]: { ...cur, routing: e.target.checked } }))} className="mt-0.5" />
+                              <span>This is a generic inbox. I have confirmed who handles studio operations.</span>
+                            </label>
+                          )}
+                          <Button
+                            variant="secondary"
+                            disabled={!chosen}
+                            onClick={() => void run(() => prepare({
+                              prospectId: p.id as Id<"outreachProspects">, email: chosen!.address, persona: "maxb",
+                              templateKey: "maxb_system", signatureMode: cur.sig ?? "original", routingConfirmed: !!cur.routing,
+                            }), "Draft prepared. Open the Review queue tab to preview it. Nothing was sent.")}
+                          >
+                            Prepare email
+                          </Button>
+                        </div>
+                      );
+                    })()}
+
                     {manage && (
                       <div className="flex flex-wrap gap-2">
                         {["ready_to_scrape", "no_contact", "blocked", "scraped"].includes(p.status) && p.websiteUrl && (
@@ -625,6 +672,119 @@ export function Prospects() {
       )}
       {data.suppressedCount > 0 && (
         <p className="text-xs text-steel">{data.suppressedCount} address(es) are on the opt-out list and will never be queued.</p>
+      )}
+    </div>
+  );
+}
+
+/* ------------------------------- Review queue ------------------------------- */
+
+const DRAFT_TONE: Record<string, Tone> = {
+  draft: "info", hold: "caution", approved: "positive", expired: "caution", cancelled: "neutral",
+};
+
+function DraftPreview({ id }: { id: Id<"outreachDrafts"> }) {
+  const p = useQuery(api.outreachDrafts.preview, { id });
+  if (p === undefined) return <LoadingPanel label="Loading preview" />;
+  if (p === null) return <Unauthorized />;
+  return (
+    <div className="space-y-3">
+      <dl className="grid gap-2 text-xs sm:grid-cols-2">
+        <Field label="From" value={p.from} />
+        <Field label="To (only recipient)" value={p.to} />
+        <Field label="Subject" value={p.subject} />
+        <Field label="Links in this email" value={<ul className="space-y-0.5">{p.links.map((l) => <li key={l}>{l}</li>)}</ul>} />
+      </dl>
+      {p.signatureMode === "original" && (
+        <p role="note" className="rounded border border-caution/30 bg-caution/10 px-3 py-2 text-xs text-bone">
+          This preview shows your original signature HTML as a browser draws it. Gmail and Outlook remove its CSS and
+          animation, so it can look broken there. Send an owner test and check it in Gmail before approving, or switch
+          the draft to the email-safe signature.
+        </p>
+      )}
+      <iframe title="Email preview" sandbox="" srcDoc={p.html} className="h-[32rem] w-full rounded border border-graphite/60 bg-white" />
+      <details className="text-xs text-steel">
+        <summary className="cursor-pointer">Plain-text version</summary>
+        <pre className="mt-2 whitespace-pre-wrap">{p.text}</pre>
+      </details>
+    </div>
+  );
+}
+
+export function Drafts() {
+  const data = useQuery(api.outreachDrafts.list, {});
+  const approve = useMutation(api.outreachDrafts.approve);
+  const cancel = useMutation(api.outreachDrafts.cancel);
+  const [open, setOpen] = React.useState<string | null>(null);
+  const [msg, setMsg] = React.useState<string | null>(null);
+  const [err, setErr] = React.useState<string | null>(null);
+  if (data === undefined) return <LoadingPanel label="Loading review queue" />;
+  if (data === null) return <Unauthorized />;
+
+  async function run(fn: () => Promise<unknown>, ok: string) {
+    setErr(null); setMsg(null);
+    try { await fn(); setMsg(ok); } catch (e) {
+      setErr(e instanceof Error ? e.message.replace(/^[\s\S]*Uncaught (Convex)?Error:?\s*/, "").slice(0, 200) : "Something went wrong.");
+    }
+  }
+  const gatesOk = data.gates.postalAddress && data.gates.ownerTestConfirmed;
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader>
+          <CardTitle>Before anything can be approved</CardTitle>
+          <CardDescription>Approval is tied to the exact email and expires in 24 hours. Approving does not send: sending is not enabled yet.</CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-3 text-sm">
+          <Badge tone={data.gates.postalAddress ? "positive" : "caution"}>postal address {data.gates.postalAddress ? "set" : "missing"}</Badge>
+          <Badge tone={data.gates.ownerTestConfirmed ? "positive" : "caution"}>owner test {data.gates.ownerTestConfirmed ? "confirmed" : "not confirmed"}</Badge>
+        </CardContent>
+      </Card>
+      {msg && <p role="status" className="text-sm text-positive">{msg}</p>}
+      {err && <p role="alert" className="text-sm text-critical">{err}</p>}
+      {data.rows.length === 0 ? (
+        <EmptyState icon={MailCheck} title="No drafts yet" description="Queue a prospect, then use Prepare email on its card in the Prospects tab." />
+      ) : (
+        <ul className="space-y-3">
+          {data.rows.map((d) => (
+            <li key={d.id}>
+              <Card>
+                <CardContent className="space-y-3 p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="space-y-1">
+                      <p className="font-grotesk text-sm font-semibold text-bone">{d.studio}</p>
+                      <p className="text-xs text-steel">To {d.recipient} · from {d.from}</p>
+                      <p className="text-xs text-steel/70">{d.subject} · {d.signatureMode === "original" ? "original signature" : "email-safe signature"}</p>
+                    </div>
+                    <div className="space-y-1 text-right">
+                      <Badge tone={DRAFT_TONE[d.status] ?? "neutral"}>{d.status}</Badge>
+                      {d.holdReason && <p className="max-w-xs text-xs text-caution">{d.holdReason}</p>}
+                      {d.status === "expired" && <p className="text-xs text-steel/70">Approval expired. Prepare it again.</p>}
+                    </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <Button variant="secondary" onClick={() => setOpen(open === d.id ? null : d.id)}>
+                      {open === d.id ? "Hide preview" : "Preview"}
+                    </Button>
+                    {data.canManage && d.status === "draft" && (
+                      <Button variant="primary" disabled={!gatesOk} onClick={() => void run(() => approve({ id: d.id as Id<"outreachDrafts"> }), "Approved for this exact email. Nothing was sent.")}>
+                        Approve this email
+                      </Button>
+                    )}
+                    {data.canManage && !["cancelled", "approved"].includes(d.status) && (
+                      <Button variant="ghost" onClick={() => void run(() => cancel({ id: d.id as Id<"outreachDrafts"> }), "Draft cancelled.")}>Cancel</Button>
+                    )}
+                  </div>
+                  {d.status === "draft" && !gatesOk && (
+                    <p className="text-xs text-steel">Approve is off until the postal address is set and an owner test is confirmed.</p>
+                  )}
+                  {open === d.id && <DraftPreview id={d.id as Id<"outreachDrafts">} />}
+                </CardContent>
+              </Card>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

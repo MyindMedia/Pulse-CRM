@@ -30,9 +30,11 @@
     "src/components/agency/outreach-panels.tsx",
     "convex/outreach.ts",
     "convex/outreachProspects.ts",
+    "convex/outreachDrafts.ts",
     "convex/outreach/*.ts",
     "convex/outreach.test.ts",
     "convex/outreachProspects.test.ts",
+    "convex/outreachDrafts.test.ts",
     "next-env.d.ts"
   ]
 }

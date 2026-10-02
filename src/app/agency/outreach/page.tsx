@@ -4,7 +4,7 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Activity, Communications, Links, Meetings, Overview, Prospects, Settings, TestOnlyBanner,
+  Activity, Communications, Drafts, Links, Meetings, Overview, Prospects, Settings, TestOnlyBanner,
 } from "@/components/agency/outreach-panels";
 
 export default function OutreachPage() {
@@ -22,6 +22,7 @@ export default function OutreachPage() {
         <TabsList aria-label="Outreach sections">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="prospects">Prospects</TabsTrigger>
+          <TabsTrigger value="drafts">Review queue</TabsTrigger>
           <TabsTrigger value="communications">Communications</TabsTrigger>
           <TabsTrigger value="meetings">Meetings</TabsTrigger>
           <TabsTrigger value="links">Links &amp; calendars</TabsTrigger>
@@ -30,6 +31,7 @@ export default function OutreachPage() {
         </TabsList>
         <TabsContent value="overview"><Overview /></TabsContent>
         <TabsContent value="prospects"><Prospects /></TabsContent>
+        <TabsContent value="drafts"><Drafts /></TabsContent>
         <TabsContent value="communications"><Communications /></TabsContent>
         <TabsContent value="meetings"><Meetings /></TabsContent>
         <TabsContent value="links"><Links /></TabsContent>

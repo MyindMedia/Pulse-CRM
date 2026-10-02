@@ -11,7 +11,7 @@ vi.mock("convex/react", () => ({
   useMutation: () => async () => null,
 }));
 
-import { Overview, Communications, Meetings, Links, Activity, Settings, TestOnlyBanner, Prospects } from "./outreach-panels";
+import { Overview, Communications, Meetings, Links, Activity, Settings, TestOnlyBanner, Prospects, Drafts } from "./outreach-panels";
 
 const html = (el: React.ReactElement) => renderToStaticMarkup(el);
 const set = (name: string, v: unknown) => { fixtures[`outreach:${name}`] = v; };
@@ -31,7 +31,7 @@ const overview = {
 
 describe("Outreach panels", () => {
   it("every panel shows loading while data is undefined", () => {
-    for (const el of [<Overview />, <Communications />, <Meetings />, <Links />, <Activity />, <Settings />, <Prospects />]) {
+    for (const el of [<Overview />, <Communications />, <Meetings />, <Links />, <Activity />, <Settings />, <Prospects />, <Drafts />]) {
       expect(html(el)).toMatch(/Loading/i);
     }
   });
@@ -39,7 +39,8 @@ describe("Outreach panels", () => {
   it("every panel shows the agency-required state when the server returns null", () => {
     for (const n of ["overview", "communications", "templates", "meetings", "links", "activity"]) set(n, null);
     fixtures["outreachProspects:list"] = null;
-    for (const el of [<Overview />, <Communications />, <Meetings />, <Links />, <Activity />, <Settings />, <Prospects />]) {
+    fixtures["outreachDrafts:list"] = null;
+    for (const el of [<Overview />, <Communications />, <Meetings />, <Links />, <Activity />, <Settings />, <Prospects />, <Drafts />]) {
       expect(html(el)).toContain("Agency membership required");
     }
   });
@@ -149,5 +150,31 @@ describe("Outreach panels", () => {
     expect(out).toContain("Queue for review");
     expect(out).toContain("opt-out list");
     expect(out).not.toMatch(/>\s*Send\s*</i);
+  });
+
+  it("review queue: gates are explained and Approve stays off until they are met", () => {
+    fixtures["outreachDrafts:list"] = {
+      canManage: true, gates: { postalAddress: false, ownerTestConfirmed: false },
+      rows: [{ id: "d1", studio: "MIX", recipient: "jane@mix.com", persona: "MaxB", from: "MaxB | Pulse <info@studiopulse.tech>",
+        subject: "Your studio has a sound. Now give it a system.", signatureMode: "original", status: "draft", holdReason: null, approvedAt: null, createdAt: 0 }],
+    };
+    const out = html(<Drafts />);
+    expect(out).toContain("postal address missing");
+    expect(out).toContain("owner test not confirmed");
+    expect(out).toContain("Approving does not send");
+    expect(out).toMatch(/<button[^>]*disabled[^>]*>Approve this email|Approve this email/);
+    expect(out).toContain("Approve is off until the postal address is set");
+    expect(out).toContain("original signature");
+  });
+
+  it("review queue: a held draft shows why, and an empty queue says how to start", () => {
+    fixtures["outreachDrafts:list"] = { canManage: true, gates: { postalAddress: true, ownerTestConfirmed: true }, rows: [
+      { id: "d2", studio: "UNION", recipient: "info@union.com", persona: "MaxB", from: "x", subject: "s", signatureMode: "static", status: "hold",
+        holdReason: "Generic inbox: confirm who handles studio operations before pitching.", approvedAt: null, createdAt: 0 }] };
+    const held = html(<Drafts />);
+    expect(held).toContain("Generic inbox");
+    expect(held).not.toContain("Approve this email");
+    fixtures["outreachDrafts:list"] = { canManage: true, gates: { postalAddress: true, ownerTestConfirmed: true }, rows: [] };
+    expect(html(<Drafts />)).toContain("No drafts yet");
   });
 });

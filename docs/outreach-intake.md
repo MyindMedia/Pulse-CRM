@@ -40,3 +40,17 @@ Confirm the website, click **Find contact info**. Pulse reads the studio's own p
 - Instagram's terms prohibit automated collection. This stays low volume and logged out.
 - An address a studio published is not checked against a mail server.
 - Emails are never sent from these screens. Sending needs an approved template, a verified sender, a postal address in the footer and an opt-out path, each approved by you.
+
+## Email drafts and approval (Review queue tab)
+1. **Queue for review** a scraped prospect, then **Prepare email** on its card: choose the address, sender and signature.
+2. The email is the MaxB template from `pulse-outreach 2/EMAILS.md` (Version B), unchanged: subject "Your studio has a sound. Now give it a system.", branded dark card, one gold button, your signature, then a footer with the postal address and an opt-out line.
+3. **Senders and signatures (defaults):** MaxB sends as `MaxB | Pulse <info@studiopulse.tech>` with `pulse_signature_roverto_emailph.html`. Lawrence is set up as `Lawrence Berment <lawrenceb@studiopulse.tech>` with `pulse_signature_lawrence_emailph.html`, but has no approved template yet, so only MaxB drafts can be prepared.
+4. The signature HTML is embedded byte for byte (`convex/outreach/signatures.ts`). Gmail and Outlook remove its CSS and animation. An email-safe version of the same design is one switch away on each draft.
+5. A generic inbox (info@, studio@) is held until you confirm who handles studio operations.
+6. **Approve** needs: a postal address set, an owner test confirmed, an address that has not opted out, and an unchanged draft. Approval is tied to the exact content and expires in 24 hours. It does not send.
+
+Operator steps (not available from the browser), run against the verified deployment:
+```
+npx convex run outreach:setPostalAddress '{"agencyId":"<org id>","address":"<full business address>","operator":"lawrence"}'
+npx convex run outreach:confirmOwnerTest '{"agencyId":"<org id>","operator":"lawrence","note":"Landed in Gmail, signature and link checked"}'
+```
