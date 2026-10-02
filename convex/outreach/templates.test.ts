@@ -11,6 +11,9 @@ describe("renderEmail", () => {
     expect(r.text).toContain("Hey MIX Recording Studio team,");
     expect(r.text).toContain("Your best work happens in the studio. Running the studio shouldn’t take you away from it.");
     expect(r.text).toContain("Open to 15 minutes with Lawrence?");
+    // Lawrence's edit: Grammy-nominated producer only, no credits or artist names
+    expect(r.text).toContain("I’m MaxB, reaching out for Lawrence “ThaMyind” Berment, a Grammy-nominated producer. He built Pulse for the business behind the music.");
+    expect(r.text + r.html).not.toMatch(/Kanye|Pusha|songwriter|credits/i);
     expect(r.html).toContain("See Pulse in action");
     expect(r.html).toContain("The studio operating system");
     expect(r.html).toContain("max-width:620px");

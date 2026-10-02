@@ -3,7 +3,8 @@ import { signatureHtml, type SignatureKey, type SignatureMode } from "./signatur
 /* Outreach email templates and the pure renderer. No network, no database.
 
    Copy is Version B, the MaxB-authored canonical pitch from Lawrence's
-   pulse-outreach EMAILS.md, unchanged. Layout is the original Pulse email
+   pulse-outreach EMAILS.md, with one edit he asked for (2026-10-01): the founder line says
+   "a Grammy-nominated producer" and no longer names credits or artists. Layout is the original Pulse email
    design from the 01-04 studio emails (620px dark card, centred logo header,
    gold button), which Lawrence prefers over the pulse-outreach preview layout. */
 
@@ -47,7 +48,7 @@ export const TEMPLATES = {
       "Imagine seeing what’s booked, who’s working, where your gear is, and how the business is performing, without piecing it together from separate apps and conversations.",
       "That’s the idea behind Pulse: bookings and staff scheduling, equipment inventory, invoicing, expenses and financial reporting in one connected workspace, with AI assistance to help your existing team stay on top of what needs attention.",
       "Less time keeping everything together. More time moving your studio forward.",
-      "I’m MaxB, reaching out for Lawrence “ThaMyind” Berment, a Grammy-nominated producer and songwriter with credits with Kanye West and Pusha T. He built Pulse for the business behind the music.",
+      "I’m MaxB, reaching out for Lawrence “ThaMyind” Berment, a Grammy-nominated producer. He built Pulse for the business behind the music.",
       "Open to 15 minutes with Lawrence? He’ll show you how your bookings, inventory and financials can work together, so there’s less to manage between sessions.",
     ],
     cta: "See Pulse in action",
