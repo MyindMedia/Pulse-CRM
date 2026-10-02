@@ -185,6 +185,7 @@ import type * as orgReset from "../orgReset.js";
 import type * as orgs from "../orgs.js";
 import type * as outreach from "../outreach.js";
 import type * as outreach_enrich from "../outreach/enrich.js";
+import type * as outreach_ghl from "../outreach/ghl.js";
 import type * as outreach_intake from "../outreach/intake.js";
 import type * as outreach_policy from "../outreach/policy.js";
 import type * as outreach_safeFetch from "../outreach/safeFetch.js";
@@ -450,6 +451,7 @@ declare const fullApi: ApiFromModules<{
   orgs: typeof orgs;
   outreach: typeof outreach;
   "outreach/enrich": typeof outreach_enrich;
+  "outreach/ghl": typeof outreach_ghl;
   "outreach/intake": typeof outreach_intake;
   "outreach/policy": typeof outreach_policy;
   "outreach/safeFetch": typeof outreach_safeFetch;
