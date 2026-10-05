@@ -100,6 +100,17 @@ async function ensureExpressAccount(
       email: self.ownerEmail ?? undefined,
       business_profile: { name: self.name },
       capabilities: { card_payments: { requested: true }, transfers: { requested: true } },
+      // Stripe bills the PLATFORM $0.25 per payout on a connected account, so an
+      // unset schedule (Stripe's `daily` default) costs us ~$5/mo for a studio
+      // that books most days versus ~$1.08 on weekly. Payouts still settle
+      // delay_days (US minimum, 2 business days) after each charge; weekly only
+      // batches them. A studio that wants its money sooner can pay itself out on
+      // demand from its own Express dashboard (createDashboardLink), and we can
+      // move one account to `daily` or to twice-weekly
+      // (weekly_payout_days: ["tuesday", "friday"]) with a single accounts.update.
+      // Only settable because we own loss liability (controller.losses.payments =
+      // application) on these accounts.
+      settings: { payouts: { schedule: { interval: "weekly", weekly_anchor: "friday" } } },
       metadata: { orgId: self.orgId },
     });
   } catch (err) {
