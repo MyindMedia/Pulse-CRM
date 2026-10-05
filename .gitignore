@@ -41,6 +41,9 @@ yarn-error.log*
 *.sh
 # ...but track the portable deploy script (needed by cloud/phone sessions)
 !scripts/deploy.sh
+# ...and the uptime check, which .github/workflows/uptime.yml runs from a clean
+# checkout. Without this exception the scheduled job fails on a missing file.
+!scripts/uptime-check.sh
 
 # typescript
 *.tsbuildinfo
