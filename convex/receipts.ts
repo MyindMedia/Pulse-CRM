@@ -1,3 +1,5 @@
+import { fileUrl, deleteFile } from "./lib/media";
+import { readFileBlob } from "./media";
 import { v, ConvexError } from "convex/values";
 import { internalAction, internalQuery, query } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
@@ -160,7 +162,7 @@ export const extract = internalAction({
     }
 
     try {
-      const blob = await ctx.storage.get(r.storageId);
+      const blob = await readFileBlob(ctx, r.storageId);
       if (!blob) {
         await ctx.runMutation(internal.receipts._saveExtraction, { receiptId, error: "The file is missing." });
         return null;
@@ -400,7 +402,7 @@ export const remove = mutation({
     if (fresh.bankTransactionId) {
       await unlink(ctx, orgId, { kind: "receipt_transaction", receiptId: id, bankTransactionId: fresh.bankTransactionId }, actor, "receipt deleted");
     }
-    await ctx.storage.delete(r.storageId);
+    await deleteFile(ctx, r.storageId);
     await ctx.db.delete(id);
     await financeLog(ctx, orgId, {
       action: "receipt.deleted", ...actor, receiptId: id,
@@ -461,7 +463,7 @@ export const list = query({
         attentionReason: receiptAttention(r).attentionReason,
         fileName: r.fileName,
         fileType: r.fileType,
-        url: await ctx.storage.getUrl(r.storageId),
+        url: await fileUrl(ctx, r.storageId),
         uploadedBy: r.uploadedBy,
         uploadedAt: r.uploadedAt,
         status: r.status,

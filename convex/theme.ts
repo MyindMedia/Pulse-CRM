@@ -1,3 +1,5 @@
+import { fileRefV } from "./lib/fileRef";
+import { claimFile, fileUrl, retireFile } from "./lib/media";
 import { query, internalQuery } from "./_generated/server";
 import { mutation } from "./functions";
 import type { QueryCtx } from "./_generated/server";
@@ -125,7 +127,7 @@ export const get = query({
       // queries already returned it; the signed-in one did not, which meant the
       // native clients had a name and colours for a workspace and no way to
       // show its logo.
-      logoUrl: org?.logoId ? await ctx.storage.getUrl(org.logoId) : null,
+      logoUrl: org?.logoId ? await fileUrl(ctx, org.logoId) : null,
       colors,
       // Custom-property name -> value. Typed loosely on purpose: the keys are
       // derived from THEME_COLOR_VARS, so a literal type here would drift the
@@ -146,7 +148,7 @@ export const get = query({
       loginSubhead: (active && saved?.loginSubhead) || null,
       loginBackgroundUrl:
         active && saved?.loginBackgroundId
-          ? await ctx.storage.getUrl(saved.loginBackgroundId)
+          ? await fileUrl(ctx, saved.loginBackgroundId)
           : null,
       emailHeaderColor: (active && saved?.emailHeaderColor) || colors.primary,
       emailFooterText: (active && saved?.emailFooterText) || null,
@@ -228,7 +230,7 @@ export const generateUploadUrl = mutation({
 });
 
 export const setLoginBackground = mutation({
-  args: { storageId: v.id("_storage") },
+  args: { storageId: fileRefV },
   handler: async (ctx, { storageId }) => {
     await requireCapability(ctx, "theme.edit");
     const orgId = await currentOrg(ctx);
@@ -237,9 +239,12 @@ export const setLoginBackground = mutation({
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .first();
     if (!org) throw new Error("Workspace not found.");
+    await claimFile(ctx, storageId, orgId);
+    const previous = org.theme?.loginBackgroundId;
     await ctx.db.patch(org._id, {
       theme: { ...(org.theme ?? {}), loginBackgroundId: storageId },
     });
+    await retireFile(ctx, previous, storageId);
   },
 });
 
@@ -306,12 +311,12 @@ export const publicBySlug = query({
       fontHeading: (active && saved?.fontHeading) || null,
       fontBody: (active && saved?.fontBody) || null,
       radius: (active && saved?.radius) || "soft",
-      logoUrl: org?.logoId ? await ctx.storage.getUrl(org.logoId) : null,
+      logoUrl: org?.logoId ? await fileUrl(ctx, org.logoId) : null,
       loginHeadline: (active && saved?.loginHeadline) || null,
       loginSubhead: (active && saved?.loginSubhead) || null,
       loginBackgroundUrl:
         active && saved?.loginBackgroundId
-          ? await ctx.storage.getUrl(saved.loginBackgroundId)
+          ? await fileUrl(ctx, saved.loginBackgroundId)
           : null,
     };
   },
@@ -341,7 +346,7 @@ export const publicByGrant = query({
       fontHeading: (active && saved?.fontHeading) || null,
       fontBody: (active && saved?.fontBody) || null,
       radius: (active && saved?.radius) || "soft",
-      logoUrl: org?.logoId ? await ctx.storage.getUrl(org.logoId) : null,
+      logoUrl: org?.logoId ? await fileUrl(ctx, org.logoId) : null,
     };
   },
 });

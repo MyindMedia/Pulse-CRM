@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import type { Id } from "@convex/_generated/dataModel";
+import { useR2Upload, r2NotConfigured, type R2Purpose } from "@/lib/use-r2-upload";
 import { toast } from "sonner";
 import { ImagePlus, RefreshCw, Video, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -11,8 +12,10 @@ import { ExpandableImage } from "@/components/ui/image-lightbox";
 import { errorMessage } from "@/lib/errors";
 
 /**
- * Generic photo upload control over the Convex storage flow: generate URL →
- * POST the file → hand the returned storageId to the caller's setPhoto mutation.
+ * Generic photo upload control. Files go straight to Cloudflare R2 (signed URL →
+ * PUT → confirm) and the caller's setPhoto mutation receives the new file id. A
+ * deployment without R2 settings falls back to the older Convex-storage flow when
+ * the caller still passes `generateUploadUrl`.
  * No `capture` attribute on the input, so mobile offers BOTH camera and photo
  * library. Shows a live local preview after upload and an optional Remove.
  */
@@ -20,6 +23,8 @@ export function PhotoUpload({
   photo,
   generateUploadUrl,
   onStorageId,
+  scope = "org",
+  purpose,
   onClear,
   shape = "rect",
   hint,
@@ -27,8 +32,13 @@ export function PhotoUpload({
   className,
 }: {
   photo: string | null | undefined;
-  generateUploadUrl: () => Promise<string>;
-  onStorageId: (id: Id<"_storage">) => Promise<unknown>;
+  /** Legacy Convex-storage fallback, used only when R2 is not configured. */
+  generateUploadUrl?: () => Promise<string>;
+  onStorageId: (id: Id<"_storage"> | Id<"mediaFiles">) => Promise<unknown>;
+  /** Whose files these are: a studio's (default) or the agency's. */
+  scope?: "org" | "agency";
+  /** Defaults to "photo", or "video" when `accept` is a video type. */
+  purpose?: R2Purpose;
   onClear?: () => Promise<unknown>;
   shape?: "circle" | "rect";
   hint?: string;
@@ -42,6 +52,7 @@ export function PhotoUpload({
   className?: string;
 }) {
   const inputRef = React.useRef<HTMLInputElement>(null);
+  const uploadToR2 = useR2Upload(scope);
   const [uploading, setUploading] = React.useState(false);
   const [localPreview, setLocalPreview] = React.useState<string | null>(null);
   const shown = localPreview ?? photo ?? null;
@@ -55,15 +66,21 @@ export function PhotoUpload({
     setUploading(true);
     let objectUrl: string | null = null;
     try {
-      const uploadUrl = await generateUploadUrl();
-      const res = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
-      const { storageId } = (await res.json()) as { storageId: string };
-      await onStorageId(storageId as Id<"_storage">);
+      try {
+        const mediaId = await uploadToR2(file, purpose ?? (kind === "video" ? "video" : "photo"));
+        await onStorageId(mediaId);
+      } catch (err) {
+        if (!r2NotConfigured(err) || !generateUploadUrl) throw err;
+        const uploadUrl = await generateUploadUrl();
+        const res = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": file.type },
+          body: file,
+        });
+        if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+        const { storageId } = (await res.json()) as { storageId: string };
+        await onStorageId(storageId as Id<"_storage">);
+      }
       objectUrl = URL.createObjectURL(file);
       setLocalPreview(objectUrl);
       toast.success(kind === "video" ? "Video updated." : "Photo updated.");

@@ -140,7 +140,7 @@ export function BrandingPanel({ org }: { org: Org }) {
     }
   }
 
-  async function handleLogo(storageId: Id<"_storage">) {
+  async function handleLogo(storageId: Id<"_storage"> | Id<"mediaFiles">) {
     await setLogo({ storageId });
     // Auto-branding: pull an accent + palette out of the new logo. Any
     // failure here is non-fatal - the logo upload already succeeded, so
@@ -163,7 +163,7 @@ export function BrandingPanel({ org }: { org: Org }) {
       // Keep the manual accent flow untouched.
     }
   }
-  async function handleHero(storageId: Id<"_storage">) {
+  async function handleHero(storageId: Id<"_storage"> | Id<"mediaFiles">) {
     await setBookingHero({ storageId });
   }
 
@@ -423,7 +423,7 @@ export function BrandingPanel({ org }: { org: Org }) {
                 )}
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                <AssetUploader label="Hero image" onUploaded={handleHero} />
+                <AssetUploader label="Hero image" onUploaded={handleHero} purpose="photo" />
                 <Button
                   type="button"
                   variant="outline"

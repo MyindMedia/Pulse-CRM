@@ -106,6 +106,7 @@ import type * as lib_emailTemplates_betaWelcome from "../lib/emailTemplates/beta
 import type * as lib_emailTemplates_invite from "../lib/emailTemplates/invite.js";
 import type * as lib_emailTemplates_layout from "../lib/emailTemplates/layout.js";
 import type * as lib_entitlements from "../lib/entitlements.js";
+import type * as lib_fileRef from "../lib/fileRef.js";
 import type * as lib_financeCategories from "../lib/financeCategories.js";
 import type * as lib_financeLinks from "../lib/financeLinks.js";
 import type * as lib_financeMatch from "../lib/financeMatch.js";
@@ -118,6 +119,7 @@ import type * as lib_guardrails from "../lib/guardrails.js";
 import type * as lib_holidays from "../lib/holidays.js";
 import type * as lib_links from "../lib/links.js";
 import type * as lib_managerBrain from "../lib/managerBrain.js";
+import type * as lib_media from "../lib/media.js";
 import type * as lib_messageAlerts from "../lib/messageAlerts.js";
 import type * as lib_mirroredTables from "../lib/mirroredTables.js";
 import type * as lib_modules from "../lib/modules.js";
@@ -169,6 +171,7 @@ import type * as marketing_brandCard from "../marketing/brandCard.js";
 import type * as marketing_posts from "../marketing/posts.js";
 import type * as marketing_results from "../marketing/results.js";
 import type * as marketing_rules from "../marketing/rules.js";
+import type * as media from "../media.js";
 import type * as members from "../members.js";
 import type * as memberships from "../memberships.js";
 import type * as messages from "../messages.js";
@@ -372,6 +375,7 @@ declare const fullApi: ApiFromModules<{
   "lib/emailTemplates/invite": typeof lib_emailTemplates_invite;
   "lib/emailTemplates/layout": typeof lib_emailTemplates_layout;
   "lib/entitlements": typeof lib_entitlements;
+  "lib/fileRef": typeof lib_fileRef;
   "lib/financeCategories": typeof lib_financeCategories;
   "lib/financeLinks": typeof lib_financeLinks;
   "lib/financeMatch": typeof lib_financeMatch;
@@ -384,6 +388,7 @@ declare const fullApi: ApiFromModules<{
   "lib/holidays": typeof lib_holidays;
   "lib/links": typeof lib_links;
   "lib/managerBrain": typeof lib_managerBrain;
+  "lib/media": typeof lib_media;
   "lib/messageAlerts": typeof lib_messageAlerts;
   "lib/mirroredTables": typeof lib_mirroredTables;
   "lib/modules": typeof lib_modules;
@@ -435,6 +440,7 @@ declare const fullApi: ApiFromModules<{
   "marketing/posts": typeof marketing_posts;
   "marketing/results": typeof marketing_results;
   "marketing/rules": typeof marketing_rules;
+  media: typeof media;
   members: typeof members;
   memberships: typeof memberships;
   messages: typeof messages;
@@ -560,4 +566,6 @@ export declare const internal: FilterApi<
   FunctionReference<any, "internal">
 >;
 
-export declare const components: {};
+export declare const components: {
+  r2: import("@convex-dev/r2/_generated/component.js").ComponentApi<"r2">;
+};

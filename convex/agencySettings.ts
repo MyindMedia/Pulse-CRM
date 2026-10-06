@@ -1,3 +1,4 @@
+import { fileUrl } from "./lib/media";
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
@@ -59,7 +60,7 @@ export const summary = query({
       status: agency?.status ?? "active",
       appName: agency?.appName ?? null,
       accentColor: agency?.accentColor ?? null,
-      logoUrl: agency?.logoId ? await ctx.storage.getUrl(agency.logoId) : null,
+      logoUrl: agency?.logoId ? await fileUrl(ctx, agency.logoId) : null,
       supportEmail: agency?.supportEmail ?? agency?.ownerEmail ?? null,
       customDomain: agency?.customDomain ?? null,
       customDomainAvailable: customDomainAllowed(agency?.plan),

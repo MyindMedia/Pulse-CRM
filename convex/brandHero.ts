@@ -1,3 +1,5 @@
+import { deleteFile } from "./lib/media";
+import { fileRefV } from "./lib/fileRef";
 import { action, internalAction, internalQuery } from "./_generated/server";
 import { internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
@@ -67,7 +69,7 @@ export const _orgBrand = internalQuery({
 });
 
 export const _setGeneratedHero = internalMutation({
-  args: { orgId: v.string(), storageId: v.id("_storage") },
+  args: { orgId: v.string(), storageId: fileRefV },
   handler: async (ctx, { orgId, storageId }) => {
     const org = await ctx.db
       .query("orgs")
@@ -77,7 +79,7 @@ export const _setGeneratedHero = internalMutation({
     // Replace any previous generated hero (free the old file).
     if (org.generatedHeroId) {
       try {
-        await ctx.storage.delete(org.generatedHeroId);
+        await deleteFile(ctx, org.generatedHeroId);
       } catch {
         // already gone - fine
       }

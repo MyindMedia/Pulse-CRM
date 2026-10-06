@@ -1,3 +1,4 @@
+import { fileUrl } from "./lib/media";
 import { query, QueryCtx, MutationCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
@@ -36,7 +37,7 @@ async function hydrate(ctx: QueryCtx | MutationCtx, shift: Doc<"shifts">) {
     memberRole: member?.role ?? null,
     memberPhotoId: member?.photoId ?? null,
     memberPhotoUrl: member?.photoId
-      ? await ctx.storage.getUrl(member.photoId)
+      ? await fileUrl(ctx, member.photoId)
       : (member?.clerkImageUrl ?? null),
     roomName: room?.name ?? null,
   };
@@ -111,7 +112,7 @@ export const whosWorking = query({
           memberId: e.memberId,
           memberName: member?.name ?? "-",
           memberPhotoUrl: member?.photoId
-            ? await ctx.storage.getUrl(member.photoId)
+            ? await fileUrl(ctx, member.photoId)
             : (member?.clerkImageUrl ?? null),
           roomName: room?.name ?? null,
           clockInAt: e.clockInAt,

@@ -1,3 +1,4 @@
+import { fileUrl } from "./lib/media";
 import { query, action, internalQuery } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import { mutation } from "./functions";
@@ -189,7 +190,8 @@ export const deliverableDownloadUrl = query({
       return { locked: true as const };
     }
 
-    const url = await ctx.storage.getUrl(d.fileId);
+    // Legacy Convex storage or private R2: the payment gate above has passed.
+    const url = await fileUrl(ctx, d.fileId, { expiresIn: 3600 });
     return url ? { url } : null;
   },
 });

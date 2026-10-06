@@ -147,6 +147,7 @@ function AgencyProfileDialog({
           <Field label="Profile photo">
             <PhotoUpload
               shape="circle"
+              scope="agency"
               photo={profile?.photoUrl}
               generateUploadUrl={() => generateUploadUrl({})}
               onStorageId={(storageId) => setMyPhoto({ storageId })}

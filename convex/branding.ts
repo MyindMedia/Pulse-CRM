@@ -1,3 +1,5 @@
+import { fileRefV } from "./lib/fileRef";
+import { claimFile, retireFile } from "./lib/media";
 import { mutation } from "./functions";
 import { v } from "convex/values";
 import { requireCapability } from "./lib/access";
@@ -40,7 +42,7 @@ export const updateAgencyBranding = mutation({
 
 /** Set the agency white-label logo. Saves immediately, like the studio side. */
 export const setAgencyLogo = mutation({
-  args: { storageId: v.id("_storage") },
+  args: { storageId: fileRefV },
   handler: async (ctx, { storageId }) => {
     const viewer = await requireCapability(ctx, "branding.edit");
     if (viewer.kind !== "agency_member") throw new Error("agency only");
@@ -49,7 +51,10 @@ export const setAgencyLogo = mutation({
       .withIndex("by_agency", (q) => q.eq("agencyId", viewer.agencyId))
       .first();
     if (!ag) throw new Error("agency not found");
+    await claimFile(ctx, storageId, `agency:${viewer.agencyId}`);
+    const previous = ag.logoId;
     await ctx.db.patch(ag._id, { logoId: storageId });
+    await retireFile(ctx, previous, storageId);
   },
 });
 

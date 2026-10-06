@@ -14,7 +14,7 @@ export const sweepOrphanStorage = internalMutation({
   args: {},
   handler: async (ctx) => {
     const referenced = new Set<string>();
-    const add = (id?: Id<"_storage"> | null) => {
+    const add = (id?: Id<"_storage"> | Id<"mediaFiles"> | null) => {
       if (id) referenced.add(id);
     };
     for (const o of await ctx.db.query("orgs").collect()) {

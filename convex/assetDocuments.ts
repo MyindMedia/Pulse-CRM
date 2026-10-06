@@ -1,3 +1,5 @@
+import { fileRefV } from "./lib/fileRef";
+import { claimFile, deleteFile, fileUrl } from "./lib/media";
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
@@ -49,7 +51,7 @@ export const attach = mutation({
   args: {
     kind: kindV,
     refId: v.string(),
-    storageId: v.id("_storage"),
+    storageId: fileRefV,
     fileName: v.string(),
     fileType: v.string(),
     sizeBytes: v.optional(v.number()),
@@ -59,6 +61,7 @@ export const attach = mutation({
   handler: async (ctx, args) => {
     const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
     await assertRefInOrg(ctx, args.kind, args.refId, orgId);
+    await claimFile(ctx, args.storageId, orgId);
     return await ctx.db.insert("assetDocuments", {
       orgId,
       kind: args.kind,
@@ -88,7 +91,7 @@ export const list = query({
     return await Promise.all(
       docs
         .filter((d) => d.orgId === orgId)
-        .map(async (d) => ({ ...d, url: await ctx.storage.getUrl(d.storageId) })),
+        .map(async (d) => ({ ...d, url: await fileUrl(ctx, d.storageId) })),
     );
   },
 });
@@ -100,7 +103,7 @@ export const remove = mutation({
     const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
     const doc = await ctx.db.get(id);
     if (!doc || doc.orgId !== orgId) throw new Error("Not found.");
-    await ctx.storage.delete(doc.storageId).catch(() => undefined);
+    await deleteFile(ctx, doc.storageId).catch(() => undefined);
     await ctx.db.delete(id);
   },
 });

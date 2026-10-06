@@ -1,3 +1,4 @@
+import { fileRefV } from "./lib/fileRef";
 import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { pulseWalkthroughTables } from "./pulseWalkthrough/tables";
@@ -208,10 +209,10 @@ export default defineSchema({
     brandPalette: v.optional(v.array(v.string())),
     tagline: v.optional(v.string()),
     // Branding
-    logoId: v.optional(v.id("_storage")),
+    logoId: v.optional(fileRefV),
     // Public booking-page theming
-    bookingHeroId: v.optional(v.id("_storage")),
-    generatedHeroId: v.optional(v.id("_storage")),
+    bookingHeroId: v.optional(fileRefV),
+    generatedHeroId: v.optional(fileRefV),
     demoMode: v.optional(v.boolean()), // agency demo-data switch (see demoMode.ts)
     bookingHeadline: v.optional(v.string()),
     bookingIntro: v.optional(v.string()),
@@ -270,7 +271,7 @@ export default defineSchema({
         // Sign-in screen.
         loginHeadline: v.optional(v.string()),
         loginSubhead: v.optional(v.string()),
-        loginBackgroundId: v.optional(v.id("_storage")),
+        loginBackgroundId: v.optional(fileRefV),
         // Transactional email skin.
         emailHeaderColor: v.optional(v.string()),
         emailFooterText: v.optional(v.string()),
@@ -524,8 +525,8 @@ export default defineSchema({
     ),
     status: v.union(v.literal("active"), v.literal("paused"), v.literal("trial")),
     // Branding (white-label)
-    logoId: v.optional(v.id("_storage")),
-    faviconId: v.optional(v.id("_storage")),
+    logoId: v.optional(fileRefV),
+    faviconId: v.optional(fileRefV),
     accentColor: v.optional(v.string()),
     customDomain: v.optional(v.string()),
     appName: v.optional(v.string()),
@@ -565,7 +566,7 @@ export default defineSchema({
     // Profile fields - how this agency teammate appears across the console.
     title: v.optional(v.string()),         // role/job title, e.g. "Founder"
     phone: v.optional(v.string()),
-    photoStorageId: v.optional(v.id("_storage")),
+    photoStorageId: v.optional(fileRefV),
     clerkImageUrl: v.optional(v.string()), // cached Clerk avatar fallback
   })
     .index("by_agency", ["agencyId"])
@@ -922,7 +923,7 @@ export default defineSchema({
     capabilityOverrides: v.optional(v.array(v.string())),  // NEW
     clerkUserId: v.optional(v.string()),
     avatarColor: v.optional(v.string()),
-    photoId: v.optional(v.id("_storage")), // uploaded profile photo (Convex storage)
+    photoId: v.optional(fileRefV), // uploaded profile photo (Convex storage)
     clerkImageUrl: v.optional(v.string()), // auto-filled from the Clerk account avatar
     skills: v.array(v.string()), // gear / certifications, e.g. "Neve-certified"
     notes: v.optional(v.string()), // internal notes about the teammate
@@ -1111,7 +1112,7 @@ export default defineSchema({
     coverColor: v.optional(v.string()),
     // Real cover art (uploaded, or pulled from a Spotify / Apple Music link
     // by the song importer). coverColor stays as the tonal fallback.
-    coverArtId: v.optional(v.id("_storage")),
+    coverArtId: v.optional(fileRefV),
     brief: v.optional(v.string()), // creative brief
     referenceTracks: v.array(
       v.object({ title: v.string(), url: v.string(), note: v.optional(v.string()) }),
@@ -1174,7 +1175,7 @@ export default defineSchema({
     addOnFeeIds: v.optional(v.array(v.id("feeTemplates"))),
 
     heroImageUrl: v.optional(v.string()),
-    heroImageId: v.optional(v.id("_storage")),
+    heroImageId: v.optional(fileRefV),
     order: v.number(),                      // display order on the booking page
     active: v.boolean(),                    // off = not sold, row kept
     createdAt: v.number(),
@@ -1218,7 +1219,7 @@ export default defineSchema({
        publishes no gear anywhere means it, room by room. */
     showGear: v.optional(v.boolean()),
     heroImageUrl: v.optional(v.string()), // hero photo shown on the room card (seeded URL)
-    heroImageId: v.optional(v.id("_storage")), // uploaded hero photo (Convex storage)
+    heroImageId: v.optional(fileRefV), // uploaded hero photo (Convex storage)
     // "auto" -> room status is computed from the live calendar (in_use when
     // a confirmed/in-progress session is happening now). "manual" -> staff
     // pinned the status and the recomputer leaves it alone. Undefined is
@@ -1274,7 +1275,7 @@ export default defineSchema({
     notes: v.optional(v.string()),
     lastServicedAt: v.optional(v.number()),
     nextServiceAt: v.optional(v.number()),
-    photoId: v.optional(v.id("_storage")), // uploaded photo (Convex file storage)
+    photoId: v.optional(fileRefV), // uploaded photo (Convex file storage)
     photoUrl: v.optional(v.string()), // fallback URL - seeded demo gear
     // Rental add-on: the studio can offer this item as an a-la-carte add-on on
     // the public booking page for a per-session price. Availability is checked
@@ -1317,7 +1318,7 @@ export default defineSchema({
     orgId: v.string(),
     kind: v.union(v.literal("equipment"), v.literal("software")),
     refId: v.string(), // equipment._id or softwareLicenses._id (as a string)
-    storageId: v.id("_storage"),
+    storageId: fileRefV,
     fileName: v.string(),
     fileType: v.string(), // mime type
     sizeBytes: v.optional(v.number()),
@@ -1517,7 +1518,7 @@ export default defineSchema({
     approvedBy: v.optional(v.string()),
     // Stored file (Convex storage). Download is gated server-side when
     // paymentGated is true and the song's balance is unpaid.
-    fileId: v.optional(v.id("_storage")),
+    fileId: v.optional(fileRefV), // legacy Convex storage id, or an R2 mediaFiles id
     fileName: v.optional(v.string()),
     fileSize: v.optional(v.number()),
     mimeType: v.optional(v.string()),
@@ -1715,7 +1716,7 @@ export default defineSchema({
     recurring: v.optional(v.union(v.literal("monthly"), v.literal("annual"))),
     // If this is a payout to a staff member / contractor, link them.
     memberId: v.optional(v.id("members")),
-    receiptId: v.optional(v.id("_storage")),
+    receiptId: v.optional(fileRefV),
     notes: v.optional(v.string()),
     createdBy: v.optional(v.string()),
     // Where the expense came from. Absent = typed in by hand (older rows).
@@ -1917,7 +1918,7 @@ export default defineSchema({
   // ── Receipts - a photo or PDF, what the AI read from it, and its links ────
   receipts: defineTable({
     orgId: v.string(),
-    storageId: v.id("_storage"),
+    storageId: fileRefV,
     fileName: v.string(),
     fileType: v.string(),
     sizeBytes: v.number(),
@@ -2813,7 +2814,7 @@ export default defineSchema({
     caption: v.string(),
     captionOverrides: v.optional(v.record(v.string(), v.string())),
     media: v.array(v.object({
-      storageId: v.optional(v.id("_storage")),
+      storageId: v.optional(fileRefV),
       brandCard: v.optional(v.union(v.literal("rate_card"), v.literal("open_slot"), v.literal("promo"))),
       type: v.union(v.literal("image"), v.literal("video")),
     })),
@@ -3017,8 +3018,8 @@ export default defineSchema({
      *
      * Both fall back to the inventory catalog photo when unset.
      */
-    photoId: v.optional(v.id("_storage")),
-    panelPhotoId: v.optional(v.id("_storage")),
+    photoId: v.optional(fileRefV),
+    panelPhotoId: v.optional(fileRefV),
     createdAt: v.number(),
   })
     .index("by_patchSpace", ["patchSpaceId"])
@@ -3275,4 +3276,27 @@ export default defineSchema({
     .index("by_ts", ["ts"])
     // Workspace deletion sweeps every org-owned table through `by_org`.
     .index("by_org", ["orgId"]),
+  // ── Media files: the row behind every file stored in Cloudflare R2. The bytes
+  //    are in R2 (bucket "media" is public through the pulse-media Worker,
+  //    bucket "private" is signed-URL only); other tables reference this row
+  //    next to, or instead of, a legacy Convex storage id. ──
+  mediaFiles: defineTable({
+    orgId: v.string(), // org id, or "agency:<agencyId>" for agency-owned files
+    bucket: v.union(v.literal("media"), v.literal("private")),
+    key: v.string(),
+    purpose: v.string(),
+    fileName: v.string(),
+    mimeType: v.string(),
+    size: v.optional(v.number()), // set from R2 when the upload is confirmed
+    status: v.union(v.literal("pending"), v.literal("ready")),
+    uploadedBy: v.string(),
+    createdAt: v.number(),
+    readyAt: v.optional(v.number()),
+    // Set when a row first points at the file; confirmed uploads nobody claims are swept.
+    attachedAt: v.optional(v.number()),
+  })
+    .index("by_org", ["orgId", "createdAt"])
+    .index("by_key", ["bucket", "key"])
+    .index("by_status", ["status", "createdAt"])
+    .index("by_attach", ["status", "attachedAt", "createdAt"]),
 });

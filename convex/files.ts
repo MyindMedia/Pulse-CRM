@@ -5,6 +5,8 @@ import { Doc } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
 import { resolveViewer } from "./lib/access";
 import { meterStorageUpload } from "./usage";
+import { fileUrl, deleteFile, claimFile } from "./lib/media";
+import { createUpload } from "./media";
 
 /* ============================================================
    Files - Convex storage seam for payment-gated deliverables.
@@ -94,6 +96,43 @@ export const attachFile = mutation({
   },
 });
 
+/** R2 upload, step 1 (staff-only): a one-time signed PUT URL for a deliverable's
+ *  file. Deliverables go to the private bucket; the browser uploads straight to
+ *  R2, then calls media.confirmUpload, then attachR2File. */
+export const prepareDeliverableUpload = mutation({
+  args: { fileName: v.string(), mimeType: v.string(), size: v.number() },
+  handler: async (ctx, a) => {
+    const orgId = await currentOrg(ctx);
+    const viewer = await resolveViewer(ctx);
+    if (!isStaff(viewer.kind)) throw new ConvexError("Only studio staff can upload files.");
+    const actor = "clerkUserId" in viewer ? String(viewer.clerkUserId) : viewer.kind;
+    return await createUpload(ctx, { scope: orgId, purpose: "deliverable", fileName: a.fileName, mimeType: a.mimeType, size: a.size, actor });
+  },
+});
+
+/** R2 upload, last step: attach a confirmed upload to a deliverable. Meters the
+ *  real size against the plan cap, then retires the file it replaces. */
+export const attachR2File = mutation({
+  args: { deliverableId: v.id("deliverables"), mediaId: v.id("mediaFiles") },
+  handler: async (ctx, { deliverableId, mediaId }) => {
+    const orgId = await currentOrg(ctx);
+    const viewer = await resolveViewer(ctx);
+    if (!isStaff(viewer.kind)) throw new ConvexError("Only studio staff can upload files.");
+    const d = await ctx.db.get(deliverableId);
+    if (!d || d.orgId !== orgId) throw new ConvexError("Deliverable not found.");
+    const m = await ctx.db.get(mediaId);
+    if (!m || m.orgId !== orgId || m.purpose !== "deliverable") throw new ConvexError("Upload not found.");
+    if (m.status !== "ready") throw new ConvexError("The upload has not finished.");
+    await meterStorageUpload(ctx, orgId, mediaId, d.fileId ?? null);
+    await claimFile(ctx, mediaId, orgId);
+    const previous = d.fileId ?? null;
+    await ctx.db.patch(deliverableId, { fileId: mediaId, fileName: m.fileName, fileSize: m.size ?? 0, mimeType: m.mimeType });
+    // The replaced file is no longer reachable from any row; free it.
+    if (previous && previous !== mediaId) await deleteFile(ctx, previous);
+    return deliverableId;
+  },
+});
+
 /**
  * Gated download. Returns a signed URL only when the deliverable is not
  * payment-gated, the caller is staff/owner, or the song's balance is
@@ -116,7 +155,9 @@ export const downloadUrl = query({
       throw new ConvexError("Locked until the balance is paid.");
     }
 
-    const url = await ctx.storage.getUrl(d.fileId);
+    // Legacy Convex storage or private R2 (signed URL, valid an hour). The gate
+    // above has already passed, so minting the URL here is the release.
+    const url = await fileUrl(ctx, d.fileId, { expiresIn: 3600 });
     if (!url) throw new ConvexError("File is no longer available.");
     return { url };
   },

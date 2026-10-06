@@ -1,3 +1,5 @@
+import { fileRefV } from "./lib/fileRef";
+import { claimFile, fileUrl, retireFile } from "./lib/media";
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v, ConvexError } from "convex/values";
@@ -37,7 +39,7 @@ export const list = query({
           .collect();
         return {
           ...redactMoney("rooms", room, sight),
-          heroUrl: room.heroImageId ? await ctx.storage.getUrl(room.heroImageId) : (room.heroImageUrl ?? null),
+          heroUrl: room.heroImageId ? await fileUrl(ctx, room.heroImageId) : (room.heroImageUrl ?? null),
           equipmentCount: gear.length,
           equipmentValueCents: sight.money ? gear.reduce((s, g) => s + g.currentValueCents, 0) : null,
         };
@@ -60,7 +62,7 @@ export const get = query({
     const sight = await currentMoneySight(ctx);
     return {
       ...redactMoney("rooms", room, sight),
-      heroUrl: room.heroImageId ? await ctx.storage.getUrl(room.heroImageId) : (room.heroImageUrl ?? null),
+      heroUrl: room.heroImageId ? await fileUrl(ctx, room.heroImageId) : (room.heroImageUrl ?? null),
       // One type either way: most valuable first for someone who may see value,
       // alphabetical for everyone else, so the order itself does not tell.
       equipment: redactEach(
@@ -226,13 +228,16 @@ export const generateUploadUrl = mutation({
 
 /** Attach an uploaded photo to a room. assertOrg keeps it tenant-scoped. */
 export const setPhoto = mutation({
-  args: { id: v.id("rooms"), storageId: v.id("_storage") },
+  args: { id: v.id("rooms"), storageId: fileRefV },
   handler: async (ctx, { id, storageId }) => {
     const orgId = await currentOrg(ctx);
     const room = await ctx.db.get(id);
     assertOrg(room, orgId);
+    await claimFile(ctx, storageId, orgId);
     await meterStorageUpload(ctx, orgId, storageId, room.heroImageId ?? null);
+    const previous = room.heroImageId;
     await ctx.db.patch(id, { heroImageId: storageId });
+    await retireFile(ctx, previous, storageId);
   },
 });
 
@@ -243,6 +248,7 @@ export const clearPhoto = mutation({
     const orgId = await currentOrg(ctx);
     const room = await ctx.db.get(id);
     assertOrg(room, orgId);
+    await retireFile(ctx, room.heroImageId);
     await ctx.db.patch(id, { heroImageId: undefined });
   },
 });

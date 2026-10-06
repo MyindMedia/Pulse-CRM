@@ -1,3 +1,5 @@
+import { fileRefV } from "./lib/fileRef";
+import { claimFile, fileUrl, retireFile } from "./lib/media";
 import { query, QueryCtx, MutationCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { Doc, Id } from "./_generated/dataModel";
@@ -43,7 +45,7 @@ const statusV = v.union(
 
 /** An item's display photo - an uploaded file wins over the seeded URL. */
 async function photoOf(ctx: QueryCtx, item: Doc<"equipment">): Promise<string | null> {
-  if (item.photoId) return await ctx.storage.getUrl(item.photoId);
+  if (item.photoId) return await fileUrl(ctx, item.photoId);
   return item.photoUrl ?? null;
 }
 
@@ -190,7 +192,7 @@ export const create = mutation({
     serialNumber: v.optional(v.string()),
     condition: v.optional(v.string()),
     notes: v.optional(v.string()),
-    photoId: v.optional(v.id("_storage")),
+    photoId: v.optional(fileRefV),
     photoUrl: v.optional(v.string()),
     rentable: v.optional(v.boolean()),
     rentalPriceCents: v.optional(v.number()),
@@ -696,13 +698,16 @@ export const generateUploadUrl = mutation({
 
 /** Step 2 - attach the uploaded file to an equipment item. */
 export const setPhoto = mutation({
-  args: { id: v.id("equipment"), storageId: v.id("_storage") },
+  args: { id: v.id("equipment"), storageId: fileRefV },
   handler: async (ctx, { id, storageId }) => {
     const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
+    await claimFile(ctx, storageId, orgId);
     await meterStorageUpload(ctx, orgId, storageId, item.photoId ?? null);
+    const previous = item.photoId;
     await ctx.db.patch(id, { photoId: storageId });
+    await retireFile(ctx, previous, storageId);
   },
 });
 

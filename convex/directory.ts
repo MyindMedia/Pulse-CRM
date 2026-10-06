@@ -1,3 +1,4 @@
+import { fileUrl } from "./lib/media";
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
@@ -96,11 +97,11 @@ async function buildListing(
     city: org.directoryCity ?? null,
     region: org.directoryRegion ?? null,
     tags: org.directoryTags ?? [],
-    logoUrl: org.logoId ? await ctx.storage.getUrl(org.logoId) : null,
+    logoUrl: org.logoId ? await fileUrl(ctx, org.logoId) : null,
     heroUrl: org.bookingHeroId
-      ? await ctx.storage.getUrl(org.bookingHeroId)
+      ? await fileUrl(ctx, org.bookingHeroId)
       : org.generatedHeroId
-        ? await ctx.storage.getUrl(org.generatedHeroId)
+        ? await fileUrl(ctx, org.generatedHeroId)
         : null,
     roomCount: rooms.length,
     fromHourlyCents: rates.length ? Math.min(...rates) : null,

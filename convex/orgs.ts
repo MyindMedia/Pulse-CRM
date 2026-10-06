@@ -1,3 +1,5 @@
+import { fileRefV } from "./lib/fileRef";
+import { claimFile, fileUrl, retireFile } from "./lib/media";
 import { query, internalQuery, QueryCtx } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { internal } from "./_generated/api";
@@ -70,8 +72,8 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     managersSeeMoney: org?.managersSeeMoney !== false,
     brandPalette: org?.brandPalette ?? null,
     tagline: org?.tagline ?? "Your music business runs itself.",
-    logoUrl: org?.logoId ? await ctx.storage.getUrl(org.logoId) : null,
-    bookingHeroUrl: org?.bookingHeroId ? await ctx.storage.getUrl(org.bookingHeroId) : null,
+    logoUrl: org?.logoId ? await fileUrl(ctx, org.logoId) : null,
+    bookingHeroUrl: org?.bookingHeroId ? await fileUrl(ctx, org.bookingHeroId) : null,
     bookingHeadline: org?.bookingHeadline ?? null,
     bookingIntro: org?.bookingIntro ?? null,
     depositPolicyText: org?.depositPolicyText ?? null,
@@ -227,12 +229,14 @@ export const generateUploadUrl = mutation({
 });
 
 export const setLogo = mutation({
-  args: { storageId: v.id("_storage") },
+  args: { storageId: fileRefV },
   handler: async (ctx, { storageId }) => {
     const orgId = await currentOrgWithCapability(ctx, "branding.edit");
     const org = await ensureOrg(ctx, orgId);
+    await claimFile(ctx, storageId, orgId);
     await meterStorageUpload(ctx, orgId, storageId, org?.logoId ?? null);
     await ctx.scheduler.runAfter(3000, internal.brandHero.generate, { orgId });
+    const previousLogo = org?.logoId;
     if (org) await ctx.db.patch(org._id, { logoId: storageId });
     else
       await ctx.db.insert("orgs", {
@@ -243,6 +247,7 @@ export const setLogo = mutation({
         status: "active",
         logoId: storageId,
       });
+    await retireFile(ctx, previousLogo, storageId);
   },
 });
 
@@ -265,11 +270,13 @@ export const applyBrandFromLogo = mutation({
 });
 
 export const setBookingHero = mutation({
-  args: { storageId: v.id("_storage") },
+  args: { storageId: fileRefV },
   handler: async (ctx, { storageId }) => {
     const orgId = await currentOrgWithCapability(ctx, "branding.edit");
     const org = await ensureOrg(ctx, orgId);
+    await claimFile(ctx, storageId, orgId);
     await meterStorageUpload(ctx, orgId, storageId, org?.bookingHeroId ?? null);
+    const previousHero = org?.bookingHeroId;
     if (org) await ctx.db.patch(org._id, { bookingHeroId: storageId });
     else
       await ctx.db.insert("orgs", {
@@ -280,6 +287,7 @@ export const setBookingHero = mutation({
         status: "active",
         bookingHeroId: storageId,
       });
+    await retireFile(ctx, previousHero, storageId);
   },
 });
 

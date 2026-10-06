@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useR2Upload, r2NotConfigured } from "@/lib/use-r2-upload";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -31,6 +32,7 @@ export function PhotoUploader({
 }) {
   const generateUploadUrl = useMutation(api.equipment.generateUploadUrl);
   const setPhoto = useMutation(api.equipment.setPhoto);
+  const uploadToR2 = useR2Upload();
 
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = React.useState(false);
@@ -47,17 +49,23 @@ export function PhotoUploader({
     setUploading(true);
     let objectUrl: string | null = null;
     try {
-      const uploadUrl = await generateUploadUrl();
-      const res = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
-      const { storageId } = (await res.json()) as UploadResult;
+      let storageId: Id<"_storage"> | Id<"mediaFiles">;
+      try {
+        storageId = await uploadToR2(file, "photo");
+      } catch (err) {
+        if (!r2NotConfigured(err)) throw err;
+        const uploadUrl = await generateUploadUrl();
+        const res = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": file.type },
+          body: file,
+        });
+        if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+        storageId = ((await res.json()) as UploadResult).storageId as Id<"_storage">;
+      }
       await setPhoto({
         id: equipmentId,
-        storageId: storageId as Id<"_storage">,
+        storageId,
       });
       objectUrl = URL.createObjectURL(file);
       setLocalPreview(objectUrl);

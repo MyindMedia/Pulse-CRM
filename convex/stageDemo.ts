@@ -1,3 +1,4 @@
+import { fileUrl } from "./lib/media";
 import { action, internalAction, internalQuery } from "./_generated/server";
 import { internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
@@ -401,6 +402,6 @@ export const _orgLogoUrl = internalQuery({
       .query("orgs")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .first();
-    return org?.logoId ? await ctx.storage.getUrl(org.logoId) : null;
+    return org?.logoId ? await fileUrl(ctx, org.logoId) : null;
   },
 });

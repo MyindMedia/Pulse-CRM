@@ -1,3 +1,4 @@
+import { deleteFile } from "./lib/media";
 import { internal } from "./_generated/api";
 import { query, internalQuery } from "./_generated/server";
 import { mutation } from "./functions";
@@ -47,6 +48,8 @@ export const ORG_TABLES = [
   // removed at Plaid and receipt files deleted before these rows go.
   "bankTransactions", "bankAccounts", "bankConnections", "receipts",
   "stripeLedgerEntries", "stripePayouts", "revenueEntries",
+  // Files in Cloudflare R2: the objects are deleted before these rows go.
+  "mediaFiles",
   "financeMatchRejections", "financeAudit",
   // Last on purpose. Every delete above fires a trigger that appends here, so
   // sweeping the feed first would leave a fresh activity trace - orgId, table,
@@ -270,7 +273,12 @@ export const confirmDeletion = mutation({
       .map((c) => ({ ciphertext: c.tokenCiphertext!, iv: c.tokenIv! }));
     if (sealed.length > 0) await ctx.scheduler.runAfter(0, internal.banking.removeItems, { sealed });
     for (const r of await ctx.db.query("receipts").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()) {
-      await ctx.storage.delete(r.storageId);
+      await deleteFile(ctx, r.storageId);
+    }
+
+    // Files in R2 are removed object by object; the row is the only record of the key.
+    for (const m of await ctx.db.query("mediaFiles").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()) {
+      await ctx.scheduler.runAfter(0, internal.media._deleteObject, { bucket: m.bucket, key: m.key });
     }
 
     let deleted = 0;

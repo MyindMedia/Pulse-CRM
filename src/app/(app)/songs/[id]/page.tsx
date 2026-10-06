@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useR2Upload, r2NotConfigured } from "@/lib/use-r2-upload";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
@@ -180,6 +181,7 @@ function SongHero({ song }: { song: HeroSong }) {
   const removeSong = useMutation(api.songs.remove);
   const generateCoverUploadUrl = useMutation(api.songs.generateCoverUploadUrl);
   const setCoverArt = useMutation(api.songs.setCoverArt);
+  const uploadToR2 = useR2Upload();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
@@ -190,14 +192,20 @@ function SongHero({ song }: { song: HeroSong }) {
 
   async function uploadCover(file: File) {
     try {
-      const uploadUrl = await generateCoverUploadUrl();
-      const res = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-      if (!res.ok) throw new Error("Upload failed");
-      const { storageId } = await res.json();
+      let storageId: Id<"_storage"> | Id<"mediaFiles">;
+      try {
+        storageId = await uploadToR2(file, "cover");
+      } catch (err) {
+        if (!r2NotConfigured(err)) throw err;
+        const uploadUrl = await generateCoverUploadUrl();
+        const res = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": file.type },
+          body: file,
+        });
+        if (!res.ok) throw new Error("Upload failed");
+        storageId = (await res.json()).storageId;
+      }
       await setCoverArt({ id: song._id, storageId });
       toast.success("Cover art updated.");
     } catch (err) {

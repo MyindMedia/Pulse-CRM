@@ -1,3 +1,4 @@
+import { fileUrl } from "./lib/media";
 import { query, QueryCtx, MutationCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
@@ -127,7 +128,7 @@ export const pendingTimeOff = query({
             ...r,
             memberName: m?.name ?? "-",
             memberPhotoUrl: m?.photoId
-              ? await ctx.storage.getUrl(m.photoId)
+              ? await fileUrl(ctx, m.photoId)
               : (m?.clerkImageUrl ?? null),
           };
         }),

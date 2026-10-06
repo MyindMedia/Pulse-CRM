@@ -1,3 +1,5 @@
+import { fileRefV } from "./lib/fileRef";
+import { claimFile, fileUrl, retireFile } from "./lib/media";
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
@@ -62,7 +64,7 @@ export const list = query({
         rows.map(async (r) => ({
           ...r,
           artistName: artists.get(r.artistId)?.name ?? "Unknown",
-          coverUrl: r.coverArtId ? await ctx.storage.getUrl(r.coverArtId) : null,
+          coverUrl: r.coverArtId ? await fileUrl(ctx, r.coverArtId) : null,
         })),
       )
     ).sort((a, b) => b._creationTime - a._creationTime);
@@ -101,7 +103,7 @@ export const get = query({
     return {
       ...song,
       artist,
-      coverUrl: song.coverArtId ? await ctx.storage.getUrl(song.coverArtId) : null,
+      coverUrl: song.coverArtId ? await fileUrl(ctx, song.coverArtId) : null,
       sessions: sessions.sort((a, b) => a.startTime - b.startTime),
       deliverables: deliverables.sort((a, b) => b.version - a.version),
       openComments: comments.filter((c) => !c.resolved).length,
@@ -399,12 +401,15 @@ export const generateCoverUploadUrl = mutation({
 });
 
 export const setCoverArt = mutation({
-  args: { id: v.id("songs"), storageId: v.union(v.id("_storage"), v.null()) },
+  args: { id: v.id("songs"), storageId: v.union(fileRefV, v.null()) },
   handler: async (ctx, { id, storageId }) => {
     const orgId = await currentOrgWithCapability(ctx, "songs.edit");
     const song = await ctx.db.get(id);
     if (!song || song.orgId !== orgId) throw new Error("Not found");
+    await claimFile(ctx, storageId, orgId);
+    const previous = song.coverArtId;
     await ctx.db.patch(id, { coverArtId: storageId ?? undefined });
+    await retireFile(ctx, previous, storageId);
   },
 });
 
