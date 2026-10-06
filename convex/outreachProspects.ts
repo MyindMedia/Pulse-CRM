@@ -32,7 +32,7 @@ async function ownedProspect(ctx: Parameters<typeof requireAgencyScope>[0], agen
 }
 
 /** Normalises a user-supplied site to scheme://host[/path] or returns an error. */
-function cleanWebsite(raw: string): { ok: true; url: string } | { ok: false; reason: string } {
+export function cleanWebsite(raw: string): { ok: true; url: string } | { ok: false; reason: string } {
   const withScheme = /^https?:\/\//i.test(raw.trim()) ? raw.trim() : `https://${raw.trim()}`;
   const chk = checkUrl(withScheme);
   if (!chk.ok) return chk;

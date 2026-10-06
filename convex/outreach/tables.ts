@@ -121,10 +121,15 @@ export const outreachTables = {
     handle: v.optional(v.string()),
     name: v.optional(v.string()),
     websiteUrl: v.optional(v.string()),
-    source: v.union(v.literal("paste"), v.literal("shortcut"), v.literal("instaloader")),
+    source: v.union(v.literal("paste"), v.literal("shortcut"), v.literal("instaloader"), v.literal("maps"), v.literal("instagram_search")),
     status: prospectStatusV,
     note: v.optional(v.string()),
     contacts: v.optional(prospectContactsV),
+    /* What the studio says about itself (Instagram bio, Maps category). Used to
+       write a true, specific opener; never shown as a contact. */
+    bio: v.optional(v.string()),
+    category: v.optional(v.string()),
+    followers: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -186,4 +191,43 @@ export const outreachTables = {
       id: v.string(), title: v.string(), start: v.number(), end: v.number(), status: v.string(), contactName: v.union(v.string(), v.null()),
     })),
   }).index("by_agency", ["agencyId"]),
+
+  /* One discovery request (a Google Maps or Instagram search through treg).
+     The results land as outreachProspects; this row is the receipt. */
+  outreachDiscoveries: defineTable({
+    agencyId: v.string(),
+    kind: v.union(v.literal("maps"), v.literal("instagram")),
+    query: v.string(),
+    location: v.optional(v.string()),
+    limit: v.number(),
+    status: v.union(v.literal("running"), v.literal("done"), v.literal("failed")),
+    found: v.number(),
+    added: v.number(),
+    duplicates: v.number(),
+    error: v.optional(v.string()),
+    requestedBy: v.string(),
+    createdAt: v.number(),
+    finishedAt: v.optional(v.number()),
+  }).index("by_agency", ["agencyId", "createdAt"]),
+  /* A prepared Instagram DM for one prospect. Pulse never sends it: a person
+     approves it, sends it from Instagram, then marks it sent. Approval binds to
+     contentHash and expires in 24 hours. */
+  outreachDms: defineTable({
+    agencyId: v.string(),
+    prospectId: v.id("outreachProspects"),
+    handle: v.string(),
+    studio: v.string(),
+    text: v.string(),
+    observation: v.optional(v.string()),
+    contentHash: v.string(),
+    status: v.union(v.literal("draft"), v.literal("approved"), v.literal("sent"), v.literal("cancelled")),
+    approvedBy: v.optional(v.string()),
+    approvedAt: v.optional(v.number()),
+    approvedHash: v.optional(v.string()),
+    sentBy: v.optional(v.string()),
+    sentAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_agency", ["agencyId", "createdAt"])
+    .index("by_prospect", ["prospectId"]),
 };

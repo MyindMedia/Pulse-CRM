@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Activity, Communications, Drafts, Links, Meetings, Overview, Prospects, Settings, TestOnlyBanner,
 } from "@/components/agency/outreach-panels";
+import { Discover, Dms } from "@/components/agency/outreach-growth";
 
 export default function OutreachPage() {
   const overview = useQuery(api.outreach.overview, {});
@@ -21,7 +22,9 @@ export default function OutreachPage() {
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList aria-label="Outreach sections">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="discover">Discover</TabsTrigger>
           <TabsTrigger value="prospects">Prospects</TabsTrigger>
+          <TabsTrigger value="dms">DMs</TabsTrigger>
           <TabsTrigger value="drafts">Review queue</TabsTrigger>
           <TabsTrigger value="communications">Communications</TabsTrigger>
           <TabsTrigger value="meetings">Meetings</TabsTrigger>
@@ -30,7 +33,9 @@ export default function OutreachPage() {
           <TabsTrigger value="settings">Settings</TabsTrigger>
         </TabsList>
         <TabsContent value="overview"><Overview /></TabsContent>
+        <TabsContent value="discover"><Discover /></TabsContent>
         <TabsContent value="prospects"><Prospects /></TabsContent>
+        <TabsContent value="dms"><Dms /></TabsContent>
         <TabsContent value="drafts"><Drafts /></TabsContent>
         <TabsContent value="communications"><Communications /></TabsContent>
         <TabsContent value="meetings"><Meetings /></TabsContent>
