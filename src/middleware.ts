@@ -175,6 +175,12 @@ function expireStaleClientCookie(req: NextRequest, res: Awaited<ReturnType<typeo
 }
 
 export default async function middleware(req: NextRequest, event: NextFetchEvent) {
+  // Public product-demo redirect must run before Clerk protects app routes.
+  if (req.nextUrl.pathname === "/demo") {
+    return expireStaleClientCookie(req, NextResponse.redirect(
+      "https://zuops.com/f/pulse-30-minute-demo-intake-draft-fbib", 302,
+    ));
+  }
   const res = await handler(req, event);
   return expireStaleClientCookie(req, res);
 }
