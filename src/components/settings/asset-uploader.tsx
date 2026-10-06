@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/feedback";
 import { cn } from "@/lib/utils";
 import { errorMessage } from "@/lib/errors";
+import { useR2Upload, r2NotConfigured } from "@/lib/use-r2-upload";
 
 const MAX_BYTES = 5 * 1024 * 1024;
 const ACCEPTED = ["image/png", "image/jpeg", "image/webp", "image/svg+xml"];
@@ -26,14 +27,21 @@ export function AssetUploader({
   onUploaded,
   className,
   uploadUrlMutation,
+  scope = "org",
+  purpose = "logo",
 }: {
   label: string;
-  onUploaded: (storageId: Id<"_storage">) => Promise<void>;
+  onUploaded: (storageId: Id<"_storage"> | Id<"mediaFiles">) => Promise<void>;
+  /** Whose files these are: a studio's (default) or the agency's. */
+  scope?: "org" | "agency";
+  /** "logo" (default) or "photo" for larger images such as a booking hero. */
+  purpose?: "logo" | "photo";
   className?: string;
   /** Override the upload-URL mutation. Defaults to the studio (`orgs`) one. */
   uploadUrlMutation?: FunctionReference<"mutation", "public", Record<string, never>, string>;
 }) {
   const generateUploadUrl = useMutation(uploadUrlMutation ?? api.orgs.generateUploadUrl);
+  const uploadToR2 = useR2Upload(scope);
   const inputRef = React.useRef<HTMLInputElement>(null);
   const [busy, setBusy] = React.useState(false);
 
@@ -48,15 +56,20 @@ export function AssetUploader({
     }
     setBusy(true);
     try {
-      const uploadUrl = await generateUploadUrl();
-      const res = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-      if (!res.ok) throw new Error("upload failed");
-      const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
-      await onUploaded(storageId);
+      try {
+        await onUploaded(await uploadToR2(file, purpose));
+      } catch (err) {
+        if (!r2NotConfigured(err)) throw err;
+        const uploadUrl = await generateUploadUrl();
+        const res = await fetch(uploadUrl, {
+          method: "POST",
+          headers: { "Content-Type": file.type },
+          body: file,
+        });
+        if (!res.ok) throw new Error("upload failed");
+        const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
+        await onUploaded(storageId);
+      }
       toast.success(`${label} updated.`);
     } catch (err) {
       toast.error(errorMessage(err, `Could not upload the ${label.toLowerCase()}. Try again.`));

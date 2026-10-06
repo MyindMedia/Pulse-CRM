@@ -1,5 +1,5 @@
 import { fileUrl, deleteFile } from "./lib/media";
-import { scheduleObjectDelete, readFileBlob } from "./media";
+import { readFileBlob } from "./media";
 import { v, ConvexError } from "convex/values";
 import { internalAction, internalQuery, query } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
@@ -402,7 +402,7 @@ export const remove = mutation({
     if (fresh.bankTransactionId) {
       await unlink(ctx, orgId, { kind: "receipt_transaction", receiptId: id, bankTransactionId: fresh.bankTransactionId }, actor, "receipt deleted");
     }
-    await deleteFile(ctx, r.storageId, (bucket, key) => scheduleObjectDelete(ctx, bucket, key));
+    await deleteFile(ctx, r.storageId);
     await ctx.db.delete(id);
     await financeLog(ctx, orgId, {
       action: "receipt.deleted", ...actor, receiptId: id,

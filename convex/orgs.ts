@@ -1,4 +1,5 @@
-import { fileUrl } from "./lib/media";
+import { fileRefV } from "./lib/fileRef";
+import { claimFile, fileUrl, retireFile } from "./lib/media";
 import { query, internalQuery, QueryCtx } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { internal } from "./_generated/api";
@@ -228,12 +229,14 @@ export const generateUploadUrl = mutation({
 });
 
 export const setLogo = mutation({
-  args: { storageId: v.id("_storage") },
+  args: { storageId: fileRefV },
   handler: async (ctx, { storageId }) => {
     const orgId = await currentOrgWithCapability(ctx, "branding.edit");
     const org = await ensureOrg(ctx, orgId);
+    await claimFile(ctx, storageId, orgId);
     await meterStorageUpload(ctx, orgId, storageId, org?.logoId ?? null);
     await ctx.scheduler.runAfter(3000, internal.brandHero.generate, { orgId });
+    const previousLogo = org?.logoId;
     if (org) await ctx.db.patch(org._id, { logoId: storageId });
     else
       await ctx.db.insert("orgs", {
@@ -244,6 +247,7 @@ export const setLogo = mutation({
         status: "active",
         logoId: storageId,
       });
+    await retireFile(ctx, previousLogo, storageId);
   },
 });
 
@@ -266,11 +270,13 @@ export const applyBrandFromLogo = mutation({
 });
 
 export const setBookingHero = mutation({
-  args: { storageId: v.id("_storage") },
+  args: { storageId: fileRefV },
   handler: async (ctx, { storageId }) => {
     const orgId = await currentOrgWithCapability(ctx, "branding.edit");
     const org = await ensureOrg(ctx, orgId);
+    await claimFile(ctx, storageId, orgId);
     await meterStorageUpload(ctx, orgId, storageId, org?.bookingHeroId ?? null);
+    const previousHero = org?.bookingHeroId;
     if (org) await ctx.db.patch(org._id, { bookingHeroId: storageId });
     else
       await ctx.db.insert("orgs", {
@@ -281,6 +287,7 @@ export const setBookingHero = mutation({
         status: "active",
         bookingHeroId: storageId,
       });
+    await retireFile(ctx, previousHero, storageId);
   },
 });
 

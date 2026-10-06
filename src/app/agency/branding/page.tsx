@@ -75,7 +75,7 @@ export default function BrandingPage() {
       appName.trim() !== (summary.appName ?? "") ||
       customDomain.trim() !== (summary.customDomain ?? ""));
 
-  async function handleLogo(storageId: Id<"_storage">) {
+  async function handleLogo(storageId: Id<"_storage"> | Id<"mediaFiles">) {
     await setAgencyLogo({ storageId });
   }
 
@@ -148,6 +148,7 @@ export default function BrandingPage() {
                     <AssetUploader
                       label="Logo"
                       onUploaded={handleLogo}
+                      scope="agency"
                       uploadUrlMutation={api.agencyProfile.generateUploadUrl}
                     />
                     <p className="text-[0.6875rem] text-steel/70">

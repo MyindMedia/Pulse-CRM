@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useR2Upload, r2NotConfigured } from "@/lib/use-r2-upload";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -40,6 +41,7 @@ export function AssetDocuments({
   const docs = useQuery(api.assetDocuments.list, { kind, refId });
   const generateUploadUrl = useMutation(api.assetDocuments.generateUploadUrl);
   const attach = useMutation(api.assetDocuments.attach);
+  const uploadToR2 = useR2Upload();
   const remove = useMutation(api.assetDocuments.remove);
 
   const inputRef = React.useRef<HTMLInputElement>(null);
@@ -49,18 +51,24 @@ export function AssetDocuments({
   async function handleFile(file: File) {
     setUploading(true);
     try {
-      const url = await generateUploadUrl();
-      const res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": file.type },
-        body: file,
-      });
-      if (!res.ok) throw new Error(`Upload failed (${res.status})`);
-      const { storageId } = (await res.json()) as { storageId: string };
+      let storageId: Id<"_storage"> | Id<"mediaFiles">;
+      try {
+        storageId = await uploadToR2(file, "document");
+      } catch (err) {
+        if (!r2NotConfigured(err)) throw err;
+        const url = await generateUploadUrl();
+        const res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": file.type },
+          body: file,
+        });
+        if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+        storageId = ((await res.json()) as { storageId: string }).storageId as Id<"_storage">;
+      }
       await attach({
         kind,
         refId,
-        storageId: storageId as Id<"_storage">,
+        storageId,
         fileName: file.name,
         fileType: file.type,
         sizeBytes: file.size,

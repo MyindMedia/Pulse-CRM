@@ -5,8 +5,8 @@ import { Doc } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
 import { resolveViewer } from "./lib/access";
 import { meterStorageUpload } from "./usage";
-import { fileUrl, deleteFile } from "./lib/media";
-import { createUpload, scheduleObjectDelete } from "./media";
+import { fileUrl, deleteFile, claimFile } from "./lib/media";
+import { createUpload } from "./media";
 
 /* ============================================================
    Files - Convex storage seam for payment-gated deliverables.
@@ -124,10 +124,11 @@ export const attachR2File = mutation({
     if (!m || m.orgId !== orgId || m.purpose !== "deliverable") throw new ConvexError("Upload not found.");
     if (m.status !== "ready") throw new ConvexError("The upload has not finished.");
     await meterStorageUpload(ctx, orgId, mediaId, d.fileId ?? null);
+    await claimFile(ctx, mediaId, orgId);
     const previous = d.fileId ?? null;
     await ctx.db.patch(deliverableId, { fileId: mediaId, fileName: m.fileName, fileSize: m.size ?? 0, mimeType: m.mimeType });
     // The replaced file is no longer reachable from any row; free it.
-    if (previous && previous !== mediaId) await deleteFile(ctx, previous, (bucket, key) => scheduleObjectDelete(ctx, bucket, key));
+    if (previous && previous !== mediaId) await deleteFile(ctx, previous);
     return deliverableId;
   },
 });

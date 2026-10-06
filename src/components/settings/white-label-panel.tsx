@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useR2Upload, r2NotConfigured } from "@/lib/use-r2-upload";
 import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -45,14 +46,21 @@ export function WhiteLabelPanel() {
   const [uploading, setUploading] = React.useState(false);
   const genUploadUrl = useMutation(api.theme.generateUploadUrl);
   const setLoginBackground = useMutation(api.theme.setLoginBackground);
+  const uploadToR2 = useR2Upload();
 
   async function uploadBackground(file: File) {
     setUploading(true);
     try {
-      const url = await genUploadUrl({});
-      const res = await fetch(url, { method: "POST", headers: { "Content-Type": file.type }, body: file });
-      const { storageId } = (await res.json()) as { storageId: string };
-      await setLoginBackground({ storageId: storageId as Id<"_storage"> });
+      let storageId: Id<"_storage"> | Id<"mediaFiles">;
+      try {
+        storageId = await uploadToR2(file, "photo");
+      } catch (err) {
+        if (!r2NotConfigured(err)) throw err;
+        const url = await genUploadUrl({});
+        const res = await fetch(url, { method: "POST", headers: { "Content-Type": file.type }, body: file });
+        storageId = ((await res.json()) as { storageId: string }).storageId as Id<"_storage">;
+      }
+      await setLoginBackground({ storageId });
       toast.success("Sign-in background updated.");
     } catch {
       toast.error("Could not upload that image.");

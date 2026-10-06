@@ -1,5 +1,4 @@
 import { deleteFile } from "./lib/media";
-import { scheduleObjectDelete } from "./media";
 import { fileRefV } from "./lib/fileRef";
 import { action, internalAction, internalQuery } from "./_generated/server";
 import { internalMutation } from "./functions";
@@ -80,7 +79,7 @@ export const _setGeneratedHero = internalMutation({
     // Replace any previous generated hero (free the old file).
     if (org.generatedHeroId) {
       try {
-        await deleteFile(ctx, org.generatedHeroId, (bucket, key) => scheduleObjectDelete(ctx, bucket, key));
+        await deleteFile(ctx, org.generatedHeroId);
       } catch {
         // already gone - fine
       }

@@ -1,4 +1,5 @@
-import { fileUrl } from "./lib/media";
+import { fileRefV } from "./lib/fileRef";
+import { claimFile, fileUrl, retireFile } from "./lib/media";
 import { query, action, internalQuery, internalAction, QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
@@ -528,14 +529,17 @@ export const generateUploadUrl = mutation({
 
 /** Attach an uploaded profile photo to a team member (same org only). */
 export const setPhoto = mutation({
-  args: { id: v.id("members"), storageId: v.id("_storage") },
+  args: { id: v.id("members"), storageId: fileRefV },
   handler: async (ctx, { id, storageId }) => {
     const viewer = await requireCapability(ctx, "members.invite");
     const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
     const member = await ctx.db.get(id);
     if (!member || member.orgId !== orgId) throw new Error("Not found");
+    await claimFile(ctx, storageId, orgId);
     await meterStorageUpload(ctx, orgId, storageId, member.photoId ?? null);
+    const previous = member.photoId;
     await ctx.db.patch(id, { photoId: storageId });
+    await retireFile(ctx, previous, storageId);
   },
 });
 
@@ -547,6 +551,7 @@ export const clearPhoto = mutation({
     const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
     const member = await ctx.db.get(id);
     if (!member || member.orgId !== orgId) throw new Error("Not found");
+    await retireFile(ctx, member.photoId);
     await ctx.db.patch(id, { photoId: undefined });
   },
 });
@@ -598,12 +603,15 @@ export const updateMyProfile = mutation({
 
 /** A teammate attaches a photo to their OWN member row (no invite cap needed). */
 export const setMyPhoto = mutation({
-  args: { storageId: v.id("_storage") },
+  args: { storageId: fileRefV },
   handler: async (ctx, { storageId }) => {
     const me = await myMemberRow(ctx);
     if (!me) throw new Error("Only team members can set their own photo.");
+    await claimFile(ctx, storageId, me.orgId);
     await meterStorageUpload(ctx, me.orgId, storageId, me.photoId ?? null);
+    const previous = me.photoId;
     await ctx.db.patch(me._id, { photoId: storageId });
+    await retireFile(ctx, previous, storageId);
   },
 });
 
@@ -613,6 +621,7 @@ export const clearMyPhoto = mutation({
   handler: async (ctx) => {
     const me = await myMemberRow(ctx);
     if (!me) throw new Error("Only team members can clear their own photo.");
+    await retireFile(ctx, me.photoId);
     await ctx.db.patch(me._id, { photoId: undefined });
   },
 });
@@ -728,7 +737,7 @@ export const backfillClerkPhotos = internalAction({
 /* ── Seed/import a member photo (ops tooling, internal only) ──── */
 
 export const _setSeededPhoto = internalMutation({
-  args: { id: v.id("members"), storageId: v.id("_storage") },
+  args: { id: v.id("members"), storageId: fileRefV },
   handler: async (ctx, { id, storageId }) => {
     await ctx.db.patch(id, { photoId: storageId });
   },

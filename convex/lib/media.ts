@@ -1,5 +1,5 @@
 import { R2 } from "@convex-dev/r2";
-import { components } from "../_generated/api";
+import { components, internal } from "../_generated/api";
 import type { QueryCtx, MutationCtx } from "../_generated/server";
 import type { Id } from "../_generated/dataModel";
 
@@ -50,6 +50,7 @@ export const PURPOSES = {
   photo: { bucket: "media", maxBytes: 25 * MB(), image: true },
   cover: { bucket: "media", maxBytes: 25 * MB(), image: true },
   deliverable: { bucket: "private", maxBytes: 2048 * MB(), image: false },
+  video: { bucket: "media", maxBytes: 200 * MB(), image: false },
   document: { bucket: "private", maxBytes: 100 * MB(), image: false },
   receipt: { bucket: "private", maxBytes: 25 * MB(), image: false },
 } as const satisfies Record<string, { bucket: MediaBucket; maxBytes: number; image: boolean }>;
@@ -105,13 +106,32 @@ export async function fileSize(ctx: Reader, ref: FileRef | null | undefined): Pr
 
 /** Deletes the file: legacy storage immediately, R2 objects through a scheduled
  *  action (the row is removed in the same transaction so nothing can point at it). */
-export async function deleteFile(ctx: MutationCtx, ref: FileRef | null | undefined, schedule: (bucket: MediaBucket, key: string) => Promise<void>): Promise<void> {
+export async function deleteFile(ctx: MutationCtx, ref: FileRef | null | undefined): Promise<void> {
   if (!ref) return;
   const row = await asMedia(ctx, ref);
   if (row) {
     await ctx.db.delete(row._id);
-    await schedule(row.bucket, row.key);
+    await ctx.scheduler.runAfter(0, internal.media._deleteObject, { bucket: row.bucket, key: row.key });
     return;
   }
   await ctx.storage.delete(ref as Id<"_storage">);
+}
+
+/** Call from every mutation that stores a file reference. For an R2 file it checks
+ *  the upload is finished and belongs to `scope`, then marks it attached so the
+ *  orphan sweeper leaves it alone. Legacy storage ids pass through untouched. */
+export async function claimFile(ctx: MutationCtx, ref: FileRef | null | undefined, scope: string): Promise<void> {
+  if (!ref) return;
+  const row = await asMedia(ctx, ref);
+  if (!row) return;
+  if (row.orgId !== scope) throw new Error("Upload not found.");
+  if (row.status !== "ready") throw new Error("The upload has not finished.");
+  if (!row.attachedAt) await ctx.db.patch(row._id, { attachedAt: Date.now() });
+}
+
+/** Call when a reference is replaced or cleared. Frees an R2 file that nothing else
+ *  points at. Legacy storage files are left to their existing cleanup. */
+export async function retireFile(ctx: MutationCtx, previous: FileRef | null | undefined, next?: FileRef | null): Promise<void> {
+  if (!previous || previous === next) return;
+  if (await asMedia(ctx, previous)) await deleteFile(ctx, previous);
 }

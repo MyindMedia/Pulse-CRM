@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useR2Upload, r2NotConfigured } from "@/lib/use-r2-upload";
 import { motion, AnimatePresence, useReducedMotion } from "motion/react";
 import { FeatureStep } from "@/components/welcome/feature-step";
 import { BetaLinkRecovery } from "@/components/shell/beta-link-recovery";
@@ -114,6 +115,7 @@ function Wizard({ initial }: { initial: Mine }) {
   const addRoom = useMutation(api.onboarding.addRoom);
   const complete = useMutation(api.onboarding.complete);
   const generateUploadUrl = useMutation(api.orgs.generateUploadUrl);
+  const uploadToR2 = useR2Upload();
   const setLogo = useMutation(api.orgs.setLogo);
   const applyBrandFromLogo = useMutation(api.orgs.applyBrandFromLogo);
 
@@ -151,9 +153,15 @@ function Wizard({ initial }: { initial: Mine }) {
   async function uploadLogo(file: File) {
     setUploading(true);
     try {
-      const url = await generateUploadUrl();
-      const res = await fetch(url, { method: "POST", headers: { "Content-Type": file.type }, body: file });
-      const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
+      let storageId: Id<"_storage"> | Id<"mediaFiles">;
+      try {
+        storageId = await uploadToR2(file, "logo");
+      } catch (err) {
+        if (!r2NotConfigured(err)) throw err;
+        const url = await generateUploadUrl();
+        const res = await fetch(url, { method: "POST", headers: { "Content-Type": file.type }, body: file });
+        storageId = ((await res.json()) as { storageId: Id<"_storage"> }).storageId;
+      }
       await setLogo({ storageId });
       setLogoUrl(URL.createObjectURL(file));
       toast.success("Logo uploaded.");

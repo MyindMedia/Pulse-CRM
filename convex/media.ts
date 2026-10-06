@@ -19,9 +19,12 @@ import { fileRefV } from "./lib/fileRef";
    a room photo...), where it sits in the same field as a legacy storage id.
    ============================================================ */
 
+/** Uploads one workspace may start per rolling 24 hours. */
+const UPLOADS_PER_DAY = 300;
+
 const purposeV = v.union(
   v.literal("logo"), v.literal("photo"), v.literal("cover"),
-  v.literal("deliverable"), v.literal("document"), v.literal("receipt"),
+  v.literal("video"), v.literal("deliverable"), v.literal("document"), v.literal("receipt"),
 );
 
 /** Creates the pending row and the signed upload URL. Callers run their own
@@ -33,7 +36,12 @@ export async function createUpload(
   const rule = PURPOSES[a.purpose];
   if (!Number.isFinite(a.size) || a.size <= 0) throw new ConvexError("That file is empty.");
   if (a.size > rule.maxBytes) throw new ConvexError(`That file is too large (limit ${Math.round(rule.maxBytes / 1048576)} MB).`);
+  if (a.purpose === "video" && !/^video\/(mp4|quicktime|webm)$/i.test(a.mimeType)) throw new ConvexError("Upload an MP4, MOV or WebM video.");
   if (rule.image && !/^image\/(png|jpe?g|webp|gif|avif|svg\+xml)$/i.test(a.mimeType)) throw new ConvexError("Upload a PNG, JPG, WebP, GIF or AVIF image.");
+  // A studio cannot flood the bucket with uploads it never attaches: unclaimed
+  // files are swept after a day, and creating them is rate limited.
+  const recent = await ctx.db.query("mediaFiles").withIndex("by_org", (q) => q.eq("orgId", a.scope).gte("createdAt", Date.now() - 24 * 60 * 60 * 1000)).take(UPLOADS_PER_DAY);
+  if (recent.length >= UPLOADS_PER_DAY) throw new ConvexError("Too many uploads today. Try again tomorrow.");
   const fileName = a.fileName.slice(0, 160) || "file";
   const key = makeKey(a.scope, a.purpose, fileName);
   const { url } = await r2For(rule.bucket).generateUploadUrl(key);
@@ -125,15 +133,10 @@ export const _deleteObject = internalAction({
   },
 });
 
-/** Schedules deletion of one R2 object. Used by lib/media.deleteFile. */
-export async function scheduleObjectDelete(ctx: MutationCtx, bucket: MediaBucket, key: string): Promise<void> {
-  await ctx.scheduler.runAfter(0, internal.media._deleteObject, { bucket, key });
-}
-
 const ABANDONED_AFTER_MS = 24 * 60 * 60 * 1000;
 
 /** Uploads that never finished (tab closed, network drop) leave a pending row and
- *  possibly a half object. Sweep them after a day, in small batches. */
+ *  possibly a half object, and confirmed uploads can go unclaimed. Sweep both after a day, in small batches. */
 export const sweepPending = internalMutation({
   args: {},
   handler: async (ctx): Promise<null> => {
@@ -143,7 +146,13 @@ export const sweepPending = internalMutation({
       await ctx.db.delete(row._id);
       await ctx.scheduler.runAfter(0, internal.media._deleteObject, { bucket: row.bucket, key: row.key });
     }
-    if (stale.length === 100) await ctx.scheduler.runAfter(0, internal.media.sweepPending, {});
+    // Confirmed uploads that no row ever claimed (the user abandoned the form).
+    const unclaimed = await ctx.db.query("mediaFiles").withIndex("by_attach", (q) => q.eq("status", "ready").eq("attachedAt", undefined).lt("createdAt", cutoff)).take(100);
+    for (const row of unclaimed) {
+      await ctx.db.delete(row._id);
+      await ctx.scheduler.runAfter(0, internal.media._deleteObject, { bucket: row.bucket, key: row.key });
+    }
+    if (stale.length === 100 || unclaimed.length === 100) await ctx.scheduler.runAfter(0, internal.media.sweepPending, {});
     return null;
   },
 });

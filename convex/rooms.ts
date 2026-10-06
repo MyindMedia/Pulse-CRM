@@ -1,4 +1,5 @@
-import { fileUrl } from "./lib/media";
+import { fileRefV } from "./lib/fileRef";
+import { claimFile, fileUrl, retireFile } from "./lib/media";
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v, ConvexError } from "convex/values";
@@ -227,13 +228,16 @@ export const generateUploadUrl = mutation({
 
 /** Attach an uploaded photo to a room. assertOrg keeps it tenant-scoped. */
 export const setPhoto = mutation({
-  args: { id: v.id("rooms"), storageId: v.id("_storage") },
+  args: { id: v.id("rooms"), storageId: fileRefV },
   handler: async (ctx, { id, storageId }) => {
     const orgId = await currentOrg(ctx);
     const room = await ctx.db.get(id);
     assertOrg(room, orgId);
+    await claimFile(ctx, storageId, orgId);
     await meterStorageUpload(ctx, orgId, storageId, room.heroImageId ?? null);
+    const previous = room.heroImageId;
     await ctx.db.patch(id, { heroImageId: storageId });
+    await retireFile(ctx, previous, storageId);
   },
 });
 
@@ -244,6 +248,7 @@ export const clearPhoto = mutation({
     const orgId = await currentOrg(ctx);
     const room = await ctx.db.get(id);
     assertOrg(room, orgId);
+    await retireFile(ctx, room.heroImageId);
     await ctx.db.patch(id, { heroImageId: undefined });
   },
 });

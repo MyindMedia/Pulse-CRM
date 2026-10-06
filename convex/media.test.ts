@@ -105,15 +105,57 @@ describe("media + deliverables on R2", () => {
     await expect(t.query(api.files.downloadUrl, { deliverableId })).rejects.toThrow(/no longer available/);
   });
 
-  it("sweepPending removes abandoned uploads older than a day and keeps recent and finished ones", async () => {
-    const mk = (createdAt: number, status: "pending" | "ready") => t.run(async (ctx) => await ctx.db.insert("mediaFiles", { orgId: ORG, bucket: "media", key: `test/s/photo/${createdAt}-0123456789ab.png`, purpose: "photo", fileName: "p.png", mimeType: "image/png", status, uploadedBy: "u", createdAt }));
-    const old = await mk(Date.now() - 2 * 86_400_000, "pending");
+  it("sweepPending removes abandoned and unclaimed uploads older than a day and keeps recent and attached ones", async () => {
+    const mk = (createdAt: number, status: "pending" | "ready", attachedAt?: number) => t.run(async (ctx) => await ctx.db.insert("mediaFiles", { orgId: ORG, bucket: "media", key: `test/s/photo/${createdAt}-${status}-0123456789ab.png`, purpose: "photo", fileName: "p.png", mimeType: "image/png", status, uploadedBy: "u", createdAt, ...(attachedAt ? { attachedAt } : {}) }));
+    const oldPending = await mk(Date.now() - 2 * 86_400_000, "pending");
     const fresh = await mk(Date.now() - 1000, "pending");
-    const done = await mk(Date.now() - 3 * 86_400_000, "ready");
+    const attached = await mk(Date.now() - 3 * 86_400_000, "ready", Date.now() - 3 * 86_400_000);
+    const unclaimed = await mk(Date.now() - 3 * 86_400_000 - 5, "ready");
+    const freshReady = await mk(Date.now() - 2000, "ready");
     await t.mutation(internal.media.sweepPending, {});
     const left = await t.run(async (ctx) => (await ctx.db.query("mediaFiles").collect()).map((r) => r._id));
     expect(left).toContain(fresh);
-    expect(left).toContain(done);
-    expect(left).not.toContain(old);
+    expect(left).toContain(attached);
+    expect(left).toContain(freshReady);
+    expect(left).not.toContain(oldPending);
+    expect(left).not.toContain(unclaimed);
+  });
+
+  it("attaching claims the file so the sweeper keeps it, and replacing frees the old R2 file", async () => {
+    const { deliverableId } = await seedDeliverable();
+    const first = await ready({ size: 1000 });
+    await t.mutation(api.files.attachR2File, { deliverableId, mediaId: first });
+    expect((await t.run(async (ctx) => await ctx.db.get(first)))!.attachedAt).toBeGreaterThan(0);
+    const second = await t.run(async (ctx) => await ctx.db.insert("mediaFiles", { orgId: ORG, bucket: "private", key: "test/p/deliverable/second-0123456789cd.wav", purpose: "deliverable", fileName: "second.wav", mimeType: "audio/wav", size: 2000, status: "ready", uploadedBy: "u", createdAt: Date.now() }));
+    await t.mutation(api.files.attachR2File, { deliverableId, mediaId: second });
+    expect(await t.run(async (ctx) => await ctx.db.get(first))).toBeNull();
+    expect((await t.run(async (ctx) => await ctx.db.get(second)))!.attachedAt).toBeGreaterThan(0);
+  });
+
+  it("a studio is rate limited on how many uploads it can start in a day", async () => {
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 300; i++) await ctx.db.insert("mediaFiles", { orgId: ORG, bucket: "media", key: `test/r/photo/${i}-0123456789ab.png`, purpose: "photo", fileName: "p.png", mimeType: "image/png", status: "pending", uploadedBy: "u", createdAt: Date.now() });
+    });
+    await expect(t.mutation(api.media.prepareUpload, { purpose: "photo", fileName: "x.jpg", mimeType: "image/jpeg", size: 100 })).rejects.toThrow(/Too many uploads/);
+  });
+
+  it("a room photo on R2 is claimed, shows the public URL, and replacing it frees the old object; another studio's upload is refused", async () => {
+    const roomId = await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      return await ctx.db.insert("rooms", { orgId: ORG, name: "Studio A", status: "available", bookable: true });
+    });
+    const photo = (key: string, orgId = ORG) => t.run(async (ctx) => await ctx.db.insert("mediaFiles", { orgId, bucket: "media", key, purpose: "photo", fileName: "r.jpg", mimeType: "image/jpeg", size: 1234, status: "ready", uploadedBy: "u", createdAt: Date.now() }));
+    const a = await photo("test/pulse-demo/photo/room-aaaaaaaaaaaa.jpg");
+    await t.mutation(api.rooms.setPhoto, { id: roomId, storageId: a });
+    expect((await t.run(async (ctx) => await ctx.db.get(a)))!.attachedAt).toBeGreaterThan(0);
+    const b = await photo("test/pulse-demo/photo/room-bbbbbbbbbbbb.jpg");
+    await t.mutation(api.rooms.setPhoto, { id: roomId, storageId: b });
+    expect(await t.run(async (ctx) => await ctx.db.get(a))).toBeNull(); // replaced file freed
+    const room = await t.run(async (ctx) => await ctx.db.get(roomId));
+    expect(room!.heroImageId).toBe(b);
+    const foreign = await photo("test/other-studio/photo/x-cccccccccccc.jpg", "other-studio");
+    await expect(t.mutation(api.rooms.setPhoto, { id: roomId, storageId: foreign })).rejects.toThrow(/Upload not found/);
+    await t.mutation(api.rooms.clearPhoto, { id: roomId });
+    expect(await t.run(async (ctx) => await ctx.db.get(b))).toBeNull();
   });
 });

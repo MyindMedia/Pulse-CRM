@@ -1,5 +1,5 @@
 import { fileRefV } from "../lib/fileRef";
-import { fileUrl } from "../lib/media";
+import { claimFile, fileUrl, type FileRef } from "../lib/media";
 import { query, action, internalAction, internalQuery } from "../_generated/server";
 import { mutation, internalMutation } from "../functions";
 import type { MutationCtx } from "../_generated/server";
@@ -71,7 +71,8 @@ const postInput = {
 
 /** Shared validation for create/update: accounts belong to this org, media
  *  and caption satisfy every chosen platform. Throws the first problem. */
-async function validateInput(ctx: MutationCtx, orgId: string, input: { caption: string; media: { type: MediaKind }[]; accountIds: Id<"socialAccounts">[]; includeBookingLink: boolean; scheduledFor: number; promoId?: Id<"promos">; roomId?: Id<"rooms"> }) {
+async function validateInput(ctx: MutationCtx, orgId: string, input: { caption: string; media: { type: MediaKind; storageId?: FileRef }[]; accountIds: Id<"socialAccounts">[]; includeBookingLink: boolean; scheduledFor: number; promoId?: Id<"promos">; roomId?: Id<"rooms"> }) {
+  for (const m of input.media) await claimFile(ctx, m.storageId, orgId);
   if (input.accountIds.length === 0) throw new Error("Pick at least one account.");
   if (input.scheduledFor < Date.now() + 5 * 60_000) throw new Error("Schedule at least five minutes from now.");
   const accounts: Doc<"socialAccounts">[] = [];

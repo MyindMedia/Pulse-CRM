@@ -1,4 +1,5 @@
-import { fileUrl, type FileRef } from "./lib/media";
+import { fileRefV } from "./lib/fileRef";
+import { claimFile, fileUrl, retireFile, type FileRef } from "./lib/media";
 import { query } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
@@ -1837,15 +1838,18 @@ export const seedGlobalProfiles = internalMutation({
    ────────────────────────────────────────────────────────────── */
 
 export const setDevicePhoto = mutation({
-  args: { id: v.id("deviceInstances"), storageId: v.id("_storage") },
+  args: { id: v.id("deviceInstances"), storageId: fileRefV },
   handler: async (ctx, { id, storageId }) => {
     const orgId = await currentOrgWithCapability(ctx, "patch.edit");
     const actor = await currentActor(ctx);
     const device = await ctx.db.get(id);
     assertOrg(device, orgId);
 
+    await claimFile(ctx, storageId, orgId);
     await meterStorageUpload(ctx, orgId, storageId, device.photoId ?? null);
+    const previous = device.photoId;
     await ctx.db.patch(id, { photoId: storageId });
+    await retireFile(ctx, previous, storageId);
     await logPatch(ctx, actor, {
       orgId,
       patchSpaceId: device.patchSpaceId,
@@ -1858,15 +1862,18 @@ export const setDevicePhoto = mutation({
 });
 
 export const setDevicePanelPhoto = mutation({
-  args: { id: v.id("deviceInstances"), storageId: v.id("_storage") },
+  args: { id: v.id("deviceInstances"), storageId: fileRefV },
   handler: async (ctx, { id, storageId }) => {
     const orgId = await currentOrgWithCapability(ctx, "patch.edit");
     const actor = await currentActor(ctx);
     const device = await ctx.db.get(id);
     assertOrg(device, orgId);
 
+    await claimFile(ctx, storageId, orgId);
     await meterStorageUpload(ctx, orgId, storageId, device.panelPhotoId ?? null);
+    const previous = device.panelPhotoId;
     await ctx.db.patch(id, { panelPhotoId: storageId });
+    await retireFile(ctx, previous, storageId);
     await logPatch(ctx, actor, {
       orgId,
       patchSpaceId: device.patchSpaceId,
@@ -1887,6 +1894,7 @@ export const clearDevicePanelPhoto = mutation({
     assertOrg(device, orgId);
     if (!device.panelPhotoId) return;
 
+    await retireFile(ctx, device.panelPhotoId);
     await ctx.db.patch(id, { panelPhotoId: undefined });
     await logPatch(ctx, actor, {
       orgId,

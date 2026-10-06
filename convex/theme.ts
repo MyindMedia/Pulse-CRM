@@ -1,4 +1,5 @@
-import { fileUrl } from "./lib/media";
+import { fileRefV } from "./lib/fileRef";
+import { claimFile, fileUrl, retireFile } from "./lib/media";
 import { query, internalQuery } from "./_generated/server";
 import { mutation } from "./functions";
 import type { QueryCtx } from "./_generated/server";
@@ -229,7 +230,7 @@ export const generateUploadUrl = mutation({
 });
 
 export const setLoginBackground = mutation({
-  args: { storageId: v.id("_storage") },
+  args: { storageId: fileRefV },
   handler: async (ctx, { storageId }) => {
     await requireCapability(ctx, "theme.edit");
     const orgId = await currentOrg(ctx);
@@ -238,9 +239,12 @@ export const setLoginBackground = mutation({
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .first();
     if (!org) throw new Error("Workspace not found.");
+    await claimFile(ctx, storageId, orgId);
+    const previous = org.theme?.loginBackgroundId;
     await ctx.db.patch(org._id, {
       theme: { ...(org.theme ?? {}), loginBackgroundId: storageId },
     });
+    await retireFile(ctx, previous, storageId);
   },
 });
 

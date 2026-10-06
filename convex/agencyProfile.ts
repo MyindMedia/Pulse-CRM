@@ -1,4 +1,6 @@
-import { fileUrl } from "./lib/media";
+import { createUpload } from "./media";
+import { fileRefV } from "./lib/fileRef";
+import { claimFile, fileUrl, retireFile } from "./lib/media";
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
@@ -165,11 +167,27 @@ export const generateUploadUrl = mutation({
   },
 });
 
+/** R2 upload for agency users (their profile photo, the agency logo). Files are
+ *  scoped to the agency, not to a studio. */
+export const prepareUpload = mutation({
+  args: { purpose: v.union(v.literal("logo"), v.literal("photo")), fileName: v.string(), mimeType: v.string(), size: v.number() },
+  handler: async (ctx, a) => {
+    const viewer = await resolveViewer(ctx);
+    if (viewer.kind !== "agency_member") throw new Error("Agency users only.");
+    return await createUpload(ctx, { ...a, scope: `agency:${viewer.agencyId}`, actor: String(viewer.clerkUserId) });
+  },
+});
+
 export const setMyPhoto = mutation({
-  args: { storageId: v.id("_storage") },
+  args: { storageId: fileRefV },
   handler: async (ctx, { storageId }) => {
+    const viewer = await resolveViewer(ctx);
+    if (viewer.kind !== "agency_member") throw new Error("Agency users only.");
     const id = await ensureMyRow(ctx);
+    const row = await ctx.db.get(id);
+    await claimFile(ctx, storageId, `agency:${viewer.agencyId}`);
     await ctx.db.patch(id, { photoStorageId: storageId, lastActiveAt: Date.now() });
+    await retireFile(ctx, row?.photoStorageId, storageId);
   },
 });
 
@@ -177,6 +195,7 @@ export const clearMyPhoto = mutation({
   args: {},
   handler: async (ctx) => {
     const id = await ensureMyRow(ctx);
+    await retireFile(ctx, (await ctx.db.get(id))?.photoStorageId);
     await ctx.db.patch(id, { photoStorageId: undefined });
   },
 });

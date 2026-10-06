@@ -3292,8 +3292,11 @@ export default defineSchema({
     uploadedBy: v.string(),
     createdAt: v.number(),
     readyAt: v.optional(v.number()),
+    // Set when a row first points at the file; confirmed uploads nobody claims are swept.
+    attachedAt: v.optional(v.number()),
   })
     .index("by_org", ["orgId", "createdAt"])
     .index("by_key", ["bucket", "key"])
-    .index("by_status", ["status", "createdAt"]),
+    .index("by_status", ["status", "createdAt"])
+    .index("by_attach", ["status", "attachedAt", "createdAt"]),
 });
