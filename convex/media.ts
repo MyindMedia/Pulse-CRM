@@ -31,17 +31,17 @@ const purposeV = v.union(
  *  authorization first; this only validates what is being uploaded. */
 export async function createUpload(
   ctx: MutationCtx,
-  a: { scope: string; purpose: MediaPurpose; fileName: string; mimeType: string; size: number; actor: string },
+  a: { scope: string; purpose: MediaPurpose; fileName: string; mimeType: string; size: number; actor: string; /** Backfill only: skip the per-purpose type/size checks and the daily limit. */ trusted?: boolean },
 ): Promise<{ mediaId: Id<"mediaFiles">; url: string; headers: Record<string, string> }> {
   const rule = PURPOSES[a.purpose];
   if (!Number.isFinite(a.size) || a.size <= 0) throw new ConvexError("That file is empty.");
-  if (a.size > rule.maxBytes) throw new ConvexError(`That file is too large (limit ${Math.round(rule.maxBytes / 1048576)} MB).`);
-  if (a.purpose === "video" && !/^video\/(mp4|quicktime|webm)$/i.test(a.mimeType)) throw new ConvexError("Upload an MP4, MOV or WebM video.");
-  if (rule.image && !/^image\/(png|jpe?g|webp|gif|avif|svg\+xml)$/i.test(a.mimeType)) throw new ConvexError("Upload a PNG, JPG, WebP, GIF or AVIF image.");
+  if (!a.trusted && a.size > rule.maxBytes) throw new ConvexError(`That file is too large (limit ${Math.round(rule.maxBytes / 1048576)} MB).`);
+  if (!a.trusted && a.purpose === "video" && !/^video\/(mp4|quicktime|webm)$/i.test(a.mimeType)) throw new ConvexError("Upload an MP4, MOV or WebM video.");
+  if (!a.trusted && rule.image && !/^image\/(png|jpe?g|webp|gif|avif|svg\+xml)$/i.test(a.mimeType)) throw new ConvexError("Upload a PNG, JPG, WebP, GIF or AVIF image.");
   // A studio cannot flood the bucket with uploads it never attaches: unclaimed
   // files are swept after a day, and creating them is rate limited.
   const recent = await ctx.db.query("mediaFiles").withIndex("by_org", (q) => q.eq("orgId", a.scope).gte("createdAt", Date.now() - 24 * 60 * 60 * 1000)).take(UPLOADS_PER_DAY);
-  if (recent.length >= UPLOADS_PER_DAY) throw new ConvexError("Too many uploads today. Try again tomorrow.");
+  if (!a.trusted && recent.length >= UPLOADS_PER_DAY) throw new ConvexError("Too many uploads today. Try again tomorrow.");
   const fileName = a.fileName.slice(0, 160) || "file";
   const key = makeKey(a.scope, a.purpose, fileName);
   const { url } = await r2For(rule.bucket).generateUploadUrl(key);

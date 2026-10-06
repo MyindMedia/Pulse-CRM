@@ -3294,6 +3294,9 @@ export default defineSchema({
     readyAt: v.optional(v.number()),
     // Set when a row first points at the file; confirmed uploads nobody claims are swept.
     attachedAt: v.optional(v.number()),
+    // Set by the backfill: the Convex storage file this was copied from. It is deleted
+    // after a safety window (mediaBackfill.purgeLegacy), never at copy time.
+    legacyStorageId: v.optional(v.id("_storage")),
   })
     .index("by_org", ["orgId", "createdAt"])
     .index("by_key", ["bucket", "key"])
