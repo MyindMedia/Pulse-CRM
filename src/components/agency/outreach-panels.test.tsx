@@ -83,7 +83,8 @@ describe("Outreach panels", () => {
     set("meetings", { mapped: false, rows: [] });
     snap(baseSnap);
     const out = html(<Meetings />);
-    expect(out).toContain("No calendar connected");
+    expect(out).toContain("Bookings happen on the Zuops calendar");
+    expect(out).toContain("studiopulse.tech/demo");
     expect(out).toMatch(/click is not a booking/i);
   });
 
@@ -113,7 +114,7 @@ describe("Outreach panels", () => {
     const out = html(<Links />);
     expect(out).toContain("30 minutes");
     expect(out).toContain("unverified");
-    expect(out).toContain("Live calendar");
+    expect(out).toContain("Older GoHighLevel calendar");
     expect(out).toContain("Pulse Walkthrough");
     expect(out).toContain("8 across 1 day");
     expect(out).toContain("Refresh from GoHighLevel");
@@ -196,7 +197,8 @@ describe("Outreach panels", () => {
     set("meetings", { mapped: false, rows: [] });
     const out = html(<Meetings />);
     expect(out).toContain("Jane Smith");
-    expect(out).toContain("Read live from GoHighLevel");
+    expect(out).toContain("old GoHighLevel calendar");
+    expect(out).toContain("Zuops calendar");
     expect(out).toContain("calling stays off");
   });
 

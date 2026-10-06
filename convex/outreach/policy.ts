@@ -46,14 +46,6 @@ export function readiness(i: ReadinessInput): ReadinessItem[] {
   const verifiedSender = s?.senders.find((x) => x.verified);
   return [
     {
-      key: "provider_mapping",
-      label: "Provider mapping",
-      state: s?.ghlLocationId && s.ghlCalendarId ? "ready" : "missing",
-      detail: s?.ghlLocationId && s.ghlCalendarId
-        ? "Calendar and location are mapped to this agency by an operator."
-        : "No verified calendar or location is mapped to this agency yet.",
-    },
-    {
       key: "sender",
       label: "Verified sender",
       state: verifiedSender ? "ready" : "missing",
@@ -71,9 +63,9 @@ export function readiness(i: ReadinessInput): ReadinessItem[] {
     },
     {
       key: "booking_link",
-      label: "Booking link",
+      label: "Booking calendar (Zuops)",
       state: s?.bookingUrl ? "ready" : "missing",
-      detail: s?.bookingUrl ? s.bookingUrl : "No verified booking link is configured.",
+      detail: s?.bookingUrl ? `Prospects book at ${s.bookingUrl}, which opens the Zuops calendar.` : "No verified booking link is configured.",
     },
     {
       key: "postal_address",
