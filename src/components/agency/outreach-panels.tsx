@@ -612,8 +612,9 @@ export function Prospects() {
         <CardHeader>
           <CardTitle>Add studios</CardTitle>
           <CardDescription>
-            Paste Instagram handles, Instagram links or websites, one per line. Contact info is read only from the
-            studio&apos;s own public website, never from Instagram. Nothing is emailed from here.
+            Paste Instagram handles, Instagram links or websites, one per line. Contact info is what the studio
+            published itself: on its website, its Google Maps listing, or (on request) its own Instagram profile. It is
+            published, not verified. Nothing is emailed from here.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

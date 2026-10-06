@@ -33,6 +33,16 @@ python3 scripts/outreach/ig_resolve.py --intake-url https://<deployment>.convex.
 ```
 It reads only the profile's name and link in bio. A link-in-bio page (linktr.ee and similar) is flagged and not trusted; you confirm the real website in the tab.
 
+## 4. Discover tab (treg, paid per call)
+Agency > Outreach > Discover. Needs `TREG_TOKEN` in Convex env (the token is never sent to the browser).
+- **Google Maps** (`anyapi.maps.contacts`, about $0.001 per studio): a city plus a search such as "recording studio". Returns the studio's website and the emails and phones it publishes. Social links found on those sites are dropped because they are often client accounts.
+- **Instagram search** (`treg.instagram.search.users`, about $0.002 per search): public studio-like accounts with bio and website. A link-in-bio page is flagged, never trusted as the website.
+- **Find Instagram email** (`anyapi.instagram.profile_contact`, about $0.002): the email or phone the account itself publishes. Shown with the profile as its source.
+- Caps per agency per day: 20 searches, 100 profile lookups. Owners and admins only. Everything is "published, not verified".
+
+## 5. DMs tab (draft, approve, you send)
+Instagram does not allow automated cold DMs and sending through a login risks the account, so Pulse never sends. It drafts a short link-free opener from the studio's own bio; you approve each one (24 hour expiry, bound to the exact text), copy it, open `ig.me/m/<handle>`, send it yourself, then mark it sent. One DM per studio per 30 days. "They said stop" is remembered per handle and blocks future DMs.
+
 ## What happens next
 Confirm the website, click **Find contact info**. Pulse reads the studio's own public pages (robots.txt first, home plus up to two contact/about pages) and lists the published emails, phones, social links and booking platform, each with its source page. Those are published, not verified. A generic inbox (info@, studio@) is not a confirmed decision-maker. **Queue for review** only moves the studio into the review queue.
 
