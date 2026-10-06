@@ -5,6 +5,7 @@ import { lock } from "./actions";
 import { UnlockForm } from "./unlock-form";
 import { FeatureBrowser } from "./feature-browser";
 import { SECTIONS, TOTAL_FEATURES, ROADMAP, TIERS } from "./features";
+import { siteMedia } from "@/lib/media";
 
 /* /mypulse - the sales team's map of the product and of the call.
  *
@@ -123,9 +124,9 @@ export default async function MyPulsePage() {
               preload="metadata"
               poster="/pulse-commercial-poster.jpg"
             >
-              <source src="/pulse-commercial.mp4" type="video/mp4" />
+              <source src={siteMedia("/pulse-commercial.mp4")} type="video/mp4" />
               Your browser cannot play this video. Download it at{" "}
-              <a href="/pulse-commercial.mp4">/pulse-commercial.mp4</a>.
+              <a href={siteMedia("/pulse-commercial.mp4")}>pulse-commercial.mp4</a>.
             </video>
           </div>
           <p className="mt-2.5 font-meta text-[11px] uppercase tracking-[0.1em] text-ash-dim">
