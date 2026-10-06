@@ -1,3 +1,4 @@
+import { fileUrl } from "./lib/media";
 import { query, QueryCtx, MutationCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { Doc, Id } from "./_generated/dataModel";
@@ -43,7 +44,7 @@ const statusV = v.union(
 
 /** An item's display photo - an uploaded file wins over the seeded URL. */
 async function photoOf(ctx: QueryCtx, item: Doc<"equipment">): Promise<string | null> {
-  if (item.photoId) return await ctx.storage.getUrl(item.photoId);
+  if (item.photoId) return await fileUrl(ctx, item.photoId);
   return item.photoUrl ?? null;
 }
 

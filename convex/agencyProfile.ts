@@ -1,3 +1,4 @@
+import { fileUrl } from "./lib/media";
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
@@ -101,7 +102,7 @@ export const mine = query({
       title: row.title ?? null,
       phone: row.phone ?? null,
       photoUrl: row.photoStorageId
-        ? await ctx.storage.getUrl(row.photoStorageId)
+        ? await fileUrl(ctx, row.photoStorageId)
         : (row.clerkImageUrl ?? clerkPic),
       hasUploadedPhoto: Boolean(row.photoStorageId),
     };

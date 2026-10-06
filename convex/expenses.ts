@@ -1,3 +1,4 @@
+import { fileUrl } from "./lib/media";
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
@@ -149,7 +150,7 @@ export const list = query({
       rows.map(async (r) => ({
         ...r,
         memberName: r.memberId ? (await ctx.db.get(r.memberId))?.name ?? null : null,
-        receiptUrl: r.receiptId ? await ctx.storage.getUrl(r.receiptId) : null,
+        receiptUrl: r.receiptId ? await fileUrl(ctx, r.receiptId) : null,
       })),
     );
   },

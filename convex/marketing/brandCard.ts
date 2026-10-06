@@ -1,3 +1,4 @@
+import { fileUrl } from "../lib/media";
 import { query } from "../_generated/server";
 import { v } from "convex/values";
 
@@ -23,7 +24,7 @@ export const data = query({
     const room = roomDoc && roomDoc.orgId === post.orgId ? roomDoc : null;
     const promoDoc = post.promoId ? await ctx.db.get(post.promoId) : null;
     const promo = promoDoc && promoDoc.orgId === post.orgId ? promoDoc : null;
-    const logoUrl = org.logoId ? await ctx.storage.getUrl(org.logoId) : null;
+    const logoUrl = org.logoId ? await fileUrl(ctx, org.logoId) : null;
     const rate = room?.hourlyRateCents ?? 0;
     return {
       studioName: org.name,

@@ -1,3 +1,4 @@
+import { fileUrl } from "./lib/media";
 import { query, QueryCtx, MutationCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { v, ConvexError } from "convex/values";
@@ -45,7 +46,7 @@ export const mine = query({
       bookingIntro: org.bookingIntro ?? "",
       depositPolicyText: org.depositPolicyText ?? "",
       contact: org.contact ?? null,
-      logoUrl: org.logoId ? await ctx.storage.getUrl(org.logoId) : null,
+      logoUrl: org.logoId ? await fileUrl(ctx, org.logoId) : null,
       roomCount: rooms.length,
       onboardingCompletedAt: org.onboardingCompletedAt ?? null,
       termsAcceptedAt: org.termsAcceptedAt ?? null,

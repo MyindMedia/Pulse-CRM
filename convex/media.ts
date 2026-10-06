@@ -6,7 +6,8 @@ import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
 import { resolveViewer } from "./lib/access";
-import { PURPOSES, makeKey, r2For, type MediaBucket, type MediaPurpose } from "./lib/media";
+import { PURPOSES, makeKey, r2For, fileUrl, type FileRef, type MediaBucket, type MediaPurpose } from "./lib/media";
+import { fileRefV } from "./lib/fileRef";
 
 /* ============================================================
    Media API. Three steps, none of which moves the bytes through Convex:
@@ -152,3 +153,28 @@ export const _row = internalQuery({
   args: { mediaId: v.id("mediaFiles") },
   handler: async (ctx, { mediaId }) => await ctx.db.get(mediaId),
 });
+
+/** Signed or public URL for a stored file. For actions, which cannot read the database. */
+export const _fileUrl = internalQuery({
+  args: { ref: fileRefV, expiresIn: v.optional(v.number()) },
+  handler: async (ctx, { ref, expiresIn }) => await fileUrl(ctx, ref, { expiresIn }),
+});
+
+/** The bytes of a stored file, from either store, for an action that must read them
+ *  (receipt extraction). Legacy Convex storage is read directly; an R2 file is
+ *  fetched through a short-lived signed URL. */
+export async function readFileBlob(
+  ctx: { storage: { get(id: Id<"_storage">): Promise<Blob | null> }; runQuery: (fn: typeof internal.media._fileUrl, args: { ref: FileRef; expiresIn?: number }) => Promise<string | null> },
+  ref: FileRef,
+): Promise<Blob | null> {
+  try {
+    const legacy = await ctx.storage.get(ref as Id<"_storage">);
+    if (legacy) return legacy;
+  } catch {
+    // not a Convex storage id: fall through to R2
+  }
+  const url = await ctx.runQuery(internal.media._fileUrl, { ref, expiresIn: 300 });
+  if (!url) return null;
+  const res = await fetch(url);
+  return res.ok ? await res.blob() : null;
+}

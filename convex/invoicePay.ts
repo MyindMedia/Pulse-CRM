@@ -1,3 +1,4 @@
+import { fileUrl } from "./lib/media";
 import { query, action, internalQuery, MutationCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
 import type { Id } from "./_generated/dataModel";
@@ -36,7 +37,7 @@ export const get = query({
       clientName: artist?.name ?? "",
       studioName: org?.name ?? "Studio",
       accentColor: org?.accentColor ?? "#fdb913",
-      logoUrl: org?.logoId ? await ctx.storage.getUrl(org.logoId) : null,
+      logoUrl: org?.logoId ? await fileUrl(ctx, org.logoId) : null,
       // Whether online card payment is available (studio connected Stripe).
       payable: Boolean(process.env.STRIPE_SECRET_KEY && org?.stripeAccountId && org?.stripeChargesEnabled),
     };

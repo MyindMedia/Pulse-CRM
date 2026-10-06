@@ -1,3 +1,4 @@
+import { fileUrl } from "./lib/media";
 import { query, internalQuery, QueryCtx } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { internal } from "./_generated/api";
@@ -70,8 +71,8 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     managersSeeMoney: org?.managersSeeMoney !== false,
     brandPalette: org?.brandPalette ?? null,
     tagline: org?.tagline ?? "Your music business runs itself.",
-    logoUrl: org?.logoId ? await ctx.storage.getUrl(org.logoId) : null,
-    bookingHeroUrl: org?.bookingHeroId ? await ctx.storage.getUrl(org.bookingHeroId) : null,
+    logoUrl: org?.logoId ? await fileUrl(ctx, org.logoId) : null,
+    bookingHeroUrl: org?.bookingHeroId ? await fileUrl(ctx, org.bookingHeroId) : null,
     bookingHeadline: org?.bookingHeadline ?? null,
     bookingIntro: org?.bookingIntro ?? null,
     depositPolicyText: org?.depositPolicyText ?? null,

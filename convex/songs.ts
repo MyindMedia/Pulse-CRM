@@ -1,3 +1,4 @@
+import { fileUrl } from "./lib/media";
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
@@ -62,7 +63,7 @@ export const list = query({
         rows.map(async (r) => ({
           ...r,
           artistName: artists.get(r.artistId)?.name ?? "Unknown",
-          coverUrl: r.coverArtId ? await ctx.storage.getUrl(r.coverArtId) : null,
+          coverUrl: r.coverArtId ? await fileUrl(ctx, r.coverArtId) : null,
         })),
       )
     ).sort((a, b) => b._creationTime - a._creationTime);
@@ -101,7 +102,7 @@ export const get = query({
     return {
       ...song,
       artist,
-      coverUrl: song.coverArtId ? await ctx.storage.getUrl(song.coverArtId) : null,
+      coverUrl: song.coverArtId ? await fileUrl(ctx, song.coverArtId) : null,
       sessions: sessions.sort((a, b) => a.startTime - b.startTime),
       deliverables: deliverables.sort((a, b) => b.version - a.version),
       openComments: comments.filter((c) => !c.resolved).length,

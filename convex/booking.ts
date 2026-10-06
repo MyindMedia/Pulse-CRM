@@ -1,3 +1,4 @@
+import { fileUrl } from "./lib/media";
 import { query, action, internalQuery, QueryCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { recordBooked } from "./bookingFunnel";
@@ -49,7 +50,7 @@ const serviceV = v.union(
 );
 
 async function photoOf(ctx: QueryCtx, item: Doc<"equipment">): Promise<string | null> {
-  if (item.photoId) return await ctx.storage.getUrl(item.photoId);
+  if (item.photoId) return await fileUrl(ctx, item.photoId);
   return item.photoUrl ?? null;
 }
 
@@ -70,9 +71,9 @@ async function brand(ctx: QueryCtx, org: Doc<"orgs"> | null) {
     tagline: org?.tagline ?? "Book your session.",
     accentColor: org?.accentColor ?? "#fdb913",
     palette: org?.brandPalette ?? null,
-    logoUrl: org?.logoId ? await ctx.storage.getUrl(org.logoId) : null,
-    heroUrl: org?.bookingHeroId ? await ctx.storage.getUrl(org.bookingHeroId) : null,
-    generatedHeroUrl: org?.generatedHeroId ? await ctx.storage.getUrl(org.generatedHeroId) : null,
+    logoUrl: org?.logoId ? await fileUrl(ctx, org.logoId) : null,
+    heroUrl: org?.bookingHeroId ? await fileUrl(ctx, org.bookingHeroId) : null,
+    generatedHeroUrl: org?.generatedHeroId ? await fileUrl(ctx, org.generatedHeroId) : null,
     headline: org?.bookingHeadline ?? null,
     intro: org?.bookingIntro ?? null,
     depositPolicy: org?.depositPolicyText ?? null,
@@ -129,7 +130,7 @@ async function engineerProfiles(ctx: QueryCtx, orgId: string) {
         role: m.role,
         bio: m.bio ?? null,
         credits: m.credits ?? [],
-        photoUrl: m.photoId ? await ctx.storage.getUrl(m.photoId) : (m.clerkImageUrl ?? null),
+        photoUrl: m.photoId ? await fileUrl(ctx, m.photoId) : (m.clerkImageUrl ?? null),
       })),
   );
   return profiles.sort((a, b) => a.name.localeCompare(b.name));
@@ -178,7 +179,7 @@ export const studioFront = query({
         // Lead with the room hero shot (uploaded storage photo first, then the
         // legacy seeded URL), then gear photos as supporting frames.
         const heroShot = room.heroImageId
-          ? await ctx.storage.getUrl(room.heroImageId)
+          ? await fileUrl(ctx, room.heroImageId)
           : room.heroImageUrl ?? null;
         const photos = [...(heroShot ? [heroShot] : []), ...gearPhotos].slice(0, 6);
         return {
@@ -248,7 +249,7 @@ async function serviceCards(
       minimumHours: s.minimumHours ?? null,
       blockHours: s.blockHours ?? null,
       heroUrl: s.heroImageId
-        ? await ctx.storage.getUrl(s.heroImageId)
+        ? await fileUrl(ctx, s.heroImageId)
         : s.heroImageUrl ?? null,
     })),
   );
@@ -313,7 +314,7 @@ export const service = query({
       paymentMode: defaults(room).paymentMode,
       offerEngineer: room.offerEngineer !== false,
       heroUrl: svc.heroImageId
-        ? await ctx.storage.getUrl(svc.heroImageId)
+        ? await fileUrl(ctx, svc.heroImageId)
         : svc.heroImageUrl ?? null,
       // The room is the resource, not the product: its id is needed to read
       // availability, its name is not shown to the client.
@@ -383,7 +384,7 @@ export const room = query({
       ...room,
       ...defaults(room),
       heroUrl: room.heroImageId
-        ? await ctx.storage.getUrl(room.heroImageId)
+        ? await fileUrl(ctx, room.heroImageId)
         : (room.heroImageUrl ?? null),
       openHour: OPEN_HOUR,
       closeHour: CLOSE_HOUR,
@@ -497,7 +498,7 @@ export const addOnOptions = query({
           // client is choosing who runs their session.
           bio: m.bio ?? null,
           credits: m.credits ?? [],
-          photoUrl: m.photoId ? await ctx.storage.getUrl(m.photoId) : (m.clerkImageUrl ?? null),
+          photoUrl: m.photoId ? await fileUrl(ctx, m.photoId) : (m.clerkImageUrl ?? null),
           available: engineerAvailable(m._id, startTime, endTime, around),
         })),
     );

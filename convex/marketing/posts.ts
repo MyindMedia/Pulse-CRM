@@ -1,3 +1,5 @@
+import { fileRefV } from "../lib/fileRef";
+import { fileUrl } from "../lib/media";
 import { query, action, internalAction, internalQuery } from "../_generated/server";
 import { mutation, internalMutation } from "../functions";
 import type { MutationCtx } from "../_generated/server";
@@ -56,7 +58,7 @@ const postInput = {
   template: v.union(v.literal("session_bts"), v.literal("before_after"), v.literal("client_win"), v.literal("room_gear"), v.literal("tip"), v.literal("rate_promo"), v.literal("open_slot"), v.literal("engineer_story"), v.literal("custom")),
   caption: v.string(),
   captionOverrides: v.optional(v.record(v.string(), v.string())),
-  media: v.array(v.object({ storageId: v.optional(v.id("_storage")), brandCard: v.optional(v.union(v.literal("rate_card"), v.literal("open_slot"), v.literal("promo"))), type: v.union(v.literal("image"), v.literal("video")) })),
+  media: v.array(v.object({ storageId: v.optional(fileRefV), brandCard: v.optional(v.union(v.literal("rate_card"), v.literal("open_slot"), v.literal("promo"))), type: v.union(v.literal("image"), v.literal("video")) })),
   accountIds: v.array(v.id("socialAccounts")),
   scheduledFor: v.number(),
   timezone: v.string(),
@@ -204,7 +206,7 @@ export const payloadContext = internalQuery({
     const media: { url: string; type: string }[] = [];
     for (const m of post.media) {
       if (m.storageId) {
-        const url = await ctx.storage.getUrl(m.storageId);
+        const url = await fileUrl(ctx, m.storageId);
         if (url) media.push({ url, type: m.type === "video" ? "video/mp4" : "image/jpeg" });
       } else if (m.brandCard) {
         // postId/kind/updatedAt all live in the PATH (brandCardPath), not a

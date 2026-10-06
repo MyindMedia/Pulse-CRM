@@ -1,3 +1,4 @@
+import { fileUrl } from "./lib/media";
 import { query, internalQuery, action, QueryCtx } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { internal } from "./_generated/api";
@@ -104,7 +105,7 @@ export const subaccounts = query({
       orgs.map(async (org) => ({
         ...org,
         status: org.status ?? "active",
-        logoUrl: org.logoId ? await ctx.storage.getUrl(org.logoId) : null,
+        logoUrl: org.logoId ? await fileUrl(ctx, org.logoId) : null,
         ...(await rollup(ctx, org.orgId)),
       })),
     );
@@ -221,7 +222,7 @@ export const overview = query({
           name: o.name,
           plan: o.plan ?? "solo",
           slug: o.slug,
-          logoUrl: o.logoId ? await ctx.storage.getUrl(o.logoId) : null,
+          logoUrl: o.logoId ? await fileUrl(ctx, o.logoId) : null,
           collectedCents: studioRollups.get(o.orgId)?.collected ?? 0,
           sessions: studioRollups.get(o.orgId)?.sessions ?? 0,
         })),
@@ -294,7 +295,7 @@ export const subaccount = query({
     return {
       ...org,
       status: org.status ?? "active",
-      logoUrl: org.logoId ? await ctx.storage.getUrl(org.logoId) : null,
+      logoUrl: org.logoId ? await fileUrl(ctx, org.logoId) : null,
       ...(await rollup(ctx, orgId)),
       activity,
     };

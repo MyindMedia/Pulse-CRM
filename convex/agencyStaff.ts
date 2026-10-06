@@ -1,3 +1,4 @@
+import { fileUrl } from "./lib/media";
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
@@ -33,7 +34,7 @@ export const list = query({
         title: m.title ?? null,
         phone: m.phone ?? null,
         photoUrl: m.photoStorageId
-          ? await ctx.storage.getUrl(m.photoStorageId)
+          ? await fileUrl(ctx, m.photoStorageId)
           : (m.clerkImageUrl ?? null),
       })),
     );

@@ -284,7 +284,7 @@ describe("matching and the books", () => {
     const expenseId = await s.manager.mutation(api.receipts.createExpense, { id: receiptId, category: "supplies" });
     const storageId = (await s.t.run(async (ctx) => await ctx.db.get(receiptId)))!.storageId;
     await s.manager.mutation(api.receipts.remove, { id: receiptId });
-    expect(await s.t.run(async (ctx) => await ctx.db.system.get(storageId))).toBeNull();
+    expect(await s.t.run(async (ctx) => await ctx.db.system.get(storageId as Id<"_storage">))).toBeNull();
     const e = await s.t.run(async (ctx) => await ctx.db.get(expenseId as Id<"expenses">));
     expect(e!.receiptDocId).toBeUndefined();
     const log = await s.owner.query(api.reconcile.history, { expenseId: expenseId as Id<"expenses"> });

@@ -1,3 +1,5 @@
+import { fileUrl, deleteFile } from "./lib/media";
+import { scheduleObjectDelete } from "./media";
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
@@ -88,7 +90,7 @@ export const list = query({
     return await Promise.all(
       docs
         .filter((d) => d.orgId === orgId)
-        .map(async (d) => ({ ...d, url: await ctx.storage.getUrl(d.storageId) })),
+        .map(async (d) => ({ ...d, url: await fileUrl(ctx, d.storageId) })),
     );
   },
 });
@@ -100,7 +102,7 @@ export const remove = mutation({
     const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
     const doc = await ctx.db.get(id);
     if (!doc || doc.orgId !== orgId) throw new Error("Not found.");
-    await ctx.storage.delete(doc.storageId).catch(() => undefined);
+    await deleteFile(ctx, doc.storageId, (bucket, key) => scheduleObjectDelete(ctx, bucket, key)).catch(() => undefined);
     await ctx.db.delete(id);
   },
 });

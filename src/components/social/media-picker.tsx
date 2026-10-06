@@ -13,7 +13,7 @@ import { brandCardPath } from "@convex/lib/brandCardUrl";
 import type { TemplateKey } from "./template-picker";
 
 export type MediaItem = {
-  storageId?: Id<"_storage">;
+  storageId?: Id<"_storage"> | Id<"mediaFiles">;
   brandCard?: "rate_card" | "open_slot" | "promo";
   type: "image" | "video";
 };

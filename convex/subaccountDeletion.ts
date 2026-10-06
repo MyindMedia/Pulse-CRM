@@ -1,3 +1,5 @@
+import { deleteFile } from "./lib/media";
+import { scheduleObjectDelete } from "./media";
 import { internal } from "./_generated/api";
 import { query, internalQuery } from "./_generated/server";
 import { mutation } from "./functions";
@@ -272,7 +274,7 @@ export const confirmDeletion = mutation({
       .map((c) => ({ ciphertext: c.tokenCiphertext!, iv: c.tokenIv! }));
     if (sealed.length > 0) await ctx.scheduler.runAfter(0, internal.banking.removeItems, { sealed });
     for (const r of await ctx.db.query("receipts").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()) {
-      await ctx.storage.delete(r.storageId);
+      await deleteFile(ctx, r.storageId, (bucket, key) => scheduleObjectDelete(ctx, bucket, key));
     }
 
     // Files in R2 are removed object by object; the row is the only record of the key.

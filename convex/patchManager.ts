@@ -1,3 +1,4 @@
+import { fileUrl, type FileRef } from "./lib/media";
 import { query } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
@@ -485,8 +486,8 @@ export const graph = query({
           ...equipment.filter(Boolean).map((e) => e!.photoId),
         ].filter(Boolean),
       ),
-    ] as Id<"_storage">[];
-    const photoUrls = await Promise.all(photoIds.map((id) => ctx.storage.getUrl(id)));
+    ] as FileRef[];
+    const photoUrls = await Promise.all(photoIds.map((id) => fileUrl(ctx, id)));
     const photoUrlById = new Map(photoIds.map((id, i) => [id, photoUrls[i]] as const));
 
     const portsByDevice = new Map<string, Doc<"ports">[]>();

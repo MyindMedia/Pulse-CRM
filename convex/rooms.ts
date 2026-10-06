@@ -1,3 +1,4 @@
+import { fileUrl } from "./lib/media";
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v, ConvexError } from "convex/values";
@@ -37,7 +38,7 @@ export const list = query({
           .collect();
         return {
           ...redactMoney("rooms", room, sight),
-          heroUrl: room.heroImageId ? await ctx.storage.getUrl(room.heroImageId) : (room.heroImageUrl ?? null),
+          heroUrl: room.heroImageId ? await fileUrl(ctx, room.heroImageId) : (room.heroImageUrl ?? null),
           equipmentCount: gear.length,
           equipmentValueCents: sight.money ? gear.reduce((s, g) => s + g.currentValueCents, 0) : null,
         };
@@ -60,7 +61,7 @@ export const get = query({
     const sight = await currentMoneySight(ctx);
     return {
       ...redactMoney("rooms", room, sight),
-      heroUrl: room.heroImageId ? await ctx.storage.getUrl(room.heroImageId) : (room.heroImageUrl ?? null),
+      heroUrl: room.heroImageId ? await fileUrl(ctx, room.heroImageId) : (room.heroImageUrl ?? null),
       // One type either way: most valuable first for someone who may see value,
       // alphabetical for everyone else, so the order itself does not tell.
       equipment: redactEach(

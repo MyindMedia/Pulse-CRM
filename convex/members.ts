@@ -1,3 +1,4 @@
+import { fileUrl } from "./lib/media";
 import { query, action, internalQuery, internalAction, QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
@@ -135,7 +136,7 @@ export const list = query({
         }
         return {
           ...redactMoney("members", r, sight),
-          photoUrl: r.photoId ? await ctx.storage.getUrl(r.photoId) : (r.clerkImageUrl ?? null),
+          photoUrl: r.photoId ? await fileUrl(ctx, r.photoId) : (r.clerkImageUrl ?? null),
           inviteStatus,
           invitedAt,
         };
@@ -160,7 +161,7 @@ export const engineers = query({
         name: r.name,
         role: r.role,
         avatarColor: r.avatarColor,
-        photoUrl: r.photoId ? await ctx.storage.getUrl(r.photoId) : (r.clerkImageUrl ?? null),
+        photoUrl: r.photoId ? await fileUrl(ctx, r.photoId) : (r.clerkImageUrl ?? null),
       })),
     );
     return hydrated.sort((a, b) => a.name.localeCompare(b.name));
@@ -576,7 +577,7 @@ export const myProfile = query({
       role: me.role,
       email: me.email ?? null,
       phone: me.phone ?? null,
-      photoUrl: me.photoId ? await ctx.storage.getUrl(me.photoId) : (me.clerkImageUrl ?? null),
+      photoUrl: me.photoId ? await fileUrl(ctx, me.photoId) : (me.clerkImageUrl ?? null),
       hasUploadedPhoto: Boolean(me.photoId),
     };
   },
