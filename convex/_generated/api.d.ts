@@ -172,6 +172,7 @@ import type * as marketing_posts from "../marketing/posts.js";
 import type * as marketing_results from "../marketing/results.js";
 import type * as marketing_rules from "../marketing/rules.js";
 import type * as media from "../media.js";
+import type * as mediaBackfill from "../mediaBackfill.js";
 import type * as members from "../members.js";
 import type * as memberships from "../memberships.js";
 import type * as messages from "../messages.js";
@@ -445,6 +446,7 @@ declare const fullApi: ApiFromModules<{
   "marketing/results": typeof marketing_results;
   "marketing/rules": typeof marketing_rules;
   media: typeof media;
+  mediaBackfill: typeof mediaBackfill;
   members: typeof members;
   memberships: typeof memberships;
   messages: typeof messages;
