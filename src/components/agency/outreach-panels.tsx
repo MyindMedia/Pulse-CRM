@@ -246,8 +246,8 @@ export function Meetings() {
   const upcoming = cal.appointments.length > 0 && (
     <Card>
       <CardHeader>
-        <CardTitle>Booked on the {cal.calendar?.name ?? "calendar"}</CardTitle>
-        <CardDescription>Read live from GoHighLevel{cal.fetchedAt ? `, ${when(cal.fetchedAt)}` : ""}. A booking is not a call: calling stays off.</CardDescription>
+        <CardTitle>Older bookings on the {cal.calendar?.name ?? "GoHighLevel"} calendar</CardTitle>
+        <CardDescription>From the old GoHighLevel calendar{cal.fetchedAt ? `, read ${when(cal.fetchedAt)}` : ""}. New bookings are taken on the Zuops calendar at the booking link and are not read into Pulse yet. A booking is not a call: calling stays off.</CardDescription>
       </CardHeader>
       <CardContent>
         <ul className="divide-y divide-hairline text-sm">
@@ -266,15 +266,15 @@ export function Meetings() {
     return (
       <EmptyState
         icon={CalendarClock}
-        title="No calendar connected"
-        description="Meetings appear once an operator maps a verified calendar and location to this agency. A booking link click is not a booking."
+        title="Bookings happen on the Zuops calendar"
+        description="Prospects book at studiopulse.tech/demo, which opens the Zuops calendar. Pulse does not read those bookings yet, so check Zuops for new appointments. A booking link click is not a booking."
       />
     );
   }
   if (data.rows.length === 0) {
     return upcoming
       ? <div className="space-y-4">{upcoming}</div>
-      : <EmptyState icon={CalendarClock} title="No appointments yet" description="Nothing is booked on the calendar. Use Refresh in Links & calendars to read it from GoHighLevel." />;
+      : <EmptyState icon={CalendarClock} title="No older appointments" description="Nothing is booked on the old GoHighLevel calendar. New bookings are taken on the Zuops calendar at studiopulse.tech/demo." />;
   }
   return (
     <div className="space-y-3">
@@ -324,8 +324,8 @@ function CalendarLive() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Live calendar</CardTitle>
-        <CardDescription>Read from GoHighLevel. Nothing here changes the calendar.</CardDescription>
+        <CardTitle>Older GoHighLevel calendar</CardTitle>
+        <CardDescription>No longer used for bookings, kept for history. New bookings are taken on the Zuops calendar at the booking link. Nothing here changes either calendar.</CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
         {cal.calendar ? (
@@ -382,9 +382,9 @@ export function Links() {
         </CardHeader>
         <CardContent>
           <dl className="space-y-3">
-            <Field label="Booking link" value={data.bookingUrl ?? "Not set"} />
-            <Field label="Calendar" value={data.calendarId ?? "Not set"} />
-            <Field label="Location" value={data.locationId ?? "Not set"} />
+            <Field label="Booking link (Zuops calendar)" value={data.bookingUrl ?? "Not set"} />
+            <Field label="GoHighLevel calendar (older)" value={data.calendarId ?? "Not set"} />
+            <Field label="GoHighLevel location (older)" value={data.locationId ?? "Not set"} />
             <Field label="Duration" value={data.durationMin ? `${data.durationMin} minutes` : "Not set"} />
             <Field label="Timezone" value={data.timezone ?? "Not set"} />
           </dl>
