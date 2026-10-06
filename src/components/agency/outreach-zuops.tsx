@@ -104,7 +104,7 @@ export function ZuopsCalendar() {
             : s.ok === false ? <Badge tone="critical"><XCircle className="size-3" aria-hidden /> sync failing</Badge>
             : s.ok ? <Badge tone="positive"><CheckCircle2 className="size-3" aria-hidden /> syncing</Badge>
             : <Badge tone="neutral">not synced yet</Badge>}
-          <Badge tone={s.webhookConfigured ? "positive" : "caution"}>live updates: {s.webhookConfigured ? "on" : "off (15 minute sync only)"}</Badge>
+          <Badge tone={s.webhookConfigured ? "positive" : "caution"}>live updates: {s.webhookConfigured ? "on" : "off (checks every 5 minutes)"}</Badge>
           {s.fetchedAt && <span className="text-xs text-steel/70">Last read {new Date(s.fetchedAt).toLocaleString()} · {s.bookingCount} booking(s)</span>}
         </div>
         {s.error && <p role="alert" className="text-sm text-critical">{s.error}</p>}
