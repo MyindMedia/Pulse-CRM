@@ -286,7 +286,7 @@ describe("Outreach panels", () => {
     const out = html(<Links />);
     expect(out).toContain("sync failing");
     expect(out).toContain("Zuops refused the key");
-    expect(out).toContain("15 minute sync only");
+    expect(out).toContain("checks every 5 minutes");
     expect(out).not.toContain("Refresh from Zuops");
   });
 });
