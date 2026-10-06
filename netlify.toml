@@ -11,3 +11,10 @@
   # is the Stripe SECRET key: only the publishable pk_ is inlined, which is
   # what Stripe Elements needs in the browser.
   SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,NEXT_PUBLIC_CONVEX_URL,NEXT_PUBLIC_CONVEX_SITE_URL,NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"
+
+# Public Pulse product demo intake. Preserve /book for studio room bookings.
+[[redirects]]
+  from = "/demo"
+  to = "https://zuops.com/f/pulse-30-minute-demo-intake-draft-fbib"
+  status = 302
+  force = true
