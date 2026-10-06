@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { siteMedia } from "@/lib/media";
 
 /* The hero: a photograph of an iPhone 17 Pro on a wooden stand in a studio, with the
  * real app playing in the screen.
@@ -41,8 +42,8 @@ import * as React from "react";
  */
 
 const MOCKUP_SRC = "/mobile/studio-mockup.jpg";
-const VIDEO_SRC = "/mobile/app-loop.mp4";
-const VIDEO_WEBM = "/mobile/app-loop.webm";
+const VIDEO_SRC = siteMedia("/mobile/app-loop.mp4");
+const VIDEO_WEBM = siteMedia("/mobile/app-loop.webm");
 const POSTER_SRC = "/mobile/app-loop-poster.jpg";
 
 /* The screen's four virtual corners (where the straight edges would meet if the

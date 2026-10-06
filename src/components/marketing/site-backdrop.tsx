@@ -1,4 +1,5 @@
 import { HlsVideo } from "./hls-video";
+import { siteMedia } from "@/lib/media";
 
 /** Fixed, full-viewport animated background loop sitting behind the entire
  *  landing page. Near-black base + the looping video at low opacity + a dark
@@ -9,7 +10,7 @@ export function SiteBackdrop() {
     <div aria-hidden className="fixed inset-0 -z-30 overflow-hidden bg-ink">
       {/* Desaturated so the source footage never fights the brand... */}
       <HlsVideo
-        src="/bg-loop-960.mp4"
+        src={siteMedia("/bg-loop-960.mp4")}
         className="site-bg-video absolute inset-0 h-full w-full object-cover"
         style={{ filter: "grayscale(1) brightness(0.8) contrast(1.15)" }}
       />
