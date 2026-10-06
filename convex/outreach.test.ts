@@ -164,4 +164,36 @@ describe("outreach - tenant scope and gates", () => {
       bookingDurationMin: 30, timezone: "UTC", operator: "op",
     })).rejects.toThrow(/https/);
   });
+
+  it("setBookingUrl changes only the CTA link: calendar mapping kept, live templates updated, superseded ones left, bad links refused", async () => {
+    await seedAgency("org_a", "ua");
+    await t.mutation(internal.outreach.setProviderMapping, {
+      agencyId: "org_a", ghlLocationId: "L1", ghlCalendarId: "C1", bookingUrl: "https://api.leadconnectorhq.com/widget/bookings/pulse-walkthrough",
+      bookingDurationMin: 30, timezone: "America/Los_Angeles", operator: "op",
+    });
+    const base = { agencyId: "org_a", key: "maxb_system", name: "M", subject: "S", bookingUrl: "https://api.leadconnectorhq.com/widget/bookings/pulse-walkthrough", source: "x" };
+    await t.mutation(internal.outreach.upsertTemplate, { ...base, contentHash: "old", approvedBy: "lawrence" });
+    await t.mutation(internal.outreach.upsertTemplate, { ...base, contentHash: "new", approvedBy: "lawrence" }); // supersedes "old"
+    const r = await t.mutation(internal.outreach.setBookingUrl, { agencyId: "org_a", bookingUrl: " https://studiopulse.tech/demo ", operator: "lawrence" });
+    expect(r).toEqual({ settings: true, templates: 1 });
+    const rows = await t.run(async (ctx) => ({
+      settings: await ctx.db.query("outreachSettings").first(),
+      templates: await ctx.db.query("outreachTemplates").collect(),
+    }));
+    expect(rows.settings).toMatchObject({ bookingUrl: "https://studiopulse.tech/demo", ghlLocationId: "L1", ghlCalendarId: "C1", bookingDurationMin: 30, timezone: "America/Los_Angeles" });
+    expect(rows.templates.find((x) => x.contentHash === "new")?.bookingUrl).toBe("https://studiopulse.tech/demo");
+    expect(rows.templates.find((x) => x.contentHash === "old")?.bookingUrl).toContain("leadconnectorhq");
+    for (const bad of ["http://studiopulse.tech/demo", "studiopulse.tech/demo", "https://", "javascript:alert(1)", "https://studiopulse.tech/a b"]) {
+      await expect(t.mutation(internal.outreach.setBookingUrl, { agencyId: "org_a", bookingUrl: bad, operator: "op" })).rejects.toThrow(/https/);
+    }
+    await expect(t.mutation(internal.outreach.setBookingUrl, { agencyId: "org_zzz", bookingUrl: "https://studiopulse.tech/demo", operator: "op" })).rejects.toThrow(/No outreach settings/);
+  });
+
+  it("the rendered email's CTA is the configured link and nothing else changes", async () => {
+    const { renderEmail } = await import("./outreach/templates");
+    const r = renderEmail({ template: "maxb_system", studio: "Acme Sound", bookingUrl: "https://studiopulse.tech/demo", postalAddress: "835 Wilshire Blvd" });
+    expect(r.links).toContain("https://studiopulse.tech/demo");
+    expect(r.html).toContain('href="https://studiopulse.tech/demo"');
+    expect(r.blockers).not.toContain("booking_link_not_verified");
+  });
 });
