@@ -23,9 +23,10 @@ describe("R2 backfill", () => {
   const readyMedia = () => t.run(async (ctx) => await ctx.db.insert("mediaFiles", { orgId: "o1", bucket: "media", key: "test/o1/photo/x-0123456789ab.png", purpose: "photo", fileName: "x.png", mimeType: "image/png", size: 5, status: "ready", uploadedBy: "u", createdAt: 1 }));
   const walk = async () => {
     const items: Array<{ table: string; id: string; path: string; ref: string; index?: number; scope: string; purpose: string }> = [];
-    let next: { specIndex: number; cursor: string | null } | null = { specIndex: 0, cursor: null };
+    type Cursor = { specIndex: number; cursor: string | null };
+    let next: Cursor | null = { specIndex: 0, cursor: null };
     while (next) {
-      const r: { items: typeof items; next: typeof next } = await t.query(internal.mediaBackfill.page, { ...next, limit: 50 });
+      const r: { items: typeof items; next: Cursor | null } = await t.query(internal.mediaBackfill.page, { ...next, limit: 50 });
       items.push(...r.items);
       next = r.next;
     }
