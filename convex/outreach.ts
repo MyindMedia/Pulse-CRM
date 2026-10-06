@@ -278,6 +278,27 @@ export const setProviderMapping = internalMutation({
   },
 });
 
+/** Changes only the outreach CTA link. The provider mapping (GHL location and calendar)
+ *  is untouched, and the link on every live template row is updated with it so the
+ *  Communications tab never shows a stale address. Existing drafts keep their old
+ *  link until prepared again; approval is bound to the rendered content, so they
+ *  cannot be sent with a link nobody approved. */
+export const setBookingUrl = internalMutation({
+  args: { agencyId: v.string(), bookingUrl: v.string(), operator: v.string() },
+  handler: async (ctx, a) => {
+    const url = a.bookingUrl.trim();
+    if (!/^https:\/\/[^\s/]+\.[^\s/]+(\/\S*)?$/.test(url)) throw new Error("Booking URL must be a plain https link");
+    const existing = await settingsFor(ctx, a.agencyId);
+    if (!existing) throw new Error("No outreach settings for this agency");
+    const now = Date.now();
+    await ctx.db.patch(existing._id, { bookingUrl: url, updatedAt: now, updatedBy: a.operator });
+    const templates = await ctx.db.query("outreachTemplates").withIndex("by_agency", (q) => q.eq("agencyId", a.agencyId)).collect();
+    for (const t of templates) if (t.approval !== "superseded") await ctx.db.patch(t._id, { bookingUrl: url });
+    await logEvent(ctx, a.agencyId, a.operator, "outreach.booking_url_set", "ok", url);
+    return { settings: true, templates: templates.filter((t) => t.approval !== "superseded").length };
+  },
+});
+
 export const upsertSender = internalMutation({
   args: { agencyId: v.string(), label: v.string(), address: v.string(), verified: v.boolean(), operator: v.string() },
   handler: async (ctx, a) => {
