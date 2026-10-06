@@ -1517,7 +1517,7 @@ export default defineSchema({
     approvedBy: v.optional(v.string()),
     // Stored file (Convex storage). Download is gated server-side when
     // paymentGated is true and the song's balance is unpaid.
-    fileId: v.optional(v.id("_storage")),
+    fileId: v.optional(v.union(v.id("_storage"), v.id("mediaFiles"))), // legacy Convex storage id, or an R2 mediaFiles id
     fileName: v.optional(v.string()),
     fileSize: v.optional(v.number()),
     mimeType: v.optional(v.string()),
@@ -3275,4 +3275,24 @@ export default defineSchema({
     .index("by_ts", ["ts"])
     // Workspace deletion sweeps every org-owned table through `by_org`.
     .index("by_org", ["orgId"]),
+  // ── Media files: the row behind every file stored in Cloudflare R2. The bytes
+  //    are in R2 (bucket "media" is public through the pulse-media Worker,
+  //    bucket "private" is signed-URL only); other tables reference this row
+  //    next to, or instead of, a legacy Convex storage id. ──
+  mediaFiles: defineTable({
+    orgId: v.string(), // org id, or "agency:<agencyId>" for agency-owned files
+    bucket: v.union(v.literal("media"), v.literal("private")),
+    key: v.string(),
+    purpose: v.string(),
+    fileName: v.string(),
+    mimeType: v.string(),
+    size: v.optional(v.number()), // set from R2 when the upload is confirmed
+    status: v.union(v.literal("pending"), v.literal("ready")),
+    uploadedBy: v.string(),
+    createdAt: v.number(),
+    readyAt: v.optional(v.number()),
+  })
+    .index("by_org", ["orgId", "createdAt"])
+    .index("by_key", ["bucket", "key"])
+    .index("by_status", ["status", "createdAt"]),
 });

@@ -1,3 +1,4 @@
+import { fileSize, type FileRef } from "./lib/media";
 import { query, internalQuery, type QueryCtx, type MutationCtx } from "./_generated/server";
 import { internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
@@ -175,16 +176,12 @@ export const checkLimit = internalQuery({
 export async function meterStorageUpload(
   ctx: MutationCtx,
   orgId: string,
-  newStorageId: Id<"_storage">,
-  prevStorageId?: Id<"_storage"> | null,
+  newStorageId: FileRef,
+  prevStorageId?: FileRef | null,
 ): Promise<void> {
-  const meta = await ctx.db.system.get(newStorageId);
-  const newSize = meta?.size ?? 0;
-  let prevSize = 0;
-  if (prevStorageId) {
-    const pm = await ctx.db.system.get(prevStorageId);
-    prevSize = pm?.size ?? 0;
-  }
+  // Either store: a legacy Convex storage id or an R2 mediaFiles id.
+  const newSize = await fileSize(ctx, newStorageId);
+  const prevSize = await fileSize(ctx, prevStorageId);
   const delta = newSize - prevSize;
   if (delta > 0) {
     const limits = PLAN_LIMITS[await tierForOrg(ctx, orgId)];

@@ -22,6 +22,9 @@ crons.interval("booking-automation", { minutes: 15 }, internal.automation.tick);
 // cannot outrun the six-hour tick.
 crons.interval("changelog-prune", { hours: 6 }, internal.sync.pruneChangeLog, {});
 
+// Uploads that never finished (tab closed, network drop) leave a pending media row.
+crons.interval("media-sweep-pending", { hours: 6 }, internal.media.sweepPending, {});
+
 // Recompute every room's auto status from the live calendar.
 crons.interval("room-status", { minutes: 15 }, internal.maintenance.recomputeAllRoomStatuses);
 

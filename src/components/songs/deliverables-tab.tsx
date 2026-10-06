@@ -1,10 +1,11 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { useQuery, useMutation, useConvex } from "convex/react";
+import { useQuery, useMutation, useAction, useConvex } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
+import { putToR2, r2NotConfigured } from "@/lib/r2-upload";
 import {
   ChevronDown,
   Download,
@@ -171,7 +172,7 @@ type DeliverableRowData = {
   status: string;
   durationSec?: number;
   paymentGated: boolean;
-  fileId?: Id<"_storage">;
+  fileId?: Id<"_storage"> | Id<"mediaFiles">;
   fileName?: string;
   fileSize?: number;
   mimeType?: string;
@@ -198,6 +199,9 @@ function DeliverableRow({
   const setStatus = useMutation(api.deliverables.setStatus);
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
   const attachFile = useMutation(api.files.attachFile);
+  const prepareR2 = useMutation(api.files.prepareDeliverableUpload);
+  const confirmR2 = useAction(api.media.confirmUpload);
+  const attachR2 = useMutation(api.files.attachR2File);
   const convex = useConvex();
   const [advancing, setAdvancing] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -228,21 +232,22 @@ function DeliverableRow({
     if (!file) return;
     setUploading(true);
     try {
-      const uploadUrl = await generateUploadUrl();
-      const res = await fetch(uploadUrl, {
-        method: "POST",
-        headers: { "Content-Type": file.type || "application/octet-stream" },
-        body: file,
-      });
-      if (!res.ok) throw new Error("Upload failed.");
-      const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
-      await attachFile({
-        deliverableId: d._id,
-        storageId,
-        fileName: file.name,
-        fileSize: file.size,
-        mimeType: file.type || "application/octet-stream",
-      });
+      const mimeType = file.type || "application/octet-stream";
+      try {
+        // Songs and masters stream from Cloudflare R2 (private, signed URLs).
+        const prep = await prepareR2({ fileName: file.name, mimeType, size: file.size });
+        await putToR2(file, prep);
+        await confirmR2({ mediaId: prep.mediaId as Id<"mediaFiles"> });
+        await attachR2({ deliverableId: d._id, mediaId: prep.mediaId as Id<"mediaFiles"> });
+      } catch (err) {
+        if (!r2NotConfigured(err)) throw err;
+        // This deployment has no R2 settings yet: use Convex storage as before.
+        const uploadUrl = await generateUploadUrl();
+        const res = await fetch(uploadUrl, { method: "POST", headers: { "Content-Type": mimeType }, body: file });
+        if (!res.ok) throw new Error("Upload failed.");
+        const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
+        await attachFile({ deliverableId: d._id, storageId, fileName: file.name, fileSize: file.size, mimeType });
+      }
       toast.success(`${file.name} attached.`);
     } catch (err) {
       toast.error(errorMessage(err, "Could not upload the file."));
