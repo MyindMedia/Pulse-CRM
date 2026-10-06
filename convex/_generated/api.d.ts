@@ -106,6 +106,7 @@ import type * as lib_emailTemplates_betaWelcome from "../lib/emailTemplates/beta
 import type * as lib_emailTemplates_invite from "../lib/emailTemplates/invite.js";
 import type * as lib_emailTemplates_layout from "../lib/emailTemplates/layout.js";
 import type * as lib_entitlements from "../lib/entitlements.js";
+import type * as lib_fileRef from "../lib/fileRef.js";
 import type * as lib_financeCategories from "../lib/financeCategories.js";
 import type * as lib_financeLinks from "../lib/financeLinks.js";
 import type * as lib_financeMatch from "../lib/financeMatch.js";
@@ -374,6 +375,7 @@ declare const fullApi: ApiFromModules<{
   "lib/emailTemplates/invite": typeof lib_emailTemplates_invite;
   "lib/emailTemplates/layout": typeof lib_emailTemplates_layout;
   "lib/entitlements": typeof lib_entitlements;
+  "lib/fileRef": typeof lib_fileRef;
   "lib/financeCategories": typeof lib_financeCategories;
   "lib/financeLinks": typeof lib_financeLinks;
   "lib/financeMatch": typeof lib_financeMatch;
