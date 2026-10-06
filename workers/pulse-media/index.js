@@ -42,6 +42,16 @@ export default {
     headers.set("Accept-Ranges", "bytes");
     headers.set("Cache-Control", HASHED.test(key) ? "public, max-age=31536000, immutable" : "public, max-age=3600");
     headers.set("X-Content-Type-Options", "nosniff");
+    // Anything uploaded by a studio is untrusted. Only image, audio and video are
+    // shown inline; every other type is forced to a download, and a sandboxing CSP
+    // stops an SVG or HTML opened directly from running scripts on this origin.
+    const type = (headers.get("Content-Type") || "").toLowerCase();
+    if (!/^(image|audio|video)\//.test(type)) {
+      headers.set("Content-Type", "application/octet-stream");
+      headers.set("Content-Disposition", "attachment");
+    }
+    headers.set("Content-Security-Policy", "default-src 'none'; style-src 'unsafe-inline'; sandbox");
+    headers.set("Cross-Origin-Resource-Policy", "cross-origin");
 
     if (request.method === "HEAD") {
       headers.set("Content-Length", String(object.size));
