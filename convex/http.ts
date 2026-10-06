@@ -10,7 +10,9 @@ import { bland as pulseBland, booking as pulseBooking } from "./pulseWalkthrough
 http.route({ path: "/pulse-walkthrough/bland", method: "POST", handler: pulseBland });
 http.route({ path: "/pulse-walkthrough/booking", method: "POST", handler: pulseBooking });
 import { intake as outreachIntake } from "./outreach/intake";
+import { zuopsEvents } from "./outreach/zuopsWebhook";
 http.route({ path: "/outreach/intake", method: "POST", handler: outreachIntake });
+http.route({ path: "/zuops/events", method: "POST", handler: zuopsEvents });
 
 /* GHL "Customer Replied" workflow webhook payload (the fields we read). */
 type GhlInbound = {

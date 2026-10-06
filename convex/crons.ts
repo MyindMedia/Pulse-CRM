@@ -25,6 +25,9 @@ crons.interval("changelog-prune", { hours: 6 }, internal.sync.pruneChangeLog, {}
 // Uploads that never finished (tab closed, network drop) leave a pending media row.
 crons.interval("media-sweep-pending", { hours: 6 }, internal.media.sweepPending, {});
 
+// Zuops demo bookings: a safety net behind the webhook. Read only; no-op until ZUOPS_API_KEY is set.
+crons.interval("zuops-sync", { minutes: 15 }, internal.outreachZuops.syncAll, {});
+
 // Recompute every room's auto status from the live calendar.
 crons.interval("room-status", { minutes: 15 }, internal.maintenance.recomputeAllRoomStatuses);
 

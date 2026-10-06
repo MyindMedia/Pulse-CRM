@@ -15,7 +15,7 @@ export default defineConfig({
   },
   test: {
     environment: "node",
-    include: ["convex/outreach.test.ts", "convex/outreachProspects.test.ts", "convex/outreachDrafts.test.ts", "convex/outreachCalendar.test.ts", "convex/outreachSend.test.ts", "convex/outreachDiscover.test.ts", "convex/outreachDms.test.ts", "convex/outreach/*.test.ts", "src/components/agency/outreach-panels.test.tsx"],
+    include: ["convex/outreach.test.ts", "convex/outreachProspects.test.ts", "convex/outreachDrafts.test.ts", "convex/outreachCalendar.test.ts", "convex/outreachSend.test.ts", "convex/outreachDiscover.test.ts", "convex/outreachDms.test.ts", "convex/outreachZuops.test.ts", "convex/outreach/*.test.ts", "src/components/agency/outreach-panels.test.tsx"],
     server: { deps: { inline: ["convex-test"] } },
   },
 });
