@@ -48,6 +48,10 @@ export const outreachTables = {
     mode: v.union(v.literal("test_only"), v.literal("live")),
     ghlLocationId: v.optional(v.string()),
     ghlCalendarId: v.optional(v.string()),
+    /* The Zuops workspace and calendar behind studiopulse.tech/demo. Set only by an
+       operator mutation; every Zuops call is pinned to this workspace id. */
+    zuopsWorkspaceId: v.optional(v.string()),
+    zuopsCalendarId: v.optional(v.string()),
     bookingUrl: v.optional(v.string()),
     bookingDurationMin: v.optional(v.number()),
     timezone: v.optional(v.string()),
@@ -130,6 +134,8 @@ export const outreachTables = {
     bio: v.optional(v.string()),
     category: v.optional(v.string()),
     followers: v.optional(v.number()),
+    /* Start of the demo this studio booked through Zuops (matched by email), if any. */
+    bookedAt: v.optional(v.number()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -230,4 +236,40 @@ export const outreachTables = {
   })
     .index("by_agency", ["agencyId", "createdAt"])
     .index("by_prospect", ["prospectId"]),
+  /* A demo booked on the Zuops calendar, mirrored read-only. Pulse keeps the name,
+     email and the three consent answers, never a phone number. */
+  outreachBookings: defineTable({
+    agencyId: v.string(),
+    zuopsBookingId: v.string(),
+    zuopsLeadId: v.optional(v.string()),
+    title: v.string(),
+    startsAt: v.number(),
+    endsAt: v.number(),
+    timezone: v.optional(v.string()),
+    status: v.union(v.literal("confirmed"), v.literal("cancelled"), v.literal("completed"), v.literal("no_show"), v.literal("other")),
+    location: v.optional(v.string()),
+    meetingUrl: v.optional(v.string()),
+    contactName: v.optional(v.string()),
+    contactEmail: v.optional(v.string()),
+    consent: v.optional(v.object({ sms: v.optional(v.boolean()), call: v.optional(v.boolean()), email: v.optional(v.boolean()) })),
+    emailOptOut: v.optional(v.boolean()),
+    prospectId: v.optional(v.id("outreachProspects")),
+    syncedAt: v.number(),
+  })
+    .index("by_agency_start", ["agencyId", "startsAt"])
+    .index("by_agency_booking", ["agencyId", "zuopsBookingId"]),
+  /* The latest read of the mapped Zuops calendar and the sync's own health. */
+  outreachZuopsSnapshot: defineTable({
+    agencyId: v.string(),
+    fetchedAt: v.number(),
+    ok: v.boolean(),
+    error: v.optional(v.string()),
+    bookings: v.optional(v.number()),
+    calendar: v.optional(v.object({
+      id: v.string(), name: v.string(), title: v.optional(v.string()), slug: v.optional(v.string()),
+      durationMin: v.number(), bufferMin: v.number(), minNoticeMin: v.number(), maxDaysAhead: v.number(),
+      timezone: v.optional(v.string()), active: v.boolean(), hours: v.record(v.string(), v.array(v.string())),
+      locationLabel: v.optional(v.string()),
+    })),
+  }).index("by_agency", ["agencyId"]),
 };

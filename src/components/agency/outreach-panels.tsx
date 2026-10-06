@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingPanel } from "@/components/ui/feedback";
 import type { Id } from "@convex/_generated/dataModel";
+import { ZuopsBookings, ZuopsCalendar } from "./outreach-zuops";
 
 /* Outreach - the agency console's outbound communications tab.
    Test-only: this screen reads state and offers one write, the overall pause.
@@ -261,23 +262,16 @@ export function Meetings() {
       </CardContent>
     </Card>
   );
-  if (!data.mapped && upcoming) return <div className="space-y-4">{upcoming}</div>;
-  if (!data.mapped) {
-    return (
-      <EmptyState
-        icon={CalendarClock}
-        title="Bookings happen on the Zuops calendar"
-        description="Prospects book at studiopulse.tech/demo, which opens the Zuops calendar. Pulse does not read those bookings yet, so check Zuops for new appointments. A booking link click is not a booking."
-      />
-    );
-  }
+  if (!data.mapped && upcoming) return <div className="space-y-4"><ZuopsBookings />{upcoming}</div>;
+  if (!data.mapped) return <ZuopsBookings />;
   if (data.rows.length === 0) {
     return upcoming
-      ? <div className="space-y-4">{upcoming}</div>
+      ? <div className="space-y-4"><ZuopsBookings />{upcoming}</div>
       : <EmptyState icon={CalendarClock} title="No older appointments" description="Nothing is booked on the old GoHighLevel calendar. New bookings are taken on the Zuops calendar at studiopulse.tech/demo." />;
   }
   return (
     <div className="space-y-3">
+      <ZuopsBookings />
       {upcoming}
       {data.rows.map((m) => (
         <Card key={m.id}>
@@ -371,6 +365,7 @@ export function Links() {
   }
   return (
     <div className="space-y-4">
+    <ZuopsCalendar />
     <CalendarLive />
     <div className="grid gap-4 lg:grid-cols-2">
       <Card>
@@ -667,6 +662,7 @@ export function Prospects() {
                       </div>
                       <div className="space-y-1 text-right">
                         <Badge tone={st.tone}>{p.status.replace("_", " ")}</Badge>
+                        {p.bookedAt && <Badge tone="positive">Booked a demo {new Date(p.bookedAt).toLocaleDateString()}</Badge>}
                         <p className="max-w-xs text-xs text-steel/70">{p.note ?? st.meaning}</p>
                       </div>
                     </div>

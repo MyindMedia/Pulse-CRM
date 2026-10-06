@@ -67,6 +67,7 @@ export const list = query({
         source: r.source,
         status: r.status,
         note: r.note ?? null,
+        bookedAt: r.bookedAt ?? null,
         createdAt: r.createdAt,
         contacts: r.contacts
           ? {

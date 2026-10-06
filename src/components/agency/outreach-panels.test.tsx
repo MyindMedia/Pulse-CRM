@@ -82,10 +82,10 @@ describe("Outreach panels", () => {
   it("meetings: unmapped shows the no-calendar state, not fake rows", () => {
     set("meetings", { mapped: false, rows: [] });
     snap(baseSnap);
+    fixtures["outreachZuops:bookings"] = { mapped: false, upcoming: [], past: [] };
     const out = html(<Meetings />);
-    expect(out).toContain("Bookings happen on the Zuops calendar");
+    expect(out).toContain("Zuops calendar not connected");
     expect(out).toContain("studiopulse.tech/demo");
-    expect(out).toMatch(/click is not a booking/i);
   });
 
   it("meetings: shows masked phone and why a call is not possible", () => {
@@ -231,5 +231,62 @@ describe("Outreach panels", () => {
     expect(out).toContain("Live sending is on.");
     expect(out).toContain("still needs your approval and your Send click");
     expect(out).not.toContain("Test only.");
+  });
+
+  it("meetings shows Zuops bookings with consent answers, a matched prospect, and no phone number", () => {
+    set("meetings", { mapped: false, rows: [] });
+    snap({ ...baseSnap, appointments: [] });
+    fixtures["outreachZuops:bookings"] = {
+      mapped: true,
+      upcoming: [{ id: "z1", title: "Pulse demo", startsAt: Date.now() + 86_400_000, endsAt: Date.now() + 88_000_000, timezone: "America/Los_Angeles", status: "confirmed", contactName: "Studio Owner", contactEmail: "owner@acme.com", location: "Zoom", consent: { sms: false, call: true, email: true }, prospect: "Acme Sound" }],
+      past: [{ id: "z0", title: "Pulse demo", startsAt: 1, endsAt: 2, timezone: null, status: "cancelled", contactName: "Old Lead", contactEmail: null, location: null, consent: { sms: null, call: null, email: null }, prospect: null }],
+    };
+    const out = html(<Meetings />);
+    expect(out).toContain("Upcoming demos");
+    expect(out).toContain("Studio Owner");
+    expect(out).toContain("Matched prospect: Acme Sound");
+    expect(out).toContain("SMS marketing: no");
+    expect(out).toContain("Automated call: yes");
+    expect(out).toContain("Recent and cancelled");
+    expect(out).toContain("cancelled");
+  });
+
+  it("meetings says the Zuops calendar is not connected until an operator maps it", () => {
+    set("meetings", { mapped: false, rows: [] });
+    snap({ ...baseSnap, appointments: [] });
+    fixtures["outreachZuops:bookings"] = { mapped: false, upcoming: [], past: [] };
+    const out = html(<Meetings />);
+    expect(out).toContain("Zuops calendar not connected");
+    expect(out).toContain("studiopulse.tech/demo");
+  });
+
+  it("links shows the Zuops calendar's hours, window and sync health", () => {
+    set("links", { configured: true, bookingUrl: "https://studiopulse.tech/demo", calendarId: null, locationId: null, durationMin: 30, timezone: "America/Los_Angeles", verifiedAt: 1, senders: [] });
+    snap({ ...baseSnap });
+    fixtures["outreachZuops:snapshot"] = {
+      canManage: true, mapped: true, keyConfigured: true, webhookConfigured: true, bookingUrl: "https://studiopulse.tech/demo",
+      fetchedAt: 1_790_000_000_000, ok: true, error: null, bookingCount: 3,
+      calendar: { id: "c1", name: "Pulse | 30-minute demo", durationMin: 30, bufferMin: 15, minNoticeMin: 1440, maxDaysAhead: 14, timezone: "America/Los_Angeles", active: true, hours: { mon: ["09:00-17:00"], sat: [] }, locationLabel: "Zoom" },
+    };
+    const out = html(<Links />);
+    expect(out).toContain("Zuops booking calendar");
+    expect(out).toContain("Pulse | 30-minute demo");
+    expect(out).toContain("30 minutes, 15 minute buffer");
+    expect(out).toContain("At least 24 hours ahead, up to 14 days out");
+    expect(out).toContain("09:00-17:00");
+    expect(out).toContain("live updates: on");
+    expect(out).toContain("syncing");
+    expect(out).toContain("Refresh from Zuops");
+  });
+
+  it("links says plainly when the Zuops sync is failing", () => {
+    set("links", { configured: true, bookingUrl: "https://studiopulse.tech/demo", calendarId: null, locationId: null, durationMin: null, timezone: null, verifiedAt: 1, senders: [] });
+    snap({ ...baseSnap });
+    fixtures["outreachZuops:snapshot"] = { canManage: false, mapped: true, keyConfigured: true, webhookConfigured: false, bookingUrl: null, fetchedAt: 1_790_000_000_000, ok: false, error: "Zuops refused the key (check its scopes: bookings:read, leads:read).", bookingCount: 0, calendar: null };
+    const out = html(<Links />);
+    expect(out).toContain("sync failing");
+    expect(out).toContain("Zuops refused the key");
+    expect(out).toContain("15 minute sync only");
+    expect(out).not.toContain("Refresh from Zuops");
   });
 });
