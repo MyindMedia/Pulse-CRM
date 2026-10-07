@@ -17,6 +17,19 @@ import { tierForOrg } from "./lib/tier";
    This file and convex/migrations.ts + convex/lib/legacyPlans.ts are the only
    places allowed to spell the old plan values (see noOldPlanKeys.test.ts). */
 
+import { DEMO_ORG } from "./lib/tier";
+
+describe("beta and demo are Max", () => {
+  it("the demo org is stored and resolved as max", () => {
+    expect(migratedOrgFields({ orgId: DEMO_ORG, plan: "studio" }).tier).toBe("max");
+    expect(newRuleTier({ orgId: DEMO_ORG, plan: "studio" }, undefined)).toBe("max");
+  });
+  it("a beta studio is stored max whatever its old tier, a graduated one keeps its own", () => {
+    expect(migratedOrgFields({ orgId: "b1", tier: "studio", betaCohort: true }).tier).toBe("max");
+    expect(migratedOrgFields({ orgId: "b1", tier: "pro", betaCohort: true, graduatedAt: 1 }).tier).toBe("growth");
+  });
+});
+
 describe("mapping", () => {
   it("maps every old orgs.tier value", () => {
     expect(migratedOrgFields({ tier: "studio" }).tier).toBe("core");

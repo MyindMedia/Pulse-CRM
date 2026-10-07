@@ -28,6 +28,7 @@ export function tierForPlan(plan: string | undefined): TierKey {
 export const DEMO_ORG = "pulse-demo";
 
 type OrgTierFields = {
+  orgId?: string;
   tier?: string;
   plan?: string;
   agencyId?: string;
@@ -46,6 +47,7 @@ export function inBeta(org: Pick<OrgTierFields, "betaCohort" | "graduatedAt"> | 
  *  comparison. `agencyPlan` is the stored plan of the org's agency (undefined
  *  when the org has no agency or the agency row is missing). */
 export function resolveTierPure(org: OrgTierFields | null, agencyPlan: string | undefined): TierKey {
+  if (org?.orgId === DEMO_ORG) return "max";
   if (inBeta(org)) return BETA_TIER;
   if (org?.agencyId) {
     const fromAgency = migrateTierValue(agencyPlan);

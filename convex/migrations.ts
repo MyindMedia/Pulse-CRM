@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { internalMutation } from "./functions";
 import { tierV } from "./lib/tierV";
 import { tierRank, type TierKey } from "./lib/pricing";
-import { resolveTierPure } from "./lib/tier";
+import { DEMO_ORG, inBeta, resolveTierPure } from "./lib/tier";
 import {
   LEGACY_ORG_PLAN_MAP,
   LEGACY_PLAN_NAME_MAP,
@@ -25,12 +25,19 @@ import {
  *  orgs.plan is always cleared. An org with neither stays without a tier
  *  and keeps following its agency's plan (lib/tier.ts). */
 export function migratedOrgFields(org: {
+  orgId?: string;
   tier?: string;
   plan?: string;
+  betaCohort?: boolean;
+  graduatedAt?: number;
 }): { tier: TierKey | undefined; clearPlan: boolean; changed: boolean } {
   const fromTier = migrateTierValue(org.tier);
   const fromPlan = org.plan ? LEGACY_ORG_PLAN_MAP[org.plan] : undefined;
-  const tier = fromTier ?? fromPlan ?? undefined;
+  // The demo org and every beta studio that has not graduated are Max, and
+  // the stored tier says so (not only the runtime rule), so anything that
+  // reads orgs.tier directly sees Max too.
+  const isMaxByRule = org.orgId === DEMO_ORG || inBeta(org);
+  const tier = isMaxByRule ? "max" : (fromTier ?? fromPlan ?? undefined);
   const clearPlan = org.plan !== undefined;
   const changed = clearPlan || tier !== org.tier;
   return { tier, clearPlan, changed };
@@ -65,7 +72,7 @@ export function oldRuleTier(
 /** The tier the org resolves to once its own row and its agency's row have
  *  been migrated, under the branch's rule (lib/tier.ts). Pure. */
 export function newRuleTier(
-  org: { tier?: string; plan?: string; agencyId?: string; betaCohort?: boolean; graduatedAt?: number },
+  org: { orgId?: string; tier?: string; plan?: string; agencyId?: string; betaCohort?: boolean; graduatedAt?: number },
   agencyPlan: string | undefined,
 ): TierKey {
   const m = migratedOrgFields(org);
