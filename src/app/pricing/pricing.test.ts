@@ -93,10 +93,10 @@ describe("/pricing model", () => {
     }
   });
 
-  it("the R2 line is off until Lawrence flips it", async () => {
+  it("the R2 line is in the FAQ now that per-studio buckets are live in prod", async () => {
     const { R2_PER_ORG_LIVE, R2_LINE, faqs } = await import("./model");
-    expect(R2_PER_ORG_LIVE).toBe(false);
-    expect(faqs().some((f) => f.a.includes(R2_LINE))).toBe(false);
+    expect(R2_PER_ORG_LIVE).toBe(true);
+    expect(faqs().some((f) => f.a.includes(R2_LINE))).toBe(true);
   });
 
   it("the FAQ covers contract, moving, payments, seats, Max studios and beta", async () => {
@@ -154,9 +154,9 @@ describe("/pricing page", () => {
     expect(visibleText(await renderPage())).not.toMatch(/[—]/);
   });
 
-  it("does not show the R2 line while R2_PER_ORG_LIVE is false", async () => {
+  it("shows the R2 line while R2_PER_ORG_LIVE is true", async () => {
     const { R2_LINE } = await import("./model");
-    expect(await renderPage()).not.toContain(R2_LINE);
+    expect(await renderPage()).toContain(R2_LINE);
   });
 
   it("the billing toggle is a pressed-state button group", async () => {

@@ -23,3 +23,6 @@ Nothing here is pushed, deployed, migrated on a live database, or changed in liv
 
 ## Prod migration dry run (read-only, 2026-10-07)
 Prod orgs and agencies were read (no writes, nothing deployed to prod) and run through the migration's own `oldRuleTier` / `newRuleTier` / `migratedOrgFields`: 6 orgs, 1 agency (plan `agency`). pulse-demo old=new=growth; the 4 beta studios and the 1 non-beta agency studio all old=new=max. Nobody resolves lower. The real run is still a separate step after merge.
+
+## R2 per-studio buckets: live in prod (2026-10-07)
+`CF_R2_ADMIN_TOKEN` and `R2_PER_ORG_BUCKETS=1` set on prod Convex; 12 buckets created (6 studios x media + private); the media Worker redeployed and probed (per-studio media 200, private 404, traversal 404, shared files still 200); 26 existing files moved into their studio's own bucket (0 failed, re-run finds none). Shared originals are kept; free them later with `node scripts/r2/migrate-to-org-buckets.mjs --purge-days 14 --prod` (dry run first). `R2_PER_ORG_LIVE` is true on /pricing. Follow-ups: the Worker still holds an account-wide R2 key (swap for a read-only token), and /mypulse password is intentionally the one given out one by one, now set as the Netlify secret MYPULSE_PASSWORD.
