@@ -1,7 +1,8 @@
 import { v } from "convex/values";
 import { internalMutation } from "./functions";
 import { tierV } from "./lib/tierV";
-import type { TierKey } from "./lib/pricing";
+import { tierRank, type TierKey } from "./lib/pricing";
+import { resolveTierPure } from "./lib/tier";
 import {
   LEGACY_ORG_PLAN_MAP,
   LEGACY_PLAN_NAME_MAP,
@@ -41,6 +42,39 @@ export function migratedAgencyPlan(plan: string): TierKey {
   return migrateTierValue(plan) ?? "core";
 }
 
+/** orgs.plan values as main's tier.ts read them (PLAN_TO_TIER). */
+const MAIN_PLAN_TO_TIER: Record<string, string> = {
+  solo: "studio",
+  studio: "pro",
+  label: "label",
+};
+
+/** The tier main's tier.ts would resolve for this org, expressed in the new
+ *  keys: the agency's plan OVERRIDES orgs.tier, then orgs.plan, then the
+ *  least privileged tier. Pure, exported for tests. */
+export function oldRuleTier(
+  org: { tier?: string; plan?: string; agencyId?: string },
+  agencyPlan: string | undefined,
+): TierKey {
+  let planString: string | undefined = org.tier;
+  if (org.agencyId && agencyPlan) planString = agencyPlan;
+  if (!planString && org.plan) planString = MAIN_PLAN_TO_TIER[org.plan];
+  return migrateTierValue(planString) ?? "core";
+}
+
+/** The tier the org resolves to once its own row and its agency's row have
+ *  been migrated, under the branch's rule (lib/tier.ts). Pure. */
+export function newRuleTier(
+  org: { tier?: string; plan?: string; agencyId?: string; betaCohort?: boolean; graduatedAt?: number },
+  agencyPlan: string | undefined,
+): TierKey {
+  const m = migratedOrgFields(org);
+  return resolveTierPure(
+    { ...org, tier: m.tier, plan: undefined },
+    agencyPlan === undefined ? undefined : migratedAgencyPlan(agencyPlan),
+  );
+}
+
 /** "Studio" -> "Core", "Studio Pro - Early Adopter" -> "Growth - Early
  *  Adopter". Names that are not one of the old seeded plans are returned
  *  unchanged, so an agency's own plan names are never touched. */
@@ -63,6 +97,11 @@ export function migratedPlanName(name: string): string {
  *   agencyPlans    the seeded names Studio / Studio Pro / Label (and their
  *                  "- Early Adopter" twins) renamed Core / Growth / Max
  *
+ * Never lowers anyone. For EVERY org the run computes the tier main's rule
+ * would resolve (the agency's plan overrides orgs.tier) and the tier the new
+ * rule resolves after migration. If any org would resolve lower, the real run
+ * throws before writing a single row; the dry run lists them under `lowered`.
+ *
  * Idempotent: a second run reports zero changes. `dryRun` reports what it
  * would change without writing. NEVER run against production without
  * Lawrence's go-ahead; run it locally first.
@@ -70,8 +109,28 @@ export function migratedPlanName(name: string): string {
 export const migrateToCoreGrowthMax = internalMutation({
   args: { dryRun: v.optional(v.boolean()) },
   handler: async (ctx, { dryRun }) => {
+    const agencyPlans = new Map<string, string>();
+    for (const ag of await ctx.db.query("agencies").collect()) agencyPlans.set(ag.agencyId, ag.plan);
+
+    const orgs = await ctx.db.query("orgs").collect();
+    const orgTiers = orgs.map((org) => {
+      const agencyPlan = org.agencyId ? agencyPlans.get(org.agencyId) : undefined;
+      return {
+        orgId: org.orgId,
+        oldRule: oldRuleTier(org, agencyPlan),
+        newRule: newRuleTier(org, agencyPlan),
+      };
+    });
+    const lowered = orgTiers.filter((o) => tierRank(o.newRule) < tierRank(o.oldRule));
+    if (lowered.length > 0 && !dryRun) {
+      throw new Error(
+        `migrateToCoreGrowthMax refused, nothing written: ${lowered.length} org(s) would resolve lower than under the old rule: ` +
+          lowered.map((o) => `${o.orgId} ${o.oldRule} -> ${o.newRule}`).join(", "),
+      );
+    }
+
     const orgChanges: { orgId: string; from: string; to: string }[] = [];
-    for (const org of await ctx.db.query("orgs").collect()) {
+    for (const org of orgs) {
       const m = migratedOrgFields(org);
       if (!m.changed) continue;
       orgChanges.push({
@@ -109,6 +168,8 @@ export const migrateToCoreGrowthMax = internalMutation({
       agencies: agencyChanges.length,
       agencyPlans: planNameChanges.length,
       orgChanges,
+      orgTiers,
+      lowered,
       agencyChanges,
       planNameChanges,
     };

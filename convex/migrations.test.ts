@@ -3,6 +3,8 @@ import { convexTest } from "convex-test";
 import schema from "./schema";
 import { internal } from "./_generated/api";
 import {
+  newRuleTier,
+  oldRuleTier,
   migratedAgencyPlan,
   migratedOrgFields,
   migratedPlanName,
@@ -140,5 +142,64 @@ describe("migrateToCoreGrowthMax (in-memory database only)", () => {
     expect(await t.run((ctx) => tierForOrg(ctx, "b"))).toBe("growth");
     expect(await t.run((ctx) => tierForOrg(ctx, "c"))).toBe("max");
     expect(await t.run((ctx) => tierForOrg(ctx, "d"))).toBe("core");
+  });
+});
+
+describe("migrateToCoreGrowthMax never lowers an org", () => {
+  async function seedMixed(t: ReturnType<typeof convexTest>) {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencies", {
+        agencyId: "agL", name: "L", slug: "l", plan: "label", status: "active",
+        ownerClerkUserId: "u", ownerEmail: "u@x",
+      });
+      // Agency console default: studio stamped tier "studio" under a label agency.
+      await ctx.db.insert("orgs", { orgId: "ag_studio", name: "A", slug: "a", tier: "studio", agencyId: "agL" });
+      // Beta studio under the same agency.
+      await ctx.db.insert("orgs", { orgId: "beta", name: "B", slug: "b", tier: "studio", agencyId: "agL", betaCohort: true });
+      // Standalone studio.
+      await ctx.db.insert("orgs", { orgId: "alone", name: "C", slug: "c", tier: "studio" });
+      // orgs.plan-only rows.
+      await ctx.db.insert("orgs", { orgId: "plan_solo", name: "D", slug: "d", plan: "solo" });
+      await ctx.db.insert("orgs", { orgId: "plan_studio", name: "E", slug: "e", plan: "studio" });
+    });
+  }
+
+  it("old rule and new rule agree for the agency studio, beta and standalone cases", () => {
+    expect(oldRuleTier({ tier: "studio", agencyId: "agL" }, "label")).toBe("max");
+    expect(newRuleTier({ tier: "studio", agencyId: "agL" }, "label")).toBe("max");
+    expect(newRuleTier({ tier: "studio", agencyId: "agL", betaCohort: true }, "label")).toBe("max");
+    expect(oldRuleTier({ tier: "studio" }, undefined)).toBe("core");
+    expect(newRuleTier({ tier: "studio" }, undefined)).toBe("core");
+    expect(oldRuleTier({ plan: "studio" }, undefined)).toBe("growth");
+    expect(newRuleTier({ plan: "studio" }, undefined)).toBe("growth");
+  });
+
+  it("dry run reports old-rule vs new-rule tier for every org and writes nothing", async () => {
+    const t = convexTest(schema);
+    await seedMixed(t);
+    const dry = await t.mutation(internal.migrations.migrateToCoreGrowthMax, { dryRun: true });
+    const by = Object.fromEntries(dry.orgTiers.map((o) => [o.orgId, o]));
+    expect(dry.orgTiers).toHaveLength(5);
+    expect(by.ag_studio).toMatchObject({ oldRule: "max", newRule: "max" });
+    expect(by.beta).toMatchObject({ oldRule: "max", newRule: "max" });
+    expect(by.alone).toMatchObject({ oldRule: "core", newRule: "core" });
+    expect(by.plan_solo).toMatchObject({ oldRule: "core", newRule: "core" });
+    expect(by.plan_studio).toMatchObject({ oldRule: "growth", newRule: "growth" });
+    expect(dry.lowered).toEqual([]);
+    const rows = await t.run((ctx) => ctx.db.query("orgs").collect());
+    expect(rows.find((o) => o.orgId === "alone")?.tier).toBe("studio");
+  });
+
+  it("keeps the agency studio at Max and the standalone studio at Core after the run; re-run is a no-op", async () => {
+    const t = convexTest(schema);
+    await seedMixed(t);
+    await t.mutation(internal.migrations.migrateToCoreGrowthMax, {});
+    expect(await t.run((ctx) => tierForOrg(ctx, "ag_studio"))).toBe("max");
+    expect(await t.run((ctx) => tierForOrg(ctx, "beta"))).toBe("max");
+    expect(await t.run((ctx) => tierForOrg(ctx, "alone"))).toBe("core");
+    expect(await t.run((ctx) => tierForOrg(ctx, "plan_solo"))).toBe("core");
+    expect(await t.run((ctx) => tierForOrg(ctx, "plan_studio"))).toBe("growth");
+    const again = await t.mutation(internal.migrations.migrateToCoreGrowthMax, {});
+    expect(again).toMatchObject({ orgs: 0, agencies: 0, agencyPlans: 0, lowered: [] });
   });
 });
