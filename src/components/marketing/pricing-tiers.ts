@@ -43,16 +43,8 @@ const HIGHLIGHTS: Record<TierKey, string[]> = {
   ],
 };
 
-/* ============================================================
-   The self-serve switch.
-
-   Everything behind the tiles is live and tested: Stripe Checkout for all
-   three tiers, the launch-offer coupon, and the Clerk allowlist step a buyer
-   needs before they can create their login. The only thing left is deciding
-   when the public sees prices - flip this to true and the pricing section and
-   its nav link appear on the landing page.
-   ============================================================ */
-export const PRICING_LIVE = false;
+/* Prices are public: the full page is /pricing (src/app/pricing), and the
+   homepage shows the plans at a glance. The old PRICING_LIVE switch is gone. */
 
 /** The tile the eye should land on. Middle of a three-rung ladder. */
 const FEATURED: TierKey = "growth";

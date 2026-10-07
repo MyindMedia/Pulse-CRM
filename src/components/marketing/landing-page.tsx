@@ -8,7 +8,6 @@ import { Features } from "./features";
 import { MobileAppSection } from "./mobile-app";
 import { LogoMarquee } from "./logo-marquee";
 import { Pricing } from "./pricing";
-import { PRICING_LIVE } from "./pricing-tiers";
 import { Contact } from "./contact";
 import { Faq } from "./faq";
 import { Footer } from "./footer";
@@ -32,8 +31,8 @@ export function LandingPage() {
         <Features />
         <MobileAppSection />
         <LogoMarquee />
-        {/* Off until prices go public - see PRICING_LIVE in ./pricing-tiers. */}
-        {PRICING_LIVE && <Pricing />}
+        {/* The plans at a glance; the full page is /pricing. */}
+        <Pricing />
         <Contact />
         <Faq />
       </main>

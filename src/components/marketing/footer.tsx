@@ -5,16 +5,18 @@ const COLUMNS = [
   {
     title: "Product",
     links: [
-      { href: "#features", label: "Features" },
-      { href: "#workflow", label: "How it works" },
-      { href: "#contact", label: "Contact" },
+      { href: "/#features", label: "Features" },
+      { href: "/#workflow", label: "How it works" },
+      { href: "/pricing", label: "Pricing" },
+      { href: "/mobile", label: "The Pulse app" },
+      { href: "/#contact", label: "Contact" },
     ],
   },
   {
     title: "Account",
     links: [
       { href: "/sign-in", label: "Log in" },
-      { href: "#contact", label: "Get started" },
+      { href: "/demo", label: "Book a demo" },
     ],
   },
   {
