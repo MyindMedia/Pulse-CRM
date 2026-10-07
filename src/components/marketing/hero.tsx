@@ -389,17 +389,20 @@ export function Hero() {
             <span className="block overflow-hidden">
               <span data-hero-line className="block whitespace-nowrap motion-safe:[clip-path:inset(0_0_100%_0)]">
                 <span className="sr-only">Pulse</span>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/pulse-logo-main.webp"
-                  alt=""
-                  aria-hidden
-                  width={1000}
-                  height={297}
-                  fetchPriority="high"
-                  draggable={false}
-                  className="mx-auto block h-auto w-[clamp(10rem,32vw,28rem)] select-none"
-                />
+                <picture style={{ display: "contents" }}>
+                  <source type="image/webp" srcSet="/pulse-logo-main.webp" />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/pulse-logo-main.png"
+                    alt=""
+                    aria-hidden
+                    width={1000}
+                    height={297}
+                    fetchPriority="high"
+                    draggable={false}
+                    className="mx-auto block h-auto w-[clamp(10rem,32vw,28rem)] select-none"
+                  />
+                </picture>
               </span>
             </span>
           </span>

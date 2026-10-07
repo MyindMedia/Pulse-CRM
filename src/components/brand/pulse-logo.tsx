@@ -35,16 +35,21 @@ export function PulseLogo({
   void variant;
   const src = "/pulse-logo-main.webp";
 
+  // WebP with a PNG fallback: browsers without WebP (old Safari) fall back
+  // to the <img src>. `display: contents` keeps layout unchanged.
   const img = (
-    /* eslint-disable-next-line @next/next/no-img-element */
-    <img
-      src={src}
-      alt="Pulse"
-      width={1000}
-      height={297}
-      className={cn("h-auto select-none", sizeCls, className)}
-      draggable={false}
-    />
+    <picture style={{ display: "contents" }}>
+      <source type="image/webp" srcSet={src} />
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src="/pulse-logo-main.png"
+        alt="Pulse"
+        width={1000}
+        height={297}
+        className={cn("h-auto select-none", sizeCls, className)}
+        draggable={false}
+      />
+    </picture>
   );
 
   if (!asLink) return img;
