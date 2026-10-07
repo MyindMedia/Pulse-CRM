@@ -1,4 +1,7 @@
-import { fileUrl } from "./lib/media";
+import { fileUrl, claimFile, retireFile, ensureOrgBuckets, type MediaPurpose } from "./lib/media";
+import { fileRefV } from "./lib/fileRef";
+import { storeBytes } from "./media";
+import type { ActionCtx } from "./_generated/server";
 import { action, internalAction, internalQuery } from "./_generated/server";
 import { internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
@@ -11,7 +14,7 @@ import { resolveViewer } from "./lib/access";
    Give it a company name and (ideally) their website, and it
    builds a fully branded sub-account: scrapes the site, extracts
    identity/brand colors/rooms/rates with Gemini, imports the logo
-   and room photos into Convex storage, generates the AI brand
+   and room photos into the studio's R2 bucket, generates the AI brand
    hero, and fills the account with demo data (demo mode ON). The
    agency pitches from the prospect's own "live-looking" account;
    when the deal closes, the demo toggle wipes the demo rows and
@@ -64,18 +67,24 @@ export const _createStagedOrg = internalMutation({
       bookingIntro: args.bookingIntro,
       depositPolicyText: args.depositPolicyText,
     });
+    // Its own R2 buckets (no-op unless R2_PER_ORG_BUCKETS is on).
+    await ensureOrgBuckets(ctx, orgId);
     return { orgId, slug };
   },
 });
 
 export const _setStagedLogo = internalMutation({
-  args: { orgId: v.string(), storageId: v.id("_storage") },
+  args: { orgId: v.string(), storageId: fileRefV },
   handler: async (ctx, { orgId, storageId }) => {
     const org = await ctx.db
       .query("orgs")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .first();
-    if (org) await ctx.db.patch(org._id, { logoId: storageId });
+    if (!org) return;
+    await claimFile(ctx, storageId, orgId);
+    const previous = org.logoId;
+    await ctx.db.patch(org._id, { logoId: storageId });
+    await retireFile(ctx, previous, storageId);
   },
 });
 
@@ -86,9 +95,10 @@ export const _addStagedRoom = internalMutation({
     roomType: v.optional(v.string()),
     hourlyRateCents: v.optional(v.number()),
     notes: v.optional(v.string()),
-    heroImageId: v.optional(v.id("_storage")),
+    heroImageId: v.optional(fileRefV),
   },
   handler: async (ctx, args) => {
+    await claimFile(ctx, args.heroImageId, args.orgId);
     await ctx.db.insert("rooms", {
       orgId: args.orgId,
       name: args.name,
@@ -212,9 +222,12 @@ ${siteHtml}`;
   }
 }
 
+/** Fetches an image from the prospect's site into the staged studio's own R2 bucket. */
 async function importImage(
-  ctx: { storage: { store: (b: Blob) => Promise<string> } },
+  ctx: ActionCtx,
   url: string,
+  scope: string,
+  purpose: MediaPurpose,
 ): Promise<string | null> {
   try {
     const res = await fetch(url, {
@@ -225,7 +238,8 @@ async function importImage(
     if (!type.startsWith("image/")) return null;
     const buf = await res.arrayBuffer();
     if (buf.byteLength > 8_000_000) return null;
-    return await ctx.storage.store(new Blob([buf], { type }));
+    const name = new URL(url).pathname.split("/").pop() || purpose;
+    return await storeBytes(ctx, { scope, purpose, blob: new Blob([buf], { type }), fileName: name, mimeType: type, actor: "stage-demo" });
   } catch {
     return null;
   }
@@ -296,7 +310,7 @@ export const stageInternal = internalAction({
 
     // 3. Logo -> storage.
     if (brand?.logoUrl) {
-      const logoId = await importImage(ctx, brand.logoUrl);
+      const logoId = await importImage(ctx, brand.logoUrl, created.orgId, "logo");
       if (logoId) {
         await ctx.runMutation(internal.stageDemo._setStagedLogo, {
           orgId: created.orgId,
@@ -310,7 +324,7 @@ export const stageInternal = internalAction({
     for (const room of rooms) {
       let heroImageId: string | null = null;
       for (const photo of room.photoUrls ?? []) {
-        heroImageId = await importImage(ctx, photo);
+        heroImageId = await importImage(ctx, photo, created.orgId, "photo");
         if (heroImageId) break;
       }
       await ctx.runMutation(internal.stageDemo._addStagedRoom, {
@@ -342,7 +356,7 @@ export const addRoomFromUrl = internalAction({
     photoUrl: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const heroImageId = args.photoUrl ? await importImage(ctx, args.photoUrl) : null;
+    const heroImageId = args.photoUrl ? await importImage(ctx, args.photoUrl, args.orgId, "photo") : null;
     await ctx.runMutation(internal.stageDemo._addStagedRoom, {
       orgId: args.orgId,
       name: args.name,
@@ -385,7 +399,7 @@ export const copyOrgLogo = internalAction({
       orgId: fromOrgId,
     });
     if (!url) return { copied: false };
-    const storageId = await importImage(ctx, url);
+    const storageId = await importImage(ctx, url, toOrgId, "logo");
     if (!storageId) return { copied: false };
     await ctx.runMutation(internal.stageDemo._setStagedLogo, {
       orgId: toOrgId,

@@ -1,7 +1,10 @@
 import { R2 } from "@convex-dev/r2";
 import { components, internal } from "../_generated/api";
 import type { QueryCtx, MutationCtx } from "../_generated/server";
-import type { Id } from "../_generated/dataModel";
+import type { Doc, Id } from "../_generated/dataModel";
+import { bucketBelongsTo, isOrgBucketName, isStudioScope, orgBucketsEnabled, sharedBucketName, type BucketRole } from "./orgBuckets";
+
+type Reader = QueryCtx | MutationCtx;
 
 /* ============================================================
    Media: file bytes live in Cloudflare R2, never in Convex storage.
@@ -18,10 +21,11 @@ import type { Id } from "../_generated/dataModel";
    R2. fileUrl() reads either.
    ============================================================ */
 
-export type MediaBucket = "media" | "private";
+export type MediaBucket = BucketRole;
 export type FileRef = Id<"_storage"> | Id<"mediaFiles">;
 
-const clients: Partial<Record<MediaBucket, R2>> = {};
+/** One client per bucket NAME: the shared buckets and every studio's own buckets. */
+const clients = new Map<string, R2>();
 
 function need(name: string): string {
   const v = process.env[name];
@@ -29,18 +33,60 @@ function need(name: string): string {
   return v;
 }
 
-export function r2For(bucket: MediaBucket): R2 {
-  let c = clients[bucket];
+/** The R2 client for a bucket. `bucketName` is the bucket a file actually lives in
+ *  (a studio's own bucket, or the shared one); omitted means the shared bucket for
+ *  the role. A studio bucket of the wrong role is refused, so a private file can
+ *  never be written to or read from a public bucket by mistake. */
+export function r2For(role: MediaBucket, bucketName?: string | null): R2 {
+  const bucket = bucketName || sharedBucketName(role);
+  if (isOrgBucketName(bucket) && !bucket.endsWith(`-${role}`)) throw new Error("R2 bucket role mismatch.");
+  let c = clients.get(bucket);
   if (!c) {
     c = new R2(components.r2, {
-      bucket: need(bucket === "media" ? "R2_MEDIA_BUCKET" : "R2_PRIVATE_BUCKET"),
+      bucket,
       endpoint: need("R2_ENDPOINT"),
       accessKeyId: need("R2_ACCESS_KEY_ID"),
       secretAccessKey: need("R2_SECRET_ACCESS_KEY"),
     });
-    clients[bucket] = c;
+    clients.set(bucket, c);
   }
   return c;
+}
+
+/** Which bucket a NEW file for `scope` goes to: the studio's own bucket once it is
+ *  provisioned, else the shared one. Always derived from the owning org, never
+ *  from the caller. */
+export async function resolveBucket(ctx: Reader, scope: string, role: MediaBucket): Promise<string> {
+  if (orgBucketsEnabled() && isStudioScope(scope)) {
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", scope)).first();
+    const name = role === "media" ? org?.r2MediaBucket : org?.r2PrivateBucket;
+    if (org?.r2BucketStatus === "ready" && name && bucketBelongsTo(scope, name, role)) return name;
+  }
+  return sharedBucketName(role);
+}
+
+/** The bucket an existing file lives in. Rows from before per-studio buckets carry
+ *  no name and live in the shared bucket. A row can never resolve to another
+ *  studio's bucket: the name's hashed tag must match the row's own org. */
+export function rowBucket(row: Pick<Doc<"mediaFiles">, "orgId" | "bucket" | "bucketName">): string {
+  const name = row.bucketName || sharedBucketName(row.bucket);
+  if (isOrgBucketName(name) && !bucketBelongsTo(row.orgId, name, row.bucket)) {
+    throw new Error("This file's bucket does not belong to its studio.");
+  }
+  return name;
+}
+
+const PROVISION_RETRY_MS = 60 * 60 * 1000;
+
+/** Starts provisioning a studio's buckets the first time it stores a file (and
+ *  retries hourly while it is pending). No-op when the flag is off. */
+export async function ensureOrgBuckets(ctx: MutationCtx, scope: string): Promise<void> {
+  if (!orgBucketsEnabled() || !isStudioScope(scope)) return;
+  const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", scope)).first();
+  if (!org || org.r2BucketStatus === "ready") return;
+  if (Date.now() - (org.r2ProvisionAttemptAt ?? 0) < PROVISION_RETRY_MS) return;
+  await ctx.db.patch(org._id, { r2BucketStatus: "pending", r2ProvisionAttemptAt: Date.now() });
+  await ctx.scheduler.runAfter(0, internal.orgBuckets.provision, { orgId: scope });
 }
 
 /** Per-purpose limits. A purpose also fixes the bucket, so a caller can never
@@ -71,11 +117,12 @@ export function makeKey(scope: string, purpose: MediaPurpose, fileName: string):
   return `${prefix}/${scopeSafe}/${purpose}/${safe(fileName)}-${crypto.randomUUID()}${ext ? "." + ext : ""}`;
 }
 
-export function publicUrl(key: string): string {
-  return `${(process.env.R2_PUBLIC_URL ?? "https://pulse-media.myindmedia.workers.dev").replace(/\/$/, "")}/${key}`;
+/** Public URL of a media-bucket object. Shared-bucket objects keep their old path;
+ *  a studio's own bucket is served by the Worker under /o/<bucket>/<key>. */
+export function publicUrl(key: string, bucketName?: string | null): string {
+  const base = (process.env.R2_PUBLIC_URL ?? "https://pulse-media.myindmedia.workers.dev").replace(/\/$/, "");
+  return bucketName && isOrgBucketName(bucketName) ? `${base}/o/${bucketName}/${key}` : `${base}/${key}`;
 }
-
-type Reader = QueryCtx | MutationCtx;
 
 async function asMedia(ctx: Reader, ref: string) {
   const id = ctx.db.normalizeId("mediaFiles", ref);
@@ -90,8 +137,9 @@ export async function fileUrl(ctx: Reader, ref: FileRef | null | undefined, opts
   const row = await asMedia(ctx, ref);
   if (row) {
     if (row.status !== "ready") return null;
-    if (row.bucket === "media") return publicUrl(row.key);
-    return await r2For("private").getUrl(row.key, { expiresIn: opts.expiresIn ?? 3600 });
+    const bucket = rowBucket(row);
+    if (row.bucket === "media") return publicUrl(row.key, bucket);
+    return await r2For("private", bucket).getUrl(row.key, { expiresIn: opts.expiresIn ?? 3600 });
   }
   return await ctx.storage.getUrl(ref as Id<"_storage">);
 }
@@ -105,13 +153,20 @@ export async function fileSize(ctx: Reader, ref: FileRef | null | undefined): Pr
 }
 
 /** Deletes the file: legacy storage immediately, R2 objects through a scheduled
- *  action (the row is removed in the same transaction so nothing can point at it). */
+ *  action (the row is removed in the same transaction so nothing can point at it).
+ *  Copies the file left behind on its way to R2 (the Convex storage original, the
+ *  shared-bucket original of a file moved into a studio's own bucket) go with it. */
 export async function deleteFile(ctx: MutationCtx, ref: FileRef | null | undefined): Promise<void> {
   if (!ref) return;
   const row = await asMedia(ctx, ref);
   if (row) {
+    const bucketName = rowBucket(row);
     await ctx.db.delete(row._id);
-    await ctx.scheduler.runAfter(0, internal.media._deleteObject, { bucket: row.bucket, key: row.key });
+    await ctx.scheduler.runAfter(0, internal.media._deleteObject, { bucket: row.bucket, key: row.key, bucketName });
+    if (row.sharedCopyAt && bucketName !== sharedBucketName(row.bucket)) {
+      await ctx.scheduler.runAfter(0, internal.media._deleteObject, { bucket: row.bucket, key: row.key, bucketName: sharedBucketName(row.bucket) });
+    }
+    if (row.legacyStorageId && (await ctx.db.system.get(row.legacyStorageId))) await ctx.storage.delete(row.legacyStorageId);
     return;
   }
   await ctx.storage.delete(ref as Id<"_storage">);

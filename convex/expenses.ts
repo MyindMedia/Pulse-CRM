@@ -1,4 +1,7 @@
-import { fileUrl } from "./lib/media";
+import { fileUrl, claimFile } from "./lib/media";
+import { fileRefV } from "./lib/fileRef";
+import { internal } from "./_generated/api";
+import type { Id } from "./_generated/dataModel";
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
@@ -30,17 +33,27 @@ export const create = mutation({
     description: v.optional(v.string()),
     recurring: v.optional(recurringV),
     memberId: v.optional(v.id("members")),
-    receiptId: v.optional(v.id("_storage")),
+    /** A Convex storage id (older clients) or an R2 mediaFiles id. A storage id is
+     *  copied to the studio's private R2 bucket right after the expense is saved. */
+    receiptId: v.optional(fileRefV),
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
     const orgId = await currentOrgWithCapability(ctx, "invoices.send");
     if (args.amountCents <= 0) throw new Error("Amount must be greater than zero.");
+    // An R2 receipt must be this studio's own finished upload.
+    await claimFile(ctx, args.receiptId, orgId);
     if (args.memberId) {
       const m = await ctx.db.get(args.memberId);
       if (!m || m.orgId !== orgId) throw new Error("That team member isn't in this studio.");
     }
     const id = await ctx.db.insert("expenses", { orgId, ...args });
+    if (args.receiptId && !ctx.db.normalizeId("mediaFiles", args.receiptId)) {
+      await ctx.scheduler.runAfter(0, internal.mediaBackfill.promote, {
+        table: "expenses", id, path: "receiptId", ref: args.receiptId as Id<"_storage">,
+        scope: orgId, purpose: "receipt", fileName: "expense-receipt",
+      });
+    }
     await ctx.db.insert("activity", {
       orgId,
       kind: "expense.logged",
@@ -110,7 +123,9 @@ export const remove = mutation({
   },
 });
 
-/** Upload URL for a receipt image/PDF attached to an expense. */
+/** Convex-storage upload URL for an expense receipt. No current client calls it;
+ *  kept so an older build still works. New uploads use media.prepareUpload
+ *  (purpose "receipt"); an id from here is moved to R2 by create. */
 export const generateReceiptUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {

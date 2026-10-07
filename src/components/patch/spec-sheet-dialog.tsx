@@ -26,6 +26,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { pdfToText, plainToText } from "@/lib/pdf-text";
+import { useR2Upload, r2NotConfigured } from "@/lib/use-r2-upload";
 import { diffPortsClient, type ProposedPort } from "./spec-diff";
 import type { PatchPort } from "./device-node";
 
@@ -68,6 +69,7 @@ export function SpecSheetDialog({
   const propose = useAction(api.patchSpecs.proposeFromSource);
   const applyProposal = useMutation(api.patchSpecs.applyProposal);
   const generateUploadUrl = useMutation(api.files.generateUploadUrl);
+  const uploadToR2 = useR2Upload();
   const setPanelPhoto = useMutation(api.patchManager.setDevicePanelPhoto);
 
   const [source, setSource] = React.useState<Source>("lookup");
@@ -98,7 +100,7 @@ export function SpecSheetDialog({
     setConfirmedRemovals(new Set());
   }
 
-  async function run(payload: { url?: string; text?: string; imageId?: Id<"_storage"> }, label: string) {
+  async function run(payload: { url?: string; text?: string; imageId?: Id<"_storage"> | Id<"mediaFiles"> }, label: string) {
     setBusy(true);
     setStatus("Reading the source");
     try {
@@ -128,14 +130,22 @@ export function SpecSheetDialog({
     try {
       if (file.type.startsWith("image/")) {
         setStatus("Uploading the photo");
-        const uploadUrl = await generateUploadUrl();
-        const res = await fetch(uploadUrl, {
-          method: "POST",
-          headers: { "Content-Type": file.type },
-          body: file,
-        });
-        if (!res.ok) throw new Error(`Upload failed (${res.status})`);
-        const { storageId } = (await res.json()) as { storageId: string };
+        // Straight to the studio's R2 bucket; Convex storage only when this
+        // deployment has no R2 settings.
+        let storageId: Id<"_storage"> | Id<"mediaFiles">;
+        try {
+          storageId = await uploadToR2(file, "photo");
+        } catch (err) {
+          if (!r2NotConfigured(err)) throw err;
+          const uploadUrl = await generateUploadUrl();
+          const res = await fetch(uploadUrl, {
+            method: "POST",
+            headers: { "Content-Type": file.type },
+            body: file,
+          });
+          if (!res.ok) throw new Error(`Upload failed (${res.status})`);
+          storageId = ((await res.json()) as { storageId: Id<"_storage"> }).storageId;
+        }
 
         /*
          * They just photographed the back of this unit to read its jacks.
@@ -147,14 +157,14 @@ export function SpecSheetDialog({
           try {
             await setPanelPhoto({
               id: deviceInstanceId,
-              storageId: storageId as Id<"_storage">,
+              storageId,
             });
           } catch {
             // Keeping the photo is a convenience. Reading it is the job.
           }
         }
 
-        await run({ imageId: storageId as Id<"_storage"> }, file.name);
+        await run({ imageId: storageId }, file.name);
         return;
       }
 

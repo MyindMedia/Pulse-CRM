@@ -206,6 +206,14 @@ export default defineSchema({
     // Pre-session brief policy: when true every checklist step must be
     // checked (accountability mode); unset/false = optional guidance.
     briefRequireAll: v.optional(v.boolean()),
+    // Per-studio Cloudflare R2 buckets (docs/R2-PER-ORG-BUCKETS.md). Until status is
+    // "ready" new files go to the shared buckets.
+    r2MediaBucket: v.optional(v.string()),
+    r2PrivateBucket: v.optional(v.string()),
+    r2BucketStatus: v.optional(v.union(v.literal("pending"), v.literal("ready"))),
+    r2ProvisionedAt: v.optional(v.number()),
+    r2ProvisionAttemptAt: v.optional(v.number()),
+    r2ProvisionError: v.optional(v.string()),
     brandPalette: v.optional(v.array(v.string())),
     tagline: v.optional(v.string()),
     // Branding
@@ -3297,6 +3305,12 @@ export default defineSchema({
     // Set by the backfill: the Convex storage file this was copied from. It is deleted
     // after a safety window (mediaBackfill.purgeLegacy), never at copy time.
     legacyStorageId: v.optional(v.id("_storage")),
+    // The R2 bucket the object lives in: the studio's own bucket, or the shared
+    // one. Rows from before per-studio buckets have none (shared bucket).
+    bucketName: v.optional(v.string()),
+    // Set when the object was moved out of the shared bucket into the studio's own;
+    // the shared copy is deleted with the file or by orgBuckets.purgeSharedCopies.
+    sharedCopyAt: v.optional(v.number()),
   })
     .index("by_org", ["orgId", "createdAt"])
     .index("by_key", ["bucket", "key"])

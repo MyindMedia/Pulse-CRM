@@ -1,4 +1,5 @@
-import { deleteFile } from "./lib/media";
+import { deleteFile, claimFile } from "./lib/media";
+import { storeBytes } from "./media";
 import { fileRefV } from "./lib/fileRef";
 import { action, internalAction, internalQuery } from "./_generated/server";
 import { internalMutation } from "./functions";
@@ -12,8 +13,8 @@ import { currentOrg } from "./lib/tenant";
    When a studio uploads a logo, the extracted accent/palette is
    used to generate a cinematic, low-key studio photograph via
    Gemini (GEMINI_API_KEY on the deployment), tinted in the
-   studio's brand color. The image is stored in Convex storage as
-   `generatedHeroId` and the public booking page renders it as a
+   studio's brand color. The image is stored in the studio's R2 media
+   bucket (a mediaFiles row) as `generatedHeroId` and the public booking page renders it as a
    full-bleed background under a dark fade. A manually uploaded
    hero (bookingHeroId) always wins over the generated one.
    ============================================================ */
@@ -76,6 +77,7 @@ export const _setGeneratedHero = internalMutation({
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .first();
     if (!org) return;
+    await claimFile(ctx, storageId, orgId);
     // Replace any previous generated hero (free the old file).
     if (org.generatedHeroId) {
       try {
@@ -154,7 +156,7 @@ export const generate = internalAction({
     }
     const blob = await callGemini(heroPrompt(brand));
     if (!blob) return { generated: false as const, reason: "generation unavailable" };
-    const storageId = await ctx.storage.store(blob);
+    const storageId = await storeBytes(ctx, { scope: orgId, purpose: "photo", blob, fileName: "brand-hero.png", actor: "brand-hero" });
     await ctx.runMutation(internal.brandHero._setGeneratedHero, { orgId, storageId });
     return { generated: true as const };
   },

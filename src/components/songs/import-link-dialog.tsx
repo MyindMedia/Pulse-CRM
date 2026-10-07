@@ -33,7 +33,7 @@ export type LinkImport = {
   album: string | null;
   genre: string | null;
   releaseDate: number | null;
-  coverStorageId: Id<"_storage"> | null;
+  coverStorageId: Id<"_storage"> | Id<"mediaFiles"> | null;
   coverPreviewUrl: string | null;
   credits: { name: string; role: string }[];
 };

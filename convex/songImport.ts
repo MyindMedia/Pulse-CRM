@@ -1,8 +1,11 @@
 import { action, internalQuery } from "./_generated/server";
+import type { ActionCtx } from "./_generated/server";
+import { claimFile, retireFile, type FileRef } from "./lib/media";
+import { fileRefV } from "./lib/fileRef";
+import { storeBytes } from "./media";
 import { mutation } from "./functions";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
 import { currentOrgWithCapability, assertOrg } from "./lib/tenant";
 import {
   parseMusicLink,
@@ -43,7 +46,8 @@ export type LinkImportResult = {
   album: string | null;
   genre: string | null;
   releaseDate: number | null;
-  coverStorageId: Id<"_storage"> | null;
+  /** An R2 mediaFiles id (a Convex storage id only on a deployment without R2). */
+  coverStorageId: FileRef | null;
   coverPreviewUrl: string | null;
   credits: ImportedCredit[];
 };
@@ -123,19 +127,20 @@ async function musicBrainzCredits(
   return dedupeCredits(credits);
 }
 
-/** Pull the cover image into Convex storage so the song owns a copy - the
-    CDN URL on the streaming service is neither stable nor hotlink-safe. */
+/** Pull the cover image into the studio's R2 bucket so the song owns a copy -
+    the CDN URL on the streaming service is neither stable nor hotlink-safe. */
 async function storeCover(
-  ctx: { storage: { store: (b: Blob) => Promise<Id<"_storage">> } },
+  ctx: ActionCtx,
+  orgId: string,
   artUrl: string | null,
-): Promise<Id<"_storage"> | null> {
+): Promise<FileRef | null> {
   if (!artUrl) return null;
   try {
     const res = await fetchWithTimeout(artUrl);
     if (!res.ok) return null;
     const blob = await res.blob();
     if (blob.size === 0 || blob.size > MAX_COVER_BYTES) return null;
-    return await ctx.storage.store(blob);
+    return await storeBytes(ctx, { scope: orgId, purpose: "cover", blob, fileName: "cover.jpg", actor: "song-import" });
   } catch {
     return null;
   }
@@ -144,7 +149,7 @@ async function storeCover(
 export const fetchFromLink = action({
   args: { url: v.string() },
   handler: async (ctx, { url }): Promise<LinkImportResult> => {
-    await ctx.runQuery(internal.songImport.access, {});
+    const orgId: string = await ctx.runQuery(internal.songImport.access, {});
 
     const link = parseMusicLink(url);
     if (!link) {
@@ -200,7 +205,7 @@ export const fetchFromLink = action({
 
     const [credits, coverStorageId] = await Promise.all([
       title ? musicBrainzCredits(title, artistName) : Promise.resolve([]),
-      storeCover(ctx, artUrl),
+      storeCover(ctx, orgId, artUrl),
     ]);
 
     return {
@@ -211,7 +216,7 @@ export const fetchFromLink = action({
       genre,
       releaseDate,
       coverStorageId,
-      coverPreviewUrl: coverStorageId ? await ctx.storage.getUrl(coverStorageId) : artUrl,
+      coverPreviewUrl: coverStorageId ? await ctx.runQuery(internal.media._fileUrl, { ref: coverStorageId }) : artUrl,
       credits,
     };
   },
@@ -226,7 +231,7 @@ export const applyToSong = mutation({
   args: {
     songId: v.id("songs"),
     sourceUrl: v.string(),
-    coverStorageId: v.optional(v.id("_storage")),
+    coverStorageId: v.optional(fileRefV),
     genre: v.optional(v.string()),
     releaseDate: v.optional(v.number()),
     artistName: v.optional(v.string()),
@@ -237,12 +242,16 @@ export const applyToSong = mutation({
     const song = await ctx.db.get(songId);
     assertOrg(song, orgId);
 
+    // The imported cover must be this studio's own upload; it replaces the old one.
+    await claimFile(ctx, coverStorageId, orgId);
+    const previousCover = coverStorageId ? song!.coverArtId : undefined;
     // Imported metadata fills blanks; it never overwrites studio-entered data.
     await ctx.db.patch(songId, {
       ...(coverStorageId ? { coverArtId: coverStorageId } : {}),
       ...(genre && !song!.genre ? { genre } : {}),
       ...(releaseDate && !song!.releaseDate ? { releaseDate } : {}),
     });
+    await retireFile(ctx, previousCover, coverStorageId);
 
     // Keep provenance: the source link joins the reference tracks once.
     if (!song!.referenceTracks.some((r) => r.url === sourceUrl)) {

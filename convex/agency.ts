@@ -1,4 +1,4 @@
-import { fileUrl } from "./lib/media";
+import { fileUrl, ensureOrgBuckets } from "./lib/media";
 import { query, internalQuery, action, QueryCtx } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { internal } from "./_generated/api";
@@ -373,6 +373,8 @@ export const provision = internalMutation({
       ownerName: args.ownerName,
       ownerEmail: normalizeEmail(args.ownerEmail),
     });
+    // Its own R2 buckets (no-op unless R2_PER_ORG_BUCKETS is on).
+    await ensureOrgBuckets(ctx, args.orgId);
     return { orgId: args.orgId };
   },
 });

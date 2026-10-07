@@ -1,5 +1,6 @@
 import { fileRefV } from "./lib/fileRef";
 import { claimFile, fileUrl, retireFile } from "./lib/media";
+import { storeBytes } from "./media";
 import { query, action, internalQuery, internalAction, QueryCtx, MutationCtx, ActionCtx } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
@@ -739,8 +740,18 @@ export const backfillClerkPhotos = internalAction({
 export const _setSeededPhoto = internalMutation({
   args: { id: v.id("members"), storageId: fileRefV },
   handler: async (ctx, { id, storageId }) => {
+    const member = await ctx.db.get(id);
+    if (!member) return;
+    await claimFile(ctx, storageId, member.orgId);
+    const previous = member.photoId;
     await ctx.db.patch(id, { photoId: storageId });
+    await retireFile(ctx, previous, storageId);
   },
+});
+
+export const _memberOrg = internalQuery({
+  args: { id: v.id("members") },
+  handler: async (ctx, { id }) => (await ctx.db.get(id))?.orgId ?? null,
 });
 
 export const importMemberPhoto = internalAction({
@@ -749,7 +760,10 @@ export const importMemberPhoto = internalAction({
     const binary = atob(dataBase64);
     const bytes = new Uint8Array(binary.length);
     for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-    const storageId = await ctx.storage.store(new Blob([bytes], { type: mime }));
+    const orgId = await ctx.runQuery(internal.members._memberOrg, { id });
+    if (!orgId) throw new Error("Member not found");
+    // Into the member's own studio bucket, like a photo uploaded in the app.
+    const storageId = await storeBytes(ctx, { scope: orgId, purpose: "photo", blob: new Blob([bytes], { type: mime }), fileName: `member-photo.${mime.split("/")[1] ?? "jpg"}`, mimeType: mime, actor: "import" });
     await ctx.runMutation(internal.members._setSeededPhoto, { id, storageId });
     return { stored: true };
   },
