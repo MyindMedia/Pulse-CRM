@@ -198,6 +198,14 @@ export const handle = internalMutation({
         return { ok: true };
       }
 
+      // Everything below provisions a PLATFORM agency. A connected (studio)
+      // account's checkout can carry any metadata its creator chose, so it must
+      // never reach this branch.
+      if (event.account) {
+        await markProcessed(ctx, event.id, e.type);
+        return { ok: true };
+      }
+
       const customerId = obj.customer as string;
       const subscriptionId = obj.subscription as string;
       // Only platform subscription checkouts go past here.

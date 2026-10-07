@@ -198,3 +198,39 @@ describe("billing webhooks", () => {
     });
   });
 });
+
+describe("billing webhooks - connected-account events never provision a platform agency", () => {
+  it("a Connect checkout.session.completed with platform_signup metadata creates no agency, member or activation email", async () => {
+    const t = convexTest(schema);
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: {
+        id: "evt_connect_signup",
+        type: "checkout.session.completed",
+        account: "acct_studio_connected",
+        data: {
+          object: {
+            id: "cs_connect_1",
+            customer: "cus_connect",
+            subscription: "sub_connect",
+            customer_email: "attacker@example.com",
+            metadata: {
+              kind: "platform_signup",
+              clerkUserId: "u_attacker",
+              intendedAgencyName: "Free Max",
+              intendedTier: "max",
+            },
+          },
+        },
+      },
+    });
+    const agencies = await t.run(async (ctx) => await ctx.db.query("agencies").collect());
+    const members = await t.run(async (ctx) => await ctx.db.query("agencyMembers").collect());
+    const scheduled = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+    expect(agencies).toEqual([]);
+    expect(members).toEqual([]);
+    expect(scheduled).toEqual([]);
+    // Recorded as processed, so a Stripe retry is a no-op too.
+    const ledger = await t.run(async (ctx) => await ctx.db.query("auditEvents").collect());
+    expect(ledger.some((r) => r.action === "stripe.event" && r.viewerId === "evt_connect_signup")).toBe(true);
+  });
+});
