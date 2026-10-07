@@ -1291,6 +1291,10 @@ export default defineSchema({
     // Only meaningful on category "cable". Turns an undifferentiated line
     // item ("XLR Cable, qty 6") into real stock the patch canvas can spend:
     // a connection claims one run from this row, and the remaining count is
+    // Barcode / QR label code (gear check-out). Unique per studio, upper case.
+    // The code is an opaque id: no secrets, and it resolves only for the
+    // signed-in studio that owns the item.
+    barcode: v.optional(v.string()),
     // what the cable manager reports as free. Absent on every other category.
     cableSpec: v.optional(
       v.object({
@@ -1313,7 +1317,8 @@ export default defineSchema({
   })
     .index("by_org", ["orgId"])
     .index("by_org_room", ["orgId", "installedInRoomId"])
-    .index("by_org_category", ["orgId", "category"]),
+    .index("by_org_category", ["orgId", "category"])
+    .index("by_org_barcode", ["orgId", "barcode"]),
 
   // ── Asset documents - receipts / invoices / warranties attached to a
   //    hardware (equipment) or software item. Kept for tax, insurance and
@@ -3314,3 +3319,36 @@ export default defineSchema({
     .index("by_status", ["status", "createdAt"])
     .index("by_attach", ["status", "attachedAt", "createdAt"]),
 });
+
+  // ── Gear check-out: one row per time a piece of gear leaves the shelf.
+  //    Open while inAt is unset; the closed rows are the item's history. ──
+  gearCheckouts: defineTable({
+    orgId: v.string(),
+    equipmentId: v.id("equipment"),
+    // Snapshots, so history still reads after a rename or a delete.
+    equipmentName: v.string(),
+    barcode: v.optional(v.string()),
+    holderKind: v.union(
+      v.literal("member"),
+      v.literal("client"),
+      v.literal("session"),
+      v.literal("rental"),
+    ),
+    holderMemberId: v.optional(v.id("members")),
+    holderArtistId: v.optional(v.id("artists")),
+    holderSessionId: v.optional(v.id("sessions")),
+    holderLabel: v.string(),
+    outAt: v.number(),
+    dueAt: v.optional(v.number()),
+    inAt: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    returnNotes: v.optional(v.string()),
+    outBy: v.string(),
+    outByClerkUserId: v.optional(v.string()),
+    inBy: v.optional(v.string()),
+    // Set when the overdue alert went out, so it is sent once.
+    overdueNotifiedAt: v.optional(v.number()),
+  })
+    .index("by_org_open", ["orgId", "inAt"])
+    .index("by_equipment", ["equipmentId", "outAt"])
+    .index("by_equipment_open", ["equipmentId", "inAt"]),

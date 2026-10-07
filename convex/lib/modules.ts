@@ -150,6 +150,8 @@ export const MODULES: ModuleDef[] = [
     blurb: "Read a spec sheet and fill in every input and output" },
   { key: "patchHistory", label: "Cable map notes and history", area: "gear", nav: false,
     blurb: "Notes, groups and a record of who moved which cable" },
+  { key: "gearCheckout", label: "Gear check-out", area: "gear", nav: false,
+    blurb: "Scan a label to check gear in and out, with who has what and what is overdue" },
 
   // ── Music & catalog ──
   { key: "finishedMixes", label: "Finished mixes", area: "catalog", nav: false,

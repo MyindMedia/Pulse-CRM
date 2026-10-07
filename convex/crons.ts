@@ -44,6 +44,9 @@ crons.interval("t10-device-alerts", { minutes: 1 }, internal.pushAlerts.sweep, {
 crons.interval("sms-reminders", { minutes: 15 }, internal.sms.sendDueReminders);
 
 // Timeclock SMS checks: the 8h overtime confirm and the 4h intern
+// Gear check-out: one alert per overdue piece of gear.
+crons.interval("gear-overdue", { minutes: 30 }, internal.gearCheckout.sweepOverdue, {});
+
 // permission flow, plus the no-answer caps and manager escalations.
 crons.interval("timeclock-sms", { minutes: 15 }, internal.smsFlows.sweepTimeclock);
 

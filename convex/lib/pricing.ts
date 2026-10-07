@@ -696,7 +696,7 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
       f("Projects across every studio", "max", "crossStudioProjects", { built: false }),
       f("Media file management with version control", "growth", "mediaLibrary", { built: false }),
       f("One media library shared across studios", "max", "sharedMediaLibrary", { built: false }),
-      f("Barcode equipment check-in and check-out", "growth", "gearCheckout", { built: false }),
+      f("Barcode equipment check-in and check-out", "growth", "gearCheckout"),
     ],
   },
 ];
