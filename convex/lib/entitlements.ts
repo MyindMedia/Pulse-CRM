@@ -46,6 +46,7 @@ export const NAV_CAPABILITIES = [
   "inventory",
   "patch",
   "software",
+  "mediaLibrary",
 ] as const satisfies readonly CapabilityKey[];
 
 const NAV_SET = new Set<string>(NAV_CAPABILITIES);

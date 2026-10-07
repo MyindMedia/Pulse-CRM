@@ -59,6 +59,7 @@ const isPublicRoute = createRouteMatcher([
   "/book/(.*)", // public studio booking by slug - no login
   "/pay/(.*)", // public invoice payment link - no login
   "/invite(.*)", // beta invite account-creation screen - no auth required
+  "/files/(.*)", // expiring media-library guest link - token-authed, no login
   "/portal(.*)", // client concierge magic-link portal - token-authed, no login
   "/sign(.*)", // split-sheet e-signature magic-link - token-authed, no login
   "/visit/(.*)", // visitor QR self check-in - org derived from the slug, no login
