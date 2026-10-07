@@ -15,7 +15,7 @@ import { join } from "node:path";
    "label", scope "studio" and the word studio in prose all stay.
 
    Allowed to spell the old values, because they exist to migrate them:
-     convex/migrations.ts, convex/migrations.test.ts, convex/lib/legacyPlans.ts
+     convex/migrations.ts, convex/migrations.test.ts, convex/migrations.refuse.test.ts, convex/lib/legacyPlans.ts
    ============================================================ */
 
 const ROOTS = ["src", "convex"];
@@ -23,6 +23,7 @@ const SKIP_DIRS = new Set(["node_modules", "_generated", ".next"]);
 const ALLOWED = new Set([
   "convex/migrations.ts",
   "convex/migrations.test.ts",
+  "convex/migrations.refuse.test.ts",
   "convex/lib/legacyPlans.ts",
   "convex/noOldPlanKeys.test.ts",
 ]);
