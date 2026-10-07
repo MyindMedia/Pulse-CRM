@@ -7,10 +7,10 @@ describe("branding", () => {
   let t: ReturnType<typeof convexTest>;
   beforeEach(() => { t = convexTest(schema); });
 
-  it("agency tier can set custom domain; pro tier cannot", async () => {
+  it("max tier can set custom domain; growth tier cannot", async () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("agencies", {
-        agencyId: "org_ag", name: "AG", slug: "ag", plan: "agency", status: "active",
+        agencyId: "org_ag", name: "AG", slug: "ag", plan: "max", status: "active",
         ownerClerkUserId: "u_o", ownerEmail: "o@x",
       });
       await ctx.db.insert("agencyMembers", {
@@ -25,20 +25,20 @@ describe("branding", () => {
       customDomain: "app.acme.com", accentColor: "#fdb913",
     });
 
-    // Downgrade to pro
+    // Downgrade to growth
     await t.run(async (ctx) => {
       const ag = (await ctx.db.query("agencies").first())!;
-      await ctx.db.patch(ag._id, { plan: "pro", customDomain: undefined });
+      await ctx.db.patch(ag._id, { plan: "growth", customDomain: undefined });
     });
     await expect(
       asAg.mutation(api.branding.updateAgencyBranding, { customDomain: "app.acme.com" }),
-    ).rejects.toThrow(/Custom domain requires Agency tier/);
+    ).rejects.toThrow(/custom domain needs the Max plan/i);
   });
 
   it("studio owner can update studio branding", async () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org_s", name: "S", slug: "s", plan: "studio", status: "active",
+        orgId: "org_s", name: "S", slug: "s", tier: "growth", status: "active",
       });
       await ctx.db.insert("members", {
         orgId: "org_s", name: "O", role: "owner", clerkUserId: "u_o", skills: [],
@@ -57,7 +57,7 @@ describe("branding", () => {
   it("studio intern cannot edit branding", async () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org_s", name: "S", slug: "s", plan: "studio", status: "active",
+        orgId: "org_s", name: "S", slug: "s", tier: "growth", status: "active",
       });
       await ctx.db.insert("members", {
         orgId: "org_s", name: "I", role: "intern", clerkUserId: "u_i", skills: [],

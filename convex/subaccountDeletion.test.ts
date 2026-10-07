@@ -15,7 +15,7 @@ async function setup(t: ReturnType<typeof convexTest>, orgName = "Vault Studios"
   const orgId = "org_doomed";
   await t.run(async (ctx) => {
     await ctx.db.insert("agencies", {
-      agencyId: AG, name: "Myind", slug: "myind", plan: "label",
+      agencyId: AG, name: "Myind", slug: "myind", plan: "max",
       status: "active", ownerClerkUserId: OWNER, ownerEmail: "ag@example.com",
     });
     await ctx.db.insert("agencyMembers", {
@@ -23,7 +23,7 @@ async function setup(t: ReturnType<typeof convexTest>, orgName = "Vault Studios"
       role: "owner", status: "active", invitedAt: Date.now(),
     });
     await ctx.db.insert("orgs", {
-      orgId, name: orgName, slug: "vault", plan: "studio", tier: "pro",
+      orgId, name: orgName, slug: "vault", tier: "growth",
       status: "active", agencyId: AG,
     });
     const artist = await ctx.db.insert("artists", {
@@ -42,7 +42,7 @@ async function setup(t: ReturnType<typeof convexTest>, orgName = "Vault Studios"
     await ctx.db.insert("members", { orgId, name: "Eng", role: "engineer", skills: [] });
     // A second studio that must survive untouched.
     await ctx.db.insert("orgs", {
-      orgId: "org_safe", name: "Safe", slug: "safe", plan: "studio", agencyId: AG,
+      orgId: "org_safe", name: "Safe", slug: "safe", tier: "growth", agencyId: AG,
     });
     await ctx.db.insert("artists", {
       orgId: "org_safe", name: "Untouched", type: "artist", genres: [], tags: [],

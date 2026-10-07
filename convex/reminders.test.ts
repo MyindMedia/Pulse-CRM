@@ -8,7 +8,7 @@ const DAY = 24 * HOUR;
 
 async function seed(t: ReturnType<typeof convexTest>, now: number) {
   return await t.run(async (ctx) => {
-    await ctx.db.insert("orgs", { orgId: "org_rem", name: "Reminder Studio", slug: "rem", plan: "studio", status: "active" });
+    await ctx.db.insert("orgs", { orgId: "org_rem", name: "Reminder Studio", slug: "rem", tier: "growth", status: "active" });
     const eng = await ctx.db.insert("members", { orgId: "org_rem", name: "Eng", role: "engineer", email: "eng@studio.test", skills: [] });
     const artist = await ctx.db.insert("artists", {
       orgId: "org_rem", name: "Nova", type: "artist", email: "nova@client.test", genres: [], tags: [],

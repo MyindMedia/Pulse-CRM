@@ -41,8 +41,8 @@ describe("reviews: post-session review loop", () => {
   beforeEach(async () => {
     t = convexTest(schema);
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo Studio", slug: "demo", plan: "studio", status: "active" });
-      await ctx.db.insert("orgs", { orgId: "org2", name: "Other Studio", slug: "other", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo Studio", slug: "demo", tier: "growth", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org2", name: "Other Studio", slug: "other", tier: "growth", status: "active" });
     });
   });
 

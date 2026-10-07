@@ -8,7 +8,7 @@ async function studio() {
   const t = convexTest(schema);
   await t.run(async (ctx) => {
     await ctx.db.insert("orgs", {
-      orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active",
+      orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active",
     });
     for (const [name, role, subject] of [
       ["Olu", "owner", "user_owner"],

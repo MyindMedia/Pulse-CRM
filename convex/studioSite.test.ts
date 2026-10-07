@@ -80,9 +80,9 @@ describe("studioImport.applyToOrg", () => {
 
   async function agencyOwner(agencyId: string, user: string, subOrgId: string) {
     await t.run(async (ctx) => {
-      await ctx.db.insert("agencies", { agencyId, name: agencyId, slug: agencyId, plan: "agency", status: "active", ownerClerkUserId: user, ownerEmail: "o@x" });
+      await ctx.db.insert("agencies", { agencyId, name: agencyId, slug: agencyId, plan: "max", status: "active", ownerClerkUserId: user, ownerEmail: "o@x" });
       await ctx.db.insert("agencyMembers", { agencyId, clerkUserId: user, email: "o@x", name: "Owner", role: "owner", status: "active", invitedAt: 0 });
-      await ctx.db.insert("orgs", { orgId: subOrgId, name: "Sub", slug: subOrgId, plan: "studio", status: "active", agencyId });
+      await ctx.db.insert("orgs", { orgId: subOrgId, name: "Sub", slug: subOrgId, tier: "growth", status: "active", agencyId });
     });
     return t.withIdentity({ subject: user, name: "Owner" });
   }

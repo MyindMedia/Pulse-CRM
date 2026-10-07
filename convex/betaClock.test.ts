@@ -17,7 +17,7 @@ async function betaStudio(
 ) {
   await t.run(async (ctx) => {
     await ctx.db.insert("orgs", {
-      orgId: "org_beta", name: "Beta Studio", slug: "beta", plan: "studio",
+      orgId: "org_beta", name: "Beta Studio", slug: "beta", tier: "growth",
       status: "active", agencyId: "org_ag", betaCohort: true,
       ownerEmail: "owner@studio.com",
       ...(opts.started ? { betaLicenseUntil: Date.now() + 300 * DAY, betaStartedAt: Date.now() } : {}),
@@ -107,7 +107,7 @@ describe("end-of-beta warnings", () => {
   async function withDaysLeft(days: number, sent: number[] = []) {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org_beta", name: "Beta Studio", slug: "beta", plan: "studio",
+        orgId: "org_beta", name: "Beta Studio", slug: "beta", tier: "growth",
         status: "active", betaCohort: true, ownerEmail: "owner@studio.com",
         betaLicenseUntil: Date.now() + days * DAY, betaWarningsSent: sent,
       });
@@ -140,7 +140,7 @@ describe("end-of-beta warnings", () => {
   it("stops warning a studio that already subscribed", async () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org_paid", name: "Paid", slug: "paid", plan: "studio",
+        orgId: "org_paid", name: "Paid", slug: "paid", tier: "growth",
         status: "active", betaCohort: true, ownerEmail: "p@x.com",
         billingStatus: "active", betaLicenseUntil: Date.now() + 3 * DAY,
       });

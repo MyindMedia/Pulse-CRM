@@ -8,7 +8,7 @@ const SLUG = "demo-studio";
 
 function seedOrg(t: ReturnType<typeof convexTest>, orgId = ORG, slug = SLUG) {
   return t.run(async (ctx) => {
-    await ctx.db.insert("orgs", { orgId, name: "Demo Studio", slug, plan: "studio" });
+    await ctx.db.insert("orgs", { orgId, name: "Demo Studio", slug, tier: "growth" });
   });
 }
 
@@ -357,7 +357,7 @@ describe("visitors - e-check-in against booked sessions", () => {
 
   it("never matches another org's session", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org_other", name: "Other", slug: "other", plan: "studio" });
+      await ctx.db.insert("orgs", { orgId: "org_other", name: "Other", slug: "other", tier: "growth" });
     });
     const artistId = await seedArtist({ orgId: "org_other" });
     const sessionId = await seedSession(artistId, { orgId: "org_other" });

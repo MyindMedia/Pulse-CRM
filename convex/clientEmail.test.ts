@@ -13,7 +13,7 @@ describe("client email + google connect", () => {
     delete process.env.GOOGLE_CLIENT_SECRET;
     delete process.env.RESEND_API_KEY;
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Skyline", slug: "skyline", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Skyline", slug: "skyline", tier: "growth", status: "active" });
     });
   });
 

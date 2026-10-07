@@ -9,7 +9,7 @@ describe("Stripe payout reconciliation", () => {
     const arrivalDate = Date.UTC(2026, 8, 14);
     const bankTransactionId = await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", stripeAccountId: "acct_studio",
+        orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", stripeAccountId: "acct_studio",
       });
       const connectionId = await ctx.db.insert("bankConnections", {
         orgId: "pulse-demo", plaidItemId: "item", institutionName: "Bank", status: "active", createdAt: arrivalDate,
@@ -66,7 +66,7 @@ describe("Stripe payout reconciliation", () => {
     const arrivalDate = Date.UTC(2026, 8, 14);
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", stripeAccountId: "acct_studio",
+        orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", stripeAccountId: "acct_studio",
       });
     });
     await t.mutation(internal.stripeLedger._upsertPayout, {
@@ -99,7 +99,7 @@ describe("Stripe payout reconciliation", () => {
     const arrivalDate = Date.UTC(2026, 8, 14);
     const bankTransactionId = await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", stripeAccountId: "acct_studio",
+        orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", stripeAccountId: "acct_studio",
       });
       const connectionId = await ctx.db.insert("bankConnections", {
         orgId: "pulse-demo", plaidItemId: "item-ach", institutionName: "Bank", status: "active", createdAt: arrivalDate,

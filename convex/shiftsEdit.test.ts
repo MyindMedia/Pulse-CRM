@@ -10,7 +10,7 @@ describe("shifts - closures + change notifications", () => {
   beforeEach(async () => {
     t = convexTest(schema);
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", tier: "growth", status: "active" });
     });
   });
 

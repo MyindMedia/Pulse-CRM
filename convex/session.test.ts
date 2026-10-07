@@ -13,7 +13,7 @@ describe("session.current", () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active",
+        orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active",
       });
     });
 
@@ -26,11 +26,11 @@ describe("session.current", () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active",
+        orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active",
       });
       // Another studio on the deployment, which must not leak.
       await ctx.db.insert("orgs", {
-        orgId: "org_other", name: "Someone Else", slug: "else", plan: "studio", status: "active",
+        orgId: "org_other", name: "Someone Else", slug: "else", tier: "growth", status: "active",
       });
     });
 

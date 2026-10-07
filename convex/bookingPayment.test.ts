@@ -12,7 +12,7 @@ describe("public booking - stripe deposit", () => {
     t = convexTest(schema);
     delete process.env.STRIPE_SECRET_KEY;
     sessionId = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active", stripeAccountId: "acct_studio" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active", stripeAccountId: "acct_studio" });
       const artistId = await ctx.db.insert("artists", {
         orgId: "pulse-demo", name: "Nova", type: "artist", email: "nova@x.com",
         genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",

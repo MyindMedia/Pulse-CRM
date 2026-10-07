@@ -9,7 +9,7 @@ describe("sessions.create - client name vs existing artist", () => {
   beforeEach(async () => {
     t = convexTest(schema);
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active" });
     });
   });
 
@@ -65,7 +65,7 @@ describe("sessions.create - a custom category", () => {
     t = convexTest(schema);
     await t.run((ctx) =>
       ctx.db.insert("orgs", {
-        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active",
+        orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active",
       } as never),
     );
   });

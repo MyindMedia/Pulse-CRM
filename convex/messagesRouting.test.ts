@@ -17,7 +17,7 @@ async function twoStudios(opts: { agencyId?: string } = {}) {
   await t.run(async (ctx) => {
     for (const [orgId, name, subject] of [["studio-a", "Skyline", "user_a"], ["studio-b", "Basement", "user_b"]] as const) {
       await ctx.db.insert("orgs", {
-        orgId, name, slug: orgId, plan: "studio", status: "active",
+        orgId, name, slug: orgId, tier: "growth", status: "active",
         ...(opts.agencyId ? { agencyId: opts.agencyId } : {}),
       });
       await ctx.db.insert("members", {
@@ -52,7 +52,7 @@ function messagesFor(t: T, artistId: Id<"artists">) {
 async function agencyLead(t: T) {
   await t.run(async (ctx) => {
     await ctx.db.insert("agencies", {
-      agencyId: "ag_1", name: "Myind", slug: "myind", plan: "agency", status: "active",
+      agencyId: "ag_1", name: "Myind", slug: "myind", plan: "max", status: "active",
       ownerClerkUserId: "u_ag", ownerEmail: "ag@x.com",
     });
     await ctx.db.insert("agencyMembers", {

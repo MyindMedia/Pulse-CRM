@@ -10,15 +10,15 @@ import {
   MIN_TEXT_CONTRAST,
 } from "./lib/themeSpec";
 
-/* White-label theming is what the $499.99 tier is FOR. These tests pin the
+/* White-label theming is what the $699 tier is FOR. These tests pin the
    two things that must never regress: only the top tier can theme, and the
    Powered by Pulse lockup cannot be removed at any tier or price. */
 
 const OWNER = "u_owner";
 
-async function seed(t: ReturnType<typeof convexTest>, orgId: string, tier: "studio" | "pro" | "label") {
+async function seed(t: ReturnType<typeof convexTest>, orgId: string, tier: "core" | "growth" | "max") {
   await t.run(async (ctx) => {
-    await ctx.db.insert("orgs", { orgId, name: "S", slug: orgId, plan: "solo", tier });
+    await ctx.db.insert("orgs", { orgId, name: "S", slug: orgId, tier });
     await ctx.db.insert("members", {
       orgId, name: "Owner", role: "owner", skills: [], clerkUserId: OWNER,
     });
@@ -54,17 +54,17 @@ describe("theme spec helpers", () => {
 describe("theme entitlement", () => {
   it("refuses to save on the entry tier, naming the tier that unlocks it", async () => {
     const t = convexTest(schema);
-    const asOwner = await seed(t, "o_studio", "studio");
+    const asOwner = await seed(t, "o_studio", "core");
     await expect(
       asOwner.mutation(api.theme.save, { primary: "#FF0000" }),
     ).rejects.toMatchObject({
-      data: { code: "UPGRADE_REQUIRED", requiredTier: "label", price: "$499.99" },
+      data: { code: "UPGRADE_REQUIRED", requiredTier: "max", price: "$699" },
     });
   });
 
   it("refuses on the mid tier too", async () => {
     const t = convexTest(schema);
-    const asOwner = await seed(t, "o_pro", "pro");
+    const asOwner = await seed(t, "o_pro", "growth");
     await expect(
       asOwner.mutation(api.theme.save, { primary: "#FF0000" }),
     ).rejects.toMatchObject({ data: { code: "UPGRADE_REQUIRED" } });
@@ -73,7 +73,7 @@ describe("theme entitlement", () => {
 
   it("saves and paints on the top tier", async () => {
     const t = convexTest(schema);
-    const asOwner = await seed(t, "o_label", "label");
+    const asOwner = await seed(t, "o_label", "max");
     expect(await asOwner.query(api.theme.canTheme, {})).toBe(true);
     await asOwner.mutation(api.theme.save, {
       appName: "Vault Studios",
@@ -96,7 +96,7 @@ describe("theme entitlement", () => {
 describe("theme guardrails", () => {
   it("rejects an unreadable text-on-background combination", async () => {
     const t = convexTest(schema);
-    const asOwner = await seed(t, "o_contrast", "label");
+    const asOwner = await seed(t, "o_contrast", "max");
     await expect(
       asOwner.mutation(api.theme.save, { background: "#1A1A1A", text: "#222222" }),
     ).rejects.toMatchObject({ data: { code: "THEME_CONTRAST" } });
@@ -104,7 +104,7 @@ describe("theme guardrails", () => {
 
   it("catches a bad pair even when only one half is being changed", async () => {
     const t = convexTest(schema);
-    const asOwner = await seed(t, "o_contrast2", "label");
+    const asOwner = await seed(t, "o_contrast2", "max");
     await asOwner.mutation(api.theme.save, { background: "#FFFFFF", text: "#000000" });
     // Now push the text toward the background in a second, separate save.
     await expect(
@@ -114,7 +114,7 @@ describe("theme guardrails", () => {
 
   it("rejects a font it cannot serve and a non-hex color", async () => {
     const t = convexTest(schema);
-    const asOwner = await seed(t, "o_font", "label");
+    const asOwner = await seed(t, "o_font", "max");
     await expect(
       asOwner.mutation(api.theme.save, { fontBody: "Comic Sans MS" }),
     ).rejects.toThrow();
@@ -126,7 +126,7 @@ describe("theme guardrails", () => {
 
 describe("powered by Pulse", () => {
   it("is present at every tier, themed or not", async () => {
-    for (const tier of ["studio", "pro", "label"] as const) {
+    for (const tier of ["core", "growth", "max"] as const) {
       const t = convexTest(schema);
       const asOwner = await seed(t, `o_pbp_${tier}`, tier);
       const theme = await asOwner.query(api.theme.get, {});
@@ -136,7 +136,7 @@ describe("powered by Pulse", () => {
 
   it("survives a fully customized theme", async () => {
     const t = convexTest(schema);
-    const asOwner = await seed(t, "o_pbp_full", "label");
+    const asOwner = await seed(t, "o_pbp_full", "max");
     await asOwner.mutation(api.theme.save, {
       appName: "Not Pulse", wordmark: "Not Pulse", primary: "#123456",
     });
@@ -149,13 +149,13 @@ describe("powered by Pulse", () => {
 describe("downgrade behaviour", () => {
   it("reverts to Pulse chrome without destroying the saved theme", async () => {
     const t = convexTest(schema);
-    const asOwner = await seed(t, "o_down", "label");
+    const asOwner = await seed(t, "o_down", "max");
     await asOwner.mutation(api.theme.save, { primary: "#7C3AED", appName: "Vault" });
 
     // Downgrade to the entry tier.
     await t.run(async (ctx) => {
       const org = (await ctx.db.query("orgs").collect()).find((o) => o.orgId === "o_down")!;
-      await ctx.db.patch(org._id, { tier: "studio" });
+      await ctx.db.patch(org._id, { tier: "core" });
     });
 
     const theme = await asOwner.query(api.theme.get, {});
@@ -167,7 +167,7 @@ describe("downgrade behaviour", () => {
     await t.run(async (ctx) => {
       const org = (await ctx.db.query("orgs").collect()).find((o) => o.orgId === "o_down")!;
       expect(org.theme?.primary).toBe("#7C3AED");
-      await ctx.db.patch(org._id, { tier: "label" });
+      await ctx.db.patch(org._id, { tier: "max" });
     });
     const back = await asOwner.query(api.theme.get, {});
     expect(back.active).toBe(true);
@@ -176,7 +176,7 @@ describe("downgrade behaviour", () => {
 
   it("reset clears the theme", async () => {
     const t = convexTest(schema);
-    const asOwner = await seed(t, "o_reset", "label");
+    const asOwner = await seed(t, "o_reset", "max");
     await asOwner.mutation(api.theme.save, { primary: "#7C3AED" });
     await asOwner.mutation(api.theme.reset, {});
     const theme = await asOwner.query(api.theme.get, {});

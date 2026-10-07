@@ -15,12 +15,12 @@ const OWNER = "u_own";
 
 async function studio(
   t: ReturnType<typeof convexTest>,
-  tier: "studio" | "pro" | "label",
+  tier: "core" | "growth" | "max",
   theme?: Record<string, unknown>,
 ) {
   await t.run(async (ctx) => {
     await ctx.db.insert("orgs", {
-      orgId: "org1", name: "Vault Studios", slug: "vault", plan: "solo",
+      orgId: "org1", name: "Vault Studios", slug: "vault",
       tier, status: "active", ...(theme ? { theme } : {}),
     } as never);
     await ctx.db.insert("members", {
@@ -42,7 +42,7 @@ const BRAND = {
 describe("client-facing surfaces", () => {
   it("serves the studio's theme from its booking slug, with no auth", async () => {
     const t = convexTest(schema);
-    await studio(t, "label", BRAND);
+    await studio(t, "max", BRAND);
     // No identity: this is how a client actually arrives.
     const pub = await t.query(api.theme.publicBySlug, { slug: "vault" });
     expect(pub.active).toBe(true);
@@ -54,7 +54,7 @@ describe("client-facing surfaces", () => {
 
   it("serves it from a magic-link grant token too", async () => {
     const t = convexTest(schema);
-    await studio(t, "label", BRAND);
+    await studio(t, "max", BRAND);
     await t.run((ctx) =>
       ctx.db.insert("collaboratorGrants", {
         orgId: "org1", token: "tok_abc", scope: "artist_portal",
@@ -70,7 +70,7 @@ describe("client-facing surfaces", () => {
 
   it("falls back to Pulse chrome below the white-label tier", async () => {
     const t = convexTest(schema);
-    await studio(t, "pro", BRAND);
+    await studio(t, "growth", BRAND);
     const pub = await t.query(api.theme.publicBySlug, { slug: "vault" });
     expect(pub.active).toBe(false);
     // A saved theme must not leak out to clients on a plan that does not
@@ -81,13 +81,13 @@ describe("client-facing surfaces", () => {
 
   it("never drops the Pulse mark, on any surface or tier", async () => {
     const t = convexTest(schema);
-    await studio(t, "label", BRAND);
+    await studio(t, "max", BRAND);
     expect((await t.query(api.theme.publicBySlug, { slug: "vault" })).poweredByPulse).toBe(true);
   });
 
   it("says nothing about a slug that does not exist", async () => {
     const t = convexTest(schema);
-    await studio(t, "label", BRAND);
+    await studio(t, "max", BRAND);
     const pub = await t.query(api.theme.publicBySlug, { slug: "not-a-studio" });
     expect(pub.active).toBe(false);
     expect(pub.appName).toBeNull();
@@ -97,7 +97,7 @@ describe("client-facing surfaces", () => {
 describe("the sign-in door", () => {
   it("carries the login copy so the screen can render it", async () => {
     const t = convexTest(schema);
-    await studio(t, "label", BRAND);
+    await studio(t, "max", BRAND);
     const pub = await t.query(api.theme.publicBySlug, { slug: "vault" });
     // These were stored with zero consumers before: written, never shown.
     expect(pub.loginHeadline).toBe("Welcome back");
@@ -108,7 +108,7 @@ describe("the sign-in door", () => {
 describe("client email", () => {
   it("wears the studio's accent and footer", async () => {
     const t = convexTest(schema);
-    await studio(t, "label", BRAND);
+    await studio(t, "max", BRAND);
     const e = await t.query(internal.theme._emailTheme, { orgId: "org1" });
     expect(e.active).toBe(true);
     expect(e.accent).toBe("#7C3AED");
@@ -119,14 +119,14 @@ describe("client email", () => {
   it("falls back to the primary when no email accent was set", async () => {
     const t = convexTest(schema);
     const { emailHeaderColor: _drop, ...rest } = BRAND;
-    await studio(t, "label", rest);
+    await studio(t, "max", rest);
     const e = await t.query(internal.theme._emailTheme, { orgId: "org1" });
     expect(e.accent).toBe("#7C3AED");
   });
 
   it("stays Pulse gold for a studio below the white-label tier", async () => {
     const t = convexTest(schema);
-    await studio(t, "pro", BRAND);
+    await studio(t, "growth", BRAND);
     const e = await t.query(internal.theme._emailTheme, { orgId: "org1" });
     expect(e.active).toBe(false);
     expect(e.accent).toBe(PULSE_DEFAULT_COLORS.primary);

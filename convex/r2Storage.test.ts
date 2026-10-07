@@ -52,7 +52,7 @@ async function setup() {
   r2Test.register(t);
   await t.run(async (ctx) => {
     for (const [orgId, slug] of [[A, "demo"], [B, "other"]] as const) {
-      await ctx.db.insert("orgs", { orgId, name: slug, slug, plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId, name: slug, slug, tier: "growth", status: "active" });
     }
     for (const [name, role, subject, orgId] of [["Olu", "owner", "user_owner", A], ["Bea", "owner", "user_b", B]] as const) {
       await ctx.db.insert("members", { orgId, name, role, email: `${subject}@demo.com`, skills: [], clerkUserId: subject });

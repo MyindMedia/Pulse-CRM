@@ -77,7 +77,7 @@ describe("scanOrg (gather -> candidates -> upsert + dedupe)", () => {
 
   async function seedQuietArtistAndOverdueInvoice() {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: ORG, name: "Brain Co", slug: "brain", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: ORG, name: "Brain Co", slug: "brain", tier: "growth", status: "active" });
       const artistId = await ctx.db.insert("artists", {
         orgId: ORG, name: "Quiet One", type: "artist", genres: [], tags: [],
         status: "active", lifetimeValueCents: 0, sessionCount: 1, reliability: "solid",
@@ -122,7 +122,7 @@ describe("scanOrg - named agents end-to-end", () => {
 
   it("Booking Conversion: a never-booked lead yields a convert_lead row", async () => {
     const leadId = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: AGENT_ORG, name: "Agents Co", slug: "agents", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: AGENT_ORG, name: "Agents Co", slug: "agents", tier: "growth", status: "active" });
       return ctx.db.insert("artists", {
         orgId: AGENT_ORG, name: "Fresh Lead", type: "artist", genres: ["pop"], tags: [],
         status: "lead", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
@@ -141,7 +141,7 @@ describe("scanOrg - named agents end-to-end", () => {
 
   it("Post-Session Recap: a just-completed session yields a post_session_recap row", async () => {
     const sessionId = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: AGENT_ORG, name: "Agents Co", slug: "agents", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: AGENT_ORG, name: "Agents Co", slug: "agents", tier: "growth", status: "active" });
       const artistId = await ctx.db.insert("artists", {
         orgId: AGENT_ORG, name: "Recap Artist", type: "artist", genres: [], tags: [],
         status: "active", lifetimeValueCents: 0, sessionCount: 1, reliability: "solid", email: "r@x.com",
@@ -164,7 +164,7 @@ describe("scanOrg - named agents end-to-end", () => {
 
   it("Session Prep + No-show: an upcoming flagged-artist session yields both rows", async () => {
     const sessionId = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: AGENT_ORG, name: "Agents Co", slug: "agents", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: AGENT_ORG, name: "Agents Co", slug: "agents", tier: "growth", status: "active" });
       const artistId = await ctx.db.insert("artists", {
         orgId: AGENT_ORG, name: "Flaky", type: "artist", genres: [], tags: [],
         status: "active", lifetimeValueCents: 0, sessionCount: 1, reliability: "flagged", email: "f@x.com",
@@ -185,7 +185,7 @@ describe("scanOrg - named agents end-to-end", () => {
 
   it("Revision Triage: a deliverable with 3+ open notes yields a revision_triage row", async () => {
     const songId = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: AGENT_ORG, name: "Agents Co", slug: "agents", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: AGENT_ORG, name: "Agents Co", slug: "agents", tier: "growth", status: "active" });
       const artistId = await ctx.db.insert("artists", {
         orgId: AGENT_ORG, name: "Writer", type: "artist", genres: [], tags: [],
         status: "active", lifetimeValueCents: 0, sessionCount: 1, reliability: "solid",

@@ -15,7 +15,7 @@ describe("outreach live sending", () => {
 
   async function seed() {
     await t.run(async (ctx) => {
-      await ctx.db.insert("agencies", { agencyId: AG, name: AG, slug: AG, plan: "agency", status: "active", ownerClerkUserId: "ua", ownerEmail: "ua@x" });
+      await ctx.db.insert("agencies", { agencyId: AG, name: AG, slug: AG, plan: "max", status: "active", ownerClerkUserId: "ua", ownerEmail: "ua@x" });
       await ctx.db.insert("agencyMembers", { agencyId: AG, clerkUserId: "ua", email: "ua@x", name: "ua", role: "owner", status: "active", invitedAt: 0 });
       await ctx.db.insert("agencyMembers", { agencyId: AG, clerkUserId: "uadmin", email: "uadmin@x", name: "uadmin", role: "admin", status: "active", invitedAt: 0 });
       await ctx.db.insert("agencyMembers", { agencyId: AG, clerkUserId: "ustaff", email: "ustaff@x", name: "ustaff", role: "staff", status: "active", invitedAt: 0 });
@@ -154,7 +154,7 @@ describe("outreach live sending", () => {
   it("another agency cannot send this agency's draft", async () => {
     await seed(); await gates(); await goLive();
     await t.run(async (ctx) => {
-      await ctx.db.insert("agencies", { agencyId: "org_b", name: "b", slug: "b", plan: "agency", status: "active", ownerClerkUserId: "ub", ownerEmail: "ub@x" });
+      await ctx.db.insert("agencies", { agencyId: "org_b", name: "b", slug: "b", plan: "max", status: "active", ownerClerkUserId: "ub", ownerEmail: "ub@x" });
       await ctx.db.insert("agencyMembers", { agencyId: "org_b", clerkUserId: "ub", email: "ub@x", name: "ub", role: "owner", status: "active", invitedAt: 0 });
     });
     const { id } = await approvedDraft();

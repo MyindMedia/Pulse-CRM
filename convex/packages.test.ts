@@ -12,7 +12,7 @@ import type { Id } from "./_generated/dataModel";
 /** Seed an org + owner and return an identity-bound client for it. */
 async function ownerOf(t: ReturnType<typeof convexTest>, orgId: string, user: string) {
   await t.run(async (ctx) => {
-    await ctx.db.insert("orgs", { orgId, name: orgId, slug: orgId, plan: "studio", status: "active", stripeAccountId: `acct_${orgId}` });
+    await ctx.db.insert("orgs", { orgId, name: orgId, slug: orgId, tier: "growth", status: "active", stripeAccountId: `acct_${orgId}` });
     await ctx.db.insert("members", { orgId, name: "Owner", role: "owner", clerkUserId: user, skills: [] });
   });
   return t.withIdentity({ subject: user, name: "Owner", orgId });

@@ -28,7 +28,7 @@ type Result = {
 async function studio(t: ReturnType<typeof convexTest>, orgId = ORG, name = "Slang City Studios") {
   await t.run(async (ctx) => {
     await ctx.db.insert("orgs", {
-      orgId, name, slug: orgId, plan: "studio", tier: "label",
+      orgId, name, slug: orgId, tier: "max",
       status: "active", agencyId: "ag1", ownerEmail: "o@x",
     } as never);
   });

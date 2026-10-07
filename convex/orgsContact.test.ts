@@ -23,7 +23,7 @@ describe("orgs.update - studio callback phone", () => {
         orgId: "org_s1",
         name: "Aurum Sound Studio",
         slug: "aurum",
-        plan: "studio",
+        tier: "growth",
         status: "active",
         contact: {
           legalName: "Aurum LLC",

@@ -10,7 +10,7 @@ describe("sms", () => {
   beforeEach(async () => {
     t = convexTest(schema);
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Skyline", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Skyline", slug: "demo", tier: "growth", status: "active" });
     });
   });
 

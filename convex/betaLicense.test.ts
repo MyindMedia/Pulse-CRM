@@ -17,8 +17,8 @@ async function existingStudio(t: ReturnType<typeof convexTest>, over: Record<str
       orgId: ORG,
       name: "Kamiza Private Recording House",
       slug: "kamiza-private-recording-house",
-      plan: "studio",
-      tier: "studio",
+      
+      tier: "core",
       status: "active",
       billingStatus: "comped",
       ownerEmail: "dnment859@gmail.com",
@@ -33,12 +33,12 @@ describe("granting the licence", () => {
   it("badges the studio but does NOT start the year", async () => {
     const t = convexTest(schema);
     await existingStudio(t);
-    const res = await t.mutation(internal.betaLicense._grant, { orgId: ORG, tier: "pro" });
+    const res = await t.mutation(internal.betaLicense._grant, { orgId: ORG, tier: "growth" });
     expect(res.changed).toBe(true);
 
     const org = (await t.run((ctx) => ctx.db.query("orgs").collect()))[0];
     expect(org.betaCohort).toBe(true);
-    expect(org.tier).toBe("pro");
+    expect(org.tier).toBe("growth");
     expect(org.billingStatus).toBe("trialing");
 
     /* The clock starts on their first sign-in after signing, not here.
@@ -175,10 +175,10 @@ describe("granting the licence", () => {
   });
 });
 
-/* Every beta studio runs on Label and bills against the Beta plan. Pro was
-   the old default, and a studio with no plan row at all reads as "no_plan" at
+/* Every beta studio runs on Max and bills against the Beta plan. A lower
+   tier was the old default, and a studio with no plan row at all reads as "no_plan" at
    the billing gate: no countdown, no end-of-beta warning, nothing to convert. */
-describe("the cohort is Label on the Beta plan", () => {
+describe("the cohort is Max on the Beta plan", () => {
   async function betaPlan(t: ReturnType<typeof convexTest>) {
     return await t.run((ctx) =>
       ctx.db.insert("agencyPlans", {
@@ -197,7 +197,7 @@ describe("the cohort is Label on the Beta plan", () => {
     );
   }
 
-  it("grants Label and the Beta plan without being asked", async () => {
+  it("grants Max and the Beta plan without being asked", async () => {
     const t = convexTest(schema);
     const planId = await betaPlan(t);
     await existingStudio(t);
@@ -205,7 +205,7 @@ describe("the cohort is Label on the Beta plan", () => {
     await t.mutation(internal.betaLicense._grant, { orgId: ORG });
 
     const org = (await t.run((ctx) => ctx.db.query("orgs").collect()))[0];
-    expect(org.tier).toBe("label");
+    expect(org.tier).toBe("max");
     expect(org.agencyPlanId).toBe(planId);
     expect(org.billingStatus).toBe("trialing");
     // Still no clock: the year begins at their first sign-in after signing.
@@ -216,9 +216,9 @@ describe("the cohort is Label on the Beta plan", () => {
     const t = convexTest(schema);
     await betaPlan(t);
     await existingStudio(t);
-    await t.mutation(internal.betaLicense._grant, { orgId: ORG, tier: "pro" });
+    await t.mutation(internal.betaLicense._grant, { orgId: ORG, tier: "growth" });
     const org = (await t.run((ctx) => ctx.db.query("orgs").collect()))[0];
-    expect(org.tier).toBe("pro");
+    expect(org.tier).toBe("growth");
   });
 
   it("normalizes studios granted before the rule, dates untouched", async () => {
@@ -226,7 +226,7 @@ describe("the cohort is Label on the Beta plan", () => {
     const planId = await betaPlan(t);
     const started = 1_700_000_000_000;
     await existingStudio(t, {
-      tier: "pro",
+      tier: "growth",
       betaCohort: true,
       betaStartedAt: started,
       betaLicenseUntil: started + 365 * 86_400_000,
@@ -238,11 +238,11 @@ describe("the cohort is Label on the Beta plan", () => {
     expect(dry.changes).toHaveLength(1);
 
     let org = (await t.run((ctx) => ctx.db.query("orgs").collect()))[0];
-    expect(org.tier).toBe("pro"); // a dry run changes nothing
+    expect(org.tier).toBe("growth"); // a dry run changes nothing
 
     await t.mutation(internal.betaLicense._normalizeCohort, { apply: true });
     org = (await t.run((ctx) => ctx.db.query("orgs").collect()))[0];
-    expect(org.tier).toBe("label");
+    expect(org.tier).toBe("max");
     expect(org.agencyPlanId).toBe(planId);
     expect(org.betaStartedAt).toBe(started);          // the year it already had
     expect(org.betaLicenseUntil).toBe(started + 365 * 86_400_000);
@@ -256,13 +256,13 @@ describe("the cohort is Label on the Beta plan", () => {
     const t = convexTest(schema);
     await betaPlan(t);
     await existingStudio(t, {
-      tier: "studio",
+      tier: "core",
       betaCohort: true,
       graduatedAt: Date.now(),
       billingStatus: "active",
     });
     await t.mutation(internal.betaLicense._normalizeCohort, { apply: true });
     const org = (await t.run((ctx) => ctx.db.query("orgs").collect()))[0];
-    expect(org.tier).toBe("studio");
+    expect(org.tier).toBe("core");
   });
 });

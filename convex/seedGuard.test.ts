@@ -18,7 +18,7 @@ const initT = () => convexTest(schema);
 async function studioOwner(t: ReturnType<typeof initT>, orgId: string, user: string) {
   await t.run(async (ctx) => {
     await ctx.db.insert("orgs", {
-      orgId, name: "Real Studio", slug: orgId, plan: "studio", status: "active",
+      orgId, name: "Real Studio", slug: orgId, tier: "growth", status: "active",
       agencyId: "org_ag",
     });
     await ctx.db.insert("members", {
@@ -35,7 +35,7 @@ async function agencyOwner(
 ) {
   await t.run(async (ctx) => {
     await ctx.db.insert("agencies", {
-      agencyId, name: agencyId, slug: agencyId, plan: "agency", status: "active",
+      agencyId, name: agencyId, slug: agencyId, plan: "max", status: "active",
       ownerClerkUserId: user, ownerEmail: "o@x",
     });
     await ctx.db.insert("agencyMembers", {

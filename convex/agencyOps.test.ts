@@ -12,15 +12,15 @@ describe("agencyOps.portfolio", () => {
   async function seed() {
     await t.run(async (ctx) => {
       await ctx.db.insert("agencies", {
-        agencyId: AGENCY, name: "AG", slug: "ag", plan: "agency", status: "active",
+        agencyId: AGENCY, name: "AG", slug: "ag", plan: "max", status: "active",
         ownerClerkUserId: "u_owner", ownerEmail: "o@x.com",
       });
       await ctx.db.insert("agencyMembers", {
         agencyId: AGENCY, clerkUserId: "u_owner", email: "o@x.com",
         name: "Owner", role: "owner", status: "active", invitedAt: 0,
       });
-      await ctx.db.insert("orgs", { orgId: "sub_a", name: "Studio A", slug: "a", plan: "studio", status: "active", agencyId: AGENCY });
-      await ctx.db.insert("orgs", { orgId: "sub_b", name: "Studio B", slug: "b", plan: "studio", status: "active", agencyId: AGENCY });
+      await ctx.db.insert("orgs", { orgId: "sub_a", name: "Studio A", slug: "a", tier: "growth", status: "active", agencyId: AGENCY });
+      await ctx.db.insert("orgs", { orgId: "sub_b", name: "Studio B", slug: "b", tier: "growth", status: "active", agencyId: AGENCY });
       const mk = (orgId: string, priority: "high" | "low") => ({
         orgId, type: "payment_reminder" as const, priority, title: "x", rationale: "y",
         payload: { kind: "note_only" as const }, status: "proposed" as const,

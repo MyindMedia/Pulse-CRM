@@ -39,10 +39,10 @@ describe("R2 backfill", () => {
     const dangling = await legacy("gone");
     await t.run(async (ctx) => {
       await ctx.storage.delete(dangling);
-      await ctx.db.insert("orgs", { orgId: "o1", name: "O", slug: "o", plan: "studio", status: "active", logoId: a, theme: { loginBackgroundId: b } } as never);
+      await ctx.db.insert("orgs", { orgId: "o1", name: "O", slug: "o", tier: "growth", status: "active", logoId: a, theme: { loginBackgroundId: b } } as never);
       await ctx.db.insert("rooms", { orgId: "o1", name: "R", status: "available", heroImageId: r2ref });
       await ctx.db.insert("rooms", { orgId: "o1", name: "R2", status: "available", heroImageId: dangling });
-      await ctx.db.insert("agencies", { agencyId: "ag1", name: "Ag", slug: "ag", plan: "agency", status: "active", ownerClerkUserId: "u", ownerEmail: "u@x", logoId: c } as never);
+      await ctx.db.insert("agencies", { agencyId: "ag1", name: "Ag", slug: "ag", plan: "max", status: "active", ownerClerkUserId: "u", ownerEmail: "u@x", logoId: c } as never);
       await ctx.db.insert("socialPosts", { orgId: "o1", media: [{ type: "image", storageId: d }, { type: "image", brandCard: "promo" }] } as never).catch(() => undefined);
     });
     const found = await walk();
@@ -75,7 +75,7 @@ describe("R2 backfill", () => {
   it("repoint handles the nested theme field and the social media array", async () => {
     const bg = await legacy("bg"), vid = await legacy("vid");
     const copy = await t.run(async (ctx) => await ctx.db.insert("mediaFiles", { orgId: "o1", bucket: "media", key: "test/o1/photo/c-0123456789ab.png", purpose: "photo", fileName: "c.png", mimeType: "image/png", size: 1, status: "ready", uploadedBy: "b", createdAt: 1 }));
-    const orgId = await t.run(async (ctx) => await ctx.db.insert("orgs", { orgId: "o1", name: "O", slug: "o", plan: "studio", status: "active", theme: { loginBackgroundId: bg, appName: "X" } } as never));
+    const orgId = await t.run(async (ctx) => await ctx.db.insert("orgs", { orgId: "o1", name: "O", slug: "o", tier: "growth", status: "active", theme: { loginBackgroundId: bg, appName: "X" } } as never));
     expect(await t.mutation(internal.mediaBackfill.repoint, { table: "orgs", id: orgId, path: "theme.loginBackgroundId", oldRef: bg, mediaId: copy })).toBe("repointed");
     const org = await t.run(async (ctx) => await ctx.db.get(orgId));
     expect(org!.theme).toMatchObject({ loginBackgroundId: copy, appName: "X" }); // siblings survive

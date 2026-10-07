@@ -326,7 +326,7 @@ describe("internal bookings get payment emails but never lifecycle automation", 
   it("sends the deposit pay link once to an internal booking", async () => {
     const t = convexTest(schema);
     await t.run((ctx) =>
-      ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", plan: "studio", status: "active" } as never),
+      ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", tier: "growth", status: "active" } as never),
     );
     const artistId = await seedArtist(t, ORG, "nova@x.com");
     const sessionId = await seedSession(t, artistId, {
@@ -353,7 +353,7 @@ describe("internal bookings get payment emails but never lifecycle automation", 
   it("never releases or forfeits an internal session, even past its window", async () => {
     const t = convexTest(schema);
     await t.run((ctx) =>
-      ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", plan: "studio", status: "active" } as never),
+      ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", tier: "growth", status: "active" } as never),
     );
     const artistId = await seedArtist(t, ORG, "nova@x.com");
     // Confirmed internal session inside the 2h forfeit window, unpaid.

@@ -18,7 +18,7 @@ describe("invoice payment methods", () => {
     t = convexTest(schema);
     invoiceId = await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: ORG, name: "Skyline", slug: "demo", plan: "studio", status: "active", stripeAccountId: "acct_studio",
+        orgId: ORG, name: "Skyline", slug: "demo", tier: "growth", status: "active", stripeAccountId: "acct_studio",
       });
       const artistId = await ctx.db.insert("artists", {
         orgId: ORG, name: "Nova", type: "artist", genres: [], tags: [],

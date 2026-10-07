@@ -7,7 +7,7 @@ describe("agency - plan-cap enforcement", () => {
   let t: ReturnType<typeof convexTest>;
   beforeEach(() => { t = convexTest(schema); });
 
-  async function seedAgency(plan: "pro" | "agency") {
+  async function seedAgency(plan: "growth" | "max") {
     await t.run(async (ctx) => {
       await ctx.db.insert("agencies", {
         agencyId: "org_ag", name: "AG", slug: "ag",
@@ -25,25 +25,25 @@ describe("agency - plan-cap enforcement", () => {
     } as { subject: string; name: string; orgId: string; orgType: string });
   }
 
-  it("pro tier blocks the 2nd sub-account (cap = 1)", async () => {
-    const owner = await seedAgency("pro");
+  it("growth tier blocks the 2nd sub-account (cap = 1)", async () => {
+    const owner = await seedAgency("growth");
     await owner.action(api.agency.createSubaccount, {
-      name: "Studio 1", slug: "s1", plan: "studio",
+      name: "Studio 1", slug: "s1", plan: "core",
       ownerName: "X", ownerEmail: "x@x",
     });
     await expect(
       owner.action(api.agency.createSubaccount, {
-        name: "Studio 2", slug: "s2", plan: "studio",
+        name: "Studio 2", slug: "s2", plan: "core",
         ownerName: "Y", ownerEmail: "y@x",
       }),
     ).rejects.toThrow(/Plan cap reached/);
   });
 
-  it("agency tier allows many sub-accounts", async () => {
-    const owner = await seedAgency("agency");
+  it("max tier allows many sub-accounts", async () => {
+    const owner = await seedAgency("max");
     for (let i = 0; i < 5; i++) {
       await owner.action(api.agency.createSubaccount, {
-        name: `S${i}`, slug: `s${i}`, plan: "studio",
+        name: `S${i}`, slug: `s${i}`, plan: "core",
         ownerName: "X", ownerEmail: `x${i}@x`,
       });
     }
@@ -52,9 +52,9 @@ describe("agency - plan-cap enforcement", () => {
   });
 
   it("setStatus is gated by agency.subaccount.pause", async () => {
-    const owner = await seedAgency("agency");
+    const owner = await seedAgency("max");
     await owner.action(api.agency.createSubaccount, {
-      name: "S", slug: "sx", plan: "studio", ownerName: "X", ownerEmail: "x@x",
+      name: "S", slug: "sx", plan: "core", ownerName: "X", ownerEmail: "x@x",
     });
     const sub = (await owner.query(api.agency.subaccounts, {}))[0];
     // Owner can pause
@@ -80,8 +80,8 @@ describe("agency - enterAs (view as client) ownership guard", () => {
         agencyId: "org_mine", clerkUserId: "user_ag", email: "a@x.com",
         name: "Owner", role: "owner", status: "active", invitedAt: 0,
       });
-      await ctx.db.insert("orgs", { orgId: "sub_mine", name: "Mine", slug: "mine", plan: "studio", status: "active", agencyId: "org_mine" });
-      await ctx.db.insert("orgs", { orgId: "sub_other", name: "Other", slug: "other", plan: "studio", status: "active", agencyId: "org_other" });
+      await ctx.db.insert("orgs", { orgId: "sub_mine", name: "Mine", slug: "mine", tier: "growth", status: "active", agencyId: "org_mine" });
+      await ctx.db.insert("orgs", { orgId: "sub_other", name: "Other", slug: "other", tier: "growth", status: "active", agencyId: "org_other" });
     });
     const asOwner = t.withIdentity({ subject: "user_ag", name: "Owner" });
     await asOwner.mutation(api.agency.enterAs, { orgId: "sub_mine" }); // ok
@@ -97,8 +97,8 @@ describe("agency - enterAs (view as client) ownership guard", () => {
           name: user, role: "owner", status: "active", invitedAt: 0,
         });
       }
-      await ctx.db.insert("orgs", { orgId: "sub_one", name: "One", slug: "one", plan: "studio", status: "active", agencyId: "org_mine" });
-      await ctx.db.insert("orgs", { orgId: "sub_two", name: "Two", slug: "two", plan: "studio", status: "active", agencyId: "org_mine" });
+      await ctx.db.insert("orgs", { orgId: "sub_one", name: "One", slug: "one", tier: "growth", status: "active", agencyId: "org_mine" });
+      await ctx.db.insert("orgs", { orgId: "sub_two", name: "Two", slug: "two", tier: "growth", status: "active", agencyId: "org_mine" });
       await ctx.db.insert("appState", { key: "demo", activeOrgId: "sub_two" });
     });
     const one = t.withIdentity({ subject: "user_one", name: "One" });
@@ -124,8 +124,8 @@ describe("agency - enterAs (view as client) ownership guard", () => {
         agencyId: "org_mine", clerkUserId: "user_staff", email: "staff@x.com",
         name: "Staff", role: "staff", status: "active", invitedAt: 0,
       });
-      await ctx.db.insert("orgs", { orgId: "sub_allowed", name: "Allowed", slug: "allowed", plan: "studio", status: "active", agencyId: "org_mine" });
-      await ctx.db.insert("orgs", { orgId: "sub_removed", name: "Removed", slug: "removed", plan: "studio", status: "active", agencyId: "org_mine" });
+      await ctx.db.insert("orgs", { orgId: "sub_allowed", name: "Allowed", slug: "allowed", tier: "growth", status: "active", agencyId: "org_mine" });
+      await ctx.db.insert("orgs", { orgId: "sub_removed", name: "Removed", slug: "removed", tier: "growth", status: "active", agencyId: "org_mine" });
       await ctx.db.insert("agencyMemberScopes", { agencyId: "org_mine", agencyMemberId: memberId, subAccountOrgId: "sub_allowed" });
       await ctx.db.insert("agencyWorkspaceSelections", {
         agencyId: "org_mine", clerkUserId: "user_staff", orgId: "sub_removed", updatedAt: 1,
@@ -145,11 +145,11 @@ describe("agency - console scoping (multi-tenant isolation)", () => {
 
   it("subaccounts lists only the viewer's agency, hiding the demo seed + other agencies", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("agencies", { agencyId: "org_ag", name: "Mine", slug: "mine", plan: "agency", status: "active", ownerClerkUserId: "u_owner", ownerEmail: "o@x" });
+      await ctx.db.insert("agencies", { agencyId: "org_ag", name: "Mine", slug: "mine", plan: "max", status: "active", ownerClerkUserId: "u_owner", ownerEmail: "o@x" });
       await ctx.db.insert("agencyMembers", { agencyId: "org_ag", clerkUserId: "u_owner", email: "o@x", name: "Owner", role: "owner", status: "active", invitedAt: 0 });
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Slang City (Demo)", slug: "demo", plan: "studio", status: "active" }); // seed, no agency
-      await ctx.db.insert("orgs", { orgId: "sub_mine", name: "Mine Studio", slug: "ms", plan: "studio", status: "active", agencyId: "org_ag" });
-      await ctx.db.insert("orgs", { orgId: "sub_other", name: "Other Studio", slug: "os", plan: "studio", status: "active", agencyId: "org_other" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Slang City (Demo)", slug: "demo", tier: "growth", status: "active" }); // seed, no agency
+      await ctx.db.insert("orgs", { orgId: "sub_mine", name: "Mine Studio", slug: "ms", tier: "growth", status: "active", agencyId: "org_ag" });
+      await ctx.db.insert("orgs", { orgId: "sub_other", name: "Other Studio", slug: "os", tier: "growth", status: "active", agencyId: "org_other" });
     });
     const owner = t.withIdentity({ subject: "u_owner", name: "Owner", orgId: "org_ag", orgType: "agency" } as { subject: string; name: string; orgId: string; orgType: string });
     const list = await owner.query(api.agency.subaccounts, {});

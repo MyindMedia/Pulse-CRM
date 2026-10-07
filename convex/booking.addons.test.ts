@@ -18,7 +18,7 @@ describe("booking add-ons: engineer + conflict-aware gear", () => {
     t = convexTest(schema);
     start = Date.now() + 7 * DAY; // a future slot
     const ids = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org1", name: "Studio", slug: "studio", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org1", name: "Studio", slug: "studio", tier: "growth", status: "active" });
       const mkRoom = (name: string) =>
         ctx.db.insert("rooms", {
           orgId: "org1", name, status: "available", bookable: true,

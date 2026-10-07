@@ -9,7 +9,7 @@ describe("invoice pay link + settle", () => {
   beforeEach(async () => {
     t = convexTest(schema);
     invoiceId = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Skyline", slug: "demo", plan: "studio", status: "active", stripeAccountId: "acct_studio" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Skyline", slug: "demo", tier: "growth", status: "active", stripeAccountId: "acct_studio" });
       const artistId = await ctx.db.insert("artists", { orgId: "pulse-demo", name: "Nova", type: "artist", genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
       return ctx.db.insert("invoices", { orgId: "pulse-demo", number: "PLS-100390", artistId, status: "sent", amountCents: 50000, dueDate: Date.now() - 86400000, lineItems: [{ label: "Podcast editing", amountCents: 50000 }] });
     });

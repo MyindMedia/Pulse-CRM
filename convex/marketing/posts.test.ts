@@ -20,8 +20,8 @@ describe("marketing posts", () => {
     vi.useFakeTimers();
     t = convexTest(schema);
     const ids = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org1", name: "S", slug: "studio", plan: "studio", tier: "studio", status: "active" });
-      await ctx.db.insert("orgs", { orgId: "org2", name: "T", slug: "other", plan: "studio", tier: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org1", name: "S", slug: "studio", tier: "core", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org2", name: "T", slug: "other", tier: "core", status: "active" });
       await ctx.db.insert("members", { orgId: "org1", name: "Owner", role: "owner", clerkUserId: "u1", skills: [] });
       await ctx.db.insert("members", { orgId: "org1", name: "Eng", role: "engineer", clerkUserId: "u3", skills: [] });
       await ctx.db.insert("members", { orgId: "org1", name: "Intern", role: "intern", clerkUserId: "u4", skills: [] });

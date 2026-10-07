@@ -14,7 +14,7 @@ async function memberOf(
   await t.run(async (ctx) => {
     const orgs = await ctx.db.query("orgs").collect();
     if (!orgs.some((o) => o.orgId === orgId)) {
-      await ctx.db.insert("orgs", { orgId, name: orgId, slug: orgId, plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId, name: orgId, slug: orgId, tier: "growth", status: "active" });
     }
     await ctx.db.insert("members", { orgId, name: role, role, clerkUserId: user, skills: [] });
   });

@@ -13,7 +13,7 @@ describe("onboarding wizard", () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
         orgId: "pulse-demo", name: "New studio", slug: "new-studio",
-        plan: "studio", status: "active", createdByAgency: true,
+        tier: "growth", status: "active", createdByAgency: true,
       });
     });
   });
@@ -39,7 +39,7 @@ describe("onboarding wizard", () => {
 
   it("saveBasics rejects a slug already used by another studio", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "other", name: "Other", slug: "taken", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "other", name: "Other", slug: "taken", tier: "growth", status: "active" });
     });
     await expect(
       t.mutation(api.onboarding.saveBasics, { name: "Mine", slug: "taken" }),
@@ -99,7 +99,7 @@ describe("agency.inviteStudio (email-first portal)", () => {
   it("generates a unique slug when the name collides", async () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "x", name: "Skyline", slug: "skyline", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "x", name: "Skyline", slug: "skyline", tier: "growth", status: "active" });
     });
     const res = await t.action(api.agency.inviteStudio, { email: "o@x.com", studioName: "Skyline" });
     expect(res.slug).not.toBe("skyline");

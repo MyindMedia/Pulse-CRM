@@ -15,7 +15,7 @@ describe("outreach - tenant scope and gates", () => {
   async function seedAgency(agencyId: string, owner: string, extra?: { staff?: string }) {
     await t.run(async (ctx) => {
       await ctx.db.insert("agencies", {
-        agencyId, name: agencyId, slug: agencyId, plan: "agency", status: "active",
+        agencyId, name: agencyId, slug: agencyId, plan: "max", status: "active",
         ownerClerkUserId: owner, ownerEmail: `${owner}@x`,
       });
       await ctx.db.insert("agencyMembers", {

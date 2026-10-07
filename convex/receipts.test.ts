@@ -16,7 +16,7 @@ const day = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
 async function studio() {
   const t = convexTest(schema);
   await t.run(async (ctx) => {
-    await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+    await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active" });
     for (const [name, role, subject] of [
       ["Olu", "owner", "user_owner"], ["Mo", "manager", "user_manager"], ["Ellis", "engineer", "user_engineer"],
     ] as const) {
@@ -299,7 +299,7 @@ describe("tenant boundaries", () => {
     const s = await studio();
     const receiptId = await readyReceipt(s, "Shop", 20, "2026-09-01");
     const foreign = await s.t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "other-studio", name: "Other", slug: "other", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "other-studio", name: "Other", slug: "other", tier: "growth", status: "active" });
       const storageId = await ctx.storage.store(new Blob([new Uint8Array([0xff, 0xd8, 0xff, 0xe0])], { type: "image/jpeg" }));
       return await ctx.db.insert("receipts", {
         orgId: "other-studio", storageId, fileName: "theirs.jpg", fileType: "image/jpeg", sizeBytes: 4,

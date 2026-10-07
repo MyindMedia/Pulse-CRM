@@ -10,7 +10,7 @@ describe("normalizing stored addresses", () => {
   async function legacyRows(t: ReturnType<typeof convexTest>) {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "o1", name: "Playback", slug: "playback", plan: "studio", status: "active",
+        orgId: "o1", name: "Playback", slug: "playback", tier: "growth", status: "active",
         ownerEmail: "Info@Playbackrecording.com",
       } as never);
       await ctx.db.insert("members", {

@@ -11,7 +11,7 @@ describe("timeclock: who hears a punch", () => {
   beforeEach(async () => {
     t = convexTest(schema);
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: ORG, name: "Studio", slug: "studio", plan: "studio", status: "active", timezone: "America/Los_Angeles" });
+      await ctx.db.insert("orgs", { orgId: ORG, name: "Studio", slug: "studio", tier: "growth", status: "active", timezone: "America/Los_Angeles" });
       await ctx.db.insert("members", { orgId: ORG, name: "Owen Owner", role: "owner", skills: [], clerkUserId: "u_owner" });
       await ctx.db.insert("members", { orgId: ORG, name: "Mia Manager", role: "manager", skills: [], clerkUserId: "u_mgr" });
       await ctx.db.insert("members", { orgId: ORG, name: "Sienna Cole", role: "engineer", skills: [], clerkUserId: "u_eng" });
