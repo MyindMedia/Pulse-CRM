@@ -1,19 +1,24 @@
-# `ci/*.yml` — install these as GitHub Actions (one command)
+# `ci/*.yml` — install this as a GitHub Action (one command)
 
 ```bash
-mkdir -p .github/workflows && git mv ci/uptime.yml ci/funnel-liveness.yml .github/workflows/
-git commit -m "Arm the monitors" && git push
+mkdir -p .github/workflows && git mv ci/funnel-liveness.yml .github/workflows/
+git commit -m "Arm the funnel-liveness monitor" && git push
 ```
 
-They must live on the **default branch** (`main`) for `schedule:` to fire. GitHub
+It must live on the **default branch** (`main`) for `schedule:` to fire. GitHub
 ignores `cron` triggers on any other branch.
 
-Two monitors, and the split matters: `uptime.yml` answers *does the site
+Two monitors, and the split matters: route uptime answers *does the site
 answer*, `funnel-liveness.yml` answers *does the booking-funnel counter still
 write*. The second is not implied by the first — a page can serve a perfect 200
 and record nothing, which is exactly the failure that would go unseen.
 
-## Why they are parked here instead of already installed
+**Route uptime is no longer here.** It is armed and running as a Cloudflare
+Worker on a cron trigger: `workers/uptime-watch/` (see its README). `ci/uptime.yml`
+was deleted when that went live — it had sat parked and unarmed, which is a
+monitor that reads as done and watches nothing.
+
+## Why this one is parked here instead of already installed
 
 The token this repo's automation pushes with holds `repo` scope only. GitHub
 refuses any push that creates or edits a file under `.github/workflows/` without
@@ -21,34 +26,13 @@ refuses any push that creates or edits a file under `.github/workflows/` without
 
 ```
 ! [remote rejected] (refusing to allow a Personal Access Token to create or
-  update workflow `.github/workflows/uptime.yml` without `workflow` scope)
+  update workflow `.github/workflows/funnel-liveness.yml` without `workflow` scope)
 ```
 
 So either run the two commands above yourself, or add `workflow` scope to the
-PAT and the push goes through unattended next time.
-
-## `uptime.yml` — what it watches, and why it is not on Netlify
-
-`scripts/uptime-check.sh` loads five live routes and asserts **HTTP 200**.
-
-On 2026-10-05T00:59:23Z the Netlify account tripped its credit allowance and
-every host it serves answered `503 {"error":"usage_exceeded"}` at the edge — while
-the Netlify API still reported `state: current` and `state: ready`. Pulse, the
-app and the marketing site were all dark and every dashboard read green.
-
-Two design consequences, both deliberate:
-
-1. **A deploy state is not a served page.** The only check that would have caught
-   this is one that fetches a URL and looks at the status code.
-2. **The watcher cannot run on the thing it watches.** A Netlify scheduled
-   function would have been blocked by the same account-level gate; a Convex
-   cron shares the product's own backend. GitHub's runners are independent of
-   both, which is the whole point.
-
-The script also reads the response body: when it sees `usage_exceeded` the alert
-says *"Netlify ACCOUNT allowance tripped, every host is blocked at the edge, not
-an app bug"*, because a bare `503` sends whoever is on call into application
-logs that contain no trace of a billing block.
+PAT and the push goes through unattended next time. Unlike the uptime check,
+this one genuinely wants a GitHub runner: it drives Chromium, and Playwright
+does not run in a Cloudflare Worker.
 
 ## `funnel-liveness.yml` — is the booking-funnel counter still writing?
 
@@ -84,7 +68,7 @@ Three design points:
    probe's visits sit in their own named bucket instead of posing as traffic.
 3. **Exit 2 is not an alarm.** `0` wrote a row, `1` means the page served and
    the counter did not record — the real alert. `2` means the page never served,
-   which `uptime.yml` already pages for; one fault should not page twice.
+   which the uptime Worker already pages for; one fault should not page twice.
 
 ## Running them by hand
 
@@ -92,6 +76,11 @@ Three design points:
 bash scripts/uptime-check.sh         # exit 0 = all routes 200, 1 = something is down
 node scripts/funnel-liveness.mjs     # exit 0 = a row was written, 1 = counter dead, 2 = site down
 ```
+
+`scripts/uptime-check.sh` is the same check as the Cloudflare Worker, kept for
+running it from a terminal during an incident. The Worker in
+`workers/uptime-watch/` is the armed, scheduled one — if you change the route
+list, change it in both.
 
 `funnel-liveness.mjs` needs Playwright, which is deliberately **not** a
 dependency of this repo — it is an ops script and a browser has no business in

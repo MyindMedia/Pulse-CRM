@@ -41,9 +41,12 @@ yarn-error.log*
 *.sh
 # ...but track the portable deploy script (needed by cloud/phone sessions)
 !scripts/deploy.sh
-# ...and the uptime check, which .github/workflows/uptime.yml runs from a clean
-# checkout. Without this exception the scheduled job fails on a missing file.
+# ...the uptime check, which is the hand-run copy of the Cloudflare Worker's
+# route check and must exist in a clean checkout during an incident.
 !scripts/uptime-check.sh
+# ...and the Worker deploy script. `*.sh` silently swallowed this one: it is the
+# only way to redeploy the monitor, so losing it would strand the Worker.
+!scripts/cf/*.sh
 
 # typescript
 *.tsbuildinfo

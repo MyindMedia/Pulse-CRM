@@ -10,6 +10,10 @@
 # Usage:  bash scripts/uptime-check.sh
 # Exit:   0 = every route 200, 1 = at least one route failed
 # Output: a PASS/FAIL table on stdout, plus a one-line diagnosis per failure.
+#
+# This is the HAND copy, for running during an incident. The armed, scheduled
+# monitor is the Cloudflare Worker in workers/uptime-watch/ (cron every 10 min,
+# emails on the transition). Change ROUTES below and you must change it there too.
 
 set -uo pipefail
 
