@@ -220,6 +220,28 @@ describe("studio isolation", () => {
     const p = await a.as.query(api.projects.get, { id });
     expect(p!.links[0].label).toBe("Invoice INV-1");
   });
+
+  it("create with a bill in links[] needs invoices.read too", async () => {
+    const t = convexTest(schema);
+    const a = await studio(t, "o_a", "growth");
+    await t.run((ctx) =>
+      ctx.db.insert("members", { orgId: "o_a", name: "Eng", role: "engineer", skills: [], clerkUserId: "u_eng" }),
+    );
+    const eng = t.withIdentity({ subject: "u_eng", orgId: "o_a" });
+    const { artistId } = await seedSong(t, "o_a");
+    const invoiceId = await t.run((ctx) =>
+      ctx.db.insert("invoices", {
+        orgId: "o_a", number: "INV-2", artistId, status: "draft", lineItems: [],
+        amountCents: 0, dueDate: NOW,
+      }),
+    );
+    await expect(
+      eng.mutation(api.projects.create, { name: "Sneaky", links: [{ kind: "invoice", refId: invoiceId }] }),
+    ).rejects.toMatchObject({ data: { code: "CAPABILITY_DENIED" } });
+    expect(await t.run(async (ctx) => (await ctx.db.query("projects").collect()).length)).toBe(0);
+    const id = await a.as.mutation(api.projects.create, { name: "P", links: [{ kind: "invoice", refId: invoiceId }] });
+    expect((await a.as.query(api.projects.get, { id }))!.links[0].label).toBe("Invoice INV-2");
+  });
 });
 
 describe("stage transitions", () => {

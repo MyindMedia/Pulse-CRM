@@ -408,7 +408,11 @@ export const create = mutation({
     links: v.optional(v.array(linkInputV)),
   },
   handler: async (ctx, args) => {
-    const { orgId } = await scope(ctx, "projects.edit");
+    const { orgId, viewer } = await scope(ctx, "projects.edit");
+    // A bill carries an amount; linking one is a money action (same rule as addLink).
+    if ((args.links ?? []).some((l) => l.kind === "invoice") && !viewer.capabilities.has("invoices.read")) {
+      throw new AccessError("CAPABILITY_DENIED", `${viewer.kind} lacks invoices.read`);
+    }
     await assertMember(ctx, orgId, args.ownerMemberId);
     await assertSong(ctx, orgId, args.songId);
     const now = Date.now();
