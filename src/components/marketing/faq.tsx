@@ -19,7 +19,7 @@ const FAQS = [
   },
   {
     q: "What does the AI studio manager do?",
-    a: "It runs the operational busywork for you: chases unpaid deposits, follows up on new leads, fills cancellations, drafts client replies, flags no-show and scheduling risks, and scores your studio's profitability so you can see where to make more money. It works inside your studio only and never sees another studio's data. Included on the Studio plan.",
+    a: "It runs the operational busywork for you: chases unpaid deposits, follows up on new leads, fills cancellations, drafts client replies, flags no-show and scheduling risks, and scores your studio's profitability so you can see where to make more money. It works inside your studio only and never sees another studio's data. Included on the Growth and Max plans.",
   },
   {
     q: "Does Pulse handle song splits and rights?",

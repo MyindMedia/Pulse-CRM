@@ -27,7 +27,7 @@ const ROWS: {
 }[] = [
   {
     label: "Monthly cost",
-    pulse: { text: "From $0 on Flow, $149.99 on Studio", good: true },
+    pulse: { text: "From $149 on Core", good: true },
     other: { text: "$205 and up", good: false },
   },
   {
@@ -67,7 +67,7 @@ const ROWS: {
   },
   {
     label: "White label",
-    pulse: { text: "Your brand on the whole app on Label", good: true },
+    pulse: { text: "Your brand on the whole app on Max", good: true },
     other: { text: "Their brand", good: false },
   },
 ];

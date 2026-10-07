@@ -64,7 +64,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <FeatureGuard />
       <OrgTheme>
       {/* Paints the workspace's white-label palette onto :root. Renders
-          nothing; a non-Label tier gets Pulse's own values back. */}
+          nothing; a non-Max tier gets Pulse's own values back. */}
       <WhiteLabelTheme />
       {/* Engagement signal for the beta cohort. Renders nothing. */}
       <BetaLoginTracker />

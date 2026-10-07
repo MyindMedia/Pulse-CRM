@@ -1,9 +1,11 @@
 import type { Id } from "@convex/_generated/dataModel";
-import { PLAN_LIMITS, priceLabel, type TierKey } from "@convex/lib/plans";
+import { priceLabel, type TierKey } from "@convex/lib/plans";
+import { PRICING, TIERS } from "@convex/lib/pricing";
 
 /* Shared Settings module types and config. */
 
-export type OrgPlan = "solo" | "studio" | "label";
+/** The workspace's plan: core | growth | max (convex/lib/pricing.ts). */
+export type OrgPlan = TierKey;
 
 export type ServicePricing = {
   recording?: number;
@@ -34,7 +36,9 @@ export type Org = {
   actor: string;
   name: string;
   slug: string;
-  plan: OrgPlan;
+  /** Effective plan, resolved server-side (beta flag, own tier, agency). */
+  tier: OrgPlan;
+  tierLabel: string;
   status: string;
   accentColor: string;
   timezone: string | null;
@@ -76,49 +80,29 @@ export const SERVICES: { key: keyof ServicePricing; label: string }[] = [
 /* ============================================================
    Plan tiers shown in Settings -> Billing.
 
-   `OrgPlan` is the legacy three-value field stored on the org; the ladder
-   it names lives in PLAN_LIMITS. Both prices and names are derived, because
-   the hand-typed copy that used to sit here was still selling
-   "Solo $49 / Studio $129 / Label $199" months after the real ladder became
-   Studio $149.99 / Studio Pro $297 / Label $499.99.
+   Names, prices and copy all come from convex/lib/pricing.ts, so this
+   list can never sell a ladder the product stopped charging.
    ============================================================ */
 
-/** Legacy org plan value -> the tier in the real ladder it stands for. */
-export const ORG_PLAN_TIER: Record<OrgPlan, TierKey> = {
-  solo: "studio",
-  studio: "pro",
-  label: "label",
-};
-
-/** Blurb + inclusions are sales copy; the caps behind them are in PLAN_LIMITS. */
-const PLAN_COPY: Record<OrgPlan, { blurb: string; features: string[] }> = {
-  solo: {
-    blurb: "One engineer, one room. The money loop: book it, hold the card, get paid.",
-    features: [
-      "Online booking with deposits",
-      "Client CRM and pipeline",
-      "Invoices, payments and dunning",
-      "Card on file and no-show protection",
-    ],
-  },
-  studio: {
-    blurb: "A working studio with a team, a full weekly schedule and real numbers.",
-    features: [
-      "Everything in Studio",
-      "Staff scheduling, time clock and payroll",
-      "Inventory, rentals and maintenance",
-      "The AI studio manager",
-    ],
-  },
-  label: {
-    blurb: "A multi-room operation or imprint, running on its own brand.",
-    features: [
-      "Everything in Studio Pro",
-      "Multi-studio dashboard and reporting",
-      "Releases, licensing and split sheets",
-      "White-label UI and custom domain",
-    ],
-  },
+const PLAN_FEATURES: Record<OrgPlan, string[]> = {
+  core: [
+    "Online booking with deposits",
+    "Clients, bills, payments and reminders",
+    "Card on file and no-show protection",
+    "Google Calendar both ways and your own Gmail",
+  ],
+  growth: [
+    "Everything in Core",
+    "Staff scheduling, time clock and payroll",
+    "Gear list, cable map and software subscriptions",
+    "The assistant",
+  ],
+  max: [
+    "Everything in Growth",
+    "Unlimited studios, one flat price",
+    "Releases, licensing and split sheets",
+    "Your brand on the whole app and your own web address",
+  ],
 };
 
 export const PLAN_TIERS: {
@@ -127,17 +111,13 @@ export const PLAN_TIERS: {
   price: string;
   blurb: string;
   features: string[];
-}[] = (Object.keys(PLAN_COPY) as OrgPlan[]).map((value) => {
-  const tier = ORG_PLAN_TIER[value];
-  return {
-    value,
-    label: PLAN_LIMITS[tier].label,
-    price: `${priceLabel(tier)} / mo`,
-    blurb: PLAN_COPY[value].blurb,
-    features: PLAN_COPY[value].features,
-  };
-});
-
+}[] = TIERS.map((value) => ({
+  value,
+  label: PRICING[value].name,
+  price: `${priceLabel(value)} / mo`,
+  blurb: PRICING[value].tagline,
+  features: PLAN_FEATURES[value],
+}));
 /** Curated accent swatches - warm golds first (the house band), then a
  *  spectrum sweep. All sit in the UI-friendly mid-lightness range the
  *  theming engine expects; the full-spectrum picker covers everything else. */

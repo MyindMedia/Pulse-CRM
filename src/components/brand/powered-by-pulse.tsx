@@ -4,7 +4,7 @@ import { cn } from "@/lib/utils";
  * The "Powered by Pulse" lockup that sits beneath a white-label studio's own
  * logo.
  *
- * This is a condition of the Label tier, not a feature flag: there is no prop,
+ * This is a condition of the Max tier, not a feature flag: there is no prop,
  * setting, or price that removes it. The server mirrors that guarantee -
  * theme.get always returns poweredByPulse: true. If you are here to add an
  * opt-out, the answer is no.

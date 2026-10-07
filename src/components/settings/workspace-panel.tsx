@@ -27,7 +27,6 @@ import {
   ACCENT_SWATCHES,
   PLAN_TIERS,
   type Org,
-  type OrgPlan,
 } from "@/components/settings/types";
 
 const HEX_RE = /^#?[0-9a-fA-F]{6}$/;
@@ -45,12 +44,12 @@ const TIMEZONES: { value: string; label: string }[] = [
   { value: "Europe/London", label: "UK - London" },
 ];
 
-/** Workspace identity panel - name, tagline, plan, accent color. */
+/** Workspace identity panel - name, tagline, accent color, and the plan
+ *  shown read only. */
 export function WorkspacePanel({ org }: { org: Org }) {
   const updateOrg = useMutation(api.orgs.update);
   const [name, setName] = React.useState(org.name);
   const [tagline, setTagline] = React.useState(org.tagline);
-  const [plan, setPlan] = React.useState<OrgPlan>(org.plan);
   const [accent, setAccent] = React.useState(org.accentColor);
   const [timezone, setTimezone] = React.useState(org.timezone ?? "");
   const [contactPhone, setContactPhone] = React.useState(org.contactPhone ?? "");
@@ -60,13 +59,12 @@ export function WorkspacePanel({ org }: { org: Org }) {
   // Re-seed local state if the org record changes underneath us. We track a
   // derived signature of the watched fields so identity-only changes don't
   // clobber in-progress edits.
-  const orgSig = `${org.name}${org.tagline}${org.plan}${org.accentColor}${org.contactPhone ?? ""}`;
+  const orgSig = `${org.name}${org.tagline}${org.accentColor}${org.contactPhone ?? ""}`;
   const [prevOrgSig, setPrevOrgSig] = React.useState(orgSig);
   if (prevOrgSig !== orgSig) {
     setPrevOrgSig(orgSig);
     setName(org.name);
     setTagline(org.tagline);
-    setPlan(org.plan);
     setAccent(org.accentColor);
     setTimezone(org.timezone ?? "");
     setContactPhone(org.contactPhone ?? "");
@@ -81,7 +79,6 @@ export function WorkspacePanel({ org }: { org: Org }) {
   const dirty =
     name.trim() !== org.name ||
     tagline.trim() !== org.tagline ||
-    plan !== org.plan ||
     (accentValid && normalizedAccent.toLowerCase() !== org.accentColor.toLowerCase()) ||
     (timezone !== "" && timezone !== (org.timezone ?? "")) ||
     contactPhone.trim() !== (org.contactPhone ?? "") ||
@@ -102,7 +99,6 @@ export function WorkspacePanel({ org }: { org: Org }) {
       await updateOrg({
         name: name.trim(),
         tagline: tagline.trim(),
-        plan,
         accentColor: normalizedAccent,
         ...(timezone ? { timezone } : {}),
         contactPhone: contactPhone.trim(),
@@ -119,7 +115,6 @@ export function WorkspacePanel({ org }: { org: Org }) {
   function reset() {
     setName(org.name);
     setTagline(org.tagline);
-    setPlan(org.plan);
     setAccent(org.accentColor);
     setTimezone(org.timezone ?? "");
     setBriefPolicy(org.briefRequireAll ? "required" : "optional");
@@ -241,19 +236,12 @@ export function WorkspacePanel({ org }: { org: Org }) {
             </div>
           </Field>
 
+          {/* Read only. A plan changes through checkout (Settings > Billing),
+              never from a form anyone with branding rights can save. */}
           <Field label="Plan" htmlFor="ws-plan">
-            <Select value={plan} onValueChange={(v) => setPlan(v as OrgPlan)}>
-              <SelectTrigger id="ws-plan">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {PLAN_TIERS.map((t) => (
-                  <SelectItem key={t.value} value={t.value}>
-                    {t.label} - {t.price}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <p id="ws-plan" className="rounded-md border border-graphite/50 bg-coal-2 px-3 py-2 text-sm text-bone">
+              {PLAN_TIERS.find((t) => t.value === org.tier)?.label ?? org.tierLabel}
+            </p>
           </Field>
 
           <Field

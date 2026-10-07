@@ -58,7 +58,7 @@ export const clerkAppearance = {
     formFieldErrorText: "text-critical",
     alertText: "text-ash",
     badge: "bg-gold/10 text-gold",
-    /* "Secured by Clerk" is controlled INSTANCE-side: on the Pro plan flip
+    /* "Secured by Clerk" is controlled INSTANCE-side: on Clerk's Pro subscription flip
        "Remove Clerk branding" in Dashboard -> Customization. Dev instances
        (pk_test) force the badge + development-mode banner regardless; both
        clear on the production instance (see GO-LIVE blocker in Grilled.md). */

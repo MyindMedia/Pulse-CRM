@@ -6,46 +6,40 @@ import {
   earlyAdopterPriceCents,
   type TierKey,
 } from "@convex/lib/plans";
+import { formatUsd } from "@convex/lib/pricing";
 
 /* ============================================================
-   The public price tiles, DERIVED from convex/lib/plans.ts.
+   The public price tiles, DERIVED from convex/lib/pricing.ts (through
+   PLAN_LIMITS in convex/lib/plans.ts).
 
-   These used to be hand-typed here - name, price and checkout tier all
-   written out by hand - and every one of the three was wrong by the time
-   anyone looked: $49/$129/$199 against "Solo / Studio / Label" while the
-   product sold $149.99/$297/$499.99 as "Studio / Studio Pro / Label". The
-   worst of it was the checkout tier: the top tile subscribed people to
-   `growth`, a LEGACY tier that is not sold any more and grants less than
-   the Label it was advertising.
-
-   So the only thing written by hand now is the sales copy. Name, price,
-   tagline, checkout tier and the launch offer all come from PLAN_LIMITS,
-   and pricing-tiers.test.ts asserts it.
+   Name, price, tagline, checkout tier and the launch offer all come from
+   the pricing config, and pricing-tiers.test.ts asserts it. The only thing
+   written by hand here is the sales copy.
    ============================================================ */
 
-/** Sales bullets per tier. Copy, not configuration - the numbers that back
- *  them (room caps, seats) live in PLAN_LIMITS. */
-const HIGHLIGHTS: Record<string, string[]> = {
-  studio: [
+/** Sales bullets per tier. Copy, not configuration: the numbers that back
+ *  them (rooms, studios, storage) live in convex/lib/pricing.ts. */
+const HIGHLIGHTS: Record<TierKey, string[]> = {
+  core: [
     "Online booking with deposits",
     "Card on file and no-show protection",
-    "Client CRM and pipeline",
-    "Invoices, payments and dunning",
+    "Clients, bills, payments and reminders",
+    "Google Calendar both ways and your own Gmail",
     "Money to your own Stripe, no cut",
   ],
-  pro: [
-    "Everything in Studio",
+  growth: [
+    "Everything in Core",
     "Staff scheduling, time clock and payroll",
-    "Inventory, rentals and maintenance",
+    "Gear list, cable map and software subscriptions",
     "Packages, memberships and expenses",
-    "The AI studio manager",
+    "The assistant",
   ],
-  label: [
-    "Everything in Studio Pro",
-    "Multi-studio dashboard and reporting",
+  max: [
+    "Everything in Growth",
+    "Unlimited studios, one flat price",
     "Releases, licensing and split sheets",
-    "Patchbay, I/O and software licences",
-    "Your brand on the app, your own domain",
+    "One screen above every studio",
+    "Your brand on the app, your own web address",
   ],
 };
 
@@ -61,13 +55,10 @@ const HIGHLIGHTS: Record<string, string[]> = {
 export const PRICING_LIVE = false;
 
 /** The tile the eye should land on. Middle of a three-rung ladder. */
-const FEATURED: TierKey = "pro";
+const FEATURED: TierKey = "growth";
 
 function money(cents: number): string {
-  return `$${(cents / 100).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+  return formatUsd(cents);
 }
 
 export type MarketingTier = {
@@ -78,7 +69,7 @@ export type MarketingTier = {
   /** Headline price - the intro price while the launch offer is open. */
   price: string;
   cadence: string;
-  /** "then $149.99/mo from month 4" - present only on an intro price, because
+  /** "then $149/mo from month 4" - present only on an intro price, because
    *  quoting the offer without the step-up is how people feel tricked. */
   stepUp: string | null;
   /** Badge copy for the launch offer, or null when it is closed. */
@@ -104,14 +95,14 @@ export function marketingTiers(): MarketingTier[] {
         ? `then ${money(limits.priceCents)}/mo from month ${EARLY_ADOPTER_MONTHS + 1}`
         : null,
       introBadge: intro ? `First ${EARLY_ADOPTER_MONTHS} months half price` : null,
-      features: HIGHLIGHTS[tier] ?? [],
+      features: HIGHLIGHTS[tier],
       featured: tier === FEATURED,
       cta: "Subscribe",
     };
   });
 }
 
-/** "From $74.99/mo" - the entry price for metadata and share cards, so the
+/** "From $74.50/mo" - the entry price for metadata and share cards, so the
  *  number a search result promises is the number the page shows. */
 export function fromPriceLabel(): string {
   const entry = SELLABLE_TIERS[0];

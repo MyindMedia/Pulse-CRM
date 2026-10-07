@@ -34,7 +34,7 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { minTierFor } from "@convex/lib/entitlements";
 import { PLAN_LIMITS, priceLabel, type CapabilityKey } from "@convex/lib/plans";
 
-/* The rail mark. On the Label (white-label) tier this is the studio's own
+/* The rail mark. On the Max (white-label) tier this is the studio's own
  * logo with "Powered by Pulse" underneath; every tier below renders the Pulse
  * wordmark. BrandLockup owns that decision so both branches stay in one place. */
 function Wordmark() {

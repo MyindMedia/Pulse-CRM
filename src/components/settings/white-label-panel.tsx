@@ -23,7 +23,7 @@ import {
 import { PLAN_LIMITS, priceLabel } from "@convex/lib/plans";
 import { PoweredByPulse } from "@/components/brand/powered-by-pulse";
 
-/* The Label tier's headline feature: put the studio's own brand on the whole
+/* The Max tier's headline feature: put the studio's own brand on the whole
    app. Everything here writes through convex/theme.ts, which re-validates and
    re-checks the entitlement, so this panel is a convenience, not the guard. */
 
@@ -102,7 +102,7 @@ export function WhiteLabelPanel() {
   const readable = ratio >= MIN_TEXT_CONTRAST;
 
   if (canTheme === false) {
-    const need = "label" as const;
+    const need = "max" as const;
     return (
       <Card>
         <CardContent className="space-y-3 pt-5">
