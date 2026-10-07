@@ -28,6 +28,7 @@ import {
 } from "convex-helpers/server/customFunctions";
 import { MIRRORED_TABLES } from "./lib/mirroredTables";
 import { AUDITED_TABLES, auditEntry } from "./lib/changeAudit";
+import { provisionOnOrgInsert } from "./lib/orgBucketTrigger";
 
 const triggers = new Triggers<DataModel>();
 
@@ -61,6 +62,11 @@ for (const table of AUDITED_TABLES) {
     if (entry) await ctx.innerDb.insert("changeAudit", entry);
   });
 }
+
+/* Every new studio gets its own R2 buckets (lib/orgBucketTrigger.ts). */
+triggers.register("orgs", async (ctx, change) => {
+  await provisionOnOrgInsert(ctx as never, change as never);
+});
 
 /* Refusals say why, in production too.
  *

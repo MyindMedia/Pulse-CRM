@@ -130,6 +130,7 @@ crons.daily("demo-refresh", { hourUTC: 8, minuteUTC: 30 }, internal.demoRefresh.
 
 // The beta ends in a lock screen. Nobody should meet that cold, so warn at
 // 30, 7 and 1 days out - each exactly once, tracked on the org.
+crons.interval("org-buckets-sweep", { hours: 1 }, internal.orgBuckets.sweepNewOrgs, {});
 crons.daily("beta-ending-warnings", { hourUTC: 16, minuteUTC: 0 }, internal.betaClock.sweepWarnings, {});
 
 export default crons;
