@@ -692,8 +692,8 @@ export const FEATURE_GROUPS: FeatureGroup[] = [
     salesNote: "Closes the gap with the studio tools that track a record after the session. The project, every file version, and who has which piece of gear.",
     isNew: true,
     items: [
-      f("Post-production project tracking", "growth", "projects", { built: false }),
-      f("Projects across every studio", "max", "crossStudioProjects", { built: false }),
+      f("Post-production project tracking", "growth", "projects"),
+      f("Projects across every studio", "max", "crossStudioProjects"),
       f("Media file management with version control", "growth", "mediaLibrary"),
       f("One media library shared across studios", "max", "sharedMediaLibrary"),
       f("Barcode equipment check-in and check-out", "growth", "gearCheckout"),

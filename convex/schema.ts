@@ -3,6 +3,7 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { pulseWalkthroughTables } from "./pulseWalkthrough/tables";
 import { outreachTables } from "./outreach/tables";
+import { projectTables } from "./projectsTables";
 import { mediaLibraryTables } from "./mediaLibraryTables";
 import { expenseCategoryV, incomeCategoryV, moneyInKindV } from "./lib/financeValidators";
 import { tierV } from "./lib/tierV";
@@ -193,6 +194,7 @@ const portTemplateEntry = v.object({
 export default defineSchema({
   ...pulseWalkthroughTables,
   ...outreachTables,
+  ...projectTables,
   ...mediaLibraryTables,
   // ── Orgs - one row per studio subaccount. orgId is the Clerk org id
   //    (org_xxx) or "pulse-demo". The agency console provisions these. ──

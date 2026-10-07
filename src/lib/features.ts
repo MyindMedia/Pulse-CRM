@@ -43,6 +43,7 @@ export function featureForPath(pathname: string): FeatureKey | null {
     software: "software",
     patch: "patch",
     library: "mediaLibrary",
+    projects: "projects",
   };
   return map[seg] ?? null;
 }

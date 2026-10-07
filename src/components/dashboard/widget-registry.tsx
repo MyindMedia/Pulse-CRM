@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 import { TodayBoard } from "@/components/today/today-board";
+import { ProjectsTodayCard } from "@/components/projects/today-card";
 import { WrapUpCard } from "@/components/dashboard/wrapup-card";
 import { KpiStats } from "@/components/dashboard/kpi-stats";
 import { RevenueChartCard } from "@/components/dashboard/revenue-chart-card";
@@ -57,6 +58,14 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
     blurb: "Sessions ending soon: files, billing, gear, notes + room turnover checklist",
     span: "half",
     render: () => <WrapUpCard />,
+  },
+  {
+    key: "projects",
+    title: "Projects",
+    blurb: "Post-production work that is late or due soonest",
+    span: "half",
+    titled: false, // carries its own title so a studio without projects shows nothing
+    render: () => <ProjectsTodayCard />,
   },
   {
     key: "kpis",

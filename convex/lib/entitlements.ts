@@ -47,6 +47,7 @@ export const NAV_CAPABILITIES = [
   "patch",
   "software",
   "mediaLibrary",
+  "projects",
 ] as const satisfies readonly CapabilityKey[];
 
 const NAV_SET = new Set<string>(NAV_CAPABILITIES);
@@ -227,6 +228,10 @@ export const ENTITLEMENT_FOR_CAPABILITY: Record<string, CapabilityKey> = {
   "banking.manage": "reports",            // bank connections feed the books
   "ops.action.approve": "agent",
   "ops.autonomy.manage": "aiAutonomy",
+  // Post-production project tracking (Growth). The cross-studio view is
+  // gated separately in convex/projects.ts (crossStudioProjects, Max).
+  "projects.read": "projects",
+  "projects.edit": "projects",
   "opportunities.read": "pipeline",
   "opportunities.edit": "pipeline",
   "equipment.read": "inventory",

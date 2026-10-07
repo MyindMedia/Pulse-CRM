@@ -32,6 +32,9 @@ crons.interval("zuops-sync", { minutes: 5 }, internal.outreachZuops.syncAll, {})
 // Recompute every room's auto status from the live calendar.
 crons.interval("room-status", { minutes: 15 }, internal.maintenance.recomputeAllRoomStatuses);
 
+// Post-production projects: due and overdue reminders, one note per project per day.
+crons.interval("project-due-reminders", { hours: 24 }, internal.projects.sendDueReminders, {});
+
 // Team-device push alerts: T-10 arrival / wrap-up / shift change and
 // end-of-session studio refresh. Only orgs with registered devices are
 // scanned; the pushAlerts ledger dedupes; sends no-op until VAPID keys set.

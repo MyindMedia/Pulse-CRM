@@ -26,6 +26,7 @@ export const AUDIT_AREAS: Readonly<Record<string, { label: string; tables: reado
   inventory: { label: "Inventory", tables: ["equipment", "softwareLicenses"] },
   checkins: { label: "Check-ins", tables: ["visitors"] },
   checklists: { label: "Checklists", tables: ["sessionChecklists", "arrivalPrep"] },
+  projects: { label: "Projects", tables: ["projects", "projectTasks", "projectLinks"] },
   bookings: { label: "Bookings and rooms", tables: ["sessions", "rooms", "bookableServices"] },
   clients: { label: "Clients", tables: ["artists", "clientMessages", "opportunities"] },
   team: { label: "Team and time", tables: ["members", "shifts", "timeEntries", "timeOff", "availability"] },

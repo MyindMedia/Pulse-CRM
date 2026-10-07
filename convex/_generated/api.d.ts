@@ -230,6 +230,8 @@ import type * as pricingImport from "../pricingImport.js";
 import type * as profitability from "../profitability.js";
 import type * as promos from "../promos.js";
 import type * as pulseWalkthrough_actions from "../pulseWalkthrough/actions.js";
+import type * as projects from "../projects.js";
+import type * as projectsTables from "../projectsTables.js";
 import type * as pulseWalkthrough_http from "../pulseWalkthrough/http.js";
 import type * as pulseWalkthrough_policy from "../pulseWalkthrough/policy.js";
 import type * as pulseWalkthrough_providers from "../pulseWalkthrough/providers.js";
@@ -517,6 +519,8 @@ declare const fullApi: ApiFromModules<{
   "pulseWalkthrough/actions": typeof pulseWalkthrough_actions;
   "pulseWalkthrough/http": typeof pulseWalkthrough_http;
   "pulseWalkthrough/policy": typeof pulseWalkthrough_policy;
+  projects: typeof projects;
+  projectsTables: typeof projectsTables;
   "pulseWalkthrough/providers": typeof pulseWalkthrough_providers;
   "pulseWalkthrough/refs": typeof pulseWalkthrough_refs;
   "pulseWalkthrough/state": typeof pulseWalkthrough_state;

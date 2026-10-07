@@ -10,6 +10,7 @@ import type { AgencyRole, StudioRole, GrantScope, Capability } from "./accessTyp
 // ── Agency layer (4 roles) ──────────────────────────────────
 export const AGENCY_ROLE_CAPABILITIES: Record<AgencyRole, ReadonlyArray<Capability>> = {
   owner: [
+    "projects.read", "projects.edit",
     "agency.subaccount.create",
     "agency.subaccount.pause",
     "agency.subaccount.delete",
@@ -50,6 +51,7 @@ export const AGENCY_ROLE_CAPABILITIES: Record<AgencyRole, ReadonlyArray<Capabili
     "marketing.read", "marketing.edit", "marketing.approve",
   ],
   admin: [
+    "projects.read", "projects.edit",
     "agency.subaccount.create",
     "agency.subaccount.pause",
     "agency.staff.invite",
@@ -101,6 +103,7 @@ export const AGENCY_ROLE_CAPABILITIES: Record<AgencyRole, ReadonlyArray<Capabili
 //   This list is the positive grant set; everything not listed is denied.
 export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capability>> = {
   owner: [
+    "projects.read", "projects.edit",
     "songs.read", "songs.edit", "songs.delete",
     "sessions.read", "sessions.edit", "sessions.cancel",
     "deliverables.read", "deliverables.upload", "deliverables.approve",
@@ -131,6 +134,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "marketing.read", "marketing.edit", "marketing.approve",
   ],
   manager: [
+    "projects.read", "projects.edit",
     "songs.read", "songs.edit", "songs.delete",
     "sessions.read", "sessions.edit", "sessions.cancel",
     "deliverables.read", "deliverables.upload", "deliverables.approve",
@@ -158,6 +162,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "marketing.read", "marketing.edit", "marketing.approve",
   ],
   engineer: [
+    "projects.read", "projects.edit",
     "songs.read", "songs.edit",
     "sessions.read", "sessions.edit",
     "deliverables.read", "deliverables.upload", "deliverables.approve",
@@ -177,6 +182,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "marketing.read", "marketing.edit",
   ],
   assistant_engineer: [
+    "projects.read", "projects.edit",
     "songs.read", "songs.edit",
     "sessions.read", "sessions.edit.own",
     "deliverables.read", "deliverables.upload",
@@ -190,6 +196,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "marketing.read", "marketing.edit",
   ],
   artist_relations: [
+    "projects.read", "projects.edit",
     "songs.read",
     "sessions.read", "sessions.edit", "sessions.cancel",
     "deliverables.read",
@@ -206,6 +213,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "marketing.read", "marketing.edit",
   ],
   producer: [
+    "projects.read", "projects.edit",
     "songs.read", "songs.edit",
     "sessions.read", "sessions.edit",
     "deliverables.read", "deliverables.upload", "deliverables.approve",
@@ -223,6 +231,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "marketing.read", "marketing.edit",
   ],
   intern: [
+    "projects.read",
     "songs.read",
     "sessions.read",
     "deliverables.read",
@@ -236,6 +245,7 @@ export const STUDIO_ROLE_CAPABILITIES: Record<StudioRole, ReadonlyArray<Capabili
     "marketing.read",
   ],
   accountant: [
+    "projects.read",
     "songs.read",
     "sessions.read",
     "deliverables.read",
