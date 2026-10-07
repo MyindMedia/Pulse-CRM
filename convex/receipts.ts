@@ -13,6 +13,7 @@ import { dayFromIso, scorePair, type MatchSide } from "./lib/financeMatch";
 import { financeLog, linkReceiptExpense, unlink } from "./lib/financeLinks";
 import { receiptAttention } from "./lib/receiptAttention";
 import { expenseCategoryV } from "./lib/financeValidators";
+import { legacyUploadIsOwn } from "./lib/legacyUpload";
 
 /* ============================================================
    Receipts - a photo or PDF of what was bought, what it says, and
@@ -97,12 +98,19 @@ export const attach = mutation({
       type = claimed.toLowerCase();
       size = row.size ?? 0;
     } else {
+      // A legacy Convex storage id carries no owner: accept only this studio's
+      // own fresh upload, and refuse anything else WITHOUT deleting it.
+      if (!(await legacyUploadIsOwn(ctx, storageId, orgId))) {
+        return { ok: false, message: "That upload didn't arrive. Try again." };
+      }
       const meta = await ctx.db.system.get(storageId as Id<"_storage">);
       if (!meta) return { ok: false, message: "That upload didn't arrive. Try again." };
       type = (meta.contentType ?? typeFromName(fileName)).toLowerCase();
       size = meta.size;
     }
     if (!RECEIPT_TYPES.has(type) || size > MAX_RECEIPT_BYTES) {
+      // Only reached for this studio's own file (its R2 upload, or a legacy
+      // upload legacyUploadIsOwn accepted above).
       await deleteFile(ctx, storageId);
       return { ok: false, message: "Receipts must be a JPEG, PNG, WebP, GIF or PDF up to 10 MB." };
     }

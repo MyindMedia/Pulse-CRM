@@ -10,6 +10,7 @@ import { financeLog } from "./lib/financeLinks";
 import { plSummary, monthlyRunRateCents } from "./lib/pnl";
 import { expenseCategoryV } from "./lib/financeValidators";
 import { EXPENSE_TAX_GROUP } from "./lib/financeCategories";
+import { legacyUploadIsOwn } from "./lib/legacyUpload";
 
 /* ============================================================
    Expenses - the money-OUT half of the books. Manual entry of
@@ -43,6 +44,12 @@ export const create = mutation({
     if (args.amountCents <= 0) throw new Error("Amount must be greater than zero.");
     // An R2 receipt must be this studio's own finished upload.
     await claimFile(ctx, args.receiptId, orgId);
+    // A legacy Convex storage id must be this studio's own fresh upload, or it
+    // could pull another studio's file into this one (and into its R2 scope).
+    if (args.receiptId && !ctx.db.normalizeId("mediaFiles", args.receiptId)
+        && !(await legacyUploadIsOwn(ctx, args.receiptId, orgId))) {
+      throw new Error("That receipt upload didn't arrive. Try again.");
+    }
     if (args.memberId) {
       const m = await ctx.db.get(args.memberId);
       if (!m || m.orgId !== orgId) throw new Error("That team member isn't in this studio.");

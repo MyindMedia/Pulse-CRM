@@ -18,6 +18,7 @@ import {
 import { portTemplateV } from "./lib/patchValidators";
 import { CATALOG_PORTS } from "./lib/portTemplates";
 import { GEAR_CATALOG } from "./lib/gearCatalog";
+import { legacyUploadIsOwn } from "./lib/legacyUpload";
 import {
   resolveSpec,
   specPrompt,
@@ -337,7 +338,8 @@ export const _panelImageOk = internalQuery({
       const row = await ctx.db.get(mediaId);
       return Boolean(row && row.orgId === orgId && row.status === "ready");
     }
-    return (await ctx.db.system.get(imageId as Id<"_storage">)) !== null;
+    // A legacy storage id: only this studio's own fresh upload.
+    return await legacyUploadIsOwn(ctx, imageId, orgId);
   },
 });
 

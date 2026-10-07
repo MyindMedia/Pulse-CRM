@@ -495,3 +495,62 @@ describe("reviewing a receipt uploaded against existing books", () => {
     expect((await s.t.run(async (ctx) => await ctx.db.get(unrelated)))!.bankTransactionId).toBeTruthy();
   });
 });
+
+describe("legacy Convex storage ids: only a fresh upload nobody else holds", () => {
+  const HOUR = 60 * 60 * 1000;
+  afterEach(() => { vi.restoreAllMocks(); });
+
+  async function otherStudioHolds(t: ReturnType<typeof convexTest>, storageId: Id<"_storage">) {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: "studio_b", name: "B", slug: "b", tier: "growth", status: "active" });
+      await ctx.db.insert("receipts", {
+        orgId: "studio_b", storageId, fileName: "b.jpg", fileType: "image/jpeg", sizeBytes: 2048,
+        uploadedBy: "Bea", uploadedAt: Date.now(), status: "ready",
+      });
+    });
+  }
+  const exists = (t: ReturnType<typeof convexTest>, id: Id<"_storage">) =>
+    t.run(async (ctx) => (await ctx.db.system.get(id)) !== null);
+
+  it("refuses a storage id uploaded more than an hour ago, and leaves the file alone", async () => {
+    const s = await studio();
+    const old = await stored(s.t, "image/jpeg");
+    const now = Date.now();
+    vi.spyOn(Date, "now").mockReturnValue(now + 2 * HOUR);
+    expect(await s.manager.mutation(api.receipts.attach, { storageId: old, fileName: "r.jpg" })).toMatchObject({ ok: false });
+    expect(await exists(s.t, old)).toBe(true);
+    expect(await s.t.run(async (ctx) => (await ctx.db.query("receipts").collect()).length)).toBe(0);
+  });
+
+  it("refuses another studio's storage id, never reads it into a receipt and never deletes it", async () => {
+    const s = await studio();
+    const theirs = await stored(s.t, "image/jpeg");
+    await otherStudioHolds(s.t, theirs);
+    expect(await s.manager.mutation(api.receipts.attach, { storageId: theirs, fileName: "r.jpg" })).toMatchObject({ ok: false });
+    expect(await s.t.run(async (ctx) => (await ctx.db.query("receipts").collect()).filter((r) => r.orgId === "pulse-demo").length)).toBe(0);
+    expect(await exists(s.t, theirs)).toBe(true);
+  });
+
+  it("a refused file type that belongs to another studio is not deleted", async () => {
+    const s = await studio();
+    const theirVideo = await s.t.run(async (ctx) => await ctx.storage.store(new Blob([new Uint8Array(64)], { type: "video/mp4" })));
+    await otherStudioHolds(s.t, theirVideo);
+    expect(await s.manager.mutation(api.receipts.attach, { storageId: theirVideo, fileName: "clip.mp4" })).toMatchObject({ ok: false });
+    expect(await exists(s.t, theirVideo)).toBe(true);
+  });
+
+  it("refuses an id another studio already copied to R2 (legacyStorageId), and a fresh own upload still works", async () => {
+    const s = await studio();
+    const copied = await stored(s.t, "image/jpeg");
+    await s.t.run(async (ctx) => {
+      await ctx.db.insert("mediaFiles", {
+        orgId: "studio_b", bucket: "private", key: "test/studio_b/receipt/x.jpg", purpose: "receipt", fileName: "x.jpg",
+        mimeType: "image/jpeg", status: "ready", uploadedBy: "promote", createdAt: Date.now(), legacyStorageId: copied,
+      });
+    });
+    expect(await s.manager.mutation(api.receipts.attach, { storageId: copied, fileName: "r.jpg" })).toMatchObject({ ok: false });
+    expect(await exists(s.t, copied)).toBe(true);
+    const mine = await stored(s.t, "image/jpeg");
+    await attachOk(s.manager, mine, "mine.jpg");
+  });
+});
