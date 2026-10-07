@@ -121,6 +121,7 @@ import type * as lib_google from "../lib/google.js";
 import type * as lib_guardrails from "../lib/guardrails.js";
 import type * as lib_holidays from "../lib/holidays.js";
 import type * as lib_legacyPlans from "../lib/legacyPlans.js";
+import type * as lib_legacyUpload from "../lib/legacyUpload.js";
 import type * as lib_links from "../lib/links.js";
 import type * as lib_managerBrain from "../lib/managerBrain.js";
 import type * as lib_media from "../lib/media.js";
@@ -410,6 +411,7 @@ declare const fullApi: ApiFromModules<{
   "lib/guardrails": typeof lib_guardrails;
   "lib/holidays": typeof lib_holidays;
   "lib/legacyPlans": typeof lib_legacyPlans;
+  "lib/legacyUpload": typeof lib_legacyUpload;
   "lib/links": typeof lib_links;
   "lib/managerBrain": typeof lib_managerBrain;
   "lib/media": typeof lib_media;
