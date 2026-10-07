@@ -4,12 +4,14 @@ import { mutation } from "./functions";
 import { v, ConvexError } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { currentActor, currentOrg, currentOrgWithCapability } from "./lib/tenant";
-import { requireCapability, resolveViewer } from "./lib/access";
+import { requireCapability, resolveViewer, AccessError } from "./lib/access";
+import type { AgencyViewer } from "./lib/accessTypes";
+import { migrateTierValue } from "./lib/legacyPlans";
 import { fileUrl, claimFile, deleteFile } from "./lib/media";
 import { createUpload } from "./media";
 import { assertWithinLimit, meterStorageUpload, recordUsage, tierForOrg } from "./usage";
 import { orgGate } from "./lib/tier";
-import { capabilitiesForTier } from "./lib/entitlements";
+import { capabilitiesForTier, upgradeError } from "./lib/entitlements";
 import { PLAN_LIMITS } from "./lib/plans";
 import { GUEST_SCOPE_DEFAULT_TTL_MS } from "./lib/accessPolicies";
 import { approvalV, mediaKindV, MEDIA_KINDS } from "./mediaLibraryTables";
@@ -25,9 +27,11 @@ import { approvalV, mediaKindV, MEDIA_KINDS } from "./mediaLibraryTables";
    Bytes never touch Convex. Downloads are short-lived signed URLs.
 
    Gating: Growth ("mediaLibrary"). The cross-studio view is Max
-   ("sharedMediaLibrary") and only reaches studios inside the caller's own
-   agency group. The org always comes from the signed-in viewer, never from
-   an argument. Permissions reuse the deliverables.* capabilities, with the
+   ("sharedMediaLibrary"), is for the agency admin only (agency.viewAll, like
+   projects.crossStudio) and only reaches studios inside that agency, inside
+   the admin's staff scope, that opted in (orgs.shareMediaWithGroup). Studio
+   staff never see another studio's files. The org always comes from the
+   signed-in viewer, never from an argument. Permissions reuse the deliverables.* capabilities, with the
    library's own entitlement passed in place of Core's "finishedMixes".
    ============================================================ */
 
@@ -107,7 +111,15 @@ export const access = query({
     const { tier, disabled } = await orgGate(ctx, orgId);
     const caps = capabilitiesForTier(tier);
     const on = (k: "finishedMixes" | "mediaLibrary" | "sharedMediaLibrary") => caps.has(k) && !disabled.has(k);
-    return { mixes: on("finishedMixes"), library: on("mediaLibrary"), shared: on("mediaLibrary") && on("sharedMediaLibrary") };
+    // The all-studios view is the agency admin's (see sharedViewer below).
+    const groupAdmin = viewer.kind === "agency_member" && viewer.capabilities.has("agency.viewAll");
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+    return {
+      mixes: on("finishedMixes"),
+      library: on("mediaLibrary"),
+      shared: groupAdmin && on("mediaLibrary") && on("sharedMediaLibrary"),
+      sharingWithGroup: org?.shareMediaWithGroup === true,
+    };
   },
 });
 
@@ -544,34 +556,62 @@ export const guestSetApproval = mutation({
 
 /* ── Shared library across studios (Max) ────────────────────── */
 
-/** Studios whose library the caller may see: its own, plus siblings in the SAME
- *  agency group that are on a tier with the shared library. Derived from the
- *  caller's org row, never from arguments, so unrelated studios can never appear. */
-async function sharedGroup(ctx: Reader, orgId: string): Promise<Doc<"orgs">[]> {
-  const own = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
-  if (!own) return [];
-  if (!own.agencyId) return [own];
-  const siblings = await ctx.db.query("orgs").withIndex("by_agency", (q) => q.eq("agencyId", own.agencyId!)).collect();
+/** The caller of the all-studios view, mirroring projects.crossStudio: an agency
+ *  viewer holding agency.viewAll, on an agency plan that includes the shared
+ *  library. Studio staff (owners and interns alike) and guests are refused. */
+async function sharedViewer(ctx: Reader): Promise<AgencyViewer> {
+  const viewer = await resolveViewer(ctx);
+  if (viewer.kind !== "agency_member" || !viewer.capabilities.has("agency.viewAll")) {
+    throw new AccessError("CAPABILITY_DENIED", "The all-studios library is for the group admin.");
+  }
+  const agency = await ctx.db.query("agencies").withIndex("by_agency", (q) => q.eq("agencyId", viewer.agencyId)).first();
+  const tier = migrateTierValue(agency?.plan) ?? "core";
+  if (!capabilitiesForTier(tier).has("sharedMediaLibrary")) throw upgradeError("sharedMediaLibrary", tier);
+  return viewer;
+}
+
+/** Studios whose library the agency admin may see: the agency's own studios,
+ *  inside the admin's staff scope, on a tier with the shared library, that
+ *  opted in (orgs.shareMediaWithGroup). The workspace the admin is currently
+ *  acting as is included without the flag (they can open it directly anyway).
+ *  Derived from the viewer, never from arguments. */
+async function sharedGroup(ctx: Reader, viewer: AgencyViewer): Promise<Doc<"orgs">[]> {
+  const orgs = await ctx.db.query("orgs").withIndex("by_agency", (q) => q.eq("agencyId", viewer.agencyId)).collect();
   const out: Doc<"orgs">[] = [];
-  for (const s of siblings) {
-    if (s.orgId === orgId) { out.push(s); continue; }
-    if (capabilitiesForTier(await tierForOrg(ctx, s.orgId)).has("sharedMediaLibrary")) out.push(s);
+  for (const o of orgs) {
+    if (o.agencyId !== viewer.agencyId) continue;
+    if (viewer.scopedSubAccountOrgIds !== "all" && !viewer.scopedSubAccountOrgIds.includes(o.orgId)) continue;
+    if (o.orgId !== viewer.orgId && o.shareMediaWithGroup !== true) continue;
+    const gate = await orgGate(ctx, o.orgId);
+    if (!capabilitiesForTier(gate.tier).has("sharedMediaLibrary") || gate.disabled.has("mediaLibrary")) continue;
+    out.push(o);
   }
   return out;
 }
 
-async function sharedOrg(ctx: Reader): Promise<string> {
-  const viewer = await resolveViewer(ctx);
-  if (viewer.kind === "guest") throw new ConvexError("Only studio staff can use the media library.");
-  return await currentOrgWithCapability(ctx, "deliverables.read", undefined, { entitlement: "sharedMediaLibrary" });
-}
+/** A studio owner opts the studio's library in or out of the agency admin's
+ *  all-studios view. Off by default. Only the studio's own owner decides. */
+export const setGroupSharing = mutation({
+  args: { on: v.boolean() },
+  handler: async (ctx, { on }) => {
+    const viewer = await resolveViewer(ctx);
+    if (viewer.kind !== "studio_member" || viewer.role !== "owner") {
+      throw new AccessError("CAPABILITY_DENIED", "Only the studio's owner can share its library with the group.");
+    }
+    const orgId = await libOrg(ctx, "deliverables.approve");
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+    if (!org) throw new ConvexError("Studio not found.");
+    await ctx.db.patch(org._id, { shareMediaWithGroup: on });
+    return { on };
+  },
+});
 
 /** The studios in the shared view, for the picker. */
 export const sharedStudios = query({
   args: {},
   handler: async (ctx) => {
-    const orgId = await sharedOrg(ctx);
-    return (await sharedGroup(ctx, orgId)).map((o) => ({ orgId: o.orgId, name: o.name, isThisStudio: o.orgId === orgId }));
+    const viewer = await sharedViewer(ctx);
+    return (await sharedGroup(ctx, viewer)).map((o) => ({ orgId: o.orgId, name: o.name, isThisStudio: o.orgId === viewer.orgId }));
   },
 });
 
@@ -579,13 +619,13 @@ export const sharedStudios = query({
 export const sharedSearch = query({
   args: { q: v.optional(v.string()), kind: v.optional(mediaKindV), tag: v.optional(v.string()), studioOrgId: v.optional(v.string()), limit: v.optional(v.number()) },
   handler: async (ctx, a) => {
-    const orgId = await sharedOrg(ctx);
-    const group = await sharedGroup(ctx, orgId);
+    const viewer = await sharedViewer(ctx);
+    const group = await sharedGroup(ctx, viewer);
     let ids = group.map((o) => o.orgId);
     if (a.studioOrgId) ids = ids.filter((i) => i === a.studioOrgId); // a filter inside the group, never a widening
     const names = new Map(group.map((o) => [o.orgId, o.name]));
     const rows = await runSearch(ctx, ids, a);
-    return rows.map((r) => ({ ...r, studioName: names.get(r.orgId) ?? "Studio", isThisStudio: r.orgId === orgId }));
+    return rows.map((r) => ({ ...r, studioName: names.get(r.orgId) ?? "Studio", isThisStudio: r.orgId === viewer.orgId }));
   },
 });
 
@@ -593,10 +633,10 @@ export const sharedSearch = query({
 export const sharedDownloadUrl = query({
   args: { versionId: v.id("mediaVersions") },
   handler: async (ctx, { versionId }) => {
-    const orgId = await sharedOrg(ctx);
+    const viewer = await sharedViewer(ctx);
     const ver = await ctx.db.get(versionId);
     if (!ver) throw new ConvexError("Version not found.");
-    const group = await sharedGroup(ctx, orgId);
+    const group = await sharedGroup(ctx, viewer);
     if (!group.some((o) => o.orgId === ver.orgId)) throw new ConvexError("Version not found.");
     const url = await fileUrl(ctx, ver.mediaId, { expiresIn: 3600 });
     if (!url) throw new ConvexError("File is no longer available.");
@@ -608,10 +648,10 @@ export const sharedDownloadUrl = query({
 export const sharedDetail = query({
   args: { assetId: v.id("mediaAssets") },
   handler: async (ctx, { assetId }) => {
-    const orgId = await sharedOrg(ctx);
+    const viewer = await sharedViewer(ctx);
     const asset = await ctx.db.get(assetId);
     if (!asset) throw new ConvexError("File not found.");
-    const group = await sharedGroup(ctx, orgId);
+    const group = await sharedGroup(ctx, viewer);
     if (!group.some((o) => o.orgId === asset.orgId)) throw new ConvexError("File not found.");
     return await assetDetail(ctx, asset);
   },

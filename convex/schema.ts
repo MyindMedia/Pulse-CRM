@@ -418,6 +418,10 @@ export default defineSchema({
     // off (orgs.setManagersSeeMoney); lib/access.ts then withholds the money
     // capabilities from every manager here, on the web, the phone and the mirror.
     managersSeeMoney: v.optional(v.boolean()),
+    // Max shared media library: whether this studio's library files appear in
+    // its agency admin's all-studios view. Unset means no. Only the studio's
+    // owner may turn it on (mediaLibrary.setGroupSharing).
+    shareMediaWithGroup: v.optional(v.boolean()),
     // Booking-page social proof: short client testimonials the studio curates.
     testimonials: v.optional(
       v.array(

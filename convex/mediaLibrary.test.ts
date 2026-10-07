@@ -75,16 +75,16 @@ describe("tier gate matches the pricing config", () => {
     expect(await core.query(api.finishedMixes.list, {})).toEqual([]);
     await expect(core.query(api.mediaLibrary.search, {})).rejects.toMatchObject({ data: { code: "UPGRADE_REQUIRED" } });
     await expect(core.mutation(api.mediaLibrary.prepareUpload, { fileName: "a.wav", mimeType: "audio/wav", size: 10 })).rejects.toMatchObject({ data: { code: "UPGRADE_REQUIRED" } });
-    await expect(core.query(api.mediaLibrary.sharedSearch, {})).rejects.toMatchObject({ data: { code: "UPGRADE_REQUIRED" } });
+    await expect(core.query(api.mediaLibrary.sharedSearch, {})).rejects.toThrow();
   });
 
-  it("Growth gets the library but not the shared view; Max gets both", async () => {
+  it("Growth and Max studios get the library; the shared view is the agency admin's, not a studio's", async () => {
     const growth = ctx.as("u_growth");
     expect(await growth.query(api.mediaLibrary.search, {})).toEqual([]);
-    await expect(growth.query(api.mediaLibrary.sharedSearch, {})).rejects.toMatchObject({ data: { code: "UPGRADE_REQUIRED" } });
+    await expect(growth.query(api.mediaLibrary.sharedSearch, {})).rejects.toThrow();
     const max = ctx.as("u_max_a");
     expect(await max.query(api.mediaLibrary.search, {})).toEqual([]);
-    expect(await max.query(api.mediaLibrary.sharedSearch, {})).toEqual([]);
+    await expect(max.query(api.mediaLibrary.sharedSearch, {})).rejects.toThrow();
   });
 });
 
@@ -315,9 +315,22 @@ describe("expiring guest links", () => {
   });
 });
 
-describe("Max: library shared across studios, only inside the agency group", () => {
+describe("Max: library shared across studios, only for the group admin, only opted-in studios", () => {
   let ctx: Awaited<ReturnType<typeof setup>>;
-  beforeEach(async () => { env(); ctx = await setup(); });
+  beforeEach(async () => {
+    env();
+    ctx = await setup();
+    await ctx.t.run(async (c) => {
+      for (const [agencyId, plan] of [["agency_x", "max"], ["agency_y", "max"], ["agency_core", "core"]] as const) {
+        await c.db.insert("agencies", { agencyId, name: agencyId, slug: agencyId, plan, status: "active", ownerClerkUserId: `u_${agencyId}`, ownerEmail: `${agencyId}@x.com` });
+      }
+      await c.db.insert("agencyMembers", { agencyId: "agency_x", clerkUserId: "u_admin_x", email: "ax@x.com", name: "Admin X", role: "admin", status: "active", invitedAt: 0 });
+      await c.db.insert("agencyMembers", { agencyId: "agency_x", clerkUserId: "u_staff_x", email: "sx@x.com", name: "Staff X", role: "staff", status: "active", invitedAt: 0 });
+      await c.db.insert("agencyMembers", { agencyId: "agency_y", clerkUserId: "u_admin_y", email: "ay@x.com", name: "Admin Y", role: "admin", status: "active", invitedAt: 0 });
+      await c.db.insert("agencyMembers", { agencyId: "agency_core", clerkUserId: "u_admin_core", email: "ac@x.com", name: "Admin Core", role: "owner", status: "active", invitedAt: 0 });
+      await c.db.insert("members", { orgId: "studio_max_a", name: "Intern A", role: "intern", skills: [], clerkUserId: "u_intern_a" });
+    });
+  });
   afterEach(() => { vi.unstubAllEnvs(); });
 
   async function put(user: string, name: string) {
@@ -325,46 +338,72 @@ describe("Max: library shared across studios, only inside the agency group", () 
     const p = await upload(ctx.t, who, api.mediaLibrary.prepareUpload, 1000);
     return await who.mutation(api.mediaLibrary.addVersion, { mediaId: p.mediaId as Id<"mediaFiles">, name, kind: "master" });
   }
+  const optIn = async (user: string) => ctx.as(user).mutation(api.mediaLibrary.setGroupSharing, { on: true });
 
-  it("a Max studio sees sibling studios' files in the same group and nobody else's", async () => {
-    await put("u_max_a", "A master");
+  it("an intern (or any studio user, even the owner) in studio A cannot search, open or download studio B's files", async () => {
     const b = await put("u_max_b", "B master");
-    await put("u_max_c", "C master (other agency)");
-    await put("u_gx", "Growth sibling master");
-    await put("u_growth", "No agency master");
-
-    const a = ctx.as("u_max_a");
-    const rows = await a.query(api.mediaLibrary.sharedSearch, {});
-    expect(rows.map((r) => r.name).sort()).toEqual(["A master", "B master"]);
-    expect(rows.find((r) => r.name === "B master")).toMatchObject({ studioName: "studio_max_b", isThisStudio: false });
-    expect((await a.query(api.mediaLibrary.sharedStudios, {})).map((s) => s.orgId).sort()).toEqual(["studio_max_a", "studio_max_b"]);
-
-    // Narrowing to one studio never widens the group.
-    expect((await a.query(api.mediaLibrary.sharedSearch, { studioOrgId: "studio_max_c" })).length).toBe(0);
-    expect((await a.query(api.mediaLibrary.sharedSearch, { studioOrgId: "studio_max_b" })).map((r) => r.name)).toEqual(["B master"]);
-
-    // Read and download work inside the group, with the sibling's own bucket in the URL.
-    const dl = await a.query(api.mediaLibrary.sharedDownloadUrl, { versionId: b.versionId });
-    expect(dl.url).toContain(orgBucketNames("studio_max_b", "studio-max-b").private);
-    expect((await a.query(api.mediaLibrary.sharedDetail, { assetId: b.assetId })).versions).toHaveLength(1);
-
-    // The other agency's Max studio cannot reach B's file, by search or by id.
-    const c = ctx.as("u_max_c");
-    expect((await c.query(api.mediaLibrary.sharedSearch, {})).map((r) => r.name)).toEqual(["C master (other agency)"]);
-    await expect(c.query(api.mediaLibrary.sharedDownloadUrl, { versionId: b.versionId })).rejects.toThrow(/not found/i);
-    await expect(c.query(api.mediaLibrary.sharedDetail, { assetId: b.assetId })).rejects.toThrow(/not found/i);
-
-    // The shared view is read-only: a sibling cannot change B's file.
-    await expect(a.mutation(api.mediaLibrary.setApproval, { versionId: b.versionId, state: "approved" })).rejects.toThrow(/not found/i);
+    await optIn("u_max_b");
+    for (const user of ["u_intern_a", "u_max_a"]) {
+      const who = ctx.as(user);
+      await expect(who.query(api.mediaLibrary.sharedSearch, {})).rejects.toThrow();
+      await expect(who.query(api.mediaLibrary.sharedStudios, {})).rejects.toThrow();
+      await expect(who.query(api.mediaLibrary.sharedDownloadUrl, { versionId: b.versionId })).rejects.toThrow();
+      await expect(who.query(api.mediaLibrary.sharedDetail, { assetId: b.assetId })).rejects.toThrow();
+      expect((await who.query(api.mediaLibrary.access, {})).shared).toBe(false);
+    }
   });
 
-  it("a Max studio with no agency sees only itself", async () => {
-    await ctx.t.run(async (c) => {
-      await c.db.insert("orgs", { orgId: "studio_solo_max", name: "Solo", slug: "solo", tier: "max", status: "active" });
-      await c.db.insert("members", { orgId: "studio_solo_max", name: "S", role: "owner", skills: [], clerkUserId: "u_solo" });
-    });
+  it("the agency admin sees only siblings that opted in; a studio that did not opt in stays hidden", async () => {
     await put("u_max_a", "A master");
-    expect(await ctx.as("u_solo").query(api.mediaLibrary.sharedSearch, {})).toEqual([]);
+    const b = await put("u_max_b", "B master");
+    const gx = await put("u_gx", "Not opted in");
+    await optIn("u_max_b");
+
+    const admin = ctx.as("u_admin_x");
+    expect((await admin.query(api.mediaLibrary.sharedSearch, {})).map((r) => r.name)).toEqual(["B master"]);
+    expect((await admin.query(api.mediaLibrary.sharedStudios, {})).map((s) => s.orgId)).toEqual(["studio_max_b"]);
+    expect((await admin.query(api.mediaLibrary.sharedSearch, { studioOrgId: "studio_growth_in_x" })).length).toBe(0);
+
+    const dl = await admin.query(api.mediaLibrary.sharedDownloadUrl, { versionId: b.versionId });
+    expect(dl.url).toContain(orgBucketNames("studio_max_b", "studio-max-b").private);
+    expect((await admin.query(api.mediaLibrary.sharedDetail, { assetId: b.assetId })).versions).toHaveLength(1);
+    await expect(admin.query(api.mediaLibrary.sharedDownloadUrl, { versionId: gx.versionId })).rejects.toThrow(/not found/i);
+    await expect(admin.query(api.mediaLibrary.sharedDetail, { assetId: gx.assetId })).rejects.toThrow(/not found/i);
+
+    // Turning sharing back off hides the studio again.
+    await ctx.as("u_max_b").mutation(api.mediaLibrary.setGroupSharing, { on: false });
+    expect(await admin.query(api.mediaLibrary.sharedSearch, {})).toEqual([]);
+  });
+
+  it("another agency is never visible, even when its studios opted in", async () => {
+    const b = await put("u_max_b", "B master");
+    await optIn("u_max_b");
+    await put("u_max_c", "C master (other agency)");
+    await optIn("u_max_c");
+
+    const y = ctx.as("u_admin_y");
+    expect((await y.query(api.mediaLibrary.sharedSearch, {})).map((r) => r.name)).toEqual(["C master (other agency)"]);
+    expect((await y.query(api.mediaLibrary.sharedSearch, { studioOrgId: "studio_max_b" })).length).toBe(0);
+    await expect(y.query(api.mediaLibrary.sharedDownloadUrl, { versionId: b.versionId })).rejects.toThrow(/not found/i);
+    await expect(y.query(api.mediaLibrary.sharedDetail, { assetId: b.assetId })).rejects.toThrow(/not found/i);
+    expect((await ctx.as("u_admin_x").query(api.mediaLibrary.sharedSearch, {})).map((r) => r.name)).toEqual(["B master"]);
+  });
+
+  it("agency staff without agency.viewAll is refused, a Core agency is told to upgrade, and the view stays read-only", async () => {
+    const b = await put("u_max_b", "B master");
+    await optIn("u_max_b");
+    await expect(ctx.as("u_staff_x").query(api.mediaLibrary.sharedSearch, {})).rejects.toThrow();
+    await expect(ctx.as("u_admin_core").query(api.mediaLibrary.sharedSearch, {})).rejects.toMatchObject({ data: { code: "UPGRADE_REQUIRED" } });
+    // A sibling studio cannot change B's file.
+    await expect(ctx.as("u_max_a").mutation(api.mediaLibrary.setApproval, { versionId: b.versionId, state: "approved" })).rejects.toThrow(/not found/i);
+  });
+
+  it("only the studio's owner can opt it in", async () => {
+    await expect(ctx.as("u_intern_a").mutation(api.mediaLibrary.setGroupSharing, { on: true })).rejects.toThrow();
+    await expect(ctx.as("u_admin_x").mutation(api.mediaLibrary.setGroupSharing, { on: true })).rejects.toThrow();
+    await optIn("u_max_a");
+    const row = await ctx.t.run(async (c) => (await c.db.query("orgs").collect()).find((o) => o.orgId === "studio_max_a"));
+    expect(row?.shareMediaWithGroup).toBe(true);
   });
 });
 
