@@ -35,7 +35,7 @@ import {
    (docs/R2-PER-ORG-BUCKETS.md, "What Lawrence must do"). Until then the
    infrastructure line is NOT rendered anywhere, because it is not yet true
    in production. */
-export const R2_PER_ORG_LIVE = false;
+export const R2_PER_ORG_LIVE = true;
 
 export const R2_LINE =
   "Every file and every version is stored on Cloudflare R2, in a bucket of your own.";
