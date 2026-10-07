@@ -2,7 +2,9 @@ import { action, query, internalQuery, internalAction } from "./_generated/serve
 import { internalMutation } from "./functions";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { stripeClient, priceIdForTier, priceIdForTierInterval } from "./lib/stripe";
+import { stripeClient, priceIdForTier, hasPriceId } from "./lib/stripe";
+import { TIERS } from "./lib/pricing";
+import { tierV, intervalV } from "./lib/tierV";
 import type { TierKey } from "./lib/plans";
 import {
   EARLY_ADOPTER_MONTHS, EARLY_ADOPTER_DISCOUNT_PCT, earlyAdopterApplies,
@@ -11,21 +13,10 @@ import { sendEmail } from "./lib/email";
 import { activationEmailSubject, activationEmailHtml } from "./lib/emailTemplates/activation";
 import { allowClerkIdentifier } from "./lib/clerkAllowlist";
 import { normalizeEmail } from "./lib/emailKey";
+import { tierForPlan } from "./lib/tier";
 
-// The three tiers a studio can buy without talking to anyone.
-// Flow is not in here: there is nothing to check out for: it is activated by
-// connecting Stripe, not by paying a subscription.
-const SELF_SERVE_TIERS = new Set(["studio", "pro", "label"]);
-
-const tierV = v.union(
-  v.literal("flow"),
-  v.literal("studio"),
-  v.literal("pro"),
-  v.literal("label"),
-  v.literal("growth"),                    // legacy, superseded by "label"
-  v.literal("enterprise"),
-  v.literal("agency"),                    // legacy
-);
+// Every tier is self-serve: Core, Growth and Max all check out without a call.
+const SELF_SERVE_TIERS = new Set<string>(["core", "growth", "max"]);
 
 /* Early adopter: half price for the first few months, expressed as a
    repeating Stripe coupon rather than a second set of price objects. A
@@ -55,20 +46,33 @@ async function earlyAdopterDiscounts(
   return [{ coupon: coupon.id }];
 }
 
+/** PUBLIC. Which tier + interval prices are configured, so the pricing page
+ *  can show a checkout button only where checkout will actually work and fall
+ *  back to "Book a demo" elsewhere. Booleans only: no price id leaves the
+ *  server. */
+export const checkoutAvailability = query({
+  args: {},
+  handler: async () => {
+    const out = {} as Record<TierKey, { month: boolean; year: boolean }>;
+    for (const t of TIERS) out[t] = { month: hasPriceId(t, "month"), year: hasPriceId(t, "year") };
+    return out;
+  },
+});
+
 /** Public action - start a Stripe Checkout session for the chosen tier. */
 export const beginCheckout = action({
   args: {
     tier: tierV,
     agencyName: v.optional(v.string()),
-    /** Yearly is 15% cheaper. Defaults to monthly. */
-    interval: v.optional(v.union(v.literal("month"), v.literal("year"))),
+    /** A year costs ten months. Defaults to monthly. */
+    interval: v.optional(intervalV),
   },
   handler: async (ctx, args) => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("not signed in");
     const stripe = stripeClient();
     const interval = args.interval ?? "month";
-    const priceId = priceIdForTierInterval(args.tier as TierKey, interval);
+    const priceId = priceIdForTier(args.tier as TierKey, interval);
 
     const customer = await stripe.customers.create({
       email: identity.email ?? undefined,
@@ -155,15 +159,16 @@ export const myPlan = query({
 
 /** Public (no auth) - start a pay-first signup checkout for a self-serve tier. */
 export const beginPublicCheckout = action({
-  args: { tier: tierV },
-  handler: async (_ctx, { tier }) => {
+  args: { tier: tierV, interval: v.optional(intervalV) },
+  handler: async (_ctx, { tier, interval: wanted }) => {
     if (!SELF_SERVE_TIERS.has(tier)) throw new Error("That tier is not self-serve.");
+    const interval = wanted ?? "month";
     const stripe = stripeClient();
-    const priceId = priceIdForTier(tier as TierKey);
+    const priceId = priceIdForTier(tier as TierKey, interval);
     // The landing page sells the launch offer, so the till has to honour it.
-    const discounts = await earlyAdopterDiscounts(stripe, tier as TierKey, "month");
+    const discounts = await earlyAdopterDiscounts(stripe, tier as TierKey, interval);
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-    const meta = { kind: "platform_signup", intendedTier: tier };
+    const meta = { kind: "platform_signup", intendedTier: tier, intendedInterval: interval };
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       line_items: [{ price: priceId, quantity: 1 }],
@@ -178,7 +183,7 @@ export const beginPublicCheckout = action({
       metadata: meta,
       subscription_data: { metadata: meta },
       success_url: `${baseUrl}/welcome/activate?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/#pricing`,
+      cancel_url: `${baseUrl}/pricing`,
     });
     return { checkoutUrl: session.url, earlyAdopter: Boolean(discounts) };
   },
@@ -204,7 +209,7 @@ export const checkoutSummary = action({
 
     return {
       email,
-      tier: (s.metadata?.intendedTier as string) ?? "studio",
+      tier: (s.metadata?.intendedTier as string) ?? "core",
       studioName: studioField?.text?.value ?? "",
       paid: s.status === "complete" || s.payment_status === "paid",
     };
@@ -229,7 +234,7 @@ export const claimCheckout = action({
     if (!sessionEmail || sessionEmail !== myEmail) {
       throw new Error("This checkout was paid with a different email.");
     }
-    const tier = (s.metadata?.intendedTier as TierKey) ?? "studio";
+    const tier = tierForPlan(s.metadata?.intendedTier);
     const studioField = (s.custom_fields ?? []).find((f) => f.key === "studio_name");
     const studioName = studioField?.text?.value || identity.name || myEmail;
     await ctx.runMutation(internal.billing.provisionFromCheckout, {

@@ -3,6 +3,7 @@ import { internalMutation } from "./functions";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { tierForPriceId } from "./lib/stripe";
+import { tierForPlan } from "./lib/tier";
 import { settlePayment } from "./payments";
 import { settleInvoice } from "./invoicePay";
 import { applyPackagePurchase } from "./packages";
@@ -201,8 +202,8 @@ export const handle = internalMutation({
       const subscriptionId = obj.subscription as string;
       // Only platform subscription checkouts go past here.
       if (!subscriptionId) return { ok: true };
-      const intendedTier =
-        (meta.intendedTier as "studio" | "pro" | "growth" | "enterprise" | "agency") ?? "studio";
+      // Unknown or missing metadata resolves to core, never to a paid tier.
+      const intendedTier = tierForPlan(meta.intendedTier as string | undefined);
       const clerkUserId = meta.clerkUserId as string;
       const agencyName = (meta.intendedAgencyName as string) || "My Agency";
       const ownerEmail =
@@ -222,7 +223,7 @@ export const handle = internalMutation({
       // Pay-first signups (no clerkUserId yet) are provisioned post-signup by
       // billing.claimCheckout, so skip them here. Only the legacy authed flow
       // (clerkUserId already set) provisions at webhook time.
-      if (intendedTier !== "studio" && clerkUserId) {
+      if (clerkUserId) {
         const slug =
           agencyName.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-") ||
           `ag-${Date.now()}`;
@@ -341,14 +342,16 @@ export const handle = internalMutation({
       const stripeCustomerId = obj.customer as string;
       const items = (obj.items as { data?: Array<{ price?: { id?: string } }> } | undefined)?.data ?? [];
       const priceId = items[0]?.price?.id;
-      const tier = priceId ? tierForPriceId(priceId) : null;
+      const match = priceId ? tierForPriceId(priceId) : null;
       const ag = await ctx.db
         .query("agencies")
         .filter((q) => q.eq(q.field("stripeCustomerId"), stripeCustomerId))
         .first();
-      if (ag && tier && tier !== "studio") {
+      // Every tier is recorded, downgrades to core included. The old ladder
+      // skipped its cheapest tier here, so a downgrade never landed.
+      if (ag && match) {
         await ctx.db.patch(ag._id, {
-          plan: tier,
+          plan: match.tier,
           status: obj.status === "active" ? "active" : "trial",
         });
       }

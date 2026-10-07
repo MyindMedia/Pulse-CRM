@@ -11,15 +11,18 @@
  *   2. Branding    - icon / logo / brand colors on the public account settings
  *                    (drives the platform Checkout look). Reports set vs missing.
  *   3. Connect     - Connect is enabled (can list connected accounts) + count.
- *   4. Plan prices - the three self-serve subscription prices exist, are live,
- *                    active, USD, recurring/month, at the expected amounts.
+ *   4. Plan prices - the six Core / Growth / Max subscription prices (monthly
+ *                    and annual) exist, are live, active, USD, recurring at
+ *                    the expected interval and amount (convex/lib/pricing.ts).
  *   5. Webhooks    - a Platform (connect=false) and a Connect (connect=true)
  *                    endpoint exist at the prod URL, enabled, with the 4 events.
  *
  * Usage:
  *   STRIPE_SECRET_KEY=sk_live_... node scripts/verify-go-live.mjs
  *   # optional overrides (otherwise prices are discovered by amount):
- *   STRIPE_PRICE_STUDIO=price_... STRIPE_PRICE_PRO=price_... STRIPE_PRICE_GROWTH=price_...
+ *   STRIPE_PRICE_CORE_MONTHLY=price_... STRIPE_PRICE_CORE_ANNUAL=price_...
+ *   STRIPE_PRICE_GROWTH_MONTHLY=price_... STRIPE_PRICE_GROWTH_ANNUAL=price_...
+ *   STRIPE_PRICE_MAX_MONTHLY=price_... STRIPE_PRICE_MAX_ANNUAL=price_...
  *   WEBHOOK_URL=https://pastel-corgi-340.convex.site/stripe/webhook
  *
  * Exit code is non-zero if any hard check fails (branding-missing is a WARN,
@@ -35,12 +38,17 @@ const EVENTS = [
   "customer.subscription.updated",
   "customer.subscription.deleted",
 ];
-// Self-serve tier -> expected monthly amount (cents). Solo=studio, Studio=pro, Label=growth.
+// Tier + interval -> expected amount (cents). Must match convex/lib/pricing.ts;
+// convex/pricing.test.ts reads this file and fails if they drift.
 const EXPECTED = [
-  { tier: "studio", label: "Solo", cents: 4900, env: "STRIPE_PRICE_STUDIO" },
-  { tier: "pro", label: "Studio", cents: 12900, env: "STRIPE_PRICE_PRO" },
-  { tier: "growth", label: "Label", cents: 19900, env: "STRIPE_PRICE_GROWTH" },
+  { tier: "core", label: "Core monthly", interval: "month", cents: 14900, env: "STRIPE_PRICE_CORE_MONTHLY" },
+  { tier: "core", label: "Core annual", interval: "year", cents: 149000, env: "STRIPE_PRICE_CORE_ANNUAL" },
+  { tier: "growth", label: "Growth monthly", interval: "month", cents: 29700, env: "STRIPE_PRICE_GROWTH_MONTHLY" },
+  { tier: "growth", label: "Growth annual", interval: "year", cents: 297000, env: "STRIPE_PRICE_GROWTH_ANNUAL" },
+  { tier: "max", label: "Max monthly", interval: "month", cents: 69900, env: "STRIPE_PRICE_MAX_MONTHLY" },
+  { tier: "max", label: "Max annual", interval: "year", cents: 699000, env: "STRIPE_PRICE_MAX_ANNUAL" },
 ];
+const per = (interval) => (interval === "year" ? "yr" : "mo");
 
 const PASS = "  \x1b[32m✓\x1b[0m";
 const WARN = "  \x1b[33m!\x1b[0m";
@@ -102,28 +110,29 @@ async function checkConnect() {
 
 async function checkPrices() {
   console.log("\n== 4/5  Plan prices ==");
-  // Build a pool of live, active, recurring/month USD prices to match against.
+  // Build a pool of live, active, recurring USD prices to match against.
   const pool = [];
   for await (const p of stripe.prices.list({ active: true, limit: 100, expand: ["data.product"] })) {
-    if (p.currency === "usd" && p.recurring?.interval === "month" && p.livemode) pool.push(p);
+    if (p.currency === "usd" && p.recurring && p.livemode) pool.push(p);
   }
   for (const want of EXPECTED) {
+    const inInterval = pool.filter((p) => p.recurring?.interval === want.interval);
     const byId = process.env[want.env];
-    let match = byId ? pool.find((p) => p.id === byId) : null;
+    let match = byId ? inInterval.find((p) => p.id === byId) : null;
     if (byId && !match) {
-      fail(`${want.label} (${want.env}=${byId}) not found among live monthly USD prices`);
+      fail(`${want.label} (${want.env}=${byId}) not found among live ${per(want.interval)} USD prices`);
       continue;
     }
-    if (!match) match = pool.find((p) => p.unit_amount === want.cents);
+    if (!match) match = inInterval.find((p) => p.unit_amount === want.cents);
     if (!match) {
-      fail(`${want.label} ${money(want.cents)}/mo - no matching live price found`);
+      fail(`${want.label} ${money(want.cents)}/${per(want.interval)} - no matching live price found`);
       continue;
     }
     const name = typeof match.product === "object" ? match.product.name : match.product;
     if (match.unit_amount === want.cents)
-      pass(`${want.label}: ${match.id} = ${money(match.unit_amount)}/mo "${name}"`);
+      pass(`${want.label}: ${match.id} = ${money(match.unit_amount)}/${per(want.interval)} "${name}"`);
     else
-      fail(`${want.label}: ${match.id} = ${money(match.unit_amount)}/mo (expected ${money(want.cents)})`);
+      fail(`${want.label}: ${match.id} = ${money(match.unit_amount)}/${per(want.interval)} (expected ${money(want.cents)})`);
   }
 }
 
