@@ -23,13 +23,41 @@ const INTERVALS: { key: BillingInterval; label: string }[] = [
   { key: "year", label: "Annual" },
 ];
 
+type Availability = ReturnType<typeof useAvailabilityQuery>;
+function useAvailabilityQuery() {
+  return useQuery(api.billing.checkoutAvailability, {});
+}
+
+/* Reads the checkout availability and hands it up. Lives behind an error
+   boundary so a Convex deployment that is older than the site (the query
+   not yet deployed) leaves the cards on "Book a demo" instead of breaking
+   the page. */
+function AvailabilityProbe({ onResult }: { onResult: (a: Availability) => void }) {
+  const a = useAvailabilityQuery();
+  React.useEffect(() => onResult(a), [a, onResult]);
+  return null;
+}
+
+class QuietBoundary extends React.Component<{ children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() {
+    return { failed: true };
+  }
+  render() {
+    return this.state.failed ? null : this.props.children;
+  }
+}
+
 export function PricingPlans({ cards }: { cards: PlanCard[] }) {
   const [interval, setInterval] = React.useState<BillingInterval>("month");
-  const availability = useQuery(api.billing.checkoutAvailability, {});
+  const [availability, setAvailability] = React.useState<Availability>(undefined);
   const monthsFree = cards[0]?.annual.monthsFree ?? 0;
 
   return (
     <div>
+      <QuietBoundary>
+        <AvailabilityProbe onResult={setAvailability} />
+      </QuietBoundary>
       <div className="flex flex-col items-center gap-3">
         <div
           role="group"
@@ -133,7 +161,7 @@ export function PricingPlans({ cards }: { cards: PlanCard[] }) {
                       label={`Start with ${c.name}`}
                       featured={c.highlight}
                     />
-                    <Link
+                    <Link prefetch={false}
                       href={DEMO_HREF}
                       className="rounded-chrome py-2 text-center font-grotesk text-sm text-mist underline-offset-4 transition-colors hover:text-gold hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
                     >
@@ -141,7 +169,7 @@ export function PricingPlans({ cards }: { cards: PlanCard[] }) {
                     </Link>
                   </>
                 ) : (
-                  <Link
+                  <Link prefetch={false}
                     href={DEMO_HREF}
                     className={cn(
                       "w-full rounded-chrome px-5 py-3 text-center font-grotesk text-sm font-semibold uppercase tracking-[0.04em] transition-all focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold",

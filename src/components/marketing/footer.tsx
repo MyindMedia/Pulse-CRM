@@ -49,6 +49,7 @@ export function Footer() {
               {col.links.map((l) => (
                 <li key={l.label}>
                   <Link
+                  prefetch={false}
                     href={l.href}
                     className="link-underline font-grotesk text-sm text-mist/75 transition-colors hover:text-gold"
                   >

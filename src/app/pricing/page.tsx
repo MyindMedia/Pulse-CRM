@@ -105,7 +105,7 @@ export default function PricingPage() {
             unlimited studios at one flat price.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-            <Link
+            <Link prefetch={false}
               href={DEMO_HREF}
               className={`group inline-flex items-center gap-2 rounded-chrome bg-gold px-7 py-3 font-grotesk text-sm font-semibold uppercase tracking-[0.04em] text-gold-ink transition-all hover:-translate-y-0.5 hover:bg-gold-bright ${focusRing}`}
             >
@@ -353,7 +353,7 @@ export default function PricingPage() {
             Book a 30 minute demo. We will show you Pulse with your rooms and your prices, and
             move your data over for free when you are ready.
           </p>
-          <Link
+          <Link prefetch={false}
             href={DEMO_HREF}
             className={`mt-7 inline-flex items-center gap-2 rounded-chrome bg-gold px-7 py-3 font-grotesk text-sm font-semibold uppercase tracking-[0.04em] text-gold-ink transition-all hover:-translate-y-0.5 hover:bg-gold-bright ${focusRing}`}
           >

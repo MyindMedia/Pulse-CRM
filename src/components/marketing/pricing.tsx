@@ -64,7 +64,7 @@ export function Pricing() {
             Compare plans
             <ArrowRight className="size-4" aria-hidden />
           </Link>
-          <Link
+          <Link prefetch={false}
             href="/demo"
             className="inline-flex items-center rounded-chrome border border-obsidian/40 px-7 py-3 font-grotesk text-sm font-semibold uppercase tracking-[0.04em] text-obsidian transition-colors hover:border-obsidian focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-obsidian"
           >
