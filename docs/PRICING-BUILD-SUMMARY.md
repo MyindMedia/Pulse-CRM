@@ -20,3 +20,6 @@ Nothing here is pushed, deployed, migrated on a live database, or changed in liv
 - No UI toggle yet for `mediaLibrary.setGroupSharing` (shared library is opt-in per studio, default off).
 - Room and staff caps are shown but not enforced (same as before). Texts and email are unmetered.
 - `/vs` page names a rival: noindex and unlinked, not deleted.
+
+## Prod migration dry run (read-only, 2026-10-07)
+Prod orgs and agencies were read (no writes, nothing deployed to prod) and run through the migration's own `oldRuleTier` / `newRuleTier` / `migratedOrgFields`: 6 orgs, 1 agency (plan `agency`). pulse-demo old=new=growth; the 4 beta studios and the 1 non-beta agency studio all old=new=max. Nobody resolves lower. The real run is still a separate step after merge.
