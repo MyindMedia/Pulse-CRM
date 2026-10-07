@@ -241,5 +241,6 @@ export const BETA_DEFAULT_MONTHS = 12;
     and evaluating it through a locked door is not an evaluation. They see
     everything, white label included, and pick the tier they actually want at
     the end. The entitlement comes from the beta flag (orgs.betaCohort without
-    graduatedAt), see lib/tier.ts; graduation writes the real tier. */
+    graduatedAt), see lib/tier.ts; graduation writes the real tier (which
+    governs a standalone studio; one under an agency follows the agency plan). */
 export const BETA_TIER: TierKey = "max";

@@ -190,11 +190,20 @@ describe("pooled allowances on Max", () => {
     ).rejects.toMatchObject({ data: { code: "LIMIT_REACHED" } });
   });
 
-  it("does not pool a cheaper sibling into the Max group", async () => {
+  it("pools a studio stamped Core under a Max agency, because it runs at the agency's tier", async () => {
     await agency("max");
     const a = await seedStudio(t, "pool_a", "max", "ag_pool");
     await seedStudio(t, "pool_core", "core", "ag_pool");
     await t.mutation(internal.usage.record, { orgId: "pool_core", metric: "ai_credits", amount: 90 });
+    const summary = await a.query(api.usage.summary, {});
+    expect(summary.metrics.find((m) => m.metric === "ai_credits")?.used).toBe(90);
+  });
+
+  it("does not pool a standalone studio into the Max group", async () => {
+    await agency("max");
+    const a = await seedStudio(t, "pool_a", "max", "ag_pool");
+    await seedStudio(t, "pool_alone", "max");
+    await t.mutation(internal.usage.record, { orgId: "pool_alone", metric: "ai_credits", amount: 90 });
     const summary = await a.query(api.usage.summary, {});
     expect(summary.metrics.find((m) => m.metric === "ai_credits")?.used).toBe(0);
   });

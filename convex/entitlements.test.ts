@@ -192,7 +192,7 @@ describe("tier resolution", () => {
     expect(await t.run((ctx) => tierForOrg(ctx, "o1"))).toBe("max");
   });
 
-  it("lets the studio's own tier win over its agency's plan", async () => {
+  it("lets the agency's plan override orgs.tier, as on main", async () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
       await ctx.db.insert("agencies", {
@@ -205,14 +205,35 @@ describe("tier resolution", () => {
       await ctx.db.insert("orgs", {
         orgId: "sub2", name: "Sub2", slug: "sub2", agencyId: "ag1",
       });
+      await ctx.db.insert("orgs", {
+        orgId: "sub3", name: "Sub3", slug: "sub3", tier: "growth", agencyId: "missing-agency",
+      });
     });
-    // An agency on Max that put this studio on Core: the studio runs Core.
-    expect(await t.run((ctx) => tierForOrg(ctx, "sub1"))).toBe("core");
-    // A studio with no tier of its own follows its agency.
+    // A studio stamped Core by the agency console still runs at the agency's tier.
+    expect(await t.run((ctx) => tierForOrg(ctx, "sub1"))).toBe("max");
     expect(await t.run((ctx) => tierForOrg(ctx, "sub2"))).toBe("max");
+    // A missing agency row falls back to the studio's own tier.
+    expect(await t.run((ctx) => tierForOrg(ctx, "sub3"))).toBe("growth");
   });
 
-  it("gives a beta studio Max until it graduates, then its real tier", async () => {
+  it("follows an agency up/downgrade that only changes agencies.plan", async () => {
+    const t = convexTest(schema);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencies", {
+        agencyId: "agp", name: "Ag", slug: "agp", plan: "max", status: "active",
+        ownerClerkUserId: "u_agp", ownerEmail: "agp@example.com",
+      });
+      await ctx.db.insert("orgs", { orgId: "s", name: "S", slug: "s", tier: "core", agencyId: "agp" });
+    });
+    expect(await t.run((ctx) => tierForOrg(ctx, "s"))).toBe("max");
+    await t.run(async (ctx) => {
+      const ag = await ctx.db.query("agencies").first();
+      await ctx.db.patch(ag!._id, { plan: "growth" });
+    });
+    expect(await t.run((ctx) => tierForOrg(ctx, "s"))).toBe("growth");
+  });
+
+  it("gives a beta studio Max until it graduates, then the agency plan", async () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
       await ctx.db.insert("agencies", {
@@ -226,9 +247,16 @@ describe("tier resolution", () => {
         orgId: "grad1", name: "Grad", slug: "grad1", tier: "growth", agencyId: "ag2",
         betaCohort: true, graduatedAt: 1,
       });
+      await ctx.db.insert("orgs", {
+        orgId: "grad2", name: "Grad2", slug: "grad2", tier: "growth",
+        betaCohort: true, graduatedAt: 1,
+      });
     });
     expect(await t.run((ctx) => tierForOrg(ctx, "beta1"))).toBe("max");
-    expect(await t.run((ctx) => tierForOrg(ctx, "grad1"))).toBe("growth");
+    // Graduated under an agency: follows the agency plan like every other studio.
+    expect(await t.run((ctx) => tierForOrg(ctx, "grad1"))).toBe("core");
+    // Graduated and standalone: its own tier.
+    expect(await t.run((ctx) => tierForOrg(ctx, "grad2"))).toBe("growth");
   });
 
   it("treats a missing org row as the least privileged tier", async () => {

@@ -42,38 +42,54 @@ export function inBeta(org: Pick<OrgTierFields, "betaCohort" | "graduatedAt"> | 
   return Boolean(org?.betaCohort && !org.graduatedAt);
 }
 
+/** Pure core of the resolution, shared with the migration's old-vs-new
+ *  comparison. `agencyPlan` is the stored plan of the org's agency (undefined
+ *  when the org has no agency or the agency row is missing). */
+export function resolveTierPure(org: OrgTierFields | null, agencyPlan: string | undefined): TierKey {
+  if (inBeta(org)) return BETA_TIER;
+  if (org?.agencyId) {
+    const fromAgency = migrateTierValue(agencyPlan);
+    if (fromAgency) return fromAgency;
+  }
+  const own = migrateTierValue(org?.tier);
+  if (own) return own;
+  if (org?.plan && LEGACY_ORG_PLAN_MAP[org.plan]) return LEGACY_ORG_PLAN_MAP[org.plan];
+  return "core";
+}
+
 /**
  * An org's effective tier, in precedence order:
  *   1. the demo sandbox, always the top tier
  *   2. the beta flag: betaCohort and not graduated means Max
- *   3. orgs.tier, the explicit entitlement (a graduation, a checkout, or the
- *      tier an agency gave this studio)
- *   4. its agency's plan, when the org rolls up to an agency and has no
- *      tier of its own
+ *   3. its agency's plan, when the org rolls up to an agency (mapped to
+ *      core / growth / max). An unknown or missing agency plan falls back to
+ *      step 4.
+ *   4. orgs.tier, the explicit entitlement of a standalone workspace
  *   5. the retired orgs.plan field (pre-migration rows only)
  *   6. "core", the least privileged tier
  *
- * The agency plan used to OVERRIDE orgs.tier, which meant a studio an agency
- * had put on Core ran on whatever the agency bought, and a beta studio under
- * a Core agency lost its Max access. The studio's own tier now wins.
+ * This is main's precedence: the agency's plan overrides orgs.tier, so a
+ * studio created through the agency console (stamped with a default tier)
+ * runs at the agency's tier, and a Stripe up/downgrade that only changes
+ * agencies.plan reaches every studio. The one exception is the beta flag.
+ *
+ * Graduation: a graduated beta studio under an agency follows the agency
+ * plan like every other studio. Graduation sets orgs.tier, which only takes
+ * effect for a studio that is not under an agency (or after it leaves one).
  */
 async function resolveTier(
   ctx: QueryCtx | MutationCtx,
   org: OrgTierFields | null,
 ): Promise<TierKey> {
-  if (inBeta(org)) return BETA_TIER;
-  const own = migrateTierValue(org?.tier);
-  if (own) return own;
-  if (org?.agencyId) {
+  let agencyPlan: string | undefined;
+  if (org?.agencyId && !inBeta(org)) {
     const agency = await ctx.db
       .query("agencies")
       .withIndex("by_agency", (q) => q.eq("agencyId", org.agencyId!))
       .first();
-    const fromAgency = migrateTierValue(agency?.plan);
-    if (fromAgency) return fromAgency;
+    agencyPlan = agency?.plan;
   }
-  if (org?.plan && LEGACY_ORG_PLAN_MAP[org.plan]) return LEGACY_ORG_PLAN_MAP[org.plan];
-  return "core";
+  return resolveTierPure(org, agencyPlan);
 }
 
 export async function tierForOrg(

@@ -122,9 +122,10 @@ export const migrateToCoreGrowthMax = internalMutation({
  * wrong tier has no supported way back. This is that way, spelled out rather
  * than done by hand in the dashboard where nothing records that it happened.
  *
- * The studio's own tier wins over its agency's plan (lib/tier.ts), so this is
- * what the workspace actually gets, unless it is in the beta and has not
- * graduated: the beta flag gives Max until graduation.
+ * An agency's plan overrides orgs.tier (lib/tier.ts), so this takes effect for
+ * a standalone workspace, or one that has left its agency. A studio under an
+ * agency follows the agency plan; move the agency, not the studio. The beta
+ * flag gives Max until graduation.
  */
 export const setOrgTier = internalMutation({
   args: {
