@@ -14,7 +14,7 @@ const STUDIO_ROLES = [
   { value: "manager",            label: "Manager",            desc: "Bookings, clients, members" },
   { value: "engineer",           label: "Engineer",           desc: "Runs sessions, edits songs and deliverables" },
   { value: "assistant_engineer", label: "Assistant Engineer", desc: "Narrower scope; own sessions only" },
-  { value: "artist_relations",   label: "Artist Relations",   desc: "Booker / front-of-house; CRM access" },
+  { value: "artist_relations",   label: "Artist Relations",   desc: "Booker / front-of-house; client list access" },
   { value: "producer",           label: "Producer",           desc: "Runs sessions; signs split sheets" },
   { value: "intern",             label: "Intern",             desc: "Read-only across the board" },
   { value: "accountant",         label: "Accountant",         desc: "Invoices, payments, refunds - no creative" },
