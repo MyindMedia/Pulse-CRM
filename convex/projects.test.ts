@@ -399,7 +399,7 @@ describe("Max: the cross-studio view", () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
       await ctx.db.insert("agencies", {
-        agencyId: "org_ag", name: "AG", slug: "ag", plan: agencyPlan, status: "active",
+        agencyId: "org_ag", name: "AG", slug: "ag", plan: "max", status: "active",
         ownerClerkUserId: "u_ag", ownerEmail: "ag@x.com",
       });
       await ctx.db.insert("agencyMembers", {
@@ -421,6 +421,12 @@ describe("Max: the cross-studio view", () => {
     await t.run((ctx) => ctx.db.insert("projects", {
       orgId: "sub_core", name: "Core leftover", stage: "tracking", createdAt: 1, updatedAt: 1, stageChangedAt: 1,
     }));
+    // A studio follows its agency's plan, so seed the data on Max and then
+    // move the agency to the plan under test.
+    await t.run(async (ctx) => {
+      const ag = await ctx.db.query("agencies").first();
+      if (ag) await ctx.db.patch(ag._id, { plan: agencyPlan });
+    });
     const owner = t.withIdentity({ subject: "u_ag", orgId: "org_ag", orgType: "agency" });
     return { t, owner };
   }
@@ -428,9 +434,9 @@ describe("Max: the cross-studio view", () => {
   it("a Max group sees its own studios that hold projects, nobody else's", async () => {
     const { owner } = await group("max");
     const res = await owner.query(api.projects.crossStudio, { nowMs: NOW });
-    expect(res.studios.map((s) => s.orgId).sort()).toEqual(["sub_1", "sub_2"]);
+    expect(res.studios.map((s) => s.orgId).sort()).toEqual(["sub_1", "sub_2", "sub_core"]);
     const names = res.studios.flatMap((s) => s.projects.map((p) => p.name)).sort();
-    expect(names).toEqual(["One EP", "Two LP"]);
+    expect(names).toEqual(["Core leftover", "One EP", "Two LP"]);
     expect(res.studios[0]).toMatchObject({ orgId: "sub_1", overdueCount: 1 });
   });
 
