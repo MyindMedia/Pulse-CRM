@@ -15,6 +15,7 @@ import {
   PLAN_LIMITS, SELLABLE_TIERS, EARLY_ADOPTER_MONTHS, BETA_DEFAULT_MONTHS, BETA_TIER,
   priceLabel, earlyAdopterApplies, earlyAdopterPriceCents,
 } from "./lib/plans";
+import { formatUsd } from "./lib/pricing";
 import { ROADMAP, KIND_LABELS } from "./lib/roadmap";
 import { allowClerkIdentifier } from "./lib/clerkAllowlist";
 import { normalizeEmail, sameEmail } from "./lib/emailKey";
@@ -524,7 +525,7 @@ export const preview = query({
         label: PLAN_LIMITS[t].label,
         price: priceLabel(t),
         intro: earlyAdopterApplies(t, "month")
-          ? `$${(earlyAdopterPriceCents(t) / 100).toFixed(2)}`
+          ? formatUsd(earlyAdopterPriceCents(t))
           : null,
         pitch: PLAN_LIMITS[t].pitch,
       })),
@@ -778,9 +779,9 @@ export const _provision = internalMutation({
       orgId,
       name: args.name.trim(),
       slug,
-      plan: "studio",
-      /* Label: a beta tester is being asked to evaluate the product, and
-         evaluating it through a locked door is not an evaluation. */
+      /* Max: a beta tester is being asked to evaluate the product, and
+         evaluating it through a locked door is not an evaluation. The beta
+         flag below grants it until graduation whatever this says. */
       tier: BETA_TIER,
       status: "setup",
       agencyId: args.agencyId,

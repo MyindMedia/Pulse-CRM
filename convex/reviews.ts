@@ -134,7 +134,8 @@ export const forSession = query({
 export const listForOrg = query({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+    // "Ask for a review" is Core: the tier gate is reviews and referrals.
+    const orgId = await currentOrgWithCapability(ctx, "insights.read", undefined, { entitlement: "reviewsReferrals" });
     return await ctx.db
       .query("reviews")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))

@@ -1,6 +1,5 @@
 import { action, query, internalQuery } from "./_generated/server";
 import { internalMutation } from "./functions";
-import { takeCents } from "./lib/plans";
 import { tierForOrg } from "./lib/tier";
 import type { ActionCtx } from "./_generated/server";
 import { v, ConvexError } from "convex/values";
@@ -220,9 +219,8 @@ export const _depositContext = internalQuery({
     const session = await ctx.db.get(sessionId);
     if (!session || session.orgId !== orgId) return null;
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
-    // The platform fee is a property of the studio's PLAN, resolved the same
-    // way every other entitlement is. A subscription plan has no take rate, so
-    // this is 0 for everyone except the payments-monetized tier.
+    // No booking commission on any plan: Pulse takes no platform fee on a
+    // deposit. Kept as a field so the checkout below stays explicit about it.
     const tier = await tierForOrg(ctx, orgId);
     return {
       title: session.title,
@@ -231,7 +229,7 @@ export const _depositContext = internalQuery({
       chargesEnabled: Boolean(org?.stripeChargesEnabled),
       slug: org?.slug ?? "",
       tier,
-      applicationFeeCents: takeCents(tier, session.depositCents),
+      applicationFeeCents: 0,
     };
   },
 });

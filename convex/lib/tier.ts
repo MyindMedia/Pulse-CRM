@@ -1,25 +1,25 @@
 import type { QueryCtx, MutationCtx } from "../_generated/server";
-import { PLAN_LIMITS, type TierKey } from "./plans";
+import { BETA_TIER, type TierKey } from "./plans";
+import { LEGACY_ORG_PLAN_MAP, migrateTierValue } from "./legacyPlans";
 
 /* ============================================================
    Tier resolution - a leaf module on purpose.
 
-   It imports nothing but plans.ts, so the access engine, usage
-   metering and entitlements can all resolve an org's tier the same
-   way without an import cycle (access -> entitlements -> usage ->
-   tenant -> access). usage.ts re-exports these for its callers.
+   It imports nothing but plans.ts (and the migration map), so the access
+   engine, usage metering and entitlements can all resolve an org's tier
+   the same way without an import cycle (access -> entitlements -> usage
+   -> tenant -> access). usage.ts re-exports these for its callers.
    ============================================================ */
 
 /**
- * Resolve a stored org/agency plan string into a valid PLAN_LIMITS tier.
- * orgs.tier is one of the TierKeys; agencies.plan can also be "agency_plus".
- * Unknown values fall back to "studio" (the least privileged tier), so a
- * typo can never silently unlock a paid capability.
+ * Resolve a stored org/agency plan string into a valid tier. New keys pass
+ * through. Rows written before the Core/Growth/Max migration resolve through
+ * the legacy map, so a deploy that lands before the migration runs never
+ * demotes anyone. Unknown values fall back to "core" (the least privileged
+ * tier), so a typo can never silently unlock a paid capability.
  */
 export function tierForPlan(plan: string | undefined): TierKey {
-  if (plan && plan in PLAN_LIMITS) return plan as TierKey;
-  if (plan === "agency_plus") return "agency";
-  return "studio";
+  return migrateTierValue(plan) ?? "core";
 }
 
 /** The seeded sandbox workspace. It resolves to the top tier on purpose: a
@@ -27,46 +27,66 @@ export function tierForPlan(plan: string | undefined): TierKey {
  *  no-auth fallback used by the test harness. */
 export const DEMO_ORG = "pulse-demo";
 
-/** orgs.plan is the original, always-present tier signal ("solo" | "studio" |
- *  "label"). orgs.tier was added later and is optional, so an org provisioned
- *  before it existed has no tier at all. Falling back through plan keeps those
- *  workspaces on the entitlements they were sold, instead of silently
- *  demoting every legacy studio to the cheapest tier on deploy. */
-const PLAN_TO_TIER: Record<string, TierKey> = {
-  solo: "studio",
-  studio: "pro",
-  label: "label",
+type OrgTierFields = {
+  tier?: string;
+  plan?: string;
+  agencyId?: string;
+  betaCohort?: boolean;
+  graduatedAt?: number;
+  disabledFeatures?: string[];
 };
+
+/** True while a workspace is in the beta and has not graduated. Beta studios
+ *  get the top tier through this flag, whatever orgs.tier says. */
+export function inBeta(org: Pick<OrgTierFields, "betaCohort" | "graduatedAt"> | null | undefined): boolean {
+  return Boolean(org?.betaCohort && !org.graduatedAt);
+}
 
 /**
  * An org's effective tier, in precedence order:
- *   1. the demo sandbox, always top tier
- *   2. orgs.tier, the explicit entitlement
- *   3. its agency's plan, when the org rolls up to an agency
- *   4. orgs.plan, mapped through PLAN_TO_TIER (legacy rows)
- *   5. "studio", the least privileged tier
+ *   1. the demo sandbox, always the top tier
+ *   2. the beta flag: betaCohort and not graduated means Max
+ *   3. orgs.tier, the explicit entitlement (a graduation, a checkout, or the
+ *      tier an agency gave this studio)
+ *   4. its agency's plan, when the org rolls up to an agency and has no
+ *      tier of its own
+ *   5. the retired orgs.plan field (pre-migration rows only)
+ *   6. "core", the least privileged tier
+ *
+ * The agency plan used to OVERRIDE orgs.tier, which meant a studio an agency
+ * had put on Core ran on whatever the agency bought, and a beta studio under
+ * a Core agency lost its Max access. The studio's own tier now wins.
  */
-export async function tierForOrg(
+async function resolveTier(
   ctx: QueryCtx | MutationCtx,
-  orgId: string,
+  org: OrgTierFields | null,
 ): Promise<TierKey> {
-  if (orgId === DEMO_ORG) return "label";
-  const org = await ctx.db
-    .query("orgs")
-    .withIndex("by_org", (q) => q.eq("orgId", orgId))
-    .first();
-  let planString: string | undefined = org?.tier;
+  if (inBeta(org)) return BETA_TIER;
+  const own = migrateTierValue(org?.tier);
+  if (own) return own;
   if (org?.agencyId) {
     const agency = await ctx.db
       .query("agencies")
       .withIndex("by_agency", (q) => q.eq("agencyId", org.agencyId!))
       .first();
-    if (agency?.plan) planString = agency.plan;
+    const fromAgency = migrateTierValue(agency?.plan);
+    if (fromAgency) return fromAgency;
   }
-  if (!planString && org?.plan) planString = PLAN_TO_TIER[org.plan];
-  return tierForPlan(planString);
+  if (org?.plan && LEGACY_ORG_PLAN_MAP[org.plan]) return LEGACY_ORG_PLAN_MAP[org.plan];
+  return "core";
 }
 
+export async function tierForOrg(
+  ctx: QueryCtx | MutationCtx,
+  orgId: string,
+): Promise<TierKey> {
+  if (orgId === DEMO_ORG) return "max";
+  const org = await ctx.db
+    .query("orgs")
+    .withIndex("by_org", (q) => q.eq("orgId", orgId))
+    .first();
+  return resolveTier(ctx, org);
+}
 
 /** Tier plus the operator's switched-off module list, from ONE org read.
  *  The access engine needs both on every metered check, and reading the row
@@ -75,22 +95,13 @@ export async function orgGate(
   ctx: QueryCtx | MutationCtx,
   orgId: string,
 ): Promise<{ tier: TierKey; disabled: Set<string> }> {
-  if (orgId === DEMO_ORG) return { tier: "label", disabled: new Set() };
+  if (orgId === DEMO_ORG) return { tier: "max", disabled: new Set() };
   const org = await ctx.db
     .query("orgs")
     .withIndex("by_org", (q) => q.eq("orgId", orgId))
     .first();
-  let planString: string | undefined = org?.tier;
-  if (org?.agencyId) {
-    const agency = await ctx.db
-      .query("agencies")
-      .withIndex("by_agency", (q) => q.eq("agencyId", org.agencyId!))
-      .first();
-    if (agency?.plan) planString = agency.plan;
-  }
-  if (!planString && org?.plan) planString = PLAN_TO_TIER[org.plan];
   return {
-    tier: tierForPlan(planString),
+    tier: await resolveTier(ctx, org),
     disabled: new Set(org?.disabledFeatures ?? []),
   };
 }

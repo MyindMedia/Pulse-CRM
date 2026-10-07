@@ -60,7 +60,6 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     orgId,
     name: org?.name ?? "Pulse Studio",
     slug: org?.slug ?? "pulse-studio",
-    plan: org?.plan ?? "studio",
     status: org?.status ?? "active",
     accentColor: org?.accentColor ?? "#fdb913",
     timezone: org?.timezone ?? null,
@@ -171,7 +170,9 @@ async function ensureOrg(ctx: { db: QueryCtx["db"] }, orgId: string) {
 export const update = mutation({
   args: {
     name: v.optional(v.string()),
-    plan: v.optional(v.union(v.literal("solo"), v.literal("studio"), v.literal("label"))),
+    // No plan or tier here, deliberately. Anyone with branding.edit can call
+    // this, and a plan change is a billing act: it happens only through
+    // checkout, graduation, or migrations:setOrgTier.
     accentColor: v.optional(v.string()),
     tagline: v.optional(v.string()),
     bookingHeadline: v.optional(v.string()),
@@ -207,7 +208,6 @@ export const update = mutation({
         orgId,
         name: (patch.name as string) ?? "Pulse Studio",
         slug: "pulse-studio",
-        plan: patch.plan ?? "studio",
         status: "active",
         accentColor: patch.accentColor,
         tagline: patch.tagline,
@@ -243,7 +243,6 @@ export const setLogo = mutation({
         orgId,
         name: "Pulse Studio",
         slug: "pulse-studio",
-        plan: "studio",
         status: "active",
         logoId: storageId,
       });
@@ -283,7 +282,6 @@ export const setBookingHero = mutation({
         orgId,
         name: "Pulse Studio",
         slug: "pulse-studio",
-        plan: "studio",
         status: "active",
         bookingHeroId: storageId,
       });

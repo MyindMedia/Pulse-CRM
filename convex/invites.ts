@@ -9,7 +9,7 @@ import { allowClerkIdentifier } from "./lib/clerkAllowlist";
 import { normalizePhone } from "./lib/phone";
 import { inviteEmailHtml, inviteEmailSubject } from "./lib/emailTemplates/invite";
 import { PLAN_LIMITS } from "./lib/plans";
-import { periodFor, tierForPlan } from "./usage";
+import { periodFor, tierForOrg } from "./usage";
 import { findByEmail, normalizeEmail, sameEmail } from "./lib/emailKey";
 
 /* ============================================================
@@ -51,19 +51,8 @@ export const record = internalMutation({
     //    against the plan's magicLinkGrantsPerMonth cap. The "email" usage
     //    counter is the issuance ledger; block before inserting if it would
     //    exceed the cap, then meter the send on success. ──
-    const org = await ctx.db
-      .query("orgs")
-      .withIndex("by_org", (q) => q.eq("orgId", args.orgId))
-      .first();
-    let planString: string | undefined = org?.tier;
-    if (org?.agencyId) {
-      const agency = await ctx.db
-        .query("agencies")
-        .withIndex("by_agency", (q) => q.eq("agencyId", org.agencyId!))
-        .first();
-      if (agency?.plan) planString = agency.plan;
-    }
-    const tier = tierForPlan(planString);
+    // Same resolution as every gate (beta flag, own tier, agency plan).
+    const tier = await tierForOrg(ctx, args.orgId);
     const cap = PLAN_LIMITS[tier].magicLinkGrantsPerMonth;
 
     const period = periodFor("email");

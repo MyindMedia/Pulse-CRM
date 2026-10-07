@@ -296,8 +296,11 @@ const SPEC_SYSTEM =
 export const deviceForProposal = internalQuery({
   args: { deviceInstanceId: v.id("deviceInstances") },
   handler: async (ctx, { deviceInstanceId }) => {
+    // "Set up sockets from the maker's sheet" is a Max add to the cable map,
+    // and the device must be the caller's own.
+    const orgId = await currentOrgWithCapability(ctx, "patch.edit", undefined, { entitlement: "specSheetImport" });
     const device = await ctx.db.get(deviceInstanceId);
-    if (!device) return null;
+    if (!device || device.orgId !== orgId) return null;
     const profile = await ctx.db.get(device.profileId);
     return {
       orgId: device.orgId,
@@ -519,7 +522,7 @@ export const applyProposal = mutation({
     sourceLabel: v.optional(v.string()),
   },
   handler: async (ctx, { deviceInstanceId, add, removePortIds, sourceLabel }) => {
-    const orgId = await currentOrgWithCapability(ctx, "patch.edit");
+    const orgId = await currentOrgWithCapability(ctx, "patch.edit", undefined, { entitlement: "specSheetImport" });
     const actor = await currentActor(ctx);
     const device = await ctx.db.get(deviceInstanceId);
     if (!device || device.orgId !== orgId) {

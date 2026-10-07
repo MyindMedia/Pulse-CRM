@@ -1,3 +1,4 @@
+import { formatUsd } from "./lib/pricing";
 import { query } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
@@ -193,9 +194,7 @@ export const remove = mutation({
    ============================================================ */
 
 function money(cents: number): string {
-  return `$${(cents / 100).toLocaleString("en-US", {
-    minimumFractionDigits: 2, maximumFractionDigits: 2,
-  })}`;
+  return formatUsd(cents);
 }
 
 const BETA_DAYS = 365;

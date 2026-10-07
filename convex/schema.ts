@@ -4,6 +4,8 @@ import { v } from "convex/values";
 import { pulseWalkthroughTables } from "./pulseWalkthrough/tables";
 import { outreachTables } from "./outreach/tables";
 import { expenseCategoryV, incomeCategoryV, moneyInKindV } from "./lib/financeValidators";
+import { tierV } from "./lib/tierV";
+import { legacyAgencyPlanV, legacyOrgPlanV, legacyOrgTierV } from "./lib/legacyPlans";
 
 /* ============================================================
    PULSE - Convex schema
@@ -15,6 +17,8 @@ import { expenseCategoryV, incomeCategoryV, moneyInKindV } from "./lib/financeVa
    ============================================================ */
 
 // ── Shared validators ──
+// Plan keys come from lib/pricing.ts through lib/tierV.ts. The old ladder's
+// values are accepted only through lib/legacyPlans.ts, for the two-step deploy.
 const artistType = v.union(
   v.literal("artist"),
   v.literal("producer"),
@@ -194,7 +198,10 @@ export default defineSchema({
     orgId: v.string(), // Clerk org_xxx or "pulse-demo"
     name: v.string(),
     slug: v.string(), // resolves /book/<slug>
-    plan: v.union(v.literal("solo"), v.literal("studio"), v.literal("label")),
+    // RETIRED. The original tier signal, superseded by `tier`. Optional and
+    // never written; migrations:migrateToCoreGrowthMax folds it into `tier`
+    // and clears it. Drop in the second deploy (TWO-STEP DEPLOY below).
+    plan: v.optional(legacyOrgPlanV),
     status: v.optional(
       v.union(v.literal("active"), v.literal("paused"), v.literal("setup")),
     ),
@@ -235,17 +242,14 @@ export default defineSchema({
     disabledFeatures: v.optional(v.array(v.string())),
     // NEW (agency mode - cycle 1)
     agencyId: v.optional(v.string()),     // parent agency, null for base tier
-    tier: v.optional(v.union(             // cached for cap-check perf
-      v.literal("flow"),                  // $0 + take rate - payments-monetized
-      v.literal("studio"),                // $149.99 - the money loop
-      v.literal("pro"),                   // $297.00 - the whole operation
-      v.literal("label"),                 // $499.99 - unlocked + white label
-      v.literal("enterprise"),
-      v.literal("growth"),                // legacy, superseded by "label"
-      v.literal("agency"),                // legacy
-    )),
+    // The plan this studio is on: core | growth | max (lib/pricing.ts).
+    // TWO-STEP DEPLOY: the legacy literals stay accepted only so this schema
+    // can deploy over rows the migration has not rewritten yet. Step 1:
+    // deploy, run migrations:migrateToCoreGrowthMax until it reports zero.
+    // Step 2: replace this union with `tierV` and delete lib/legacyPlans.ts.
+    tier: v.optional(v.union(tierV, legacyOrgTierV)),
     // ── White-label theme. Writable only on a tier whose plan whitelabel
-    //    level is "full" (Label). Unset = Pulse chrome. The Powered by Pulse
+    //    level is "full" (Max). Unset = Pulse chrome. The Powered by Pulse
     //    lockup under the studio logo is never removable, at any tier. ──
     theme: v.optional(
       v.object({
@@ -521,16 +525,9 @@ export default defineSchema({
     agencyId: v.string(),                 // Clerk org_xxx of agency-level Clerk org
     name: v.string(),
     slug: v.string(),                     // resolves /a/<slug>
-    plan: v.union(
-      v.literal("flow"),
-      v.literal("studio"),
-      v.literal("pro"),
-      v.literal("label"),
-      v.literal("growth"),                // legacy, superseded by "label"
-      v.literal("enterprise"),
-      v.literal("agency"),                // legacy
-      v.literal("agency_plus"),           // RESELL HOOK
-    ),
+    // core | growth | max. Legacy literals accepted until the migration has
+    // run in production (TWO-STEP DEPLOY, see orgs.tier).
+    plan: v.union(tierV, legacyAgencyPlanV),
     status: v.union(v.literal("active"), v.literal("paused"), v.literal("trial")),
     // Branding (white-label)
     logoId: v.optional(fileRefV),

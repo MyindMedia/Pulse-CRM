@@ -8,6 +8,7 @@ import { NDA_VERSION } from "./lib/betaNda";
 import { requireCapability } from "./lib/access";
 import { allowClerkIdentifier } from "./lib/clerkAllowlist";
 import { BETA_TIER } from "./lib/plans";
+import { tierV } from "./lib/tierV";
 import { defaultAgencyPlanId } from "./lib/betaPlan";
 
 /* ============================================================
@@ -111,7 +112,7 @@ export const _grant = internalMutation({
   args: {
     orgId: v.string(),
     months: v.optional(v.number()),
-    tier: v.optional(v.union(v.literal("studio"), v.literal("pro"), v.literal("label"))),
+    tier: v.optional(tierV),
     force: v.optional(v.boolean()),
   },
   handler: async (ctx, { orgId, months, tier, force }) => {
@@ -140,9 +141,11 @@ export const _grant = internalMutation({
        that took three weeks to respond was three weeks of a year they never
        had. betaLicenseUntil stays undefined until then, and the gate reads
        that as "granted, not started". */
-    /* Label unless the agency says otherwise: the beta exists to be
-       evaluated, and half a product is not one. And onto the Beta plan, so
-       the gate has a countdown to run and a plan to convert at the end. */
+    /* Max for the length of the beta, through the beta flag (lib/tier.ts),
+       whatever tier is stored: the beta exists to be evaluated, and half a
+       product is not one. The stored tier is what graduation replaces. And
+       onto the Beta plan, so the gate has a countdown to run and a plan to
+       convert at the end. */
     const betaPlanId = org.agencyPlanId ?? (await defaultAgencyPlanId(ctx, org.agencyId));
     await ctx.db.patch(org._id, {
       betaCohort: true,
@@ -211,8 +214,8 @@ export const _grant = internalMutation({
 
 /* Bring the cohort that predates the rule onto it.
 
-   Every beta studio runs on Label and bills against the Beta plan. The ones
-   granted before that was decided are on Pro, and one of them has no plan row
+   Every beta studio runs on Max and bills against the Beta plan. The ones
+   granted before that was decided were on a lower tier, and one has no plan row
    at all - which reads as "no_plan" at the gate, so no countdown, no warnings
    and nothing to convert at the end of the year.
 
@@ -301,7 +304,7 @@ export const _convert = internalAction({
   args: {
     email: v.string(),
     months: v.optional(v.number()),
-    tier: v.optional(v.union(v.literal("studio"), v.literal("pro"), v.literal("label"))),
+    tier: v.optional(tierV),
     send: v.optional(v.boolean()),
     force: v.optional(v.boolean()),
     /** Send again even if a welcome already went out. For the studios
@@ -387,7 +390,7 @@ export const convertExisting = action({
   args: {
     email: v.string(),
     months: v.optional(v.number()),
-    tier: v.optional(v.union(v.literal("studio"), v.literal("pro"), v.literal("label"))),
+    tier: v.optional(tierV),
     send: v.optional(v.boolean()),
     force: v.optional(v.boolean()),
     resend: v.optional(v.boolean()),

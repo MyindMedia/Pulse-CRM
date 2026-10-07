@@ -7,6 +7,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import type { QueryCtx, MutationCtx } from "./_generated/server";
 import { currentOrgWithCapability, currentActor, assertOrg } from "./lib/tenant";
+import { orgHasFeature } from "./lib/entitlements";
 import { GEAR_CATALOG, searchGearCatalog } from "./lib/gearCatalog";
 import { meterStorageUpload } from "./usage";
 import {
@@ -634,7 +635,7 @@ export const createProfile = mutation({
     portTemplate: v.array(portTemplateV),
   },
   handler: async (ctx, args) => {
-    const orgId = await currentOrgWithCapability(ctx, "patch.edit");
+    const orgId = await currentOrgWithCapability(ctx, "patch.edit", undefined, { entitlement: "gearModels" });
     const actor = await currentActor(ctx);
     if (!args.name.trim()) throw new ConvexError("Give the device a name.");
 
@@ -650,7 +651,7 @@ export const createProfile = mutation({
 export const removeProfile = mutation({
   args: { id: v.id("deviceProfiles") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrgWithCapability(ctx, "patch.edit");
+    const orgId = await currentOrgWithCapability(ctx, "patch.edit", undefined, { entitlement: "gearModels" });
     const profile = await ctx.db.get(id);
     if (!profile) throw new ConvexError("Not found.");
     if (profile.scope === "global" || profile.orgId !== orgId) {
@@ -1749,6 +1750,9 @@ export const history = query({
   args: { patchSpaceId: v.id("patchSpaces"), limit: v.optional(v.number()) },
   handler: async (ctx, { patchSpaceId, limit }) => {
     const orgId = await currentOrgWithCapability(ctx, "patch.read");
+    // The cable map's history is a Max add. Degrade to empty rather than
+    // throw, so a Growth studio's canvas never errors on a read.
+    if (!(await orgHasFeature(ctx, orgId, "patchHistory"))) return [];
     const space = await ctx.db.get(patchSpaceId);
     if (!space || space.orgId !== orgId) return [];
     return await ctx.db
@@ -1944,7 +1948,7 @@ export const addNote = mutation({
     color: v.optional(v.string()),
   },
   handler: async (ctx, { patchSpaceId, position, text, color }) => {
-    const orgId = await currentOrgWithCapability(ctx, "patch.edit");
+    const orgId = await currentOrgWithCapability(ctx, "patch.edit", undefined, { entitlement: "patchHistory" });
     const actor = await currentActor(ctx);
     const space = await ctx.db.get(patchSpaceId);
     assertOrg(space, orgId);
@@ -1988,7 +1992,7 @@ export const updateNote = mutation({
     size: v.optional(v.object({ width: v.number(), height: v.number() })),
   },
   handler: async (ctx, { id, ...patch }) => {
-    const orgId = await currentOrgWithCapability(ctx, "patch.edit");
+    const orgId = await currentOrgWithCapability(ctx, "patch.edit", undefined, { entitlement: "patchHistory" });
     const note = await ctx.db.get(id);
     assertOrg(note, orgId);
 
@@ -2005,7 +2009,7 @@ export const updateNote = mutation({
 export const removeNote = mutation({
   args: { id: v.id("patchAnnotations") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrgWithCapability(ctx, "patch.edit");
+    const orgId = await currentOrgWithCapability(ctx, "patch.edit", undefined, { entitlement: "patchHistory" });
     const actor = await currentActor(ctx);
     const note = await ctx.db.get(id);
     assertOrg(note, orgId);
@@ -2054,7 +2058,7 @@ export const addGroup = mutation({
     size: v.object({ width: v.number(), height: v.number() }),
   },
   handler: async (ctx, { patchSpaceId, name, kind, roomId, color, position, size }) => {
-    const orgId = await currentOrgWithCapability(ctx, "patch.edit");
+    const orgId = await currentOrgWithCapability(ctx, "patch.edit", undefined, { entitlement: "patchHistory" });
     const actor = await currentActor(ctx);
     const space = await ctx.db.get(patchSpaceId);
     assertOrg(space, orgId);
@@ -2114,7 +2118,7 @@ export const updateGroup = mutation({
     size: v.optional(v.object({ width: v.number(), height: v.number() })),
   },
   handler: async (ctx, { id, roomId, ...patch }) => {
-    const orgId = await currentOrgWithCapability(ctx, "patch.edit");
+    const orgId = await currentOrgWithCapability(ctx, "patch.edit", undefined, { entitlement: "patchHistory" });
     const group = await ctx.db.get(id);
     assertOrg(group, orgId);
 
@@ -2161,7 +2165,7 @@ export const updateGroup = mutation({
 export const removeGroup = mutation({
   args: { id: v.id("patchGroups") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrgWithCapability(ctx, "patch.edit");
+    const orgId = await currentOrgWithCapability(ctx, "patch.edit", undefined, { entitlement: "patchHistory" });
     const actor = await currentActor(ctx);
     const group = await ctx.db.get(id);
     assertOrg(group, orgId);

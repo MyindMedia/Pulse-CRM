@@ -1,6 +1,7 @@
 import { QueryCtx, MutationCtx } from "../_generated/server";
 import { resolveViewer, requireCapability } from "./access";
 import type { Capability } from "./accessTypes";
+import type { CapabilityKey } from "./pricing";
 import { moneySight, type MoneySight } from "./money";
 
 /* The seeded workspace used whenever Clerk auth is not configured. */
@@ -18,12 +19,16 @@ export async function currentOrgWithCapability(
   ctx: Ctx,
   capability: Capability,
   requestedOrgId?: string,
+  opts?: { entitlement?: CapabilityKey | null },
 ): Promise<string> {
-  const viewer = await requireCapability(
-    ctx,
-    capability,
-    requestedOrgId ? { orgId: requestedOrgId } : undefined,
-  );
+  const resource =
+    requestedOrgId || opts?.entitlement !== undefined
+      ? {
+          ...(requestedOrgId ? { orgId: requestedOrgId } : {}),
+          ...(opts?.entitlement !== undefined ? { entitlement: opts.entitlement } : {}),
+        }
+      : undefined;
+  const viewer = await requireCapability(ctx, capability, resource);
   return requestedOrgId ?? viewer.orgId ?? DEMO_ORG;
 }
 

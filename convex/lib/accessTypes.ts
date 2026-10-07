@@ -1,3 +1,4 @@
+import type { CapabilityKey } from "./pricing";
 import type { Id } from "../_generated/dataModel";
 
 /* ============================================================
@@ -32,6 +33,11 @@ export type ResourceRef = {
   orgId?: string;
   entityId?: string;
   entityType?: string;
+  /** Entitlement to check instead of the one mapped from the permission in
+   *  ENTITLEMENT_FOR_CAPABILITY. For a call site whose permission is shared
+   *  with a surface sold at a different tier (software vs licensing, the
+   *  cable map's Max adds). null means unmetered. */
+  entitlement?: CapabilityKey | null;
 };
 
 export type AgencyViewer = {
