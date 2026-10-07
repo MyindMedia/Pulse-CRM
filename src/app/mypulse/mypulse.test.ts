@@ -41,7 +41,6 @@ describe("/mypulse gate", () => {
 
   it("commits no password: there is no literal fallback in auth.ts", () => {
     const src = read("src/app/mypulse/auth.ts");
-    expect(src).not.toMatch(/mypulse255/);
     expect(src).not.toMatch(/MYPULSE_PASSWORD\s*\|\|\s*["'`]/);
     expect(src).not.toMatch(/MYPULSE_PASSWORD\s*\?\?\s*["'`]/);
   });
@@ -50,7 +49,7 @@ describe("/mypulse gate", () => {
     const auth = await import("./auth");
     expect(auth.gateConfigured()).toBe(false);
     expect(auth.accessToken()).toBeNull();
-    for (const guess of ["", " ", "mypulse255!", "password", "undefined", "null"]) {
+    for (const guess of ["", " ", "test-only-not-a-real-password", "password", "undefined", "null"]) {
       expect(auth.checkPassword(guess)).toBe(false);
     }
     cookieJar.set(auth.MYPULSE_COOKIE, "anything");
@@ -69,7 +68,7 @@ describe("/mypulse gate", () => {
   it("the unlock action refuses every password when unset", async () => {
     const { unlock } = await import("./actions");
     const fd = new FormData();
-    fd.set("password", "mypulse255!");
+    fd.set("password", "test-only-not-a-real-password");
     const out = await unlock({ error: null }, fd);
     expect(out.error).toBeTruthy();
     expect(cookieJar.size).toBe(0);

@@ -10,7 +10,7 @@ You're working in my Pulse OS codebase. Pulse OS is "the studio operating system
 - the plan-gating code
 
 == CONTEXT ==
-- Internal page: https://studiopulse.tech/mypulse, password: mypulse255!
+- Internal page: https://studiopulse.tech/mypulse, password: (set MYPULSE_PASSWORD in Netlify)
   - It's an internal "NOT FOR FORWARDING" sales sheet: 155 built features in 14 groups, each tagged with the cheapest plan that includes it, plus 9 "Not built yet" items.
   - The feature data lives in the repo. Treat the repo copy as the source of truth for exact feature names.
 - The Pulse app: our iOS companion app, already live. It lets studio owners and teams run Pulse from their phones without being at a computer. It's separate from the installable web app ("It installs on a phone").
