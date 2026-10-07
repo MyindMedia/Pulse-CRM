@@ -12,8 +12,9 @@ Nothing here is pushed, deployed, migrated on a live database, or changed in liv
 7. Run `npm run build` and `node tools/browser-check/check.mjs <url>` on a Netlify deploy preview (neither was run: the build starts with `convex codegen`).
 
 ## Known gaps
-- iOS app (`~/Dev/pulse-native`) NOT changed. Calls the app needs are in docs/PROJECT-TRACKING.md, docs/MEDIA-LIBRARY.md, docs/GEAR-CHECKOUT.md. The app has no plan wording by design (App Review 3.1.3(f)).
-- `convex/marketing/results.test.ts` fails on a stale 2026-08 date fixture (not pricing related; not proven on main).
+- iOS: built on `~/Dev/pulse-native` branch `feat/core-growth-max-ios` (9 commits, not pushed): projects, version review, barcode gear check-out. 208/208 PulseKit tests pass; UI files were type-checked for iOS only, NOT built into the app or run on a simulator. Run `tools/iphone.sh sim` and scan a label before any TestFlight. Not built on iOS: create/edit projects and tasks, uploads, restore, guest links, assigning label codes. No plan wording in the app (App Review 3.1.3(f)).
+- `convex/marketing/results.test.ts` fails on a stale 2026-08 date fixture; confirmed it also fails on main.
+- `next build` passes (run without the Convex codegen prebuild). Browser check on a local build: logos and /demo prefetch fixed; remaining console noise is the Convex query not yet on the dev deployment, cancelled ?_rsc prefetches, and an intermittent React #418 likely from the hero's live clock (hero.tsx:47, not changed by this work).
 - Dev Convex deployment fiery-cricket-350 received two accidental `convex codegen` pushes from agents. Prod (pastel-corgi-340) untouched.
 - No dynamic Strix scan (needs Docker + LLM key). Static security review done; its CRITICAL and HIGH items are fixed and tested.
 - No UI toggle yet for `mediaLibrary.setGroupSharing` (shared library is opt-in per studio, default off).
