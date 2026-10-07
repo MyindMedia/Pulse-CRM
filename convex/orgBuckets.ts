@@ -4,7 +4,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { r2For, rowBucket, type MediaBucket } from "./lib/media";
-import { bucketBelongsTo, isOrgBucketName, isStudioScope, orgBucketNames, sharedBucketName, type BucketRole } from "./lib/orgBuckets";
+import { bucketBelongsTo, isOrgBucketName, isStudioScope, orgBucketNames, orgBucketsEnabled, sharedBucketName, type BucketRole } from "./lib/orgBuckets";
 
 /* ============================================================
    Per-studio R2 buckets: provisioning, release and the move of files already in
@@ -174,6 +174,18 @@ export const provisionAll = internalAction({
     const results: ProvisionResult[] = [];
     for (const orgId of orgIds) results.push(await ctx.runAction(internal.orgBuckets.provision, { orgId }));
     return { ...base, results };
+  },
+});
+
+/** Hourly safety net behind the on-insert trigger: any studio still without ready
+ *  buckets (a Cloudflare outage at signup, a bad token, a row written outside a
+ *  mutation) is provisioned here. A no-op while per-studio buckets are off. */
+export const sweepNewOrgs = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ ran: boolean; orgs?: number; refused?: string }> => {
+    if (!orgBucketsEnabled()) return { ran: false };
+    const r = await ctx.runAction(internal.orgBuckets.provisionAll, { dryRun: false, limit: 50 });
+    return { ran: true, orgs: r.orgs, refused: r.refused };
   },
 });
 
