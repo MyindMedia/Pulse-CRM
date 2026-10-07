@@ -14,7 +14,7 @@ describe("stripe connect", () => {
 
   it("status: not connected, not configured (no key) by default", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active" });
     });
     const s = await t.query(api.stripeConnect.status, {});
     expect(s).toMatchObject({ connected: false, chargesEnabled: false, configured: false });
@@ -23,7 +23,7 @@ describe("stripe connect", () => {
   it("status reflects a connected, charges-enabled studio", async () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active",
+        orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active",
         stripeAccountId: "acct_123", stripeChargesEnabled: true, stripeDetailsSubmitted: true,
       });
     });
@@ -33,21 +33,21 @@ describe("stripe connect", () => {
 
   it("createAccountLink throws when Stripe isn't configured", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active" });
     });
     await expect(t.action(api.stripeConnect.createAccountLink, {})).rejects.toThrow(/configured/i);
   });
 
   it("createAccountSession throws when Stripe isn't configured", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active" });
     });
     await expect(t.action(api.stripeConnect.createAccountSession, {})).rejects.toThrow(/configured/i);
   });
 
   it("createDashboardLink throws when Stripe isn't configured", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active" });
     });
     await expect(t.action(api.stripeConnect.createDashboardLink, {})).rejects.toThrow(/configured/i);
   });
@@ -55,7 +55,7 @@ describe("stripe connect", () => {
   it("createDashboardLink tells an unconnected studio to connect first", async () => {
     process.env.STRIPE_SECRET_KEY = "sk_test_dummy"; // configured, but org has no account → guard fires before any Stripe call
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active" });
     });
     await expect(t.action(api.stripeConnect.createDashboardLink, {})).rejects.toThrow(/connect/i);
   });
@@ -63,7 +63,7 @@ describe("stripe connect", () => {
   it("webhook account.updated flips the owning org's charge flags", async () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active",
+        orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active",
         stripeAccountId: "acct_xyz", stripeChargesEnabled: false,
       });
     });
@@ -84,7 +84,7 @@ describe("stripe connect", () => {
       return t.run(async (ctx) => {
         const orgId = "pulse-demo";
         await ctx.db.insert("orgs", {
-          orgId, name: "Demo", slug: "demo", plan: "studio", status: "active",
+          orgId, name: "Demo", slug: "demo", tier: "growth", status: "active",
           stripeAccountId: "acct_test", stripeChargesEnabled: true, stripeDetailsSubmitted: true,
         });
         const planId = await ctx.db.insert("membershipPlans", {

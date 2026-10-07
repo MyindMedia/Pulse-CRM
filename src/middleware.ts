@@ -59,6 +59,7 @@ const isPublicRoute = createRouteMatcher([
   "/book/(.*)", // public studio booking by slug - no login
   "/pay/(.*)", // public invoice payment link - no login
   "/invite(.*)", // beta invite account-creation screen - no auth required
+  "/files/(.*)", // expiring media-library guest link - token-authed, no login
   "/portal(.*)", // client concierge magic-link portal - token-authed, no login
   "/sign(.*)", // split-sheet e-signature magic-link - token-authed, no login
   "/visit/(.*)", // visitor QR self check-in - org derived from the slug, no login
@@ -67,7 +68,9 @@ const isPublicRoute = createRouteMatcher([
   // (auth.protect() 404s rather than redirecting on the satellite host).
   "/studios", // Find a Studio directory - artists searching, not customers
   "/studios/(.*)",
-  "/vs", // comparison page - a search result, must be anonymous-reachable
+  "/vs", // comparison page - reachable by direct link only, noindex (names a rival)
+  "/pricing", // public price page - linked from the nav, must be anonymous-reachable
+  "/pricing/(.*)", // its social card (opengraph-image, twitter-image)
   // Beta preview: recipients are gated by their own access code and the signed
   // agreement, checked server-side. They have no Pulse login yet by design.
   "/preview",

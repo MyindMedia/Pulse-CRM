@@ -1,4 +1,5 @@
-import { fileUrl, deleteFile } from "./lib/media";
+import { fileUrl, deleteFile, claimFile } from "./lib/media";
+import { fileRefV } from "./lib/fileRef";
 import { readFileBlob } from "./media";
 import { v, ConvexError } from "convex/values";
 import { internalAction, internalQuery, query } from "./_generated/server";
@@ -12,6 +13,7 @@ import { dayFromIso, scorePair, type MatchSide } from "./lib/financeMatch";
 import { financeLog, linkReceiptExpense, unlink } from "./lib/financeLinks";
 import { receiptAttention } from "./lib/receiptAttention";
 import { expenseCategoryV } from "./lib/financeValidators";
+import { legacyUploadIsOwn } from "./lib/legacyUpload";
 
 /* ============================================================
    Receipts - a photo or PDF of what was bought, what it says, and
@@ -21,8 +23,15 @@ import { expenseCategoryV } from "./lib/financeValidators";
    Upload, correct, convert and delete need invoices.send (owner,
    manager, accountant). Reading needs insights.read.
 
-   The file type and size are read from Convex's own storage record,
-   never from what the browser claimed. The AI reads the document
+   Files live in the studio's private R2 bucket (lib/media). The web
+   uploads straight to R2 (media.prepareUpload, purpose "receipt") and
+   attaches the mediaFiles id. The iOS app still uploads through
+   generateUploadUrl into Convex storage; attach accepts that id and
+   schedules a copy to R2 (mediaBackfill.promote) that repoints the row.
+
+   The file type and size are read from the stored record (Convex's own
+   storage record, or the R2 row confirmed against R2), never from what
+   the browser claimed; extraction then sniffs the real bytes. The AI reads the document
    through the configured receipt provider in lib/receiptAI and returns
    vendor, date, total, tax, currency and card last four; every field
    is validated here before it is stored, and a full card number can
@@ -33,6 +42,8 @@ export const MAX_RECEIPT_BYTES = 10 * 1024 * 1024;
 export const RECEIPT_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "application/pdf"]);
 const CONFIDENT = 0.6;
 
+/** Convex-storage upload URL. Kept for the shipped iOS app (receipts:generateUploadUrl
+ *  then receipts:attach with the storage id); attach moves the file to R2. */
 export const generateUploadUrl = mutation({
   args: { orgId: v.optional(v.string()) },
   handler: async (ctx, { orgId }) => {
@@ -63,7 +74,8 @@ export function sniffType(bytes: Uint8Array): string | null {
  *  mutation would roll the deletion back and leave the file in storage. */
 export const attach = mutation({
   args: {
-    storageId: v.id("_storage"),
+    /** A Convex storage id (iOS) or an R2 mediaFiles id (web). */
+    storageId: fileRefV,
     fileName: v.string(),
     expenseId: v.optional(v.id("expenses")),
     orgId: v.optional(v.string()),
@@ -72,11 +84,34 @@ export const attach = mutation({
     { ok: true; receiptId: Id<"receipts"> } | { ok: false; message: string }
   > => {
     const orgId = await currentOrgWithCapability(ctx, "invoices.send", requestedOrgId);
-    const meta = await ctx.db.system.get(storageId);
-    if (!meta) return { ok: false, message: "That upload didn't arrive. Try again." };
-    const type = (meta.contentType ?? typeFromName(fileName)).toLowerCase();
-    if (!RECEIPT_TYPES.has(type) || meta.size > MAX_RECEIPT_BYTES) {
-      await ctx.storage.delete(storageId);
+    const mediaId = ctx.db.normalizeId("mediaFiles", storageId);
+    let type: string;
+    let size: number;
+    if (mediaId) {
+      // An R2 upload: only this studio's own, finished receipt upload counts. Another
+      // studio's id reads exactly like a missing one and is never touched.
+      const row = await ctx.db.get(mediaId);
+      if (!row || row.orgId !== orgId || row.purpose !== "receipt" || row.status !== "ready") {
+        return { ok: false, message: "That upload didn't arrive. Try again." };
+      }
+      const claimed = row.mimeType && row.mimeType !== "application/octet-stream" ? row.mimeType : typeFromName(fileName);
+      type = claimed.toLowerCase();
+      size = row.size ?? 0;
+    } else {
+      // A legacy Convex storage id carries no owner: accept only this studio's
+      // own fresh upload, and refuse anything else WITHOUT deleting it.
+      if (!(await legacyUploadIsOwn(ctx, storageId, orgId))) {
+        return { ok: false, message: "That upload didn't arrive. Try again." };
+      }
+      const meta = await ctx.db.system.get(storageId as Id<"_storage">);
+      if (!meta) return { ok: false, message: "That upload didn't arrive. Try again." };
+      type = (meta.contentType ?? typeFromName(fileName)).toLowerCase();
+      size = meta.size;
+    }
+    if (!RECEIPT_TYPES.has(type) || size > MAX_RECEIPT_BYTES) {
+      // Only reached for this studio's own file (its R2 upload, or a legacy
+      // upload legacyUploadIsOwn accepted above).
+      await deleteFile(ctx, storageId);
       return { ok: false, message: "Receipts must be a JPEG, PNG, WebP, GIF or PDF up to 10 MB." };
     }
     if (expenseId) {
@@ -84,6 +119,7 @@ export const attach = mutation({
       if (!e || e.orgId !== orgId) throw new ConvexError("Expense not found.");
       if (e.receiptDocId) throw new ConvexError("That expense already has a receipt.");
     }
+    await claimFile(ctx, storageId, orgId);
     await meterStorageUpload(ctx, orgId, storageId);
 
     const actorName = await currentActor(ctx);
@@ -92,19 +128,25 @@ export const attach = mutation({
       storageId,
       fileName: fileName.replace(/[\u0000-\u001f]/g, "").slice(0, 160) || "receipt",
       fileType: type,
-      sizeBytes: meta.size,
+      sizeBytes: size,
       uploadedBy: actorName,
       uploadedAt: Date.now(),
       status: "reading",
     });
     await financeLog(ctx, orgId, {
       action: "receipt.uploaded", actorType: "user", actorName, receiptId,
-      detail: `${type}, ${Math.round(meta.size / 1024)} KB`,
+      detail: `${type}, ${Math.round(size / 1024)} KB`,
     });
     if (expenseId) {
       await linkReceiptExpense(ctx, orgId, receiptId, expenseId, { actorType: "user", actorName, reasons: ["uploaded against this expense"] });
     }
     await ctx.scheduler.runAfter(0, internal.receipts.extract, { receiptId });
+    if (!mediaId) {
+      await ctx.scheduler.runAfter(0, internal.mediaBackfill.promote, {
+        table: "receipts", id: receiptId, path: "storageId", ref: storageId as Id<"_storage">,
+        scope: orgId, purpose: "receipt", fileName: fileName.replace(/[\u0000-\u001f]/g, "").slice(0, 160) || "receipt",
+      });
+    }
     return { ok: true, receiptId };
   },
 });

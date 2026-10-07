@@ -11,7 +11,7 @@ const ORG = "staged-studio";
 async function stagedWorkspace(t: ReturnType<typeof convexTest>) {
   await t.run(async (ctx) => {
     await ctx.db.insert("orgs", {
-      orgId: ORG, name: "Playback", slug: "playback", plan: "studio", tier: "label",
+      orgId: ORG, name: "Playback", slug: "playback", tier: "max",
       status: "active", agencyId: "ag1", ownerEmail: "o@x",
       onboardingCompletedAt: 1_700_000_000_000, demoMode: true,
     } as never);

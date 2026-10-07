@@ -4,6 +4,7 @@ import { mutation } from "./functions";
 import { v } from "convex/values";
 import { requireCapability } from "./lib/access";
 import { PLAN_LIMITS } from "./lib/plans";
+import { tierForPlan } from "./lib/tier";
 
 /* ============================================================
    Branding mutations - both agency-level (white-label) and
@@ -27,9 +28,8 @@ export const updateAgencyBranding = mutation({
     if (!ag) throw new Error("agency not found");
 
     if (args.customDomain) {
-      const tier: "pro" | "agency" = ag.plan === "pro" ? "pro" : "agency";
-      if (!PLAN_LIMITS[tier].customDomain) {
-        throw new Error("Custom domain requires Agency tier.");
+      if (!PLAN_LIMITS[tierForPlan(ag.plan)].customDomain) {
+        throw new Error("A custom domain needs the Max plan.");
       }
     }
     await ctx.db.patch(ag._id, {

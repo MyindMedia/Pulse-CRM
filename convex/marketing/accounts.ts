@@ -189,7 +189,7 @@ export const remove = mutation({
 });
 
 /** Connected-account count against the plan cap, for the accounts page's
- *  limit indicator. `cap: null` means the tier has no ceiling (pro and
+ *  limit indicator. `cap: null` means the tier has no ceiling (growth and
  *  above) - the UI shows a plain count instead of a bar. Gated on
  *  marketing.read like `list`: a viewer who cannot connect accounts can
  *  still see how many are connected. */

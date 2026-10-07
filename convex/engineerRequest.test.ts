@@ -15,7 +15,7 @@ describe("engineer request lifecycle (public bookings)", () => {
     t = convexTest(schema);
     const now = Date.now();
     ({ engId, sessionId } = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: org, name: "EngReq Studio", slug: "engreq", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: org, name: "EngReq Studio", slug: "engreq", tier: "growth", status: "active" });
       await ctx.db.insert("members", { orgId: org, name: "Mgr", role: "manager", clerkUserId: "u_mgr", skills: [] });
       const engId = await ctx.db.insert("members", { orgId: org, name: "Eng Echo", role: "engineer", clerkUserId: "u_eng", skills: [] });
       const artistId = await ctx.db.insert("artists", {

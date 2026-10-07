@@ -8,6 +8,7 @@ import {
 } from "./lib/modules";
 import { effectiveDisabledFeatures, moduleEnabled, capabilitiesForTier } from "./lib/entitlements";
 import { PLAN_LIMITS, SELLABLE_TIERS, type CapabilityKey } from "./lib/plans";
+import { ALL_FEATURES } from "./lib/pricing";
 
 /* A module toggle that only hides the nav is decoration. These tests pin the
    thing that makes it real: switching a module off refuses the API call. */
@@ -17,12 +18,12 @@ const OWNER = "u_owner";
 async function seed(
   t: ReturnType<typeof convexTest>,
   orgId: string,
-  tier: "studio" | "pro" | "label",
+  tier: "core" | "growth" | "max",
   disabledFeatures: string[] = [],
 ) {
   await t.run(async (ctx) => {
     await ctx.db.insert("orgs", {
-      orgId, name: "S", slug: orgId, plan: "solo", tier, disabledFeatures,
+      orgId, name: "S", slug: orgId, tier, disabledFeatures,
     });
     await ctx.db.insert("members", {
       orgId, name: "Owner", role: "owner", skills: [], clerkUserId: OWNER,
@@ -35,7 +36,14 @@ describe("module registry", () => {
   it("covers every capability the plans sell", () => {
     const sold = new Set<CapabilityKey>();
     for (const t of SELLABLE_TIERS) for (const c of PLAN_LIMITS[t].capabilities) sold.add(c);
+    // A capability whose features are all still being built gets its module
+    // row when it ships (lib/pricing.ts, built: false).
+    const pending = new Set(
+      ALL_FEATURES.filter((f) => f.gate && !f.built).map((f) => f.gate!)
+        .filter((g) => !ALL_FEATURES.some((f) => f.gate === g && f.built)),
+    );
     for (const c of sold) {
+      if (pending.has(c)) continue;
       expect(moduleFor(c), `capability "${c}" has no module row`).not.toBeNull();
     }
   });
@@ -71,27 +79,27 @@ describe("module registry", () => {
     expect(wl).not.toBeNull();
     expect(wl!.area).toBe("brand");
     expect(isToggleable("whiteLabelUi")).toBe(true);
-    expect(tierForModule("whiteLabelUi")).toBe("label");
+    expect(tierForModule("whiteLabelUi")).toBe("max");
   });
 });
 
 describe("toggle semantics", () => {
   it("a switched-off module is not enabled", () => {
-    expect(moduleEnabled("label", ["whiteLabelUi"], "whiteLabelUi")).toBe(false);
-    expect(moduleEnabled("label", [], "whiteLabelUi")).toBe(true);
+    expect(moduleEnabled("max", ["whiteLabelUi"], "whiteLabelUi")).toBe(false);
+    expect(moduleEnabled("max", [], "whiteLabelUi")).toBe(true);
   });
 
   it("a toggle can never unlock what the plan excludes", () => {
-    // Nothing in the disabled list can grant patch to a Studio-tier org.
-    expect(moduleEnabled("studio", [], "patch")).toBe(false);
-    const eff = effectiveDisabledFeatures("studio", []);
+    // Nothing in the disabled list can grant patch to a Core org.
+    expect(moduleEnabled("core", [], "patch")).toBe(false);
+    const eff = effectiveDisabledFeatures("core", []);
     expect(eff).toContain("patch");
   });
 
   it("covers behaviour modules, not just nav ones", () => {
     // The old system only merged nav keys, so switching off payroll or the
     // receptionist did nothing at all.
-    const eff = effectiveDisabledFeatures("label", ["payroll", "aiReceptionist", "dunning"]);
+    const eff = effectiveDisabledFeatures("max", ["payroll", "aiReceptionist", "dunning"]);
     expect(eff).toContain("payroll");
     expect(eff).toContain("aiReceptionist");
     expect(eff).toContain("dunning");
@@ -101,7 +109,7 @@ describe("toggle semantics", () => {
 describe("the switchboard", () => {
   it("reports owned, enabled and locked per module", async () => {
     const t = convexTest(schema);
-    const asOwner = await seed(t, "o_board", "pro", ["reports"]);
+    const asOwner = await seed(t, "o_board", "growth", ["reports"]);
     const board = await asOwner.query(api.modules.board, {});
 
     const flat = board.areas.flatMap((a) => a.modules);
@@ -113,9 +121,11 @@ describe("the switchboard", () => {
     expect(reports.enabled).toBe(false);      // switched off by choice
     expect(reports.switchable).toBe(true);
 
-    expect(patch.owned).toBe(false);          // not on this plan
-    expect(patch.lockedReason).toBe("tier");
-    expect(patch.tierLabel).toBe("Label");
+    const releases = flat.find((m) => m.key === "releases")!;
+    expect(patch.owned).toBe(true);           // the cable map is Growth
+    expect(releases.owned).toBe(false);       // not on this plan
+    expect(releases.lockedReason).toBe("tier");
+    expect(releases.tierLabel).toBe("Max");
 
     expect(bookings.core).toBe(true);
     expect(bookings.switchable).toBe(false);
@@ -127,11 +137,11 @@ describe("the switchboard", () => {
 
   it("lets an owner switch a module off and back on", async () => {
     const t = convexTest(schema);
-    const asOwner = await seed(t, "o_toggle", "label");
+    const asOwner = await seed(t, "o_toggle", "max");
     await asOwner.mutation(api.modules.setModule, { key: "payroll", enabled: false });
     expect(await t.run((ctx) => import("./lib/entitlements").then(async (m) => {
       const org = (await ctx.db.query("orgs").collect()).find((o) => o.orgId === "o_toggle")!;
-      return m.moduleEnabled("label", org.disabledFeatures, "payroll");
+      return m.moduleEnabled("max", org.disabledFeatures, "payroll");
     }))).toBe(false);
 
     await asOwner.mutation(api.modules.setModule, { key: "payroll", enabled: true });
@@ -142,7 +152,7 @@ describe("the switchboard", () => {
 
   it("refuses to switch off a core module", async () => {
     const t = convexTest(schema);
-    const asOwner = await seed(t, "o_core", "label");
+    const asOwner = await seed(t, "o_core", "max");
     await expect(
       asOwner.mutation(api.modules.setModule, { key: "bookings", enabled: false }),
     ).rejects.toMatchObject({ data: { code: "MODULE_CORE" } });
@@ -150,7 +160,7 @@ describe("the switchboard", () => {
 
   it("refuses to switch on something the plan excludes", async () => {
     const t = convexTest(schema);
-    const asOwner = await seed(t, "o_upgrade", "studio");
+    const asOwner = await seed(t, "o_upgrade", "core");
     await expect(
       asOwner.mutation(api.modules.setModule, { key: "payroll", enabled: true }),
     ).rejects.toMatchObject({ data: { code: "UPGRADE_REQUIRED" } });
@@ -158,7 +168,7 @@ describe("the switchboard", () => {
 
   it("enableAll restores everything the plan includes", async () => {
     const t = convexTest(schema);
-    const asOwner = await seed(t, "o_restore", "label", ["payroll", "reports", "patch"]);
+    const asOwner = await seed(t, "o_restore", "max", ["payroll", "reports", "patch"]);
     const res = await asOwner.mutation(api.modules.enableAll, {});
     expect(res.restored).toBe(3);
     const board = await asOwner.query(api.modules.board, {});
@@ -170,7 +180,7 @@ describe("enforcement, not decoration", () => {
   it("refuses the API call for a switched-off module", async () => {
     const t = convexTest(schema);
     // Owns white label, but somebody switched it off.
-    const asOwner = await seed(t, "o_off", "label", ["whiteLabelUi"]);
+    const asOwner = await seed(t, "o_off", "max", ["whiteLabelUi"]);
     await expect(
       asOwner.mutation(api.theme.save, { primary: "#7C3AED" }),
     ).rejects.toMatchObject({
@@ -182,12 +192,12 @@ describe("enforcement, not decoration", () => {
 
   it("says upgrade when unowned and switched-off when owned", async () => {
     const t = convexTest(schema);
-    const unowned = await seed(t, "o_unowned", "pro");
+    const unowned = await seed(t, "o_unowned", "growth");
     await expect(
       unowned.mutation(api.theme.save, { primary: "#7C3AED" }),
     ).rejects.toMatchObject({ data: { code: "UPGRADE_REQUIRED" } });
 
-    const off = await seed(t, "o_switched", "label", ["whiteLabelUi"]);
+    const off = await seed(t, "o_switched", "max", ["whiteLabelUi"]);
     await expect(
       off.mutation(api.theme.save, { primary: "#7C3AED" }),
     ).rejects.toMatchObject({ data: { code: "MODULE_DISABLED" } });
@@ -195,7 +205,7 @@ describe("enforcement, not decoration", () => {
 
   it("lets the call through once the module is switched back on", async () => {
     const t = convexTest(schema);
-    const asOwner = await seed(t, "o_backon", "label", ["whiteLabelUi"]);
+    const asOwner = await seed(t, "o_backon", "max", ["whiteLabelUi"]);
     await asOwner.mutation(api.modules.setModule, { key: "whiteLabelUi", enabled: true });
     await asOwner.mutation(api.theme.save, { primary: "#7C3AED" });
     const theme = await asOwner.query(api.theme.get, {});
@@ -204,13 +214,13 @@ describe("enforcement, not decoration", () => {
 
   it("drops unknown and core keys written by a client", async () => {
     const t = convexTest(schema);
-    await seed(t, "o_clean", "label");
+    await seed(t, "o_clean", "max");
     await t.run(async (ctx) => {
       const org = (await ctx.db.query("orgs").collect()).find((o) => o.orgId === "o_clean")!;
       await ctx.db.patch(org._id, { disabledFeatures: ["bookings", "nonsense", "payroll"] });
     });
     // A hand-edited or stale row must not disable a core module.
-    const eff = effectiveDisabledFeatures("label", ["bookings", "nonsense", "payroll"]);
+    const eff = effectiveDisabledFeatures("max", ["bookings", "nonsense", "payroll"]);
     expect(eff).not.toContain("bookings");
     expect(eff).not.toContain("nonsense");
     expect(eff).toContain("payroll");

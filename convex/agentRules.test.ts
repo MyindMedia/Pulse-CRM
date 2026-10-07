@@ -17,7 +17,7 @@ const HOUR = 3_600_000;
 async function studio(t: ReturnType<typeof convexTest>) {
   return await t.run(async (ctx) => {
     await ctx.db.insert("orgs", {
-      orgId: "org1", name: "Vault", slug: "vault", plan: "studio", tier: "label", status: "active",
+      orgId: "org1", name: "Vault", slug: "vault", tier: "max", status: "active",
     });
     await ctx.db.insert("members", {
       orgId: "org1", name: "Owner", role: "owner", skills: [], clerkUserId: OWNER,
@@ -90,7 +90,7 @@ describe("promoting an insight", () => {
     const t = convexTest(schema);
     await studio(t);
     const foreign = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org2", name: "Other", slug: "other", plan: "solo" });
+      await ctx.db.insert("orgs", { orgId: "org2", name: "Other", slug: "other", tier: "core" });
       return await ctx.db.insert("agentInsights", {
         orgId: "org2", title: "Theirs", severity: "info",
         explanation: "x", status: "active", createdAt: Date.now(),

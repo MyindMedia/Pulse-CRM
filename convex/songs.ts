@@ -282,7 +282,10 @@ export const create = mutation({
     revisionsIncluded: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const orgId = await currentOrgWithCapability(ctx, "songs.edit");
+    // A song record is what finished mixes hang off, so creating one is Core
+    // ("Finished mixes"). The catalog around it (every song in one place,
+    // stages, cover art, streaming links) stays Growth.
+    const orgId = await currentOrgWithCapability(ctx, "songs.edit", undefined, { entitlement: "finishedMixes" });
     const artist = await ctx.db.get(args.artistId);
     if (!artist || artist.orgId !== orgId) throw new Error("Artist not found");
     const id = await ctx.db.insert("songs", {

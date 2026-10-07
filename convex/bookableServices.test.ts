@@ -25,7 +25,7 @@ describe("booking by service", () => {
     start = Date.now() + 7 * DAY;
     const ids = await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org1", name: "Slang City", slug: "slang-city", plan: "studio",
+        orgId: "org1", name: "Slang City", slug: "slang-city", tier: "growth",
         status: "active", bookingCatalog: "services",
       } as never);
       const r = await ctx.db.insert("rooms", {
@@ -164,7 +164,7 @@ describe("the catalogue falls back rather than showing nothing", () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org2", name: "Empty", slug: "empty", plan: "studio",
+        orgId: "org2", name: "Empty", slug: "empty", tier: "growth",
         status: "active", bookingCatalog: "services",
       } as never);
       await ctx.db.insert("rooms", {
@@ -181,7 +181,7 @@ describe("the catalogue falls back rather than showing nothing", () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org3", name: "Retired", slug: "retired", plan: "studio",
+        orgId: "org3", name: "Retired", slug: "retired", tier: "growth",
         status: "active", bookingCatalog: "services",
       } as never);
       const r = await ctx.db.insert("rooms", {
@@ -203,7 +203,7 @@ describe("importing a catalogue from a brochure", () => {
   async function studio(t: ReturnType<typeof convexTest>) {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org1", name: "Slang City", slug: "slang-city", plan: "studio", status: "active",
+        orgId: "org1", name: "Slang City", slug: "slang-city", tier: "growth", status: "active",
       } as never);
       await ctx.db.insert("rooms", {
         orgId: "org1", name: "Studio A", status: "available", bookable: true,
@@ -289,7 +289,7 @@ describe("a room sold paid in full", () => {
   async function studio(t: ReturnType<typeof convexTest>, paymentMode?: "deposit" | "full") {
     return await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "orgF", name: "Full", slug: "full", plan: "studio", status: "active",
+        orgId: "orgF", name: "Full", slug: "full", tier: "growth", status: "active",
       } as never);
       const room = await ctx.db.insert("rooms", {
         orgId: "orgF", name: "Studio A", status: "available", bookable: true,
@@ -357,7 +357,7 @@ describe("choosing an engineer", () => {
   async function studio(t: ReturnType<typeof convexTest>, offerEngineer?: boolean) {
     return await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "orgE", name: "Eng", slug: "eng", plan: "studio", status: "active",
+        orgId: "orgE", name: "Eng", slug: "eng", tier: "growth", status: "active",
       } as never);
       const room = await ctx.db.insert("rooms", {
         orgId: "orgE", name: "Studio A", status: "available", bookable: true,

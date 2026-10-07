@@ -14,8 +14,8 @@ async function stagedOrg(t: ReturnType<typeof initT>, orgId = "staged-playback")
   await t.run(async (ctx) => {
     await ctx.db.insert("orgs", {
       orgId, name: "Playback Recording Studio", slug: "playback",
-      plan: "studio", status: "active", agencyId: "org_ag",
-      createdByAgency: true, tier: "studio", accentColor: "#9C1ADF",
+      status: "active", agencyId: "org_ag",
+      createdByAgency: true, tier: "core", accentColor: "#9C1ADF",
       demoMode: true,
     });
     // Real configuration from the pitch build - must survive.

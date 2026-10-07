@@ -19,8 +19,8 @@ async function makeStudio(
   const orgId = `org${i}`;
   await t.run(async (ctx) => {
     await ctx.db.insert("orgs", {
-      orgId, name: `Studio ${i}`, slug: `studio-${i}`, plan: "studio",
-      tier: "pro", status: "active", directoryRegion: opts.region ?? "GA",
+      orgId, name: `Studio ${i}`, slug: `studio-${i}`, 
+      tier: "growth", status: "active", directoryRegion: opts.region ?? "GA",
       ownerEmail: `owner${i}@example.com`,
     });
     const room = await ctx.db.insert("rooms", {
@@ -154,7 +154,7 @@ describe("your own numbers", () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "lite", name: "Lite", slug: "lite", plan: "solo", tier: "studio",
+        orgId: "lite", name: "Lite", slug: "lite", tier: "core",
       });
       await ctx.db.insert("members", {
         orgId: "lite", name: "O", role: "owner", skills: [], clerkUserId: "u_lite",

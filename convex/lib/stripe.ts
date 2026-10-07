@@ -1,5 +1,5 @@
 import Stripe from "stripe";
-import type { TierKey } from "./plans";
+import { STRIPE_PRICE_ENV, TIERS, type BillingInterval, type TierKey } from "./pricing";
 
 /* ============================================================
    Stripe SDK factory + tier ↔ price-id map. All Stripe access
@@ -20,49 +20,42 @@ export function stripeClient(): Stripe {
   return _stripe;
 }
 
-/** Tier → Stripe price ID env var name. enterprise is custom (no self-serve
-    checkout); agency is legacy. */
-export const TIER_PRICE_ENV: Record<TierKey, string> = {
-  // Flow has no subscription price: it is billed as a take rate on what the
-  // studio collects, not through a Stripe price object.
-  flow: "STRIPE_PRICE_FLOW_UNUSED",
-  studio: "STRIPE_PRICE_STUDIO",
-  pro: "STRIPE_PRICE_PRO",
-  label: "STRIPE_PRICE_LABEL",
-  growth: "STRIPE_PRICE_GROWTH",
-  enterprise: "STRIPE_PRICE_ENTERPRISE",
-  agency: "STRIPE_PRICE_AGENCY",
-};
+/** Tier and interval to Stripe price id env var name. Six prices:
+    STRIPE_PRICE_{CORE,GROWTH,MAX}_{MONTHLY,ANNUAL}. The names live in
+    lib/pricing.ts next to the prices they stand for. */
+export const TIER_PRICE_ENV = STRIPE_PRICE_ENV;
 
-export function priceIdForTier(tier: TierKey): string {
-  const envKey = TIER_PRICE_ENV[tier];
+/** The price id for a tier and interval. Throws, naming the env var, when it
+ *  is not configured: asking for a year without the annual price set must
+ *  say so rather than silently charge the monthly price for a year. */
+export function priceIdForTier(tier: TierKey, interval: BillingInterval = "month"): string {
+  const envKey = STRIPE_PRICE_ENV[tier][interval];
   const v = process.env[envKey];
   if (!v) throw new Error(`${envKey} not set`);
   return v;
 }
 
-/** Annual price ids, e.g. STRIPE_PRICE_STUDIO_ANNUAL. A tier can be sold
- *  monthly-only; asking for a year without the price configured says so
- *  plainly rather than silently charging the monthly price for a year. */
-export function priceIdForTierInterval(
-  tier: TierKey,
-  interval: "month" | "year",
-): string {
-  if (interval === "month") return priceIdForTier(tier);
-  const envKey = `${TIER_PRICE_ENV[tier]}_ANNUAL`;
-  const v = process.env[envKey];
-  if (!v) {
-    throw new Error(
-      `${envKey} not set - annual billing is not configured for this plan yet.`,
-    );
-  }
-  return v;
+/** Kept for callers that pass the interval positionally. */
+export function priceIdForTierInterval(tier: TierKey, interval: BillingInterval): string {
+  return priceIdForTier(tier, interval);
 }
 
-/** Reverse lookup - used by the webhook to flip agencies.plan. */
-export function tierForPriceId(priceId: string): TierKey | null {
-  for (const tier of ["studio", "pro", "label", "growth", "enterprise", "agency"] as TierKey[]) {
-    if (process.env[TIER_PRICE_ENV[tier]] === priceId) return tier;
+/** True when the price id for this tier and interval is configured, so the
+ *  pricing page can fall back to "Book a demo" instead of a broken button. */
+export function hasPriceId(tier: TierKey, interval: BillingInterval): boolean {
+  return Boolean(process.env[STRIPE_PRICE_ENV[tier][interval]]);
+}
+
+/** Reverse lookup, used by the webhook to set agencies.plan from a
+ *  subscription's price. Monthly and annual prices both map to their tier. */
+export function tierForPriceId(
+  priceId: string,
+): { tier: TierKey; interval: BillingInterval } | null {
+  for (const tier of TIERS) {
+    for (const interval of ["month", "year"] as const) {
+      const v = process.env[STRIPE_PRICE_ENV[tier][interval]];
+      if (v && v === priceId) return { tier, interval };
+    }
   }
   return null;
 }

@@ -2,6 +2,7 @@ import { query } from "./_generated/server";
 import { v } from "convex/values";
 import { currentOrg } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
+import { orgHasFeature } from "./lib/entitlements";
 
 /* ============================================================
    Rights-ready export.
@@ -123,6 +124,10 @@ export const packet = query({
   handler: async (ctx, { songId }) => {
     const orgId = await currentOrg(ctx);
     await requireCapability(ctx, "songs.read", { orgId });
+    // "Print who owns what" is sold with the split sheets (Max). A read, so
+    // it degrades to null (the dialog's "nothing to export" state) rather
+    // than throwing into a page.
+    if (!(await orgHasFeature(ctx, orgId, "splitSheets"))) return null;
     const song = await ctx.db.get(songId);
     if (!song || song.orgId !== orgId) return null;
     const artist = await ctx.db.get(song.artistId);

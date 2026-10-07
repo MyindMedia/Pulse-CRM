@@ -93,7 +93,7 @@ function RosterView() {
   return (
     <div className="space-y-7">
       <PageHeader
-        overline="CRM"
+        overline="People"
         title="Clients"
         description="Every client - artist, producer and label - the studio works with, ranked by lifetime value."
         actions={
@@ -193,7 +193,7 @@ function RosterView() {
           description={
             filtering
               ? "Try a different status or clear the search to see everyone."
-              : "Add your first client to start building the studio's CRM."
+              : "Add your first client to start building the studio's client list."
           }
           action={
             filtering ? (

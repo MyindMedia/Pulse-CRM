@@ -109,7 +109,7 @@ export const run = mutation({
       } else {
         await ctx.db.insert("orgs", {
           orgId, name: args.studioName ?? "Myind Sound", slug: "myind-sound",
-          plan: "studio", accentColor: "#fdb913",
+          tier: "growth", accentColor: "#fdb913",
         });
       }
     } else {
@@ -117,7 +117,7 @@ export const run = mutation({
         orgId,
         name: "Myind Sound",
         slug: "myind-sound",
-        plan: "studio",
+        tier: "growth",
         accentColor: "#fdb913",
         tagline: "Where the record gets made.",
       });

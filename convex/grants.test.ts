@@ -9,7 +9,7 @@ describe("grants - lifecycle", () => {
 
   async function seedStudio(orgId = "org_studio") {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId, name: "S", slug: "s", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId, name: "S", slug: "s", tier: "growth", status: "active" });
       await ctx.db.insert("members", { orgId, name: "O", role: "owner", clerkUserId: "u_o", skills: [] });
     });
     return t.withIdentity({ subject: "u_o", name: "O", orgId });
@@ -60,7 +60,7 @@ describe("grants - lifecycle", () => {
   it("intern cannot issue grants", async () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org_x", name: "X", slug: "x", plan: "studio", status: "active",
+        orgId: "org_x", name: "X", slug: "x", tier: "growth", status: "active",
       });
       await ctx.db.insert("members", {
         orgId: "org_x", name: "I", role: "intern", clerkUserId: "u_i", skills: [],

@@ -10,32 +10,52 @@ import { cookies } from "next/headers";
  * than the link it came from, and the page content is rendered server-side
  * only after the check - a locked visitor's HTML holds no features.
  *
- * Override in Netlify with MYPULSE_PASSWORD to rotate it without a deploy. */
-
-const PASSWORD = process.env.MYPULSE_PASSWORD || "mypulse255!";
+ * The password lives ONLY in the MYPULSE_PASSWORD environment variable
+ * (Netlify). There is no fallback in the repo: when the variable is unset or
+ * empty the gate FAILS CLOSED, so no password opens it and no cookie is
+ * accepted. Read per call, so rotating it in Netlify takes effect on the next
+ * deploy without a code change. */
 
 export const MYPULSE_COOKIE = "mypulse_access";
 export const MYPULSE_PATH = "/mypulse";
 
 const sha = (s: string) => createHash("sha256").update(s).digest("hex");
 
-/** The cookie value a cleared visitor carries. Derived, never stored. */
-export function accessToken(): string {
-  return sha(`mypulse.v1.${PASSWORD}`);
+/** The configured password, or null when none is set (gate closed). */
+function configuredPassword(): string | null {
+  const p = process.env.MYPULSE_PASSWORD;
+  return p && p.trim().length > 0 ? p : null;
 }
 
-/** Constant-time compare so the form cannot be probed character by character. */
+/** True when the gate can be opened at all. */
+export function gateConfigured(): boolean {
+  return configuredPassword() !== null;
+}
+
+/** The cookie value a cleared visitor carries. Derived, never stored. Null
+ *  when the gate is closed, so no cookie can ever match. */
+export function accessToken(): string | null {
+  const p = configuredPassword();
+  return p === null ? null : sha(`mypulse.v1.${p}`);
+}
+
+/** Constant-time compare so the form cannot be probed character by character.
+ *  Always false when no password is configured. */
 export function checkPassword(input: string): boolean {
+  const p = configuredPassword();
+  if (p === null) return false;
   const a = Buffer.from(sha(input));
-  const b = Buffer.from(sha(PASSWORD));
+  const b = Buffer.from(sha(p));
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
 export async function isUnlocked(): Promise<boolean> {
+  const expected = accessToken();
+  if (expected === null) return false;
   const jar = await cookies();
   const got = jar.get(MYPULSE_COOKIE)?.value;
   if (!got) return false;
   const a = Buffer.from(got);
-  const b = Buffer.from(accessToken());
+  const b = Buffer.from(expected);
   return a.length === b.length && timingSafeEqual(a, b);
 }

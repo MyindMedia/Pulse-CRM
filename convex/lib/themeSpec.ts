@@ -2,7 +2,7 @@
    White-label theme spec - shared by the server validator and the
    client renderer so they can never disagree about what is legal.
 
-   Only the Label tier ($499.99) may write a theme. The "Powered by
+   Only the Max tier may write a theme. The "Powered by
    Pulse" lockup under the studio's logo is not part of the theme and
    cannot be switched off from here. See plans.ts.
    ============================================================ */

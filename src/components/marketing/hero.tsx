@@ -389,17 +389,20 @@ export function Hero() {
             <span className="block overflow-hidden">
               <span data-hero-line className="block whitespace-nowrap motion-safe:[clip-path:inset(0_0_100%_0)]">
                 <span className="sr-only">Pulse</span>
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/pulse-logo-main.webp"
-                  alt=""
-                  aria-hidden
-                  width={1000}
-                  height={297}
-                  fetchPriority="high"
-                  draggable={false}
-                  className="mx-auto block h-auto w-[clamp(10rem,32vw,28rem)] select-none"
-                />
+                <picture style={{ display: "contents" }}>
+                  <source type="image/webp" srcSet="/pulse-logo-main.webp" />
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    src="/pulse-logo-main.png"
+                    alt=""
+                    aria-hidden
+                    width={1000}
+                    height={297}
+                    fetchPriority="high"
+                    draggable={false}
+                    className="mx-auto block h-auto w-[clamp(10rem,32vw,28rem)] select-none"
+                  />
+                </picture>
               </span>
             </span>
           </span>
@@ -628,10 +631,10 @@ export function Hero() {
             <ArrowRight className="size-4 transition-transform duration-200 group-hover:translate-x-0.5" />
           </Link>
           <Link
-            href="#features"
-            className="chrome-ghost chrome-ghost-gold inline-flex items-center gap-2 rounded-chrome px-7 py-3 font-grotesk text-sm font-semibold uppercase tracking-[0.04em] text-mist transition-colors hover:text-gold"
+            href="/pricing"
+            className="chrome-ghost chrome-ghost-gold inline-flex items-center gap-2 rounded-chrome px-7 py-3 font-grotesk text-sm font-semibold uppercase tracking-[0.04em] text-mist transition-colors hover:text-gold focus-visible:outline-2 focus-visible:outline-gold focus-visible:outline-offset-2"
           >
-            See how it works
+            See pricing
           </Link>
         </div>
       </div>

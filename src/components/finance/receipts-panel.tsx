@@ -18,6 +18,7 @@ import { EXPENSE_CATEGORIES } from "@/components/expenses/expense-dialog";
 import { FinanceHistorySheet } from "./finance-history-sheet";
 import { MatchSuggestions } from "./match-suggestions";
 import { RECEIPT_STATUS, bankDay, dayFromInput, dayInputValue } from "./finance-labels";
+import { useR2Upload, r2NotConfigured } from "@/lib/use-r2-upload";
 
 /* Receipts - upload a photo or PDF, Pulse reads the vendor, date and total,
    then matches the expense and bank line or highlights what needs attention
@@ -28,18 +29,27 @@ type Filter = "needs_attention" | "processing" | "reconciled" | "all";
 
 const ACCEPT = "image/jpeg,image/png,image/webp,image/gif,application/pdf";
 
+/** Receipts go straight to the studio's private R2 bucket (signed PUT, then
+ *  confirm). Only a deployment with no R2 settings falls back to Convex storage. */
 export function useReceiptUpload() {
+  const uploadToR2 = useR2Upload();
   const generateUploadUrl = useMutation(api.receipts.generateUploadUrl);
   const attach = useMutation(api.receipts.attach);
   return React.useCallback(async (file: File, expenseId?: Id<"expenses">) => {
-    const url = await generateUploadUrl({});
-    const res = await fetch(url, { method: "POST", headers: { "Content-Type": file.type || "application/octet-stream" }, body: file });
-    if (!res.ok) throw new Error("The upload didn't go through. Try again.");
-    const { storageId } = (await res.json()) as { storageId: Id<"_storage"> };
+    let storageId: Id<"_storage"> | Id<"mediaFiles">;
+    try {
+      storageId = await uploadToR2(file, "receipt");
+    } catch (err) {
+      if (!r2NotConfigured(err)) throw err;
+      const url = await generateUploadUrl({});
+      const res = await fetch(url, { method: "POST", headers: { "Content-Type": file.type || "application/octet-stream" }, body: file });
+      if (!res.ok) throw new Error("The upload didn't go through. Try again.");
+      storageId = ((await res.json()) as { storageId: Id<"_storage"> }).storageId;
+    }
     const out = await attach({ storageId, fileName: file.name, expenseId });
     if (!out.ok) throw new Error(out.message);
     return out.receiptId;
-  }, [generateUploadUrl, attach]);
+  }, [uploadToR2, generateUploadUrl, attach]);
 }
 
 export function ReceiptsPanel({ canEdit }: { canEdit: boolean }) {

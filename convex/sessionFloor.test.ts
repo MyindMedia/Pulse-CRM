@@ -16,7 +16,7 @@ async function seedStudio(t: TestConvex, org: string) {
       orgId: org,
       name: "Floor Studio",
       slug: `floor-${org}`,
-      plan: "studio",
+      tier: "growth",
       status: "active",
     });
     await ctx.db.insert("members", {

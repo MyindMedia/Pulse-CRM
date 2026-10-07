@@ -1,10 +1,21 @@
 import type { Metadata } from "next";
-import { PlayCircle, ShieldAlert, Lock } from "lucide-react";
+import { PlayCircle, AlertTriangle, Lock01, Phone01 } from "@untitledui/icons";
+import { TIERS, type TierKey } from "@convex/lib/pricing";
 import { isUnlocked } from "./auth";
 import { lock } from "./actions";
 import { UnlockForm } from "./unlock-form";
 import { FeatureBrowser } from "./feature-browser";
-import { SECTIONS, TOTAL_FEATURES, ROADMAP, TIERS } from "./features";
+import {
+  MOVED_COUNT,
+  ROADMAP,
+  SECTIONS,
+  TIERS_GUIDE,
+  TIER_TOTALS,
+  TOTAL_FEATURES,
+  tierName,
+} from "./features";
+import { accessRows, priceRows, pooledTiers, type FactRow } from "@/components/marketing/plan-facts";
+import { includesLine } from "../pricing/model";
 import { siteMedia } from "@/lib/media";
 
 /* /mypulse - the sales team's map of the product and of the call.
@@ -17,9 +28,9 @@ import { siteMedia } from "@/lib/media";
  * JavaScript to open a section. Only the feature browser ships a client
  * component, because it has a search box.
  *
- * Deliberately price-free. Plan names appear because a rep has to know what
- * unlocks a feature; no figure does, so this page can never contradict what
- * the buying page is charging this month. */
+ * Every plan name, price, allowance and feature tag is read from
+ * convex/lib/pricing.ts (through ./features.ts and plan-facts.ts), the same
+ * config /pricing renders from, so the two pages can never disagree. */
 
 const SHARE_TITLE = "Pulse. The studio operating system.";
 const SHARE_DESC =
@@ -45,12 +56,62 @@ export const metadata: Metadata = {
 // The gate reads a cookie, so this route can never be cached at the edge.
 export const dynamic = "force-dynamic";
 
+/* Every figure here is counted from the config. (The old "955 automatic
+   checks" tile is gone: the test count is not in the config, so it could not
+   be kept true.) */
 const STATS = [
   { n: String(TOTAL_FEATURES), label: "Things it does" },
   { n: String(SECTIONS.length), label: "Groups below" },
-  { n: "955", label: "Automatic checks" },
+  { n: TIERS.map((t) => TIER_TOTALS[t]).join(" / "), label: TIERS.map(tierName).join(" / ") },
   { n: String(ROADMAP.length), label: "Not built yet" },
 ];
+
+const TIER_BADGE: Record<TierKey, string> = {
+  core: "rounded-md border border-hairline-2 bg-coal-3 px-1.5 py-0.5 font-meta text-[10px] uppercase tracking-[0.1em] text-steel",
+  growth: "rounded-md border border-gold-dim/60 bg-gold/10 px-1.5 py-0.5 font-meta text-[10px] uppercase tracking-[0.1em] text-gold",
+  max: "rounded-md border border-bone/25 bg-bone/10 px-1.5 py-0.5 font-meta text-[10px] uppercase tracking-[0.1em] text-bone",
+};
+
+function FactTable({ rows, caption }: { rows: FactRow[]; caption: string }) {
+  return (
+    <div
+      className="overflow-x-auto rounded-chrome border border-hairline"
+      tabIndex={0}
+      role="region"
+      aria-label={`${caption}, scrolls sideways on small screens`}
+    >
+      <table className="w-full min-w-[520px] border-collapse text-left text-sm">
+        <caption className="sr-only">{caption}</caption>
+        <thead>
+          <tr className="bg-coal-2">
+            <th scope="col" className="px-4 py-2.5">
+              <span className="sr-only">Item</span>
+            </th>
+            {TIERS.map((t) => (
+              <th key={t} scope="col" className="px-4 py-2.5 font-semibold text-bone">
+                {tierName(t)}
+              </th>
+            ))}
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((r) => (
+            <tr key={r.label} className="border-t border-hairline/70">
+              <th scope="row" className="px-4 py-2.5 font-medium text-ash">
+                {r.label}
+              </th>
+              {TIERS.map((t) => (
+                <td key={t} className="px-4 py-2.5 text-bone">
+                  {r.values[t]}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
 
 function Overline({ children, tone }: { children: React.ReactNode; tone?: "caution" }) {
   return (
@@ -72,9 +133,9 @@ export default async function MyPulsePage() {
           <form action={lock}>
             <button
               type="submit"
-              className="flex items-center gap-1.5 font-meta text-[11px] uppercase tracking-[0.12em] text-ash-dim transition-colors hover:text-gold"
+              className="flex items-center gap-1.5 font-meta text-[11px] uppercase tracking-[0.12em] text-ash transition-colors hover:text-gold focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"
             >
-              <Lock className="size-3" />
+              <Lock01 className="size-3" aria-hidden />
               Lock this page
             </button>
           </form>
@@ -97,7 +158,7 @@ export default async function MyPulsePage() {
           <dl className="mt-9 grid grid-cols-2 gap-px overflow-hidden rounded-chrome border border-hairline bg-hairline sm:grid-cols-4">
             {STATS.map((s) => (
               <div key={s.label} className="bg-coal-2 px-4 py-4">
-                <dt className="font-meta text-[10px] uppercase tracking-[0.12em] text-ash-dim">
+                <dt className="font-meta text-[10px] uppercase tracking-[0.12em] text-ash">
                   {s.label}
                 </dt>
                 <dd className="mt-1 text-2xl font-bold tracking-tight text-bone">{s.n}</dd>
@@ -109,7 +170,7 @@ export default async function MyPulsePage() {
         {/* The commercial */}
         <section className="mt-14">
           <div className="flex items-center gap-2">
-            <PlayCircle className="size-4 text-gold" />
+            <PlayCircle className="size-4 text-gold" aria-hidden />
             <Overline>The ad</Overline>
           </div>
           <p className="mt-3 max-w-2xl text-[0.975rem] leading-relaxed text-ash">
@@ -139,38 +200,39 @@ export default async function MyPulsePage() {
           <Overline>The three plans</Overline>
           <p className="mt-3 max-w-2xl text-[0.975rem] leading-relaxed text-ash">
             Which plan somebody needs is a question about how their studio works, not
-            about what they can afford. Pro includes everything in Studio. Label includes
-            everything in Pro.
+            about what they can afford. {includesLine()}
           </p>
           <div className="mt-5 space-y-2.5">
-            {TIERS.map((t) => (
+            {TIERS_GUIDE.map((t) => (
               <div
                 key={t.tier}
                 className="rounded-chrome border border-hairline bg-coal-2/60 px-4 py-4 sm:px-5"
               >
-                <span
-                  className={
-                    t.tier === "Pro"
-                      ? "rounded-md border border-gold-dim/60 bg-gold/10 px-1.5 py-0.5 font-meta text-[10px] uppercase tracking-[0.1em] text-gold"
-                      : t.tier === "Label"
-                        ? "rounded-md border border-bone/25 bg-bone/10 px-1.5 py-0.5 font-meta text-[10px] uppercase tracking-[0.1em] text-bone"
-                        : "rounded-md border border-hairline-2 bg-coal-3 px-1.5 py-0.5 font-meta text-[10px] uppercase tracking-[0.1em] text-steel"
-                  }
-                >
-                  {t.tier}
-                </span>
+                <span className={TIER_BADGE[t.tier]}>{t.name}</span>
                 <dl className="mt-3 space-y-2">
                   <div>
-                    <dt className="font-meta text-[10px] uppercase tracking-[0.12em] text-ash-dim">
+                    <dt className="font-meta text-[10px] uppercase tracking-[0.12em] text-ash">
                       Who it is for
                     </dt>
                     <dd className="mt-0.5 text-sm leading-relaxed text-ash">{t.who}</dd>
                   </div>
                   <div>
-                    <dt className="font-meta text-[10px] uppercase tracking-[0.12em] text-ash-dim">
+                    <dt className="font-meta text-[10px] uppercase tracking-[0.12em] text-ash">
                       What they get
                     </dt>
                     <dd className="mt-0.5 text-sm leading-relaxed text-ash">{t.gets}</dd>
+                  </div>
+                  <div>
+                    <dt className="font-meta text-[10px] uppercase tracking-[0.12em] text-ash">
+                      Access
+                    </dt>
+                    <dd className="mt-0.5 text-sm leading-relaxed text-ash">
+                      <ul className="list-disc space-y-0.5 pl-4">
+                        {t.access.map((a) => (
+                          <li key={a}>{a}</li>
+                        ))}
+                      </ul>
+                    </dd>
                   </div>
                   <div>
                     <dt className="font-meta text-[10px] uppercase tracking-[0.12em] text-gold">
@@ -182,6 +244,65 @@ export default async function MyPulsePage() {
               </div>
             ))}
           </div>
+          <p className="mt-3 text-sm text-ash">
+            {MOVED_COUNT} features moved to a cheaper plan in this ladder. They carry a
+            Moved down tag in the list below.
+          </p>
+        </section>
+
+        {/* Prices */}
+        <section className="mt-16">
+          <Overline>Prices</Overline>
+          <p className="mt-3 max-w-2xl text-[0.975rem] leading-relaxed text-ash">
+            Month to month, or yearly with the months free shown below. Max is one flat
+            price for unlimited studios, with no charge per studio.
+          </p>
+          <div className="mt-5">
+            <FactTable rows={priceRows()} caption="Prices by plan" />
+          </div>
+        </section>
+
+        {/* Access and allowances */}
+        <section className="mt-16">
+          <Overline>Who gets in, and how much they get</Overline>
+          <p className="mt-3 max-w-2xl text-[0.975rem] leading-relaxed text-ash">
+            Roles, rooms, studios and allowances on each plan. Plans are priced by
+            features, never per login.
+            {pooledTiers().length > 0 &&
+              ` On ${pooledTiers().map(tierName).join(" and ")}, allowances are shared across every studio in the group.`}
+          </p>
+          <div className="mt-5">
+            <FactTable rows={accessRows()} caption="Access and allowances by plan" />
+          </div>
+        </section>
+
+        {/* The Pulse app */}
+        <section className="mt-16">
+          <div className="flex items-center gap-2">
+            <Phone01 className="size-4 text-gold" aria-hidden />
+            <Overline>The Pulse app on each plan</Overline>
+          </div>
+          <p className="mt-3 max-w-2xl text-[0.975rem] leading-relaxed text-ash">
+            What the iPhone app does today. Say this on the web and on calls only: the
+            app itself never shows plan names or prices.
+          </p>
+          <div className="mt-5 grid gap-2.5 sm:grid-cols-3">
+            {TIERS_GUIDE.map((t, i) => (
+              <div key={t.tier} className="rounded-chrome border border-hairline bg-coal-2/60 px-4 py-4">
+                <span className={TIER_BADGE[t.tier]}>{t.name}</span>
+                {i > 0 && (
+                  <p className="mt-2 text-xs text-ash">
+                    Everything in {TIERS_GUIDE[i - 1].name}, plus
+                  </p>
+                )}
+                <ul className="mt-2 list-disc space-y-1 pl-4 text-sm text-ash">
+                  {t.app.map((a) => (
+                    <li key={a}>{a}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
         </section>
 
         {/* Features */}
@@ -189,8 +310,8 @@ export default async function MyPulsePage() {
           <Overline>Everything it does</Overline>
           <p className="mt-3 max-w-2xl text-[0.975rem] leading-relaxed text-ash">
             {TOTAL_FEATURES} things Pulse can do, in {SECTIONS.length} groups. The tag on
-            each row shows the cheapest plan that includes it. Use the plan buttons when
-            you already know which plan someone is on.
+            each row shows the cheapest plan that includes it. {includesLine()} Use the
+            plan buttons when you already know which plan someone is on.
           </p>
           <div className="mt-6">
             <FeatureBrowser sections={SECTIONS} />
@@ -200,7 +321,7 @@ export default async function MyPulsePage() {
         {/* Roadmap */}
         <section className="mt-16">
           <div className="flex items-center gap-2">
-            <ShieldAlert className="size-4 text-caution" />
+            <AlertTriangle className="size-4 text-caution" aria-hidden />
             <Overline tone="caution">Not built yet</Overline>
           </div>
           <p className="mt-3 max-w-2xl text-[0.975rem] leading-relaxed text-ash">
@@ -232,10 +353,10 @@ export default async function MyPulsePage() {
         </section>
 
         <footer className="mt-20 flex flex-wrap items-center justify-between gap-3 border-t border-hairline pt-5">
-          <span className="font-meta text-[11px] uppercase tracking-[0.12em] text-ash-dim">
+          <span className="font-meta text-[11px] uppercase tracking-[0.12em] text-ash">
             Pulse · ThaMyind · studiopulse.tech
           </span>
-          <span className="font-meta text-[11px] uppercase tracking-[0.12em] text-ash-dim">
+          <span className="font-meta text-[11px] uppercase tracking-[0.12em] text-ash">
             {TOTAL_FEATURES} built · {ROADMAP.length} not built
           </span>
         </footer>

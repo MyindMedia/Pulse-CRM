@@ -16,8 +16,8 @@ describe("GDPR data rights - export + erasure", () => {
   beforeEach(async () => {
     t = convexTest(schema);
     const ids = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "orgA", name: "A", slug: "a", plan: "studio", status: "active" });
-      await ctx.db.insert("orgs", { orgId: "orgB", name: "B", slug: "b", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "orgA", name: "A", slug: "a", tier: "growth", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "orgB", name: "B", slug: "b", tier: "growth", status: "active" });
       // No-identity viewer is the owner of appState.activeOrgId.
       await ctx.db.insert("appState", { key: "demo", activeOrgId: "orgA" });
 

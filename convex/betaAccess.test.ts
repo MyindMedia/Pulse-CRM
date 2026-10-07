@@ -12,7 +12,7 @@ import { betaInviteHtml, betaInviteSubject } from "./lib/emailTemplates/betaInvi
 async function agency(t: ReturnType<typeof convexTest>) {
   await t.run(async (ctx) => {
     await ctx.db.insert("agencies", {
-      agencyId: "ag1", name: "ThaMyind", slug: "myind", plan: "label",
+      agencyId: "ag1", name: "ThaMyind", slug: "myind", plan: "max",
       status: "active", ownerClerkUserId: "u_ag", ownerEmail: "ag@example.com",
     });
     await ctx.db.insert("agencyMembers", {
@@ -302,8 +302,8 @@ describe("linkMe recovery", () => {
   async function strandedOwner(t: ReturnType<typeof convexTest>) {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "beta_vault", name: "Vault", slug: "vault", plan: "studio",
-        tier: "pro", status: "setup", betaCohort: true,
+        orgId: "beta_vault", name: "Vault", slug: "vault", 
+        tier: "growth", status: "setup", betaCohort: true,
       });
       await ctx.db.insert("members", {
         orgId: "beta_vault", name: "Ari", email: "ari@example.com",
@@ -349,7 +349,7 @@ describe("linkMe recovery", () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org_normal", name: "Normal", slug: "normal", plan: "studio",
+        orgId: "org_normal", name: "Normal", slug: "normal", tier: "growth",
       });
       await ctx.db.insert("members", {
         orgId: "org_normal", name: "Ari", email: "ari@example.com", role: "owner", skills: [],

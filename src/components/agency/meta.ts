@@ -2,13 +2,16 @@ import type { BadgeProps } from "@/components/ui/badge";
 
 /* Shared subaccount vocabulary - plan + status presentation. */
 
-export type Plan = "solo" | "studio" | "label";
+import { PRICING, type TierKey } from "@convex/lib/pricing";
+
+/** A sub-account's plan: the same three keys as everywhere else. */
+export type Plan = TierKey;
 export type SubStatus = "active" | "paused" | "setup";
 
 export const PLAN_LABEL: Record<Plan, string> = {
-  solo: "Solo",
-  studio: "Studio",
-  label: "Label",
+  core: PRICING.core.name,
+  growth: PRICING.growth.name,
+  max: PRICING.max.name,
 };
 
 type Tone = NonNullable<BadgeProps["tone"]>;

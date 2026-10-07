@@ -5,10 +5,10 @@ import { assertWithinLimit, meterStorageUpload, recordUsage } from "./usage";
 import { PLAN_LIMITS } from "./lib/plans";
 
 /* Plan-cap enforcement: assertWithinLimit (AI credits, magic links) and
-   meterStorageUpload (storage GB) hard-block once a studio-tier org is at cap. */
+   meterStorageUpload (storage GB) hard-block once a Core org is at cap. */
 
 // NOT the demo sandbox: pulse-demo resolves to the top tier on purpose, so
-// caps never bite there. Use an ordinary Studio-tier workspace.
+// caps never bite there. Use an ordinary Core workspace.
 const DEMO = "org_capped";
 const BYTES_PER_GB = 1024 * 1024 * 1024;
 
@@ -18,9 +18,9 @@ async function seedStudioOrg(t: ReturnType<typeof convexTest>) {
       orgId: DEMO,
       name: "Demo",
       slug: "demo",
-      plan: "studio",
+      
       status: "active",
-      tier: "studio",
+      tier: "core",
     });
   });
 }
@@ -33,7 +33,7 @@ describe("plan-cap enforcement", () => {
   });
 
   it("allows AI credits under the cap and throws at the cap", async () => {
-    const cap = PLAN_LIMITS.studio.aiCreditsPerMonth; // 100
+    const cap = PLAN_LIMITS.core.aiCreditsPerMonth; // 100
     await t.run((ctx) => recordUsage(ctx, DEMO, "ai_credits", cap - 1));
     // One more is fine (99 + 1 = 100, not over).
     await t.run((ctx) => assertWithinLimit(ctx, DEMO, "ai_credits", 1));
@@ -45,7 +45,7 @@ describe("plan-cap enforcement", () => {
   });
 
   it("throws at the magic-link grant cap", async () => {
-    const cap = PLAN_LIMITS.studio.magicLinkGrantsPerMonth;
+    const cap = PLAN_LIMITS.core.magicLinkGrantsPerMonth;
     await t.run((ctx) => recordUsage(ctx, DEMO, "magic_links", cap));
     await expect(
       t.run((ctx) => assertWithinLimit(ctx, DEMO, "magic_links", 1)),
@@ -69,7 +69,7 @@ describe("plan-cap enforcement", () => {
     // Pre-fill to the tier's storage cap, then a new upload must be rejected
     // and deleted. Read the cap from PLAN_LIMITS so a repricing cannot make
     // this test silently stop testing anything.
-    const capBytes = PLAN_LIMITS.studio.storageGb * BYTES_PER_GB;
+    const capBytes = PLAN_LIMITS.core.storageGb * BYTES_PER_GB;
     await t.run((ctx) => recordUsage(ctx, DEMO, "storage_bytes", capBytes));
     const overId = await t.run((ctx) =>
       ctx.storage.store(new Blob(["x".repeat(1024)], { type: "text/plain" })),
@@ -88,13 +88,20 @@ describe("plan-cap enforcement", () => {
     expect(after).toBe(used + capBytes);
   });
 
-  it("does not throw on an unlimited (agency) tier", async () => {
+  it("does not throw on an unlimited allowance (Max invite links)", async () => {
     await t.run(async (ctx) => {
       const org = (await ctx.db.query("orgs").collect()).find((o) => o.orgId === DEMO)!;
-      await ctx.db.patch(org._id, { tier: "agency" });
+      await ctx.db.patch(org._id, { tier: "max" });
     });
+    await t.run((ctx) => recordUsage(ctx, DEMO, "magic_links", 1_000_000));
+    // Max inviteLinksPerMonth is the unlimited sentinel -> never throws.
+    await t.run((ctx) => assertWithinLimit(ctx, DEMO, "magic_links", 1));
+  });
+
+  it("caps assistant credits on every tier, Max included", async () => {
     await t.run((ctx) => recordUsage(ctx, DEMO, "ai_credits", 1_000_000));
-    // agency aiCreditsPerMonth is the unlimited sentinel -> never throws.
-    await t.run((ctx) => assertWithinLimit(ctx, DEMO, "ai_credits", 1));
+    await expect(
+      t.run((ctx) => assertWithinLimit(ctx, DEMO, "ai_credits", 1)),
+    ).rejects.toMatchObject({ data: { code: "LIMIT_REACHED" } });
   });
 });

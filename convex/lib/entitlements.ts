@@ -46,6 +46,8 @@ export const NAV_CAPABILITIES = [
   "inventory",
   "patch",
   "software",
+  "mediaLibrary",
+  "projects",
 ] as const satisfies readonly CapabilityKey[];
 
 const NAV_SET = new Set<string>(NAV_CAPABILITIES);
@@ -74,7 +76,7 @@ export function lockedNavFeatures(tier: TierKey): string[] {
 }
 
 /** The cheapest sellable tier that includes `key`, or null when nothing
- *  sells it. Drives the "Upgrade to Pro to unlock" copy. */
+ *  sells it. Drives the "Growth unlocks this" upgrade copy. */
 export function minTierFor(key: CapabilityKey): TierKey | null {
   for (const t of SELLABLE_TIERS) {
     if (capabilitiesForTier(t).has(key)) return t;
@@ -153,7 +155,7 @@ export async function orgHasFeature(
 /** The effective disabled-module list for an org: what the operator switched
  *  off, plus everything the tier never included.
  *
- *  Toggles can only ever SUBTRACT. A Studio-tier workspace cannot be handed
+ *  Toggles can only ever SUBTRACT. A Core workspace cannot be handed
  *  the patch bay by flipping a switch, because the tier locks are unioned in
  *  after the toggles, never before. Core modules are never disabled, whatever
  *  the stored list says - a stale row cannot leave a studio unable to take a
@@ -211,31 +213,43 @@ export function tierLockedFeatures(tier: TierKey): string[] {
 export const ENTITLEMENT_FOR_CAPABILITY: Record<string, CapabilityKey> = {
   // Names below are the real capability strings from accessPolicies.ts.
   // Anything not listed here is unmetered and available on every tier.
+  // A call site that shares a permission with a differently-priced surface
+  // passes its own entitlement instead (ResourceRef.entitlement), see
+  // requireCapability. The tier of each key lives in lib/pricing.ts.
   "schedule.manage": "schedule",          // shifts, availability, time clock
   "songs.read": "songs",
   "songs.edit": "songs",
   "songs.delete": "songs",
+  // Finished mixes and notes on one version are Core.
+  "deliverables.read": "finishedMixes",
+  "deliverables.upload": "finishedMixes",
+  "deliverables.approve": "finishedMixes",
   "insights.read": "reports",             // reports, P&L, payroll summaries
   "banking.manage": "reports",            // bank connections feed the books
   "ops.action.approve": "agent",
   "ops.autonomy.manage": "aiAutonomy",
+  // Post-production project tracking (Growth). The cross-studio view is
+  // gated separately in convex/projects.ts (crossStudioProjects, Max).
+  "projects.read": "projects",
+  "projects.edit": "projects",
   "opportunities.read": "pipeline",
   "opportunities.edit": "pipeline",
   "equipment.read": "inventory",
   "equipment.edit": "inventory",
   "releases.read": "releases",
   "releases.edit": "releases",
-  // NOTE: "licenses.*" is shared by two surfaces - sync/beat Licensing and
-  // the Software licenses page. Both are Label-tier, so one mapping is
-  // correct today. Split the capability before moving either to a different
-  // tier, or the other one moves with it.
+  // "licenses.*" is shared by two surfaces: sync and beat Licensing (Max)
+  // and the Software subscriptions page (Growth). Licensing is the default;
+  // convex/software.ts passes entitlement "software" on every call.
   "licenses.read": "licensing",
   "licenses.edit": "licensing",
   "syncOpportunities.read": "licensing",
   "syncOpportunities.edit": "licensing",
+  // The cable map is Growth. Its Max adds (device profiles, the maker's
+  // sheet, notes and history) pass their own entitlement.
   "patch.read": "patch",
   "patch.edit": "patch",
-  // Editing a split sheet is Label-tier. Signing one deliberately is NOT
+  // Editing a split sheet is Max. Signing one deliberately is NOT
   // gated: an artist mid-signature must never hit an upgrade wall.
   "splitsheet.edit": "splitSheets",
   // Full white-label theming.

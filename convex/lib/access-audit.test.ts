@@ -9,7 +9,7 @@ describe("access engine - audit log", () => {
 
   it("logs an allow row when an owner refunds", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", tier: "growth", status: "active" });
       await ctx.db.insert("members", { orgId: "org_a", name: "O", role: "owner", clerkUserId: "u_o", skills: [] });
     });
     const owner = t.withIdentity({ subject: "u_o", name: "O", orgId: "org_a" });
@@ -24,7 +24,7 @@ describe("access engine - audit log", () => {
 
   it("logs a deny row when an engineer attempts to delete a song", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", tier: "growth", status: "active" });
       await ctx.db.insert("members", { orgId: "org_a", name: "E", role: "engineer", clerkUserId: "u_e", skills: [] });
     });
     const eng = t.withIdentity({ subject: "u_e", name: "E", orgId: "org_a" });
@@ -40,7 +40,7 @@ describe("access engine - audit log", () => {
 
   it("does NOT log read actions (not sensitive)", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", tier: "growth", status: "active" });
       await ctx.db.insert("members", { orgId: "org_a", name: "I", role: "intern", clerkUserId: "u_i", skills: [] });
     });
     const intern = t.withIdentity({ subject: "u_i", name: "I", orgId: "org_a" });

@@ -5,6 +5,9 @@ import { internal } from "./_generated/api";
 import { currentOrgWithCapability, currentActor } from "./lib/tenant";
 import { conventionalPortGender } from "./lib/connectors";
 import { logPatch } from "./patchManager";
+import { fileRefV } from "./lib/fileRef";
+import { readFileBlob } from "./media";
+import type { Id } from "./_generated/dataModel";
 import {
   researchDeviceIO,
   hasDeviceResearch,
@@ -15,6 +18,7 @@ import {
 import { portTemplateV } from "./lib/patchValidators";
 import { CATALOG_PORTS } from "./lib/portTemplates";
 import { GEAR_CATALOG } from "./lib/gearCatalog";
+import { legacyUploadIsOwn } from "./lib/legacyUpload";
 import {
   resolveSpec,
   specPrompt,
@@ -293,8 +297,11 @@ const SPEC_SYSTEM =
 export const deviceForProposal = internalQuery({
   args: { deviceInstanceId: v.id("deviceInstances") },
   handler: async (ctx, { deviceInstanceId }) => {
+    // "Set up sockets from the maker's sheet" is a Max add to the cable map,
+    // and the device must be the caller's own.
+    const orgId = await currentOrgWithCapability(ctx, "patch.edit", undefined, { entitlement: "specSheetImport" });
     const device = await ctx.db.get(deviceInstanceId);
-    if (!device) return null;
+    if (!device || device.orgId !== orgId) return null;
     const profile = await ctx.db.get(device.profileId);
     return {
       orgId: device.orgId,
@@ -311,6 +318,32 @@ export const deviceForProposal = internalQuery({
 });
 
 /**
+ * May the caller read this photo for this device? The device must be in the
+ * caller's studio (patch.edit) and an R2 photo must be that studio's own,
+ * finished upload, so one studio can never feed another's file to the model.
+ */
+export const _panelImageOk = internalQuery({
+  args: { deviceInstanceId: v.id("deviceInstances"), imageId: fileRefV },
+  handler: async (ctx, { deviceInstanceId, imageId }) => {
+    let orgId: string;
+    try {
+      orgId = await currentOrgWithCapability(ctx, "patch.edit");
+    } catch {
+      return false;
+    }
+    const device = await ctx.db.get(deviceInstanceId);
+    if (!device || device.orgId !== orgId) return false;
+    const mediaId = ctx.db.normalizeId("mediaFiles", imageId);
+    if (mediaId) {
+      const row = await ctx.db.get(mediaId);
+      return Boolean(row && row.orgId === orgId && row.status === "ready");
+    }
+    // A legacy storage id: only this studio's own fresh upload.
+    return await legacyUploadIsOwn(ctx, imageId, orgId);
+  },
+});
+
+/**
  * Read a source and return the ports it describes. Writes nothing.
  *
  * Exactly one of url / text / storageId is used, in that order. The result
@@ -322,8 +355,8 @@ export const proposeFromSource = action({
     deviceInstanceId: v.id("deviceInstances"),
     url: v.optional(v.string()),
     text: v.optional(v.string()),
-    /** An uploaded photo of the back panel. */
-    imageId: v.optional(v.id("_storage")),
+    /** An uploaded photo of the back panel: an R2 mediaFiles id, or a legacy storage id. */
+    imageId: v.optional(fileRefV),
   },
   handler: async (
     ctx,
@@ -351,7 +384,9 @@ export const proposeFromSource = action({
     let sourceLabel = "";
 
     if (imageId) {
-      const blob = await ctx.storage.get(imageId);
+      const allowed = await ctx.runQuery(internal.patchSpecs._panelImageOk, { deviceInstanceId, imageId });
+      if (!allowed) return { ok: false, reason: "That upload is gone." };
+      const blob = await readFileBlob(ctx, imageId);
       if (!blob) return { ok: false, reason: "That upload is gone." };
       const bytes = new Uint8Array(await blob.arrayBuffer());
       let binary = "";
@@ -489,7 +524,7 @@ export const applyProposal = mutation({
     sourceLabel: v.optional(v.string()),
   },
   handler: async (ctx, { deviceInstanceId, add, removePortIds, sourceLabel }) => {
-    const orgId = await currentOrgWithCapability(ctx, "patch.edit");
+    const orgId = await currentOrgWithCapability(ctx, "patch.edit", undefined, { entitlement: "specSheetImport" });
     const actor = await currentActor(ctx);
     const device = await ctx.db.get(deviceInstanceId);
     if (!device || device.orgId !== orgId) {

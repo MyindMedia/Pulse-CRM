@@ -25,10 +25,10 @@ describe("booking conversion + referral", () => {
     start = Date.now() + 7 * DAY;
     const ids = await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org1", name: "Studio One", slug: "studio-one", plan: "studio", status: "active",
+        orgId: "org1", name: "Studio One", slug: "studio-one", tier: "growth", status: "active",
       });
       await ctx.db.insert("orgs", {
-        orgId: "org2", name: "Studio Two", slug: "studio-two", plan: "studio", status: "active",
+        orgId: "org2", name: "Studio Two", slug: "studio-two", tier: "growth", status: "active",
       });
       const a = await ctx.db.insert("rooms", {
         orgId: "org1", name: "Room A", status: "available", bookable: true,
@@ -169,7 +169,7 @@ describe("conversion settings setters (authz + write)", () => {
     t = initT();
     const ids = await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org_s", name: "S", slug: "s", plan: "studio", status: "active",
+        orgId: "org_s", name: "S", slug: "s", tier: "growth", status: "active",
       });
       await ctx.db.insert("members", {
         orgId: "org_s", name: "Owner", role: "owner", clerkUserId: "u_o", skills: [],

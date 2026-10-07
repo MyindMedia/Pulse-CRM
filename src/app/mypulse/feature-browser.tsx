@@ -1,9 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { ChevronRight, Search, X } from "lucide-react";
+import { ChevronRight, SearchLg, XClose } from "@untitledui/icons";
+import { PRICING, TIERS, type TierKey } from "@convex/lib/pricing";
 import { cn } from "@/lib/utils";
-import type { Section, Tier } from "./features";
+import type { Section } from "./features";
 
 /* The collapsible feature browser.
  *
@@ -13,15 +14,15 @@ import type { Section, Tier } from "./features";
  *
  * A rep on a call needs one thing above all: to answer "do you do X?" in
  * under three seconds. So the search box filters every section at once and
- * opens whatever matched, rather than making them remember which of fourteen
- * headings owns the answer. */
+ * opens whatever matched, rather than making them remember which heading
+ * owns the answer. */
 
-const TIERS: Tier[] = ["Studio", "Pro", "Label"];
-
-const TIER_CLASS: Record<Tier, string> = {
-  Studio: "border-hairline-2 bg-coal-3 text-steel",
-  Pro: "border-gold-dim/60 bg-gold/10 text-gold",
-  Label: "border-bone/25 bg-bone/10 text-bone",
+/* Tier names come from the pricing config; the classes are the only thing
+   set here. */
+const TIER_CLASS: Record<TierKey, string> = {
+  core: "border-hairline-2 bg-coal-3 text-steel",
+  growth: "border-gold-dim/60 bg-gold/10 text-gold",
+  max: "border-bone/25 bg-bone/10 text-bone",
 };
 
 function norm(s: string) {
@@ -30,7 +31,7 @@ function norm(s: string) {
 
 export function FeatureBrowser({ sections }: { sections: Section[] }) {
   const [query, setQuery] = React.useState("");
-  const [tier, setTier] = React.useState<Tier | null>(null);
+  const [tier, setTier] = React.useState<TierKey | null>(null);
   // Closed by default: fourteen open sections is a scroll, not a page.
   const [open, setOpen] = React.useState<Record<string, boolean>>({});
 
@@ -67,11 +68,12 @@ export function FeatureBrowser({ sections }: { sections: Section[] }) {
       <div className="sticky top-0 z-20 -mx-5 border-b border-hairline bg-ink/92 px-5 py-3 backdrop-blur-xl sm:-mx-6 sm:px-6">
         <div className="mx-auto flex max-w-4xl flex-wrap items-center gap-2">
           <div className="relative min-w-[12rem] flex-1">
-            <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ash-dim" />
+            <SearchLg className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-ash" aria-hidden />
             <input
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search every feature. Try payroll, splits, no-show."
+              type="search"
               aria-label="Search features"
               className="h-10 w-full rounded-lg border border-hairline-2 bg-coal-2 pl-9 pr-9 text-sm text-bone outline-none placeholder:text-ash-dim focus:border-gold"
             />
@@ -82,12 +84,12 @@ export function FeatureBrowser({ sections }: { sections: Section[] }) {
                 aria-label="Clear search"
                 className="absolute right-2 top-1/2 grid size-6 -translate-y-1/2 place-items-center rounded-md text-ash hover:bg-coal-3 hover:text-bone"
               >
-                <X className="size-3.5" />
+                <XClose className="size-3.5" aria-hidden />
               </button>
             )}
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5" role="group" aria-label="Show one plan">
             {TIERS.map((t) => (
               <button
                 key={t}
@@ -95,19 +97,19 @@ export function FeatureBrowser({ sections }: { sections: Section[] }) {
                 onClick={() => setTier((cur) => (cur === t ? null : t))}
                 aria-pressed={tier === t}
                 className={cn(
-                  "h-8 rounded-lg border px-2.5 font-meta text-[11px] uppercase tracking-[0.1em] transition-colors",
+                  "h-8 rounded-lg border px-2.5 font-meta text-[11px] uppercase tracking-[0.1em] transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold",
                   tier === t
                     ? "border-gold bg-gold/15 text-gold"
                     : "border-hairline-2 text-ash hover:border-graphite hover:text-bone",
                 )}
               >
-                {t}
+                {PRICING[t].name}
               </button>
             ))}
           </div>
 
           <div className="ml-auto flex items-center gap-3">
-            <span className="font-meta text-[11px] uppercase tracking-[0.1em] text-ash-dim">
+            <span className="font-meta text-[11px] uppercase tracking-[0.1em] text-ash">
               {total} shown
             </span>
             <button
@@ -152,8 +154,9 @@ export function FeatureBrowser({ sections }: { sections: Section[] }) {
                   className="group flex w-full items-start gap-3 px-4 py-4 text-left transition-colors hover:bg-coal-3/40 sm:px-5"
                 >
                   <ChevronRight
+                    aria-hidden
                     className={cn(
-                      "mt-0.5 size-4 shrink-0 text-ash-dim transition-transform duration-200 group-hover:text-gold",
+                      "mt-0.5 size-4 shrink-0 text-ash transition-transform duration-200 group-hover:text-gold",
                       openNow && "rotate-90 text-gold",
                     )}
                   />
@@ -162,7 +165,7 @@ export function FeatureBrowser({ sections }: { sections: Section[] }) {
                       <span className="text-[0.95rem] font-semibold tracking-tight text-bone">
                         {s.title}
                       </span>
-                      <span className="font-meta text-[11px] uppercase tracking-[0.12em] text-ash-dim">
+                      <span className="font-meta text-[11px] uppercase tracking-[0.12em] text-ash">
                         {s.items.length} {s.items.length === 1 ? "feature" : "features"}
                       </span>
                     </span>
@@ -186,13 +189,20 @@ export function FeatureBrowser({ sections }: { sections: Section[] }) {
                       <span className="flex-1 text-sm leading-relaxed text-ash">
                         {f.desc}
                       </span>
-                      <span
-                        className={cn(
-                          "shrink-0 self-start rounded-md border px-1.5 py-0.5 font-meta text-[10px] uppercase tracking-[0.1em]",
-                          TIER_CLASS[f.tier],
+                      <span className="flex shrink-0 flex-wrap items-center gap-1.5 self-start">
+                        {f.moved && (
+                          <span className="rounded-md border border-positive/40 px-1.5 py-0.5 font-meta text-[10px] uppercase tracking-[0.1em] text-positive">
+                            Moved down
+                          </span>
                         )}
-                      >
-                        {f.tier}
+                        <span
+                          className={cn(
+                            "rounded-md border px-1.5 py-0.5 font-meta text-[10px] uppercase tracking-[0.1em]",
+                            TIER_CLASS[f.tier],
+                          )}
+                        >
+                          {PRICING[f.tier].name}
+                        </span>
                       </span>
                     </li>
                   ))}

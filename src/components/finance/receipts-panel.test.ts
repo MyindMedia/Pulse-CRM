@@ -11,6 +11,7 @@ const state = vi.hoisted(() => ({
 
 vi.mock("convex/react", () => ({
   useMutation: () => vi.fn(),
+  useAction: () => vi.fn(), // the R2 upload hook confirms uploads through an action
   useQuery: (reference: Parameters<typeof getFunctionName>[0], args: unknown) => {
     const name = getFunctionName(reference);
     state.queries.push({ name, args });

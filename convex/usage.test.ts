@@ -5,18 +5,43 @@ import { api, internal } from "./_generated/api";
 import { PLAN_LIMITS } from "./lib/plans";
 
 const DEMO = "pulse-demo";
+/** A real (non-demo) studio. The demo sandbox always resolves to Max, so
+ *  anything about a specific tier needs its own org and a signed-in owner. */
+const ORG = "org_usage";
+const OWNER = "u_usage_owner";
 
-async function seedOrg(t: ReturnType<typeof convexTest>, tier?: "studio" | "pro" | "agency") {
+async function seedOrg(t: ReturnType<typeof convexTest>, tier?: "core" | "growth" | "max") {
   await t.run(async (ctx) => {
     await ctx.db.insert("orgs", {
       orgId: DEMO,
       name: "Demo",
       slug: "demo",
-      plan: "studio",
       status: "active",
-      ...(tier ? { tier } : {}),
     });
   });
+  return seedStudio(t, ORG, tier);
+}
+
+async function seedStudio(
+  t: ReturnType<typeof convexTest>,
+  orgId: string,
+  tier?: "core" | "growth" | "max",
+  agencyId?: string,
+) {
+  await t.run(async (ctx) => {
+    await ctx.db.insert("orgs", {
+      orgId,
+      name: orgId,
+      slug: orgId,
+      status: "active",
+      ...(tier ? { tier } : {}),
+      ...(agencyId ? { agencyId } : {}),
+    });
+    await ctx.db.insert("members", {
+      orgId, name: "Owner", role: "owner", skills: [], clerkUserId: `${OWNER}_${orgId}`,
+    });
+  });
+  return t.withIdentity({ subject: `${OWNER}_${orgId}`, orgId });
 }
 
 describe("usage.record", () => {
@@ -51,22 +76,22 @@ describe("usage.summary", () => {
   beforeEach(() => { t = convexTest(schema); });
 
   it("returns plan caps for the resolved tier and current usage", async () => {
-    await seedOrg(t, "pro");
-    await t.mutation(internal.usage.record, { orgId: DEMO, metric: "ai_credits", amount: 42 });
-    const summary = await t.query(api.usage.summary, {});
-    expect(summary.tier).toBe("pro");
-    expect(summary.caps.aiCreditsPerMonth).toBe(PLAN_LIMITS.pro.aiCreditsPerMonth);
-    expect(summary.caps.magicLinkGrantsPerMonth).toBe(PLAN_LIMITS.pro.magicLinkGrantsPerMonth);
+    const owner = await seedOrg(t, "growth");
+    await t.mutation(internal.usage.record, { orgId: ORG, metric: "ai_credits", amount: 42 });
+    const summary = await owner.query(api.usage.summary, {});
+    expect(summary.tier).toBe("growth");
+    expect(summary.caps.aiCreditsPerMonth).toBe(PLAN_LIMITS.growth.aiCreditsPerMonth);
+    expect(summary.caps.magicLinkGrantsPerMonth).toBe(PLAN_LIMITS.growth.magicLinkGrantsPerMonth);
     const ai = summary.metrics.find((m) => m.metric === "ai_credits");
     expect(ai?.used).toBe(42);
-    expect(ai?.limit).toBe(PLAN_LIMITS.pro.aiCreditsPerMonth);
+    expect(ai?.limit).toBe(PLAN_LIMITS.growth.aiCreditsPerMonth);
   });
 
-  it("defaults to the studio tier when org tier is unset", async () => {
-    await seedOrg(t);
-    const summary = await t.query(api.usage.summary, {});
-    expect(summary.tier).toBe("studio");
-    expect(summary.caps.subAccountCap).toBe(PLAN_LIMITS.studio.subAccountCap);
+  it("defaults to the core tier when org tier is unset", async () => {
+    const owner = await seedOrg(t);
+    const summary = await owner.query(api.usage.summary, {});
+    expect(summary.tier).toBe("core");
+    expect(summary.caps.subAccountCap).toBe(PLAN_LIMITS.core.subAccountCap);
   });
 });
 
@@ -75,18 +100,18 @@ describe("invites grant-quota enforcement", () => {
   beforeEach(() => { t = convexTest(schema); });
 
   it("throws once the monthly magic-link cap is exceeded", async () => {
-    await seedOrg(t, "studio"); // studio cap = 5
-    const cap = PLAN_LIMITS.studio.magicLinkGrantsPerMonth;
+    await seedOrg(t, "core");
+    const cap = PLAN_LIMITS.core.magicLinkGrantsPerMonth;
     for (let i = 0; i < cap; i++) {
       await t.mutation(internal.invites.record, {
-        orgId: DEMO, email: `a${i}@x.com`, ownerName: "A", studioName: "X",
+        orgId: ORG, email: `a${i}@x.com`, ownerName: "A", studioName: "X",
         invitedBy: "system", emailStatus: "sent",
       });
     }
     // The (cap+1)th issuance must throw.
     await expect(
       t.mutation(internal.invites.record, {
-        orgId: DEMO, email: "over@x.com", ownerName: "A", studioName: "X",
+        orgId: ORG, email: "over@x.com", ownerName: "A", studioName: "X",
         invitedBy: "system", emailStatus: "sent",
       }),
     ).rejects.toThrow(/grant limit reached/i);
@@ -94,7 +119,7 @@ describe("invites grant-quota enforcement", () => {
     // The email counter recorded exactly `cap` successful sends.
     const counter = await t.run(async (ctx) =>
       (await ctx.db.query("usageCounters").collect()).find(
-        (r) => r.orgId === DEMO && r.metric === "email",
+        (r) => r.orgId === ORG && r.metric === "email",
       ),
     );
     expect(counter?.value).toBe(cap);
@@ -129,5 +154,67 @@ describe("exports CSV shape", () => {
       ),
     );
     expect(exportsCounter?.value).toBe(1);
+  });
+});
+
+describe("pooled allowances on Max", () => {
+  let t: ReturnType<typeof convexTest>;
+  beforeEach(() => { t = convexTest(schema); });
+
+  async function agency(plan: "core" | "growth" | "max") {
+    await t.run((ctx) => ctx.db.insert("agencies", {
+      agencyId: "ag_pool", name: "Pool", slug: "pool", plan, status: "active",
+      ownerClerkUserId: "u_pool", ownerEmail: "pool@x",
+    }));
+  }
+
+  it("counts every Max studio in the group against one cap", async () => {
+    await agency("max");
+    const a = await seedStudio(t, "pool_a", "max", "ag_pool");
+    await seedStudio(t, "pool_b", "max", "ag_pool");
+    await t.mutation(internal.usage.record, { orgId: "pool_a", metric: "ai_credits", amount: 300 });
+    await t.mutation(internal.usage.record, { orgId: "pool_b", metric: "ai_credits", amount: 200 });
+    const summary = await a.query(api.usage.summary, {});
+    expect(summary.pooled).toBe(true);
+    expect(summary.metrics.find((m) => m.metric === "ai_credits")?.used).toBe(500);
+  });
+
+  it("refuses an assistant run once the group, not the studio, is over the cap", async () => {
+    await agency("max");
+    await seedStudio(t, "pool_a", "max", "ag_pool");
+    await seedStudio(t, "pool_b", "max", "ag_pool");
+    const cap = PLAN_LIMITS.max.aiCreditsPerMonth;
+    await t.mutation(internal.usage.record, { orgId: "pool_b", metric: "ai_credits", amount: cap });
+    await expect(
+      t.query(internal.usage.checkLimit, { orgId: "pool_a", metric: "ai_credits", add: 1 }),
+    ).rejects.toMatchObject({ data: { code: "LIMIT_REACHED" } });
+  });
+
+  it("pools a studio stamped Core under a Max agency, because it runs at the agency's tier", async () => {
+    await agency("max");
+    const a = await seedStudio(t, "pool_a", "max", "ag_pool");
+    await seedStudio(t, "pool_core", "core", "ag_pool");
+    await t.mutation(internal.usage.record, { orgId: "pool_core", metric: "ai_credits", amount: 90 });
+    const summary = await a.query(api.usage.summary, {});
+    expect(summary.metrics.find((m) => m.metric === "ai_credits")?.used).toBe(90);
+  });
+
+  it("does not pool a standalone studio into the Max group", async () => {
+    await agency("max");
+    const a = await seedStudio(t, "pool_a", "max", "ag_pool");
+    await seedStudio(t, "pool_alone", "max");
+    await t.mutation(internal.usage.record, { orgId: "pool_alone", metric: "ai_credits", amount: 90 });
+    const summary = await a.query(api.usage.summary, {});
+    expect(summary.metrics.find((m) => m.metric === "ai_credits")?.used).toBe(0);
+  });
+
+  it("keeps Core and Growth allowances per studio", async () => {
+    await agency("growth");
+    const a = await seedStudio(t, "solo_a", "growth", "ag_pool");
+    await seedStudio(t, "solo_b", "growth", "ag_pool");
+    await t.mutation(internal.usage.record, { orgId: "solo_b", metric: "ai_credits", amount: 50 });
+    const summary = await a.query(api.usage.summary, {});
+    expect(summary.pooled).toBe(false);
+    expect(summary.metrics.find((m) => m.metric === "ai_credits")?.used).toBe(0);
   });
 });

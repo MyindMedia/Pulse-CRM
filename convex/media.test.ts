@@ -24,7 +24,7 @@ describe("media + deliverables on R2", () => {
 
   async function seedDeliverable(opts: { paymentGated?: boolean; legacyFile?: boolean } = {}) {
     return await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", tier: "growth", status: "active" });
       const artistId = await ctx.db.insert("artists", { orgId: ORG, name: "A", type: "artist", genres: [], tags: [], status: "active", reliability: "solid", sessionCount: 0, lifetimeValueCents: 0 });
       const songId = await ctx.db.insert("songs", { orgId: ORG, title: "S", artistId, kind: "single", stage: "tracking", moodTags: [], referenceTracks: [], revisionsIncluded: 3, revisionsUsed: 0 });
       const legacy = opts.legacyFile ? ((await ctx.storage.store(new Blob(["old-bytes"], { type: "audio/wav" }))) as Id<"_storage">) : undefined;
@@ -141,7 +141,7 @@ describe("media + deliverables on R2", () => {
 
   it("a room photo on R2 is claimed, shows the public URL, and replacing it frees the old object; another studio's upload is refused", async () => {
     const roomId = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", tier: "growth", status: "active" });
       return await ctx.db.insert("rooms", { orgId: ORG, name: "Studio A", status: "available", bookable: true });
     });
     const photo = (key: string, orgId = ORG) => t.run(async (ctx) => await ctx.db.insert("mediaFiles", { orgId, bucket: "media", key, purpose: "photo", fileName: "r.jpg", mimeType: "image/jpeg", size: 1234, status: "ready", uploadedBy: "u", createdAt: Date.now() }));

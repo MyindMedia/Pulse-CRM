@@ -16,7 +16,7 @@ import { api } from "./_generated/api";
 async function studio() {
   const t = convexTest(schema);
   const ids = await t.run(async (ctx) => {
-    await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Skyline", slug: "demo", plan: "studio", status: "active" });
+    await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Skyline", slug: "demo", tier: "growth", status: "active" });
     await ctx.db.insert("members", {
       orgId: "pulse-demo", name: "Olu", role: "owner", email: "o@x.com", skills: [], clerkUserId: "user_owner",
     });

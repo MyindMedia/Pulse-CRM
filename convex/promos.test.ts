@@ -16,7 +16,7 @@ describe("promos", () => {
     t = convexTest(schema);
     const ids = await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org1", name: "Studio", slug: "studio", plan: "studio", status: "active",
+        orgId: "org1", name: "Studio", slug: "studio", tier: "growth", status: "active",
         discountCodes: [{ code: "LEGACY10", pct: 10, active: true }],
       });
       await ctx.db.insert("members", { orgId: "org1", name: "Owner", role: "owner", clerkUserId: "u1", skills: [] });

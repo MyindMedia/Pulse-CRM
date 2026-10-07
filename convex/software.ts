@@ -102,7 +102,7 @@ export const create = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
-    const orgId = await currentOrgWithCapability(ctx, "licenses.edit");
+    const orgId = await currentOrgWithCapability(ctx, "licenses.edit", undefined, { entitlement: "software" });
     // What software costs is money; the seat and the renewal date are not.
     if (!(await currentMoneySight(ctx)).money) args.costCents = 0;
     const name = args.name.trim();
@@ -157,7 +157,7 @@ export const update = mutation({
     notes: v.optional(v.string()),
   },
   handler: async (ctx, { id, ...patch }) => {
-    const orgId = await currentOrgWithCapability(ctx, "licenses.edit");
+    const orgId = await currentOrgWithCapability(ctx, "licenses.edit", undefined, { entitlement: "software" });
     const row = await ctx.db.get(id);
     if (!row || row.orgId !== orgId) throw new ConvexError("Software not found.");
     if (!(await currentMoneySight(ctx)).money) delete patch.costCents;
@@ -181,7 +181,7 @@ export const update = mutation({
 export const remove = mutation({
   args: { id: v.id("softwareLicenses") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrgWithCapability(ctx, "licenses.edit");
+    const orgId = await currentOrgWithCapability(ctx, "licenses.edit", undefined, { entitlement: "software" });
     const row = await ctx.db.get(id);
     if (!row || row.orgId !== orgId) throw new ConvexError("Software not found.");
     await ctx.db.delete(id);

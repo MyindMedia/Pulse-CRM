@@ -92,7 +92,7 @@ describe("_applyDelta + blocksInRange (integration)", () => {
   it("upserts, updates, then cancels blocks idempotently and persists the syncToken", async () => {
     const tt = convexTest(schema);
     await tt.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", tier: "growth", status: "active" });
     });
 
     // First pull: two blocks.

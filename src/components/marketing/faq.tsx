@@ -15,11 +15,11 @@ const FAQS = [
   },
   {
     q: "Can I cancel or change plans anytime?",
-    a: "Yes. Plans are billed monthly with no contract. Upgrade, downgrade or cancel anytime from your billing portal; changes are prorated.",
+    a: "Yes. Plans are month to month with no contract, or yearly with two months free. Upgrade, downgrade or cancel any time from your billing portal, and changes are prorated. See every plan on the pricing page.",
   },
   {
     q: "What does the AI studio manager do?",
-    a: "It runs the operational busywork for you: chases unpaid deposits, follows up on new leads, fills cancellations, drafts client replies, flags no-show and scheduling risks, and scores your studio's profitability so you can see where to make more money. It works inside your studio only and never sees another studio's data. Included on the Studio plan.",
+    a: "It runs the operational busywork for you: chases unpaid deposits, follows up on new leads, fills cancellations, drafts client replies, flags no-show and scheduling risks, and scores your studio's profitability so you can see where to make more money. It works inside your studio only and never sees another studio's data. Included on the Growth and Max plans.",
   },
   {
     q: "Does Pulse handle song splits and rights?",
@@ -27,11 +27,11 @@ const FAQS = [
   },
   {
     q: "Can I bring my whole team?",
-    a: "Yes. Studio and Label plans include staff scheduling and team access, so engineers and managers all work from the same studio workspace.",
+    a: "Yes. Every plan includes team logins with roles and no per-seat fees. Growth and Max add the staff schedule, clocking in on a phone and payroll, so engineers and managers all work from the same studio workspace.",
   },
   {
     q: "Is the booking page branded as my studio?",
-    a: "Studio and Label plans include white-label branding on client-facing pages, so your booking and payment pages carry your studio's name and look.",
+    a: "Yes. On every plan your booking and payment pages carry your studio's name, logo and colors. Growth puts your brand inside the app, and Max puts the whole app on your own web address.",
   },
 ];
 

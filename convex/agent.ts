@@ -6,6 +6,8 @@ import { api, internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { currentOrg, currentActor } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
+import { tierForOrg } from "./lib/tier";
+import { orgHasFeature } from "./lib/entitlements";
 import { completeJSON, SMART_MODEL } from "./lib/openai";
 import { summarizeGraph } from "./lib/studioGraph";
 import { escapeHtml, stripEmDashes } from "./lib/text";
@@ -112,7 +114,16 @@ export const updatePolicy = mutation({
     digestHourLocal: v.optional(v.number()),
   },
   handler: async (ctx, patch) => {
-    const viewer = await requireCapability(ctx, "ops.autonomy.manage");
+    // One permission (ops.autonomy.manage: who may change how the assistant
+    // behaves), three prices. The daily summary switch and hour are Core,
+    // autonomy is Max, everything else here is the assistant itself (Growth).
+    const fields = Object.entries(patch).filter(([, val]) => val !== undefined).map(([k]) => k);
+    const entitlement = fields.includes("autonomy")
+      ? "aiAutonomy"
+      : fields.length > 0 && fields.every((k) => k === "digestEnabled" || k === "digestHourLocal")
+        ? "dailySummary"
+        : "agent";
+    const viewer = await requireCapability(ctx, "ops.autonomy.manage", { entitlement });
     const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
     const existing = await ctx.db.query("agentPolicies").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     const clean = Object.fromEntries(Object.entries(patch).filter(([, val]) => val !== undefined));
@@ -292,7 +303,7 @@ export const _context = internalQuery({
 
     return {
       orgName: org?.name ?? "the studio",
-      plan: org?.plan ?? "studio",
+      plan: await tierForOrg(ctx, orgId),
       health: { overall: health.overall, band: health.band, components: health.components },
       memory: memories.map((m) => ({ type: m.memoryType, summary: m.summary })),
       rooms: rooms.length,
@@ -907,7 +918,8 @@ export const listMemories = query({
 export const addMemory = mutation({
   args: { memoryType: MEMORY_TYPE, summary: v.string() },
   handler: async (ctx, { memoryType, summary }) => {
-    const viewer = await requireCapability(ctx, "ops.autonomy.manage");
+    // "It remembers" is Growth, not the Max autonomy switch.
+    const viewer = await requireCapability(ctx, "ops.autonomy.manage", { entitlement: "agent" });
     const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
     const body = summary.trim();
     if (!body) throw new ConvexError("Memory cannot be empty.");
@@ -924,7 +936,7 @@ export const deleteMemory = mutation({
   args: { id: v.id("agentMemories") },
   handler: async (ctx, { id }) => {
     const orgId = await currentOrg(ctx);
-    await requireCapability(ctx, "ops.autonomy.manage", { orgId });
+    await requireCapability(ctx, "ops.autonomy.manage", { orgId, entitlement: "agent" });
     const m = await ctx.db.get(id);
     if (!m || m.orgId !== orgId) throw new ConvexError("Not found");
     await ctx.db.delete(id);
@@ -949,6 +961,9 @@ export const _maybeStartDigest = internalMutation({
     const enabled = policy?.enabled ?? DEFAULT_POLICY.enabled;
     const digestEnabled = policy?.digestEnabled ?? DEFAULT_POLICY.digestEnabled;
     if (!enabled || !digestEnabled) return null;
+    // Every plan includes the daily summary (Core); an operator can still
+    // switch the module off for one studio.
+    if (!(await orgHasFeature(ctx, orgId, "dailySummary"))) return null;
     const now = Date.now();
     const due = isDigestDue({
       now,

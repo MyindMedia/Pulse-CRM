@@ -11,7 +11,7 @@ import { api } from "./_generated/api";
 async function studio(t: ReturnType<typeof convexTest>, showGearOnBooking?: boolean) {
   return await t.run(async (ctx) => {
     await ctx.db.insert("orgs", {
-      orgId: "org1", name: "Studio", slug: "studio", plan: "studio", status: "active",
+      orgId: "org1", name: "Studio", slug: "studio", tier: "growth", status: "active",
       ...(showGearOnBooking === undefined ? {} : { showGearOnBooking }),
     } as never);
     const room = await ctx.db.insert("rooms", {
@@ -72,7 +72,7 @@ describe("choosing what gear a room publishes", () => {
   ) {
     return await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "pulse-demo", name: "Studio", slug: "studio-g", plan: "studio", status: "active",
+        orgId: "pulse-demo", name: "Studio", slug: "studio-g", tier: "growth", status: "active",
         ...(opts.orgShows === undefined ? {} : { showGearOnBooking: opts.orgShows }),
       } as never);
       const r = await ctx.db.insert("rooms", {

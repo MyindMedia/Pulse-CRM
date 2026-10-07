@@ -32,7 +32,7 @@ function stubPlaid(handler: PlaidHandler) {
 async function studio() {
   const t = convexTest(schema);
   await t.run(async (ctx) => {
-    await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+    await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active" });
     for (const [name, role, subject] of [
       ["Olu", "owner", "user_owner"],
       ["Mo", "manager", "user_manager"],
@@ -124,9 +124,9 @@ describe("who may touch the bank feed", () => {
         agencyId: "agency_one", clerkUserId: "agency_owner", email: "owner@x.com",
         name: "Agency Owner", role: "owner", status: "active", invitedAt: 0,
       });
-      await ctx.db.insert("orgs", { orgId: "studio_one", name: "One", slug: "one", plan: "studio", status: "active", agencyId: "agency_one" });
-      await ctx.db.insert("orgs", { orgId: "studio_two", name: "Two", slug: "two", plan: "studio", status: "active", agencyId: "agency_one" });
-      await ctx.db.insert("orgs", { orgId: "foreign_studio", name: "Foreign", slug: "foreign", plan: "studio", status: "active", agencyId: "agency_two" });
+      await ctx.db.insert("orgs", { orgId: "studio_one", name: "One", slug: "one", tier: "growth", status: "active", agencyId: "agency_one" });
+      await ctx.db.insert("orgs", { orgId: "studio_two", name: "Two", slug: "two", tier: "growth", status: "active", agencyId: "agency_one" });
+      await ctx.db.insert("orgs", { orgId: "foreign_studio", name: "Foreign", slug: "foreign", tier: "growth", status: "active", agencyId: "agency_two" });
       await ctx.db.insert("bankConnections", {
         orgId: "studio_one", plaidItemId: "existing-one", institutionName: "Studio One Bank",
         status: "active", createdAt: 1,

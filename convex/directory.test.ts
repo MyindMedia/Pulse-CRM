@@ -18,7 +18,7 @@ async function studio(
 ) {
   await t.run(async (ctx) => {
     await ctx.db.insert("orgs", {
-      orgId: opts.orgId, name: opts.name, slug: opts.slug, plan: "studio", status: "active",
+      orgId: opts.orgId, name: opts.name, slug: opts.slug, tier: "growth", status: "active",
       directoryListed: opts.listed ?? true,
       directoryCity: opts.city ?? "Atlanta",
       directoryRegion: "GA",
@@ -145,7 +145,7 @@ describe("the studio's own controls", () => {
   it("starts off, and turning it on is one call", async () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "o1", name: "V", slug: "v", plan: "solo" });
+      await ctx.db.insert("orgs", { orgId: "o1", name: "V", slug: "v", tier: "core" });
       await ctx.db.insert("members", {
         orgId: "o1", name: "Owner", role: "owner", skills: [], clerkUserId: "u_own",
       });
@@ -168,7 +168,7 @@ describe("the studio's own controls", () => {
   it("trims and caps tags so a listing cannot be stuffed", async () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "o1", name: "V", slug: "v", plan: "solo" });
+      await ctx.db.insert("orgs", { orgId: "o1", name: "V", slug: "v", tier: "core" });
       await ctx.db.insert("members", {
         orgId: "o1", name: "O", role: "owner", skills: [], clerkUserId: "u_own",
       });
@@ -185,7 +185,7 @@ describe("the studio's own controls", () => {
   it("tells a studio with no bookable room why it will not appear", async () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "o1", name: "V", slug: "v", plan: "solo" });
+      await ctx.db.insert("orgs", { orgId: "o1", name: "V", slug: "v", tier: "core" });
       await ctx.db.insert("members", {
         orgId: "o1", name: "O", role: "owner", skills: [], clerkUserId: "u_own",
       });
@@ -200,7 +200,7 @@ describe("busy days are the studio's days, not UTC's", () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "o_la", name: "LA Room", slug: "la-room", plan: "studio",
+        orgId: "o_la", name: "LA Room", slug: "la-room", tier: "growth",
         status: "active", directoryListed: true,
         timezone: "America/Los_Angeles",
       });
@@ -243,7 +243,7 @@ describe("busy days are the studio's days, not UTC's", () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "o_bad", name: "Bad TZ", slug: "bad-tz", plan: "studio",
+        orgId: "o_bad", name: "Bad TZ", slug: "bad-tz", tier: "growth",
         status: "active", directoryListed: true, timezone: "Not/AZone",
       });
       await ctx.db.insert("rooms", {

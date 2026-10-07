@@ -69,7 +69,7 @@ describe("plans + memberships", () => {
 
   it("_applySubscriptionEvent activates a pending membership by subscription id", async () => {
     const { membershipId } = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", plan: "studio", stripeAccountId: "acct_studio" });
+      await ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", tier: "growth", stripeAccountId: "acct_studio" });
       const artistId = await ctx.db.insert("artists", {
         orgId: ORG, name: "Nova", type: "artist", genres: [], tags: [],
         status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
@@ -158,8 +158,8 @@ describe("auto-Stripe packages + public subscribe", () => {
 
   it("publicPlans returns only active, Stripe-linked plans for the slug's org", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org-a", name: "Studio A", slug: "studio-a", plan: "studio" });
-      await ctx.db.insert("orgs", { orgId: "org-b", name: "Studio B", slug: "studio-b", plan: "studio" });
+      await ctx.db.insert("orgs", { orgId: "org-a", name: "Studio A", slug: "studio-a", tier: "growth" });
+      await ctx.db.insert("orgs", { orgId: "org-b", name: "Studio B", slug: "studio-b", tier: "growth" });
       // org-a: one subscribable, one unlinked, one archived-but-linked
       await ctx.db.insert("membershipPlans", {
         orgId: "org-a", name: "Live", priceCents: 5000, billingInterval: "month",
@@ -187,8 +187,8 @@ describe("auto-Stripe packages + public subscribe", () => {
 
   it("_publicSubscribeContext resolves by slug and rejects a cross-org plan", async () => {
     const { aPlan, bPlan } = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org-a", name: "A", slug: "studio-a", plan: "studio" });
-      await ctx.db.insert("orgs", { orgId: "org-b", name: "B", slug: "studio-b", plan: "studio" });
+      await ctx.db.insert("orgs", { orgId: "org-a", name: "A", slug: "studio-a", tier: "growth" });
+      await ctx.db.insert("orgs", { orgId: "org-b", name: "B", slug: "studio-b", tier: "growth" });
       const aPlan = await ctx.db.insert("membershipPlans", {
         orgId: "org-a", name: "A plan", priceCents: 5000, billingInterval: "month",
         active: true, stripePriceId: "price_a", createdAt: Date.now(),
@@ -227,7 +227,7 @@ describe("auto-Stripe packages + public subscribe", () => {
   it("subscribePublic rejects cleanly when Stripe is not configured", async () => {
     vi.stubEnv("STRIPE_SECRET_KEY", "");
     const planId = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org-a", name: "A", slug: "studio-a", plan: "studio" });
+      await ctx.db.insert("orgs", { orgId: "org-a", name: "A", slug: "studio-a", tier: "growth" });
       return ctx.db.insert("membershipPlans", {
         orgId: "org-a", name: "A plan", priceCents: 5000, billingInterval: "month",
         active: true, stripePriceId: "price_a", createdAt: Date.now(),
@@ -252,7 +252,7 @@ describe("webhook -> membership activation", () => {
         orgId: ORG,
         name: "Demo",
         slug: "demo",
-        plan: "studio",
+        tier: "growth",
         stripeAccountId: "acct_studio",
       });
       const artistId = await ctx.db.insert("artists", {
@@ -296,7 +296,7 @@ describe("webhook -> membership activation", () => {
   it("records one revenue entry when a connected membership invoice is paid", async () => {
     const { membershipId } = await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: ORG, name: "Pulse Demo", slug: "pulse-demo", plan: "studio", stripeAccountId: "acct_studio",
+        orgId: ORG, name: "Pulse Demo", slug: "pulse-demo", tier: "growth", stripeAccountId: "acct_studio",
       });
       const artistId = await ctx.db.insert("artists", {
         orgId: ORG, name: "Nova", type: "artist", genres: [], tags: [],
@@ -337,7 +337,7 @@ describe("webhook -> membership activation", () => {
   it("does not mutate a membership from another connected Stripe account", async () => {
     const membershipId = await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: ORG, name: "Pulse Demo", slug: "pulse-demo", plan: "studio", stripeAccountId: "acct_right",
+        orgId: ORG, name: "Pulse Demo", slug: "pulse-demo", tier: "growth", stripeAccountId: "acct_right",
       });
       const artistId = await ctx.db.insert("artists", {
         orgId: ORG, name: "Nova", type: "artist", genres: [], tags: [], status: "active",

@@ -9,7 +9,7 @@ describe("invites - record + lookup", () => {
 
   async function seedOrg(orgId = "studio_skyline") {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId, name: "Skyline", slug: "skyline", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId, name: "Skyline", slug: "skyline", tier: "growth", status: "active" });
       await ctx.db.insert("members", { orgId, name: "Jordan", email: "owner@skyline.com", role: "owner", skills: [] });
     });
     return orgId;
@@ -49,7 +49,7 @@ describe("invites - accept + revoke", () => {
 
   async function seed() {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "studio_x", name: "X", slug: "x", plan: "studio", status: "active", clerkOrgId: "org_c" });
+      await ctx.db.insert("orgs", { orgId: "studio_x", name: "X", slug: "x", tier: "growth", status: "active", clerkOrgId: "org_c" });
       await ctx.db.insert("members", { orgId: "studio_x", name: "Jordan", email: "o@x.com", role: "owner", skills: [] });
     });
     return await t.mutation(internal.invites.record, {
@@ -97,9 +97,20 @@ describe("createSubaccount records an invite", () => {
   beforeEach(() => { t = convexTest(schema); });
 
   it("records a pending invite row for the owner email", async () => {
-    // Demo path: no CLERK_SECRET_KEY, single-tenant (no agency).
-    await t.action(api.agency.createSubaccount, {
-      name: "Skyline", slug: "skyline", plan: "studio",
+    // No CLERK_SECRET_KEY: synthetic org id. Only an agency may create studios.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencies", {
+        agencyId: "org_ag", name: "AG", slug: "ag", plan: "max", status: "active",
+        ownerClerkUserId: "u_ag", ownerEmail: "ag@x.com",
+      });
+      await ctx.db.insert("agencyMembers", {
+        agencyId: "org_ag", clerkUserId: "u_ag", email: "ag@x.com",
+        name: "Agency", role: "owner", status: "active", invitedAt: 0,
+      });
+    });
+    const agency = t.withIdentity({ subject: "u_ag", name: "Agency" });
+    await agency.action(api.agency.createSubaccount, {
+      name: "Skyline", slug: "skyline", plan: "core",
       ownerName: "Jordan", ownerEmail: "Owner@Skyline.com",
     });
     const invites = await t.run(async (ctx) =>
@@ -117,7 +128,7 @@ describe("invites - resend", () => {
   it("resend re-issues a fresh pending invite for the org owner", async () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "studio_z", name: "Z", slug: "z", plan: "studio", status: "active", ownerName: "Owner", ownerEmail: "o@z.com", clerkOrgId: "org_z" });
+      await ctx.db.insert("orgs", { orgId: "studio_z", name: "Z", slug: "z", tier: "growth", status: "active", ownerName: "Owner", ownerEmail: "o@z.com", clerkOrgId: "org_z" });
       await ctx.db.insert("members", { orgId: "studio_z", name: "Owner", email: "o@z.com", role: "owner", skills: [] });
     });
     await t.action(api.invites.resend, { orgId: "studio_z" });
@@ -129,7 +140,7 @@ describe("invites - resend", () => {
   it("resend is capability-gated when Clerk is configured", async () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "studio_g", name: "G", slug: "g", plan: "studio", status: "active", ownerName: "O", ownerEmail: "o@g.com" });
+      await ctx.db.insert("orgs", { orgId: "studio_g", name: "G", slug: "g", tier: "growth", status: "active", ownerName: "O", ownerEmail: "o@g.com" });
     });
     process.env.CLERK_SECRET_KEY = "sk_test";
     try {
@@ -156,7 +167,7 @@ describe("invites - list never crashes the detail page", () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
         orgId: "org_orphan", name: "Orphan Studio", slug: "orphan",
-        plan: "studio", status: "active", createdByAgency: true,
+        tier: "growth", status: "active", createdByAgency: true,
       });
       await ctx.db.insert("invites", {
         orgId: "org_orphan", email: "o@orphan.com", ownerName: "O",
@@ -173,7 +184,7 @@ describe("invites - list never crashes the detail page", () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("agencies", {
         agencyId: "org_ag", name: "Acme", slug: "acme",
-        plan: "agency", status: "active",
+        plan: "max", status: "active",
         ownerClerkUserId: "user_owner", ownerEmail: "o@acme.com",
       });
       await ctx.db.insert("agencyMembers", {
@@ -181,7 +192,7 @@ describe("invites - list never crashes the detail page", () => {
         name: "Owner", role: "owner", status: "active", invitedAt: 0,
       });
       await ctx.db.insert("orgs", {
-        orgId: "org_sub", name: "Sub", slug: "sub", plan: "studio",
+        orgId: "org_sub", name: "Sub", slug: "sub", tier: "growth",
         status: "active", createdByAgency: true, agencyId: "org_ag",
       });
       await ctx.db.insert("invites", {
@@ -214,7 +225,7 @@ describe("an invite finds its seat whatever case the email was typed in", () => 
   async function seedMixedCase(seatEmail: string | null) {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "studio_pb", name: "Playback", slug: "playback", plan: "studio", status: "active",
+        orgId: "studio_pb", name: "Playback", slug: "playback", tier: "growth", status: "active",
       } as never);
       if (seatEmail !== null) {
         await ctx.db.insert("members", {
@@ -260,7 +271,7 @@ describe("an invite finds its seat whatever case the email was typed in", () => 
   it("stores the invite address lowercased, so an indexed lookup can find it", async () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "studio_pb2", name: "Playback", slug: "playback-2", plan: "studio", status: "active",
+        orgId: "studio_pb2", name: "Playback", slug: "playback-2", tier: "growth", status: "active",
       } as never);
     });
     await t.mutation(internal.invites.record, {
@@ -282,7 +293,7 @@ describe("reissuing an invite leaves exactly one live link", () => {
   async function org() {
     await t.run((ctx) =>
       ctx.db.insert("orgs", {
-        orgId: "studio_sc", name: "Slang City", slug: "slang-city", plan: "studio",
+        orgId: "studio_sc", name: "Slang City", slug: "slang-city", tier: "growth",
         status: "active", ownerEmail: "slangcitystudios@gmail.com", ownerName: "Keon Hall",
       } as never),
     );

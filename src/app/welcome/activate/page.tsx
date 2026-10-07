@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAction } from "convex/react";
 import { useUser, SignUp } from "@clerk/nextjs";
@@ -64,7 +65,13 @@ function Activate() {
         <PulseLogo size="lg" asLink={false} />
 
         {!sessionId ? (
-          <p className="text-sm text-steel">Missing checkout reference. Please subscribe from the pricing page.</p>
+          <p className="text-sm text-steel">
+            Missing checkout reference. Please subscribe from the{" "}
+            <Link href="/pricing" className="text-gold underline underline-offset-4 hover:text-gold-bright">
+              pricing page
+            </Link>
+            .
+          </p>
         ) : isSignedIn ? (
           <div className="flex flex-col items-center gap-3">
             <Loader2 className="size-8 animate-spin text-gold" />

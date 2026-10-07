@@ -44,13 +44,13 @@ export function InviteStudioDialog({ triggerSize = "md" }: { triggerSize?: "sm" 
   const [open, setOpen] = React.useState(false);
   const [email, setEmail] = React.useState("");
   const [studioName, setStudioName] = React.useState("");
-  const [plan, setPlan] = React.useState<Plan>("studio");
+  const [plan, setPlan] = React.useState<Plan>("core");
   const [submitting, setSubmitting] = React.useState(false);
 
   function reset() {
     setEmail("");
     setStudioName("");
-    setPlan("studio");
+    setPlan("core");
   }
 
   const valid = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());

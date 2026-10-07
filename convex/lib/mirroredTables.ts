@@ -67,6 +67,12 @@ export const MIRRORED_TABLES = [
   // are the things an engineer is standing in a room for.
   "sessionChecklists",
   "arrivalPrep",
+  // W9 - post-production projects. Org-scoped, gated on `projects.read` below.
+  // Rows carry no money and no secrets: names, stages, dates, task titles and
+  // the labels of linked rows.
+  "projects",
+  "projectTasks",
+  "projectLinks",
 ] as const;
 
 export type MirroredTable = (typeof MIRRORED_TABLES)[number];
@@ -213,6 +219,10 @@ export const MIRRORED_CAPABILITY: Partial<Record<MirroredTable, string | readonl
   connections: "patch.read",
   patchAnnotations: "patch.read",
   patchGroups: "patch.read",
+  // Post-production projects. `projects.read` is what the web board requires.
+  projects: "projects.read",
+  projectTasks: "projects.read",
+  projectLinks: "projects.read",
 };
 
 /** Strip a document to the fields a device may hold. */

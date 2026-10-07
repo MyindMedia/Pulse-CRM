@@ -5,16 +5,18 @@ const COLUMNS = [
   {
     title: "Product",
     links: [
-      { href: "#features", label: "Features" },
-      { href: "#workflow", label: "How it works" },
-      { href: "#contact", label: "Contact" },
+      { href: "/#features", label: "Features" },
+      { href: "/#workflow", label: "How it works" },
+      { href: "/pricing", label: "Pricing" },
+      { href: "/mobile", label: "The Pulse app" },
+      { href: "/#contact", label: "Contact" },
     ],
   },
   {
     title: "Account",
     links: [
       { href: "/sign-in", label: "Log in" },
-      { href: "#contact", label: "Get started" },
+      { href: "/demo", label: "Book a demo" },
     ],
   },
   {
@@ -47,6 +49,7 @@ export function Footer() {
               {col.links.map((l) => (
                 <li key={l.label}>
                   <Link
+                  prefetch={false}
                     href={l.href}
                     className="link-underline font-grotesk text-sm text-mist/75 transition-colors hover:text-gold"
                   >

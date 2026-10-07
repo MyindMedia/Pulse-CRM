@@ -9,7 +9,7 @@ import { cn } from "@/lib/utils";
 /**
  * The mark at the top of the app rail.
  *
- * On the Label tier the studio's own logo takes over the whole lockup, with
+ * On the Max tier the studio's own logo takes over the whole lockup, with
  * the Powered by Pulse line underneath it. Every tier below renders the Pulse
  * wordmark unchanged. Falling back to the wordmark while the queries load
  * avoids a flash of the wrong brand.

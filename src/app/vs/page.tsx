@@ -6,6 +6,10 @@ export const metadata: Metadata = {
   title: "Pulse vs StudioHero: cost and commitment, compared",
   description:
     "Month to month against an annual contract, everything included against paid add-ons. What each one costs a recording studio.",
+  // Kept for direct links only. It names a rival, and the comparison page is
+  // on the internal not-built-yet list (NOT_BUILT_YET in convex/lib/pricing.ts),
+  // so it is never indexed and never linked from the nav, footer or sitemap.
+  robots: { index: false, follow: false },
 };
 
 /* The comparison page.
@@ -27,7 +31,7 @@ const ROWS: {
 }[] = [
   {
     label: "Monthly cost",
-    pulse: { text: "From $0 on Flow, $149.99 on Studio", good: true },
+    pulse: { text: "From $149 on Core", good: true },
     other: { text: "$205 and up", good: false },
   },
   {
@@ -67,7 +71,7 @@ const ROWS: {
   },
   {
     label: "White label",
-    pulse: { text: "Your brand on the whole app on Label", good: true },
+    pulse: { text: "Your brand on the whole app on Max", good: true },
     other: { text: "Their brand", good: false },
   },
 ];

@@ -68,7 +68,7 @@ describe("payout math (pure)", () => {
 async function studio(t: ReturnType<typeof convexTest>, opts: { auto?: boolean } = {}) {
   return await t.run(async (ctx) => {
     await ctx.db.insert("orgs", {
-      orgId: "org1", name: "V", slug: "v", plan: "studio", tier: "pro", status: "active",
+      orgId: "org1", name: "V", slug: "v", tier: "growth", status: "active",
       autoPayouts: opts.auto ?? true, pointValueCents: 5_000,
     });
     await ctx.db.insert("members", {

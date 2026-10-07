@@ -12,7 +12,7 @@ describe("account: delete me", () => {
   beforeEach(async () => {
     t = convexTest(schema);
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: ORG, name: "Studio", slug: "studio", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: ORG, name: "Studio", slug: "studio", tier: "growth", status: "active" });
       await ctx.db.insert("members", { orgId: ORG, name: "Owen Owner", role: "owner", skills: [], clerkUserId: "u_owner", email: "owen@x.com" });
       await ctx.db.insert("members", { orgId: ORG, name: "Sienna Cole", role: "engineer", skills: [], clerkUserId: "u_eng", email: "sienna@x.com", phone: "+18185550164", bio: "Mixes" });
       await ctx.db.insert("apnsDevices", { orgId: ORG, clerkUserId: "u_eng", token: "t1", bundleId: "b", environment: "sandbox", lastSeenAt: 1 });

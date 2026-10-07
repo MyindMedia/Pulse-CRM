@@ -15,7 +15,7 @@ const SLUG = "vault";
 async function seed(t: ReturnType<typeof convexTest>) {
   return await t.run(async (ctx) => {
     await ctx.db.insert("orgs", {
-      orgId: "org1", name: "Vault", slug: SLUG, plan: "studio", tier: "pro", status: "active",
+      orgId: "org1", name: "Vault", slug: SLUG, tier: "growth", status: "active",
     });
     await ctx.db.insert("members", {
       orgId: "org1", name: "Owner", role: "owner", skills: [], clerkUserId: OWNER,
@@ -87,8 +87,8 @@ describe("visit tracking", () => {
   it("records the post id from ?src= on a page visit and ignores foreign or garbage ids", async () => {
     const t = convexTest(schema);
     const { postId, foreign } = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org1", name: "S", slug: "studio", plan: "studio", status: "active" });
-      await ctx.db.insert("orgs", { orgId: "org2", name: "T", slug: "other", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org1", name: "S", slug: "studio", tier: "growth", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org2", name: "T", slug: "other", tier: "growth", status: "active" });
       const base = { template: "custom" as const, status: "published" as const, caption: "x", media: [], accountIds: [], scheduledFor: 0, timezone: "UTC", ghlType: "post" as const, submittedBy: "u", createdAt: 0, updatedAt: 0 };
       const postId = await ctx.db.insert("socialPosts", { orgId: "org1", ...base });
       const foreign = await ctx.db.insert("socialPosts", { orgId: "org2", ...base });
@@ -187,7 +187,7 @@ describe("the funnel", () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org_lite", name: "Lite", slug: "lite", plan: "solo", tier: "studio",
+        orgId: "org_lite", name: "Lite", slug: "lite", tier: "core",
       });
       await ctx.db.insert("members", {
         orgId: "org_lite", name: "O", role: "owner", skills: [], clerkUserId: "u_lite",

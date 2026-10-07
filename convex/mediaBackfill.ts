@@ -3,7 +3,7 @@ import { internalMutation } from "./functions";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
-import { createUpload } from "./media";
+import { createUpload, storeBytes } from "./media";
 import { r2For, type MediaPurpose } from "./lib/media";
 
 /* ============================================================
@@ -26,8 +26,8 @@ type Spec = { table: string; scope: (r: Row) => string; fields: Field[] };
 const orgScope = (r: Row) => String(r.orgId);
 const agencyScope = (r: Row) => `agency:${String(r.agencyId)}`;
 
-/** Every place a file can be stored. Receipts and expense receipts are not here: their
- *  upload path still reads bytes in an action and moves in a later change. */
+/** Every place a file can be stored. Receipt extraction reads either store
+ *  (readFileBlob), so receipts and expense receipts are copied like the rest. */
 export const SPECS: Spec[] = [
   { table: "orgs", scope: orgScope, fields: [
     { path: "logoId", purpose: "logo" }, { path: "bookingHeroId", purpose: "photo" },
@@ -44,6 +44,8 @@ export const SPECS: Spec[] = [
   { table: "assetDocuments", scope: orgScope, fields: [{ path: "storageId", purpose: "document", name: (r) => String(r.fileName ?? "document") }] },
   { table: "deliverables", scope: orgScope, fields: [{ path: "fileId", purpose: "deliverable", name: (r) => String(r.fileName ?? "deliverable") }] },
   { table: "socialPosts", scope: orgScope, fields: [{ path: "media[].storageId", purpose: "photo" }] },
+  { table: "receipts", scope: orgScope, fields: [{ path: "storageId", purpose: "receipt", name: (r) => String(r.fileName ?? "receipt") }] },
+  { table: "expenses", scope: orgScope, fields: [{ path: "receiptId", purpose: "receipt", name: () => "expense-receipt" }] },
 ];
 
 const refs = (r: Row, path: string): Array<{ ref: string; index?: number }> => {
@@ -108,7 +110,7 @@ export const finishCopy = internalAction({
   handler: async (ctx, { mediaId, expectedSize }): Promise<{ ok: boolean; reason?: string }> => {
     const row = await ctx.runQuery(internal.media._row, { mediaId });
     if (!row) return { ok: false, reason: "row missing" };
-    const r2 = r2For(row.bucket);
+    const r2 = r2For(row.bucket, row.bucketName);
     await r2.syncMetadata(ctx, row.key);
     const meta = await r2.getMetadata(ctx, row.key);
     if (!meta || meta.size !== expectedSize) {
@@ -167,5 +169,29 @@ export const purgeLegacy = internalMutation({
       purged++;
     }
     return { purged };
+  },
+});
+
+/** Copies ONE file that just arrived in Convex storage to R2 and repoints its row:
+ *  the path for clients that still upload to Convex storage (the iOS receipt
+ *  upload, an expense receipt). Scheduled by the attaching mutation. The Convex
+ *  original is kept (legacyStorageId) and freed by purgeLegacy after the safety
+ *  window, exactly like the bulk backfill. Never throws: a file left in Convex
+ *  storage still reads, and the backfill script picks it up later. */
+export const promote = internalAction({
+  args: { table: v.string(), id: v.string(), path: v.string(), ref: v.id("_storage"), scope: v.string(), purpose: v.string(), fileName: v.string() },
+  handler: async (ctx, a): Promise<"repointed" | "changed" | "gone" | "skipped"> => {
+    try {
+      const blob = await ctx.storage.get(a.ref);
+      if (!blob) return "gone";
+      const ref = await storeBytes(ctx, { scope: a.scope, purpose: a.purpose as MediaPurpose, blob, fileName: a.fileName, actor: "promote", legacyStorageId: a.ref, noFallback: true });
+      const mediaId = ref as Id<"mediaFiles">;
+      const r = await ctx.runMutation(internal.mediaBackfill.repoint, { table: a.table, id: a.id, path: a.path, oldRef: a.ref, mediaId });
+      if (r !== "repointed") await ctx.runMutation(internal.media._discard, { mediaId });
+      return r;
+    } catch (err) {
+      console.warn(`promote ${a.table}.${a.path} ${a.id}: ${err instanceof Error ? err.message : String(err)}`);
+      return "skipped";
+    }
   },
 });

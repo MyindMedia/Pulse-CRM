@@ -19,10 +19,10 @@ describe("early adopter pricing", () => {
   });
 
   it("lands on the prices we actually advertise", () => {
-    // Half of 149.99 / 297.00 / 499.99, floored to keep the .99 endings.
-    expect(earlyAdopterPriceCents("studio")).toBe(7499);
-    expect(earlyAdopterPriceCents("pro")).toBe(14850);
-    expect(earlyAdopterPriceCents("label")).toBe(24999);
+    // Half of 149 / 297 / 699, floored to the cent.
+    expect(earlyAdopterPriceCents("core")).toBe(7450);
+    expect(earlyAdopterPriceCents("growth")).toBe(14850);
+    expect(earlyAdopterPriceCents("max")).toBe(34950);
   });
 
   it("is derived, so a reprice cannot leave it stale", () => {
@@ -44,15 +44,10 @@ describe("early adopter pricing", () => {
     }
   });
 
-  it("never applies to a tier that is not sold", () => {
-    expect(earlyAdopterApplies("enterprise", "month")).toBe(false);
-    expect(earlyAdopterApplies("flow", "month")).toBe(false);
-  });
-
   it("quotes the step-up alongside the intro price", () => {
-    const label = earlyAdopterLabel("studio");
-    expect(label).toContain("$74.99");
-    expect(label).toContain("$149.99");   // the number people need to see
+    const label = earlyAdopterLabel("core");
+    expect(label).toContain("$74.50");
+    expect(label).toContain("$149");   // the number people need to see
     expect(label).toContain(String(EARLY_ADOPTER_MONTHS));
   });
 });

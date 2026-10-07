@@ -11,7 +11,7 @@ describe("Studio Brain graph builder - tenant isolation", () => {
     const t = convexTest(schema);
     const ids = await t.run(async (ctx) => {
       const mkOrg = (orgId: string, slug: string) =>
-        ctx.db.insert("orgs", { orgId, name: slug, slug, plan: "studio", status: "active" });
+        ctx.db.insert("orgs", { orgId, name: slug, slug, tier: "growth", status: "active" });
       const mkArtist = (orgId: string, name: string) =>
         ctx.db.insert("artists", {
           orgId, name, type: "artist", genres: [], tags: [], status: "active",

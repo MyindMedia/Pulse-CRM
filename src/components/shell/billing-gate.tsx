@@ -12,12 +12,13 @@ import {
 import { PulseLogo } from "@/components/brand/pulse-logo";
 import { money } from "@/lib/format";
 import {
-  PLAN_LIMITS, SELLABLE_TIERS, ANNUAL_DISCOUNT_PCT, EARLY_ADOPTER_MONTHS,
+  PLAN_LIMITS, SELLABLE_TIERS, ANNUAL_MONTHS_FREE, EARLY_ADOPTER_MONTHS,
   annualPriceCents, annualPerMonthCents, earlyAdopterPriceCents, earlyAdopterApplies,
+  type TierKey,
 } from "@convex/lib/plans";
 
 /** The tiers a studio can actually buy from this screen. */
-type SellableTier = "studio" | "pro" | "label";
+type SellableTier = TierKey;
 
 /* The studio-side billing enforcement:
    - a slim countdown banner while a trial is running / ending soon
@@ -196,7 +197,7 @@ export function BillingLock() {
 export function BetaPlanPicker({ cta }: { cta?: string }) {
   const subscribe = useAction(api.billing.beginCheckout);
   const [interval, setInterval] = React.useState<"month" | "year">("year");
-  const [tier, setTier] = React.useState<SellableTier>("pro");
+  const [tier, setTier] = React.useState<SellableTier>("growth");
   const [busy, setBusy] = React.useState(false);
 
   async function go() {
@@ -225,7 +226,7 @@ export function BetaPlanPicker({ cta }: { cta?: string }) {
               (interval === v ? "bg-gold text-gold-ink" : "text-steel hover:text-bone")
             }
           >
-            {v === "year" ? `Yearly · save ${ANNUAL_DISCOUNT_PCT}%` : "Monthly"}
+            {v === "year" ? `Yearly · ${ANNUAL_MONTHS_FREE} months free` : "Monthly"}
           </button>
         ))}
       </div>
@@ -236,14 +237,14 @@ export function BetaPlanPicker({ cta }: { cta?: string }) {
           const full = PLAN_LIMITS[t].priceCents;
           /* The launch offer is monthly only: a repeating Stripe discount
              against a yearly plan would discount the whole year. Yearly
-             already carries its own 15%. */
+             already carries its own two free months. */
           const intro = earlyAdopterApplies(t, interval) ? earlyAdopterPriceCents(t) : 0;
           const perMonth = interval === "year" ? annualPerMonthCents(t) : intro || full;
           return (
             <button
               key={t}
               type="button"
-              onClick={() => setTier(t as SellableTier)}
+              onClick={() => setTier(t)}
               className={
                 "flex w-full items-center justify-between gap-3 rounded-lg border p-4 text-left transition-colors " +
                 (chosen

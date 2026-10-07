@@ -23,7 +23,7 @@ describe("receptionist", () => {
         orgId: ORG,
         name: "Skyline",
         slug: "skyline",
-        plan: "studio",
+        tier: "growth",
         status: "active",
         ownerEmail: "owner@skyline.com",
       });

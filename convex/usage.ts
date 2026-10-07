@@ -102,6 +102,36 @@ async function readCounter(
 }
 
 
+/**
+ * Usage counted against a plan cap. On a pooled tier (Max) the allowance is
+ * shared by every studio in the same group, so the count is the group's total
+ * across the sibling studios that are also on a pooled tier. Anywhere else,
+ * and for the studio count itself, it is this studio's own counter.
+ */
+async function usedAgainstCap(
+  ctx: QueryCtx,
+  orgId: string,
+  metric: string,
+  limits: TierLimits,
+): Promise<number> {
+  if (!limits.pooled || metric === "subaccounts") return readCounter(ctx, orgId, metric);
+  const org = await ctx.db
+    .query("orgs")
+    .withIndex("by_org", (q) => q.eq("orgId", orgId))
+    .first();
+  if (!org?.agencyId) return readCounter(ctx, orgId, metric);
+  const siblings = await ctx.db
+    .query("orgs")
+    .withIndex("by_agency", (q) => q.eq("agencyId", org.agencyId!))
+    .collect();
+  let total = 0;
+  for (const s of siblings) {
+    if (s.orgId !== orgId && !PLAN_LIMITS[await tierForOrg(ctx, s.orgId)].pooled) continue;
+    total += await readCounter(ctx, s.orgId, metric);
+  }
+  return total;
+}
+
 /** Whether the org's plan white-labels client-facing pages (hides Pulse marks
  *  on booking/portal/sign). True for any tier whose `whitelabel` isn't false. */
 export async function whitelabelFor(ctx: QueryCtx, orgId: string): Promise<boolean> {
@@ -142,7 +172,7 @@ export async function assertWithinLimit(
   const cap = capForMetric(metric, limits);
   if (cap === null) return;
   if (metric !== "storage_bytes" && cap >= UNLIMITED) return;
-  const used = await readCounter(ctx, orgId, metric);
+  const used = await usedAgainstCap(ctx, orgId, metric, limits);
   if (used + add > cap) {
     throw new ConvexError({
       code: "LIMIT_REACHED",
@@ -186,7 +216,7 @@ export async function meterStorageUpload(
   if (delta > 0) {
     const limits = PLAN_LIMITS[await tierForOrg(ctx, orgId)];
     const capBytes = limits.storageGb * BYTES_PER_GB;
-    const used = await readCounter(ctx, orgId, "storage_bytes");
+    const used = await usedAgainstCap(ctx, orgId, "storage_bytes", limits);
     if (used + delta > capBytes) {
       throw new ConvexError({
         code: "LIMIT_REACHED",
@@ -220,29 +250,16 @@ export const summary = query({
   args: {},
   handler: async (ctx) => {
     const orgId = await currentOrg(ctx);
-    const org = await ctx.db
-      .query("orgs")
-      .withIndex("by_org", (q) => q.eq("orgId", orgId))
-      .first();
-
-    // Prefer the org's cached tier; if the org rolls up to an agency, the
-    // agency plan is the source of truth for caps.
-    let planString: string | undefined = org?.tier;
-    if (org?.agencyId) {
-      const agency = await ctx.db
-        .query("agencies")
-        .withIndex("by_agency", (q) => q.eq("agencyId", org.agencyId!))
-        .first();
-      if (agency?.plan) planString = agency.plan;
-    }
-    const tier = tierForPlan(planString);
+    // Same resolution as every gate: beta flag, then the studio's own tier,
+    // then its agency's plan.
+    const tier = await tierForOrg(ctx, orgId);
     const limits: TierLimits = PLAN_LIMITS[tier];
 
-    const aiCredits = await readCounter(ctx, orgId, "ai_credits");
-    const magicLinks = await readCounter(ctx, orgId, "magic_links");
+    const aiCredits = await usedAgainstCap(ctx, orgId, "ai_credits", limits);
+    const magicLinks = await usedAgainstCap(ctx, orgId, "magic_links", limits);
     const sms = await readCounter(ctx, orgId, "sms");
     const exports = await readCounter(ctx, orgId, "exports");
-    const storageBytes = await readCounter(ctx, orgId, "storage_bytes");
+    const storageBytes = await usedAgainstCap(ctx, orgId, "storage_bytes", limits);
     const subaccounts = await readCounter(ctx, orgId, "subaccounts");
 
     const storageGbUsed = storageBytes / (1024 * 1024 * 1024);
@@ -250,7 +267,7 @@ export const summary = query({
     const metrics: UsageMetricView[] = [
       {
         metric: "ai_credits",
-        label: "AI credits",
+        label: "Assistant credits",
         period: periodFor("ai_credits"),
         used: aiCredits,
         limit: limits.aiCreditsPerMonth,
@@ -258,7 +275,7 @@ export const summary = query({
       },
       {
         metric: "magic_links",
-        label: "Magic-link grants",
+        label: "Guest and invite links",
         period: periodFor("magic_links"),
         used: magicLinks,
         limit: limits.magicLinkGrantsPerMonth,
@@ -274,7 +291,7 @@ export const summary = query({
       },
       {
         metric: "subaccounts",
-        label: "Sub-accounts",
+        label: "Studios",
         period: "all",
         used: subaccounts,
         limit: limits.subAccountCap,
@@ -285,7 +302,8 @@ export const summary = query({
         label: "SMS sends",
         period: periodFor("sms"),
         used: sms,
-        // No dedicated SMS cap in PLAN_LIMITS; surface usage without a ceiling.
+        // Texts are not metered on any tier (lib/pricing.ts UNMETERED):
+        // surface usage without a ceiling.
         limit: -1,
         unit: "count",
       },
@@ -303,6 +321,7 @@ export const summary = query({
       orgId,
       tier,
       tierLabel: limits.label,
+      pooled: limits.pooled,
       caps: {
         aiCreditsPerMonth: limits.aiCreditsPerMonth,
         storageGb: limits.storageGb,

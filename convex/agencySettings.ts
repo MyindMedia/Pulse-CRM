@@ -5,15 +5,14 @@ import { v } from "convex/values";
 import { requireCapability, resolveViewer } from "./lib/access";
 import { DEMO_ORG } from "./lib/tenant";
 import { PLAN_LIMITS } from "./lib/plans";
+import { tierForPlan } from "./lib/tier";
 
-/** Whether the agency's plan unlocks a white-label custom domain.
-    agency_plus (resell tier) isn't in PLAN_LIMITS; treat it as unlocked.
-    Unknown/legacy keys lean permissive. */
+/** Whether the agency's plan unlocks a white-label custom domain (Max). */
 function customDomainAllowed(plan: string | undefined): boolean {
+  // No agencies row (a known provisioning gap) is treated as the top tier,
+  // matching how the console has always behaved for its own operator.
   if (!plan) return true;
-  if (plan === "agency_plus") return true;
-  const limits = (PLAN_LIMITS as Record<string, { customDomain: boolean }>)[plan];
-  return limits?.customDomain ?? true;
+  return PLAN_LIMITS[tierForPlan(plan)].customDomain;
 }
 
 /* ============================================================
@@ -56,7 +55,7 @@ export const summary = query({
       agencyId: viewer.agencyId,
       name: agency?.name ?? "My Agency",
       slug: agency?.slug ?? null,
-      plan: agency?.plan ?? "agency",
+      plan: tierForPlan(agency?.plan ?? "max"),
       status: agency?.status ?? "active",
       appName: agency?.appName ?? null,
       accentColor: agency?.accentColor ?? null,

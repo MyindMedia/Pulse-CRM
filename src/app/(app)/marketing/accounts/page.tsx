@@ -17,9 +17,9 @@ import { AccountRow, type Account } from "@/components/social/account-row";
 import { PLATFORM_ORDER } from "@/components/social/platforms";
 
 /** The tier the "at limit" message points a studio at - the cheapest tier
- *  above the cap this screen ever shows (studio is the only capped tier
- *  today; pro and everything above it are unlimited). */
-const UPGRADE_TIER: TierKey = "pro";
+ *  above the cap this screen ever shows (core is the only capped tier
+ *  today; growth and everything above it are unlimited). */
+const UPGRADE_TIER: TierKey = "growth";
 
 /** Rows needing attention read first - a broken token is the one thing on
  *  this screen that is actively costing the studio posts, so it should never

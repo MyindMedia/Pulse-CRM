@@ -35,6 +35,7 @@ import {
   EquipmentDialog,
   type EditableEquipment,
 } from "@/components/inventory/equipment-dialog";
+import { GearCheckoutPanel } from "@/components/inventory/gear-checkout-panel";
 import {
   InstallDialog,
   type InstallTarget,
@@ -232,6 +233,8 @@ export default function InventoryPage() {
           />
         </div>
       )}
+
+      <GearCheckoutPanel />
 
       {/* Filters */}
       <div className="flex flex-wrap items-center gap-3">

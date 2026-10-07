@@ -3,21 +3,29 @@
 import * as React from "react";
 import { createPortal } from "react-dom";
 import Link from "next/link";
+import { usePathname } from "next/navigation";
 import { Menu, X } from "lucide-react";
 import { useUser } from "@clerk/nextjs";
 import { PulseLogo } from "@/components/brand/pulse-logo";
 import { ThemeToggle } from "@/components/shell/theme-toggle";
 import { cn } from "@/lib/utils";
-import { PRICING_LIVE } from "@/components/marketing/pricing-tiers";
 
-const LINKS = [
+/* Section links point at the homepage. On "/" they stay bare hashes so the
+   smooth-scroll handler keeps them; on any other marketing page (/pricing)
+   they become "/#section" so they navigate home first. */
+const SECTION_LINKS = [
   { href: "#features", label: "Features" },
   { href: "#workflow", label: "How it works" },
-  // Appears with the pricing section itself, so the link can never scroll to
-  // a section that is not on the page.
-  ...(PRICING_LIVE ? [{ href: "#pricing", label: "Pricing" }] : []),
+  { href: "/pricing", label: "Pricing" },
   { href: "#contact", label: "Contact" },
 ];
+
+function useLinks() {
+  const onHome = usePathname() === "/";
+  return SECTION_LINKS.map((l) =>
+    l.href.startsWith("#") && !onHome ? { ...l, href: `/${l.href}` } : l,
+  );
+}
 
 // Clerk is only mounted when configured; in demo mode there is no provider, so
 // the useUser hook would throw. Gate the auth-aware nav behind this flag.
@@ -29,10 +37,11 @@ const goldCls =
   "chrome-ghost chrome-ghost-gold inline-flex items-center rounded-chrome px-3.5 py-1.5 font-meta text-xs uppercase tracking-[0.04em] text-gold transition-colors hover:text-gold-bright";
 
 function LoggedOutCtas() {
+  const onHome = usePathname() === "/";
   return (
     <>
       <Link href="/sign-in" className={ghostCls}>Log in</Link>
-      <Link href="#contact" className={goldCls}>Get started</Link>
+      <Link href={onHome ? "#contact" : "/#contact"} className={goldCls}>Get started</Link>
     </>
   );
 }
@@ -52,6 +61,7 @@ function Ctas() {
 }
 
 export function LandingNav() {
+  const links = useLinks();
   const [scrolled, setScrolled] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
 
@@ -84,7 +94,7 @@ export function LandingNav() {
         <PulseLogo size="sm" href="/" />
 
         <div className="hidden items-center gap-8 md:flex">
-          {LINKS.map((l) => (
+          {links.map((l) => (
             <a
               key={l.href}
               href={l.href}
@@ -147,7 +157,7 @@ export function LandingNav() {
             </button>
           </div>
           <div className="mt-6 flex flex-col gap-1">
-            {LINKS.map((l) => (
+            {links.map((l) => (
               <a
                 key={l.href}
                 href={l.href}

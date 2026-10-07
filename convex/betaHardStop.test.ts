@@ -2,7 +2,7 @@ import { describe, it, expect } from "vitest";
 import { evaluateBillingGate } from "./lib/billingGate";
 import {
   annualPriceCents, annualPerMonthCents, annualSavingCents,
-  priceLabelFor, ANNUAL_DISCOUNT_PCT, PLAN_LIMITS,
+  priceLabelFor, ANNUAL_MONTHS_FREE, PLAN_LIMITS,
 } from "./lib/plans";
 
 /* A beta licence is a promise with an end date. These tests hold both halves:
@@ -93,24 +93,25 @@ describe("the beta year actually stops", () => {
 });
 
 describe("annual billing", () => {
-  it("takes 15% off twelve months", () => {
-    expect(ANNUAL_DISCOUNT_PCT).toBe(15);
-    // Pro: $297 x 12 = $3,564. Less 15% = $3,029.40, saving $534.60.
-    expect(annualPriceCents("pro")).toBe(302_940);
-    expect(annualSavingCents("pro")).toBe(53_460);
+  it("a year costs ten months: two months free", () => {
+    expect(ANNUAL_MONTHS_FREE).toBe(2);
+    // Growth: $297 x 12 = $3,564. A year is $2,970, saving $594.
+    expect(annualPriceCents("growth")).toBe(297_000);
+    expect(annualSavingCents("growth")).toBe(59_400);
   });
 
-  it("is derived from the monthly price, so a repricing cannot leave it stale", () => {
-    for (const t of ["studio", "pro", "label"] as const) {
+  it("every tier's annual price is ten times its monthly price", () => {
+    for (const t of ["core", "growth", "max"] as const) {
       const monthly = PLAN_LIMITS[t].priceCents;
-      expect(annualPriceCents(t)).toBe(Math.round(monthly * 12 * 0.85));
+      expect(annualPriceCents(t)).toBe(monthly * 10);
       // The per-month figure is what people actually compare against.
       expect(annualPerMonthCents(t)).toBeLessThan(monthly);
     }
   });
 
   it("formats both intervals", () => {
-    expect(priceLabelFor("studio", "month")).toBe("$149.99");
-    expect(priceLabelFor("studio", "year")).toBe("$1,529.90");
+    expect(priceLabelFor("core", "month")).toBe("$149");
+    expect(priceLabelFor("core", "year")).toBe("$1,490");
+    expect(priceLabelFor("max", "year")).toBe("$6,990");
   });
 });

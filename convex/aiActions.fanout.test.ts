@@ -9,9 +9,9 @@ describe("ops backbone fan-out", () => {
 
   it("listActiveOrgIds returns active, non-demo orgs only", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", plan: "studio", status: "active" });
-      await ctx.db.insert("orgs", { orgId: "org_b", name: "B", slug: "b", plan: "studio", status: "paused" });
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", tier: "growth", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org_b", name: "B", slug: "b", tier: "growth", status: "paused" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active" });
     });
     const ids = await t.query(internal.orgs.listActiveOrgIds, {});
     expect(ids).toEqual(["org_a"]);
@@ -19,9 +19,9 @@ describe("ops backbone fan-out", () => {
 
   it("scanAllOrgs schedules a per-org scan for each active subaccount", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", plan: "studio", status: "active" });
-      await ctx.db.insert("orgs", { orgId: "org_b", name: "B", slug: "b", plan: "studio", status: "active" });
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", tier: "growth", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org_b", name: "B", slug: "b", tier: "growth", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active" });
     });
     const res = await t.mutation(internal.opsBrain.scanAllOrgs, {});
     expect(res).toEqual({ scheduled: 2 });

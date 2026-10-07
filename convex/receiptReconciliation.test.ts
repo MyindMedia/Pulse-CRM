@@ -11,7 +11,7 @@ async function fixture() {
   const t = convexTest(schema);
   const ids = await t.run(async (ctx) => {
     const orgId = "pulse-demo";
-    await ctx.db.insert("orgs", { orgId, name: "Demo", slug: "demo", plan: "studio", status: "active" });
+    await ctx.db.insert("orgs", { orgId, name: "Demo", slug: "demo", tier: "growth", status: "active" });
     await ctx.db.insert("members", {
       orgId, name: "Manager", role: "manager", email: "manager@demo.com", skills: [], clerkUserId: "manager",
     });

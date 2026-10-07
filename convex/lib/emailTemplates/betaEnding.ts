@@ -1,7 +1,8 @@
 import { escapeEmailHtml } from "./layout";
 import {
-  PLAN_LIMITS, SELLABLE_TIERS, ANNUAL_DISCOUNT_PCT, annualPerMonthCents,
+  PLAN_LIMITS, SELLABLE_TIERS, ANNUAL_MONTHS_FREE, annualPriceCents,
 } from "../plans";
+import { formatUsd } from "../pricing";
 
 /* "Your beta year is nearly up" - sent at 30, 7 and 1 days out.
 
@@ -20,9 +21,7 @@ const FAINT = "#8b857a";
 const HAIR = "#2a2a30";
 
 function money(cents: number): string {
-  return `$${(cents / 100).toLocaleString("en-US", {
-    minimumFractionDigits: 2, maximumFractionDigits: 2,
-  })}`;
+  return formatUsd(cents);
 }
 
 export function betaEndingSubject(studioName: string, daysLeft: number): string {
@@ -52,7 +51,7 @@ export function betaEndingHtml(args: {
         ${escapeEmailHtml(p.label)}
       </td>
       <td align="right" style="padding:9px 0;border-bottom:1px solid ${HAIR};font-family:Inter,Segoe UI,Arial,sans-serif;font-size:13px;color:${FAINT};">
-        ${money(p.priceCents)}/mo &middot; ${money(annualPerMonthCents(t))}/mo yearly
+        ${money(p.priceCents)}/mo &middot; ${money(annualPriceCents(t))}/yr
       </td>
     </tr>`;
   }).join("");
@@ -87,7 +86,7 @@ export function betaEndingHtml(args: {
       <tr><td style="padding:4px 28px 0 28px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table>
         <p style="margin:10px 0 0 0;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:12px;color:${FAINT};">
-          Yearly saves ${ANNUAL_DISCOUNT_PCT}%.
+          Paying yearly gets ${ANNUAL_MONTHS_FREE} months free. Max includes unlimited studios at one flat price.
         </p>
       </td></tr>
 

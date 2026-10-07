@@ -55,7 +55,7 @@ export function CreateSubaccountDialog({ triggerSize = "md" }: { triggerSize?: "
   const [name, setName] = React.useState("");
   const [slug, setSlug] = React.useState("");
   const [slugDirty, setSlugDirty] = React.useState(false);
-  const [plan, setPlan] = React.useState<Plan>("studio");
+  const [plan, setPlan] = React.useState<Plan>("core");
   const [ownerName, setOwnerName] = React.useState("");
   const [ownerEmail, setOwnerEmail] = React.useState("");
   const [submitting, setSubmitting] = React.useState(false);
@@ -69,7 +69,7 @@ export function CreateSubaccountDialog({ triggerSize = "md" }: { triggerSize?: "
     setName("");
     setSlug("");
     setSlugDirty(false);
-    setPlan("studio");
+    setPlan("core");
     setOwnerName("");
     setOwnerEmail("");
     setSiteUrl("");

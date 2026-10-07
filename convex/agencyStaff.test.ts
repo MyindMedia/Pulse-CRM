@@ -10,7 +10,7 @@ describe("agencyStaff - CRUD + scoping", () => {
   async function seedAgency() {
     await t.run(async (ctx) => {
       await ctx.db.insert("agencies", {
-        agencyId: "org_ag", name: "AG", slug: "ag", plan: "agency", status: "active",
+        agencyId: "org_ag", name: "AG", slug: "ag", plan: "max", status: "active",
         ownerClerkUserId: "u_owner", ownerEmail: "o@x",
       });
       await ctx.db.insert("agencyMembers", {
@@ -18,10 +18,10 @@ describe("agencyStaff - CRUD + scoping", () => {
         role: "owner", status: "active", invitedAt: 0,
       });
       await ctx.db.insert("orgs", {
-        orgId: "org_sub1", name: "Sub1", slug: "s1", plan: "studio", status: "active", agencyId: "org_ag",
+        orgId: "org_sub1", name: "Sub1", slug: "s1", tier: "growth", status: "active", agencyId: "org_ag",
       });
       await ctx.db.insert("orgs", {
-        orgId: "org_sub2", name: "Sub2", slug: "s2", plan: "studio", status: "active", agencyId: "org_ag",
+        orgId: "org_sub2", name: "Sub2", slug: "s2", tier: "growth", status: "active", agencyId: "org_ag",
       });
     });
     return t.withIdentity({

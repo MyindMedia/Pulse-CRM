@@ -36,7 +36,7 @@ describe("teammates are allowlisted in Clerk", () => {
     t = convexTest(schema);
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "pulse-demo", name: "Skyline Sound", slug: "demo", plan: "studio", status: "active",
+        orgId: "pulse-demo", name: "Skyline Sound", slug: "demo", tier: "growth", status: "active",
         clerkOrgId: "org_demo",
       });
     });

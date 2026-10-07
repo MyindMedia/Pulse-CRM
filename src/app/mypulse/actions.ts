@@ -15,8 +15,12 @@ export async function unlock(
   if (!checkPassword(entered)) {
     return { error: "That is not the password. Check it against the message that sent you here." };
   }
+  const token = accessToken();
+  // checkPassword already refuses when no password is configured; this keeps
+  // the types honest and the gate closed.
+  if (!token) return { error: "That is not the password. Check it against the message that sent you here." };
   const jar = await cookies();
-  jar.set(MYPULSE_COOKIE, accessToken(), {
+  jar.set(MYPULSE_COOKIE, token, {
     httpOnly: true,
     sameSite: "lax",
     secure: process.env.NODE_ENV === "production",

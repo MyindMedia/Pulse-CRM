@@ -23,7 +23,7 @@ describe("zuops calendar sync", () => {
 
   async function seed(agencyId: string, owner: string, staff?: string) {
     await t.run(async (ctx) => {
-      await ctx.db.insert("agencies", { agencyId, name: agencyId, slug: agencyId, plan: "agency", status: "active", ownerClerkUserId: owner, ownerEmail: `${owner}@x` });
+      await ctx.db.insert("agencies", { agencyId, name: agencyId, slug: agencyId, plan: "max", status: "active", ownerClerkUserId: owner, ownerEmail: `${owner}@x` });
       await ctx.db.insert("agencyMembers", { agencyId, clerkUserId: owner, email: `${owner}@x`, name: owner, role: "owner", status: "active", invitedAt: 0 });
       if (staff) await ctx.db.insert("agencyMembers", { agencyId, clerkUserId: staff, email: `${staff}@x`, name: staff, role: "staff", status: "active", invitedAt: 0 });
       await ctx.db.insert("outreachSettings", { agencyId, paused: false, mode: "live", senders: [], updatedAt: 1, updatedBy: "t" });

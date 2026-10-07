@@ -9,12 +9,12 @@ describe("marketing accounts", () => {
   beforeEach(async () => {
     t = convexTest(schema);
     await t.run(async (ctx) => {
-      // tier: "studio" (the new, cap-checked tier key) is set explicitly:
+      // tier: "core" (the new, cap-checked tier key) is set explicitly:
       // orgs.plan is the legacy 3-value field and PLAN_TO_TIER maps its
       // "studio" literal to the new "pro" (unlimited) tier, not the new
       // "studio" tier, so the cap test below needs the cached tier field.
-      await ctx.db.insert("orgs", { orgId: "org1", name: "S", slug: "studio", plan: "studio", tier: "studio", status: "active" });
-      await ctx.db.insert("orgs", { orgId: "org2", name: "T", slug: "other", plan: "studio", tier: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org1", name: "S", slug: "studio", tier: "core", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org2", name: "T", slug: "other", tier: "core", status: "active" });
       await ctx.db.insert("members", { orgId: "org1", name: "Owner", role: "owner", clerkUserId: "u1", skills: [] });
       await ctx.db.insert("members", { orgId: "org2", name: "Owner2", role: "owner", clerkUserId: "u2", skills: [] });
     });
@@ -193,21 +193,21 @@ describe("marketing accounts", () => {
     expect(usage).toBe(1);
   });
 
-  it("limitStatus reports usage against the studio cap and null for an unlimited tier", async () => {
+  it("limitStatus reports usage against the core cap and null for an unlimited tier", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org3", name: "U", slug: "unlimited", plan: "studio", tier: "pro", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org3", name: "U", slug: "unlimited", tier: "growth", status: "active" });
       await ctx.db.insert("members", { orgId: "org3", name: "Owner3", role: "owner", clerkUserId: "u3", skills: [] });
     });
     const owner3 = t.withIdentity({ subject: "u3", name: "Owner3", orgId: "org3" });
 
-    expect(await owner().query(api.marketing.accounts.limitStatus, {})).toEqual({ used: 0, cap: 3, tierLabel: "Studio" });
+    expect(await owner().query(api.marketing.accounts.limitStatus, {})).toEqual({ used: 0, cap: 3, tierLabel: "Core" });
 
     for (const n of [1, 2]) {
       await t.mutation(internal.marketing.accounts.insertInternal, {
         orgId: "org1", platform: "facebook", ghlAccountId: `acc_${n}`, ghlLocationId: "loc", name: `P${n}`, connectedBy: "u1",
       });
     }
-    expect(await owner().query(api.marketing.accounts.limitStatus, {})).toEqual({ used: 2, cap: 3, tierLabel: "Studio" });
+    expect(await owner().query(api.marketing.accounts.limitStatus, {})).toEqual({ used: 2, cap: 3, tierLabel: "Core" });
 
     await t.mutation(internal.marketing.accounts.insertInternal, {
       orgId: "org3", platform: "facebook", ghlAccountId: "acc_unlimited_1", ghlLocationId: "loc", name: "P1", connectedBy: "u3",
@@ -228,7 +228,7 @@ describe("account health sweep", () => {
     vi.stubEnv("GHL_LOCATION_ID", "loc_default");
     vi.stubEnv("GHL_SOCIAL_USER_ID", "user_pulse");
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org1", name: "S", slug: "studio", plan: "studio", tier: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org1", name: "S", slug: "studio", tier: "core", status: "active" });
     });
   });
   afterEach(() => { vi.unstubAllEnvs(); vi.unstubAllGlobals(); });
@@ -321,7 +321,7 @@ describe("account health sweep", () => {
     vi.stubEnv("GHL_TOKEN_ORG2", "pit_org2");
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org2", name: "T", slug: "other", plan: "studio", tier: "studio", status: "active",
+        orgId: "org2", name: "T", slug: "other", tier: "core", status: "active",
         ghl: { locationId: "loc_org2", tokenRef: "GHL_TOKEN_ORG2" },
       });
     });

@@ -11,7 +11,8 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Field, Input } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/toggle";
-import { PLAN_LIMITS, PUBLIC_TIERS, type TierKey } from "@convex/lib/plans";
+import { PLAN_LIMITS, PUBLIC_TIERS, priceLabel, type TierKey } from "@convex/lib/plans";
+import { ALLOWANCES, UNLIMITED } from "@convex/lib/pricing";
 import {
   Select,
   SelectTrigger,
@@ -224,67 +225,41 @@ function FeeRow({ fee }: { fee: FeeTemplate }) {
 }
 
 /* ============================================================ */
-/** Short, hand-written inclusions per public tier (limits come from PLAN_LIMITS). */
-const TIER_BULLETS: Record<Exclude<TierKey, "agency">, string[]> = {
-  flow: [
-    "No monthly fee, ever",
-    "2% of what you collect through Pulse",
-    "Booking page, deposits, card on file",
-    "No-show shield + auto invoicing",
-    "1 room \u00b7 2 seats \u00b7 5 GB",
-  ],
-  studio: [
-    "Booking page, deposits, card on file",
-    "No-show shield + auto waitlist",
-    "Invoices with the 3/7/14 dunning ladder",
-    "2 rooms \u00b7 3 seats \u00b7 10 GB",
-  ],
-  pro: [
-    "Everything in Studio, plus:",
-    "Staff schedule, time clock, payroll",
-    "AI ops agent + SMS receptionist",
-    "Reports, pipeline, inventory, packages",
-    "6 rooms \u00b7 15 seats \u00b7 100 GB",
-  ],
-  label: [
-    "Everything in Pro, plus:",
-    "Full white-label UI: your logo, colors, fonts",
-    "Custom domain + branded sign-in and email",
-    "Releases, licensing, patch bay, split sheets",
-    "Unlimited rooms and seats \u00b7 1 TB",
-  ],
-  growth: [
-    "Legacy plan (superseded by Label)",
-    "Up to 3 sub-accounts",
-    "Custom domain + white-label",
-    "2,000 AI credits \u00b7 250 GB storage",
-  ],
-  enterprise: [
-    "Studio networks + schools",
-    "Unlimited AI credits \u00b7 2 TB storage",
-    "Full white-label + custom domain",
-    "Dedicated onboarding & support",
-  ],
-};
-
-function priceLabel(tier: TierKey): string {
-  const limits = PLAN_LIMITS[tier];
-  if (limits.custom || limits.priceCents === 0) return "Custom";
-  return `$${Math.round(limits.priceCents / 100)} / mo`;
+/** Short inclusions per tier. Numbers come from the pricing config. */
+function tierBullets(tier: TierKey): string[] {
+  const a = ALLOWANCES[tier];
+  const count = (n: number, one: string, many: string) =>
+    n >= UNLIMITED ? `Unlimited ${many}` : `${n} ${n === 1 ? one : many}`;
+  const lead: Record<TierKey, string[]> = {
+    core: [
+      "Booking page, deposits, card on file",
+      "No-show rules, bills and the 3/7/14 day reminders",
+      "Google Calendar both ways and your own Gmail",
+    ],
+    growth: [
+      "Everything in Core, plus:",
+      "Staff schedule, time clock, payroll",
+      "The assistant, gear list, cable map",
+    ],
+    max: [
+      "Everything in Growth, plus:",
+      "Your brand on the whole app and your own web address",
+      "Releases, licensing, split sheets",
+    ],
+  };
+  return [
+    ...lead[tier],
+    [count(a.rooms, "room", "rooms"), count(a.studios, "studio", "studios"), `${a.storageGb.toLocaleString("en-US")} GB`].join(" \u00b7 "),
+  ];
 }
 
-/**
- * Maps the legacy workspace plan flag to a public billing tier so we can mark
- * one tier as the current plan. solo/studio -> studio, label -> growth.
- */
-function currentPublicTier(plan: Org["plan"]): TierKey {
-  if (plan === "label") return "growth";
-  return "studio";
+function tierPrice(tier: TierKey): string {
+  return `${priceLabel(tier)} / mo`;
 }
 
 /** Public subscription tiers - synced from PLAN_LIMITS / PUBLIC_TIERS. */
 function PublicTiersCard({ org }: { org: Org }) {
-  const current = currentPublicTier(org.plan);
+  const current = org.tier;
   return (
     <Card>
       <CardHeader>
@@ -295,7 +270,7 @@ function PublicTiersCard({ org }: { org: Org }) {
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {PUBLIC_TIERS.map((key) => {
             const limits = PLAN_LIMITS[key];
             const isCurrent = key === current;
@@ -315,10 +290,10 @@ function PublicTiersCard({ org }: { org: Org }) {
                   </p>
                   {isCurrent && <Badge tone="gold">Current</Badge>}
                 </div>
-                <p className="mt-1 font-meta text-sm text-gold">{priceLabel(key)}</p>
+                <p className="mt-1 font-meta text-sm text-gold">{tierPrice(key)}</p>
                 <p className="mt-2 text-xs text-steel">{limits.tagline}</p>
                 <ul className="mt-3 flex-1 space-y-1.5">
-                  {TIER_BULLETS[key as Exclude<TierKey, "agency">].map((b) => (
+                  {tierBullets(key).map((b) => (
                     <li key={b} className="flex items-start gap-1.5 text-xs text-steel">
                       <Check className="mt-0.5 size-3 shrink-0 text-positive" />
                       {b}

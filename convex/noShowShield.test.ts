@@ -20,7 +20,7 @@ async function seedStudio(
       orgId: org,
       name: "Shield Studio",
       slug: `shield-${org}`,
-      plan: "studio",
+      tier: "growth",
       status: "active",
       cancellationWindowHours: policy.windowHours,
       cancellationFeePct: policy.feePct,

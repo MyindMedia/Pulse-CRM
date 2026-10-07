@@ -277,8 +277,17 @@ export const confirmDeletion = mutation({
     }
 
     // Files in R2 are removed object by object; the row is the only record of the key.
+    // deleteFile also frees any shared-bucket or Convex-storage original of the file.
     for (const m of await ctx.db.query("mediaFiles").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()) {
-      await ctx.scheduler.runAfter(0, internal.media._deleteObject, { bucket: m.bucket, key: m.key });
+      await deleteFile(ctx, m._id);
+    }
+    // The studio's own buckets count against the account's bucket quota: remove
+    // them once the object deletes above have run (an R2 bucket must be empty).
+    if (org.r2MediaBucket || org.r2PrivateBucket) {
+      await ctx.scheduler.runAfter(15 * 60 * 1000, internal.orgBuckets.releaseBuckets, {
+        names: [org.r2MediaBucket, org.r2PrivateBucket].filter((n): n is string => Boolean(n)),
+        orgId,
+      });
     }
 
     let deleted = 0;

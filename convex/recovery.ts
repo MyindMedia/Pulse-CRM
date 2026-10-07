@@ -62,7 +62,9 @@ const LABELS: Record<string, string> = {
 export const summary = query({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+    // "Money Pulse won back" is Core: the permission stays insights.read
+    // (who may see money), the tier gate is payments.
+    const orgId = await currentOrgWithCapability(ctx, "insights.read", undefined, { entitlement: "payments" });
     const now = Date.now();
     const monthStart = (() => {
       const d = new Date(now);

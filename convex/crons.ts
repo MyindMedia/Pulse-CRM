@@ -32,6 +32,9 @@ crons.interval("zuops-sync", { minutes: 5 }, internal.outreachZuops.syncAll, {})
 // Recompute every room's auto status from the live calendar.
 crons.interval("room-status", { minutes: 15 }, internal.maintenance.recomputeAllRoomStatuses);
 
+// Post-production projects: due and overdue reminders, one note per project per day.
+crons.interval("project-due-reminders", { hours: 24 }, internal.projects.sendDueReminders, {});
+
 // Team-device push alerts: T-10 arrival / wrap-up / shift change and
 // end-of-session studio refresh. Only orgs with registered devices are
 // scanned; the pushAlerts ledger dedupes; sends no-op until VAPID keys set.
@@ -44,6 +47,9 @@ crons.interval("t10-device-alerts", { minutes: 1 }, internal.pushAlerts.sweep, {
 crons.interval("sms-reminders", { minutes: 15 }, internal.sms.sendDueReminders);
 
 // Timeclock SMS checks: the 8h overtime confirm and the 4h intern
+// Gear check-out: one alert per overdue piece of gear.
+crons.interval("gear-overdue", { minutes: 30 }, internal.gearCheckout.sweepOverdue, {});
+
 // permission flow, plus the no-answer caps and manager escalations.
 crons.interval("timeclock-sms", { minutes: 15 }, internal.smsFlows.sweepTimeclock);
 

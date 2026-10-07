@@ -10,7 +10,7 @@ afterEach(() => { vi.unstubAllEnvs(); });
 async function fixture() {
   const t = convexTest(schema);
   await t.run(async (ctx) => {
-    await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Studio", slug: "studio", plan: "studio", status: "active" });
+    await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Studio", slug: "studio", tier: "growth", status: "active" });
     for (const [subject, name, role] of [["owner", "Olu", "owner"], ["manager", "Mo", "manager"], ["engineer", "Ellis", "engineer"]] as const) {
       await ctx.db.insert("members", { orgId: "pulse-demo", clerkUserId: subject, name, role, email: `${subject}@studio.test`, skills: [] });
     }

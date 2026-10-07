@@ -18,7 +18,7 @@ describe("sync: the native-client change feed", () => {
         orgId: "pulse-demo",
         name: "Demo",
         slug: "demo",
-        plan: "studio",
+        tier: "growth",
         status: "active",
       });
     });
@@ -140,7 +140,7 @@ describe("sync: retention", () => {
     const old = now - 20 * 24 * 60 * 60 * 1000; // 20 days, past the fortnight
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active",
+        orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active",
       });
       await ctx.db.insert("changeLog", {
         orgId: "pulse-demo", tableName: "artists", docId: "gone", op: "insert", ts: old,
@@ -167,7 +167,7 @@ describe("sync: retention", () => {
       const old = Date.now() - 20 * 24 * 60 * 60 * 1000;
       await t.run(async (ctx) => {
         await ctx.db.insert("orgs", {
-          orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active",
+          orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active",
         });
         // Five rows past the horizon, drained two at a time.
         for (let i = 0; i < 5; i++) {
@@ -196,7 +196,7 @@ describe("sync: retention", () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active",
+        orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active",
       });
     });
 
@@ -222,7 +222,7 @@ describe("sync: what a device is allowed to hold", () => {
   const seedOrg = async (t: ReturnType<typeof convexTest>) => {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active",
+        orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active",
         // The fields that must never reach a device.
         googleRefreshToken: "1//refresh-token-grants-gmail-access",
         stripeAccountId: "acct_live_123",
@@ -293,7 +293,7 @@ describe("sync: a person's own rows", () => {
   const seed = async (t: ReturnType<typeof convexTest>) => {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active",
+        orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active",
       });
       const me = await ctx.db.insert("members", {
         orgId: "pulse-demo", name: "Ellis", role: "engineer", email: "e@demo.com",

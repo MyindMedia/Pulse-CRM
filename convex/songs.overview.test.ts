@@ -21,7 +21,7 @@ describe("songs.overview - balance + next action", () => {
         orgId: ORG,
         name: "S",
         slug: "s",
-        plan: "studio",
+        tier: "growth",
         status: "active",
       });
       const ownerMemberId = await ctx.db.insert("members", {
@@ -185,7 +185,7 @@ describe("songs.overview - balance + next action", () => {
     const { songId } = await seedBase();
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org_other", name: "O", slug: "o", plan: "studio", status: "active",
+        orgId: "org_other", name: "O", slug: "o", tier: "growth", status: "active",
       });
       await ctx.db.insert("members", {
         orgId: "org_other", name: "X", role: "owner", clerkUserId: "u_x", skills: [],

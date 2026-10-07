@@ -10,7 +10,7 @@ describe("access engine - resolveViewer", () => {
   it("demo mode returns studio_member owner pointed at pulse-demo", async () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "solo",
+        orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "core",
         status: "active",
       });
     });
@@ -25,7 +25,7 @@ describe("access engine - resolveViewer", () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
         orgId: "staged-playback", clerkOrgId: "org_clerk_pb", name: "Playback",
-        slug: "playback", plan: "studio", status: "active",
+        slug: "playback", tier: "growth", status: "active",
       });
       await ctx.db.insert("members", {
         orgId: "staged-playback", name: "Mgr", role: "manager",
@@ -44,7 +44,7 @@ describe("access engine - resolveViewer", () => {
     // laptop (no claim) resolved them fine; the phone (claim) was refused.
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org_home", name: "Home", slug: "home", plan: "studio", status: "active",
+        orgId: "org_home", name: "Home", slug: "home", tier: "growth", status: "active",
       });
       await ctx.db.insert("members", {
         orgId: "org_home", name: "Mgr", role: "manager",
@@ -61,7 +61,7 @@ describe("access engine - resolveViewer", () => {
   it("studio member with Clerk identity resolves with their role", async () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org_abc", name: "Acme", slug: "acme", plan: "studio",
+        orgId: "org_abc", name: "Acme", slug: "acme", tier: "growth",
         status: "active",
       });
       await ctx.db.insert("members", {
@@ -81,7 +81,7 @@ describe("access engine - resolveViewer", () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("agencies", {
         agencyId: "org_ag", name: "AcmeMG", slug: "acme",
-        plan: "agency", status: "active",
+        plan: "max", status: "active",
         ownerClerkUserId: "user_owner", ownerEmail: "o@x.com",
       });
       await ctx.db.insert("agencyMembers", {
@@ -137,11 +137,11 @@ describe("access engine - AGENCY_ADMIN_EMAILS allowlist", () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("agencies", {
         agencyId: "org_sole", name: "Sole", slug: "sole",
-        plan: "agency", status: "active",
+        plan: "max", status: "active",
         ownerClerkUserId: "someone_else", ownerEmail: "founder@studio.com",
       });
       await ctx.db.insert("orgs", {
-        orgId: "org_sub", name: "Sub", slug: "sub", plan: "studio",
+        orgId: "org_sub", name: "Sub", slug: "sub", tier: "growth",
         status: "active", agencyId: "org_sole",
       });
       await ctx.db.insert("agencyWorkspaceSelections", {
@@ -190,15 +190,15 @@ describe("access engine - AGENCY_ADMIN_EMAILS allowlist", () => {
     process.env.AGENCY_ADMIN_EMAILS = "admin@x.com";
     await t.run(async (ctx) => {
       await ctx.db.insert("agencies", {
-        agencyId: "org_a1", name: "A1", slug: "a1", plan: "agency", status: "active",
+        agencyId: "org_a1", name: "A1", slug: "a1", plan: "max", status: "active",
         ownerClerkUserId: "x", ownerEmail: "x@x",
       });
       await ctx.db.insert("agencies", {
-        agencyId: "org_a2", name: "A2", slug: "a2", plan: "agency", status: "active",
+        agencyId: "org_a2", name: "A2", slug: "a2", plan: "max", status: "active",
         ownerClerkUserId: "y", ownerEmail: "y@y",
       });
       await ctx.db.insert("orgs", {
-        orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "solo", status: "active",
+        orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "core", status: "active",
       });
     });
     // Multiple agencies => no single-tenant fallback => not elevated. And with
@@ -226,7 +226,7 @@ describe("access engine - member resolves WITHOUT an org claim (sole membership)
 
   it("a member of exactly one studio resolves as that studio's member", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org_solo", name: "Solo", slug: "solo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org_solo", name: "Solo", slug: "solo", tier: "growth", status: "active" });
       await ctx.db.insert("members", {
         orgId: "org_solo", name: "Mgr", role: "manager",
         clerkUserId: "user_fresh", skills: [],
@@ -243,7 +243,7 @@ describe("access engine - member resolves WITHOUT an org claim (sole membership)
   it("membership in TWO studios stays denied without an org claim (ambiguous)", async () => {
     await t.run(async (ctx) => {
       for (const o of ["org_a2", "org_b2"]) {
-        await ctx.db.insert("orgs", { orgId: o, name: o, slug: o, plan: "studio", status: "active" });
+        await ctx.db.insert("orgs", { orgId: o, name: o, slug: o, tier: "growth", status: "active" });
         await ctx.db.insert("members", { orgId: o, name: "Multi", role: "engineer", clerkUserId: "user_multi", skills: [] });
       }
     });
@@ -267,7 +267,7 @@ describe("access engine - authed-but-no-workspace is denied (not demo-owner)", (
     // gotten owner access to via the old demo fallthrough).
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org_real", name: "Real Studio", slug: "real", plan: "studio", status: "active",
+        orgId: "org_real", name: "Real Studio", slug: "real", tier: "growth", status: "active",
       });
       await ctx.db.insert("appState", { key: "demo", activeOrgId: "org_real" });
     });
@@ -281,7 +281,7 @@ describe("access engine - authed-but-no-workspace is denied (not demo-owner)", (
 
   it("demo mode still works for truly unauthenticated callers (no identity)", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "solo", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "core", status: "active" });
     });
     const result = await t.query(api.testHarness.resolve, {});
     expect(result.kind).toBe("studio_member");
@@ -295,7 +295,7 @@ describe("access engine - requireCapability", () => {
 
   it("engineer can edit songs (allow)", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", tier: "growth", status: "active" });
       await ctx.db.insert("members", { orgId: "org_a", name: "E", role: "engineer", clerkUserId: "u1", skills: [] });
     });
     const asEng = t.withIdentity({ subject: "u1", name: "E", orgId: "org_a" });
@@ -305,7 +305,7 @@ describe("access engine - requireCapability", () => {
 
   it("engineer cannot delete songs (deny CAPABILITY_DENIED)", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", tier: "growth", status: "active" });
       await ctx.db.insert("members", { orgId: "org_a", name: "E", role: "engineer", clerkUserId: "u1", skills: [] });
     });
     const asEng = t.withIdentity({ subject: "u1", name: "E", orgId: "org_a" });
@@ -315,7 +315,7 @@ describe("access engine - requireCapability", () => {
 
   it("intern cannot edit anything (deny)", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", tier: "growth", status: "active" });
       await ctx.db.insert("members", { orgId: "org_a", name: "I", role: "intern", clerkUserId: "u_i", skills: [] });
     });
     const asIntern = t.withIdentity({ subject: "u_i", name: "I", orgId: "org_a" });
@@ -325,7 +325,7 @@ describe("access engine - requireCapability", () => {
 
   it("accountant can refund (allow)", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", tier: "growth", status: "active" });
       await ctx.db.insert("members", { orgId: "org_a", name: "Acc", role: "accountant", clerkUserId: "u_a", skills: [] });
     });
     const asAcc = t.withIdentity({ subject: "u_a", name: "Acc", orgId: "org_a" });
@@ -335,8 +335,8 @@ describe("access engine - requireCapability", () => {
 
   it("studio member denied cross-org access (SCOPE_DENIED)", async () => {
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", plan: "studio", status: "active" });
-      await ctx.db.insert("orgs", { orgId: "org_b", name: "B", slug: "b", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org_a", name: "A", slug: "a", tier: "growth", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org_b", name: "B", slug: "b", tier: "growth", status: "active" });
       await ctx.db.insert("members", { orgId: "org_a", name: "O", role: "owner", clerkUserId: "u_o", skills: [] });
     });
     const asOwner = t.withIdentity({ subject: "u_o", name: "O", orgId: "org_a" });
@@ -347,7 +347,7 @@ describe("access engine - requireCapability", () => {
   it("agency staff denied for sub-account outside scope", async () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("agencies", {
-        agencyId: "org_ag", name: "AG", slug: "ag", plan: "agency", status: "active",
+        agencyId: "org_ag", name: "AG", slug: "ag", plan: "max", status: "active",
         ownerClerkUserId: "u_own", ownerEmail: "o@x",
       });
       const memberId = await ctx.db.insert("agencyMembers", {
@@ -355,11 +355,11 @@ describe("access engine - requireCapability", () => {
         role: "staff", status: "active", invitedAt: 0,
       });
       await ctx.db.insert("orgs", {
-        orgId: "org_sub1", name: "Sub1", slug: "s1", plan: "studio", status: "active",
+        orgId: "org_sub1", name: "Sub1", slug: "s1", tier: "growth", status: "active",
         agencyId: "org_ag",
       });
       await ctx.db.insert("orgs", {
-        orgId: "org_sub2", name: "Sub2", slug: "s2", plan: "studio", status: "active",
+        orgId: "org_sub2", name: "Sub2", slug: "s2", tier: "growth", status: "active",
         agencyId: "org_ag",
       });
       // Staff scoped only to sub1

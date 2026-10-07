@@ -12,7 +12,7 @@ describe("artists", () => {
     t = convexTest(schema);
     const ids = await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org1", name: "S", slug: "studio", plan: "studio", tier: "studio", status: "active",
+        orgId: "org1", name: "S", slug: "studio", tier: "core", status: "active",
       });
       await ctx.db.insert("members", { orgId: "org1", name: "Owner", role: "owner", clerkUserId: "u1", skills: [] });
       await ctx.db.insert("members", { orgId: "org1", name: "Intern", role: "intern", clerkUserId: "u2", skills: [] });

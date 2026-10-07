@@ -11,7 +11,7 @@ type TransactionPage = FunctionReturnType<typeof api.banking.transactionsPage>;
 async function fixture(count: number, sparse = false) {
   const t = convexTest(schema);
   await t.run(async (ctx) => {
-    await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+    await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active" });
     for (const [role, name] of [["owner", "Owner"], ["manager", "Manager"], ["engineer", "Engineer"]] as const) {
       await ctx.db.insert("members", { orgId: "pulse-demo", name, role, email: `${role}@demo.test`, skills: [], clerkUserId: role });
     }

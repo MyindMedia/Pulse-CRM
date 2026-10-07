@@ -97,7 +97,7 @@ describe("agencyPlans + agencyBilling - integration", () => {
   async function seed() {
     await t.run(async (ctx) => {
       await ctx.db.insert("agencies", {
-        agencyId: "org_ag", name: "AG", slug: "ag", plan: "agency", status: "active",
+        agencyId: "org_ag", name: "AG", slug: "ag", plan: "max", status: "active",
         ownerClerkUserId: "u_owner", ownerEmail: "o@x",
       });
       await ctx.db.insert("agencyMembers", {
@@ -105,7 +105,7 @@ describe("agencyPlans + agencyBilling - integration", () => {
         role: "owner", status: "active", invitedAt: 0,
       });
       await ctx.db.insert("orgs", {
-        orgId: "org_sub1", name: "Sub1", slug: "s1", plan: "studio", status: "active", agencyId: "org_ag",
+        orgId: "org_sub1", name: "Sub1", slug: "s1", tier: "growth", status: "active", agencyId: "org_ag",
         ownerEmail: "sub1@x",
       });
     });
@@ -116,7 +116,7 @@ describe("agencyPlans + agencyBilling - integration", () => {
     const owner = await seed();
     await owner.mutation(api.agencyPlans.seedStarter, {});
     const plans = await owner.query(api.agencyPlans.list, {});
-    // Beta, plus Early Adopter + standard for Studio / Studio Pro / Label.
+    // Beta, plus Early Adopter + standard for Core / Growth / Max.
     expect(plans.length).toBe(1 + SELLABLE_TIERS.length * 2);
 
     /* The agency console names this book in its reset dialog before the
@@ -278,7 +278,7 @@ describe("agencyPlans + agencyBilling - integration", () => {
     // Second studio with a card already on file.
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org_sub2", name: "Sub2", slug: "s2", plan: "studio", status: "active",
+        orgId: "org_sub2", name: "Sub2", slug: "s2", tier: "growth", status: "active",
         agencyId: "org_ag", ownerEmail: "sub2@x",
       });
     });
@@ -330,12 +330,12 @@ describe("agencyPlans + agencyBilling - integration", () => {
   it("update edits the plan's editable fields", async () => {
     const owner = await seed();
     const plan = await owner.mutation(api.agencyPlans.create, {
-      name: "Studio", description: "old", priceCents: 9900, billingInterval: "month",
+      name: "Core", description: "old", priceCents: 9900, billingInterval: "month",
       trialDays: 14, requireCardAfterTrial: true, isPromo: false,
     });
     await owner.mutation(api.agencyPlans.update, {
       planId: plan,
-      name: "Studio Pro",
+      name: "Growth",
       description: "new",
       priceCents: 12900,
       billingInterval: "year",
@@ -344,7 +344,7 @@ describe("agencyPlans + agencyBilling - integration", () => {
       isPromo: true,
     });
     const p = (await owner.query(api.agencyPlans.list, {})).find((x) => x._id === plan)!;
-    expect(p.name).toBe("Studio Pro");
+    expect(p.name).toBe("Growth");
     expect(p.description).toBe("new");
     expect(p.priceCents).toBe(12900);
     expect(p.billingInterval).toBe("year");

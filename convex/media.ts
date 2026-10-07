@@ -1,4 +1,5 @@
 import { query, internalQuery, internalAction, action } from "./_generated/server";
+import type { ActionCtx } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { api, internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
@@ -6,7 +7,7 @@ import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
 import { resolveViewer } from "./lib/access";
-import { PURPOSES, makeKey, r2For, fileUrl, type FileRef, type MediaBucket, type MediaPurpose } from "./lib/media";
+import { PURPOSES, makeKey, r2For, fileUrl, resolveBucket, rowBucket, ensureOrgBuckets, type FileRef, type MediaBucket, type MediaPurpose } from "./lib/media";
 import { fileRefV } from "./lib/fileRef";
 
 /* ============================================================
@@ -44,9 +45,13 @@ export async function createUpload(
   if (!a.trusted && recent.length >= UPLOADS_PER_DAY) throw new ConvexError("Too many uploads today. Try again tomorrow.");
   const fileName = a.fileName.slice(0, 160) || "file";
   const key = makeKey(a.scope, a.purpose, fileName);
-  const { url } = await r2For(rule.bucket).generateUploadUrl(key);
+  // The bucket comes from the owning studio (its own bucket once provisioned),
+  // never from the caller.
+  const bucketName = await resolveBucket(ctx, a.scope, rule.bucket);
+  await ensureOrgBuckets(ctx, a.scope);
+  const { url } = await r2For(rule.bucket, bucketName).generateUploadUrl(key);
   const mediaId = await ctx.db.insert("mediaFiles", {
-    orgId: a.scope, bucket: rule.bucket, key, purpose: a.purpose, fileName, mimeType: a.mimeType.slice(0, 120),
+    orgId: a.scope, bucket: rule.bucket, bucketName, key, purpose: a.purpose, fileName, mimeType: a.mimeType.slice(0, 120),
     status: "pending", uploadedBy: a.actor, createdAt: Date.now(),
   });
   return { mediaId, url, headers: { "Content-Type": a.mimeType } };
@@ -80,7 +85,7 @@ export const myPending = query({
     const scope = await currentOrg(ctx);
     const mine = row.orgId === scope || (viewer.kind === "agency_member" && row.orgId.startsWith("agency:"));
     if (!mine) return null;
-    return { mediaId: row._id, key: row.key, bucket: row.bucket, purpose: row.purpose, status: row.status };
+    return { mediaId: row._id, key: row.key, bucket: row.bucket, bucketName: rowBucket(row), purpose: row.purpose, status: row.status };
   },
 });
 
@@ -89,7 +94,7 @@ export const confirmUpload = action({
   handler: async (ctx, { mediaId }): Promise<{ mediaId: Id<"mediaFiles">; size: number }> => {
     const row = await ctx.runQuery(api.media.myPending, { mediaId });
     if (!row) throw new ConvexError("Upload not found.");
-    const r2 = r2For(row.bucket);
+    const r2 = r2For(row.bucket, row.bucketName);
     await r2.syncMetadata(ctx, row.key);
     const meta = await r2.getMetadata(ctx, row.key);
     if (!meta || !meta.size) throw new ConvexError("The file did not arrive. Try uploading again.");
@@ -120,15 +125,17 @@ export const _discard = internalMutation({
     const row = await ctx.db.get(mediaId);
     if (!row) return null;
     await ctx.db.delete(mediaId);
-    await ctx.scheduler.runAfter(0, internal.media._deleteObject, { bucket: row.bucket, key: row.key });
+    await ctx.scheduler.runAfter(0, internal.media._deleteObject, { bucket: row.bucket, key: row.key, bucketName: rowBucket(row) });
     return null;
   },
 });
 
 export const _deleteObject = internalAction({
-  args: { bucket: v.union(v.literal("media"), v.literal("private")), key: v.string() },
-  handler: async (ctx, { bucket, key }): Promise<null> => {
-    await r2For(bucket as MediaBucket).deleteObject(ctx, key);
+  // bucketName is the bucket the row recorded (resolved through rowBucket, which
+  // refuses another studio's bucket). Omitted on jobs queued before per-studio buckets.
+  args: { bucket: v.union(v.literal("media"), v.literal("private")), key: v.string(), bucketName: v.optional(v.string()) },
+  handler: async (ctx, { bucket, key, bucketName }): Promise<null> => {
+    await r2For(bucket as MediaBucket, bucketName).deleteObject(ctx, key);
     return null;
   },
 });
@@ -144,13 +151,13 @@ export const sweepPending = internalMutation({
     const stale = await ctx.db.query("mediaFiles").withIndex("by_status", (q) => q.eq("status", "pending").lt("createdAt", cutoff)).take(100);
     for (const row of stale) {
       await ctx.db.delete(row._id);
-      await ctx.scheduler.runAfter(0, internal.media._deleteObject, { bucket: row.bucket, key: row.key });
+      await ctx.scheduler.runAfter(0, internal.media._deleteObject, { bucket: row.bucket, key: row.key, bucketName: rowBucket(row) });
     }
     // Confirmed uploads that no row ever claimed (the user abandoned the form).
     const unclaimed = await ctx.db.query("mediaFiles").withIndex("by_attach", (q) => q.eq("status", "ready").eq("attachedAt", undefined).lt("createdAt", cutoff)).take(100);
     for (const row of unclaimed) {
       await ctx.db.delete(row._id);
-      await ctx.scheduler.runAfter(0, internal.media._deleteObject, { bucket: row.bucket, key: row.key });
+      await ctx.scheduler.runAfter(0, internal.media._deleteObject, { bucket: row.bucket, key: row.key, bucketName: rowBucket(row) });
     }
     if (stale.length === 100 || unclaimed.length === 100) await ctx.scheduler.runAfter(0, internal.media.sweepPending, {});
     return null;
@@ -186,4 +193,59 @@ export async function readFileBlob(
   if (!url) return null;
   const res = await fetch(url);
   return res.ok ? await res.blob() : null;
+}
+
+/* ── Server-side writes ───────────────────────────────────────
+   Bytes an action already holds (a generated hero, a logo fetched from a
+   studio's website, an imported cover) go to R2 the same way a browser upload
+   does: a mediaFiles row in the studio's scope, in the studio's bucket, marked
+   ready once the object is there. The caller's mutation then claims it
+   (claimFile), so an orphan is swept after a day like any other upload. */
+
+/** Pending row for a server-side write. Returns where the bytes must go. */
+export const _reserveStored = internalMutation({
+  args: { scope: v.string(), purpose: purposeV, fileName: v.string(), mimeType: v.string(), size: v.number(), actor: v.string(), legacyStorageId: v.optional(v.id("_storage")) },
+  handler: async (ctx, a): Promise<{ mediaId: Id<"mediaFiles">; key: string; bucket: MediaBucket; bucketName: string }> => {
+    const { mediaId } = await createUpload(ctx, { scope: a.scope, purpose: a.purpose, fileName: a.fileName, mimeType: a.mimeType, size: a.size, actor: a.actor, trusted: true });
+    if (a.legacyStorageId) await ctx.db.patch(mediaId, { legacyStorageId: a.legacyStorageId });
+    const row = (await ctx.db.get(mediaId))!;
+    return { mediaId, key: row.key, bucket: row.bucket, bucketName: rowBucket(row) };
+  },
+});
+
+/** True when the error means this deployment has no R2 settings. */
+export function isR2NotConfigured(err: unknown): boolean {
+  return err instanceof Error && /R2 is not configured/i.test(err.message);
+}
+
+/** Stores bytes in R2 under `scope` and returns the ready (unclaimed) mediaFiles id.
+ *  On a deployment with no R2 settings at all it falls back to Convex storage, the
+ *  same fallback the browser uploads use, so local and preview deployments keep
+ *  working; production has R2 configured and never takes this path. */
+export async function storeBytes(
+  ctx: ActionCtx,
+  a: { scope: string; purpose: MediaPurpose; blob: Blob; fileName: string; mimeType?: string; actor: string; legacyStorageId?: Id<"_storage">; noFallback?: boolean },
+): Promise<FileRef> {
+  const rule = PURPOSES[a.purpose];
+  if (a.blob.size <= 0) throw new ConvexError("That file is empty.");
+  if (a.blob.size > rule.maxBytes) throw new ConvexError(`That file is too large (limit ${Math.round(rule.maxBytes / 1048576)} MB).`);
+  const mimeType = (a.mimeType || a.blob.type || "application/octet-stream").slice(0, 120);
+  let spot: { mediaId: Id<"mediaFiles">; key: string; bucket: MediaBucket; bucketName: string };
+  try {
+    spot = await ctx.runMutation(internal.media._reserveStored, { scope: a.scope, purpose: a.purpose, fileName: a.fileName, mimeType, size: a.blob.size, actor: a.actor, legacyStorageId: a.legacyStorageId });
+  } catch (err) {
+    if (!a.noFallback && isR2NotConfigured(err)) {
+      console.warn(`storeBytes: R2 is not configured, keeping ${a.purpose} in Convex storage`);
+      return await ctx.storage.store(a.blob);
+    }
+    throw err;
+  }
+  try {
+    await r2For(spot.bucket, spot.bucketName).store(ctx, a.blob, { key: spot.key, type: mimeType });
+  } catch (err) {
+    await ctx.runMutation(internal.media._discard, { mediaId: spot.mediaId });
+    throw err;
+  }
+  await ctx.runMutation(internal.media._markReady, { mediaId: spot.mediaId, size: a.blob.size });
+  return spot.mediaId;
 }

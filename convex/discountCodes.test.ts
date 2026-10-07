@@ -19,7 +19,7 @@ describe("discount codes: public validation + booking redemption", () => {
     start = Date.now() + 7 * DAY; // a future slot
     const ids = await t.run(async (ctx) => {
       await ctx.db.insert("orgs", {
-        orgId: "org1", name: "Studio", slug: "studio", plan: "studio", status: "active",
+        orgId: "org1", name: "Studio", slug: "studio", tier: "growth", status: "active",
         discountCodes: [
           { code: "SAVE20", pct: 20, label: "Slow Tuesdays", active: true },
           { code: "PAUSED10", pct: 10, active: false },

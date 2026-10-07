@@ -15,7 +15,7 @@ describe("Pulse Agent", () => {
     vi.useFakeTimers();
     t = convexTest(schema);
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: ORG, name: "Skyline", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: ORG, name: "Skyline", slug: "demo", tier: "growth", status: "active" });
     });
   });
   afterEach(() => vi.useRealTimers());

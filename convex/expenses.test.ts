@@ -310,3 +310,52 @@ describe("expenses backend", () => {
     expect(pl.expensesCents).toBe(4_000); // other-org's 999,999 not included
   });
 });
+
+describe("expenses.create with a legacy Convex storage receipt", () => {
+  const HOUR = 60 * 60 * 1000;
+
+  async function setup() {
+    const t = convexTest(schema);
+    await t.run(async (ctx) => {
+      for (const orgId of ["pulse-demo", "studio_b"]) {
+        await ctx.db.insert("orgs", { orgId, name: orgId, slug: orgId, tier: "growth", status: "active" });
+      }
+      await ctx.db.insert("members", { orgId: "pulse-demo", name: "Olu", role: "owner", skills: [], clerkUserId: "u_owner" });
+    });
+    const png = () => t.run(async (ctx) => await ctx.storage.store(new Blob(["receipt"], { type: "image/png" })));
+    const exists = (id: string) => t.run(async (ctx) => (await ctx.db.system.get(id as never)) !== null);
+    const expenseCount = () => t.run(async (ctx) => (await ctx.db.query("expenses").collect()).length);
+    return { t, owner: t.withIdentity({ subject: "u_owner", name: "Olu" }), png, exists, expenseCount };
+  }
+  const base = { category: "gear" as const, amountCents: 1_000, date: Date.UTC(2026, 9, 1) };
+
+  it("accepts a fresh upload nobody else holds", async () => {
+    const s = await setup();
+    const id = await s.png();
+    await s.owner.mutation(api.expenses.create, { ...base, receiptId: id });
+    expect(await s.expenseCount()).toBe(1);
+  });
+
+  it("refuses an upload older than an hour", async () => {
+    const s = await setup();
+    const id = await s.png();
+    const now = Date.now();
+    const spy = vi.spyOn(Date, "now").mockReturnValue(now + 2 * HOUR);
+    try {
+      await expect(s.owner.mutation(api.expenses.create, { ...base, receiptId: id })).rejects.toThrow();
+    } finally { spy.mockRestore(); }
+    expect(await s.expenseCount()).toBe(0);
+    expect(await s.exists(id)).toBe(true);
+  });
+
+  it("refuses a storage id another studio's row already points at", async () => {
+    const s = await setup();
+    const id = await s.png();
+    await s.t.run(async (ctx) => {
+      await ctx.db.insert("expenses", { orgId: "studio_b", category: "rent", amountCents: 500, date: base.date, receiptId: id });
+    });
+    await expect(s.owner.mutation(api.expenses.create, { ...base, receiptId: id })).rejects.toThrow();
+    expect(await s.t.run(async (ctx) => (await ctx.db.query("expenses").collect()).filter((e) => e.orgId === "pulse-demo").length)).toBe(0);
+    expect(await s.exists(id)).toBe(true);
+  });
+});

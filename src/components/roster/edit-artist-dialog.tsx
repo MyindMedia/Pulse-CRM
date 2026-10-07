@@ -64,7 +64,7 @@ function toForm(artist: EditableArtist): FormState {
   };
 }
 
-/** Edit core CRM fields for an existing artist. */
+/** Edit core client fields for an existing artist. */
 export function EditArtistDialog({
   artist,
   open,
@@ -124,7 +124,7 @@ export function EditArtistDialog({
         <DialogHeader>
           <DialogTitle>Edit profile</DialogTitle>
           <DialogDescription>
-            Update the CRM status, reliability and social links for {artist.name}.
+            Update the client status, reliability and social links for {artist.name}.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit}>

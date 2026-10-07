@@ -10,11 +10,11 @@ describe("marketing entitlement", () => {
     expect(entitlementForCapability("marketing.approve")).toBe("marketing");
   });
   it("every paid tier has marketing, with caps only on studio", () => {
-    expect(capabilitiesForTier("studio").has("marketing")).toBe(true);
-    expect(capabilitiesForTier("pro").has("marketing")).toBe(true);
-    expect(PLAN_LIMITS.studio.socialAccountCap).toBe(3);
-    expect(PLAN_LIMITS.studio.socialPostsPerMonth).toBe(20);
-    expect(PLAN_LIMITS.pro.socialAccountCap).toBeGreaterThan(1000);
+    expect(capabilitiesForTier("core").has("marketing")).toBe(true);
+    expect(capabilitiesForTier("growth").has("marketing")).toBe(true);
+    expect(PLAN_LIMITS.core.socialAccountCap).toBe(3);
+    expect(PLAN_LIMITS.core.socialPostsPerMonth).toBe(20);
+    expect(PLAN_LIMITS.growth.socialAccountCap).toBeGreaterThan(1000);
   });
   it("social posts reset monthly, connected accounts do not", () => {
     expect(periodFor("social_posts", Date.UTC(2026, 7, 26))).toBe("2026-08");

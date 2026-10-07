@@ -20,7 +20,7 @@ describe("notifyTeam routing", () => {
         orgId: ORG,
         name: "Demo Studio",
         slug: "demo",
-        plan: "studio",
+        tier: "growth",
         ...(ownerEmail ? { ownerEmail } : {}),
       });
     });

@@ -24,7 +24,7 @@ import {
 } from "./lib/themeSpec";
 
 /* ============================================================
-   White-label theming - the Label tier's defining feature.
+   White-label theming - the Max tier's defining feature.
 
    `get` is readable by any member (the shell needs it to paint), and
    degrades to the Pulse defaults for tiers that never bought theming.
@@ -287,7 +287,7 @@ export const canTheme = query({
 
 /** Shared shape builder, so the public and private paths cannot drift. */
 async function themeFor(ctx: QueryCtx, org: Doc<"orgs"> | null) {
-  const tier = org ? await tierForOrg(ctx, org.orgId) : "studio";
+  const tier = org ? await tierForOrg(ctx, org.orgId) : "core";
   const active = Boolean(org) && PLAN_LIMITS[tier].whitelabel === "full";
   const saved = org?.theme;
   return { active, tier, saved, colors: paletteFor(org, active) };

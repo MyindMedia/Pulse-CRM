@@ -11,7 +11,7 @@ describe("staff scheduling - shifts", () => {
   beforeEach(async () => {
     t = convexTest(schema);
     memberId = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active" });
       return ctx.db.insert("members", { orgId: "pulse-demo", name: "Eng Ellis", role: "engineer", email: "ellis@demo.com", skills: [] });
     });
   });

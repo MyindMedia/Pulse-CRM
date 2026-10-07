@@ -8,11 +8,11 @@ import { GraduationCap, Undo2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { PLAN_LIMITS, SELLABLE_TIERS, priceLabel } from "@convex/lib/plans";
+import { PLAN_LIMITS, SELLABLE_TIERS, priceLabel, type TierKey } from "@convex/lib/plans";
 
-/** Only the four sellable tiers can be graduated onto. Legacy and
- *  enterprise tiers are assigned by hand, not from this control. */
-type SellableTier = "flow" | "studio" | "pro" | "label";
+/** Core, Growth or Max: graduation writes the studio's real tier, which
+ *  replaces the Max access the beta flag gave it. */
+type SellableTier = TierKey;
 
 /* Moving a beta studio onto normal terms.
 
@@ -36,7 +36,7 @@ export function GraduateBeta({
 }) {
   const graduate = useMutation(api.agency.graduateBeta);
   const revert = useMutation(api.agency.revertGraduation);
-  const [tier, setTier] = React.useState<SellableTier>("pro");
+  const [tier, setTier] = React.useState<SellableTier>("growth");
   const [busy, setBusy] = React.useState(false);
 
   if (!betaCohort) return null;
@@ -99,7 +99,7 @@ export function GraduateBeta({
                 onChange={(e) => setTier(e.target.value as SellableTier)}
                 className="mt-1 rounded-md border border-graphite/60 bg-coal/40 px-3 py-2 text-sm text-bone outline-none focus:border-gold"
               >
-                {(SELLABLE_TIERS as SellableTier[]).map((t) => (
+                {SELLABLE_TIERS.map((t) => (
                   <option key={t} value={t}>
                     {PLAN_LIMITS[t].label} · {priceLabel(t)}
                   </option>

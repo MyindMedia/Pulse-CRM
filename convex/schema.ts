@@ -3,7 +3,11 @@ import { defineSchema, defineTable } from "convex/server";
 import { v } from "convex/values";
 import { pulseWalkthroughTables } from "./pulseWalkthrough/tables";
 import { outreachTables } from "./outreach/tables";
+import { projectTables } from "./projectsTables";
+import { mediaLibraryTables } from "./mediaLibraryTables";
 import { expenseCategoryV, incomeCategoryV, moneyInKindV } from "./lib/financeValidators";
+import { tierV } from "./lib/tierV";
+import { legacyAgencyPlanV, legacyOrgPlanV, legacyOrgTierV } from "./lib/legacyPlans";
 
 /* ============================================================
    PULSE - Convex schema
@@ -15,6 +19,8 @@ import { expenseCategoryV, incomeCategoryV, moneyInKindV } from "./lib/financeVa
    ============================================================ */
 
 // ── Shared validators ──
+// Plan keys come from lib/pricing.ts through lib/tierV.ts. The old ladder's
+// values are accepted only through lib/legacyPlans.ts, for the two-step deploy.
 const artistType = v.union(
   v.literal("artist"),
   v.literal("producer"),
@@ -188,13 +194,18 @@ const portTemplateEntry = v.object({
 export default defineSchema({
   ...pulseWalkthroughTables,
   ...outreachTables,
+  ...projectTables,
+  ...mediaLibraryTables,
   // ── Orgs - one row per studio subaccount. orgId is the Clerk org id
   //    (org_xxx) or "pulse-demo". The agency console provisions these. ──
   orgs: defineTable({
     orgId: v.string(), // Clerk org_xxx or "pulse-demo"
     name: v.string(),
     slug: v.string(), // resolves /book/<slug>
-    plan: v.union(v.literal("solo"), v.literal("studio"), v.literal("label")),
+    // RETIRED. The original tier signal, superseded by `tier`. Optional and
+    // never written; migrations:migrateToCoreGrowthMax folds it into `tier`
+    // and clears it. Drop in the second deploy (TWO-STEP DEPLOY below).
+    plan: v.optional(legacyOrgPlanV),
     status: v.optional(
       v.union(v.literal("active"), v.literal("paused"), v.literal("setup")),
     ),
@@ -206,6 +217,14 @@ export default defineSchema({
     // Pre-session brief policy: when true every checklist step must be
     // checked (accountability mode); unset/false = optional guidance.
     briefRequireAll: v.optional(v.boolean()),
+    // Per-studio Cloudflare R2 buckets (docs/R2-PER-ORG-BUCKETS.md). Until status is
+    // "ready" new files go to the shared buckets.
+    r2MediaBucket: v.optional(v.string()),
+    r2PrivateBucket: v.optional(v.string()),
+    r2BucketStatus: v.optional(v.union(v.literal("pending"), v.literal("ready"))),
+    r2ProvisionedAt: v.optional(v.number()),
+    r2ProvisionAttemptAt: v.optional(v.number()),
+    r2ProvisionError: v.optional(v.string()),
     brandPalette: v.optional(v.array(v.string())),
     tagline: v.optional(v.string()),
     // Branding
@@ -227,17 +246,14 @@ export default defineSchema({
     disabledFeatures: v.optional(v.array(v.string())),
     // NEW (agency mode - cycle 1)
     agencyId: v.optional(v.string()),     // parent agency, null for base tier
-    tier: v.optional(v.union(             // cached for cap-check perf
-      v.literal("flow"),                  // $0 + take rate - payments-monetized
-      v.literal("studio"),                // $149.99 - the money loop
-      v.literal("pro"),                   // $297.00 - the whole operation
-      v.literal("label"),                 // $499.99 - unlocked + white label
-      v.literal("enterprise"),
-      v.literal("growth"),                // legacy, superseded by "label"
-      v.literal("agency"),                // legacy
-    )),
+    // The plan this studio is on: core | growth | max (lib/pricing.ts).
+    // TWO-STEP DEPLOY: the legacy literals stay accepted only so this schema
+    // can deploy over rows the migration has not rewritten yet. Step 1:
+    // deploy, run migrations:migrateToCoreGrowthMax until it reports zero.
+    // Step 2: replace this union with `tierV` and delete lib/legacyPlans.ts.
+    tier: v.optional(v.union(tierV, legacyOrgTierV)),
     // ── White-label theme. Writable only on a tier whose plan whitelabel
-    //    level is "full" (Label). Unset = Pulse chrome. The Powered by Pulse
+    //    level is "full" (Max). Unset = Pulse chrome. The Powered by Pulse
     //    lockup under the studio logo is never removable, at any tier. ──
     theme: v.optional(
       v.object({
@@ -402,6 +418,10 @@ export default defineSchema({
     // off (orgs.setManagersSeeMoney); lib/access.ts then withholds the money
     // capabilities from every manager here, on the web, the phone and the mirror.
     managersSeeMoney: v.optional(v.boolean()),
+    // Max shared media library: whether this studio's library files appear in
+    // its agency admin's all-studios view. Unset means no. Only the studio's
+    // owner may turn it on (mediaLibrary.setGroupSharing).
+    shareMediaWithGroup: v.optional(v.boolean()),
     // Booking-page social proof: short client testimonials the studio curates.
     testimonials: v.optional(
       v.array(
@@ -513,16 +533,9 @@ export default defineSchema({
     agencyId: v.string(),                 // Clerk org_xxx of agency-level Clerk org
     name: v.string(),
     slug: v.string(),                     // resolves /a/<slug>
-    plan: v.union(
-      v.literal("flow"),
-      v.literal("studio"),
-      v.literal("pro"),
-      v.literal("label"),
-      v.literal("growth"),                // legacy, superseded by "label"
-      v.literal("enterprise"),
-      v.literal("agency"),                // legacy
-      v.literal("agency_plus"),           // RESELL HOOK
-    ),
+    // core | growth | max. Legacy literals accepted until the migration has
+    // run in production (TWO-STEP DEPLOY, see orgs.tier).
+    plan: v.union(tierV, legacyAgencyPlanV),
     status: v.union(v.literal("active"), v.literal("paused"), v.literal("trial")),
     // Branding (white-label)
     logoId: v.optional(fileRefV),
@@ -1286,6 +1299,10 @@ export default defineSchema({
     // Only meaningful on category "cable". Turns an undifferentiated line
     // item ("XLR Cable, qty 6") into real stock the patch canvas can spend:
     // a connection claims one run from this row, and the remaining count is
+    // Barcode / QR label code (gear check-out). Unique per studio, upper case.
+    // The code is an opaque id: no secrets, and it resolves only for the
+    // signed-in studio that owns the item.
+    barcode: v.optional(v.string()),
     // what the cable manager reports as free. Absent on every other category.
     cableSpec: v.optional(
       v.object({
@@ -1308,7 +1325,8 @@ export default defineSchema({
   })
     .index("by_org", ["orgId"])
     .index("by_org_room", ["orgId", "installedInRoomId"])
-    .index("by_org_category", ["orgId", "category"]),
+    .index("by_org_category", ["orgId", "category"])
+    .index("by_org_barcode", ["orgId", "barcode"]),
 
   // ── Asset documents - receipts / invoices / warranties attached to a
   //    hardware (equipment) or software item. Kept for tax, insurance and
@@ -3297,9 +3315,49 @@ export default defineSchema({
     // Set by the backfill: the Convex storage file this was copied from. It is deleted
     // after a safety window (mediaBackfill.purgeLegacy), never at copy time.
     legacyStorageId: v.optional(v.id("_storage")),
+    // The R2 bucket the object lives in: the studio's own bucket, or the shared
+    // one. Rows from before per-studio buckets have none (shared bucket).
+    bucketName: v.optional(v.string()),
+    // Set when the object was moved out of the shared bucket into the studio's own;
+    // the shared copy is deleted with the file or by orgBuckets.purgeSharedCopies.
+    sharedCopyAt: v.optional(v.number()),
   })
     .index("by_org", ["orgId", "createdAt"])
     .index("by_key", ["bucket", "key"])
     .index("by_status", ["status", "createdAt"])
     .index("by_attach", ["status", "attachedAt", "createdAt"]),
+
+  // ── Gear check-out: one row per time a piece of gear leaves the shelf.
+  //    Open while inAt is unset; the closed rows are the item's history. ──
+  gearCheckouts: defineTable({
+    orgId: v.string(),
+    equipmentId: v.id("equipment"),
+    // Snapshots, so history still reads after a rename or a delete.
+    equipmentName: v.string(),
+    barcode: v.optional(v.string()),
+    holderKind: v.union(
+      v.literal("member"),
+      v.literal("client"),
+      v.literal("session"),
+      v.literal("rental"),
+    ),
+    holderMemberId: v.optional(v.id("members")),
+    holderArtistId: v.optional(v.id("artists")),
+    holderSessionId: v.optional(v.id("sessions")),
+    holderLabel: v.string(),
+    outAt: v.number(),
+    dueAt: v.optional(v.number()),
+    inAt: v.optional(v.number()),
+    notes: v.optional(v.string()),
+    returnNotes: v.optional(v.string()),
+    outBy: v.string(),
+    outByClerkUserId: v.optional(v.string()),
+    inBy: v.optional(v.string()),
+    // Set when the overdue alert went out, so it is sent once.
+    overdueNotifiedAt: v.optional(v.number()),
+  })
+    .index("by_org_open", ["orgId", "inAt"])
+    .index("by_equipment", ["equipmentId", "outAt"])
+    .index("by_equipment_open", ["equipmentId", "inAt"])
+    .index("by_open_due", ["inAt", "overdueNotifiedAt", "dueAt"]),
 });

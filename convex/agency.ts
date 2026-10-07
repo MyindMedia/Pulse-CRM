@@ -1,4 +1,4 @@
-import { fileUrl } from "./lib/media";
+import { fileUrl, ensureOrgBuckets } from "./lib/media";
 import { query, internalQuery, action, QueryCtx } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { internal } from "./_generated/api";
@@ -6,7 +6,10 @@ import { v, ConvexError } from "convex/values";
 import { seedStarterWorkspace } from "./lib/starter";
 import { resolveViewer, requireCapability, AccessError } from "./lib/access";
 import { DEMO_ORG } from "./lib/tenant";
-import { PLAN_LIMITS, type TierKey } from "./lib/plans";
+import { PLAN_LIMITS } from "./lib/plans";
+import { tierV } from "./lib/tierV";
+import { tierForOrg, tierForPlan } from "./lib/tier";
+import { tierRank } from "./lib/pricing";
 import { isToggleable } from "./lib/modules";
 import { DAY_MS } from "./lib/billingGate";
 import { sendEmail } from "./lib/email";
@@ -20,7 +23,8 @@ import { normalizeEmail } from "./lib/emailKey";
    scoped by currentOrg().
    ============================================================ */
 
-const planV = v.union(v.literal("solo"), v.literal("studio"), v.literal("label"));
+// A sub-account's plan, the same three keys everywhere (lib/pricing.ts).
+const planV = tierV;
 
 /** Orgs the caller's agency console should see: scoped to their own agency,
  *  with the seed demo workspace hidden, and staff limited to their scoped
@@ -104,6 +108,10 @@ export const subaccounts = query({
     return Promise.all(
       orgs.map(async (org) => ({
         ...org,
+        // The effective plan (beta flag, own tier, then the agency's plan),
+        // never the raw stored value.
+        plan: await tierForOrg(ctx, org.orgId),
+        tier: await tierForOrg(ctx, org.orgId),
         status: org.status ?? "active",
         logoUrl: org.logoId ? await fileUrl(ctx, org.logoId) : null,
         ...(await rollup(ctx, org.orgId)),
@@ -163,10 +171,13 @@ export const overview = query({
       }
     }
 
-    // Subscriber breakdown by plan tier.
+    // Subscriber breakdown by plan tier (the effective tier, beta included).
+    // Keyed by the plan's display name, which is what the chart prints.
+    const tierOf = new Map<string, string>();
+    for (const o of orgs) tierOf.set(o.orgId, PLAN_LIMITS[await tierForOrg(ctx, o.orgId)].label);
     const tiers = new Map<string, number>();
     for (const o of orgs) {
-      const plan = o.plan ?? "solo";
+      const plan = tierOf.get(o.orgId) ?? PLAN_LIMITS.core.label;
       tiers.set(plan, (tiers.get(plan) ?? 0) + 1);
     }
     const subscribersByPlan = Array.from(tiers.entries()).map(([plan, count]) => ({
@@ -220,7 +231,7 @@ export const overview = query({
         orgs.map(async (o) => ({
           orgId: o.orgId,
           name: o.name,
-          plan: o.plan ?? "solo",
+          plan: tierOf.get(o.orgId) ?? PLAN_LIMITS.core.label,
           slug: o.slug,
           logoUrl: o.logoId ? await fileUrl(ctx, o.logoId) : null,
           collectedCents: studioRollups.get(o.orgId)?.collected ?? 0,
@@ -292,8 +303,11 @@ export const subaccount = query({
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .order("desc")
       .take(10);
+    const effective = await tierForOrg(ctx, orgId);
     return {
       ...org,
+      plan: effective,
+      tier: effective,
       status: org.status ?? "active",
       logoUrl: org.logoId ? await fileUrl(ctx, org.logoId) : null,
       ...(await rollup(ctx, orgId)),
@@ -309,11 +323,10 @@ export const provision = internalMutation({
     clerkOrgId: v.optional(v.string()),
     name: v.string(),
     slug: v.string(),
-    plan: planV,
     ownerName: v.string(),
     ownerEmail: v.string(),
     agencyId: v.optional(v.string()),
-    tier: v.optional(v.union(v.literal("studio"), v.literal("pro"), v.literal("agency"))),
+    tier: v.optional(tierV),
   },
   handler: async (ctx, args) => {
     const slugTaken = await ctx.db
@@ -353,7 +366,6 @@ export const provision = internalMutation({
       orgId: args.orgId,
       name: args.name,
       slug: args.slug,
-      plan: args.plan,
       status: "active",
       accentColor: "#fdb913",
       tagline: "Where the record gets made.",
@@ -366,13 +378,15 @@ export const provision = internalMutation({
       clerkOrgId: args.clerkOrgId,
       createdByAgency: true,
       agencyId: args.agencyId,
-      tier: args.tier ?? "studio",
+      tier: args.tier ?? "core",
       ...billingFields,
     });
     await seedStarterWorkspace(ctx, args.orgId, {
       ownerName: args.ownerName,
       ownerEmail: normalizeEmail(args.ownerEmail),
     });
+    // Its own R2 buckets (no-op unless R2_PER_ORG_BUCKETS is on).
+    await ensureOrgBuckets(ctx, args.orgId);
     return { orgId: args.orgId };
   },
 });
@@ -405,27 +419,12 @@ export const createSubaccount = action({
         throw new ConvexError(`The slug "${slug}" is already in use. Pick another.`);
       }
 
-      // Capability + plan-cap check.
-      const self = await ctx.runQuery(internal.agency._resolveSelf, {});
-      if (self && self.kind === "agency_member") {
-        // Real agency tenant - enforce the plan cap. If the agencies row is
-        // missing (a known provisioning gap) we do NOT block creation; we just
-        // skip the cap rather than throwing an opaque "record not found".
-        const ag = await ctx.runQuery(internal.agency._agencyById, { agencyId: self.agencyId! });
-        if (ag) {
-          const tier: TierKey = ag.plan in PLAN_LIMITS ? (ag.plan as TierKey) : "agency";
-          const cap = PLAN_LIMITS[tier].subAccountCap;
-          const count = await ctx.runQuery(internal.agency._countSubaccounts, {
-            agencyId: self.agencyId!,
-          });
-          if (count >= cap) {
-            throw new ConvexError(
-              `Plan cap reached (${count}/${cap} studios). Upgrade your plan to add more.`,
-            );
-          }
-        }
-      }
-      // Demo / single-tenant path: no cap, no agency required.
+      // Who may create a studio, on which plan, and how many: an agency member
+      // holding agency.subaccount.create, never above the agency's own plan,
+      // within its studio cap. Throws before any Clerk org is created.
+      const { agencyId } = await ctx.runQuery(internal.agency._authorizeCreate, {
+        plan: args.plan,
+      });
 
       let clerkOrgId: string | undefined;
       const secret = process.env.CLERK_SECRET_KEY;
@@ -465,23 +464,17 @@ export const createSubaccount = action({
       }
 
       const orgId = clerkOrgId ?? `studio_${slug}`;
-      // Prefer the resolved agency; otherwise fall back to the sole agency (so a
-      // sub-account created outside a fully-resolved agency session is still
-      // linked, not orphaned - which would scope-deny the owner later).
-      const agencyId =
-        self?.kind === "agency_member"
-          ? self.agencyId
-          : (await ctx.runQuery(internal.agency._soleAgencyId, {})) ?? undefined;
       await ctx.runMutation(internal.agency.provision, {
         orgId,
         clerkOrgId,
         name: args.name,
         slug,
-        plan: args.plan,
         ownerName: args.ownerName,
         ownerEmail: normalizeEmail(args.ownerEmail),
         agencyId,
-        tier: "studio",
+        // The plan the agency picked for this studio. Its own tier wins over
+        // the agency's plan (lib/tier.ts).
+        tier: args.plan,
       });
 
       // Branded beta invite (NON-FATAL): the subaccount is already provisioned,
@@ -555,7 +548,11 @@ export const inviteStudio = action({
         throw new ConvexError("Enter a valid email address.");
       }
       const name = args.studioName?.trim() || "New studio";
-      const plan = args.plan ?? "studio";
+      const plan = args.plan ?? "core";
+
+      // Same gate as createSubaccount: agency member with
+      // agency.subaccount.create, plan capped at the agency's own, studio cap.
+      const { agencyId } = await ctx.runQuery(internal.agency._authorizeCreate, { plan });
 
       // Generate a unique slug from the name (or a random one), so the agency
       // never has to think about slugs. The owner can rename it in onboarding.
@@ -567,12 +564,6 @@ export const inviteStudio = action({
         if (!(await ctx.runQuery(internal.agency._slugTaken, { slug }))) break;
         slug = `${base}-${Math.random().toString(36).slice(2, 6)}`;
       }
-
-      const self = await ctx.runQuery(internal.agency._resolveSelf, {});
-      const agencyId =
-        self?.kind === "agency_member"
-          ? self.agencyId
-          : (await ctx.runQuery(internal.agency._soleAgencyId, {})) ?? undefined;
 
       // Real Clerk org when configured (same rationale as createSubaccount: no
       // slug sent to Clerk; our routing slug lives on the Convex org).
@@ -603,8 +594,8 @@ export const inviteStudio = action({
 
       const orgId = clerkOrgId ?? `studio_${slug}`;
       await ctx.runMutation(internal.agency.provision, {
-        orgId, clerkOrgId, name, slug, plan,
-        ownerName: name, ownerEmail: normalizeEmail(email), agencyId, tier: "studio",
+        orgId, clerkOrgId, name, slug,
+        ownerName: name, ownerEmail: normalizeEmail(email), agencyId, tier: plan,
       });
 
       // Branded invite (non-fatal - the studio is already provisioned).
@@ -681,6 +672,46 @@ export const setFeatures = mutation({
 });
 
 // ── Internal helpers used by the createSubaccount cap check ──────
+
+/** The gate for creating a studio (createSubaccount, inviteStudio).
+ *  - the caller must be an agency member holding agency.subaccount.create
+ *    (unauthenticated callers, demo viewers and studio members are refused);
+ *  - the requested plan may not exceed the agency's own plan, so a Core agency
+ *    cannot mint Max studios (a missing agencies row resolves to Core);
+ *  - the agency's studio cap applies.
+ *  Returns the agency the new studio belongs to. */
+export const _authorizeCreate = internalQuery({
+  args: { plan: planV },
+  handler: async (ctx, { plan }) => {
+    const viewer = await requireCapability(ctx, "agency.subaccount.create");
+    if (viewer.kind !== "agency_member") {
+      throw new AccessError("CAPABILITY_DENIED", "Only an agency can create studios.");
+    }
+    const ag = await ctx.db
+      .query("agencies")
+      .withIndex("by_agency", (q) => q.eq("agencyId", viewer.agencyId))
+      .first();
+    const agencyTier = tierForPlan(ag?.plan);
+    if (tierRank(plan) > tierRank(agencyTier)) {
+      throw new ConvexError(
+        `Your agency is on the ${agencyTier} plan, so it cannot create a ${plan} studio.`,
+      );
+    }
+    const cap = PLAN_LIMITS[agencyTier].subAccountCap;
+    const count = (
+      await ctx.db
+        .query("orgs")
+        .withIndex("by_agency", (q) => q.eq("agencyId", viewer.agencyId))
+        .collect()
+    ).length;
+    if (count >= cap) {
+      throw new ConvexError(
+        `Plan cap reached (${count}/${cap} studios). Upgrade your plan to add more.`,
+      );
+    }
+    return { agencyId: viewer.agencyId };
+  },
+});
 export const _resolveSelf = internalQuery({
   args: {},
   handler: async (ctx) => {
@@ -845,10 +876,10 @@ export const seedAgencyOwner = internalMutation({
     slug: v.string(),
     ownerClerkUserId: v.string(),
     ownerEmail: v.string(),
-    plan: v.optional(v.union(v.literal("pro"), v.literal("agency"), v.literal("agency_plus"))),
+    plan: v.optional(tierV),
   },
   handler: async (ctx, args) => {
-    const plan = args.plan ?? "agency";
+    const plan = args.plan ?? "max";
     const existingAg = await ctx.db
       .query("agencies")
       .withIndex("by_agency", (q) => q.eq("agencyId", args.agencyId))
@@ -903,12 +934,7 @@ export const seedAgencyOwner = internalMutation({
 export const graduateBeta = mutation({
   args: {
     orgId: v.string(),
-    tier: v.union(
-      v.literal("flow"),
-      v.literal("studio"),
-      v.literal("pro"),
-      v.literal("label"),
-    ),
+    tier: tierV,
     agencyPlanId: v.optional(v.id("agencyPlans")),
   },
   handler: async (ctx, { orgId, tier, agencyPlanId }) => {

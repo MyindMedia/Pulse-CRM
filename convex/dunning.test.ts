@@ -23,7 +23,7 @@ async function seedOrg(t: T) {
       orgId: ORG,
       name: "Skyline",
       slug: "demo",
-      plan: "studio",
+      tier: "growth",
       status: "active",
       ownerEmail: "owner@studio.com",
     } as never),

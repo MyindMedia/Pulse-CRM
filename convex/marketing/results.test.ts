@@ -10,7 +10,7 @@ describe("marketing results", () => {
     const t = convexTest(schema);
     const now = Date.now();
     const ids = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "org1", name: "S", slug: "studio", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "org1", name: "S", slug: "studio", tier: "growth", status: "active" });
       await ctx.db.insert("members", { orgId: "org1", name: "Owner", role: "owner", clerkUserId: "u1", skills: [] });
       const promoA = await ctx.db.insert("promos", { orgId: "org1", code: "A20", pct: 20, startsAt: now - 10 * DAY, endsAt: now + 10 * DAY, redemptions: 0, source: "owner", active: true, createdBy: "u1", createdAt: now });
       const base = { orgId: "org1", template: "rate_promo" as const, status: "published" as const, caption: "A", media: [], accountIds: [], scheduledFor: now - 5 * DAY, timezone: "UTC", ghlType: "post" as const, submittedBy: "u1", createdAt: now, updatedAt: now };

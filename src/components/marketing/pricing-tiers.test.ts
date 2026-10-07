@@ -5,18 +5,13 @@ import {
   earlyAdopterApplies,
   earlyAdopterPriceCents,
 } from "@convex/lib/plans";
+import { formatUsd } from "@convex/lib/pricing";
 import { marketingTiers, fromPriceLabel } from "./pricing-tiers";
 
-/* The public price tiles were hand-typed for months and every field drifted:
-   $49/$129/$199 against "Solo / Studio / Label", and the top tile checking
-   out on `growth` - a legacy tier that grants less than the Label it was
-   advertising. These tests are the reason it cannot happen again. */
+/* The public price tiles were hand-typed for months and every field drifted.
+   These tests hold them to the pricing config so it cannot happen again. */
 
-const money = (cents: number) =>
-  `$${(cents / 100).toLocaleString("en-US", {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  })}`;
+const money = formatUsd;
 
 describe("the public price tiles", () => {
   const tiers = marketingTiers();
@@ -25,12 +20,8 @@ describe("the public price tiles", () => {
     expect(tiers.map((t) => t.tier)).toEqual(SELLABLE_TIERS);
   });
 
-  it("never checks out on a legacy or non-public tier", () => {
-    for (const t of tiers) {
-      expect(PLAN_LIMITS[t.tier].publicTier).toBe(true);
-      expect(t.tier).not.toBe("growth");
-      expect(t.tier).not.toBe("agency");
-    }
+  it("only ever checks out on core, growth or max", () => {
+    for (const t of tiers) expect(["core", "growth", "max"]).toContain(t.tier);
   });
 
   it("names each tile the way the plan book names the tier", () => {

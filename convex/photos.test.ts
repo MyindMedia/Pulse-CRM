@@ -12,7 +12,7 @@ describe("photo uploads - tenant isolation", () => {
 
   it("rooms.setPhoto attaches to your own room; list resolves heroUrl", async () => {
     const { roomId, storageId } = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active" });
       const roomId = await ctx.db.insert("rooms", { orgId: "pulse-demo", name: "Live A", status: "available" });
       const storageId = await ctx.storage.store(new Blob(["png"], { type: "image/png" }));
       return { roomId, storageId };
@@ -24,7 +24,7 @@ describe("photo uploads - tenant isolation", () => {
 
   it("rooms.setPhoto is DENIED on another org's room", async () => {
     const { otherRoomId, storageId } = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active" });
       const otherRoomId = await ctx.db.insert("rooms", { orgId: "rival-studio", name: "Theirs", status: "available" });
       const storageId = await ctx.storage.store(new Blob(["png"], { type: "image/png" }));
       return { otherRoomId, storageId };
@@ -34,7 +34,7 @@ describe("photo uploads - tenant isolation", () => {
 
   it("members.setPhoto attaches to your own member; list resolves photoUrl; cross-org denied", async () => {
     const { memId, rivalMemId, storageId } = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active" });
       const memId = await ctx.db.insert("members", { orgId: "pulse-demo", name: "Jordan", role: "engineer", skills: [] });
       const rivalMemId = await ctx.db.insert("members", { orgId: "rival-studio", name: "Rival", role: "engineer", skills: [] });
       const storageId = await ctx.storage.store(new Blob(["png"], { type: "image/png" }));
@@ -48,7 +48,7 @@ describe("photo uploads - tenant isolation", () => {
 
   it("rooms.clearPhoto removes the uploaded photo", async () => {
     const { roomId, storageId } = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "growth", status: "active" });
       const roomId = await ctx.db.insert("rooms", { orgId: "pulse-demo", name: "Live A", status: "available" });
       const storageId = await ctx.storage.store(new Blob(["png"], { type: "image/png" }));
       return { roomId, storageId };

@@ -11,7 +11,7 @@ async function drain(t: ReturnType<typeof convexTest>) {
 
 async function seedQuietArtist(t: ReturnType<typeof convexTest>) {
   await t.run(async (ctx) => {
-    await ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", plan: "studio", status: "active" });
+    await ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", tier: "growth", status: "active" });
     await ctx.db.insert("artists", {
       orgId: ORG, name: "Quiet", type: "artist", genres: [], tags: [], status: "active",
       lifetimeValueCents: 0, sessionCount: 1, reliability: "solid", email: "q@x.com",

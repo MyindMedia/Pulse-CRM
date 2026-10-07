@@ -1,9 +1,12 @@
-import { action, internalQuery } from "./_generated/server";
-import { mutation } from "./functions";
+import { action, internalAction, internalQuery } from "./_generated/server";
+import type { ActionCtx } from "./_generated/server";
+import { mutation, internalMutation } from "./functions";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
 import { requireCapability } from "./lib/access";
+import { claimFile, retireFile, type FileRef } from "./lib/media";
+import { fileRefV } from "./lib/fileRef";
+import { readFileBlob, storeBytes } from "./media";
 import { normalizeSiteUrl, parseStudioSite, type StudioSiteInfo } from "./lib/studioSite";
 
 /* ============================================================
@@ -11,10 +14,11 @@ import { normalizeSiteUrl, parseStudioSite, type StudioSiteInfo } from "./lib/st
    sub-account, paste the studio's EXISTING website and pull its
    logo + basic info (name, tagline, contact) to prefill the new
    workspace. Mirrors the song importer's shape: `fetchFromSite`
-   (action) does the network work and stores the logo into
-   _storage without writing anything else; the client prefills
-   the create dialog and calls `applyToOrg` after the sub-account
-   exists.
+   (action) does the network work and stages the logo in R2 under
+   the agency's scope (the sub-account does not exist yet) without
+   writing anything else; the client prefills the create dialog and
+   calls `applyToOrg` after the sub-account exists, which copies the
+   logo into the new studio's own scope and bucket.
    ============================================================ */
 
 const FETCH_TIMEOUT_MS = 8000;
@@ -23,7 +27,8 @@ const MAX_LOGO_BYTES = 4 * 1024 * 1024;
 
 export type StudioSiteImportResult = Omit<StudioSiteInfo, "logoCandidates"> & {
   website: string;
-  logoStorageId: Id<"_storage"> | null;
+  /** A staged R2 mediaFiles id (a Convex storage id only on a deployment without R2). */
+  logoStorageId: FileRef | null;
   logoPreviewUrl: string | null;
 };
 
@@ -31,9 +36,9 @@ export type StudioSiteImportResult = Omit<StudioSiteInfo, "logoCandidates"> & {
  *  Fetching happens while CREATING a sub-account, so that is the cap. */
 export const access = internalQuery({
   args: {},
-  handler: async (ctx) => {
-    await requireCapability(ctx, "agency.subaccount.create");
-    return true;
+  handler: async (ctx): Promise<{ scope: string | null }> => {
+    const viewer = await requireCapability(ctx, "agency.subaccount.create");
+    return { scope: "agencyId" in viewer && viewer.agencyId ? `agency:${viewer.agencyId}` : null };
   },
 });
 
@@ -55,9 +60,10 @@ async function fetchWithTimeout(url: string) {
 
 /** Store the first logo candidate that resolves to a real image. */
 async function storeLogo(
-  ctx: { storage: { store: (b: Blob) => Promise<Id<"_storage">> } },
+  ctx: ActionCtx,
+  scope: string,
   candidates: string[],
-): Promise<Id<"_storage"> | null> {
+): Promise<FileRef | null> {
   for (const url of candidates.slice(0, 4)) {
     try {
       const res = await fetchWithTimeout(url);
@@ -66,7 +72,7 @@ async function storeLogo(
       if (!/image\//i.test(type)) continue;
       const blob = await res.blob();
       if (blob.size < 64 || blob.size > MAX_LOGO_BYTES) continue;
-      return await ctx.storage.store(blob);
+      return await storeBytes(ctx, { scope, purpose: "logo", blob, fileName: "site-logo", mimeType: type, actor: "studio-import" });
     } catch {
       // Try the next candidate.
     }
@@ -79,7 +85,7 @@ async function storeLogo(
 export const fetchFromSite = action({
   args: { url: v.string() },
   handler: async (ctx, { url }): Promise<StudioSiteImportResult> => {
-    await ctx.runQuery(internal.studioImport.access, {});
+    const { scope } = await ctx.runQuery(internal.studioImport.access, {});
 
     const site = normalizeSiteUrl(url);
     if (!site) throw new Error("Enter the studio's website address, like studioname.com");
@@ -100,7 +106,7 @@ export const fetchFromSite = action({
     }
 
     const info = parseStudioSite(html, finalUrl);
-    const logoStorageId = await storeLogo(ctx, info.logoCandidates);
+    const logoStorageId = scope ? await storeLogo(ctx, scope, info.logoCandidates) : null;
 
     return {
       name: info.name,
@@ -110,7 +116,7 @@ export const fetchFromSite = action({
       address: info.address,
       website: finalUrl,
       logoStorageId,
-      logoPreviewUrl: logoStorageId ? await ctx.storage.getUrl(logoStorageId) : null,
+      logoPreviewUrl: logoStorageId ? await ctx.runQuery(internal.media._fileUrl, { ref: logoStorageId }) : null,
     };
   },
 });
@@ -124,7 +130,7 @@ const STOCK_ACCENT = "#fdb913";
 export const applyToOrg = mutation({
   args: {
     orgId: v.string(),
-    logoStorageId: v.optional(v.id("_storage")),
+    logoStorageId: v.optional(fileRefV),
     tagline: v.optional(v.string()),
     email: v.optional(v.string()),
     phone: v.optional(v.string()),
@@ -147,7 +153,25 @@ export const applyToOrg = mutation({
     if (!org) throw new Error("Subaccount not found");
 
     const patch: Record<string, unknown> = {};
-    if (logoStorageId) patch.logoId = logoStorageId;
+    let logoQueued = false;
+    const stagedId = logoStorageId ? ctx.db.normalizeId("mediaFiles", logoStorageId) : null;
+    if (stagedId) {
+      // Staged by fetchFromSite under the agency's scope, or already this studio's.
+      const row = await ctx.db.get(stagedId);
+      const agencyScope = org.agencyId ? `agency:${org.agencyId}` : null;
+      if (!row || row.status !== "ready" || (row.orgId !== orgId && row.orgId !== agencyScope)) throw new Error("Upload not found.");
+      if (row.orgId === orgId) {
+        await claimFile(ctx, stagedId, orgId);
+        patch.logoId = stagedId;
+      } else {
+        // Copy it into the studio's own scope (and bucket), then drop the staged copy.
+        await ctx.db.patch(stagedId, { attachedAt: Date.now() });
+        await ctx.scheduler.runAfter(0, internal.studioImport._adoptLogo, { orgId, mediaId: stagedId });
+        logoQueued = true;
+      }
+    } else if (logoStorageId) {
+      patch.logoId = logoStorageId;
+    }
     if (tagline && !org.tagline) patch.tagline = tagline;
     if (accentColor) {
       if (!HEX.test(accentColor)) throw new Error("Invalid accent color.");
@@ -171,8 +195,38 @@ export const applyToOrg = mutation({
         ...(website ? { website } : {}),
       };
     }
-    if (Object.keys(patch).length === 0) return { applied: false };
+    if (Object.keys(patch).length === 0) return { applied: logoQueued };
+    const previousLogo = org.logoId;
     await ctx.db.patch(org._id, patch);
+    if (patch.logoId) await retireFile(ctx, previousLogo, patch.logoId as FileRef);
     return { applied: true };
+  },
+});
+
+/** Copies a logo staged under the agency into the new studio's own R2 scope. */
+export const _adoptLogo = internalAction({
+  args: { orgId: v.string(), mediaId: v.id("mediaFiles") },
+  handler: async (ctx, { orgId, mediaId }): Promise<boolean> => {
+    const staged = await ctx.runQuery(internal.media._row, { mediaId });
+    if (!staged) return false;
+    const blob = await readFileBlob(ctx, mediaId);
+    if (!blob) return false;
+    const ref = await storeBytes(ctx, { scope: orgId, purpose: "logo", blob, fileName: staged.fileName, mimeType: staged.mimeType, actor: "studio-import", noFallback: true });
+    await ctx.runMutation(internal.studioImport._setLogo, { orgId, ref });
+    await ctx.runMutation(internal.media._discard, { mediaId });
+    return true;
+  },
+});
+
+export const _setLogo = internalMutation({
+  args: { orgId: v.string(), ref: fileRefV },
+  handler: async (ctx, { orgId, ref }) => {
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+    if (!org) return null;
+    await claimFile(ctx, ref, orgId);
+    const previous = org.logoId;
+    await ctx.db.patch(org._id, { logoId: ref });
+    await retireFile(ctx, previous, ref);
+    return null;
   },
 });

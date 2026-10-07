@@ -18,7 +18,7 @@ async function seed(
 ) {
   return t.run(async (ctx) => {
     await ctx.db.insert("orgs", {
-      orgId: ORG, name: "Skyline Studio", slug: opts.slug ?? "skyline", plan: "studio", status: "active",
+      orgId: ORG, name: "Skyline Studio", slug: opts.slug ?? "skyline", tier: "growth", status: "active",
     });
     const artistId = await ctx.db.insert("artists", {
       orgId: ORG, name: "Nova", type: "artist", email: "nova@x.com", genres: [], tags: [],

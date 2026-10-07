@@ -26,7 +26,7 @@ const SLUG = "studio";
 async function seed(t: ReturnType<typeof convexTest>, now: number) {
   return await t.run(async (ctx) => {
     await ctx.db.insert("orgs", {
-      orgId: "org1", name: "Vault", slug: SLUG, plan: "studio", tier: "pro", status: "active",
+      orgId: "org1", name: "Vault", slug: SLUG, tier: "growth", status: "active",
     });
     await ctx.db.insert("members", {
       orgId: "org1", name: "Owner", role: "owner", skills: [], clerkUserId: OWNER,

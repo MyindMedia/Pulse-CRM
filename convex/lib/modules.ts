@@ -43,7 +43,7 @@ export const AREA_LABELS: Record<ModuleArea, string> = {
   bookings: "Bookings & calendar",
   money: "Money",
   risk: "No-show & risk",
-  clients: "Clients & CRM",
+  clients: "Clients",
   staff: "Staff & scheduling",
   floor: "Floor & front desk",
   gear: "Gear, rooms & patch",
@@ -109,7 +109,7 @@ export const MODULES: ModuleDef[] = [
   { key: "noShowShield", label: "No-show shield", area: "risk", nav: false,
     blurb: "Cancellation policy, deposit forfeit and no-show fees" },
 
-  // ── Clients & CRM ──
+  // ── Clients ──
   { key: "clients", label: "Clients", area: "clients", nav: true,
     blurb: "Client, artist and lead directory with full history" },
   { key: "pipeline", label: "Pipeline", area: "clients", nav: true,
@@ -144,10 +144,28 @@ export const MODULES: ModuleDef[] = [
     blurb: "Signal routing, devices, ports and cable management" },
   { key: "software", label: "Software", area: "gear", nav: true,
     blurb: "Plugin and DAW licenses with renewal costs" },
+  { key: "gearModels", label: "Gear models", area: "gear", nav: false,
+    blurb: "Describe a model once; every copy of it uses the same details" },
+  { key: "specSheetImport", label: "Maker's sheet import", area: "gear", nav: false,
+    blurb: "Read a spec sheet and fill in every input and output" },
+  { key: "patchHistory", label: "Cable map notes and history", area: "gear", nav: false,
+    blurb: "Notes, groups and a record of who moved which cable" },
+  { key: "gearCheckout", label: "Gear check-out", area: "gear", nav: false,
+    blurb: "Scan a label to check gear in and out, with who has what and what is overdue" },
 
   // ── Music & catalog ──
+  { key: "finishedMixes", label: "Finished mixes", area: "catalog", nav: false,
+    blurb: "Numbered mix versions, notes on a version, client approval" },
   { key: "songs", label: "Songs", area: "catalog", nav: true,
-    blurb: "Song catalog, cover art and deliverables" },
+    blurb: "Song catalog, cover art and streaming links" },
+  { key: "mediaLibrary", label: "Media library", area: "catalog", nav: true,
+    blurb: "Sessions, stems, mixes, masters and artwork, every upload a numbered version with notes and approval" },
+  { key: "sharedMediaLibrary", label: "Shared media library", area: "catalog", nav: false,
+    blurb: "See every studio's files in your group from one place" },
+  { key: "projects", label: "Projects", area: "catalog", nav: true,
+    blurb: "Post-production tracking from tracking through mixing, mastering and delivery, with tasks, owners and due dates" },
+  { key: "crossStudioProjects", label: "Projects across every studio", area: "catalog", nav: false,
+    blurb: "Every studio's projects and what is overdue, on one screen for the group" },
   { key: "splitSheets", label: "Split sheets", area: "catalog", nav: false,
     blurb: "Ownership splits with real e-signatures" },
   { key: "releases", label: "Releases", area: "catalog", nav: true,
@@ -164,10 +182,16 @@ export const MODULES: ModuleDef[] = [
     blurb: "24/7 auto-reply to inbound booking texts" },
   { key: "aiAutonomy", label: "Agent autonomy", area: "ai", nav: false,
     blurb: "Low-risk reminders run without an approval" },
+  { key: "dailySummary", label: "Daily summary", area: "ai", nav: false,
+    blurb: "A short note on what happened and what needs attention" },
+  { key: "healthScore", label: "Studio health score", area: "ai", nav: false,
+    blurb: "One score for how the business is doing, from six fixed parts" },
 
   // ── Communication ──
   { key: "smsFlows", label: "SMS & reminders", area: "comms", nav: false,
     blurb: "Confirmations and the 48h / 24h / 2h reminder ladder" },
+  { key: "gmailSend", label: "Send from Gmail", area: "comms", nav: false,
+    blurb: "Client emails from the studio's own Gmail address" },
   { key: "marketing", label: "Marketing", area: "comms", nav: true,
     blurb: "Scheduled social posts, promos and results" },
 
@@ -208,19 +232,19 @@ export type AlwaysOnDef = {
 
 export const ALWAYS_ON: AlwaysOnDef[] = [
   // ── Agency & multi-studio ──
-  { id: "agencyConsole", area: "agency", kind: "plan", tier: "label",
+  { id: "agencyConsole", area: "agency", kind: "plan", tier: "max",
     label: "Agency console", blurb: "Every studio, its health and its numbers, from one screen" },
-  { id: "studioInvites", area: "agency", kind: "plan", tier: "label",
+  { id: "studioInvites", area: "agency", kind: "plan", tier: "max",
     label: "Studio invites & onboarding", blurb: "Invite by email, branded onboarding, taking bookings the same day" },
-  { id: "priceBook", area: "agency", kind: "plan", tier: "label",
+  { id: "priceBook", area: "agency", kind: "plan", tier: "max",
     label: "Price book & rebilling", blurb: "The plans an operator sells on, with trials and per-account pricing" },
-  { id: "scopedStaff", area: "agency", kind: "plan", tier: "label",
+  { id: "scopedStaff", area: "agency", kind: "plan", tier: "max",
     label: "Scoped agency staff", blurb: "Team members who only see the studios they are assigned" },
-  { id: "crossApprovals", area: "agency", kind: "plan", tier: "label",
+  { id: "crossApprovals", area: "agency", kind: "plan", tier: "max",
     label: "Cross-studio approvals", blurb: "Everything waiting on a human across the fleet, in one queue" },
-  { id: "siteImport", area: "agency", kind: "plan", tier: "label",
+  { id: "siteImport", area: "agency", kind: "plan", tier: "max",
     label: "Import from their website", blurb: "Pull a new studio's details off the site they already have" },
-  { id: "demoData", area: "agency", kind: "plan", tier: "label",
+  { id: "demoData", area: "agency", kind: "plan", tier: "max",
     label: "Demo data switch", blurb: "Fill a sub-account with realistic data for a pitch, then clear it" },
 
   // ── Platform & security ──

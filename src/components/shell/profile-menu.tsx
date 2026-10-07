@@ -98,7 +98,7 @@ export function ProfileMenu() {
             </span>
             <span className="hidden leading-tight text-left sm:block">
               <span className="block font-grotesk text-xs font-medium text-bone">{name}</span>
-              <span className="chrome-meta block text-steel/80">{org?.plan ?? "studio"} plan</span>
+              <span className="chrome-meta block text-steel/80">{org?.tierLabel ?? "Core"} plan</span>
             </span>
             <ChevronDown className="hidden size-3.5 text-steel/70 sm:block" />
           </button>
@@ -115,7 +115,7 @@ export function ProfileMenu() {
                     {profile.role.replace(/_/g, " ")}
                   </Badge>
                 )}
-                <Badge tone="gold" className="capitalize">{org?.plan ?? "studio"} plan</Badge>
+                <Badge tone="gold" className="capitalize">{org?.tierLabel ?? "Core"} plan</Badge>
               </div>
             </div>
           </div>

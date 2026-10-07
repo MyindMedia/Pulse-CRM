@@ -80,10 +80,10 @@ describe("admin payroll", () => {
   it("summarizes hours + pay and posts a labor expense into the P&L", async () => {
     const t = convexTest(schema);
     const org = "studio_pay";
-    // Payroll is a Pro-tier capability, so the workspace row has to exist and
-    // sit on a plan that includes it. plan "studio" maps to the Pro tier.
+    // Payroll is a Growth capability, so the workspace row has to exist and
+    // sit on a plan that includes it.
     await t.run((ctx) =>
-      ctx.db.insert("orgs", { orgId: org, name: "Pay Studio", slug: "pay-studio", plan: "studio" }),
+      ctx.db.insert("orgs", { orgId: org, name: "Pay Studio", slug: "pay-studio", tier: "growth" }),
     );
     const eng = await t.run((ctx) =>
       ctx.db.insert("members", { orgId: org, name: "Eng", role: "engineer", skills: [], payType: "hourly", payRateCents: 5_000 }),
@@ -112,7 +112,7 @@ describe("admin payroll", () => {
   it("pay schedule: defaults monthly, owner/manager can set biweekly + anchor, staff can't", async () => {
     const t = convexTest(schema);
     const org = "studio_sched";
-    await t.run((ctx) => ctx.db.insert("orgs", { orgId: org, name: "Sched Studio", slug: "sched-studio", plan: "studio" }));
+    await t.run((ctx) => ctx.db.insert("orgs", { orgId: org, name: "Sched Studio", slug: "sched-studio", tier: "growth" }));
     await t.run((ctx) => ctx.db.insert("members", { orgId: org, name: "Owner", role: "owner", skills: [], clerkUserId: "u_own" }));
     await t.run((ctx) => ctx.db.insert("members", { orgId: org, name: "Eng", role: "engineer", skills: [], clerkUserId: "u_eng" }));
     const asOwner = t.withIdentity({ subject: "u_own", orgId: org });

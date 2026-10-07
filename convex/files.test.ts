@@ -14,7 +14,7 @@ describe("files - payment-gated download", () => {
   /** Seed an org + artist + song and attach a stored file to a deliverable. */
   async function seed(opts: { paymentGated: boolean; rateCents: number; paidCents: number }) {
     return await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", tier: "growth", status: "active" });
       const artistId = await ctx.db.insert("artists", {
         orgId: ORG,
         name: "Artist",
@@ -91,7 +91,7 @@ describe("files - payment-gated download", () => {
 
   it("throws when no file has been uploaded", async () => {
     const deliverableId = await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", plan: "studio", status: "active" });
+      await ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", tier: "growth", status: "active" });
       const artistId = await ctx.db.insert("artists", {
         orgId: ORG, name: "A", type: "artist", genres: [], tags: [],
         status: "active", reliability: "solid",

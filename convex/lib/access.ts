@@ -239,7 +239,7 @@ export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
       }
     }
 
-    // Studio-tier Clerk org (default)
+    // Studio-level Clerk org (default)
     //
     // The claim is the CLERK org id. For most studios that is also the Pulse
     // orgId, but not for all: a studio imported or staged before its Clerk org
@@ -390,7 +390,9 @@ export async function requireCapability(
   // metered by default, and it is what makes a module toggle real rather than
   // decorative: turning a module off blocks the API, not just the nav.
   // Unmapped capabilities are unmetered and always allowed.
-  const needed = entitlementForCapability(capability);
+  const needed = resource && resource.entitlement !== undefined
+    ? resource.entitlement
+    : entitlementForCapability(capability);
   if (needed) {
     const scopeOrgId = resource?.orgId ?? viewer.orgId;
     // Agency-level work with no sub-account in scope is not gated here - the

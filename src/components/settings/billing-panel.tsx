@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useQuery, useMutation } from "convex/react";
+import { useQuery, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
 import { Check, CreditCard, Gauge, Info } from "lucide-react";
@@ -47,23 +47,25 @@ function UsageRow({
 
 /** Billing surface - current plan, tier comparison, usage. Presentational only. */
 export function BillingPanel({ org }: { org: Org }) {
-  const updateOrg = useMutation(api.orgs.update);
+  const checkout = useAction(api.billing.beginCheckout);
   const members = useQuery(api.members.list) as { _id: string }[] | undefined;
   const rooms = useQuery(api.rooms.list) as { _id: string }[] | undefined;
   const [switching, setSwitching] = React.useState<OrgPlan | null>(null);
 
   const currentTier =
-    PLAN_TIERS.find((t) => t.value === org.plan) ?? PLAN_TIERS[0];
+    PLAN_TIERS.find((t) => t.value === org.tier) ?? PLAN_TIERS[0];
 
-  async function switchPlan(plan: OrgPlan) {
-    if (plan === org.plan) return;
+  /* A plan change is a purchase: it goes through Stripe Checkout. There is
+     no "switch" that only rewrites the workspace record. */
+  async function choosePlan(plan: OrgPlan) {
+    if (plan === org.tier) return;
     setSwitching(plan);
     try {
-      await updateOrg({ plan });
-      const label = PLAN_TIERS.find((t) => t.value === plan)?.label;
-      toast.success(`Switched to the ${label} plan.`);
-    } catch {
-      toast.error("Could not switch the plan. Try again.");
+      const r = await checkout({ tier: plan, interval: "month" });
+      if (r?.checkoutUrl) window.location.assign(r.checkoutUrl);
+      else toast.error("Stripe did not return a checkout link.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not start checkout. Try again.");
     } finally {
       setSwitching(null);
     }
@@ -97,7 +99,7 @@ export function BillingPanel({ org }: { org: Org }) {
       {/* Plan tiers */}
       <div className="grid gap-3 lg:grid-cols-3">
         {PLAN_TIERS.map((tier) => {
-          const isCurrent = tier.value === org.plan;
+          const isCurrent = tier.value === org.tier;
           return (
             <Card
               key={tier.value}
@@ -132,13 +134,13 @@ export function BillingPanel({ org }: { org: Org }) {
                   variant={isCurrent ? "secondary" : "outline"}
                   className="w-full"
                   disabled={isCurrent || switching !== null}
-                  onClick={() => switchPlan(tier.value)}
+                  onClick={() => void choosePlan(tier.value)}
                 >
                   {isCurrent
                     ? "Current plan"
                     : switching === tier.value
-                      ? "Switching…"
-                      : `Switch to ${tier.label}`}
+                      ? "Opening checkout…"
+                      : `Choose ${tier.label}`}
                 </Button>
               </CardContent>
             </Card>
@@ -172,9 +174,8 @@ export function BillingPanel({ org }: { org: Org }) {
           <div className="flex items-start gap-2 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5">
             <Info className="mt-0.5 size-3.5 shrink-0 text-info" />
             <p className="text-[0.6875rem] text-steel/70">
-              Billing is a configuration surface in demo mode. Switching a plan
-              updates the workspace record only - no payment method is charged
-              and no Stripe account is connected.
+              Choosing a plan opens Stripe Checkout. Your plan changes once
+              the payment goes through.
             </p>
           </div>
         </CardContent>
