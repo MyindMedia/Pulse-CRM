@@ -9,6 +9,7 @@ import { DEMO_ORG } from "./lib/tenant";
 import { PLAN_LIMITS } from "./lib/plans";
 import { tierV } from "./lib/tierV";
 import { tierForOrg, tierForPlan } from "./lib/tier";
+import { tierRank } from "./lib/pricing";
 import { isToggleable } from "./lib/modules";
 import { DAY_MS } from "./lib/billingGate";
 import { sendEmail } from "./lib/email";
@@ -418,26 +419,12 @@ export const createSubaccount = action({
         throw new ConvexError(`The slug "${slug}" is already in use. Pick another.`);
       }
 
-      // Capability + plan-cap check.
-      const self = await ctx.runQuery(internal.agency._resolveSelf, {});
-      if (self && self.kind === "agency_member") {
-        // Real agency tenant - enforce the plan cap. If the agencies row is
-        // missing (a known provisioning gap) we do NOT block creation; we just
-        // skip the cap rather than throwing an opaque "record not found".
-        const ag = await ctx.runQuery(internal.agency._agencyById, { agencyId: self.agencyId! });
-        if (ag) {
-          const cap = PLAN_LIMITS[tierForPlan(ag.plan)].subAccountCap;
-          const count = await ctx.runQuery(internal.agency._countSubaccounts, {
-            agencyId: self.agencyId!,
-          });
-          if (count >= cap) {
-            throw new ConvexError(
-              `Plan cap reached (${count}/${cap} studios). Upgrade your plan to add more.`,
-            );
-          }
-        }
-      }
-      // Demo / single-tenant path: no cap, no agency required.
+      // Who may create a studio, on which plan, and how many: an agency member
+      // holding agency.subaccount.create, never above the agency's own plan,
+      // within its studio cap. Throws before any Clerk org is created.
+      const { agencyId } = await ctx.runQuery(internal.agency._authorizeCreate, {
+        plan: args.plan,
+      });
 
       let clerkOrgId: string | undefined;
       const secret = process.env.CLERK_SECRET_KEY;
@@ -477,13 +464,6 @@ export const createSubaccount = action({
       }
 
       const orgId = clerkOrgId ?? `studio_${slug}`;
-      // Prefer the resolved agency; otherwise fall back to the sole agency (so a
-      // sub-account created outside a fully-resolved agency session is still
-      // linked, not orphaned - which would scope-deny the owner later).
-      const agencyId =
-        self?.kind === "agency_member"
-          ? self.agencyId
-          : (await ctx.runQuery(internal.agency._soleAgencyId, {})) ?? undefined;
       await ctx.runMutation(internal.agency.provision, {
         orgId,
         clerkOrgId,
@@ -570,6 +550,10 @@ export const inviteStudio = action({
       const name = args.studioName?.trim() || "New studio";
       const plan = args.plan ?? "core";
 
+      // Same gate as createSubaccount: agency member with
+      // agency.subaccount.create, plan capped at the agency's own, studio cap.
+      const { agencyId } = await ctx.runQuery(internal.agency._authorizeCreate, { plan });
+
       // Generate a unique slug from the name (or a random one), so the agency
       // never has to think about slugs. The owner can rename it in onboarding.
       const base =
@@ -580,12 +564,6 @@ export const inviteStudio = action({
         if (!(await ctx.runQuery(internal.agency._slugTaken, { slug }))) break;
         slug = `${base}-${Math.random().toString(36).slice(2, 6)}`;
       }
-
-      const self = await ctx.runQuery(internal.agency._resolveSelf, {});
-      const agencyId =
-        self?.kind === "agency_member"
-          ? self.agencyId
-          : (await ctx.runQuery(internal.agency._soleAgencyId, {})) ?? undefined;
 
       // Real Clerk org when configured (same rationale as createSubaccount: no
       // slug sent to Clerk; our routing slug lives on the Convex org).
@@ -694,6 +672,46 @@ export const setFeatures = mutation({
 });
 
 // ── Internal helpers used by the createSubaccount cap check ──────
+
+/** The gate for creating a studio (createSubaccount, inviteStudio).
+ *  - the caller must be an agency member holding agency.subaccount.create
+ *    (unauthenticated callers, demo viewers and studio members are refused);
+ *  - the requested plan may not exceed the agency's own plan, so a Core agency
+ *    cannot mint Max studios (a missing agencies row resolves to Core);
+ *  - the agency's studio cap applies.
+ *  Returns the agency the new studio belongs to. */
+export const _authorizeCreate = internalQuery({
+  args: { plan: planV },
+  handler: async (ctx, { plan }) => {
+    const viewer = await requireCapability(ctx, "agency.subaccount.create");
+    if (viewer.kind !== "agency_member") {
+      throw new AccessError("CAPABILITY_DENIED", "Only an agency can create studios.");
+    }
+    const ag = await ctx.db
+      .query("agencies")
+      .withIndex("by_agency", (q) => q.eq("agencyId", viewer.agencyId))
+      .first();
+    const agencyTier = tierForPlan(ag?.plan);
+    if (tierRank(plan) > tierRank(agencyTier)) {
+      throw new ConvexError(
+        `Your agency is on the ${agencyTier} plan, so it cannot create a ${plan} studio.`,
+      );
+    }
+    const cap = PLAN_LIMITS[agencyTier].subAccountCap;
+    const count = (
+      await ctx.db
+        .query("orgs")
+        .withIndex("by_agency", (q) => q.eq("agencyId", viewer.agencyId))
+        .collect()
+    ).length;
+    if (count >= cap) {
+      throw new ConvexError(
+        `Plan cap reached (${count}/${cap} studios). Upgrade your plan to add more.`,
+      );
+    }
+    return { agencyId: viewer.agencyId };
+  },
+});
 export const _resolveSelf = internalQuery({
   args: {},
   handler: async (ctx) => {

@@ -97,8 +97,19 @@ describe("createSubaccount records an invite", () => {
   beforeEach(() => { t = convexTest(schema); });
 
   it("records a pending invite row for the owner email", async () => {
-    // Demo path: no CLERK_SECRET_KEY, single-tenant (no agency).
-    await t.action(api.agency.createSubaccount, {
+    // No CLERK_SECRET_KEY: synthetic org id. Only an agency may create studios.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencies", {
+        agencyId: "org_ag", name: "AG", slug: "ag", plan: "max", status: "active",
+        ownerClerkUserId: "u_ag", ownerEmail: "ag@x.com",
+      });
+      await ctx.db.insert("agencyMembers", {
+        agencyId: "org_ag", clerkUserId: "u_ag", email: "ag@x.com",
+        name: "Agency", role: "owner", status: "active", invitedAt: 0,
+      });
+    });
+    const agency = t.withIdentity({ subject: "u_ag", name: "Agency" });
+    await agency.action(api.agency.createSubaccount, {
       name: "Skyline", slug: "skyline", plan: "core",
       ownerName: "Jordan", ownerEmail: "Owner@Skyline.com",
     });

@@ -78,7 +78,18 @@ describe("onboarding wizard", () => {
 describe("agency.inviteStudio (email-first portal)", () => {
   it("provisions an active studio + records a pending invite from just an email", async () => {
     const t = convexTest(schema);
-    const res = await t.action(api.agency.inviteStudio, {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencies", {
+        agencyId: "org_ag", name: "AG", slug: "ag", plan: "max", status: "active",
+        ownerClerkUserId: "u_ag", ownerEmail: "ag@x.com",
+      });
+      await ctx.db.insert("agencyMembers", {
+        agencyId: "org_ag", clerkUserId: "u_ag", email: "ag@x.com",
+        name: "Agency", role: "owner", status: "active", invitedAt: 0,
+      });
+    });
+    const agency = t.withIdentity({ subject: "u_ag", name: "Agency" });
+    const res = await agency.action(api.agency.inviteStudio, {
       email: "Owner@NewStudio.com", studioName: "New Studio",
     });
     expect(res.orgId).toBeTruthy();
@@ -101,7 +112,18 @@ describe("agency.inviteStudio (email-first portal)", () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("orgs", { orgId: "x", name: "Skyline", slug: "skyline", tier: "growth", status: "active" });
     });
-    const res = await t.action(api.agency.inviteStudio, { email: "o@x.com", studioName: "Skyline" });
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencies", {
+        agencyId: "org_ag", name: "AG", slug: "ag", plan: "max", status: "active",
+        ownerClerkUserId: "u_ag", ownerEmail: "ag@x.com",
+      });
+      await ctx.db.insert("agencyMembers", {
+        agencyId: "org_ag", clerkUserId: "u_ag", email: "ag@x.com",
+        name: "Agency", role: "owner", status: "active", invitedAt: 0,
+      });
+    });
+    const agency = t.withIdentity({ subject: "u_ag", name: "Agency" });
+    const res = await agency.action(api.agency.inviteStudio, { email: "o@x.com", studioName: "Skyline" });
     expect(res.slug).not.toBe("skyline");
     expect(res.slug.startsWith("skyline-")).toBe(true);
   });

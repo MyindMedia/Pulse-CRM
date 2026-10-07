@@ -161,3 +161,90 @@ describe("agency - console scoping (multi-tenant isolation)", () => {
     expect((await owner.query(api.agency.subaccount, { orgId: "sub_mine" }))?.orgId).toBe("sub_mine");
   });
 });
+
+describe("agency - who may create a studio (createSubaccount / inviteStudio)", () => {
+  let t: ReturnType<typeof convexTest>;
+  beforeEach(() => { t = convexTest(schema); });
+
+  async function seedAgency(plan: "core" | "growth" | "max", role: "owner" | "admin" | "staff" | "billing" = "owner") {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencies", {
+        agencyId: "org_ag", name: "AG", slug: "ag",
+        plan, status: "active",
+        ownerClerkUserId: "u_owner", ownerEmail: "o@x",
+      });
+      await ctx.db.insert("agencyMembers", {
+        agencyId: "org_ag", clerkUserId: "u_member", email: "m@x",
+        name: "Member", role, status: "active", invitedAt: 0,
+      });
+    });
+    return t.withIdentity({ subject: "u_member", name: "Member" });
+  }
+
+  const sub = (slug: string, plan: "core" | "growth" | "max") => ({
+    name: `Studio ${slug}`, slug, plan, ownerName: "X", ownerEmail: `${slug}@x.com`,
+  });
+
+  async function orgCount() {
+    return await t.run(async (ctx) => (await ctx.db.query("orgs").collect()).length);
+  }
+
+  it("refuses an unauthenticated caller (no studio is created)", async () => {
+    await expect(t.action(api.agency.createSubaccount, sub("anon", "max"))).rejects.toThrow();
+    await expect(t.action(api.agency.inviteStudio, { email: "a@x.com", plan: "max" })).rejects.toThrow();
+    const prev = process.env.CLERK_JWT_ISSUER_DOMAIN;
+    process.env.CLERK_JWT_ISSUER_DOMAIN = "https://clerk.example";
+    try {
+      await expect(t.action(api.agency.createSubaccount, sub("anon2", "max"))).rejects.toThrow();
+      await expect(t.action(api.agency.inviteStudio, { email: "b@x.com", plan: "max" })).rejects.toThrow();
+    } finally {
+      if (prev === undefined) delete process.env.CLERK_JWT_ISSUER_DOMAIN;
+      else process.env.CLERK_JWT_ISSUER_DOMAIN = prev;
+    }
+    expect(await orgCount()).toBe(0);
+  });
+
+  it("refuses a plain studio member, even the studio's owner", async () => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: "studio_a", name: "A", slug: "a", tier: "max", status: "active" });
+      await ctx.db.insert("members", {
+        orgId: "studio_a", name: "Owner", role: "owner", clerkUserId: "u_studio", skills: [],
+      });
+    });
+    const member = t.withIdentity({ subject: "u_studio", name: "S", orgId: "studio_a" });
+    await expect(member.action(api.agency.createSubaccount, sub("mine", "max"))).rejects.toThrow();
+    await expect(member.action(api.agency.inviteStudio, { email: "c@x.com", plan: "max" })).rejects.toThrow();
+    expect(await orgCount()).toBe(1);
+  });
+
+  it("refuses an agency member whose role lacks agency.subaccount.create", async () => {
+    const staff = await seedAgency("max", "staff");
+    await expect(staff.action(api.agency.createSubaccount, sub("st", "core"))).rejects.toThrow();
+    await expect(staff.action(api.agency.inviteStudio, { email: "d@x.com" })).rejects.toThrow();
+    expect(await orgCount()).toBe(0);
+  });
+
+  it("lets an agency member create studios up to the agency's own plan", async () => {
+    const admin = await seedAgency("growth", "admin");
+    await admin.action(api.agency.createSubaccount, sub("g1", "growth"));
+    const org = await t.run(async (ctx) =>
+      (await ctx.db.query("orgs").collect()).find((o) => o.slug === "g1"));
+    expect(org?.tier).toBe("growth");
+    expect(org?.agencyId).toBe("org_ag");
+  });
+
+  it("refuses a plan above the agency's own plan (a Core agency cannot mint Max)", async () => {
+    const owner = await seedAgency("core");
+    await expect(owner.action(api.agency.createSubaccount, sub("m1", "max"))).rejects.toThrow(/plan/i);
+    await expect(owner.action(api.agency.createSubaccount, sub("g2", "growth"))).rejects.toThrow(/plan/i);
+    await expect(owner.action(api.agency.inviteStudio, { email: "e@x.com", plan: "max" })).rejects.toThrow(/plan/i);
+    expect(await orgCount()).toBe(0);
+  });
+
+  it("inviteStudio honours the agency's studio cap too", async () => {
+    const owner = await seedAgency("growth");
+    await owner.action(api.agency.inviteStudio, { email: "f@x.com", plan: "core" });
+    await expect(owner.action(api.agency.inviteStudio, { email: "g@x.com", plan: "core" }))
+      .rejects.toThrow(/Plan cap reached/);
+  });
+});
