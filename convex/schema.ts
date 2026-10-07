@@ -3322,7 +3322,6 @@ export default defineSchema({
     .index("by_key", ["bucket", "key"])
     .index("by_status", ["status", "createdAt"])
     .index("by_attach", ["status", "attachedAt", "createdAt"]),
-});
 
   // ── Gear check-out: one row per time a piece of gear leaves the shelf.
   //    Open while inAt is unset; the closed rows are the item's history. ──
@@ -3356,3 +3355,4 @@ export default defineSchema({
     .index("by_org_open", ["orgId", "inAt"])
     .index("by_equipment", ["equipmentId", "outAt"])
     .index("by_equipment_open", ["equipmentId", "inAt"]),
+});
