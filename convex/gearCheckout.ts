@@ -311,26 +311,51 @@ export const sweepOverdue = internalMutation({
   args: { nowMs: v.optional(v.number()) },
   handler: async (ctx, { nowMs }) => {
     const now = nowMs ?? Date.now();
-    const rows = await ctx.db
-      .query("gearCheckouts")
-      .filter((q) => q.and(q.eq(q.field("inAt"), undefined), q.eq(q.field("overdueNotifiedAt"), undefined), q.neq(q.field("dueAt"), undefined)))
-      .take(200);
+    // Walk the open, un-alerted check-outs whose due time has passed, oldest
+    // first, straight off the index: not-yet-due rows are never read, so they
+    // cannot crowd out an overdue one. Every row handled gets overdueNotifiedAt
+    // stamped, which drops it from the range, so a studio below Growth cannot
+    // starve newer overdue rows either. (A studio that upgrades later does not
+    // get an alert for check-outs that went overdue while it was below Growth.)
+    const PAGE = 200;
+    const MAX_PAGES = 25;
+    const entitled = new Map<string, boolean>();
     let notified = 0;
-    for (const r of rows) {
-      if (!isOverdue(r, now)) continue;
-      // Studios that dropped below Growth stop getting the alert.
-      if (!(await orgHasFeature(ctx, r.orgId, "gearCheckout"))) continue;
-      const holder = r.holderMemberId ? await ctx.db.get(r.holderMemberId) : null;
-      await ctx.db.patch(r._id, { overdueNotifiedAt: now });
-      await ctx.scheduler.runAfter(0, internal.notify.toOrg, {
-        orgId: r.orgId,
-        title: "Gear is overdue",
-        body: `${r.equipmentName} was due back from ${r.holderLabel}.`,
-        url: "/inventory",
-        tag: `gear-overdue-${r._id}`,
-        ...(holder?.clerkUserId ? { clerkUserIds: [holder.clerkUserId] } : {}),
-      });
-      notified++;
+    let cursor: string | null = null;
+    for (let page = 0; page < MAX_PAGES; page++) {
+      const res = await ctx.db
+        .query("gearCheckouts")
+        .withIndex("by_open_due", (q) =>
+          q.eq("inAt", undefined).eq("overdueNotifiedAt", undefined).gte("dueAt", 0).lte("dueAt", now),
+        )
+        .paginate({ numItems: PAGE, cursor });
+      for (const r of res.page) {
+        if (!isOverdue(r, now)) continue;
+        let ok = entitled.get(r.orgId);
+        if (ok === undefined) {
+          ok = await orgHasFeature(ctx, r.orgId, "gearCheckout");
+          entitled.set(r.orgId, ok);
+        }
+        // Studios that dropped below Growth stop getting the alert; mark the row
+        // so it never gets re-read.
+        if (!ok) {
+          await ctx.db.patch(r._id, { overdueNotifiedAt: now });
+          continue;
+        }
+        const holder = r.holderMemberId ? await ctx.db.get(r.holderMemberId) : null;
+        await ctx.db.patch(r._id, { overdueNotifiedAt: now });
+        await ctx.scheduler.runAfter(0, internal.notify.toOrg, {
+          orgId: r.orgId,
+          title: "Gear is overdue",
+          body: `${r.equipmentName} was due back from ${r.holderLabel}.`,
+          url: "/inventory",
+          tag: `gear-overdue-${r._id}`,
+          ...(holder?.clerkUserId ? { clerkUserIds: [holder.clerkUserId] } : {}),
+        });
+        notified++;
+      }
+      if (res.isDone) break;
+      cursor = res.continueCursor;
     }
     return { notified };
   },

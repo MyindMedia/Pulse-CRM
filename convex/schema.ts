@@ -3354,5 +3354,6 @@ export default defineSchema({
   })
     .index("by_org_open", ["orgId", "inAt"])
     .index("by_equipment", ["equipmentId", "outAt"])
-    .index("by_equipment_open", ["equipmentId", "inAt"]),
+    .index("by_equipment_open", ["equipmentId", "inAt"])
+    .index("by_open_due", ["inAt", "overdueNotifiedAt", "dueAt"]),
 });

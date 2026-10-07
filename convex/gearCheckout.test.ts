@@ -127,6 +127,51 @@ describe("overdue", () => {
   });
 });
 
+describe("overdue sweep paging", () => {
+  async function insertRow(t: ReturnType<typeof convexTest>, orgId: string, equipmentId: any, name: string, dueAt: number) {
+    return t.run((ctx) =>
+      ctx.db.insert("gearCheckouts", {
+        orgId, equipmentId, equipmentName: name, holderKind: "rental", holderLabel: "X",
+        outAt: 0, dueAt, outBy: "t",
+      }),
+    );
+  }
+
+  it("250 not-yet-due rows do not block an overdue alert", async () => {
+    const t = convexTest(schema);
+    await studio(t, "o1", "growth");
+    const g = await gear(t, "o1", "G");
+    const now = 1_000_000;
+    // Inserted first, so an unindexed take(200) would fill with these.
+    for (let i = 0; i < 250; i++) await insertRow(t, "o1", g, `future${i}`, now + 60_000 + i);
+    const late = await insertRow(t, "o1", g, "late", now - 1000);
+    const res = await t.mutation(internal.gearCheckout.sweepOverdue, { nowMs: now });
+    expect(res.notified).toBe(1);
+    const row = await t.run((ctx) => ctx.db.get(late));
+    expect(row?.overdueNotifiedAt).toBe(now);
+  });
+
+  it("marks rows from studios below Growth so they never starve newer overdue rows", async () => {
+    const t = convexTest(schema);
+    await studio(t, "low", "core");
+    await studio(t, "ok", "growth");
+    const lg = await gear(t, "low", "L");
+    const og = await gear(t, "ok", "O");
+    const now = 1_000_000;
+    const lowIds = [];
+    for (let i = 0; i < 230; i++) lowIds.push(await insertRow(t, "low", lg, `low${i}`, now - 5000 + i));
+    const newer = await insertRow(t, "ok", og, "newer", now - 10);
+    const res = await t.mutation(internal.gearCheckout.sweepOverdue, { nowMs: now });
+    expect(res.notified).toBe(1);
+    expect((await t.run((ctx) => ctx.db.get(newer)))?.overdueNotifiedAt).toBe(now);
+    for (const id of [lowIds[0], lowIds[229]]) {
+      expect((await t.run((ctx) => ctx.db.get(id)))?.overdueNotifiedAt).toBe(now);
+    }
+    const again = await t.mutation(internal.gearCheckout.sweepOverdue, { nowMs: now });
+    expect(again.notified).toBe(0);
+  });
+});
+
 describe("studio isolation and code uniqueness", () => {
   it("another studio's code reads as not found everywhere", async () => {
     const t = convexTest(schema);
