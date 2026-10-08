@@ -204,9 +204,14 @@ export async function readFileBlob(
 
 /** Pending row for a server-side write. Returns where the bytes must go. */
 export const _reserveStored = internalMutation({
-  args: { scope: v.string(), purpose: purposeV, fileName: v.string(), mimeType: v.string(), size: v.number(), actor: v.string(), legacyStorageId: v.optional(v.id("_storage")) },
+  args: {
+    scope: v.string(), purpose: purposeV, fileName: v.string(), mimeType: v.string(), size: v.number(), actor: v.string(), legacyStorageId: v.optional(v.id("_storage")),
+    /** false for bytes a third party chose (an inbound email attachment): the
+     *  per-purpose checks and the daily limit apply. Unset = our own bytes. */
+    trusted: v.optional(v.boolean()),
+  },
   handler: async (ctx, a): Promise<{ mediaId: Id<"mediaFiles">; key: string; bucket: MediaBucket; bucketName: string }> => {
-    const { mediaId } = await createUpload(ctx, { scope: a.scope, purpose: a.purpose, fileName: a.fileName, mimeType: a.mimeType, size: a.size, actor: a.actor, trusted: true });
+    const { mediaId } = await createUpload(ctx, { scope: a.scope, purpose: a.purpose, fileName: a.fileName, mimeType: a.mimeType, size: a.size, actor: a.actor, trusted: a.trusted !== false });
     if (a.legacyStorageId) await ctx.db.patch(mediaId, { legacyStorageId: a.legacyStorageId });
     const row = (await ctx.db.get(mediaId))!;
     return { mediaId, key: row.key, bucket: row.bucket, bucketName: rowBucket(row) };
@@ -224,7 +229,13 @@ export function isR2NotConfigured(err: unknown): boolean {
  *  working; production has R2 configured and never takes this path. */
 export async function storeBytes(
   ctx: ActionCtx,
-  a: { scope: string; purpose: MediaPurpose; blob: Blob; fileName: string; mimeType?: string; actor: string; legacyStorageId?: Id<"_storage">; noFallback?: boolean },
+  a: {
+    scope: string; purpose: MediaPurpose; blob: Blob; fileName: string; mimeType?: string; actor: string; legacyStorageId?: Id<"_storage">; noFallback?: boolean;
+    /** Content-Disposition R2 serves the object with (e.g. a forced download). */
+    disposition?: string;
+    /** Bytes from outside (an email sender): not exempt from upload checks. */
+    untrusted?: boolean;
+  },
 ): Promise<FileRef> {
   const rule = PURPOSES[a.purpose];
   if (a.blob.size <= 0) throw new ConvexError("That file is empty.");
@@ -232,7 +243,10 @@ export async function storeBytes(
   const mimeType = (a.mimeType || a.blob.type || "application/octet-stream").slice(0, 120);
   let spot: { mediaId: Id<"mediaFiles">; key: string; bucket: MediaBucket; bucketName: string };
   try {
-    spot = await ctx.runMutation(internal.media._reserveStored, { scope: a.scope, purpose: a.purpose, fileName: a.fileName, mimeType, size: a.blob.size, actor: a.actor, legacyStorageId: a.legacyStorageId });
+    spot = await ctx.runMutation(internal.media._reserveStored, {
+      scope: a.scope, purpose: a.purpose, fileName: a.fileName, mimeType, size: a.blob.size, actor: a.actor, legacyStorageId: a.legacyStorageId,
+      ...(a.untrusted ? { trusted: false } : {}),
+    });
   } catch (err) {
     if (!a.noFallback && isR2NotConfigured(err)) {
       console.warn(`storeBytes: R2 is not configured, keeping ${a.purpose} in Convex storage`);
@@ -241,7 +255,7 @@ export async function storeBytes(
     throw err;
   }
   try {
-    await r2For(spot.bucket, spot.bucketName).store(ctx, a.blob, { key: spot.key, type: mimeType });
+    await r2For(spot.bucket, spot.bucketName).store(ctx, a.blob, { key: spot.key, type: mimeType, ...(a.disposition ? { disposition: a.disposition } : {}) });
   } catch (err) {
     await ctx.runMutation(internal.media._discard, { mediaId: spot.mediaId });
     throw err;

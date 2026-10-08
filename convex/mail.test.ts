@@ -4,6 +4,8 @@ import schema from "./schema";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { svixSign } from "./mail/svix";
+import r2Test from "@convex-dev/r2/test";
+import { R2 } from "@convex-dev/r2";
 
 const AG = "org_mail";
 const OTHER = "org_other";
@@ -202,6 +204,63 @@ describe("agency email", () => {
     expect(await t.run(async (ctx) => (await ctx.db.system.query("_storage").collect()).length)).toBe(0);
   });
 
+  it("stores an attachment as a forced download of octet-stream, whatever type the sender declared", async () => {
+    await seedAgency();
+    r2Test.register(t);
+    for (const [k, val] of Object.entries({
+      R2_ENDPOINT: "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com", R2_ACCESS_KEY_ID: "AKIATEST",
+      R2_SECRET_ACCESS_KEY: "secret-test-value", R2_PRIVATE_BUCKET: "pulse-private", R2_MEDIA_BUCKET: "pulse-media", R2_KEY_PREFIX: "test",
+    })) vi.stubEnv(k, val);
+    const puts: Array<{ type?: string; disposition?: string }> = [];
+    const store = vi.spyOn(R2.prototype, "store").mockImplementation(async (_ctx, _file, opts) => {
+      const o = typeof opts === "string" ? { key: opts } : (opts ?? {});
+      puts.push({ type: o.type, disposition: o.disposition });
+      return o.key!;
+    });
+    const html = "<html><script>alert(document.domain)</script></html>";
+    const msg = { ...full("att", ["support@studiopulse.tech"], "Invoice"), attachments: [{ id: "a1", filename: "invoice.html", content_type: "text/html", size: html.length }] };
+    vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/emails/receiving/att")) return new Response(JSON.stringify(msg), { status: 200 });
+      if (url.endsWith("/emails/receiving/att/attachments")) {
+        return new Response(JSON.stringify({ data: [{ id: "a1", size: html.length, download_url: "https://cdn.resend.test/a1", content_type: "text/html", filename: "invoice.html" }] }), { status: 200 });
+      }
+      if (url === "https://cdn.resend.test/a1") return new Response(html, { status: 200, headers: { "Content-Type": "text/html" } });
+      return new Response("not found", { status: 404 });
+    }));
+    try {
+      expect((await post(event("att", ["support@studiopulse.tech"], "Invoice"))).status).toBe(200);
+      await t.finishAllScheduledFunctions(vi.runAllTimers);
+      const m = await t.run(async (ctx) => (await ctx.db.query("mailMessages").collect())[0]);
+      expect(m.attachments[0]).toMatchObject({ status: "stored", contentType: "text/html", filename: "invoice.html" });
+      expect(puts).toEqual([{ type: "application/octet-stream", disposition: 'attachment; filename="invoice.html"' }]);
+      const file = await t.run(async (ctx) => await ctx.db.get(m.attachments[0].fileRef as Id<"mediaFiles">));
+      expect(file!.mimeType).toBe("application/octet-stream");
+    } finally {
+      store.mockRestore();
+    }
+  });
+
+  it("a sender's attachments get no upload exemptions: the daily upload limit applies to them", async () => {
+    r2Test.register(t);
+    for (const [k, val] of Object.entries({
+      R2_ENDPOINT: "https://0123456789abcdef0123456789abcdef.r2.cloudflarestorage.com", R2_ACCESS_KEY_ID: "AKIATEST",
+      R2_SECRET_ACCESS_KEY: "secret-test-value", R2_PRIVATE_BUCKET: "pulse-private", R2_MEDIA_BUCKET: "pulse-media", R2_KEY_PREFIX: "test",
+    })) vi.stubEnv(k, val);
+    const scope = `agency:${AG}`;
+    await t.run(async (ctx) => {
+      for (let i = 0; i < 300; i++) {
+        await ctx.db.insert("mediaFiles", { orgId: scope, bucket: "private", key: `test/${scope}/document/f${i}`, purpose: "document", fileName: "f", mimeType: "application/octet-stream", status: "ready", uploadedBy: "mail-inbound", createdAt: Date.now() });
+      }
+    });
+    const reserve = (trusted?: boolean) => t.mutation(internal.media._reserveStored, {
+      scope, purpose: "document", fileName: "x.bin", mimeType: "application/octet-stream", size: 10, actor: "mail-inbound", ...(trusted === undefined ? {} : { trusted }),
+    });
+    await expect(reserve(false)).rejects.toThrow(/Too many uploads/);
+    // Our own server-side writes (backfills, generated images) keep the exemption.
+    await expect(reserve()).resolves.toMatchObject({ bucket: "private" });
+  });
+
   /* ------------------------------ access ------------------------------ */
 
   it("only owners and admins of the mail agency can read or create", async () => {
@@ -212,6 +271,30 @@ describe("agency email", () => {
     await expect(as("staff").mutation(api.mail.ensureDefaults, {})).rejects.toThrow();
     expect((await as(`owner_${OTHER}`, OTHER).query(api.mail.access, {})).allowed).toBe(false);
     expect((await owner().query(api.mail.access, {})).allowed).toBe(true);
+  });
+
+  it("quarantines mail to domain role addresses instead of showing it in Unrouted", async () => {
+    await seedAgency();
+    stubResend({
+      q1: full("q1", ["admin@studiopulse.tech"], "Verify your domain"),
+      q2: full("q2", ["postmaster@studiopulse.tech"], "Hello sales"),
+      u1: full("u1", ["sales@studiopulse.tech"], "Hello sales"),
+    });
+    await post(event("q1", ["admin@studiopulse.tech"], "Verify your domain"));
+    await post(event("u1", ["sales@studiopulse.tech"], "Hello sales"));
+    // Same subject and sender as an open Unrouted thread: must not join or reopen it.
+    await post(event("q2", ["postmaster@studiopulse.tech"], "Hello sales"));
+
+    const unrouted = await owner().query(api.mail.listThreads, { box: "unrouted" });
+    expect(unrouted!.map((x) => x.subject)).toEqual(["Hello sales"]);
+    expect(unrouted![0].messageCount).toBe(1);
+    expect(await owner().query(api.mail.listThreads, { box: "unrouted", archived: true })).toEqual([]);
+    expect((await owner().query(api.mail.listMailboxes, {}))!.unroutedUnread).toBe(1);
+
+    // Kept, not dropped.
+    const threads = await t.run(async (ctx) => await ctx.db.query("mailThreads").collect());
+    expect(threads.filter((x) => x.status === "quarantined").map((x) => x.subject).sort()).toEqual(["Hello sales", "Verify your domain"]);
+    expect(await t.run(async (ctx) => (await ctx.db.query("mailMessages").collect()).length)).toBe(3);
   });
 
   it("seeds Support, Lawrence B and Info once", async () => {

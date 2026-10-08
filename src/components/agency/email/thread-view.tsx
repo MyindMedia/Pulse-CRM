@@ -11,7 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { Textarea, Input } from "@/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { errorMessage } from "@/lib/errors";
-import { emailSrcDoc, hasRemoteImages } from "@/lib/email-html";
+import { EMAIL_IFRAME_SANDBOX, emailSrcDoc, hasRemoteImages } from "@/lib/email-html";
 import { splitAddresses, type MailboxOption } from "./email-dialogs";
 
 type ThreadData = NonNullable<ReturnType<typeof useThread>>;
@@ -50,7 +50,7 @@ function MessageBody({ m }: { m: Message }) {
         )}
         <iframe
           title={`Message from ${m.from}`}
-          sandbox="allow-popups allow-popups-to-escape-sandbox"
+          sandbox={EMAIL_IFRAME_SANDBOX}
           referrerPolicy="no-referrer"
           srcDoc={emailSrcDoc(m.html, { allowRemoteImages: images })}
           className="h-[420px] w-full rounded-md border border-graphite/40 bg-white"

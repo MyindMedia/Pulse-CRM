@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { checkLocalPart, checkDisplayName, bareAddress, displayNameOf, ownAddress, routeRecipients } from "./address";
+import { checkLocalPart, checkDisplayName, bareAddress, displayNameOf, ownAddress, routeRecipients, quarantinedRecipient } from "./address";
 
 describe("checkLocalPart (new inbox)", () => {
   it("accepts lowercase a-z0-9._- and fixes the domain", () => {
@@ -64,5 +64,20 @@ describe("routeRecipients", () => {
   it("unknown recipient in our domain is unrouted, with the candidate kept", () => {
     const r = routeRecipients({ to: ["sales@studiopulse.tech"] }, active);
     expect(r).toEqual({ address: null, candidates: ["sales@studiopulse.tech"] });
+  });
+});
+
+describe("quarantinedRecipient", () => {
+  it("flags role addresses that control the domain (certificate and registrar mail)", () => {
+    for (const lp of ["admin", "administrator", "postmaster", "hostmaster", "abuse", "webmaster"]) {
+      expect(quarantinedRecipient([`${lp}@studiopulse.tech`])).toBe(`${lp}@studiopulse.tech`);
+    }
+  });
+  it("flags a reserved address even when an unknown one rides along", () => {
+    expect(quarantinedRecipient(["sales@studiopulse.tech", "admin@studiopulse.tech"])).toBe("admin@studiopulse.tech");
+  });
+  it("leaves ordinary unrouted addresses alone", () => {
+    expect(quarantinedRecipient(["sales@studiopulse.tech"])).toBeNull();
+    expect(quarantinedRecipient([])).toBeNull();
   });
 });
