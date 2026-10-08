@@ -11,4 +11,4 @@
 - [x] `npx tsc --noEmit`, eslint on changed files, `npx vitest run`.
 - [ ] Owner decisions: how to book the 630.00 cash variance, and the real June 30 opening balance sheet.
 - [ ] Phase B: branded report UI on `ledger.statements`.
-- [ ] Phase C: accounting agent on `ledger.journal`, `ledger.addEntry` (draft) and `ledger.bankReconciliation`.
+- [x] Phase C: accounting agent, see `openspec/changes/accounting-agent/`.

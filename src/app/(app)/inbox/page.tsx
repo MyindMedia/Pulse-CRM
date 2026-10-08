@@ -15,6 +15,8 @@ import {
   StickyNote,
   Sparkles,
   ChevronRight,
+  Landmark,
+  Receipt,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
@@ -44,6 +46,15 @@ const AGENT_META: Record<string, { label: string; group: string; order: number }
   weak_lead_source: { label: "Lead Source ROI", group: "Revenue Ops", order: 11 },
   promote_underused_room: { label: "Promote Room", group: "Revenue Ops", order: 11 },
   social_post_draft: { label: "Social Post", group: "Marketing", order: 12 },
+  // Accounting agent: money only. Approving posts through the ledger.
+  acct_clearing_draft: { label: "Clear Deposits", group: "Accounting", order: 13 },
+  acct_cash_draw_reclass: { label: "Cash Owner Draw", group: "Accounting", order: 13 },
+  acct_fee_split: { label: "Processor Fees", group: "Accounting", order: 13 },
+  acct_receipt_link: { label: "Receipt Match", group: "Accounting", order: 13 },
+  acct_receipt_missing: { label: "Missing Receipt", group: "Accounting", order: 13 },
+  acct_categorize: { label: "Categories", group: "Accounting", order: 13 },
+  acct_unexplained_cash: { label: "Unexplained Cash", group: "Accounting", order: 13 },
+  acct_anomaly: { label: "Worth a Look", group: "Accounting", order: 13 },
 };
 
 const PRIORITY_TONE: Record<string, "critical" | "gold" | "neutral"> = {
@@ -55,6 +66,8 @@ const PRIORITY_TONE: Record<string, "critical" | "gold" | "neutral"> = {
 function PayloadIcon({ kind }: { kind: string }) {
   if (kind === "email") return <Mail className="size-3.5" />;
   if (kind === "session_status") return <CalendarCheck className="size-3.5" />;
+  if (kind === "ledger_draft") return <Landmark className="size-3.5" />;
+  if (kind === "receipt_link") return <Receipt className="size-3.5" />;
   return <StickyNote className="size-3.5" />;
 }
 
@@ -98,6 +111,9 @@ function InboxCard({ action, onOpen }: { action: Doc<"opsActions">; onOpen: (a: 
               {p.kind === "email" && <span className="truncate">{p.to ?? "no recipient"}</span>}
               {p.kind === "session_status" && <span>will set → {p.newStatus}</span>}
               {p.kind === "note_only" && <span>{action.artifactId ? "draft attached" : "internal note"}</span>}
+              {p.kind === "ledger_draft" && <span>draft entry, nothing changes until you approve</span>}
+              {p.kind === "receipt_link" && <span>{p.exact ? "exact receipt match" : "possible receipt match"}</span>}
+              {p.kind === "acct_note" && <span>finding, approving only acknowledges it</span>}
               {p.kind === "social_post" && (
                 <a
                   href={`/marketing/compose?post=${p.postId}`}
@@ -115,7 +131,7 @@ function InboxCard({ action, onOpen }: { action: Doc<"opsActions">; onOpen: (a: 
       </button>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
-        <Button size="sm" disabled={pending} onClick={() => run(() => approve({ id: action._id }), "Approved + sent.")}>
+        <Button size="sm" disabled={pending} onClick={() => run(() => approve({ id: action._id }), action.type.startsWith("acct_") ? "Approved." : "Approved + sent.")}>
           <Check className="size-3.5" /> Approve
         </Button>
         <Button variant="outline" size="sm" disabled={pending} onClick={() => run(() => dismiss({ id: action._id }), "Dismissed.")}>

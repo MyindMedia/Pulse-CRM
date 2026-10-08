@@ -576,6 +576,37 @@ function ensurePayLink(body: string, url: string): string {
   return out;
 }
 
+/** Optional AI wording for Accounting proposals. The deterministic text is
+ *  already saved; this only rewrites the plain-English reason, and only when
+ *  the rewrite keeps every dollar figure and invents none (verifyDraft). Any
+ *  failure, a missing key included, leaves the original in place. */
+export const enrichAccountingActions = internalAction({
+  args: { ids: v.array(v.id("opsActions")) },
+  handler: async (ctx, { ids }) => {
+    let enriched = 0;
+    for (const id of ids) {
+      const c = await ctx.runQuery(internal.accountingAgent.wordingContext, { id });
+      if (!c) continue;
+      const facts = [`Title: ${c.title}`, `Reason: ${c.rationale}`, ...c.evidence.map((e) => `Evidence: ${e}`)].join("\n");
+      const allowedMoney = [...facts.matchAll(/\$\s?\d[\d,]*(?:\.\d{1,2})?/g)].map((m) => m[0]);
+      const ai = await complete(
+        `You are the Accounting assistant for ${c.orgName}, a recording studio. Rewrite the Reason for the studio owner in plain, calm English, two or three sentences, no jargon, never alarming. Keep every dollar figure exactly as written and add no new figures or facts. Output only the rewritten reason.\n\n${fenceUntrusted("FACTS", facts)}`,
+        { system: `You explain bookkeeping to a busy studio owner. ${tenantGuard(c.orgName)} Plain and calm.`, maxOutputTokens: 220 },
+      );
+      const text = ai?.text?.trim();
+      if (!text) continue;
+      const verdict = verifyDraft(text, { allowedMoney });
+      if (!verdict.ok) {
+        console.warn(`[enrich] rejected accounting wording for ${c.type}: ${verdict.issues.join("; ")}`);
+        continue;
+      }
+      await ctx.runMutation(internal.opsActions.applyEnrichment, { id, rationale: text, model: ai?.model });
+      enriched++;
+    }
+    return { enriched };
+  },
+});
+
 export const enrichOpsActions = internalAction({
   args: { ids: v.array(v.id("opsActions")) },
   handler: async (ctx, { ids }) => {

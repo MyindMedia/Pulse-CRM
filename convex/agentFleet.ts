@@ -5,6 +5,8 @@ import { internal } from "./_generated/api";
 import { resolveViewer } from "./lib/access";
 import { DEMO_ORG } from "./lib/tenant";
 import { studioHealthFor } from "./agentHealth";
+import { isAccountingType } from "./lib/agentScope";
+import { setAccountingEnabled } from "./accountingAgent";
 
 /* ============================================================
    Agency control plane for Pulse Agent. Lets an agency owner run
@@ -44,7 +46,19 @@ export const fleet = query({
           .collect();
         const lastRun = await ctx.db.query("agentRuns").withIndex("by_org", (q) => q.eq("orgId", o.orgId)).order("desc").first();
         const health = await studioHealthFor(ctx, o.orgId);
+        // Accounting agent (money only): its own switch and its own open items.
+        const proposed = await ctx.db
+          .query("opsActions")
+          .withIndex("by_org_status", (q) => q.eq("orgId", o.orgId).eq("status", "proposed"))
+          .collect();
+        const lastScan = (await ctx.db.query("agentRuns").withIndex("by_org", (q) => q.eq("orgId", o.orgId)).order("desc").take(50))
+          .find((r) => r.runType === "accounting_scan");
         return {
+          accounting: {
+            enabled: policy?.accountingEnabled ?? true,
+            openProposals: proposed.filter((r) => isAccountingType(r.type)).length,
+            lastScanAt: lastScan?._creationTime ?? null,
+          },
           orgId: o.orgId,
           name: o.name,
           slug: o.slug,
@@ -105,6 +119,15 @@ export const setEnabled = mutation({
     await assertSub(ctx, orgId);
     await upsertPolicy(ctx, orgId, { enabled });
     await ctx.db.insert("agentAuditLogs", { orgId, event: enabled ? "agent.enabled" : "agent.disabled", at: Date.now() });
+  },
+});
+
+/** Switch the Accounting agent on or off for one sub-account. */
+export const setAccountingAgent = mutation({
+  args: { orgId: v.string(), enabled: v.boolean() },
+  handler: async (ctx, { orgId, enabled }) => {
+    await assertSub(ctx, orgId);
+    await setAccountingEnabled(ctx, orgId, enabled, "agency");
   },
 });
 

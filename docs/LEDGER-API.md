@@ -136,4 +136,5 @@ CONVEX_URL=... CONVEX_DEPLOY_KEY=... node scripts/import-books.mjs "<books.xlsx>
 ## For the accounting agent (phase C)
 
 - Read with `statements`, `journal` and `bankReconciliation`; propose with `addEntry` using `status: "draft"` and `source: "agent"`; a person posts with `postEntry`.
+- Built: `convex/accountingAgent.ts` and `convex/agents/accounting.ts`, spec `openspec/changes/accounting-agent/`. It writes through `createEntry` (drafts, `source: "agent"`, `sourceRef: "agent:<key>"`) and a person's approval posts through `postDraft`; `attachReceipt` backs `linkReceipt`. No other module reads these tables.
 - Never fix a variance by editing reported statements. Post a correcting entry (draft) that explains the difference, and let the checks go green.

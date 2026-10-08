@@ -719,6 +719,10 @@ export default defineSchema({
     // Autonomy: approval-first by default. "suggest" = drafts/approvals only;
     // "auto_low" = low-risk internal actions auto; "auto_trusted" = trusted sends auto.
     autonomy: v.union(v.literal("suggest"), v.literal("auto_low"), v.literal("auto_trusted")),
+    // Accounting agent (money only) on/off for this studio. Unset means on:
+    // it reads books the studio already imported and never acts without a
+    // person, so the safe default is to be available. openspec/changes/accounting-agent.
+    accountingEnabled: v.optional(v.boolean()),
     digestEnabled: v.boolean(),
     digestHourLocal: v.optional(v.number()), // 0-23, studio-local morning brief
     lastDigestAt: v.optional(v.number()),
@@ -732,7 +736,7 @@ export default defineSchema({
     runType: v.union(
       v.literal("chat"), v.literal("daily_digest"), v.literal("analytics_review"),
       v.literal("automation_recommendation"), v.literal("client_outreach_draft"),
-      v.literal("session_prep"),
+      v.literal("session_prep"), v.literal("accounting_scan"),
     ),
     status: v.union(
       v.literal("queued"), v.literal("running"), v.literal("needs_approval"),
@@ -2335,12 +2339,24 @@ export default defineSchema({
       v.literal("profit_improvement"),
       v.literal("studio_risk"),
       v.literal("social_post_draft"),
+      // Accounting agent (money only; convex/lib/agentScope.ts is the allowlist).
+      v.literal("acct_clearing_draft"),
+      v.literal("acct_cash_draw_reclass"),
+      v.literal("acct_fee_split"),
+      v.literal("acct_receipt_link"),
+      v.literal("acct_receipt_missing"),
+      v.literal("acct_categorize"),
+      v.literal("acct_unexplained_cash"),
+      v.literal("acct_anomaly"),
     ),
     priority: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
     title: v.string(),
     rationale: v.string(),
     entityType: v.optional(v.string()),
     entityId: v.optional(v.string()),
+    // Accounting agent: how much a person should trust the proposal.
+    riskLevel: v.optional(v.union(v.literal("low"), v.literal("medium"), v.literal("high"))),
+    confidence: v.optional(v.number()),
     // What executing the action actually does.
     payload: v.union(
       v.object({
@@ -2357,6 +2373,38 @@ export default defineSchema({
       }),
       v.object({ kind: v.literal("note_only") }),
       v.object({ kind: v.literal("social_post"), postId: v.id("socialPosts") }),
+      // Accounting agent. A balanced DRAFT journal entry; approving posts it.
+      v.object({
+        kind: v.literal("ledger_draft"),
+        entryDate: v.number(),
+        memo: v.string(),
+        lines: v.array(v.object({
+          accountKey: v.string(),
+          accountName: v.string(),
+          debitCents: v.number(),
+          creditCents: v.number(),
+          memo: v.optional(v.string()),
+        })),
+        evidence: v.array(v.string()),
+        /** Cents this entry moves cash per the books (positive = up). */
+        cashEffectCents: v.number(),
+        draftEntryId: v.optional(v.id("journalEntries")),
+      }),
+      // Accounting agent. Attach an existing receipt row to an entry.
+      v.object({
+        kind: v.literal("receipt_link"),
+        entryId: v.id("journalEntries"),
+        receiptId: v.id("receipts"),
+        score: v.number(),
+        exact: v.boolean(),
+        evidence: v.array(v.string()),
+      }),
+      // Accounting agent. Findings and flags: approving only acknowledges.
+      v.object({
+        kind: v.literal("acct_note"),
+        evidence: v.array(v.string()),
+        entryIds: v.optional(v.array(v.id("journalEntries"))),
+      }),
     ),
     status: v.union(
       v.literal("proposed"),

@@ -20,6 +20,13 @@ import { sendEmail } from "./lib/email";
 import { studioEmailHtml } from "./lib/emailTemplates/layout";
 import { recordApprovalLearning, recordDismissLearning } from "./predictions";
 import { approvePost } from "./marketing/posts";
+import { isAccountingType } from "./lib/agentScope";
+import {
+  approveAccountingAction,
+  dismissAccountingAction,
+  snoozeAccountingAction,
+  viewerMaySeeMoney,
+} from "./accountingAgent";
 
 const PRIORITY_RANK: Record<string, number> = { high: 0, medium: 1, low: 2 };
 
@@ -42,11 +49,14 @@ export const list = query({
   handler: async (ctx, { limit }) => {
     const orgId = await currentOrg(ctx);
     const now = Date.now();
-    const rows = await ctx.db
+    // Money items are for people who may see the books; everyone else's inbox
+    // simply does not contain them.
+    const seesMoney = await viewerMaySeeMoney(ctx);
+    const rows = (await ctx.db
       .query("opsActions")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .order("desc")
-      .take(500);
+      .take(500)).filter((r) => seesMoney || !isAccountingType(r.type));
     return rows
       .filter((r) => r.status === "proposed" || (r.status === "snoozed" && (r.snoozeUntil ?? 0) <= now))
       .sort((a, b) => PRIORITY_RANK[a.priority] - PRIORITY_RANK[b.priority] || b.createdAt - a.createdAt)
@@ -60,11 +70,12 @@ export const counts = query({
   handler: async (ctx) => {
     const orgId = await currentOrg(ctx);
     const now = Date.now();
-    const rows = await ctx.db
+    const seesMoney = await viewerMaySeeMoney(ctx);
+    const rows = (await ctx.db
       .query("opsActions")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .order("desc")
-      .take(500);
+      .take(500)).filter((r) => seesMoney || !isAccountingType(r.type));
     const open = rows.filter((r) => r.status === "proposed" || (r.status === "snoozed" && (r.snoozeUntil ?? 0) <= now));
     return { open: open.length, high: open.filter((r) => r.priority === "high").length };
   },
@@ -324,6 +335,9 @@ export const approve = mutation({
     const action = await ctx.db.get(id);
     if (!action) throw new Error("Not found");
     await requireCapability(ctx, "ops.action.approve", { orgId: action.orgId, entityId: id });
+    // Money items run through the Accounting agent's own approval path, which
+    // needs an owner or manager seat and posts through the ledger API.
+    if (isAccountingType(action.type)) return await approveAccountingAction(ctx, id);
     if (action.status !== "proposed" && action.status !== "snoozed") {
       throw new Error(`Cannot approve an action that is ${action.status}`);
     }
@@ -366,6 +380,7 @@ export const dismiss = mutation({
     const action = await ctx.db.get(id);
     if (!action) throw new Error("Not found");
     await requireCapability(ctx, "ops.action.approve", { orgId: action.orgId, entityId: id });
+    if (isAccountingType(action.type)) return await dismissAccountingAction(ctx, id);
     const actor = await currentActor(ctx);
     await ctx.db.patch(id, { status: "dismissed", decidedAt: Date.now(), decidedBy: actor });
     await bumpTrust(ctx, action.orgId, action.type, "dismissed");
@@ -380,6 +395,7 @@ export const snooze = mutation({
     const action = await ctx.db.get(id);
     if (!action) throw new Error("Not found");
     await requireCapability(ctx, "ops.action.approve", { orgId: action.orgId, entityId: id });
+    if (isAccountingType(action.type)) return await snoozeAccountingAction(ctx, id, until);
     await ctx.db.patch(id, { status: "snoozed", snoozeUntil: until });
   },
 });
@@ -510,6 +526,9 @@ export const setMode = mutation({
   handler: async (ctx, { actionType, mode }) => {
     const orgId = await currentOrg(ctx);
     await requireCapability(ctx, "ops.autonomy.manage", { orgId });
+    // Accounting never graduates to auto: its only autonomy is the studio
+    // policy (exact receipt links under auto_trusted).
+    if (isAccountingType(actionType)) throw new Error("Accounting items cannot be set to auto. Use the Accounting agent's autonomy setting.");
     const row = await ctx.db
       .query("opsAutonomy")
       .withIndex("by_org_type", (q) => q.eq("orgId", orgId).eq("actionType", actionType))

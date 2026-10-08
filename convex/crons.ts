@@ -88,6 +88,11 @@ crons.daily("ops-brain", { hourUTC: 13, minuteUTC: 0 }, internal.opsBrain.scanAl
 // Shares scanOrg with the daily sweep; dedupe keeps it from duplicating rows.
 crons.interval("ai-agents-scan", { hours: 2 }, internal.opsBrain.scanAgentsAllOrgs);
 
+// Accounting agent (money only): reads each studio's books, drafts clearing
+// entries, matches receipts, updates the month-end checklist and owner summary.
+// Drafts and proposals only; dedupe keeps a re-scan from repeating anything.
+crons.daily("accounting-agent", { hourUTC: 14, minuteUTC: 0 }, internal.accountingAgent.scanAllOrgs);
+
 // Monday-morning AI artifacts across every active subaccount.
 crons.weekly(
   "weekly-briefing",

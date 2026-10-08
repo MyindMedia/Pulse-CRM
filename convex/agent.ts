@@ -14,6 +14,8 @@ import { escapeHtml, stripEmDashes } from "./lib/text";
 import { isDigestDue } from "./lib/digestSchedule";
 import { notifyTeam } from "./lib/notify";
 import { googleConfigured, gmailSend } from "./lib/google";
+import { MONEY_HANDOFF_LINE, routeIntent } from "./lib/agentScope";
+import { accountingIsOn } from "./accountingAgent";
 
 /* JSON contract for the conversational agent's structured response. Forces a
    valid object so we never brace-slice free text. strict:false keeps it lenient
@@ -200,6 +202,14 @@ export const createRun = mutation({
     });
     await ctx.db.insert("agentMessages", { orgId, runId, role: "user", body: prompt });
     await ctx.db.insert("agentAuditLogs", { orgId, runId, event: "run.created", actor: clerkUserId, at: Date.now() });
+    // A money question goes to the Accounting agent, not the general one.
+    // The general agent never reads the books (lib/agentScope.ts).
+    const route = routeIntent(prompt);
+    if (route?.agent === "accounting" && (await accountingIsOn(ctx, orgId))) {
+      await ctx.db.insert("agentAuditLogs", { orgId, runId, event: "run.routed", detail: `accounting: ${route.reason}`, actor: clerkUserId, at: Date.now() });
+      await ctx.scheduler.runAfter(0, internal.accountingAgent.answerRun, { runId, orgId, prompt });
+      return runId;
+    }
     await ctx.scheduler.runAfter(0, internal.agent.runAgentLLM, { runId, orgId, prompt, runType: runType ?? "chat" });
     return runId;
   },
@@ -462,6 +472,7 @@ export const runAgentLLM = internalAction({
         "You may analyze data, explain patterns, and recommend actions. You may NOT claim any external action was performed.",
         "You can see this studio's full operating picture: revenue, invoices, sessions, leads, songs, rooms, equipment/inventory (purchase value, current value, depreciation, condition, state, quantity, AND a per-room value breakdown), and software & licenses. Answer questions about any of it directly from the data provided - including the current value of a specific room (use the 'Value by room' breakdown). Only say something is not tracked when the data explicitly shows zero of it.",
         "For client-facing, financial, calendar, file-delivery, or automation-enabling actions, propose an approval (do not send).",
+        MONEY_HANDOFF_LINE,
         `Tone: ${tone}. Write for a busy studio owner in plain, natural language.`,
         "Money: always write amounts in plain US dollars like $5,510 or $360. NEVER write cents or the word 'cents', and never show raw numbers like 551000.",
         "Never invent placeholder links or fake URLs (e.g. '[payment link]'). Only include a link if you were given a real one; otherwise tell the user where to find the action in Pulse.",
