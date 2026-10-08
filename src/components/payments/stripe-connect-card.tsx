@@ -94,8 +94,16 @@ export function StripeConnectCard({ compact = false }: { compact?: boolean }) {
                     : "Connect your Stripe account so clients pay deposits straight to you. Takes ~2 minutes."}
           </p>
           {!compact && connected && (
+            // "every Friday" is a claim about account configuration, and it is true only
+            // while every connected account carries the weekly/friday schedule set in
+            // convex/stripeConnect.ts. PAYOUT_CADENCE_POLICY.md §4(3) pre-approves moving
+            // any studio that asks onto `daily` or twice-weekly with no escalation, so the
+            // first time support exercises that, this sentence is false for that studio and
+            // nothing here will say so. At that point read the cadence off the account
+            // instead of hardcoding it; scripts/verify-payout-default.mjs is the read-back.
             <p className="mt-2 text-[0.6875rem] text-steel/70">
-              Payouts, refunds, and tax live in your Stripe dashboard.
+              Payouts land every Friday. Pay yourself out any time, plus refunds and tax, in
+              your Stripe dashboard.
             </p>
           )}
         </div>

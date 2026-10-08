@@ -102,7 +102,10 @@ export function PaymentsSetupWalkthrough() {
   const steps = [
     { n: 1, title: "Connect your Stripe account", desc: "Sign in or create one - takes about 3 minutes.", done: connected, active: !connected },
     { n: 2, title: "Verify your details", desc: "Stripe collects your bank + ID to enable payouts.", done: live, active: pending },
-    { n: 3, title: "Start collecting", desc: "Booking deposits, balances, and invoice links go live automatically.", done: live, active: false },
+    // "every Friday" mirrors the weekly/friday schedule set in convex/stripeConnect.ts.
+    // Same caveat as stripe-connect-card.tsx: PAYOUT_CADENCE_POLICY.md §4(3) lets support
+    // move a studio to `daily` same-day, and this string will not notice.
+    { n: 3, title: "Start collecting", desc: "Booking deposits, balances, and invoice links go live automatically. Payouts land every Friday.", done: live, active: false },
   ];
 
   return (
