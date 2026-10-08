@@ -25,6 +25,7 @@ export const prospectStatusV = v.union(
   v.literal("scraped"),
   v.literal("no_contact"),
   v.literal("blocked"),
+  v.literal("unreachable"),
   v.literal("queued"),
   v.literal("suppressed"),
 );

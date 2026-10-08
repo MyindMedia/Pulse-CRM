@@ -2,6 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
+import { fetchTuning } from "./outreach/safeFetch";
 
 type Id = { subject: string; name: string; orgId: string; orgType: string };
 const idOf = (subject: string, orgId: string): Id => ({ subject, name: subject, orgId, orgType: "agency" });
@@ -11,7 +12,7 @@ const SITE = `<html><body><a href="mailto:studio@acme.com">e</a><p>(323) 760-755
 
 describe("outreach prospects", () => {
   let t: ReturnType<typeof convexTest>;
-  beforeEach(() => { t = convexTest(schema); });
+  beforeEach(() => { t = convexTest(schema); fetchTuning.backoffMs = 0; });
   afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
 
   async function seed(agencyId: string, owner: string, staff?: string) {
@@ -87,6 +88,77 @@ describe("outreach prospects", () => {
     expect(row.status).toBe("blocked");
     expect(row.note).toMatch(/robots/);
     expect(f).toHaveBeenCalledTimes(1);
+  });
+
+  it("robots.txt 5xx never hard-blocks: homepage and contact pages are read, with a clear note", async () => {
+    await seed("org_a", "ua");
+    const ua = as("ua", "org_a");
+    await ua.mutation(api.outreachProspects.add, { lines: ["acme.com"] });
+    const id = (await ua.query(api.outreachProspects.list, {}))!.rows[0].id;
+    const f = vi.fn(async (u: string) => u.endsWith("/robots.txt")
+      ? new Response("down", { status: 503 })
+      : new Response(SITE, { headers: { "content-type": "text/html" } }));
+    vi.stubGlobal("fetch", f);
+    await t.run(async (ctx) => { await ctx.db.patch(id, { status: "scraping" }); });
+    await t.action(internal.outreachProspects._scrape, { id });
+    const row = (await ua.query(api.outreachProspects.list, {}))!.rows[0];
+    expect(row.status).toBe("scraped");
+    expect(row.note).toMatch(/robots\.txt unreachable \(HTTP 503\), so only the homepage and contact pages were read/);
+    const doc = await t.run(async (ctx) => await ctx.db.get(id));
+    expect(doc?.contacts?.pages).toEqual(["https://acme.com/", "https://acme.com/contact"]);
+  });
+
+  it("a domain with no DNS record is unreachable, not blocked (thamyind.org case)", async () => {
+    await seed("org_a", "ua");
+    const ua = as("ua", "org_a");
+    await ua.mutation(api.outreachProspects.add, { lines: ["nope-nxdomain.org"] });
+    const id = (await ua.query(api.outreachProspects.list, {}))!.rows[0].id;
+    const f = vi.fn(async () => { throw Object.assign(new TypeError("fetch failed"), { cause: { code: "ENOTFOUND" } }); });
+    vi.stubGlobal("fetch", f);
+    await t.run(async (ctx) => { await ctx.db.patch(id, { status: "scraping" }); });
+    await t.action(internal.outreachProspects._scrape, { id });
+    const row = (await ua.query(api.outreachProspects.list, {}))!.rows[0];
+    expect(row.status).toBe("unreachable");
+    expect(row.note).toBe("nope-nxdomain.org does not resolve (no DNS record). Check the address.");
+    expect(f).toHaveBeenCalledTimes(1);
+    // the operator can correct the address and read again
+    await ua.mutation(api.outreachProspects.setWebsite, { id, url: "acme.com" });
+    expect((await ua.query(api.outreachProspects.list, {}))!.rows[0].status).toBe("ready_to_scrape");
+  });
+
+  it("a site with no working https is read over http (slangcity.com case)", async () => {
+    await seed("org_a", "ua");
+    const ua = as("ua", "org_a");
+    await ua.mutation(api.outreachProspects.add, { lines: ["acme.com"] });
+    const id = (await ua.query(api.outreachProspects.list, {}))!.rows[0].id;
+    const f = vi.fn(async (u: string) => {
+      if (u.startsWith("https://")) throw Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNREFUSED" } });
+      if (u.endsWith("/robots.txt")) return new Response("Not Found", { status: 404 });
+      return new Response(SITE, { headers: { "content-type": "text/html" } });
+    });
+    vi.stubGlobal("fetch", f);
+    await t.run(async (ctx) => { await ctx.db.patch(id, { status: "scraping" }); });
+    await t.action(internal.outreachProspects._scrape, { id });
+    const row = (await ua.query(api.outreachProspects.list, {}))!.rows[0];
+    expect(row.status).toBe("scraped");
+    expect(row.contacts?.emails[0].address).toBe("studio@acme.com");
+    const doc = await t.run(async (ctx) => await ctx.db.get(id));
+    expect(doc?.contacts?.pages[0]).toBe("http://acme.com/");
+    expect(doc?.contacts?.emails[0].sourceUrl).toMatch(/^http:\/\/acme\.com/);
+    expect(row.note).toMatch(/read over HTTP/);
+  });
+
+  it("a site that answers nothing at all is unreachable, not blocked", async () => {
+    await seed("org_a", "ua");
+    const ua = as("ua", "org_a");
+    await ua.mutation(api.outreachProspects.add, { lines: ["acme.com"] });
+    const id = (await ua.query(api.outreachProspects.list, {}))!.rows[0].id;
+    vi.stubGlobal("fetch", vi.fn(async () => { throw Object.assign(new TypeError("fetch failed"), { cause: { code: "ECONNREFUSED" } }); }));
+    await t.run(async (ctx) => { await ctx.db.patch(id, { status: "scraping" }); });
+    await t.action(internal.outreachProspects._scrape, { id });
+    const row = (await ua.query(api.outreachProspects.list, {}))!.rows[0];
+    expect(row.status).toBe("unreachable");
+    expect(row.note).toBe("Could not read the site (Connection refused).");
   });
 
   it("no published email ends as no_contact, never a guessed address", async () => {

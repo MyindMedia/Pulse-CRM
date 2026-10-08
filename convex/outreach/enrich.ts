@@ -112,6 +112,11 @@ export function detectBooking(html: string): string[] {
 }
 
 const CONTACT_PATH = /\/(contact|contact-us|about|about-us|book|booking|bookings|reach-us|get-in-touch)\/?$/i;
+
+/** A contact, about or booking page: the pages a studio publishes to be reached. */
+export function isContactPath(pathname: string): boolean {
+  return CONTACT_PATH.test(pathname);
+}
 /** Same-host contact/about links worth one extra fetch. Capped, deduped. */
 export function candidatePages(html: string, base: string, max = 3): string[] {
   let b: URL;
