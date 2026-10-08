@@ -65,7 +65,7 @@ async function readOrg(ctx: Ctx): Promise<string> {
 }
 
 /** The caller's studio, if they may change its books. */
-async function writeOrg(ctx: MutationCtx): Promise<{ orgId: string; actor: string }> {
+export async function writeOrg(ctx: MutationCtx): Promise<{ orgId: string; actor: string }> {
   const viewer = await requireCapability(ctx, "insights.read");
   if (viewer.kind === "guest") throw new AccessError("CAPABILITY_DENIED", "Guests cannot change the books.");
   if (viewer.kind === "studio_member" && !WRITE_ROLES.has(viewer.role)) {
@@ -297,6 +297,28 @@ export const bankReconciliation = query({
   },
 });
 
+/** One period's books, computed for a caller that has already been authorised
+ *  (the accounting agent's scan). Same engine and same inputs as the
+ *  `statements` and `bankReconciliation` queries. */
+export async function ledgerPeriodView(ctx: Ctx, orgId: string, periodKey: string) {
+  const period = asPeriod(periodKey);
+  const data = await loadPeriod(ctx, orgId, period);
+  const reported = toReported(data.reportedDoc);
+  const engineAccounts = data.accounts.map(toAccount);
+  const engineEntries = data.entries.map(toEntry);
+  const opening = toOpening(data.openingDoc);
+  const bank = data.bankDocs.map(toBank);
+  const built = buildStatements({ period, accounts: engineAccounts, opening, entries: engineEntries, bank, reported });
+  return {
+    period,
+    accountDocs: data.accounts,
+    entryDocs: data.entries,
+    reportedDoc: data.reportedDoc,
+    built,
+    recon: reconcileBank(engineAccounts, opening, engineEntries, bank),
+  };
+}
+
 // ── Writes ──────────────────────────────────────────────────
 
 const lineInputV = v.object({
@@ -322,6 +344,64 @@ async function checkLines(ctx: MutationCtx, orgId: string, lines: { accountId: I
   return total;
 }
 
+export type NewEntryInput = {
+  entryDate: number;
+  memo: string;
+  lines: { accountId: Id<"ledgerAccounts">; debitCents: number; creditCents: number; memo?: string }[];
+  status: "draft" | "posted";
+  paymentType?: Infer<typeof paymentTypeV>;
+  receiptStatus?: "yes" | "no" | "pending";
+  source?: "manual" | "agent";
+  sourceRef?: string;
+};
+
+/** The one place a journal entry is created. The `addEntry` mutation and the
+ *  accounting agent both go through it, so lines are validated against the
+ *  studio's chart the same way whoever writes them. The caller has already
+ *  decided who may write; this does not look at the viewer. */
+export async function createEntry(ctx: MutationCtx, orgId: string, actor: string, args: NewEntryInput) {
+  const memo = args.memo.trim();
+  if (!memo) throw new Error("Describe the entry.");
+  if (!Number.isFinite(args.entryDate)) throw new Error("Choose a date.");
+  const totalCents = await checkLines(ctx, orgId, args.lines);
+  return await ctx.db.insert("journalEntries", {
+    orgId,
+    entryDate: toDay(args.entryDate),
+    memo,
+    ...(args.paymentType ? { paymentType: args.paymentType } : {}),
+    ...(args.sourceRef ? { sourceRef: args.sourceRef } : {}),
+    receiptStatus: args.receiptStatus ?? "pending",
+    status: args.status,
+    source: args.source ?? "manual",
+    lines: args.lines,
+    totalCents,
+    createdBy: actor,
+    createdAt: Date.now(),
+  });
+}
+
+/** Draft to posted, revalidated. Only a person's approval may call this. */
+export async function postDraft(ctx: MutationCtx, orgId: string, id: Id<"journalEntries">) {
+  const e = await ctx.db.get(id);
+  if (!e || e.orgId !== orgId) throw new Error("Entry not found.");
+  if (e.status !== "draft") throw new Error("Only a draft can be posted.");
+  await checkLines(ctx, orgId, e.lines);
+  await ctx.db.patch(id, { status: "posted" });
+}
+
+/** Attach a receipt row to an entry and mark it received. Idempotent. */
+export async function attachReceipt(ctx: MutationCtx, orgId: string, entryId: Id<"journalEntries">, receiptId: Id<"receipts">) {
+  const e = await ctx.db.get(entryId);
+  if (!e || e.orgId !== orgId) throw new Error("Entry not found.");
+  const r = await ctx.db.get(receiptId);
+  if (!r || r.orgId !== orgId) throw new Error("Receipt not found.");
+  const ids = e.receiptDocIds ?? [];
+  if (!ids.includes(receiptId)) {
+    await ctx.db.patch(entryId, { receiptDocIds: [...ids, receiptId], receiptStatus: "yes" });
+  }
+  return { receiptDocIds: ids.includes(receiptId) ? ids : [...ids, receiptId] };
+}
+
 /** Add a balanced entry, as a draft or posted. */
 export const addEntry = mutation({
   args: {
@@ -335,23 +415,7 @@ export const addEntry = mutation({
   },
   handler: async (ctx, args) => {
     const { orgId, actor } = await writeOrg(ctx);
-    const memo = args.memo.trim();
-    if (!memo) throw new Error("Describe the entry.");
-    if (!Number.isFinite(args.entryDate)) throw new Error("Choose a date.");
-    const totalCents = await checkLines(ctx, orgId, args.lines);
-    return await ctx.db.insert("journalEntries", {
-      orgId,
-      entryDate: toDay(args.entryDate),
-      memo,
-      ...(args.paymentType ? { paymentType: args.paymentType } : {}),
-      receiptStatus: args.receiptStatus ?? "pending",
-      status: args.status,
-      source: args.source ?? "manual",
-      lines: args.lines,
-      totalCents,
-      createdBy: actor,
-      createdAt: Date.now(),
-    });
+    return await createEntry(ctx, orgId, actor, args);
   },
 });
 
@@ -360,11 +424,7 @@ export const postEntry = mutation({
   args: { id: v.id("journalEntries") },
   handler: async (ctx, { id }) => {
     const { orgId } = await writeOrg(ctx);
-    const e = await ctx.db.get(id);
-    if (!e || e.orgId !== orgId) throw new Error("Entry not found.");
-    if (e.status !== "draft") throw new Error("Only a draft can be posted.");
-    await checkLines(ctx, orgId, e.lines);
-    await ctx.db.patch(id, { status: "posted" });
+    await postDraft(ctx, orgId, id);
   },
 });
 
@@ -386,15 +446,7 @@ export const linkReceipt = mutation({
   args: { entryId: v.id("journalEntries"), receiptId: v.id("receipts") },
   handler: async (ctx, { entryId, receiptId }) => {
     const { orgId } = await writeOrg(ctx);
-    const e = await ctx.db.get(entryId);
-    if (!e || e.orgId !== orgId) throw new Error("Entry not found.");
-    const r = await ctx.db.get(receiptId);
-    if (!r || r.orgId !== orgId) throw new Error("Receipt not found.");
-    const ids = e.receiptDocIds ?? [];
-    if (!ids.includes(receiptId)) {
-      await ctx.db.patch(entryId, { receiptDocIds: [...ids, receiptId], receiptStatus: "yes" });
-    }
-    return { receiptDocIds: ids.includes(receiptId) ? ids : [...ids, receiptId] };
+    return await attachReceipt(ctx, orgId, entryId, receiptId);
   },
 });
 

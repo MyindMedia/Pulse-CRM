@@ -34,6 +34,7 @@ import {
   type NoShowRiskSignal,
   type WeakLeadSourceSignal,
 } from "./agents/generators";
+import { assertActionInScope } from "./lib/agentScope";
 import { gatherProfitCounts, buildReport, profitLeverCandidates } from "./profitability";
 import { gatherRiskFlags, riskFlagCandidates } from "./risk";
 
@@ -78,14 +79,35 @@ export type ActionType =
   | "waitlist_fill"
   // Operations Agent: profitability levers + category risk flags (note_only).
   | "profit_improvement"
-  | "studio_risk";
+  | "studio_risk"
+  // Accounting agent (money only). Allowlist and routing: lib/agentScope.ts.
+  | "acct_clearing_draft"
+  | "acct_cash_draw_reclass"
+  | "acct_fee_split"
+  | "acct_receipt_link"
+  | "acct_receipt_missing"
+  | "acct_categorize"
+  | "acct_unexplained_cash"
+  | "acct_anomaly";
 
 export type Priority = "low" | "medium" | "high";
 
 export type Payload =
   | { kind: "email"; to?: string; subject: string; body: string; notifyKind: string }
   | { kind: "session_status"; sessionId: Id<"sessions">; newStatus: "confirmed" | "cancelled" }
-  | { kind: "note_only" };
+  | { kind: "note_only" }
+  // Accounting agent payloads. Only convex/agents/accounting.ts emits them.
+  | {
+      kind: "ledger_draft";
+      entryDate: number;
+      memo: string;
+      lines: { accountKey: string; accountName: string; debitCents: number; creditCents: number; memo?: string }[];
+      evidence: string[];
+      cashEffectCents: number;
+      draftEntryId?: Id<"journalEntries">;
+    }
+  | { kind: "receipt_link"; entryId: Id<"journalEntries">; receiptId: Id<"receipts">; score: number; exact: boolean; evidence: string[] }
+  | { kind: "acct_note"; evidence: string[]; entryIds?: Id<"journalEntries">[] };
 
 export type ProposedAction = {
   type: ActionType;
@@ -95,6 +117,9 @@ export type ProposedAction = {
   entityType?: string;
   entityId?: string;
   payload: Payload;
+  /** Accounting agent only: how far a person should trust it, and the score behind it. */
+  riskLevel?: "low" | "medium" | "high";
+  confidence?: number;
 };
 
 /** The operational state the brain reasons over. Plain data so the rule
@@ -506,6 +531,9 @@ export async function upsertProposed(ctx: MutationCtx, orgId: string, candidates
   const enrichIds: Id<"opsActions">[] = [];
 
   for (const c of candidates) {
+    // Only the Accounting agent's own scan may propose money items; this
+    // shared path serves every other agent and refuses them.
+    assertActionInScope("operations", c);
     const dedupeKey = `${c.type}:${c.entityId ?? "org"}`;
     const existing = await ctx.db
       .query("opsActions")

@@ -110,6 +110,35 @@ function Inner({ action, onClose }: { action: Doc<"opsActions">; onClose: () => 
           </p>
         )}
 
+        {p.kind === "ledger_draft" && (
+          <div className="space-y-2 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5 text-sm text-steel">
+            <p className="text-xs font-semibold uppercase tracking-wide text-steel/70">Draft entry, {new Date(p.entryDate).toISOString().slice(0, 10)}</p>
+            <p className="text-bone">{p.memo}</p>
+            <table className="w-full text-xs">
+              <tbody>
+                {p.lines.map((l, i) => (
+                  <tr key={i}>
+                    <td className="py-0.5">{l.accountName}</td>
+                    <td className="py-0.5 text-right tabular-nums">{l.debitCents ? `Debit $${(l.debitCents / 100).toFixed(2)}` : ""}</td>
+                    <td className="py-0.5 text-right tabular-nums">{l.creditCents ? `Credit $${(l.creditCents / 100).toFixed(2)}` : ""}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            <ul className="list-disc space-y-1 pl-4">{p.evidence.map((e, i) => <li key={i}>{e}</li>)}</ul>
+            <p className="text-xs text-steel/70">Approving posts this entry to the books. Dismissing leaves it as a draft you can ignore.</p>
+          </div>
+        )}
+
+        {(p.kind === "receipt_link" || p.kind === "acct_note") && (
+          <div className="space-y-2 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5 text-sm text-steel">
+            <ul className="list-disc space-y-1 pl-4">{p.evidence.map((e, i) => <li key={i}>{e}</li>)}</ul>
+            <p className="text-xs text-steel/70">
+              {p.kind === "receipt_link" ? "Approving attaches this receipt to the entry." : "Approving only acknowledges this. Nothing in the books changes."}
+            </p>
+          </div>
+        )}
+
         {p.kind === "note_only" && !action.artifactId && (
           <p className="inline-flex items-center gap-1.5 text-xs text-steel/70">
             <Sparkles className="size-3.5 text-gold" /> Internal note - approving logs it.

@@ -10,6 +10,7 @@
 
 import type * as access from "../access.js";
 import type * as account from "../account.js";
+import type * as accountingAgent from "../accountingAgent.js";
 import type * as activity from "../activity.js";
 import type * as agency from "../agency.js";
 import type * as agencyBilling from "../agencyBilling.js";
@@ -23,6 +24,7 @@ import type * as agentAutomations from "../agentAutomations.js";
 import type * as agentFleet from "../agentFleet.js";
 import type * as agentHealth from "../agentHealth.js";
 import type * as agentRules from "../agentRules.js";
+import type * as agents_accounting from "../agents/accounting.js";
 import type * as agents_generators from "../agents/generators.js";
 import type * as aiActions from "../aiActions.js";
 import type * as aiArtifacts from "../aiArtifacts.js";
@@ -87,6 +89,7 @@ import type * as ledgerTables from "../ledgerTables.js";
 import type * as lib_access from "../lib/access.js";
 import type * as lib_accessPolicies from "../lib/accessPolicies.js";
 import type * as lib_accessTypes from "../lib/accessTypes.js";
+import type * as lib_agentScope from "../lib/agentScope.js";
 import type * as lib_aiGuard from "../lib/aiGuard.js";
 import type * as lib_aiVerify from "../lib/aiVerify.js";
 import type * as lib_betaNda from "../lib/betaNda.js";
@@ -322,6 +325,7 @@ import type {
 declare const fullApi: ApiFromModules<{
   access: typeof access;
   account: typeof account;
+  accountingAgent: typeof accountingAgent;
   activity: typeof activity;
   agency: typeof agency;
   agencyBilling: typeof agencyBilling;
@@ -335,6 +339,7 @@ declare const fullApi: ApiFromModules<{
   agentFleet: typeof agentFleet;
   agentHealth: typeof agentHealth;
   agentRules: typeof agentRules;
+  "agents/accounting": typeof agents_accounting;
   "agents/generators": typeof agents_generators;
   aiActions: typeof aiActions;
   aiArtifacts: typeof aiArtifacts;
@@ -399,6 +404,7 @@ declare const fullApi: ApiFromModules<{
   "lib/access": typeof lib_access;
   "lib/accessPolicies": typeof lib_accessPolicies;
   "lib/accessTypes": typeof lib_accessTypes;
+  "lib/agentScope": typeof lib_agentScope;
   "lib/aiGuard": typeof lib_aiGuard;
   "lib/aiVerify": typeof lib_aiVerify;
   "lib/betaNda": typeof lib_betaNda;
