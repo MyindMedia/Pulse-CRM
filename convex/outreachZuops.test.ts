@@ -94,6 +94,19 @@ describe("zuops calendar sync", () => {
     expect(urls.some((u) => u.includes("/v1/leads/"))).toBe(false);
   });
 
+  it("re-syncing refreshes a known lead's phone, name and email on an upcoming booking", async () => {
+    await seed("org_a", "ua");
+    await map("org_a");
+    stub([booking("b1", "l1", 2)], { l1: lead("l1", "o@x.com") });
+    await t.action(internal.outreachZuops.sync, { agencyId: "org_a" });
+    const changed = lead("l1", "new@x.com") as { data: { lead: Record<string, unknown> } };
+    changed.data.lead = { ...changed.data.lead, phone: "+14085559999", full_name: "New Owner" };
+    stub([booking("b1", "l1", 2)], { l1: changed });
+    await t.action(internal.outreachZuops.sync, { agencyId: "org_a" });
+    const [row] = await t.run(async (ctx) => await ctx.db.query("outreachBookings").collect());
+    expect(row).toMatchObject({ phone: "+14085559999", contactName: "New Owner", contactEmail: "new@x.com" });
+  });
+
   it("agencies see only their own bookings and an unmapped agency syncs nothing", async () => {
     await seed("org_a", "ua");
     await seed("org_b", "ub");

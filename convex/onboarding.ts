@@ -7,7 +7,7 @@ import { orgGate } from "./lib/tier";
 import { capabilitiesForTier } from "./lib/entitlements";
 import { isToggleable, tierForModule } from "./lib/modules";
 import { PLAN_LIMITS, type CapabilityKey } from "./lib/plans";
-import { requireCapability } from "./lib/access";
+import { requireCapability, SETUP_ACCESS } from "./lib/access";
 
 /* ============================================================
    Branded studio onboarding. Drives the /welcome wizard a new
@@ -17,8 +17,10 @@ import { requireCapability } from "./lib/access";
    dashboard nudges until onboardingCompletedAt is set.
    ============================================================ */
 
+// The setup wizard: reachable while a paid plan waits on its card, so a new
+// studio can finish setting up before it starts the trial (lib/access.ts).
 async function myOrg(ctx: QueryCtx | MutationCtx) {
-  const orgId = await currentOrg(ctx);
+  const orgId = await currentOrg(ctx, SETUP_ACCESS);
   const org = await ctx.db
     .query("orgs")
     .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -72,7 +74,7 @@ export const saveBasics = mutation({
   },
   handler: async (ctx, args) => {
     const { orgId, org } = await myOrg(ctx);
-    await requireCapability(ctx, "branding.edit", { orgId });
+    await requireCapability(ctx, "branding.edit", { orgId }, SETUP_ACCESS);
     if (!org) throw new ConvexError("No studio to set up.");
 
     const name = args.name.trim();
@@ -107,7 +109,7 @@ export const saveContact = mutation({
   },
   handler: async (ctx, args) => {
     const { orgId, org } = await myOrg(ctx);
-    await requireCapability(ctx, "branding.edit", { orgId });
+    await requireCapability(ctx, "branding.edit", { orgId }, SETUP_ACCESS);
     if (!org) throw new ConvexError("No studio to set up.");
     const trim = (s?: string) => (s && s.trim() ? s.trim() : undefined);
     await ctx.db.patch(org._id, {
@@ -132,7 +134,7 @@ export const addRoom = mutation({
   },
   handler: async (ctx, args) => {
     const { orgId } = await myOrg(ctx);
-    await requireCapability(ctx, "rooms.edit", { orgId });
+    await requireCapability(ctx, "rooms.edit", { orgId }, SETUP_ACCESS);
     const name = args.name.trim();
     if (name.length < 1) throw new ConvexError("Give the room a name.");
     return await ctx.db.insert("rooms", {
@@ -153,7 +155,7 @@ export const complete = mutation({
   args: {},
   handler: async (ctx) => {
     const { orgId, org } = await myOrg(ctx);
-    await requireCapability(ctx, "branding.edit", { orgId });
+    await requireCapability(ctx, "branding.edit", { orgId }, SETUP_ACCESS);
     if (org && !org.onboardingCompletedAt) {
       await ctx.db.patch(org._id, { onboardingCompletedAt: Date.now() });
     }
@@ -197,7 +199,7 @@ export const acceptTerms = mutation({
 export const featureSetup = query({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrg(ctx, SETUP_ACCESS);
     const org = await ctx.db
       .query("orgs")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -239,8 +241,8 @@ export const setFeaturePrefs = mutation({
     receptionist: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
-    await requireCapability(ctx, "branding.edit");
-    const orgId = await currentOrg(ctx);
+    await requireCapability(ctx, "branding.edit", undefined, SETUP_ACCESS);
+    const orgId = await currentOrg(ctx, SETUP_ACCESS);
     const org = await ctx.db
       .query("orgs")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))

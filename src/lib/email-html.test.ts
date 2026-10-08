@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { sanitizeEmailHtml, emailSrcDoc, hasRemoteImages } from "./email-html";
+import { sanitizeEmailHtml, emailSrcDoc, hasRemoteImages, EMAIL_IFRAME_SANDBOX } from "./email-html";
 
 describe("sanitizeEmailHtml", () => {
   it("removes scripts, frames, forms and embedded objects", () => {
@@ -36,5 +36,21 @@ describe("sanitizeEmailHtml", () => {
     expect(doc).toContain("default-src 'none'; img-src data:;");
     expect(doc).toContain('<base target="_blank">');
     expect(emailSrcDoc("<p>x</p>", { allowRemoteImages: true })).toContain("img-src data: https:;");
+  });
+
+  it("forces every link to open with rel=noopener noreferrer (no reverse tabnabbing)", () => {
+    const out = sanitizeEmailHtml(
+      `<a href="https://a.example" rel="opener" target="_self">a</a><A HREF='https://b.example'>b</A><area href="https://c.example" target=_top rel=opener>`,
+    );
+    expect(out).not.toMatch(/rel\s*=\s*["']?opener/i);
+    expect(out).not.toMatch(/target\s*=\s*["']?_(?:self|top)/i);
+    expect(out.match(/rel="noopener noreferrer"/g)?.length).toBe(3);
+    expect(out.match(/target="_blank"/g)?.length).toBe(3);
+    expect(out).toContain(">a</a>");
+  });
+
+  it("sandboxes the message frame without letting popups escape the sandbox", () => {
+    expect(EMAIL_IFRAME_SANDBOX).toBe("allow-popups");
+    expect(EMAIL_IFRAME_SANDBOX).not.toMatch(/escape-sandbox|allow-scripts|allow-same-origin|allow-top-navigation/);
   });
 });

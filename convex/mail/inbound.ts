@@ -115,6 +115,17 @@ function attachmentsOf(raw: WebhookAttachment[] | undefined): InboundMessage["at
   }));
 }
 
+/** How an inbound attachment's bytes are stored. The sender picks the declared
+ *  type, so it is never what R2 serves: a text/html or SVG "invoice" opened from
+ *  its signed URL would otherwise render, scripts and all. Always
+ *  application/octet-stream and a forced download; the declared type stays on
+ *  the message row as metadata. The filename is reduced to a plain token so it
+ *  cannot break out of the header parameter. */
+export function attachmentStorage(filename: string): { mimeType: string; disposition: string } {
+  const safe = filename.replace(/[^A-Za-z0-9._ -]+/g, "_").replace(/^[\s.]+|\s+$/g, "").slice(0, 150) || "attachment";
+  return { mimeType: "application/octet-stream", disposition: `attachment; filename="${safe}"` };
+}
+
 function parseTime(v: unknown, fallback: number): number {
   const t = typeof v === "string" ? Date.parse(v) : NaN;
   return Number.isFinite(t) ? t : fallback;

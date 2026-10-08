@@ -58,6 +58,8 @@ curl -s -X POST https://studiopulse.tech/api/agency/email/inboxes \
 Responses:
 
 - `200` list: `{ "inboxes": [{ "id", "address", "displayName", "fromName", "kind", "active", "unread" }], "unroutedUnread": 0 }`
+- `415` a POST without `Content-Type: application/json`
+- `403` a POST from another site's page (Origin not studiopulse.tech), or a POST with neither an Origin nor a Bearer token
 - `201` created: `{ "id", "address": "bookings@studiopulse.tech", "displayName": "Bookings" }`
 - `400` invalid name (lowercase `a-z 0-9 . _ -`, starts and ends with a letter or digit, at most 64 characters, domain fixed to studiopulse.tech, reserved names such as `postmaster`, `abuse`, `noreply` refused)
 - `409` the address already exists

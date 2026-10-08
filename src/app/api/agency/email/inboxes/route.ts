@@ -3,6 +3,7 @@ import { ConvexHttpClient } from "convex/browser";
 import { ConvexError } from "convex/values";
 import { api } from "@convex/_generated/api";
 import { resolveConvexUrl } from "@/lib/convex-url";
+import { refuseCrossSiteWrite } from "@/lib/api-write-guard";
 
 /* GET  /api/agency/email/inboxes   list inboxes (with unread counts)
    POST /api/agency/email/inboxes   create one: { "localPart": "bookings", "displayName": "Bookings" }
@@ -12,6 +13,8 @@ import { resolveConvexUrl } from "@/lib/convex-url";
    `Authorization: Bearer <Clerk session token>`). The route mints the user's
    Convex token and calls the same Convex functions the Email tab uses, so the
    owner/admin and mail-agency checks live in one place (convex/mail.ts).
+   POST needs Content-Type: application/json, and an Origin of this app or,
+   for a script, a Bearer token (lib/api-write-guard.ts).
    Usage: docs/EMAIL-INBOXES.md */
 
 export const runtime = "nodejs";
@@ -65,6 +68,10 @@ export async function GET() {
 }
 
 export async function POST(req: Request) {
+  // Cookie-authenticated write: JSON only, and only from this app (or a script
+  // carrying its own Bearer token), so another site cannot create inboxes.
+  const refused = refuseCrossSiteWrite(req);
+  if (refused) return refused;
   const client = await convexForCaller();
   if (client instanceof Response) return client;
   let body: { localPart?: unknown; address?: unknown; displayName?: unknown; fromName?: unknown };

@@ -81,6 +81,27 @@ describe("the beta year actually stops", () => {
     expect(gate.reason).not.toBe("beta_expired");
   });
 
+  /* A Beta-plan studio (auto-enrolled, no cohort flag) that subscribed through
+     the beta checkout and then canceled. The Beta plan costs nothing, so the
+     canceled paywall (price > 0) never fired and the studio kept the app for
+     free forever. Once its beta window has passed it is beta_expired. */
+  it("locks a canceled Beta-plan studio once its beta window has passed", () => {
+    const betaPlan = { ...plan, isBeta: true };
+    const canceled = {
+      billingStatus: "canceled" as const,
+      agencyPlanId: "plan1" as never,
+      billingSubscriptionId: "sub_beta",
+      trialEndsAt: NOW - DAY,
+    };
+    const gate = evaluateBillingGate(canceled, betaPlan, NOW);
+    expect(gate.locked).toBe(true);
+    expect(gate.reason).toBe("beta_expired");
+    // Still inside the window: canceling early does not cut the beta short.
+    expect(evaluateBillingGate({ ...canceled, trialEndsAt: NOW + DAY }, betaPlan, NOW).locked).toBe(false);
+    // A graduated studio is on the terms it was moved to.
+    expect(evaluateBillingGate({ ...canceled, graduatedAt: NOW - 2 * DAY }, betaPlan, NOW).reason).not.toBe("beta_expired");
+  });
+
   it("leaves a non-beta comped studio alone", () => {
     const gate = evaluateBillingGate(
       { billingStatus: "comped", agencyPlanId: "plan1" as never },

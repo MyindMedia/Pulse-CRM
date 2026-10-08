@@ -1,4 +1,4 @@
-import { query, internalAction } from "./_generated/server";
+import { query, internalQuery, internalAction, type QueryCtx } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
@@ -11,7 +11,7 @@ import {
   CALL_SCRIPT_APPROVED, buildFirstSentence, buildTask,
 } from "./outreach/callScript";
 import {
-  DEFAULT_SETTINGS, capDay, evaluate, formatDemoTime, maskPhone, validateSettings, type CallSettings, type Decision,
+  DEFAULT_SETTINGS, capDay, evaluate, formatDemoTime, maskPhone, usPhone, validateSettings, type CallSettings, type Decision,
 } from "./outreach/callPolicy";
 
 /* Confirmation calls: the automated Bland call that confirms a booked demo.
@@ -167,8 +167,33 @@ export const setKillSwitch = mutation({
 
 /* ----------------------------- dispatch ----------------------------- */
 
+/** Is this contact on a do-not-call list? Looks up the call opt-outs by phone and
+ *  email and a texted STOP (smsOptOuts), each by index. Any lookup that throws
+ *  answers "optout_check_failed": the call is skipped, never placed on a guess. */
+export async function contactBlock(
+  ctx: Pick<QueryCtx, "db">,
+  agencyId: string,
+  phone: string | undefined,
+  email: string | undefined,
+): Promise<"opted_out" | "optout_check_failed" | null> {
+  try {
+    const phones = [...new Set([phone, usPhone(phone)].filter((p): p is string => Boolean(p)))];
+    for (const p of phones) {
+      if (await ctx.db.query("outreachCallOptOuts").withIndex("by_agency_phone", (q) => q.eq("agencyId", agencyId).eq("phone", p)).first()) return "opted_out";
+      const sms = await ctx.db.query("smsOptOuts").withIndex("by_phone", (q) => q.eq("phone", p)).first();
+      if (sms?.optedOut) return "opted_out";
+    }
+    if (email && await ctx.db.query("outreachCallOptOuts").withIndex("by_agency_email", (q) => q.eq("agencyId", agencyId).eq("email", email)).first()) return "opted_out";
+    return null;
+  } catch {
+    return "optout_check_failed";
+  }
+}
+
 export type PlannedDial = {
   callId: Id<"outreachCalls">;
+  /** The E.164 number the body dials. The live lead must still carry it. */
+  phone: string;
   body: Record<string, unknown>;
   leadId: string | null;
   workspaceId: string | null;
@@ -206,7 +231,6 @@ export const _planDue = internalMutation({
         used += dry.filter((c) => capDay(c.updatedAt, s.timezone) === today).length;
       }
 
-      const optPhones = new Set((await ctx.db.query("outreachCallOptOuts").withIndex("by_agency_phone", (q) => q.eq("agencyId", agencyId)).take(2000)).map((o) => o.phone).filter(Boolean));
       let dialsThisAgency = 0;
 
       for (const b of bookings) {
@@ -214,9 +238,8 @@ export const _planDue = internalMutation({
         if (existing && !(existing.status === "queued" || (existing.status === "dry_run" && s.mode === "live"))) continue;
 
         const email = b.contactEmail?.toLowerCase();
-        const optedOut = (b.phone ? optPhones.has(b.phone) : false) || (email
-          ? (await ctx.db.query("outreachCallOptOuts").withIndex("by_agency_email", (q) => q.eq("agencyId", agencyId).eq("email", email)).first()) !== null
-          : false);
+        const block = await contactBlock(ctx, agencyId, b.phone, email);
+        const optedOut = block === "opted_out";
         const suppressed = email
           ? (await ctx.db.query("outreachSuppressions").withIndex("by_agency_email", (q) => q.eq("agencyId", agencyId).eq("email", email)).first()) !== null
           : false;
@@ -229,6 +252,8 @@ export const _planDue = internalMutation({
           },
           s, { optedOut, suppressed, usedToday: used, scheduledFor }, now,
         );
+        if (d.kind !== "cancel" && block === "optout_check_failed") d = { kind: "skip", reason: block, trail: [...d.trail, `skip:${block}`] };
+        if (d.kind !== "cancel" && b.dnd === true) d = { kind: "skip", reason: "dnd", trail: [...d.trail, "skip:dnd"] };
         if (d.kind === "ok" && blockers.length) d = { kind: "wait", reason: blockers[0], trail: [...d.trail, `wait:${blockers[0]}`] };
         if (d.kind === "ok" && dialsThisAgency >= MAX_DIALS_PER_RUN) d = { kind: "wait", reason: "run_limit", trail: [...d.trail, "wait:run_limit"] };
 
@@ -260,12 +285,28 @@ export const _planDue = internalMutation({
         await ctx.db.patch(id, { status: "dialing", skipReason: undefined, attempts: 1, dialedAt: now, phone: d.phone, dryRun: undefined, updatedAt: now });
         dialsThisAgency++;
         dials.push({
-          callId: id, agencyId, leadId: b.zuopsLeadId ?? null, workspaceId: os.zuopsWorkspaceId ?? null,
+          callId: id, phone: d.phone, agencyId, leadId: b.zuopsLeadId ?? null, workspaceId: os.zuopsWorkspaceId ?? null,
           body: buildCallBody({ ...input, webhook: webhookUrl() as string }),
         });
       }
     }
     return { dials };
+  },
+});
+
+/** Why calling has stopped for this agency since the run planned, or null when it may dial.
+ *  Read again right before each dial so the kill switch takes effect mid-run. */
+export const _stopReason = internalQuery({
+  args: { agencyId: v.string() },
+  handler: async (ctx, { agencyId }): Promise<string | null> => {
+    const row = await ctx.db.query("outreachCallSettings").withIndex("by_agency", (q) => q.eq("agencyId", agencyId)).first();
+    if (!row) return "disabled";
+    if (row.killSwitch) return "kill_switch";
+    if (!row.enabled) return "disabled";
+    if (row.mode !== "live") return "not_live";
+    const os = await ctx.db.query("outreachSettings").withIndex("by_agency", (q) => q.eq("agencyId", agencyId)).first();
+    if (!os || os.paused) return "outreach_paused";
+    return null;
   },
 });
 
@@ -314,6 +355,20 @@ export const dispatchDueCalls = internalAction({
       const lead = parseLead(r.json);
       if (!lead || lead.consent.call !== true) {
         await ctx.runMutation(internal.outreachCalls._release, { callId: d.callId, to: "skipped", reason: "consent_revoked" });
+        continue;
+      }
+      if (lead.dnd) {
+        await ctx.runMutation(internal.outreachCalls._release, { callId: d.callId, to: "skipped", reason: "dnd" });
+        continue;
+      }
+      // Only the number the lead carries right now. A stale synced number may belong to someone else.
+      if (usPhone(lead.phone) !== d.phone) {
+        await ctx.runMutation(internal.outreachCalls._release, { callId: d.callId, to: "skipped", reason: "phone_changed" });
+        continue;
+      }
+      const stop = await ctx.runQuery(internal.outreachCalls._stopReason, { agencyId: d.agencyId });
+      if (stop) {
+        await ctx.runMutation(internal.outreachCalls._release, { callId: d.callId, to: "queued", reason: stop });
         continue;
       }
       const res = await placeCall(d.body, process.env.BLAND_API_KEY);

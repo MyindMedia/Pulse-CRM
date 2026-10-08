@@ -560,9 +560,9 @@ export const clearPhoto = mutation({
 // ── Self-service (a teammate acting on their OWN member row) ──────────────
 
 /** The signed-in teammate's own member row (mapped via Clerk id), or null. */
-async function myMemberRow(ctx: QueryCtx | MutationCtx) {
-  const orgId = await currentOrg(ctx);
-  const viewer = await resolveViewer(ctx).catch(() => null);
+async function myMemberRow(ctx: QueryCtx | MutationCtx, opts?: { allowLocked?: boolean }) {
+  const orgId = await currentOrg(ctx, opts);
+  const viewer = await resolveViewer(ctx, opts).catch(() => null);
   const clerkUserId = viewer && "clerkUserId" in viewer ? viewer.clerkUserId : null;
   if (!clerkUserId) return null;
   return await ctx.db
@@ -575,7 +575,8 @@ async function myMemberRow(ctx: QueryCtx | MutationCtx) {
 export const myProfile = query({
   args: {},
   handler: async (ctx) => {
-    const me = await myMemberRow(ctx);
+    // Read-only, and allowed while billing-locked (the lock screen is theirs).
+    const me = await myMemberRow(ctx, { allowLocked: true });
     if (!me) return null;
     return {
       _id: me._id,

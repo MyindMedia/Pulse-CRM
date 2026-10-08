@@ -7,7 +7,7 @@ import { AccessError } from "./lib/access";
 import { agencyScope, logEvent, type AgencyScope } from "./outreach/scope";
 import { redact } from "./outreach/policy";
 import { fileUrl, claimFile } from "./lib/media";
-import { checkLocalPart, checkDisplayName, bareAddress, isSendableAddress, ownAddress, routeRecipients, MAIL_DOMAIN } from "./mail/address";
+import { checkLocalPart, checkDisplayName, bareAddress, isSendableAddress, ownAddress, quarantinedRecipient, routeRecipients, MAIL_DOMAIN } from "./mail/address";
 import { normalizeSubject, lookupOrder, chooseBySubject, buildReferences, replySubject } from "./mail/threading";
 import { buildOutboundPayload, payloadFromStored } from "./mail/compose";
 import { snippetOf } from "./mail/inbound";
@@ -302,16 +302,22 @@ function externalParticipants(m: { from: string; to: string[]; cc: string[] }): 
 async function findThread(
   ctx: MutationCtx, agencyId: string, mailboxId: Id<"mailboxes"> | undefined,
   m: { inReplyTo?: string; references: string[]; subject: string; from: string }, now: number, excludeThread?: Id<"mailThreads">,
+  quarantined = false,
 ): Promise<Id<"mailThreads"> | null> {
+  // Quarantined mail threads only with quarantined mail, so it can never join
+  // (or reopen) a thread that is shown in Unrouted, and the reverse.
+  const sameShelf = (t: Doc<"mailThreads"> | null) => Boolean(t) && (t!.status === "quarantined") === quarantined;
   for (const id of lookupOrder(m.inReplyTo, m.references)) {
     const hits = await ctx.db.query("mailMessages").withIndex("by_agency_message_id", (q) => q.eq("agencyId", agencyId).eq("messageId", id)).take(5);
-    const hit = hits.find((h) => h.mailboxId === mailboxId && h.threadId !== excludeThread);
-    if (hit) return hit.threadId;
+    for (const h of hits) {
+      if (h.mailboxId !== mailboxId || h.threadId === excludeThread) continue;
+      if (sameShelf(await ctx.db.get(h.threadId))) return h.threadId;
+    }
   }
   const norm = normalizeSubject(m.subject);
   if (!norm) return null;
   const cands = (await ctx.db.query("mailThreads").withIndex("by_mailbox_subject", (q) => q.eq("mailboxId", mailboxId).eq("normalizedSubject", norm)).take(20))
-    .filter((t) => t.agencyId === agencyId && t._id !== excludeThread);
+    .filter((t) => t.agencyId === agencyId && t._id !== excludeThread && sameShelf(t));
   const chosen = chooseBySubject(cands.map((t) => ({ id: t._id, participants: t.participants, lastMessageAt: t.lastMessageAt, status: t.status })), bareAddress(m.from), now);
   return (chosen as Id<"mailThreads"> | null) ?? null;
 }
@@ -329,17 +335,23 @@ export const _ingest = internalMutation({
     const route = routeRecipients(msg, new Set(boxes.map((b) => b.address)));
     const mailbox = route.address ? boxes.find((b) => b.address === route.address) : undefined;
     const mailboxId = mailbox?._id;
+    // Unrouted mail to a domain role address (admin@, postmaster@...) can carry
+    // domain-control links (certificate, registrar). Kept, but not shown to
+    // every admin in Unrouted.
+    const quarantinedTo = mailboxId ? null : quarantinedRecipient(route.candidates);
+    const quarantined = quarantinedTo !== null;
+    const openStatus = quarantined ? ("quarantined" as const) : ("open" as const);
 
     const fromAddress = bareAddress(msg.from) ?? "";
     const snippet = snippetOf(msg.text, msg.html);
-    let threadId = await findThread(ctx, agencyId, mailboxId, msg, now);
+    let threadId = await findThread(ctx, agencyId, mailboxId, msg, now, undefined, quarantined);
     if (threadId) {
       const t = await ctx.db.get(threadId);
       if (t) {
         const participants = [...new Set([...t.participants, ...externalParticipants(msg)])].slice(0, 50);
         const newer = msg.receivedAt >= t.lastMessageAt;
         await ctx.db.patch(threadId, {
-          participants, messageCount: t.messageCount + 1, unreadCount: t.unreadCount + 1, status: "open",
+          participants, messageCount: t.messageCount + 1, unreadCount: t.unreadCount + 1, status: openStatus,
           ...(newer ? { lastMessageAt: msg.receivedAt, lastSnippet: snippet, lastFrom: msg.from } : {}),
         });
       }
@@ -348,7 +360,7 @@ export const _ingest = internalMutation({
         agencyId, mailboxId, subject: msg.subject || "(no subject)", normalizedSubject: normalizeSubject(msg.subject),
         participants: externalParticipants(msg), originalRecipients: route.candidates.slice(0, 10),
         lastMessageAt: msg.receivedAt, lastSnippet: snippet, lastFrom: msg.from, messageCount: 1, unreadCount: 1,
-        status: "open", createdAt: now,
+        status: openStatus, createdAt: now,
       });
     }
 
@@ -360,7 +372,7 @@ export const _ingest = internalMutation({
       authentication: msg.authentication,
       attachments: msg.attachments.map((x) => ({ ...x, status: "pending" as const })),
     });
-    await logEvent(ctx, agencyId, "system", "mail.received", "ok", mailbox?.address ?? "unrouted");
+    await logEvent(ctx, agencyId, "system", quarantined ? "mail.quarantined" : "mail.received", "ok", mailbox?.address ?? quarantinedTo ?? "unrouted");
     return { status: "stored" as const, messageId, threadId, routed: Boolean(mailboxId), attachments: msg.attachments.length };
   },
 });
@@ -384,13 +396,14 @@ export const _applyBody = internalMutation({
     // A message that started its own thread may belong to an older one now that
     // its In-Reply-To and References are known.
     if (t.messageCount === 1) {
-      const better = await findThread(ctx, m.agencyId, m.mailboxId, msg, Date.now(), t._id);
+      const quarantined = t.status === "quarantined";
+      const better = await findThread(ctx, m.agencyId, m.mailboxId, msg, Date.now(), t._id, quarantined);
       if (better) {
         const target = await ctx.db.get(better);
         if (target) {
           await ctx.db.patch(messageId, { threadId: better });
           await ctx.db.patch(better, {
-            messageCount: target.messageCount + 1, unreadCount: target.unreadCount + (m.read ? 0 : 1), status: "open",
+            messageCount: target.messageCount + 1, unreadCount: target.unreadCount + (m.read ? 0 : 1), status: quarantined ? "quarantined" : "open",
             participants: [...new Set([...target.participants, ...t.participants])].slice(0, 50),
             ...(msg.receivedAt >= target.lastMessageAt ? { lastMessageAt: msg.receivedAt, lastSnippet: snippet, lastFrom: m.from } : {}),
           });

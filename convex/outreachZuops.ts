@@ -155,6 +155,7 @@ export const _upsert = internalMutation({
         contactName: b.lead?.name ?? existing?.contactName, contactEmail: email,
         consent: b.lead ? b.lead.consent : existing?.consent, emailOptOut: b.lead ? b.lead.emailOptOut : existing?.emailOptOut,
         phone: b.lead ? b.lead.phone : existing?.phone, phoneSynced: b.lead ? true : existing?.phoneSynced,
+        dnd: b.lead ? b.lead.dnd : existing?.dnd,
         prospectId: prospect?._id ?? existing?.prospectId, syncedAt: now,
       };
       if (existing) await ctx.db.replace(existing._id, doc);
@@ -185,19 +186,23 @@ export const sync = internalAction({
     // Only this calendar's bookings, and only ones that name this calendar or none.
     const list = parseBookings(res.json).filter((b) => !b.calendarId || b.calendarId === m.calendarId);
     const known = new Set(await ctx.runQuery(internal.outreachZuops._knownContacts, { agencyId }));
-    const hydrated: Hydrated[] = [];
-    let lookups = 0;
+    /* Leads never read come first. A lead already read is read again while its
+       booking is still ahead and confirmed, so a changed phone, name or email
+       reaches the row before a confirmation call can dial the old one. */
+    const wanted = (b: ZuopsBooking) => Boolean(b.leadId) && (!known.has(b.leadId as string) || (b.status === "confirmed" && b.startsAt > now));
+    const order = [...list].sort((x, y) => Number(known.has(x.leadId ?? "")) - Number(known.has(y.leadId ?? "")));
     const leads = new Map<string, ZuopsLead | null>();
+    let lookups = 0;
+    for (const b of order) {
+      if (!wanted(b) || leads.has(b.leadId as string) || lookups >= MAX_LEAD_LOOKUPS) continue;
+      lookups++;
+      const r = await zuopsGet(`/v1/leads/${encodeURIComponent(b.leadId as string)}`, { workspace_id: m.workspaceId });
+      leads.set(b.leadId as string, r.ok ? parseLead(r.json) : null);
+    }
+    const hydrated: Hydrated[] = [];
     for (const b of list) {
       const h: Hydrated = { ...b };
-      if (b.leadId && !known.has(b.leadId) && lookups < MAX_LEAD_LOOKUPS) {
-        if (!leads.has(b.leadId)) {
-          lookups++;
-          const r = await zuopsGet(`/v1/leads/${encodeURIComponent(b.leadId)}`, { workspace_id: m.workspaceId });
-          leads.set(b.leadId, r.ok ? parseLead(r.json) : null);
-        }
-        h.lead = leads.get(b.leadId) ?? undefined;
-      }
+      if (b.leadId && leads.has(b.leadId)) h.lead = leads.get(b.leadId) ?? undefined;
       hydrated.push(h);
     }
     await ctx.runMutation(internal.outreachZuops._upsert, { agencyId, bookings: hydrated });

@@ -89,3 +89,20 @@ export function routeRecipients(
   const hit = candidates.find((a) => activeAddresses.has(a)) ?? null;
   return { address: hit, candidates };
 }
+
+/** Role addresses a certificate authority, registrar or abuse desk writes to
+ *  (CA/B Forum domain validation uses admin, administrator, webmaster,
+ *  hostmaster and postmaster). Mail to them can prove control of the domain,
+ *  so it is quarantined rather than shown in Unrouted to every admin. */
+export const QUARANTINED_LOCAL_PARTS: ReadonlySet<string> = new Set([
+  "admin", "administrator", "postmaster", "hostmaster", "webmaster", "abuse",
+]);
+
+/** The first of our recipient addresses that is a quarantined role address, or null. */
+export function quarantinedRecipient(candidates: readonly string[]): string | null {
+  for (const a of candidates) {
+    const local = a.slice(0, a.indexOf("@")).toLowerCase();
+    if (QUARANTINED_LOCAL_PARTS.has(local)) return a;
+  }
+  return null;
+}

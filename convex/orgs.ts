@@ -6,7 +6,7 @@ import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { currentOrg, currentActor, currentOrgWithCapability} from "./lib/tenant";
-import { AccessError, resolveViewer } from "./lib/access";
+import { AccessError, resolveViewer, SETUP_ACCESS } from "./lib/access";
 import { US_STATES, findState } from "./lib/usTaxRates";
 import { isValidTimezone } from "./lib/tz";
 import { meterStorageUpload, tierForOrg } from "./usage";
@@ -34,6 +34,10 @@ export const listActiveOrgIds = internalQuery({
 /* Orgs - one row per studio subaccount. `current` is the active workspace;
    `getBySlug` powers the public /book/<slug> page. Branding (logo, accent,
    booking-page theming) lives here and flows into the app + booking site. */
+
+/* update, setLogo, generateUploadUrl and applyBrandFromLogo are also the
+   setup wizard's branding steps, so they admit a studio whose paid plan is
+   still waiting on its card (SETUP_ACCESS in lib/access.ts). */
 
 /** Shape an org doc into the branding payload the UI consumes. */
 async function billingOf(ctx: QueryCtx, org: Doc<"orgs"> | null) {
@@ -190,7 +194,7 @@ export const update = mutation({
     if (patch.timezone !== undefined && !isValidTimezone(patch.timezone)) {
       throw new Error("Unknown timezone.");
     }
-    const orgId = await currentOrgWithCapability(ctx, "branding.edit");
+    const orgId = await currentOrgWithCapability(ctx, "branding.edit", undefined, SETUP_ACCESS);
     const org = await ensureOrg(ctx, orgId);
     const { contactPhone, ...rest } = patch;
     const clean: Record<string, unknown> = Object.fromEntries(
@@ -223,7 +227,7 @@ export const update = mutation({
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
-    await currentOrg(ctx);
+    await currentOrg(ctx, SETUP_ACCESS);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -231,7 +235,7 @@ export const generateUploadUrl = mutation({
 export const setLogo = mutation({
   args: { storageId: fileRefV },
   handler: async (ctx, { storageId }) => {
-    const orgId = await currentOrgWithCapability(ctx, "branding.edit");
+    const orgId = await currentOrgWithCapability(ctx, "branding.edit", undefined, SETUP_ACCESS);
     const org = await ensureOrg(ctx, orgId);
     await claimFile(ctx, storageId, orgId);
     await meterStorageUpload(ctx, orgId, storageId, org?.logoId ?? null);
@@ -260,7 +264,7 @@ export const applyBrandFromLogo = mutation({
     if (palette.length > 6 || palette.some((p) => !/^#[0-9a-fA-F]{6}$/.test(p))) {
       throw new Error("Invalid palette.");
     }
-    const orgId = await currentOrgWithCapability(ctx, "branding.edit");
+    const orgId = await currentOrgWithCapability(ctx, "branding.edit", undefined, SETUP_ACCESS);
     const org = await ensureOrg(ctx, orgId);
     if (!org) throw new Error("No studio yet - upload a logo first.");
     await ctx.db.patch(org._id, { accentColor, brandPalette: palette });

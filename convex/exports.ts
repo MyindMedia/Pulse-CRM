@@ -8,6 +8,8 @@ import { periodFor } from "./usage";
    because it meters a "+1" against usageCounters[exports] as a
    side effect. Every export reads strictly within the caller's
    org via currentOrg(), so cross-tenant rows can never leak.
+   A billing-locked studio can still export: the data is theirs whether or
+   not the plan is paid (lib/access.ts, allowLocked).
    ============================================================ */
 
 /** RFC-4180 cell escaping: wrap in quotes + double internal quotes when needed. */
@@ -60,7 +62,7 @@ function dollars(cents: number | undefined): string {
 export const clientsCsv = mutation({
   args: {},
   handler: async (ctx): Promise<{ filename: string; csv: string }> => {
-    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+    const orgId = await currentOrgWithCapability(ctx, "insights.read", undefined, { allowLocked: true });
     const artists = await ctx.db
       .query("artists")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -81,7 +83,7 @@ export const clientsCsv = mutation({
 export const songsCsv = mutation({
   args: {},
   handler: async (ctx): Promise<{ filename: string; csv: string }> => {
-    const orgId = await currentOrgWithCapability(ctx, "songs.read");
+    const orgId = await currentOrgWithCapability(ctx, "songs.read", undefined, { allowLocked: true });
     const songs = await ctx.db
       .query("songs")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -102,7 +104,7 @@ export const songsCsv = mutation({
 export const bookingsCsv = mutation({
   args: {},
   handler: async (ctx): Promise<{ filename: string; csv: string }> => {
-    const orgId = await currentOrgWithCapability(ctx, "insights.read");
+    const orgId = await currentOrgWithCapability(ctx, "insights.read", undefined, { allowLocked: true });
     const sessions = await ctx.db
       .query("sessions")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -124,7 +126,7 @@ export const bookingsCsv = mutation({
 export const invoicesCsv = mutation({
   args: {},
   handler: async (ctx): Promise<{ filename: string; csv: string }> => {
-    const orgId = await currentOrgWithCapability(ctx, "invoices.read");
+    const orgId = await currentOrgWithCapability(ctx, "invoices.read", undefined, { allowLocked: true });
     const invoices = await ctx.db
       .query("invoices")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -145,7 +147,7 @@ export const invoicesCsv = mutation({
 export const splitSheetsCsv = mutation({
   args: {},
   handler: async (ctx): Promise<{ filename: string; csv: string }> => {
-    const orgId = await currentOrgWithCapability(ctx, "splitsheet.read");
+    const orgId = await currentOrgWithCapability(ctx, "splitsheet.read", undefined, { allowLocked: true });
     const sheets = await ctx.db
       .query("splitSheets")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -174,7 +176,7 @@ export const splitSheetsCsv = mutation({
 export const activityCsv = mutation({
   args: {},
   handler: async (ctx): Promise<{ filename: string; csv: string }> => {
-    const orgId = await currentOrgWithCapability(ctx, "activity.read");
+    const orgId = await currentOrgWithCapability(ctx, "activity.read", undefined, { allowLocked: true });
     const events = await ctx.db
       .query("activity")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))

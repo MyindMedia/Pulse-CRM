@@ -10,6 +10,12 @@
 const DANGEROUS_BLOCKS = ["script", "iframe", "frame", "frameset", "object", "embed", "applet", "noscript", "template", "form", "textarea", "select", "button", "svg", "math"];
 const DANGEROUS_VOID = ["link", "meta", "base", "input", "param", "source", "track", "frame"];
 
+/** The <iframe sandbox> for a received message. No scripts, opaque origin, and
+ *  a link may open a new tab, but that tab stays sandboxed: no
+ *  allow-popups-to-escape-sandbox, so a page a message links to can never
+ *  script against, or navigate, the app. */
+export const EMAIL_IFRAME_SANDBOX = "allow-popups";
+
 export type SanitizeOptions = { allowRemoteImages?: boolean };
 
 export function sanitizeEmailHtml(html: string, opts: SanitizeOptions = {}): string {
@@ -28,6 +34,12 @@ export function sanitizeEmailHtml(html: string, opts: SanitizeOptions = {}): str
   out = out.replace(/(\shref\s*=\s*)(["']?)\s*data\s*:[^"'\s>]*\2/gi, "$1$2#$2");
   // CSS expressions and url(javascript:...) in inline styles.
   out = out.replace(/expression\s*\(/gi, "blocked(").replace(/url\s*\(\s*(["']?)\s*javascript:/gi, "url($1blocked:");
+  // Every link opens in a new tab with no handle back to this window, so a
+  // received message cannot navigate the app tab (reverse tabnabbing).
+  out = out.replace(/<(a|area)\b([^>]*)>/gi, (_m, tag: string, attrs: string) => {
+    const kept = attrs.replace(/\s(?:rel|target)\s*=\s*(?:"[^"]*"|'[^']*'|[^\s>]+)/gi, "").replace(/\s*\/?\s*$/, "");
+    return `<${tag}${kept} target="_blank" rel="noopener noreferrer">`;
+  });
   if (!opts.allowRemoteImages) {
     // Remote images and backgrounds stay unloaded until the reader asks.
     out = out.replace(/(<img\b[^>]*?\s)src(\s*=\s*["']?\s*(?:https?:)?\/\/)/gi, "$1data-blocked-src$2");

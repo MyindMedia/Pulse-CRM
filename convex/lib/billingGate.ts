@@ -133,7 +133,21 @@ export function evaluateBillingGate(
 
   if (status === "comped") return { ...base, reason: "comped" };
   if (status === "active") return { ...base, reason: "active" };
+  /* Studios on the Beta plan without the cohort flag (auto-enrolled by the
+     agency) get the same end of term: payment is required after it.
+     Cohort studios are handled by the license check above, and a graduated
+     studio is on whatever terms the agency moved it to. */
+  const betaPlanTerm =
+    (plan.isBeta === true || plan.name === BETA_PLAN_NAME) && !org.betaCohort && !org.graduatedAt;
+  const betaWindowOver = org.trialEndsAt !== undefined && now >= org.trialEndsAt;
+
   if (status === "canceled") {
+    /* A Beta-plan studio that subscribed through the beta checkout and then
+       canceled. The Beta plan costs nothing, so the paywall below would never
+       fire; once the beta window has passed, payment is required. */
+    if (betaPlanTerm && betaWindowOver) {
+      return { locked: true, trialDaysLeft: 0, inTrial: false, reason: "beta_expired" };
+    }
     /* A Stripe-backed paid plan that was canceled (including a trial Stripe
        canceled for having no card at the end) is a paywall, not free access.
        Data stays; the studio subscribes again to get back in. */
@@ -150,13 +164,8 @@ export function evaluateBillingGate(
 
   if (status === "trialing") {
     const left = trialDaysLeft(org.trialEndsAt, now);
-    const expired = org.trialEndsAt !== undefined && now >= org.trialEndsAt;
-    /* Studios on the Beta plan without the cohort flag (auto-enrolled by the
-       agency) get the same end of term: payment is required after it.
-       Cohort studios are handled by the license check above, and a graduated
-       studio is on whatever terms the agency moved it to. */
-    const betaPlan = plan.isBeta === true || plan.name === BETA_PLAN_NAME;
-    if (expired && betaPlan && !subscribed && !org.betaCohort && !org.graduatedAt) {
+    const expired = betaWindowOver;
+    if (expired && betaPlanTerm && !subscribed) {
       return { locked: true, trialDaysLeft: 0, inTrial: false, reason: "beta_expired" };
     }
     // Grandfathered card-free trials owe a card at the end whatever the plan says.
@@ -172,6 +181,45 @@ export function evaluateBillingGate(
   // past_due
   const locked = plan.requireCardAfterTrial && !card;
   return { locked, trialDaysLeft: 0, inTrial: false, reason: "past_due" };
+}
+
+/* ============================================================
+   Server-side enforcement.
+
+   The overlay in the browser is a courtesy; this is the lock. lib/access.ts
+   asks it on every studio viewer resolve and refuses the call when it says
+   locked. It follows the gate above with one softening: a studio that went
+   past due keeps working through a grace period, because a lapsed card is
+   often fixed within a day and locking a paying studio out mid-session over
+   it costs more than the few days of access.
+   ============================================================ */
+
+/** Days a past-due studio keeps working before the server locks it. */
+export const PAST_DUE_GRACE_DAYS_DEFAULT = 3;
+
+/** The grace, from PULSE_PAST_DUE_GRACE_DAYS when it is a sane number. */
+export function pastDueGraceMs(raw: string | undefined = process.env.PULSE_PAST_DUE_GRACE_DAYS): number {
+  const days = raw === undefined || raw.trim() === "" ? NaN : Number(raw);
+  return (Number.isFinite(days) && days >= 0 ? days : PAST_DUE_GRACE_DAYS_DEFAULT) * DAY_MS;
+}
+
+/** Whether the server refuses this studio's calls. */
+export function serverBillingLock(
+  org: BillingOrg | null | undefined,
+  plan: GatePlan | null | undefined,
+  now: number,
+  graceMs: number = pastDueGraceMs(),
+): { locked: boolean; reason: BillingGate["reason"] } {
+  const gate = evaluateBillingGate(org, plan, now);
+  if (!gate.locked) return { locked: false, reason: gate.reason };
+  if (gate.reason === "past_due") {
+    /* The trial sweep flips a studio to past_due at its trial end, so that is
+       when the debt started. With no date to measure from, do not lock: a
+       wrong lock on a paying studio is the worse mistake. */
+    const since = org?.trialEndsAt;
+    if (since === undefined || now < since + graceMs) return { locked: false, reason: gate.reason };
+  }
+  return { locked: true, reason: gate.reason };
 }
 
 /** Effective monthly/interval price for a sub-account: override beats plan. */

@@ -6,7 +6,7 @@ import { v, ConvexError } from "convex/values";
 import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
-import { resolveViewer } from "./lib/access";
+import { resolveViewer, SETUP_ACCESS } from "./lib/access";
 import { PURPOSES, makeKey, r2For, fileUrl, resolveBucket, rowBucket, ensureOrgBuckets, type FileRef, type MediaBucket, type MediaPurpose } from "./lib/media";
 import { fileRefV } from "./lib/fileRef";
 
@@ -57,8 +57,7 @@ export async function createUpload(
   return { mediaId, url, headers: { "Content-Type": a.mimeType } };
 }
 
-async function actorOf(ctx: Parameters<typeof resolveViewer>[0]): Promise<string> {
-  const viewer = await resolveViewer(ctx);
+function actorOf(viewer: Awaited<ReturnType<typeof resolveViewer>>): string {
   return "clerkUserId" in viewer ? String(viewer.clerkUserId) : viewer.kind;
 }
 
@@ -67,10 +66,11 @@ async function actorOf(ctx: Parameters<typeof resolveViewer>[0]): Promise<string
 export const prepareUpload = mutation({
   args: { purpose: purposeV, fileName: v.string(), mimeType: v.string(), size: v.number() },
   handler: async (ctx, a) => {
-    const viewer = await resolveViewer(ctx);
+    // Also the setup wizard's logo upload (SETUP_ACCESS, lib/access.ts).
+    const viewer = await resolveViewer(ctx, SETUP_ACCESS);
     if (viewer.kind === "guest") throw new ConvexError("Only studio staff can upload files.");
-    const scope = await currentOrg(ctx);
-    return await createUpload(ctx, { ...a, scope, actor: await actorOf(ctx) });
+    const scope = await currentOrg(ctx, SETUP_ACCESS);
+    return await createUpload(ctx, { ...a, scope, actor: actorOf(viewer) });
   },
 });
 
@@ -81,8 +81,8 @@ export const myPending = query({
   handler: async (ctx, { mediaId }) => {
     const row = await ctx.db.get(mediaId);
     if (!row) return null;
-    const viewer = await resolveViewer(ctx);
-    const scope = await currentOrg(ctx);
+    const viewer = await resolveViewer(ctx, SETUP_ACCESS);
+    const scope = await currentOrg(ctx, SETUP_ACCESS);
     const mine = row.orgId === scope || (viewer.kind === "agency_member" && row.orgId.startsWith("agency:"));
     if (!mine) return null;
     return { mediaId: row._id, key: row.key, bucket: row.bucket, bucketName: rowBucket(row), purpose: row.purpose, status: row.status };
@@ -204,9 +204,14 @@ export async function readFileBlob(
 
 /** Pending row for a server-side write. Returns where the bytes must go. */
 export const _reserveStored = internalMutation({
-  args: { scope: v.string(), purpose: purposeV, fileName: v.string(), mimeType: v.string(), size: v.number(), actor: v.string(), legacyStorageId: v.optional(v.id("_storage")) },
+  args: {
+    scope: v.string(), purpose: purposeV, fileName: v.string(), mimeType: v.string(), size: v.number(), actor: v.string(), legacyStorageId: v.optional(v.id("_storage")),
+    /** false for bytes a third party chose (an inbound email attachment): the
+     *  per-purpose checks and the daily limit apply. Unset = our own bytes. */
+    trusted: v.optional(v.boolean()),
+  },
   handler: async (ctx, a): Promise<{ mediaId: Id<"mediaFiles">; key: string; bucket: MediaBucket; bucketName: string }> => {
-    const { mediaId } = await createUpload(ctx, { scope: a.scope, purpose: a.purpose, fileName: a.fileName, mimeType: a.mimeType, size: a.size, actor: a.actor, trusted: true });
+    const { mediaId } = await createUpload(ctx, { scope: a.scope, purpose: a.purpose, fileName: a.fileName, mimeType: a.mimeType, size: a.size, actor: a.actor, trusted: a.trusted !== false });
     if (a.legacyStorageId) await ctx.db.patch(mediaId, { legacyStorageId: a.legacyStorageId });
     const row = (await ctx.db.get(mediaId))!;
     return { mediaId, key: row.key, bucket: row.bucket, bucketName: rowBucket(row) };
@@ -224,7 +229,13 @@ export function isR2NotConfigured(err: unknown): boolean {
  *  working; production has R2 configured and never takes this path. */
 export async function storeBytes(
   ctx: ActionCtx,
-  a: { scope: string; purpose: MediaPurpose; blob: Blob; fileName: string; mimeType?: string; actor: string; legacyStorageId?: Id<"_storage">; noFallback?: boolean },
+  a: {
+    scope: string; purpose: MediaPurpose; blob: Blob; fileName: string; mimeType?: string; actor: string; legacyStorageId?: Id<"_storage">; noFallback?: boolean;
+    /** Content-Disposition R2 serves the object with (e.g. a forced download). */
+    disposition?: string;
+    /** Bytes from outside (an email sender): not exempt from upload checks. */
+    untrusted?: boolean;
+  },
 ): Promise<FileRef> {
   const rule = PURPOSES[a.purpose];
   if (a.blob.size <= 0) throw new ConvexError("That file is empty.");
@@ -232,7 +243,10 @@ export async function storeBytes(
   const mimeType = (a.mimeType || a.blob.type || "application/octet-stream").slice(0, 120);
   let spot: { mediaId: Id<"mediaFiles">; key: string; bucket: MediaBucket; bucketName: string };
   try {
-    spot = await ctx.runMutation(internal.media._reserveStored, { scope: a.scope, purpose: a.purpose, fileName: a.fileName, mimeType, size: a.blob.size, actor: a.actor, legacyStorageId: a.legacyStorageId });
+    spot = await ctx.runMutation(internal.media._reserveStored, {
+      scope: a.scope, purpose: a.purpose, fileName: a.fileName, mimeType, size: a.blob.size, actor: a.actor, legacyStorageId: a.legacyStorageId,
+      ...(a.untrusted ? { trusted: false } : {}),
+    });
   } catch (err) {
     if (!a.noFallback && isR2NotConfigured(err)) {
       console.warn(`storeBytes: R2 is not configured, keeping ${a.purpose} in Convex storage`);
@@ -241,7 +255,7 @@ export async function storeBytes(
     throw err;
   }
   try {
-    await r2For(spot.bucket, spot.bucketName).store(ctx, a.blob, { key: spot.key, type: mimeType });
+    await r2For(spot.bucket, spot.bucketName).store(ctx, a.blob, { key: spot.key, type: mimeType, ...(a.disposition ? { disposition: a.disposition } : {}) });
   } catch (err) {
     await ctx.runMutation(internal.media._discard, { mediaId: spot.mediaId });
     throw err;

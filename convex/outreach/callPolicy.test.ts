@@ -3,6 +3,7 @@ import {
   DEFAULT_SETTINGS, evaluate, inWindow, usPhone, looksLikeTest, maskPhone, isOptOut, validateSettings, formatDemoTime,
   type BookingFacts, type Facts, type CallSettings,
 } from "./callPolicy";
+import { areaCodeZones, isUsTimezone } from "./areaCodes";
 
 // Tue 2026-10-13 21:00 UTC = 14:00 in Los Angeles (PDT), 17:00 in New York.
 const NOW = Date.UTC(2026, 9, 13, 21, 0, 0);
@@ -79,13 +80,41 @@ describe("eligibility matrix", () => {
   it("outside the callee's window waits (callee zone, not agency zone)", () => {
     const night = Date.UTC(2026, 9, 14, 5, 0, 0); // 22:00 PDT
     expect(run({ startsAt: night + 5 * 3_600_000 }, {}, {}, night)).toMatchObject({ kind: "wait", reason: "outside_window" });
-    // 21:00 UTC is 17:00 in New York (open) but 06:00 the next day in Tokyo (closed).
-    expect(run({ timezone: "Asia/Tokyo", phone: "+14085551234" }).kind).toBe("wait");
     expect(run({ timezone: "America/New_York" }).kind).toBe("ok");
   });
 
-  it("an invalid booking timezone falls back to the agency zone", () => {
-    expect(run({ timezone: "Not/AZone" }).kind).toBe("ok");
+  it("the window must hold in the zone of the phone's area code, whatever the booking says", () => {
+    // 01:30 UTC: 18:30 in Los Angeles (open), 21:30 in New York (closed).
+    const late = Date.UTC(2026, 9, 14, 1, 30, 0);
+    const d = run({ phone: "+12125551234", timezone: "America/Los_Angeles", startsAt: late + 3 * 3_600_000 }, {}, { scheduledFor: late - MIN }, late);
+    expect(d).toMatchObject({ kind: "wait", reason: "outside_window" });
+    // No booking zone at all: the area code alone decides, and it is closed too.
+    expect(run({ phone: "+12125551234", timezone: undefined, startsAt: late + 3 * 3_600_000 }, {}, { scheduledFor: late - MIN }, late))
+      .toMatchObject({ kind: "wait", reason: "outside_window" });
+    // A 408 number at the same moment is inside its window.
+    expect(run({ timezone: undefined, startsAt: late + 3 * 3_600_000 }, {}, { scheduledFor: late - MIN }, late).kind).toBe("ok");
+  });
+
+  it("an area code with no known US zone is skipped, not guessed", () => {
+    // 416 is Toronto: NANP, but not a US area code.
+    expect(run({ phone: "+14165551234" })).toMatchObject({ kind: "skip", reason: "unknown_area_code" });
+  });
+
+  it("a non-US or invalid booking time zone is refused", () => {
+    expect(run({ timezone: "Asia/Tokyo" })).toMatchObject({ kind: "skip", reason: "non_us_timezone" });
+    expect(run({ timezone: "Europe/London" })).toMatchObject({ kind: "skip", reason: "non_us_timezone" });
+    expect(run({ timezone: "Not/AZone" })).toMatchObject({ kind: "skip", reason: "non_us_timezone" });
+    expect(run({ timezone: "America/Indiana/Indianapolis" }).kind).toBe("ok");
+  });
+
+  it("a split area code must be open in every zone it spans", () => {
+    // 850 spans Eastern and Central. 23:30 UTC: 19:30 Eastern (open), 18:30 Central (open).
+    const t1 = Date.UTC(2026, 9, 13, 23, 30, 0);
+    expect(run({ phone: "+18505551234", timezone: undefined, startsAt: t1 + 3 * 3_600_000 }, {}, { scheduledFor: t1 - MIN }, t1).kind).toBe("ok");
+    // 00:30 UTC: 20:30 Eastern (closed), 19:30 Central (open).
+    const t2 = Date.UTC(2026, 9, 14, 0, 30, 0);
+    expect(run({ phone: "+18505551234", timezone: undefined, startsAt: t2 + 3 * 3_600_000 }, {}, { scheduledFor: t2 - MIN }, t2))
+      .toMatchObject({ kind: "wait", reason: "outside_window" });
   });
 
   it("daily cap waits", () => {
@@ -133,6 +162,15 @@ describe("helpers", () => {
     expect(validateSettings({ windowStart: "21:00", windowEnd: "09:00" })).toMatch(/end after/);
     expect(validateSettings({ timezone: "Mars/Base" })).toMatch(/time zone/);
     expect(validateSettings({ fromNumber: "4086921713" })).toMatch(/E\.164/);
+  });
+  it("areaCodeZones maps US area codes and nothing else", () => {
+    expect(areaCodeZones("+14085551234")).toEqual(["America/Los_Angeles"]);
+    expect(areaCodeZones("+12125551234")).toEqual(["America/New_York"]);
+    expect(areaCodeZones("+16025551234")).toEqual(["America/Phoenix"]);
+    expect(areaCodeZones("+14165551234")).toBeNull();
+    expect(areaCodeZones("4085551234")).toBeNull();
+    expect(isUsTimezone("America/Chicago")).toBe(true);
+    expect(isUsTimezone("America/Toronto")).toBe(false);
   });
   it("formatDemoTime is in the given zone", () => {
     expect(formatDemoTime(NOW, "America/Los_Angeles")).toMatch(/Tuesday, October 13 at 2:00 PM P[DS]T/);

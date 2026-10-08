@@ -3,7 +3,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 import { verifySvix } from "./mail/svix";
-import { fromWebhook, fromReceived, type ReceivedWebhook, type ReceivedEmail, type InboundMessage } from "./mail/inbound";
+import { attachmentStorage, fromWebhook, fromReceived, type ReceivedWebhook, type ReceivedEmail, type InboundMessage } from "./mail/inbound";
 import { mailAgencyId } from "./mail";
 import { storeBytes, isR2NotConfigured } from "./media";
 
@@ -112,7 +112,7 @@ export const _hydrate = internalAction({
 
 type AttachmentListing = { data?: Array<{ id?: string; size?: number; download_url?: string; content_type?: string; filename?: string }> };
 
-async function downloadBlob(url: string, contentType: string): Promise<Blob | null> {
+async function downloadBlob(url: string): Promise<Blob | null> {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 60_000);
   try {
@@ -120,7 +120,7 @@ async function downloadBlob(url: string, contentType: string): Promise<Blob | nu
     if (!res.ok) return null;
     const buf = await res.arrayBuffer();
     if (buf.byteLength > MAX_ATTACHMENT_BYTES) return null;
-    return new Blob([buf], { type: contentType });
+    return new Blob([buf], { type: "application/octet-stream" });
   } catch {
     return null;
   } finally {
@@ -128,7 +128,8 @@ async function downloadBlob(url: string, contentType: string): Promise<Blob | nu
   }
 }
 
-/** Copies attachment bytes to R2 (shared private bucket, `agency:<id>` scope).
+/** Copies attachment bytes to R2 (shared private bucket, `agency:<id>` scope),
+ *  as application/octet-stream with Content-Disposition: attachment.
  *  Never to Convex storage: with R2 unset the attachment is marked skipped. */
 export const _copyAttachments = internalAction({
   args: { messageId: v.id("mailMessages") },
@@ -151,12 +152,15 @@ export const _copyAttachments = internalAction({
       const item = p.resendId ? byId.get(p.resendId) : undefined;
       if (!item?.download_url) { await set(p.index, "failed", "Resend did not return a download link"); continue; }
       if ((item.size ?? 0) > MAX_ATTACHMENT_BYTES) { await set(p.index, "skipped", "Larger than 25 MB", undefined, item.size); continue; }
-      const blob = await downloadBlob(item.download_url, p.contentType);
+      const blob = await downloadBlob(item.download_url);
       if (!blob) { await set(p.index, "failed", "Download failed"); continue; }
       try {
+        // The sender's declared type stays on the message row only; R2 serves
+        // the bytes as an opaque download (mail/inbound.ts attachmentStorage).
+        const { mimeType, disposition } = attachmentStorage(p.filename);
         const ref = await storeBytes(ctx, {
-          scope: `agency:${job.agencyId}`, purpose: "document", blob, fileName: p.filename, mimeType: p.contentType,
-          actor: "mail-inbound", noFallback: true,
+          scope: `agency:${job.agencyId}`, purpose: "document", blob, fileName: p.filename, mimeType, disposition,
+          actor: "mail-inbound", noFallback: true, untrusted: true,
         });
         await set(p.index, "stored", undefined, ref as Id<"mediaFiles">, blob.size);
       } catch (err) {

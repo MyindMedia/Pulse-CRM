@@ -261,6 +261,8 @@ export const outreachTables = {
     phone: v.optional(v.string()),
     /* True once the Zuops lead has been read for this row (so phone and consent are current). */
     phoneSynced: v.optional(v.boolean()),
+    /* The Zuops lead is marked do-not-disturb. No confirmation call while set. */
+    dnd: v.optional(v.boolean()),
     prospectId: v.optional(v.id("outreachProspects")),
     syncedAt: v.number(),
   })

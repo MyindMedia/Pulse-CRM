@@ -3,7 +3,7 @@ import { mutation, internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { currentOrg } from "./lib/tenant";
-import { requireCapability } from "./lib/access";
+import { requireCapability, SETUP_ACCESS } from "./lib/access";
 import { sendEmail } from "./lib/email";
 import { studioEmailHtml, readableEmailInk } from "./lib/emailTemplates/layout";
 import { googleConfigured, gmailSend } from "./lib/google";
@@ -15,7 +15,8 @@ import { googleConfigured, gmailSend } from "./lib/google";
 export const emailStatus = query({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrg(ctx);
+    // Also the setup wizard's email step (SETUP_ACCESS, lib/access.ts).
+    const orgId = await currentOrg(ctx, SETUP_ACCESS);
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     return {
       provider: org?.emailProvider ?? "internal",
@@ -31,7 +32,7 @@ export const emailStatus = query({
 export const setProvider = mutation({
   args: { provider: v.union(v.literal("google"), v.literal("internal")) },
   handler: async (ctx, { provider }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrg(ctx, SETUP_ACCESS);
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     if (!org) throw new ConvexError("No studio.");
     if (provider === "google" && !org.googleRefreshToken) {

@@ -1,5 +1,5 @@
 import { QueryCtx, MutationCtx } from "../_generated/server";
-import { resolveViewer, requireCapability } from "./access";
+import { resolveViewer, requireCapability, type ResolveOptions } from "./access";
 import type { Capability } from "./accessTypes";
 import type { CapabilityKey } from "./pricing";
 import { moneySight, type MoneySight } from "./money";
@@ -19,7 +19,7 @@ export async function currentOrgWithCapability(
   ctx: Ctx,
   capability: Capability,
   requestedOrgId?: string,
-  opts?: { entitlement?: CapabilityKey | null },
+  opts?: { entitlement?: CapabilityKey | null } & ResolveOptions,
 ): Promise<string> {
   const resource =
     requestedOrgId || opts?.entitlement !== undefined
@@ -28,7 +28,7 @@ export async function currentOrgWithCapability(
           ...(opts?.entitlement !== undefined ? { entitlement: opts.entitlement } : {}),
         }
       : undefined;
-  const viewer = await requireCapability(ctx, capability, resource);
+  const viewer = await requireCapability(ctx, capability, resource, { allowLocked: opts?.allowLocked });
   return requestedOrgId ?? viewer.orgId ?? DEMO_ORG;
 }
 
@@ -37,8 +37,8 @@ export async function currentOrgWithCapability(
  * agency, studio, and guest viewers all expose an `orgId`. orgId is
  * never trusted from client arguments; always derived here.
  */
-export async function currentOrg(ctx: Ctx): Promise<string> {
-  const viewer = await resolveViewer(ctx);
+export async function currentOrg(ctx: Ctx, opts?: ResolveOptions): Promise<string> {
+  const viewer = await resolveViewer(ctx, opts);
   // Agency viewers expose orgId only when they've "entered" a sub-account
   // (their per-user agency selection). Fall back to DEMO_ORG so reads from the
   // agency console land somewhere sane.

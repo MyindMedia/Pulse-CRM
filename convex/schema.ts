@@ -910,7 +910,20 @@ export default defineSchema({
     reason: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
-    .index("by_agency", ["agencyId"]),
+    .index("by_agency", ["agencyId"])
+    // TRANSITION: only for reading the Stripe webhook's old idempotency
+    // markers (action "stripe.event", viewerId = event id) without a table
+    // scan. Drop with the fallback in billingWebhooks.ts once Stripe's retry
+    // window (3 days) has passed since stripeEvents shipped.
+    .index("by_action_viewer", ["action", "viewerId"]),
+
+  // ── Stripe webhook ledger - one row per processed event id, so a retried
+  //    or replayed event is a no-op. Looked up by index on every webhook. ──
+  stripeEvents: defineTable({
+    eventId: v.string(),
+    type: v.string(),
+    processedAt: v.number(),
+  }).index("by_event", ["eventId"]),
 
   // ── App state - a keyed singleton. In demo mode (no Clerk) it holds the
   //    org the agency console is currently "entered into". ──

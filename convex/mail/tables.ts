@@ -54,7 +54,9 @@ export const mailTables = {
     lastFrom: v.string(),
     messageCount: v.number(),
     unreadCount: v.number(),
-    status: v.union(v.literal("open"), v.literal("archived")),
+    /** quarantined: unrouted mail to a domain role address (admin@, postmaster@...).
+     *  Stored, never listed in any box (lib: mail/address.ts quarantinedRecipient). */
+    status: v.union(v.literal("open"), v.literal("archived"), v.literal("quarantined")),
     createdAt: v.number(),
   })
     .index("by_agency_mailbox_last", ["agencyId", "mailboxId", "lastMessageAt"])
