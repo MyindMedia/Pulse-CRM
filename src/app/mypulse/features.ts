@@ -296,7 +296,7 @@ const DESC: Record<string, string> = {
   "STOP means stop":
     "If someone replies STOP, they stop getting texts for good, and Pulse writes that down.",
   "Reminders before the session":
-    "2 days before, 1 day before, and 2 hours before. Reminders cut missed sessions more than any other setting in the app.",
+    "About a day before and again about two hours before the session, so clients remember to show up.",
   "The conversation stays with the client":
     "Messages are saved under the client's name in the app, where any member of staff can open them.",
   "Telling the right staff":
