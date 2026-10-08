@@ -562,7 +562,8 @@ const PROSPECT_STATUS: Record<string, { tone: Tone; meaning: string }> = {
   scraping: { tone: "info", meaning: "Reading the studio's public pages now." },
   scraped: { tone: "positive", meaning: "Published contact info found. Not verified." },
   no_contact: { tone: "caution", meaning: "No published email on the pages read." },
-  blocked: { tone: "critical", meaning: "Could not be read, or the site's robots.txt disallows it." },
+  blocked: { tone: "critical", meaning: "The site's robots.txt disallows reading it, or the address is not a public website." },
+  unreachable: { tone: "caution", meaning: "The site could not be reached. Check the address, then try again." },
   queued: { tone: "positive", meaning: "In the review queue. Nothing has been sent." },
   suppressed: { tone: "caution", meaning: "Every address has opted out. Will not be contacted." },
 };
@@ -667,7 +668,7 @@ export function Prospects() {
                       </div>
                     </div>
 
-                    {p.status === "needs_website" && manage && (
+                    {(p.status === "needs_website" || p.status === "unreachable") && manage && (
                       <div className="flex flex-wrap items-center gap-2">
                         <label htmlFor={`site-${p.id}`} className="sr-only">Confirm website for {title}</label>
                         <input
@@ -775,7 +776,7 @@ export function Prospects() {
 
                     {manage && (
                       <div className="flex flex-wrap gap-2">
-                        {["ready_to_scrape", "no_contact", "blocked", "scraped"].includes(p.status) && p.websiteUrl && (
+                        {["ready_to_scrape", "no_contact", "blocked", "unreachable", "scraped"].includes(p.status) && p.websiteUrl && (
                           <Button variant="secondary" onClick={() => void run(() => requestScrape({ id: p.id as Id<"outreachProspects"> }), "Reading the site now.")}>
                             {p.status === "ready_to_scrape" ? "Find contact info" : "Read again"}
                           </Button>

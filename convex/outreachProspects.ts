@@ -6,8 +6,8 @@ import { AccessError } from "./lib/access";
 import { agencyScope, requireAgencyScope, logEvent } from "./outreach/scope";
 import type { Id } from "./_generated/dataModel";
 import { prospectContactsV } from "./outreach/tables";
-import { parseSeed, extractEmails, extractPhones, extractSocials, detectBooking, candidatePages, hostOf } from "./outreach/enrich";
-import { checkUrl, robotsPermits, safeGet } from "./outreach/safeFetch";
+import { parseSeed, extractEmails, extractPhones, extractSocials, detectBooking, candidatePages, hostOf, isContactPath } from "./outreach/enrich";
+import { checkUrl, loadRobots, robotsVerdict, safeGet, type RobotsPolicy } from "./outreach/safeFetch";
 
 /* ============================================================
    Outreach prospects: studios to pitch, found from Instagram handles or
@@ -216,7 +216,7 @@ export const _get = internalQuery({
 export const _save = internalMutation({
   args: {
     id: v.id("outreachProspects"),
-    outcome: v.union(v.literal("scraped"), v.literal("no_contact"), v.literal("blocked")),
+    outcome: v.union(v.literal("scraped"), v.literal("no_contact"), v.literal("blocked"), v.literal("unreachable")),
     contacts: v.optional(prospectContactsV),
     note: v.optional(v.string()),
   },
@@ -224,39 +224,97 @@ export const _save = internalMutation({
     const row = await ctx.db.get(a.id);
     if (!row || row.status !== "scraping") return null;
     await ctx.db.patch(a.id, { status: a.outcome, contacts: a.contacts, note: a.note, updatedAt: Date.now() });
-    await logEvent(ctx, row.agencyId, "system", "outreach.prospect_scraped", a.outcome === "blocked" ? "denied" : "ok", row.handle ?? row.dedupeKey, a.note ?? a.outcome);
+    await logEvent(ctx, row.agencyId, "system", "outreach.prospect_scraped", a.outcome === "blocked" ? "denied" : a.outcome === "unreachable" ? "unknown" : "ok", row.handle ?? row.dedupeKey, a.note ?? a.outcome);
     return null;
   },
 });
 
 /** Reads the studio's own public pages (home plus up to two contact/about
- *  pages), politely: robots.txt first, sequential requests, size and time caps. */
+ *  pages), politely: robots.txt first, sequential requests, size and time caps.
+ *
+ *  robots.txt semantics (RFC 9309): a served file is honoured, including an
+ *  explicit Disallow, which blocks. 404/410 means there is no file, so nothing
+ *  is disallowed. A 5xx or network failure is retried with backoff and then
+ *  never hard-blocks: we read only the homepage and contact pages and say so
+ *  in the note. A site that cannot be reached at all is "unreachable", not
+ *  "blocked". Contact info is only ever what the studio published itself. */
 export const _scrape = internalAction({
   args: { id: v.id("outreachProspects") },
   handler: async (ctx, { id }) => {
     const row = await ctx.runQuery(internal.outreachProspects._get, { id });
     if (!row || !row.websiteUrl) return null;
-    const fail = async (outcome: "blocked" | "no_contact", note: string) => {
+    const fail = async (outcome: "blocked" | "no_contact" | "unreachable", note: string) => {
       await ctx.runMutation(internal.outreachProspects._save, { id, outcome, note });
       return null;
     };
     const start = checkUrl(row.websiteUrl);
     if (!start.ok) return await fail("blocked", start.reason);
-    const robots = await robotsPermits(start.url.origin, start.url.pathname || "/");
-    if (!robots.ok) return await fail("blocked", robots.reason);
-    const home = await safeGet(start.url.href);
-    if (!home.ok) return await fail("blocked", `Could not read the site (${home.reason})`);
+    const host = start.url.hostname;
+
+    const policies = new Map<string, RobotsPolicy>();
+    const policyFor = async (origin: string) => {
+      let p = policies.get(origin);
+      if (!p) {
+        p = await loadRobots(origin);
+        policies.set(origin, p);
+        if (p.kind !== "unreachable" && p.origin !== origin) policies.set(p.origin, p);
+        if (p.kind === "unreachable") console.warn("outreach robots unreachable", origin, p.failKind, p.detail ?? "");
+      }
+      return p;
+    };
+    let limitedReason: string | null = null;
+    let overHttp = false;
+
+    const first = await policyFor(start.url.origin);
+    if (first.kind === "unreachable" && first.failKind === "dns") {
+      return await fail("unreachable", `${host} does not resolve (no DNS record). Check the address.`);
+    }
+    let target = start.url;
+    if (first.kind !== "unreachable" && first.downgraded) {
+      target = new URL(start.url.href.replace(/^https:/i, "http:"));
+      overHttp = true;
+    }
+    const verdict = robotsVerdict(first, target.pathname);
+    if (verdict === "disallow") return await fail("blocked", "robots.txt disallows this page");
+    if (verdict === "limited" && first.kind === "unreachable") {
+      limitedReason = first.reason;
+      if (target.pathname !== "/" && !isContactPath(target.pathname)) target = new URL("/", target);
+    }
+
+    const home = await safeGet(target.href, { httpFallback: true });
+    if (!home.ok) {
+      console.warn("outreach site unreachable", target.href, home.kind, home.detail ?? "");
+      return await fail("unreachable", home.kind === "dns"
+        ? `${host} does not resolve (no DNS record). Check the address.`
+        : `Could not read the site (${home.reason}).`);
+    }
+    if (home.downgraded) overHttp = true;
+    const homeUrl = new URL(home.url);
+    if (homeUrl.origin !== target.origin) {
+      // The homepage redirected to another origin (often apex to www): its own robots.txt applies.
+      const p = await policyFor(homeUrl.origin);
+      const v2 = robotsVerdict(p, homeUrl.pathname);
+      if (v2 === "disallow") return await fail("blocked", "robots.txt disallows this page");
+      if (v2 === "limited" && p.kind === "unreachable") limitedReason ??= p.reason;
+    }
 
     const siteHost = hostOf(home.url);
     const pages: Array<{ url: string; html: string }> = [{ url: home.url, html: home.html }];
     for (const extra of candidatePages(home.html, home.url, 2)) {
       const ex = checkUrl(extra);
       if (!ex.ok) continue;
-      const ok = await robotsPermits(ex.url.origin, ex.url.pathname);
-      if (!ok.ok) continue;
+      const p = await policyFor(ex.url.origin);
+      const v3 = robotsVerdict(p, ex.url.pathname);
+      if (v3 === "disallow") continue;
+      // candidatePages only returns contact/about/booking pages, so a limited read may take them.
+      if (v3 === "limited" && p.kind === "unreachable") limitedReason ??= p.reason;
       const r = await safeGet(extra);
       if (r.ok) pages.push({ url: r.url, html: r.html });
     }
+
+    const readNotes: string[] = [];
+    if (limitedReason) readNotes.push(`${limitedReason}, so only the homepage and contact pages were read.`);
+    if (overHttp) readNotes.push("The site has no working HTTPS, so it was read over HTTP.");
 
     const emails = new Map<string, { address: string; generic: boolean; rank: number; sourceUrl: string }>();
     const phones = new Map<string, { number: string; sourceUrl: string }>();
@@ -277,9 +335,10 @@ export const _scrape = internalAction({
       pages: pages.map((p) => p.url),
       scrapedAt: Date.now(),
     };
+    const headline = sorted.length ? "Published contact info found. Not verified." : "No published email found on the pages read.";
     await ctx.runMutation(internal.outreachProspects._save, {
       id, outcome: sorted.length ? "scraped" : "no_contact", contacts,
-      note: sorted.length ? undefined : "No published email found on the pages read.",
+      note: readNotes.length ? [headline, ...readNotes].join(" ") : sorted.length ? undefined : headline,
     });
     return null;
   },
