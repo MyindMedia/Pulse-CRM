@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import type { BankRow, Check } from "@/lib/books/types";
+import { lineDifferences } from "@/lib/books/view";
 import { formatAmount, formatUsd } from "@/lib/books/money";
-import { Money, Notice, StatusBadge } from "./primitives";
+import { Money, Notice, SignedMoney, StatusBadge } from "./primitives";
 
 /** What a person does next, per check. Plain words, no dashes. */
 export const CHECK_ACTION: Record<string, string> = {
@@ -24,7 +25,15 @@ export const CHECK_ACTION: Record<string, string> = {
 
 const ORDER = { fail: 0, warn: 1, pass: 2 } as const;
 
-export function ChecksPanel({ checks, bank }: { checks: Check[]; bank: BankRow[] | undefined }) {
+export function ChecksPanel({
+  checks,
+  bank,
+  differences = [],
+}: {
+  checks: Check[];
+  bank: BankRow[] | undefined;
+  differences?: ReturnType<typeof lineDifferences>;
+}) {
   const sorted = [...checks].sort((a, b) => ORDER[a.status] - ORDER[b.status]);
   const counts = { pass: 0, warn: 0, fail: 0 };
   for (const c of checks) counts[c.status]++;
@@ -57,6 +66,42 @@ export function ChecksPanel({ checks, bank }: { checks: Check[]; bank: BankRow[]
           </li>
         ))}
       </ul>
+
+      <section aria-labelledby="books-diffs" className="books-avoid-break space-y-3">
+        <h2 id="books-diffs" className="font-grotesk text-base font-semibold text-bone">
+          Statement differences
+        </h2>
+        {differences.length === 0 ? (
+          <p className="text-sm text-steel">Every reported line matches the journal.</p>
+        ) : (
+          <div className="books-scroll relative -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
+            <table className="w-full min-w-[32rem] text-sm">
+              <caption className="sr-only">Lines that differ between the workbook and the journal</caption>
+              <thead>
+                <tr className="text-xs text-steel">
+                  <th scope="col" className="py-2 text-left font-medium">Statement and line</th>
+                  <th scope="col" className="py-2 text-right font-medium">Reported</th>
+                  <th scope="col" className="py-2 text-right font-medium">Your journal</th>
+                  <th scope="col" className="py-2 text-right font-medium">Difference</th>
+                </tr>
+              </thead>
+              <tbody>
+                {differences.map((d) => (
+                  <tr key={`${d.tab}-${d.key}`} className="books-avoid-break border-t border-graphite/40">
+                    <th scope="row" className="py-2 text-left font-normal text-bone/90">
+                      <span className="block text-bone">{d.label}</span>
+                      <span className="text-xs text-steel">{d.statement}</span>
+                    </th>
+                    <td className="py-2 text-right">{d.reportedCents === null ? <span className="text-xs text-steel">not in workbook</span> : <Money cents={d.reportedCents} />}</td>
+                    <td className="py-2 text-right">{d.journalCents === null ? <span className="text-xs text-steel">no entries</span> : <Money cents={d.journalCents} />}</td>
+                    <td className="py-2 text-right text-caution"><SignedMoney cents={d.differenceCents} /></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
 
       <section aria-labelledby="books-bank" className="space-y-3">
         <h2 id="books-bank" className="font-grotesk text-base font-semibold text-bone">

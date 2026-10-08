@@ -9,6 +9,7 @@ export const BOOKS_PRINT_CSS = `
 .books-root .books-frame > tbody > tr > td { display: block; width: 100%; min-width: 0; padding: 0; }
 .books-root .books-frame-head,
 .books-root .books-frame-foot { display: none; }
+.books-root table.books-fullbook { display: none; }
 
 @media print {
   @page {
@@ -32,6 +33,13 @@ export const BOOKS_PRINT_CSS = `
     animation: none !important; transition: none !important;
   }
   .books-root .books-no-print, .books-root .books-no-print * { display: none !important; }
+  /* Full book: the tabs go, the book shows. */
+  .books-root[data-print-mode="full"] .books-tabwrap { display: none !important; }
+  .books-root[data-print-mode="full"] table.books-fullbook { display: table !important; width: 100% !important; }
+  .books-root .books-cover { break-after: page; page-break-after: always; min-height: 6in; }
+  .books-root .books-section { break-before: page; page-break-before: always; }
+  .books-root .books-section > h2 { break-after: avoid; page-break-after: avoid; }
+  .books-root .books-toc { list-style: none; padding: 0; }
   .books-root .books-frame { display: table !important; width: 100% !important; }
   .books-root .books-frame > thead { display: table-header-group !important; }
   .books-root .books-frame > tfoot { display: table-footer-group !important; }

@@ -9,7 +9,7 @@ import { brandStyle } from "@/lib/brand-theme";
 import { cn } from "@/lib/utils";
 import { periodLabel } from "@/lib/books/money";
 import { checksCsv, downloadText, journalCsv, statementCsv, summaryCsv } from "@/lib/books/export";
-import { kpis, TABS, type Attention, type JournalFilter, type TabId } from "@/lib/books/view";
+import { kpis, lineDifferences, TABS, type Attention, type JournalFilter, type TabId } from "@/lib/books/view";
 import type { AccountRow, BankRow, JournalEntryRow, PeriodRow, StatementsPayload } from "@/lib/books/types";
 import { BOOKS_PRINT_CSS } from "./print-css";
 import { BrandBar, PrintFrame, type BooksBrand } from "./brand-bar";
@@ -18,6 +18,7 @@ import { SummaryPanel } from "./summary-panel";
 import { JournalPanel } from "./journal-panel";
 import { StatementPanel } from "./statement-panel";
 import { ChecksPanel } from "./checks-panel";
+import { FullBook } from "./full-book";
 
 export type BooksJournalState = {
   entries: JournalEntryRow[] | undefined;
@@ -57,6 +58,24 @@ export function BooksReport(props: BooksReportProps) {
   const [tab, setTab] = React.useState<TabId>("summary");
   const [focus, setFocus] = React.useState<{ tab: TabId; id: string } | null>(null);
   const [exporting, setExporting] = React.useState(false);
+  /** Set while the full book is printing: every journal row, rendered as the book. */
+  const [fullRows, setFullRows] = React.useState<JournalEntryRow[] | null>(null);
+
+  React.useEffect(() => {
+    const done = () => setFullRows(null);
+    window.addEventListener("afterprint", done);
+    return () => window.removeEventListener("afterprint", done);
+  }, []);
+
+  /** Print the whole book: every journal row, all six sections in order. */
+  async function printFullBook() {
+    if (!statements) return;
+    const rows = await journal.allMatching();
+    setFullRows(rows);
+    // Two frames so the book is in the DOM and styled before the print dialog.
+    await new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())));
+    window.print();
+  }
 
   const entity = statements?.entityName ?? statements?.reported?.entityName ?? null;
   const rootStyle = {
@@ -114,7 +133,11 @@ export function BooksReport(props: BooksReportProps) {
   const noPeriods = periods !== undefined && periods.length === 0;
 
   return (
-    <div className="books-root grain relative space-y-6 text-bone" style={rootStyle}>
+    <div
+      className="books-root grain relative space-y-6 text-bone"
+      style={rootStyle}
+      data-print-mode={fullRows ? "full" : undefined}
+    >
       <style dangerouslySetInnerHTML={{ __html: BOOKS_PRINT_CSS }} />
 
       <div className="books-no-print flex flex-wrap items-end justify-between gap-4">
@@ -145,7 +168,11 @@ export function BooksReport(props: BooksReportProps) {
           </label>
           <Button variant="secondary" size="sm" onClick={() => window.print()} disabled={!statements}>
             <Printer className="size-4" aria-hidden />
-            Print or save as PDF
+            Print this tab
+          </Button>
+          <Button variant="secondary" size="sm" onClick={printFullBook} disabled={!statements}>
+            <Printer className="size-4" aria-hidden />
+            Print full book
           </Button>
           <Button variant="secondary" size="sm" onClick={exportCsv} disabled={!statements || exporting}>
             <Download01 className="size-4" aria-hidden />
@@ -166,7 +193,7 @@ export function BooksReport(props: BooksReportProps) {
         />
       ) : (
         <BooksErrorBoundary>
-          <Tabs value={tab} onValueChange={(v) => setTab(v as TabId)} className="space-y-5">
+          <Tabs value={tab} onValueChange={(v) => setTab(v as TabId)} className="books-tabwrap space-y-5">
             <div className="books-no-print -mx-4 overflow-x-auto px-4 sm:mx-0 sm:px-0">
               <TabsList aria-label="Books sections" className="min-w-max">
                 {TABS.map((t) => (
@@ -221,11 +248,25 @@ export function BooksReport(props: BooksReportProps) {
 
             <TabsContent value="checks">
               <PrintFrame brand={brand} entityName={entity} period={period} section={SECTION_NAME.checks}>
-                {statements ? <ChecksPanel checks={statements.checks} bank={bank} /> : <Skeletonish />}
+                {statements ? (
+                  <ChecksPanel checks={statements.checks} bank={bank} differences={lineDifferences(statements)} />
+                ) : (
+                  <Skeletonish />
+                )}
               </PrintFrame>
             </TabsContent>
           </Tabs>
         </BooksErrorBoundary>
+      )}
+      {fullRows && statements && (
+        <FullBook
+          brand={brand}
+          statements={statements}
+          bank={bank}
+          accounts={accounts}
+          entries={fullRows}
+          totals={journal.totals}
+        />
       )}
       <span className={cn("sr-only")} aria-live="polite">
         {exporting ? "Preparing CSV" : ""}

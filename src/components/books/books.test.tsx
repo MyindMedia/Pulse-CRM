@@ -8,7 +8,8 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { buildFixture } from "@/lib/books/fixture";
 import { formatAmount, formatUsd } from "@/lib/books/money";
-import { explainDifference, filterJournal, kpis, needsAttention, statementRows, topExpenses, revenueMix } from "@/lib/books/view";
+import { aboutNotes, attentionCards, explainDifference, filterJournal, kpis, lineDifferences, needsAttention, statementRows, topExpenses, revenueMix } from "@/lib/books/view";
+import { FullBook } from "./full-book";
 import { journalCsv, statementCsv, checksCsv } from "@/lib/books/export";
 import { SummaryPanel } from "./summary-panel";
 import { JournalPanel } from "./journal-panel";
@@ -230,5 +231,84 @@ describe("Brand and print frame", () => {
   it("uses the brand bar without a logo fallback when there is none", () => {
     const bar = html(<BrandBar brand={{ ...brand, logoUrl: null }} entityName={null} period="2026-07" />);
     expect(bar).toContain(">S<");
+  });
+});
+
+describe("Summary, collapsed: four cards, everything else behind Show all", () => {
+  const cards = attentionCards(s, fx.bank);
+  const out = html(<SummaryPanel statements={s} bank={fx.bank} onGo={() => {}} />);
+
+  it("shows at most four cards in the owner's order: cash, statements, receipts, clearing", () => {
+    expect(cards.map((c) => c.id)).toEqual(["cash", "statements", "receipts", "clearing"]);
+    expect(cards.length).toBeLessThanOrEqual(4);
+  });
+
+  it("writes the statement card from the engine's variances, with signs", () => {
+    const statementsCard = cards.find((c) => c.id === "statements")!;
+    const lines = lineDifferences(s);
+    expect(lines).toHaveLength(9);
+    expect(statementsCard.text).toBe(
+      "9 lines in your statements differ from your journal, net income by \u2212$19.00, cash by \u2212$630.00.",
+    );
+    expect(out).toContain("net income by \u2212$19.00, cash by \u2212$630.00.");
+  });
+
+  it("writes the cash and clearing cards from the bank and clearing figures", () => {
+    expect(cards.find((c) => c.id === "cash")!.text).toBe("Cash is $630.00 below the bank statement.");
+    expect(cards.find((c) => c.id === "clearing")!.text).toBe("$705.00 is still in clearing accounts at month end.");
+    expect(cards.find((c) => c.id === "receipts")!.text).toContain("2 entries have no receipt.");
+  });
+
+  it("collapses every other item behind Show all (N), and every item is in the list", () => {
+    const all = needsAttention(s, fx.bank);
+    expect(all).toHaveLength(11);
+    expect(out).toContain("Show all (11)");
+    // Each item renders once in the disclosure: its title appears in the markup.
+    for (const a of all) expect(out).toContain(a.title.replace(/&/g, "&amp;").replace(/'/g, "&#x27;"));
+  });
+
+  it("moves workbook remarks to About these books, not attention", () => {
+    const notes = aboutNotes(s);
+    expect(notes.map((n) => n.code)).toEqual(
+      expect.arrayContaining(["beginning_cash_label_date", "retained_earnings_plug", "hardcoded_statement_values"]),
+    );
+    expect(needsAttention(s, fx.bank).some((a) => a.id === "check:reported_statement_warnings")).toBe(false);
+    expect(out).toContain(`About these books (${notes.length})`);
+  });
+});
+
+describe("Full book print", () => {
+  const brand = { name: "Sample Studio", logoUrl: "/preview/books-sample-logo.svg", accentColor: "#fdb913" };
+  const book = html(
+    <FullBook brand={brand} statements={s} bank={fx.bank} accounts={fx.accounts} entries={fx.entries} totals={s.journalTotals} />,
+  );
+  const order = ["Summary", "Journal", "Balance Sheet", "Income Statement", "Cash Flow", "Checks"];
+
+  it("has a cover with logo, entity and period, and a contents line", () => {
+    expect(book).toContain('class="books-cover"');
+    expect(book).toContain(s.entityName!);
+    expect(book).toContain("Contents");
+  });
+
+  it("prints the six sections in the tab order, each on its own page", () => {
+    const positions = order.map((t) => book.indexOf(`</span> ${t}</h2>`));
+    expect(positions.every((p) => p > 0)).toBe(true);
+    expect([...positions].sort((a, b) => a - b)).toEqual(positions);
+    expect(count(book, 'class="books-section')).toBe(6);
+  });
+
+  it("repeats the brand header and the running footer on every page", () => {
+    expect(book).toContain("<thead");
+    expect(book).toContain('class="books-frame-head');
+    expect(book).toContain("Prepared in Pulse");
+    expect(book).toContain("July 2026");
+  });
+
+  it("carries every journal entry, the posted totals, and the 18 highlighted differences", () => {
+    expect(count(book, "books-avoid-break align-top")).toBe(48);
+    expect(book).toContain("5,880.80");
+    expect(count(book, "books-diff-flag")).toBe(18);
+    expect(book).toContain("981.29");
+    expect(book).toContain("1,611.29");
   });
 });

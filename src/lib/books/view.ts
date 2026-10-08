@@ -231,7 +231,7 @@ export function needsAttention(s: StatementsPayload, bank: BankRow[] | undefined
   const out: Attention[] = [];
   const bankRow = bank?.[0];
   for (const c of s.checks) {
-    if (c.status === "pass" || c.code === "reported_vs_recomputed") continue;
+    if (c.status === "pass" || c.code === "reported_vs_recomputed" || c.code === "reported_statement_warnings") continue;
     const target = CHECK_TAB[c.code] ?? { tab: "checks" as TabId };
     out.push({
       id: `check:${c.code}`,
@@ -283,3 +283,78 @@ export function filterJournal(entries: readonly JournalEntryRow[], f: JournalFil
   });
 }
 
+
+/* ── summary: four cards, the rest behind "Show all" ──────── */
+
+/** Workbook remarks. Quiet "About these books", never attention items. */
+const NOTE_CODES = new Set([
+  "beginning_cash_label_date",
+  "retained_earnings_plug",
+  "hardcoded_statement_values",
+  "statement_heading_date",
+  "formula_cache_mismatch",
+  "statement_repeat_differs",
+  "unmapped_statement_label",
+]);
+
+export function aboutNotes(s: StatementsPayload): { code: string; message: string }[] {
+  return (s.reported?.warnings ?? [])
+    .filter((w) => NOTE_CODES.has(w.code))
+    .map((w) => ({ code: w.code, message: w.message }));
+}
+
+/** "+$19.00" or "\u2212$19.00". Sign is the difference's own sign. */
+export function formatSignedUsd(cents: number): string {
+  if (cents === 0) return "$0.00";
+  return cents > 0 ? `+${formatUsd(cents)}` : formatUsd(cents);
+}
+
+export type AttentionCard = { id: "cash" | "statements" | "receipts" | "clearing"; tone: "critical" | "caution"; text: string; tab: TabId; filter?: JournalFilter };
+
+/** At most four cards, in the owner's order of need: cash, statements,
+ *  receipts, clearing. A card appears only when its check or variance does. */
+export function attentionCards(s: StatementsPayload, bank: BankRow[] | undefined): AttentionCard[] {
+  const cards: AttentionCard[] = [];
+  const cash = s.checks.find((c) => c.code === "cash_vs_bank");
+  if (cash && cash.status !== "pass") {
+    const row = (cash.detail as BankRow | undefined) ?? bank?.[0];
+    const text = row
+      ? `Cash is ${formatUsd(Math.abs(row.endingVarianceCents))} ${row.endingVarianceCents < 0 ? "below" : "above"} the bank statement.`
+      : cash.message;
+    cards.push({ id: "cash", tone: cash.status === "fail" ? "critical" : "caution", text, tab: "checks" });
+  }
+
+  const lines = (["incomeStatement", "balanceSheet", "cashFlow"] as StatementKind[]).flatMap((k) =>
+    (s.variances?.[k] ?? []).filter((v) => v.kind === "line").map((v) => ({ ...v, statement: k })),
+  );
+  if (lines.length > 0) {
+    const ni = s.variances?.incomeStatement.find((v) => v.key === "net_income");
+    const cashVar = s.variances?.balanceSheet.find((v) => v.key === "asset.cash");
+    const parts = [`${lines.length} ${lines.length === 1 ? "line" : "lines"} in your statements differ from your journal`];
+    if (ni) parts.push(`net income by ${formatSignedUsd(ni.varianceCents)}`);
+    if (cashVar) parts.push(`cash by ${formatSignedUsd(cashVar.varianceCents)}`);
+    cards.push({ id: "statements", tone: "caution", text: `${parts[0]}${parts.length > 1 ? `, ${parts.slice(1).join(", ")}` : ""}.`, tab: "checks" });
+  }
+
+  const receipts = s.checks.find((c) => c.code === "receipts_missing");
+  if (receipts && receipts.status !== "pass") {
+    const amount = receipts.amountCents !== undefined ? ` (${formatUsd(receipts.amountCents)} in those entries)` : "";
+    cards.push({ id: "receipts", tone: "caution", text: `${receipts.message}${amount}`, tab: "journal", filter: { receiptStatus: "no" } });
+  }
+
+  const clearing = s.checks.find((c) => c.code === "clearing_not_cleared");
+  if (clearing && clearing.status !== "pass" && clearing.amountCents !== undefined) {
+    cards.push({ id: "clearing", tone: "caution", text: `${formatUsd(clearing.amountCents)} is still in clearing accounts at month end.`, tab: "balanceSheet" });
+  }
+  return cards.slice(0, 4);
+}
+
+/** Every line that differs, for the Checks tab: statement, label, the two figures, the difference. */
+export function lineDifferences(s: StatementsPayload) {
+  const names: Record<StatementKind, string> = { balanceSheet: "Balance Sheet", incomeStatement: "Income Statement", cashFlow: "Cash Flow" };
+  return (["balanceSheet", "incomeStatement", "cashFlow"] as StatementKind[]).flatMap((k) =>
+    statementRows(k, s)
+      .filter((r) => r.kind === "line" && r.differenceCents !== 0)
+      .map((r) => ({ key: r.key, statement: names[k], label: r.label, reportedCents: r.reportedCents, journalCents: r.journalCents, differenceCents: r.differenceCents, tab: k, rowKey: r.key })),
+  );
+}
