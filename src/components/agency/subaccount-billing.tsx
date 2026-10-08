@@ -141,14 +141,25 @@ export function SubaccountBilling({ orgId }: { orgId: string }) {
         {status === "pending_card" && (
           <div className="flex items-center gap-2 rounded-md border border-critical/30 bg-critical/[0.06] px-3 py-2 text-sm text-bone">
             <CreditCard className="size-4 text-critical" />
-            Trial not started
-            <span className="text-steel">· it starts when the owner adds a card in Stripe Checkout</span>
+            {(billing.plan?.trialDays ?? 0) > 0 ? "Trial not started" : "Plan not started"}
+            <span className="text-steel">
+              {(billing.plan?.trialDays ?? 0) > 0
+                ? "· it starts when the owner adds a card in Stripe Checkout"
+                : "· it starts, and is charged, when the owner pays in Stripe Checkout"}
+            </span>
+          </div>
+        )}
+        {billing.needsPlanConfirmation && (
+          <div className="flex items-center gap-2 rounded-md border border-gold-dim/30 bg-gold/[0.07] px-3 py-2 text-sm text-bone">
+            <CreditCard className="size-4 text-gold" />
+            Not being charged
+            <span className="text-steel">· marked active with no Stripe subscription; the owner confirms the plan on /billing</span>
           </div>
         )}
 
         <Field
           label="Plan"
-          hint="A plan with a trial starts its trial only when the owner adds a card; Stripe charges it automatically when the trial ends. The Beta plan is the one card-free term."
+          hint="Every paid plan starts in Stripe Checkout. With a trial, the card is saved and Stripe charges it when the trial ends; without one, Stripe charges it at checkout. Both renew automatically. The Beta plan is the one card-free term."
         >
           {activePlans.length === 0 ? (
             <p className="text-sm text-steel">

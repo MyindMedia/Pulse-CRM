@@ -22,7 +22,8 @@ export default function BillingAddedPage() {
         <p className="mx-auto mt-2 max-w-sm text-sm text-steel">
           Your card is on file. If you started a free trial, you are charged automatically when it
           ends and the plan renews after that; cancel any time before then from the billing page.
-          Thanks for being here.
+          If your plan has no trial, your first payment goes through now and it renews automatically.
+          It can take a minute to show in Pulse. Thanks for being here.
         </p>
         <Button asChild className="mt-6 w-full">
           <Link href="/dashboard">Back to Pulse</Link>

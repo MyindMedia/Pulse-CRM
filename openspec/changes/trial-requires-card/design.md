@@ -54,7 +54,7 @@ npx convex run trialBilling:sendTrialCardRequiredReminders '{"apply":true}' --pr
 `PLATFORM_TRIAL_DAYS = 0` in `convex/lib/pricing.ts`. Core, Growth and Max bill on subscribe, as before. Setting it above 0 turns on a card-required trial through the same builder and the /pricing FAQ follows the number.
 
 ### D10. Scope kept out
-Paid agency plans without a trial keep the existing setup-mode "add a card" flow (card saved, `active`, no Stripe subscription charging it). Moving those onto real subscriptions is a separate change.
+Paid agency plans without a trial keep the existing setup-mode "add a card" flow (card saved, `active`, no Stripe subscription charging it). Moving those onto real subscriptions is a separate change. Done in `openspec/changes/agency-paid-plan-charges/`.
 
 ## Stripe configuration required before this goes live
 

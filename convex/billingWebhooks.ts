@@ -187,8 +187,9 @@ export const handle = internalMutation({
         return { ok: true };
       }
 
-      // Sub-account "add a card" (Stripe Checkout setup mode). The agency
-      // re-bills this studio; once a card is captured we clear the trial gate.
+      // Sub-account "add a card" (Stripe Checkout setup mode). Only free,
+      // comped or Beta studios use it now; on a paid plan the card is recorded
+      // but the studio is NOT activated (no subscription, nothing charges it).
       if (meta.kind === "subaccount_billing" && meta.orgId) {
         await ctx.scheduler.runAfter(0, internal.agencyBilling._markPaymentMethodOnFile, {
           orgId: meta.orgId,
@@ -199,12 +200,13 @@ export const handle = internalMutation({
         return { ok: true };
       }
 
-      /* Card-required trial (agency plan) or beta-to-paid checkout, on the
-         platform account. The trial starts HERE and nowhere else: the sync
-         reads the subscription from Stripe and mirrors its trial window. */
+      /* Card-required trial (agency plan), a paid agency plan with no trial
+         (charged on completion), or beta-to-paid checkout, on the platform
+         account. The studio starts HERE and nowhere else: the sync reads the
+         subscription from Stripe and mirrors its trial window or first charge. */
       if (
         !event.account &&
-        (meta.kind === "subaccount_trial" || meta.kind === "beta_conversion") &&
+        (meta.kind === "subaccount_trial" || meta.kind === "subaccount_plan" || meta.kind === "beta_conversion") &&
         meta.orgId &&
         typeof obj.subscription === "string"
       ) {

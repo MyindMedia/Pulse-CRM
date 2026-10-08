@@ -498,6 +498,13 @@ export default defineSchema({
     trialCardReminderSentAt: v.optional(v.number()),
     // Stripe's customer.subscription.trial_will_end (3 days out) was emailed.
     trialWillEndNotifiedAt: v.optional(v.number()),
+    // ── Every paid plan is charged (agency-paid-plan-charges) ──
+    // The last subscription Checkout opened for this studio. A new one expires
+    // it (or refuses, if it already went through) so two tabs cannot bill twice.
+    billingCheckoutSessionId: v.optional(v.string()),
+    // A card-only studio (active, card saved, no subscription) was asked to
+    // confirm its plan. Once per studio.
+    planConfirmReminderSentAt: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])
     .index("by_slug", ["slug"])

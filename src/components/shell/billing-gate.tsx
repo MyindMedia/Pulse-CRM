@@ -213,7 +213,10 @@ export function BillingLock() {
     billing.reason === "trial_needs_card"
       ? {
           title: trialDays > 0 ? `Start your ${trialDays}-day free trial` : "Start your plan",
-          body: `${TRIAL_TERMS.cardRequired} You are not charged until the trial ends. ${TRIAL_TERMS.autoRenew} ${TRIAL_TERMS.cancel}`,
+          body:
+            trialDays > 0
+              ? `${TRIAL_TERMS.cardRequired} You are not charged until the trial ends. ${TRIAL_TERMS.autoRenew} ${TRIAL_TERMS.cancel}`
+              : "Add a card to start your plan. You are charged when you confirm, then it renews automatically. Cancel any time.",
           cta: "Add a card to start",
         }
       : billing.reason === "canceled"
