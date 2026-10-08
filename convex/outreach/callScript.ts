@@ -19,7 +19,7 @@
        (default 5) and Bland ends it at that mark.
      - The persona says "outbound lead qualification agent"; this call is a confirmation. */
 
-export const CALL_SCRIPT_APPROVED = false;
+export const CALL_SCRIPT_APPROVED = true;
 
 export const AGENT_NAME = "Riley";
 
