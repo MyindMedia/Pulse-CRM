@@ -15,6 +15,7 @@ export const JOURNAL_HEADER = [
   "Debit (-)",
   "Credit (+)",
   "Receipt (Yes/No)",
+  "Late",
 ] as const;
 
 /** The workbook's category column follows the account's type. */
@@ -39,6 +40,15 @@ export function receiptWord(r: JournalEntryRow["receiptStatus"]): string {
   return r === "yes" ? "Yes" : r === "no" ? "No" : "Pending";
 }
 
+/** The Late column: blank for an ordinary entry. */
+export function lateWord(e: JournalEntryRow): string {
+  if (!e.lateEntry) return "";
+  const when = e.enteredAt ? ` (entered ${isoDayLabel(e.enteredAt)})` : "";
+  if (e.reversalOf) return `Late reversal${when}`;
+  if (e.reversedBy) return `Late, reversed${when}`;
+  return `Late${when}`;
+}
+
 /** One row per entry line, first line carrying the date and description the
  *  way the workbook does. */
 export function journalCsv(entries: readonly JournalEntryRow[], accounts: readonly AccountRow[]): string {
@@ -57,6 +67,7 @@ export function journalCsv(entries: readonly JournalEntryRow[], accounts: readon
         l.debitCents ? formatCsvAmount(l.debitCents) : "",
         l.creditCents ? formatCsvAmount(l.creditCents) : "",
         first ? receiptWord(e.receiptStatus) : "",
+        first ? lateWord(e) : "",
       ]);
     });
   }

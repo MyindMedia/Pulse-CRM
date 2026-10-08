@@ -88,7 +88,8 @@ export type ActionType =
   | "acct_receipt_missing"
   | "acct_categorize"
   | "acct_unexplained_cash"
-  | "acct_anomaly";
+  | "acct_anomaly"
+  | "acct_late_entry";
 
 export type Priority = "low" | "medium" | "high";
 
@@ -107,7 +108,24 @@ export type Payload =
       draftEntryId?: Id<"journalEntries">;
     }
   | { kind: "receipt_link"; entryId: Id<"journalEntries">; receiptId: Id<"receipts">; score: number; exact: boolean; evidence: string[] }
-  | { kind: "acct_note"; evidence: string[]; entryIds?: Id<"journalEntries">[] };
+  | { kind: "acct_note"; evidence: string[]; entryIds?: Id<"journalEntries">[] }
+  // A pre-filled late entry for a month that has ended (openspec/changes/late-entries).
+  | {
+      kind: "late_entry";
+      period: string;
+      lateKind: "expense" | "income" | "refund";
+      entryDate: number;
+      counterparty: string;
+      amountCents: number;
+      accountKey?: string;
+      accountName?: string;
+      paidFrom?: "bank" | "cash" | "card" | "owner" | "unpaid";
+      memo?: string;
+      reason: string;
+      receiptId?: Id<"receipts">;
+      bankTransactionId?: Id<"bankTransactions">;
+      evidence: string[];
+    };
 
 export type ProposedAction = {
   type: ActionType;

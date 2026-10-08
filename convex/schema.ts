@@ -2348,6 +2348,7 @@ export default defineSchema({
       v.literal("acct_categorize"),
       v.literal("acct_unexplained_cash"),
       v.literal("acct_anomaly"),
+      v.literal("acct_late_entry"),
     ),
     priority: v.union(v.literal("low"), v.literal("medium"), v.literal("high")),
     title: v.string(),
@@ -2404,6 +2405,26 @@ export default defineSchema({
         kind: v.literal("acct_note"),
         evidence: v.array(v.string()),
         entryIds: v.optional(v.array(v.id("journalEntries"))),
+      }),
+      // Accounting agent. A pre-filled late entry for a month that has ended
+      // (openspec/changes/late-entries). Approving posts it through
+      // ledger.recordLateEntry, the same path as the Books form. Never auto.
+      v.object({
+        kind: v.literal("late_entry"),
+        period: v.string(),
+        lateKind: v.union(v.literal("expense"), v.literal("income"), v.literal("refund")),
+        entryDate: v.number(),
+        counterparty: v.string(),
+        amountCents: v.number(),
+        /** Category by chart key; unset when the agent could not tell, and a person picks. */
+        accountKey: v.optional(v.string()),
+        accountName: v.optional(v.string()),
+        paidFrom: v.optional(v.union(v.literal("bank"), v.literal("cash"), v.literal("card"), v.literal("owner"), v.literal("unpaid"))),
+        memo: v.optional(v.string()),
+        reason: v.string(),
+        receiptId: v.optional(v.id("receipts")),
+        bankTransactionId: v.optional(v.id("bankTransactions")),
+        evidence: v.array(v.string()),
       }),
     ),
     status: v.union(

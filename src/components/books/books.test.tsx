@@ -6,7 +6,8 @@
 import * as React from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { buildFixture } from "@/lib/books/fixture";
+import { buildFixture, fixtureEngine } from "@/lib/books/fixture";
+import { lateLedgerEntry, planLateEntry } from "@convex/lib/lateEntries";
 import { formatAmount, formatUsd } from "@/lib/books/money";
 import { aboutNotes, attentionCards, explainDifference, filterJournal, kpis, lineDifferences, needsAttention, statementRows, topExpenses, revenueMix } from "@/lib/books/view";
 import { FullBook } from "./full-book";
@@ -128,9 +129,9 @@ describe("Journal", () => {
   it("exports the workbook's columns, one line per row", () => {
     const csv = journalCsv(fx.entries, fx.accounts);
     const rows = csv.trim().split("\r\n");
-    expect(rows[0]).toBe("Date,Description / Purpose,Account,Expense Category,Payment Type,Debit (-),Credit (+),Receipt (Yes/No)");
+    expect(rows[0]).toBe("Date,Description / Purpose,Account,Expense Category,Payment Type,Debit (-),Credit (+),Receipt (Yes/No),Late");
     expect(rows).toHaveLength(1 + 96);
-    expect(rows[1]).toBe("2026-07-01,Processor A monthly processing fee,Merchant/Processing Expense,Operating Expenses,Bank Transfer,51.40,,No");
+    expect(rows[1]).toBe("2026-07-01,Processor A monthly processing fee,Merchant/Processing Expense,Operating Expenses,Bank Transfer,51.40,,No,"); // Late column blank: not a late entry
   });
 });
 
@@ -352,5 +353,65 @@ describe("Full book print", () => {
     expect(count(book, "books-diff-flag")).toBe(18);
     expect(book).toContain("981.29");
     expect(book).toContain("1,611.29");
+  });
+});
+
+describe("Late entries (openspec late-entries)", () => {
+  // The fixture plus one late expense added to July on Oct 9: 125.00 storage
+  // rent from the bank, through the same pure engine the ledger runs.
+  const engine = fixtureEngine();
+  const plan = planLateEntry(
+    { kind: "expense", entryDate: Date.UTC(2026, 6, 20), counterparty: "Landlord B", amountCents: 12_500, accountId: "rent", paidFrom: "bank", memo: "storage unit" },
+    engine.accounts,
+  );
+  const lateEntry = lateLedgerEntry(plan, Date.UTC(2026, 6, 20), { enteredAt: Date.UTC(2026, 9, 9, 17), enteredBy: "Owner", kind: "expense", counterparty: "Landlord B" }, "late-1");
+  const lfx = buildFixture([{ ...lateEntry, receipt: true }]);
+  const ls = lfx.statements;
+
+  it("recomputes July with the late entry and keeps the reported statements as checked", () => {
+    expect(ls.recomputed.incomeStatement.totalExpensesCents).toBe(243_280 + 12_500);
+    expect(ls.reported).toEqual(s.reported);
+    expect(ls.lateEntries!.headline).toBe("Recomputed net income differs from reported by $144.00: $125.00 from 1 late entry added Oct 9, $19.00 was there when the books were checked.");
+  });
+
+  it("marks the entry late in the journal and in the CSV", () => {
+    const out = html(<JournalPanel entries={lfx.entries} accounts={lfx.accounts} totals={ls.journalTotals} filter={{}} onFilterChange={() => {}} hasMore={false} onLoadMore={() => {}} loadingMore={false} />);
+    expect(count(out, 'data-testid="late-marker"')).toBe(1);
+    const csv = journalCsv(lfx.entries, lfx.accounts).split("\r\n");
+    const row = csv.find((r) => r.includes("Landlord B - storage unit"))!;
+    expect(row.endsWith(",Yes,Late (entered 2026-10-09)")).toBe(true);
+    expect(csv.filter((r) => r.includes("Late (")).length).toBe(1);
+  });
+
+  it("shows the late entries as their own line group on Checks, with the split that adds up", () => {
+    const out = html(<ChecksPanel checks={ls.checks} bank={lfx.bank} differences={lineDifferences(ls)} statements={ls} onReverse={() => {}} />);
+    expect(out).toContain("Late entries: changes since reported");
+    expect(out).toContain(ls.lateEntries!.headline);
+    expect(count(out, 'data-testid="late-entry-row"')).toBe(1);
+    expect(out).toContain(">Reverse<");
+    const rent = ls.lateEntries!.lines.find((l) => l.key === "expense.rent")!;
+    expect(rent).toMatchObject({ reportedCents: 150_000, recomputedCents: 162_500, lateEntryCents: 12_500, otherCents: 0 });
+    expect(out).toContain("+125.00");
+    expect(attentionCards(ls, lfx.bank)[0]).toMatchObject({ id: "late", text: ls.lateEntries!.headline, tab: "checks" });
+    // The reported checks are unchanged for the fixture without late entries.
+    expect(html(<ChecksPanel checks={s.checks} bank={fx.bank} statements={s} />)).not.toContain("Late entries");
+  });
+
+  it("tags the statement lines the late entry moved and says so in the explanation", () => {
+    const rentRow = statementRows("incomeStatement", ls).find((r) => r.key === "expense.rent")!;
+    expect(rentRow.lateEntryCents).toBe(12_500);
+    expect(explainDifference(rentRow)).toBe("All of this difference comes from late entries added after the workbook was checked.");
+    const ni = statementRows("incomeStatement", ls).find((r) => r.key === "net_income")!;
+    expect(explainDifference(ni)).toMatch(/^−\$125\.00 of this comes from late entries/);
+    expect(count(html(<StatementPanel kind="incomeStatement" statements={ls} />), 'data-testid="late-line-tag"')).toBe(3);
+  });
+
+  it("prints an appendix, Changes since reported, after the six sections", () => {
+    const book = html(<FullBook brand={brand0} statements={ls} bank={lfx.bank} accounts={lfx.accounts} entries={lfx.entries} totals={ls.journalTotals} />);
+    expect(book).toContain("Appendix. Changes since reported");
+    expect(book.indexOf('data-testid="book-appendix"')).toBeGreaterThan(book.indexOf('id="book-checks"'));
+    expect(book).not.toContain(">Reverse<");
+    const plain = html(<FullBook brand={brand0} statements={s} bank={fx.bank} accounts={fx.accounts} entries={fx.entries} totals={s.journalTotals} />);
+    expect(plain).not.toContain("Changes since reported");
   });
 });

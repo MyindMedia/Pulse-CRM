@@ -175,6 +175,11 @@ function StatementRows({
           ) : (
             <span className="tabular-nums text-steel">{r.reportedCents === null ? "" : "0.00"}</span>
           )}
+          {r.lateEntryCents !== 0 && (
+            <span className="mt-0.5 block text-[0.6875rem] text-info" data-testid="late-line-tag">
+              late <SignedMoney cents={r.lateEntryCents} />
+            </span>
+          )}
         </td>
       </tr>,
     );

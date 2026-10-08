@@ -1,12 +1,14 @@
 import { query } from "./_generated/server";
 import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
-import { v, type Infer } from "convex/values";
+import { internal } from "./_generated/api";
+import { ConvexError, v, type Infer } from "convex/values";
 import { paginationOptsValidator } from "convex/server";
 import { filter } from "convex-helpers/server/filter";
 import type { Doc, Id } from "./_generated/dataModel";
-import { AccessError, requireCapability } from "./lib/access";
+import { AccessError, requireCapability, resolveViewer } from "./lib/access";
 import { currentActor, currentOrgWithCapability } from "./lib/tenant";
+import { financeLog } from "./lib/financeLinks";
 import {
   type LedgerAccount,
   type LedgerEntry,
@@ -14,25 +16,39 @@ import {
   type Period,
   LedgerValidationError,
   assertBalancedLines,
+  formatCents,
+  isoDay,
   parsePeriod,
   periodKeyOf,
   toDay,
 } from "./lib/ledgerMath";
 import {
   type BankStatementBalance,
+  type HeadlineFigures,
   type ReportedStatements,
   bankReconciliation as reconcileBank,
   buildStatements,
   impliedOpeningBalances,
   journalTotals,
 } from "./lib/statements";
+import {
+  DEFAULT_LATE_REASON,
+  checkLateDate,
+  lateLedgerEntry,
+  planLateEntry,
+  possibleDuplicates,
+  previewWithEntry,
+  reversalLines,
+} from "./lib/lateEntries";
 import { DEFAULT_STUDIO_CHART, type ChartAccount } from "./lib/booksImport";
 import {
   accountSubtypeV,
   accountTypeV,
   entryStatusV,
   importWarningV,
+  lateKindV,
   normalBalanceV,
+  paidFromV,
   paymentKindV,
   paymentTypeV,
   receiptStatusV,
@@ -99,6 +115,19 @@ function toEntry(d: Doc<"journalEntries">): LedgerEntry {
     id: d._id, entryDate: d.entryDate, memo: d.memo, status: d.status, receiptStatus: d.receiptStatus,
     paymentKind: d.paymentType?.kind, bookPeriod: d.bookPeriod, sourceRef: d.sourceRef,
     lines: d.lines.map((l) => ({ accountId: l.accountId, debitCents: l.debitCents, creditCents: l.creditCents, memo: l.memo })),
+    ...(d.lateEntry
+      ? {
+          late: {
+            enteredAt: d.enteredAt ?? d.createdAt,
+            enteredBy: d.enteredBy ?? d.createdBy,
+            reason: d.reason ?? DEFAULT_LATE_REASON,
+            ...(d.lateKind ? { kind: d.lateKind } : {}),
+            ...(d.counterparty ? { counterparty: d.counterparty } : {}),
+            ...(d.reversalOf ? { reversalOf: d.reversalOf } : {}),
+            ...(d.reversedBy ? { reversedBy: d.reversedBy } : {}),
+          },
+        }
+      : {}),
   };
 }
 
@@ -118,6 +147,7 @@ function toReported(d: Doc<"reportedStatements"> | null): ReportedStatements | n
   return d ? {
     entityName: d.entityName, periodStart: d.periodStart, periodEnd: d.periodEnd,
     balanceSheet: d.balanceSheet, incomeStatement: d.incomeStatement, cashFlow: d.cashFlow, warnings: d.warnings,
+    importedAt: d.importedAt,
   } : null;
 }
 
@@ -235,6 +265,8 @@ export const statements = query({
       variances: built.variances,
       checks: built.checks,
       journalTotals: journalTotals(data.entries.map(toEntry), period.start, period.end),
+      /** What late entries changed since the workbook was imported; null when none. */
+      lateEntries: built.lateEntries,
     };
   },
 });
@@ -246,6 +278,8 @@ const journalFilterV = v.object({
   status: v.optional(entryStatusV),
   /** Case-insensitive match on the memo, line memos and the raw payment type. */
   text: v.optional(v.string()),
+  /** Late entries and their reversals only. */
+  lateOnly: v.optional(v.boolean()),
 });
 
 /** Journal entries, newest first, paginated. `period` limits to a month. */
@@ -269,6 +303,7 @@ export const journal = query({
       if (f.receiptStatus && e.receiptStatus !== f.receiptStatus) return false;
       if (f.paymentKind && e.paymentType?.kind !== f.paymentKind) return false;
       if (f.accountId && !e.lines.some((l) => l.accountId === f.accountId)) return false;
+      if (f.lateOnly && !e.lateEntry) return false;
       if (text) {
         const hay = [e.memo, e.paymentType?.raw ?? "", ...e.lines.map((l) => l.memo ?? "")].join(" ").toLowerCase();
         if (!hay.includes(text)) return false;
@@ -355,6 +390,14 @@ export type NewEntryInput = {
   receiptStatus?: "yes" | "no" | "pending";
   source?: "manual" | "agent";
   sourceRef?: string;
+  /** A late entry (or a late entry's reversal). openspec/changes/late-entries. */
+  late?: {
+    enteredAt: number;
+    reason: string;
+    kind?: "expense" | "income" | "refund";
+    counterparty?: string;
+    reversalOf?: Id<"journalEntries">;
+  };
 };
 
 /** The one place a journal entry is created. The `addEntry` mutation and the
@@ -366,9 +409,10 @@ export async function createEntry(ctx: MutationCtx, orgId: string, actor: string
   if (!memo) throw new Error("Describe the entry.");
   if (!Number.isFinite(args.entryDate)) throw new Error("Choose a date.");
   const totalCents = await checkLines(ctx, orgId, args.lines);
+  const day = toDay(args.entryDate);
   return await ctx.db.insert("journalEntries", {
     orgId,
-    entryDate: toDay(args.entryDate),
+    entryDate: day,
     memo,
     ...(args.paymentType ? { paymentType: args.paymentType } : {}),
     ...(args.sourceRef ? { sourceRef: args.sourceRef } : {}),
@@ -379,6 +423,18 @@ export async function createEntry(ctx: MutationCtx, orgId: string, actor: string
     totalCents,
     createdBy: actor,
     createdAt: Date.now(),
+    ...(args.late
+      ? {
+          lateEntry: true,
+          enteredAt: args.late.enteredAt,
+          effectiveDate: day,
+          enteredBy: actor,
+          reason: args.late.reason,
+          ...(args.late.kind ? { lateKind: args.late.kind } : {}),
+          ...(args.late.counterparty ? { counterparty: args.late.counterparty } : {}),
+          ...(args.late.reversalOf ? { reversalOf: args.late.reversalOf } : {}),
+        }
+      : {}),
   });
 }
 
@@ -438,6 +494,8 @@ export const voidEntry = mutation({
     const e = await ctx.db.get(id);
     if (!e || e.orgId !== orgId) throw new Error("Entry not found.");
     if (e.status === "void") throw new Error("That entry is already void.");
+    // A late entry changed a reported month; cancelling it must leave a trail.
+    if (e.lateEntry) throw new Error("Reverse a late entry instead of voiding it, so both entries stay in the books.");
     if (!reason.trim()) throw new Error("Say why the entry is void.");
     await ctx.db.patch(id, { status: "void", voidedAt: Date.now(), voidedBy: actor, voidReason: reason.trim() });
   },
@@ -449,6 +507,341 @@ export const linkReceipt = mutation({
   handler: async (ctx, { entryId, receiptId }) => {
     const { orgId } = await writeOrg(ctx);
     return await attachReceipt(ctx, orgId, entryId, receiptId);
+  },
+});
+
+// ── Late entries ────────────────────────────────────────────
+/* A missed invoice or receipt added to a month that has ended.
+   openspec/changes/late-entries. The entry goes in the way every entry does
+   (createEntry as a draft, then postDraft: the helpers behind addEntry and
+   postEntry), flagged late, with who, when and why. The reported statements
+   are never touched. A mistake is cancelled by a reversing entry on the same
+   day; both stay in the journal. Every change writes the finance audit log. */
+
+/** Changing a past month is the owner's call: a studio owner, or an agency
+ *  owner or admin acting as the studio. A manager may add ordinary entries
+ *  but not rewrite a month that was already reported. */
+export async function lateEntryWriter(ctx: MutationCtx): Promise<{ orgId: string; actor: string; viewerType: "agency_member" | "studio_member" }> {
+  const viewer = await requireCapability(ctx, "insights.read");
+  if (viewer.kind === "guest") throw new AccessError("CAPABILITY_DENIED", "Guests cannot change the books.");
+  if (viewer.kind === "studio_member" && viewer.role !== "owner") {
+    throw new AccessError("CAPABILITY_DENIED", "Only the studio owner can change a past month.");
+  }
+  if (viewer.kind === "agency_member" && viewer.role !== "owner" && viewer.role !== "admin") {
+    throw new AccessError("CAPABILITY_DENIED", "Only an agency owner or admin can change a studio's past month.");
+  }
+  if (!viewer.orgId) throw new AccessError("NO_WORKSPACE", "Choose a studio first.");
+  return { orgId: viewer.orgId, actor: await currentActor(ctx), viewerType: viewer.kind };
+}
+
+/** True when the caller may add late entries. Never throws: the UI asks. */
+async function mayWriteLate(ctx: Ctx): Promise<boolean> {
+  try {
+    const viewer = await resolveViewer(ctx);
+    if (viewer.kind === "guest" || !viewer.capabilities.has("insights.read")) return false;
+    if (viewer.kind === "studio_member") return viewer.role === "owner";
+    return (viewer.role === "owner" || viewer.role === "admin") && !!viewer.orgId;
+  } catch {
+    return false;
+  }
+}
+
+const lateInputV = v.object({
+  kind: lateKindV,
+  entryDate: v.number(),
+  counterparty: v.string(),
+  amountCents: v.number(),
+  accountId: v.id("ledgerAccounts"),
+  paidFrom: paidFromV,
+  memo: v.optional(v.string()),
+  reason: v.optional(v.string()),
+});
+
+export type LateInput = Infer<typeof lateInputV>;
+
+async function openingDates(ctx: Ctx, orgId: string): Promise<number[]> {
+  return (await ctx.db.query("openingBalances").withIndex("by_org_asOf", (q) => q.eq("orgId", orgId)).take(500)).map((o) => o.asOf);
+}
+
+/** Everything one late entry needs: the date checked, the lines planned
+ *  against this studio's chart, the period's books, and what may already be
+ *  this item. Throws a readable Error. */
+async function prepareLate(ctx: Ctx, orgId: string, periodKey: string, input: LateInput, now: number) {
+  try {
+    const { period, day } = checkLateDate({ periodKey, entryDate: input.entryDate, now, openingDates: await openingDates(ctx, orgId) });
+    const data = await loadPeriod(ctx, orgId, period);
+    const accounts = data.accounts.map(toAccount);
+    const plan = planLateEntry({ ...input, entryDate: day }, accounts);
+    const entries = data.entries.map(toEntry);
+    const duplicates = possibleDuplicates(entries, { entryDate: day, totalCents: plan.totalCents, categoryAccountId: plan.category.id, counterparty: input.counterparty });
+    return { period, day, plan, data, accounts, entries, duplicates };
+  } catch (e) {
+    if (e instanceof LedgerValidationError) throw new Error(e.message);
+    throw e;
+  }
+}
+
+async function lateAudit(
+  ctx: MutationCtx,
+  orgId: string,
+  who: { actor: string; viewerType: "agency_member" | "studio_member" },
+  a: { action: "ledger.late_entry.posted" | "ledger.late_entry.reversed"; entryId: Id<"journalEntries">; period: string; reason: string; detail: string; receiptId?: Id<"receipts">; before: unknown; after: unknown },
+) {
+  await financeLog(ctx, orgId, {
+    action: a.action,
+    actorType: "user",
+    actorName: who.actor,
+    ...(a.receiptId ? { receiptId: a.receiptId } : {}),
+    before: a.before,
+    after: a.after,
+    detail: `${a.detail} (entry ${a.entryId}, ${a.period}). Reason: ${a.reason}`,
+  });
+  await ctx.db.insert("auditEvents", {
+    orgId, viewerType: who.viewerType, viewerId: who.actor, action: a.action, resource: a.entryId, result: "allow", reason: a.reason,
+  });
+}
+
+/** Rescan the month so the Accounting agent's note about it is current. Only
+ *  for a month the owner already reported; the scan itself respects the
+ *  studio's on/off switch and never posts. */
+async function rescanReportedMonth(ctx: MutationCtx, orgId: string, periodKey: string, hasReported: boolean) {
+  if (!hasReported) return;
+  await ctx.scheduler.runAfter(0, internal.accountingAgent.scanOrg, { orgId, period: periodKey });
+}
+
+export type LateEntryResult = {
+  entryId: Id<"journalEntries">;
+  before: HeadlineFigures;
+  after: HeadlineFigures;
+};
+
+/** The one path a late entry is posted by: the Books form and an approved
+ *  Accounting agent suggestion both come here. The caller has already
+ *  authorised the writer with lateEntryWriter. */
+export async function recordLateEntry(
+  ctx: MutationCtx,
+  who: { orgId: string; actor: string; viewerType: "agency_member" | "studio_member" },
+  args: { period: string; input: LateInput; receiptId?: Id<"receipts">; confirmPastMonth: boolean; allowDuplicate?: boolean; via: "books" | "agent" },
+): Promise<LateEntryResult> {
+  if (!args.confirmPastMonth) throw new Error("Confirm that you are changing a past month.");
+  const now = Date.now();
+  const { orgId, actor } = who;
+  const prep = await prepareLate(ctx, orgId, args.period, args.input, now);
+  if (prep.duplicates.length && !args.allowDuplicate) {
+    const d = prep.duplicates[0];
+    throw new ConvexError({
+      code: "POSSIBLE_DUPLICATE",
+      message: `This may already be in the books: ${d.memo}, ${isoDay(d.entryDate)}, ${formatCents(d.totalCents)} (${d.why}). Confirm it is a different charge to add it anyway.`,
+    });
+  }
+  if (args.receiptId) {
+    const r = await ctx.db.get(args.receiptId);
+    if (!r || r.orgId !== orgId) throw new Error("Receipt not found.");
+  }
+  const { plan, day, period } = prep;
+  const meta = { enteredAt: now, reason: plan.reason, kind: args.input.kind, counterparty: args.input.counterparty.trim() };
+  // Through the same helpers as addEntry (draft) and postEntry (post).
+  const entryId = await createEntry(ctx, orgId, actor, {
+    entryDate: day,
+    memo: plan.memo,
+    lines: plan.lines.map((l) => ({ accountId: l.accountId as Id<"ledgerAccounts">, debitCents: l.debitCents, creditCents: l.creditCents })),
+    status: "draft",
+    ...(plan.paymentType ? { paymentType: { kind: plan.paymentType.kind as Infer<typeof paymentKindV>, raw: plan.paymentType.raw } } : {}),
+    receiptStatus: "pending",
+    source: args.via === "agent" ? "agent" : "manual",
+    late: meta,
+  });
+  await postDraft(ctx, orgId, entryId);
+  if (args.receiptId) await attachReceipt(ctx, orgId, entryId, args.receiptId);
+
+  const { before, after } = previewWithEntry({
+    period, accounts: prep.accounts, opening: toOpening(prep.data.openingDoc), entries: prep.entries,
+    add: lateLedgerEntry(plan, day, { ...meta, enteredBy: actor }, entryId),
+  });
+  await lateAudit(ctx, orgId, who, {
+    action: "ledger.late_entry.posted", entryId, period: period.key, reason: plan.reason,
+    detail: `Late ${args.input.kind} added to ${period.key}${args.via === "agent" ? " from an Accounting agent suggestion" : ""}: ${plan.memo}, ${formatCents(plan.totalCents)}`,
+    receiptId: args.receiptId, before, after,
+  });
+  await rescanReportedMonth(ctx, orgId, period.key, !!prep.data.reportedDoc);
+  return { entryId, before, after };
+}
+
+/** Cancel a late entry with a reversing entry on the same day: every debit
+ *  becomes a credit, so the month returns to exactly where it was. Both
+ *  entries stay posted and visible, linked both ways. */
+export async function reverseLate(
+  ctx: MutationCtx,
+  who: { orgId: string; actor: string; viewerType: "agency_member" | "studio_member" },
+  args: { id: Id<"journalEntries">; reason: string; confirmPastMonth: boolean },
+): Promise<LateEntryResult> {
+  const { orgId, actor } = who;
+  if (!args.confirmPastMonth) throw new Error("Confirm that you are changing a past month.");
+  const reason = args.reason.trim();
+  if (!reason) throw new Error("Say why the late entry is being reversed.");
+  if (reason.length > 200) throw new Error("Keep the reason under 200 characters.");
+  const e = await ctx.db.get(args.id);
+  if (!e || e.orgId !== orgId) throw new Error("Entry not found.");
+  if (!e.lateEntry) throw new Error("Only a late entry can be reversed here.");
+  if (e.reversalOf) throw new Error("That entry is itself a reversal.");
+  if (e.reversedBy) throw new Error("That late entry was already reversed.");
+  if (e.status !== "posted") throw new Error("Only a posted late entry can be reversed.");
+  const now = Date.now();
+  const periodKey = periodKeyOf(e.entryDate);
+  let period: Period;
+  try {
+    // A reversal lands on the original's day, so the same date rules apply.
+    ({ period } = checkLateDate({ periodKey, entryDate: e.entryDate, now, openingDates: await openingDates(ctx, orgId) }));
+  } catch (err) {
+    throw new Error((err as Error).message);
+  }
+  const data = await loadPeriod(ctx, orgId, period);
+  const lines = reversalLines(e.lines).map((l) => ({ accountId: l.accountId, debitCents: l.debitCents, creditCents: l.creditCents, ...(l.memo ? { memo: l.memo } : {}) }));
+  const memo = `Reversal of late entry: ${e.memo}`.slice(0, 400);
+  const reversalId = await createEntry(ctx, orgId, actor, {
+    entryDate: e.entryDate,
+    memo,
+    lines,
+    status: "draft",
+    ...(e.paymentType ? { paymentType: e.paymentType } : {}),
+    receiptStatus: e.receiptStatus,
+    source: "manual",
+    late: { enteredAt: now, reason, ...(e.lateKind ? { kind: e.lateKind } : {}), ...(e.counterparty ? { counterparty: e.counterparty } : {}), reversalOf: e._id },
+  });
+  await postDraft(ctx, orgId, reversalId);
+  await ctx.db.patch(e._id, { reversedBy: reversalId, reversedAt: now });
+
+  const { before, after } = previewWithEntry({
+    period, accounts: data.accounts.map(toAccount), opening: toOpening(data.openingDoc), entries: data.entries.map(toEntry),
+    add: { id: reversalId, entryDate: e.entryDate, memo, status: "posted", receiptStatus: e.receiptStatus, lines },
+  });
+  await lateAudit(ctx, orgId, who, {
+    action: "ledger.late_entry.reversed", entryId: reversalId, period: period.key, reason,
+    detail: `Late entry reversed in ${period.key}: ${e.memo}, ${formatCents(e.totalCents)} (original ${e._id})`,
+    before, after,
+  });
+  await rescanReportedMonth(ctx, orgId, period.key, !!data.reportedDoc);
+  return { entryId: reversalId, before, after };
+}
+
+/** Add a missed invoice or receipt to a month that has ended. */
+export const addLateEntry = mutation({
+  args: {
+    period: v.string(),
+    input: lateInputV,
+    /** A receipts row (uploaded to R2 through media.prepareUpload, then receipts.attach). */
+    receiptId: v.optional(v.id("receipts")),
+    /** The owner saw "You are changing a past month" with the before and after. */
+    confirmPastMonth: v.boolean(),
+    /** The owner confirmed it is not the possible duplicate the preview showed. */
+    allowDuplicate: v.optional(v.boolean()),
+    /** The Accounting agent suggestion this completes, when it came from one. */
+    proposalId: v.optional(v.id("opsActions")),
+  },
+  handler: async (ctx, args): Promise<LateEntryResult> => {
+    const who = await lateEntryWriter(ctx);
+    let proposal: Doc<"opsActions"> | null = null;
+    if (args.proposalId) {
+      proposal = await ctx.db.get(args.proposalId);
+      if (!proposal || proposal.orgId !== who.orgId || proposal.type !== "acct_late_entry") throw new Error("That suggestion is not in this studio.");
+      if (proposal.status !== "proposed" && proposal.status !== "snoozed") throw new Error(`That suggestion is already ${proposal.status}.`);
+    }
+    const out = await recordLateEntry(ctx, who, { ...args, via: proposal ? "agent" : "books" });
+    if (proposal) {
+      const now = Date.now();
+      await ctx.db.patch(proposal._id, { status: "executed", decidedAt: now, decidedBy: who.actor, executedAt: now, result: "Added as a late entry from Books." });
+      await ctx.db.insert("agentAuditLogs", { orgId: who.orgId, event: "approval.approved", detail: proposal.title, actor: who.actor, at: now });
+    }
+    return out;
+  },
+});
+
+/** Cancel a late entry with a linked reversing entry. Nothing is deleted. */
+export const reverseLateEntry = mutation({
+  args: { id: v.id("journalEntries"), reason: v.string(), confirmPastMonth: v.boolean() },
+  handler: async (ctx, args): Promise<LateEntryResult> => {
+    const who = await lateEntryWriter(ctx);
+    return await reverseLate(ctx, who, args);
+  },
+});
+
+/** What adding this item would do, before anything is written: the lines,
+ *  net income and cash before and after, and entries it may duplicate. A
+ *  problem with the form comes back as `error`, not a throw. */
+export const lateEntryPreview = query({
+  args: { period: v.string(), input: lateInputV },
+  handler: async (ctx, args) => {
+    const orgId = await readOrg(ctx);
+    let prep: Awaited<ReturnType<typeof prepareLate>>;
+    try {
+      prep = await prepareLate(ctx, orgId, args.period, args.input, Date.now());
+    } catch (e) {
+      return { ok: false as const, error: (e as Error).message };
+    }
+    const { plan, day, period } = prep;
+    const { before, after } = previewWithEntry({
+      period, accounts: prep.accounts, opening: toOpening(prep.data.openingDoc), entries: prep.entries,
+      add: lateLedgerEntry(plan, day, { enteredAt: Date.now(), enteredBy: "preview" }),
+    });
+    const names = new Map(prep.accounts.map((a) => [a.id, a.name]));
+    return {
+      ok: true as const,
+      period: period.key,
+      entryDate: day,
+      memo: plan.memo,
+      reason: plan.reason,
+      totalCents: plan.totalCents,
+      lines: plan.lines.map((l) => ({ accountName: names.get(l.accountId) ?? l.accountId, debitCents: l.debitCents, creditCents: l.creditCents })),
+      before,
+      after,
+      hasReported: !!prep.data.reportedDoc,
+      duplicates: prep.duplicates,
+    };
+  },
+});
+
+/** What reversing a late entry would do: the month's figures before and after. */
+export const lateReversalPreview = query({
+  args: { id: v.id("journalEntries") },
+  handler: async (ctx, { id }) => {
+    const orgId = await readOrg(ctx);
+    const e = await ctx.db.get(id);
+    if (!e || e.orgId !== orgId) return { ok: false as const, error: "Entry not found." };
+    if (!e.lateEntry || e.reversalOf || e.reversedBy || e.status !== "posted") {
+      return { ok: false as const, error: "Only a posted late entry that has not been reversed can be reversed." };
+    }
+    const period = asPeriod(periodKeyOf(e.entryDate));
+    const data = await loadPeriod(ctx, orgId, period);
+    const { before, after } = previewWithEntry({
+      period, accounts: data.accounts.map(toAccount), opening: toOpening(data.openingDoc), entries: data.entries.map(toEntry),
+      add: { id: "reversal", entryDate: e.entryDate, memo: e.memo, status: "posted", receiptStatus: e.receiptStatus, lines: reversalLines(e.lines) },
+    });
+    return { ok: true as const, period: period.key, memo: e.memo, totalCents: e.totalCents, before, after };
+  },
+});
+
+/** May the caller add late entries, and which months count as past. */
+export const lateEntryAccess = query({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    return { canAdd: await mayWriteLate(ctx), currentMonth: periodKeyOf(now), today: toDay(now) };
+  },
+});
+
+/** Open Accounting agent suggestions for late entries in a month, for the
+ *  Books screen's "Review" list. Money follows permission. */
+export const lateEntrySuggestions = query({
+  args: { period: v.string() },
+  handler: async (ctx, { period }) => {
+    const orgId = await readOrg(ctx);
+    const key = asPeriod(period).key;
+    const rows = await ctx.db.query("opsActions").withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", "proposed")).take(500);
+    return rows.flatMap((r) =>
+      r.type === "acct_late_entry" && r.payload.kind === "late_entry" && r.payload.period === key
+        ? [{ _id: r._id, title: r.title, rationale: r.rationale, payload: r.payload }]
+        : [],
+    );
   },
 });
 
@@ -668,8 +1061,14 @@ async function runImport(ctx: MutationCtx, orgId: string, actor: string, args: I
     entriesCreated++;
   }
 
-  // 3. Reported statements: replace this period's workbook copy.
+  // 3. Reported statements: replace this period's workbook copy. When the
+  //    figures are exactly what was already reported (a re-run of the same
+  //    import), keep when they were reported: late entries count from that
+  //    moment, so re-running an import must not fold them into "reported".
   const old = await ctx.db.query("reportedStatements").withIndex("by_org_period", (q) => q.eq("orgId", orgId).eq("periodStart", period.start)).take(10);
+  const sameFigures = (r: Doc<"reportedStatements">) =>
+    JSON.stringify([r.balanceSheet, r.incomeStatement, r.cashFlow]) === JSON.stringify([plan.reported.balanceSheet, plan.reported.incomeStatement, plan.reported.cashFlow]);
+  const unchanged = old.filter(sameFigures).sort((a, b) => a.importedAt - b.importedAt)[0];
   for (const r of old) await ctx.db.delete(r._id);
   await ctx.db.insert("reportedStatements", {
     orgId,
@@ -682,7 +1081,7 @@ async function runImport(ctx: MutationCtx, orgId: string, actor: string, args: I
     warnings: plan.reported.warnings,
     source: "workbook",
     importBatchId: plan.importBatchId,
-    importedAt: now,
+    importedAt: unchanged?.importedAt ?? now,
   });
 
   // 4. Bank statement balances: one row per account label and period.
@@ -702,11 +1101,16 @@ async function runImport(ctx: MutationCtx, orgId: string, actor: string, args: I
   let opening: "created" | "replaced" | "kept" | "skipped" = "skipped";
   if (args.seedOpening === "implied") {
     const existing = await ctx.db.query("openingBalances").withIndex("by_org_asOf", (q) => q.eq("orgId", orgId).lte("asOf", period.start)).order("desc").first();
-    if (existing && !(existing.asOf === period.start && existing.source === "implied_from_reported_close")) {
+    const periodDocs = await ctx.db.query("journalEntries").withIndex("by_org_date", (q) => q.eq("orgId", orgId).gte("entryDate", period.start).lt("entryDate", period.end)).take(MAX_ROWS);
+    // A late entry changes the month after it was reported. Re-deriving the
+    // opening from the reported close would quietly absorb that change into
+    // the opening balances, so an existing opening is kept once one exists.
+    const hasLate = periodDocs.some((e) => e.lateEntry && e.status === "posted");
+    if (existing && (hasLate || !(existing.asOf === period.start && existing.source === "implied_from_reported_close"))) {
       opening = "kept";
     } else {
       const accounts = (await loadAccounts(ctx, orgId)).map(toAccount);
-      const entries = (await ctx.db.query("journalEntries").withIndex("by_org_date", (q) => q.eq("orgId", orgId).gte("entryDate", period.start).lt("entryDate", period.end)).take(MAX_ROWS)).map(toEntry);
+      const entries = periodDocs.filter((e) => !e.lateEntry).map(toEntry);
       const anchor = (args.bank ?? [])[0];
       const implied = impliedOpeningBalances({
         accounts, entries, periodStart: period.start, periodEnd: period.end,

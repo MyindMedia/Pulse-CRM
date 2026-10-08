@@ -85,6 +85,24 @@ export type LedgerEntry = {
   bookPeriod?: string;
   sourceRef?: string;
   lines: EntryLine[];
+  /** Set on a late entry (added to a month after its books were reported) and
+   *  on the reversing entry that cancels one. openspec/changes/late-entries. */
+  late?: LateEntryMeta;
+};
+
+export type LateEntryKind = "expense" | "income" | "refund";
+
+export type LateEntryMeta = {
+  /** When a person actually entered it (real time, ms). */
+  enteredAt: number;
+  enteredBy: string;
+  reason: string;
+  kind?: LateEntryKind;
+  counterparty?: string;
+  /** On a reversing entry: the late entry it cancels. */
+  reversalOf?: string;
+  /** On a late entry that was reversed: the reversing entry. */
+  reversedBy?: string;
 };
 
 /** Balances at the start of `asOf`, in each account's NORMAL direction

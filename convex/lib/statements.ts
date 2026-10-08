@@ -73,6 +73,9 @@ export type ReportedStatements = {
   incomeStatement: ReportedLine[];
   cashFlow: ReportedLine[];
   warnings: ImportWarning[];
+  /** When the workbook was imported: the moment the owner's checked figures
+   *  were fixed. A late entry entered after this is a change since reported. */
+  importedAt?: number;
 };
 
 // ── Labels ──────────────────────────────────────────────────
@@ -810,6 +813,216 @@ export function journalTotals(entries: readonly LedgerEntry[], start: number, en
   return { entryCount, debitCents, creditCents };
 }
 
+// ── Late entries: what changed since the books were reported ─
+
+export type RecomputedStatements = { incomeStatement: IncomeStatement; balanceSheet: BalanceSheet; cashFlow: CashFlow };
+
+/** The three statements for one period. */
+export function recomputeStatements(
+  period: Period,
+  accounts: readonly LedgerAccount[],
+  opening: OpeningBalances | null,
+  entries: readonly LedgerEntry[],
+): RecomputedStatements {
+  return {
+    incomeStatement: incomeStatement(accounts, entries, period.start, period.end),
+    balanceSheet: balanceSheet(accounts, opening, entries, period.start, period.end),
+    cashFlow: cashFlow(accounts, opening, entries, period.start, period.end),
+  };
+}
+
+/** The four figures an owner watches, plus retained earnings for the roll-forward. */
+export type HeadlineFigures = {
+  revenueCents: number;
+  expensesCents: number;
+  netIncomeCents: number;
+  endingCashCents: number;
+  retainedEarningsCents: number;
+};
+
+export function headlineFigures(r: RecomputedStatements): HeadlineFigures {
+  return {
+    revenueCents: r.incomeStatement.totalRevenueCents,
+    expensesCents: r.incomeStatement.totalExpensesCents,
+    netIncomeCents: r.incomeStatement.netIncomeCents,
+    endingCashCents: r.cashFlow.endingCashCents,
+    retainedEarningsCents: r.balanceSheet.retainedEarnings.totalCents,
+  };
+}
+
+export type LateEntrySummary = {
+  id: string;
+  entryDate: number;
+  enteredAt: number;
+  enteredBy: string;
+  reason: string;
+  memo: string;
+  totalCents: number;
+  kind?: string;
+  counterparty?: string;
+  reversalOf?: string;
+  reversedBy?: string;
+  /** Dated inside this period. False for an earlier month's entry that only
+   *  moves this period's opening cash and retained earnings. */
+  inPeriod: boolean;
+  /** This entry's own effect on the period's net income and ending cash. */
+  netIncomeEffectCents: number;
+  cashEffectCents: number;
+};
+
+export type LateLineEffect = {
+  statement: "incomeStatement" | "balanceSheet" | "cashFlow";
+  key: string;
+  label: string;
+  kind: LineKind;
+  /** null when no workbook was imported, or the workbook has no such line. */
+  reportedCents: number | null;
+  recomputedCents: number;
+  /** What the late entries moved: recomputed now minus recomputed without them. */
+  lateEntryCents: number;
+  /** recomputed minus reported, when there is a reported figure. Always equals
+   *  lateEntryCents + otherCents, to the cent. */
+  varianceCents: number | null;
+  /** The part of the variance that was there before any late entry. */
+  otherCents: number | null;
+};
+
+export type LateEntryImpact = {
+  /** Late entries count from this moment (the workbook import); null with no workbook. */
+  since: number | null;
+  count: number;
+  entries: LateEntrySummary[];
+  /** The period recomputed without the late entries, and with them. */
+  before: HeadlineFigures;
+  after: HeadlineFigures;
+  /** Every statement line the late entries moved, totals included, in reading order. */
+  lines: LateLineEffect[];
+  /** One sentence for the variance panel and the check. */
+  headline: string;
+};
+
+const MON = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+const shortDay = (ms: number) => {
+  const d = new Date(ms);
+  return `${MON[d.getUTCMonth()]} ${d.getUTCDate()}`;
+};
+const usd = (cents: number) => `${cents < 0 ? "-" : ""}$${formatCents(Math.abs(cents))}`;
+
+/** Is this entry a late entry (or a late entry's reversal) that changed the
+ *  period after `since`? Posted only: a draft or void moves nothing. */
+export function countsAsLate(e: LedgerEntry, since: number | null): boolean {
+  return e.status === "posted" && !!e.late && (since === null || e.late.enteredAt > since);
+}
+
+/** What late entries changed in a period, and how much of each variance they
+ *  explain. Null when no late entry touches the period. Pure: the period is
+ *  rebuilt without the late entries and the two results are compared line by
+ *  line, so the split of a variance always adds up exactly. */
+export function lateEntryImpact(args: {
+  period: Period;
+  accounts: readonly LedgerAccount[];
+  opening: OpeningBalances | null;
+  entries: readonly LedgerEntry[];
+  reported: ReportedStatements | null;
+  recomputed?: RecomputedStatements;
+}): LateEntryImpact | null {
+  const { period, accounts, opening, entries, reported } = args;
+  const since = reported?.importedAt ?? null;
+  const from = opening?.asOf ?? -Infinity;
+  const late = entries.filter((e) => countsAsLate(e, since) && e.entryDate < period.end && e.entryDate >= from);
+  if (late.length === 0) return null;
+  const lateIds = new Set(late.map((e) => e.id));
+  const after = args.recomputed ?? recomputeStatements(period, accounts, opening, entries);
+  const before = recomputeStatements(period, accounts, opening, entries.filter((e) => !lateIds.has(e.id)));
+
+  const lines: LateLineEffect[] = [];
+  for (const statement of ["incomeStatement", "balanceSheet", "cashFlow"] as const) {
+    const was = new Map(before[statement].lines.map((l) => [l.key, l.cents]));
+    const rep = reported ? new Map(reported[statement].map((l) => [l.key, l.cents])) : null;
+    const seen = new Set<string>();
+    for (const l of after[statement].lines) {
+      if (seen.has(l.key)) continue;
+      seen.add(l.key);
+      const lateEntryCents = l.cents - (was.get(l.key) ?? 0);
+      if (lateEntryCents === 0) continue;
+      const reportedCents = rep?.has(l.key) ? rep.get(l.key)! : null;
+      lines.push({
+        statement, key: l.key, label: l.label, kind: l.kind, reportedCents, recomputedCents: l.cents, lateEntryCents,
+        varianceCents: reportedCents === null ? null : l.cents - reportedCents,
+        otherCents: reportedCents === null ? null : l.cents - reportedCents - lateEntryCents,
+      });
+    }
+    // A line only the "before" statements had (every late entry's account emptied).
+    for (const l of before[statement].lines) {
+      if (seen.has(l.key) || l.cents === 0) continue;
+      seen.add(l.key);
+      const reportedCents = rep?.has(l.key) ? rep.get(l.key)! : null;
+      lines.push({
+        statement, key: l.key, label: l.label, kind: l.kind, reportedCents, recomputedCents: 0, lateEntryCents: -l.cents,
+        varianceCents: reportedCents === null ? null : -reportedCents,
+        otherCents: reportedCents === null ? null : -reportedCents + l.cents,
+      });
+    }
+  }
+
+  const byId = new Map(accounts.map((a) => [a.id, a]));
+  const summaries: LateEntrySummary[] = late
+    .slice()
+    .sort((a, b) => a.late!.enteredAt - b.late!.enteredAt || a.entryDate - b.entryDate)
+    .map((e) => {
+      const inPeriod = e.entryDate >= period.start;
+      let ni = 0;
+      let cash = 0;
+      for (const l of e.lines) {
+        const a = byId.get(l.accountId);
+        if (inPeriod && (a?.type === "revenue" || a?.type === "expense")) ni += l.creditCents - l.debitCents;
+        if (a?.isCash) cash += l.debitCents - l.creditCents;
+      }
+      return {
+        id: e.id, entryDate: e.entryDate, enteredAt: e.late!.enteredAt, enteredBy: e.late!.enteredBy, reason: e.late!.reason,
+        memo: e.memo, totalCents: entryTotalCents(e.lines),
+        ...(e.late!.kind ? { kind: e.late!.kind } : {}),
+        ...(e.late!.counterparty ? { counterparty: e.late!.counterparty } : {}),
+        ...(e.late!.reversalOf ? { reversalOf: e.late!.reversalOf } : {}),
+        ...(e.late!.reversedBy ? { reversedBy: e.late!.reversedBy } : {}),
+        inPeriod, netIncomeEffectCents: ni, cashEffectCents: cash,
+      };
+    });
+
+  const b = headlineFigures(before);
+  const a = headlineFigures(after);
+  return {
+    since, count: late.length, entries: summaries, before: b, after: a, lines,
+    headline: lateHeadline(summaries, lines, b, a, !!reported),
+  };
+}
+
+/** "Recomputed net income differs from reported by $38.00: $19.00 from 1 late
+ *  entry added Oct 9, $19.00 was there when the books were checked." */
+function lateHeadline(entries: LateEntrySummary[], lines: LateLineEffect[], before: HeadlineFigures, after: HeadlineFigures, hasReported: boolean): string {
+  const n = entries.length;
+  const days = [...new Set(entries.map((e) => shortDay(e.enteredAt)))];
+  const when = days.length === 1 ? `added ${days[0]}` : `added ${days[0]} to ${days[days.length - 1]}`;
+  const what = `${n} late ${n === 1 ? "entry" : "entries"} ${when}`;
+  const ni = lines.find((l) => l.statement === "incomeStatement" && l.key === "net_income");
+  const cash = lines.find((l) => l.statement === "balanceSheet" && l.key === "asset.cash")
+    ?? lines.find((l) => l.statement === "cashFlow" && l.key === "ending_cash");
+  const pick = ni ?? cash ?? lines.find((l) => l.kind === "total") ?? lines[0];
+  if (!pick) return `${what}. They cancel out: no figure moved.`;
+  const name = pick === ni ? "net income" : pick === cash ? "ending cash" : pick.label.toLowerCase();
+  if (hasReported && pick.varianceCents !== null && pick.otherCents !== null) {
+    const v = Math.abs(pick.varianceCents);
+    const o = Math.abs(pick.otherCents);
+    if (v === 0) return `Recomputed ${name} now matches reported: ${what} closed a ${usd(o)} difference.`;
+    if (o === 0) return `Recomputed ${name} differs from reported by ${usd(v)}: ${what}.`;
+    if (v < o) return `Recomputed ${name} differs from reported by ${usd(v)}, down from ${usd(o)} before ${what}.`;
+    return `Recomputed ${name} differs from reported by ${usd(v)}: ${usd(Math.abs(pick.lateEntryCents))} from ${what}, ${usd(o)} was there when the books were checked.`;
+  }
+  const from = pick === ni ? before.netIncomeCents : pick === cash ? before.endingCashCents : pick.recomputedCents - pick.lateEntryCents;
+  const to = pick === ni ? after.netIncomeCents : pick === cash ? after.endingCashCents : pick.recomputedCents;
+  return `${what} moved ${name} from ${usd(from)} to ${usd(to)}.`;
+}
+
 /** Everything the report needs, from one call. */
 export function buildStatements(args: {
   period: Period;
@@ -820,12 +1033,20 @@ export function buildStatements(args: {
   reported: ReportedStatements | null;
 }) {
   const { period, accounts, opening, entries, bank, reported } = args;
-  const incomeStatementResult = incomeStatement(accounts, entries, period.start, period.end);
-  const balanceSheetResult = balanceSheet(accounts, opening, entries, period.start, period.end);
-  const cashFlowResult = cashFlow(accounts, opening, entries, period.start, period.end);
-  const recomputed = { incomeStatement: incomeStatementResult, balanceSheet: balanceSheetResult, cashFlow: cashFlowResult };
+  const recomputed = recomputeStatements(period, accounts, opening, entries);
   const v = reported ? variances(reported, recomputed) : null;
   const checks = runChecks({ period, accounts, opening, entries, bank, reported, statements: recomputed, variances: v });
-  return { recomputed, variances: v, checks };
+  const lateEntries = lateEntryImpact({ period, accounts, opening, entries, reported, recomputed });
+  if (lateEntries) {
+    checks.push({
+      code: "late_entries",
+      // A late entry and its reversal cancel out: shown, nothing to review.
+      status: lateEntries.lines.length ? "warn" : "pass",
+      message: lateEntries.headline,
+      amountCents: lateEntries.after.netIncomeCents - lateEntries.before.netIncomeCents,
+      detail: { count: lateEntries.count, before: lateEntries.before, after: lateEntries.after },
+    });
+  }
+  return { recomputed, variances: v, checks, lateEntries };
 }
 

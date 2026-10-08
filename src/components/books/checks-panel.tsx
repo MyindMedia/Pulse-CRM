@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import type { BankRow, Check } from "@/lib/books/types";
+import type { BankRow, Check, LateSummary, StatementsPayload } from "@/lib/books/types";
+import { LateChanges } from "./late-changes";
 import { lineDifferences } from "@/lib/books/view";
 import { formatAmount, formatUsd } from "@/lib/books/money";
 import { Money, Notice, SignedMoney, StatusBadge } from "./primitives";
@@ -21,6 +22,7 @@ export const CHECK_ACTION: Record<string, string> = {
   duplicate_entries: "Confirm each pair is two real transactions. Void the duplicate if it is not.",
   reported_statement_warnings: "Read the notes on the statement tabs. They describe the workbook, not the ledger.",
   reported_vs_recomputed: "Read the differences on each statement tab. Post a correcting entry for a real gap. Do not edit the workbook.",
+  late_entries: "Review the late entries below. Reverse one added by mistake. The reported statements stay as they were checked.",
 };
 
 const ORDER = { fail: 0, warn: 1, pass: 2 } as const;
@@ -29,10 +31,15 @@ export function ChecksPanel({
   checks,
   bank,
   differences = [],
+  statements,
+  onReverse,
 }: {
   checks: Check[];
   bank: BankRow[] | undefined;
   differences?: ReturnType<typeof lineDifferences>;
+  /** For the late entries group (changes since reported). */
+  statements?: StatementsPayload;
+  onReverse?: (e: LateSummary) => void;
 }) {
   const sorted = [...checks].sort((a, b) => ORDER[a.status] - ORDER[b.status]);
   const counts = { pass: 0, warn: 0, fail: 0 };
@@ -67,6 +74,8 @@ export function ChecksPanel({
         ))}
       </ul>
 
+      {statements && <LateChanges statements={statements} onReverse={onReverse} />}
+
       <section aria-labelledby="books-diffs" className="books-avoid-break space-y-3">
         <h2 id="books-diffs" className="font-grotesk text-base font-semibold text-bone">
           Statement differences
@@ -94,7 +103,12 @@ export function ChecksPanel({
                     </th>
                     <td className="py-2 text-right">{d.reportedCents === null ? <span className="text-xs text-steel">not in workbook</span> : <Money cents={d.reportedCents} />}</td>
                     <td className="py-2 text-right">{d.journalCents === null ? <span className="text-xs text-steel">no entries</span> : <Money cents={d.journalCents} />}</td>
-                    <td className="py-2 text-right text-caution"><SignedMoney cents={d.differenceCents} /></td>
+                    <td className="py-2 text-right text-caution">
+                      <SignedMoney cents={d.differenceCents} />
+                      {d.lateEntryCents !== 0 && (
+                        <span className="block text-[0.6875rem] text-info">late <SignedMoney cents={d.lateEntryCents} /></span>
+                      )}
+                    </td>
                   </tr>
                 ))}
               </tbody>

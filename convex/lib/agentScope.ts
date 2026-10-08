@@ -52,6 +52,9 @@ export const ACCOUNTING_CAPABILITIES = [
   "approvals.propose",
   /** Only under autonomy "auto_trusted", and only an exact receipt match. */
   "receipts.link_exact",
+  /** Pre-fill a late entry for a month that has ended. A person posts it;
+   *  never automatic, at any autonomy level. */
+  "ledger.suggest_late_entry",
 ] as const;
 export type AccountingCapability = (typeof ACCOUNTING_CAPABILITIES)[number];
 
@@ -80,11 +83,12 @@ export const ACCOUNTING_ACTION_TYPES = [
   "acct_categorize",
   "acct_unexplained_cash",
   "acct_anomaly",
+  "acct_late_entry",
 ] as const satisfies readonly ActionType[];
 export type AccountingActionType = (typeof ACCOUNTING_ACTION_TYPES)[number];
 
 /** Payload kinds that touch the books. Only the Accounting agent emits them. */
-export const LEDGER_PAYLOAD_KINDS = ["ledger_draft", "receipt_link", "acct_note"] as const;
+export const LEDGER_PAYLOAD_KINDS = ["ledger_draft", "receipt_link", "acct_note", "late_entry"] as const;
 
 /** The capability each proposal kind needs. A kind missing here cannot be saved. */
 export const ACTION_CAPABILITY: Readonly<Record<AccountingActionType, AccountingCapability>> = {
@@ -96,6 +100,7 @@ export const ACTION_CAPABILITY: Readonly<Record<AccountingActionType, Accounting
   acct_categorize: "categories.propose",
   acct_unexplained_cash: "approvals.propose",
   acct_anomaly: "approvals.propose",
+  acct_late_entry: "ledger.suggest_late_entry",
 };
 
 /** Which payload kinds each Accounting proposal may carry. */
@@ -108,6 +113,7 @@ const PAYLOAD_FOR_ACTION: Readonly<Record<AccountingActionType, readonly string[
   acct_categorize: ["acct_note"],
   acct_unexplained_cash: ["acct_note"],
   acct_anomaly: ["acct_note"],
+  acct_late_entry: ["late_entry"],
 };
 
 export function isAccountingType(type: string): type is AccountingActionType {
@@ -146,6 +152,7 @@ export const AGENT_OF_ACTION_TYPE: Readonly<Record<ActionType, AgentId>> = {
   acct_categorize: "accounting",
   acct_unexplained_cash: "accounting",
   acct_anomaly: "accounting",
+  acct_late_entry: "accounting",
 };
 
 export function agentOfActionType(type: ActionType): AgentId {
@@ -190,6 +197,11 @@ export function assertActionInScope(agent: AgentId, action: Pick<ProposedAction,
     if (p.lines.length < 2 || debit !== credit || debit <= 0) {
       throw new ScopeError("An accounting draft must be a balanced entry of at least two lines.");
     }
+  }
+  if (action.payload.kind === "late_entry") {
+    const p = action.payload;
+    if (!Number.isSafeInteger(p.amountCents) || p.amountCents <= 0) throw new ScopeError("A late entry suggestion needs an amount greater than zero.");
+    if (!/^\d{4}-\d{2}$/.test(p.period)) throw new ScopeError("A late entry suggestion needs its month.");
   }
 }
 

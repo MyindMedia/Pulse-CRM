@@ -9,8 +9,8 @@ import {
   planToLedgerEntries,
   reconcilePlan,
 } from "@convex/lib/booksImport";
-import { bankReconciliation, journalTotals } from "@convex/lib/statements";
-import { entryTotalCents, parsePeriod } from "@convex/lib/ledgerMath";
+import { bankReconciliation, buildStatements, journalTotals } from "@convex/lib/statements";
+import { type LedgerEntry, entryTotalCents, parsePeriod } from "@convex/lib/ledgerMath";
 import type { AccountRow, BankRow, JournalEntryRow, PeriodRow, StatementsPayload } from "./types";
 
 export const FIXTURE_PERIOD = "2026-07";
@@ -27,6 +27,10 @@ const BANK = {
   feesCents: 1_600,
 };
 
+/** When the anonymized workbook was imported and checked: Aug 5, 2026. Late
+ *  entries count as changes after this moment. */
+export const FIXTURE_IMPORTED_AT = Date.UTC(2026, 7, 5, 12);
+
 export const FIXTURE_BRAND = {
   name: "Sample Studio",
   logoUrl: "/preview/books-sample-logo.svg",
@@ -41,12 +45,30 @@ export type FixtureData = {
   bank: BankRow[];
 };
 
-export function buildFixture(): FixtureData {
+/** The engine's inputs for the fixture month, for the dev preview's late
+ *  entry form (same accounts, opening and entries the report is built from). */
+export function fixtureEngine() {
   const period = parsePeriod(FIXTURE_PERIOD);
   const plan = parseBooksWorkbook(booksFixtureGrid(), { period: FIXTURE_PERIOD });
-  const recon = reconcilePlan(plan, [BANK]);
-  const engineEntries = planToLedgerEntries(plan);
+  const base = reconcilePlan(plan, [BANK]);
+  return { period, accounts: chartToLedgerAccounts(plan.chart), opening: base.opening, entries: planToLedgerEntries(plan) };
+}
+
+/** A late entry in the preview: the engine entry plus what the journal row
+ *  shows (a receipt attached in the preview is marked, never uploaded). */
+export type FixtureLateEntry = LedgerEntry & { receipt?: boolean };
+
+/** The July fixture through the real engine. `late` adds late entries (and
+ *  reversals) exactly as the ledger would hold them, for the dev preview. */
+export function buildFixture(late: readonly FixtureLateEntry[] = []): FixtureData {
+  const period = parsePeriod(FIXTURE_PERIOD);
+  const plan = parseBooksWorkbook(booksFixtureGrid(), { period: FIXTURE_PERIOD });
+  const base = reconcilePlan(plan, [BANK]);
   const engineAccounts = chartToLedgerAccounts(plan.chart);
+  const lateEngine: LedgerEntry[] = late.map(({ receipt, ...e }) => ({ ...e, receiptStatus: receipt ? "yes" : e.receiptStatus }));
+  const engineEntries = [...planToLedgerEntries(plan), ...lateEngine];
+  const reported = { ...plan.reported, importedAt: FIXTURE_IMPORTED_AT };
+  const recon = { ...buildStatements({ period, accounts: engineAccounts, opening: base.opening, entries: engineEntries, bank: [BANK], reported }), opening: base.opening };
 
   const accounts: AccountRow[] = plan.chart.map((a) => ({
     _id: a.key, key: a.key, name: a.name, type: a.type, subtype: a.subtype, statementLine: a.statementLine,
@@ -69,6 +91,25 @@ export function buildFixture(): FixtureData {
       ...(l.memo ? { memo: l.memo } : {}),
     })),
   }));
+  for (const e of lateEngine) {
+    entries.push({
+      _id: e.id,
+      entryDate: e.entryDate,
+      memo: e.memo,
+      ...(e.paymentKind ? { paymentType: { kind: e.paymentKind } } : {}),
+      receiptStatus: e.receiptStatus,
+      status: e.status,
+      totalCents: entryTotalCents(e.lines),
+      lines: e.lines.map((l) => ({ ...l })),
+      lateEntry: true,
+      enteredAt: e.late!.enteredAt,
+      enteredBy: e.late!.enteredBy,
+      reason: e.late!.reason,
+      ...(e.late!.counterparty ? { counterparty: e.late!.counterparty } : {}),
+      ...(e.late!.reversalOf ? { reversalOf: e.late!.reversalOf } : {}),
+      ...(e.late!.reversedBy ? { reversedBy: e.late!.reversedBy } : {}),
+    });
+  }
 
   const opening = recon.opening
     ? { asOf: recon.opening.asOf, source: "implied_from_reported_close", note: null as string | null }
@@ -78,14 +119,15 @@ export function buildFixture(): FixtureData {
     entityName: plan.entityName,
     opening: opening ? { ...opening, source: opening.source } : null,
     reported: {
-      ...plan.reported,
+      ...reported,
       importBatchId: plan.importBatchId,
-      importedAt: period.start,
+      importedAt: FIXTURE_IMPORTED_AT,
     },
     recomputed: recon.recomputed,
     variances: recon.variances,
     checks: recon.checks,
     journalTotals: journalTotals(engineEntries, period.start, period.end),
+    lateEntries: recon.lateEntries,
   } as StatementsPayload;
 
   const bank = bankReconciliation(engineAccounts, recon.opening, engineEntries, [BANK]) as BankRow[];

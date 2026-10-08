@@ -8,6 +8,7 @@ import { dayLabel, formatAmount } from "@/lib/books/money";
 import { categoryOf, receiptWord } from "@/lib/books/export";
 import type { AccountRow, JournalEntryRow } from "@/lib/books/types";
 import type { JournalFilter } from "@/lib/books/view";
+import { Badge } from "@/components/ui/badge";
 import { Money, ReceiptBadge } from "./primitives";
 
 const PAYMENT_LABEL: Record<string, string> = {
@@ -39,6 +40,7 @@ export function JournalPanel({
   onLoadMore,
   loadingMore,
   focusEntryId,
+  onReverse,
 }: {
   entries: JournalEntryRow[] | undefined;
   accounts: AccountRow[] | undefined;
@@ -49,6 +51,8 @@ export function JournalPanel({
   onLoadMore: () => void;
   loadingMore: boolean;
   focusEntryId?: string | null;
+  /** Offered on a late entry not yet reversed, when the viewer may. */
+  onReverse?: (e: JournalEntryRow) => void;
 }) {
   const [open, setOpen] = React.useState<Set<string>>(() => new Set());
   const byId = React.useMemo(() => new Map((accounts ?? []).map((a) => [a._id, a])), [accounts]);
@@ -195,6 +199,11 @@ export function JournalPanel({
                       </td>
                       <td className="books-sticky sticky left-0 z-[1] min-w-[14rem] max-w-[20rem] border-b border-graphite/40 bg-coal py-2 pr-3 text-bone">
                         {e.memo}
+                        {e.lateEntry && (
+                          <Badge tone={e.reversalOf || e.reversedBy ? "neutral" : "info"} className="ml-1.5 align-middle text-[0.625rem]" data-testid="late-marker">
+                            {e.reversalOf ? "late reversal" : e.reversedBy ? "late, reversed" : "late"}
+                          </Badge>
+                        )}
                       </td>
                       <td className="border-b border-graphite/40 py-2 pr-3 text-bone/90">
                         <span className="block">{debitLine ? accountName(debitLine.accountId) : accountName(first.accountId)}</span>
@@ -241,6 +250,21 @@ export function JournalPanel({
                             Receipt: {receiptWord(e.receiptStatus)}
                             {e.status !== "posted" ? ` · ${e.status}` : ""}
                           </p>
+                          {e.lateEntry && (
+                            <p className="mt-1 text-xs text-steel">
+                              {e.reversalOf ? "Reverses a late entry. " : "Late entry. "}
+                              Entered {e.enteredAt ? dayLabel(e.enteredAt) : ""}{e.enteredBy ? ` by ${e.enteredBy}` : ""}. Reason: {e.reason ?? ""}
+                              {onReverse && !e.reversalOf && !e.reversedBy && e.status === "posted" && (
+                                <button
+                                  type="button"
+                                  onClick={() => onReverse(e)}
+                                  className="books-no-print ml-2 rounded-md border border-graphite/70 px-2 py-0.5 text-xs text-bone hover:bg-coal-3"
+                                >
+                                  Reverse
+                                </button>
+                              )}
+                            </p>
+                          )}
                         </td>
                       </tr>
                     )}
