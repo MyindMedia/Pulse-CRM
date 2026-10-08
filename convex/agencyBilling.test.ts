@@ -125,14 +125,15 @@ describe("agencyPlans + agencyBilling - integration", () => {
        after the seeder stopped creating any of them. */
     expect([...plans.map((p) => p.name)].sort()).toEqual([...starterPlanNames()].sort());
 
-    /* The beta IS the trial, and it is the only plan with a trial window.
-       No card at the end: the beta hard stop asks them to pick a plan, which
-       is a different conversation from a card prompt against a free plan. */
+    /* The beta is the one card-free term, and the only seeded plan with a
+       window. The beta paywall asks them to add a card and pick a plan at the
+       end, a different conversation from a card prompt against a free plan. */
     const beta = plans.find((p) => p.name.startsWith("Beta"))!;
     expect(beta).toBeDefined();
     expect(beta.priceCents).toBe(0);
     expect(beta.trialDays).toBe(365);
     expect(beta.requireCardAfterTrial).toBe(false);
+    expect(beta.isBeta).toBe(true);
     expect(beta.isDefault).toBe(true);
 
     // Nothing else offers a trial. Generic free-trial plans are gone.
@@ -202,18 +203,33 @@ describe("agencyPlans + agencyBilling - integration", () => {
     expect(plans.find((p) => p._id === a)!.isDefault).toBe(false);
   });
 
-  it("assignPlan promo → trialing with a future deadline", async () => {
+  it("refuses a free plan with a trial: every trial needs a card", async () => {
     const owner = await seed();
-    const promo = await owner.mutation(api.agencyPlans.create, {
-      name: "First Adopter", priceCents: 0, billingInterval: "month", trialDays: 30,
-      requireCardAfterTrial: true, isPromo: true,
+    await expect(
+      owner.mutation(api.agencyPlans.create, {
+        name: "First Adopter", priceCents: 0, billingInterval: "month", trialDays: 30,
+        requireCardAfterTrial: true, isPromo: true,
+      }),
+    ).rejects.toThrow(/every trial needs a card/);
+  });
+
+  it("assignPlan on a paid trial plan does NOT start a trial: pending_card until checkout", async () => {
+    const owner = await seed();
+    const plan = await owner.mutation(api.agencyPlans.create, {
+      name: "Studio", priceCents: 9900, billingInterval: "month", trialDays: 14,
+      requireCardAfterTrial: false, isPromo: false,
     });
-    await owner.mutation(api.agencyBilling.assignPlan, { orgId: "org_sub1", planId: promo });
+    await owner.mutation(api.agencyBilling.assignPlan, { orgId: "org_sub1", planId: plan });
     const b = await owner.query(api.agencyBilling.subaccountBilling, { orgId: "org_sub1" });
-    expect(b.billingStatus).toBe("trialing");
-    expect(b.trialEndsAt).toBeGreaterThan(Date.now());
-    expect(b.inTrial).toBe(true);
-    expect(b.locked).toBe(false);
+    expect(b.billingStatus).toBe("pending_card");
+    expect(b.trialEndsAt).toBeNull();
+    expect(b.trialStartedAt).toBeNull();
+    expect(b.inTrial).toBe(false);
+    expect(b.locked).toBe(true);
+    expect(b.reason).toBe("trial_needs_card");
+    // The card is always required on a paid trial, whatever the switch said.
+    expect(b.plan?.requireCardAfterTrial).toBe(true);
+    expect(b.plan?.paidTrial).toBe(true);
   });
 
   it("assignPlan free non-promo → comped", async () => {
@@ -228,19 +244,47 @@ describe("agencyPlans + agencyBilling - integration", () => {
     expect(b.locked).toBe(false);
   });
 
-  it("expired promo trial with no card → locked; markActiveManually clears it", async () => {
-    const owner = await seed();
-    const promo = await owner.mutation(api.agencyPlans.create, {
-      name: "First Adopter", priceCents: 0, billingInterval: "month", trialDays: 30,
-      requireCardAfterTrial: true, isPromo: true,
-    });
-    await owner.mutation(api.agencyBilling.assignPlan, { orgId: "org_sub1", planId: promo });
-    // Force the trial into the past.
+  /* A free promo plan with a trial can no longer be created, but rows made
+     before the card rule still exist. They are grandfathered: left running,
+     and they still owe a card at the end. Inserted directly here. */
+  async function legacyCardFreePlan() {
+    return await t.run(async (ctx) =>
+      await ctx.db.insert("agencyPlans", {
+        agencyId: "org_ag", name: "First Adopter", priceCents: 0, billingInterval: "month",
+        trialDays: 30, requireCardAfterTrial: true, isPromo: true, isDefault: false,
+        active: true, createdAt: 0,
+      }),
+    );
+  }
+
+  async function putOnTrial(orgId: string, planId: unknown, patch: Record<string, unknown> = {}) {
     await t.run(async (ctx) => {
-      const org = await ctx.db.query("orgs").filter((q) => q.eq(q.field("orgId"), "org_sub1")).first();
-      await ctx.db.patch(org!._id, { trialEndsAt: Date.now() - 1000 });
+      const org = await ctx.db.query("orgs").filter((q) => q.eq(q.field("orgId"), orgId)).first();
+      await ctx.db.patch(org!._id, {
+        agencyPlanId: planId as never, billingStatus: "trialing",
+        trialStartedAt: Date.now() - 20 * DAY_MS, trialEndsAt: Date.now() + 10 * DAY_MS, ...patch,
+      });
     });
+  }
+
+  it("refuses to assign a legacy card-free trial plan", async () => {
+    const owner = await seed();
+    const legacy = await legacyCardFreePlan();
+    await expect(
+      owner.mutation(api.agencyBilling.assignPlan, { orgId: "org_sub1", planId: legacy }),
+    ).rejects.toThrow(/Every trial needs a card/);
+  });
+
+  it("grandfathered card-free trial: runs on, locks at the end with no card; markActiveManually clears it", async () => {
+    const owner = await seed();
+    const legacy = await legacyCardFreePlan();
+    await putOnTrial("org_sub1", legacy);
     let b = await owner.query(api.agencyBilling.subaccountBilling, { orgId: "org_sub1" });
+    expect(b.locked).toBe(false);
+    expect(b.inTrial).toBe(true);
+
+    await putOnTrial("org_sub1", legacy, { trialEndsAt: Date.now() - 1000 });
+    b = await owner.query(api.agencyBilling.subaccountBilling, { orgId: "org_sub1" });
     expect(b.locked).toBe(true);
     expect(b.reason).toBe("trial_expired_needs_card");
 
@@ -251,58 +295,61 @@ describe("agencyPlans + agencyBilling - integration", () => {
     expect(b.paymentMethodOnFile).toBe(true);
   });
 
-  it("extendTrial pushes the deadline and re-opens a lapsed trial", async () => {
+  it("extendTrial refuses a card-free trial (that would be a new card-free window)", async () => {
     const owner = await seed();
-    const promo = await owner.mutation(api.agencyPlans.create, {
-      name: "Promo", priceCents: 0, billingInterval: "month", trialDays: 1,
-      requireCardAfterTrial: true, isPromo: true,
-    });
-    await owner.mutation(api.agencyBilling.assignPlan, { orgId: "org_sub1", planId: promo });
-    await t.run(async (ctx) => {
-      const org = await ctx.db.query("orgs").filter((q) => q.eq(q.field("orgId"), "org_sub1")).first();
-      await ctx.db.patch(org!._id, { trialEndsAt: Date.now() - 1000 });
-    });
-    await owner.mutation(api.agencyBilling.extendTrial, { orgId: "org_sub1", days: 14 });
-    const b = await owner.query(api.agencyBilling.subaccountBilling, { orgId: "org_sub1" });
-    expect(b.billingStatus).toBe("trialing");
-    expect(b.locked).toBe(false);
-    expect(b.trialDaysLeft).toBeGreaterThanOrEqual(13);
+    const legacy = await legacyCardFreePlan();
+    await putOnTrial("org_sub1", legacy, { trialEndsAt: Date.now() - 1000 });
+    await expect(
+      owner.mutation(api.agencyBilling.extendTrial, { orgId: "org_sub1", days: 14 }),
+    ).rejects.toThrow(/card on file/);
   });
 
-  it("_sweepTrials flips lapsed trials: no card → past_due, card → active", async () => {
+  it("extendTrial on a Stripe-backed trial goes to Stripe, not to a local date", async () => {
     const owner = await seed();
-    const promo = await owner.mutation(api.agencyPlans.create, {
-      name: "Promo", priceCents: 0, billingInterval: "month", trialDays: 30,
-      requireCardAfterTrial: true, isPromo: true,
+    const plan = await owner.mutation(api.agencyPlans.create, {
+      name: "Studio", priceCents: 9900, billingInterval: "month", trialDays: 14,
+      requireCardAfterTrial: true, isPromo: false,
     });
-    // Second studio with a card already on file.
+    const end = Date.now() + 2 * DAY_MS;
+    await putOnTrial("org_sub1", plan, { trialEndsAt: end, billingSubscriptionId: "sub_live", paymentMethodOnFile: true });
+    const r = await owner.mutation(api.agencyBilling.extendTrial, { orgId: "org_sub1", days: 14 });
+    expect(r.scheduled).toBe(true);
+    expect(r.trialEndsAt).toBe(end + 14 * DAY_MS);
+    // The local mirror is untouched until Stripe's webhook says otherwise.
+    const b = await owner.query(api.agencyBilling.subaccountBilling, { orgId: "org_sub1" });
+    expect(b.trialEndsAt).toBe(end);
+    const jobs = await t.run(async (ctx) => await ctx.db.system.query("_scheduled_functions").collect());
+    expect(jobs.some((j) => j.name.includes("_extendStripeTrial"))).toBe(true);
+  });
+
+  it("_sweepTrials flips lapsed local trials (no card → past_due, card → active) and leaves Stripe trials to Stripe", async () => {
+    const owner = await seed();
+    const legacy = await legacyCardFreePlan();
     await t.run(async (ctx) => {
-      await ctx.db.insert("orgs", {
-        orgId: "org_sub2", name: "Sub2", slug: "s2", tier: "growth", status: "active",
-        agencyId: "org_ag", ownerEmail: "sub2@x",
-      });
-    });
-    await owner.mutation(api.agencyBilling.assignPlan, { orgId: "org_sub1", planId: promo });
-    await owner.mutation(api.agencyBilling.assignPlan, { orgId: "org_sub2", planId: promo });
-    await owner.mutation(api.agencyBilling.markActiveManually, { orgId: "org_sub2", onFile: true });
-    // Re-open sub2 as trialing (markActive set it active) and lapse both.
-    await t.run(async (ctx) => {
-      for (const id of ["org_sub1", "org_sub2"]) {
-        const org = await ctx.db.query("orgs").filter((q) => q.eq(q.field("orgId"), id)).first();
-        await ctx.db.patch(org!._id, { billingStatus: "trialing", trialEndsAt: Date.now() - 1000 });
+      for (const id of ["org_sub2", "org_sub3"]) {
+        await ctx.db.insert("orgs", {
+          orgId: id, name: id, slug: id, tier: "growth", status: "active",
+          agencyId: "org_ag", ownerEmail: `${id}@x`,
+        });
       }
     });
+    await putOnTrial("org_sub1", legacy, { trialEndsAt: Date.now() - 1000 });
+    await putOnTrial("org_sub2", legacy, { trialEndsAt: Date.now() - 1000, paymentMethodOnFile: true });
+    await putOnTrial("org_sub3", legacy, {
+      trialEndsAt: Date.now() - 1000, paymentMethodOnFile: true, billingSubscriptionId: "sub_stripe",
+    });
     await t.run(async (ctx) => {
-      // call the internal sweep directly
       const { internal } = await import("./_generated/api");
       await ctx.runMutation(internal.agencyBilling._sweepTrials, {});
     });
     const b1 = await owner.query(api.agencyBilling.subaccountBilling, { orgId: "org_sub1" });
     const b2 = await owner.query(api.agencyBilling.subaccountBilling, { orgId: "org_sub2" });
+    const b3 = await owner.query(api.agencyBilling.subaccountBilling, { orgId: "org_sub3" });
     expect(b1.billingStatus).toBe("past_due");
     expect(b1.locked).toBe(true);
     expect(b2.billingStatus).toBe("active");
     expect(b2.locked).toBe(false);
+    expect(b3.billingStatus).toBe("trialing");
   });
 
   it("setPriceOverride changes effective price", async () => {
@@ -349,7 +396,8 @@ describe("agencyPlans + agencyBilling - integration", () => {
     expect(p.priceCents).toBe(12900);
     expect(p.billingInterval).toBe("year");
     expect(p.trialDays).toBe(30);
-    expect(p.requireCardAfterTrial).toBe(false);
+    // A paid trial always takes the card: the switch cannot turn that off.
+    expect(p.requireCardAfterTrial).toBe(true);
     expect(p.isPromo).toBe(true);
   });
 

@@ -148,6 +148,30 @@ export const ALL_TIER_TERMS = [
   "No booking commission. Card payments go to the studio's own Stripe account and Pulse never holds the money.",
 ] as const;
 
+/* ── Trials and the beta (owner rule, 2026-10-07) ──────────────
+   Every trial needs a card to start. Stripe saves it at checkout and
+   charges it automatically when the trial ends, then renews normally.
+   The beta is the only exception: free for 365 days with no card, and
+   payment is required after the term. */
+
+/** Free trial length on the public Core / Growth / Max checkout, in days.
+ *  0 = no trial: those plans bill on the day you subscribe. Any value above 0
+ *  turns on a card-required trial through the same checkout helper
+ *  (convex/lib/trialCheckout.ts), and the /pricing FAQ follows this number. */
+export const PLATFORM_TRIAL_DAYS = 0;
+
+/** The beta term, in days. The only card-free access Pulse gives. */
+export const BETA_TERM_DAYS = 365;
+
+/** Customer-safe trial terms, quoted by /pricing, /mypulse, the agency
+ *  console and the billing screens so the promise reads the same everywhere. */
+export const TRIAL_TERMS = {
+  cardRequired: "A card is required to start a free trial.",
+  autoRenew: "When the trial ends, your card is charged automatically and the plan renews on its normal schedule.",
+  cancel: "Cancel any time before the trial ends and you will not be charged.",
+  beta: `The beta is free for ${BETA_TERM_DAYS} days with no card. Payment is required after the term to keep using Pulse, and your data stays put.`,
+} as const;
+
 /* ── Roles ─────────────────────────────────────────────────── */
 
 export const ROLES = ["owner", "manager", "engineer", "staff", "guest"] as const;

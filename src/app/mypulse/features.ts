@@ -401,7 +401,7 @@ const DESC: Record<string, string> = {
 const DESC_IN_GROUP: Record<string, Record<string, string>> = {
   agency: {
     "Your own price list":
-      "The plans you resell to your studios, with free trials, offers, and different terms for one account if you want.",
+      "The plans you resell to your studios, with offers and different terms for one account if you want. Free trials take a card at the start and renew automatically after; the beta is the one plan with no card.",
   },
 };
 

@@ -2,9 +2,14 @@ import { escapeEmailHtml } from "./layout";
 import {
   PLAN_LIMITS, SELLABLE_TIERS, ANNUAL_MONTHS_FREE, annualPriceCents,
 } from "../plans";
-import { formatUsd } from "../pricing";
+import { BETA_TERM_DAYS, formatUsd } from "../pricing";
 
 /* "Your beta year is nearly up" - sent at 30, 7 and 1 days out.
+
+   The beta is free for 365 days with no card; payment is required after
+   the term. The button goes to /billing, which opens the plan picker and
+   Stripe Checkout. Subscribing early is not charged early: the first
+   charge lands on the day the beta ends.
 
    The end of the beta is a lock screen. Nobody should meet that cold, so
    this exists to make the last month boring: here is the date, here is what
@@ -64,7 +69,7 @@ export function betaEndingHtml(args: {
 
       <tr><td style="padding:26px 28px 0 28px;">
         <p style="margin:0;font-family:'Courier New',monospace;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:${GOLD};">Pulse</p>
-        <p style="margin:4px 0 0 0;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:${FAINT};">Beta programme</p>
+        <p style="margin:4px 0 0 0;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:${FAINT};">Beta program</p>
       </td></tr>
 
       <tr><td style="padding:20px 28px 0 28px;">
@@ -76,7 +81,10 @@ export function betaEndingHtml(args: {
       <tr><td style="padding:14px 28px 0 28px;">
         <p style="margin:0 0 14px 0;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.65;color:${TEXT};">${hello}</p>
         <p style="margin:0 0 14px 0;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.65;color:${FAINT};">
-          Your free year on Pulse runs out on ${escapeEmailHtml(args.endsOnLabel)}. Pick a plan before then and nothing changes: no interruption, no re-setup, no lost work.
+          Your free beta on Pulse (${BETA_TERM_DAYS} days, no card) runs out on ${escapeEmailHtml(args.endsOnLabel)}. Payment is required after that to keep using Pulse. Add a card and pick a plan before then and nothing changes: no interruption, no re-setup, no lost work.
+        </p>
+        <p style="margin:0 0 14px 0;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.65;color:${FAINT};">
+          Picking early costs nothing extra: your card is first charged on ${escapeEmailHtml(args.endsOnLabel)}, and the plan renews automatically after that. Cancel any time before then and you will not be charged.
         </p>
         <p style="margin:0 0 14px 0;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.65;color:${FAINT};">
           Your studio, your bookings, your clients and your numbers all stay exactly where they are. This is a payment step, not a migration.
@@ -92,7 +100,7 @@ export function betaEndingHtml(args: {
 
       <tr><td align="center" style="padding:18px 28px 4px 28px;">
         <a href="${args.chooseUrl}" style="display:inline-block;background:${GOLD};color:${GOLD_INK};font-family:Inter,Segoe UI,Arial,sans-serif;font-weight:700;font-size:14px;text-decoration:none;padding:13px 30px;border-radius:9999px;">
-          ${urgent ? "Choose your plan now" : "Choose your plan"}
+          ${urgent ? "Add a card and pick a plan now" : "Add a card and pick a plan"}
         </a>
       </td></tr>
 

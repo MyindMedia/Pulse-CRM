@@ -54,6 +54,7 @@ export type SubaccountRow = {
 
 const BILLING_TONE: Record<string, NonNullable<React.ComponentProps<typeof Badge>["tone"]>> = {
   trialing: "info",
+  pending_card: "critical",
   active: "positive",
   past_due: "critical",
   comped: "gold",
@@ -86,7 +87,8 @@ function BillingCell({
     status === "past_due" ? "Past due"
     : status === "comped" ? "Free"
     : status === "active" ? "Active"
-    : status === "canceled" ? "Canceled" : status;
+    : status === "canceled" ? "Canceled"
+    : status === "pending_card" ? "Needs card" : status;
   return <Badge tone={BILLING_TONE[status] ?? "neutral"}>{label}</Badge>;
 }
 

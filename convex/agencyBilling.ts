@@ -13,12 +13,23 @@ import {
 } from "./lib/billingGate";
 import { sendEmail } from "./lib/email";
 import { escapeHtml } from "./lib/text";
+import {
+  buildSubscriptionCheckoutParams, initialBillingFor, isBetaPlan, isLiveSubscriptionStatus,
+  isPaidTrialPlan, trialSpec, type CheckoutLineItem, type TrialSpec,
+} from "./lib/trialCheckout";
 
 /* ============================================================
    Agency rebilling - the per-sub-account billing/trial state. The
    agency assigns one of its agencyPlans to a studio; this module
-   runs the state machine (trialing → active / past_due / comped),
-   the "add a card" Stripe setup flow, and the daily trial sweep.
+   runs the state machine (pending_card → trialing → active / past_due
+   / canceled, or comped), the "add a card" Stripe flows, and the
+   daily trial sweep.
+
+   Card-required trials (owner rule 2026-10-07): a paid plan with a
+   trial never starts its trial here. Assigning it parks the studio in
+   pending_card; the trial begins when Stripe Checkout (subscription
+   mode, card always collected) completes, and Stripe owns its end
+   date. The Beta plan is the only card-free window.
 
    Reads/writes over a sub-account are gated by capability + the
    engine's agency-over-org scope check. The studio-self-serve pair
@@ -42,6 +53,8 @@ function billingView(org: Doc<"orgs">, plan: Doc<"agencyPlans"> | null, now: num
           billingInterval: plan.billingInterval,
           trialDays: plan.trialDays,
           requireCardAfterTrial: plan.requireCardAfterTrial,
+          isBeta: isBetaPlan(plan),
+          paidTrial: isPaidTrialPlan(plan),
           isPromo: plan.isPromo,
           introPriceCents: plan.introPriceCents ?? null,
           introMonths: plan.introMonths ?? null,
@@ -51,6 +64,9 @@ function billingView(org: Doc<"orgs">, plan: Doc<"agencyPlans"> | null, now: num
     trialStartedAt: org.trialStartedAt ?? null,
     trialEndsAt: org.trialEndsAt ?? null,
     paymentMethodOnFile: Boolean(org.paymentMethodOnFile),
+    // A Stripe subscription is behind this studio (trialing or paying).
+    subscribed: Boolean(org.billingSubscriptionId),
+    trialCardRequiredBy: org.trialCardRequiredBy ?? null,
     priceCentsOverride: org.priceCentsOverride ?? null,
     /* What they are charged today, which is not always the plan price: an
        early-adopter plan bills its intro rate for the first few months. The
@@ -59,7 +75,7 @@ function billingView(org: Doc<"orgs">, plan: Doc<"agencyPlans"> | null, now: num
     listPriceCents: effectivePriceCents(org.priceCentsOverride, plan?.priceCents),
     inIntroWindow: inIntroWindow(plan, org.paidSince, now),
     billingNote: org.billingNote ?? null,
-    // Beta programme, so the lock screen can say what ended and when.
+    // Beta program, so the lock screen can say what ended and when.
     betaCohort: org.betaCohort === true,
     betaLicenseUntil: org.betaLicenseUntil ?? null,
     // Set once they have been moved onto normal terms - after that the
@@ -80,23 +96,16 @@ export const subaccountBilling = query({
   },
 });
 
-/** Apply a plan's state machine to an org and return the patch. */
+/** Apply a plan's state machine to an org and return the patch. A paid trial
+ *  plan lands in pending_card: the trial itself starts in Stripe Checkout. */
 function planTransition(plan: Doc<"agencyPlans">, hasCard: boolean, now: number) {
-  if (plan.priceCents === 0 && !plan.isPromo) {
-    return { billingStatus: "comped" as const, trialStartedAt: undefined, trialEndsAt: undefined };
+  const t = initialBillingFor(plan, hasCard, now, DAY_MS);
+  if (!t) {
+    throw new Error(
+      "This plan is a free trial with no card. Every trial needs a card now: give the plan a price, or use the Beta plan.",
+    );
   }
-  if (plan.trialDays > 0) {
-    return {
-      billingStatus: "trialing" as const,
-      trialStartedAt: now,
-      trialEndsAt: now + plan.trialDays * DAY_MS,
-    };
-  }
-  return {
-    billingStatus: hasCard ? ("active" as const) : ("past_due" as const),
-    trialStartedAt: undefined,
-    trialEndsAt: undefined,
-  };
+  return t;
 }
 
 /** Assign (or change) a sub-account's agency plan and start its trial/billing. */
@@ -109,8 +118,16 @@ export const assignPlan = mutation({
     if (!plan || (viewer.kind === "agency_member" && plan.agencyId !== viewer.agencyId)) {
       throw new Error("Plan not found.");
     }
+    /* Double-charge guard: a studio with a live Stripe subscription keeps it
+       until it is canceled in Stripe. Moving it to another plan here would
+       open a second checkout and a second bill. */
+    if (org.billingSubscriptionId && isLiveSubscriptionStatus(liveStatusOf(org.billingStatus))) {
+      throw new Error(
+        "This studio has a live Stripe subscription. Cancel it in Stripe before moving it to another plan.",
+      );
+    }
     const t = planTransition(plan, Boolean(org.paymentMethodOnFile), Date.now());
-    await ctx.db.patch(org._id, { agencyPlanId: planId, ...t });
+    await ctx.db.patch(org._id, { agencyPlanId: planId, ...t, trialCardRequiredBy: undefined });
     // Apply any plan-level feature caps on top of existing disabled features.
     if (plan.featureCaps && plan.featureCaps.length) {
       const merged = new Set([...(org.disabledFeatures ?? []), ...plan.featureCaps]);
@@ -134,19 +151,41 @@ export const comp = mutation({
   },
 });
 
-/** Push a trial deadline out by N days (and re-open a lapsed trial). */
+/** Our stored status, read as the Stripe status it mirrors. */
+function liveStatusOf(status: Doc<"orgs">["billingStatus"]): string | undefined {
+  return status === "trialing" || status === "active" || status === "past_due" ? status : undefined;
+}
+
+/**
+ * Push a trial deadline out by N days.
+ *
+ * Only a Stripe-backed trial can be extended, and only in Stripe: the change
+ * goes to the subscription's trial_end and the webhook mirrors it back, so
+ * the card is still charged on the new date. A card-free trial cannot be
+ * extended (that would be a new card-free window), and neither can the beta,
+ * which runs on its license date.
+ */
 export const extendTrial = mutation({
   args: { orgId: v.string(), days: v.number() },
   handler: async (ctx, { orgId, days }) => {
     await requireCapability(ctx, "billing.edit", { orgId });
     const org = await orgByIdOrThrow(ctx, orgId);
-    const add = Math.round(days) * DAY_MS;
+    const plan = org.agencyPlanId ? await ctx.db.get(org.agencyPlanId) : null;
+    if (org.betaCohort || isBetaPlan(plan)) {
+      throw new Error("The beta runs on its own date and is not extended here.");
+    }
+    if (!org.billingSubscriptionId || org.billingStatus !== "trialing") {
+      throw new Error(
+        "Only a trial with a card on file can be extended. Ask the owner to add a card first.",
+      );
+    }
+    const add = Math.max(1, Math.round(days)) * DAY_MS;
     const base = Math.max(org.trialEndsAt ?? 0, Date.now());
-    await ctx.db.patch(org._id, {
-      billingStatus: "trialing",
-      trialStartedAt: org.trialStartedAt ?? Date.now(),
-      trialEndsAt: base + add,
+    await ctx.scheduler.runAfter(0, internal.trialBilling._extendStripeTrial, {
+      subscriptionId: org.billingSubscriptionId,
+      trialEndMs: base + add,
     });
+    return { scheduled: true, trialEndsAt: base + add };
   },
 });
 
@@ -180,14 +219,35 @@ export const markActiveManually = mutation({
 
 export const _orgForSetup = internalQuery({
   args: { orgId: v.string() },
-  handler: async (ctx, { orgId }) => {
+  handler: async (ctx, { orgId }): Promise<SetupOrg | null> => {
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     if (!org) return null;
+    const plan = org.agencyPlanId ? await ctx.db.get(org.agencyPlanId) : null;
     return {
       orgId: org.orgId,
       name: org.name,
       ownerEmail: org.ownerEmail ?? null,
       billingCustomerId: org.billingCustomerId ?? null,
+      billingSubscriptionId: org.billingSubscriptionId ?? null,
+      billingStatus: org.billingStatus ?? null,
+      trialEndsAt: org.trialEndsAt ?? null,
+      priceCentsOverride: org.priceCentsOverride ?? null,
+      betaCohort: org.betaCohort === true,
+      graduatedAt: org.graduatedAt ?? null,
+      betaLicenseUntil: org.betaLicenseUntil ?? null,
+      plan: plan
+        ? {
+            _id: plan._id as string,
+            name: plan.name,
+            isBeta: plan.isBeta,
+            priceCents: plan.priceCents,
+            trialDays: plan.trialDays,
+            billingInterval: plan.billingInterval,
+            introPriceCents: plan.introPriceCents,
+            introMonths: plan.introMonths,
+            stripePriceId: plan.stripePriceId,
+          }
+        : null,
     };
   },
 });
@@ -225,15 +285,184 @@ export const _markPaymentMethodOnFile = internalMutation({
   },
 });
 
-/** Build a Stripe Checkout (setup mode) so a studio adds a card. Shared by the
-    agency-initiated and studio-self-serve paths. Returns a simulated result when
-    Stripe isn't configured so the flow still completes in demo. */
-async function buildSetupCheckout(
+/** What the card flows need to know about a studio (see _orgForSetup). */
+export type SetupOrg = {
+  orgId: string;
+  name: string;
+  ownerEmail: string | null;
+  billingCustomerId: string | null;
+  billingSubscriptionId: string | null;
+  billingStatus: Doc<"orgs">["billingStatus"] | null;
+  trialEndsAt: number | null;
+  priceCentsOverride: number | null;
+  betaCohort: boolean;
+  graduatedAt: number | null;
+  betaLicenseUntil: number | null;
+  plan: {
+    _id: string;
+    name: string;
+    isBeta?: boolean;
+    priceCents: number;
+    trialDays: number;
+    billingInterval: "month" | "year";
+    introPriceCents?: number;
+    introMonths?: number;
+    stripePriceId?: string;
+  } | null;
+};
+
+/** True when adding a card for this studio must open a Stripe subscription
+ *  (a card-required trial, a carried-over trial, or a resubscribe after a
+ *  canceled one) rather than just save a card. */
+export function needsTrialCheckout(org: Pick<SetupOrg, "plan" | "billingStatus" | "billingSubscriptionId">): boolean {
+  if (!org.plan || isBetaPlan(org.plan) || org.plan.priceCents <= 0) return false;
+  // A Stripe-backed plan that was canceled: subscribe again, no new trial.
+  if (org.billingStatus === "canceled" && org.billingSubscriptionId) return true;
+  if (!isPaidTrialPlan(org.plan)) return false;
+  if (org.billingStatus === "pending_card") return true;
+  // Grandfathered: a trial that began card-free, with no subscription behind it.
+  return org.billingStatus === "trialing" && !org.billingSubscriptionId;
+}
+
+/** The trial to give a studio at checkout: a fresh trial of the plan's length
+ *  for pending_card, or the date already promised for a grandfathered trial. */
+export function trialForOrg(org: Pick<SetupOrg, "plan" | "billingStatus" | "trialEndsAt">, now: number): TrialSpec {
+  // One trial per studio: coming back after a cancel bills on subscribe.
+  if (org.billingStatus === "canceled") return { kind: "none" };
+  if (org.billingStatus === "trialing" && org.trialEndsAt) {
+    return trialSpec({ trialEndsAt: org.trialEndsAt, now });
+  }
+  return trialSpec({ trialDays: org.plan?.trialDays ?? 0, now });
+}
+
+/** Line items for an agency plan. A plan with its own Stripe price uses it;
+ *  otherwise the plan (or this studio's override) is priced inline. */
+function agencyPlanLineItems(org: SetupOrg): CheckoutLineItem[] {
+  const plan = org.plan!;
+  if (plan.stripePriceId && org.priceCentsOverride === null) {
+    return [{ price: plan.stripePriceId, quantity: 1 }];
+  }
+  return [{
+    quantity: 1,
+    price_data: {
+      currency: "usd",
+      unit_amount: org.priceCentsOverride ?? plan.priceCents,
+      recurring: { interval: plan.billingInterval },
+      product_data: { name: `Pulse: ${plan.name}` },
+    },
+  }];
+}
+
+/** Customer for a studio on the platform account, created on first use. */
+async function ensureOrgCustomer(
+  stripe: ReturnType<typeof stripeClient>,
+  org: Pick<SetupOrg, "orgId" | "name" | "ownerEmail" | "billingCustomerId">,
+): Promise<string> {
+  if (org.billingCustomerId) return org.billingCustomerId;
+  const customer = await stripe.customers.create({
+    email: org.ownerEmail ?? undefined,
+    name: org.name,
+    metadata: { orgId: org.orgId, kind: "subaccount_billing" },
+  });
+  return customer.id;
+}
+
+/** Refuse a second checkout while a live subscription exists. */
+export async function assertNoLiveSubscription(
+  stripe: ReturnType<typeof stripeClient>,
+  subscriptionId: string | null,
+): Promise<void> {
+  if (!subscriptionId) return;
+  try {
+    const sub = await stripe.subscriptions.retrieve(subscriptionId);
+    if (isLiveSubscriptionStatus(sub.status)) {
+      throw new Error("This studio already has a subscription. Manage it from the billing page instead of starting another.");
+    }
+  } catch (err) {
+    if (err instanceof Error && err.message.startsWith("This studio already has")) throw err;
+    // Unknown to Stripe (deleted, wrong mode): nothing live to double up on.
+  }
+}
+
+/** Stripe Checkout in subscription mode that starts a card-required trial. */
+async function buildTrialCheckout(
+  ctx: ActionCtx,
+  org: SetupOrg,
+): Promise<{ url: string | null; simulated: boolean }> {
+  const now = Date.now();
+  const trial = trialForOrg(org, now);
+  if (!process.env.STRIPE_SECRET_KEY) {
+    // Demo / local: apply what Stripe would send back after checkout.
+    const end = trial.kind === "until" ? trial.at : trial.kind === "days" ? now + trial.days * DAY_MS : undefined;
+    await ctx.runMutation(internal.trialBilling._applyOrgSubscription, {
+      orgId: org.orgId,
+      sub: {
+        id: `sub_simulated_${org.orgId}`,
+        status: end ? "trialing" : "active",
+        trial_start: end ? Math.floor(now / 1000) : null,
+        trial_end: end ? Math.floor(end / 1000) : null,
+        default_payment_method: "pm_simulated",
+        metadata: { kind: "subaccount_trial", orgId: org.orgId },
+      },
+    });
+    return { url: null, simulated: true };
+  }
+  const stripe = stripeClient();
+  await assertNoLiveSubscription(stripe, org.billingSubscriptionId);
+  const customer = await ensureOrgCustomer(stripe, org);
+  const plan = org.plan!;
+  let discounts: { coupon: string }[] | undefined;
+  if (
+    org.priceCentsOverride === null &&
+    plan.billingInterval === "month" &&
+    typeof plan.introPriceCents === "number" &&
+    plan.introMonths &&
+    plan.introPriceCents < plan.priceCents
+  ) {
+    const coupon = await stripe.coupons.create({
+      amount_off: plan.priceCents - plan.introPriceCents,
+      currency: "usd",
+      duration: "repeating",
+      duration_in_months: plan.introMonths,
+      name: `${plan.name} intro price`,
+    });
+    discounts = [{ coupon: coupon.id }];
+  }
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const session = await stripe.checkout.sessions.create(
+    buildSubscriptionCheckoutParams({
+      customer,
+      lineItems: agencyPlanLineItems(org),
+      trial,
+      discounts,
+      metadata: { kind: "subaccount_trial", orgId: org.orgId, planId: plan._id },
+      successUrl: `${baseUrl}/billing/added?session_id={CHECKOUT_SESSION_ID}&trial=1`,
+      cancelUrl: `${baseUrl}/billing`,
+    }),
+  );
+  return { url: session.url ?? null, simulated: false };
+}
+
+/** "Add a card" for a studio. A paid trial plan goes through the trial
+ *  checkout above; anything else keeps the setup-mode flow below. */
+async function buildCardCheckout(
   ctx: ActionCtx,
   orgId: string,
 ): Promise<{ url: string | null; simulated: boolean }> {
   const org = await ctx.runQuery(internal.agencyBilling._orgForSetup, { orgId });
   if (!org) throw new Error("Subaccount not found.");
+  if (needsTrialCheckout(org)) return await buildTrialCheckout(ctx, org);
+  return await buildSetupCheckout(ctx, org);
+}
+
+/** Build a Stripe Checkout (setup mode) so a studio adds a card. Shared by the
+    agency-initiated and studio-self-serve paths. Returns a simulated result when
+    Stripe isn't configured so the flow still completes in demo. */
+async function buildSetupCheckout(
+  ctx: ActionCtx,
+  org: SetupOrg,
+): Promise<{ url: string | null; simulated: boolean }> {
+  const orgId = org.orgId;
   if (!process.env.STRIPE_SECRET_KEY) {
     // No Stripe in this environment - mark the card on file directly so the
     // gate clears (used in demo / local). Real deployments hit the webhook path.
@@ -241,15 +470,7 @@ async function buildSetupCheckout(
     return { url: null, simulated: true };
   }
   const stripe = stripeClient();
-  let customerId = org.billingCustomerId;
-  if (!customerId) {
-    const customer = await stripe.customers.create({
-      email: org.ownerEmail ?? undefined,
-      name: org.name,
-      metadata: { orgId, kind: "subaccount_billing" },
-    });
-    customerId = customer.id;
-  }
+  const customerId = await ensureOrgCustomer(stripe, org);
   const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
   const session = await stripe.checkout.sessions.create({
     mode: "setup",
@@ -268,7 +489,7 @@ export const startPaymentSetup = action({
   args: { orgId: v.string() },
   handler: async (ctx, { orgId }): Promise<{ url: string | null; simulated: boolean }> => {
     await ctx.runQuery(internal.agencyBilling._assertBillingEdit, { orgId });
-    return await buildSetupCheckout(ctx, orgId);
+    return await buildCardCheckout(ctx, orgId);
   },
 });
 
@@ -297,12 +518,30 @@ export const myBilling = query({
   },
 });
 
+/** Studio owner opens the Stripe customer portal for their own subscription
+ *  (update the card, see the next charge, cancel before a trial ends). */
+export const openMyBillingPortal = action({
+  args: {},
+  handler: async (ctx): Promise<{ url: string }> => {
+    const orgId = await ctx.runQuery(internal.agencyBilling._myOrgId, {});
+    const org = await ctx.runQuery(internal.agencyBilling._orgForSetup, { orgId });
+    if (!org?.billingCustomerId) throw new Error("No billing account yet. Add a card first.");
+    const stripe = stripeClient();
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const session = await stripe.billingPortal.sessions.create({
+      customer: org.billingCustomerId,
+      return_url: `${baseUrl}/billing`,
+    });
+    return { url: session.url };
+  },
+});
+
 /** Studio owner adds their own card to clear the gate. */
 export const startMyPaymentSetup = action({
   args: {},
   handler: async (ctx): Promise<{ url: string | null; simulated: boolean }> => {
     const orgId = await ctx.runQuery(internal.agencyBilling._myOrgId, {});
-    return await buildSetupCheckout(ctx, orgId);
+    return await buildCardCheckout(ctx, orgId);
   },
 });
 
@@ -312,8 +551,14 @@ export const _sweepTrials = internalMutation({
   args: {},
   handler: async (ctx) => {
     const now = Date.now();
+    // Stripe-backed trials are left to Stripe: it charges the saved card at
+    // trial_end and the webhook mirrors the result. Only local windows sweep.
     const trialing = (await ctx.db.query("orgs").collect()).filter(
-      (o) => o.billingStatus === "trialing" && o.trialEndsAt !== undefined && now >= o.trialEndsAt,
+      (o) =>
+        o.billingStatus === "trialing" &&
+        !o.billingSubscriptionId &&
+        o.trialEndsAt !== undefined &&
+        now >= o.trialEndsAt,
     );
     const flipped: { orgId: string; ownerEmail?: string; name: string; locked: boolean }[] = [];
     for (const org of trialing) {
@@ -321,7 +566,7 @@ export const _sweepTrials = internalMutation({
       const hasCard = Boolean(org.paymentMethodOnFile);
       const next = hasCard ? "active" : "past_due";
       await ctx.db.patch(org._id, { billingStatus: next });
-      const locked = !hasCard && Boolean(plan?.requireCardAfterTrial);
+      const locked = !hasCard && (Boolean(plan?.requireCardAfterTrial) || org.trialCardRequiredBy !== undefined);
       flipped.push({ orgId: org.orgId, ownerEmail: org.ownerEmail ?? undefined, name: org.name, locked });
     }
     if (flipped.length) {

@@ -20,7 +20,9 @@ export default function BillingAddedPage() {
         </span>
         <h1 className="font-grotesk text-xl font-semibold text-bone">You&apos;re all set</h1>
         <p className="mx-auto mt-2 max-w-sm text-sm text-steel">
-          Your payment method is on file and your studio is active. Thanks for being here.
+          Your card is on file. If you started a free trial, you are charged automatically when it
+          ends and the plan renews after that; cancel any time before then from the billing page.
+          Thanks for being here.
         </p>
         <Button asChild className="mt-6 w-full">
           <Link href="/dashboard">Back to Pulse</Link>

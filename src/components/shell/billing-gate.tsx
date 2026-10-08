@@ -16,13 +16,18 @@ import {
   annualPriceCents, annualPerMonthCents, earlyAdopterPriceCents, earlyAdopterApplies,
   type TierKey,
 } from "@convex/lib/plans";
+import { TRIAL_TERMS } from "@convex/lib/pricing";
 
 /** The tiers a studio can actually buy from this screen. */
 type SellableTier = TierKey;
 
 /* The studio-side billing enforcement:
    - a slim countdown banner while a trial is running / ending soon
-   - a full-screen lock when the trial lapsed and a card is required
+   - a full-screen lock when a trial needs a card to start, when it lapsed
+     without one, or when the beta term is over (payment required after)
+   Every trial needs a card: it is saved in Stripe Checkout at the start
+   and charged automatically when the trial ends. The beta is the one
+   card-free term.
    Agency operators acting-as a studio are never gated (myBilling returns
    locked:false for them) so they can always step in and fix billing. */
 
@@ -58,6 +63,10 @@ function daysUntil(at: number | null | undefined): number | null {
   return Math.max(0, Math.ceil((at - Date.now()) / 86_400_000));
 }
 
+function longDate(at: number): string {
+  return new Date(at).toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
+}
+
 /** Slim banner: counts down a running trial, or a running beta licence. */
 export function BillingBanner() {
   const billing = useQuery(api.agencyBilling.myBilling);
@@ -75,6 +84,23 @@ export function BillingBanner() {
   if (beta) {
     const days = daysUntil(billing.betaLicenseUntil) ?? billing.trialDaysLeft;
     if (days === null) return null;
+    /* Already subscribed: the card is saved and the first charge lands when
+       the beta ends. Nothing to nag about. */
+    if (billing.subscribed) {
+      return (
+        <div className="flex flex-wrap items-center gap-3 border-b border-graphite/50 bg-coal/40 px-4 py-2 lg:px-6">
+          <Sparkles className="size-4 shrink-0 text-gold-dim" />
+          <p className="min-w-0 text-xs text-bone">
+            Your plan is set.
+            <span className="text-steel">
+              {billing.betaLicenseUntil
+                ? ` Your card is first charged on ${longDate(billing.betaLicenseUntil)}, when the beta ends.`
+                : " Your card is charged when the beta ends."}
+            </span>
+          </p>
+        </div>
+      );
+    }
     // A year is long enough that a 3-day warning is no warning at all.
     const closing = days <= 30;
     return (
@@ -89,12 +115,14 @@ export function BillingBanner() {
               ? "Your beta ends today."
               : `${days} day${days === 1 ? "" : "s"} left in your beta.`}
             <span className="text-steel">
-              {" "}Everything you build is yours to keep.
+              {closing
+                ? " Payment is required after the beta. Everything you build is yours to keep."
+                : " Everything you build is yours to keep."}
             </span>
           </p>
           {closing && (
             <Button size="sm" variant="primary" className="ml-auto" onClick={() => setPicking(true)}>
-              Choose your plan
+              Add a card and pick a plan
             </Button>
           )}
         </div>
@@ -103,8 +131,8 @@ export function BillingBanner() {
             <DialogHeader>
               <DialogTitle>Carry on after the beta</DialogTitle>
               <DialogDescription>
-                Pick a plan now and nothing interrupts. Your studio, bookings and clients
-                stay exactly as they are.
+                Pick a plan now and nothing interrupts. Your card is first charged when the
+                beta ends, not today. Your studio, bookings and clients stay exactly as they are.
               </DialogDescription>
             </DialogHeader>
             <DialogBody>
@@ -122,6 +150,10 @@ export function BillingBanner() {
 
   const days = billing.trialDaysLeft;
   const ending = billing.reason === "trial_ending";
+  const chargeOn = billing.trialEndsAt ? longDate(billing.trialEndsAt) : null;
+  const price = billing.plan && billing.effectivePriceCents > 0
+    ? `${money(billing.effectivePriceCents)}/${billing.plan.billingInterval}`
+    : null;
 
   return (
     <div className={
@@ -130,12 +162,19 @@ export function BillingBanner() {
     }>
       <Hourglass className={"size-4 shrink-0 " + (ending ? "text-gold" : "text-steel")} />
       <p className="min-w-0 text-xs text-bone">
-        {days === 0
-          ? "Your free trial ends today."
-          : `${days} day${days === 1 ? "" : "s"} left in your free trial.`}
-        {billing.plan && billing.effectivePriceCents > 0 && (
+        {billing.reason === "past_due"
+          ? "Your last payment did not go through."
+          : days === 0
+            ? "Your free trial ends today."
+            : `${days} day${days === 1 ? "" : "s"} left in your free trial.`}
+        {billing.reason !== "past_due" && billing.subscribed && price && chargeOn && (
           <span className="text-steel">
-            {" "}Then {money(billing.effectivePriceCents)}/{billing.plan.billingInterval}.
+            {" "}Your card is charged {price} on {chargeOn} and renews automatically. Cancel any time before then.
+          </span>
+        )}
+        {billing.reason !== "past_due" && !billing.subscribed && price && (
+          <span className="text-steel">
+            {" "}Add a card{chargeOn ? ` before ${chargeOn}` : ""} to keep going. Then {price}, renewing automatically.
           </span>
         )}
       </p>
@@ -160,8 +199,40 @@ export function BillingLock() {
      over, and the honest ask is "pick a plan" - not "add a payment method"
      against an agency plan that costs nothing. */
   if (billing.reason === "beta_expired") {
-    return <BetaExpiredLock endedAt={billing.betaLicenseUntil} name={billing.name} />;
+    return (
+      <BetaExpiredLock
+        endedAt={billing.betaLicenseUntil ?? billing.trialEndsAt}
+        name={billing.name}
+      />
+    );
   }
+
+  /* Copy per reason. A trial waiting on its card is a start, not an end. */
+  const trialDays = billing.plan?.trialDays ?? 0;
+  const copy =
+    billing.reason === "trial_needs_card"
+      ? {
+          title: trialDays > 0 ? `Start your ${trialDays}-day free trial` : "Start your plan",
+          body: `${TRIAL_TERMS.cardRequired} You are not charged until the trial ends. ${TRIAL_TERMS.autoRenew} ${TRIAL_TERMS.cancel}`,
+          cta: "Add a card to start",
+        }
+      : billing.reason === "canceled"
+        ? {
+            title: "Your plan has ended",
+            body: `Add a card to pick ${billing.name} back up. Everything is exactly where you left it.`,
+            cta: "Add a card",
+          }
+        : billing.reason === "trial_expired_needs_card"
+          ? {
+              title: "Your free trial has ended",
+              body: `Add a payment method to keep using ${billing.name}.`,
+              cta: "Add payment method",
+            }
+          : {
+              title: "Payment needed",
+              body: `Add a payment method to keep using ${billing.name}.`,
+              cta: "Add payment method",
+            };
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-ink/95 px-4 backdrop-blur-sm">
@@ -172,18 +243,18 @@ export function BillingLock() {
         <span className="mx-auto mb-4 grid size-12 place-items-center rounded-full border border-critical/30 bg-critical/10 text-critical">
           <Lock className="size-5" />
         </span>
-        <h2 className="font-grotesk text-xl font-semibold text-bone">Your free trial has ended</h2>
+        <h2 className="font-grotesk text-xl font-semibold text-bone">{copy.title}</h2>
         <p className="mx-auto mt-2 max-w-sm text-sm text-steel">
-          Add a payment method to keep using {billing.name}.
+          {copy.body}
           {billing.plan && billing.effectivePriceCents > 0 && (
             <> Your plan is {billing.plan.name} at {money(billing.effectivePriceCents)}/{billing.plan.billingInterval}.</>
           )}
         </p>
         <Button className="mt-6 w-full" disabled={busy} onClick={() => void run()}>
-          <CreditCard className="size-4" /> {busy ? "Opening…" : "Add payment method"}
+          <CreditCard className="size-4" /> {busy ? "Opening…" : copy.cta}
         </Button>
         <p className="mt-3 text-xs text-steel/70">
-          Questions? Reach out to your agency and they can extend your trial or comp your account.
+          Your data is untouched. Questions? Reach out to your agency.
         </p>
       </div>
     </div>
@@ -195,7 +266,9 @@ export function BillingLock() {
    dialog in the countdown banner. Same tiers, same checkout, whether they act
    30 days early or the morning it expires. */
 export function BetaPlanPicker({ cta }: { cta?: string }) {
-  const subscribe = useAction(api.billing.beginCheckout);
+  // The beta's own checkout: tied to this studio, first charge deferred to
+  // the end of the beta, and refused if a subscription already exists.
+  const subscribe = useAction(api.billing.beginBetaConversionCheckout);
   const [interval, setInterval] = React.useState<"month" | "year">("year");
   const [tier, setTier] = React.useState<SellableTier>("growth");
   const [busy, setBusy] = React.useState(false);
@@ -284,8 +357,12 @@ export function BetaPlanPicker({ cta }: { cta?: string }) {
 
       <Button className="mt-6 w-full" disabled={busy} onClick={() => void go()}>
         <CreditCard className="size-4" />
-        {busy ? "Opening…" : (cta ?? `Continue on ${PLAN_LIMITS[tier].label}`)}
+        {busy ? "Opening…" : (cta ?? `Add a card for ${PLAN_LIMITS[tier].label}`)}
       </Button>
+      <p className="mt-3 text-center text-[0.7rem] text-steel/80">
+        Picking before the beta ends costs nothing extra: your card is first charged on the
+        day it ends, then renews automatically. Cancel any time before then.
+      </p>
     </>
   );
 }
@@ -316,7 +393,8 @@ function BetaExpiredLock({
           {endedAt
             ? `${name} was free through ${new Date(endedAt).toLocaleDateString(undefined, { year: "numeric", month: "long", day: "numeric" })}.`
             : `${name} was on the free beta.`}{" "}
-          Everything is exactly where you left it. Pick a plan and carry straight on.
+          Payment is required after the beta. Everything is exactly where you left it: add a
+          card, pick a plan and carry straight on.
         </p>
 
         <BetaPlanPicker />

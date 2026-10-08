@@ -3,7 +3,10 @@ import { internalMutation } from "./functions";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { stripeClient, priceIdForTier, hasPriceId } from "./lib/stripe";
-import { TIERS } from "./lib/pricing";
+import { TIERS, PLATFORM_TRIAL_DAYS } from "./lib/pricing";
+import { buildSubscriptionCheckoutParams, isBetaPlan, trialSpec } from "./lib/trialCheckout";
+import { assertNoLiveSubscription } from "./agencyBilling";
+import { DEMO_ORG } from "./lib/tier";
 import { tierV, intervalV } from "./lib/tierV";
 import type { TierKey } from "./lib/plans";
 import {
@@ -88,17 +91,85 @@ export const beginCheckout = action({
     const discounts = await earlyAdopterDiscounts(stripe, args.tier as TierKey, interval);
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      customer: customer.id,
-      line_items: [{ price: priceId, quantity: 1 }],
-      ...(discounts ? { discounts } : {}),
-      // No trial - charge immediately on subscribe.
-      success_url: `${baseUrl}/onboard/done?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/onboard`,
-    });
+    /* Card always collected. PLATFORM_TRIAL_DAYS is 0 today, so this bills on
+       subscribe; any trial turned on later is card-required by construction. */
+    const session = await stripe.checkout.sessions.create(
+      buildSubscriptionCheckoutParams({
+        customer: customer.id,
+        lineItems: [{ price: priceId, quantity: 1 }],
+        discounts,
+        trial: trialSpec({ trialDays: PLATFORM_TRIAL_DAYS, now: Date.now() }),
+        // Unchanged from before: the intent lives on the customer above, and
+        // the session carries none, so the webhook path is the same as it was.
+        metadata: {},
+        successUrl: `${baseUrl}/onboard/done?session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${baseUrl}/onboard`,
+      }),
+    );
 
     return { checkoutUrl: session.url, earlyAdopter: Boolean(discounts) };
+  },
+});
+
+/* ============================================================
+   Beta to paid.
+
+   The beta is the one card-free term (365 days). Payment is required
+   after it. The studio adds a card and picks Core, Growth or Max here.
+
+   - Subscribing BEFORE the term ends does not charge early: the first
+     charge is deferred to the end date (subscription_data.trial_end),
+     so no beta day is paid for twice. Within 48 hours of the end, or
+     after it, Stripe charges on subscribe.
+   - A second checkout is refused while a live subscription exists, and
+     the webhook cancels any duplicate that slips through.
+   - Nothing is copied or moved: same workspace, same data.
+   ============================================================ */
+export const beginBetaConversionCheckout = action({
+  args: { tier: tierV, interval: v.optional(intervalV) },
+  handler: async (ctx, { tier, interval: wanted }): Promise<{ checkoutUrl: string | null; deferredUntil: number | null }> => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) throw new Error("not signed in");
+    const orgId: string = await ctx.runQuery(internal.agencyBilling._myOrgId, {});
+    if (orgId === DEMO_ORG) throw new Error("Open your own studio first.");
+    const org = await ctx.runQuery(internal.agencyBilling._orgForSetup, { orgId });
+    if (!org) throw new Error("Studio not found.");
+    const onBeta = (org.betaCohort && !org.graduatedAt) || isBetaPlan(org.plan);
+    if (!onBeta) throw new Error("This studio is not on the beta. Use the billing page to manage its plan.");
+
+    const interval = wanted ?? "month";
+    const stripe = stripeClient();
+    await assertNoLiveSubscription(stripe, org.billingSubscriptionId);
+    const priceId = priceIdForTier(tier as TierKey, interval);
+    const discounts = await earlyAdopterDiscounts(stripe, tier as TierKey, interval);
+
+    let customer = org.billingCustomerId;
+    if (!customer) {
+      const c = await stripe.customers.create({
+        email: org.ownerEmail ?? identity.email ?? undefined,
+        name: org.name,
+        metadata: { orgId: org.orgId, kind: "subaccount_billing" },
+      });
+      customer = c.id;
+    }
+
+    // The term ends on the license date (cohort) or the beta plan's window.
+    const termEnd = org.betaCohort ? org.betaLicenseUntil : org.trialEndsAt;
+    const trial = termEnd ? trialSpec({ trialEndsAt: termEnd, now: Date.now() }) : { kind: "none" as const };
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const session = await stripe.checkout.sessions.create(
+      buildSubscriptionCheckoutParams({
+        customer,
+        lineItems: [{ price: priceId, quantity: 1 }],
+        discounts,
+        trial,
+        metadata: { kind: "beta_conversion", orgId: org.orgId, tier, interval },
+        successUrl: `${baseUrl}/billing/added?session_id={CHECKOUT_SESSION_ID}&plan=1`,
+        cancelUrl: `${baseUrl}/billing`,
+      }),
+    );
+    return { checkoutUrl: session.url, deferredUntil: trial.kind === "until" ? trial.at : null };
   },
 });
 
@@ -169,22 +240,23 @@ export const beginPublicCheckout = action({
     const discounts = await earlyAdopterDiscounts(stripe, tier as TierKey, interval);
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const meta = { kind: "platform_signup", intendedTier: tier, intendedInterval: interval };
-    const session = await stripe.checkout.sessions.create({
-      mode: "subscription",
-      line_items: [{ price: priceId, quantity: 1 }],
-      ...(discounts ? { discounts } : {}),
-      custom_fields: [
-        {
-          key: "studio_name",
-          label: { type: "custom", custom: "Your studio or group name" },
-          type: "text",
-        },
-      ],
-      metadata: meta,
-      subscription_data: { metadata: meta },
-      success_url: `${baseUrl}/welcome/activate?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${baseUrl}/pricing`,
-    });
+    const session = await stripe.checkout.sessions.create(
+      buildSubscriptionCheckoutParams({
+        lineItems: [{ price: priceId, quantity: 1 }],
+        discounts,
+        customFields: [
+          {
+            key: "studio_name",
+            label: { type: "custom", custom: "Your studio or group name" },
+            type: "text",
+          },
+        ],
+        trial: trialSpec({ trialDays: PLATFORM_TRIAL_DAYS, now: Date.now() }),
+        metadata: meta,
+        successUrl: `${baseUrl}/welcome/activate?session_id={CHECKOUT_SESSION_ID}`,
+        cancelUrl: `${baseUrl}/pricing`,
+      }),
+    );
     return { checkoutUrl: session.url, earlyAdopter: Boolean(discounts) };
   },
 });

@@ -22,6 +22,7 @@ import { money } from "@/lib/format";
 
 const STATUS_TONE: Record<string, NonNullable<BadgeProps["tone"]>> = {
   trialing: "info",
+  pending_card: "critical",
   active: "positive",
   past_due: "critical",
   comped: "gold",
@@ -29,6 +30,7 @@ const STATUS_TONE: Record<string, NonNullable<BadgeProps["tone"]>> = {
 };
 const STATUS_LABEL: Record<string, string> = {
   trialing: "Trial",
+  pending_card: "Waiting for card",
   active: "Active",
   past_due: "Past due",
   comped: "Comped (free)",
@@ -110,7 +112,7 @@ export function SubaccountBilling({ orgId }: { orgId: string }) {
           </div>
           {billing.locked && (
             <span className="inline-flex items-center gap-1.5 text-xs font-medium text-critical">
-              <Lock className="size-3.5" /> Studio locked - needs a card
+              <Lock className="size-3.5" /> Studio locked, needs a card
             </span>
           )}
         </div>
@@ -127,14 +129,27 @@ export function SubaccountBilling({ orgId }: { orgId: string }) {
           <div className="flex items-center gap-2 rounded-md border border-info/30 bg-info/[0.07] px-3 py-2 text-sm text-bone">
             <Hourglass className="size-4 text-info" />
             {trialLeft === 0 ? "Trial ends today" : `${trialLeft} day${trialLeft === 1 ? "" : "s"} left in trial`}
-            {!billing.paymentMethodOnFile && billing.plan?.requireCardAfterTrial && (
-              <span className="text-steel">· card required to continue</span>
+            {billing.subscribed ? (
+              <span className="text-steel">· card saved, charged automatically at the end</span>
+            ) : (
+              <span className="text-steel">· started before cards were required, card due by the end</span>
             )}
           </div>
         )}
 
         {/* Assign / change plan */}
-        <Field label="Plan" hint="Assigning a plan starts its trial or promo window.">
+        {status === "pending_card" && (
+          <div className="flex items-center gap-2 rounded-md border border-critical/30 bg-critical/[0.06] px-3 py-2 text-sm text-bone">
+            <CreditCard className="size-4 text-critical" />
+            Trial not started
+            <span className="text-steel">· it starts when the owner adds a card in Stripe Checkout</span>
+          </div>
+        )}
+
+        <Field
+          label="Plan"
+          hint="A plan with a trial starts its trial only when the owner adds a card; Stripe charges it automatically when the trial ends. The Beta plan is the one card-free term."
+        >
           {activePlans.length === 0 ? (
             <p className="text-sm text-steel">
               No plans yet. Create them on the{" "}
@@ -184,14 +199,18 @@ export function SubaccountBilling({ orgId }: { orgId: string }) {
           >
             <CreditCard className="size-3.5" /> Add payment method
           </Button>
-          <Button
-            size="sm"
-            variant="ghost"
-            disabled={busy !== null}
-            onClick={() => void guard("extend", () => extendTrial({ orgId, days: 14 }), "Trial extended 14 days.")}
-          >
-            <Hourglass className="size-3.5" /> Extend trial 14d
-          </Button>
+          {/* Only a trial with a card behind it can be extended, and only in
+              Stripe, so the card is still charged on the new date. */}
+          {status === "trialing" && billing.subscribed && !beta && !billing.plan?.isBeta && (
+            <Button
+              size="sm"
+              variant="ghost"
+              disabled={busy !== null}
+              onClick={() => void guard("extend", () => extendTrial({ orgId, days: 14 }), "Trial extended 14 days in Stripe.")}
+            >
+              <Hourglass className="size-3.5" /> Extend trial 14d
+            </Button>
+          )}
           <Button
             size="sm"
             variant="ghost"

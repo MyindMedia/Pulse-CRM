@@ -331,8 +331,8 @@ function PreviewContent({
         <p className="mt-3 text-xs leading-relaxed text-steel">
           Your beta is {data.betaTerms.months} months, everything unlocked, no card. The
           clock starts the first time you sign in after signing this agreement, not today.
-          When it ends you pick one of these plans and nothing in your studio is deleted or
-          locked away{data.betaTerms.offerOpen
+          Payment is required after the term: you add a card and pick one of these plans,
+          and nothing in your studio is deleted{data.betaTerms.offerOpen
             ? `, and the launch price above is held for your first ${data.betaTerms.introMonths} paid months.`
             : "."}
         </p>
