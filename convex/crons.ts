@@ -29,6 +29,10 @@ crons.interval("media-sweep-pending", { hours: 6 }, internal.media.sweepPending,
 // per run) until the Zuops webhook is registered, then it is only the safety net behind it.
 crons.interval("zuops-sync", { minutes: 1 }, internal.outreachZuops.syncAll, {});
 
+// Confirmation calls for booked demos. Does nothing unless an agency turned it on in
+// Outreach > Settings; dry run by default. See docs/CONFIRMATION-CALLS.md.
+crons.interval("confirmation-calls", { minutes: 1 }, internal.outreachCalls.dispatchDueCalls, {});
+
 // Recompute every room's auto status from the live calendar.
 crons.interval("room-status", { minutes: 15 }, internal.maintenance.recomputeAllRoomStatuses);
 

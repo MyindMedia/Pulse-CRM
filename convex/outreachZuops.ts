@@ -115,7 +115,7 @@ export const _knownContacts = internalQuery({
   args: { agencyId: v.string() },
   handler: async (ctx, { agencyId }) => {
     const rows = await ctx.db.query("outreachBookings").withIndex("by_agency_start", (q) => q.eq("agencyId", agencyId)).take(500);
-    return rows.filter((r) => r.zuopsLeadId && r.contactEmail).map((r) => r.zuopsLeadId as string);
+    return rows.filter((r) => r.zuopsLeadId && r.contactEmail && r.phoneSynced).map((r) => r.zuopsLeadId as string);
   },
 });
 
@@ -154,6 +154,7 @@ export const _upsert = internalMutation({
         timezone: b.timezone, status: b.status, location: b.location, meetingUrl: b.meetingUrl,
         contactName: b.lead?.name ?? existing?.contactName, contactEmail: email,
         consent: b.lead ? b.lead.consent : existing?.consent, emailOptOut: b.lead ? b.lead.emailOptOut : existing?.emailOptOut,
+        phone: b.lead ? b.lead.phone : existing?.phone, phoneSynced: b.lead ? true : existing?.phoneSynced,
         prospectId: prospect?._id ?? existing?.prospectId, syncedAt: now,
       };
       if (existing) await ctx.db.replace(existing._id, doc);
