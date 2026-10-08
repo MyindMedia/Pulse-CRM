@@ -2,7 +2,7 @@ import { action, query, internalQuery, internalAction } from "./_generated/serve
 import { internalMutation } from "./functions";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { stripeClient, priceIdForTier, hasPriceId } from "./lib/stripe";
+import { stripeClient, priceIdForTier, hasPriceId, tierForPriceId } from "./lib/stripe";
 import { TIERS, PLATFORM_TRIAL_DAYS } from "./lib/pricing";
 import { buildSubscriptionCheckoutParams, isBetaPlan, trialSpec } from "./lib/trialCheckout";
 import { assertNoLiveSubscription } from "./agencyBilling";
@@ -16,7 +16,6 @@ import { sendEmail } from "./lib/email";
 import { activationEmailSubject, activationEmailHtml } from "./lib/emailTemplates/activation";
 import { allowClerkIdentifier } from "./lib/clerkAllowlist";
 import { normalizeEmail } from "./lib/emailKey";
-import { tierForPlan } from "./lib/tier";
 
 // Every tier is self-serve: Core, Growth and Max all check out without a call.
 const SELF_SERVE_TIERS = new Set<string>(["core", "growth", "max"]);
@@ -301,21 +300,38 @@ export const claimCheckout = action({
     if (!(s.status === "complete" || s.payment_status === "paid")) {
       throw new Error("Payment is not complete yet.");
     }
+    /* Only a pay-first signup provisions a workspace. Any other completed
+       session paid with the same email (a card save, a beta conversion, a
+       studio plan) must not become an agency. */
+    if (s.mode !== "subscription" || s.metadata?.kind !== "platform_signup") {
+      throw new Error("This checkout is not a Pulse signup.");
+    }
     const sessionEmail = (s.customer_details?.email ?? s.customer_email ?? "").toLowerCase();
     const myEmail = (identity.email ?? "").toLowerCase();
     if (!sessionEmail || sessionEmail !== myEmail) {
       throw new Error("This checkout was paid with a different email.");
     }
-    const tier = tierForPlan(s.metadata?.intendedTier);
+    const subscriptionId = typeof s.subscription === "string" ? s.subscription : s.subscription?.id;
+    if (!subscriptionId) throw new Error("This checkout has no subscription.");
+    // The subscription, not the session, says what was bought and whether it
+    // is still paid for. Metadata is ours to read, never proof of a price.
+    const sub = await stripe.subscriptions.retrieve(subscriptionId);
+    if (sub.status !== "active" && sub.status !== "trialing") {
+      throw new Error("This subscription is not active.");
+    }
+    const priceId = sub.items?.data?.[0]?.price?.id;
+    const match = priceId ? tierForPriceId(priceId) : null;
+    if (!match) throw new Error("This subscription is not on a Pulse plan.");
     const studioField = (s.custom_fields ?? []).find((f) => f.key === "studio_name");
     const studioName = studioField?.text?.value || identity.name || myEmail;
+    const customerId = typeof s.customer === "string" ? s.customer : s.customer?.id ?? "";
     await ctx.runMutation(internal.billing.provisionFromCheckout, {
       clerkUserId: identity.subject,
       email: myEmail,
-      tier,
+      tier: match.tier,
       agencyName: studioName,
-      customerId: (s.customer as string) ?? "",
-      subscriptionId: (s.subscription as string) ?? "",
+      customerId,
+      subscriptionId,
     });
     return { ok: true };
   },
@@ -367,6 +383,11 @@ export const provisionFromCheckout = internalMutation({
       : undefined;
 
     if (agency) {
+      // Claim an unowned workspace only. One that already has an owner is
+      // never handed to whoever else presents its subscription.
+      if (agency.ownerClerkUserId && agency.ownerClerkUserId !== args.clerkUserId) {
+        throw new Error("This subscription is already linked to another account.");
+      }
       await ctx.db.patch(agency._id, { ownerClerkUserId: args.clerkUserId });
     } else {
       const slug =
