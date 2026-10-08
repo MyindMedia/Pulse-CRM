@@ -37,8 +37,10 @@ describe("zuops parsers", () => {
   it("keeps only name, email, the three consent answers and the phone (for the confirmation call) from a lead, never the address", () => {
     const l = parseLead({ data: { lead: { id: "l1", full_name: "Mike Sims", email: "Mike@Studio.COM", phone: "(408) 555-0123", address: "1 Main St", email_opt_out: true,
       custom_fields: { pulse_sms_marketing_consent: false, pulse_automated_call_consent: true, pulse_email_marketing_consent: false } } } })!;
-    expect(l).toEqual({ name: "Mike Sims", email: "mike@studio.com", consent: { sms: false, call: true, email: false }, emailOptOut: true, phone: "+14085550123" });
+    expect(l).toEqual({ name: "Mike Sims", email: "mike@studio.com", consent: { sms: false, call: true, email: false }, emailOptOut: true, phone: "+14085550123", dnd: false });
     expect(JSON.stringify(l)).not.toMatch(/Main St/);
+    expect(parseLead({ data: { lead: { id: "l4", dnd: true } } })?.dnd).toBe(true);
+    expect(parseLead({ data: { lead: { id: "l5", custom_fields: { do_not_call: true } } } })?.dnd).toBe(true);
     expect(parseLead({ data: { lead: { id: "l2", phone_number: "4085550123" } } })?.phone).toBe("+14085550123");
     expect(parseLead({ data: { lead: { id: "l3" } } })?.phone).toBeUndefined();
     expect(parseLead({ data: {} })).toBeNull();

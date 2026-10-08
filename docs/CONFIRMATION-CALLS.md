@@ -15,20 +15,26 @@ Every minute the cron `confirmation-calls` runs `outreachCalls.dispatchDueCalls`
 | Zuops lead not read yet | waits `awaiting_lead` |
 | `consent.call` is not the boolean `true` | skipped `no_consent` |
 | Booking row created before calls were enabled | skipped `predates_enable` |
-| Phone or email on the do-not-call list, or email on the suppression list | skipped `opted_out` / `suppressed` |
+| Phone or email on the do-not-call list, the phone texted STOP (`smsOptOuts`), or email on the suppression list | skipped `opted_out` / `suppressed` |
+| The do-not-call lookup itself errored | skipped `optout_check_failed` (fails closed) |
+| Zuops lead is marked do-not-disturb | skipped `dnd` |
 | Name looks like a test (unless `allowTestBookings`) | skipped `test_booking` |
 | Demo starts in less than delay + 5 minutes | skipped `too_close` |
 | No phone yet | waits `no_phone` |
 | Phone is not a valid US number | skipped `invalid_phone` |
+| Area code has no known US time zone (Canada, Caribbean, a new overlay) | skipped `unknown_area_code` |
+| Booking time zone is set but is not a US zone | skipped `non_us_timezone` |
 | Delay after booking not elapsed | waits `not_due` |
-| Outside the calling window in the callee's zone | waits `outside_window`, retried every minute until the demo is too close |
+| Outside the calling window in the zone of the phone's area code (every zone, for a code that spans two) or in the booking's zone | waits `outside_window`, retried every minute until the demo is too close |
 | Daily cap used up | waits `daily_cap` |
 
-One row per booking, ever (`outreachCalls`). A real dial is claimed before the network call and is never retried automatically: a failed dial shows as `failed`. Right before a live dial, Pulse re-reads the Zuops lead and requires the call consent to still be `true`.
+One row per booking, ever (`outreachCalls`). A real dial is claimed before the network call and is never retried automatically: a failed dial shows as `failed`. Right before a live dial, Pulse re-reads the Zuops lead and requires the call consent to still be `true`, the lead not to be do-not-disturb (`dnd`), and the lead's current phone to be the exact number about to be dialed (`phone_changed` otherwise). It then re-reads the settings: a kill switch, disable, dry-run or Outreach pause since the run started puts the call back in the queue (`kill_switch`, `disabled`, `not_live`, `outreach_paused`). The 15 minute Zuops sync re-reads the lead behind every upcoming confirmed booking, so a changed phone, name or email reaches the row.
+
+The booking's time zone comes from whoever filled in the form, so it never decides alone when a phone rings. Area code zones live in `convex/outreach/areaCodes.ts`.
 
 ## Settings (Agency > Outreach > Settings > Confirmation calls)
 
-Owner only (an owner or admin can hit the kill switch; only the owner lifts it). Defaults: enabled false, mode dry run, delay 5 minutes (1 to 120), window 09:00 to 20:00 every day in the callee's zone (booking timezone, else America/Los_Angeles), daily cap 5 (per calendar day in the default zone, counting every dialed call), longest call 5 minutes, from number +14086921713 (change it in Settings, it is not in code), kill switch off, test bookings not allowed. The Outreach "Pause" also stops calls.
+Owner only (an owner or admin can hit the kill switch; only the owner lifts it). Defaults: enabled false, mode dry run, delay 5 minutes (1 to 120), window 09:00 to 20:00 every day in the callee's zone (the phone's area code zone, and the booking timezone when it has one), daily cap 5 (per calendar day in the default zone, counting every dialed call), longest call 5 minutes, from number +14086921713 (change it in Settings, it is not in code), kill switch off, test bookings not allowed. The Outreach "Pause" also stops calls.
 
 ## Enable it
 
@@ -39,6 +45,7 @@ Owner only (an owner or admin can hit the kill switch; only the owner lifts it).
    - `npx convex env set BLAND_WEBHOOK_SECRET <long random string> --prod` (for example `openssl rand -hex 32`)
    - `CONVEX_SITE_URL` is provided by Convex itself.
 4. Bland needs no dashboard webhook setting: each call carries its own webhook, `https://pastel-corgi-340.convex.site/bland/events?secret=<BLAND_WEBHOOK_SECRET>`. You can test the endpoint by hand: no secret returns 401, a wrong one 401, and it returns 503 while `BLAND_WEBHOOK_SECRET` is unset.
+   - TODO (security review 2026-10-07): the secret rides in the webhook URL's query string, so it can land in Bland's logs and any proxy log on the way. The endpoint already accepts it as a header (`x-pulse-secret` or `Authorization: Bearer`). Once Bland can send a custom header on its webhook, move to that, drop `?secret=` from `webhookUrl` in `convex/lib/bland.ts`, and rotate `BLAND_WEBHOOK_SECRET`.
 5. In Settings turn Confirmation calls on. It is in dry run. Only bookings made after this moment are ever called.
 6. Watch Agency > Outreach > Meetings > Confirmation calls for a few days. Each `dry run` row shows the exact body and the checks it passed. Nothing is dialed.
 7. Go live: Settings > "Type CALL" > Go live. Dry run rows for demos still ahead become real calls on the next minute.

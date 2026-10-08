@@ -131,6 +131,8 @@ export type ZuopsLead = {
   emailOptOut: boolean;
   /** Kept only so the confirmation call can dial it. E.164 when it parses. */
   phone?: string;
+  /** Do-not-disturb on the lead. Any of the common spellings counts; over-matching is deliberate. */
+  dnd: boolean;
 };
 
 function leadPhone(l: Rec, cf: Rec): string | undefined {
@@ -155,6 +157,7 @@ export function parseLead(json: unknown): ZuopsLead | null {
     consent: { sms: bool("pulse_sms_marketing_consent"), call: bool("pulse_automated_call_consent"), email: bool("pulse_email_marketing_consent") },
     emailOptOut: l.email_opt_out === true,
     phone: leadPhone(l, cf),
+    dnd: l.dnd === true || l.do_not_disturb === true || l.do_not_call === true || cf.dnd === true || cf.do_not_call === true,
   };
 }
 

@@ -3,15 +3,16 @@
 
 import { normalizePhone } from "../lib/phone";
 import { isValidTimezone } from "../lib/tz";
+import { areaCodeZones, isUsTimezone } from "./areaCodes";
 
 export type CallSettings = {
   enabled: boolean;
   mode: "dry_run" | "live";
   delayMinutes: number;
-  windowStart: string; // "HH:MM" in the callee's zone
+  windowStart: string; // "HH:MM" in the callee's zone (the phone's area code, and the booking's zone too)
   windowEnd: string;
   windowDays: number[]; // 0 = Sunday ... 6 = Saturday
-  timezone: string; // agency default zone: fallback callee zone and the cap's calendar day
+  timezone: string; // agency default zone: the cap's calendar day
   dailyCap: number;
   maxDurationMinutes: number;
   killSwitch: boolean;
@@ -99,10 +100,6 @@ export function looksLikeTest(name?: string, email?: string): boolean {
   return Boolean(email && TEST_EMAIL.test(email.trim()));
 }
 
-export function calleeZone(bookingTz: string | undefined, fallback: string): string {
-  return bookingTz && isValidTimezone(bookingTz) ? bookingTz : fallback;
-}
-
 const WDAY: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
 
 /** Local minutes since midnight, weekday and calendar day for a moment in a zone. */
@@ -170,12 +167,22 @@ export function evaluate(b: BookingFacts, s: CallSettings, f: Facts, now: number
   if (!phone) return skip("invalid_phone");
   trail.push("phone is a valid US number");
 
+  /* The booking's zone is typed by whoever booked, so it never decides alone when
+     a phone rings. The number's area code does; a booking zone, when given, must
+     also be a US zone and the window must hold there as well. */
+  const zones = areaCodeZones(phone);
+  if (!zones) return skip("unknown_area_code");
+  if (b.timezone && !(isValidTimezone(b.timezone) && isUsTimezone(b.timezone))) return skip("non_us_timezone");
+  trail.push(`area code zone ${zones.join(" / ")}`);
+
   if (f.scheduledFor > now) return { kind: "wait", reason: "not_due", trail: [...trail, "wait:not_due"] };
   trail.push(`due (delay ${s.delayMinutes} min)`);
 
-  const tz = calleeZone(b.timezone, s.timezone);
-  if (!inWindow(now, tz, s)) return { kind: "wait", reason: "outside_window", trail: [...trail, `wait:outside_window (${tz})`] };
-  trail.push(`inside window ${s.windowStart}-${s.windowEnd} ${tz}`);
+  const tz = b.timezone || zones[0];
+  const check = [...new Set([...zones, tz])];
+  const closed = check.find((z) => !inWindow(now, z, s));
+  if (closed) return { kind: "wait", reason: "outside_window", trail: [...trail, `wait:outside_window (${closed})`] };
+  trail.push(`inside window ${s.windowStart}-${s.windowEnd} ${check.join(", ")}`);
 
   if (f.usedToday >= s.dailyCap) return { kind: "wait", reason: "daily_cap", trail: [...trail, `wait:daily_cap ${f.usedToday}/${s.dailyCap}`] };
   trail.push(`daily cap ${f.usedToday}/${s.dailyCap}`);

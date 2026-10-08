@@ -3,6 +3,7 @@ import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import { contactBlock } from "./outreachCalls";
 
 // The script gate is covered in callGate.test.ts. Here it is open so live paths can run.
 vi.mock("./outreach/callScript", async (orig) => ({ ...(await orig<typeof import("./outreach/callScript")>()), CALL_SCRIPT_APPROVED: true }));
@@ -10,6 +11,7 @@ vi.mock("./outreach/callScript", async (orig) => ({ ...(await orig<typeof import
 const AGENCY = "org_agency";
 const WS = "11111111-1111-1111-1111-111111111111";
 const MIN = 60_000;
+const LEAD = { id: "L1", full_name: "Mike Sims", email: "mike@studio.com", phone: "+14085551234", custom_fields: { pulse_automated_call_consent: true } };
 
 /** Next Tuesday 21:00 UTC (14:00 Los Angeles) at least a day after the real clock. */
 function tuesdayNoon(): number {
@@ -29,7 +31,7 @@ describe("confirmation calls", () => {
     fetchMock = vi.fn(async (url: string | URL | Request) => {
       const u = String(url);
       if (u.startsWith("https://api.bland.ai")) return new Response(JSON.stringify({ status: "success", call_id: "bland-1" }), { status: 200 });
-      if (u.includes("/leads/")) return new Response(JSON.stringify({ data: { lead: { id: "L1", full_name: "Mike Sims", email: "mike@studio.com", custom_fields: { pulse_automated_call_consent: true } } } }), { status: 200 });
+      if (u.includes("/leads/")) return new Response(JSON.stringify({ data: { lead: LEAD } }), { status: 200 });
       return new Response("{}", { status: 404 });
     });
     vi.stubGlobal("fetch", fetchMock);
@@ -147,7 +149,92 @@ describe("confirmation calls", () => {
     expect((await rows())[0]).toMatchObject({ status: "skipped", skipReason: "opted_out" });
   });
 
+  it("a phone opt-out is found however many other opt-outs the agency has", async () => {
+    await seed();
+    await booking();
+    await t.run(async (ctx) => {
+      // 2,000 numbers that sort before the callee's: a capped scan of the list never reaches it.
+      for (let i = 0; i < 2000; i++) await ctx.db.insert("outreachCallOptOuts", { agencyId: AGENCY, phone: `+1201555${String(i).padStart(4, "0")}`, reason: "asked", at: 0 });
+      await ctx.db.insert("outreachCallOptOuts", { agencyId: AGENCY, phone: "+14085551234", reason: "asked", at: 0 });
+    });
+    await plan();
+    expect((await rows())[0]).toMatchObject({ status: "skipped", skipReason: "opted_out" });
+  });
+
+  it("a texted STOP (smsOptOuts) blocks the call", async () => {
+    await seed();
+    await booking();
+    await t.run(async (ctx) => { await ctx.db.insert("smsOptOuts", { phone: "+14085551234", optedOut: true, updatedAt: 0 }); });
+    await plan();
+    expect((await rows())[0]).toMatchObject({ status: "skipped", skipReason: "opted_out" });
+  });
+
+  it("a STOP that was later undone (optedOut false) does not block", async () => {
+    await seed();
+    await booking();
+    await t.run(async (ctx) => { await ctx.db.insert("smsOptOuts", { phone: "+14085551234", optedOut: false, updatedAt: 0 }); });
+    await plan();
+    expect((await rows())[0].status).toBe("dry_run");
+  });
+
+  it("a lead marked do-not-disturb in Zuops is skipped", async () => {
+    await seed();
+    await booking({ dnd: true });
+    await plan();
+    expect((await rows())[0]).toMatchObject({ status: "skipped", skipReason: "dnd" });
+  });
+
+  it("an opt-out lookup that throws fails closed", async () => {
+    const ctx = { db: { query: () => { throw new Error("index unavailable"); } } };
+    expect(await contactBlock(ctx as never, AGENCY, "+14085551234", "mike@studio.com")).toBe("optout_check_failed");
+  });
+
   const blandCalls = () => fetchMock.mock.calls.filter((c) => String(c[0]).startsWith("https://api.bland.ai"));
+
+  it("live: the number in Zuops changed since the sync, so the stored one is not dialed", async () => {
+    await seed({ mode: "live" });
+    await booking();
+    fetchMock.mockImplementation(async () => new Response(JSON.stringify({ data: { lead: { ...LEAD, phone: "+14085559999" } } }), { status: 200 }));
+    const out = await t.action(internal.outreachCalls.dispatchDueCalls, { now: NOW });
+    expect(out.dialed).toBe(0);
+    expect(blandCalls()).toHaveLength(0);
+    expect((await rows())[0]).toMatchObject({ status: "skipped", skipReason: "phone_changed", attempts: 0 });
+  });
+
+  it("live: a lead with no phone at dial time is not dialed", async () => {
+    await seed({ mode: "live" });
+    await booking();
+    fetchMock.mockImplementation(async () => new Response(JSON.stringify({ data: { lead: { ...LEAD, phone: undefined } } }), { status: 200 }));
+    await t.action(internal.outreachCalls.dispatchDueCalls, { now: NOW });
+    expect(blandCalls()).toHaveLength(0);
+    expect((await rows())[0]).toMatchObject({ status: "skipped", skipReason: "phone_changed" });
+  });
+
+  it("live: a lead set to do-not-disturb since the sync is not dialed", async () => {
+    await seed({ mode: "live" });
+    await booking();
+    fetchMock.mockImplementation(async () => new Response(JSON.stringify({ data: { lead: { ...LEAD, dnd: true } } }), { status: 200 }));
+    await t.action(internal.outreachCalls.dispatchDueCalls, { now: NOW });
+    expect(blandCalls()).toHaveLength(0);
+    expect((await rows())[0]).toMatchObject({ status: "skipped", skipReason: "dnd" });
+  });
+
+  it("live: the kill switch thrown mid-run stops the next dial", async () => {
+    await seed({ mode: "live" });
+    await booking();
+    fetchMock.mockImplementation(async (url: string | URL | Request) => {
+      if (String(url).includes("/leads/")) {
+        // Someone hits the kill switch after the run planned its dials.
+        await t.run(async (ctx) => { const s = await ctx.db.query("outreachCallSettings").first(); await ctx.db.patch(s!._id, { killSwitch: true }); });
+        return new Response(JSON.stringify({ data: { lead: LEAD } }), { status: 200 });
+      }
+      return new Response(JSON.stringify({ status: "success", call_id: "bland-1" }), { status: 200 });
+    });
+    const out = await t.action(internal.outreachCalls.dispatchDueCalls, { now: NOW });
+    expect(out.dialed).toBe(0);
+    expect(blandCalls()).toHaveLength(0);
+    expect((await rows())[0]).toMatchObject({ status: "queued", skipReason: "kill_switch", attempts: 0 });
+  });
 
   it("live: re-checks consent, POSTs the documented request once, and never again", async () => {
     await seed({ mode: "live" });
@@ -198,7 +285,7 @@ describe("confirmation calls", () => {
     fetchMock.mockImplementation(async (url: string | URL | Request) =>
       String(url).startsWith("https://api.bland.ai")
         ? new Response(JSON.stringify({ status: "error", message: "bad" }), { status: 400 })
-        : new Response(JSON.stringify({ data: { lead: { id: "L1", custom_fields: { pulse_automated_call_consent: true } } } }), { status: 200 }));
+        : new Response(JSON.stringify({ data: { lead: LEAD } }), { status: 200 }));
     await t.action(internal.outreachCalls.dispatchDueCalls, { now: NOW });
     await t.action(internal.outreachCalls.dispatchDueCalls, { now: NOW + MIN });
     expect(blandCalls()).toHaveLength(1);
