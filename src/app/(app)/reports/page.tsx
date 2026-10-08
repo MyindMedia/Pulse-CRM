@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { PageHeader } from "@/components/ui/page";
 import { UnpaidAgingReport } from "@/components/reports/unpaid-aging";
@@ -46,6 +48,11 @@ function ReportsView() {
         overline="Revenue Command Center"
         title="Reports"
         description="Where the money is - unpaid balances, room utilization, dormant clients, no-show risk and which lead sources actually pay off."
+        actions={
+          <Button asChild variant="secondary">
+            <Link href="/reports/books">Books report</Link>
+          </Button>
+        }
       />
 
       <Tabs defaultValue="financials" className="space-y-5">

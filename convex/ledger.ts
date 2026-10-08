@@ -24,6 +24,7 @@ import {
   bankReconciliation as reconcileBank,
   buildStatements,
   impliedOpeningBalances,
+  journalTotals,
 } from "./lib/statements";
 import { DEFAULT_STUDIO_CHART, type ChartAccount } from "./lib/booksImport";
 import {
@@ -233,6 +234,7 @@ export const statements = query({
       recomputed: built.recomputed,
       variances: built.variances,
       checks: built.checks,
+      journalTotals: journalTotals(data.entries.map(toEntry), period.start, period.end),
     };
   },
 });

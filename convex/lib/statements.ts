@@ -793,6 +793,23 @@ export function impliedOpeningBalances(args: {
   };
 }
 
+/** The journal's own totals for [start, end): posted entries dated inside the
+ *  month, every line summed. Debits equal credits when the books balance. */
+export function journalTotals(entries: readonly LedgerEntry[], start: number, end: number) {
+  let entryCount = 0;
+  let debitCents = 0;
+  let creditCents = 0;
+  for (const e of postedOnly(entries)) {
+    if (e.entryDate < start || e.entryDate >= end) continue;
+    entryCount++;
+    for (const l of e.lines) {
+      debitCents += l.debitCents;
+      creditCents += l.creditCents;
+    }
+  }
+  return { entryCount, debitCents, creditCents };
+}
+
 /** Everything the report needs, from one call. */
 export function buildStatements(args: {
   period: Period;
