@@ -51,6 +51,8 @@ export const ORG_TABLES = [
   // Files in Cloudflare R2: the objects are deleted before these rows go.
   "mediaFiles",
   "financeMatchRejections", "financeAudit",
+  // The double-entry ledger (openspec ledger-books-statements).
+  "ledgerAccounts", "journalEntries", "openingBalances", "reportedStatements", "bankStatementBalances",
   // Last on purpose. Every delete above fires a trigger that appends here, so
   // sweeping the feed first would leave a fresh activity trace - orgId, table,
   // docId, timestamps - of a workspace that was told it was destroyed.

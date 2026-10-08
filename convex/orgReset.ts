@@ -55,6 +55,8 @@ const KEEP = new Set<string>([
   "bankConnections", "bankAccounts", "bankTransactions", "receipts",
   "stripeLedgerEntries", "stripePayouts", "revenueEntries",
   "financeMatchRejections", "financeAudit",
+  // The studio's real books, imported or posted: never staged demo history.
+  "ledgerAccounts", "journalEntries", "openingBalances", "reportedStatements", "bankStatementBalances",
 ]);
 
 async function orgOrThrow(ctx: MutationCtx, orgId: string) {
