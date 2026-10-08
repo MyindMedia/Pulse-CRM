@@ -19,9 +19,14 @@
  *   2. LIVE    - creates one real Express account against the given key, reads
  *                settings.payouts.schedule back off Stripe's response, asserts
  *                weekly / friday / delay_days 2, then DELETES the probe account.
+ *   3. CENSUS  - checks every account a real onboarding produced (one carrying
+ *                an orgId in metadata) is actually on weekly/friday.
  *
  * Step 2 is the load-bearing one. Step 1 alone would have passed on the
- * unmerged branch.
+ * unmerged branch. Step 3 is what closes the one thing step 2 cannot reach:
+ * creating an account the real way needs an authenticated studio, so instead of
+ * a note telling someone to check the next onboarding, this checks the
+ * onboardings that happened.
  *
  * Usage:
  *   STRIPE_SECRET_KEY=sk_... node scripts/verify-payout-default.mjs
@@ -139,6 +144,41 @@ console.log(`    schedule: ${JSON.stringify(got)}`);
 for (const [field, want] of Object.entries(EXPECTED)) {
   if (got[field] === want) ok(`${field} = ${want}`);
   else bad(`${field} = ${JSON.stringify(got[field])}, expected ${JSON.stringify(want)}`);
+}
+
+// ── 3. CENSUS ───────────────────────────────────────────────────────────────
+// The probe proves the payload. It does not prove that a studio onboarding
+// through the deployed app gets it - that needs an authenticated studio with no
+// stripeAccountId, which this script cannot stand in for. What it CAN do is
+// check the accounts real onboardings actually produced, so the gap closes by
+// itself the first time a studio connects rather than waiting on someone to
+// remember. A studio account is one carrying an orgId in metadata; accounts
+// without one are not Pulse orgs (see the type:none stub acct_1TgXQCIsePiE5DK4).
+console.log("\n3. Census — every studio account that can receive money is weekly");
+
+const { data: accounts } = await stripe.accounts.list({ limit: 100 });
+const studios = accounts.filter((a) => a.metadata?.orgId && a.id !== probe.id);
+
+if (studios.length === 0) {
+  console.log("    no studio accounts yet (none with an orgId in metadata)");
+} else {
+  for (const a of studios) {
+    const s = a.settings?.payouts?.schedule ?? {};
+    const name = a.business_profile?.name ?? a.id;
+    const weekly = s.interval === "weekly" && s.weekly_anchor === "friday";
+    // A studio moved to daily on purpose under PAYOUT_CADENCE_POLICY.md §4(3) is
+    // not a bug - but it DOES make the in-product "every Friday" copy false for
+    // that studio, which is the thing nobody will notice on their own.
+    if (weekly) ok(`${name} (${a.id}) ${JSON.stringify(s)}`);
+    else if (a.payouts_enabled === false) {
+      console.log(`    skipped ${name} (${a.id}) - payouts_enabled: false, cannot receive money`);
+    } else {
+      bad(`${name} (${a.id}) is ${JSON.stringify(s)}, not weekly/friday`);
+      console.log("    -> either it onboarded before the default shipped and needs an");
+      console.log("       accounts.update, or the parameter did not survive to production.");
+      console.log("       Either way the 'Payouts land every Friday' copy is false for them.");
+    }
+  }
 }
 
 if (KEEP) {
