@@ -302,6 +302,7 @@ import type * as testHarness from "../testHarness.js";
 import type * as theme from "../theme.js";
 import type * as timeclock from "../timeclock.js";
 import type * as today from "../today.js";
+import type * as trialBilling from "../trialBilling.js";
 import type * as twilioA2P from "../twilioA2P.js";
 import type * as usage from "../usage.js";
 import type * as visitors from "../visitors.js";
@@ -608,6 +609,7 @@ declare const fullApi: ApiFromModules<{
   theme: typeof theme;
   timeclock: typeof timeclock;
   today: typeof today;
+  trialBilling: typeof trialBilling;
   twilioA2P: typeof twilioA2P;
   usage: typeof usage;
   visitors: typeof visitors;

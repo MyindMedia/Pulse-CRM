@@ -24,6 +24,7 @@
 
 import {
   ALLOWANCES,
+  BETA_TERM_DAYS,
   PRICING,
   TIERS,
   WHITELABEL,
@@ -234,6 +235,14 @@ export function starterPlanNames(): string[] {
  *  (`orgs.betaMonths`), but this is the number the invite sheet quotes and
  *  the grant uses. */
 export const BETA_DEFAULT_MONTHS = 12;
+
+/** Length of a beta license of `months` months, in ms. Twelve months is the
+ *  promised 365 days (BETA_TERM_DAYS), not 12 x 30 = 360; other lengths are
+ *  pro rata on the same year. */
+export function betaTermMs(months: number): number {
+  const DAY = 24 * 60 * 60 * 1000;
+  return Math.round((months * BETA_TERM_DAYS) / 12) * DAY;
+}
 
 /** The tier a beta studio runs on until it graduates.
 

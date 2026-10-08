@@ -12,6 +12,7 @@ import { tierForOrg, tierForPlan } from "./lib/tier";
 import { tierRank } from "./lib/pricing";
 import { isToggleable } from "./lib/modules";
 import { DAY_MS } from "./lib/billingGate";
+import { initialBillingFor } from "./lib/trialCheckout";
 import { sendEmail } from "./lib/email";
 import { inviteEmailHtml, inviteEmailSubject } from "./lib/emailTemplates/invite";
 import { normalizeEmail } from "./lib/emailKey";
@@ -335,9 +336,10 @@ export const provision = internalMutation({
       .first();
     if (slugTaken) throw new ConvexError(`The slug "${args.slug}" is already in use.`);
 
-    // Auto-enroll new sub-accounts in the agency's default plan (starts the
-    // trial/promo clock), so first-adopter studios begin their free window the
-    // moment they're created.
+    // Auto-enroll new sub-accounts in the agency's default plan. The Beta plan
+    // starts its card-free window here (the one exception). A paid plan with a
+    // trial does NOT: the studio waits in pending_card until the owner saves a
+    // card in Stripe Checkout, and the webhook mirrors Stripe's trial window.
     let billingFields: Record<string, unknown> = {};
     if (args.agencyId) {
       const def = (
@@ -346,19 +348,16 @@ export const provision = internalMutation({
           .withIndex("by_agency_active", (q) => q.eq("agencyId", args.agencyId!).eq("active", true))
           .collect()
       ).find((p) => p.isDefault);
-      if (def) {
-        const now = Date.now();
-        billingFields =
-          def.priceCents === 0 && !def.isPromo
-            ? { agencyPlanId: def._id, billingStatus: "comped" }
-            : def.trialDays > 0
-              ? {
-                  agencyPlanId: def._id,
-                  billingStatus: "trialing",
-                  trialStartedAt: now,
-                  trialEndsAt: now + def.trialDays * DAY_MS,
-                }
-              : { agencyPlanId: def._id, billingStatus: "past_due" };
+      // A legacy card-free trial default (null) is skipped: the agency
+      // assigns a plan by hand rather than the studio getting a free window.
+      const initial = def ? initialBillingFor(def, false, Date.now(), DAY_MS) : null;
+      if (def && initial) {
+        billingFields = {
+          agencyPlanId: def._id,
+          billingStatus: initial.billingStatus,
+          ...(initial.trialStartedAt !== undefined ? { trialStartedAt: initial.trialStartedAt } : {}),
+          ...(initial.trialEndsAt !== undefined ? { trialEndsAt: initial.trialEndsAt } : {}),
+        };
       }
     }
 

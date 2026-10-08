@@ -12,7 +12,7 @@ import { tierV } from "./lib/tierV";
 import { defaultAgencyPlanId } from "./lib/betaPlan";
 
 /* ============================================================
-   Converting an EXISTING studio onto the beta programme.
+   Converting an EXISTING studio onto the beta program.
 
    Distinct from betaAccess.claim, which builds a brand new workspace
    from an invite code. This one takes a studio that already exists -
@@ -191,7 +191,7 @@ export const _grant = internalMutation({
         claimedOrgId: orgId,
         claimedSlug: org.slug,
         claimedAt: now,
-        note: `Existing studio converted to the beta programme on ${new Date(now).toISOString().slice(0, 10)}`,
+        note: `Existing studio converted to the beta program on ${new Date(now).toISOString().slice(0, 10)}`,
         createdAt: now,
       });
     }

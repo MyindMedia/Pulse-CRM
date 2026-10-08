@@ -1,7 +1,10 @@
 import {
   ALL_TIER_TERMS,
   ALLOWANCES,
+  BETA_TERM_DAYS,
+  PLATFORM_TRIAL_DAYS,
   PRICING,
+  TRIAL_TERMS,
   PULSE_APP_CAPABILITIES,
   TIERS,
   TIER_ACCESS,
@@ -13,7 +16,6 @@ import {
 } from "@convex/lib/pricing";
 import {
   ANNUAL_MONTHS_FREE,
-  BETA_DEFAULT_MONTHS,
   EARLY_ADOPTER_DISCOUNT_PCT,
   EARLY_ADOPTER_MONTHS,
   annualSavingCents,
@@ -173,8 +175,12 @@ export function faqs(): Faq[] {
       a: `Max includes unlimited studios at one flat price of ${formatUsd(max.monthlyCents)} a month, or ${formatUsd(max.annualCents)} a year. There is no per-studio charge, allowances are shared across all your studios, and each studio only ever sees its own records.`,
     },
     {
+      q: "Is there a free trial?",
+      a: trialAnswer(),
+    },
+    {
       q: "What happens to my beta access?",
-      a: `Studios in the beta keep full access, with everything on Max switched on, until their beta ends (${BETA_DEFAULT_MONTHS} months unless your invite said otherwise). Then you pick the plan that fits how your studio works. Book a demo any time to talk it through.`,
+      a: `The beta is free for ${BETA_TERM_DAYS} days with no card, with everything on Max switched on. Payment is required after the term: add a card and pick the plan that fits how your studio works, and your data stays exactly where it is. Pick before the beta ends and your card is first charged on the day it ends. Book a demo any time to talk it through.`,
     },
   ];
   if (TIERS.some((t) => earlyAdopterApplies(t, "month"))) {
@@ -187,6 +193,15 @@ export function faqs(): Faq[] {
     out.push({ q: "Where are our files stored?", a: R2_LINE });
   }
   return out;
+}
+
+/** The trial answer, from the config: what the checkout actually does today. */
+export function trialAnswer(): string {
+  const rule = `${TRIAL_TERMS.cardRequired} ${TRIAL_TERMS.autoRenew} ${TRIAL_TERMS.cancel}`;
+  if (PLATFORM_TRIAL_DAYS > 0) {
+    return `Yes, ${PLATFORM_TRIAL_DAYS} days on every plan. ${rule} The beta is the only exception: free for ${BETA_TERM_DAYS} days with no card, and payment is required after.`;
+  }
+  return `Plans bill from the day you subscribe, so there is nothing to convert. Wherever a trial is offered, the same rule holds: ${rule} The beta is the only exception: free for ${BETA_TERM_DAYS} days with no card, and payment is required after.`;
 }
 
 /** "Growth includes everything in Core. Max includes everything in Growth." */

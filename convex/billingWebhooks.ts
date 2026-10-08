@@ -9,6 +9,7 @@ import { settleInvoice } from "./invoicePay";
 import { applyPackagePurchase } from "./packages";
 import { internal } from "./_generated/api";
 import { normalizeEmail } from "./lib/emailKey";
+import { applyOrgSubscription, toSubscriptionShape } from "./trialBilling";
 
 /* ============================================================
    Stripe webhook handlers. Idempotent via auditEvents-keyed
@@ -198,6 +199,23 @@ export const handle = internalMutation({
         return { ok: true };
       }
 
+      /* Card-required trial (agency plan) or beta-to-paid checkout, on the
+         platform account. The trial starts HERE and nowhere else: the sync
+         reads the subscription from Stripe and mirrors its trial window. */
+      if (
+        !event.account &&
+        (meta.kind === "subaccount_trial" || meta.kind === "beta_conversion") &&
+        meta.orgId &&
+        typeof obj.subscription === "string"
+      ) {
+        await ctx.scheduler.runAfter(0, internal.trialBilling.syncOrgSubscription, {
+          orgId: meta.orgId,
+          subscriptionId: obj.subscription,
+        });
+        await markProcessed(ctx, event.id, e.type);
+        return { ok: true };
+      }
+
       // Everything below provisions a PLATFORM agency. A connected (studio)
       // account's checkout can carry any metadata its creator chose, so it must
       // never reach this branch.
@@ -329,6 +347,36 @@ export const handle = internalMutation({
           });
         }
       }
+    }
+
+    /* A studio's own Pulse subscription (agency-plan trial or beta-to-paid),
+       tagged with its orgId at checkout. Mirrored straight from the event:
+       status, trial window (Stripe is the source of truth) and card. */
+    const subMeta = (obj.metadata as Record<string, string> | undefined) ?? {};
+    if (
+      !event.account &&
+      subMeta.orgId &&
+      (e.type === "customer.subscription.created" ||
+        e.type === "customer.subscription.updated" ||
+        e.type === "customer.subscription.deleted")
+    ) {
+      await applyOrgSubscription(ctx, subMeta.orgId, toSubscriptionShape(obj));
+      await markProcessed(ctx, event.id, e.type);
+      return { ok: true };
+    }
+
+    /* Three days before a trial converts. Email the owner that the saved card
+       will be charged, and record it. Studio subscriptions carry an orgId;
+       a platform (agency) subscription is found by its customer. */
+    if (!event.account && e.type === "customer.subscription.trial_will_end") {
+      const trialEnd = typeof obj.trial_end === "number" ? obj.trial_end * 1000 : Date.now() + 3 * 86_400_000;
+      await ctx.scheduler.runAfter(0, internal.trialBilling.notifyTrialWillEnd, {
+        orgId: subMeta.orgId || undefined,
+        customerId: subMeta.orgId ? undefined : (typeof obj.customer === "string" ? obj.customer : undefined),
+        trialEndMs: trialEnd,
+      });
+      await markProcessed(ctx, event.id, e.type);
+      return { ok: true };
     }
 
     if (e.type === "customer.subscription.updated") {

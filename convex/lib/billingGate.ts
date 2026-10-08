@@ -5,13 +5,17 @@
    orgs.current, and the studio shell gate.
    ============================================================ */
 
+import { BETA_PLAN_NAME } from "./plans";
+
 export const DAY_MS = 24 * 60 * 60 * 1000;
 
-export type BillingStatus = "trialing" | "active" | "past_due" | "comped" | "canceled";
+/** pending_card: a paid trial plan is assigned but the trial has not begun,
+ *  because a trial only starts once Stripe Checkout has saved a card. */
+export type BillingStatus = "trialing" | "pending_card" | "active" | "past_due" | "comped" | "canceled";
 
 /** The minimal billing shape the gate needs (subset of an org row). */
 export type BillingOrg = {
-  /** Beta programme fields. A beta licence hard-stops on its own date. */
+  /** Beta program fields. A beta license hard-stops on its own date. */
   betaCohort?: boolean;
   betaLicenseUntil?: number;
   /** Set on their first sign-in after signing. Absent = granted, not started. */
@@ -23,11 +27,18 @@ export type BillingOrg = {
   trialEndsAt?: number;
   paymentMethodOnFile?: boolean;
   agencyPlanId?: unknown;
+  /** Stripe subscription behind this studio's billing, when there is one. */
+  billingSubscriptionId?: string;
+  /** Set on a grandfathered card-free trial: a card is due by this date. */
+  trialCardRequiredBy?: number;
 };
 
 export type GatePlan = {
   requireCardAfterTrial: boolean;
   priceCents: number;
+  /** The beta plan, the one card-free term. Ends in the beta paywall. */
+  isBeta?: boolean;
+  name?: string;
   /** Early-adopter intro: introPriceCents for the first introMonths. */
   introPriceCents?: number;
   introMonths?: number;
@@ -47,6 +58,7 @@ export type BillingGate = {
     | "comped"
     | "beta_pending"
     | "beta_expired"
+    | "trial_needs_card"
     | "trialing"
     | "trial_ending"
     | "trial_expired_needs_card"
@@ -90,6 +102,14 @@ export function evaluateBillingGate(
    * paid tier by hand would still be locked out the morning its old beta date
    * passed - punished for the upgrade.
    */
+  /* Subscribed in Stripe: a live subscription (trialing toward its first
+     charge, or active) clears the beta stop. A beta studio that picks a plan
+     before its year ends is billed from the end of the year, so it sits in
+     Stripe's trialing state until then and must not be locked meanwhile. */
+  const subscribed =
+    Boolean(org?.billingSubscriptionId) &&
+    (org?.billingStatus === "active" || org?.billingStatus === "trialing");
+
   if (org?.betaCohort && !org.graduatedAt) {
     /* Granted but not started. The clock begins on their first sign-in after
        signing the agreement, so between the grant and that moment there is
@@ -99,7 +119,7 @@ export function evaluateBillingGate(
     if (!org.betaLicenseUntil) {
       return { locked: false, trialDaysLeft: null, inTrial: false, reason: "beta_pending" };
     }
-    if (now >= org.betaLicenseUntil && org.billingStatus !== "active") {
+    if (now >= org.betaLicenseUntil && org.billingStatus !== "active" && !subscribed) {
       return { locked: true, trialDaysLeft: 0, inTrial: false, reason: "beta_expired" };
     }
   }
@@ -112,13 +132,36 @@ export function evaluateBillingGate(
   const card = Boolean(org.paymentMethodOnFile);
 
   if (status === "comped") return { ...base, reason: "comped" };
-  if (status === "canceled") return { ...base, reason: "canceled" };
   if (status === "active") return { ...base, reason: "active" };
+  if (status === "canceled") {
+    /* A Stripe-backed paid plan that was canceled (including a trial Stripe
+       canceled for having no card at the end) is a paywall, not free access.
+       Data stays; the studio subscribes again to get back in. */
+    const paywalled = Boolean(org.billingSubscriptionId) && plan.priceCents > 0;
+    return { ...base, locked: paywalled, reason: "canceled" };
+  }
+
+  /* A paid trial plan is assigned, but the trial has not started: it only
+     starts once the owner saves a card in Stripe Checkout. Until then the
+     studio sees the "start your trial" screen. */
+  if (status === "pending_card") {
+    return { locked: true, trialDaysLeft: null, inTrial: false, reason: "trial_needs_card" };
+  }
 
   if (status === "trialing") {
     const left = trialDaysLeft(org.trialEndsAt, now);
     const expired = org.trialEndsAt !== undefined && now >= org.trialEndsAt;
-    if (expired && plan.requireCardAfterTrial && !card) {
+    /* Studios on the Beta plan without the cohort flag (auto-enrolled by the
+       agency) get the same end of term: payment is required after it.
+       Cohort studios are handled by the license check above, and a graduated
+       studio is on whatever terms the agency moved it to. */
+    const betaPlan = plan.isBeta === true || plan.name === BETA_PLAN_NAME;
+    if (expired && betaPlan && !subscribed && !org.betaCohort && !org.graduatedAt) {
+      return { locked: true, trialDaysLeft: 0, inTrial: false, reason: "beta_expired" };
+    }
+    // Grandfathered card-free trials owe a card at the end whatever the plan says.
+    const cardDue = plan.requireCardAfterTrial || org.trialCardRequiredBy !== undefined;
+    if (expired && cardDue && !card) {
       return { locked: true, trialDaysLeft: 0, inTrial: false, reason: "trial_expired_needs_card" };
     }
     // Within 3 days → "ending soon" so the banner nudges harder.

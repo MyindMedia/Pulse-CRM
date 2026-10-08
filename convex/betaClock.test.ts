@@ -60,9 +60,9 @@ describe("the beta clock starts at first sign-in after signing", () => {
     expect(r.started).toBe(true);
     const org = await orgRow(t);
     expect(org?.betaStartedAt).toBeDefined();
-    // ~12 months out, not "today".
+    // The promised 365 days out (12 x 30 = 360 shortchanged them), not "today".
     const days = Math.round(((org!.betaLicenseUntil! - org!.betaStartedAt!) / DAY));
-    expect(days).toBe(360);
+    expect(days).toBe(365);
   });
 
   it("is written exactly once, however many page loads happen", async () => {

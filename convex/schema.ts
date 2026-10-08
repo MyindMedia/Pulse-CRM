@@ -477,7 +477,8 @@ export default defineSchema({
     // The agency assigns one of its agencyPlans; this is the per-account state.
     agencyPlanId: v.optional(v.id("agencyPlans")),
     billingStatus: v.optional(v.union(
-      v.literal("trialing"),   // in a free/promo window, countdown running
+      v.literal("trialing"),   // in a trial (Stripe-backed, card saved) or the beta window
+      v.literal("pending_card"), // paid trial plan assigned; trial starts when Checkout saves a card
       v.literal("active"),     // paying (card on file) or fully comped-then-converted
       v.literal("past_due"),   // trial lapsed without a card → app locks if plan requires one
       v.literal("comped"),     // free forever, agency-granted
@@ -490,6 +491,13 @@ export default defineSchema({
     billingCustomerId: v.optional(v.string()),      // sub-account's Stripe customer (platform account)
     billingSubscriptionId: v.optional(v.string()),
     billingNote: v.optional(v.string()),            // comp reason / billing memo
+    // ── Card-required trials (owner rule 2026-10-07) ──
+    // Grandfathered card-free trial: a card is due by this date (the trial end),
+    // stamped when the "add a card before your trial ends" reminder goes out.
+    trialCardRequiredBy: v.optional(v.number()),
+    trialCardReminderSentAt: v.optional(v.number()),
+    // Stripe's customer.subscription.trial_will_end (3 days out) was emailed.
+    trialWillEndNotifiedAt: v.optional(v.number()),
   })
     .index("by_org", ["orgId"])
     .index("by_slug", ["slug"])
@@ -508,6 +516,9 @@ export default defineSchema({
     trialDays: v.number(),                           // 0 = no trial
     requireCardAfterTrial: v.boolean(),              // trial lapses → must add card or lock
     isPromo: v.boolean(),                            // "first adopter" plan
+    // The beta plan: the only card-free term (365 days, payment required after).
+    // Older rows predate this flag and are recognized by BETA_PLAN_NAME.
+    isBeta: v.optional(v.boolean()),
     promoEndsAt: v.optional(v.number()),             // offer closes to NEW assignments after this
     // Early-adopter intro pricing: introPriceCents for the first introMonths
     // billing periods, then priceCents. Both set or neither.
@@ -548,6 +559,8 @@ export default defineSchema({
     // Stripe
     stripeCustomerId: v.optional(v.string()),
     stripeSubscriptionId: v.optional(v.string()),
+    // Stripe's customer.subscription.trial_will_end was emailed to the owner.
+    trialWillEndNotifiedAt: v.optional(v.number()),
     // Resell hook (Agency Plus / SaaS Mode)
     resellEnabled: v.optional(v.boolean()),
     markupCents: v.optional(v.number()),

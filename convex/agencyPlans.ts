@@ -9,6 +9,8 @@ import {
   PLAN_LIMITS, SELLABLE_TIERS, EARLY_ADOPTER_MONTHS, BETA_PLAN_NAME,
   earlyAdopterApplies, earlyAdopterPriceCents, type TierKey,
 } from "./lib/plans";
+import { BETA_TERM_DAYS } from "./lib/pricing";
+import { assertNoCardFreeTrial, isBetaPlan } from "./lib/trialCheckout";
 
 /* ============================================================
    Agency price book - the plans an agency sells to its sub-account
@@ -74,16 +76,23 @@ export const create = mutation({
     if (args.priceCents < 0) throw new Error("Price cannot be negative.");
     if (args.trialDays < 0 || args.trialDays > 365) throw new Error("Trial must be 0-365 days.");
     assertIntro(args.introPriceCents, args.introMonths, args.priceCents);
+    const priceCents = Math.round(args.priceCents);
+    const trialDays = Math.round(args.trialDays);
+    // Every trial needs a card (owner rule 2026-10-07). The beta is seeded,
+    // never created here, so a free plan with a trial is refused outright.
+    assertNoCardFreeTrial({ name: args.name.trim(), priceCents, trialDays });
 
     if (args.isDefault) await clearDefaults(ctx, agencyId);
     return await ctx.db.insert("agencyPlans", {
       agencyId,
       name: args.name.trim(),
       description: args.description?.trim() || undefined,
-      priceCents: Math.round(args.priceCents),
+      priceCents,
       billingInterval: args.billingInterval,
-      trialDays: Math.round(args.trialDays),
-      requireCardAfterTrial: args.requireCardAfterTrial,
+      trialDays,
+      // A paid trial collects the card at the start, so the card is always
+      // required when it ends. The switch only matters for no-trial plans.
+      requireCardAfterTrial: trialDays > 0 && priceCents > 0 ? true : args.requireCardAfterTrial,
       isPromo: args.isPromo,
       promoEndsAt: args.promoEndsAt,
       featureCaps: args.featureCaps,
@@ -135,6 +144,19 @@ export const update = mutation({
     if (patch.isPromo !== undefined) next.isPromo = patch.isPromo;
     if (patch.promoEndsAt !== undefined) next.promoEndsAt = patch.promoEndsAt ?? undefined;
     if (patch.featureCaps !== undefined) next.featureCaps = patch.featureCaps;
+    const after = {
+      name: (next.name ?? plan.name) as string,
+      isBeta: plan.isBeta,
+      priceCents: (next.priceCents ?? plan.priceCents) as number,
+      trialDays: (next.trialDays ?? plan.trialDays) as number,
+    };
+    if (isBetaPlan(plan)) {
+      // Pin the flag so a rename cannot turn the beta into a card-free trial.
+      if (!plan.isBeta) next.isBeta = true;
+    } else {
+      assertNoCardFreeTrial(after);
+      if (after.trialDays > 0 && after.priceCents > 0) next.requireCardAfterTrial = true;
+    }
     await ctx.db.patch(plan._id, next);
   },
 });
@@ -153,6 +175,8 @@ export const setDefault = mutation({
   handler: async (ctx, { planId }) => {
     await requireCapability(ctx, "billing.edit");
     const plan = await mineOrThrow(ctx, planId);
+    // New studios land on the default, so it must not be a card-free trial.
+    assertNoCardFreeTrial(plan);
     await clearDefaults(ctx, plan.agencyId);
     await ctx.db.patch(plan._id, { isDefault: true, active: true });
   },
@@ -186,7 +210,8 @@ export const remove = mutation({
 
    Three kinds of plan, and no generic free trial among them:
 
-     Beta          the trial. One plan, 365 days, no card. Which tier a
+     Beta          the one card-free term. One plan, 365 days, no card,
+                   payment required after the term. Which tier a
                    beta studio actually gets is set on the org, not here,
                    so one plan serves the whole cohort.
      Early adopter half price for the first 3 months, then the real price.
@@ -197,7 +222,7 @@ function money(cents: number): string {
   return formatUsd(cents);
 }
 
-const BETA_DAYS = 365;
+const BETA_DAYS = BETA_TERM_DAYS;
 
 /** Lays down the price book for an agency and returns the id of the default
     plan (Beta - every new sub-account starts there). */
@@ -208,21 +233,23 @@ async function insertStarterPlans(
   const now = Date.now();
   let order = 0;
 
-  /* The beta IS the trial, so it is the default and the only plan with a
-     trial window. requireCardAfterTrial is false on purpose: the end of a
-     beta year is handled by the beta hard stop, which asks them to pick a
-     plan, not by a card prompt against a plan that costs nothing. */
+  /* The beta is the only card-free term, so it is the default and the only
+     plan with a window that needs no card. requireCardAfterTrial is false on
+     purpose: the end of a beta year is handled by the beta paywall, which
+     asks them to add a card and pick a plan, not by a card prompt against a
+     plan that costs nothing. Every other trial starts in Stripe Checkout. */
   const betaId = await ctx.db.insert("agencyPlans", {
     agencyId,
     name: BETA_PLAN_NAME,
     description:
-      "The beta programme. Everything unlocked, free for 365 days. The year " +
-      "starts on their first sign-in after signing the agreement, and ends " +
-      "with a prompt to pick a plan.",
+      `The beta program. Everything unlocked, free for ${BETA_DAYS} days with no card. ` +
+      "The year starts on their first sign-in after signing the agreement. " +
+      "Payment is required after the term: they add a card and pick a plan.",
     priceCents: 0,
     billingInterval: "month",
     trialDays: BETA_DAYS,
     requireCardAfterTrial: false,
+    isBeta: true,
     isPromo: true,
     isDefault: true,
     active: true,

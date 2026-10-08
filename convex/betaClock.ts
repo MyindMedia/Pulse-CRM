@@ -5,7 +5,8 @@ import { v } from "convex/values";
 import { resolveViewer } from "./lib/access";
 import { sendEmail } from "./lib/email";
 import { betaEndingHtml, betaEndingSubject } from "./lib/emailTemplates/betaEnding";
-import { BETA_DEFAULT_MONTHS } from "./lib/plans";
+import { BETA_DEFAULT_MONTHS, betaTermMs } from "./lib/plans";
+import { isBetaPlan } from "./lib/trialCheckout";
 
 /* ============================================================
    When the beta year actually runs.
@@ -27,7 +28,6 @@ import { BETA_DEFAULT_MONTHS } from "./lib/plans";
    ============================================================ */
 
 const DAY_MS = 24 * 60 * 60 * 1000;
-const MONTH_MS = 30 * DAY_MS;
 const DEFAULT_MONTHS = BETA_DEFAULT_MONTHS;
 
 /** Days before the end at which a warning email goes out. */
@@ -69,7 +69,8 @@ export const startIfNeeded = mutation({
 
     const now = Date.now();
     const months = org.betaMonths ?? DEFAULT_MONTHS;
-    const until = now + months * MONTH_MS;
+    // 12 months is the promised 365 days, not 12 x 30 = 360.
+    const until = now + betaTermMs(months);
     await ctx.db.patch(org._id, {
       betaStartedAt: now,
       betaLicenseUntil: until,
@@ -88,8 +89,24 @@ export const startIfNeeded = mutation({
 });
 
 /* ── End-of-beta warnings ─────────────────────────────────────
-   The lock at the end is not a surprise anyone should meet cold. A daily
-   sweep mails at 30, 7 and 1 days out, each exactly once. */
+   The beta is free for 365 days with no card, and payment is required
+   after the term. The paywall at the end is not a surprise anyone should
+   meet cold, so a daily sweep mails at 30, 7 and 1 days out, each exactly
+   once, with a link to add a card and pick a plan.
+
+   Two kinds of beta studio get them: the signed cohort (the license date)
+   and studios auto-enrolled on the Beta plan by an agency (the plan's
+   window). A studio that has already subscribed in Stripe gets none. */
+
+/** The warning due for a studio `daysLeft` from the end, given those already
+ *  sent: the closest threshold reached. A studio first seen at 6 days out
+ *  gets the 7-day mail, not a stale 30-day one followed by another. */
+export function warningMarkFor(daysLeft: number, sent: number[]): number | undefined {
+  const reached = WARNING_DAYS.filter((d) => daysLeft <= d);
+  if (!reached.length) return undefined;
+  const mark = Math.min(...reached);
+  return sent.includes(mark) ? undefined : mark;
+}
 
 export const _dueForWarning = internalQuery({
   args: {},
@@ -98,14 +115,20 @@ export const _dueForWarning = internalQuery({
     const orgs = await ctx.db.query("orgs").collect();
     const due: { orgId: string; name: string; email: string; ownerName: string | null; daysLeft: number; mark: number; until: number }[] = [];
     for (const org of orgs) {
-      if (!org.betaCohort || org.graduatedAt || !org.betaLicenseUntil) continue;
-      if (org.billingStatus === "active") continue; // already subscribed
+      if (org.graduatedAt) continue;
+      if (org.billingStatus === "active" || org.billingSubscriptionId) continue; // already subscribed
       if (!org.ownerEmail) continue;
-      const daysLeft = Math.ceil((org.betaLicenseUntil - now) / DAY_MS);
+      let until: number | undefined;
+      if (org.betaCohort) {
+        until = org.betaLicenseUntil;
+      } else if (org.billingStatus === "trialing" && org.trialEndsAt && org.agencyPlanId) {
+        const plan = await ctx.db.get(org.agencyPlanId);
+        if (isBetaPlan(plan)) until = org.trialEndsAt;
+      }
+      if (!until) continue;
+      const daysLeft = Math.ceil((until - now) / DAY_MS);
       if (daysLeft < 0) continue;
-      const sent = org.betaWarningsSent ?? [];
-      // The largest threshold we have reached and not yet sent.
-      const mark = WARNING_DAYS.find((d) => daysLeft <= d && !sent.includes(d));
+      const mark = warningMarkFor(daysLeft, org.betaWarningsSent ?? []);
       if (mark === undefined) continue;
       due.push({
         orgId: org.orgId,
@@ -114,7 +137,7 @@ export const _dueForWarning = internalQuery({
         ownerName: org.ownerName ?? null,
         daysLeft: Math.max(0, daysLeft),
         mark,
-        until: org.betaLicenseUntil,
+        until,
       });
     }
     return due;
@@ -131,7 +154,9 @@ export const _markWarned = internalMutation({
     if (!org) return;
     const sent = org.betaWarningsSent ?? [];
     if (sent.includes(mark)) return;
-    await ctx.db.patch(org._id, { betaWarningsSent: [...sent, mark] });
+    // Sending a closer warning retires the further ones it supersedes.
+    const retired = WARNING_DAYS.filter((d) => d >= mark && !sent.includes(d));
+    await ctx.db.patch(org._id, { betaWarningsSent: [...sent, ...retired] });
   },
 });
 
@@ -152,7 +177,9 @@ export const sweepWarnings = internalAction({
           endsOnLabel: new Date(d.until).toLocaleDateString("en-US", {
             year: "numeric", month: "long", day: "numeric",
           }),
-          chooseUrl: `${base}/settings?tab=billing`,
+          // The billing page opens the plan picker and Stripe Checkout. A
+          // Checkout link itself expires in 24 hours, too soon for a mail.
+          chooseUrl: `${base}/billing`,
         }),
       });
       // Mark regardless of send status: a bounced address must not turn the
@@ -180,7 +207,6 @@ export const sweepWarnings = internalAction({
 export const _backfillStartDates = internalMutation({
   args: { apply: v.optional(v.boolean()) },
   handler: async (ctx, { apply }) => {
-    const MONTH = 30 * DAY_MS;
     const orgs = await ctx.db.query("orgs").collect();
     const changes: { org: string; action: string; until: number | null }[] = [];
     for (const org of orgs) {
@@ -196,7 +222,7 @@ export const _backfillStartDates = internalMutation({
       const months = org.betaMonths ?? DEFAULT_MONTHS;
 
       if (invite?.signedAt) {
-        const until = invite.signedAt + months * MONTH;
+        const until = invite.signedAt + betaTermMs(months);
         changes.push({ org: org.name, action: "re-dated from signature", until });
         if (apply) {
           await ctx.db.patch(org._id, {

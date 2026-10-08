@@ -232,7 +232,7 @@ export default function AgencyPlansPage() {
       <PageHeader
         overline="Billing"
         title="Plans"
-        description="The price book you sell to your studios. Seed first-adopter packages (free forever, 30 days, or one year free), set paid tiers, trial lengths, and which plan new studios start on."
+        description="The price book you sell to your studios. Set paid tiers, trial lengths (a card is required to start any trial, and it renews automatically after), and which plan new studios start on. The Beta plan is free for 365 days with no card, with payment required after."
         actions={
           <div className="flex flex-wrap gap-2">
             {plans && plans.length > 0 && (
@@ -253,7 +253,7 @@ export default function AgencyPlansPage() {
         <EmptyState
           icon={Tag}
           title="No plans yet"
-          description="Create your price book. Seed first-adopter packages for every tier (free forever, 30 days, and one year free), then assign studios to them."
+          description="Create your price book. Seed the Beta plan (365 days, no card) plus early-adopter and standard plans for every tier, then assign studios to them."
           action={
             <div className="flex gap-2">
               <Button
@@ -310,8 +310,8 @@ export default function AgencyPlansPage() {
                         <dd className="text-bone">{p.trialDays > 0 ? `${p.trialDays} days` : "None"}</dd>
                       </div>
                       <div className="flex justify-between">
-                        <dt>Card after trial</dt>
-                        <dd className="text-bone">{p.requireCardAfterTrial ? "Required" : "Optional"}</dd>
+                        <dt>Card</dt>
+                        <dd className="text-bone">{p.trialDays > 0 && p.priceCents > 0 ? "At trial start" : p.requireCardAfterTrial ? "Required" : "Optional"}</dd>
                       </div>
                       <div className="flex justify-between">
                         <dt>Studios on plan</dt>
@@ -333,7 +333,7 @@ export default function AgencyPlansPage() {
                   <TH>Plan</TH>
                   <TH className="text-right">Price</TH>
                   <TH>Trial</TH>
-                  <TH>Card after trial</TH>
+                  <TH>Card</TH>
                   <TH className="text-right">Studios</TH>
                   <TH className="text-right">Actions</TH>
                 </TR>
@@ -371,7 +371,7 @@ export default function AgencyPlansPage() {
                     <TD className="whitespace-nowrap text-steel">
                       {p.trialDays > 0 ? `${p.trialDays} days` : "None"}
                     </TD>
-                    <TD className="text-steel">{p.requireCardAfterTrial ? "Required" : "Optional"}</TD>
+                    <TD className="text-steel">{p.trialDays > 0 && p.priceCents > 0 ? "At trial start" : p.requireCardAfterTrial ? "Required" : "Optional"}</TD>
                     <TD className="text-right">{p.assignedCount}</TD>
                     <TD>
                       <div className="flex flex-wrap justify-end gap-1">{renderActions(p)}</div>
@@ -431,7 +431,11 @@ export default function AgencyPlansPage() {
                 </Select>
               </Field>
             </div>
-            <Field label="Free trial / promo days" htmlFor="plan-trial" hint="How long studios use it before a card is needed.">
+            <Field
+              label="Free trial days"
+              htmlFor="plan-trial"
+              hint="A card is required to start the trial. Stripe charges it automatically when the trial ends, and the studio can cancel any time before then. Free plans cannot carry a trial."
+            >
               <Input
                 id="plan-trial"
                 value={draft.trialDays}
@@ -442,8 +446,8 @@ export default function AgencyPlansPage() {
             </Field>
             <label className="flex items-center justify-between gap-3 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5">
               <span className="text-sm text-bone">
-                Require a card when the trial ends
-                <span className="block text-xs text-steel">Locks the studio until they add payment.</span>
+                Require a card on plans without a trial
+                <span className="block text-xs text-steel">Locks the studio until they add payment. Trials always take the card at the start.</span>
               </span>
               <Switch
                 checked={draft.requireCardAfterTrial}

@@ -43,7 +43,7 @@ export function betaWelcomeHtml(args: {
 
       <tr><td style="padding:26px 28px 0 28px;">
         <p style="margin:0;font-family:'Courier New',monospace;font-size:11px;letter-spacing:3px;text-transform:uppercase;color:${GOLD};">Pulse</p>
-        <p style="margin:4px 0 0 0;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:${FAINT};">Beta programme</p>
+        <p style="margin:4px 0 0 0;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:11px;letter-spacing:1px;text-transform:uppercase;color:${FAINT};">Beta program</p>
       </td></tr>
 
       <tr><td style="padding:20px 28px 0 28px;">
@@ -57,12 +57,12 @@ export function betaWelcomeHtml(args: {
         <p style="margin:0 0 14px 0;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.65;color:${FAINT};">
           ${
             args.untilLabel
-              ? `Your account is now a beta account. Everything is unlocked and there is nothing to pay until ${escapeEmailHtml(args.untilLabel)}.`
+              ? `Your account is now a beta account. Everything is unlocked, no card is needed, and there is nothing to pay until ${escapeEmailHtml(args.untilLabel)}. Payment is required after that, and we will remind you well ahead.`
               : `Your account is now a beta account. Everything is unlocked and there is nothing to pay for ${
                   args.monthsLabel && args.monthsLabel !== 12
                     ? `${args.monthsLabel} months`
                     : "a full year"
-                }. The clock does not start today, it starts the first time you sign in after signing, so take as long as you need to get to it.`
+                }, and no card is needed. Payment is required after the term, and we will remind you well ahead. The clock does not start today, it starts the first time you sign in after signing, so take as long as you need to get to it.`
           }
         </p>
         <p style="margin:0 0 14px 0;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:14px;line-height:1.65;color:${FAINT};">
