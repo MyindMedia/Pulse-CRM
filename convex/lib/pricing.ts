@@ -1213,7 +1213,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "Reminders before the session": [
     "Reminders sent to clients ahead of a session.",
-    "Pulse reminds the client before the session starts, with the last one two hours out, so they remember to come.",
+    "Pulse reminds the client about a day before the session and again about two hours before it starts, so they remember to come.",
   ],
   "The conversation stays with the client": [
     "Messages saved under the client's name.",
