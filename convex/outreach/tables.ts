@@ -1,5 +1,6 @@
 import { defineTable } from "convex/server";
 import { v } from "convex/values";
+import { callTables } from "./callTables";
 
 /* Outreach tab tables. Every row is owned by an agency (agencyId = the Clerk
    org id carried by the agency viewer). The client never supplies agencyId:
@@ -40,6 +41,7 @@ export const prospectContactsV = v.object({
 });
 
 export const outreachTables = {
+  ...callTables,
   /* One row per agency. Provider mapping (GHL location/calendar, senders,
      booking URL) is written only by operator-run internal mutations, never by
      the browser, so an agency cannot claim another tenant's provider account. */
@@ -238,7 +240,7 @@ export const outreachTables = {
     .index("by_agency", ["agencyId", "createdAt"])
     .index("by_prospect", ["prospectId"]),
   /* A demo booked on the Zuops calendar, mirrored read-only. Pulse keeps the name,
-     email and the three consent answers, never a phone number. */
+     email, the three consent answers and, for the confirmation call only, the phone. */
   outreachBookings: defineTable({
     agencyId: v.string(),
     zuopsBookingId: v.string(),
@@ -254,6 +256,11 @@ export const outreachTables = {
     contactEmail: v.optional(v.string()),
     consent: v.optional(v.object({ sms: v.optional(v.boolean()), call: v.optional(v.boolean()), email: v.optional(v.boolean()) })),
     emailOptOut: v.optional(v.boolean()),
+    /* The lead's phone (E.164 when it parses). Kept only so the confirmation call can
+       dial it: never logged, never returned to the browser unmasked. */
+    phone: v.optional(v.string()),
+    /* True once the Zuops lead has been read for this row (so phone and consent are current). */
+    phoneSynced: v.optional(v.boolean()),
     prospectId: v.optional(v.id("outreachProspects")),
     syncedAt: v.number(),
   })

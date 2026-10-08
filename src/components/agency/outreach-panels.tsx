@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingPanel } from "@/components/ui/feedback";
 import type { Id } from "@convex/_generated/dataModel";
 import { ZuopsBookings, ZuopsCalendar } from "./outreach-zuops";
+import { CallControls, CallsList } from "./outreach-calls";
 
 /* Outreach - the agency console's outbound communications tab.
    Test-only: this screen reads state and offers one write, the overall pause.
@@ -262,16 +263,17 @@ export function Meetings() {
       </CardContent>
     </Card>
   );
-  if (!data.mapped && upcoming) return <div className="space-y-4"><ZuopsBookings />{upcoming}</div>;
-  if (!data.mapped) return <ZuopsBookings />;
+  if (!data.mapped && upcoming) return <div className="space-y-4"><ZuopsBookings /><CallsList />{upcoming}</div>;
+  if (!data.mapped) return <div className="space-y-4"><ZuopsBookings /><CallsList /></div>;
   if (data.rows.length === 0) {
     return upcoming
-      ? <div className="space-y-4"><ZuopsBookings />{upcoming}</div>
-      : <EmptyState icon={CalendarClock} title="No older appointments" description="Nothing is booked on the old GoHighLevel calendar. New bookings are taken on the Zuops calendar at studiopulse.tech/demo." />;
+      ? <div className="space-y-4"><ZuopsBookings /><CallsList />{upcoming}</div>
+      : <div className="space-y-4"><CallsList /><EmptyState icon={CalendarClock} title="No older appointments" description="Nothing is booked on the old GoHighLevel calendar. New bookings are taken on the Zuops calendar at studiopulse.tech/demo." /></div>;
   }
   return (
     <div className="space-y-3">
       <ZuopsBookings />
+      <CallsList />
       {upcoming}
       {data.rows.map((m) => (
         <Card key={m.id}>
@@ -534,6 +536,7 @@ export function Settings() {
           {!data.isOwner && <p className="text-xs text-steel">Only the agency owner can change this.</p>}
         </CardContent>
       </Card>
+      <CallControls />
       <Card>
         <CardHeader>
           <CardTitle>Integration status</CardTitle>

@@ -42,7 +42,7 @@ describe("zuops calendar sync", () => {
   }));
   const booking = (id: string, leadId: string, startsInDays: number, status = "confirmed") => ({ id, lead_id: leadId, calendar_id: CAL, title: "Pulse demo", starts_at: iso(Date.now() + startsInDays * day), ends_at: iso(Date.now() + startsInDays * day + 1_800_000), timezone: "America/Los_Angeles", status, location: "Zoom" });
 
-  it("mirrors bookings with name, email and consent but no phone, and matches a prospect by its published email", async () => {
+  it("mirrors bookings with name, email and consent, keeps the phone server side only, and matches a prospect by its published email", async () => {
     await seed("org_a", "ua");
     await map("org_a");
     const prospectId = await t.run(async (ctx) => await ctx.db.insert("outreachProspects", {
@@ -58,7 +58,8 @@ describe("zuops calendar sync", () => {
     expect(view.past[0].status).toBe("cancelled");
     expect(JSON.stringify(view)).not.toContain("5550123");
     const stored = await t.run(async (ctx) => JSON.stringify(await ctx.db.query("outreachBookings").collect()));
-    expect(stored).not.toContain("5550123");
+    // The phone is kept on the row for the confirmation call, and never leaves the server in a query.
+    expect(stored).toContain("+14085550123");
     expect((await t.run(async (ctx) => await ctx.db.get(prospectId)))!.bookedAt).toBeGreaterThan(Date.now());
     const snap = (await as("ua", "org_a").query(api.outreachZuops.snapshot, {}))!;
     expect(snap).toMatchObject({ ok: true, keyConfigured: true, calendar: { name: "Pulse | 30-minute demo", durationMin: 30, bufferMin: 15 } });

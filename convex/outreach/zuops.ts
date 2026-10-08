@@ -5,6 +5,8 @@
    that owns more than one workspace, so every call is pinned to the workspace id
    an operator mapped to the agency, never one taken from the response or a webhook. */
 
+import { normalizePhone } from "../lib/phone";
+
 const ZUOPS_BASE = "https://api.zuops.com/functions/v1/api-gateway";
 
 export type ZuopsResult = { ok: true; json: unknown } | { ok: false; reason: string };
@@ -127,9 +129,19 @@ export type ZuopsLead = {
   email?: string;
   consent: { sms?: boolean; call?: boolean; email?: boolean };
   emailOptOut: boolean;
+  /** Kept only so the confirmation call can dial it. E.164 when it parses. */
+  phone?: string;
 };
 
-/** The few fields Pulse keeps from a Zuops lead. No phone number, address or raw
+function leadPhone(l: Rec, cf: Rec): string | undefined {
+  const raw = str(l.phone) ?? str(l.phone_number) ?? str(l.mobile) ?? str(cf.phone) ?? str(cf.phone_number);
+  if (!raw) return undefined;
+  const n = normalizePhone(raw);
+  return n ?? undefined;
+}
+
+/** The few fields Pulse keeps from a Zuops lead. The phone is kept only for the
+ *  confirmation call (on outreachBookings, never logged); no address or raw
  *  payload is stored. The three consent answers come from the intake form. */
 export function parseLead(json: unknown): ZuopsLead | null {
   const data = rec(rec(json).data);
@@ -142,6 +154,7 @@ export function parseLead(json: unknown): ZuopsLead | null {
     email: str(l.email)?.toLowerCase().slice(0, 200),
     consent: { sms: bool("pulse_sms_marketing_consent"), call: bool("pulse_automated_call_consent"), email: bool("pulse_email_marketing_consent") },
     emailOptOut: l.email_opt_out === true,
+    phone: leadPhone(l, cf),
   };
 }
 
