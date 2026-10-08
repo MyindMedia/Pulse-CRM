@@ -133,7 +133,21 @@ export function evaluateBillingGate(
 
   if (status === "comped") return { ...base, reason: "comped" };
   if (status === "active") return { ...base, reason: "active" };
+  /* Studios on the Beta plan without the cohort flag (auto-enrolled by the
+     agency) get the same end of term: payment is required after it.
+     Cohort studios are handled by the license check above, and a graduated
+     studio is on whatever terms the agency moved it to. */
+  const betaPlanTerm =
+    (plan.isBeta === true || plan.name === BETA_PLAN_NAME) && !org.betaCohort && !org.graduatedAt;
+  const betaWindowOver = org.trialEndsAt !== undefined && now >= org.trialEndsAt;
+
   if (status === "canceled") {
+    /* A Beta-plan studio that subscribed through the beta checkout and then
+       canceled. The Beta plan costs nothing, so the paywall below would never
+       fire; once the beta window has passed, payment is required. */
+    if (betaPlanTerm && betaWindowOver) {
+      return { locked: true, trialDaysLeft: 0, inTrial: false, reason: "beta_expired" };
+    }
     /* A Stripe-backed paid plan that was canceled (including a trial Stripe
        canceled for having no card at the end) is a paywall, not free access.
        Data stays; the studio subscribes again to get back in. */
@@ -150,13 +164,8 @@ export function evaluateBillingGate(
 
   if (status === "trialing") {
     const left = trialDaysLeft(org.trialEndsAt, now);
-    const expired = org.trialEndsAt !== undefined && now >= org.trialEndsAt;
-    /* Studios on the Beta plan without the cohort flag (auto-enrolled by the
-       agency) get the same end of term: payment is required after it.
-       Cohort studios are handled by the license check above, and a graduated
-       studio is on whatever terms the agency moved it to. */
-    const betaPlan = plan.isBeta === true || plan.name === BETA_PLAN_NAME;
-    if (expired && betaPlan && !subscribed && !org.betaCohort && !org.graduatedAt) {
+    const expired = betaWindowOver;
+    if (expired && betaPlanTerm && !subscribed) {
       return { locked: true, trialDaysLeft: 0, inTrial: false, reason: "beta_expired" };
     }
     // Grandfathered card-free trials owe a card at the end whatever the plan says.
