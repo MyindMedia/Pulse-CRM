@@ -120,6 +120,35 @@ export function isPaidTrialPlan(plan: PlanShape | null | undefined): boolean {
   return Boolean(plan && !isBetaPlan(plan) && plan.priceCents > 0 && plan.trialDays > 0);
 }
 
+/** A plan Stripe must bill: priced, and not the beta. A per-studio price
+ *  override, when given, is the price that counts (0 means free for them). */
+export function isPaidPlan(plan: PlanShape | null | undefined, priceCentsOverride?: number | null): boolean {
+  if (!plan || isBetaPlan(plan)) return false;
+  const cents = typeof priceCentsOverride === "number" ? priceCentsOverride : plan.priceCents;
+  return cents > 0;
+}
+
+/** A studio left behind by the old "add a card" flow on a paid plan: marked
+ *  active (often with a saved card) but no Stripe subscription charges it.
+ *  The beta cohort runs on its own license and is not counted. */
+export function isActiveWithoutSubscription(
+  org: {
+    billingStatus?: string;
+    billingSubscriptionId?: string;
+    betaCohort?: boolean;
+    graduatedAt?: number;
+    priceCentsOverride?: number;
+  },
+  plan: PlanShape | null | undefined,
+): boolean {
+  return (
+    org.billingStatus === "active" &&
+    !org.billingSubscriptionId &&
+    !(org.betaCohort && !org.graduatedAt) &&
+    isPaidPlan(plan, org.priceCentsOverride)
+  );
+}
+
 /** A free trial with nothing to convert into. Banned for new plans: the only
  *  card-free window Pulse gives is the beta. */
 export function isCardFreeTrialPlan(plan: PlanShape | null | undefined): boolean {
@@ -146,9 +175,10 @@ export type InitialBilling = {
 /**
  * Billing state for a studio the moment it is put on a plan.
  *
- * A paid trial plan does NOT start a trial here. It waits in pending_card
- * (gated) until the owner completes Stripe Checkout; the webhook then
- * mirrors Stripe's trial window onto the org. Returns null for a plan that
+ * A paid plan (with or without a trial) does NOT start here. It waits in
+ * pending_card (gated) until the owner completes Stripe Checkout; the webhook
+ * then mirrors Stripe's subscription (its trial window, or the first charge)
+ * onto the org. `hasCard` only matters for a $0 promo plan. Returns null for a plan that
  * would be a card-free trial, which callers refuse or skip.
  */
 export function initialBillingFor(
@@ -168,7 +198,10 @@ export function initialBillingFor(
     return { billingStatus: "comped", trialStartedAt: undefined, trialEndsAt: undefined };
   }
   if (isCardFreeTrialPlan(plan)) return null;
-  if (isPaidTrialPlan(plan)) {
+  /* Every paid plan, trial or not, waits for Stripe Checkout. A saved card is
+     not a subscription: only the webhook-confirmed subscription makes a paid
+     studio trialing or active, so a card on file never short-circuits this. */
+  if (isPaidPlan(plan)) {
     return { billingStatus: "pending_card", trialStartedAt: undefined, trialEndsAt: undefined };
   }
   return {

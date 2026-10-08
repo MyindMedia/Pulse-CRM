@@ -14,9 +14,11 @@ import {
 import { sendEmail } from "./lib/email";
 import { escapeHtml } from "./lib/text";
 import {
-  buildSubscriptionCheckoutParams, initialBillingFor, isBetaPlan, isLiveSubscriptionStatus,
-  isPaidTrialPlan, trialSpec, type CheckoutLineItem, type TrialSpec,
+  buildSubscriptionCheckoutParams, initialBillingFor, isActiveWithoutSubscription, isBetaPlan,
+  isLiveSubscriptionStatus, isPaidPlan, isPaidTrialPlan, trialSpec, type CheckoutLineItem, type TrialSpec,
 } from "./lib/trialCheckout";
+import { formatUsd } from "./lib/pricing";
+import { planConfirmHtml, planConfirmSubject } from "./lib/emailTemplates/trialEmails";
 
 /* ============================================================
    Agency rebilling - the per-sub-account billing/trial state. The
@@ -30,6 +32,19 @@ import {
    pending_card; the trial begins when Stripe Checkout (subscription
    mode, card always collected) completes, and Stripe owns its end
    date. The Beta plan is the only card-free window.
+
+   Every paid plan is charged (agency-paid-plan-charges): a paid plan
+   with NO trial goes the same way. "Add a card" opens a subscription
+   Checkout that bills the plan's price on completion and renews; the
+   studio is active only once the webhook mirrors that subscription.
+   Saving a card alone never activates a paid plan.
+
+   Runbook (studios the old card-only flow left active with no
+   subscription; see openspec/changes/agency-paid-plan-charges/design.md):
+     npx convex run agencyBilling:cardOnlyStudiosReport --prod
+     npx convex run agencyBilling:sendCardOnlyConversionReminders --prod            # dry run
+     npx convex run agencyBilling:sendCardOnlyConversionReminders '{"apply":true}' --prod
+     npx convex run agencyBilling:betaPlanStudiosReport --prod
 
    Reads/writes over a sub-account are gated by capability + the
    engine's agency-over-org scope check. The studio-self-serve pair
@@ -66,6 +81,9 @@ function billingView(org: Doc<"orgs">, plan: Doc<"agencyPlans"> | null, now: num
     paymentMethodOnFile: Boolean(org.paymentMethodOnFile),
     // A Stripe subscription is behind this studio (trialing or paying).
     subscribed: Boolean(org.billingSubscriptionId),
+    /* Paid plan marked active by the old card-only flow, with no subscription
+       charging it. /billing asks them to confirm the plan (charged then). */
+    needsPlanConfirmation: isActiveWithoutSubscription(org, plan),
     trialCardRequiredBy: org.trialCardRequiredBy ?? null,
     priceCentsOverride: org.priceCentsOverride ?? null,
     /* What they are charged today, which is not always the plan price: an
@@ -229,6 +247,7 @@ export const _orgForSetup = internalQuery({
       ownerEmail: org.ownerEmail ?? null,
       billingCustomerId: org.billingCustomerId ?? null,
       billingSubscriptionId: org.billingSubscriptionId ?? null,
+      billingCheckoutSessionId: org.billingCheckoutSessionId ?? null,
       billingStatus: org.billingStatus ?? null,
       trialEndsAt: org.trialEndsAt ?? null,
       priceCentsOverride: org.priceCentsOverride ?? null,
@@ -269,19 +288,42 @@ export const _myOrgId = internalQuery({
   },
 });
 
+/** A card was saved in setup mode (no subscription). For a paid plan that is
+ *  NOT payment: the card is recorded but the status is left alone, because
+ *  only a webhook-confirmed Stripe subscription may make a paid studio active.
+ *  A setup link opened before this change and completed after it lands here. */
 export const _markPaymentMethodOnFile = internalMutation({
   args: { orgId: v.string(), customerId: v.optional(v.string()), subscriptionId: v.optional(v.string()) },
   handler: async (ctx, { orgId, customerId, subscriptionId }) => {
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     if (!org) return;
+    const plan = org.agencyPlanId ? await ctx.db.get(org.agencyPlanId) : null;
+    const ids = {
+      ...(customerId ? { billingCustomerId: customerId } : {}),
+      ...(subscriptionId ? { billingSubscriptionId: subscriptionId } : {}),
+    };
+    if (isPaidPlan(plan, org.priceCentsOverride) && !subscriptionId) {
+      await ctx.db.patch(org._id, { paymentMethodOnFile: true, ...ids });
+      return;
+    }
     await ctx.db.patch(org._id, {
       paymentMethodOnFile: true,
       billingStatus: "active",
       // First time they go active is when any intro window starts running.
       ...(org.paidSince ? {} : { paidSince: Date.now() }),
-      ...(customerId ? { billingCustomerId: customerId } : {}),
-      ...(subscriptionId ? { billingSubscriptionId: subscriptionId } : {}),
+      ...ids,
     });
+  },
+});
+
+/** Remember the subscription Checkout just opened, so the next one can expire
+ *  it (or refuse, if it already went through). */
+export const _recordCheckoutSession = internalMutation({
+  args: { orgId: v.string(), sessionId: v.string() },
+  handler: async (ctx, { orgId, sessionId }) => {
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+    if (!org) return;
+    await ctx.db.patch(org._id, { billingCheckoutSessionId: sessionId });
   },
 });
 
@@ -292,6 +334,7 @@ export type SetupOrg = {
   ownerEmail: string | null;
   billingCustomerId: string | null;
   billingSubscriptionId: string | null;
+  billingCheckoutSessionId?: string | null;
   billingStatus: Doc<"orgs">["billingStatus"] | null;
   trialEndsAt: number | null;
   priceCentsOverride: number | null;
@@ -311,28 +354,53 @@ export type SetupOrg = {
   } | null;
 };
 
-/** True when adding a card for this studio must open a Stripe subscription
- *  (a card-required trial, a carried-over trial, or a resubscribe after a
- *  canceled one) rather than just save a card. */
-export function needsTrialCheckout(org: Pick<SetupOrg, "plan" | "billingStatus" | "billingSubscriptionId">): boolean {
-  if (!org.plan || isBetaPlan(org.plan) || org.plan.priceCents <= 0) return false;
-  // A Stripe-backed plan that was canceled: subscribe again, no new trial.
-  if (org.billingStatus === "canceled" && org.billingSubscriptionId) return true;
-  if (!isPaidTrialPlan(org.plan)) return false;
-  if (org.billingStatus === "pending_card") return true;
-  // Grandfathered: a trial that began card-free, with no subscription behind it.
-  return org.billingStatus === "trialing" && !org.billingSubscriptionId;
+type CheckoutRouteOrg = Pick<SetupOrg, "plan" | "billingStatus" | "billingSubscriptionId"> & {
+  priceCentsOverride?: number | null;
+};
+
+/** The studio is on a plan Stripe must bill (priced, not the beta). */
+function paidPlanFor(org: CheckoutRouteOrg): boolean {
+  return isPaidPlan(org.plan, org.priceCentsOverride);
 }
 
-/** The trial to give a studio at checkout: a fresh trial of the plan's length
- *  for pending_card, or the date already promised for a grandfathered trial. */
+/** A subscription we know of that is still trialing, paying or owed. */
+function hasLiveSubscription(org: Pick<SetupOrg, "billingStatus" | "billingSubscriptionId">): boolean {
+  return Boolean(org.billingSubscriptionId) && isLiveSubscriptionStatus(liveStatusOf(org.billingStatus ?? undefined));
+}
+
+/**
+ * True when "add a card" for this studio must open a Stripe subscription
+ * Checkout rather than just save a card. Every paid plan (not the beta, not a
+ * $0 override, not comped) with no live subscription: a card-required trial,
+ * a carried-over grandfathered trial, a paid plan with no trial (charged on
+ * completion), a card-only studio confirming its plan, or a resubscribe after
+ * a cancel. A live subscription is never opened twice.
+ */
+export function needsSubscriptionCheckout(org: CheckoutRouteOrg): boolean {
+  if (!paidPlanFor(org)) return false;
+  if (org.billingStatus === "comped") return false;
+  return !hasLiveSubscription(org);
+}
+
+/** Older name, kept for callers and tests. */
+export const needsTrialCheckout = needsSubscriptionCheckout;
+
+/**
+ * The trial to give a studio at checkout. One trial per studio:
+ * - pending_card (never started): a fresh trial of the plan's length, or none
+ *   for a plan without a trial (charged when Checkout completes);
+ * - a grandfathered card-free trial still running: the date already promised;
+ * - anything else (canceled, past_due, a card-only "active" studio): no trial,
+ *   Stripe charges on subscribe.
+ */
 export function trialForOrg(org: Pick<SetupOrg, "plan" | "billingStatus" | "trialEndsAt">, now: number): TrialSpec {
-  // One trial per studio: coming back after a cancel bills on subscribe.
-  if (org.billingStatus === "canceled") return { kind: "none" };
+  if (org.billingStatus === "pending_card") {
+    return trialSpec({ trialDays: org.plan?.trialDays ?? 0, now });
+  }
   if (org.billingStatus === "trialing" && org.trialEndsAt) {
     return trialSpec({ trialEndsAt: org.trialEndsAt, now });
   }
-  return trialSpec({ trialDays: org.plan?.trialDays ?? 0, now });
+  return { kind: "none" };
 }
 
 /** Line items for an agency plan. A plan with its own Stripe price uses it;
@@ -384,13 +452,50 @@ export async function assertNoLiveSubscription(
   }
 }
 
-/** Stripe Checkout in subscription mode that starts a card-required trial. */
-async function buildTrialCheckout(
+/**
+ * Before opening a new subscription Checkout, deal with the last one:
+ * - still open: expire it, so two tabs cannot both complete and bill twice;
+ * - already completed (the webhook may not have landed yet) with a live
+ *   subscription: refuse, that studio is already paying;
+ * - anything else (expired, its subscription canceled, unknown): carry on.
+ */
+export async function settlePriorCheckout(
+  stripe: ReturnType<typeof stripeClient>,
+  sessionId: string | null | undefined,
+): Promise<void> {
+  if (!sessionId) return;
+  let session: { status?: string | null; subscription?: unknown };
+  try {
+    session = await stripe.checkout.sessions.retrieve(sessionId);
+  } catch {
+    return; // Unknown to Stripe (wrong mode, deleted): nothing to settle.
+  }
+  if (session.status === "open") {
+    try {
+      await stripe.checkout.sessions.expire(sessionId);
+    } catch {
+      // Completed or expired in the meantime; the webhook guard still applies.
+    }
+    return;
+  }
+  if (session.status === "complete") {
+    const sub = session.subscription;
+    const subId = typeof sub === "string" ? sub : sub && typeof sub === "object" ? (sub as { id?: string }).id : undefined;
+    await assertNoLiveSubscription(stripe, subId ?? null);
+  }
+}
+
+/** Stripe Checkout in subscription mode, card always collected. Starts a
+ *  card-required trial, or (no trial) charges the plan's price on completion.
+ *  Nothing on our side changes until the webhook mirrors the subscription. */
+async function buildSubscriptionCheckout(
   ctx: ActionCtx,
   org: SetupOrg,
 ): Promise<{ url: string | null; simulated: boolean }> {
   const now = Date.now();
   const trial = trialForOrg(org, now);
+  // Checkout and subscription metadata. The webhook accepts either kind.
+  const kind = trial.kind === "none" ? "subaccount_plan" : "subaccount_trial";
   if (!process.env.STRIPE_SECRET_KEY) {
     // Demo / local: apply what Stripe would send back after checkout.
     const end = trial.kind === "until" ? trial.at : trial.kind === "days" ? now + trial.days * DAY_MS : undefined;
@@ -402,13 +507,14 @@ async function buildTrialCheckout(
         trial_start: end ? Math.floor(now / 1000) : null,
         trial_end: end ? Math.floor(end / 1000) : null,
         default_payment_method: "pm_simulated",
-        metadata: { kind: "subaccount_trial", orgId: org.orgId },
+        metadata: { kind, orgId: org.orgId },
       },
     });
     return { url: null, simulated: true };
   }
   const stripe = stripeClient();
   await assertNoLiveSubscription(stripe, org.billingSubscriptionId);
+  await settlePriorCheckout(stripe, org.billingCheckoutSessionId);
   const customer = await ensureOrgCustomer(stripe, org);
   const plan = org.plan!;
   let discounts: { coupon: string }[] | undefined;
@@ -435,23 +541,29 @@ async function buildTrialCheckout(
       lineItems: agencyPlanLineItems(org),
       trial,
       discounts,
-      metadata: { kind: "subaccount_trial", orgId: org.orgId, planId: plan._id },
-      successUrl: `${baseUrl}/billing/added?session_id={CHECKOUT_SESSION_ID}&trial=1`,
+      metadata: { kind, orgId: org.orgId, planId: plan._id },
+      successUrl: `${baseUrl}/billing/added?session_id={CHECKOUT_SESSION_ID}&${trial.kind === "none" ? "plan" : "trial"}=1`,
       cancelUrl: `${baseUrl}/billing`,
     }),
   );
+  await ctx.runMutation(internal.agencyBilling._recordCheckoutSession, { orgId: org.orgId, sessionId: session.id });
   return { url: session.url ?? null, simulated: false };
 }
 
-/** "Add a card" for a studio. A paid trial plan goes through the trial
- *  checkout above; anything else keeps the setup-mode flow below. */
+/** "Add a card" for a studio. Every paid plan goes through the subscription
+ *  checkout above; a free, comped or Beta studio keeps the setup-mode flow
+ *  below (it saves a card and charges nothing). */
 async function buildCardCheckout(
   ctx: ActionCtx,
   orgId: string,
 ): Promise<{ url: string | null; simulated: boolean }> {
   const org = await ctx.runQuery(internal.agencyBilling._orgForSetup, { orgId });
   if (!org) throw new Error("Subaccount not found.");
-  if (needsTrialCheckout(org)) return await buildTrialCheckout(ctx, org);
+  if (needsSubscriptionCheckout(org)) return await buildSubscriptionCheckout(ctx, org);
+  if (paidPlanFor(org) && hasLiveSubscription(org)) {
+    // Card changes on a live subscription belong in the Stripe portal.
+    throw new Error("This studio already has a subscription. Manage it from the billing page instead of starting another.");
+  }
   return await buildSetupCheckout(ctx, org);
 }
 
@@ -599,5 +711,229 @@ export const _notifyExpired = internalAction({
           <p><a href="${baseUrl}/dashboard">Open Pulse</a></p>`,
       }).catch(() => undefined);
     }
+  },
+});
+
+// ── Paid plans with no subscription (card-only studios) ──────
+//
+// The old "add a card" flow saved a card (setup mode) and marked a paid
+// studio active with no Stripe subscription, so nothing ever charged it.
+// These are read-only (report) or ask-only (reminder): no card is ever
+// charged from here. Confirming opens a normal subscription Checkout.
+
+function appBase(): string {
+  return process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "https://studiopulse.tech";
+}
+
+type CardOnlyRow = {
+  orgId: string;
+  agencyId: string | null;
+  planId: string | null;
+  priceCents: number;
+  billingInterval: "month" | "year" | null;
+  /** stripe_card: a card saved through Stripe (a customer exists), so the
+   *  owner can confirm in one step. manual: marked active by hand (offline
+   *  payment, or no Stripe), left for the agency to decide; never emailed. */
+  source: "stripe_card" | "manual";
+  cardOnFile: boolean;
+  paidSince: number | null;
+  reminderSentAt: number | null;
+};
+
+/** Report: studios on a paid plan marked active with no Stripe subscription.
+ *  Ids, amounts and dates only, no names or emails, so it is safe to paste. */
+export const cardOnlyStudiosReport = internalQuery({
+  args: {},
+  handler: async (ctx): Promise<{
+    count: number;
+    stripeCard: number;
+    manual: number;
+    monthlyCentsAtRisk: number;
+    orgIds: string[];
+    rows: CardOnlyRow[];
+  }> => {
+    const orgs = (await ctx.db.query("orgs").collect()).filter(
+      (o) => o.billingStatus === "active" && !o.billingSubscriptionId,
+    );
+    const rows: CardOnlyRow[] = [];
+    for (const org of orgs) {
+      const plan = org.agencyPlanId ? await ctx.db.get(org.agencyPlanId) : null;
+      if (!isActiveWithoutSubscription(org, plan)) continue;
+      const cardOnFile = Boolean(org.paymentMethodOnFile);
+      rows.push({
+        orgId: org.orgId,
+        agencyId: org.agencyId ?? null,
+        planId: plan?._id ?? null,
+        priceCents: effectivePriceCents(org.priceCentsOverride, plan?.priceCents),
+        billingInterval: plan?.billingInterval ?? null,
+        source: cardOnFile && org.billingCustomerId ? "stripe_card" : "manual",
+        cardOnFile,
+        paidSince: org.paidSince ?? null,
+        reminderSentAt: org.planConfirmReminderSentAt ?? null,
+      });
+    }
+    const monthlyCentsAtRisk = rows.reduce(
+      (sum, r) => sum + (r.billingInterval === "year" ? Math.round(r.priceCents / 12) : r.priceCents),
+      0,
+    );
+    return {
+      count: rows.length,
+      stripeCard: rows.filter((r) => r.source === "stripe_card").length,
+      manual: rows.filter((r) => r.source === "manual").length,
+      monthlyCentsAtRisk,
+      orgIds: rows.map((r) => r.orgId),
+      rows,
+    };
+  },
+});
+
+/** Internal - the reminder list with addresses. Never logged. */
+export const _cardOnlyDue = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    const orgs = (await ctx.db.query("orgs").collect()).filter(
+      (o) => o.billingStatus === "active" && !o.billingSubscriptionId,
+    );
+    const due: {
+      orgId: string;
+      email: string;
+      ownerName: string | null;
+      name: string;
+      planName: string;
+      priceLabel: string | null;
+      interval: "month" | "year";
+    }[] = [];
+    for (const org of orgs) {
+      const plan = org.agencyPlanId ? await ctx.db.get(org.agencyPlanId) : null;
+      if (!plan || !isActiveWithoutSubscription(org, plan)) continue;
+      // Stripe-saved cards only: a studio marked active by hand is the agency's call.
+      if (!org.paymentMethodOnFile || !org.billingCustomerId) continue;
+      if (!org.ownerEmail || org.planConfirmReminderSentAt) continue; // once per studio
+      const cents = currentPriceCents(org.priceCentsOverride, plan, org.paidSince, now);
+      due.push({
+        orgId: org.orgId,
+        email: org.ownerEmail,
+        ownerName: org.ownerName ?? null,
+        name: org.name,
+        planName: plan.name,
+        priceLabel: cents > 0 ? `${formatUsd(cents)}/${plan.billingInterval}` : null,
+        interval: plan.billingInterval,
+      });
+    }
+    return due;
+  },
+});
+
+export const _markPlanConfirmReminder = internalMutation({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+    if (!org) return;
+    await ctx.db.patch(org._id, { planConfirmReminderSentAt: Date.now() });
+    await ctx.db.insert("activity", {
+      orgId,
+      kind: "billing.plan_confirm_requested",
+      summary: "The owner was asked to confirm the plan: a card was saved but no subscription was charging it",
+      accent: "info",
+    });
+  },
+});
+
+/**
+ * "Please confirm your plan" for card-only studios. Dry run by default:
+ * returns who would be emailed (ids only). With apply, sends each owner one
+ * branded email linking to /billing and stamps planConfirmReminderSentAt.
+ * Never charges a card and never changes billing status.
+ */
+export const sendCardOnlyConversionReminders = internalAction({
+  args: { apply: v.optional(v.boolean()) },
+  handler: async (ctx, { apply }): Promise<{ dryRun: boolean; eligible: number; sent: number; orgIds: string[] }> => {
+    const due = await ctx.runQuery(internal.agencyBilling._cardOnlyDue, {});
+    const orgIds = due.map((d) => d.orgId);
+    if (!apply) return { dryRun: true, eligible: due.length, sent: 0, orgIds };
+    let sent = 0;
+    for (const d of due) {
+      const status = await sendEmail({
+        to: d.email,
+        subject: planConfirmSubject(d.name),
+        html: planConfirmHtml({
+          ownerName: d.ownerName ?? undefined,
+          studioName: d.name,
+          planName: d.planName,
+          priceLabel: d.priceLabel ?? undefined,
+          interval: d.interval,
+          confirmUrl: `${appBase()}/billing`,
+        }),
+        audience: "client",
+      });
+      // Stamp regardless of status, so a bounce cannot become a resend loop.
+      await ctx.runMutation(internal.agencyBilling._markPlanConfirmReminder, { orgId: d.orgId });
+      if (status === "sent") sent++;
+    }
+    console.log(`[agencyBilling] plan-confirm reminders: eligible=${due.length} sent=${sent}`);
+    return { dryRun: false, eligible: due.length, sent, orgIds };
+  },
+});
+
+// ── Beta-plan studios ────────────────────────────────────────
+
+type BetaRow = {
+  orgId: string;
+  agencyId: string | null;
+  betaCohort: boolean;
+  betaStart: number | null;
+  betaEnd: number | null;
+  daysLeft: number | null;
+  billingStatus: string | null;
+  subscribed: boolean;
+  graduated: boolean;
+};
+
+/** Report: agency-enrolled studios on the Beta plan (the one card-free term),
+ *  with each one's start, end and days left. Cohort studios run on their
+ *  license dates. Ids and dates only, no names or emails. */
+export const betaPlanStudiosReport = internalQuery({
+  args: {},
+  handler: async (ctx): Promise<{
+    count: number;
+    running: number;
+    ended: number;
+    subscribed: number;
+    endingIn30Days: number;
+    orgIds: string[];
+    rows: BetaRow[];
+  }> => {
+    const now = Date.now();
+    const plans = await ctx.db.query("agencyPlans").collect();
+    const betaPlanIds = new Set(plans.filter((p) => isBetaPlan(p)).map((p) => p._id as string));
+    const orgs = (await ctx.db.query("orgs").collect()).filter(
+      (o) => o.agencyPlanId && betaPlanIds.has(o.agencyPlanId as string),
+    );
+    const rows: BetaRow[] = orgs.map((o) => {
+      const cohort = o.betaCohort === true;
+      const start = (cohort ? o.betaStartedAt : o.trialStartedAt) ?? o.trialStartedAt ?? null;
+      const end = (cohort ? o.betaLicenseUntil : o.trialEndsAt) ?? null;
+      return {
+        orgId: o.orgId,
+        agencyId: o.agencyId ?? null,
+        betaCohort: cohort,
+        betaStart: start,
+        betaEnd: end,
+        daysLeft: end === null ? null : Math.max(0, Math.ceil((end - now) / DAY_MS)),
+        billingStatus: o.billingStatus ?? null,
+        subscribed: Boolean(o.billingSubscriptionId),
+        graduated: Boolean(o.graduatedAt),
+      };
+    });
+    return {
+      count: rows.length,
+      running: rows.filter((r) => r.betaEnd !== null && r.betaEnd > now).length,
+      ended: rows.filter((r) => r.betaEnd !== null && r.betaEnd <= now).length,
+      subscribed: rows.filter((r) => r.subscribed).length,
+      endingIn30Days: rows.filter((r) => r.betaEnd !== null && r.betaEnd > now && r.betaEnd - now <= 30 * DAY_MS).length,
+      orgIds: rows.map((r) => r.orgId),
+      rows,
+    };
   },
 });

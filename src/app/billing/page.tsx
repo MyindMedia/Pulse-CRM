@@ -20,7 +20,8 @@ import { TRIAL_TERMS } from "@convex/lib/pricing";
    It shows one action, chosen by state:
    - subscribed in Stripe   -> manage or cancel in the Stripe portal
    - on the beta            -> add a card and pick Core, Growth or Max
-   - anything owing a card  -> add a card (starts or carries over the trial)
+   - paid plan, card saved, no subscription -> confirm the plan (charged then)
+   - anything owing a card  -> add a card (starts the trial, or the plan)
 */
 
 function longDate(at: number): string {
@@ -83,18 +84,40 @@ export default function BillingPage() {
         <BetaPlanPicker />
       </>
     );
-  } else {
+  } else if (billing.needsPlanConfirmation) {
     const price =
       billing.plan && billing.effectivePriceCents > 0
         ? `${money(billing.effectivePriceCents)}/${billing.plan.billingInterval}`
         : null;
     body = (
       <>
+        <h1 className="text-center font-grotesk text-xl font-semibold text-bone">Confirm your plan</h1>
+        <p className="mx-auto mt-2 max-w-sm text-center text-sm text-steel">
+          {billing.plan ? `You are on ${billing.plan.name}${price ? ` at ${price}` : ""}. ` : ""}
+          A card was saved, but billing for the plan was never switched on, so it has not been charged.
+          Confirm to start it: your card is charged today, then the plan renews automatically. Cancel any time.
+        </p>
+        <Button className="mt-6 w-full" disabled={busy} onClick={() => void go(() => addCard({}))}>
+          <CreditCard className="size-4" /> {busy ? "Opening…" : "Confirm my plan"}
+        </Button>
+      </>
+    );
+  } else {
+    const price =
+      billing.plan && billing.effectivePriceCents > 0
+        ? `${money(billing.effectivePriceCents)}/${billing.plan.billingInterval}`
+        : null;
+    // A paid plan with no trial is charged when Checkout completes.
+    const noTrial = billing.reason === "trial_needs_card" && (billing.plan?.trialDays ?? 0) === 0;
+    body = (
+      <>
         <h1 className="text-center font-grotesk text-xl font-semibold text-bone">
-          {billing.reason === "trial_needs_card" ? "Start your free trial" : "Add a card"}
+          {noTrial ? "Start your plan" : billing.reason === "trial_needs_card" ? "Start your free trial" : "Add a card"}
         </h1>
         <p className="mx-auto mt-2 max-w-sm text-center text-sm text-steel">
-          {TRIAL_TERMS.cardRequired} {TRIAL_TERMS.autoRenew} {TRIAL_TERMS.cancel}
+          {noTrial
+            ? "Add a card to start your plan. You are charged when you confirm, then it renews automatically. Cancel any time."
+            : `${TRIAL_TERMS.cardRequired} ${TRIAL_TERMS.autoRenew} ${TRIAL_TERMS.cancel}`}
           {billing.trialEndsAt && billing.reason !== "trial_needs_card"
             ? ` Your trial ends on ${longDate(billing.trialEndsAt)}.`
             : ""}

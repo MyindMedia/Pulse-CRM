@@ -78,3 +78,37 @@ ${button(args.addCardUrl, "Add a card")}`;
     bodyHtml: body,
   });
 }
+
+/* For a studio the old "add a card" flow left on a paid plan with a card saved
+   but no subscription behind it: nothing has ever charged that card. We ask
+   them to confirm the plan; confirming opens Stripe Checkout and charges then.
+   Nothing is charged by this email. */
+
+export function planConfirmSubject(studioName: string): string {
+  return `${studioName}: please confirm your Pulse plan`;
+}
+
+export function planConfirmHtml(args: {
+  ownerName?: string;
+  studioName: string;
+  planName: string;
+  /** e.g. "$99/month". Omitted when the amount is not known here. */
+  priceLabel?: string;
+  interval: "month" | "year";
+  confirmUrl: string;
+}): string {
+  const studio = escapeEmailHtml(args.studioName);
+  const plan = escapeEmailHtml(args.planName);
+  const price = args.priceLabel ? ` at ${escapeEmailHtml(args.priceLabel)}` : "";
+  const body = `<h1 style="margin:0 0 16px 0;font-size:22px;line-height:1.3;">Confirm your plan for ${studio}</h1>
+<p style="margin:0 0 14px 0;">${hello(args.ownerName)}</p>
+<p style="margin:0 0 14px 0;">${studio} is on the ${plan} plan${price}. A card was saved for it, but billing for the plan was never switched on, so that card has not been charged.</p>
+<p style="margin:0 0 14px 0;">Please confirm the plan to keep everything running. When you confirm, your card is charged for the first ${args.interval} and the plan renews automatically after that. You can update your card or cancel any time from the billing page.</p>
+<p style="margin:0 0 14px 0;">We will not charge anything until you confirm. Your bookings, clients and settings stay exactly where they are.</p>
+${button(args.confirmUrl, "Confirm my plan")}`;
+  return brandEmail({
+    title: planConfirmSubject(args.studioName),
+    preheader: `Confirm the ${args.planName} plan to keep ${args.studioName} running. Nothing is charged until you do.`,
+    bodyHtml: body,
+  });
+}
