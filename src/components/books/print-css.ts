@@ -2,6 +2,10 @@
    .books-root so nothing outside the report is affected. Letter, 0.6in
    margins. The header and footer live in a table thead and tfoot, which
    browsers repeat on every printed page. */
+/** Print ink and paper. The cover's text is printed in PRINT_INK on PRINT_PAPER. */
+export const PRINT_INK = "#111111";
+export const PRINT_PAPER = "#ffffff";
+
 export const BOOKS_PRINT_CSS = `
 .books-root .books-frame { display: block; width: 100%; min-width: 0; }
 .books-root .books-frame > tbody,
@@ -9,7 +13,7 @@ export const BOOKS_PRINT_CSS = `
 .books-root .books-frame > tbody > tr > td { display: block; width: 100%; min-width: 0; padding: 0; }
 .books-root .books-frame-head,
 .books-root .books-frame-foot { display: none; }
-.books-root table.books-fullbook { display: none; }
+.books-root .books-fullbook { display: none; }
 
 @media print {
   @page {
@@ -28,15 +32,17 @@ export const BOOKS_PRINT_CSS = `
     background: #fff !important; color: #111 !important;
   }
   .books-root *:not(.books-print-keep) {
-    background: transparent !important; color: #111 !important;
+    background: transparent !important; color: ${PRINT_INK} !important;
     border-color: #cfcfcf !important; box-shadow: none !important; text-shadow: none !important;
     animation: none !important; transition: none !important;
   }
   .books-root .books-no-print, .books-root .books-no-print * { display: none !important; }
   /* Full book: the tabs go, the book shows. */
   .books-root[data-print-mode="full"] .books-tabwrap { display: none !important; }
-  .books-root[data-print-mode="full"] table.books-fullbook { display: table !important; width: 100% !important; }
-  .books-root .books-cover { break-after: page; page-break-after: always; min-height: 6in; }
+  .books-root[data-print-mode="full"] .books-fullbook { display: block !important; }
+  .books-root[data-print-mode="full"] table.books-frame { display: table !important; width: 100% !important; }
+  .books-root .books-cover-page { display: block !important; break-after: page; page-break-after: always; }
+  .books-root .books-fullbook-table { break-before: page; page-break-before: always; }
   .books-root .books-section { break-before: page; page-break-before: always; }
   .books-root .books-section > h2 { break-after: avoid; page-break-after: avoid; }
   .books-root .books-toc { list-style: none; padding: 0; }
@@ -57,8 +63,8 @@ export const BOOKS_PRINT_CSS = `
   .books-root .books-expand-row { display: table-row !important; }
   .books-root .books-expand-row td { font-size: 8.5pt; }
   .books-root .books-diff-flag { font-weight: 700 !important; text-decoration: underline; }
-  .books-root .books-accent-rule { background: var(--books-accent, #c98a00) !important; height: 3px !important; }
+  .books-root .books-accent-rule { background: var(--books-accent) !important; height: 3px !important; }
   .books-root .books-bar { background: #e5e5e5 !important; }
-  .books-root .books-bar-fill { background: var(--books-accent, #c98a00) !important; }
+  .books-root .books-bar-fill { background: var(--books-accent) !important; }
 }
 `;

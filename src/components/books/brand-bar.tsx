@@ -21,12 +21,16 @@ export function BrandBar({
   return (
     <header className="books-print-brand flex items-center gap-4">
       {brand.logoUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
-          src={brand.logoUrl}
-          alt={`${brand.name} logo`}
-          className="h-11 w-auto max-w-44 shrink-0 object-contain object-left"
-        />
+        // A dark chip behind the logo, so a light or transparent mark stays
+        // visible on white paper when printed.
+        <span className="books-logo-chip books-print-keep inline-flex shrink-0 items-center rounded-md bg-obsidian px-2.5 py-1.5">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src={brand.logoUrl}
+            alt={`${brand.name} logo`}
+            className="h-9 w-auto max-w-44 object-contain object-left"
+          />
+        </span>
       ) : (
         <span
           aria-hidden
@@ -37,7 +41,7 @@ export function BrandBar({
       )}
       <div className="min-w-0">
         <p className="overline">{section ? `${section} · ${periodLabel(period)}` : `Books · ${periodLabel(period)}`}</p>
-        <p className="truncate font-grotesk text-lg font-semibold tracking-tight text-bone">{brand.name}</p>
+        <p className="books-brand-name truncate font-grotesk text-xl font-semibold tracking-tight text-bone">{brand.name}</p>
         {entityName && <p className="truncate text-xs text-steel">{entityName}</p>}
       </div>
     </header>

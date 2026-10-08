@@ -52,3 +52,22 @@ export function csvCell(value: string | number | null | undefined): string {
 export function toCsv(rows: (string | number | null | undefined)[][]): string {
   return rows.map((r) => r.map(csvCell).join(",")).join("\r\n") + "\r\n";
 }
+
+/** The period as "Jul 1, 2026 to Jul 31, 2026". `end` is exclusive (the next month's first day). */
+export function periodRangeLabel(start: number, end: number): string {
+  return `${dayLabel(start)} to ${dayLabel(end - 86_400_000)}`;
+}
+
+/** WCAG contrast ratio between two #rrggbb colours. */
+export function contrastRatio(a: string, b: string): number {
+  const lum = (hex: string) => {
+    const n = parseInt(hex.replace("#", ""), 16);
+    const ch = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((v) => {
+      const c = v / 255;
+      return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * ch[0] + 0.7152 * ch[1] + 0.0722 * ch[2];
+  };
+  const [hi, lo] = [lum(a), lum(b)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}

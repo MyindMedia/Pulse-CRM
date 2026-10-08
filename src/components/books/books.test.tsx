@@ -10,6 +10,8 @@ import { buildFixture } from "@/lib/books/fixture";
 import { formatAmount, formatUsd } from "@/lib/books/money";
 import { aboutNotes, attentionCards, explainDifference, filterJournal, kpis, lineDifferences, needsAttention, statementRows, topExpenses, revenueMix } from "@/lib/books/view";
 import { FullBook } from "./full-book";
+import { PRINT_INK, PRINT_PAPER } from "./print-css";
+import { contrastRatio, periodRangeLabel } from "@/lib/books/money";
 import { journalCsv, statementCsv, checksCsv } from "@/lib/books/export";
 import { SummaryPanel } from "./summary-panel";
 import { JournalPanel } from "./journal-panel";
@@ -277,17 +279,51 @@ describe("Summary, collapsed: four cards, everything else behind Show all", () =
   });
 });
 
+const brand0 = { name: "Sample Studio", logoUrl: "/preview/books-sample-logo.svg", accentColor: "#fdb913" };
+
 describe("Full book print", () => {
-  const brand = { name: "Sample Studio", logoUrl: "/preview/books-sample-logo.svg", accentColor: "#fdb913" };
+  const brand = brand0;
   const book = html(
     <FullBook brand={brand} statements={s} bank={fx.bank} accounts={fx.accounts} entries={fx.entries} totals={s.journalTotals} />,
   );
   const order = ["Summary", "Journal", "Balance Sheet", "Income Statement", "Cash Flow", "Checks"];
 
-  it("has a cover with logo, entity and period, and a contents line", () => {
-    expect(book).toContain('class="books-cover"');
+  it("has a cover page with logo, entity and period, and a contents list", () => {
+    expect(book).toContain('class="books-cover-page"');
     expect(book).toContain(s.entityName!);
+    expect(book).toContain("Books for July 2026");
+    expect(book).toContain("Jul 1, 2026 to Jul 31, 2026");
     expect(book).toContain("Contents");
+    expect(book).toContain("Prepared in Pulse");
+    expect(book).toContain('alt="Sample Studio logo"');
+  });
+
+  it("puts the four cover figures in the cover, from the engine and the bank", () => {
+    const cover = book.slice(book.indexOf("books-cover-page"), book.indexOf("books-fullbook-table"));
+    expect(cover).toContain("$1,305.00"); // revenue
+    expect(cover).toContain("$2,432.80"); // expenses, recomputed
+    expect(cover).toContain("\u2212$1,127.80"); // net income, recomputed
+    expect(cover).toContain("$1,611.29"); // cash per bank statement
+    expect(cover).toContain(periodRangeLabel(s.period.start, s.period.end));
+  });
+
+  it("applies the studio accent through the brand token, not a fixed colour", () => {
+    const cover = book.slice(book.indexOf("books-cover-page"), book.indexOf("books-fullbook-table"));
+    expect(cover).toContain("var(--color-gold)");
+    expect(cover).not.toMatch(/#fdb913/i);
+    expect(cover).not.toMatch(/#c98a00/i);
+  });
+
+  it("keeps cover text at 4.5:1 or better on the printed paper", () => {
+    expect(contrastRatio(PRINT_INK, PRINT_PAPER)).toBeGreaterThanOrEqual(4.5);
+    expect(contrastRatio("#c98a00", PRINT_PAPER)).toBeLessThan(4.5); // why the ink is not the gold
+  });
+
+  it("keeps a dark chip behind every logo so it shows on white paper", () => {
+    expect(book).toContain("books-logo-chip books-print-keep");
+    const brand = html(<BrandBar brand={brand0} entityName={null} period="2026-07" />);
+    expect(brand).toContain("books-logo-chip");
+    expect(brand).toContain("bg-obsidian");
   });
 
   it("prints the six sections in the tab order, each on its own page", () => {
@@ -295,6 +331,12 @@ describe("Full book print", () => {
     expect(positions.every((p) => p > 0)).toBe(true);
     expect([...positions].sort((a, b) => a - b)).toEqual(positions);
     expect(count(book, 'class="books-section')).toBe(6);
+  });
+
+  it("keeps the cover outside the repeating header, so inner pages carry it", () => {
+    const tableStart = book.indexOf("books-fullbook-table");
+    expect(book.slice(0, tableStart)).not.toContain("<thead");
+    expect(book.slice(tableStart)).toContain("<thead");
   });
 
   it("repeats the brand header and the running footer on every page", () => {
