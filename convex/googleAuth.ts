@@ -3,6 +3,7 @@ import { mutation, internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { currentOrg } from "./lib/tenant";
+import { SETUP_ACCESS } from "./lib/access";
 import { googleConfigured, googleAuthUrl } from "./lib/google";
 
 /* Google account connect (P4). Studios link their Google account so client
@@ -25,6 +26,13 @@ export const status = query({
 export const _myOrgId = internalQuery({
   args: {},
   handler: async (ctx) => await currentOrg(ctx),
+});
+
+/** Internal - caller's orgId for the connect flow, which is also a step of the
+ *  setup wizard (SETUP_ACCESS, lib/access.ts). */
+export const _mySetupOrgId = internalQuery({
+  args: {},
+  handler: async (ctx) => await currentOrg(ctx, SETUP_ACCESS),
 });
 
 /** Internal - mint a single-use OAuth state nonce bound to an org (CSRF guard).
@@ -72,7 +80,7 @@ export const authUrl = action({
     if (!googleConfigured()) {
       throw new ConvexError("Google connect isn’t configured yet. Ask your admin to set it up.");
     }
-    const orgId = await ctx.runQuery(internal.googleAuth._myOrgId, {});
+    const orgId = await ctx.runQuery(internal.googleAuth._mySetupOrgId, {});
     // CSRF: use a random single-use nonce as the OAuth `state` (not the raw
     // orgId), bound server-side to this org, so the callback can't be forged to
     // attach a different Google account to this (or another) org.
@@ -86,7 +94,7 @@ export const authUrl = action({
 export const disconnect = mutation({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrg(ctx, SETUP_ACCESS);
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     if (org) {
       await ctx.db.patch(org._id, {

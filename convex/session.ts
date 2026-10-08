@@ -23,7 +23,9 @@ export const current = query({
 
     let viewer;
     try {
-      viewer = await resolveViewer(ctx);
+      // Allowed while billing-locked: it is the who-am-I read, and the phone
+      // needs it to show the lock rather than an empty app.
+      viewer = await resolveViewer(ctx, { allowLocked: true });
     } catch (error) {
       // Signed in to Clerk and turned away by the studio: say which, so the
       // phone can show the reason instead of an empty app labelled offline.
@@ -48,7 +50,7 @@ export const current = query({
       };
     }
 
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrg(ctx, { allowLocked: true });
     const org = await ctx.db
       .query("orgs")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))

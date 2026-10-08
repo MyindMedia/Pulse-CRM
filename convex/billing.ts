@@ -129,7 +129,7 @@ export const beginBetaConversionCheckout = action({
   handler: async (ctx, { tier, interval: wanted }): Promise<{ checkoutUrl: string | null; deferredUntil: number | null }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("not signed in");
-    const orgId: string = await ctx.runQuery(internal.agencyBilling._myOrgId, {});
+    const orgId: string = await ctx.runQuery(internal.agencyBilling._myBillingOrgId, {});
     if (orgId === DEMO_ORG) throw new Error("Open your own studio first.");
     const org = await ctx.runQuery(internal.agencyBilling._orgForSetup, { orgId });
     if (!org) throw new Error("Studio not found.");

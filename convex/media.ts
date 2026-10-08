@@ -6,7 +6,7 @@ import { v, ConvexError } from "convex/values";
 import type { MutationCtx } from "./_generated/server";
 import type { Id } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
-import { resolveViewer } from "./lib/access";
+import { resolveViewer, SETUP_ACCESS } from "./lib/access";
 import { PURPOSES, makeKey, r2For, fileUrl, resolveBucket, rowBucket, ensureOrgBuckets, type FileRef, type MediaBucket, type MediaPurpose } from "./lib/media";
 import { fileRefV } from "./lib/fileRef";
 
@@ -57,8 +57,7 @@ export async function createUpload(
   return { mediaId, url, headers: { "Content-Type": a.mimeType } };
 }
 
-async function actorOf(ctx: Parameters<typeof resolveViewer>[0]): Promise<string> {
-  const viewer = await resolveViewer(ctx);
+function actorOf(viewer: Awaited<ReturnType<typeof resolveViewer>>): string {
   return "clerkUserId" in viewer ? String(viewer.clerkUserId) : viewer.kind;
 }
 
@@ -67,10 +66,11 @@ async function actorOf(ctx: Parameters<typeof resolveViewer>[0]): Promise<string
 export const prepareUpload = mutation({
   args: { purpose: purposeV, fileName: v.string(), mimeType: v.string(), size: v.number() },
   handler: async (ctx, a) => {
-    const viewer = await resolveViewer(ctx);
+    // Also the setup wizard's logo upload (SETUP_ACCESS, lib/access.ts).
+    const viewer = await resolveViewer(ctx, SETUP_ACCESS);
     if (viewer.kind === "guest") throw new ConvexError("Only studio staff can upload files.");
-    const scope = await currentOrg(ctx);
-    return await createUpload(ctx, { ...a, scope, actor: await actorOf(ctx) });
+    const scope = await currentOrg(ctx, SETUP_ACCESS);
+    return await createUpload(ctx, { ...a, scope, actor: actorOf(viewer) });
   },
 });
 
@@ -81,8 +81,8 @@ export const myPending = query({
   handler: async (ctx, { mediaId }) => {
     const row = await ctx.db.get(mediaId);
     if (!row) return null;
-    const viewer = await resolveViewer(ctx);
-    const scope = await currentOrg(ctx);
+    const viewer = await resolveViewer(ctx, SETUP_ACCESS);
+    const scope = await currentOrg(ctx, SETUP_ACCESS);
     const mine = row.orgId === scope || (viewer.kind === "agency_member" && row.orgId.startsWith("agency:"));
     if (!mine) return null;
     return { mediaId: row._id, key: row.key, bucket: row.bucket, bucketName: rowBucket(row), purpose: row.purpose, status: row.status };

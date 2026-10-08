@@ -29,6 +29,33 @@ export class ShellErrorBoundary extends React.Component<
     const { error } = this.state;
     if (!error) return this.props.children;
 
+    // The server refuses a billing-locked studio's calls (lib/access.ts).
+    // The layout normally shows the lock screen first; this catches a lock
+    // that lands mid-session and sends them to Billing instead of "a snag".
+    const isBillingLock = /BILLING_LOCKED|plan needs attention/i.test(error.message);
+    if (isBillingLock) {
+      return (
+        <div className="grid min-h-dvh place-items-center bg-ink px-4">
+          <div className="max-w-md space-y-5 text-center">
+            <span className="mx-auto grid size-12 place-items-center rounded-chrome border border-graphite/60 bg-coal-2 text-warning">
+              <ShieldAlert className="size-5" />
+            </span>
+            <div className="space-y-2">
+              <h1 className="font-grotesk text-xl font-bold tracking-tight text-bone">
+                Your plan needs attention
+              </h1>
+              <p className="text-sm text-steel">
+                Add a card or pick a plan to keep using the studio. Your data is untouched.
+              </p>
+            </div>
+            <Button size="sm" onClick={() => { window.location.href = "/billing"; }}>
+              Open billing
+            </Button>
+          </div>
+        </div>
+      );
+    }
+
     const isAuthError =
       /UNAUTHENTICATED|Sign in required|NO_WORKSPACE|NO_STUDIO_MEMBER|NO_AGENCY_MEMBER|isn't linked to a studio/i.test(
         error.message,

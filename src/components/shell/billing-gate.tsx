@@ -187,6 +187,24 @@ export function BillingBanner() {
   );
 }
 
+/** Holds the studio shell back while the studio is billing-locked. The server
+ *  refuses every studio call then (BILLING_LOCKED, lib/access.ts), so mounting
+ *  the sidebar, topbar and page would only fill the error boundary. The lock
+ *  screen is all there is to show. Waits for the one billing read first, for
+ *  the same reason. */
+export function BillingLockGate({ children }: { children: React.ReactNode }) {
+  const billing = useQuery(api.agencyBilling.myBilling);
+  if (billing === undefined) {
+    return (
+      <div className="grid min-h-dvh place-items-center bg-ink">
+        <Hourglass className="size-6 animate-pulse text-gold" aria-hidden />
+      </div>
+    );
+  }
+  if (billing?.locked) return <BillingLock />;
+  return <>{children}</>;
+}
+
 /** Full-screen lock when the trial lapsed and a card is required. */
 export function BillingLock() {
   const billing = useQuery(api.agencyBilling.myBilling);

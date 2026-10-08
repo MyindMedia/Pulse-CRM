@@ -6,7 +6,7 @@ import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { stripeClient } from "./lib/stripe";
 import { currentOrg } from "./lib/tenant";
-import { requireCapability } from "./lib/access";
+import { requireCapability, SETUP_ACCESS } from "./lib/access";
 
 /* ============================================================
    Stripe Connect (P3). Each studio connects its OWN Stripe
@@ -24,7 +24,8 @@ function appUrl() {
 export const status = query({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrg(ctx);
+    // Also the setup wizard's payments step (SETUP_ACCESS, lib/access.ts).
+    const orgId = await currentOrg(ctx, SETUP_ACCESS);
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     return {
       connected: Boolean(org?.stripeAccountId),
@@ -39,10 +40,10 @@ export const status = query({
 export const _orgForConnect = internalQuery({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrg(ctx, SETUP_ACCESS);
     // Managing the connected Stripe account (onboarding link, embedded session,
     // bank/payout dashboard, status refresh) is owner/manager finance work.
-    await requireCapability(ctx, "invoices.send", { orgId });
+    await requireCapability(ctx, "invoices.send", { orgId }, SETUP_ACCESS);
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     if (!org) return null;
     return {

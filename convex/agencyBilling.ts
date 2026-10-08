@@ -281,10 +281,23 @@ export const _assertBillingEdit = internalQuery({
 });
 
 /** Action-side resolver: the signed-in studio's own org id. */
-export const _myOrgId = internalQuery({
+/** The caller's studio, for the self-serve billing actions (add a card, open
+ *  the portal, convert from the beta). Spending the studio's money is the
+ *  owner's call, or an agency operator's with billing.edit; any other member
+ *  is refused. Reachable while the studio is billing-locked, since this is
+ *  how a locked studio gets unlocked. */
+export const _myBillingOrgId = internalQuery({
   args: {},
-  handler: async (ctx) => {
-    return await currentOrg(ctx);
+  handler: async (ctx): Promise<string> => {
+    const viewer = await resolveViewer(ctx, { allowLocked: true });
+    const allowed =
+      viewer.kind === "studio_member"
+        ? viewer.role === "owner" || viewer.capabilities.has("billing.edit")
+        : viewer.capabilities.has("billing.edit");
+    if (!allowed) {
+      throw new AccessError("CAPABILITY_DENIED", "Only the studio owner can manage billing.");
+    }
+    return await currentOrg(ctx, { allowLocked: true });
   },
 });
 
@@ -612,9 +625,10 @@ export const myBilling = query({
   args: {},
   handler: async (ctx) => {
     // Shell-chrome read: degrade instead of throw while auth settles.
+    // Allowed while billing-locked: this is what draws the lock screen.
     let orgId: string;
     try {
-      orgId = await currentOrg(ctx);
+      orgId = await currentOrg(ctx, { allowLocked: true });
     } catch (e) {
       if (e instanceof AccessError) return null;
       throw e;
@@ -622,7 +636,7 @@ export const myBilling = query({
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     if (!org) return null;
     // Agency operators acting-as a studio are never gated - they're here to fix it.
-    const viewer = await resolveViewer(ctx).catch(() => null);
+    const viewer = await resolveViewer(ctx, { allowLocked: true }).catch(() => null);
     const isAgencyActing = viewer?.kind === "agency_member";
     const plan = org.agencyPlanId ? await ctx.db.get(org.agencyPlanId) : null;
     const view = billingView(org, plan, Date.now());
@@ -635,7 +649,7 @@ export const myBilling = query({
 export const openMyBillingPortal = action({
   args: {},
   handler: async (ctx): Promise<{ url: string }> => {
-    const orgId = await ctx.runQuery(internal.agencyBilling._myOrgId, {});
+    const orgId = await ctx.runQuery(internal.agencyBilling._myBillingOrgId, {});
     const org = await ctx.runQuery(internal.agencyBilling._orgForSetup, { orgId });
     if (!org?.billingCustomerId) throw new Error("No billing account yet. Add a card first.");
     const stripe = stripeClient();
@@ -652,7 +666,7 @@ export const openMyBillingPortal = action({
 export const startMyPaymentSetup = action({
   args: {},
   handler: async (ctx): Promise<{ url: string | null; simulated: boolean }> => {
-    const orgId = await ctx.runQuery(internal.agencyBilling._myOrgId, {});
+    const orgId = await ctx.runQuery(internal.agencyBilling._myBillingOrgId, {});
     return await buildCardCheckout(ctx, orgId);
   },
 });

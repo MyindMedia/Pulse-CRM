@@ -19,8 +19,10 @@ import {
   upgradeError,
   moduleOffError,
 } from "./entitlements";
-import { orgGate } from "./tier";
+import { orgGate, DEMO_ORG } from "./tier";
 import { isToggleable } from "./modules";
+import { serverBillingLock } from "./billingGate";
+import type { Doc } from "../_generated/dataModel";
 
 /* ============================================================
    Access Engine - one resolver, one require, one audit hook.
@@ -126,6 +128,45 @@ async function selectedAgencyOrgId(
   return org?.agencyId === agencyId ? selection.orgId : undefined;
 }
 
+// ── Billing lock ────────────────────────────────────────────
+/** Options for resolving the caller. */
+export type ResolveOptions = {
+  /** Admit a studio member whose studio is billing-locked. `true` is only for
+   *  the short allowlist a locked studio still needs: its own billing, its
+   *  profile, the session read and the data export. `"setup"` is for the
+   *  first-run setup wizard (/welcome) and admits only a studio whose paid
+   *  plan has not started yet (waiting on its card), so a new studio can
+   *  finish setting up before it starts the trial. Never a lapsed one. */
+  allowLocked?: boolean | "setup";
+};
+
+/** The setup wizard's admission (see ResolveOptions.allowLocked). */
+export const SETUP_ACCESS = { allowLocked: "setup" } as const satisfies ResolveOptions;
+
+/** Refuse a studio member's call while their studio is billing-locked.
+ *
+ *  The browser overlay is not the paywall: every Convex function is callable
+ *  directly, so the lock has to be here, where every studio viewer is made.
+ *  Agency operators acting as the studio never reach this (they are here to
+ *  fix billing), nor does the demo workspace, and comped or in-term beta
+ *  studios are unlocked by the gate itself. */
+async function assertStudioBillingOpen(
+  ctx: Ctx,
+  org: Doc<"orgs"> | null,
+  allowLocked: ResolveOptions["allowLocked"],
+): Promise<void> {
+  if (allowLocked === true) return;
+  if (!org || org.orgId === DEMO_ORG || org.demoMode) return;
+  const plan = org.agencyPlanId ? await ctx.db.get(org.agencyPlanId) : null;
+  const lock = serverBillingLock(org, plan, Date.now());
+  if (lock.locked && !(allowLocked === "setup" && lock.reason === "trial_needs_card")) {
+    throw new AccessError(
+      "BILLING_LOCKED",
+      "This studio's plan needs attention. Open Billing to add a card or pick a plan.",
+    );
+  }
+}
+
 // ── resolveViewer ───────────────────────────────────────────
 /**
  * Resolve the caller into a Viewer.
@@ -135,7 +176,7 @@ async function selectedAgencyOrgId(
  * Guest-token resolution lands in cycle 2 via an HTTP action that
  * stamps a sessionless guest token into an appState row.
  */
-export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
+export async function resolveViewer(ctx: Ctx, opts?: ResolveOptions): Promise<Viewer> {
   const identity = await ctx.auth.getUserIdentity();
 
   // 1. Clerk-authenticated path
@@ -277,6 +318,7 @@ export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
           .query("orgs")
           .withIndex("by_org", (q) => q.eq("orgId", resolvedOrgId))
           .first();
+        await assertStudioBillingOpen(ctx, org, opts?.allowLocked);
         return {
           kind: "studio_member",
           orgId: resolvedOrgId,
@@ -308,6 +350,7 @@ export async function resolveViewer(ctx: Ctx): Promise<Viewer> {
           .query("orgs")
           .withIndex("by_org", (q) => q.eq("orgId", member.orgId))
           .first();
+        await assertStudioBillingOpen(ctx, org, opts?.allowLocked);
         return {
           kind: "studio_member",
           orgId: member.orgId,
@@ -368,8 +411,9 @@ export async function requireCapability(
   ctx: Ctx,
   capability: Capability,
   resource?: ResourceRef,
+  opts?: ResolveOptions,
 ): Promise<Viewer> {
-  const viewer = await resolveViewer(ctx);
+  const viewer = await resolveViewer(ctx, opts);
 
   // Capability check: accept exact match, or a `.own`-qualified variant of it
   const ok =
