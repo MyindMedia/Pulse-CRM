@@ -51,7 +51,7 @@ export function teammateEmailHtml(args: {
       .slice(0, 2)
       .toUpperCase() || "?";
   return `<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="pulse-branded" content="1"></head>
 <body style="margin:0;background:#f1f1f3;font-family:Inter,Segoe UI,Arial,sans-serif;color:#1a1a1f">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f1f3;padding:28px 0">
     <tr><td align="center">
@@ -82,7 +82,7 @@ export function teammateEmailHtml(args: {
           <p style="margin:0;font-size:12px;color:#9a9aa2;line-height:1.6">Button not working? Paste this link:<br><a href="${acceptUrl}" style="color:#6a6a72;word-break:break-all">${acceptUrl}</a></p>
         </td></tr>
         <tr><td align="center" style="background:#f1f1f3;border-top:1px solid #e7e7ea;padding:20px 40px">
-          <p style="margin:0;font-size:11.5px;color:#9a9aa2;line-height:1.6">You received this because ${inviterName} added you to ${studioName} on Pulse.<br>This link is unique to you and expires in 7 days.<br>Pulse - Myind Media</p>
+          <p style="margin:0;font-size:11.5px;color:#9a9aa2;line-height:1.6">You received this because ${inviterName} added you to ${studioName} on Pulse.<br>This link is unique to you and expires in 7 days.<br>Pulse, the studio operating system<br>835 Wilshire Blvd, Ste 500 #519, Los Angeles, CA 90017</p>
         </td></tr>
       </table>
     </td></tr>
@@ -110,7 +110,7 @@ export function inviteEmailHtml(args: {
       .slice(0, 2)
       .toUpperCase() || "?";
   return `<!doctype html>
-<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head>
+<html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="pulse-branded" content="1"></head>
 <body style="margin:0;background:#f1f1f3;font-family:Inter,Segoe UI,Arial,sans-serif;color:#1a1a1f">
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:#f1f1f3;padding:28px 0">
     <tr><td align="center">
@@ -137,7 +137,7 @@ export function inviteEmailHtml(args: {
           <p style="margin:0;font-size:12px;color:#9a9aa2;line-height:1.6">Button not working? Paste this link:<br><a href="${acceptUrl}" style="color:#6a6a72;word-break:break-all">${acceptUrl}</a></p>
         </td></tr>
         <tr><td align="center" style="background:#f1f1f3;border-top:1px solid #e7e7ea;padding:20px 40px">
-          <p style="margin:0;font-size:11.5px;color:#9a9aa2;line-height:1.6">You received this because ${studioName} was added to Pulse.<br>Pulse - Myind Media</p>
+          <p style="margin:0;font-size:11.5px;color:#9a9aa2;line-height:1.6">You received this because ${studioName} was added to Pulse.<br>Pulse, the studio operating system<br>835 Wilshire Blvd, Ste 500 #519, Los Angeles, CA 90017</p>
         </td></tr>
       </table>
     </td></tr>

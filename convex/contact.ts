@@ -43,6 +43,8 @@ export const submit = action({
       to,
       subject: `Pulse contact: ${name}${studio ? ` (${studio})` : ""}`,
       html,
+      // Team inbox notice, not client mail: goes out plain.
+      audience: "internal",
     });
     // "simulated" (Resend not configured) is still a success from the caller's
     // perspective - the form shouldn't show an error in unconfigured envs.
