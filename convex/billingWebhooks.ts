@@ -12,8 +12,8 @@ import { normalizeEmail } from "./lib/emailKey";
 import { applyOrgSubscription, toSubscriptionShape } from "./trialBilling";
 
 /* ============================================================
-   Stripe webhook handlers. Idempotent via auditEvents-keyed
-   event ledger (one row per event.id with action="stripe.event").
+   Stripe webhook handlers. Idempotent via the stripeEvents ledger
+   (one row per event.id, indexed by_event).
    Each handler patches Convex state and returns early.
    ============================================================ */
 
@@ -36,26 +36,23 @@ function mapSubStatus(s: string): "active" | "past_due" | "cancelled" | "trialin
 }
 
 async function alreadyProcessed(ctx: MutationCtx, eventId: string): Promise<boolean> {
-  const existing = await ctx.db
-    .query("auditEvents")
-    .filter((q) =>
-      q.and(
-        q.eq(q.field("action"), "stripe.event"),
-        q.eq(q.field("viewerId"), eventId),
-      ),
-    )
+  const seen = await ctx.db
+    .query("stripeEvents")
+    .withIndex("by_event", (q) => q.eq("eventId", eventId))
     .first();
-  return Boolean(existing);
+  if (seen) return true;
+  // TRANSITION: events processed before stripeEvents existed were marked in
+  // auditEvents. Read them by index (never a table scan) until Stripe's retry
+  // window has passed, then drop this and the by_action_viewer index.
+  const legacy = await ctx.db
+    .query("auditEvents")
+    .withIndex("by_action_viewer", (q) => q.eq("action", "stripe.event").eq("viewerId", eventId))
+    .first();
+  return Boolean(legacy);
 }
 
 async function markProcessed(ctx: MutationCtx, eventId: string, eventType: string) {
-  await ctx.db.insert("auditEvents", {
-    viewerType: "guest",
-    viewerId: eventId,
-    action: "stripe.event",
-    result: "allow",
-    reason: eventType,
-  });
+  await ctx.db.insert("stripeEvents", { eventId, type: eventType, processedAt: Date.now() });
 }
 
 async function connectedAccountOwnsOrg(ctx: MutationCtx, stripeAccountId: string | undefined, orgId: string): Promise<boolean> {

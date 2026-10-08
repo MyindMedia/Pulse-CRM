@@ -67,6 +67,35 @@ describe("billing webhooks", () => {
     expect(agencies.length).toBe(1);
   });
 
+  it("records each processed event in the indexed stripeEvents ledger", async () => {
+    const event = checkoutCompleted({ customerId: "cus_l", subscriptionId: "sub_l", tier: "core", clerkUserId: "u_l" });
+    await t.mutation(internal.billingWebhooks.handle, { event });
+    const rows = (await t.run(async (ctx) => await ctx.db.query("stripeEvents").collect()))
+      .filter((r) => r.eventId === event.id);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].type).toBe("checkout.session.completed");
+    // No new marker in the audit log: the ledger is the only record now.
+    const audit = await t.run(async (ctx) => await ctx.db.query("auditEvents").collect());
+    expect(audit.filter((a) => a.action === "stripe.event")).toHaveLength(0);
+  });
+
+  it("still treats an event marked by the old audit-log ledger as a duplicate", async () => {
+    // Events processed before the stripeEvents table existed were marked in
+    // auditEvents. Stripe retries for days, so those must stay duplicates.
+    await t.run(async (ctx) => {
+      await ctx.db.insert("auditEvents", {
+        viewerType: "guest", viewerId: "evt_legacy", action: "stripe.event", result: "allow",
+        reason: "checkout.session.completed",
+      });
+    });
+    const r = await t.mutation(internal.billingWebhooks.handle, {
+      event: { ...checkoutCompleted({ customerId: "cus_x", subscriptionId: "sub_x", tier: "max", clerkUserId: "u_x" }), id: "evt_legacy" },
+    });
+    expect(r).toEqual({ duplicate: true });
+    const agencies = await t.run(async (ctx) => await ctx.db.query("agencies").collect());
+    expect(agencies).toHaveLength(0);
+  });
+
   it("subscription.deleted pauses agency + sub-accounts", async () => {
     await t.run(async (ctx) => {
       await ctx.db.insert("agencies", {
@@ -230,7 +259,7 @@ describe("billing webhooks - connected-account events never provision a platform
     expect(members).toEqual([]);
     expect(scheduled).toEqual([]);
     // Recorded as processed, so a Stripe retry is a no-op too.
-    const ledger = await t.run(async (ctx) => await ctx.db.query("auditEvents").collect());
-    expect(ledger.some((r) => r.action === "stripe.event" && r.viewerId === "evt_connect_signup")).toBe(true);
+    const ledger = await t.run(async (ctx) => await ctx.db.query("stripeEvents").collect());
+    expect(ledger.some((r) => r.eventId === "evt_connect_signup")).toBe(true);
   });
 });
