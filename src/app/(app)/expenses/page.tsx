@@ -106,10 +106,15 @@ export default function ExpensesPage() {
         title="Expenses & P&L"
         description="The money-out half of the books. Log costs and see true profit - collected revenue minus expenses, by period."
         actions={
-          <Button onClick={() => setAddOpen(true)}>
-            <Plus className="size-4" />
-            Log expense
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" asChild>
+              <Link href="/reports/books">Books</Link>
+            </Button>
+            <Button onClick={() => setAddOpen(true)}>
+              <Plus className="size-4" />
+              Log expense
+            </Button>
+          </div>
         }
       />
 

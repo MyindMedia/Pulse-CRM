@@ -12,6 +12,7 @@ import {
   Landmark, CreditCard, AlertTriangle, RefreshCw, Plus, Link2, History, BookPlus, Ban, Undo2, ChevronDown, ChevronUp, Search, Tags,
 } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
+import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatTile } from "@/components/ui/stat-tile";
@@ -153,12 +154,17 @@ function BankingView({ reportRange, initialFilter }: { reportRange: { start: num
         title="Banking"
         description="Your bank and card accounts, synced through Plaid. Sort out what is spending and put it in the books; receipts match on their own."
         actions={
-          overview.canManage && overview.configured ? (
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="secondary" asChild>
+              <Link href="/reports/books">Books</Link>
+            </Button>
+          {overview.canManage && overview.configured ? (
             <Button onClick={connect} disabled={connecting}>
               <Plus className="size-4" />
               {connecting ? "Opening…" : "Connect a bank"}
             </Button>
-          ) : undefined
+          ) : undefined}
+          </div>
         }
       />
 
