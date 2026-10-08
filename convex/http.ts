@@ -13,6 +13,8 @@ import { intake as outreachIntake } from "./outreach/intake";
 import { zuopsEvents } from "./outreach/zuopsWebhook";
 http.route({ path: "/outreach/intake", method: "POST", handler: outreachIntake });
 http.route({ path: "/zuops/events", method: "POST", handler: zuopsEvents });
+import { resendInbound } from "./mailInbound";
+http.route({ path: "/resend/inbound", method: "POST", handler: resendInbound });
 
 /* GHL "Customer Replied" workflow webhook payload (the fields we read). */
 type GhlInbound = {

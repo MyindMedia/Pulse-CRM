@@ -1914,3 +1914,22 @@ Requests from Lawrence during the App Store pass, in his words where it matters:
 
 **Open:** the email template and signature choice; business postal address; sending-domain/sender approval; verified Convex deployment for the intake URL.
 
+
+---
+
+## Feature: Agency Email tab, shared inbox for studiopulse.tech (owner decision 2026-10-07)
+
+**Goal:** an Email tab in the Agency Command Center (`/agency/email`) that is a working shared inbox for studiopulse.tech mailboxes: read, thread, reply and compose from Pulse.
+
+**Scope:**
+- Seed `support@studiopulse.tech` ("Support") and `lawrenceb@studiopulse.tech` ("Lawrence B"). `info@studiopulse.tech` is seeded too because outreach sets reply-to info@, so prospect replies land there.
+- New inboxes from a "New inbox" dialog, a Convex mutation, and an authenticated REST route (`GET|POST /api/agency/email/inboxes`), agency owner or admin only. Local part `a-z0-9._-`, domain fixed, no duplicates, reserved names refused.
+- Architecture fixed: receive with Resend Receiving (MX on studiopulse.tech, `email.received` webhook, Svix signature with `RESEND_WEBHOOK_SECRET`, fail closed), store in Convex, send through the existing Resend integration. Attachment bytes to R2.
+- Unknown recipients go to an Unrouted view, never dropped.
+- Client-facing mail branded with `brandEmail`; a personal reply from lawrenceb@ is a plain body plus Lawrence's existing signature (signature files untouched) plus the Pulse footer. No em dashes.
+
+**Target users:** Lawrence and agency admins of the Pulse agency (the agency named by `MAIL_AGENCY_ID`, fallback `OUTREACH_INTAKE_AGENCY_ID`).
+
+**Non-goals:** Bluehost, IMAP or any other mail host; forwarding, auto-replies, rules, search; sending attachments; per-studio mailboxes or other domains; AI triage.
+
+**Open:** MX value comes from the Resend dashboard; outbound Message-ID is assigned by Resend so a reply to a brand-new outbound thread threads by subject. Spec: `openspec/changes/email-inboxes/`.
