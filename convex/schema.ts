@@ -6,6 +6,7 @@ import { outreachTables } from "./outreach/tables";
 import { mailTables } from "./mail/tables";
 import { projectTables } from "./projectsTables";
 import { mediaLibraryTables } from "./mediaLibraryTables";
+import { ledgerTables } from "./ledgerTables";
 import { expenseCategoryV, incomeCategoryV, moneyInKindV } from "./lib/financeValidators";
 import { tierV } from "./lib/tierV";
 import { legacyAgencyPlanV, legacyOrgPlanV, legacyOrgTierV } from "./lib/legacyPlans";
@@ -198,6 +199,7 @@ export default defineSchema({
   ...mailTables,
   ...projectTables,
   ...mediaLibraryTables,
+  ...ledgerTables,
   // ── Orgs - one row per studio subaccount. orgId is the Clerk org id
   //    (org_xxx) or "pulse-demo". The agency console provisions these. ──
   orgs: defineTable({
