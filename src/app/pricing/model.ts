@@ -12,6 +12,7 @@ import {
   formatUsd,
   publicFeatureGroups,
   tierAtLeast,
+  type FeatureDetail,
   type TierKey,
 } from "@convex/lib/pricing";
 import {
@@ -112,7 +113,12 @@ export function planCards(): PlanCard[] {
   });
 }
 
-export type ComparisonRow = { name: string; tier: TierKey; included: Record<TierKey, boolean> };
+export type ComparisonRow = {
+  name: string;
+  tier: TierKey;
+  included: Record<TierKey, boolean>;
+  detail: FeatureDetail;
+};
 export type ComparisonGroup = { id: string; title: string; rows: ComparisonRow[] };
 
 /** The customer comparison table: the 14 groups, plus the production group
@@ -125,6 +131,7 @@ export function comparisonGroups(): ComparisonGroup[] {
     rows: g.items.map((x) => ({
       name: publicName(x.name),
       tier: x.tier,
+      detail: x.detail,
       included: Object.fromEntries(TIERS.map((t) => [t, tierAtLeast(t, x.tier)])) as Record<
         TierKey,
         boolean

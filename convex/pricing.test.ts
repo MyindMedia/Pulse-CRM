@@ -4,6 +4,7 @@ import {
   ALL_FEATURES,
   ALLOWANCES,
   CAPABILITY_KEYS,
+  CAPABILITY_TIER,
   EXISTING_GROUPS,
   FEATURE_GROUPS,
   NOT_BUILT_YET,
@@ -139,7 +140,7 @@ describe("the public table", () => {
   it("carries no internal sales notes or gates", () => {
     for (const g of groups) {
       expect(Object.keys(g).sort()).toEqual(["id", "items", "title"]);
-      for (const f of g.items) expect(Object.keys(f).sort()).toEqual(["name", "tier"]);
+      for (const f of g.items) expect(Object.keys(f).sort()).toEqual(["detail", "name", "tier"]);
     }
     for (const g of FEATURE_GROUPS) expect(text).not.toContain(g.salesNote);
   });
@@ -210,4 +211,75 @@ describe("the Stripe scripts agree with the config", () => {
       }
     });
   }
+});
+
+describe("feature explainers (the drop downs on /pricing)", () => {
+  const all = FEATURE_GROUPS.flatMap((g) => g.items.map((x) => ({ g, x })));
+  const LONG_DASH = /[\u2013\u2014]/;
+  // Words the copy rules forbid: the customer-relationship acronym, rival
+  // product names, and hype words.
+  const BANNED_WORDS = [
+    "crm", "seamless", "seamlessly", "powerful", "revolutionary", "effortless",
+    "effortlessly", "cutting-edge", "game-changing", "supercharge", "unlock",
+    "leverage", "robust", "streamline", "world-class", "best-in-class",
+    "studiobricks", "bandlab", "soundtrap", "splice", "hubspot", "salesforce",
+    "acuity", "calendly", "squarespace", "mindbody",
+  ];
+  const BRITISH = [/colour/i, /cancelled/i, /organis/i, /centre\b/i, /favour/i, /catalogue/i];
+
+  it("every feature has a non-empty what, does and tiers", () => {
+    for (const { g, x } of all) {
+      const label = `${g.id}: ${x.name}`;
+      expect(x.detail, label).toBeTruthy();
+      expect(x.detail.what.trim().length, `${label} what`).toBeGreaterThan(15);
+      expect(x.detail.does.trim().length, `${label} does`).toBeGreaterThan(30);
+      expect(x.detail.tiers.trim().length, `${label} tiers`).toBeGreaterThan(10);
+    }
+  });
+
+  it("no long dashes, banned words, hype or British spellings", () => {
+    for (const { g, x } of all) {
+      const text = `${x.detail.what} ${x.detail.does} ${x.detail.tiers}`;
+      const label = `${g.id}: ${x.name}`;
+      expect(LONG_DASH.test(text), `${label} has a long dash`).toBe(false);
+      const lower = text.toLowerCase();
+      for (const w of BANNED_WORDS) {
+        expect(new RegExp(`(^|[^a-z])${w}([^a-z]|$)`).test(lower), `${label} uses "${w}"`).toBe(false);
+      }
+      for (const re of BRITISH) expect(re.test(text), `${label} British spelling ${re}`).toBe(false);
+    }
+  });
+
+  it("the plan line matches the capability tier and the feature tier", () => {
+    const name = (t: "core" | "growth" | "max") => PRICING[t].name;
+    for (const { g, x } of all) {
+      const label = `${g.id}: ${x.name}`;
+      if (x.gate) expect(CAPABILITY_TIER[x.gate], `${label} gate tier`).toBe(x.tier);
+      const first = x.detail.tiers;
+      if (x.tier === "core") {
+        expect(first, label).toContain("every plan");
+        expect(first, label).toContain(name("core"));
+      } else if (x.tier === "growth") {
+        expect(first, label).toContain(`${name("growth")} and ${name("max")}`);
+        expect(first, label).toContain(`Not included on ${name("core")}`);
+      } else {
+        expect(first, label).toContain(`${name("max")} only`);
+      }
+    }
+  });
+
+  it("limits quoted in the plan line come from ALLOWANCES", () => {
+    const find = (n: string) => FEATURE_GROUPS.flatMap((g) => g.items).find((x) => x.name === n)!;
+    expect(find("Rooms").detail.tiers).toContain(`Rooms: ${ALLOWANCES.core.rooms} on ${PRICING.core.name}`);
+    const agent = find("Pulse Agent").detail.tiers;
+    expect(agent).toContain(`${ALLOWANCES.growth.assistantPerMonth} on ${PRICING.growth.name}`);
+    expect(agent).toContain(`${ALLOWANCES.max.assistantPerMonth} on ${PRICING.max.name}`);
+    expect(agent.split("Assistant credits")[1]).not.toContain(`on ${PRICING.core.name}`);
+  });
+
+  it("the public table carries the same detail", () => {
+    for (const g of publicFeatureGroups()) {
+      for (const x of g.items) expect(x.detail.what.length).toBeGreaterThan(0);
+    }
+  });
 });
