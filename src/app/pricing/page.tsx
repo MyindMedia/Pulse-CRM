@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ArrowRight, Check, ChevronDown, Minus, Phone01, Plus, Server01 } from "@untitledui/icons";
+import { ArrowRight, Check, Phone01, Plus, Server01 } from "@untitledui/icons";
 import { PRICING, TIERS, formatUsd } from "@convex/lib/pricing";
 import { LandingNav } from "@/components/marketing/landing-nav";
 import { Footer } from "@/components/marketing/footer";
@@ -13,6 +13,7 @@ import {
   softwareApplicationJsonLd,
 } from "@/components/marketing/structured-data";
 import { PricingPlans } from "./plans";
+import { CompareGroups } from "./compare";
 import {
   DEMO_HREF,
   R2_LINE,
@@ -196,73 +197,7 @@ export default function PricingPage() {
           <h3 id="compare-title" className="sr-only">
             Feature comparison by plan
           </h3>
-          <div className="mt-10 space-y-3">
-            {groups.map((g, gi) => (
-              <details
-                key={g.id}
-                open={gi === 0}
-                className="group overflow-hidden rounded-chrome border border-hairline-2 bg-coal/70 open:border-gold/40"
-              >
-                <summary
-                  className={`flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-4 sm:px-5 [&::-webkit-details-marker]:hidden ${focusRing}`}
-                >
-                  <span className="font-grotesk text-base font-semibold text-bone">
-                    {g.title}
-                    <span className="ml-2 font-meta text-xs font-normal uppercase tracking-[0.06em] text-steel">
-                      {g.rows.length} {g.rows.length === 1 ? "feature" : "features"}
-                    </span>
-                  </span>
-                  <ChevronDown
-                    className="size-5 shrink-0 text-gold transition-transform duration-200 group-open:rotate-180"
-                    aria-hidden
-                  />
-                </summary>
-                <table className="w-full table-fixed border-collapse text-left font-grotesk text-sm">
-                  <caption className="sr-only">{g.title}, by plan</caption>
-                  <thead>
-                    <tr className="border-t border-hairline bg-coal-2">
-                      <th scope="col" className="px-4 py-2.5 font-meta text-xs font-medium uppercase tracking-[0.06em] text-steel sm:px-5">
-                        Feature
-                      </th>
-                      {TIERS.map((t) => (
-                        <th
-                          key={t}
-                          scope="col"
-                          className={`w-16 px-1 py-2.5 text-center text-xs font-semibold sm:w-28 sm:text-sm ${PRICING[t].highlight ? "text-gold" : "text-bone"}`}
-                        >
-                          {PRICING[t].name}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {g.rows.map((r, ri) => (
-                      <tr key={`${r.name}-${ri}`} className="border-t border-hairline/70">
-                        <th scope="row" className="px-4 py-3 font-normal text-bone sm:px-5">
-                          {r.name}
-                        </th>
-                        {TIERS.map((t) => (
-                          <td key={t} className="px-1 py-3 text-center">
-                            {r.included[t] ? (
-                              <>
-                                <Check className="mx-auto size-5 text-gold" aria-hidden />
-                                <span className="sr-only">Included</span>
-                              </>
-                            ) : (
-                              <>
-                                <Minus className="mx-auto size-4 text-slate" aria-hidden />
-                                <span className="sr-only">Not included</span>
-                              </>
-                            )}
-                          </td>
-                        ))}
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </details>
-            ))}
-          </div>
+          <CompareGroups groups={groups} />
         </section>
 
         {/* The Pulse app */}
