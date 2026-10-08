@@ -75,7 +75,7 @@ export function studioEmailHtml(args: {
 </td></tr></table>`
       : "";
   return `<!DOCTYPE html>
-<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/></head>
+<html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="pulse-tenant-layout" content="1"/></head>
 <body style="margin:0;padding:0;background:${PAGE};font-family:Inter,Segoe UI,Arial,sans-serif;">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${PAGE};padding:28px 12px;">
 <tr><td align="center">

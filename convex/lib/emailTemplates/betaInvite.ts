@@ -40,7 +40,7 @@ export function betaInviteHtml(args: {
   const code = escapeEmailHtml(args.code);
 
   return `<!DOCTYPE html>
-<html><body style="margin:0;padding:0;background:${INK};">
+<html><head><meta name="pulse-branded" content="1"></head><body style="margin:0;padding:0;background:${INK};">
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${INK};padding:28px 12px;">
   <tr><td align="center">
     <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="max-width:520px;background:${CARD};border:1px solid ${HAIR};border-radius:14px;overflow:hidden;">
@@ -98,7 +98,7 @@ export function betaInviteHtml(args: {
             <span style="color:${FAINT};word-break:break-all;">${url}</span>
           </p>
           <p style="margin:10px 0 0 0;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:11px;color:#5f5a52;">
-            Pulse by ThaMyind &middot; studiopulse.tech
+            Pulse by ThaMyind &middot; studiopulse.tech<br/>835 Wilshire Blvd, Ste 500 #519, Los Angeles, CA 90017
           </p>
         </div>
       </td></tr>
