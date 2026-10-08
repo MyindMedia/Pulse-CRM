@@ -27,7 +27,7 @@ crons.interval("media-sweep-pending", { hours: 6 }, internal.media.sweepPending,
 
 // Zuops demo bookings. Read only; no-op until ZUOPS_API_KEY is set. Every 5 minutes (two GETs
 // per run) until the Zuops webhook is registered, then it is only the safety net behind it.
-crons.interval("zuops-sync", { minutes: 5 }, internal.outreachZuops.syncAll, {});
+crons.interval("zuops-sync", { minutes: 1 }, internal.outreachZuops.syncAll, {});
 
 // Recompute every room's auto status from the live calendar.
 crons.interval("room-status", { minutes: 15 }, internal.maintenance.recomputeAllRoomStatuses);
