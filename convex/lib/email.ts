@@ -23,7 +23,7 @@ export async function sendEmail(args: {
 }): Promise<EmailStatus> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return "simulated";
-  const from = args.from ?? process.env.RESEND_FROM ?? "Pulse <support@thamyind.com>";
+  const from = args.from ?? process.env.RESEND_FROM ?? "Pulse <support@studiopulse.tech>";
   const subject = stripEmDashes(args.subject);
   const cleaned = stripEmDashes(args.html);
   const wrap = !args.raw && (args.audience ?? "client") === "client";
