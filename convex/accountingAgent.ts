@@ -21,11 +21,12 @@ import {
   accountingInsights,
   anomalyCandidates,
   closeChecklist,
+  dollars,
   ownerDigest,
   periodLabel,
 } from "./agents/accounting";
 import type { ProposedAction } from "./opsBrain";
-import { attachReceipt, createEntry, ledgerPeriodView, postDraft, writeOrg } from "./ledger";
+import { attachReceipt, createEntry, lateEntryWriter, ledgerPeriodView, postDraft, recordLateEntry, writeOrg } from "./ledger";
 
 /* ============================================================
    Accounting agent - the scan, the approvals, the on/off switch.
@@ -112,6 +113,26 @@ export async function gatherAccountingSignals(ctx: Ctx, orgId: string, periodKey
     .order("desc")
     .take(300);
 
+  // The bank feed for the month, for money the books never recorded.
+  const feed = await ctx.db
+    .query("bankTransactions")
+    .withIndex("by_org_date", (q) => q.eq("orgId", orgId).gte("date", period.start).lt("date", period.end))
+    .take(2_000);
+  const feedAccounts = new Map<string, Doc<"bankAccounts"> | null>();
+  for (const t of feed) {
+    if (!feedAccounts.has(t.accountId)) feedAccounts.set(t.accountId, await ctx.db.get(t.accountId));
+  }
+  const bankLines = feed
+    .filter((t) => !t.pending && !t.removed && !t.excluded)
+    .map((t) => ({
+      id: t._id, date: t.date, amountCents: t.amountCents, direction: t.direction, name: t.merchantName ?? t.name,
+      ...(t.category ? { category: t.category } : {}),
+      ...(feedAccounts.get(t.accountId)?.type === "credit" ? { onCard: true } : {}),
+      ...(t.receiptId ? { receiptId: t.receiptId } : {}),
+    }));
+
+  const late = view.built.lateEntries;
+
   const v = view.built.variances;
   const recomputed = view.built.recomputed;
   return {
@@ -122,7 +143,16 @@ export async function gatherAccountingSignals(ctx: Ctx, orgId: string, periodKey
     accounts: view.accountDocs.map((a) => ({ id: a._id, key: a.key, name: a.name, type: a.type, isCash: a.isCash, isClearing: a.isClearing })),
     entries,
     prior,
-    receipts: receipts.map((r) => ({ id: r._id, vendor: r.vendor, date: r.date, totalCents: r.totalCents, status: r.status })),
+    receipts: receipts.map((r) => ({ id: r._id, vendor: r.vendor, date: r.date, totalCents: r.totalCents, status: r.status, ...(r.cardLast4 ? { cardLast4: r.cardLast4 } : {}) })),
+    bankLines,
+    lateImpact: late
+      ? {
+          count: late.count,
+          before: { netIncomeCents: late.before.netIncomeCents, endingCashCents: late.before.endingCashCents },
+          after: { netIncomeCents: late.after.netIncomeCents, endingCashCents: late.after.endingCashCents },
+          entries: late.entries.map((e) => ({ memo: e.memo, totalCents: e.totalCents, enteredAt: e.enteredAt, reversal: !!e.reversalOf })),
+        }
+      : null,
     recon: view.recon,
     checks: view.built.checks,
     variances: v
@@ -395,6 +425,24 @@ export async function approveAccountingAction(ctx: MutationCtx, id: Id<"opsActio
     result = "Receipt linked.";
   } else if (p.kind === "acct_note") {
     result = "Acknowledged. Nothing in the books changed.";
+  } else if (p.kind === "late_entry") {
+    // A late entry changes a month that has ended: the owner's call, through
+    // the same path as the Books form. Approving is the confirmation.
+    if (!p.accountKey || !p.paidFrom) throw new Error("Open Books to choose the category and how it was paid, then add it there.");
+    const who = await lateEntryWriter(ctx);
+    const account = await ctx.db.query("ledgerAccounts").withIndex("by_org_key", (q) => q.eq("orgId", orgId).eq("key", p.accountKey!)).first();
+    if (!account) throw new Error("That category is no longer in the chart. Open Books to choose one.");
+    const out = await recordLateEntry(ctx, who, {
+      period: p.period,
+      input: {
+        kind: p.lateKind, entryDate: p.entryDate, counterparty: p.counterparty, amountCents: p.amountCents,
+        accountId: account._id, paidFrom: p.paidFrom, reason: p.reason, ...(p.memo ? { memo: p.memo } : {}),
+      },
+      ...(p.receiptId ? { receiptId: p.receiptId } : {}),
+      confirmPastMonth: true,
+      via: "agent",
+    });
+    result = `Added to ${periodLabel(p.period)} as a late entry. Net income ${dollars(out.before.netIncomeCents)} to ${dollars(out.after.netIncomeCents)}.`;
   } else {
     throw new Error("Unsupported accounting item.");
   }
@@ -562,7 +610,7 @@ export const wordingContext = internalQuery({
     const a = await ctx.db.get(id);
     if (!a || !isAccountingType(a.type) || (a.status !== "proposed" && a.status !== "snoozed")) return null;
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", a.orgId)).first();
-    const evidence = a.payload.kind === "ledger_draft" || a.payload.kind === "receipt_link" || a.payload.kind === "acct_note" ? a.payload.evidence : [];
+    const evidence = a.payload.kind === "ledger_draft" || a.payload.kind === "receipt_link" || a.payload.kind === "acct_note" || a.payload.kind === "late_entry" ? a.payload.evidence : [];
     return { orgId: a.orgId, orgName: org?.name ?? "the studio", type: a.type, title: a.title, rationale: a.rationale, evidence };
   },
 });

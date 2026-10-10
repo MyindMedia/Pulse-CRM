@@ -65,6 +65,9 @@ export const entrySourceV = v.union(
   v.literal("expense"),
 );
 
+export const lateKindV = v.union(v.literal("expense"), v.literal("income"), v.literal("refund"));
+export const paidFromV = v.union(v.literal("bank"), v.literal("cash"), v.literal("card"), v.literal("owner"), v.literal("unpaid"));
+
 export const entryLineV = v.object({
   accountId: v.id("ledgerAccounts"),
   debitCents: v.number(),
@@ -143,6 +146,23 @@ export const ledgerTables = {
     voidedAt: v.optional(v.number()),
     voidedBy: v.optional(v.string()),
     voidReason: v.optional(v.string()),
+    /* Late entries (openspec/changes/late-entries): a missed invoice or
+       receipt added to a month after it was reported, and the reversing
+       entry that cancels one. Both stay posted and visible; nothing is
+       deleted. `effectiveDate` equals `entryDate`; `enteredAt` is when a
+       person really entered it. */
+    lateEntry: v.optional(v.boolean()),
+    enteredAt: v.optional(v.number()),
+    effectiveDate: v.optional(v.number()),
+    enteredBy: v.optional(v.string()),
+    reason: v.optional(v.string()),
+    lateKind: v.optional(lateKindV),
+    counterparty: v.optional(v.string()),
+    /** On a reversing entry: the late entry it cancels. */
+    reversalOf: v.optional(v.id("journalEntries")),
+    /** On a reversed late entry: the entry that cancels it. */
+    reversedBy: v.optional(v.id("journalEntries")),
+    reversedAt: v.optional(v.number()),
   })
     // by_org: subaccountDeletion.orgRows sweeps every ORG_TABLES table by it.
     .index("by_org", ["orgId"])

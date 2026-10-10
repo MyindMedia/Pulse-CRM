@@ -11,6 +11,10 @@ export type BankRow = FunctionReturnType<typeof api.ledger.bankReconciliation>["
 export type PeriodRow = FunctionReturnType<typeof api.ledger.periods>[number];
 export type Check = StatementsPayload["checks"][number];
 export type Variance = NonNullable<StatementsPayload["variances"]>["balanceSheet"][number];
+/** What late entries changed since the workbook was imported (null when none). */
+export type LateImpact = NonNullable<StatementsPayload["lateEntries"]>;
+export type LateSummary = LateImpact["entries"][number];
+export type LateLine = LateImpact["lines"][number];
 
 /** One journal entry as ledger.journal returns it (the fields the report reads). */
 export type JournalEntryRow = {
@@ -22,6 +26,15 @@ export type JournalEntryRow = {
   status: "posted" | "draft" | "void";
   totalCents: number;
   lines: { accountId: string; debitCents: number; creditCents: number; memo?: string }[];
+  /* Late entries (openspec late-entries): added to a month after it was
+     reported, or the reversing entry that cancels one. */
+  lateEntry?: boolean;
+  enteredAt?: number;
+  enteredBy?: string;
+  reason?: string;
+  counterparty?: string;
+  reversalOf?: string;
+  reversedBy?: string;
 };
 
 export type StatementKind = "balanceSheet" | "incomeStatement" | "cashFlow";

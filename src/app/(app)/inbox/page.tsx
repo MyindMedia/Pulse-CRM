@@ -55,6 +55,7 @@ const AGENT_META: Record<string, { label: string; group: string; order: number }
   acct_categorize: { label: "Categories", group: "Accounting", order: 13 },
   acct_unexplained_cash: { label: "Unexplained Cash", group: "Accounting", order: 13 },
   acct_anomaly: { label: "Worth a Look", group: "Accounting", order: 13 },
+  acct_late_entry: { label: "Late Entry", group: "Accounting", order: 13 },
 };
 
 const PRIORITY_TONE: Record<string, "critical" | "gold" | "neutral"> = {

@@ -130,6 +130,24 @@ function Inner({ action, onClose }: { action: Doc<"opsActions">; onClose: () => 
           </div>
         )}
 
+        {p.kind === "late_entry" && (
+          <div className="space-y-2 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5 text-sm text-steel">
+            <p className="text-xs font-semibold uppercase tracking-wide text-steel/70">
+              Late {p.lateKind} for {p.period}, dated {new Date(p.entryDate).toISOString().slice(0, 10)}
+            </p>
+            <p className="text-bone">
+              {p.counterparty}, ${(p.amountCents / 100).toFixed(2)}
+              {p.accountName ? ` to ${p.accountName}` : ""}
+            </p>
+            <ul className="list-disc space-y-1 pl-4">{p.evidence.map((e, i) => <li key={i}>{e}</li>)}</ul>
+            <p className="text-xs text-steel/70">
+              {p.accountKey && p.paidFrom
+                ? "Approving adds this to the past month as a late entry. The reported statements stay as they were checked."
+                : "Open Books to choose the category and how it was paid, then add it there."}
+            </p>
+          </div>
+        )}
+
         {(p.kind === "receipt_link" || p.kind === "acct_note") && (
           <div className="space-y-2 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5 text-sm text-steel">
             <ul className="list-disc space-y-1 pl-4">{p.evidence.map((e, i) => <li key={i}>{e}</li>)}</ul>

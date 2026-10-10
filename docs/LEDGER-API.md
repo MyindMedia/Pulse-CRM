@@ -23,6 +23,8 @@ The double-entry ledger behind the owner's financial report. Phase B (the brande
 | Agency owner or admin acting as the studio (within scope) | yes | yes |
 | Agency staff, billing, guests | no | no |
 
+Late entries (changing a month that has ended) are narrower: the studio owner, or an agency owner or admin acting as the studio. See "Late entries".
+
 The org always comes from the signed-in viewer, never from arguments. A denial is an `AccessError` (`CAPABILITY_DENIED`, `SCOPE_DENIED`, `NO_WORKSPACE`, `BILLING_LOCKED`) with a readable message.
 
 ## Queries
@@ -59,6 +61,8 @@ The report's single source. Returns:
   },
   variances: { incomeStatement: Variance[], balanceSheet: Variance[], cashFlow: Variance[] } | null,
   checks: Check[],
+  journalTotals: { entryCount, debitCents, creditCents },
+  lateEntries: LateEntryImpact | null,     // see "Late entries" below; null when none touch the month
 }
 ```
 
@@ -90,9 +94,10 @@ Check codes:
 | `duplicate_entries` | entries share date, amount and memo (warn) |
 | `reported_statement_warnings` | the importer flagged the owner's statements: beginning cash label date, retained earnings plug, typed-in values, heading dates (warn) |
 | `reported_vs_recomputed` | reported lines differ from the ledger (warn; `detail` lists the line variances) |
+| `late_entries` | late entries changed the month after the workbook was imported (warn; pass when a reversal cancelled them; `message` is the headline, `amountCents` the net income change) |
 
 ### `ledger.journal({ period?, filter?, paginationOpts })`
-Entries newest first, Convex pagination. `filter`: `{ accountId?, paymentKind?, receiptStatus?, status?, text? }` (`text` matches the memo, line memos and the raw payment type, case-insensitive). Each item is a `journalEntries` document: `{ _id, entryDate, memo, paymentType?: { kind, raw?, card? }, receiptStatus, status, source, importBatchId?, sourceRef?, contentHash?, bookPeriod?, receiptDocIds?, expenseId?, lines: { accountId, debitCents, creditCents, memo? }[], totalCents, createdBy, createdAt, voidedAt?, voidedBy?, voidReason? }`.
+Entries newest first, Convex pagination. `filter`: `{ accountId?, paymentKind?, receiptStatus?, status?, text?, lateOnly? }` (`lateOnly` keeps late entries and their reversals) (`text` matches the memo, line memos and the raw payment type, case-insensitive). Each item is a `journalEntries` document: `{ _id, entryDate, memo, paymentType?: { kind, raw?, card? }, receiptStatus, status, source, importBatchId?, sourceRef?, contentHash?, bookPeriod?, receiptDocIds?, expenseId?, lines: { accountId, debitCents, creditCents, memo? }[], totalCents, createdBy, createdAt, voidedAt?, voidedBy?, voidReason?, lateEntry?, enteredAt?, effectiveDate?, enteredBy?, reason?, lateKind?, counterparty?, reversalOf?, reversedBy?, reversedAt? }`.
 
 ### `ledger.accounts({ includeInactive? })`
 The chart in statement order: `{ _id, key, name, type, subtype, statementLine, sortOrder, normalBalance, isCash, isClearing, cashFlowLine, cashFlowLineInflow, active }[]`. `key` is stable; `name` is the studio's own wording.
@@ -107,7 +112,7 @@ The chart in statement order: `{ _id, key, name, type, subtype, statementLine, s
 |---|---|---|---|
 | `ledger.addEntry` | `{ entryDate, memo, lines: { accountId, debitCents, creditCents, memo? }[], status: "draft" \| "posted", paymentType?, receiptStatus?, source?: "manual" \| "agent" }` | entry id | Lines validated against this studio's active accounts. |
 | `ledger.postEntry` | `{ id }` | null | Draft to posted, revalidated. |
-| `ledger.voidEntry` | `{ id, reason }` | null | Keeps the entry, out of every balance. |
+| `ledger.voidEntry` | `{ id, reason }` | null | Keeps the entry, out of every balance. Refuses a late entry: reverse it instead. |
 | `ledger.linkReceipt` | `{ entryId, receiptId }` | `{ receiptDocIds }` | Receipt must be this studio's `receipts` row; sets `receiptStatus: "yes"`. |
 | `ledger.seedChart` | `{}` | `{ created }` | Creates missing default studio accounts by key; never renames. |
 | `ledger.postFromExpense` | `{ expenseId, debitAccountId?, creditAccountId?, status? }` | `{ entryId, created }` | Explicit and idempotent (`sourceRef: "expense:<id>"`). Debit defaults by category (rent, software, subscriptions, marketing, insurance, fees); other categories need `debitAccountId`. Credit defaults to the card payable when the expense's bank line is a credit account, else Bank / Cash. |
@@ -119,10 +124,48 @@ Internal: `ledger.importBooksInternal({ orgId, plan, bank?, seedOpening? })`, ca
 
 - Accounts: created by key when missing; existing accounts are left alone.
 - Entries: skipped when an entry with the same `contentHash` exists for the studio (re-import is a no-op; a voided entry is not resurrected).
-- Reported statements: replaced for the period.
+- Reported statements: replaced for the period. When the figures are identical to what is stored (a re-run), the original `importedAt` is kept, so late entries entered since still count as changes since reported.
 - Bank balances: replaced per `accountLabel` and period. Labels with a run of five or more digits are refused.
 - Opening balances with `seedOpening: "implied"`: created at the period start from the reported closing balance sheet minus the period's activity, cash anchored to the bank's beginning balance, clearing accounts never negative, opening retained earnings as the balancing figure (`source: "implied_from_reported_close"`, with the reasoning in `note`). An earlier or manual opening is kept, never overwritten.
 - Summary: `{ importBatchId, period, accountsCreated, entriesCreated, entriesSkipped, bankUpserted, opening: "created" | "replaced" | "kept" | "skipped", warnings }`.
+
+## Late entries
+
+A missed invoice or receipt added to a month that has ended. Spec: `openspec/changes/late-entries/`. Pure rules in `convex/lib/lateEntries.ts`, the variance split in `lateEntryImpact` (`convex/lib/statements.ts`).
+
+- **Who:** the studio owner, or an agency owner or admin acting as the studio. Managers keep ordinary writes but cannot change a past month. Reads follow `insights.read`.
+- **What it writes:** a balanced entry dated inside the month, through `createEntry` (draft) then `postDraft`, the helpers behind `addEntry` and `postEntry`. Flagged `lateEntry: true` with `enteredAt` (real time), `effectiveDate` (= `entryDate`), `enteredBy`, `reason` (default "Missed invoice/receipt"), `lateKind`, `counterparty`. Never touches `reportedStatements`.
+- **Lines:** money out (expense, refund to a customer: category is revenue) debits the category and credits the source; money in (income, refund from a vendor: category is expense) the reverse. Source by `paidFrom`: `bank` and `cash` Bank / Cash, `card` Credit Card Payable, `owner` Owner's Equity / Capital out or Business Funds Held by Owner in, `unpaid` Accounts Payable or Accounts Receivable. Income never lands on a card.
+- **Rules:** the month has ended; the day is inside it and not in the future; no opening-balance snapshot is dated after the day (a change before a snapshot would not carry forward; before the first one it is before the books start); whole cents above zero, at most $100 million; category of the right type, active, in this chart; `confirmPastMonth: true`; a possible duplicate (posted, same amount, same week on the same category, or within three days sharing a name word) needs `allowDuplicate: true`, else `ConvexError { code: "POSSIBLE_DUPLICATE" }`.
+- **Reversal:** a linked reversing entry on the same date, lines swapped (`reversalOf` on it, `reversedBy` and `reversedAt` on the original). Both stay posted.
+- **Audit:** `financeAudit` (`ledger.late_entry.posted` / `ledger.late_entry.reversed`, actor, receipt, before and after `{ revenueCents, expensesCents, netIncomeCents, endingCashCents, retainedEarningsCents }`, entry id and reason in `detail`) and `auditEvents` (same action, `resource` = entry id).
+- **Roll-forward:** later months read every entry from the opening snapshot forward, so their opening cash and retained earnings move by exactly the amount. Re-importing a month with late entries keeps its opening balances (`opening: "kept"`).
+- **Rescan:** after a change to a month with reported statements the ledger schedules `accountingAgent.scanOrg` for it, which writes the "Late entries: <month>" note.
+
+| Function | Args | Returns |
+|---|---|---|
+| `ledger.addLateEntry` | `{ period, input: { kind: "expense" \| "income" \| "refund", entryDate, counterparty, amountCents, accountId, paidFrom: "bank" \| "cash" \| "card" \| "owner" \| "unpaid", memo?, reason? }, receiptId?, confirmPastMonth, allowDuplicate?, proposalId? }` | `{ entryId, before, after }` (headline figures) |
+| `ledger.reverseLateEntry` | `{ id, reason, confirmPastMonth }` | `{ entryId, before, after }` |
+| `ledger.lateEntryPreview` (query) | `{ period, input }` | `{ ok: true, memo, reason, totalCents, lines: { accountName, debitCents, creditCents }[], before, after, hasReported, duplicates }` or `{ ok: false, error }` |
+| `ledger.lateReversalPreview` (query) | `{ id }` | `{ ok: true, period, memo, totalCents, before, after }` or `{ ok: false, error }` |
+| `ledger.lateEntryAccess` (query) | `{}` | `{ canAdd, currentMonth, today }` |
+| `ledger.lateEntrySuggestions` (query) | `{ period }` | open `acct_late_entry` proposals for the month |
+
+`receiptId` is a `receipts` row made by `receipts.attach` from an R2 upload (`media.prepareUpload` presigned PUT, `media.confirmUpload`); Convex stores the key and metadata only. `proposalId` completes an Accounting agent suggestion (marked executed).
+
+`statements.lateEntries` (`LateEntryImpact`):
+
+```ts
+{
+  since: number | null,                 // reported.importedAt; late entries entered after it count
+  count, headline,
+  before: HeadlineFigures, after: HeadlineFigures,   // the month without and with them
+  entries: { id, entryDate, enteredAt, enteredBy, reason, memo, totalCents, kind?, counterparty?, reversalOf?, reversedBy?,
+             inPeriod, netIncomeEffectCents, cashEffectCents }[],
+  lines: { statement, key, label, kind, reportedCents | null, recomputedCents, lateEntryCents,
+           varianceCents | null, otherCents | null }[],   // varianceCents = lateEntryCents + otherCents, exactly
+}
+```
 
 ## CLI
 
@@ -137,4 +180,5 @@ CONVEX_URL=... CONVEX_DEPLOY_KEY=... node scripts/import-books.mjs "<books.xlsx>
 
 - Read with `statements`, `journal` and `bankReconciliation`; propose with `addEntry` using `status: "draft"` and `source: "agent"`; a person posts with `postEntry`.
 - Built: `convex/accountingAgent.ts` and `convex/agents/accounting.ts`, spec `openspec/changes/accounting-agent/`. It writes through `createEntry` (drafts, `source: "agent"`, `sourceRef: "agent:<key>"`) and a person's approval posts through `postDraft`; `attachReceipt` backs `linkReceipt`. No other module reads these tables.
+- Late entries: for a month that has ended the agent proposes `acct_late_entry` (payload `late_entry`, capability `ledger.suggest_late_entry`) for an unmatched bank line or receipt. Approval posts through `recordLateEntry`, owner only. Never automatic.
 - Never fix a variance by editing reported statements. Post a correcting entry (draft) that explains the difference, and let the checks go green.

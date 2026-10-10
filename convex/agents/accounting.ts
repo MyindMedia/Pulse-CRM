@@ -58,6 +58,30 @@ export type AcctReceipt = {
   date?: number;
   totalCents?: number;
   status: string;
+  cardLast4?: string;
+};
+
+/** A bank feed line (bankTransactions), for spotting money the books never saw. */
+export type AcctBankLine = {
+  id: Id<"bankTransactions">;
+  date: number;
+  amountCents: number;
+  direction: "in" | "out";
+  name: string;
+  /** An expenses category, when one was suggested or chosen. */
+  category?: string;
+  /** The feed account is a credit card. */
+  onCard?: boolean;
+  receiptId?: Id<"receipts">;
+};
+
+/** What late entries changed in this period since it was reported (the
+ *  engine's lateEntryImpact, trimmed). */
+export type AcctLateImpact = {
+  count: number;
+  before: { netIncomeCents: number; endingCashCents: number };
+  after: { netIncomeCents: number; endingCashCents: number };
+  entries: { memo: string; totalCents: number; enteredAt: number; reversal: boolean }[];
 };
 
 export type AcctWarning = {
@@ -104,6 +128,10 @@ export type AccountingSignals = {
   warnings: AcctWarning[];
   hasReported: boolean;
   totals: { revenueCents: number; expensesCents: number; netIncomeCents: number; endingCashCents: number };
+  /** Bank feed lines dated in the period. Optional: a studio with no feed has none. */
+  bankLines?: AcctBankLine[];
+  /** Late entries that changed the period since it was reported, if any. */
+  lateImpact?: AcctLateImpact | null;
 };
 
 /* ----------------------------------------------------------------
@@ -1009,7 +1037,9 @@ export function accountingInsights(s: AccountingSignals): AccountingInsight[] {
   const checklist = items
     .map((i) => `${mark(i)} - ${i.label}\n${i.details.map((d) => `  ${d}`).join("\n")}`)
     .join("\n");
+  const late = s.lateImpact && s.hasReported && s.lateImpact.count > 0 ? [lateEntryInsight(s, s.lateImpact)] : [];
   return [
+    ...late,
     {
       title: `Month-end close: ${label}`,
       severity: digest.attentionCount > 0 ? "warning" : "info",
@@ -1023,6 +1053,172 @@ export function accountingInsights(s: AccountingSignals): AccountingInsight[] {
   ];
 }
 
+/** "July 2026 net income moved from -$1,127.80 to -$1,146.80 after 1 late entry." */
+export function lateEntryInsight(s: AccountingSignals, impact: AcctLateImpact): AccountingInsight {
+  const label = periodLabel(s.periodKey);
+  const n = impact.count;
+  const noun = `${n} late ${n === 1 ? "entry" : "entries"}`;
+  const ni = impact.after.netIncomeCents - impact.before.netIncomeCents;
+  const cash = impact.after.endingCashCents - impact.before.endingCashCents;
+  const head = ni !== 0
+    ? `${label} net income moved from ${dollars(impact.before.netIncomeCents)} to ${dollars(impact.after.netIncomeCents)} after ${noun}.`
+    : cash !== 0
+      ? `${label} ending cash moved from ${dollars(impact.before.endingCashCents)} to ${dollars(impact.after.endingCashCents)} after ${noun}; net income did not change.`
+      : `${label} has ${noun} that cancel out: net income and cash are back where they were.`;
+  const lines = impact.entries.map((e) => `- ${e.reversal ? "Reversal: " : ""}${clip(e.memo)}, ${dollars(e.totalCents)}, entered ${shortDate(e.enteredAt)}`);
+  return {
+    title: `Late entries: ${label}`,
+    severity: "info",
+    explanation: plain([
+      head,
+      ...lines,
+      "The statements you checked are kept exactly as reported. Books shows the difference as late entries.",
+    ].join("\n")),
+  };
+}
+
+/* ----------------------------------------------------------------
+   (vii) Late entries: money in a month that has ended that the books
+   never recorded. The agent pre-fills the entry; a person posts it.
+   ---------------------------------------------------------------- */
+const LATE_MATCH_DAYS_RECEIPT = 7;
+const LATE_MATCH_DAYS_BANK = 3;
+const LATE_MAX_PER_PERIOD = 10;
+
+/** Pulse expense categories that name one chart account. Others stay unset:
+ *  guessing a category would misstate the books. */
+const CATEGORY_ACCOUNT_KEY: Readonly<Record<string, string>> = {
+  rent: "rent",
+  software: "software",
+  subscriptions: "software",
+  marketing: "advertising",
+  insurance: "insurance",
+  fees: "bank_service",
+};
+
+function monthStart(ms: number): number {
+  const d = new Date(ms);
+  return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1);
+}
+
+/** The category account of the most similar earlier entry, by vendor name. */
+function guessAccount(s: AccountingSignals, name: string | undefined, type: "expense" | "revenue"): { key: string; name: string; from: string } | null {
+  if (!name) return null;
+  const { byId } = accountIndex(s);
+  let best: { key: string; name: string; from: string; sim: number } | null = null;
+  for (const e of [...s.entries, ...s.prior.flatMap((p) => p.entries)]) {
+    if (e.status !== "posted") continue;
+    const sim = vendorSimilarity(name, e.memo);
+    if (sim < 0.6 || (best && sim <= best.sim)) continue;
+    const line = e.lines.map((l) => byId.get(l.accountId)).find((a) => a?.type === type);
+    if (line) best = { key: line.key, name: line.name, from: e.memo, sim };
+  }
+  return best ? { key: best.key, name: best.name, from: best.from } : null;
+}
+
+export function lateEntryCandidates(s: AccountingSignals): ProposedAction[] {
+  // Only a month that has ended. The current month takes ordinary entries.
+  if (s.periodEnd > monthStart(s.now)) return [];
+  const { byKey } = accountIndex(s);
+  const label = periodLabel(s.periodKey);
+  const posted = s.entries.filter((e) => e.status === "posted");
+  const inMonth = (ms: number | undefined) => ms !== undefined && ms >= s.periodStart && ms < s.periodEnd;
+  const linked = new Set<string>();
+  for (const e of [...s.entries, ...s.prior.flatMap((p) => p.entries)]) for (const id of e.receiptIds) linked.add(id);
+  const cashIds = new Set(s.accounts.filter((a) => a.isCash).map((a) => a.id));
+  const cardIds = new Set(s.accounts.filter((a) => a.key === "credit_card_payable").map((a) => a.id));
+
+  type Found = { amountCents: number; date: number; who: string; kind: "expense" | "income"; paidFrom?: "bank" | "card"; account: { key: string; name: string; from?: string } | null; receiptId?: Id<"receipts">; bankTransactionId?: Id<"bankTransactions">; source: string; entityKey: string };
+  const found: Found[] = [];
+  const suggestedReceipts = new Set<string>();
+
+  // Bank lines no posted entry accounts for: a cash or card line, same amount,
+  // same direction, within three days.
+  for (const b of s.bankLines ?? []) {
+    if (!inMonth(b.date) || b.amountCents <= 0) continue;
+    // Money coming onto a card is a card payment or a vendor credit, not
+    // income, and the agent cannot tell which: leave it to a person.
+    if (b.onCard && b.direction === "in") continue;
+    const ids = b.onCard ? cardIds : cashIds;
+    // Money out credits the bank (or the card payable); money in debits it.
+    const seen = posted.some((e) => Math.abs(e.entryDate - b.date) <= LATE_MATCH_DAYS_BANK * DAY_MS
+      && e.lines.some((l) => ids.has(l.accountId) && (b.direction === "out" ? l.creditCents : l.debitCents) === b.amountCents));
+    if (seen) continue;
+    const kind = b.direction === "out" ? "expense" : "income";
+    const fromCategory = kind === "expense" && b.category ? CATEGORY_ACCOUNT_KEY[b.category] : undefined;
+    const acct = fromCategory && byKey.get(fromCategory)
+      ? { key: fromCategory, name: byKey.get(fromCategory)!.name, from: `the bank line's ${b.category} category` }
+      : guessAccount(s, b.name, kind === "expense" ? "expense" : "revenue");
+    if (b.receiptId) suggestedReceipts.add(b.receiptId);
+    found.push({
+      amountCents: b.amountCents, date: b.date, who: b.name, kind, paidFrom: b.onCard ? "card" : "bank", account: acct,
+      ...(b.receiptId ? { receiptId: b.receiptId } : {}), bankTransactionId: b.id,
+      source: `Bank line: ${shortDate(b.date)}, ${clip(b.name)}, ${b.direction === "out" ? "money out" : "money in"} ${dollars(b.amountCents)}`,
+      entityKey: `bank:${b.id}`,
+    });
+  }
+
+  // Receipts no entry carries and no entry matches by amount within a week.
+  for (const r of s.receipts) {
+    if (linked.has(r.id) || suggestedReceipts.has(r.id)) continue;
+    if (r.status !== "ready" && r.status !== "needs_review") continue;
+    if (!inMonth(r.date) || !r.totalCents || r.totalCents <= 0) continue;
+    const matched = posted.some((e) => Math.abs(e.entryDate - r.date!) <= LATE_MATCH_DAYS_RECEIPT * DAY_MS && e.totalCents === r.totalCents);
+    if (matched) continue;
+    found.push({
+      amountCents: r.totalCents, date: r.date!, who: r.vendor ?? "Unnamed vendor", kind: "expense",
+      ...(r.cardLast4 ? { paidFrom: "card" as const } : {}),
+      account: guessAccount(s, r.vendor, "expense"), receiptId: r.id,
+      source: `Receipt: ${r.vendor ?? "no vendor read"}, ${shortDate(r.date!)}, ${dollars(r.totalCents)}${r.cardLast4 ? `, card ending ${r.cardLast4}` : ""}`,
+      entityKey: `rcpt:${r.id}`,
+    });
+  }
+
+  return found
+    .sort((a, b) => b.amountCents - a.amountCents || a.date - b.date)
+    .slice(0, LATE_MAX_PER_PERIOD)
+    .map((f): ProposedAction => {
+      const sign = f.kind === "expense" ? -1 : 1;
+      const ready = !!f.account && !!f.paidFrom;
+      const evidence = [
+        f.source,
+        `No entry in ${label} has this amount within ${f.bankTransactionId ? LATE_MATCH_DAYS_BANK : LATE_MATCH_DAYS_RECEIPT} days of that date`,
+        f.account
+          ? `Category: ${f.account.name}${f.account.from ? ` (like ${clip(f.account.from, 40)})` : ""}`
+          : "Category: not clear from the evidence, so it is yours to choose",
+        ...(f.account
+          ? [`${label}${s.hasReported ? ", already reported," : ""} would move: net income ${dollars(s.totals.netIncomeCents)} to ${dollars(s.totals.netIncomeCents + sign * f.amountCents)}`]
+          : []),
+      ];
+      return {
+        type: "acct_late_entry",
+        priority: f.amountCents >= 10_000 ? "medium" : "low",
+        riskLevel: "medium",
+        confidence: ready ? 0.7 : 0.5,
+        title: `Missed ${f.kind} in ${label}: ${clip(f.who, 40)} (${dollars(f.amountCents)})`,
+        rationale: plain(
+          `${f.bankTransactionId ? "The bank shows" : "An uploaded receipt shows"} ${dollars(f.amountCents)} ${f.kind === "expense" ? "paid to" : "from"} ${clip(f.who, 40)} on ${shortDate(f.date)}, and nothing in the ${label} books records it. ${label} has ended, so it would go in as a late entry: the reported statements stay as they were, and the difference shows as a late entry. Nothing is added until you approve.`,
+        ),
+        entityType: "journal_entry",
+        entityId: `${s.periodKey}:late:${f.entityKey}`,
+        payload: {
+          kind: "late_entry",
+          period: s.periodKey,
+          lateKind: f.kind,
+          entryDate: f.date,
+          counterparty: clip(f.who, 120),
+          amountCents: f.amountCents,
+          ...(f.account ? { accountKey: f.account.key, accountName: f.account.name } : {}),
+          ...(f.paidFrom ? { paidFrom: f.paidFrom } : {}),
+          reason: f.bankTransactionId ? "Missed bank transaction" : "Missed invoice/receipt",
+          ...(f.receiptId ? { receiptId: f.receiptId } : {}),
+          ...(f.bankTransactionId ? { bankTransactionId: f.bankTransactionId } : {}),
+          evidence,
+        },
+      };
+    });
+}
+
 /* ----------------------------------------------------------------
    Everything the Accounting agent proposes for one period
    ---------------------------------------------------------------- */
@@ -1032,5 +1228,6 @@ export function accountingCandidates(s: AccountingSignals): ProposedAction[] {
     ...receiptCandidates(s),
     ...categorizationCandidates(s),
     ...anomalyCandidates(s),
+    ...lateEntryCandidates(s),
   ];
 }

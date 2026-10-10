@@ -179,21 +179,29 @@ describe("(b) only the Accounting modules reach the ledger", () => {
     "../opsBrain.ts",
   ]);
 
+  // The Books report (phase B) is the ledger's own screen: it reads the ledger
+  // API and nothing else does.
+  const BOOKS_UI = (path: string) => path.startsWith("../../src/components/books/") || path.startsWith("../../src/lib/books/");
+
   it("no other module reads or writes the ledger tables or calls the ledger API", () => {
     const hits = Object.entries(sources)
       .filter(([path]) => !path.includes(".test.") && !path.includes(".fixture."))
-      .filter(([path, text]) => LEDGER_USE.test(text) && !MAY_TOUCH_LEDGER.has(path))
+      .filter(([path, text]) => LEDGER_USE.test(text) && !MAY_TOUCH_LEDGER.has(path) && !BOOKS_UI(path))
       .map(([path]) => path);
     expect(hits).toEqual([]);
   });
 
   it("only the shared inbox and the agent plumbing call into accountingAgent", () => {
-    const allowed = new Set(["../opsActions.ts", "../agent.ts", "../agentFleet.ts", "../crons.ts", "../aiActions.ts", "../accountingAgent.ts"]);
+    const allowed = new Set(["../opsActions.ts", "../agent.ts", "../agentFleet.ts", "../crons.ts", "../aiActions.ts", "../accountingAgent.ts", "../ledger.ts"]);
     const hits = Object.entries(sources)
       .filter(([path]) => !path.includes(".test."))
       .filter(([path, text]) => /(?:from "\.\.?\/accountingAgent"|(?:internal|api)\.accountingAgent)/.test(text) && !allowed.has(path) && !path.startsWith("../../src/"))
       .map(([path]) => path);
     expect(hits).toEqual([]);
+    // The ledger only asks for a rescan after a late entry changes a reported month.
+    const ledgerRefs = sources["../ledger.ts"].match(/(?:internal|api)\.accountingAgent\.\w+/g) ?? [];
+    expect(ledgerRefs).toEqual(["internal.accountingAgent.scanOrg"]);
+    expect(sources["../ledger.ts"]).not.toMatch(/from "\.\/accountingAgent"/);
   });
 
   it("the Accounting module posts in exactly one place: the approval path", () => {
@@ -201,6 +209,10 @@ describe("(b) only the Accounting modules reach the ledger", () => {
     expect(text).toBeTruthy();
     expect(text.match(/\bpostDraft\(/g)?.length).toBe(1);
     expect(text).toMatch(/export async function approveAccountingAction[\s\S]*?postDraft\(ctx/);
+    // A late entry posts through the ledger's own path, also only on approval.
+    expect(text.match(/\brecordLateEntry\(/g)?.length).toBe(1);
+    expect(text).toMatch(/export async function approveAccountingAction[\s\S]*?recordLateEntry\(ctx/);
+    expect(text.slice(0, text.indexOf("export async function approveAccountingAction"))).not.toMatch(/recordLateEntry\(/);
     // The scan and the generators never call anything that posts, voids, edits or sends.
     for (const banned of [/voidEntry|status: "void"|voidedAt/, /ctx\.db\.delete/, /sendEmail|sendSms|notifyTeam/, /status: "posted"/]) {
       expect(text, String(banned)).not.toMatch(banned);

@@ -53,6 +53,9 @@ export type StatementRow = {
   derived: boolean;
   cell?: string;
   formula?: string;
+  /** How much of this line late entries moved since the workbook was checked
+   *  (the engine's lateEntryImpact). 0 when none did. */
+  lateEntryCents: number;
 };
 
 /** Lines in the owner's order (the recomputed reading order carries it), then
@@ -62,6 +65,7 @@ export function statementRows(kind: StatementKind, s: StatementsPayload): Statem
   const reported = s.reported?.[kind] ?? null;
   const reportedByKey = new Map((reported ?? []).map((l) => [l.key, l]));
   const variances = new Map<string, Variance>((s.variances?.[kind] ?? []).map((v) => [v.key, v]));
+  const late = new Map((s.lateEntries?.lines ?? []).filter((l) => l.statement === kind).map((l) => [l.key, l.lateEntryCents]));
   const rows: StatementRow[] = [];
   const seen = new Set<string>();
 
@@ -84,6 +88,7 @@ export function statementRows(kind: StatementKind, s: StatementsPayload): Statem
       derived: Boolean((j as { derived?: boolean } | undefined)?.derived),
       cell: r?.cell,
       formula: r?.formula,
+      lateEntryCents: late.get(key) ?? 0,
     });
   };
   for (const l of journal) push(l.key);
@@ -94,6 +99,15 @@ export function statementRows(kind: StatementKind, s: StatementsPayload): Statem
 /** A plain-words reason for a nonzero difference. Never invents a cause the
  *  engine did not report. */
 export function explainDifference(row: StatementRow): string {
+  const base = explainBase(row);
+  if (!row.lateEntryCents) return base;
+  const share = row.lateEntryCents === row.differenceCents
+    ? "All of this difference comes from late entries added after the workbook was checked."
+    : `${formatSignedUsd(row.lateEntryCents)} of this comes from late entries added after the workbook was checked; the rest was there before.`;
+  return row.lateEntryCents === row.differenceCents ? share : `${share} ${base}`;
+}
+
+function explainBase(row: StatementRow): string {
   const higher = row.differenceCents > 0;
   const direction = higher ? "higher" : "lower";
   if (row.reportedMissing) {
@@ -191,6 +205,7 @@ const CHECK_TAB: Record<string, { tab: TabId; filter?: JournalFilter }> = {
   entries_outside_period: { tab: "journal" },
   duplicate_entries: { tab: "journal" },
   reported_statement_warnings: { tab: "checks" },
+  late_entries: { tab: "checks" },
 };
 
 /** Short headlines for the attention list. The check's own sentence is the detail. */
@@ -207,6 +222,7 @@ const CHECK_TITLE: Record<string, string> = {
   entries_outside_period: "Entries dated outside this month",
   duplicate_entries: "Possible duplicate entries",
   reported_statement_warnings: "Notes from your workbook",
+  late_entries: "Changed since the books were checked",
 };
 
 function cashVsBankText(check: Check): string {
@@ -309,12 +325,15 @@ export function formatSignedUsd(cents: number): string {
   return cents > 0 ? `+${formatUsd(cents)}` : formatUsd(cents);
 }
 
-export type AttentionCard = { id: "cash" | "statements" | "receipts" | "clearing"; tone: "critical" | "caution"; text: string; tab: TabId; filter?: JournalFilter };
+export type AttentionCard = { id: "late" | "cash" | "statements" | "receipts" | "clearing"; tone: "critical" | "caution"; text: string; tab: TabId; filter?: JournalFilter };
 
-/** At most four cards, in the owner's order of need: cash, statements,
- *  receipts, clearing. A card appears only when its check or variance does. */
+/** At most four cards, in the owner's order of need: what changed since the
+ *  books were checked (late entries), then cash, statements, receipts,
+ *  clearing. A card appears only when its check or variance does. */
 export function attentionCards(s: StatementsPayload, bank: BankRow[] | undefined): AttentionCard[] {
   const cards: AttentionCard[] = [];
+  const late = s.checks.find((c) => c.code === "late_entries");
+  if (late && late.status !== "pass") cards.push({ id: "late", tone: "caution", text: late.message, tab: "checks" });
   const cash = s.checks.find((c) => c.code === "cash_vs_bank");
   if (cash && cash.status !== "pass") {
     const row = (cash.detail as BankRow | undefined) ?? bank?.[0];
@@ -355,6 +374,33 @@ export function lineDifferences(s: StatementsPayload) {
   return (["balanceSheet", "incomeStatement", "cashFlow"] as StatementKind[]).flatMap((k) =>
     statementRows(k, s)
       .filter((r) => r.kind === "line" && r.differenceCents !== 0)
-      .map((r) => ({ key: r.key, statement: names[k], label: r.label, reportedCents: r.reportedCents, journalCents: r.journalCents, differenceCents: r.differenceCents, tab: k, rowKey: r.key })),
+      .map((r) => ({ key: r.key, statement: names[k], label: r.label, reportedCents: r.reportedCents, journalCents: r.journalCents, differenceCents: r.differenceCents, lateEntryCents: r.lateEntryCents, tab: k, rowKey: r.key })),
   );
+}
+
+/* ── late entries: what changed since the workbook was checked ── */
+
+const STATEMENT_NAME: Record<StatementKind, string> = { balanceSheet: "Balance Sheet", incomeStatement: "Income Statement", cashFlow: "Cash Flow" };
+
+/** The late entries group for Checks and the printed appendix: the engine's
+ *  headline, each entry, and every statement line they moved, in reading
+ *  order. Null when no late entry touched the month. */
+export function lateChanges(s: StatementsPayload) {
+  const l = s.lateEntries;
+  if (!l) return null;
+  return {
+    headline: l.headline,
+    count: l.count,
+    before: l.before,
+    after: l.after,
+    entries: l.entries,
+    lines: l.lines.map((x) => ({ ...x, statementName: STATEMENT_NAME[x.statement] })),
+  };
+}
+
+/** A late entry's status words: reversed, a reversal, or in the books. */
+export function lateStatus(e: { reversalOf?: string; reversedBy?: string }): string {
+  if (e.reversalOf) return "Reversal";
+  if (e.reversedBy) return "Reversed";
+  return "Late entry";
 }

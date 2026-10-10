@@ -10,6 +10,7 @@ import { ChecksPanel } from "./checks-panel";
 import { JournalPanel } from "./journal-panel";
 import { StatementPanel } from "./statement-panel";
 import { SummaryPanel } from "./summary-panel";
+import { LateChanges } from "./late-changes";
 
 /** The whole book for print: cover, contents, then the six sections in order,
  *  each on a new page. The brand header repeats on every page (thead) and the
@@ -120,6 +121,7 @@ export function FullBook({
                 <span className="tabular-nums">{i + 1}.</span> {s.title}
               </li>
             ))}
+            {statements.lateEntries && <li>Appendix. Changes since reported</li>}
           </ol>
         </div>
 
@@ -153,6 +155,16 @@ export function FullBook({
                   {s.body}
                 </section>
               ))}
+              {statements.lateEntries && (
+                <section id="book-appendix-late" className="books-section pt-4" data-testid="book-appendix">
+                  <h2 className="mb-4 font-grotesk text-xl font-semibold text-bone">Appendix. Changes since reported</h2>
+                  <p className="mb-3 text-sm text-steel">
+                    Late entries added to {periodLabel(period)} after the workbook was checked. The reported statements in this book are as
+                    they were checked; the journal and recomputed figures include these entries.
+                  </p>
+                  <LateChanges statements={statements} print />
+                </section>
+              )}
             </td>
           </tr>
         </tbody>

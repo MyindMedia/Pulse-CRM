@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { Id } from "../_generated/dataModel";
 import type { BankReconciliationRow } from "../lib/statements";
 import { assertActionInScope } from "../lib/agentScope";
+import { planLateEntry } from "../lib/lateEntries";
 import {
   type AccountingSignals,
   type AcctAccount,
@@ -14,6 +15,8 @@ import {
   clearingCandidates,
   closeChecklist,
   dollars,
+  lateEntryCandidates,
+  lateEntryInsight,
   matchReceipts,
   missingRecurring,
   ownerDigest,
@@ -411,5 +414,86 @@ describe("every proposal is inside the Accounting scope", () => {
     expect(dollars(130_500)).toBe("$1,305.00");
     expect(dollars(-112_780)).toBe("-$1,127.80");
     expect(dollars(5)).toBe("$0.05");
+  });
+});
+
+describe("late entry suggestions (openspec late-entries)", () => {
+  const bank = (id: string, over: Partial<import("./accounting").AcctBankLine> = {}): import("./accounting").AcctBankLine =>
+    ({ id: id as Id<"bankTransactions">, date: D(7, 14), amountCents: 2_900, direction: "out", name: "Vendor H hosting", ...over });
+  const rent = () => entry(D(7, 2), "July rent and CAM - Landlord A", [["rent", 150_000, 0], ["bank_cash", 0, 150_000]]);
+  const hostingJune = entry(D(6, 14), "Vendor H hosting", [["software", 2_900, 0], ["bank_cash", 0, 2_900]]);
+
+  it("suggests a bank line the July books never recorded, with the category of a similar earlier entry", () => {
+    const out = lateEntryCandidates(signals({ entries: [rent()], prior: [{ key: "2026-06", entries: [hostingJune] }], bankLines: [bank("b1")], hasReported: true }));
+    expect(out).toHaveLength(1);
+    expect(out[0]).toMatchObject({ type: "acct_late_entry", riskLevel: "medium", title: "Missed expense in July 2026: Vendor H hosting ($29.00)", entityId: "2026-07:late:bank:b1" });
+    expect(out[0].payload).toMatchObject({ kind: "late_entry", lateKind: "expense", accountKey: "software", paidFrom: "bank", amountCents: 2_900, bankTransactionId: "b1", reason: "Missed bank transaction" });
+    const evidence = (out[0].payload as { evidence: string[] }).evidence;
+    expect(evidence).toContain("July 2026, already reported, would move: net income -$1,127.80 to -$1,156.80");
+    expect(() => assertActionInScope("accounting", out[0])).not.toThrow();
+    expect(() => assertActionInScope("operations", out[0])).toThrow(/belong to the Accounting agent/);
+  });
+
+  it("leaves a bank line the books already carry, within three days, and money in as income", () => {
+    const paid = entry(D(7, 16), "Vendor H", [["software", 2_900, 0], ["bank_cash", 0, 2_900]]);
+    expect(lateEntryCandidates(signals({ entries: [paid], bankLines: [bank("b1")] }))).toEqual([]);
+    const deposit = lateEntryCandidates(signals({ bankLines: [bank("b2", { direction: "in", name: "Client Z", amountCents: 15_000 })] }));
+    expect(deposit[0].payload).toMatchObject({ lateKind: "income", paidFrom: "bank" });
+    expect((deposit[0].payload as { accountKey?: string }).accountKey).toBeUndefined();
+    const card = lateEntryCandidates(signals({ bankLines: [bank("b3", { onCard: true, category: "software" })] }));
+    expect(card[0].payload).toMatchObject({ paidFrom: "card", accountKey: "software" });
+    // Money onto a card is a payment or a credit, not income: not suggested.
+    expect(lateEntryCandidates(signals({ bankLines: [bank("b5", { onCard: true, direction: "in" })] }))).toEqual([]);
+  });
+
+  it("suggests an unmatched receipt once, never one an entry carries or matches", () => {
+    const r = receipt("r9", { vendor: "Vendor K", date: D(7, 20), totalCents: 4_500, cardLast4: "1234" });
+    const out = lateEntryCandidates(signals({ receipts: [r] }));
+    expect(out[0].payload).toMatchObject({ receiptId: "r9", paidFrom: "card", lateKind: "expense" });
+    expect((out[0].payload as { accountKey?: string }).accountKey).toBeUndefined();
+    const carried = entry(D(7, 20), "Vendor K", [["software", 4_500, 0], ["bank_cash", 0, 4_500]], { receiptIds: ["r9"] });
+    expect(lateEntryCandidates(signals({ entries: [carried], receipts: [r] }))).toEqual([]);
+    const same = entry(D(7, 25), "Something", [["software", 4_500, 0], ["bank_cash", 0, 4_500]]);
+    expect(lateEntryCandidates(signals({ entries: [same], receipts: [r] }))).toEqual([]);
+    // A bank line that carries the receipt suggests once, not twice.
+    expect(lateEntryCandidates(signals({ receipts: [r], bankLines: [bank("b4", { amountCents: 4_500, date: D(7, 20), receiptId: "r9" as Id<"receipts"> })] }))).toHaveLength(1);
+  });
+
+  it("every complete suggestion is one the ledger accepts as is", () => {
+    const ledgerAccounts = ACCOUNTS.map((a) => ({ ...a }));
+    const out = lateEntryCandidates(signals({
+      prior: [{ key: "2026-06", entries: [hostingJune] }],
+      bankLines: [bank("c1"), bank("c2", { direction: "in", name: "Client Z", amountCents: 15_000 }), bank("c3", { onCard: true, category: "software", date: D(7, 18) }), bank("c4", { onCard: true, direction: "in", amountCents: 5_000 })],
+      receipts: [receipt("r1", { vendor: "Vendor H hosting", date: D(7, 22), totalCents: 3_300, cardLast4: "9999" })],
+    }));
+    expect(out.length).toBeGreaterThanOrEqual(3);
+    for (const c of out) {
+      const p = c.payload as { lateKind: "expense" | "income" | "refund"; entryDate: number; counterparty: string; amountCents: number; accountKey?: string; paidFrom?: "bank" | "card" };
+      if (!p.accountKey || !p.paidFrom) continue;
+      expect(() => planLateEntry({ kind: p.lateKind, entryDate: p.entryDate, counterparty: p.counterparty, amountCents: p.amountCents, accountId: p.accountKey!, paidFrom: p.paidFrom! }, ledgerAccounts), c.title).not.toThrow();
+    }
+  });
+
+  it("only for a month that has ended", () => {
+    expect(lateEntryCandidates(signals({ now: D(7, 20), bankLines: [bank("b1")] }))).toEqual([]);
+    expect(lateEntryCandidates(signals({ now: D(8, 1), bankLines: [bank("b1")] }))).toHaveLength(1);
+  });
+
+  it("notes a reported month that late entries changed, in plain words", () => {
+    const s = signals({
+      hasReported: true,
+      lateImpact: {
+        count: 1,
+        before: { netIncomeCents: -112_780, endingCashCents: 98_129 },
+        after: { netIncomeCents: -114_680, endingCashCents: 96_229 },
+        entries: [{ memo: "Vendor U2 - hosting", totalCents: 1_900, enteredAt: Date.UTC(2026, 9, 9, 15), reversal: false }],
+      },
+    });
+    const ins = accountingInsights(s).find((i) => i.title === "Late entries: July 2026")!;
+    expect(ins.explanation.split("\n")[0]).toBe("July 2026 net income moved from -$1,127.80 to -$1,146.80 after 1 late entry.");
+    expect(ins.explanation).not.toMatch(/[–—]/);
+    expect(lateEntryInsight(s, { ...s.lateImpact!, count: 2, after: s.lateImpact!.before }).explanation.split("\n")[0])
+      .toBe("July 2026 has 2 late entries that cancel out: net income and cash are back where they were.");
+    expect(accountingInsights(signals({ hasReported: false, lateImpact: s.lateImpact })).some((i) => i.title.startsWith("Late entries"))).toBe(false);
   });
 });

@@ -19,6 +19,9 @@ import { JournalPanel } from "./journal-panel";
 import { StatementPanel } from "./statement-panel";
 import { ChecksPanel } from "./checks-panel";
 import { FullBook } from "./full-book";
+import { AddMissedItemButton, LateEntrySheet, LateReverseSheet, type ReverseTarget } from "./late-entry-sheet";
+import { isPastPeriod } from "@convex/lib/lateEntries";
+import type { LateEntryApi } from "@/lib/books/late";
 
 export type BooksJournalState = {
   entries: JournalEntryRow[] | undefined;
@@ -42,6 +45,9 @@ export type BooksReportProps = {
   accounts: AccountRow[] | undefined;
   bank: BankRow[] | undefined;
   journal: BooksJournalState;
+  /** Late entries: add a missed item to an ended month, reverse one. Absent
+   *  where the screen is read only. */
+  late?: LateEntryApi;
 };
 
 const SECTION_NAME: Record<TabId, string> = {
@@ -54,7 +60,12 @@ const SECTION_NAME: Record<TabId, string> = {
 };
 
 export function BooksReport(props: BooksReportProps) {
-  const { brand, period, periods, onPeriodChange, statements, accounts, bank, journal } = props;
+  const { brand, period, periods, onPeriodChange, statements, accounts, bank, journal, late } = props;
+  const [lateOpen, setLateOpen] = React.useState(false);
+  const [reverseTarget, setReverseTarget] = React.useState<ReverseTarget | null>(null);
+  const [notice, setNotice] = React.useState<string | null>(null);
+  const canAddLate = !!late?.canAdd && !!period && !!statements && isPastPeriod(period, late.now);
+  const onReverse = late?.canAdd ? (e: ReverseTarget) => setReverseTarget(e) : undefined;
   const [tab, setTab] = React.useState<TabId>("summary");
   const [focus, setFocus] = React.useState<{ tab: TabId; id: string } | null>(null);
   const [exporting, setExporting] = React.useState(false);
@@ -166,6 +177,7 @@ export function BooksReport(props: BooksReportProps) {
               ))}
             </select>
           </label>
+          {canAddLate && <AddMissedItemButton onClick={() => setLateOpen(true)} />}
           <Button variant="secondary" size="sm" onClick={() => window.print()} disabled={!statements}>
             <Printer className="size-4" aria-hidden />
             Print this tab
@@ -184,6 +196,15 @@ export function BooksReport(props: BooksReportProps) {
       <div className="books-no-print">
         <BrandBar brand={brand} entityName={entity} period={period} />
       </div>
+
+      {notice && (
+        <p role="status" className="books-no-print rounded-lg border border-positive/30 bg-positive/5 px-3.5 py-2.5 text-sm text-bone" data-testid="books-notice">
+          {notice}
+          <button type="button" onClick={() => setNotice(null)} className="ml-3 text-xs text-steel underline underline-offset-4">
+            Dismiss
+          </button>
+        </p>
+      )}
 
       {noPeriods ? (
         <EmptyState
@@ -226,6 +247,7 @@ export function BooksReport(props: BooksReportProps) {
                   onLoadMore={journal.onLoadMore}
                   loadingMore={journal.loadingMore}
                   focusEntryId={focus?.tab === "journal" ? focus.id.replace("books-entry-", "") : null}
+                  onReverse={onReverse ? (e) => onReverse({ id: e._id, memo: e.memo, entryDate: e.entryDate, totalCents: e.totalCents }) : undefined}
                 />
               </PrintFrame>
             </TabsContent>
@@ -249,7 +271,7 @@ export function BooksReport(props: BooksReportProps) {
             <TabsContent value="checks">
               <PrintFrame brand={brand} entityName={entity} period={period} section={SECTION_NAME.checks}>
                 {statements ? (
-                  <ChecksPanel checks={statements.checks} bank={bank} differences={lineDifferences(statements)} />
+                  <ChecksPanel checks={statements.checks} bank={bank} differences={lineDifferences(statements)} statements={statements} onReverse={onReverse} />
                 ) : (
                   <Skeletonish />
                 )}
@@ -267,6 +289,26 @@ export function BooksReport(props: BooksReportProps) {
           entries={fullRows}
           totals={journal.totals}
         />
+      )}
+      {late && period && (
+        <>
+          <LateEntrySheet
+            open={lateOpen}
+            onOpenChange={setLateOpen}
+            period={period}
+            accounts={accounts ?? []}
+            api={late}
+            brandStyle={rootStyle}
+            onDone={setNotice}
+          />
+          <LateReverseSheet
+            entry={reverseTarget}
+            onOpenChange={(o) => !o && setReverseTarget(null)}
+            api={late}
+            brandStyle={rootStyle}
+            onDone={setNotice}
+          />
+        </>
       )}
       <span className={cn("sr-only")} aria-live="polite">
         {exporting ? "Preparing CSV" : ""}
