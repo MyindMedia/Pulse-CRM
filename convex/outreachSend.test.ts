@@ -6,6 +6,7 @@ import { api, internal } from "./_generated/api";
 type Id = { subject: string; name: string; orgId: string; orgType: string };
 const idOf = (s: string, o: string): Id => ({ subject: s, name: s, orgId: o, orgType: "agency" });
 const AG = "org_a";
+const HOOK = "Saw that MIX just opened a second live room.";
 
 describe("outreach live sending", () => {
   let t: ReturnType<typeof convexTest>;
@@ -24,6 +25,7 @@ describe("outreach live sending", () => {
   const gates = async () => {
     await t.mutation(internal.outreach.setProviderMapping, { agencyId: AG, ghlLocationId: "l", ghlCalendarId: "c", bookingUrl: "https://api.leadconnectorhq.com/widget/bookings/pulse-walkthrough", bookingDurationMin: 30, timezone: "UTC", operator: "op" });
     await t.mutation(internal.outreach.upsertSender, { agencyId: AG, label: "MaxB", address: "info@studiopulse.tech", verified: true, operator: "op" });
+    await t.mutation(internal.outreach.upsertSender, { agencyId: AG, label: "Lawrence", address: "lawrenceb@studiopulse.tech", verified: true, operator: "op" });
     await t.mutation(internal.outreach.setPostalAddress, { agencyId: AG, address: "835 Wilshire Blvd, Ste 500 #519, Los Angeles, CA 90017", operator: "op" });
     await t.mutation(internal.outreach.confirmOwnerTest, { agencyId: AG, operator: "op", note: "Landed in Gmail, signature and link checked" });
     await t.mutation(internal.outreach.upsertTemplate, { agencyId: AG, key: "maxb_system", name: "MaxB", subject: "s", bookingUrl: "https://b.example/x", contentHash: "h", source: "t", approvedBy: "lawrence" });
@@ -37,7 +39,7 @@ describe("outreach live sending", () => {
       agencyId: AG, dedupeKey: "site:mix.com", name: "MIX Recording Studio", websiteUrl: "https://mix.com", source: "paste", status: "queued", createdAt: 1, updatedAt: 1,
       contacts: { emails: [{ address: email, generic: false, rank: 50, sourceUrl: "https://mix.com/contact" }], phones: [], socials: [], booking: [], pages: [], scrapedAt: 1 },
     }));
-    const id = await as("ua").mutation(api.outreachDrafts.prepare, { prospectId: pid, email, persona: "maxb", templateKey: "maxb_system" });
+    const id = await as("ua").mutation(api.outreachDrafts.prepare, { prospectId: pid, email, persona: "lawrence", templateKey: "lawrence_first", observation: HOOK });
     await as("ua").mutation(api.outreachDrafts.approve, { id });
     return { id, pid };
   }
@@ -76,12 +78,12 @@ describe("outreach live sending", () => {
     await seed(); await gates(); await goLive();
     const pid = await t.run(async (ctx) => await ctx.db.insert("outreachProspects", { agencyId: AG, dedupeKey: "k", name: "X", source: "paste", status: "queued", createdAt: 1, updatedAt: 1,
       contacts: { emails: [{ address: "a@x.com", generic: false, rank: 1, sourceUrl: "https://x.com" }], phones: [], socials: [], booking: [], pages: [], scrapedAt: 1 } }));
-    const unapproved = await as("ua").mutation(api.outreachDrafts.prepare, { prospectId: pid, email: "a@x.com", persona: "maxb", templateKey: "maxb_system" });
+    const unapproved = await as("ua").mutation(api.outreachDrafts.prepare, { prospectId: pid, email: "a@x.com", persona: "lawrence", templateKey: "lawrence_first", observation: HOOK });
     await expect(as("ua").mutation(api.outreachSend.send, { id: unapproved })).rejects.toThrow(/approved draft/);
     await expect(as("ustaff").mutation(api.outreachSend.send, { id: unapproved })).rejects.toThrow(/owner or admin/);
   });
 
-  it("sends exactly one email through Resend with the right sender, recipient and idempotency key", async () => {
+  it("sends exactly one email through Resend with the right sender, recipient, Message-ID and idempotency key", async () => {
     await seed(); await gates(); await goLive();
     const { id } = await approvedDraft();
     const f = resend();
@@ -91,7 +93,9 @@ describe("outreach live sending", () => {
     const [url, init] = f.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe("https://api.resend.com/emails");
     const body = JSON.parse(String(init.body));
-    expect(body).toMatchObject({ from: "MaxB | Pulse <info@studiopulse.tech>", to: ["jane@mix.com"], reply_to: "info@studiopulse.tech" });
+    expect(body).toMatchObject({ from: "Lawrence Berment <lawrenceb@studiopulse.tech>", to: ["jane@mix.com"], reply_to: ["lawrenceb@studiopulse.tech", "info@studiopulse.tech"] });
+    expect(body.headers).toMatchObject({ "List-Unsubscribe": "<mailto:lawrenceb@studiopulse.tech?subject=unsubscribe>", "Message-ID": `<pulse-outreach-${id}@studiopulse.tech>` });
+    expect(body.headers["In-Reply-To"]).toBeUndefined(); // the first email starts the thread
     expect(body.attachments).toHaveLength(1); // the signature picture, inline
     expect(body.html).toContain("835 Wilshire Blvd");
     expect((init.headers as Record<string, string>)["Idempotency-Key"]).toBe(`pulse-outreach-${id}`);

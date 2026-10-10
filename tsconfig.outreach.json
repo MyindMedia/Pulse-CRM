@@ -39,6 +39,8 @@
     "convex/outreachSend.ts",
     "convex/outreachCalendar.test.ts",
     "convex/outreachSend.test.ts",
+    "convex/outreachSequences.ts",
+    "convex/outreachSequences.test.ts",
     "next-env.d.ts"
   ]
 }

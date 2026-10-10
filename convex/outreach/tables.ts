@@ -29,7 +29,28 @@ export const prospectStatusV = v.union(
   v.literal("unreachable"),
   v.literal("queued"),
   v.literal("suppressed"),
+  /* The studio answered (detected in stored inbound mail, or marked by a person).
+     Stops the follow-up sequence; MaxB can still reply in the thread. */
+  v.literal("replied"),
 );
+
+/* Why a follow-up sequence stopped. Every reason is final: nothing restarts a stopped sequence. */
+export const sequenceStopV = v.union(
+  v.literal("replied"),
+  v.literal("demo_booked"),
+  v.literal("bounced"),
+  v.literal("complained"),
+  v.literal("opted_out"),
+  v.literal("suppressed"),
+  v.literal("manual"),
+);
+
+/* Per-prospect copy for MaxB follow-up steps 1 to 3 (from the outreach CSV). Plain text. */
+export const followupOverridesV = v.object({
+  step1: v.optional(v.string()),
+  step2: v.optional(v.string()),
+  step3: v.optional(v.string()),
+});
 
 export const prospectContactsV = v.object({
   emails: v.array(v.object({ address: v.string(), generic: v.boolean(), rank: v.number(), sourceUrl: v.string() })),
@@ -104,6 +125,8 @@ export const outreachTables = {
     isTest: v.boolean(),
     status: commStatusV,
     providerId: v.optional(v.string()),
+    /* The Message-ID header Pulse set on the send; follow-ups thread to it. */
+    messageId: v.optional(v.string()),
     idempotencyKey: v.string(),
     lastError: v.optional(v.string()),
     createdAt: v.number(),
@@ -139,6 +162,25 @@ export const outreachTables = {
     followers: v.optional(v.number()),
     /* Start of the demo this studio booked through Zuops (matched by email), if any. */
     bookedAt: v.optional(v.number()),
+    /* When the studio replied (or a person marked it replied). */
+    repliedAt: v.optional(v.number()),
+    /* An owner or admin confirmed who handles studio operations behind a generic
+       inbox. Clears the generic-inbox hold on this prospect's drafts; never approves. */
+    routingConfirmed: v.optional(v.boolean()),
+    routingConfirmedBy: v.optional(v.string()),
+    routingConfirmedAt: v.optional(v.number()),
+    /* Step-0 defaults from the outreach CSV: the opening line (and where it came
+       from), subject and middle paragraphs. Prefill the Prepare block; a draft
+       copies them, so the draft's own copy is what approval binds to. */
+    hook: v.optional(v.string()),
+    hookSourceUrl: v.optional(v.string()),
+    subjectDefault: v.optional(v.string()),
+    bodyDefault: v.optional(v.string()),
+    followups: v.optional(followupOverridesV),
+    /* Draft text for the DMs tab (from the CSV's ig_dm). */
+    igDmDraft: v.optional(v.string()),
+    fitScore: v.optional(v.number()),
+    priority: v.optional(v.string()),
     createdAt: v.number(),
     updatedAt: v.number(),
   })
@@ -163,6 +205,16 @@ export const outreachTables = {
     templateKey: v.string(),
     signatureMode: v.union(v.literal("image"), v.literal("animated"), v.literal("original"), v.literal("static")),
     observation: v.optional(v.string()),
+    /* Optional per-draft copy. Replaces only the middle paragraphs (body) or the
+       subject; never the greeting, opening line, offer, CTA, footer or opt-out. */
+    subjectOverride: v.optional(v.string()),
+    bodyOverride: v.optional(v.string()),
+    /* 0 = Lawrence's first email, 1-3 = MaxB follow-ups. Unset for a MaxB reply. */
+    sequenceStep: v.optional(v.number()),
+    /* Threading: the step-0 subject this replies to, and the Message-ID it threads under. */
+    threadSubject: v.optional(v.string()),
+    inReplyTo: v.optional(v.string()),
+    references: v.optional(v.string()),
     subject: v.string(),
     html: v.string(),
     text: v.string(),
@@ -185,6 +237,36 @@ export const outreachTables = {
   })
     .index("by_agency", ["agencyId", "createdAt"])
     .index("by_prospect", ["prospectId"]),
+  /* One follow-up sequence per prospect, started when Lawrence's first email is
+     accepted by the provider. The cron only ever creates drafts from it: every
+     follow-up still needs Approve this email and a person's Send now. */
+  outreachSequences: defineTable({
+    agencyId: v.string(),
+    prospectId: v.id("outreachProspects"),
+    recipient: v.string(),
+    /* The last step that was sent: 0 (Lawrence) to 3 (MaxB, day 14). */
+    step: v.number(),
+    status: v.union(v.literal("active"), v.literal("stopped"), v.literal("done")),
+    /* When step 0 was accepted. Steps 1-3 are due 3, 7 and 14 days after it. */
+    startedAt: v.number(),
+    lastSentAt: v.number(),
+    nextDueAt: v.optional(v.number()),
+    /* The open draft for the next step, once the cron has created it. */
+    pendingDraftId: v.optional(v.id("outreachDrafts")),
+    stoppedReason: v.optional(sequenceStopV),
+    stoppedAt: v.optional(v.number()),
+    stoppedBy: v.optional(v.string()),
+    /* Thread ids: the Message-ID set on step 0 and the provider's id for it. */
+    threadMessageId: v.string(),
+    threadProviderId: v.optional(v.string()),
+    threadSubject: v.string(),
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_prospect", ["prospectId"])
+    .index("by_agency_recipient", ["agencyId", "recipient"])
+    .index("by_status_due", ["status", "nextDueAt"]),
+
   /* The latest read-only snapshot of the agency's mapped GHL calendar. */
   outreachCalendar: defineTable({
     agencyId: v.string(),

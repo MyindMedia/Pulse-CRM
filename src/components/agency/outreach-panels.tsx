@@ -569,10 +569,32 @@ const PROSPECT_STATUS: Record<string, { tone: Tone; meaning: string }> = {
   unreachable: { tone: "caution", meaning: "The site could not be reached. Check the address, then try again." },
   queued: { tone: "positive", meaning: "In the review queue. Nothing has been sent." },
   suppressed: { tone: "caution", meaning: "Every address has opted out. Will not be contacted." },
+  replied: { tone: "positive", meaning: "The studio replied. Follow-ups stopped; MaxB can still reply in the thread." },
 };
 
 function hostName(url: string) {
   try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; }
+}
+
+type SigMode = "original" | "static" | "image" | "animated";
+type Prep = { email?: string; sig?: SigMode; routing?: boolean; persona?: "lawrence" | "maxb"; hook?: string; subject?: string; body?: string };
+type ImportReport = { matched: number; unmatched: number; skipped: number; draftsVoided: number; unmatchedWebsites: string[]; skippedRows: Array<{ line: number; reason: string }> };
+
+const STEP_NAME = ["Lawrence's first email", "MaxB day 3", "MaxB day 7", "MaxB day 14"];
+
+function SequenceLine({ s }: { s: { step: number; status: string; nextDueAt: number | null; stoppedMeaning: string | null; pendingDraft: boolean } }) {
+  if (s.status === "stopped") return <p className="text-xs text-steel">Follow-ups stopped. {s.stoppedMeaning}</p>;
+  if (s.status === "done") return <p className="text-xs text-steel">Follow-ups finished: all 3 MaxB follow-ups were sent.</p>;
+  return (
+    <p className="text-xs text-steel">
+      Sent: {STEP_NAME[s.step] ?? `step ${s.step}`}.{" "}
+      {s.pendingDraft
+        ? `${STEP_NAME[s.step + 1] ?? "The next step"} is in the Review queue, waiting for approval.`
+        : s.nextDueAt
+          ? `${STEP_NAME[s.step + 1] ?? "Next step"} will be drafted for review ${new Date(s.nextDueAt).toLocaleDateString()}. Nothing sends without your approval and Send.`
+          : ""}
+    </p>
+  );
 }
 
 export function Prospects() {
@@ -583,16 +605,23 @@ export function Prospects() {
   const queue = useMutation(api.outreachProspects.queueForReview);
   const suppress = useMutation(api.outreachProspects.suppressEmail);
   const remove = useMutation(api.outreachProspects.remove);
+  const markReplied = useMutation(api.outreachProspects.markReplied);
+  const confirmRouting = useMutation(api.outreachProspects.confirmRouting);
+  const importCsv = useMutation(api.outreachProspects.importCsv);
+  const stopSequence = useMutation(api.outreachSequences.stop);
   const prepare = useMutation(api.outreachDrafts.prepare);
   const [text, setText] = React.useState("");
   const [msg, setMsg] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   const [sites, setSites] = React.useState<Record<string, string>>({});
-  const [prep, setPrep] = React.useState<Record<string, { email?: string; sig?: "original" | "static" | "image" | "animated"; routing?: boolean }>>({});
+  const [prep, setPrep] = React.useState<Record<string, Prep>>({});
+  const [selected, setSelected] = React.useState<Record<string, boolean>>({});
+  const [report, setReport] = React.useState<ImportReport | null>(null);
 
   if (data === undefined) return <LoadingPanel label="Loading prospects" />;
   if (data === null) return <Unauthorized />;
   const manage = data.canManage;
+  const selectedIds = data.rows.filter((r) => selected[r.id]).map((r) => r.id as Id<"outreachProspects">);
 
   async function run(fn: () => Promise<unknown>, ok?: string) {
     setErr(null);
@@ -646,27 +675,95 @@ export function Prospects() {
         </CardContent>
       </Card>
 
+      {manage && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Import outreach CSV</CardTitle>
+            <CardDescription>
+              Per-studio copy from outreach-staged.csv, matched by website: the opening line, subject and body for
+              Lawrence&apos;s email, MaxB&apos;s day 3, 7 and 14 follow-ups, and the Instagram DM. It updates studios already on
+              the list and never adds one. Email addresses in the file are never imported as contacts. Up to 200 rows.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-2 text-sm">
+            <label htmlFor="import-csv" className="text-steel">Choose the CSV file</label>
+            <input
+              id="import-csv"
+              type="file"
+              accept=".csv,text/csv"
+              className="block text-xs text-steel"
+              onChange={(e) => {
+                const file = e.target.files?.[0];
+                e.target.value = "";
+                if (!file) return;
+                setReport(null);
+                void run(async () => setReport(await importCsv({ csv: await file.text() })));
+              }}
+            />
+            {report && (
+              <div role="status" className="space-y-1 text-xs text-steel">
+                <p className="text-bone">{report.matched} matched, {report.unmatched} not on the list, {report.skipped} skipped.{report.draftsVoided > 0 ? ` ${report.draftsVoided} open draft(s) used the old copy and were voided.` : ""}</p>
+                {report.unmatchedWebsites.length > 0 && <p>Not on the list: {report.unmatchedWebsites.join(", ")}</p>}
+                {report.skippedRows.length > 0 && <p>Skipped: {report.skippedRows.map((s) => `line ${s.line} (${s.reason})`).join(", ")}</p>}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
       {data.rows.length === 0 ? (
         <EmptyState icon={Users} title="No prospects yet" description="Paste a few handles or websites above to start a list." />
       ) : (
+        <>
+        {manage && (
+          <div className="flex flex-wrap items-center gap-3 rounded-md border border-graphite/40 bg-coal/40 px-3 py-2 text-xs text-steel">
+            <Button
+              variant="secondary"
+              disabled={selectedIds.length === 0}
+              onClick={() => void run(async () => {
+                const r = await confirmRouting({ ids: selectedIds });
+                setSelected({});
+                setMsg(`Routing confirmed for ${r.changed} studio(s). ${r.holdsCleared} held draft(s) moved back to awaiting approval. Nothing was approved or sent.`);
+              })}
+            >
+              Confirm routing for selected ({selectedIds.length})
+            </Button>
+            <span>For studios whose generic inbox you checked. Clears the generic-inbox hold; it never approves an email.</span>
+          </div>
+        )}
         <ul className="space-y-3">
           {data.rows.map((p) => {
             const st = PROSPECT_STATUS[p.status] ?? { tone: "neutral" as Tone, meaning: "" };
             const title = p.name ?? (p.handle ? `@${p.handle}` : p.websiteUrl ? hostName(p.websiteUrl) : "Link");
+            const seq = p.sequence ?? null;
             return (
               <li key={p.id}>
                 <Card>
                   <CardContent className="space-y-3 p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div className="space-y-1">
-                        <p className="font-grotesk text-sm font-semibold text-bone">{title}</p>
-                        <p className="text-xs text-steel/70">
-                          {p.handle ? `@${p.handle} · ` : ""}{p.websiteUrl ? hostName(p.websiteUrl) : "no website yet"} · added via {p.source}
-                        </p>
+                      <div className="flex items-start gap-3">
+                        {manage && (
+                          <input
+                            type="checkbox"
+                            aria-label={`Select ${title}`}
+                            checked={!!selected[p.id]}
+                            onChange={(e) => setSelected((s) => ({ ...s, [p.id]: e.target.checked }))}
+                            className="mt-1"
+                          />
+                        )}
+                        <div className="space-y-1">
+                          <p className="font-grotesk text-sm font-semibold text-bone">{title}</p>
+                          <p className="text-xs text-steel/70">
+                            {p.handle ? `@${p.handle} · ` : ""}{p.websiteUrl ? hostName(p.websiteUrl) : "no website yet"} · added via {p.source}
+                            {p.priority ? ` · priority ${p.priority}` : ""}{p.fitScore !== null && p.fitScore !== undefined ? ` · fit ${p.fitScore}` : ""}
+                          </p>
+                          {seq && <SequenceLine s={seq} />}
+                        </div>
                       </div>
                       <div className="space-y-1 text-right">
                         <Badge tone={st.tone}>{p.status.replace("_", " ")}</Badge>
                         {p.bookedAt && <Badge tone="positive">Booked a demo {new Date(p.bookedAt).toLocaleDateString()}</Badge>}
+                        {p.routingConfirmed && <Badge tone="info">routing confirmed</Badge>}
                         <p className="max-w-xs text-xs text-steel/70">{p.note ?? st.meaning}</p>
                       </div>
                     </div>
@@ -730,26 +827,45 @@ export function Prospects() {
                       </div>
                     )}
 
-                    {p.status === "queued" && manage && p.contacts && (() => {
+                    {manage && p.contacts && (p.status === "queued" || (p.status === "replied" && seq)) && (() => {
                       const open = p.contacts.emails.filter((e) => !e.suppressed);
                       const cur = prep[p.id] ?? {};
-                      const chosen = open.find((e) => e.address === (cur.email ?? open[0]?.address));
+                      const persona = cur.persona ?? (seq ? "maxb" : "lawrence");
+                      const lawrence = persona === "lawrence";
+                      const chosen = lawrence
+                        ? open.find((e) => e.address === (cur.email ?? open[0]?.address))
+                        : open.find((e) => e.address === seq?.recipient);
+                      const hook = cur.hook ?? p.hook ?? "";
+                      const subject = cur.subject ?? p.subjectDefault ?? "";
+                      const body = cur.body ?? (lawrence ? p.bodyDefault ?? "" : "");
+                      const update = (patch: Prep) => setPrep((m) => ({ ...m, [p.id]: { ...cur, ...patch } }));
+                      const field = "w-full rounded border border-graphite/60 bg-obsidian px-2 py-1 text-bone";
                       return (
                         <div className="space-y-2 rounded-md border border-graphite/40 bg-coal/40 p-3 text-xs">
                           <p className="font-meta uppercase tracking-wide text-steel/70">Prepare the email</p>
+                          <p className="text-steel">
+                            {lawrence
+                              ? "The first email to a studio comes from Lawrence. If it is sent, MaxB's follow-ups are drafted for your review on day 3, 7 and 14."
+                              : "MaxB replies in Lawrence's thread, to the address Lawrence wrote to."}
+                          </p>
                           <div className="flex flex-wrap items-center gap-2">
-                            <label htmlFor={`to-${p.id}`} className="text-steel">To</label>
-                            <select id={`to-${p.id}`} value={chosen?.address ?? ""} onChange={(e) => setPrep((m) => ({ ...m, [p.id]: { ...cur, email: e.target.value } }))}
-                              className="rounded border border-graphite/60 bg-obsidian px-2 py-1 text-bone">
-                              {open.map((e) => <option key={e.address} value={e.address}>{e.address}</option>)}
-                            </select>
                             <label htmlFor={`from-${p.id}`} className="text-steel">From</label>
-                            <select id={`from-${p.id}`} defaultValue="maxb" className="rounded border border-graphite/60 bg-obsidian px-2 py-1 text-bone">
-                              <option value="maxb">MaxB | Pulse (Roverto signature)</option>
-                              <option value="lawrence" disabled>Lawrence (no approved copy yet)</option>
+                            <select id={`from-${p.id}`} value={persona} onChange={(e) => update({ persona: e.target.value as "lawrence" | "maxb" })}
+                              className="rounded border border-graphite/60 bg-obsidian px-2 py-1 text-bone">
+                              <option value="lawrence" disabled={!!seq}>Lawrence Berment (first email)</option>
+                              <option value="maxb" disabled={!seq}>MaxB | Pulse (reply in the thread)</option>
                             </select>
+                            <label htmlFor={`to-${p.id}`} className="text-steel">To</label>
+                            {lawrence ? (
+                              <select id={`to-${p.id}`} value={chosen?.address ?? ""} onChange={(e) => update({ email: e.target.value })}
+                                className="rounded border border-graphite/60 bg-obsidian px-2 py-1 text-bone">
+                                {open.map((e) => <option key={e.address} value={e.address}>{e.address}</option>)}
+                              </select>
+                            ) : (
+                              <span id={`to-${p.id}`} className="text-bone">{seq?.recipient}</span>
+                            )}
                             <label htmlFor={`sig-${p.id}`} className="text-steel">Signature</label>
-                            <select id={`sig-${p.id}`} value={cur.sig ?? "image"} onChange={(e) => setPrep((m) => ({ ...m, [p.id]: { ...cur, sig: e.target.value as "original" | "static" | "image" | "animated" } }))}
+                            <select id={`sig-${p.id}`} value={cur.sig ?? "image"} onChange={(e) => update({ sig: e.target.value as SigMode })}
                               className="rounded border border-graphite/60 bg-obsidian px-2 py-1 text-bone">
                               <option value="image">Exact picture of your Final signature (recommended)</option>
                               <option value="animated">Animated GIF (needs the site deployed first)</option>
@@ -757,22 +873,41 @@ export function Prospects() {
                               <option value="static">Email-safe rebuild</option>
                             </select>
                           </div>
-                          {chosen?.generic && (
+                          {lawrence && (
+                            <>
+                              <label htmlFor={`hook-${p.id}`} className="block text-steel">Opening line (required: one true, specific line about this studio)</label>
+                              <input id={`hook-${p.id}`} value={hook} onChange={(e) => update({ hook: e.target.value })} className={field}
+                                placeholder="Saw you just opened a second live room in Silver Lake." />
+                              {p.hookSourceUrl && <p className="text-steel/60">Source: {p.hookSourceUrl}</p>}
+                              <label htmlFor={`subject-${p.id}`} className="block text-steel">Subject (optional)</label>
+                              <input id={`subject-${p.id}`} value={subject} onChange={(e) => update({ subject: e.target.value })} className={field}
+                                placeholder={`A question about running ${p.name ?? "the studio"}`} />
+                            </>
+                          )}
+                          <label htmlFor={`body-${p.id}`} className="block text-steel">Body (optional: replaces only the middle paragraphs; the greeting, offer, demo link, footer and opt-out stay)</label>
+                          <textarea id={`body-${p.id}`} value={body} onChange={(e) => update({ body: e.target.value })} rows={3} className={field}
+                            placeholder="Leave blank for the standard copy. Blank line between paragraphs." />
+                          {lawrence && chosen?.generic && !p.routingConfirmed && (
                             <label className="flex items-start gap-2 text-steel">
-                              <input type="checkbox" checked={!!cur.routing} onChange={(e) => setPrep((m) => ({ ...m, [p.id]: { ...cur, routing: e.target.checked } }))} className="mt-0.5" />
+                              <input type="checkbox" checked={!!cur.routing} onChange={(e) => update({ routing: e.target.checked })} className="mt-0.5" />
                               <span>This is a generic inbox. I have confirmed who handles studio operations.</span>
                             </label>
                           )}
                           <Button
                             variant="secondary"
-                            disabled={!chosen}
+                            disabled={!chosen || (lawrence && !hook.trim())}
                             onClick={() => void run(() => prepare({
-                              prospectId: p.id as Id<"outreachProspects">, email: chosen!.address, persona: "maxb",
-                              templateKey: "maxb_system", signatureMode: cur.sig ?? "image", routingConfirmed: !!cur.routing,
+                              prospectId: p.id as Id<"outreachProspects">, email: chosen!.address, persona,
+                              templateKey: lawrence ? "lawrence_first" : "maxb_reply",
+                              observation: lawrence ? hook : undefined,
+                              subjectOverride: lawrence && subject.trim() ? subject : undefined,
+                              bodyOverride: body.trim() ? body : undefined,
+                              signatureMode: cur.sig ?? "image", routingConfirmed: !!cur.routing,
                             }), "Draft prepared. Open the Review queue tab to preview it. Nothing was sent.")}
                           >
                             Prepare email
                           </Button>
+                          {lawrence && !hook.trim() && <p className="text-steel/70">Add an opening line to prepare Lawrence&apos;s email.</p>}
                         </div>
                       );
                     })()}
@@ -789,6 +924,16 @@ export function Prospects() {
                             Queue for review
                           </Button>
                         )}
+                        {p.status === "queued" && (
+                          <Button variant="secondary" onClick={() => void run(() => markReplied({ id: p.id as Id<"outreachProspects"> }), "Marked replied. Follow-ups stopped.")}>
+                            Mark replied
+                          </Button>
+                        )}
+                        {seq?.status === "active" && (
+                          <Button variant="ghost" onClick={() => void run(() => stopSequence({ prospectId: p.id as Id<"outreachProspects"> }), "Follow-ups stopped for this studio.")}>
+                            Stop follow-ups
+                          </Button>
+                        )}
                         <Button variant="ghost" onClick={() => void run(() => remove({ id: p.id as Id<"outreachProspects"> }), "Removed.")}>
                           Remove
                         </Button>
@@ -800,6 +945,7 @@ export function Prospects() {
             );
           })}
         </ul>
+        </>
       )}
       {data.suppressedCount > 0 && (
         <p className="text-xs text-steel">{data.suppressedCount} address(es) are on the opt-out list and will never be queued.</p>
@@ -825,6 +971,7 @@ function DraftPreview({ id }: { id: Id<"outreachDrafts"> }) {
         <Field label="To (only recipient)" value={p.to} />
         <Field label="Subject" value={p.subject} />
         <Field label="Links in this email" value={<ul className="space-y-0.5">{p.links.map((l) => <li key={l}>{l}</li>)}</ul>} />
+        {p.inReplyTo && <Field label="Replies in the thread of" value={p.inReplyTo} />}
       </dl>
       {p.signatureMode === "original" && (
         <p role="note" className="rounded border border-caution/30 bg-caution/10 px-3 py-2 text-xs text-bone">
@@ -842,13 +989,18 @@ function DraftPreview({ id }: { id: Id<"outreachDrafts"> }) {
   );
 }
 
+type DraftEdit = { observation?: string; subject?: string; body?: string };
+
 export function Drafts() {
   const data = useQuery(api.outreachDrafts.list, {});
   const approve = useMutation(api.outreachDrafts.approve);
   const cancel = useMutation(api.outreachDrafts.cancel);
+  const edit = useMutation(api.outreachDrafts.edit);
   const send = useMutation(api.outreachSend.send);
   const [confirming, setConfirming] = React.useState<string | null>(null);
   const [open, setOpen] = React.useState<string | null>(null);
+  const [editing, setEditing] = React.useState<string | null>(null);
+  const [edits, setEdits] = React.useState<Record<string, DraftEdit>>({});
   const [msg, setMsg] = React.useState<string | null>(null);
   const [err, setErr] = React.useState<string | null>(null);
   if (data === undefined) return <LoadingPanel label="Loading review queue" />;
@@ -867,7 +1019,7 @@ export function Drafts() {
       <Card>
         <CardHeader>
           <CardTitle>Before anything can be approved</CardTitle>
-          <CardDescription>Approval is tied to the exact email and expires in 24 hours. Approving does not send: each approved email is sent with its own Send click, and only while live sending is on.</CardDescription>
+          <CardDescription>Approval is tied to the exact email and expires in 24 hours. Approving does not send: each approved email is sent with its own Send click, and only while live sending is on. MaxB&apos;s follow-ups appear here on day 3, 7 and 14 after Lawrence&apos;s email is sent; each one still needs your approval and your own Send click. Editing a draft clears its approval.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3 text-sm">
           <Badge tone={data.gates.postalAddress ? "positive" : "caution"}>postal address {data.gates.postalAddress ? "set" : "missing"}</Badge>
@@ -888,6 +1040,7 @@ export function Drafts() {
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="space-y-1">
                       <p className="font-grotesk text-sm font-semibold text-bone">{d.studio}</p>
+                      {d.label && <p className="text-xs text-bone">{d.label}{d.threaded ? " · reply in Lawrence's thread" : ""}</p>}
                       <p className="text-xs text-steel">To {d.recipient} · from {d.from}</p>
                       <p className="text-xs text-steel/70">{d.subject} · {({ original: "original signature", image: "signature as picture", animated: "animated signature", static: "email-safe signature" } as Record<string, string>)[d.signatureMode]}</p>
                     </div>
@@ -922,10 +1075,45 @@ export function Drafts() {
                         <span className="self-center text-xs text-steel">Sending is off. An owner can turn it on in Settings.</span>
                       )
                     )}
+                    {data.canManage && d.editable && ["draft", "hold", "approved"].includes(d.status) && (
+                      <Button variant="ghost" onClick={() => setEditing(editing === d.id ? null : d.id)}>
+                        {editing === d.id ? "Close editor" : "Edit copy"}
+                      </Button>
+                    )}
                     {data.canManage && !["cancelled", "approved", "sending", "sent"].includes(d.status) && (
-                      <Button variant="ghost" onClick={() => void run(() => cancel({ id: d.id as Id<"outreachDrafts"> }), "Draft cancelled.")}>Cancel</Button>
+                      <Button variant="ghost" onClick={() => void run(() => cancel({ id: d.id as Id<"outreachDrafts"> }), d.step !== null && d.step >= 1 ? "Follow-up cancelled. The sequence for this studio is stopped." : "Draft cancelled.")}>Cancel</Button>
                     )}
                   </div>
+                  {editing === d.id && d.editable && (() => {
+                    const e = edits[d.id] ?? {};
+                    const set = (patch: DraftEdit) => setEdits((m) => ({ ...m, [d.id]: { ...e, ...patch } }));
+                    const field = "w-full rounded border border-graphite/60 bg-obsidian px-2 py-1 text-xs text-bone";
+                    return (
+                      <div className="space-y-2 rounded-md border border-graphite/40 bg-coal/40 p-3 text-xs">
+                        {d.editable.observation && (
+                          <>
+                            <label htmlFor={`e-hook-${d.id}`} className="block text-steel">Opening line</label>
+                            <input id={`e-hook-${d.id}`} className={field} value={e.observation ?? d.observation ?? ""} onChange={(ev) => set({ observation: ev.target.value })} />
+                          </>
+                        )}
+                        {d.editable.subject && (
+                          <>
+                            <label htmlFor={`e-subject-${d.id}`} className="block text-steel">Subject (blank for the standard subject)</label>
+                            <input id={`e-subject-${d.id}`} className={field} value={e.subject ?? d.subjectOverride ?? ""} onChange={(ev) => set({ subject: ev.target.value })} />
+                          </>
+                        )}
+                        <label htmlFor={`e-body-${d.id}`} className="block text-steel">Body (middle paragraphs only; blank for the standard copy)</label>
+                        <textarea id={`e-body-${d.id}`} rows={4} className={field} value={e.body ?? d.bodyOverride ?? ""} onChange={(ev) => set({ body: ev.target.value })} />
+                        <Button variant="secondary" onClick={() => void run(async () => {
+                          await edit({ id: d.id as Id<"outreachDrafts">, observation: e.observation, subjectOverride: e.subject, bodyOverride: e.body });
+                          setEditing(null);
+                          setEdits((m) => { const n = { ...m }; delete n[d.id]; return n; });
+                        }, "Saved. Approve it again before sending.")}>
+                          Save changes (clears approval)
+                        </Button>
+                      </div>
+                    );
+                  })()}
                   {d.status === "draft" && !gatesOk && (
                     <p className="text-xs text-steel">Approve is off until the postal address is set and an owner test is confirmed.</p>
                   )}

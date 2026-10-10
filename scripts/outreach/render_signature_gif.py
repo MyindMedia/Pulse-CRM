@@ -1,25 +1,29 @@
 #!/usr/bin/env python3
-"""Render Lawrence's Final signature HTML files to animated GIFs for email.
+"""Render the outreach signatures to animated GIFs for email.
 
 Inboxes do not run CSS animation, scripts or iframes, so a hosted animated page
 cannot be embedded in an email. An animated GIF is the one thing that plays in
 Gmail, Apple Mail and most others (Outlook desktop shows the first frame only).
 
-Each source file is loaded in Chrome on a TRANSPARENT page, every CSS animation is
+Each signature is loaded in Chrome on a TRANSPARENT page, every CSS animation is
 paused and stepped to exact times through the Web Animations API (so frames are
 deterministic, not screen-recorded), and Pillow writes the GIF with a transparent
 background, so the card sits on whatever the email background is (dark, or light
 when a phone app lightens it). GIF transparency is on or off, so the card's soft
 drop shadow is cut to a clean edge. The GIF plays once and holds the finished card.
 
-  python3 scripts/outreach/render_signature_gif.py \
-      --lawrence "~/Downloads/Final pulse_signature_email_grammy.html" \
-      --roverto  "~/Downloads/final pulse_signature_roverto_email.html" \
-      --out public/email
+The source is the ORIGINAL_LAWRENCE / ORIGINAL_ROVERTO strings in
+convex/outreach/signatures.ts (badge-free); --lawrence / --roverto render other files.
 
-Needs: playwright (+ Chrome), pillow, network (the files load their images).
+  python3 scripts/outreach/render_signature_gif.py --out public/email
+  python3 scripts/outreach/render_signature_gif.py --out public/email --browser /path/to/chrome
+
+Needs: playwright (+ Chrome), pillow, network (the HTML loads its images).
 """
 import argparse, io, pathlib, sys
+
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from signature_sources import fragment, launch  # noqa: E402
 
 FPS = 15
 HOLD_MS = 4000       # the finished card stays up this long
@@ -28,18 +32,14 @@ BG = (13, 13, 15)    # colour matted into edge pixels, the email card's #0d0d0f
 TRANS = 255          # palette index reserved for "transparent"
 
 
-def capture(src: pathlib.Path, scale: float):
+def capture(html: str, scale: float, browser_path: "str | None"):
     from playwright.sync_api import sync_playwright
     from PIL import Image
 
-    fragment = src.read_text(encoding="utf-8")
-    page_html = f'<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0;background:transparent">{fragment}</body></html>'
+    page_html = f'<!doctype html><html><head><meta charset="utf-8"></head><body style="margin:0;background:transparent">{html}</body></html>'
     frames = []
     with sync_playwright() as p:
-        try:
-            browser = p.chromium.launch(channel="chrome")
-        except Exception:
-            browser = p.chromium.launch()
+        browser = launch(p, browser_path)
         page = browser.new_page(viewport={"width": 520, "height": 300}, device_scale_factor=scale)
         page.set_content(page_html)
         page.wait_for_load_state("networkidle")
@@ -82,22 +82,23 @@ def encode(frames, dest: pathlib.Path) -> None:
     ps[0].save(dest, save_all=True, append_images=ps[1:], duration=durs, disposal=1, transparency=TRANS, optimize=False)
 
 
-def render(src: pathlib.Path, dest: pathlib.Path, scale: float) -> None:
-    frames, end_ms = capture(src, scale)
+def render(html: str, dest: pathlib.Path, scale: float, browser_path: "str | None") -> None:
+    frames, end_ms = capture(html, scale, browser_path)
     encode(frames, dest)
     print(f"{dest.name}: {dest.stat().st_size / 1024:.0f} KB, {len(frames)} frames, transparent, ends at {end_ms / 1000:.1f}s", file=sys.stderr)
 
 
 def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    ap.add_argument("--lawrence", required=True, type=pathlib.Path)
-    ap.add_argument("--roverto", required=True, type=pathlib.Path)
+    ap.add_argument("--lawrence", type=pathlib.Path, help="HTML file; default: ORIGINAL_LAWRENCE in signatures.ts")
+    ap.add_argument("--roverto", type=pathlib.Path, help="HTML file; default: ORIGINAL_ROVERTO in signatures.ts")
+    ap.add_argument("--browser", help="path to a Chrome/Chromium binary")
     ap.add_argument("--out", required=True, type=pathlib.Path)
     ap.add_argument("--scale", type=float, default=1.5, help="pixel density; 2 is sharpest, 1 is smallest")
     a = ap.parse_args()
     a.out.mkdir(parents=True, exist_ok=True)
-    render(a.roverto.expanduser(), a.out / "signature-roverto.gif", a.scale)
-    render(a.lawrence.expanduser(), a.out / "signature-lawrence.gif", a.scale)
+    render(fragment("roverto", a.roverto), a.out / "signature-roverto.gif", a.scale, a.browser)
+    render(fragment("lawrence", a.lawrence), a.out / "signature-lawrence.gif", a.scale, a.browser)
     return 0
 
 

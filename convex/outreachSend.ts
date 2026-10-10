@@ -1,12 +1,15 @@
-import { internalQuery, internalAction } from "./_generated/server";
+import { internalQuery, internalAction, type MutationCtx } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import { mutation, internalMutation } from "./functions";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { AccessError } from "./lib/access";
 import { requireAgencyScope, logEvent } from "./outreach/scope";
 import { redact, canTransition, type CommStatus } from "./outreach/policy";
-import { PERSONAS, renderEmail, contentHash, type TemplateKey, type PersonaKey } from "./outreach/templates";
+import { PERSONAS, THREAD_REPLY_TO } from "./outreach/templates";
 import { inlineImagesFor } from "./outreach/signatures";
+import { APPROVAL_TTL_MS, renderAndHash, messageIdFor, sendableStatuses } from "./outreach/drafting";
+import { sequenceFor, stopSequencesFor, nextDueAt, LAST_STEP, followupProblem } from "./outreach/sequence";
 
 /* ============================================================
    Sending one approved email. Nothing here runs unless: live sending is on,
@@ -15,14 +18,12 @@ import { inlineImagesFor } from "./outreach/signatures";
    an owner or admin clicks Send for that exact draft. One draft, one send,
    exactly once: an unclear outcome is recorded as "unknown" and is never
    retried automatically.
+
+   Threading: every send carries its own Message-ID. When Lawrence's first email
+   (step 0) is accepted, a follow-up sequence starts and MaxB's follow-ups reply
+   under that Message-ID (In-Reply-To and References). Reply-To names both
+   inboxes, so a studio's answer reaches Lawrence and MaxB.
    ============================================================ */
-
-const APPROVAL_TTL_MS = 24 * 60 * 60 * 1000;
-
-function hashParts(d: { recipient: string; persona: PersonaKey; subject: string; html: string; text: string }) {
-  const p = PERSONAS[d.persona];
-  return [d.recipient, d.subject, d.html, d.text, `${p.fromName} <${p.fromEmail}>`, p.replyTo, ...inlineImagesFor(d.html).map((i) => i.base64)];
-}
 
 /** Validates everything, records the attempt, and hands off to the delivery action. */
 export const send = mutation({
@@ -44,14 +45,16 @@ export const send = mutation({
       throw new Error("That address has opted out");
     }
     const prospect = await ctx.db.get(d.prospectId);
-    if (!prospect || prospect.status !== "queued") throw new Error("The prospect is no longer queued");
+    if (!prospect || !sendableStatuses(d.templateKey).includes(prospect.status)) throw new Error("The prospect is no longer queued");
+    const problem = await followupProblem(ctx, d);
+    if (problem) throw new Error(problem);
 
     // The approved content must be exactly what is about to go out.
-    const r = renderEmail({
-      template: d.templateKey as TemplateKey, studio: d.studio, observation: d.observation,
-      bookingUrl: settings.bookingUrl, postalAddress: settings.postalAddress, signatureMode: d.signatureMode,
-    });
-    const hash = await contentHash(hashParts({ recipient: d.recipient, persona: d.persona, subject: r.subject, html: r.html, text: r.text }));
+    const { hash } = await renderAndHash({
+      recipient: d.recipient, persona: d.persona, templateKey: d.templateKey, studio: d.studio, signatureMode: d.signatureMode,
+      observation: d.observation, subjectOverride: d.subjectOverride, bodyOverride: d.bodyOverride,
+      threadSubject: d.threadSubject, inReplyTo: d.inReplyTo, references: d.references,
+    }, settings);
     if (hash !== d.approvedHash) {
       await ctx.db.patch(id, { status: "superseded" });
       throw new Error("The content or settings changed since approval. Prepare and approve it again.");
@@ -63,7 +66,7 @@ export const send = mutation({
     const commId = await ctx.db.insert("outreachCommunications", {
       agencyId: scope.agencyId, channel: "email", templateKey: d.templateKey, recipient: d.recipient,
       sender: `${persona.fromName} <${persona.fromEmail}>`, subject: d.subject, isTest: false, status: "submitting",
-      idempotencyKey: key, createdAt: Date.now(),
+      messageId: messageIdFor(id), idempotencyKey: key, createdAt: Date.now(),
     });
     await ctx.db.patch(id, { status: "sending" });
     await logEvent(ctx, scope.agencyId, scope.actor, "outreach.email_send_requested", "ok", d.recipient);
@@ -85,13 +88,41 @@ export const _finish = internalMutation({
     const draft = await ctx.db.get(a.draftId);
     if (!comm || !draft) return null;
     await ctx.db.patch(a.commId, { status: a.status, providerId: a.providerId, lastError: redact(a.error) });
-    if (a.status === "accepted") await ctx.db.patch(a.draftId, { status: "sent" });
+    if (a.status === "accepted") {
+      await ctx.db.patch(a.draftId, { status: "sent" });
+      await advanceSequence(ctx, draft, comm.messageId ?? messageIdFor(a.draftId), a.providerId);
+    }
     else if (a.status === "rejected") await ctx.db.patch(a.draftId, { status: "hold", holdReason: `Provider rejected the send: ${redact(a.error, 120) ?? "no reason given"}. Nothing was sent.` });
     // "unknown" leaves the draft in "sending": it must be checked at the provider, never auto-retried.
     await logEvent(ctx, comm.agencyId, "system", "outreach.email_submitted", a.status === "accepted" ? "ok" : a.status === "unknown" ? "unknown" : "denied", a.providerId ?? comm.recipient, a.status);
     return null;
   },
 });
+
+/** Step 0 accepted: start the sequence (steps 1-3 due on day 3, 7, 14). A follow-up
+ *  accepted: record it and set the next due date, or finish after step 3. */
+async function advanceSequence(ctx: MutationCtx, draft: Doc<"outreachDrafts">, messageId: string, providerId: string | undefined) {
+  const step = draft.sequenceStep;
+  if (step === undefined) return;
+  const now = Date.now();
+  const seq = await sequenceFor(ctx, draft.prospectId);
+  if (step === 0) {
+    if (seq) return;
+    await ctx.db.insert("outreachSequences", {
+      agencyId: draft.agencyId, prospectId: draft.prospectId, recipient: draft.recipient, step: 0, status: "active",
+      startedAt: now, lastSentAt: now, nextDueAt: nextDueAt(0, now, now),
+      threadMessageId: messageId, threadProviderId: providerId, threadSubject: draft.subject, createdAt: now, updatedAt: now,
+    });
+    await logEvent(ctx, draft.agencyId, "system", "outreach.sequence_started", "ok", draft.recipient);
+    return;
+  }
+  if (!seq || seq.status !== "active" || seq.step !== step - 1) return;
+  const done = step >= LAST_STEP;
+  await ctx.db.patch(seq._id, {
+    step, lastSentAt: now, nextDueAt: done ? undefined : nextDueAt(step, seq.startedAt, now),
+    pendingDraftId: undefined, status: done ? "done" : "active", updatedAt: now,
+  });
+}
 
 export const _deliver = internalAction({
   args: { draftId: v.id("outreachDrafts"), commId: v.id("outreachCommunications") },
@@ -106,8 +137,12 @@ export const _deliver = internalAction({
     const p = PERSONAS[d.persona];
     const images = inlineImagesFor(d.html);
     const body = {
-      from: `${p.fromName} <${p.fromEmail}>`, to: [d.recipient], subject: d.subject, html: d.html, text: d.text, reply_to: p.replyTo,
-      headers: { "List-Unsubscribe": `<mailto:${p.replyTo}?subject=unsubscribe>` },
+      from: `${p.fromName} <${p.fromEmail}>`, to: [d.recipient], subject: d.subject, html: d.html, text: d.text, reply_to: THREAD_REPLY_TO,
+      headers: {
+        "List-Unsubscribe": `<mailto:${p.replyTo}?subject=unsubscribe>`,
+        "Message-ID": messageIdFor(draftId),
+        ...(d.inReplyTo ? { "In-Reply-To": d.inReplyTo, References: d.references ?? d.inReplyTo } : {}),
+      },
       ...(images.length ? { attachments: images.map((i) => ({ filename: i.filename, content: i.base64, content_type: i.contentType, content_id: i.contentId })) } : {}),
     };
     const ctl = new AbortController();
@@ -161,6 +196,9 @@ export const _apply = internalMutation({
     if (!row || !next || !canTransition(row.status, next)) return false;
     await ctx.db.patch(a.id, { status: next });
     await logEvent(ctx, row.agencyId, "system", "outreach.email_status", "ok", row.providerId, `${row.status} -> ${next}`);
+    // A bounce, complaint or provider suppression ends the follow-up sequence to that address.
+    const stop = a.status === "complained" ? "complained" : next === "bounced" ? "bounced" : next === "suppressed" ? "suppressed" : null;
+    if (stop) await stopSequencesFor(ctx, row.agencyId, { email: row.recipient }, stop, "system");
     return true;
   },
 });

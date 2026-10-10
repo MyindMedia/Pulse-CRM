@@ -8,6 +8,9 @@ import type { Id } from "./_generated/dataModel";
 import { prospectContactsV } from "./outreach/tables";
 import { parseSeed, extractEmails, extractPhones, extractSocials, detectBooking, candidatePages, hostOf, isContactPath } from "./outreach/enrich";
 import { checkUrl, loadRobots, robotsVerdict, safeGet, type RobotsPolicy } from "./outreach/safeFetch";
+import { stopSequencesFor, suppressionStopReason, STOP_MEANING } from "./outreach/sequence";
+import { GENERIC_HOLD } from "./outreach/drafting";
+import { readImportRows, rowProblem } from "./outreach/csvImport";
 
 /* ============================================================
    Outreach prospects: studios to pitch, found from Instagram handles or
@@ -18,6 +21,10 @@ import { checkUrl, loadRobots, robotsVerdict, safeGet, type RobotsPolicy } from 
 
 const MAX_LINES = 200;
 const MAX_QUEUE_LIST = 300;
+const MAX_BULK = 200;
+/** How many prospects a CSV import can match against. */
+const MAX_IMPORT_MATCH = 2000;
+const OPEN_DRAFT = new Set(["draft", "hold", "approved"]);
 
 async function requireManager(ctx: Parameters<typeof requireAgencyScope>[0]) {
   const scope = await requireAgencyScope(ctx);
@@ -39,6 +46,12 @@ export function cleanWebsite(raw: string): { ok: true; url: string } | { ok: fal
   return { ok: true, url: `${chk.url.protocol}//${chk.url.hostname}${chk.url.pathname === "/" ? "" : chk.url.pathname.replace(/\/$/, "")}` };
 }
 
+/** The key a website matches on: its host, lowercased, without "www." (as parseSeed's site: dedupe key). */
+export function websiteKey(raw: string): string | null {
+  const w = cleanWebsite(raw);
+  return w.ok ? hostOf(w.url) : null;
+}
+
 /* ------------------------------- queries ------------------------------- */
 
 export const list = query({
@@ -56,6 +69,11 @@ export const list = query({
       .withIndex("by_agency_email", (q) => q.eq("agencyId", scope.agencyId))
       .collect();
     const suppressed = new Set(sup.map((s) => s.email));
+    const seqs = await ctx.db
+      .query("outreachSequences")
+      .withIndex("by_agency_recipient", (q) => q.eq("agencyId", scope.agencyId))
+      .collect();
+    const seqByProspect = new Map(seqs.map((s) => [String(s.prospectId), s]));
     return {
       canManage: scope.canManage,
       suppressedCount: sup.length,
@@ -68,6 +86,22 @@ export const list = query({
         status: r.status,
         note: r.note ?? null,
         bookedAt: r.bookedAt ?? null,
+        repliedAt: r.repliedAt ?? null,
+        routingConfirmed: r.routingConfirmed ?? false,
+        hook: r.hook ?? null,
+        hookSourceUrl: r.hookSourceUrl ?? null,
+        subjectDefault: r.subjectDefault ?? null,
+        bodyDefault: r.bodyDefault ?? null,
+        hasFollowupOverrides: Boolean(r.followups && (r.followups.step1 || r.followups.step2 || r.followups.step3)),
+        fitScore: r.fitScore ?? null,
+        priority: r.priority ?? null,
+        sequence: (() => {
+          const s = seqByProspect.get(String(r._id));
+          return s
+            ? { step: s.step, status: s.status, nextDueAt: s.nextDueAt ?? null, recipient: s.recipient, stoppedReason: s.stoppedReason ?? null,
+                stoppedMeaning: s.stoppedReason ? STOP_MEANING[s.stoppedReason] : null, pendingDraft: Boolean(s.pendingDraftId) }
+            : null;
+        })(),
         createdAt: r.createdAt,
         contacts: r.contacts
           ? {
@@ -190,8 +224,123 @@ export const suppressEmail = mutation({
         await ctx.db.patch(r._id, { status: "suppressed", updatedAt: Date.now() });
       }
     }
+    await stopSequencesFor(ctx, scope.agencyId, { email }, suppressionStopReason(a.reason), scope.actor);
     await logEvent(ctx, scope.agencyId, scope.actor, "outreach.email_suppressed", "ok", email);
     return null;
+  },
+});
+
+/** The studio replied: stop the follow-ups. MaxB can still reply in the thread. */
+export const markReplied = mutation({
+  args: { id: v.id("outreachProspects") },
+  handler: async (ctx, { id }) => {
+    const scope = await requireManager(ctx);
+    const row = await ownedProspect(ctx, scope.agencyId, id);
+    if (row.status === "replied") return null;
+    if (row.status === "suppressed") throw new Error("This studio opted out");
+    const now = Date.now();
+    await ctx.db.patch(id, { status: "replied", repliedAt: now, updatedAt: now });
+    await stopSequencesFor(ctx, scope.agencyId, { prospectId: id }, "replied", scope.actor);
+    await logEvent(ctx, scope.agencyId, scope.actor, "outreach.prospect_replied", "ok", row.handle ?? row.dedupeKey);
+    return null;
+  },
+});
+
+/** Owner/admin: Lawrence checked who handles studio operations behind these
+ *  prospects' generic inboxes. Records who and when, and clears the generic-inbox
+ *  hold on their open drafts. It never approves anything. */
+export const confirmRouting = mutation({
+  args: { ids: v.array(v.id("outreachProspects")), confirmed: v.optional(v.boolean()) },
+  handler: async (ctx, a) => {
+    const scope = await requireManager(ctx);
+    if (a.ids.length === 0) throw new Error("Select at least one studio");
+    if (a.ids.length > MAX_BULK) throw new Error(`Confirm at most ${MAX_BULK} at a time`);
+    const confirmed = a.confirmed ?? true;
+    const now = Date.now();
+    let changed = 0, holdsCleared = 0;
+    for (const id of new Set(a.ids)) {
+      const row = await ownedProspect(ctx, scope.agencyId, id);
+      await ctx.db.patch(id, confirmed
+        ? { routingConfirmed: true, routingConfirmedBy: scope.actor, routingConfirmedAt: now, updatedAt: now }
+        : { routingConfirmed: false, routingConfirmedBy: undefined, routingConfirmedAt: undefined, updatedAt: now });
+      changed++;
+      if (confirmed) {
+        for (const d of await ctx.db.query("outreachDrafts").withIndex("by_prospect", (q) => q.eq("prospectId", id)).collect()) {
+          if (d.status === "hold" && d.holdReason === GENERIC_HOLD) {
+            await ctx.db.patch(d._id, { status: "draft", holdReason: undefined });
+            holdsCleared++;
+          }
+        }
+      }
+      await logEvent(ctx, scope.agencyId, scope.actor, confirmed ? "outreach.routing_confirmed" : "outreach.routing_unconfirmed", "ok", row.handle ?? row.dedupeKey);
+    }
+    return { changed, holdsCleared };
+  },
+});
+
+/** Owner/admin: per-studio copy from the outreach CSV, matched by website. Updates
+ *  existing prospects only (never creates one) and never imports an email address
+ *  as a contact. A changed hook, subject or body voids the open Lawrence draft, and
+ *  a changed follow-up voids that step's open draft, so nothing approved goes out
+ *  with copy that has since been edited. */
+export const importCsv = mutation({
+  args: { csv: v.string() },
+  handler: async (ctx, { csv }) => {
+    const scope = await requireManager(ctx);
+    if (csv.length > 2_000_000) throw new Error("The file is too large");
+    const rows = readImportRows(csv);
+    const prospects = await ctx.db.query("outreachProspects").withIndex("by_agency", (q) => q.eq("agencyId", scope.agencyId)).take(MAX_IMPORT_MATCH);
+    const byKey = new Map<string, Array<(typeof prospects)[number]>>();
+    for (const p of prospects) {
+      const keys = new Set<string>();
+      if (p.websiteUrl) { const k = hostOf(p.websiteUrl); if (k) keys.add(k); }
+      if (p.dedupeKey.startsWith("site:")) keys.add(p.dedupeKey.slice(5));
+      for (const k of keys) byKey.set(k, [...(byKey.get(k) ?? []), p]);
+    }
+    const now = Date.now();
+    const seen = new Set<string>();
+    let matched = 0, draftsVoided = 0;
+    const unmatched: string[] = [];
+    const skipped: Array<{ line: number; reason: string }> = [];
+    for (const r of rows) {
+      const problem = rowProblem(r);
+      if (problem) { skipped.push({ line: r.line, reason: problem }); continue; }
+      const key = websiteKey(r.website);
+      if (!key) { skipped.push({ line: r.line, reason: "not a public website" }); continue; }
+      if (seen.has(key)) { skipped.push({ line: r.line, reason: "website repeated in this file" }); continue; }
+      seen.add(key);
+      const hits = byKey.get(key) ?? [];
+      if (hits.length === 0) { unmatched.push(key); continue; }
+      if (hits.length > 1) { skipped.push({ line: r.line, reason: "more than one prospect has this website" }); continue; }
+      const p = hits[0];
+      // A blank cell keeps what is there.
+      const followups = {
+        step1: r.followups.step1 ?? p.followups?.step1,
+        step2: r.followups.step2 ?? p.followups?.step2,
+        step3: r.followups.step3 ?? p.followups?.step3,
+      };
+      const next = {
+        hook: r.hook ?? p.hook, hookSourceUrl: r.hookSourceUrl ?? p.hookSourceUrl,
+        subjectDefault: r.subject ?? p.subjectDefault, bodyDefault: r.body ?? p.bodyDefault,
+        igDmDraft: r.igDm ?? p.igDmDraft, fitScore: r.fitScore ?? p.fitScore, priority: r.priority ?? p.priority,
+      };
+      await ctx.db.patch(p._id, { ...next, followups, updatedAt: now });
+      matched++;
+      const step0Changed = next.hook !== p.hook || next.subjectDefault !== p.subjectDefault || next.bodyDefault !== p.bodyDefault;
+      const stepChanged = [0, followups.step1 !== p.followups?.step1, followups.step2 !== p.followups?.step2, followups.step3 !== p.followups?.step3];
+      if (step0Changed || stepChanged.some(Boolean)) {
+        for (const d of await ctx.db.query("outreachDrafts").withIndex("by_prospect", (q) => q.eq("prospectId", p._id)).collect()) {
+          if (!OPEN_DRAFT.has(d.status) || d.sequenceStep === undefined) continue;
+          if ((d.sequenceStep === 0 && step0Changed) || (d.sequenceStep >= 1 && stepChanged[d.sequenceStep])) {
+            await ctx.db.patch(d._id, { status: "superseded" });
+            draftsVoided++;
+          }
+        }
+      }
+    }
+    await logEvent(ctx, scope.agencyId, scope.actor, "outreach.csv_imported", "ok", undefined,
+      `${matched} matched, ${unmatched.length} unmatched, ${skipped.length} skipped, ${draftsVoided} drafts voided`);
+    return { matched, unmatched: unmatched.length, skipped: skipped.length, draftsVoided, unmatchedWebsites: unmatched.slice(0, 20), skippedRows: skipped.slice(0, 20) };
   },
 });
 
@@ -200,6 +349,7 @@ export const remove = mutation({
   handler: async (ctx, { id }) => {
     const scope = await requireManager(ctx);
     const row = await ownedProspect(ctx, scope.agencyId, id);
+    await stopSequencesFor(ctx, scope.agencyId, { prospectId: row._id }, "manual", scope.actor);
     await ctx.db.delete(row._id);
     await logEvent(ctx, scope.agencyId, scope.actor, "outreach.prospect_removed", "ok", row.handle ?? row.dedupeKey);
     return null;
