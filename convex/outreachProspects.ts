@@ -320,14 +320,17 @@ export const importCsv = mutation({
         step3: r.followups.step3 ?? p.followups?.step3,
       };
       const next = {
+        name: r.name ?? p.name,
         hook: r.hook ?? p.hook, hookSourceUrl: r.hookSourceUrl ?? p.hookSourceUrl,
         subjectDefault: r.subject ?? p.subjectDefault, bodyDefault: r.body ?? p.bodyDefault,
         igDmDraft: r.igDm ?? p.igDmDraft, fitScore: r.fitScore ?? p.fitScore, priority: r.priority ?? p.priority,
       };
       await ctx.db.patch(p._id, { ...next, followups, updatedAt: now });
       matched++;
-      const step0Changed = next.hook !== p.hook || next.subjectDefault !== p.subjectDefault || next.bodyDefault !== p.bodyDefault;
-      const stepChanged = [0, followups.step1 !== p.followups?.step1, followups.step2 !== p.followups?.step2, followups.step3 !== p.followups?.step3];
+      // The name is in every email's greeting, so a new name voids every open draft for this studio.
+      const nameChanged = next.name !== p.name;
+      const step0Changed = nameChanged || next.hook !== p.hook || next.subjectDefault !== p.subjectDefault || next.bodyDefault !== p.bodyDefault;
+      const stepChanged = [0, nameChanged || followups.step1 !== p.followups?.step1, nameChanged || followups.step2 !== p.followups?.step2, nameChanged || followups.step3 !== p.followups?.step3];
       if (step0Changed || stepChanged.some(Boolean)) {
         for (const d of await ctx.db.query("outreachDrafts").withIndex("by_prospect", (q) => q.eq("prospectId", p._id)).collect()) {
           if (!OPEN_DRAFT.has(d.status) || d.sequenceStep === undefined) continue;

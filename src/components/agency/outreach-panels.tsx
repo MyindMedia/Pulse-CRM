@@ -680,7 +680,7 @@ export function Prospects() {
           <CardHeader>
             <CardTitle>Import outreach CSV</CardTitle>
             <CardDescription>
-              Per-studio copy from outreach-staged.csv, matched by website: the opening line, subject and body for
+              Per-studio copy from outreach-staged.csv, matched by website: the studio name (optional studio_name column), the opening line, subject and body for
               Lawrence&apos;s email, MaxB&apos;s day 3, 7 and 14 follow-ups, and the Instagram DM. It updates studios already on
               the list and never adds one. Email addresses in the file are never imported as contacts. Up to 200 rows.
             </CardDescription>

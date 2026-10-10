@@ -81,7 +81,7 @@ export const list = query({
           const expired = d.status === "approved" && d.approvedAt !== undefined && now - d.approvedAt > APPROVAL_TTL_MS;
           const t = isTemplateKey(d.templateKey) ? TEMPLATES[d.templateKey] : null;
           return {
-            id: d._id, studio: d.studio, recipient: d.recipient, persona: p.label,
+            id: d._id, studio: d.studio || d.recipient, recipient: d.recipient, persona: p.label,
             from: `${p.fromName} <${p.fromEmail}>`, subject: d.subject, signatureMode: d.signatureMode,
             status: expired ? ("expired" as const) : d.status, holdReason: d.holdReason ?? null,
             approvedAt: d.approvedAt ?? null, createdAt: d.createdAt,

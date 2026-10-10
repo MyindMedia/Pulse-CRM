@@ -57,9 +57,9 @@ export const messageIdFor = (draftId: string) => `<pulse-outreach-${draftId}@stu
  *  answer a studio that replied; everything else needs a queued prospect. */
 export const sendableStatuses = (templateKey: string): string[] => (templateKey === "maxb_reply" ? ["queued", "replied"] : ["queued"]);
 
-/** How a prospect is greeted ("Hi <studio> team,"). */
-export const studioName = (p: { name?: string; handle?: string; websiteUrl?: string }) =>
-  p.name ?? (p.handle ? p.handle : p.websiteUrl ?? "your");
+/** The name a prospect is greeted by ("Hi <studio> team,"): its name, else its
+ *  Instagram handle, else "" (the email then opens "Hi there,"). Never the website. */
+export const studioName = (p: { name?: string; handle?: string }) => p.name?.trim() || p.handle?.trim() || "";
 
 /** Plain text from a form field: trimmed, Windows line ends folded, empty -> undefined. */
 export function cleanText(s: string | undefined): string | undefined {

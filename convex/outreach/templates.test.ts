@@ -62,6 +62,17 @@ describe("Lawrence's first email", () => {
     expect(r.html).not.toContain("<b>custom</b>");
   });
 
+  it("a studio with no name is greeted \"Hi there,\", never with its web address", () => {
+    for (const studio of ["", "   ", "https://apexarts.com", "www.apexarts.com", "apexarts.com"]) {
+      const r = renderEmail({ ...base, studio });
+      expect(r.text.split("\n\n")[0], studio).toBe("Hi there,");
+      expect(r.subject, studio).toBe("A question about running your studio");
+      expect(r.text + r.html, studio).not.toMatch(/apexarts|Hi your team/);
+    }
+    expect(renderEmail({ ...reply("maxb_followup_1"), studio: "" }).text.split("\n\n")[0]).toBe("Hi there,");
+    expect(renderEmail({ ...base, studio: "Apex Arts" }).text.split("\n\n")[0]).toBe("Hi Apex Arts team,");
+  });
+
   it("keeps the https validation on the booking link", () => {
     expect(() => renderEmail({ ...base, bookingUrl: "http://insecure.example" })).toThrow(/https/);
     const without = renderEmail({ ...base, bookingUrl: undefined });
