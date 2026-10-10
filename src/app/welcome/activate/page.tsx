@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useAction } from "convex/react";
+import { useAction, useConvexAuth } from "convex/react";
 import { useUser, SignUp } from "@clerk/nextjs";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
@@ -22,6 +22,10 @@ function Activate() {
   const summary = useAction(api.billing.checkoutSummary);
   const claim = useAction(api.billing.claimCheckout);
   const { isLoaded, isSignedIn } = useUser();
+  /* Clerk can say "signed in" before Convex has the session token. Claiming
+     then fails with "not signed in" on the server, so wait for Convex. */
+  const { isAuthenticated: convexAuthed } = useConvexAuth();
+  const [attempt, setAttempt] = React.useState(0);
 
   const [info, setInfo] = React.useState<{ email: string | null; paid: boolean } | null>(null);
   const [err, setErr] = React.useState("");
@@ -45,15 +49,16 @@ function Activate() {
 
   // Once the buyer has created their login, link it to the subscription.
   React.useEffect(() => {
-    if (!isLoaded || !isSignedIn || !sessionId || claimedRef.current) return;
+    if (!isLoaded || !isSignedIn || !convexAuthed || !sessionId || claimedRef.current) return;
     claimedRef.current = true;
+    setErr("");
     claim({ sessionId })
       .then(() => router.replace("/agency"))
       .catch((e) => {
         setErr(errorMessage(e));
         claimedRef.current = false;
       });
-  }, [isLoaded, isSignedIn, sessionId, claim, router]);
+  }, [isLoaded, isSignedIn, convexAuthed, sessionId, claim, router, attempt]);
 
   const activationUrl = `/welcome/activate?session_id=${sessionId}`;
 
@@ -77,7 +82,18 @@ function Activate() {
             <Loader2 className="size-8 animate-spin text-gold" />
             <h1 className="font-grotesk text-2xl font-bold text-bone">Setting up your studio…</h1>
             <p className="text-sm text-steel">Linking your subscription and getting your workspace ready.</p>
-            {err && <p className="text-sm text-critical">{err}</p>}
+            {err && (
+              <>
+                <p className="text-sm text-critical">{err}</p>
+                <button
+                  type="button"
+                  onClick={() => setAttempt((n) => n + 1)}
+                  className="rounded-md bg-gold px-4 py-2 text-sm font-semibold text-gold-ink hover:bg-gold-bright"
+                >
+                  Try again
+                </button>
+              </>
+            )}
           </div>
         ) : (
           <>
