@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import { AccessError } from "./lib/access";
 import { agencyScope, requireAgencyScope, logEvent } from "./outreach/scope";
 import { zuopsGet, parseBookings, parseCalendar, parseLead, type ZuopsBooking, type ZuopsLead } from "./outreach/zuops";
+import { stopSequencesFor } from "./outreach/sequence";
 
 /* ============================================================
    Zuops calendar sync. Bookings made on studiopulse.tech/demo (the Zuops calendar)
@@ -160,7 +161,11 @@ export const _upsert = internalMutation({
       };
       if (existing) await ctx.db.replace(existing._id, doc);
       else { await ctx.db.insert("outreachBookings", doc); added++; }
-      if (prospect && (b.status === "confirmed" || b.status === "completed")) await ctx.db.patch(prospect._id, { bookedAt: b.startsAt, updatedAt: now });
+      if (b.status === "confirmed" || b.status === "completed") {
+        if (prospect) await ctx.db.patch(prospect._id, { bookedAt: b.startsAt, updatedAt: now });
+        // A booked demo ends that studio's follow-up sequence.
+        if (prospect || email) await stopSequencesFor(ctx, agencyId, { prospectId: prospect?._id, email }, "demo_booked", "system");
+      }
     }
     if (added > 0) await logEvent(ctx, agencyId, "system", "outreach.bookings_synced", "ok", undefined, `${added} new`);
     return { added };

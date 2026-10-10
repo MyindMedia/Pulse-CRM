@@ -29,6 +29,11 @@ crons.interval("media-sweep-pending", { hours: 6 }, internal.media.sweepPending,
 // per run) until the Zuops webhook is registered, then it is only the safety net behind it.
 crons.interval("zuops-sync", { minutes: 1 }, internal.outreachZuops.syncAll, {});
 
+// Outreach follow-ups: when a MaxB step (day 3, 7, 14 after Lawrence's first email) is due,
+// put its draft in the Review queue. Drafts only: never approves, never sends. Also stops a
+// sequence when the studio replied, booked, bounced, complained or opted out.
+crons.interval("outreach-sequences", { hours: 1 }, internal.outreachSequences.tick, {});
+
 // Confirmation calls for booked demos. Does nothing unless an agency turned it on in
 // Outreach > Settings; dry run by default. See docs/CONFIRMATION-CALLS.md.
 crons.interval("confirmation-calls", { minutes: 1 }, internal.outreachCalls.dispatchDueCalls, {});

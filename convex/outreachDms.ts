@@ -80,7 +80,10 @@ export const prepare = mutation({
     if (!p || p.agencyId !== scope.agencyId) throw new AccessError("FORBIDDEN", "Prospect not found");
     if (!p.handle) throw new Error("This prospect has no Instagram handle");
     if (p.status === "suppressed") throw new Error("This prospect opted out");
-    const { text, observation } = draftDm({ handle: p.handle, studio: p.name, bio: p.bio, category: p.category });
+    // The outreach CSV's ig_dm, when imported, is the draft; otherwise it is written from the bio.
+    const { text, observation } = p.igDmDraft?.trim()
+      ? { text: p.igDmDraft.replace(/\r\n/g, "\n").trim(), observation: undefined }
+      : draftDm({ handle: p.handle, studio: p.name, bio: p.bio, category: p.category });
     const now = Date.now();
     const blockers = dmBlockers({ text, handle: p.handle, optedOut: await optedOut(ctx, scope.agencyId, p.handle), lastSentAt: await lastSentAt(ctx, prospectId), now });
     if (blockers.length) throw new Error(blockers[0]);

@@ -191,7 +191,7 @@ describe("outreach - tenant scope and gates", () => {
 
   it("the rendered email's CTA is the configured link and nothing else changes", async () => {
     const { renderEmail } = await import("./outreach/templates");
-    const r = renderEmail({ template: "maxb_system", studio: "Acme Sound", bookingUrl: "https://studiopulse.tech/demo", postalAddress: "835 Wilshire Blvd" });
+    const r = renderEmail({ template: "lawrence_first", studio: "Acme Sound", observation: "Saw Acme just added a second room.", bookingUrl: "https://studiopulse.tech/demo", postalAddress: "835 Wilshire Blvd" });
     expect(r.links).toContain("https://studiopulse.tech/demo");
     expect(r.html).toContain('href="https://studiopulse.tech/demo"');
     expect(r.blockers).not.toContain("booking_link_not_verified");

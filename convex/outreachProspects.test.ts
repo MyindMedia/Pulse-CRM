@@ -232,3 +232,104 @@ describe("outreach prospects", () => {
     expect((await post("Bearer s3cret", { handle: "!!bad!!" })).status).toBe(422);
   });
 });
+
+describe("outreach CSV import", () => {
+  let t: ReturnType<typeof convexTest>;
+  beforeEach(() => { t = convexTest(schema); });
+  const as = (s: string, o = "org_a") => t.withIdentity(idOf(s, o) as never);
+  const HEADER = "website,personalization_hook,hook_source_url,email_subject,email_body,ig_dm,followup_day3,followup_day7,followup_day14,email_generic,fit_score,priority,extra_column";
+
+  async function seed() {
+    await t.run(async (ctx) => {
+      for (const [agencyId, owner] of [["org_a", "ua"], ["org_b", "ub"]]) {
+        await ctx.db.insert("agencies", { agencyId, name: agencyId, slug: agencyId, plan: "max", status: "active", ownerClerkUserId: owner, ownerEmail: `${owner}@x` });
+        await ctx.db.insert("agencyMembers", { agencyId, clerkUserId: owner, email: `${owner}@x`, name: owner, role: "owner", status: "active", invitedAt: 0 });
+      }
+      await ctx.db.insert("agencyMembers", { agencyId: "org_a", clerkUserId: "ustaff", email: "ustaff@x", name: "ustaff", role: "staff", status: "active", invitedAt: 0 });
+    });
+  }
+  const prospect = (agencyId: string, site: string, extra: Record<string, unknown> = {}) => t.run(async (ctx) => await ctx.db.insert("outreachProspects", {
+    agencyId, dedupeKey: `site:${site}`, name: site, websiteUrl: `https://${site}`, source: "paste", status: "queued", createdAt: 1, updatedAt: 1,
+    contacts: { emails: [{ address: `jane@${site}`, generic: false, rank: 50, sourceUrl: `https://${site}` }], phones: [], socials: [], booking: [], pages: [], scrapedAt: 1 },
+    ...extra,
+  }));
+
+  it("updates matching prospects by website, never creates one, never imports an email, and reports the rest", async () => {
+    await seed();
+    const mix = await prospect("org_a", "mix.com");
+    const ig = await t.run(async (ctx) => await ctx.db.insert("outreachProspects", {
+      agencyId: "org_a", dedupeKey: "ig:union", handle: "union", websiteUrl: "https://union.studio/la", source: "paste", status: "scraped", createdAt: 1, updatedAt: 1,
+    }));
+    await prospect("org_b", "other.com");
+    const csv = [
+      HEADER,
+      `https://www.MIX.com/,"Saw your second live room, nice.",https://mix.com/news,Four rooms one calendar,"Custom middle.\n\nSecond paragraph.","Hey, loved the room.",Day 3 note,Day 7 note,Day 14 note,info@mix.com,8.5,high,ignored`,
+      `union.studio,Hook for union,,,,,,,,,,,`,
+      `notonthelist.com,x,,,,,,,,,,,`,
+      `other.com,belongs to another agency,,,,,,,,,,,`,
+      `,no website,,,,,,,,,,,`,
+      `http://localhost,private,,,,,,,,,,,`,
+      `mix.com,repeat,,,,,,,,,,,`,
+    ].join("\n");
+    const r = await as("ua").mutation(api.outreachProspects.importCsv, { csv });
+    expect(r).toMatchObject({ matched: 2, unmatched: 2, skipped: 3 });
+    expect(r.unmatchedWebsites).toEqual(["notonthelist.com", "other.com"]);
+    expect(r.skippedRows.map((x) => x.reason)).toEqual(["no website", "not a public website", "website repeated in this file"]);
+    const [m, u, count, other] = await t.run(async (ctx) => [
+      await ctx.db.get(mix), await ctx.db.get(ig),
+      (await ctx.db.query("outreachProspects").collect()).length,
+      (await ctx.db.query("outreachProspects").collect()).find((x) => x.agencyId === "org_b") ?? null,
+    ] as const);
+    expect(m).toMatchObject({
+      hook: "Saw your second live room, nice.", hookSourceUrl: "https://mix.com/news", subjectDefault: "Four rooms one calendar",
+      bodyDefault: "Custom middle.\n\nSecond paragraph.", igDmDraft: "Hey, loved the room.",
+      followups: { step1: "Day 3 note", step2: "Day 7 note", step3: "Day 14 note" }, fitScore: 8.5, priority: "high",
+    });
+    expect(m?.contacts?.emails.map((e: { address: string }) => e.address)).toEqual(["jane@mix.com"]); // email_generic never becomes a contact
+    expect(JSON.stringify(m)).not.toContain("info@mix.com");
+    expect(u?.hook).toBe("Hook for union");
+    expect(count).toBe(3); // nothing created
+    expect(other?.hook).toBeUndefined(); // another agency's prospect is never touched
+  });
+
+  it("is owner/admin only and capped at 200 rows", async () => {
+    await seed();
+    await expect(as("ustaff").mutation(api.outreachProspects.importCsv, { csv: `${HEADER}\nmix.com,x` })).rejects.toThrow(/owner or admin/);
+    await expect(t.mutation(api.outreachProspects.importCsv, { csv: `${HEADER}\nmix.com,x` })).rejects.toThrow();
+    const rows = Array.from({ length: 201 }, (_, i) => `s${i}.com,hook`).join("\n");
+    await expect(as("ua").mutation(api.outreachProspects.importCsv, { csv: `website,personalization_hook\n${rows}` })).rejects.toThrow(/at most 200/);
+    const ok = Array.from({ length: 200 }, (_, i) => `s${i}.com,hook`).join("\n");
+    expect((await as("ua").mutation(api.outreachProspects.importCsv, { csv: `website,personalization_hook\n${ok}` })).unmatched).toBe(200);
+    await expect(as("ua").mutation(api.outreachProspects.importCsv, { csv: "name,hook\nx,y" })).rejects.toThrow(/website column/);
+  });
+
+  it("a changed hook, subject, body or follow-up voids the open draft that used the old copy; blank cells keep values", async () => {
+    await seed();
+    const pid = await prospect("org_a", "mix.com", { hook: "Old hook.", followups: { step2: "Old day 7." } });
+    const ua = as("ua");
+    const step0 = await ua.mutation(api.outreachDrafts.prepare, { prospectId: pid, email: "jane@mix.com", persona: "lawrence", templateKey: "lawrence_first", observation: "Old hook." });
+    const step2 = await t.run(async (ctx) => await ctx.db.insert("outreachDrafts", {
+      agencyId: "org_a", prospectId: pid, studio: "mix.com", recipient: "jane@mix.com", persona: "maxb", templateKey: "maxb_followup_2", signatureMode: "image",
+      sequenceStep: 2, threadSubject: "s", inReplyTo: "<a@b>", references: "<a@b>", subject: "Re: s", html: "", text: "", contentHash: "h", blockers: [], status: "approved", approvedAt: Date.now(), approvedHash: "h", createdAt: 1,
+    }));
+    // Same values again: nothing is voided.
+    let r = await ua.mutation(api.outreachProspects.importCsv, { csv: "website,personalization_hook,followup_day7\nmix.com,Old hook.,Old day 7." });
+    expect(r.draftsVoided).toBe(0);
+    r = await ua.mutation(api.outreachProspects.importCsv, { csv: "website,personalization_hook,followup_day7\nmix.com,New hook.," });
+    expect(r.draftsVoided).toBe(1);
+    expect((await t.run(async (ctx) => await ctx.db.get(step0)))?.status).toBe("superseded");
+    expect((await t.run(async (ctx) => await ctx.db.get(step2)))?.status).toBe("approved");
+    expect((await t.run(async (ctx) => await ctx.db.get(pid)))?.followups?.step2).toBe("Old day 7."); // blank cell kept it
+    r = await ua.mutation(api.outreachProspects.importCsv, { csv: "website,followup_day7\nmix.com,New day 7." });
+    expect(r.draftsVoided).toBe(1);
+    expect((await t.run(async (ctx) => await ctx.db.get(step2)))?.status).toBe("superseded");
+  });
+
+  it("the imported ig_dm is the DMs tab draft", async () => {
+    await seed();
+    const pid = await prospect("org_a", "mix.com", { handle: "mixstudio" });
+    await as("ua").mutation(api.outreachProspects.importCsv, { csv: "website,ig_dm\nmix.com,Hey MIX team. Loved the new live room. Open to a quick look at Pulse OS?" });
+    const { id } = await as("ua").mutation(api.outreachDms.prepare, { prospectId: pid });
+    expect((await t.run(async (ctx) => await ctx.db.get(id)))?.text).toBe("Hey MIX team. Loved the new live room. Open to a quick look at Pulse OS?");
+  });
+});
