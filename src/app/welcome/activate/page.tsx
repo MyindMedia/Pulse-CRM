@@ -89,7 +89,12 @@ function Activate() {
                 {info?.email ? ` (${info.email})` : ""}.
               </p>
             </div>
+            {/* Hash routing: Clerk's own steps (Google's sso-callback, email code,
+                "continue") live in the URL hash, so they stay on this page with
+                ?session_id intact. Path routing sent Google back to
+                /welcome/activate/sso-callback, which is not a route: a 404. */}
             <SignUp
+              routing="hash"
               appearance={clerkAppearance}
               initialValues={info?.email ? { emailAddress: info.email } : undefined}
               forceRedirectUrl={activationUrl}
