@@ -558,7 +558,9 @@ export default defineSchema({
     // core | growth | max. Legacy literals accepted until the migration has
     // run in production (TWO-STEP DEPLOY, see orgs.tier).
     plan: v.union(tierV, legacyAgencyPlanV),
-    status: v.union(v.literal("active"), v.literal("paused"), v.literal("trial")),
+    // past_due: a renewal failed and Stripe is retrying. Access stays on; the
+    // owner sees a banner and an email. Stripe cancels after its last retry.
+    status: v.union(v.literal("active"), v.literal("paused"), v.literal("trial"), v.literal("past_due")),
     // Branding (white-label)
     logoId: v.optional(fileRefV),
     faviconId: v.optional(fileRefV),
@@ -570,6 +572,12 @@ export default defineSchema({
     stripeSubscriptionId: v.optional(v.string()),
     // Stripe's customer.subscription.trial_will_end was emailed to the owner.
     trialWillEndNotifiedAt: v.optional(v.number()),
+    // Failed-payment state from invoice.payment_failed, cleared by invoice.paid.
+    paymentFailedAt: v.optional(v.number()),
+    // Stripe-hosted page where the owner completes card authentication (3D Secure).
+    paymentActionUrl: v.optional(v.string()),
+    // Studios this agency's billing lock paused, so recovery unpauses only those.
+    billingPausedOrgIds: v.optional(v.array(v.id("orgs"))),
     // Resell hook (Agency Plus / SaaS Mode)
     resellEnabled: v.optional(v.boolean()),
     markupCents: v.optional(v.number()),
