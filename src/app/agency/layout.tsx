@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { LoadingPanel } from "@/components/ui/feedback";
 import { PulseLogo } from "@/components/brand/pulse-logo";
 import { AgencyProfileMenu } from "@/components/agency/agency-profile-menu";
+import { PlatformBillingBanner } from "@/components/agency/platform-billing";
 
 /* The Pulse Agency wordmark - the real brand lockup + the console label. */
 function AgencyWordmark() {
@@ -64,7 +65,10 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
           {access === undefined ? (
             <LoadingPanel label="Checking agency access" />
           ) : access.allowed ? (
-            children
+            <>
+              <PlatformBillingBanner />
+              {children}
+            </>
           ) : (
             <div className="flex min-h-[50vh] items-center justify-center">
               <Card className="max-w-md">

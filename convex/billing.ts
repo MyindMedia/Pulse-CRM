@@ -187,7 +187,7 @@ export const openCustomerPortal = action({
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const session = await stripe.billingPortal.sessions.create({
       customer: stripeCustomerId,
-      return_url: `${baseUrl}/agency`,
+      return_url: `${baseUrl}/agency/settings#billing`,
     });
     return { portalUrl: session.url };
   },
@@ -216,7 +216,12 @@ export const myPlan = query({
       .withIndex("by_owner", (q) => q.eq("ownerClerkUserId", identity.subject))
       .first();
     if (!ag) return null;
-    return { plan: ag.plan, status: ag.status, agencyId: ag.agencyId, name: ag.name };
+    return {
+      plan: ag.plan, status: ag.status, agencyId: ag.agencyId, name: ag.name,
+      hasBillingAccount: Boolean(ag.stripeCustomerId),
+      paymentFailedAt: ag.paymentFailedAt ?? null,
+      paymentActionUrl: ag.paymentActionUrl ?? null,
+    };
   },
 });
 

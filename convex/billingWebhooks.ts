@@ -10,6 +10,9 @@ import { applyPackagePurchase } from "./packages";
 import { internal } from "./_generated/api";
 import { normalizeEmail } from "./lib/emailKey";
 import { applyOrgSubscription, toSubscriptionShape } from "./trialBilling";
+import type { Doc } from "./_generated/dataModel";
+import type { TierKey } from "./lib/pricing";
+import { agencyActionForStatus, invoiceSubscriptionId, shouldEmailPaymentFailed } from "./lib/platformSubscription";
 
 /* ============================================================
    Stripe webhook handlers. Idempotent via the stripeEvents ledger
@@ -53,6 +56,56 @@ async function alreadyProcessed(ctx: MutationCtx, eventId: string): Promise<bool
 
 async function markProcessed(ctx: MutationCtx, eventId: string, eventType: string) {
   await ctx.db.insert("stripeEvents", { eventId, type: eventType, processedAt: Date.now() });
+}
+
+async function agencyByCustomer(ctx: MutationCtx, customerId: unknown): Promise<Doc<"agencies"> | null> {
+  if (typeof customerId !== "string" || !customerId) return null;
+  return await ctx.db
+    .query("agencies")
+    .filter((q) => q.eq(q.field("stripeCustomerId"), customerId))
+    .first();
+}
+
+/** Pause the agency and every studio under it, remembering which studios this
+ *  lock paused so a recovered payment turns back on only those. */
+async function lockAgency(ctx: MutationCtx, ag: Doc<"agencies">) {
+  const paused = new Set<Id<"orgs">>(ag.billingPausedOrgIds ?? []);
+  const subs = await ctx.db
+    .query("orgs")
+    .withIndex("by_agency", (q) => q.eq("agencyId", ag.agencyId))
+    .collect();
+  for (const s of subs) {
+    if (s.status !== "paused") {
+      await ctx.db.patch(s._id, { status: "paused" });
+      paused.add(s._id);
+    }
+  }
+  // A paused plan has no payment left to fix or confirm: drop those prompts.
+  await ctx.db.patch(ag._id, { status: "paused", billingPausedOrgIds: [...paused], paymentFailedAt: undefined, paymentActionUrl: undefined });
+}
+
+async function unlockAgencyStudios(ctx: MutationCtx, ag: Doc<"agencies">) {
+  for (const id of ag.billingPausedOrgIds ?? []) {
+    const org = await ctx.db.get(id);
+    if (org?.status === "paused") await ctx.db.patch(id, { status: "active" });
+  }
+  await ctx.db.patch(ag._id, { billingPausedOrgIds: undefined });
+}
+
+/** Mirror a platform subscription's Stripe status onto its agency. */
+async function applyAgencySubscription(ctx: MutationCtx, ag: Doc<"agencies">, stripeStatus: string, tier: TierKey | null) {
+  const action = agencyActionForStatus(stripeStatus);
+  if (tier) await ctx.db.patch(ag._id, { plan: tier });
+  if (action.kind === "ignore") return;
+  if (action.kind === "lock") {
+    await lockAgency(ctx, ag);
+    return;
+  }
+  await ctx.db.patch(ag._id, {
+    status: action.status,
+    ...(action.status === "past_due" ? {} : { paymentFailedAt: undefined, paymentActionUrl: undefined }),
+  });
+  if (ag.status === "paused" && ag.billingPausedOrgIds?.length) await unlockAgencyStudios(ctx, ag);
 }
 
 async function connectedAccountOwnsOrg(ctx: MutationCtx, stripeAccountId: string | undefined, orgId: string): Promise<boolean> {
@@ -394,21 +447,61 @@ export const handle = internalMutation({
         await markProcessed(ctx, event.id, e.type);
         return { ok: true };
       }
-      const stripeCustomerId = obj.customer as string;
+    }
+
+    /* The platform subscription (Core / Growth / Max). Every tier is recorded,
+       downgrades to core included, and the Stripe status drives access:
+       past_due keeps studios on while Stripe retries; unpaid, paused or
+       canceled pauses them; a recovered payment turns them back on. */
+    if (!event.account && (e.type === "customer.subscription.created" || e.type === "customer.subscription.updated")) {
       const items = (obj.items as { data?: Array<{ price?: { id?: string } }> } | undefined)?.data ?? [];
       const priceId = items[0]?.price?.id;
       const match = priceId ? tierForPriceId(priceId) : null;
-      const ag = await ctx.db
-        .query("agencies")
-        .filter((q) => q.eq(q.field("stripeCustomerId"), stripeCustomerId))
-        .first();
-      // Every tier is recorded, downgrades to core included. The old ladder
-      // skipped its cheapest tier here, so a downgrade never landed.
-      if (ag && match) {
-        await ctx.db.patch(ag._id, {
-          plan: match.tier,
-          status: obj.status === "active" ? "active" : "trial",
-        });
+      const ag = await agencyByCustomer(ctx, obj.customer);
+      if (ag && (match || !priceId)) {
+        await applyAgencySubscription(ctx, ag, String(obj.status ?? ""), match?.tier ?? null);
+      }
+    }
+
+    /* Platform invoices. invoice.payment_failed marks the agency past_due and
+       emails the owner (first and last attempt); payment_action_required sends
+       the owner to Stripe's page to confirm the charge with their bank;
+       invoice.paid clears both. Studio-level invoices carry other customers,
+       so no agency matches and they fall through. */
+    if (!event.account && (e.type === "invoice.payment_failed" || e.type === "invoice.payment_action_required" || e.type === "invoice.paid")) {
+      const ag = invoiceSubscriptionId(obj) ? await agencyByCustomer(ctx, obj.customer) : null;
+      if (ag) {
+        const amountCents = typeof obj.amount_due === "number" ? obj.amount_due : undefined;
+        if (e.type === "invoice.paid") {
+          await ctx.db.patch(ag._id, {
+            paymentFailedAt: undefined,
+            paymentActionUrl: undefined,
+            ...(ag.status === "past_due" ? { status: "active" as const } : {}),
+          });
+        } else if (e.type === "invoice.payment_failed") {
+          await ctx.db.patch(ag._id, {
+            paymentFailedAt: ag.paymentFailedAt ?? Date.now(),
+            ...(ag.status === "active" || ag.status === "trial" ? { status: "past_due" as const } : {}),
+          });
+          if (shouldEmailPaymentFailed(obj)) {
+            const next = typeof obj.next_payment_attempt === "number" ? obj.next_payment_attempt * 1000 : undefined;
+            await ctx.scheduler.runAfter(0, internal.platformBilling.notifyPaymentFailed, {
+              customerId: obj.customer as string,
+              amountCents,
+              nextAttemptMs: next,
+            });
+          }
+        } else {
+          const url = typeof obj.hosted_invoice_url === "string" ? obj.hosted_invoice_url : undefined;
+          await ctx.db.patch(ag._id, { paymentActionUrl: url });
+          if (url) {
+            await ctx.scheduler.runAfter(0, internal.platformBilling.notifyActionRequired, {
+              customerId: obj.customer as string,
+              amountCents,
+              confirmUrl: url,
+            });
+          }
+        }
       }
     }
 
@@ -423,21 +516,8 @@ export const handle = internalMutation({
         await markProcessed(ctx, event.id, e.type);
         return { ok: true };
       }
-      const stripeCustomerId = obj.customer as string;
-      const ag = await ctx.db
-        .query("agencies")
-        .filter((q) => q.eq(q.field("stripeCustomerId"), stripeCustomerId))
-        .first();
-      if (ag) {
-        await ctx.db.patch(ag._id, { status: "paused" });
-        const subs = await ctx.db
-          .query("orgs")
-          .withIndex("by_agency", (q) => q.eq("agencyId", ag.agencyId))
-          .collect();
-        for (const s of subs) {
-          if (s.status !== "paused") await ctx.db.patch(s._id, { status: "paused" });
-        }
-      }
+      const ag = await agencyByCustomer(ctx, obj.customer);
+      if (ag) await lockAgency(ctx, ag);
     }
 
     await markProcessed(ctx, event.id, e.type);

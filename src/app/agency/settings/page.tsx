@@ -21,6 +21,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PlatformBillingCard } from "@/components/agency/platform-billing";
 
 export default function AgencySettingsPage() {
   const summary = useQuery(api.agencySettings.summary);
@@ -71,6 +72,8 @@ export default function AgencySettingsPage() {
         title="Settings"
         description="Your agency identity, billing health across studios, and shortcuts to everything you manage."
       />
+
+      <PlatformBillingCard />
 
       {/* Billing health */}
       <Section title="Billing health">
