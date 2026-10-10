@@ -58,6 +58,7 @@ export type Template = {
   threaded: boolean;
   /** The per-prospect opening line is required (step 0). */
   requiresObservation: boolean;
+  /* `studio` is the studio's name, or "" when Pulse has no name for it (never a URL). */
   subject: (studio: string) => string;
   preheader: (studio: string) => string;
   greeting: (studio: string) => string;
@@ -70,7 +71,8 @@ export type Template = {
 };
 
 const MAXB_SIGNOFF = ["MaxB (Roverto Benson)", "Outreach Lead, Pulse OS"] as const;
-const hi = (studio: string) => `Hi ${studio} team,`;
+const hi = (studio: string) => (studio ? `Hi ${studio} team,` : "Hi there,");
+const orYour = (studio: string) => studio || "your studio";
 
 export const TEMPLATES: Record<TemplateKey, Template> = {
   lawrence_first: {
@@ -80,8 +82,8 @@ export const TEMPLATES: Record<TemplateKey, Template> = {
     step: 0,
     threaded: false,
     requiresObservation: true,
-    subject: (studio) => `A question about running ${studio}`,
-    preheader: (studio) => `A short note from Lawrence about running ${studio}.`,
+    subject: (studio) => `A question about running ${orYour(studio)}`,
+    preheader: (studio) => `A short note from Lawrence about running ${orYour(studio)}.`,
     greeting: hi,
     middle: [
       "I’m Lawrence, a producer who’s run studios. For years I juggled a booking app, a spreadsheet and deposit texts to know who was in which room.",
@@ -99,7 +101,7 @@ export const TEMPLATES: Record<TemplateKey, Template> = {
     step: 1,
     threaded: true,
     requiresObservation: false,
-    subject: (studio) => `Following up for ${studio}`,
+    subject: (studio) => `Following up for ${orYour(studio)}`,
     preheader: () => "Following up on Lawrence’s note.",
     greeting: hi,
     middle: [
@@ -116,7 +118,7 @@ export const TEMPLATES: Record<TemplateKey, Template> = {
     step: 2,
     threaded: true,
     requiresObservation: false,
-    subject: (studio) => `Following up for ${studio}`,
+    subject: (studio) => `Following up for ${orYour(studio)}`,
     preheader: () => "One thing studios like about Pulse OS.",
     greeting: hi,
     middle: [
@@ -134,7 +136,7 @@ export const TEMPLATES: Record<TemplateKey, Template> = {
     step: 3,
     threaded: true,
     requiresObservation: false,
-    subject: (studio) => `Following up for ${studio}`,
+    subject: (studio) => `Following up for ${orYour(studio)}`,
     preheader: () => "My last note for now.",
     greeting: hi,
     middle: [
@@ -151,7 +153,7 @@ export const TEMPLATES: Record<TemplateKey, Template> = {
     step: null,
     threaded: true,
     requiresObservation: false,
-    subject: (studio) => `Pulse OS for ${studio}`,
+    subject: (studio) => `Pulse OS for ${orYour(studio)}`,
     preheader: () => "A note from MaxB at Pulse OS.",
     greeting: hi,
     middle: [
@@ -229,12 +231,14 @@ export function renderEmail(input: RenderInput): Rendered {
   if (!isTemplateKey(input.template)) throw new Error("This template is no longer available. Prepare the email again.");
   const t = TEMPLATES[input.template];
   const persona = PERSONAS[t.persona];
-  const studio = oneLine(input.studio) || "your";
+  // A name that is really a web address is not a name: greet "Hi there," instead.
+  const named = oneLine(input.studio);
+  const studio = /^https?:\/\/|^www\.|\.(com|net|org|io|co|studio|music|us)(\/|$)/i.test(named) ? "" : named;
   const blockers: string[] = [];
 
   const meeting = input.bookingUrl?.trim();
   if (meeting && !/^https:\/\/[^\s/]+\.[^\s/]+/.test(meeting)) throw new Error("Booking link must be a verified https URL");
-  const cta = meeting || `mailto:${persona.replyTo}?subject=${encodeURIComponent(`Pulse OS demo: ${studio}`)}`;
+  const cta = meeting || `mailto:${persona.replyTo}?subject=${encodeURIComponent(`Pulse OS demo: ${orYour(studio)}`)}`;
   if (!meeting) blockers.push("booking_link_not_verified");
 
   const address = input.postalAddress?.trim();

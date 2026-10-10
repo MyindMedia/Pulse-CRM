@@ -325,6 +325,21 @@ describe("outreach CSV import", () => {
     expect((await t.run(async (ctx) => await ctx.db.get(step2)))?.status).toBe("superseded");
   });
 
+  it("a studio_name column sets the greeting name and voids open drafts that used the old one", async () => {
+    await seed();
+    const pid = await t.run(async (ctx) => await ctx.db.insert("outreachProspects", {
+      agencyId: "org_a", dedupeKey: "site:apexarts.com", websiteUrl: "https://apexarts.com", source: "paste", status: "queued", createdAt: 1, updatedAt: 1,
+      contacts: { emails: [{ address: "jo@apexarts.com", generic: false, rank: 50, sourceUrl: "https://apexarts.com" }], phones: [], socials: [], booking: [], pages: [], scrapedAt: 1 },
+    }));
+    const ua = as("ua");
+    const old = await ua.mutation(api.outreachDrafts.prepare, { prospectId: pid, email: "jo@apexarts.com", persona: "lawrence", templateKey: "lawrence_first", observation: "Saw the new room." });
+    const r = await ua.mutation(api.outreachProspects.importCsv, { csv: "website,studio_name\napexarts.com,Apex Arts\nother.com,https://other.com" });
+    expect(r).toMatchObject({ matched: 1, draftsVoided: 1, skippedRows: [{ line: 3, reason: "studio_name is a web address, not a name" }] });
+    expect((await t.run(async (ctx) => await ctx.db.get(old)))?.status).toBe("superseded");
+    const id = await ua.mutation(api.outreachDrafts.prepare, { prospectId: pid, email: "jo@apexarts.com", persona: "lawrence", templateKey: "lawrence_first", observation: "Saw the new room." });
+    expect((await ua.query(api.outreachDrafts.preview, { id }))?.text.split("\n\n")[0]).toBe("Hi Apex Arts team,");
+  });
+
   it("the imported ig_dm is the DMs tab draft", async () => {
     await seed();
     const pid = await prospect("org_a", "mix.com", { handle: "mixstudio" });

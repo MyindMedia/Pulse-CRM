@@ -66,7 +66,8 @@ The product is **Pulse OS, the studio operating system** (never "CRM"); the phon
 10. Lawrence's address must be a verified sender (operator step, below) before his email can be sent.
 
 ## Outreach CSV import (Prospects tab)
-**Import outreach CSV** (owner/admin) reads `outreach-staged.csv`, up to 200 rows. Rows match prospects already on the list **by website** (host, lowercased, without `www.`); it never creates a prospect and reports matched, not-on-the-list and skipped rows. Columns used: `website, personalization_hook, hook_source_url, email_subject, email_body, ig_dm, followup_day3, followup_day7, followup_day14, fit_score, priority` (others ignored).
+**Import outreach CSV** (owner/admin) reads `outreach-staged.csv`, up to 200 rows. Rows match prospects already on the list **by website** (host, lowercased, without `www.`); it never creates a prospect and reports matched, not-on-the-list and skipped rows. Columns used: `website, studio_name, personalization_hook, hook_source_url, email_subject, email_body, ig_dm, followup_day3, followup_day7, followup_day14, fit_score, priority` (others ignored).
+- `studio_name` (optional) is the name every email greets ("Hi Apex Arts team,"). A studio with no name and no Instagram handle is greeted "Hi there,", never by its web address.
 - The hook, subject and body become the defaults for Lawrence's email (prefilled in the Prepare block).
 - `followup_day3/7/14` become this studio's copy for MaxB's steps 1 to 3 (the middle paragraph only).
 - `ig_dm` becomes the DMs tab draft.

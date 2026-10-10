@@ -64,6 +64,20 @@ describe("outreach drafts and approval", () => {
     expect(row).toMatchObject({ step: 0, label: "Step 0: First email (Lawrence)", threaded: false });
   });
 
+  it("a prospect known only by its website is greeted \"Hi there,\", and the queue titles it by address", async () => {
+    await seed("org_a", "ua");
+    const pid = await t.run(async (ctx) => await ctx.db.insert("outreachProspects", {
+      agencyId: "org_a", dedupeKey: "site:apexarts.com", websiteUrl: "https://apexarts.com", source: "paste", status: "queued", createdAt: 1, updatedAt: 1,
+      contacts: { emails: [{ address: "jo@apexarts.com", generic: false, rank: 50, sourceUrl: "https://apexarts.com" }], phones: [], socials: [], booking: [], pages: [], scrapedAt: 1 },
+    }));
+    const ua = as("ua", "org_a");
+    const id = await ua.mutation(api.outreachDrafts.prepare, first(pid, "jo@apexarts.com"));
+    const p = await ua.query(api.outreachDrafts.preview, { id });
+    expect(p?.text.split("\n\n")[0]).toBe("Hi there,");
+    expect(p?.text).not.toContain("https://apexarts.com team");
+    expect((await ua.query(api.outreachDrafts.list, {}))!.rows[0].studio).toBe("jo@apexarts.com");
+  });
+
   it("the first email to a studio must come from Lawrence", async () => {
     await seed("org_a", "ua");
     const pid = await queuedProspect("org_a", [{ address: "jane@mix.com", generic: false }]);

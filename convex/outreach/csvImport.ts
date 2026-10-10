@@ -1,6 +1,7 @@
 /* The outreach CSV (outreach-staged.csv): per-studio copy keyed by website. Pure.
 
-   Columns used (others are ignored): website, personalization_hook,
+   Columns used (others are ignored): website, studio_name (optional; the name
+   the email greets, "Hi <name> team,"), personalization_hook,
    hook_source_url, email_subject, email_body, ig_dm, followup_day3,
    followup_day7, followup_day14, fit_score, priority. email_generic is read
    past and never stored: an address from a spreadsheet is not a contact the
@@ -9,16 +10,17 @@
 export const MAX_IMPORT_ROWS = 200;
 
 export const IMPORT_COLUMNS = [
-  "website", "personalization_hook", "hook_source_url", "email_subject", "email_body", "ig_dm",
+  "website", "studio_name", "personalization_hook", "hook_source_url", "email_subject", "email_body", "ig_dm",
   "followup_day3", "followup_day7", "followup_day14", "email_generic", "fit_score", "priority",
 ] as const;
 
 /* Longest value accepted per field; a longer one skips the row rather than being cut. */
-export const IMPORT_LIMITS = { hook: 400, hookSourceUrl: 500, subject: 150, body: 1500, followup: 1500, igDm: 600, priority: 40 } as const;
+export const IMPORT_LIMITS = { name: 120, hook: 400, hookSourceUrl: 500, subject: 150, body: 1500, followup: 1500, igDm: 600, priority: 40 } as const;
 
 export type ImportRow = {
   line: number;
   website: string;
+  name?: string;
   hook?: string;
   hookSourceUrl?: string;
   subject?: string;
@@ -76,6 +78,7 @@ export function readImportRows(text: string): ImportRow[] {
     return {
       line: i + 2,
       website: get(r, "website") ?? "",
+      name: get(r, "studio_name") ?? get(r, "name"),
       hook: get(r, "personalization_hook"),
       hookSourceUrl: get(r, "hook_source_url"),
       subject: get(r, "email_subject"),
@@ -92,6 +95,8 @@ export function readImportRows(text: string): ImportRow[] {
 export function rowProblem(r: ImportRow): string | null {
   const L = IMPORT_LIMITS;
   if (!r.website) return "no website";
+  if ((r.name?.length ?? 0) > L.name) return "studio_name is too long";
+  if (r.name && /^https?:\/\/|^www\./i.test(r.name)) return "studio_name is a web address, not a name";
   if ((r.hook?.length ?? 0) > L.hook) return "personalization_hook is too long";
   if ((r.hookSourceUrl?.length ?? 0) > L.hookSourceUrl) return "hook_source_url is too long";
   if ((r.subject?.length ?? 0) > L.subject) return "email_subject is too long";
