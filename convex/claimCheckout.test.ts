@@ -98,6 +98,26 @@ describe("claimCheckout", () => {
     expect(rows[0].ownerClerkUserId).toBe("u_buyer");
   });
 
+  it("links a login whose email differs from the paid one (Apple Hide My Email), billing stays on the paid email", async () => {
+    fake.sessions.cs_1 = signupSession();
+    fake.subs.sub_b = { id: "sub_b", status: "trialing", items: { data: [{ price: { id: "price_core_m" } }] } };
+    await buyer(t, "u_apple", "abc123@privaterelay.appleid.com").action(api.billing.claimCheckout, { sessionId: "cs_1" });
+    const rows = await agencies(t);
+    expect(rows).toHaveLength(1);
+    expect(rows[0].ownerClerkUserId).toBe("u_apple");
+    expect(rows[0].ownerEmail).toBe("buyer@x.com");
+    const members = await t.run(async (ctx) => await ctx.db.query("agencyMembers").collect());
+    expect(members[0].email).toBe("abc123@privaterelay.appleid.com");
+  });
+
+  it("the checkout link is single-use: a second login cannot claim the same subscription", async () => {
+    fake.sessions.cs_1 = signupSession();
+    fake.subs.sub_b = { id: "sub_b", status: "active", items: { data: [{ price: { id: "price_core_m" } }] } };
+    await buyer(t).action(api.billing.claimCheckout, { sessionId: "cs_1" });
+    await expect(buyer(t, "u_other", "someone@else.com").action(api.billing.claimCheckout, { sessionId: "cs_1" })).rejects.toThrow(/already linked/);
+    expect((await agencies(t))[0].ownerClerkUserId).toBe("u_buyer");
+  });
+
   it("refuses a session that is not a subscription signup", async () => {
     fake.sessions.cs_setup = signupSession({ mode: "setup", subscription: null });
     fake.sessions.cs_beta = signupSession({ metadata: { kind: "beta_conversion", tier: "max" } });

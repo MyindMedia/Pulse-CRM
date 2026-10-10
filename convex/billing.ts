@@ -293,8 +293,14 @@ export const checkoutSummary = action({
 });
 
 /** Authed - after the buyer creates their Clerk login, link it to the paid
- *  subscription and provision the workspace. Verified by matching the paid
- *  session's email to the signed-in user's email. */
+ *  subscription and provision the workspace.
+ *
+ *  The login may use a different email from the one paid with (Apple's Hide
+ *  My Email relay, a second Google account), so emails are not matched. The
+ *  checkout link is the proof: it only reaches the payer (success redirect and
+ *  the activation email), and it is single-use, because the first login to
+ *  claim binds the workspace to this subscription and provisionFromCheckout
+ *  refuses any other owner. The paid email stays the owner's billing contact. */
 export const claimCheckout = action({
   args: { sessionId: v.string() },
   handler: async (ctx, { sessionId }) => {
@@ -313,9 +319,6 @@ export const claimCheckout = action({
     }
     const sessionEmail = (s.customer_details?.email ?? s.customer_email ?? "").toLowerCase();
     const myEmail = (identity.email ?? "").toLowerCase();
-    if (!sessionEmail || sessionEmail !== myEmail) {
-      throw new Error("This checkout was paid with a different email.");
-    }
     const subscriptionId = typeof s.subscription === "string" ? s.subscription : s.subscription?.id;
     if (!subscriptionId) throw new Error("This checkout has no subscription.");
     // The subscription, not the session, says what was bought and whether it
@@ -328,11 +331,12 @@ export const claimCheckout = action({
     const match = priceId ? tierForPriceId(priceId) : null;
     if (!match) throw new Error("This subscription is not on a Pulse plan.");
     const studioField = (s.custom_fields ?? []).find((f) => f.key === "studio_name");
-    const studioName = studioField?.text?.value || identity.name || myEmail;
+    const studioName = studioField?.text?.value || identity.name || sessionEmail || myEmail;
     const customerId = typeof s.customer === "string" ? s.customer : s.customer?.id ?? "";
     await ctx.runMutation(internal.billing.provisionFromCheckout, {
       clerkUserId: identity.subject,
-      email: myEmail,
+      email: sessionEmail || myEmail,
+      loginEmail: myEmail || undefined,
       tier: match.tier,
       agencyName: studioName,
       customerId,
@@ -366,7 +370,10 @@ export const sendActivationEmail = internalAction({
 export const provisionFromCheckout = internalMutation({
   args: {
     clerkUserId: v.string(),
+    /** Billing contact: the email the checkout was paid with. */
     email: v.string(),
+    /** The login's own email when it differs (e.g. an Apple relay address). */
+    loginEmail: v.optional(v.string()),
     tier: tierV,
     agencyName: v.string(),
     customerId: v.string(),
@@ -423,7 +430,7 @@ export const provisionFromCheckout = internalMutation({
       await ctx.db.insert("agencyMembers", {
         agencyId: agency.agencyId,
         clerkUserId: args.clerkUserId,
-        email: normalizeEmail(args.email),
+        email: normalizeEmail(args.loginEmail || args.email),
         name: args.agencyName,
         role: "owner",
         status: "active",
