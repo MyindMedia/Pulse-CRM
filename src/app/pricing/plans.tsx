@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Check, Infinity as InfinityIcon } from "@untitledui/icons";
-import type { BillingInterval } from "@convex/lib/pricing";
+import { PLATFORM_TRIAL_DAYS, type BillingInterval } from "@convex/lib/pricing";
 import { SubscribeButton } from "@/components/marketing/subscribe-button";
 import { cn } from "@/lib/utils";
 import { DEMO_HREF, type PlanCard } from "./model";
@@ -158,9 +158,14 @@ export function PricingPlans({ cards }: { cards: PlanCard[] }) {
                     <SubscribeButton
                       tier={c.tier}
                       interval={interval}
-                      label={`Start with ${c.name}`}
+                      label={PLATFORM_TRIAL_DAYS > 0 ? `Start ${PLATFORM_TRIAL_DAYS}-day free trial` : `Start with ${c.name}`}
                       featured={c.highlight}
                     />
+                    {PLATFORM_TRIAL_DAYS > 0 && (
+                      <p className="font-grotesk text-center text-xs text-steel">
+                        Card required. Cancel within {PLATFORM_TRIAL_DAYS} days and you pay nothing.
+                      </p>
+                    )}
                     <Link prefetch={false}
                       href={DEMO_HREF}
                       className="rounded-chrome py-2 text-center font-grotesk text-sm text-mist underline-offset-4 transition-colors hover:text-gold hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold"

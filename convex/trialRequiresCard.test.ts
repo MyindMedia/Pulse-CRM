@@ -96,9 +96,9 @@ describe("trial checkout params", () => {
     expect(p.subscription_data?.trial_settings).toBeUndefined();
   });
 
-  it("the public Core/Growth/Max checkout has no trial today", () => {
-    expect(PLATFORM_TRIAL_DAYS).toBe(0);
-    expect(trialSpec({ trialDays: PLATFORM_TRIAL_DAYS, now: NOW })).toEqual({ kind: "none" });
+  it("the public Core/Growth/Max checkout starts a 14-day card-required trial", () => {
+    expect(PLATFORM_TRIAL_DAYS).toBe(14);
+    expect(trialSpec({ trialDays: PLATFORM_TRIAL_DAYS, now: NOW })).toEqual({ kind: "days", days: 14 });
   });
 
   it("routes paid trial plans through the trial checkout, never the beta", () => {

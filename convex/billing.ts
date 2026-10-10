@@ -90,8 +90,8 @@ export const beginCheckout = action({
     const discounts = await earlyAdopterDiscounts(stripe, args.tier as TierKey, interval);
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-    /* Card always collected. PLATFORM_TRIAL_DAYS is 0 today, so this bills on
-       subscribe; any trial turned on later is card-required by construction. */
+    /* Card always collected, and the PLATFORM_TRIAL_DAYS trial is card-required
+       by construction: Stripe charges the saved card when it ends. */
     const session = await stripe.checkout.sessions.create(
       buildSubscriptionCheckoutParams({
         customer: customer.id,

@@ -129,6 +129,7 @@ describe("/pricing page", () => {
   it("falls back to Book a demo when no price id is configured", async () => {
     const html = await renderPage();
     expect(html).not.toMatch(/Start with (Core|Growth|Max)/);
+    expect(html).not.toMatch(/Start \d+-day free trial/);
     expect((html.match(/href="\/demo"/g) ?? []).length).toBeGreaterThanOrEqual(TIERS.length + 2);
   });
 
