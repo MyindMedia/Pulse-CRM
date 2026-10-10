@@ -9,7 +9,7 @@ import {
   PLAN_LIMITS, SELLABLE_TIERS, EARLY_ADOPTER_MONTHS, BETA_PLAN_NAME,
   earlyAdopterApplies, earlyAdopterPriceCents, type TierKey,
 } from "./lib/plans";
-import { BETA_TERM_DAYS } from "./lib/pricing";
+import { BETA_TERM_DAYS, PLATFORM_TRIAL_DAYS } from "./lib/pricing";
 import { assertNoCardFreeTrial, isBetaPlan } from "./lib/trialCheckout";
 
 /* ============================================================
@@ -271,7 +271,7 @@ async function insertStarterPlans(
         introPriceCents: intro,
         introMonths: EARLY_ADOPTER_MONTHS,
         billingInterval: "month",
-        trialDays: 0,
+        trialDays: PLATFORM_TRIAL_DAYS,
         requireCardAfterTrial: true,
         isPromo: true,
         isDefault: false,
@@ -286,7 +286,7 @@ async function insertStarterPlans(
       description: `${money(p.priceCents)}/mo. ${p.pitch}`,
       priceCents: p.priceCents,
       billingInterval: "month",
-      trialDays: 0,
+      trialDays: PLATFORM_TRIAL_DAYS,
       requireCardAfterTrial: true,
       isPromo: false,
       isDefault: false,

@@ -155,10 +155,11 @@ export const ALL_TIER_TERMS = [
    payment is required after the term. */
 
 /** Free trial length on the public Core / Growth / Max checkout, in days.
- *  0 = no trial: those plans bill on the day you subscribe. Any value above 0
- *  turns on a card-required trial through the same checkout helper
- *  (convex/lib/trialCheckout.ts), and the /pricing FAQ follows this number. */
-export const PLATFORM_TRIAL_DAYS = 0;
+ *  14 on every plan and interval (owner, 2026-10-10). The trial is
+ *  card-required through the same checkout helper (convex/lib/trialCheckout.ts):
+ *  Stripe charges the card when it ends. 0 would bill on the day you subscribe.
+ *  The /pricing FAQ, the plan buttons and the agency plan defaults follow it. */
+export const PLATFORM_TRIAL_DAYS = 14;
 
 /** The beta term, in days. The only card-free access Pulse gives. */
 export const BETA_TERM_DAYS = 365;

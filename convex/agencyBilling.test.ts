@@ -136,9 +136,9 @@ describe("agencyPlans + agencyBilling - integration", () => {
     expect(beta.isBeta).toBe(true);
     expect(beta.isDefault).toBe(true);
 
-    // Nothing else offers a trial. Generic free-trial plans are gone.
+    // Every paid plan carries the platform trial, card required at the start.
     for (const p of plans.filter((x) => x._id !== beta._id)) {
-      expect(p.trialDays).toBe(0);
+      expect(p.trialDays).toBe(14);
       expect(p.requireCardAfterTrial).toBe(true);
     }
 
