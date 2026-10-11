@@ -5,6 +5,7 @@ import { internal } from "./_generated/api";
 import { v, ConvexError } from "convex/values";
 import { seedStarterWorkspace } from "./lib/starter";
 import { resolveViewer, requireCapability, AccessError } from "./lib/access";
+import { platformAgencyId } from "./lib/platformAgency";
 import { DEMO_ORG } from "./lib/tenant";
 import { PLAN_LIMITS } from "./lib/plans";
 import { tierV } from "./lib/tierV";
@@ -69,7 +70,12 @@ export const access = query({
     try {
       const viewer = await resolveViewer(ctx);
       // Real agency members always allowed
-      if (viewer.kind === "agency_member") return { allowed: true, demo: false };
+      // Only the Pulse team's agency runs the console. A buyer agency made by
+      // the old checkout flow is a customer, not staff.
+      if (viewer.kind === "agency_member") {
+        const pulse = await platformAgencyId(ctx);
+        return { allowed: !pulse || viewer.agencyId === pulse, demo: false };
+      }
       // Demo path (no Clerk identity) returns true to keep the existing UX
       const identity = await ctx.auth.getUserIdentity();
       if (!identity) return { allowed: true, demo: true };
@@ -77,7 +83,8 @@ export const access = query({
       const allow = (process.env.AGENCY_ADMIN_EMAILS ?? "")
         .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
       const email = (identity.email ?? "").toLowerCase();
-      return { allowed: allow.length === 0 || allow.includes(email), demo: false };
+      // An empty allowlist admits nobody: a studio owner is not Pulse staff.
+      return { allowed: allow.includes(email), demo: false };
     } catch (e) {
       if (e instanceof AccessError) return { allowed: false, demo: false };
       throw e;

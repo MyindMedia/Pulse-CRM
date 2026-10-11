@@ -201,10 +201,28 @@ describe("access engine - AGENCY_ADMIN_EMAILS allowlist", () => {
         orgId: "pulse-demo", name: "Demo", slug: "demo", tier: "core", status: "active",
       });
     });
-    // Multiple agencies => no single-tenant fallback => not elevated. And with
+    // Two agencies with no subscription => the Pulse agency is ambiguous =>
+    // not elevated. And with
     // no org/agency the caller is denied (not dropped into demo).
     const asAdmin = t.withIdentity({ subject: "user_admin", name: "Admin", email: "admin@x.com" });
     await expect(asAdmin.query(api.testHarness.resolve, {})).rejects.toThrow();
+  });
+
+  it("elevates into the Pulse agency even when a buyer agency (with its own subscription) exists", async () => {
+    process.env.AGENCY_ADMIN_EMAILS = "admin@x.com";
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencies", {
+        agencyId: "org_pulse", name: "Pulse", slug: "pulse", plan: "max", status: "active",
+        ownerClerkUserId: "x", ownerEmail: "x@x",
+      });
+      await ctx.db.insert("agencies", {
+        agencyId: "agency_buyer", name: "Buyer", slug: "buyer", plan: "growth", status: "active",
+        ownerClerkUserId: "y", ownerEmail: "y@y", stripeCustomerId: "cus_y", stripeSubscriptionId: "sub_y",
+      });
+    });
+    const asAdmin = t.withIdentity({ subject: "user_admin", name: "Admin", email: "admin@x.com" });
+    const v = await asAdmin.query(api.testHarness.resolve, {});
+    expect(v).toMatchObject({ kind: "agency_member", role: "owner" });
   });
 
   it("empty AGENCY_ADMIN_EMAILS elevates nobody (console-only 'allow all' stays out of resolveViewer)", async () => {

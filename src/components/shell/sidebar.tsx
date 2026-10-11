@@ -258,7 +258,9 @@ export function Sidebar({
   // (agency_member vs studio_member), and stays null while loading so the
   // link never flashes for a studio viewer. Route access is enforced
   // server-side regardless; this hides the door.
-  const isAgencyViewer = kind === "agency_member";
+  // The console is the Pulse team's: the server also checks WHICH agency.
+  const agencyAccess = useQuery(api.agency.access, kind === "agency_member" ? {} : "skip");
+  const isAgencyViewer = kind === "agency_member" && agencyAccess?.allowed === true;
   // Hide nav features the agency has disabled for this sub-account, and items
   // the viewer's role can't access (financials/exec/settings). Capability-gated
   // items stay hidden until caps load so a lower tier never sees them flash.

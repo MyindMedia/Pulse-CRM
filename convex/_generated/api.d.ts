@@ -151,6 +151,7 @@ import type * as lib_payroll from "../lib/payroll.js";
 import type * as lib_phone from "../lib/phone.js";
 import type * as lib_plaid from "../lib/plaid.js";
 import type * as lib_plans from "../lib/plans.js";
+import type * as lib_platformAgency from "../lib/platformAgency.js";
 import type * as lib_platformSubscription from "../lib/platformSubscription.js";
 import type * as lib_pnl from "../lib/pnl.js";
 import type * as lib_portTemplates from "../lib/portTemplates.js";
@@ -476,6 +477,7 @@ declare const fullApi: ApiFromModules<{
   "lib/phone": typeof lib_phone;
   "lib/plaid": typeof lib_plaid;
   "lib/plans": typeof lib_plans;
+  "lib/platformAgency": typeof lib_platformAgency;
   "lib/platformSubscription": typeof lib_platformSubscription;
   "lib/pnl": typeof lib_pnl;
   "lib/portTemplates": typeof lib_portTemplates;
