@@ -129,6 +129,13 @@ export default function PrivacyPolicy() {
             does not use data sent through its API to train its models.
           </li>
           <li>
+            TypeSafe: its Jev model makes quick yes/no and multiple-choice judgments inside Pulse, such
+            as whether an incoming text is a booking question, which category a receipt belongs to,
+            or how a prospect&rsquo;s reply should be handled. Only the text a judgment needs is sent
+            to TypeSafe&rsquo;s API, and bank transactions, balances, and bank access tokens are never
+            sent to TypeSafe.
+          </li>
+          <li>
             OpenAI: a backup for the same AI features when Claude is unavailable, and receipt reading
             when configured. Bank transactions and balances are never sent to OpenAI. Only the studio
             records a request needs, which can include client names and session details, are sent to
