@@ -282,11 +282,13 @@ export const create = mutation({
 });
 
 /** Assign (or clear) the engineer on a session; keeps the auto-shift in sync and
- *  returns a soft warning if the engineer is double-booked. */
+ *  returns a soft warning if the engineer is double-booked. Gated
+ *  `sessions.edit`, like moving a booking: it puts a shift on someone's rota,
+ *  so a read-only teammate (intern, accountant) cannot do it. */
 export const assignEngineer = mutation({
   args: { sessionId: v.id("sessions"), engineerId: v.optional(v.id("members")) },
   handler: async (ctx, { sessionId, engineerId }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "sessions.edit");
     const session = await ctx.db.get(sessionId);
     if (!session || session.orgId !== orgId) throw new Error("Session not found");
     if (engineerId) {
