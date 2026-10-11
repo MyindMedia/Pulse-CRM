@@ -10,47 +10,10 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const ical = require("node-ical") as typeof import("node-ical");
-import { lookup } from "node:dns/promises";
-import net from "node:net";
-
-/** True for private / loopback / link-local / metadata addresses (SSRF targets). */
-function isPrivateIp(ip: string): boolean {
-  if (net.isIPv4(ip)) {
-    const [a, b] = ip.split(".").map(Number);
-    if (a === 10 || a === 127 || a === 0) return true;
-    if (a === 169 && b === 254) return true; // link-local + cloud metadata (169.254.169.254)
-    if (a === 172 && b >= 16 && b <= 31) return true;
-    if (a === 192 && b === 168) return true;
-    return false;
-  }
-  const low = ip.toLowerCase();
-  if (low === "::1") return true;
-  if (low.startsWith("fc") || low.startsWith("fd") || low.startsWith("fe80")) return true;
-  if (low.startsWith("::ffff:")) return isPrivateIp(low.slice(7));
-  return false;
-}
-
-/** SSRF guard: the iCal URL must be https and resolve to a PUBLIC address, so a
- *  studio can't point a feed at cloud metadata / localhost / the internal network. */
-async function assertPublicHttpsUrl(raw: string): Promise<void> {
-  let u: URL;
-  try {
-    u = new URL(raw);
-  } catch {
-    throw new Error("Invalid calendar URL.");
-  }
-  if (u.protocol !== "https:") throw new Error("Calendar URL must use https.");
-  const host = u.hostname.replace(/^\[|\]$/g, "");
-  if (net.isIP(host)) {
-    if (isPrivateIp(host)) throw new Error("Calendar URL points to a non-public address.");
-    return;
-  }
-  if (/^(localhost|.*\.local|.*\.internal)$/i.test(host)) {
-    throw new Error("Calendar URL points to a non-public host.");
-  }
-  const { address } = await lookup(host);
-  if (isPrivateIp(address)) throw new Error("Calendar URL resolves to a non-public address.");
-}
+import https from "node:https";
+import { lookup as dnsLookup } from "node:dns";
+import type { LookupFunction } from "node:net";
+import { fetchFeed, lookupRefusal, type IcalHop } from "./lib/icalGuard";
 
 type ParsedEvent = {
   uid: string;
@@ -62,15 +25,51 @@ type ParsedEvent = {
   description?: string;
 };
 
-async function fetchIcal(url: string): Promise<string> {
-  await assertPublicHttpsUrl(url);
-  const res = await fetch(url, {
-    headers: { "User-Agent": "Pulse/1.0 (https://pulse-dash-kit.netlify.app)" },
+const MAX_ICAL_BYTES = 10_000_000;
+
+/* The socket's own DNS lookup: every answer must be public, so the address
+   checked is the address connected to and a rebinding name has no window. */
+const publicLookup: LookupFunction = (hostname, options, callback) => {
+  dnsLookup(hostname, { ...options, all: true }, (err, addresses) => {
+    if (err) return callback(err, "");
+    const refused = lookupRefusal(addresses);
+    if (refused) return callback(Object.assign(new Error(refused), { code: "EPRIVATE" }), "");
+    if (options.all) return callback(null, addresses);
+    callback(null, addresses[0].address, addresses[0].family);
   });
-  if (!res.ok) {
-    throw new Error(`Fetch failed with HTTP ${res.status}`);
-  }
-  return await res.text();
+};
+
+/** One GET, no redirect following (fetchFeed checks and follows each hop). */
+function getOnce(url: URL): Promise<IcalHop> {
+  return new Promise((resolve, reject) => {
+    const req = https.get(
+      url,
+      { lookup: publicLookup, timeout: 15_000, headers: { "User-Agent": "Pulse/1.0 (https://pulse-dash-kit.netlify.app)" } },
+      (res) => {
+        const status = res.statusCode ?? 0;
+        if (status < 200 || status >= 300) {
+          res.resume();
+          resolve({ status, location: res.headers.location });
+          return;
+        }
+        const chunks: Buffer[] = [];
+        let total = 0;
+        res.on("data", (chunk: Buffer) => {
+          total += chunk.length;
+          if (total > MAX_ICAL_BYTES) req.destroy(new Error("Calendar feed is too large."));
+          else chunks.push(chunk);
+        });
+        res.on("end", () => resolve({ status, body: Buffer.concat(chunks).toString("utf8") }));
+        res.on("error", reject);
+      },
+    );
+    req.on("timeout", () => req.destroy(new Error("Calendar feed timed out.")));
+    req.on("error", reject);
+  });
+}
+
+async function fetchIcal(url: string): Promise<string> {
+  return fetchFeed(url, getOnce);
 }
 
 function parseIcal(raw: string): ParsedEvent[] {
@@ -101,7 +100,7 @@ function parseIcal(raw: string): ParsedEvent[] {
 export const sync = action({
   args: { id: v.id("externalCalendars") },
   handler: async (ctx, { id }) => {
-    const cal = await ctx.runQuery(internal.externalCalendars.getInternal, { id });
+    const cal = await ctx.runQuery(internal.externalCalendars.getForCaller, { id });
     if (!cal) throw new Error("Calendar not found.");
     if (!cal.active) return { ok: false, reason: "inactive" } as const;
     try {

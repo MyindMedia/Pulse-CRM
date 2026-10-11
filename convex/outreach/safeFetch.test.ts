@@ -79,6 +79,27 @@ describe("DNS rebinding (pentest re-scan, CWE-918)", () => {
     for (const ip of ["127.0.0.1", "10.1.2.3", "169.254.169.254", "::1", "fd12::1", "fe80::1", "::ffff:192.168.1.1"]) expect(isPrivateIp(ip), ip).toBe(true);
     for (const ip of ["93.184.216.34", "2606:4700:4700::1111"]) expect(isPrivateIp(ip), ip).toBe(false);
   });
+  it("reads IPv6 as numbers, so a private IPv4 carried inside one is caught however it is written", () => {
+    const inside = [
+      "::ffff:a9fe:a9fe", // mapped metadata address, hex form (a resolver may print it this way)
+      "0:0:0:0:0:ffff:7f00:1", // mapped loopback, uncompressed
+      "::7f00:1", // IPv4-compatible loopback
+      "64:ff9b::a9fe:a9fe", // NAT64 to the metadata address
+      "64:ff9b:1::5", // NAT64 local-use prefix
+      "2002:a00:1::1", // 6to4 around 10.0.0.1
+      "2001:0:4136:e378::1", // Teredo tunnel
+      "0000:0000:0000:0000:0000:0000:0000:0001", // loopback, zero-padded
+      "fec0::1", // old site-local
+      "ff02::1", // multicast
+      "198.18.0.1", // benchmarking network
+      "192.0.0.170", // IETF special-purpose
+      "not-an-ip", // unreadable: refuse
+    ];
+    for (const ip of inside) expect(isPrivateIp(ip), ip).toBe(true);
+    for (const ip of ["::ffff:5db8:d822", "64:ff9b::5db8:d822", "2002:5db8:d822::1", "2a00:1450:4001:80b::200e"]) {
+      expect(isPrivateIp(ip), ip).toBe(false);
+    }
+  });
   it("refuses a host whose DNS answers include a private address, and fails closed when DNS does not answer", async () => {
     dnsTuning.resolve = async (h) => (h === "evil.example.com" ? ["93.184.216.34", "169.254.169.254"] : h === "ok.example.com" ? ["93.184.216.34"] : null);
     expect(await resolvesPublic("evil.example.com")).toBe(false);
