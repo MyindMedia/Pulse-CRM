@@ -85,7 +85,7 @@ export function InsightsBell() {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className="pl-icon-key relative"
+          className="pl-icon-key relative grid"
           aria-label="Notifications"
         >
           <Bell className="size-[1.1rem]" />

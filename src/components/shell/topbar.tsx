@@ -25,11 +25,11 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
   return (
     <header className="pl-card relative flex flex-wrap items-center gap-x-3 gap-y-3 px-4 py-3 lg:min-h-[76px] lg:flex-nowrap lg:gap-x-4 lg:px-6 lg:py-3">
       <Brackets />
-      <button onClick={onOpenMenu} className="pl-icon-key lg:hidden" aria-label="Open navigation">
+      <button onClick={onOpenMenu} className="pl-icon-key grid lg:hidden" aria-label="Open navigation">
         <Menu className="size-5" />
       </button>
 
-      <div className="min-w-0 flex-1 lg:max-w-[42%] lg:flex-none">
+      <div className="min-w-0 flex-1 lg:max-w-[40%] lg:flex-initial">
         <div ref={titleRef} className="pl-title-slot" />
         <div className="pl-title-fallback min-w-0">
           <h1 className="truncate font-sans text-[22px] font-extrabold leading-7 tracking-[-0.01em] text-bone lg:text-[26px] lg:leading-8">
@@ -42,7 +42,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
       <button
         type="button"
         onClick={openCommandPalette}
-        className="pl-search hidden min-w-0 flex-1 md:flex"
+        className="pl-search hidden min-w-[200px] flex-1 md:flex"
         aria-label="Search"
       >
         <Search className="size-4 shrink-0" />
@@ -53,7 +53,7 @@ export function Topbar({ onOpenMenu }: { onOpenMenu: () => void }) {
       </button>
 
       <div className="flex items-center gap-2 md:contents">
-        <button type="button" onClick={openCommandPalette} className="pl-icon-key md:hidden" aria-label="Search">
+        <button type="button" onClick={openCommandPalette} className="pl-icon-key grid md:hidden" aria-label="Search">
           <Search className="size-4" />
         </button>
         <InsightsBell />

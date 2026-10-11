@@ -340,9 +340,11 @@
 :root:has(.pulse-hw) .pl-nav-item[data-locked="true"] { color: var(--pl-line-control); }
 :root:has(.pulse-hw) .pl-nav-item[data-locked="true"] .pl-led { background: #3a3a3e; }
 
+/* Shell classes are skin only: display and responsive visibility stay in
+   Tailwind utilities, which these selectors would otherwise outrank. */
+
 /* Search well in the top bar: a recess with the placeholder in ink-subtle. */
 :root:has(.pulse-hw) .pl-search {
-  display: flex;
   align-items: center;
   gap: 10px;
   height: 36px;
@@ -359,7 +361,6 @@
 
 /* Compact square key for icon actions (bell, profile, menu). */
 :root:has(.pulse-hw) .pl-icon-key {
-  display: grid;
   place-items: center;
   width: 36px;
   height: 36px;
@@ -371,7 +372,6 @@
 }
 :root:has(.pulse-hw) .pl-icon-key:hover { color: var(--pl-ink); }
 :root:has(.pulse-hw) .pl-icon-key[data-wide="true"] {
-  display: flex;
   align-items: center;
   gap: 8px;
   width: auto;
