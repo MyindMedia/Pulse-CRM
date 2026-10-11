@@ -147,3 +147,39 @@ export const setStatus = mutation({
     }
   },
 });
+
+/** The split sheet that needs attention, for the payments page (kit
+ *  "Invoices and splits"): the latest one out for signature, else the latest
+ *  draft, else the latest fully signed. Names, roles, shares and who has
+ *  signed; never contributor emails or signatures. */
+export const spotlight = query({
+  args: {},
+  handler: async (ctx) => {
+    const orgId = await currentOrgWithCapability(ctx, "splitsheet.read");
+    const sheets = await ctx.db
+      .query("splitSheets")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .collect();
+    if (sheets.length === 0) return null;
+    const rank = { sent: 0, draft: 1, fully_executed: 2 } as const;
+    const pick = [...sheets].sort((a, b) => rank[a.status] - rank[b.status] || b.updatedAt - a.updatedAt)[0];
+    const song = await ctx.db.get(pick.songId);
+    const artist = song?.artistId ? await ctx.db.get(song.artistId) : null;
+    return {
+      sheetId: pick._id,
+      songId: pick.songId,
+      songTitle: song?.title ?? "Untitled",
+      artistName: artist?.name ?? null,
+      status: pick.status,
+      signed: pick.contributors.filter((c) => c.signed).length,
+      total: pick.contributors.length,
+      contributors: pick.contributors.map((c) => ({
+        name: c.name,
+        role: c.role,
+        masterPct: c.masterPct,
+        publishingPct: c.publishingPct,
+        signed: c.signed,
+      })),
+    };
+  },
+});

@@ -22,8 +22,8 @@ const RANGES = [
  * fade fill, the 8% yellow grid, a dashed crosshair with the date pill, and
  * a sweep while it loads. Colours come from the --chart-* tokens in
  * hardware.css. Same data as the revenue tile (dashboard.revenueSeries). */
-export function BookingRevenue() {
-  const [range, setRange] = React.useState<Range>("30d");
+export function BookingRevenue({ title = "Booking revenue", initialRange = "30d" }: { title?: string; initialRange?: Range } = {}) {
+  const [range, setRange] = React.useState<Range>(initialRange);
   const series = useQuery(api.dashboard.revenueSeries, { range });
   const data = React.useMemo(
     () => (series?.points ?? []).map((p) => ({ date: new Date(p.start), revenue: p.cents / 100 })),
@@ -34,7 +34,7 @@ export function BookingRevenue() {
   return (
     <Chassis>
       <ChassisTitle
-        title="Booking revenue"
+        title={title}
         bar={false}
         right={<KeyBank label="Revenue range" options={RANGES} value={range} onChange={setRange} />}
       />
