@@ -346,6 +346,23 @@ describe("Outreach flow: Lawrence first, MaxB follow-ups", () => {
     expect(out).not.toContain("Stop follow-ups");
   });
 
+  it("a studio's reply shows Jev's label, and says when the address was opted out automatically", () => {
+    const stopped = { step: 0, status: "stopped", nextDueAt: null, recipient: "jane@mix.com", stoppedReason: "replied", stoppedMeaning: "The studio replied.", pendingDraft: false };
+    setP({ canManage: true, suppressedCount: 0, rows: [queued({ status: "replied", sequence: stopped, replyIntent: { label: "interested", probability: 0.94, confidence: 0.93, optedOut: false, receivedAt: 0 } })] });
+    const yes = html(<Prospects />);
+    expect(yes).toContain(">reply: interested</span>");
+    expect(yes).toContain("94% sure");
+    expect(yes).toContain("A label only: nothing was changed.");
+
+    setP({ canManage: true, suppressedCount: 1, rows: [queued({ status: "suppressed", replyIntent: { label: "unsubscribe", probability: 0.97, confidence: 0.96, optedOut: true, receivedAt: 0 } })] });
+    const stop = html(<Prospects />);
+    expect(stop).toContain(">reply: asked to stop</span>");
+    expect(stop).toContain("The address was opted out automatically.");
+
+    setP({ canManage: true, suppressedCount: 0, rows: [queued()] });
+    expect(html(<Prospects />)).not.toContain("reply: ");
+  });
+
   it("CSV import and bulk routing confirm are owner/admin tools; confirm says it never approves", () => {
     setP({ canManage: true, suppressedCount: 0, rows: [queued({ contacts: contacts("info@mix.com", true) })] });
     const out = html(<Prospects />);

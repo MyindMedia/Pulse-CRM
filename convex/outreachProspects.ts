@@ -1,4 +1,4 @@
-import { query, internalQuery, internalAction } from "./_generated/server";
+import { query, internalQuery, internalAction, type QueryCtx, type MutationCtx } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
@@ -8,9 +8,12 @@ import type { Id } from "./_generated/dataModel";
 import { prospectContactsV } from "./outreach/tables";
 import { parseSeed, extractEmails, extractPhones, extractSocials, detectBooking, candidatePages, hostOf, isContactPath } from "./outreach/enrich";
 import { checkUrl, loadRobots, robotsVerdict, safeGet, type RobotsPolicy } from "./outreach/safeFetch";
-import { stopSequencesFor, suppressionStopReason, STOP_MEANING } from "./outreach/sequence";
+import { stopSequencesFor, suppressionStopReason, sequencesAnsweredBy, STOP_MEANING } from "./outreach/sequence";
 import { GENERIC_HOLD } from "./outreach/drafting";
 import { readImportRows, rowProblem } from "./outreach/csvImport";
+import { ownAddress } from "./mail/address";
+import { askJev, jevEnabled } from "./lib/jevClient";
+import { OUTREACH_REPLY_QUESTIONS, outreachReplyState, replyText, autoOptOut } from "./lib/jev/outreachReplies";
 
 /* ============================================================
    Outreach prospects: studios to pitch, found from Instagram handles or
@@ -87,6 +90,15 @@ export const list = query({
         note: r.note ?? null,
         bookedAt: r.bookedAt ?? null,
         repliedAt: r.repliedAt ?? null,
+        replyIntent: r.replyIntent
+          ? {
+              label: r.replyIntent.label,
+              probability: r.replyIntent.probabilities[r.replyIntent.label] ?? null,
+              confidence: r.replyIntent.confidence,
+              optedOut: r.replyIntent.optedOut,
+              receivedAt: r.replyIntent.receivedAt,
+            }
+          : null,
         routingConfirmed: r.routingConfirmed ?? false,
         hook: r.hook ?? null,
         hookSourceUrl: r.hookSourceUrl ?? null,
@@ -206,26 +218,36 @@ export const queueForReview = mutation({
   },
 });
 
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+
+/** The one opt-out path: the address goes on the agency's opt-out list, a
+ *  queued prospect whose every address is now on it becomes "suppressed", and
+ *  every running follow-up sequence to it stops. "Mark opted out" and Jev's
+ *  reply triage (an `unsubscribe` at >= 0.9) both come through here. */
+async function optOutAddress(ctx: MutationCtx, agencyId: string, email: string, reason: string, actor: string) {
+  const exists = await ctx.db
+    .query("outreachSuppressions")
+    .withIndex("by_agency_email", (q) => q.eq("agencyId", agencyId).eq("email", email))
+    .unique();
+  if (!exists) await ctx.db.insert("outreachSuppressions", { agencyId, email, reason: reason.slice(0, 200), at: Date.now() });
+  const rows = await ctx.db.query("outreachProspects").withIndex("by_agency", (q) => q.eq("agencyId", agencyId)).take(500);
+  const sup = new Set((await ctx.db.query("outreachSuppressions").withIndex("by_agency_email", (q) => q.eq("agencyId", agencyId)).collect()).map((s) => s.email));
+  for (const r of rows) {
+    if (r.status === "queued" && r.contacts && r.contacts.emails.every((e) => sup.has(e.address))) {
+      await ctx.db.patch(r._id, { status: "suppressed", updatedAt: Date.now() });
+    }
+  }
+  await stopSequencesFor(ctx, agencyId, { email }, suppressionStopReason(reason), actor);
+  await logEvent(ctx, agencyId, actor, "outreach.email_suppressed", "ok", email);
+}
+
 export const suppressEmail = mutation({
   args: { email: v.string(), reason: v.string() },
   handler: async (ctx, a) => {
     const scope = await requireManager(ctx);
     const email = a.email.trim().toLowerCase();
-    if (!/^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email)) throw new Error("Not an email address");
-    const exists = await ctx.db
-      .query("outreachSuppressions")
-      .withIndex("by_agency_email", (q) => q.eq("agencyId", scope.agencyId).eq("email", email))
-      .unique();
-    if (!exists) await ctx.db.insert("outreachSuppressions", { agencyId: scope.agencyId, email, reason: a.reason.slice(0, 200), at: Date.now() });
-    const rows = await ctx.db.query("outreachProspects").withIndex("by_agency", (q) => q.eq("agencyId", scope.agencyId)).take(500);
-    const sup = new Set((await ctx.db.query("outreachSuppressions").withIndex("by_agency_email", (q) => q.eq("agencyId", scope.agencyId)).collect()).map((s) => s.email));
-    for (const r of rows) {
-      if (r.status === "queued" && r.contacts && r.contacts.emails.every((e) => sup.has(e.address))) {
-        await ctx.db.patch(r._id, { status: "suppressed", updatedAt: Date.now() });
-      }
-    }
-    await stopSequencesFor(ctx, scope.agencyId, { email }, suppressionStopReason(a.reason), scope.actor);
-    await logEvent(ctx, scope.agencyId, scope.actor, "outreach.email_suppressed", "ok", email);
+    if (!EMAIL_RE.test(email)) throw new Error("Not an email address");
+    await optOutAddress(ctx, scope.agencyId, email, a.reason, scope.actor);
     return null;
   },
 });
@@ -535,5 +557,106 @@ export const intakeProspect = internalMutation({
     });
     await logEvent(ctx, a.agencyId, a.source, "outreach.prospect_intake", "ok", seed.handle ?? seed.dedupeKey);
     return { result: "added" as const };
+  },
+});
+
+/* ----------------------- reply triage (Jev, internal) -----------------------
+
+   When a studio answers an outreach email, Jev labels what the reply wants
+   (convex/lib/jev/outreachReplies.ts) and the label lands on the prospect.
+   convex/mailInbound.ts schedules triageReply once a message's body is stored,
+   and only while Jev is configured. A label changes nothing, with one
+   exception: an `unsubscribe` at >= 0.9 opts the address out through
+   optOutAddress, the same path as "mark opted out". When Jev is unavailable
+   nothing is written, and the hourly cron handles the reply exactly as before. */
+
+type TriageResult =
+  | { triaged: true; label: string; optedOut: boolean }
+  | { triaged: false; reason: "no_key" | "not_an_outreach_reply" | "jev_unavailable" };
+
+const pct = (x: number | undefined) => (x === undefined ? "?" : `${Math.round(x * 100)}%`);
+
+/** An external inbound message with its body, and the prospects whose follow-up
+ *  sequence it answers (the cron's reply rule). Null for any other mail. */
+async function outreachReply(ctx: QueryCtx | MutationCtx, messageId: Id<"mailMessages">) {
+  const message = await ctx.db.get(messageId);
+  if (!message || message.direction !== "in" || message.bodyStatus === "pending" || message.bodyStatus === "failed") return null;
+  if (!message.fromAddress || ownAddress(message.fromAddress)) return null;
+  const matches = [];
+  for (const sequence of await sequencesAnsweredBy(ctx, message)) {
+    const prospect = await ctx.db.get(sequence.prospectId);
+    if (prospect && prospect.agencyId === message.agencyId) matches.push({ prospect, sequence });
+  }
+  return matches.length ? { message, matches } : null;
+}
+
+/** What Jev reads: the studio's own words (quoted history removed), the subject
+ *  and the studio's name. Nothing else leaves Pulse. */
+export const _replyForJev = internalQuery({
+  args: { messageId: v.id("mailMessages") },
+  handler: async (ctx, { messageId }) => {
+    const r = await outreachReply(ctx, messageId);
+    if (!r) return null;
+    return {
+      subject: r.message.subject,
+      text: replyText(r.message.text, r.message.html),
+      company: r.matches.map((x) => x.prospect.name?.trim()).find(Boolean) ?? null,
+    };
+  },
+});
+
+export const _applyReplyIntent = internalMutation({
+  args: {
+    messageId: v.id("mailMessages"),
+    label: v.string(),
+    probabilities: v.record(v.string(), v.number()),
+    confidence: v.number(),
+    model: v.string(),
+  },
+  handler: async (ctx, a): Promise<TriageResult> => {
+    const r = await outreachReply(ctx, a.messageId);
+    if (!r) return { triaged: false, reason: "not_an_outreach_reply" };
+    const { agencyId } = r.message;
+    const now = Date.now();
+    const receivedAt = r.message.receivedAt ?? r.message.createdAt;
+    const optedOut = autoOptOut(a.probabilities);
+    for (const { prospect, sequence } of r.matches) {
+      // Replies can be read out of order: the newest one keeps the label.
+      if (!prospect.replyIntent || prospect.replyIntent.receivedAt <= receivedAt) {
+        await ctx.db.patch(prospect._id, {
+          replyIntent: {
+            label: a.label, probabilities: a.probabilities, confidence: a.confidence, model: a.model,
+            messageId: a.messageId, receivedAt, at: now, optedOut,
+          },
+          updatedAt: now,
+        });
+      }
+      await logEvent(ctx, agencyId, "jev", "outreach.reply_labeled", "ok", sequence.recipient,
+        `${a.label} ${pct(a.probabilities[a.label])}, confidence ${pct(a.confidence)}`);
+    }
+    if (optedOut) {
+      const reason = `opt-out: asked to stop in a reply (Jev, unsubscribe ${pct(a.probabilities.unsubscribe)})`;
+      // The address the outreach went to, and whoever wrote the reply when that is someone else.
+      const addresses = new Set([...r.matches.map((x) => x.sequence.recipient), r.message.fromAddress]);
+      for (const email of addresses) if (EMAIL_RE.test(email)) await optOutAddress(ctx, agencyId, email, reason, "jev");
+    }
+    return { triaged: true, label: a.label, optedOut };
+  },
+});
+
+/** Labels one stored inbound message if it answers an outreach email. */
+export const triageReply = internalAction({
+  args: { messageId: v.id("mailMessages") },
+  handler: async (ctx, { messageId }): Promise<TriageResult> => {
+    if (!jevEnabled()) return { triaged: false, reason: "no_key" };
+    const reply = await ctx.runQuery(internal.outreachProspects._replyForJev, { messageId });
+    if (!reply) return { triaged: false, reason: "not_an_outreach_reply" };
+    const asked = await askJev(outreachReplyState(reply, reply.company), OUTREACH_REPLY_QUESTIONS);
+    if (!asked) return { triaged: false, reason: "jev_unavailable" };
+    const answer = asked.result.answers.replyIntent;
+    return await ctx.runMutation(internal.outreachProspects._applyReplyIntent, {
+      messageId, label: answer.choice, probabilities: { ...answer.probabilities },
+      confidence: answer.confidence, model: asked.result.model,
+    });
   },
 });

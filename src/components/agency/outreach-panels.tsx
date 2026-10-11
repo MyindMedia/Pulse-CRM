@@ -572,6 +572,23 @@ const PROSPECT_STATUS: Record<string, { tone: Tone; meaning: string }> = {
   replied: { tone: "positive", meaning: "The studio replied. Follow-ups stopped; MaxB can still reply in the thread." },
 };
 
+/* Jev's label for the studio's latest reply (convex/lib/jev/outreachReplies.ts). */
+const REPLY_INTENT: Record<string, { text: string; tone: Tone }> = {
+  interested: { text: "interested", tone: "positive" },
+  not_now: { text: "not now", tone: "neutral" },
+  unsubscribe: { text: "asked to stop", tone: "critical" },
+  wrong_person: { text: "wrong person", tone: "caution" },
+  question: { text: "has a question", tone: "info" },
+  auto_reply: { text: "auto-reply", tone: "neutral" },
+};
+
+function ReplyIntentBadge({ r }: { r: { label: string; probability: number | null; optedOut: boolean } }) {
+  const ri = REPLY_INTENT[r.label] ?? { text: r.label.replace(/_/g, " "), tone: "neutral" as Tone };
+  const sure = r.probability === null ? "" : ` (${Math.round(r.probability * 100)}% sure)`;
+  const outcome = r.optedOut ? " The address was opted out automatically." : " A label only: nothing was changed.";
+  return <Badge tone={ri.tone} title={`Jev's read of the latest reply${sure}.${outcome}`}>{`reply: ${ri.text}`}</Badge>;
+}
+
 function hostName(url: string) {
   try { return new URL(url).hostname.replace(/^www\./, ""); } catch { return url; }
 }
@@ -762,6 +779,7 @@ export function Prospects() {
                       </div>
                       <div className="space-y-1 text-right">
                         <Badge tone={st.tone}>{p.status.replace("_", " ")}</Badge>
+                        {p.replyIntent && <ReplyIntentBadge r={p.replyIntent} />}
                         {p.bookedAt && <Badge tone="positive">Booked a demo {new Date(p.bookedAt).toLocaleDateString()}</Badge>}
                         {p.routingConfirmed && <Badge tone="info">routing confirmed</Badge>}
                         <p className="max-w-xs text-xs text-steel/70">{p.note ?? st.meaning}</p>

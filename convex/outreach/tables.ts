@@ -164,6 +164,20 @@ export const outreachTables = {
     bookedAt: v.optional(v.number()),
     /* When the studio replied (or a person marked it replied). */
     repliedAt: v.optional(v.number()),
+    /* Jev's read of the studio's latest reply (convex/lib/jev/outreachReplies.ts):
+       the label, every option's probability, Jev's confidence and model, and the
+       reply it read. A label only, except optedOut: true means an `unsubscribe`
+       at >= 0.9 put the address on the opt-out list. */
+    replyIntent: v.optional(v.object({
+      label: v.string(),
+      probabilities: v.record(v.string(), v.number()),
+      confidence: v.number(),
+      model: v.string(),
+      messageId: v.id("mailMessages"),
+      receivedAt: v.number(),
+      at: v.number(),
+      optedOut: v.boolean(),
+    })),
     /* An owner or admin confirmed who handles studio operations behind a generic
        inbox. Clears the generic-inbox hold on this prospect's drafts; never approves. */
     routingConfirmed: v.optional(v.boolean()),
