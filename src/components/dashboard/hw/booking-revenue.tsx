@@ -32,7 +32,7 @@ export function BookingRevenue() {
     x: points.length > 1 ? (i / (points.length - 1)) * W : W / 2,
     y: H - (p.cents / top) * (H - 8),
   }));
-  const line = xy.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const line = smoothPath(xy);
   const area = xy.length ? `${line} L${W},${H} L0,${H} Z` : "";
   const cursor = hover ?? (xy.length ? xy.length - 1 : null);
   const total = points.reduce((s, p) => s + p.cents, 0);
@@ -51,7 +51,7 @@ export function BookingRevenue() {
         bar={false}
         right={<KeyBank label="Revenue range" options={RANGES} value={range} onChange={setRange} />}
       />
-      <div className="pl-screen relative mt-5 overflow-hidden" style={{ aspectRatio: `${W} / ${H}` }}>
+      <div className="pl-screen relative mt-5 min-h-[140px] flex-1 overflow-hidden">
         {series === undefined ? (
           <p className="absolute inset-0 grid place-items-center font-sans text-xs text-steel">Loading revenue…</p>
         ) : (
@@ -132,4 +132,39 @@ export function BookingRevenue() {
       )}
     </Chassis>
   );
+}
+
+/** A smooth line through the points that never overshoots them (monotone
+ *  cubic, Fritsch-Carlson), so a quiet day is never drawn below zero. */
+export function smoothPath(pts: { x: number; y: number }[]): string {
+  if (pts.length === 0) return "";
+  if (pts.length < 3) return pts.map((p, i) => `${i ? "L" : "M"}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(" ");
+  const n = pts.length;
+  const d: number[] = [];
+  const m: number[] = [];
+  for (let i = 0; i < n - 1; i++) d.push((pts[i + 1].y - pts[i].y) / (pts[i + 1].x - pts[i].x || 1));
+  m.push(d[0]);
+  for (let i = 1; i < n - 1; i++) m.push(d[i - 1] * d[i] <= 0 ? 0 : (d[i - 1] + d[i]) / 2);
+  m.push(d[n - 2]);
+  for (let i = 0; i < n - 1; i++) {
+    if (d[i] === 0) {
+      m[i] = 0;
+      m[i + 1] = 0;
+      continue;
+    }
+    const a = m[i] / d[i];
+    const b = m[i + 1] / d[i];
+    const h = a * a + b * b;
+    if (h > 9) {
+      const t = 3 / Math.sqrt(h);
+      m[i] = t * a * d[i];
+      m[i + 1] = t * b * d[i];
+    }
+  }
+  let path = `M${pts[0].x.toFixed(1)},${pts[0].y.toFixed(1)}`;
+  for (let i = 0; i < n - 1; i++) {
+    const dx = (pts[i + 1].x - pts[i].x) / 3;
+    path += ` C${(pts[i].x + dx).toFixed(1)},${(pts[i].y + m[i] * dx).toFixed(1)} ${(pts[i + 1].x - dx).toFixed(1)},${(pts[i + 1].y - m[i + 1] * dx).toFixed(1)} ${pts[i + 1].x.toFixed(1)},${pts[i + 1].y.toFixed(1)}`;
+  }
+  return path;
 }

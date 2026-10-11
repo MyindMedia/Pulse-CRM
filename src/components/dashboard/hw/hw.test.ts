@@ -56,3 +56,15 @@ describe("figures", () => {
     expect(usd(60000, { cents: true })).toBe("$600.00");
   });
 });
+
+describe("revenue line", () => {
+  it("is smooth but never dips below a zero day or above a peak (monotone)", async () => {
+    const { smoothPath } = await import("./booking-revenue");
+    const H = 150;
+    const pts = [0, 0, 120, 0, 40, 40, 0].map((v, i) => ({ x: i * 100, y: H - v }));
+    const nums = smoothPath(pts).replace(/[MC]/g, " ").trim().split(/[\s,]+/).map(Number);
+    const ys = nums.filter((_, i) => i % 2 === 1);
+    expect(Math.max(...ys)).toBeLessThanOrEqual(H); // never below the zero line
+    expect(Math.min(...ys)).toBeGreaterThanOrEqual(H - 120); // never above the peak
+  });
+});
