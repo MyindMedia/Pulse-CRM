@@ -176,7 +176,7 @@ export function HardwareSpecimens() {
               />
               <div className="pl-well mt-3 flex flex-col p-3">
                 <div className="pl-screen relative h-[170px] overflow-hidden">
-                  <AreaChart data={REVENUE} xDataKey="date" aspectRatio="auto" style={{ height: "100%" }} margin={{ top: 14, right: 14, bottom: 26, left: 14 }}>
+                  <AreaChart data={REVENUE} xDataKey="date" aspectRatio="auto" style={{ height: "100%" }} margin={{ top: 14, right: 26, bottom: 26, left: 26 }}>
                     <Grid horizontal vertical stroke="var(--chart-grid)" strokeOpacity={1} />
                     <Area dataKey="revenue" fill="var(--chart-line-primary)" fillOpacity={0.32} fadeEdges strokeWidth={2} />
                     <XAxis numTicks={3} />

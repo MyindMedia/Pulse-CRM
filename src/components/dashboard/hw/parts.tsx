@@ -65,20 +65,20 @@ export function StatTile({
   foot?: React.ReactNode;
 }) {
   return (
-    <div className="pl-well min-w-0 px-4 py-3.5">
+    <div className="pl-well pl-stat min-w-0 px-4 py-3.5">
       <div className="flex items-center justify-between gap-2">
         <span className="pl-label truncate">{label}</span>
         <span className="pl-led" data-on={highlight ? "true" : undefined} aria-hidden />
       </div>
       <p
         className={cn(
-          "mt-2.5 truncate font-mono text-[30px] font-medium leading-[34px] tracking-[-0.02em] tabular-nums",
+          "pl-stat-figure mt-2.5 truncate font-mono text-[30px] font-medium leading-[34px] tracking-[-0.02em] tabular-nums",
           highlight ? "text-gold" : "text-bone",
         )}
       >
         {value}
       </p>
-      <div className="mt-2.5 min-h-4 truncate font-mono text-xs leading-4 text-steel">{foot}</div>
+      <div className="pl-stat-foot mt-2.5 min-h-4 truncate font-mono text-xs leading-4 text-steel">{foot}</div>
     </div>
   );
 }
