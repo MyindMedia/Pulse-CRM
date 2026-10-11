@@ -1,5 +1,6 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse, type NextFetchEvent, type NextRequest } from "next/server";
+import { IS_STAGING } from "@/lib/deploy-env";
 import {
   PRIMARY_ORIGIN,
   SATELLITE_PROXY_URL,
@@ -178,7 +179,20 @@ function expireStaleClientCookie(req: NextRequest, res: Awaited<ReturnType<typeo
   }
 }
 
+/** The UI lab is a staging tool; production answers it with a real 404. */
+export function isProductionUiLab(pathname: string, staging: boolean): boolean {
+  return !staging && (pathname === "/ui-lab" || pathname.startsWith("/ui-lab/"));
+}
+
 export default async function middleware(req: NextRequest, event: NextFetchEvent) {
+  // The page's own notFound() runs after Next has begun streaming, so it can
+  // only render "not found" under a 200. The status has to be set here.
+  if (isProductionUiLab(req.nextUrl.pathname, IS_STAGING)) {
+    return new NextResponse("Not found", {
+      status: 404,
+      headers: { "content-type": "text/plain; charset=utf-8", "x-robots-tag": "noindex" },
+    });
+  }
   // Public product-demo redirect must run before Clerk protects app routes.
   if (req.nextUrl.pathname === "/demo") {
     return expireStaleClientCookie(req, NextResponse.redirect(
