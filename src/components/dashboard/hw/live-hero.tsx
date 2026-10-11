@@ -63,7 +63,7 @@ export function LiveSessionHero() {
 
   if (!data || now === null) {
     return (
-      <Chassis grid className="min-h-[300px]" aria-busy>
+      <Chassis grid brackets className="min-h-[300px]" aria-busy>
         <span className="sr-only">Loading the studio</span>
       </Chassis>
     );
@@ -73,8 +73,8 @@ export function LiveSessionHero() {
   const money = data.canSeeFinancials;
 
   return (
-    <Chassis grid className="flex-row! gap-6 p-0!">
-      <div className="flex min-w-0 flex-1 flex-col p-6">
+    <Chassis grid brackets className="flex-row! gap-6 p-0!">
+      <div className="flex min-w-0 flex-1 flex-col px-6 pb-6 pt-5">
         {live ? (
           <LiveBody s={live} next={next} now={now} money={money} canEdit={can("sessions.edit")} />
         ) : next ? (
@@ -95,8 +95,8 @@ function Head({ kicker, status, title }: { kicker: React.ReactNode; status?: Rea
         {kicker}
         {status}
       </div>
-      <h2 className="mt-3 font-sans text-[17px] font-bold! leading-6 tracking-[-0.01em] text-bone">{title}</h2>
-      <span className="pl-bar mt-2.5 w-[72px]" aria-hidden />
+      <h2 className="mt-3 font-sans text-base font-bold! leading-[22px] tracking-[-0.01em] text-bone">{title}</h2>
+      <span className="pl-bar mt-2.5 w-12" aria-hidden />
     </>
   );
 }
@@ -144,21 +144,21 @@ function LiveBody({ s, next, now, money, canEdit }: { s: Row; next: Row | null; 
         }
         title={`${s.roomName ?? "The studio"} is in session`}
       />
-      <p className="mt-4 max-w-[26rem] font-sans text-[15px] leading-[22px] text-mist">
+      <p className="mt-4 max-w-[26rem] font-sans text-sm leading-5 text-mist">
         {s.clientName} is {VERB[s.serviceType] ?? "in session"} {where}
         {s.engineerName ? ` with ${s.engineerName}` : ""}. Session ends at {hhmm(s.endTime)}
         {nextLine}
       </p>
       <div className="mt-5 flex flex-wrap items-end gap-x-8 gap-y-3">
         <Figure label="Elapsed">
-          <span className="font-mono text-[22px] leading-7 text-gold tabular-nums" aria-label={`${elapsed(now - s.startTime)} elapsed`}>
+          <span role="timer" className="font-mono text-[22px] font-medium leading-7 text-gold tabular-nums" aria-label={`${elapsed(now - s.startTime)} elapsed`}>
             {elapsed(now - s.startTime)}
           </span>
         </Figure>
         {money && s.rateCents !== null ? (
           <>
             <Figure label="Rate">
-              <span className="font-mono text-[22px] leading-7 text-bone tabular-nums">{usd(s.rateCents / hours)}/h</span>
+              <span className="font-mono text-[22px] font-medium leading-7 text-bone tabular-nums">{usd(s.rateCents / hours)}/h</span>
             </Figure>
             <Figure label="Deposit">
               <div className="flex h-7 items-center">
@@ -202,14 +202,14 @@ function NextBody({ s, now, money }: { s: Row; now: number; money: boolean }) {
   return (
     <>
       <Head kicker={<Badge tone="gold">Up next</Badge>} title={`${s.roomName ?? "The studio"} is free until ${hhmm(s.startTime)}`} />
-      <p className="mt-4 max-w-[26rem] font-sans text-[15px] leading-[22px] text-mist">
+      <p className="mt-4 max-w-[26rem] font-sans text-sm leading-5 text-mist">
         {s.clientName} is booked for {serviceLabel(s).toLowerCase()}
         {s.roomName ? ` in ${s.roomName}` : ""} from {hhmm(s.startTime)} to {hhmm(s.endTime)}
         {s.engineerName ? ` with ${s.engineerName}` : ""}.
       </p>
       <div className="mt-5 flex flex-wrap items-end gap-x-8 gap-y-3">
         <Figure label="Starts in">
-          <span className="font-mono text-[22px] leading-7 text-gold tabular-nums">{elapsed(s.startTime - now)}</span>
+          <span role="timer" className="font-mono text-[22px] font-medium leading-7 text-gold tabular-nums" aria-label={`Starts in ${elapsed(s.startTime - now)}`}>{elapsed(s.startTime - now)}</span>
         </Figure>
         <Figure label="Engineer">
           <span className="font-sans text-[15px] leading-7 text-bone">{s.engineerName ?? "Unassigned"}</span>
@@ -239,7 +239,7 @@ function IdleBody({ count, tomorrow }: { count: number; tomorrow: Today["tomorro
   return (
     <>
       <Head kicker={<Badge tone="neutral">Today</Badge>} title={count > 0 ? "Today's sessions are done" : "No sessions today"} />
-      <p className="mt-4 max-w-[26rem] font-sans text-[15px] leading-[22px] text-mist">{line}</p>
+      <p className="mt-4 max-w-[26rem] font-sans text-sm leading-5 text-mist">{line}</p>
       <div className="mt-auto flex flex-wrap items-center gap-2 pt-6">
         <Button size="sm" variant="secondary" asChild>
           <Link href="/calendar">Open calendar</Link>

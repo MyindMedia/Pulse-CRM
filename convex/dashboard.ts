@@ -22,6 +22,7 @@ export const overview = query({
     // Money fields are leadership-only (owner / manager / accountant). Everyone
     // else gets the operational KPIs with financial figures nulled out.
     const canSeeFinancials = viewer.capabilities.has("invoices.read");
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     const now = Date.now();
     const monthStart = (() => {
       const d = new Date();
@@ -192,6 +193,9 @@ export const overview = query({
         bookedHoursDelta,
         depositsHeldCents: canSeeFinancials ? depositsHeldCents : null,
         depositsHeldCount: canSeeFinancials ? held.length : null,
+        // The monthly revenue goal (money), and whether this viewer may set it.
+        monthlyGoalCents: canSeeFinancials ? org?.monthlyRevenueGoalCents ?? null : null,
+        canSetGoal: canSeeFinancials && viewer.capabilities.has("branding.edit"),
         activeSongs: songs.filter((s) => s.stage !== "released" && s.stage !== "delivered").length,
         rosterSize: artists.length,
       },
@@ -242,11 +246,12 @@ export const revenueSeries = query({
     }
 
     const from = buckets[0].start;
-    const invoices = await ctx.db
-      .query("invoices")
-      .withIndex("by_org", (q) => q.eq("orgId", orgId).gte("_creationTime", from - 400 * DAY))
-      .collect();
-    const paid = invoices.filter((i) => i.status === "paid" && i.paidAt && i.paidAt >= from && i.paidAt <= now);
+    const paid = (
+      await ctx.db
+        .query("invoices")
+        .withIndex("by_org_paidAt", (q) => q.eq("orgId", orgId).gte("paidAt", from).lte("paidAt", now))
+        .collect()
+    ).filter((i) => i.status === "paid" && i.paidAt);
     const points: SeriesPoint[] = buckets.map((b) => ({
       label: b.label,
       start: b.start,
@@ -257,3 +262,58 @@ export const revenueSeries = query({
 });
 
 type SeriesPoint = { label: string; start: number; cents: number };
+
+/* The overview's period keys (Day / Week / Month). The browser sends the
+   period's bounds in the studio owner's own time zone, and the previous
+   period's, so "today" means their today. Revenue compares like for like
+   (the same elapsed span of the previous period); booked hours compare whole
+   periods, since bookings for later today or this week already count. */
+export const periodKpis = query({
+  args: { start: v.number(), end: v.number(), prevStart: v.number(), prevEnd: v.number() },
+  handler: async (ctx, { start, end, prevStart, prevEnd }) => {
+    const viewer = await resolveViewer(ctx);
+    const orgId = viewer.orgId ?? DEMO_ORG;
+    const money = viewer.capabilities.has("invoices.read");
+    const ok =
+      start < end && prevStart < prevEnd && prevEnd <= start && end - start <= 32 * DAY && prevEnd - prevStart <= 32 * DAY;
+    if (!ok) throw new Error("That period does not make sense.");
+
+    const now = Date.now();
+    const sessions = await ctx.db
+      .query("sessions")
+      .withIndex("by_org_start", (q) => q.eq("orgId", orgId).gte("startTime", prevStart - DAY).lt("startTime", end))
+      .collect();
+    const live = sessions.filter((s) => s.status !== "cancelled" && s.status !== "no_show");
+    const hours = (from: number, to: number) =>
+      live.reduce((sum, s) => sum + Math.max(0, Math.min(s.endTime, to) - Math.max(s.startTime, from)), 0) / 3_600_000;
+    const bookedHours = Math.round(hours(start, end) * 10) / 10;
+    const prevHours = hours(prevStart, prevEnd);
+
+    let revenueCents: number | null = null;
+    let revenueDelta: number | null = null;
+    if (money) {
+      const upTo = Math.min(end, now);
+      const elapsed = Math.max(0, upTo - start);
+      const paid = (
+        await ctx.db
+          .query("invoices")
+          .withIndex("by_org_paidAt", (q) => q.eq("orgId", orgId).gte("paidAt", prevStart).lte("paidAt", upTo))
+          .collect()
+      ).filter((i) => i.status === "paid" && i.paidAt);
+      revenueCents = paid.filter((i) => i.paidAt! >= start).reduce((s, i) => s + i.amountCents, 0);
+      const prev = paid
+        .filter((i) => i.paidAt! >= prevStart && i.paidAt! < Math.min(prevEnd, prevStart + elapsed))
+        .reduce((s, i) => s + i.amountCents, 0);
+      revenueDelta = prev > 0 ? (revenueCents - prev) / prev : null;
+    }
+
+    return {
+      money,
+      revenueCents,
+      revenueDelta,
+      bookedHours,
+      bookedHoursDelta: prevHours > 0 ? (bookedHours - prevHours) / prevHours : null,
+      sessions: live.filter((s) => s.startTime >= start && s.startTime < end).length,
+    };
+  },
+});

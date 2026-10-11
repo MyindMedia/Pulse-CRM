@@ -37,18 +37,22 @@ export function OpsManager() {
     <Chassis>
       <ChassisTitle kicker={<Badge tone="solid">Pulse AI</Badge>} title="Ops manager" bar={false} />
       {queue === undefined ? (
-        <div className="mt-4 flex-1" aria-busy />
+        <div className="mt-3 flex-1" aria-busy />
       ) : items.length === 0 ? (
-        <div className="mt-4 flex flex-1">
+        <div className="mt-3 flex flex-1">
           <EmptyWell>All clear. Pulse checks the studio daily and suggests what needs doing here.</EmptyWell>
         </div>
       ) : (
-        <div className="pl-well mt-4 flex-1 space-y-3.5 p-3.5">
+        <div className="pl-well mt-3 flex-1 space-y-3.5 p-3.5">
           {items.map((a, i) => (
             <div key={a._id} className="font-sans text-[13px] leading-[19px] text-mist">
-              <button type="button" onClick={() => setOpen(a)} className="text-left hover:text-bone">
-                <span className="font-semibold text-bone">{a.title}</span>
-                {a.rationale ? <span className="line-clamp-2"> {a.rationale}</span> : null}
+              <button
+                type="button"
+                onClick={() => setOpen(a)}
+                className={`text-left hover:text-bone ${i === 0 ? "line-clamp-3" : "line-clamp-2"}`}
+              >
+                <span className="font-semibold text-bone">{a.title}.</span>
+                {a.rationale ? <span> {a.rationale}</span> : null}
               </button>
               {i === 0 && (
                 <div className="mt-2.5 flex items-center gap-2">

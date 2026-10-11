@@ -53,7 +53,9 @@ export function TodaysSessions() {
     return (
       <Chassis aria-busy>
         {head}
-        <div className="pl-screen mt-5 min-h-40 flex-1" />
+        <div className="pl-well mt-3 flex-1 p-3">
+          <div className="pl-screen min-h-40" />
+        </div>
       </Chassis>
     );
   }
@@ -67,12 +69,13 @@ export function TodaysSessions() {
     <Chassis>
       {head}
       {rows.length === 0 ? (
-        <div className="mt-5 flex flex-1">
+        <div className="mt-3 flex flex-1">
           <EmptyWell>No sessions today.</EmptyWell>
         </div>
       ) : (
-        <div className="pl-screen mt-5 flex-1 overflow-x-auto px-3 py-1">
-          <table className="pl-table w-full min-w-[34rem] border-collapse font-sans text-sm">
+        <div className="pl-well mt-3 flex-1 p-3">
+        <div className="pl-screen overflow-x-auto px-3 py-1">
+          <table className="pl-table w-full min-w-[34rem] border-collapse font-sans text-[13px] leading-[18px]">
             <thead>
               <tr className="h-11">
                 <th className="px-3">Client</th>
@@ -116,6 +119,7 @@ export function TodaysSessions() {
               })}
             </tbody>
           </table>
+        </div>
         </div>
       )}
     </Chassis>

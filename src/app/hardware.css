@@ -87,8 +87,10 @@
   --color-mist: var(--pl-ink-muted);
   --color-ash: var(--pl-ink-muted);
   --color-steel: var(--pl-ink-subtle);
-  --color-ash-dim: var(--pl-line-control);
-  --color-slate: var(--pl-line-control);
+  /* Text tokens: line-control (#7A7A80) is a border colour and fails 4.5:1
+     as text, so these read as ink-subtle. */
+  --color-ash-dim: var(--pl-ink-subtle);
+  --color-slate: var(--pl-ink-subtle);
   --color-positive: var(--pl-positive);
   --color-critical: var(--pl-negative);
   --color-info: var(--pl-info);
@@ -101,11 +103,40 @@
   --font-mono: var(--font-jetbrains-mono), ui-monospace, Menlo, monospace;
 }
 
+/* ── Bklit charts in Pulse tokens (spec 5.5): one yellow series, metal for
+      comparison, the 8% yellow grid, dark glass tooltips. ── */
+:root:has(.pulse-hw) {
+  --chart-line-primary: var(--pl-yellow);
+  --chart-line-secondary: var(--pl-metal-100);
+  --chart-grid: rgba(255, 201, 0, 0.08);
+  --chart-crosshair: var(--pl-yellow);
+  --chart-background: var(--pl-well);
+  --chart-foreground: var(--pl-ink-subtle);
+  --chart-foreground-muted: var(--pl-ink-subtle);
+  --chart-label: var(--pl-ink-subtle);
+  --chart-tooltip-background: rgba(43, 43, 46, 0.94);
+  --chart-tooltip-foreground: var(--pl-ink);
+  --chart-tooltip-muted: var(--pl-ink-subtle);
+  --chart-marker-background: var(--pl-face);
+  --chart-marker-border: var(--pl-edge-hi);
+  --chart-marker-foreground: var(--pl-ink);
+}
+
 /* ── Canvas: plain void, no aurora. ── */
 :root:has(.pulse-hw) body { background: var(--pl-void); }
 :root:has(.pulse-hw) .app-bloom { display: none; }
 :root:has(.pulse-hw) h1,
-:root:has(.pulse-hw) h2 { font-weight: 800; letter-spacing: -0.01em; }
+:root:has(.pulse-hw) h2:not(.overline) { font-weight: 800; letter-spacing: -0.01em; }
+/* Overlines and section kickers are the kit's label style. */
+:root:has(.pulse-hw) .overline {
+  font-family: var(--font-archivo), Arial, sans-serif;
+  font-size: 10.5px;
+  line-height: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pl-ink-subtle);
+}
 
 /* ── Glass becomes solid graphite. ── */
 :root:has(.pulse-hw) :is(.material-ultrathin, .material-thin, .material-regular, .material-thick, .glass) {
@@ -179,27 +210,44 @@
   border-radius: var(--pl-radius-screen);
   font-family: var(--font-archivo), Arial, sans-serif;
   font-weight: 700;
-  font-size: 11px;
+  font-size: 10.5px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   box-shadow: var(--pl-shadow-key);
+  /* Tailwind v4 moves keys with the translate/scale properties; a key only
+     ever sinks 1px right and 2px down (kit principle 4). */
+  translate: none;
+  scale: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
   transition: transform var(--pl-key-press) ease-out, box-shadow var(--pl-key-press) ease-out,
     background var(--pl-key-press) ease-out, color var(--pl-key-press) ease-out;
 }
-:root:has(.pulse-hw) .pl-key:hover { transform: none; }
+:root:has(.pulse-hw) .pl-key:hover { transform: none; translate: none; scale: none; }
+:root:has(.pulse-hw) .pl-key[data-size="md"] { height: 34px; padding-inline: 14px; }
+:root:has(.pulse-hw) .pl-key[data-size="sm"] { height: 26px; padding-inline: 10px; }
+:root:has(.pulse-hw) .pl-key[data-size="lg"] { height: 44px; padding-inline: 20px; }
+:root:has(.pulse-hw) .pl-key[data-size="icon"] { width: 34px; height: 34px; padding: 0; }
+:root:has(.pulse-hw) .pl-key[data-size="icon-sm"] { width: 26px; height: 26px; padding: 0; }
+/* Fields match the keys beside them. */
+:root:has(.pulse-hw) :is(input, button).pl-field { height: 34px; }
 :root:has(.pulse-hw) .pl-key:active {
+  translate: none;
+  scale: none;
   transform: translate(1px, 2px);
   box-shadow: var(--pl-shadow-key-pressed);
 }
 :root:has(.pulse-hw) .pl-key[data-variant="primary"],
 :root:has(.pulse-hw) .pl-key[data-variant="brutal"] {
-  background: var(--pl-yellow);
+  background: linear-gradient(180deg, var(--pl-yellow-hover), var(--pl-yellow));
   color: var(--pl-on-yellow);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -1px 0 rgba(0, 0, 0, 0.25), 0.7px 1px 0 #8a6d00,
+    1.4px 2px 0 #5c4900, 0 4px 12px rgba(255, 201, 0, 0.25);
 }
 :root:has(.pulse-hw) .pl-key[data-variant="primary"]:hover,
-:root:has(.pulse-hw) .pl-key[data-variant="brutal"]:hover { background: var(--pl-yellow-hover); }
+:root:has(.pulse-hw) .pl-key[data-variant="brutal"]:hover { background: linear-gradient(180deg, #ffe066, var(--pl-yellow-hover)); }
+:root:has(.pulse-hw) .pl-key[data-variant="primary"]:active,
+:root:has(.pulse-hw) .pl-key[data-variant="brutal"]:active { background: var(--pl-yellow-press); box-shadow: var(--pl-shadow-key-pressed); }
 :root:has(.pulse-hw) .pl-key:is([data-variant="secondary"], [data-variant="outline"], [data-variant="glass"]) {
   background: linear-gradient(180deg, var(--pl-face-high), var(--pl-face-raised));
   color: var(--pl-ink);
@@ -246,7 +294,12 @@
    ============================================================ */
 
 /* Sidebar chassis ground is panel-side, a step darker than a face. */
-:root:has(.pulse-hw) .pl-card.pl-side { background: var(--pl-panel-side); }
+:root:has(.pulse-hw) .pl-card.pl-side {
+  background: var(--pl-panel-side);
+  /* Own compositor layer: once, right after a deploy, the filtered logo and
+     the brackets failed to repaint on this fixed panel. */
+  will-change: transform;
+}
 
 /* Yellow corner brackets, 14x14 at 2px, 7px in from the top-left and
    bottom-left corners. A child element, because the chassis already uses
@@ -337,7 +390,7 @@
 }
 /* A feature the plan does not include: LED dark, label dimmed, the tier
    initial in a small chip on the right. */
-:root:has(.pulse-hw) .pl-nav-item[data-locked="true"] { color: var(--pl-line-control); }
+:root:has(.pulse-hw) .pl-nav-item[data-locked="true"] { color: var(--pl-ink-subtle); }
 :root:has(.pulse-hw) .pl-nav-item[data-locked="true"] .pl-led { background: #3a3a3e; }
 
 /* Shell classes are skin only: display and responsive visibility stay in
@@ -353,7 +406,7 @@
   background: var(--pl-well);
   box-shadow: var(--pl-shadow-well);
   font-family: var(--font-archivo), Arial, sans-serif;
-  font-size: 15px;
+  font-size: 14px;
   color: var(--pl-ink-subtle);
   text-align: left;
 }
@@ -430,10 +483,10 @@
   text-align: left;
 }
 :root:has(.pulse-hw) .pl-table tbody tr { border-top: 1px solid rgba(255, 255, 255, 0.06); }
-:root:has(.pulse-hw) .pl-table tbody tr[data-selected="true"] {
-  background: var(--pl-yellow-soft);
-  box-shadow: inset 2px 0 0 var(--pl-yellow);
-}
+/* On the cells, not the row: WebKit paints neither box-shadow nor a
+   reliable background on a <tr>. */
+:root:has(.pulse-hw) .pl-table tbody tr[data-selected="true"] > td { background: var(--pl-yellow-soft); }
+:root:has(.pulse-hw) .pl-table tbody tr[data-selected="true"] > td:first-child { box-shadow: inset 2px 0 0 var(--pl-yellow); }
 
 /* The lens module on the live session hero: a raised block (9px bezel,
    ramp face) holding a screen with a lens in it. Decorative. */

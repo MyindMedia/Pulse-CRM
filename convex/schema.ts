@@ -218,6 +218,9 @@ export default defineSchema({
     // time string (device alerts, reminder emails, SMS). Auto-set from a
     // staff device on first load; adjustable in Settings > Workspace.
     timezone: v.optional(v.string()),
+    // Monthly revenue goal in cents, set by an owner or manager who can see
+    // money; the overview's goal groove measures collected revenue against it.
+    monthlyRevenueGoalCents: v.optional(v.number()),
     // Pre-session brief policy: when true every checklist step must be
     // checked (accountability mode); unset/false = optional guidance.
     briefRequireAll: v.optional(v.boolean()),
