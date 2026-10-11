@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAction, useConvexAuth } from "convex/react";
-import { useUser, SignUp } from "@clerk/nextjs";
+import { useAuth, SignUp } from "@clerk/nextjs";
 import { CheckCircle2, Loader2 } from "lucide-react";
 import { api } from "@convex/_generated/api";
 import { clerkAppearance } from "@/lib/clerk-appearance";
@@ -21,7 +21,11 @@ function Activate() {
   const sessionId = params.get("session_id") ?? "";
   const summary = useAction(api.billing.checkoutSummary);
   const claim = useAction(api.billing.claimCheckout);
-  const { isLoaded, isSignedIn } = useUser();
+  /* useAuth, not useUser: a Clerk session with an open task (e.g. "choose an
+     organization") is "pending". useUser calls it signed in, but useAuth and
+     Convex treat it as signed out, so the claim never ran and the spinner hid
+     the SignUp card that shows the task. useAuth keeps the card mounted. */
+  const { isLoaded, isSignedIn } = useAuth();
   /* Clerk can say "signed in" before Convex has the session token. Claiming
      then fails with "not signed in" on the server, so wait for Convex. */
   const { isAuthenticated: convexAuthed } = useConvexAuth();
@@ -30,6 +34,16 @@ function Activate() {
   const [info, setInfo] = React.useState<{ email: string | null; paid: boolean } | null>(null);
   const [err, setErr] = React.useState("");
   const claimedRef = React.useRef(false);
+
+  // Never spin forever: if Convex has not picked up the login after 20s, say so.
+  React.useEffect(() => {
+    if (!isSignedIn || convexAuthed) return;
+    const t = setTimeout(
+      () => setErr("Your login is taking longer than expected to connect. Try again."),
+      20_000,
+    );
+    return () => clearTimeout(t);
+  }, [isSignedIn, convexAuthed, attempt]);
 
   // Load the paid session (prefill email + confirm payment).
   React.useEffect(() => {
@@ -87,7 +101,7 @@ function Activate() {
                 <p className="text-sm text-critical">{err}</p>
                 <button
                   type="button"
-                  onClick={() => setAttempt((n) => n + 1)}
+                  onClick={() => (convexAuthed ? setAttempt((n) => n + 1) : window.location.reload())}
                   className="rounded-md bg-gold px-4 py-2 text-sm font-semibold text-gold-ink hover:bg-gold-bright"
                 >
                   Try again
