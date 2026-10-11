@@ -3,6 +3,7 @@ import { fileRefV } from "./lib/fileRef";
 import { readFileBlob } from "./media";
 import { v, ConvexError } from "convex/values";
 import { internalAction, internalQuery, query } from "./_generated/server";
+import type { MutationCtx } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -13,7 +14,16 @@ import { dayFromIso, scorePair, type MatchSide } from "./lib/financeMatch";
 import { financeLog, linkReceiptExpense, unlink } from "./lib/financeLinks";
 import { receiptAttention } from "./lib/receiptAttention";
 import { expenseCategoryV } from "./lib/financeValidators";
+import { EXPENSE_CATEGORY_LABEL } from "./lib/financeCategories";
 import { legacyUploadIsOwn } from "./lib/legacyUpload";
+import { askJev, jevEnabled } from "./lib/jevClient";
+import {
+  type ReceiptFacts,
+  looksPersonal,
+  readCategoryAnswer,
+  receiptCategoryQuestions,
+  receiptCategoryState,
+} from "./lib/jev/receiptCategories";
 
 /* ============================================================
    Receipts - a photo or PDF of what was bought, what it says, and
@@ -36,6 +46,14 @@ import { legacyUploadIsOwn } from "./lib/legacyUpload";
    vendor, date, total, tax, currency and card last four; every field
    is validated here before it is stored, and a full card number can
    never be kept because only exactly four digits are accepted.
+
+   Once a receipt has a vendor and is not in the books, Jev (TypeSafe)
+   suggests which of the studio's expense categories it belongs to and
+   whether it looks personal (suggestCategory). It sees only the receipt's
+   vendor, total, currency and date. The suggestion is stored on the
+   receipt and pre-selected when the owner creates the expense; nothing is
+   posted automatically and a category a person chose is never replaced.
+   Without TYPESAFE_API_KEY, or when Jev fails, nothing changes.
    ============================================================ */
 
 export const MAX_RECEIPT_BYTES = 10 * 1024 * 1024;
@@ -327,7 +345,91 @@ export const _saveExtraction = internalMutation({
       detail: c.status === "ready" ? "read with confidence" : "needs a person to check",
     });
     if (c.status === "ready") await ctx.scheduler.runAfter(0, internal.reconcile.autoMatch, { orgId: r.orgId, receiptId: args.receiptId });
+    await queueCategorySuggestion(ctx, args.receiptId);
     return null;
+  },
+});
+
+/** Ask Jev for a category suggestion when the receipt has a vendor and no
+ *  expense yet (a linked expense means a person already chose the category).
+ *  Without a Jev key nothing is queued, so the receipt flow is unchanged. */
+async function queueCategorySuggestion(ctx: MutationCtx, receiptId: Id<"receipts">) {
+  if (!jevEnabled()) return;
+  const r = await ctx.db.get(receiptId);
+  if (!r || r.expenseId || !r.vendor) return;
+  await ctx.scheduler.runAfter(0, internal.receipts.suggestCategory, { receiptId });
+}
+
+/** The receipt fields Jev may see: vendor, total, currency, date. Never the
+ *  card digits, the file, the uploader or a linked bank line. Null when there
+ *  is nothing to suggest (no vendor) or the receipt is already in the books. */
+export const _forCategorySuggestion = internalQuery({
+  args: { receiptId: v.id("receipts") },
+  handler: async (ctx, { receiptId }): Promise<ReceiptFacts | null> => {
+    const r = await ctx.db.get(receiptId);
+    if (!r || r.expenseId || !r.vendor) return null;
+    return {
+      vendor: r.vendor,
+      ...(r.totalCents !== undefined ? { totalCents: r.totalCents } : {}),
+      ...(r.currency !== undefined ? { currency: r.currency } : {}),
+      ...(r.date !== undefined ? { date: r.date } : {}),
+    };
+  },
+});
+
+/** Jev's category suggestion for one receipt, scheduled after it is read or
+ *  corrected. Stores a suggestion only; it never creates or changes an
+ *  expense. When Jev is unavailable the receipt is left exactly as it was. */
+export const suggestCategory = internalAction({
+  args: { receiptId: v.id("receipts") },
+  returns: v.null(),
+  handler: async (ctx, { receiptId }) => {
+    const facts: ReceiptFacts | null = await ctx.runQuery(internal.receipts._forCategorySuggestion, { receiptId });
+    if (!facts) return null;
+    const asked = await askJev(receiptCategoryState(facts), receiptCategoryQuestions());
+    if (!asked) return null;
+    const suggestion = readCategoryAnswer(asked.result?.answers);
+    if (!suggestion) return null;
+    await ctx.runMutation(internal.receipts._saveCategorySuggestion, {
+      receiptId, basis: facts, ...suggestion, model: asked.result.model,
+    });
+    return null;
+  },
+});
+
+export const _saveCategorySuggestion = internalMutation({
+  args: {
+    receiptId: v.id("receipts"),
+    /** The fields Jev was shown, to refuse an answer about an older reading. */
+    basis: v.object({
+      vendor: v.optional(v.string()),
+      totalCents: v.optional(v.number()),
+      currency: v.optional(v.string()),
+      date: v.optional(v.number()),
+    }),
+    category: expenseCategoryV,
+    probability: v.number(),
+    confidence: v.number(),
+    looksPersonal: v.number(),
+    model: v.string(),
+  },
+  returns: v.object({ stored: v.boolean(), reason: v.optional(v.string()) }),
+  handler: async (ctx, { receiptId, basis, ...s }) => {
+    const r = await ctx.db.get(receiptId);
+    if (!r) return { stored: false, reason: "gone" };
+    // In the books means a person chose the category. Never touch that.
+    if (r.expenseId) return { stored: false, reason: "category_chosen" };
+    if (r.vendor !== basis.vendor || r.totalCents !== basis.totalCents || r.currency !== basis.currency || r.date !== basis.date) {
+      return { stored: false, reason: "stale" };
+    }
+    await ctx.db.patch(receiptId, { categorySuggestion: { ...s, at: Date.now() } });
+    const label = EXPENSE_CATEGORY_LABEL.get(s.category) ?? s.category;
+    await financeLog(ctx, r.orgId, {
+      action: "receipt.category_suggested", actorType: "ai", receiptId, model: s.model,
+      after: { category: s.category, confidence: s.confidence, looksPersonal: s.looksPersonal },
+      detail: `suggested ${label}, ${Math.round(s.confidence * 100)}% sure${looksPersonal(s.looksPersonal) ? "; looks personal" : ""}`,
+    });
+    return { stored: true };
   },
 });
 
@@ -358,7 +460,8 @@ export const update = mutation({
     };
     const status = next.date !== undefined && next.totalCents !== undefined ? "ready" : "needs_review";
     const actor = { actorType: "user" as const, actorName: await currentActor(ctx) };
-    if (next.date !== r.date || next.totalCents !== r.totalCents || next.vendor !== r.vendor) {
+    const changed = next.date !== r.date || next.totalCents !== r.totalCents || next.vendor !== r.vendor;
+    if (changed) {
       const side: MatchSide | null = next.date !== undefined && next.totalCents !== undefined
         ? { kind: "receipt", id, dateMs: next.date, amountCents: next.totalCents, vendor: next.vendor }
         : null;
@@ -377,12 +480,18 @@ export const update = mutation({
         if (r.bankTransactionId) await unlink(ctx, orgId, { kind: "receipt_transaction", receiptId: id, bankTransactionId: r.bankTransactionId }, actor, detail);
       }
     }
-    await ctx.db.patch(id, { ...next, status, matchingPending: status === "ready", error: undefined });
+    // A suggestion describes what the receipt said before. Once a person
+    // corrects it, drop that suggestion and ask again.
+    await ctx.db.patch(id, {
+      ...next, status, matchingPending: status === "ready", error: undefined,
+      ...(changed ? { categorySuggestion: undefined } : {}),
+    });
     await financeLog(ctx, orgId, {
       action: "receipt.corrected", ...actor, receiptId: id,
       before, after: { vendor: next.vendor ?? null, date: next.date ?? null, totalCents: next.totalCents ?? null, taxCents: next.taxCents ?? null },
     });
     if (status === "ready") await ctx.scheduler.runAfter(0, internal.reconcile.autoMatch, { orgId, receiptId: id });
+    if (changed) await queueCategorySuggestion(ctx, id);
     return null;
   },
 });
@@ -469,6 +578,8 @@ export const list = query({
     cardLast4: v.union(v.string(), v.null()), confidence: v.union(v.number(), v.null()), error: v.union(v.string(), v.null()),
     expense: v.union(v.object({ _id: v.id("expenses"), category: expenseCategoryV, amountCents: v.number(), vendor: v.union(v.string(), v.null()) }), v.null()),
     transaction: v.union(v.object({ _id: v.id("bankTransactions"), name: v.string(), amountCents: v.number(), date: v.number() }), v.null()),
+    /** Jev's suggestion, only while no person has chosen the category (no expense yet). */
+    categorySuggestion: v.union(v.object({ category: expenseCategoryV, confidence: v.number(), looksPersonal: v.boolean() }), v.null()),
   })),
   handler: async (ctx, { status, expenseId, orgId: requestedOrgId }) => {
     const orgId = await currentOrgWithCapability(ctx, "insights.read", requestedOrgId);
@@ -518,6 +629,13 @@ export const list = query({
         error: r.error ?? null,
         expense: expense ? { _id: expense._id, category: expense.category, amountCents: expense.amountCents, vendor: expense.vendor ?? null } : null,
         transaction: txn ? { _id: txn._id, name: txn.merchantName ?? txn.name, amountCents: txn.amountCents, date: txn.date } : null,
+        categorySuggestion: r.categorySuggestion && !expense
+          ? {
+            category: r.categorySuggestion.category,
+            confidence: r.categorySuggestion.confidence,
+            looksPersonal: looksPersonal(r.categorySuggestion.looksPersonal),
+          }
+          : null,
       };
     }));
   },

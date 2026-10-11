@@ -162,6 +162,7 @@ function ReceiptItem({ r, canEdit }: { r: ReceiptRow; canEdit: boolean }) {
         </div>
         <span className="font-meta text-sm text-bone">{r.totalCents !== null ? money(r.totalCents) : "-"}</span>
         <Badge tone={st.tone} dot>{st.label}</Badge>
+        {r.categorySuggestion?.looksPersonal && <Badge tone="caution">Looks personal?</Badge>}
         {r.expense && <Badge tone="positive">In books</Badge>}
         {r.transaction && <Badge tone="info">Bank matched</Badge>}
         <Button size="icon" variant="ghost" aria-label={open ? "Hide receipt" : "Show receipt"} aria-expanded={open} onClick={() => setOpen(!open)}>
@@ -256,12 +257,30 @@ function ReceiptEditor({ r }: { r: ReceiptRow }) {
   );
 }
 
+/** The category the Create expense dialog shows. A person's pick always wins,
+ *  even over a suggestion that arrives later; until they pick, Jev's
+ *  suggestion is pre-selected; without one, the long-standing default. */
+export function dialogCategory(picked: string | null, suggestion: ReceiptRow["categorySuggestion"] | undefined) {
+  const value = picked ?? suggestion?.category ?? "supplies";
+  return { value, suggested: suggestion != null && value === suggestion.category };
+}
+
 function CreateExpenseDialog({ receipt, onClose }: { receipt: ReceiptRow | null; onClose: () => void }) {
   const createExpense = useMutation(api.receipts.createExpense);
-  const [category, setCategory] = React.useState("supplies");
+  const [picked, setPicked] = React.useState<string | null>(null);
   const [saving, setSaving] = React.useState(false);
+  const suggestion = receipt?.categorySuggestion ?? null;
+  const { value: category, suggested } = dialogCategory(picked, suggestion);
+  const close = () => { setPicked(null); onClose(); };
+  const hint = suggestion && (suggested || suggestion.looksPersonal) ? (
+    <span className="flex flex-wrap items-center gap-1.5">
+      {suggested && <Badge tone="info">Suggested · {Math.round(suggestion.confidence * 100)}% sure</Badge>}
+      {suggestion.looksPersonal && <Badge tone="caution">Looks personal?</Badge>}
+      <span>{suggestion.looksPersonal ? "Only business costs belong in the books." : "Picked from the receipt. Change it if it's wrong."}</span>
+    </span>
+  ) : undefined;
   return (
-    <Dialog open={receipt !== null} onOpenChange={(o) => { if (!o) onClose(); }}>
+    <Dialog open={receipt !== null} onOpenChange={(o) => { if (!o) close(); }}>
       <DialogContent size="sm">
         <DialogHeader>
           <DialogTitle>Create expense from receipt</DialogTitle>
@@ -270,8 +289,8 @@ function CreateExpenseDialog({ receipt, onClose }: { receipt: ReceiptRow | null;
           </DialogDescription>
         </DialogHeader>
         <DialogBody>
-          <Field label="Category" htmlFor="rc-category">
-            <Select value={category} onValueChange={setCategory}>
+          <Field label="Category" htmlFor="rc-category" hint={hint}>
+            <Select value={category} onValueChange={setPicked}>
               <SelectTrigger id="rc-category"><SelectValue /></SelectTrigger>
               <SelectContent>
                 {EXPENSE_CATEGORIES.map((c) => <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>)}
@@ -280,14 +299,14 @@ function CreateExpenseDialog({ receipt, onClose }: { receipt: ReceiptRow | null;
           </Field>
         </DialogBody>
         <DialogFooter>
-          <Button variant="ghost" onClick={onClose}>Cancel</Button>
+          <Button variant="ghost" onClick={close}>Cancel</Button>
           <Button disabled={saving || !receipt} onClick={async () => {
             if (!receipt) return;
             setSaving(true);
             try {
               await createExpense({ id: receipt._id, category: category as never });
               toast.success("Expense created.");
-              onClose();
+              close();
             } catch (err) {
               toast.error(errorMessage(err));
             } finally {

@@ -138,6 +138,7 @@ import type * as lib_holidays from "../lib/holidays.js";
 import type * as lib_jev_draftCheck from "../lib/jev/draftCheck.js";
 import type * as lib_jev_gearMatch from "../lib/jev/gearMatch.js";
 import type * as lib_jev_outreachReplies from "../lib/jev/outreachReplies.js";
+import type * as lib_jev_receiptCategories from "../lib/jev/receiptCategories.js";
 import type * as lib_jevClient from "../lib/jevClient.js";
 import type * as lib_jevQuestions from "../lib/jevQuestions.js";
 import type * as lib_ledgerMath from "../lib/ledgerMath.js";
@@ -475,6 +476,7 @@ declare const fullApi: ApiFromModules<{
   "lib/jev/draftCheck": typeof lib_jev_draftCheck;
   "lib/jev/gearMatch": typeof lib_jev_gearMatch;
   "lib/jev/outreachReplies": typeof lib_jev_outreachReplies;
+  "lib/jev/receiptCategories": typeof lib_jev_receiptCategories;
   "lib/jevClient": typeof lib_jevClient;
   "lib/jevQuestions": typeof lib_jevQuestions;
   "lib/ledgerMath": typeof lib_ledgerMath;
