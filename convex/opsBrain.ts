@@ -529,6 +529,9 @@ export async function upsertProposed(ctx: MutationCtx, orgId: string, candidates
   let inserted = 0;
   let autoExecuted = 0;
   const enrichIds: Id<"opsActions">[] = [];
+  // Email drafts no model will rewrite: Jev labels them now. Enriched drafts
+  // are labeled once Claude is done (aiActions.enrichOpsActions).
+  const checkIds: Id<"opsActions">[] = [];
 
   for (const c of candidates) {
     // Only the Accounting agent's own scan may propose money items; this
@@ -568,12 +571,20 @@ export async function upsertProposed(ctx: MutationCtx, orgId: string, candidates
     // a human ever sees them. Auto rows skip enrichment to avoid sending a
     // half-written body before the action fires.
     if (!auto && ENRICHABLE.has(c.type)) enrichIds.push(id);
+    else if (!auto && c.payload.kind === "email") checkIds.push(id);
 
     if (auto) {
       autoToday++;
       autoExecuted++;
       await ctx.scheduler.runAfter(0, internal.opsActions.execute, { id });
     }
+  }
+
+  // Jev's safety label for the owner (convex/jevDraftCheck.ts). A label only;
+  // it never sends or approves. The key is read inline so this mutation
+  // module stays free of the TypeSafe SDK.
+  if (checkIds.length > 0 && process.env.TYPESAFE_API_KEY) {
+    await ctx.scheduler.runAfter(0, internal.jevDraftCheck.checkDrafts, { ids: checkIds });
   }
 
   return { inserted, autoExecuted, enrichIds };
