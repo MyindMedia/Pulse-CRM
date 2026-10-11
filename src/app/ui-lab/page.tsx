@@ -8,6 +8,7 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { Progress } from "@/components/ui/progress";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Input } from "@/components/ui/field";
+import { HardwareSpecimens } from "./hardware-specimens";
 
 /* Staging-only gallery of the app's real components wearing the hardware
    UI (pulse-ui-kit). It needs no sign-in, so the look can be checked and
@@ -29,6 +30,7 @@ export default function UiLabPage() {
   return (
     <div className="pulse-hw min-h-dvh bg-ink px-6 py-8 text-bone">
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
+        <HardwareSpecimens />
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">UI lab</CardTitle>
