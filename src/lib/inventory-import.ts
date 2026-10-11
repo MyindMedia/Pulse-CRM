@@ -7,6 +7,7 @@
    the import panel (auto-map + parse) and the .xlsx template generator,
    and unit-tested without a DOM or database.
    ============================================================ */
+import type { Doc } from "@convex/_generated/dataModel";
 
 /** The fields a row can map to. Mirrors the Add-equipment screen + schema. */
 export type AssetField =
@@ -187,6 +188,15 @@ export function coerceCategory(raw: unknown): string {
   return CATEGORY_ALIASES[n] ?? "other";
 }
 
+/** True when the cell names a category Pulse knows, directly or by alias.
+ *  A blank or unknown cell falls back to "other" in coerceCategory; those
+ *  are the rows a suggested category can help. */
+export function isKnownCategory(raw: unknown): boolean {
+  const n = normalizeHeader(String(raw ?? ""));
+  if (!n) return false;
+  return (VALID_CATEGORIES as readonly string[]).includes(n) || Object.prototype.hasOwnProperty.call(CATEGORY_ALIASES, n);
+}
+
 const STATUS_ALIASES: Record<string, string> = {
   available: "available", active: "available", instorage: "available", storage: "available", ready: "available",
   inuse: "in_use", used: "in_use", booked: "in_use", installed: "in_use",
@@ -232,6 +242,11 @@ export function coerceDateMs(raw: unknown): number | undefined {
 export type ParsedAsset = {
   name: string;
   category: string;
+  /** The sheet named a category Pulse recognises. False: blank or unknown,
+   *  so `category` fell back to "other". */
+  categoryKnown: boolean;
+  /** The category cell as written, kept when it was not recognised. */
+  sheetCategory?: string;
   purchaseCents: number;
   currentValueCents: number;
   serialNumber?: string;
@@ -251,9 +266,12 @@ export function rowToAsset(row: Partial<Record<AssetField, unknown>>): ParsedAss
     const s = String(v ?? "").trim();
     return s || undefined;
   };
+  const categoryKnown = isKnownCategory(row.category);
   return {
     name,
     category: coerceCategory(row.category),
+    categoryKnown,
+    sheetCategory: categoryKnown ? undefined : str(row.category),
     purchaseCents: coerceMoneyCents(row.purchaseValue),
     currentValueCents: coerceMoneyCents(row.currentValue),
     serialNumber: str(row.serialNumber),
@@ -263,4 +281,39 @@ export function rowToAsset(row: Partial<Record<AssetField, unknown>>): ParsedAss
     purchaseDate: coerceDateMs(row.purchaseDate),
     notes: str(row.notes),
   };
+}
+
+/* ── What the import sends ──────────────────────────────────── */
+
+type EquipmentCategory = Doc<"equipment">["category"];
+type EquipmentStatus = Doc<"equipment">["status"];
+
+/** The owner's calls in the preview, by row (an index into the assets). */
+export type ImportDecisions = {
+  /** A category the owner confirmed or picked. Only these override a row. */
+  categories?: Readonly<Record<number, string>>;
+  /** Rows the owner chose to leave out, e.g. a flagged duplicate. */
+  skipped?: ReadonlySet<number>;
+};
+
+/** The items equipment.importBulk receives. With no decisions this is the
+ *  import exactly as it has always been: a suggestion changes a row only
+ *  after the owner confirms it, and nothing is ever skipped on its own. */
+export function toImportItems(assets: ParsedAsset[], decisions: ImportDecisions = {}) {
+  return assets.flatMap((a, row) =>
+    decisions.skipped?.has(row)
+      ? []
+      : [{
+          name: a.name,
+          category: (decisions.categories?.[row] ?? a.category) as EquipmentCategory,
+          purchaseCents: a.purchaseCents,
+          currentValueCents: a.currentValueCents,
+          serialNumber: a.serialNumber,
+          condition: a.condition,
+          notes: a.notes,
+          status: a.status as EquipmentStatus,
+          purchaseDate: a.purchaseDate,
+          roomName: a.roomName,
+        }],
+  );
 }

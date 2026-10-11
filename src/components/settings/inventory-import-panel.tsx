@@ -2,24 +2,30 @@
 
 import * as React from "react";
 import * as XLSX from "xlsx";
-import { useMutation } from "convex/react";
+import { useAction, useMutation } from "convex/react";
+import type { FunctionArgs, FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
+import { IMPORT_ROW_LIMIT } from "@convex/lib/jev/gearMatch";
 import { toast } from "sonner";
-import { Download, Upload, FileSpreadsheet, CheckCircle2, AlertTriangle } from "lucide-react";
+import { Check, Download, Upload, FileSpreadsheet, CheckCircle2, AlertTriangle, Loader2 } from "lucide-react";
 import {
   Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter,
 } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/toggle";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { EQUIPMENT_CATEGORIES, categoryMeta, type EquipmentCategory } from "@/components/studio/constants";
 import { money } from "@/lib/format";
+import { cn } from "@/lib/utils";
 import {
   ASSET_COLUMNS,
   ASSET_FIELD_LABEL,
   autoMapHeaders,
   rowToAsset,
+  toImportItems,
   type AssetField,
 } from "@/lib/inventory-import";
 
@@ -31,12 +37,30 @@ type Parsed = {
   rows: unknown[][];
 };
 
+type SuggestRows = FunctionArgs<typeof api.gearMatch.suggestImport>["rows"];
+type RowSuggestion = FunctionReturnType<typeof api.gearMatch.suggestImport>["suggestions"][number];
+type CategorySuggestion = NonNullable<RowSuggestion["category"]>;
+
+/** Suggestions for one exact set of preview rows (`request`). */
+type Suggestions = { request: string; loading: boolean; byRow: Map<number, RowSuggestion> };
+/** The owner's calls on those rows: categories confirmed or picked, rows skipped. */
+type Decisions = { request: string; categories: Record<number, EquipmentCategory>; skipped: Set<number> };
+
+const NO_DECISIONS: Decisions = { request: "", categories: {}, skipped: new Set() };
+const pct = (p: number) => `${Math.round(p * 100)}%`;
+
 /** Settings panel: import a studio's gear inventory from an Excel/CSV sheet.
  *  Auto-discovers any column order/naming from the header row, lets the owner
  *  confirm the mapping, previews the result, then bulk-inserts. Also serves a
- *  template that captures every field on the assets screen. */
+ *  template that captures every field on the assets screen.
+ *
+ *  The preview also asks Jev (convex/gearMatch.ts) for a category where the
+ *  sheet has none Pulse recognises, and flags rows that look like gear the
+ *  studio already has. Suggestions apply only once the owner confirms them;
+ *  with no answer from Jev the import is exactly what it always was. */
 export function InventoryImportPanel() {
   const importBulk = useMutation(api.equipment.importBulk);
+  const suggestImport = useAction(api.gearMatch.suggestImport);
   const fileRef = React.useRef<HTMLInputElement>(null);
 
   const [parsed, setParsed] = React.useState<Parsed | null>(null);
@@ -44,6 +68,8 @@ export function InventoryImportPanel() {
   const [dedupe, setDedupe] = React.useState(true);
   const [importing, setImporting] = React.useState(false);
   const [result, setResult] = React.useState<{ inserted: number; skipped: number } | null>(null);
+  const [suggestions, setSuggestions] = React.useState<Suggestions | null>(null);
+  const [decisions, setDecisions] = React.useState<Decisions>(NO_DECISIONS);
 
   /* ── Template ──────────────────────────────────────────────── */
   function downloadTemplate() {
@@ -120,35 +146,102 @@ export function InventoryImportPanel() {
 
   const hasNameColumn = mapping.includes("name");
 
+  /* ── Suggestions (Jev) ─────────────────────────────────────── */
+  // What gets asked about: the first rows, gear fields only, never money.
+  // As a string so a remap that leaves these rows alone asks nothing new.
+  const request = React.useMemo(
+    () =>
+      JSON.stringify(
+        assets.slice(0, IMPORT_ROW_LIMIT).map((a, row) => ({
+          row,
+          name: a.name,
+          notes: a.notes,
+          sheetCategory: a.sheetCategory,
+          needsCategory: !a.categoryKnown,
+        })),
+      ),
+    [assets],
+  );
+
+  React.useEffect(() => {
+    const rows = JSON.parse(request) as SuggestRows;
+    if (rows.length === 0) return;
+    let live = true;
+    // Wait for the mapping to settle before asking.
+    const timer = setTimeout(() => {
+      setSuggestions({ request, loading: true, byRow: new Map() });
+      suggestImport({ rows })
+        .then((res) => {
+          if (live) setSuggestions({ request, loading: false, byRow: new Map(res.suggestions.map((s) => [s.row, s])) });
+        })
+        .catch(() => {
+          // No suggestions: the preview and the import stay as they always were.
+          if (live) setSuggestions({ request, loading: false, byRow: new Map() });
+        });
+    }, 600);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [request, suggestImport]);
+
+  // Both belong to one exact set of rows; a remap that changes the rows drops them.
+  const active = suggestions?.request === request ? suggestions : null;
+  const mine = decisions.request === request ? decisions : NO_DECISIONS;
+  const flagged = active ? [...active.byRow.values()].sort((a, b) => a.row - b.row) : [];
+  // A suggested category the owner has not yet confirmed or changed.
+  const pending = flagged.filter(
+    (s): s is RowSuggestion & { category: CategorySuggestion } =>
+      Boolean(s.category) && mine.categories[s.row] === undefined && !mine.skipped.has(s.row),
+  );
+
+  function decide(change: (d: Decisions) => Decisions) {
+    setDecisions((d) => change(d.request === request ? d : { request, categories: {}, skipped: new Set() }));
+  }
+  const choose = (row: number, category: EquipmentCategory) =>
+    decide((d) => ({ ...d, categories: { ...d.categories, [row]: category } }));
+  const toggleSkip = (row: number) =>
+    decide((d) => {
+      const skipped = new Set(d.skipped);
+      if (skipped.has(row)) skipped.delete(row);
+      else skipped.add(row);
+      return { ...d, skipped };
+    });
+  // One click for each answer to the whole list: take every suggestion, or
+  // keep those rows as the import has always left them (Other).
+  const acceptAll = () =>
+    decide((d) => ({
+      ...d,
+      categories: { ...d.categories, ...Object.fromEntries(pending.map((s) => [s.row, s.category.value])) },
+    }));
+  const keepAllAsOther = () =>
+    decide((d) => ({
+      ...d,
+      categories: { ...d.categories, ...Object.fromEntries(pending.map((s) => [s.row, "other" as const])) },
+    }));
+
+  const items = toImportItems(assets, { categories: mine.categories, skipped: mine.skipped });
+  const categoryOf = (row: number) => mine.categories[row] ?? assets[row].category;
+
   function reset() {
     setParsed(null);
     setMapping([]);
     setResult(null);
+    setSuggestions(null);
+    setDecisions(NO_DECISIONS);
   }
 
   async function runImport() {
-    if (assets.length === 0) return;
+    if (items.length === 0) return;
     setImporting(true);
     try {
-      const res = await importBulk({
-        items: assets.map((a) => ({
-          name: a.name,
-          category: a.category as "console" | "mic" | "outboard" | "instrument" | "monitor" | "rig" | "other",
-          purchaseCents: a.purchaseCents,
-          currentValueCents: a.currentValueCents,
-          serialNumber: a.serialNumber,
-          condition: a.condition,
-          notes: a.notes,
-          status: a.status as "available" | "in_use" | "maintenance" | "retired",
-          purchaseDate: a.purchaseDate,
-          roomName: a.roomName,
-        })),
-        skipDuplicateSerials: dedupe,
-      });
+      const res = await importBulk({ items, skipDuplicateSerials: dedupe });
       setResult(res);
       toast.success(`Imported ${res.inserted} item${res.inserted === 1 ? "" : "s"}.`);
       setParsed(null);
       setMapping([]);
+      setSuggestions(null);
+      setDecisions(NO_DECISIONS);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Import failed.");
     } finally {
@@ -249,10 +342,95 @@ export function InventoryImportPanel() {
               </div>
             </div>
 
-            {/* Preview */}
-            {assets.length > 0 && (
+            {/* Suggestions: categories to confirm, possible duplicates */}
+            {active?.loading && (
+              <p className="flex items-center gap-2 text-xs text-steel">
+                <Loader2 className="size-3.5 animate-spin" />
+                Checking categories and possible duplicates...
+              </p>
+            )}
+            {flagged.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs font-medium text-steel">Preview · {assets.length} importable</p>
+                <div className="flex flex-wrap items-center gap-2">
+                  <p className="text-xs font-medium text-steel">
+                    Suggestions · {flagged.length} row{flagged.length === 1 ? "" : "s"}
+                    {assets.length > IMPORT_ROW_LIMIT && <> · first {IMPORT_ROW_LIMIT} rows checked</>}
+                  </p>
+                  {pending.length > 0 && (
+                    <div className="ml-auto flex gap-1">
+                      <Button size="sm" variant="secondary" onClick={acceptAll}>
+                        <Check className="size-3.5" />
+                        Use all {pending.length}
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={keepAllAsOther}>Keep as Other</Button>
+                    </div>
+                  )}
+                </div>
+                <div className="divide-y divide-graphite/50 overflow-hidden rounded-md border border-graphite/50">
+                  {flagged.map((s) => {
+                    const asset = assets[s.row];
+                    if (!asset) return null;
+                    const skipped = mine.skipped.has(s.row);
+                    const chosen = mine.categories[s.row];
+                    const suggested = s.category;
+                    return (
+                      <div key={s.row} className={cn("flex flex-wrap items-center gap-2 px-3 py-2", skipped && "opacity-60")}>
+                        <span className="min-w-0 flex-1 truncate text-sm text-bone" title={asset.name}>{asset.name}</span>
+                        {suggested ? (
+                          <>
+                            <Select
+                              value={chosen ?? suggested.value}
+                              onValueChange={(v) => choose(s.row, v as EquipmentCategory)}
+                              disabled={skipped}
+                            >
+                              <SelectTrigger className="h-8 w-44 shrink-0" aria-label={`Category for ${asset.name}`}>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {EQUIPMENT_CATEGORIES.map((c) => (
+                                  <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                            {chosen === undefined && !skipped && (
+                              <>
+                                <Badge tone="gold" title="Suggested by Pulse. Confirm it or pick another category.">
+                                  Suggested · {pct(suggested.confidence)} sure
+                                </Badge>
+                                <Button size="sm" variant="ghost" onClick={() => choose(s.row, suggested.value)}>
+                                  <Check className="size-3.5" />
+                                  Use
+                                </Button>
+                              </>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-xs text-steel">{categoryMeta(categoryOf(s.row)).label}</span>
+                        )}
+                        {s.match && (
+                          <>
+                            <Badge tone="caution" className="max-w-[18rem]" title={`Looks like your existing ${s.match.name}`}>
+                              <span className="truncate">Looks like your existing {s.match.name}</span>
+                            </Badge>
+                            <Button size="sm" variant="ghost" onClick={() => toggleSkip(s.row)}>
+                              {skipped ? "Import anyway" : "Skip"}
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                <p className="text-[0.6875rem] text-steel/70">
+                  Nothing changes until you confirm it. Flagged rows still import unless you skip them.
+                </p>
+              </div>
+            )}
+
+            {/* Preview */}
+            {items.length > 0 && (
+              <div className="space-y-2">
+                <p className="text-xs font-medium text-steel">Preview · {items.length} importable</p>
                 <div className="overflow-hidden rounded-md border border-graphite/50">
                   <table className="w-full text-left text-xs">
                     <thead className="bg-coal-2 text-steel/70">
@@ -265,7 +443,7 @@ export function InventoryImportPanel() {
                       </tr>
                     </thead>
                     <tbody>
-                      {assets.slice(0, 5).map((a, i) => (
+                      {items.slice(0, 5).map((a, i) => (
                         <tr key={i} className="border-t border-graphite/50">
                           <td className="px-3 py-2 text-bone">{a.name}</td>
                           <td className="px-3 py-2 text-steel">{a.category}</td>
@@ -277,8 +455,8 @@ export function InventoryImportPanel() {
                     </tbody>
                   </table>
                 </div>
-                {assets.length > 5 && (
-                  <p className="text-[0.6875rem] text-steel/70">+ {assets.length - 5} more</p>
+                {items.length > 5 && (
+                  <p className="text-[0.6875rem] text-steel/70">+ {items.length - 5} more</p>
                 )}
               </div>
             )}
@@ -292,11 +470,16 @@ export function InventoryImportPanel() {
       </CardContent>
 
       {parsed && (
-        <CardFooter className="justify-end gap-2">
+        <CardFooter className="flex-wrap justify-end gap-2">
+          {pending.length > 0 && (
+            <p className="mr-auto text-xs text-caution">
+              Confirm or change {pending.length} suggested categor{pending.length === 1 ? "y" : "ies"} to import.
+            </p>
+          )}
           <Button variant="ghost" onClick={reset} disabled={importing}>Cancel</Button>
-          <Button onClick={runImport} disabled={importing || assets.length === 0 || !hasNameColumn}>
+          <Button onClick={runImport} disabled={importing || items.length === 0 || !hasNameColumn || pending.length > 0}>
             <Upload className="size-4" />
-            {importing ? "Importing..." : `Import ${assets.length} item${assets.length === 1 ? "" : "s"}`}
+            {importing ? "Importing..." : `Import ${items.length} item${items.length === 1 ? "" : "s"}`}
           </Button>
         </CardFooter>
       )}
