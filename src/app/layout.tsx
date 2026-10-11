@@ -15,6 +15,8 @@ import { isSatelliteHost } from "@/lib/clerk-domains";
 import { Toaster } from "sonner";
 import "./globals.css";
 import { fromPriceLabel } from "@/components/marketing/pricing-tiers";
+import { IS_STAGING } from "@/lib/deploy-env";
+import { StagingBadge } from "@/components/shell/staging-badge";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono", display: "swap" });
@@ -55,6 +57,8 @@ const SITE_DESCRIPTION =
 
 export const metadata: Metadata = {
   metadataBase: new URL(SITE_URL),
+  // Staging is a public URL full of test data: keep it out of search.
+  ...(IS_STAGING ? { robots: { index: false, follow: false } } : {}),
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
   alternates: { canonical: "/" },
@@ -146,6 +150,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             {/* Turns pulse:// links into navigation inside the macOS/iOS app. A
                 no-op in a browser (src/lib/shell.ts). */}
             <NativeShellBridge />
+            <StagingBadge />
             {children}
           </ConvexClientProvider>
         </TooltipProvider>

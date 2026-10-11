@@ -103,13 +103,24 @@ export function ConvexClientProvider({
  * storms of 2026-07-07/08. Fetching the session token directly removes that
  * branch entirely.
  */
+/* Staging runs on Clerk's development instance, whose session token is not
+ * customized with aud: "convex". It names the "convex" JWT template instead
+ * (NEXT_PUBLIC_CLERK_CONVEX_TEMPLATE=convex; the template exists there with
+ * aud: convex). Production leaves this unset and keeps the plain session
+ * token, for the reason above. */
+const CONVEX_TOKEN_TEMPLATE = process.env.NEXT_PUBLIC_CLERK_CONVEX_TEMPLATE || undefined;
+
 function useClerkSessionTokenAuth() {
   const { isLoaded, isSignedIn, getToken, orgId, userId } = useAuth();
 
   const fetchAccessToken = useCallback(
     async ({ forceRefreshToken }: { forceRefreshToken: boolean }) => {
       try {
-        return await getToken({ skipCache: forceRefreshToken });
+        return await getToken(
+          CONVEX_TOKEN_TEMPLATE
+            ? { template: CONVEX_TOKEN_TEMPLATE, skipCache: forceRefreshToken }
+            : { skipCache: forceRefreshToken },
+        );
       } catch {
         return null;
       }
