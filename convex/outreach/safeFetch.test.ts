@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { checkUrl, isPublicHostname, robotsAllows, safeGet, loadRobots, robotsVerdict, classifyFetchError, fetchTuning, USER_AGENT } from "./safeFetch";
+import { checkUrl, isPublicHostname, robotsAllows, safeGet, guardedFetch, loadRobots, robotsVerdict, classifyFetchError, fetchTuning, USER_AGENT } from "./safeFetch";
 
 beforeEach(() => { fetchTuning.backoffMs = 0; });
 afterEach(() => { vi.unstubAllGlobals(); });
@@ -27,6 +27,27 @@ describe("SSRF guard", () => {
     const r = await safeGet("https://evil.example.com/");
     expect(r.ok).toBe(false);
     expect(f).toHaveBeenCalledTimes(1);
+  });
+  it("guardedFetch (image import) refuses a metadata or private address without requesting it", async () => {
+    const f = vi.fn(async () => new Response("secret"));
+    vi.stubGlobal("fetch", f);
+    for (const u of ["http://169.254.169.254/latest/meta-data/", "http://127.0.0.1:6379/", "http://10.0.0.1/admin", "http://metadata.google.internal/"]) {
+      const r = await guardedFetch(u, "image/*");
+      expect(r.ok, u).toBe(false);
+    }
+    expect(f).not.toHaveBeenCalled();
+  });
+  it("guardedFetch refuses a redirect into the private network and hands back a public image", async () => {
+    const f = vi.fn(async (u: string) =>
+      u.includes("evil")
+        ? new Response(null, { status: 302, headers: { location: "http://192.168.0.10/cam.jpg" } })
+        : new Response(new Uint8Array([1, 2, 3]), { headers: { "content-type": "image/png" } }));
+    vi.stubGlobal("fetch", f);
+    expect((await guardedFetch("https://evil.example.com/logo.png", "image/*")).ok).toBe(false);
+    expect(f).toHaveBeenCalledTimes(1);
+    const ok = await guardedFetch("https://studio.example.com/logo.png", "image/*");
+    expect(ok.ok).toBe(true);
+    if (ok.ok) expect(ok.res.headers.get("content-type")).toBe("image/png");
   });
   it("stops after too many redirects", async () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response(null, { status: 302, headers: { location: "https://a.example.com/" } })));

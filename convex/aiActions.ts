@@ -43,7 +43,7 @@ function fmtCents(cents: number): string {
 export const generateSessionRecap = action({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
-    const ctxData = await ctx.runQuery(api.aiContext.sessionRecapContext, {
+    const ctxData = await ctx.runQuery(internal.aiContext.sessionRecapContext, {
       sessionId,
     });
     if (!ctxData) return;
@@ -119,7 +119,7 @@ When you're ready, let me know if you want to slot in a mix date.
 export const generatePrepPacket = action({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
-    const data = await ctx.runQuery(api.aiContext.prepPacketContext, {
+    const data = await ctx.runQuery(internal.aiContext.prepPacketContext, {
       sessionId,
     });
     if (!data) return;
@@ -193,7 +193,7 @@ async function generateReminder(
   sessionId: Id<"sessions">,
   kind: "reminder_24h" | "reminder_1h",
 ): Promise<void> {
-  const data = await ctx.runQuery(api.aiContext.reminderContext, { sessionId });
+  const data = await ctx.runQuery(internal.aiContext.reminderContext, { sessionId });
   if (!data) return;
   const { session, artistName, artistEmail, roomName } = data;
 
@@ -355,7 +355,7 @@ ${facts}`;
 export const generateWeeklyBriefing = action({
   args: {},
   handler: async (ctx) => {
-    const data = await ctx.runQuery(api.aiContext.weeklyBriefingContext, {});
+    const data = await ctx.runQuery(internal.aiContext.weeklyBriefingContext, {});
     if (!data) return;
     await writeWeeklyBriefing(ctx, data);
   },
@@ -519,7 +519,7 @@ ${bookingLink}
 export const generateRateCutPromos = action({
   args: {},
   handler: async (ctx) => {
-    const data = await ctx.runQuery(api.aiContext.rateCutContext, {});
+    const data = await ctx.runQuery(internal.aiContext.rateCutContext, {});
     if (!data) return;
     await writeRateCutPromos(ctx, data);
   },
