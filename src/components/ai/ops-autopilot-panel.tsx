@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { OpsActionSheet } from "@/components/ai/ops-action-sheet";
+import { DraftCheckBadge } from "@/components/ai/draft-check-badge";
 import type { Doc, Id } from "@convex/_generated/dataModel";
 
 const PRIORITY_TONE: Record<string, string> = {
@@ -61,9 +62,12 @@ function ActionCard({ action, onOpen }: { action: Doc<"opsActions">; onOpen: (a:
             <p className="mt-1 text-xs leading-relaxed text-steel">{action.rationale}</p>
             {p.kind === "email" && (
               <div className="mt-2 rounded border border-bone/10 bg-ink/40 p-2 text-xs text-steel/70">
-                <span className="inline-flex items-center gap-1 font-meta text-[0.625rem] uppercase text-steel">
-                  <PayloadIcon kind={p.kind} /> {p.to ?? "no recipient"}
-                </span>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-1 font-meta text-[0.625rem] uppercase text-steel">
+                    <PayloadIcon kind={p.kind} /> {p.to ?? "no recipient"}
+                  </span>
+                  <DraftCheckBadge check={action.draftCheck} />
+                </div>
                 <p className="mt-1 font-medium text-bone">{p.subject}</p>
                 <p className="mt-0.5 line-clamp-2">{p.body}</p>
               </div>

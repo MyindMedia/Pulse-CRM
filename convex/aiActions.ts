@@ -611,6 +611,8 @@ export const enrichOpsActions = internalAction({
   args: { ids: v.array(v.id("opsActions")) },
   handler: async (ctx, { ids }) => {
     let enriched = 0;
+    // Email drafts whose wording is final once this loop is done.
+    const checkIds: Id<"opsActions">[] = [];
     for (const id of ids) {
       const c = await ctx.runQuery(internal.opsActions.enrichmentContext, { id });
       if (!c) continue; // gone or already decided
@@ -707,6 +709,7 @@ Output ONLY the email body. No subject line.`;
             }
           }
         }
+        if (c.payloadKind === "email") checkIds.push(id);
         continue;
       }
 
@@ -823,6 +826,12 @@ Missing before release: ${missing || "rights data"}.
         model: ai?.model ?? undefined,
       });
       enriched++;
+    }
+    // Jev's safety label on each email draft, now that its wording is final:
+    // Claude's rewrite, or the rule layer's text when the rewrite was skipped
+    // or refused. A label only (convex/jevDraftCheck.ts); it never sends.
+    if (checkIds.length > 0 && process.env.TYPESAFE_API_KEY) {
+      await ctx.scheduler.runAfter(0, internal.jevDraftCheck.checkDrafts, { ids: checkIds });
     }
     return { enriched };
   },

@@ -2456,6 +2456,16 @@ export default defineSchema({
     // the user-edited body captured before approve/send.
     artifactId: v.optional(v.id("aiArtifacts")),
     editedBody: v.optional(v.string()),
+    // Jev's (TypeSafe) read on an email draft, for the approval inbox badge
+    // (convex/jevDraftCheck.ts): each number is the probability of a yes. A
+    // label only: nothing sends, approves or changes a rule because of it.
+    draftCheck: v.optional(v.object({
+      safeToSend: v.number(),
+      mentionsMoney: v.number(),
+      hasPlaceholder: v.number(),
+      model: v.string(),
+      checkedAt: v.number(),
+    })),
   })
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])

@@ -152,6 +152,8 @@ export const applyEnrichment = internalMutation({
     if (artifactId) patch.artifactId = artifactId;
     if (body && action.payload.kind === "email") {
       patch.payload = { ...action.payload, body, ...(subject ? { subject } : {}) };
+      // Jev's label described the old words; the new ones get their own.
+      patch.draftCheck = undefined;
     }
     await ctx.db.patch(id, patch);
   },
