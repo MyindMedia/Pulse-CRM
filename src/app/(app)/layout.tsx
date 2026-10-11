@@ -71,7 +71,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       <WhiteLabelTheme />
       {/* Engagement signal for the beta cohort. Renders nothing. */}
       <BetaLoginTracker />
-      <div className="relative min-h-dvh bg-ink">
+      {/* pulse-hw switches on the hardware UI (src/app/hardware.css). */}
+      <div className="pulse-hw relative min-h-dvh bg-ink">
         {/* Studio-light bloom - warm backdrop for the glass to refract */}
         <div className="app-bloom" aria-hidden />
 

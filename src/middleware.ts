@@ -38,6 +38,7 @@ const isPublicRoute = createRouteMatcher([
   "/plaid/oauth", // native bank OAuth returns without requiring a web login
   "/sign-in(.*)",
   "/sign-up(.*)",
+  "/ui-lab", // staging-only component gallery; 404s in production (src/app/ui-lab)
   "/api/webhooks(.*)",
   // GHL's Social Planner fetches this PNG server to server, signed out, to
   // composite it into a post - a 307 to /sign-in here would hand it an HTML
