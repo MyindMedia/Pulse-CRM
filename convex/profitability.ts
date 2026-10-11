@@ -257,7 +257,9 @@ export function profitLeverCandidates(report: ProfitReport): ProposedAction[] {
       type: "profit_improvement",
       priority: PROFIT_PRIORITY[lv.band],
       title: `Improve ${lv.label.toLowerCase()}`,
-      rationale: `${lv.detail} ${lv.recommendation}${dollars}`,
+      // The knowledge base states levers as rules; Pulse AI offers them as a
+      // suggestion to the owner (kit content rules: suggest, never command).
+      rationale: `${lv.detail} Worth trying: ${lv.recommendation.charAt(0).toLowerCase()}${lv.recommendation.slice(1)}${dollars}`,
       entityType: "metric",
       entityId: lv.key,
       payload: { kind: "note_only" },

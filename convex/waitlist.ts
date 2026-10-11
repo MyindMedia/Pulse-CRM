@@ -155,7 +155,7 @@ export async function proposeWaitlistFill(ctx: MutationCtx, session: Doc<"sessio
     type: "waitlist_fill",
     priority: winner.priority === "high" ? "high" : "medium",
     title: `Offer the open ${when} slot to ${artist.name}`,
-    rationale: `${artist.name} is on the waitlist and is the best match for the slot that just opened${where} on ${when}. Offer it before it goes cold.`,
+    rationale: `${artist.name} is on the waitlist and is the best match for the slot that just opened${where} on ${when}. Offer it to them before it goes cold?`,
     entityType: "session",
     entityId: session._id,
     payload: {
