@@ -69,13 +69,13 @@ function SortableWidget({
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={cn(
         SPAN_CLASS[def.span],
-        "relative cursor-grab rounded-chrome ring-1 ring-gold/40 ring-offset-2 ring-offset-ink",
+        "relative flex cursor-grab flex-col rounded-chrome ring-1 ring-gold/40 ring-offset-2 ring-offset-ink",
         isDragging && "z-20 cursor-grabbing opacity-80 shadow-elev-4",
       )}
       {...attributes}
       {...listeners}
     >
-      <div className="pointer-events-none select-none">
+      <div className="pointer-events-none flex flex-1 select-none flex-col">
         {def.titled === false ? def.render() : <Section title={def.title}>{def.render()}</Section>}
       </div>
       <span className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-md border border-gold/40 bg-coal-2/95 px-1.5 py-0.5 font-meta text-[0.625rem] uppercase tracking-wide text-gold backdrop-blur">
@@ -243,7 +243,9 @@ export function CustomizableDashboard() {
             const def = BY_KEY.get(key);
             if (!def) return null;
             return (
-              <div key={key} className={SPAN_CLASS[def.span]}>
+              // flex column: a chassis fills its grid cell, so chassis in one row
+              // share a height like the kit's.
+              <div key={key} className={cn(SPAN_CLASS[def.span], "flex flex-col")}>
                 {def.titled === false ? def.render() : <Section title={def.title}>{def.render()}</Section>}
               </div>
             );

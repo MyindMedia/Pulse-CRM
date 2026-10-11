@@ -16,7 +16,7 @@ export function Chassis({
   ...rest
 }: React.HTMLAttributes<HTMLElement> & { grid?: boolean; brackets?: boolean }) {
   return (
-    <section className={cn("pl-card relative flex min-w-0 flex-col p-6", grid && "pl-grid", className)} {...rest}>
+    <section className={cn("pl-card relative flex min-w-0 flex-1 flex-col p-6", grid && "pl-grid", className)} {...rest}>
       {brackets && <Brackets />}
       {children}
     </section>
