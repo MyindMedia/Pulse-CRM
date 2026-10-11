@@ -9,8 +9,8 @@
       fallback so the artifact still lands
    4. Persist via internal.aiArtifacts.insertInternal
 
-   That keeps the rest of the product working even without an
-   OPENAI_API_KEY set on the deployment.
+   That keeps the rest of the product working even without an AI key
+   (ANTHROPIC_API_KEY, or OPENAI_API_KEY as the fallback) on the deployment.
    ============================================================ */
 import { v } from "convex/values";
 import { action, internalAction } from "./_generated/server";
@@ -555,8 +555,8 @@ export const runRateCutForAllOrgs = internalAction({
    draft an LLM should upgrade. For email actions we rewrite the body in
    place; for the rich-body agents (session prep, post-session recap,
    revision triage) we write an aiArtifacts row and link it back via
-   opsActions.artifactId. Without an OPENAI_API_KEY, complete() returns
-   null and we leave the deterministic fallback untouched - nothing breaks.
+   opsActions.artifactId. Without an AI key, complete() returns null and we
+   leave the deterministic fallback untouched - nothing breaks.
    ============================================================ */
 
 /** kind label used on the linked artifact, per action type. */

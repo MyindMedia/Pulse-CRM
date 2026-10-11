@@ -1,16 +1,15 @@
 /* ============================================================
-   Thin OpenAI wrapper for Pulse's AI features.
+   The one chokepoint for Pulse's AI features (complete / completeJSON).
 
-   Graceful fallback: if OPENAI_API_KEY isn't configured on the
-   Convex deployment, the wrapper returns null and the calling code
-   uses its own templated fallback. This lets the rest of the
-   product ship + run without the AI side blocking on key setup.
-
-   Per the cross-project rule, client products use OpenAI's GPT-5
-   family rather than Claude.
+   Provider order (owner rule, 2026-10-10): Claude first, on Lawrence's
+   Anthropic key (lib/claude.ts, ANTHROPIC_API_KEY); then OpenAI's GPT-5
+   family (OPENAI_API_KEY); then the opt-in Gemini fallback. When none
+   answers, these return null and the calling code uses its own templated
+   fallback, so the product runs without the AI side blocking on key setup.
    ============================================================ */
 import OpenAI from "openai";
 import { stripEmDashes } from "./text";
+import { claudeText, hasClaude } from "./claude";
 import { INJECTION_GUARD } from "./aiGuard";
 
 /* Model tiering (both env-overridable so the exact GPT-5 ids can be set on the
@@ -39,16 +38,22 @@ export function hasOpenAI(): boolean {
   return Boolean(process.env.OPENAI_API_KEY);
 }
 
+/** True when any AI provider can answer (Claude or OpenAI). */
+export function hasAI(): boolean {
+  return hasClaude() || hasOpenAI();
+}
+
 export type CompletionResult =
+  | { source: "anthropic"; model: string; text: string }
   | { source: "openai"; model: string; text: string }
   | { source: "fallback"; text: string };
 
 export const GEMINI_MODEL = "gemini-2.5-flash";
 
-/** Single round-trip completion. Prefers OpenAI (gpt-5 family per the
- * cross-project rule); falls back to Gemini when OpenAI has no key or errors
- * (e.g. no quota). Returns null only if neither provider is available, so the
- * caller can use its own templated fallback. Output is always em-dash-stripped. */
+/** Single round-trip completion. Tries Claude, then OpenAI (gpt-5 family),
+ * then the opt-in Gemini fallback. Returns null only if no provider answers,
+ * so the caller can use its own templated fallback. Output is always
+ * em-dash-stripped. */
 export async function complete(
   prompt: string,
   opts?: { model?: string; system?: string; maxOutputTokens?: number },
@@ -60,7 +65,15 @@ export async function complete(
   const system = `${base}\n\n${NO_EM_DASH_RULE}`;
   const maxTokens = opts?.maxOutputTokens ?? 800;
 
-  // 1. OpenAI (preferred).
+  // 0. Claude (preferred). SMART_MODEL callers are making a decision, so they
+  //    get Claude's high effort; everything else is routine copy at low.
+  const viaClaude = await claudeText({ system, prompt, tier: model === SMART_MODEL ? "smart" : "default" });
+  if (viaClaude) {
+    const text = stripEmDashes(viaClaude.text);
+    if (text.trim()) return { source: "anthropic", model: viaClaude.model, text };
+  }
+
+  // 1. OpenAI.
   const c = client();
   if (c) {
     try {
@@ -126,6 +139,18 @@ export async function completeJSON<T = unknown>(
     }
   };
 
+  // Claude first, constrained to the caller's schema when one is given.
+  const viaClaude = await claudeText({
+    system,
+    prompt,
+    tier: model === SMART_MODEL ? "smart" : "default",
+    jsonSchema: opts?.schema?.schema,
+  });
+  if (viaClaude) {
+    const data = tryParse(viaClaude.text);
+    if (data) return { source: "anthropic", model: viaClaude.model, data };
+  }
+
   const c = client();
   if (c) {
     // Degrade the requested model to DEFAULT_MODEL (still OpenAI) before falling
@@ -171,7 +196,8 @@ export async function completeJSON<T = unknown>(
 
 /* Data-protection gate: customer data (client names, financials) must only
    reach an AI sub-processor that is on the commercial path under a DPA. The
-   OpenAI API (Commercial Terms + DPA, no training on API data) is that path.
+   Anthropic API and the OpenAI API (each: Commercial Terms + DPA, no training
+   on API data) are that path.
    The Gemini text fallback is OFF by default so PII never silently routes to a
    second AI endpoint; turn it on with AI_ALLOW_GEMINI_FALLBACK=1 only once the
    Gemini/Google Cloud DPA + paid (no-train) tier is in place. When off, an
