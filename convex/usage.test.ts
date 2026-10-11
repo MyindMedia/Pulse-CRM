@@ -165,6 +165,9 @@ describe("pooled allowances on Max", () => {
     await t.run((ctx) => ctx.db.insert("agencies", {
       agencyId: "ag_pool", name: "Pool", slug: "pool", plan, status: "active",
       ownerClerkUserId: "u_pool", ownerEmail: "pool@x",
+      // A reseller agency (it has its own subscription), not the Pulse agency,
+      // so its plan rolls down to its studios.
+      stripeSubscriptionId: "sub_reseller",
     }));
   }
 

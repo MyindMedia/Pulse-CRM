@@ -164,6 +164,9 @@ describe("migrateToCoreGrowthMax never lowers an org", () => {
       await ctx.db.insert("agencies", {
         agencyId: "agL", name: "L", slug: "l", plan: "label", status: "active",
         ownerClerkUserId: "u", ownerEmail: "u@x",
+        // A reseller agency: it has its own subscription, so it is not the
+        // Pulse agency and its plan still rolls down to its studios.
+        stripeSubscriptionId: "sub_reseller",
       });
       // Agency console default: studio stamped tier "studio" under a label agency.
       await ctx.db.insert("orgs", { orgId: "ag_studio", name: "A", slug: "a", tier: "studio", agencyId: "agL" });

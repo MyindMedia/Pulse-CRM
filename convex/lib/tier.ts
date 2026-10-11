@@ -1,6 +1,7 @@
 import type { QueryCtx, MutationCtx } from "../_generated/server";
 import { BETA_TIER, type TierKey } from "./plans";
 import { LEGACY_ORG_PLAN_MAP, migrateTierValue } from "./legacyPlans";
+import { platformAgencyId } from "./platformAgency";
 
 /* ============================================================
    Tier resolution - a leaf module on purpose.
@@ -70,6 +71,9 @@ export function resolveTierPure(org: OrgTierFields | null, agencyPlan: string | 
  *   5. the retired orgs.plan field (pre-migration rows only)
  *   6. "core", the least privileged tier
  *
+ * Step 3 never applies to the Pulse agency (platformAgencyId): its plan is
+ * its own, and each sub-account under it runs on orgs.tier.
+ *
  * This is main's precedence: the agency's plan overrides orgs.tier, so a
  * studio created through the agency console (stamped with a default tier)
  * runs at the agency's tier, and a Stripe up/downgrade that only changes
@@ -84,7 +88,11 @@ async function resolveTier(
   org: OrgTierFields | null,
 ): Promise<TierKey> {
   let agencyPlan: string | undefined;
-  if (org?.agencyId && !inBeta(org)) {
+  /* The Pulse agency is the parent of EVERY studio and runs on Max itself, so
+     its plan would hand every sub-account Max whatever it paid for. Owner
+     rule 2026-10-10: each sub-account has its own plan (orgs.tier, set from
+     its subscription). Only a reseller agency's plan still rolls down. */
+  if (org?.agencyId && !inBeta(org) && org.agencyId !== (await platformAgencyId(ctx))) {
     const agency = await ctx.db
       .query("agencies")
       .withIndex("by_agency", (q) => q.eq("agencyId", org.agencyId!))

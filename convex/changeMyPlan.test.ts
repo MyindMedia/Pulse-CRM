@@ -221,3 +221,29 @@ describe("hide features from higher plans", () => {
     await expect(engineer(t).mutation(api.orgs.setHideLockedFeatures, { hide: true })).rejects.toThrow();
   });
 });
+
+describe("the Pulse agency's main owner", () => {
+  it("_setPlatformOwner makes a new login an owner and the main owner; the old owner keeps access", async () => {
+    const t = initT();
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencies", {
+        agencyId: "agency_pulse", name: "Myind Sound", slug: "myind-sound", plan: "max", status: "active",
+        ownerClerkUserId: "u_old", ownerEmail: "old@x.com",
+      });
+      await ctx.db.insert("agencyMembers", {
+        agencyId: "agency_pulse", clerkUserId: "u_old", email: "old@x.com", name: "Old",
+        role: "owner", status: "active", invitedAt: 1,
+      });
+    });
+    await t.mutation(internal.agencyStaff._setPlatformOwner, { clerkUserId: "u_new", email: "New@X.com", name: "New" });
+    const agency = await t.run(async (ctx) => await ctx.db.query("agencies").first());
+    expect(agency).toMatchObject({ ownerClerkUserId: "u_new", ownerEmail: "new@x.com" });
+    for (const subject of ["u_new", "u_old"]) {
+      expect(await t.withIdentity({ subject }).query(api.agency.access, {})).toMatchObject({ allowed: true });
+    }
+    // Running it twice does not add a second row.
+    await t.mutation(internal.agencyStaff._setPlatformOwner, { clerkUserId: "u_new", email: "new@x.com", name: "New" });
+    const rows = await t.run(async (ctx) => await ctx.db.query("agencyMembers").collect());
+    expect(rows.filter((r) => r.clerkUserId === "u_new")).toHaveLength(1);
+  });
+});
