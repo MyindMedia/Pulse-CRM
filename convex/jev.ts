@@ -2,7 +2,7 @@ import { v } from "convex/values";
 import { internalAction, internalQuery } from "./_generated/server";
 import { internalMutation } from "./functions";
 import { internal } from "./_generated/api";
-import { TypeSafeClient, APIError } from "@typesafe-ai/sdk";
+import { askJev, jevEnabled } from "./lib/jevClient";
 import { RECEPTIONIST_QUESTIONS, receptionistState, jevIntent } from "./lib/jevQuestions";
 import { RECEPTIONIST_SAMPLES } from "./lib/receptionistSamples";
 import { classifyIntent, receptionistAction } from "./receptionist";
@@ -17,40 +17,20 @@ import { classifyIntent, receptionistAction } from "./receptionist";
    The key stays server-side; nothing here runs in a browser.
    ============================================================ */
 
-/** Built per call so a deployment without the key never fails at import. */
-function jevClient(): TypeSafeClient | null {
-  const apiKey = process.env.TYPESAFE_API_KEY;
-  if (!apiKey) return null;
-  return new TypeSafeClient({ apiKey, timeout: 10_000 });
-}
-
 /** Ask Jev the receptionist's two questions. Null when Jev is unavailable. */
 async function askReceptionist(
-  client: TypeSafeClient,
   body: string,
   studioName?: string | null,
 ): Promise<{ action: "human" | "booking" | "skip"; probabilities: Record<string, number>; model: string; latencyMs: number } | null> {
-  const started = Date.now();
-  try {
-    const res = await client.systemOne({
-      state: receptionistState(body, studioName),
-      questions: RECEPTIONIST_QUESTIONS,
-    });
-    const intent = jevIntent(res.answers);
-    return {
-      action: receptionistAction(intent),
-      probabilities: {
-        bookingInquiry: res.answers.bookingInquiry.noul,
-        wantsHuman: res.answers.wantsHuman.noul,
-      },
-      model: res.model,
-      latencyMs: Date.now() - started,
-    };
-  } catch (err) {
-    if (err instanceof APIError) console.error(`[jev] API error: ${err.message}`);
-    else console.error("[jev] error", err);
-    return null;
-  }
+  const asked = await askJev(receptionistState(body, studioName), RECEPTIONIST_QUESTIONS);
+  if (!asked) return null;
+  const { answers, model } = asked.result;
+  return {
+    action: receptionistAction(jevIntent(answers)),
+    probabilities: { bookingInquiry: answers.bookingInquiry.noul, wantsHuman: answers.wantsHuman.noul },
+    model,
+    latencyMs: asked.latencyMs,
+  };
 }
 
 export const _record = internalMutation({
@@ -81,9 +61,8 @@ export const shadowReceptionist = internalAction({
     primary: v.object({ isBookingInquiry: v.boolean(), wantsHuman: v.boolean(), source: v.string() }),
   },
   handler: async (ctx, { orgId, body, studioName, sourceId, primary }) => {
-    const client = jevClient();
-    if (!client) return { logged: false, reason: "no_key" };
-    const jev = await askReceptionist(client, body, studioName);
+    if (!jevEnabled()) return { logged: false, reason: "no_key" };
+    const jev = await askReceptionist(body, studioName);
     if (!jev) return { logged: false, reason: "jev_unavailable" };
     await ctx.runMutation(internal.jev._record, {
       orgId,
@@ -135,8 +114,7 @@ export const report = internalQuery({
 export const replayReceptionist = internalAction({
   args: {},
   handler: async () => {
-    const client = jevClient();
-    if (!client) throw new Error("TYPESAFE_API_KEY is not set on this deployment.");
+    if (!jevEnabled()) throw new Error("TYPESAFE_API_KEY is not set on this deployment.");
     const rows: {
       text: string;
       expected: string;
@@ -152,7 +130,7 @@ export const replayReceptionist = internalAction({
       const batch = RECEPTIONIST_SAMPLES.slice(i, i + 5);
       const results = await Promise.all(
         batch.map(async (s) => {
-          const [live, jev] = await Promise.all([classifyIntent(s.text), askReceptionist(client, s.text)]);
+          const [live, jev] = await Promise.all([classifyIntent(s.text), askReceptionist(s.text)]);
           if (jev) jevLatency.push(jev.latencyMs);
           return {
             text: s.text,
