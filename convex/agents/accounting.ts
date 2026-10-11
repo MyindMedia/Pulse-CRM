@@ -273,7 +273,7 @@ export function receiptCandidates(s: AccountingSignals): ProposedAction[] {
       riskLevel: "low",
       title: `No receipt on file: ${clip(e.memo, 48)} (${dollars(e.totalCents)})`,
       rationale: plain(
-        `The books mark this ${dollars(e.totalCents)} entry on ${shortDate(e.entryDate)} as having no receipt, and none of the uploaded receipts matches it. Find or upload one so the entry is backed up, or note why there is none.`,
+        `The books mark this ${dollars(e.totalCents)} entry on ${shortDate(e.entryDate)} as having no receipt, and none of the uploaded receipts matches it. Upload one so the entry is backed up, or add a note on why there is none?`,
       ),
       entityType: "journal_entry",
       entityId: `${s.periodKey}:norcpt:${e.id}`,
@@ -479,7 +479,7 @@ export function clearingCandidates(s: AccountingSignals): ProposedAction[] {
         riskLevel: "low",
         title: `Processor deposit: ${dollars(gross)} less ${dollars(bestFee.cents)} fee = ${dollars(net)} (${clip(dep.memo, 36)})`,
         rationale: plain(
-          `The processor keeps its ${dollars(bestFee.cents)} fee before it pays out, so the bank should show one ${dollars(net)} deposit for ${shortDate(dep.entryDate)}. The books record ${dollars(gross)} in and ${dollars(bestFee.cents)} out as two entries that net to the same cash. No entry is needed; match them to the one statement line.`,
+          `The processor keeps its ${dollars(bestFee.cents)} fee before it pays out, so the bank should show one ${dollars(net)} deposit for ${shortDate(dep.entryDate)}. The books record ${dollars(gross)} in and ${dollars(bestFee.cents)} out as two entries that net to the same cash. No entry is needed. Match them to the one statement line?`,
         ),
         entityType: "journal_entry",
         entityId: `${s.periodKey}:fee:${dep.id}:${bestFee.fee.id}`,
@@ -562,7 +562,7 @@ export function categorizationCandidates(s: AccountingSignals): ProposedAction[]
       riskLevel: "low",
       title: `${blanks.length} line${blanks.length === 1 ? " has" : "s have"} no category`,
       rationale: plain(
-        `${blanks.length} journal line${blanks.length === 1 ? " is" : "s are"} missing a category (blank or a dash). The account on each line tells us what it should be, listed below. Fill them in so reports group them correctly.`,
+        `${blanks.length} journal line${blanks.length === 1 ? " is" : "s are"} missing a category (blank or a dash). The account on each line tells us what it should be, listed below. Fill them in so reports group them correctly?`,
       ),
       entityType: "categorization",
       entityId: `${s.periodKey}:cat-blank:${blanks.map((b) => b.w.row).join("-")}`,
@@ -605,7 +605,7 @@ export function categorizationCandidates(s: AccountingSignals): ProposedAction[]
       confidence: 0.8,
       title: `${inferred.length} revenue line${inferred.length === 1 ? " was" : "s were"} sorted by keyword`,
       rationale: plain(
-        `The books use one "Revenue" account. ${inferred.length} line${inferred.length === 1 ? " was" : "s were"} placed in a specific revenue account by reading the description, for example Recording Session or Podcast. Confirm the sorting is right, since it decides which revenue line each dollar lands on.`,
+        `The books use one "Revenue" account. ${inferred.length} line${inferred.length === 1 ? " was" : "s were"} placed in a specific revenue account by reading the description, for example Recording Session or Podcast. Worth checking the sorting, since it decides which revenue line each dollar lands on.`,
       ),
       entityType: "categorization",
       entityId: `${s.periodKey}:cat-revenue:${inferred.map((b) => b.w.row).join("-")}`,
@@ -623,7 +623,7 @@ export function categorizationCandidates(s: AccountingSignals): ProposedAction[]
       priority: "medium",
       riskLevel: "medium",
       title: `${unguessed.length} revenue line${unguessed.length === 1 ? "" : "s"} could not be sorted`,
-      rationale: plain(`${unguessed.length} "Revenue" line${unguessed.length === 1 ? " has" : "s have"} no recognisable service in the description, so ${unguessed.length === 1 ? "it was" : "they were"} put in a default revenue account. Choose the right one.`),
+      rationale: plain(`${unguessed.length} "Revenue" line${unguessed.length === 1 ? " has" : "s have"} no recognisable service in the description, so ${unguessed.length === 1 ? "it was" : "they were"} put in a default revenue account. Pick the right one?`),
       entityType: "categorization",
       entityId: `${s.periodKey}:cat-revdefault:${unguessed.map((b) => b.w.row).join("-")}`,
       payload: {

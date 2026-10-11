@@ -71,6 +71,21 @@ describe("candidatesFor (pure rule layer)", () => {
   });
 });
 
+describe("Pulse AI suggests, never commands (kit content rules)", () => {
+  it("closes every rule suggestion that has a next step with a question", () => {
+    const now = Date.now();
+    const out = candidatesFor(
+      emptySignals({
+        quietArtists: [{ id: "a1" as Id<"artists">, name: "Nova Reign", email: "nova@x.com" }],
+        overdueInvoices: [{ id: "i1" as Id<"invoices">, number: "INV-9", amountCents: 25000, artistName: "Bishop Grey", email: "b@x.com" }],
+        unconfirmedSessions: [{ id: "s1" as Id<"sessions">, title: "Vocal day", startTime: now + 3600_000, artistName: "Aria" }],
+      }),
+    );
+    expect(out.length).toBeGreaterThanOrEqual(3);
+    for (const a of out) expect(a.rationale.trim().endsWith("?"), `${a.type}: ${a.rationale}`).toBe(true);
+  });
+});
+
 describe("scanOrg (gather -> candidates -> upsert + dedupe)", () => {
   let t: ReturnType<typeof convexTest>;
   beforeEach(() => { t = convexTest(schema); });
@@ -108,6 +123,24 @@ describe("scanOrg (gather -> candidates -> upsert + dedupe)", () => {
       (await ctx.db.query("opsActions").collect()).filter((r) => r.orgId === ORG),
     );
     expect(rows).toHaveLength(2);
+  });
+
+  it("re-scan refreshes the reason on an untouched rule proposal, never on an AI-rewritten one", async () => {
+    await seedQuietArtistAndOverdueInvoice();
+    await t.mutation(internal.opsBrain.scanOrg, { orgId: ORG });
+    const [reminder, reengage] = await t.run(async (ctx) => {
+      const rows = (await ctx.db.query("opsActions").collect()).filter((r) => r.orgId === ORG);
+      return ["payment_reminder", "reengage_quiet_artist"].map((ty) => rows.find((r) => r.type === ty)!);
+    });
+    await t.run(async (ctx) => {
+      await ctx.db.patch(reminder._id, { rationale: "Old wording. Send it now." });
+      await ctx.db.patch(reengage._id, { rationale: "Written by the AI.", source: "openai" });
+    });
+
+    await t.mutation(internal.opsBrain.scanOrg, { orgId: ORG });
+    const after = await t.run(async (ctx) => Promise.all([ctx.db.get(reminder._id), ctx.db.get(reengage._id)]));
+    expect(after[0]?.rationale).toMatch(/past due\. Send a reminder\?$/);
+    expect(after[1]?.rationale).toBe("Written by the AI.");
   });
 });
 

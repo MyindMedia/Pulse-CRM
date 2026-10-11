@@ -435,7 +435,7 @@ async function writeRateCutPromos(ctx: ActionCtx, data: NonNullable<RateCutData>
         await ctx.runMutation(internal.opsActions.insertInternal, {
           orgId: data.orgId, type: "social_post_draft", priority: "low",
           title: `Post: ${rec.cutPct}% off ${rec.roomName}, ${rec.windowLabel}`,
-          rationale: `${rec.roomName} runs ${rec.lowUtilHours}h under 40% utilization in that window. A promo post with code ${rec.discountCode} fills it.`,
+          rationale: `${rec.roomName} runs ${rec.lowUtilHours}h under 40% utilization in that window. Post a promo with code ${rec.discountCode} to fill it?`,
           entityType: "socialPost", entityId: postId,
           payload: { kind: "social_post", postId }, dedupeKey: draftDedupeKey,
         });
@@ -590,7 +590,7 @@ export const enrichAccountingActions = internalAction({
       const facts = [`Title: ${c.title}`, `Reason: ${c.rationale}`, ...c.evidence.map((e) => `Evidence: ${e}`)].join("\n");
       const allowedMoney = [...facts.matchAll(/\$\s?\d[\d,]*(?:\.\d{1,2})?/g)].map((m) => m[0]);
       const ai = await complete(
-        `You are the Accounting assistant for ${c.orgName}, a recording studio. Rewrite the Reason for the studio owner in plain, calm English, two or three sentences, no jargon, never alarming. Keep every dollar figure exactly as written and add no new figures or facts. Output only the rewritten reason.\n\n${fenceUntrusted("FACTS", facts)}`,
+        `You are the Accounting assistant for ${c.orgName}, a recording studio. Rewrite the Reason for the studio owner in plain, calm English, two or three sentences, no jargon, never alarming. Offer any next step as a suggestion or a short question to the owner, never a command. Keep every dollar figure exactly as written and add no new figures or facts. Output only the rewritten reason.\n\n${fenceUntrusted("FACTS", facts)}`,
         { system: `You explain bookkeeping to a busy studio owner. ${tenantGuard(c.orgName)} Plain and calm.`, maxOutputTokens: 220 },
       );
       const text = ai?.text?.trim();
