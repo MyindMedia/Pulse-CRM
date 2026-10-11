@@ -86,7 +86,7 @@ export function ProfileMenu() {
         <DropdownMenuTrigger asChild>
           <button
             data-wide="true"
-            className="pl-icon-key"
+            className="pl-icon-key flex"
             aria-label="Account menu"
           >
             <span className="relative">
@@ -97,7 +97,7 @@ export function ProfileMenu() {
                 </span>
               )}
             </span>
-            <span className="hidden leading-tight text-left xl:block">
+            <span className="hidden leading-tight text-left 2xl:block">
               <span className="block font-grotesk text-xs font-medium text-bone">{name}</span>
               <span className="chrome-meta block text-steel/80">{org?.tierLabel ?? "Core"} plan</span>
             </span>

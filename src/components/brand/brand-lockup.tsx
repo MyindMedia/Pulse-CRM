@@ -17,9 +17,12 @@ import { cn } from "@/lib/utils";
 export function BrandLockup({
   collapsed = false,
   className,
+  wordmarkClassName,
 }: {
   collapsed?: boolean;
   className?: string;
+  /** Extra classes for the Pulse wordmark only (not a white-label logo). */
+  wordmarkClassName?: string;
 }) {
   const org = useQuery(api.orgs.current);
   const theme = useQuery(api.theme.get);
@@ -86,7 +89,7 @@ export function BrandLockup({
   }
 
   return (
-    <div className={cn("w-2/3", className)}>
+    <div className={cn("w-2/3", className, wordmarkClassName)}>
       <PulseLogo size="full" className="block" />
     </div>
   );

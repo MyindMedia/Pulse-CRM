@@ -368,7 +368,7 @@ export function Sidebar({
               <BrandLockup collapsed />
             </Link>
           ) : (
-            <BrandLockup className="pl-emboss w-[100px]!" />
+            <BrandLockup className="pl-emboss min-w-0 flex-1" wordmarkClassName="w-[100px] flex-none" />
           )}
           {onToggleCollapsed && (
             <Tooltip
