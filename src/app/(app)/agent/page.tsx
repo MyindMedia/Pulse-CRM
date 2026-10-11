@@ -290,7 +290,7 @@ function CommandBar() {
               <p className="mt-2 text-xs text-gold">Prepared actions are waiting in your approval inbox.</p>
             )}
             {run.source === "fallback" && (
-              <p className="mt-2 text-[0.6875rem] text-steel/70">Connect an AI key (OPENAI_API_KEY) for full analysis and drafting.</p>
+              <p className="mt-2 text-[0.6875rem] text-steel/70">Connect an AI key (ANTHROPIC_API_KEY) for full analysis and drafting.</p>
             )}
           </div>
         )}
