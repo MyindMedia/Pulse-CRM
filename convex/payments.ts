@@ -42,6 +42,39 @@ export const recent = query({
   },
 });
 
+/** Deposits that cleared most recently, with the booking they belong to:
+ *  the overview's deposits feed. Money: invoices.read. */
+export const recentDeposits = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, { limit }) => {
+    const orgId = await currentOrgWithCapability(ctx, "invoices.read");
+    const rows = await ctx.db
+      .query("payments")
+      .withIndex("by_org_paidAt", (q) => q.eq("orgId", orgId))
+      .order("desc")
+      .filter((q) => q.and(q.eq(q.field("kind"), "deposit"), q.eq(q.field("status"), "paid")))
+      .take(Math.min(Math.max(limit ?? 6, 1), 20));
+    return Promise.all(
+      rows.map(async (p) => {
+        const session = await ctx.db.get(p.sessionId);
+        const [artist, room] = await Promise.all([
+          session?.artistId ? ctx.db.get(session.artistId) : null,
+          session?.roomId ? ctx.db.get(session.roomId) : null,
+        ]);
+        return {
+          _id: p._id,
+          amountCents: p.amountCents,
+          paidAt: p.paidAt ?? p._creationTime,
+          provider: p.provider,
+          clientName: artist?.name ?? p.payerName ?? "Client",
+          roomName: room?.name ?? null,
+          sessionStart: session?.startTime ?? null,
+        };
+      }),
+    );
+  },
+});
+
 /** What's still owed on a session. */
 function outstanding(session: {
   rateCents: number;
