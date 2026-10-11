@@ -2196,6 +2196,22 @@ export default defineSchema({
   // ── AI-generated artifacts: session recaps, prep packets, no-show
   //    reminders, weekly briefings, rate-cut promo emails. Stored so the
   //    studio owner can review, copy, edit, and (eventually) send. ──
+  // Listen-only Jev (TypeSafe System One) comparisons: Jev's answer next to
+  // the decision the live classifier made, for tuning before Jev acts on
+  // anything. No message text is stored, only ids, actions and probabilities.
+  jevShadow: defineTable({
+    orgId: v.string(),
+    feature: v.string(), // e.g. "receptionist.intent"
+    sourceId: v.optional(v.string()), // e.g. the clientMessages id
+    primarySource: v.string(), // anthropic | openai | gemini | heuristic
+    primaryAction: v.string(), // human | booking | skip
+    jevAction: v.string(),
+    jevProbabilities: v.record(v.string(), v.number()),
+    model: v.string(),
+    latencyMs: v.number(),
+    at: v.number(),
+  }).index("by_feature_at", ["feature", "at"]),
+
   aiArtifacts: defineTable({
     orgId: v.string(),
     kind: v.union(

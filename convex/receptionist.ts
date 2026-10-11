@@ -36,6 +36,16 @@ import { stripEmDashes } from "./lib/text";
    ============================================================ */
 
 type Intent = { isBookingInquiry: boolean; wantsHuman: boolean; summary: string };
+/** Which classifier produced the intent: an AI provider, or the lexical fallback. */
+export type IntentSource = "anthropic" | "openai" | "gemini" | "heuristic";
+
+/** What the receptionist does with an intent. A human request outranks a
+ *  booking one; neither means stay quiet. Shared by the live path and the Jev
+ *  shadow so both are compared on the action a client actually experiences. */
+export function receptionistAction(i: { isBookingInquiry: boolean; wantsHuman: boolean }): "human" | "booking" | "skip" {
+  if (i.wantsHuman) return "human";
+  return i.isBookingInquiry ? "booking" : "skip";
+}
 
 /** Keywords that mean "just points me at a person", not a self-serve inquiry. */
 const WANTS_HUMAN =
@@ -70,7 +80,7 @@ export function heuristicIntent(body: string): Intent {
 
 /** LLM intent classification over the FENCED inbound text. Falls back to the
  *  deterministic heuristic whenever the model is unavailable or returns junk. */
-async function classifyIntent(body: string): Promise<Intent> {
+export async function classifyIntent(body: string): Promise<Intent & { source: IntentSource }> {
   const ai = await completeJSON<Intent>(
     `Classify this inbound text message a client sent to a recording studio.\n\n${fenceUntrusted(
       "INBOUND TEXT",
@@ -107,9 +117,10 @@ async function classifyIntent(body: string): Promise<Intent> {
         typeof ai.data.summary === "string" && ai.data.summary.trim()
           ? ai.data.summary.trim()
           : heuristicIntent(body).summary,
+      source: (["anthropic", "openai", "gemini"].includes(ai.source) ? ai.source : "anthropic") as IntentSource,
     };
   }
-  return heuristicIntent(body);
+  return { ...heuristicIntent(body), source: "heuristic" };
 }
 
 /** Everything the action needs to decide + reply, resolved in one read. */
@@ -276,6 +287,23 @@ export const handle = internalAction({
     if (c.alreadyReplied) return { status: "skipped_duplicate" };
 
     const intent = await classifyIntent(body);
+
+    // Listen-only Jev comparison (JEV_SHADOW=1): Jev answers the same two
+    // questions in the background and the pair is logged without the text.
+    // Nothing here changes what the client receives.
+    if (process.env.JEV_SHADOW === "1" && process.env.TYPESAFE_API_KEY) {
+      await ctx.scheduler.runAfter(0, internal.jev.shadowReceptionist, {
+        orgId,
+        body,
+        studioName: c.studioName ?? null,
+        sourceId: clientMessageId ? String(clientMessageId) : undefined,
+        primary: {
+          isBookingInquiry: intent.isBookingInquiry,
+          wantsHuman: intent.wantsHuman,
+          source: intent.source,
+        },
+      });
+    }
 
     // Not a genuine inquiry (small talk / thanks) - stay quiet, let the human own it.
     if (!intent.isBookingInquiry && !intent.wantsHuman) {
