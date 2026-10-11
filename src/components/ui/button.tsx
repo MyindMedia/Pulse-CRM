@@ -68,6 +68,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         // pl-key + data-variant: the hardware key skin (src/app/hardware.css),
         // live only inside the app shell.
         data-variant={variant ?? "primary"}
+        data-size={size ?? "md"}
         className={cn("pl-key", buttonVariants({ variant, size }), className)}
         {...props}
       />

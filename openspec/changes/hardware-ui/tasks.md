@@ -10,13 +10,13 @@
 
 ## 2. Shell (slice 2)
 
-- [ ] 2.1 Sidebar chassis: LEDs, pushed-in active key, plan well, real Pulse logo with emboss
-- [ ] 2.2 Top bar chassis: title + caption, search well, view tabs as a key bank, one primary key
-- [ ] 2.3 Corner brackets on shell chassis; hide the light/dark toggle inside the shell
+- [x] 2.1 Sidebar chassis: LEDs, pushed-in active key, plan well, real Pulse logo with emboss (#62, #63; nav in 4 sections, reorder within a section)
+- [x] 2.2 Top bar chassis: title + caption, search well, view tabs as a key bank, one primary key (#62; PageHeader portals title + actions into it; overview Day / Week / Month drive the stat tiles)
+- [x] 2.3 Corner brackets on shell chassis; hide the light/dark toggle inside the shell
 
 ## 3. Screens (slices 3 and 4)
 
-- [ ] 3.1 Studio overview per `screenshots/pulse-overview.png`
+- [x] 3.1 Studio overview per `screenshots/pulse-overview.png` (#64, #65; live data: today.today, dashboard.overview + revenueSeries, reports.roomUtilization, opsActions, payments.recentDeposits)
 - [ ] 3.2 Bookings per `screenshots/pulse-bookings.png`
 - [ ] 3.3 Invoices and splits per `screenshots/pulse-invoices-splits.png`
 
@@ -24,5 +24,5 @@
 
 - [ ] 4.1 Ticker for every changing figure (StatTile first), one roll per 600ms
 - [ ] 4.2 Boot sequence on the Overview, Bookings and Finance hero chassis, reduced motion respected
-- [ ] 4.3 Bklit charts in wells with the 5.5 token mapping; loading keeps the frame
+- [~] 4.3 Bklit charts in wells with the 5.5 token mapping; loading keeps the frame (overview booking revenue done: Bklit AreaChart in a well; other charts to follow)
 - [ ] 4.4 Contrast and focus pass (section 8); cross-browser check on staging

@@ -57,14 +57,21 @@ describe("figures", () => {
   });
 });
 
-describe("revenue line", () => {
-  it("is smooth but never dips below a zero day or above a peak (monotone)", async () => {
-    const { smoothPath } = await import("./booking-revenue");
-    const H = 150;
-    const pts = [0, 0, 120, 0, 40, 40, 0].map((v, i) => ({ x: i * 100, y: H - v }));
-    const nums = smoothPath(pts).replace(/[MC]/g, " ").trim().split(/[\s,]+/).map(Number);
-    const ys = nums.filter((_, i) => i % 2 === 1);
-    expect(Math.max(...ys)).toBeLessThanOrEqual(H); // never below the zero line
-    expect(Math.min(...ys)).toBeGreaterThanOrEqual(H - 120); // never above the peak
+describe("period keys", () => {
+  it("bounds today, this week (from Monday) and this month in local time, with the period before", async () => {
+    const { periodBounds } = await import("./period");
+    const wed = new Date(2026, 9, 14, 15, 30); // Wednesday 14 October 2026
+    const day = periodBounds("day", wed);
+    expect([day.start, day.end, day.prevStart, day.prevEnd]).toEqual([
+      new Date(2026, 9, 14).getTime(), new Date(2026, 9, 15).getTime(), new Date(2026, 9, 13).getTime(), new Date(2026, 9, 14).getTime(),
+    ]);
+    expect(day).toMatchObject({ title: "Today", against: "yesterday" });
+    const week = periodBounds("week", wed);
+    expect(new Date(week.start).getDay()).toBe(1); // Monday
+    expect(week.start).toBe(new Date(2026, 9, 12).getTime());
+    expect(week.prevStart).toBe(new Date(2026, 9, 5).getTime());
+    const month = periodBounds("month", wed);
+    expect(month).toMatchObject({ title: "October", against: "Sep" });
+    expect(month.prevStart).toBe(new Date(2026, 8, 1).getTime());
   });
 });

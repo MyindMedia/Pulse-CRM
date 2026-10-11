@@ -8,12 +8,16 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { Progress } from "@/components/ui/progress";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Input } from "@/components/ui/field";
+import { HardwareSpecimens } from "./hardware-specimens";
 
 /* Staging-only gallery of the app's real components wearing the hardware
    UI (pulse-ui-kit). It needs no sign-in, so the look can be checked and
    compared with the kit's mockups before it reaches a real screen. Production
    returns 404. */
 export const metadata = { title: "UI lab", robots: { index: false, follow: false } };
+// Rendered per request so production answers notFound() with a real 404
+// status; prerendered, Netlify served the not-found page as a 200.
+export const dynamic = "force-dynamic";
 
 const SESSIONS = [
   { client: "Nova Vega", room: "Studio A", time: "10:00 to 14:00", engineer: "J. Ortiz", status: "Paid", tone: "positive", amount: "$600.00" },
@@ -26,6 +30,7 @@ export default function UiLabPage() {
   return (
     <div className="pulse-hw min-h-dvh bg-ink px-6 py-8 text-bone">
       <div className="mx-auto flex max-w-6xl flex-col gap-6">
+        <HardwareSpecimens />
         <Card>
           <CardHeader>
             <CardTitle className="text-2xl">UI lab</CardTitle>

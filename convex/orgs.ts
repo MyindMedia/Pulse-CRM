@@ -5,7 +5,7 @@ import { mutation, internalMutation } from "./functions";
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
-import { currentOrg, currentActor, currentOrgWithCapability} from "./lib/tenant";
+import { currentOrg, currentActor, currentOrgWithCapability, currentMoneySight } from "./lib/tenant";
 import { AccessError, resolveViewer, SETUP_ACCESS } from "./lib/access";
 import { US_STATES, findState } from "./lib/usTaxRates";
 import { isValidTimezone } from "./lib/tz";
@@ -473,6 +473,26 @@ export const setHideLockedFeatures = mutation({
     const org = await ensureOrg(ctx, orgId);
     if (!org) throw new Error("Org not found");
     await ctx.db.patch(org._id, { hideLockedFeatures: hide });
+    return null;
+  },
+});
+
+/** Set (or clear, with null) the studio's monthly revenue goal. It is money,
+ *  so only someone who runs the workspace (branding.edit) and may see money
+ *  can set it. */
+export const setMonthlyRevenueGoal = mutation({
+  args: { cents: v.union(v.number(), v.null()) },
+  handler: async (ctx, { cents }) => {
+    const orgId = await currentOrgWithCapability(ctx, "branding.edit");
+    if (!(await currentMoneySight(ctx)).money) {
+      throw new AccessError("CAPABILITY_DENIED", "Only someone who can see money can set a revenue goal.");
+    }
+    if (cents !== null && (!Number.isFinite(cents) || cents <= 0 || cents > 100_000_000_00)) {
+      throw new Error("Enter a goal above $0.");
+    }
+    const org = await ensureOrg(ctx, orgId);
+    if (!org) throw new Error("Org not found");
+    await ctx.db.patch(org._id, { monthlyRevenueGoalCents: cents === null ? undefined : Math.round(cents) });
     return null;
   },
 });
