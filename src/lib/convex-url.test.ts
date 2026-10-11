@@ -41,6 +41,20 @@ describe("resolveConvexUrl", () => {
     expect(resolveConvexUrl()).toBe("https://pastel-corgi-340.convex.cloud");
   });
 
+  it("never falls back to production on staging", () => {
+    const savedEnv = process.env.NEXT_PUBLIC_DEPLOY_ENV;
+    process.env.NEXT_PUBLIC_DEPLOY_ENV = "staging";
+    try {
+      delete process.env[ENV_KEY];
+      expect(() => resolveConvexUrl()).toThrow(/refusing to fall back to production/);
+      process.env[ENV_KEY] = "https://fiery-cricket-350.convex.cloud";
+      expect(resolveConvexUrl()).toBe("https://fiery-cricket-350.convex.cloud");
+    } finally {
+      if (savedEnv === undefined) delete process.env.NEXT_PUBLIC_DEPLOY_ENV;
+      else process.env.NEXT_PUBLIC_DEPLOY_ENV = savedEnv;
+    }
+  });
+
   it("gives both consumers the same value for the same environment", () => {
     process.env[ENV_KEY] = "https://another-deployment.convex.cloud";
     const forClientProvider = resolveConvexUrl();
