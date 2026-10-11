@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/errors";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { ClientPicker, type ClientValue } from "@/components/bookings/client-picker";
 import {
@@ -248,7 +249,7 @@ export function BookSessionDialog({
     const endTime = startTime + durationMins * 60_000;
     setSaving(true);
     try {
-      await create({
+      const res = await create({
         title: title.trim(),
         artistId: client.artistId ? (client.artistId as Id<"artists">) : undefined,
         clientName: client.artistId ? undefined : client.name.trim(),
@@ -273,10 +274,14 @@ export function BookSessionDialog({
         depositCents: depositCents > 0 ? depositCents : undefined,
       });
       toast.success("Session booked - held as tentative");
+      // The engineer may already be on another session then: booked anyway,
+      // but say so (the same soft warning the schedule shows).
+      if (res.staffingWarning) toast.warning(res.staffingWarning);
       reset();
       onOpenChange(false);
-    } catch {
-      toast.error("Could not book the session");
+    } catch (err) {
+      // A room clash or a missing name is refused with a reason; show it.
+      toast.error(errorMessage(err, "Could not book the session"));
     } finally {
       setSaving(false);
     }
