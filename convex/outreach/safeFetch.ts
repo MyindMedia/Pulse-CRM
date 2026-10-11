@@ -154,6 +154,43 @@ async function getWithRetry(raw: string, accept: string, retries: number): Promi
   return r;
 }
 
+/** A guarded GET that hands back the final response for the caller to read
+ *  (images and other non-HTML bytes). Same SSRF rules as safeGet: every hop
+ *  is checked before it is requested, redirects are followed by hand, and the
+ *  request times out. */
+export async function guardedFetch(
+  raw: string,
+  accept = "*/*",
+): Promise<{ ok: true; res: Response; url: string } | { ok: false; reason: string; kind: FailKind }> {
+  let current = raw;
+  for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
+    const chk = checkUrl(current);
+    if (!chk.ok) return { ok: false, reason: chk.reason, kind: "policy" };
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), fetchTuning.timeoutMs);
+    try {
+      const res = await fetch(chk.url.href, {
+        redirect: "manual", signal: ctl.signal,
+        headers: { "User-Agent": USER_AGENT, Accept: accept },
+      });
+      if (res.status >= 300 && res.status < 400) {
+        const loc = res.headers.get("location");
+        if (!loc) return { ok: false, reason: "Redirect without a location", kind: "http" };
+        current = new URL(loc, chk.url).href;
+        continue;
+      }
+      if (!res.ok) return { ok: false, reason: `HTTP ${res.status}`, kind: "http" };
+      return { ok: true, res, url: chk.url.href };
+    } catch (e) {
+      const c = ctl.signal.aborted ? { kind: "timeout" as const } : classifyFetchError(e);
+      return { ok: false, reason: FAIL_TEXT[c.kind], kind: c.kind };
+    } finally {
+      clearTimeout(timer);
+    }
+  }
+  return { ok: false, reason: "Too many redirects", kind: "redirects" };
+}
+
 /** A polite, guarded GET of a public page. */
 export async function safeGet(raw: string, opts: GetOptions = {}): Promise<Fetched> {
   const accept = opts.accept ?? "text/html,application/xhtml+xml";

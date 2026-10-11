@@ -7,6 +7,7 @@ import { internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { resolveViewer } from "./lib/access";
+import { guardedFetch, safeGet } from "./outreach/safeFetch";
 
 /* ============================================================
    Staged demo accounts - the pitch machine.
@@ -140,17 +141,14 @@ function stripHtml(html: string): string {
     .slice(0, 60_000);
 }
 
+/* The website is typed by an agency user, and the image addresses come out
+   of that site via the model, so every fetch here goes through the outreach
+   SSRF guard (public hosts on ports 80/443 only, each redirect hop checked,
+   time and size capped). A plain fetch() let the server be pointed at its own
+   network or a cloud metadata address. */
 async function fetchPage(url: string): Promise<string | null> {
-  try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; PulseBot/1.0)" },
-      redirect: "follow",
-    });
-    if (!res.ok) return null;
-    return await res.text();
-  } catch {
-    return null;
-  }
+  const r = await safeGet(url, { accept: "text/html,application/xhtml+xml", retries: 0 });
+  return r.ok ? r.html : null;
 }
 
 /** Pull the homepage plus a handful of likely room/rate/about subpages. */
@@ -229,12 +227,12 @@ async function importImage(
   purpose: MediaPurpose,
 ): Promise<string | null> {
   try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": "Mozilla/5.0 (compatible; PulseBot/1.0)" },
-    });
-    if (!res.ok) return null;
+    const got = await guardedFetch(url, "image/*");
+    if (!got.ok) return null;
+    const res = got.res;
     const type = res.headers.get("content-type") ?? "";
     if (!type.startsWith("image/")) return null;
+    if (Number(res.headers.get("content-length") ?? 0) > 8_000_000) return null;
     const buf = await res.arrayBuffer();
     if (buf.byteLength > 8_000_000) return null;
     const name = new URL(url).pathname.split("/").pop() || purpose;

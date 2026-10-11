@@ -2,15 +2,22 @@
    V8-runtime queries that the Node-runtime AI actions in aiActions.ts
    use to pull + shape data. Keeping them in one place means the AI
    prompts stay close to the data layout they assume.
+
+   All internal: only the AI actions call them (the caller's identity flows
+   through runQuery). They were public queries, so any studio member could
+   read session rates and revenue directly (pentest 2026-10-11, CWE-863).
+   Money follows the caller's sight here too, so a draft written for
+   someone who may not see money cannot contain it.
    ============================================================ */
 import { v } from "convex/values";
-import { query, internalQuery } from "./_generated/server";
+import { internalQuery } from "./_generated/server";
 import type { QueryCtx } from "./_generated/server";
-import { currentOrg } from "./lib/tenant";
+import { currentOrg, currentMoneySight } from "./lib/tenant";
+import { redactMoney } from "./lib/money";
 import type { Id } from "./_generated/dataModel";
 
 /** Shape for the session_recap prompt. */
-export const sessionRecapContext = query({
+export const sessionRecapContext = internalQuery({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
     const orgId = await currentOrg(ctx);
@@ -27,7 +34,7 @@ export const sessionRecapContext = query({
         .first(),
     ]);
     return {
-      session,
+      session: redactMoney("sessions", session, await currentMoneySight(ctx)),
       artistName: artist?.name ?? "the artist",
       artistEmail: artist?.email,
       songTitle: song?.title,
@@ -39,7 +46,7 @@ export const sessionRecapContext = query({
 });
 
 /** Shape for the prep_packet prompt. */
-export const prepPacketContext = query({
+export const prepPacketContext = internalQuery({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
     const orgId = await currentOrg(ctx);
@@ -80,7 +87,7 @@ export const prepPacketContext = query({
     }
 
     return {
-      session,
+      session: redactMoney("sessions", session, await currentMoneySight(ctx)),
       artistName: artist?.name ?? "the artist",
       artistGenres: artist?.genres,
       songTitle: song?.title,
@@ -93,7 +100,7 @@ export const prepPacketContext = query({
 });
 
 /** Lightweight context for reminder generation. */
-export const reminderContext = query({
+export const reminderContext = internalQuery({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
     const orgId = await currentOrg(ctx);
@@ -104,7 +111,7 @@ export const reminderContext = query({
       session.roomId ? ctx.db.get(session.roomId) : null,
     ]);
     return {
-      session,
+      session: redactMoney("sessions", session, await currentMoneySight(ctx)),
       artistName: artist?.name ?? "the artist",
       artistEmail: artist?.email,
       roomName: room?.name,
@@ -223,10 +230,15 @@ async function weeklyBriefingFor(ctx: QueryCtx, orgId: string) {
   }
 }
 
-/** Public: weekly briefing context for the caller's active org. */
-export const weeklyBriefingContext = query({
+/** Weekly briefing context for the caller's active org. It is revenue
+ *  through and through, so a caller who may not see money gets nothing. */
+export const weeklyBriefingContext = internalQuery({
   args: {},
-  handler: async (ctx) => weeklyBriefingFor(ctx, await currentOrg(ctx)),
+  handler: async (ctx) => {
+    const orgId = await currentOrg(ctx);
+    if (!(await currentMoneySight(ctx)).money) return null;
+    return weeklyBriefingFor(ctx, orgId);
+  },
 });
 
 /** Internal: weekly briefing context for an explicit org (cron fan-out). */
@@ -366,10 +378,15 @@ async function rateCutFor(ctx: QueryCtx, orgId: string) {
   }
 }
 
-/** Public: rate-cut context for the caller's active org. */
-export const rateCutContext = query({
+/** Rate-cut context for the caller's active org: room rates and discounts,
+ *  so only for a caller who may see money. */
+export const rateCutContext = internalQuery({
   args: {},
-  handler: async (ctx) => rateCutFor(ctx, await currentOrg(ctx)),
+  handler: async (ctx) => {
+    const orgId = await currentOrg(ctx);
+    if (!(await currentMoneySight(ctx)).money) return null;
+    return rateCutFor(ctx, orgId);
+  },
 });
 
 /** Internal: rate-cut context for an explicit org (cron fan-out). */
