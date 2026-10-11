@@ -36,6 +36,9 @@
   --pl-grid-line: rgba(255, 201, 0, 0.05);
   --pl-on-yellow: #111111;
   --pl-copper: #d0947b;
+  --pl-metal-100: #e4e4e8;
+  --pl-metal-300: #9a9aa0;
+  --pl-metal-500: #5c5c62;
   --pl-positive: #2fc27a;
   --pl-positive-soft: rgba(47, 194, 122, 0.16);
   --pl-negative: #ff6b6f;
@@ -234,6 +237,153 @@
 :root:has(.pulse-hw) .pl-chip[data-tone="critical"] { background: var(--pl-negative-soft); color: var(--pl-negative); }
 :root:has(.pulse-hw) .pl-chip[data-tone="info"] { background: var(--pl-info-soft); color: var(--pl-info); }
 :root:has(.pulse-hw) .pl-chip[data-tone="solid"] { background: var(--pl-yellow); color: var(--pl-on-yellow); }
+
+/* ============================================================
+   Shell (slice 2): the sidebar and the top bar are chassis of their own,
+   sitting on the void. Measured from the kit's pulse-overview.png:
+   sidebar 256 wide at 24/24, content from 282, top bar 76 tall, 24px
+   between chassis.
+   ============================================================ */
+
+/* Sidebar chassis ground is panel-side, a step darker than a face. */
+:root:has(.pulse-hw) .pl-card.pl-side { background: var(--pl-panel-side); }
+
+/* Yellow corner brackets, 14x14 at 2px, 7px in from the top-left and
+   bottom-left corners. A child element, because the chassis already uses
+   ::before for its gloss and ::after for the blueprint grid. */
+:root:has(.pulse-hw) .pl-brackets {
+  position: absolute;
+  inset: 7px;
+  pointer-events: none;
+}
+:root:has(.pulse-hw) .pl-brackets::before,
+:root:has(.pulse-hw) .pl-brackets::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  width: 14px;
+  height: 14px;
+  border: 0 solid var(--pl-yellow);
+}
+:root:has(.pulse-hw) .pl-brackets::before { top: 0; border-top-width: 2px; border-left-width: 2px; }
+:root:has(.pulse-hw) .pl-brackets::after { bottom: 0; border-bottom-width: 2px; border-left-width: 2px; }
+
+/* LED: 6px, off is metal, on is the yellow light. */
+:root:has(.pulse-hw) .pl-led {
+  width: 6px;
+  height: 6px;
+  flex: none;
+  border-radius: 999px;
+  background: var(--pl-metal-500);
+}
+:root:has(.pulse-hw) .pl-led[data-on="true"] {
+  background: var(--pl-yellow);
+  box-shadow: var(--pl-glow-yellow-soft);
+}
+
+/* The short glowing yellow bar under a title or the logo. */
+:root:has(.pulse-hw) .pl-bar {
+  display: block;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--pl-yellow);
+  box-shadow: 0 0 8px rgba(255, 201, 0, 0.45);
+}
+
+/* Kicker / section label: 10.5px, 700, tracked uppercase. */
+:root:has(.pulse-hw) .pl-label {
+  font-family: var(--font-archivo), Arial, sans-serif;
+  font-size: 10.5px;
+  line-height: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pl-ink-subtle);
+}
+
+/* Logo emboss, straight from the signature. Never redraw the logo. */
+:root:has(.pulse-hw) .pl-emboss {
+  filter: drop-shadow(-1px -1px 0 rgba(255, 255, 255, 0.4)) drop-shadow(1px 1px 1px rgba(0, 0, 0, 0.9))
+    drop-shadow(0 3px 3px rgba(0, 0, 0, 0.55));
+}
+
+/* Nav item: LED + label on the sidebar ground. The active item is a key
+   pushed into the panel: well fill, pressed shadow, yellow text, lit LED. */
+:root:has(.pulse-hw) .pl-nav-item {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  min-height: 36px;
+  padding: 0 12px;
+  border-radius: var(--pl-radius-screen);
+  font-family: var(--font-archivo), Arial, sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+  color: var(--pl-ink-muted);
+  transition: background-color var(--pl-key-press) ease-out, color var(--pl-key-press) ease-out;
+}
+:root:has(.pulse-hw) .pl-nav-item:hover { background: var(--pl-face); color: var(--pl-ink); }
+:root:has(.pulse-hw) .pl-nav-item[data-active="true"] {
+  background: var(--pl-well);
+  box-shadow: var(--pl-shadow-key-pressed);
+  color: var(--pl-yellow);
+}
+:root:has(.pulse-hw) .pl-nav-count {
+  margin-left: auto;
+  font-family: var(--font-jetbrains-mono), ui-monospace, monospace;
+  font-size: 12px;
+  color: var(--pl-ink-subtle);
+}
+/* A feature the plan does not include: LED dark, label dimmed, the tier
+   initial in a small chip on the right. */
+:root:has(.pulse-hw) .pl-nav-item[data-locked="true"] { color: var(--pl-line-control); }
+:root:has(.pulse-hw) .pl-nav-item[data-locked="true"] .pl-led { background: #3a3a3e; }
+
+/* Search well in the top bar: a recess with the placeholder in ink-subtle. */
+:root:has(.pulse-hw) .pl-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 36px;
+  padding: 0 14px;
+  border-radius: var(--pl-radius-well);
+  background: var(--pl-well);
+  box-shadow: var(--pl-shadow-well);
+  font-family: var(--font-archivo), Arial, sans-serif;
+  font-size: 15px;
+  color: var(--pl-ink-subtle);
+  text-align: left;
+}
+:root:has(.pulse-hw) .pl-search:hover { color: var(--pl-ink-muted); }
+
+/* Compact square key for icon actions (bell, profile, menu). */
+:root:has(.pulse-hw) .pl-icon-key {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: var(--pl-radius-screen);
+  background: linear-gradient(180deg, var(--pl-face-high), var(--pl-face-raised));
+  box-shadow: var(--pl-shadow-key);
+  color: var(--pl-ink-muted);
+  transition: transform var(--pl-key-press) ease-out, box-shadow var(--pl-key-press) ease-out;
+}
+:root:has(.pulse-hw) .pl-icon-key:hover { color: var(--pl-ink); }
+:root:has(.pulse-hw) .pl-icon-key[data-wide="true"] {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: auto;
+  padding: 0 8px 0 4px;
+}
+:root:has(.pulse-hw) .pl-icon-key:active { transform: translate(1px, 2px); box-shadow: var(--pl-shadow-key-pressed); }
+
+/* The top bar shows the page's own title once PageHeader portals it in;
+   until then (first paint, pages without a header) the nav label stands in. */
+:root:has(.pulse-hw) .pl-title-slot:not(:empty) + .pl-title-fallback { display: none; }
+:root:has(.pulse-hw) .pl-title-slot:empty { display: none; }
+:root:has(.pulse-hw) .pl-actions-slot:empty { display: none; }
 
 /* ── Focus ring: 2px yellow, 2px offset, on every interactive element. ── */
 :root:has(.pulse-hw) :where(a, button, input, select, textarea, [tabindex]):focus-visible {

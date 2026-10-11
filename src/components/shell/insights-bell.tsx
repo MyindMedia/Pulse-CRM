@@ -85,7 +85,7 @@ export function InsightsBell() {
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger asChild>
         <button
-          className="relative grid size-9 place-items-center rounded-md text-steel transition-colors hover:bg-coal-2 hover:text-bone"
+          className="pl-icon-key relative"
           aria-label="Notifications"
         >
           <Bell className="size-[1.1rem]" />
