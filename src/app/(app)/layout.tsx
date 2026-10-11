@@ -15,6 +15,7 @@ import { MemberSync } from "@/components/shell/member-sync";
 import { ActiveOrgSync } from "@/components/shell/active-org-sync";
 import { TimezoneSync } from "@/components/shell/timezone-sync";
 import { AuthGate } from "@/components/shell/auth-gate";
+import { AgencyHomeRedirect } from "@/components/shell/agency-home-redirect";
 import { LiveToasts } from "@/components/shell/live-toasts";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { ClockWidget } from "@/components/timeclock/clock-widget";
@@ -56,6 +57,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <ShellErrorBoundary>
     <AuthGate>
+    <AgencyHomeRedirect>
     <BillingLockGate>
     <TooltipProvider delayDuration={300}>
       <MemberSync />
@@ -116,6 +118,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       </OrgTheme>
     </TooltipProvider>
     </BillingLockGate>
+    </AgencyHomeRedirect>
     </AuthGate>
     </ShellErrorBoundary>
   );

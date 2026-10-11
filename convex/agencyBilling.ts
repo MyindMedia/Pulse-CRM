@@ -1,13 +1,15 @@
 import { action, internalAction, internalQuery, query } from "./_generated/server";
 import { internalMutation, mutation } from "./functions";
 import type { ActionCtx, MutationCtx, QueryCtx } from "./_generated/server";
-import { internal } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { requireCapability, resolveViewer } from "./lib/access";
 import { currentOrg } from "./lib/tenant";
 import { AccessError } from "./lib/access";
-import { stripeClient } from "./lib/stripe";
+import { stripeClient, priceIdForTier } from "./lib/stripe";
+import { tierV, intervalV } from "./lib/tierV";
+import { DEMO_ORG } from "./lib/tier";
 import {
   evaluateBillingGate, effectivePriceCents, currentPriceCents, inIntroWindow, DAY_MS,
 } from "./lib/billingGate";
@@ -17,7 +19,7 @@ import {
   buildSubscriptionCheckoutParams, initialBillingFor, isActiveWithoutSubscription, isBetaPlan,
   isLiveSubscriptionStatus, isPaidPlan, isPaidTrialPlan, trialSpec, type CheckoutLineItem, type TrialSpec,
 } from "./lib/trialCheckout";
-import { formatUsd } from "./lib/pricing";
+import { formatUsd, PLATFORM_TRIAL_DAYS } from "./lib/pricing";
 import { planConfirmHtml, planConfirmSubject } from "./lib/emailTemplates/trialEmails";
 
 /* ============================================================
@@ -659,6 +661,98 @@ export const openMyBillingPortal = action({
       return_url: `${baseUrl}/billing`,
     });
     return { url: session.url };
+  },
+});
+
+/** Studio owner changes plan from Settings > Billing (or a locked feature).
+ *
+ *  A studio already on a live subscription changes THAT subscription in the
+ *  Stripe portal: an upgrade is prorated now, a downgrade lands at period
+ *  end, and the webhook moves the studio's tier when the price changes.
+ *  Never a second subscription. A beta studio converts through its own
+ *  checkout. A studio with no subscription gets a studio-scoped checkout
+ *  (kind subaccount_plan + orgId), with the platform trial on its first. */
+export const changeMyPlan = action({
+  args: { tier: tierV, interval: v.optional(intervalV) },
+  handler: async (ctx, { tier, interval: wanted }): Promise<{ url: string; via: "portal" | "checkout" }> => {
+    const orgId = await ctx.runQuery(internal.agencyBilling._myBillingOrgId, {});
+    if (orgId === DEMO_ORG) throw new Error("Open your own studio first.");
+    const org = await ctx.runQuery(internal.agencyBilling._orgForSetup, { orgId });
+    if (!org) throw new Error("Studio not found.");
+
+    if ((org.betaCohort && !org.graduatedAt) || isBetaPlan(org.plan)) {
+      const beta: { checkoutUrl: string | null } = await ctx.runAction(
+        api.billing.beginBetaConversionCheckout,
+        { tier, interval: wanted },
+      );
+      if (!beta.checkoutUrl) throw new Error("Stripe did not return a checkout link.");
+      return { url: beta.checkoutUrl, via: "checkout" };
+    }
+
+    const stripe = stripeClient();
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+    const back = `${baseUrl}/settings?tab=billing`;
+
+    // Only "no such subscription" means there is nothing live to change. Any
+    // other Stripe error stops here rather than risk a second subscription.
+    let sub: Awaited<ReturnType<typeof stripe.subscriptions.retrieve>> | null = null;
+    if (org.billingSubscriptionId) {
+      try {
+        sub = await stripe.subscriptions.retrieve(org.billingSubscriptionId);
+      } catch (err) {
+        if ((err as { code?: string }).code !== "resource_missing") throw err;
+      }
+    }
+    {
+      if (sub && isLiveSubscriptionStatus(sub.status)) {
+        const item = sub.items.data[0];
+        const interval = wanted ?? (item?.price?.recurring?.interval === "year" ? "year" : "month");
+        const price = priceIdForTier(tier, interval);
+        if (!item) throw new Error("This subscription has no plan on it.");
+        if (item.price.id === price) throw new Error("You're already on that plan.");
+        const customer = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
+        const session = await stripe.billingPortal.sessions.create({
+          customer,
+          return_url: back,
+          flow_data: {
+            type: "subscription_update_confirm",
+            subscription_update_confirm: {
+              subscription: sub.id,
+              items: [{ id: item.id, price, quantity: 1 }],
+            },
+            after_completion: { type: "redirect", redirect: { return_url: back } },
+          },
+        });
+        return { url: session.url, via: "portal" };
+      }
+    }
+
+    const interval = wanted ?? "month";
+    let customer = org.billingCustomerId;
+    if (!customer) {
+      const c = await stripe.customers.create({
+        email: org.ownerEmail ?? undefined,
+        name: org.name,
+        metadata: { orgId: org.orgId, kind: "subaccount_billing" },
+      });
+      customer = c.id;
+    }
+    // The first plan a studio starts gets the platform trial; a lapsed one does not.
+    const trial: TrialSpec = org.billingSubscriptionId
+      ? { kind: "none" }
+      : trialSpec({ trialDays: PLATFORM_TRIAL_DAYS, now: Date.now() });
+    const session = await stripe.checkout.sessions.create(
+      buildSubscriptionCheckoutParams({
+        customer,
+        lineItems: [{ price: priceIdForTier(tier, interval), quantity: 1 }],
+        trial,
+        metadata: { kind: "subaccount_plan", orgId: org.orgId, tier, interval },
+        successUrl: `${baseUrl}/billing/added?session_id={CHECKOUT_SESSION_ID}&plan=1`,
+        cancelUrl: back,
+      }),
+    );
+    if (!session.url) throw new Error("Stripe did not return a checkout link.");
+    return { url: session.url, via: "checkout" };
   },
 });
 

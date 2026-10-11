@@ -222,6 +222,8 @@ export type SubscriptionShape = {
   trial_end?: number | null;
   default_payment_method?: unknown;
   metadata?: Record<string, string> | null;
+  /** The first item's price: which Pulse tier this subscription is on. */
+  price_id?: string | null;
 };
 
 const LIVE_SUB_STATUSES = new Set(["trialing", "active", "past_due", "unpaid"]);

@@ -23,7 +23,7 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import { api } from "@convex/_generated/api";
-import { Building2, GripVertical, Lock, PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import { Building2, GripVertical, PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { NAV, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { useCapabilities } from "@/lib/use-capabilities";
@@ -32,7 +32,7 @@ import { BrandLockup } from "@/components/brand/brand-lockup";
 import { PoweredByPulse } from "@/components/brand/powered-by-pulse";
 import { Tooltip } from "@/components/ui/tooltip";
 import { minTierFor } from "@convex/lib/entitlements";
-import { PLAN_LIMITS, priceLabel, type CapabilityKey } from "@convex/lib/plans";
+import { PLAN_LIMITS, priceLabel, type CapabilityKey, type TierKey } from "@convex/lib/plans";
 
 /* The rail mark. On the Max (white-label) tier this is the studio's own
  * logo with "Powered by Pulse" underneath; every tier below renders the Pulse
@@ -44,16 +44,18 @@ function Wordmark() {
 /* Features this workspace has not bought yet.
  *
  * They are listed rather than hidden: a studio that cannot see Payroll exists
- * never asks for it. Each row names the tier that unlocks it and its price, so
- * the upgrade decision is one click and zero questions. Rows are inert links
- * to Settings, never to the feature itself - the route guard and the server
- * would both refuse anyway.
+ * never asks for it. Each row is grayed out and carries the initial of the
+ * tier that unlocks it (G for Growth, M for Max); the tooltip names the tier
+ * and its price, so the upgrade decision is one click and zero questions.
+ * Rows link to Settings > Billing, never to the feature itself - the route
+ * guard and the server would both refuse anyway. A studio can hide the list
+ * from Settings > Billing.
  *
  * Only tier locks appear here. A feature the agency switched off stays fully
  * hidden, because that is an operator decision, not a paywall. */
 function LockedFeatures({ onNavigate }: { onNavigate?: () => void }) {
   const org = useQuery(api.orgs.current);
-  const locked = org?.tierLockedFeatures ?? [];
+  const locked = org?.hideLockedFeatures ? [] : org?.tierLockedFeatures ?? [];
   const agencyOff = React.useMemo(
     () => new Set((org?.disabledFeatures ?? []).filter((k) => !locked.includes(k))),
     [org?.disabledFeatures, locked],
@@ -87,19 +89,32 @@ function LockedFeatures({ onNavigate }: { onNavigate?: () => void }) {
               side="right"
             >
               <Link
-                href="/settings"
+                href="/settings?tab=billing"
                 onClick={onNavigate}
                 className="group flex min-h-9 items-center gap-3 rounded-chrome px-3 py-1.5 font-meta text-[0.7rem] uppercase tracking-[0.04em] text-steel/45 transition-colors hover:bg-coal/40 hover:text-steel"
               >
                 <item.icon className="size-[1.1rem] shrink-0 text-steel/35 transition-colors group-hover:text-steel/60" />
                 <span className="truncate">{item.label}</span>
-                <Lock className="ml-auto size-3 shrink-0 text-steel/35 transition-colors group-hover:text-gold" />
+                <TierBadge tier={need} />
               </Link>
             </Tooltip>
           </li>
         ))}
       </ul>
     </div>
+  );
+}
+
+/* The small square on a locked row: the initial of the tier that unlocks it. */
+function TierBadge({ tier }: { tier: TierKey | null }) {
+  const label = tier ? PLAN_LIMITS[tier].label : null;
+  return (
+    <span
+      className="ml-auto grid size-4 shrink-0 place-items-center rounded-[4px] border border-steel/30 font-grotesk text-[0.5625rem] font-bold leading-none text-steel/55 transition-colors group-hover:border-gold group-hover:text-gold"
+      aria-label={label ? `Unlocks on ${label}` : "Not on your plan"}
+    >
+      {label ? label.charAt(0) : "?"}
+    </span>
   );
 }
 

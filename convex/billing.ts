@@ -63,55 +63,6 @@ export const checkoutAvailability = query({
   },
 });
 
-/** Public action - start a Stripe Checkout session for the chosen tier. */
-export const beginCheckout = action({
-  args: {
-    tier: tierV,
-    agencyName: v.optional(v.string()),
-    /** A year costs ten months. Defaults to monthly. */
-    interval: v.optional(intervalV),
-  },
-  handler: async (ctx, args) => {
-    const identity = await ctx.auth.getUserIdentity();
-    if (!identity) throw new Error("not signed in");
-    const stripe = stripeClient();
-    const interval = args.interval ?? "month";
-    const priceId = priceIdForTier(args.tier as TierKey, interval);
-
-    const customer = await stripe.customers.create({
-      email: identity.email ?? undefined,
-      name: identity.name ?? identity.email ?? undefined,
-      metadata: {
-        clerkUserId: identity.subject,
-        intendedAgencyName: args.agencyName ?? "",
-        intendedTier: args.tier,
-        intendedInterval: interval,
-      },
-    });
-
-    const discounts = await earlyAdopterDiscounts(stripe, args.tier as TierKey, interval);
-
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-    /* Card always collected, and the PLATFORM_TRIAL_DAYS trial is card-required
-       by construction: Stripe charges the saved card when it ends. */
-    const session = await stripe.checkout.sessions.create(
-      buildSubscriptionCheckoutParams({
-        customer: customer.id,
-        lineItems: [{ price: priceId, quantity: 1 }],
-        discounts,
-        trial: trialSpec({ trialDays: PLATFORM_TRIAL_DAYS, now: Date.now() }),
-        // Unchanged from before: the intent lives on the customer above, and
-        // the session carries none, so the webhook path is the same as it was.
-        metadata: {},
-        successUrl: `${baseUrl}/onboard/done?session_id={CHECKOUT_SESSION_ID}`,
-        cancelUrl: `${baseUrl}/onboard`,
-      }),
-    );
-
-    return { checkoutUrl: session.url, earlyAdopter: Boolean(discounts) };
-  },
-});
-
 /* ============================================================
    Beta to paid.
 

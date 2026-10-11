@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useQuery } from "convex/react";
+import { useSearchParams } from "next/navigation";
 import { api } from "@convex/_generated/api";
 import { Boxes, Building2, CreditCard, Crown, Database, Palette, Receipt, Users, Plug } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
@@ -43,13 +44,20 @@ function SettingsSkeleton() {
 export default function SettingsPage() {
   return (
     <CapabilityGuard cap="branding.edit" title="Settings are limited to leadership">
-      <SettingsView />
+      <React.Suspense fallback={<SettingsSkeleton />}>
+        <SettingsView />
+      </React.Suspense>
     </CapabilityGuard>
   );
 }
 
+const TABS = ["workspace", "branding", "pricing", "team", "integrations", "memberships", "billing", "inventory", "data"];
+
 function SettingsView() {
   const org = useQuery(api.orgs.current) as Org | undefined;
+  // ?tab=billing opens a tab directly (the sidebar's locked features link here).
+  const asked = useSearchParams().get("tab");
+  const initialTab = asked && TABS.includes(asked) ? asked : "workspace";
 
   return (
     <div className="space-y-6">
@@ -62,7 +70,7 @@ function SettingsView() {
       {org === undefined ? (
         <SettingsSkeleton />
       ) : (
-        <Tabs defaultValue="workspace" className="space-y-5">
+        <Tabs defaultValue={initialTab} className="space-y-5">
           <TabsList>
             <TabsTrigger value="workspace">
               <Building2 className="size-4" />
