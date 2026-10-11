@@ -1,0 +1,246 @@
+/* ============================================================
+   Pulse hardware UI (pulse-ui-kit, 2026-10-10)
+
+   Every screen is studio hardware: cards are machined chassis on a stack
+   of slabs, data sits in recessed wells, actions are physical keys, and
+   Pulse yellow is the indicator light. Source of truth: the kit's
+   PULSE_UI_DESIGN.md (sections 2 to 4) and web/pulse-tokens.css.
+
+   Scope: only while an element with .pulse-hw is mounted (the app shell
+   and the agency console). The marketing pages and sign-in keep their own
+   look. The kit's names are namespaced --pl-* because they clash with the
+   app's: the kit's --ink is white text, the app's --color-ink is the
+   canvas. The app's own token names are remapped to kit values below, so
+   every existing utility (bg-coal, text-bone, border-hairline...) follows.
+   ============================================================ */
+
+:root {
+  --pl-void: #0f0f11;
+  --pl-well: #161618;
+  --pl-slab-dark: #18181a;
+  --pl-slab-mid: #212124;
+  --pl-panel-side: #242427;
+  --pl-face: #2b2b2e;
+  --pl-face-raised: #343438;
+  --pl-face-high: #4a4a4e;
+  --pl-edge: #3d3d41;
+  --pl-edge-hi: #56565c;
+  --pl-line-control: #7a7a80;
+  --pl-ink: #ffffff;
+  --pl-ink-muted: #c9c9ce;
+  --pl-ink-subtle: #a8a8ae;
+  --pl-yellow: #ffc900;
+  --pl-yellow-hover: #ffd633;
+  --pl-yellow-press: #e0b000;
+  --pl-yellow-soft: rgba(255, 201, 0, 0.14);
+  --pl-grid-line: rgba(255, 201, 0, 0.05);
+  --pl-on-yellow: #111111;
+  --pl-copper: #d0947b;
+  --pl-positive: #2fc27a;
+  --pl-positive-soft: rgba(47, 194, 122, 0.16);
+  --pl-negative: #ff6b6f;
+  --pl-negative-soft: rgba(255, 107, 111, 0.16);
+  --pl-info: #5aadff;
+  --pl-info-soft: rgba(90, 173, 255, 0.16);
+  --pl-shadow-slab: 0.7px 1px 0 #56565c, 1.4px 2px 0 #18181a, 2.1px 3px 0 #212124, 2.8px 4px 0 #18181a,
+    3.5px 5px 0 #212124, 4.2px 6px 0 #18181a, 0 22px 36px -4px rgba(0, 0, 0, 0.6), 0 10px 16px rgba(0, 0, 0, 0.4);
+  --pl-shadow-lip: inset 0 1.5px 0 rgba(255, 255, 255, 0.22), inset -1.5px 0 0 rgba(255, 255, 255, 0.12),
+    inset 0 -1.5px 0 rgba(0, 0, 0, 0.4);
+  --pl-shadow-well: inset 2px 3px 6px rgba(0, 0, 0, 0.85), inset 0 0 0 1px rgba(0, 0, 0, 0.6),
+    0 1px 0 rgba(255, 255, 255, 0.22), 1px 0 0 rgba(255, 255, 255, 0.1), 0 -1px 0 rgba(0, 0, 0, 0.5);
+  --pl-shadow-screen: inset 0 0 0 1px rgba(0, 0, 0, 0.55), inset 3px 4px 7px rgba(0, 0, 0, 0.65),
+    inset -1px -1px 3px rgba(0, 0, 0, 0.3);
+  --pl-shadow-key: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0, 0, 0, 0.4), 0.7px 1px 0 #18181a,
+    1.4px 2px 0 #121214, 0 4px 8px rgba(0, 0, 0, 0.5);
+  --pl-shadow-key-pressed: inset 1px 2px 4px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.12);
+  --pl-glow-yellow: 0 0 14px 4px rgba(255, 201, 0, 0.65);
+  --pl-glow-yellow-soft: 0 0 8px rgba(255, 201, 0, 0.6);
+  --pl-radius-chassis: 14px;
+  --pl-radius-well: 7px;
+  --pl-radius-screen: 4px;
+  --pl-key-press: 0.12s;
+}
+
+/* ── The app's tokens, remapped. Dark only: the kit has no light theme. ── */
+:root:has(.pulse-hw),
+:root[data-theme="light"]:has(.pulse-hw) {
+  color-scheme: dark;
+  --color-ink: var(--pl-void);
+  --color-ink-2: var(--pl-well);
+  --color-obsidian: var(--pl-slab-dark);
+  --color-coal: var(--pl-face);
+  --color-coal-2: var(--pl-face-raised);
+  --color-coal-3: var(--pl-face-high);
+  --color-hairline: var(--pl-edge);
+  --color-hairline-2: var(--pl-edge-hi);
+  --color-graphite: var(--pl-edge);
+  --color-gold: var(--pl-yellow);
+  --color-gold-bright: var(--pl-yellow-hover);
+  --color-gold-deep: var(--pl-yellow-press);
+  --color-gold-dim: #7a6200;
+  --color-gold-ink: var(--pl-on-yellow);
+  --color-bone: var(--pl-ink);
+  --color-fog: var(--pl-ink);
+  --color-mist: var(--pl-ink-muted);
+  --color-ash: var(--pl-ink-muted);
+  --color-steel: var(--pl-ink-subtle);
+  --color-ash-dim: var(--pl-line-control);
+  --color-slate: var(--pl-line-control);
+  --color-positive: var(--pl-positive);
+  --color-critical: var(--pl-negative);
+  --color-info: var(--pl-info);
+  --font-sans: var(--font-archivo), Arial, Helvetica, sans-serif;
+  --font-display: var(--font-archivo), Arial, Helvetica, sans-serif;
+  --font-grotesk: var(--font-archivo), Arial, Helvetica, sans-serif;
+  --font-chrome: var(--font-archivo), Arial, Helvetica, sans-serif;
+  --font-jakarta: var(--font-archivo), Arial, Helvetica, sans-serif;
+  --font-meta: var(--font-jetbrains-mono), ui-monospace, Menlo, monospace;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, Menlo, monospace;
+}
+
+/* ── Canvas: plain void, no aurora. ── */
+:root:has(.pulse-hw) body { background: var(--pl-void); }
+:root:has(.pulse-hw) .app-bloom { display: none; }
+:root:has(.pulse-hw) h1,
+:root:has(.pulse-hw) h2 { font-weight: 800; letter-spacing: -0.01em; }
+
+/* ── Glass becomes solid graphite. ── */
+:root:has(.pulse-hw) :is(.material-ultrathin, .material-thin, .material-regular, .material-thick, .glass) {
+  background: var(--pl-face);
+  border-color: var(--pl-edge);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root:has(.pulse-hw) .glass-edge::before { display: none; }
+:root:has(.pulse-hw) .sheen::after { display: none; }
+
+/* ── Chassis: every Card (kit section 3, level 1). The gloss sits under the
+      content (z-index -1 inside the isolated card), lit from the top-left. ── */
+:root:has(.pulse-hw) .pl-card {
+  position: relative;
+  isolation: isolate;
+  background: var(--pl-face);
+  border: 1px solid var(--pl-edge);
+  border-radius: var(--pl-radius-chassis);
+  box-shadow: var(--pl-shadow-lip), var(--pl-shadow-slab);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+:root:has(.pulse-hw) .pl-card::before {
+  display: block;
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  padding: 0;
+  opacity: 1;
+  border-radius: inherit;
+  pointer-events: none;
+  -webkit-mask: none;
+  mask: none;
+  background:
+    radial-gradient(circle 300px at 110px 0, rgba(255, 255, 255, 0.17) 0%, rgba(255, 255, 255, 0.05) 45%, rgba(255, 255, 255, 0) 100%),
+    linear-gradient(155deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0) 50%);
+}
+:root:has(.pulse-hw) .pl-card:hover { box-shadow: var(--pl-shadow-lip), var(--pl-shadow-slab); }
+
+/* Well and screen (level 3): recesses for data. Opt in with .pl-well /
+   .pl-screen; tables, KPIs and charts move into them screen by screen. */
+:root:has(.pulse-hw) .pl-well {
+  background: var(--pl-well);
+  border-radius: var(--pl-radius-well);
+  box-shadow: var(--pl-shadow-well);
+}
+:root:has(.pulse-hw) .pl-screen {
+  background: var(--pl-well);
+  border-radius: var(--pl-radius-screen);
+  box-shadow: var(--pl-shadow-screen);
+}
+/* The blueprint grid on hero and overview chassis. */
+:root:has(.pulse-hw) .pl-grid::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+  background-image: linear-gradient(var(--pl-grid-line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--pl-grid-line) 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+/* ── Keys: every Button. They stand up, push in 1px x 2px, and label in
+      tracked uppercase. One yellow primary per view (kit section 3). ── */
+:root:has(.pulse-hw) .pl-key {
+  border: 0;
+  border-radius: var(--pl-radius-screen);
+  font-family: var(--font-archivo), Arial, sans-serif;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: var(--pl-shadow-key);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transition: transform var(--pl-key-press) ease-out, box-shadow var(--pl-key-press) ease-out,
+    background var(--pl-key-press) ease-out, color var(--pl-key-press) ease-out;
+}
+:root:has(.pulse-hw) .pl-key:hover { transform: none; }
+:root:has(.pulse-hw) .pl-key:active {
+  transform: translate(1px, 2px);
+  box-shadow: var(--pl-shadow-key-pressed);
+}
+:root:has(.pulse-hw) .pl-key[data-variant="primary"],
+:root:has(.pulse-hw) .pl-key[data-variant="brutal"] {
+  background: var(--pl-yellow);
+  color: var(--pl-on-yellow);
+}
+:root:has(.pulse-hw) .pl-key[data-variant="primary"]:hover,
+:root:has(.pulse-hw) .pl-key[data-variant="brutal"]:hover { background: var(--pl-yellow-hover); }
+:root:has(.pulse-hw) .pl-key:is([data-variant="secondary"], [data-variant="outline"], [data-variant="glass"]) {
+  background: linear-gradient(180deg, var(--pl-face-high), var(--pl-face-raised));
+  color: var(--pl-ink);
+}
+:root:has(.pulse-hw) .pl-key:is([data-variant="secondary"], [data-variant="outline"], [data-variant="glass"]):hover {
+  background: linear-gradient(180deg, #55555a, var(--pl-face-high));
+}
+:root:has(.pulse-hw) .pl-key[data-variant="danger"] {
+  background: linear-gradient(180deg, var(--pl-face-high), var(--pl-face-raised));
+  color: var(--pl-negative);
+}
+:root:has(.pulse-hw) .pl-key[data-variant="ghost"] {
+  background: transparent;
+  color: var(--pl-ink-muted);
+  box-shadow: none;
+}
+:root:has(.pulse-hw) .pl-key[data-variant="ghost"]:hover { background: var(--pl-face-raised); color: var(--pl-ink); }
+:root:has(.pulse-hw) .pl-key[data-variant="ghost"]:active { box-shadow: var(--pl-shadow-key-pressed); }
+
+/* ── Chips: every Badge. Status always carries its word. ── */
+:root:has(.pulse-hw) .pl-chip {
+  border: 0;
+  border-radius: var(--pl-radius-screen);
+  padding: 2px 8px;
+  font-family: var(--font-archivo), Arial, sans-serif;
+  font-weight: 700;
+  font-size: 10.5px;
+  line-height: 14px;
+  letter-spacing: 0.08em;
+}
+:root:has(.pulse-hw) .pl-chip[data-tone="neutral"] { background: var(--pl-face-raised); color: var(--pl-ink-muted); }
+:root:has(.pulse-hw) .pl-chip[data-tone="gold"],
+:root:has(.pulse-hw) .pl-chip[data-tone="caution"] { background: var(--pl-yellow-soft); color: var(--pl-yellow); }
+:root:has(.pulse-hw) .pl-chip[data-tone="positive"] { background: var(--pl-positive-soft); color: var(--pl-positive); }
+:root:has(.pulse-hw) .pl-chip[data-tone="critical"] { background: var(--pl-negative-soft); color: var(--pl-negative); }
+:root:has(.pulse-hw) .pl-chip[data-tone="info"] { background: var(--pl-info-soft); color: var(--pl-info); }
+:root:has(.pulse-hw) .pl-chip[data-tone="solid"] { background: var(--pl-yellow); color: var(--pl-on-yellow); }
+
+/* ── Focus ring: 2px yellow, 2px offset, on every interactive element. ── */
+:root:has(.pulse-hw) :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 2px solid var(--pl-yellow);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root:has(.pulse-hw) .pl-key:active { transform: translate(1px, 2px); }
+}

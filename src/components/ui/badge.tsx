@@ -29,7 +29,8 @@ export interface BadgeProps
 
 export function Badge({ className, tone, dot, children, ...props }: BadgeProps) {
   return (
-    <span className={cn(badgeVariants({ tone }), className)} {...props}>
+    // pl-chip + data-tone: the hardware chip skin (src/app/hardware.css).
+    <span data-tone={tone ?? "neutral"} className={cn("pl-chip", badgeVariants({ tone }), className)} {...props}>
       {dot && <span className="size-1.5 rounded-full bg-current" />}
       {children}
     </span>

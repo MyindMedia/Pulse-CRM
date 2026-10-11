@@ -7,6 +7,7 @@ import {
   Plus_Jakarta_Sans,
   Anton,
   IBM_Plex_Mono,
+  Archivo,
 } from "next/font/google";
 import { ConvexClientProvider } from "@/components/providers/convex-client-provider";
 import { NativeShellBridge } from "@/components/shell/native-shell-bridge";
@@ -14,12 +15,21 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { isSatelliteHost } from "@/lib/clerk-domains";
 import { Toaster } from "sonner";
 import "./globals.css";
+// The hardware UI layer (pulse-ui-kit); scoped to the app shell by .pulse-hw.
+import "./hardware.css";
 import { fromPriceLabel } from "@/components/marketing/pricing-tiers";
 import { IS_STAGING } from "@/lib/deploy-env";
 import { StagingBadge } from "@/components/shell/staging-badge";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono", display: "swap" });
+// Archivo (400 to 800) is the hardware UI face; see src/app/hardware.css.
+const archivo = Archivo({
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700", "800"],
+  variable: "--font-archivo",
+  display: "swap",
+});
 const instrumentSerif = Instrument_Serif({
   subsets: ["latin"],
   weight: "400",
@@ -112,7 +122,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${inter.variable} ${jetbrainsMono.variable} ${instrumentSerif.variable} ${plusJakarta.variable} ${anton.variable} ${ibmPlexMono.variable} h-full`}
+      className={`${inter.variable} ${archivo.variable} ${jetbrainsMono.variable} ${instrumentSerif.variable} ${plusJakarta.variable} ${anton.variable} ${ibmPlexMono.variable} h-full`}
     >
       {/* Same guard the html element already carries. Browser extensions
           write attributes onto body before React hydrates - `isolation:
