@@ -401,6 +401,9 @@ describe("Max: the cross-studio view", () => {
       await ctx.db.insert("agencies", {
         agencyId: "org_ag", name: "AG", slug: "ag", plan: "max", status: "active",
         ownerClerkUserId: "u_ag", ownerEmail: "ag@x.com",
+        // A reseller agency: it has its own subscription, so it is not the
+        // Pulse agency and its plan still rolls down to its studios.
+        stripeSubscriptionId: "sub_reseller",
       });
       await ctx.db.insert("agencyMembers", {
         agencyId: "org_ag", clerkUserId: "u_ag", email: "ag@x.com", name: "Owner",

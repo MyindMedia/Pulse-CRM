@@ -1,6 +1,7 @@
 import { fileUrl } from "./lib/media";
 import { query } from "./_generated/server";
-import { mutation } from "./functions";
+import { mutation, internalMutation } from "./functions";
+import { platformAgencyId } from "./lib/platformAgency";
 import { v } from "convex/values";
 import { requireCapability, resolveViewer } from "./lib/access";
 import { normalizeEmail } from "./lib/emailKey";
@@ -140,5 +141,42 @@ export const setScopes = mutation({
         subAccountOrgId,
       });
     }
+  },
+});
+
+/** Make a Clerk user an owner of the Pulse agency, and its main owner
+ *  (agencies.ownerClerkUserId / ownerEmail). An operator runs this from the
+ *  CLI after the person has created their own login; nobody else's access
+ *  changes, so the previous owner keeps theirs until removed by hand. */
+export const _setPlatformOwner = internalMutation({
+  args: { clerkUserId: v.string(), email: v.string(), name: v.string() },
+  handler: async (ctx, args) => {
+    const agencyId = await platformAgencyId(ctx);
+    if (!agencyId) throw new Error("No Pulse agency. Set PULSE_AGENCY_ID.");
+    const agency = await ctx.db
+      .query("agencies")
+      .withIndex("by_agency", (q) => q.eq("agencyId", agencyId))
+      .first();
+    if (!agency) throw new Error("The Pulse agency row is missing.");
+    const email = normalizeEmail(args.email);
+    const existing = await ctx.db
+      .query("agencyMembers")
+      .withIndex("by_agency_clerk", (q) => q.eq("agencyId", agencyId).eq("clerkUserId", args.clerkUserId))
+      .first();
+    if (existing) {
+      await ctx.db.patch(existing._id, { role: "owner", status: "active", email });
+    } else {
+      await ctx.db.insert("agencyMembers", {
+        agencyId,
+        clerkUserId: args.clerkUserId,
+        email,
+        name: args.name,
+        role: "owner",
+        status: "active",
+        invitedAt: Date.now(),
+      });
+    }
+    await ctx.db.patch(agency._id, { ownerClerkUserId: args.clerkUserId, ownerEmail: email });
+    return { agencyId };
   },
 });

@@ -198,6 +198,9 @@ describe("tier resolution", () => {
       await ctx.db.insert("agencies", {
         agencyId: "ag1", name: "Ag", slug: "ag", plan: "max", status: "active",
         ownerClerkUserId: "u_ag_owner", ownerEmail: "ag@example.com",
+        // A reseller agency: it has its own subscription, so it is not the
+        // Pulse agency and its plan still rolls down to its studios.
+        stripeSubscriptionId: "sub_reseller",
       });
       await ctx.db.insert("orgs", {
         orgId: "sub1", name: "Sub", slug: "sub", tier: "core", agencyId: "ag1",
@@ -216,12 +219,40 @@ describe("tier resolution", () => {
     expect(await t.run((ctx) => tierForOrg(ctx, "sub3"))).toBe("growth");
   });
 
+  it("never lets the Pulse agency's own plan override a sub-account's tier", async () => {
+    // Owner rule 2026-10-10: every studio is a sub-account of the Pulse agency,
+    // which runs on Max. Each studio still gets only the plan it paid for.
+    const t = convexTest(schema);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencies", {
+        agencyId: "agency_pulse", name: "Myind Sound", slug: "myind-sound", plan: "max", status: "active",
+        ownerClerkUserId: "u_owner", ownerEmail: "owner@example.com",
+      });
+      await ctx.db.insert("orgs", { orgId: "paid_growth", name: "G", slug: "g", tier: "growth", agencyId: "agency_pulse" });
+      await ctx.db.insert("orgs", { orgId: "paid_core", name: "C", slug: "c", tier: "core", agencyId: "agency_pulse" });
+    });
+    expect(await t.run((ctx) => tierForOrg(ctx, "paid_growth"))).toBe("growth");
+    expect(await t.run((ctx) => tierForOrg(ctx, "paid_core"))).toBe("core");
+    // Pinned by PULSE_AGENCY_ID (as in prod), the same.
+    const saved = process.env.PULSE_AGENCY_ID;
+    process.env.PULSE_AGENCY_ID = "agency_pulse";
+    try {
+      expect(await t.run((ctx) => tierForOrg(ctx, "paid_growth"))).toBe("growth");
+    } finally {
+      if (saved === undefined) delete process.env.PULSE_AGENCY_ID;
+      else process.env.PULSE_AGENCY_ID = saved;
+    }
+  });
+
   it("follows an agency up/downgrade that only changes agencies.plan", async () => {
     const t = convexTest(schema);
     await t.run(async (ctx) => {
       await ctx.db.insert("agencies", {
         agencyId: "agp", name: "Ag", slug: "agp", plan: "max", status: "active",
         ownerClerkUserId: "u_agp", ownerEmail: "agp@example.com",
+        // A reseller agency: it has its own subscription, so it is not the
+        // Pulse agency and its plan still rolls down to its studios.
+        stripeSubscriptionId: "sub_reseller",
       });
       await ctx.db.insert("orgs", { orgId: "s", name: "S", slug: "s", tier: "core", agencyId: "agp" });
     });
@@ -239,6 +270,9 @@ describe("tier resolution", () => {
       await ctx.db.insert("agencies", {
         agencyId: "ag2", name: "Ag", slug: "ag2", plan: "core", status: "active",
         ownerClerkUserId: "u_ag2", ownerEmail: "ag2@example.com",
+        // A reseller agency: it has its own subscription, so it is not the
+        // Pulse agency and its plan still rolls down to its studios.
+        stripeSubscriptionId: "sub_reseller",
       });
       await ctx.db.insert("orgs", {
         orgId: "beta1", name: "Beta", slug: "beta1", tier: "core", agencyId: "ag2", betaCohort: true,
