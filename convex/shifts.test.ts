@@ -114,6 +114,34 @@ describe("staff scheduling - shifts", () => {
     expect(shift?.memberId).toBe(memberId);
   });
 
+  it("assignEngineer needs sessions.edit: a read-only teammate is refused, an engineer is not", async () => {
+    const now = Date.now();
+    const sid = await t.run(async (ctx) => {
+      await ctx.db.insert("members", { orgId: "pulse-demo", name: "Ira Intern", role: "intern", clerkUserId: "u_intern", skills: [] });
+      await ctx.db.insert("members", { orgId: "pulse-demo", name: "Ada Accounts", role: "accountant", clerkUserId: "u_acct", skills: [] });
+      await ctx.db.patch(memberId as never, { clerkUserId: "u_ellis" });
+      const artistId = await ctx.db.insert("artists", {
+        orgId: "pulse-demo", name: "Nova", type: "artist", genres: [], tags: [],
+        status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
+      });
+      return ctx.db.insert("sessions", {
+        orgId: "pulse-demo", title: "Tracking", artistId, serviceType: "recording",
+        startTime: now + 2 * HOUR, endTime: now + 5 * HOUR, status: "tentative",
+        rateCents: 20000, depositCents: 6000, depositPaid: false, intakeCompleted: false,
+      });
+    });
+    const args = { sessionId: sid as never, engineerId: memberId as never };
+    for (const subject of ["u_intern", "u_acct"]) {
+      await expect(t.withIdentity({ subject, orgId: "pulse-demo" }).mutation(api.sessions.assignEngineer, args))
+        .rejects.toThrow(/sessions\.edit/);
+    }
+    expect((await t.run((ctx) => ctx.db.get(sid)))?.engineerId).toBeUndefined();
+    expect(await t.run((ctx) => ctx.db.query("shifts").collect())).toHaveLength(0);
+
+    await t.withIdentity({ subject: "u_ellis", orgId: "pulse-demo" }).mutation(api.sessions.assignEngineer, args);
+    expect((await t.run((ctx) => ctx.db.get(sid)))?.engineerId).toBe(memberId);
+  });
+
   it("staffingSummary rolls up scheduled hours per member", async () => {
     const now = Date.now();
     await t.run(async (ctx) => {

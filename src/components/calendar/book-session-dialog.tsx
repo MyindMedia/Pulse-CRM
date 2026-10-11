@@ -5,6 +5,7 @@ import { useMutation, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
+import { errorMessage } from "@/lib/errors";
 import { ArrowLeft, ArrowRight, Check } from "lucide-react";
 import { ClientPicker, type ClientValue } from "@/components/bookings/client-picker";
 import {
@@ -35,6 +36,14 @@ import {
   combineDateTime,
   toDateInputValue,
 } from "./constants";
+import {
+  SuggestEngineerButton,
+  SuggestedBadge,
+  SuggestedEngineers,
+  suggestionFor,
+  useEngineerFitEnabled,
+  useEngineerSuggestions,
+} from "@/components/schedule/engineer-suggestions";
 
 const STEP_LABELS = ["Artist", "Service", "Schedule", "Rate"];
 const DURATIONS = [
@@ -76,6 +85,9 @@ export function BookSessionDialog({
   const rooms = useQuery(api.rooms.bookable);
   const engineers = useQuery(api.members.engineers);
   const create = useMutation(api.sessions.create);
+  // Jev engineer-fit suggestions: offered to staff schedulers only, on demand.
+  const canSuggest = useEngineerFitEnabled(open);
+  const fit = useEngineerSuggestions();
 
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -162,6 +174,7 @@ export function BookSessionDialog({
   const selectedSlotOk = slots.some((sl) => sl.startTime === selectedStart && sl.available);
 
   function reset() {
+    fit.clear();
     setStep(0);
     setClient({ name: "" });
     setSongId("");
@@ -214,6 +227,20 @@ export function BookSessionDialog({
     title.trim().length > 0 && rateCents > 0 && depositCents <= rateCents,
   ];
 
+  /* What Jev is asked about when the engineer is picked (step 2). The time
+     comes later (step 3), so nobody can be ruled out as busy here. The key
+     drops a suggestion as soon as the service, room, client or song changes. */
+  const fitDraft = {
+    serviceType: serviceType as Parameters<typeof create>[0]["serviceType"],
+    customService: serviceType === "custom" ? customService.trim() || undefined : undefined,
+    artistId: client.artistId ? (client.artistId as Id<"artists">) : undefined,
+    roomId: roomId ? (roomId as Id<"rooms">) : undefined,
+    songId: songId ? (songId as Id<"songs">) : undefined,
+    title: title.trim() || undefined,
+  };
+  const fitKey = JSON.stringify(fitDraft);
+  const fitResult = fit.result?.key === fitKey ? fit.result : null;
+
   const isLast = step === 3;
 
   async function submit() {
@@ -222,7 +249,7 @@ export function BookSessionDialog({
     const endTime = startTime + durationMins * 60_000;
     setSaving(true);
     try {
-      await create({
+      const res = await create({
         title: title.trim(),
         artistId: client.artistId ? (client.artistId as Id<"artists">) : undefined,
         clientName: client.artistId ? undefined : client.name.trim(),
@@ -247,10 +274,14 @@ export function BookSessionDialog({
         depositCents: depositCents > 0 ? depositCents : undefined,
       });
       toast.success("Session booked - held as tentative");
+      // The engineer may already be on another session then: booked anyway,
+      // but say so (the same soft warning the schedule shows).
+      if (res.staffingWarning) toast.warning(res.staffingWarning);
       reset();
       onOpenChange(false);
-    } catch {
-      toast.error("Could not book the session");
+    } catch (err) {
+      // A room clash or a missing name is refused with a reason; show it.
+      toast.error(errorMessage(err, "Could not book the session"));
     } finally {
       setSaving(false);
     }
@@ -401,14 +432,34 @@ export function BookSessionDialog({
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    {(engineers ?? []).map((e) => (
-                      <SelectItem key={e._id} value={e._id}>
-                        {e.name} · {titleCase(e.role)}
-                      </SelectItem>
-                    ))}
+                    {(engineers ?? []).map((e) => {
+                      const suggestion = suggestionFor(fitResult, e._id);
+                      return (
+                        <SelectItem
+                          key={e._id}
+                          value={e._id}
+                          trailing={suggestion ? <SuggestedBadge pick={suggestion} /> : undefined}
+                        >
+                          {e.name} · {titleCase(e.role)}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </Field>
+
+              {canSuggest && (
+                <div className="-mt-1">
+                  {fitResult ? (
+                    <SuggestedEngineers result={fitResult} />
+                  ) : (
+                    <SuggestEngineerButton
+                      loading={fit.loading}
+                      onClick={() => void fit.ask({ draft: fitDraft }, fitKey)}
+                    />
+                  )}
+                </div>
+              )}
             </>
           )}
 

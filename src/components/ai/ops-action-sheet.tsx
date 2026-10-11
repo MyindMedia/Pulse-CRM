@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Field, Input, Textarea } from "@/components/ui/field";
+import { DraftCheckBadge } from "@/components/ai/draft-check-badge";
 
 const DAY = 86_400_000;
 const PRIORITY_TONE: Record<string, "critical" | "gold" | "neutral"> = { high: "critical", medium: "gold", low: "neutral" };
@@ -43,6 +44,8 @@ function Inner({ action, onClose }: { action: Doc<"opsActions">; onClose: () => 
   const [busy, setBusy] = React.useState(false);
 
   const artText = artBody ?? artifact?.body ?? "";
+  // Jev's label describes the agent's draft, so it hides once the owner edits.
+  const draftEdited = p.kind === "email" && body.trim() !== p.body.trim();
 
   async function run(fn: () => Promise<unknown>, ok: string) {
     setBusy(true);
@@ -86,6 +89,12 @@ function Inner({ action, onClose }: { action: Doc<"opsActions">; onClose: () => 
 
         {isEmail && (
           <>
+            {action.draftCheck && !draftEdited && (
+              <p className="flex flex-wrap items-center gap-2 text-xs text-steel/70">
+                <DraftCheckBadge check={action.draftCheck} />
+                AI check of this draft. A label only: nothing sends until you approve.
+              </p>
+            )}
             <Field label="To"><Input value={to} disabled className="inline-flex items-center" /></Field>
             <Field label="Subject"><Input value={subject} disabled /></Field>
             <Field label="Message" htmlFor="ops-body" hint="Edit before you approve - your version is what sends.">

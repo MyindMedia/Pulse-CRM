@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useQuery } from "convex/react";
+import { useAction, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Boxes, MapPin, Package, Plus, Search, Warehouse } from "lucide-react";
@@ -85,6 +85,31 @@ export function DevicePalette({
   );
 
   const loading = tab === "inventory" ? items === undefined : profiles === undefined;
+
+  // The search found nothing. Ask whether the name is gear the studio
+  // already has, written differently ("SM-57" for "Shure SM57"). Jev
+  // (convex/gearMatch.ts) only picks among the studio's own items.
+  const matchName = useAction(api.gearMatch.matchName);
+  const [lookAlike, setLookAlike] = React.useState<{ q: string; name: string } | null>(null);
+  const typed = q.trim();
+  const nothingFound = tab === "inventory" && items !== undefined && items.length === 0 && typed.length >= 3;
+  React.useEffect(() => {
+    if (!nothingFound) return;
+    let live = true;
+    const timer = setTimeout(() => {
+      matchName({ name: typed })
+        .then((match) => {
+          if (live && match) setLookAlike({ q: typed, name: match.name });
+        })
+        // No answer is the palette as it always was.
+        .catch(() => {});
+    }, 500);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [nothingFound, typed, matchName]);
+  const offer = nothingFound && lookAlike?.q === typed ? lookAlike : null;
 
   return (
     <div className="flex h-full min-h-0 flex-col border-r border-hairline bg-coal-2/40">
@@ -194,13 +219,30 @@ export function DevicePalette({
         )}
 
         {!loading && tab === "inventory" && items!.length === 0 && (
-          <p className="px-2 py-6 text-center text-xs text-steel">
-            {q
-              ? "No gear matches that."
-              : scope === "room"
-                ? "No gear installed in this room yet. Try Everywhere."
-                : "No gear in inventory yet."}
-          </p>
+          <>
+            <p className="px-2 py-6 text-center text-xs text-steel">
+              {q
+                ? "No gear matches that."
+                : scope === "room"
+                  ? "No gear installed in this room yet. Try Everywhere."
+                  : "No gear in inventory yet."}
+            </p>
+            {offer && (
+              <div className="-mt-4 px-2 pb-4 text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    // Show it: its own name, anywhere in the studio.
+                    setQ(offer.name);
+                    setScope("all");
+                  }}
+                  className="rounded-md border border-gold-dim/50 bg-gold/[0.06] px-2 py-1 text-xs text-gold-bright transition-colors hover:border-gold"
+                >
+                  Looks like your existing {offer.name}
+                </button>
+              </div>
+            )}
+          </>
         )}
 
         {!loading &&

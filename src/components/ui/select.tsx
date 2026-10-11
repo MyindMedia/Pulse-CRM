@@ -61,8 +61,12 @@ SelectContent.displayName = "SelectContent";
 
 export const SelectItem = React.forwardRef<
   React.ComponentRef<typeof SelectPrimitive.Item>,
-  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item>
->(({ className, children, ...props }, ref) => (
+  React.ComponentPropsWithoutRef<typeof SelectPrimitive.Item> & {
+    /** Shown after the label in the open list only (a chip, a hint). Unlike
+     *  the label it is not copied into the trigger once chosen. */
+    trailing?: React.ReactNode;
+  }
+>(({ className, children, trailing, ...props }, ref) => (
   <SelectPrimitive.Item
     ref={ref}
     className={cn(
@@ -78,6 +82,7 @@ export const SelectItem = React.forwardRef<
       </SelectPrimitive.ItemIndicator>
     </span>
     <SelectPrimitive.ItemText>{children}</SelectPrimitive.ItemText>
+    {trailing != null && <span className="ml-auto shrink-0 pl-3">{trailing}</span>}
   </SelectPrimitive.Item>
 ));
 SelectItem.displayName = "SelectItem";

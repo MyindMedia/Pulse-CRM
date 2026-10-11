@@ -2011,6 +2011,18 @@ export default defineSchema({
     model: v.optional(v.string()),
     extractedAt: v.optional(v.number()),
     error: v.optional(v.string()),
+    // Jev's (TypeSafe) suggestion after reading: which of the studio's expense
+    // categories this belongs to, and how likely it is a personal purchase.
+    // Only a suggestion: the owner confirms it, and it never changes an
+    // expense (convex/lib/jev/receiptCategories.ts).
+    categorySuggestion: v.optional(v.object({
+      category: expenseCategoryV,
+      probability: v.number(),
+      confidence: v.number(),
+      looksPersonal: v.number(), // probability of yes, 0 to 1
+      model: v.string(),
+      at: v.number(),
+    })),
     expenseId: v.optional(v.id("expenses")),
     bankTransactionId: v.optional(v.id("bankTransactions")),
   })
@@ -2456,6 +2468,16 @@ export default defineSchema({
     // the user-edited body captured before approve/send.
     artifactId: v.optional(v.id("aiArtifacts")),
     editedBody: v.optional(v.string()),
+    // Jev's (TypeSafe) read on an email draft, for the approval inbox badge
+    // (convex/jevDraftCheck.ts): each number is the probability of a yes. A
+    // label only: nothing sends, approves or changes a rule because of it.
+    draftCheck: v.optional(v.object({
+      safeToSend: v.number(),
+      mentionsMoney: v.number(),
+      hasPlaceholder: v.number(),
+      model: v.string(),
+      checkedAt: v.number(),
+    })),
   })
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])

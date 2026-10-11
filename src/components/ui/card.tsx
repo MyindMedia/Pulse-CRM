@@ -32,7 +32,9 @@ export function Card({
   return (
     <div
       className={cn(
-        "rounded-chrome text-bone",
+        // pl-card: the hardware chassis skin (src/app/hardware.css), live
+        // only inside the app shell.
+        "pl-card rounded-chrome text-bone",
         surface,
         "transition-[transform,box-shadow,border-color,background-color] " +
           "[transition-duration:var(--duration-fast)] [transition-timing-function:var(--ease-smooth-out)]",

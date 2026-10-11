@@ -31,6 +31,7 @@ import { cn } from "@/lib/utils";
 import { Section } from "@/components/ui/page";
 import { ArrivalPrepCard } from "@/components/dashboard/arrival-prep-card";
 import { useOptionalUser } from "@/lib/use-optional-clerk";
+import { useCapabilities } from "@/lib/use-capabilities";
 import {
   type DashboardLayout,
   hideKey,
@@ -68,13 +69,13 @@ function SortableWidget({
       style={{ transform: CSS.Translate.toString(transform), transition }}
       className={cn(
         SPAN_CLASS[def.span],
-        "relative cursor-grab rounded-chrome ring-1 ring-gold/40 ring-offset-2 ring-offset-ink",
+        "relative flex cursor-grab flex-col rounded-chrome ring-1 ring-gold/40 ring-offset-2 ring-offset-ink",
         isDragging && "z-20 cursor-grabbing opacity-80 shadow-elev-4",
       )}
       {...attributes}
       {...listeners}
     >
-      <div className="pointer-events-none select-none">
+      <div className="pointer-events-none flex flex-1 select-none flex-col">
         {def.titled === false ? def.render() : <Section title={def.title}>{def.render()}</Section>}
       </div>
       <span className="absolute left-2 top-2 z-10 inline-flex items-center gap-1 rounded-md border border-gold/40 bg-coal-2/95 px-1.5 py-0.5 font-meta text-[0.625rem] uppercase tracking-wide text-gold backdrop-blur">
@@ -102,7 +103,9 @@ function SortableWidget({
  */
 export function CustomizableDashboard() {
   const { user } = useOptionalUser();
-  const storageKey = `pulse:dash-layout:${user?.id ?? "anon"}`;
+  // v2: the hardware overview (2026-10) replaced the widget set, so every
+  // layout starts again from the kit's arrangement; Customize still applies.
+  const storageKey = `pulse:dash-layout:v2:${user?.id ?? "anon"}`;
 
   const [layout, setLayout] = React.useState<DashboardLayout>(() =>
     normalizeLayout(null, WIDGET_KEYS, DEFAULT_HIDDEN),
@@ -132,7 +135,16 @@ export function CustomizableDashboard() {
   };
 
   const visible = visibleKeys(layout);
+  // A widget whose data the viewer may not read is left out entirely, so its
+  // query never runs (an engineer has no Deposits feed to load).
+  const { can, loaded } = useCapabilities();
+  const permitted = (k: string) => {
+    const cap = BY_KEY.get(k)?.capability;
+    return !cap || (loaded && can(cap));
+  };
+  const shown = visible.filter(permitted);
   const hiddenDefs = layout.hidden
+    .filter(permitted)
     .map((k) => BY_KEY.get(k))
     .filter((w): w is DashboardWidgetDef => Boolean(w));
 
@@ -144,8 +156,8 @@ export function CustomizableDashboard() {
   function handleDragEnd(e: DragEndEvent) {
     const { active, over } = e;
     if (!over || active.id === over.id) return;
-    const next = arrayMove(visible, visible.indexOf(String(active.id)), visible.indexOf(String(over.id)));
-    apply(reorderVisible(layout, next));
+    const moved = arrayMove(shown, shown.indexOf(String(active.id)), shown.indexOf(String(over.id)));
+    apply(reorderVisible(layout, [...moved, ...visible.filter((k) => !permitted(k))]));
   }
 
   return (
@@ -215,9 +227,9 @@ export function CustomizableDashboard() {
           collisionDetection={closestCenter}
           onDragEnd={handleDragEnd}
         >
-          <SortableContext items={visible} strategy={rectSortingStrategy}>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-              {visible.map((key) => {
+          <SortableContext items={shown} strategy={rectSortingStrategy}>
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-40">
+              {shown.map((key) => {
                 const def = BY_KEY.get(key);
                 if (!def) return null;
                 return <SortableWidget key={key} def={def} onRemove={() => apply(hideKey(layout, key))} />;
@@ -226,12 +238,14 @@ export function CustomizableDashboard() {
           </SortableContext>
         </DndContext>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
-          {visible.map((key) => {
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-40">
+          {shown.map((key) => {
             const def = BY_KEY.get(key);
             if (!def) return null;
             return (
-              <div key={key} className={SPAN_CLASS[def.span]}>
+              // flex column: a chassis fills its grid cell, so chassis in one row
+              // share a height like the kit's.
+              <div key={key} className={cn(SPAN_CLASS[def.span], "flex flex-col")}>
                 {def.titled === false ? def.render() : <Section title={def.title}>{def.render()}</Section>}
               </div>
             );

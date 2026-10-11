@@ -24,6 +24,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
 import { OpsActionSheet } from "@/components/ai/ops-action-sheet";
+import { DraftCheckBadge } from "@/components/ai/draft-check-badge";
 
 const DAY = 86_400_000;
 
@@ -109,6 +110,7 @@ function InboxCard({ action, onOpen }: { action: Doc<"opsActions">; onOpen: (a: 
             <div className="mt-1.5 flex items-center gap-1.5 font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
               <PayloadIcon kind={p.kind} />
               {p.kind === "email" && <span className="truncate">{p.to ?? "no recipient"}</span>}
+              {p.kind === "email" && <DraftCheckBadge check={action.draftCheck} />}
               {p.kind === "session_status" && <span>will set → {p.newStatus}</span>}
               {p.kind === "note_only" && <span>{action.artifactId ? "draft attached" : "internal note"}</span>}
               {p.kind === "ledger_draft" && <span>draft entry, nothing changes until you approve</span>}

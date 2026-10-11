@@ -6,7 +6,7 @@ Pulse runs two complete copies. Build and test on **staging**; only promote to
 | | Production | Staging |
 |---|---|---|
 | Git branch | `main` | `develop` |
-| Netlify site | `pulse-dash-kit` → https://studiopulse.tech | `pulse-staging` → https://pulse-staging.netlify.app |
+| Netlify site | `pulse-dash-kit` → https://studiopulse.tech | `studiopulse-staging` → https://studiopulse-staging.netlify.app |
 | Convex backend | `pastel-corgi-340` (prod) | `fiery-cricket-350` (dev) |
 | Backend deploys | by hand: `npx convex deploy` with the prod key | automatically, in the staging site's Netlify build |
 | Clerk login | production instance (`clerk.studiopulse.tech`) | development instance (`alive-emu-4.clerk.accounts.dev`), separate test users |
@@ -22,14 +22,17 @@ accounts.
 
 1. **Start on a branch off `develop`.**
    `git fetch && git switch -c feat/<name> origin/develop`
+   (A single-branch clone has no `origin/develop`: run
+   `git config --add remote.origin.fetch '+refs/heads/develop:refs/remotes/origin/develop'`
+   once, then fetch.)
 2. **Merge it into `develop`** (pull request). A push to `develop` makes Netlify
    build the staging site. That build deploys the Convex functions to
    `fiery-cricket-350` first (`npx convex deploy --cmd 'npm run build'`), so the
    staging frontend and backend always match.
 3. **Check the staging deploy actually happened.** A green `git push` proves
-   nothing: confirm a new deploy on `pulse-staging` whose `commit_ref` is your
+   nothing: confirm a new deploy on `studiopulse-staging` whose `commit_ref` is your
    commit reaches `ready`, then load the routes you changed (HTTP 200).
-4. **Lawrence tests on https://pulse-staging.netlify.app.**
+4. **Lawrence tests on https://studiopulse-staging.netlify.app.**
 5. **Promote, only when Lawrence says ship it:**
    1. Open a pull request `develop` → `main`.
    2. Run `npx tsc --noEmit` and `npx vitest run` (the known failures on main
@@ -46,7 +49,7 @@ accounts.
 
 ## What lives where
 
-- **Staging Netlify env** (site `pulse-staging`): `NEXT_PUBLIC_DEPLOY_ENV=staging`,
+- **Staging Netlify env** (site `studiopulse-staging`): `NEXT_PUBLIC_DEPLOY_ENV=staging`,
   `NEXT_PUBLIC_CLERK_CONVEX_TEMPLATE=convex`, Clerk dev keys, Convex dev URLs,
   Stripe sandbox publishable key, and a Convex **dev** deploy key
   (`CONVEX_DEPLOY_KEY`).

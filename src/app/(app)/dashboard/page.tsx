@@ -1,11 +1,15 @@
 "use client";
 
 import { useState } from "react";
+import { useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
 import { OnboardingNudge } from "@/components/onboarding/onboarding-nudge";
 import { GetPaidBanner } from "@/components/payments/get-paid-banner";
 import { CustomizableDashboard } from "@/components/dashboard/customizable-dashboard";
+import { BookSessionDialog } from "@/components/calendar/book-session-dialog";
+import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page";
-import { longDate } from "@/lib/format";
+import { useOptionalUser } from "@/lib/use-optional-clerk";
 
 /* No "load demo data" offer lives here.
 
@@ -19,22 +23,37 @@ import { longDate } from "@/lib/format";
    (DemoModeToggle), which tracks every seeded row so it can be withdrawn
    again without touching what the studio built. */
 
+function greeting(hour: number) {
+  if (hour < 5 || hour >= 17) return "Good evening";
+  if (hour < 12) return "Good morning";
+  return "Good afternoon";
+}
+
 export default function DashboardPage() {
-  const [lastRefreshed] = useState(() => Date.now());
+  const { user } = useOptionalUser();
+  const today = useQuery(api.today.today, {});
+  const [booking, setBooking] = useState(false);
+  const now = new Date();
+  const first = user?.firstName?.trim();
+  const count = today?.counts.sessionsToday;
+  const date = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
       <OnboardingNudge />
       <GetPaidBanner />
+      {/* In the shell this lands in the top bar chassis (kit overview). */}
       <PageHeader
         overline="Studio"
-        title="Dashboard"
-        description={`What's happening right now and everything moving through the studio - ${longDate(lastRefreshed)}.`}
+        title={first ? `${greeting(now.getHours())}, ${first}` : greeting(now.getHours())}
+        description={count === undefined ? date : `${date} · ${count} ${count === 1 ? "session" : "sessions"} today`}
+        actions={<Button onClick={() => setBooking(true)}>New booking</Button>}
       />
 
       {/* Every dashboard tile lives in the customizable grid - drag to
           reorder, remove, or add widgets from the tray (persists per user). */}
       <CustomizableDashboard />
+      <BookSessionDialog open={booking} onOpenChange={setBooking} />
     </div>
   );
 }

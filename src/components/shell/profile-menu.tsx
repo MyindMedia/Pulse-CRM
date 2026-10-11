@@ -85,7 +85,8 @@ export function ProfileMenu() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button
-            className="flex items-center gap-2 rounded-chrome border border-graphite/60 bg-coal/60 py-1 pl-1 pr-2 transition-colors hover:border-graphite hover:bg-coal"
+            data-wide="true"
+            className="pl-icon-key flex"
             aria-label="Account menu"
           >
             <span className="relative">
@@ -96,11 +97,11 @@ export function ProfileMenu() {
                 </span>
               )}
             </span>
-            <span className="hidden leading-tight text-left sm:block">
+            <span className="hidden leading-tight text-left 2xl:block">
               <span className="block font-grotesk text-xs font-medium text-bone">{name}</span>
               <span className="chrome-meta block text-steel/80">{org?.tierLabel ?? "Core"} plan</span>
             </span>
-            <ChevronDown className="hidden size-3.5 text-steel/70 sm:block" />
+            <ChevronDown className="size-3.5 text-steel/70" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-64">

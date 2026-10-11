@@ -265,6 +265,9 @@ export const importBulk = mutation({
   },
   handler: async (ctx, { items, skipDuplicateSerials }) => {
     const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
+    // Same rule as create: what gear cost and is worth is money, so the
+    // figures of someone who may not see money are not kept.
+    const money = (await currentMoneySight(ctx)).money;
 
     // Map room names -> ids once (case-insensitive), for the location column.
     const rooms = await ctx.db
@@ -309,8 +312,8 @@ export const importBulk = mutation({
         installedInRoomId: roomId,
         status: item.status ?? (roomId ? "in_use" : "available"),
         quantity: item.quantity && item.quantity > 0 ? Math.round(item.quantity) : 1,
-        purchaseCents: item.purchaseCents,
-        currentValueCents: item.currentValueCents,
+        purchaseCents: money ? item.purchaseCents : 0,
+        currentValueCents: money ? item.currentValueCents : 0,
         purchaseDate: item.purchaseDate,
         serialNumber: item.serialNumber?.trim() || undefined,
         condition: item.condition?.trim() || undefined,

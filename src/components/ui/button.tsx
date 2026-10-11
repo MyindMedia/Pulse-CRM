@@ -63,7 +63,14 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
   ({ className, variant, size, asChild = false, ...props }, ref) => {
     const Comp = asChild ? Slot : "button";
     return (
-      <Comp ref={ref} className={cn(buttonVariants({ variant, size }), className)} {...props} />
+      <Comp
+        ref={ref}
+        // pl-key + data-variant: the hardware key skin (src/app/hardware.css),
+        // live only inside the app shell.
+        data-variant={variant ?? "primary"}
+        className={cn("pl-key", buttonVariants({ variant, size }), className)}
+        {...props}
+      />
     );
   },
 );

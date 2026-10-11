@@ -105,6 +105,35 @@ export async function followupProblem(ctx: QueryCtx | MutationCtx, d: Doc<"outre
 const MAX_THREADS_PER_MAILBOX = 200;
 const MAX_MESSAGES_PER_THREAD = 50;
 
+type ReplyFields = Pick<Doc<"mailMessages">, "direction" | "receivedAt" | "createdAt" | "inReplyTo" | "references" | "fromAddress">;
+type SequenceFields = Pick<Doc<"outreachSequences">, "startedAt" | "threadMessageId" | "recipient" | "threadSubject">;
+
+/** Does inbound message `m` answer sequence `s`? Yes when it arrived after
+ *  step 0 was sent and either threads under step 0's Message-ID or comes from
+ *  the recipient. */
+export function answersSequence(m: ReplyFields, s: SequenceFields): boolean {
+  if (m.direction !== "in") return false;
+  const at = m.receivedAt ?? m.createdAt;
+  if (at <= s.startedAt) return false;
+  const threaded = m.inReplyTo === s.threadMessageId || (m.references ?? []).includes(s.threadMessageId);
+  return threaded || m.fromAddress === s.recipient;
+}
+
+/** A thread can hold a reply to `s` when it names the recipient or carries step 0's subject. */
+export function threadMatchesSequence(th: Pick<Doc<"mailThreads">, "participants" | "normalizedSubject">, s: SequenceFields): boolean {
+  return th.participants.includes(s.recipient) || th.normalizedSubject === normalizeSubject(s.threadSubject);
+}
+
+/** The sequences (any status) one stored message replies to, by the same rule
+ *  as detectReplies. Read-only over mail, like detectReplies. */
+export async function sequencesAnsweredBy(ctx: QueryCtx | MutationCtx, m: Doc<"mailMessages">): Promise<Doc<"outreachSequences">[]> {
+  if (m.direction !== "in") return [];
+  const th = await ctx.db.get(m.threadId);
+  if (!th) return [];
+  const seqs = await ctx.db.query("outreachSequences").withIndex("by_agency_recipient", (q) => q.eq("agencyId", m.agencyId)).collect();
+  return seqs.filter((s) => threadMatchesSequence(th, s) && answersSequence(m, s));
+}
+
 export async function detectReplies(ctx: QueryCtx | MutationCtx, agencyId: string, seqs: Doc<"outreachSequences">[]): Promise<Set<Id<"outreachSequences">>> {
   const replied = new Set<Id<"outreachSequences">>();
   if (seqs.length === 0) return replied;
@@ -131,12 +160,7 @@ export async function detectReplies(ctx: QueryCtx | MutationCtx, agencyId: strin
       const msgs = await ctx.db.query("mailMessages").withIndex("by_thread", (q) => q.eq("threadId", th._id)).order("desc").take(MAX_MESSAGES_PER_THREAD);
       for (const m of msgs) {
         if (m.direction !== "in") continue;
-        const at = m.receivedAt ?? m.createdAt;
-        for (const s of open) {
-          if (at <= s.startedAt) continue;
-          const threaded = m.inReplyTo === s.threadMessageId || (m.references ?? []).includes(s.threadMessageId);
-          if (threaded || m.fromAddress === s.recipient) replied.add(s._id);
-        }
+        for (const s of open) if (answersSequence(m, s)) replied.add(s._id);
       }
     }
   }

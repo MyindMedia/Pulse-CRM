@@ -24,32 +24,30 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { api } from "@convex/_generated/api";
 import { Building2, GripVertical, PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { NAV, type NavItem } from "@/lib/nav";
+import { NAV, NAV_GROUPS, type NavGroup, type NavItem } from "@/lib/nav";
 import { cn } from "@/lib/utils";
 import { useCapabilities } from "@/lib/use-capabilities";
-import { PulseLogo } from "@/components/brand/pulse-logo";
 import { BrandLockup } from "@/components/brand/brand-lockup";
-import { PoweredByPulse } from "@/components/brand/powered-by-pulse";
 import { Tooltip } from "@/components/ui/tooltip";
 import { minTierFor } from "@convex/lib/entitlements";
 import { PLAN_LIMITS, priceLabel, type CapabilityKey, type TierKey } from "@convex/lib/plans";
 
-/* The rail mark. On the Max (white-label) tier this is the studio's own
- * logo with "Powered by Pulse" underneath; every tier below renders the Pulse
- * wordmark. BrandLockup owns that decision so both branches stay in one place. */
-function Wordmark() {
-  return <BrandLockup />;
-}
+/* The sidebar is its own chassis (kit section 4, "Sidebar (web)"): the
+ * logo with the signature's emboss and a short yellow bar, then the nav in
+ * labelled sections. Each row is an LED and a name; the active row is a key
+ * pushed into the panel, with yellow text and a lit LED. The plan sits in a
+ * well under the nav. The chassis itself (ground, slabs, brackets) is drawn
+ * by the layout's <aside>. */
 
 /* Features this workspace has not bought yet.
  *
  * They are listed rather than hidden: a studio that cannot see Payroll exists
- * never asks for it. Each row is grayed out and carries the initial of the
- * tier that unlocks it (G for Growth, M for Max); the tooltip names the tier
- * and its price, so the upgrade decision is one click and zero questions.
- * Rows link to Settings > Billing, never to the feature itself - the route
- * guard and the server would both refuse anyway. A studio can hide the list
- * from Settings > Billing.
+ * never asks for it. Each row is dimmed and carries the initial of the tier
+ * that unlocks it (G for Growth, M for Max); the tooltip names the tier and
+ * its price, so the upgrade decision is one click and zero questions. Rows
+ * link to Settings > Billing, never to the feature itself - the route guard
+ * and the server would both refuse anyway. A studio can hide the list from
+ * Settings > Billing.
  *
  * Only tier locks appear here. A feature the agency switched off stays fully
  * hidden, because that is an operator decision, not a paywall. */
@@ -73,11 +71,9 @@ function LockedFeatures({ onNavigate }: { onNavigate?: () => void }) {
   if (rows.length === 0) return null;
 
   return (
-    <div className="mt-3 px-2">
-      <p className="px-1 font-meta text-[0.5625rem] uppercase tracking-[0.12em] text-steel/50">
-        Locked on your plan
-      </p>
-      <ul className="mt-1.5 space-y-0.5">
+    <div>
+      <p className="pl-label px-4 pb-2 pt-6">Locked on your plan</p>
+      <ul className="space-y-0.5">
         {rows.map(({ item, need }) => (
           <li key={item.href} className="list-none">
             <Tooltip
@@ -91,9 +87,10 @@ function LockedFeatures({ onNavigate }: { onNavigate?: () => void }) {
               <Link
                 href="/settings?tab=billing"
                 onClick={onNavigate}
-                className="group flex min-h-9 items-center gap-3 rounded-chrome px-3 py-1.5 font-meta text-[0.7rem] uppercase tracking-[0.04em] text-steel/45 transition-colors hover:bg-coal/40 hover:text-steel"
+                data-locked="true"
+                className="pl-nav-item group"
               >
-                <item.icon className="size-[1.1rem] shrink-0 text-steel/35 transition-colors group-hover:text-steel/60" />
+                <span className="pl-led" aria-hidden />
                 <span className="truncate">{item.label}</span>
                 <TierBadge tier={need} />
               </Link>
@@ -118,29 +115,22 @@ function TierBadge({ tier }: { tier: TierKey | null }) {
   );
 }
 
-/* Footer credit. A white-labeled workspace shows its own name here, with the
- * Powered by Pulse line kept underneath - the lockup is a condition of the
- * tier, not a toggle. */
-function SidebarCredit() {
+/* The plan, in a well under the nav: the tier and how big the studio is. */
+function PlanWell() {
   const org = useQuery(api.orgs.current);
-  const theme = useQuery(api.theme.get);
-  if (theme?.active) {
-    return (
-      <>
-        <p className="chrome-meta text-steel/80">
-          {theme.appName || org?.name || "Studio"}
-        </p>
-        <PoweredByPulse className="mt-0.5" size="xs" />
-      </>
-    );
-  }
+  const rooms = useQuery(api.rooms.list);
+  const staff = useQuery(api.members.list);
+  if (!org?.tierLabel) return null;
+  const size =
+    rooms !== undefined && staff !== undefined
+      ? `${rooms.length} ${rooms.length === 1 ? "room" : "rooms"}, ${staff.length} staff`
+      : null;
   return (
-    <>
-      <p className="chrome-meta text-steel/80">Pulse by ThaMyind</p>
-      <p className="mt-0.5 font-meta text-[0.625rem] text-steel/60">
-        {org?.tierLabel ? `v1.0 · ${org.tierLabel}` : "v1.0 · Studio edition"}
-      </p>
-    </>
+    <div className="pl-well mx-4 mt-6 px-3 py-3">
+      <p className="font-sans text-[10.5px] uppercase leading-[14px] tracking-[0.04em] text-steel">Plan</p>
+      <p className="mt-0.5 font-sans text-[15px] font-bold leading-5 text-bone">{org.tierLabel}</p>
+      {size && <p className="mt-0.5 font-sans text-xs leading-4 text-mist">{size}</p>}
+    </div>
   );
 }
 
@@ -186,17 +176,13 @@ function SortableNavItem({
             href={item.href}
             onClick={onNavigate}
             aria-current={active ? "page" : undefined}
-            className={cn(
-              "group flex min-h-11 items-center justify-center rounded-chrome border transition-colors duration-200 ease-out active:scale-[0.98]",
-              active
-                ? "border-gold/50 bg-gold/12 text-bone"
-                : "border-transparent text-steel hover:bg-coal/60 hover:text-bone",
-            )}
+            data-active={active}
+            className="pl-nav-item group justify-center px-0!"
           >
             <item.icon
               className={cn(
-                "size-[1.15rem] shrink-0 transition-colors",
-                active ? "text-gold" : "text-steel/70 group-hover:text-steel",
+                "size-[1.1rem] shrink-0 transition-colors",
+                active ? "text-gold" : "text-steel group-hover:text-bone",
               )}
             />
             <span className="sr-only">{item.label}</span>
@@ -210,48 +196,95 @@ function SortableNavItem({
     <li
       ref={setNodeRef}
       style={{ transform: CSS.Translate.toString(transform), transition }}
-      className={cn("relative list-none", isDragging && "z-10 opacity-60")}
+      className={cn("group/row relative list-none", isDragging && "z-10 opacity-60")}
     >
-      <div
+      <Link
+        href={item.href}
+        onClick={onNavigate}
+        aria-current={active ? "page" : undefined}
+        data-active={active}
+        className="pl-nav-item group pr-9!"
+      >
+        <span className="pl-led" data-on={active} aria-hidden />
+        <span className="truncate">{item.label}</span>
+      </Link>
+      <button
+        type="button"
+        aria-label={`Reorder ${item.label}`}
+        {...attributes}
+        {...listeners}
         className={cn(
-          "group flex min-h-11 items-center gap-2 rounded-chrome pr-1.5 font-meta text-[0.7rem] uppercase tracking-[0.04em] " +
-            "transition-[background-color,color,border-color] duration-200 ease-out border",
-          active
-            ? "border-gold/50 bg-gold/12 text-bone"
-            : "border-transparent text-steel hover:bg-coal/60 hover:text-bone",
+          "absolute right-1.5 top-1/2 grid size-6 -translate-y-1/2 cursor-grab touch-none place-items-center rounded text-steel/60 " +
+            "pointer-events-none opacity-0 transition-opacity hover:text-steel active:cursor-grabbing " +
+            "focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover/row:pointer-events-auto group-hover/row:opacity-100",
         )}
       >
-        <Link
-          href={item.href}
-          onClick={onNavigate}
-          className="flex min-w-0 flex-1 items-center gap-3 px-3 py-2 active:scale-[0.98]"
-        >
-          <item.icon
-            className={cn(
-              "size-[1.1rem] shrink-0 transition-colors",
-              active ? "text-gold" : "text-steel/70 group-hover:text-steel",
-            )}
-          />
-          <span className="truncate">{item.label}</span>
-        </Link>
-        {active && (
-          <span className="size-1.5 shrink-0 rounded-full bg-gold transition-opacity group-hover:opacity-0" />
-        )}
-        <button
-          type="button"
-          aria-label={`Reorder ${item.label}`}
-          {...attributes}
-          {...listeners}
-          className={cn(
-            "absolute right-1.5 grid size-6 shrink-0 cursor-grab touch-none place-items-center rounded text-steel/50 " +
-              "pointer-events-none opacity-0 transition-opacity hover:text-steel active:cursor-grabbing " +
-              "focus-visible:pointer-events-auto focus-visible:opacity-100 group-hover:pointer-events-auto group-hover:opacity-100",
-          )}
-        >
-          <GripVertical className="size-3.5" />
-        </button>
-      </div>
+        <GripVertical className="size-3.5" />
+      </button>
     </li>
+  );
+}
+
+/** One labelled section of the nav. Rows reorder within their own section. */
+function NavSection({
+  group,
+  label,
+  items,
+  pathname,
+  collapsed,
+  onNavigate,
+  onReorder,
+}: {
+  group: NavGroup;
+  label: string;
+  items: NavItem[];
+  pathname: string;
+  collapsed: boolean;
+  onNavigate?: () => void;
+  onReorder: (group: NavGroup, hrefs: string[]) => void;
+}) {
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  );
+
+  function handleDragEnd(e: DragEndEvent) {
+    const { active, over } = e;
+    if (!over || active.id === over.id) return;
+    const hrefs = items.map((i) => i.href);
+    onReorder(group, arrayMove(hrefs, hrefs.indexOf(String(active.id)), hrefs.indexOf(String(over.id))));
+  }
+
+  return (
+    <div>
+      {collapsed ? (
+        <div className="mx-auto my-3 h-px w-6 bg-hairline" aria-hidden />
+      ) : (
+        <p className="pl-label px-4 pb-2 pt-6">{label}</p>
+      )}
+      {/* A stable id per section keeps dnd-kit's generated aria ids
+          deterministic, so the server and client renders agree. */}
+      <DndContext
+        id={`sidebar-nav-${group}`}
+        sensors={sensors}
+        collisionDetection={closestCenter}
+        onDragEnd={handleDragEnd}
+      >
+        <SortableContext items={items.map((i) => i.href)} strategy={verticalListSortingStrategy}>
+          <ul className="space-y-0.5">
+            {items.map((item) => (
+              <SortableNavItem
+                key={item.href}
+                item={item}
+                active={pathname === item.href || pathname.startsWith(`${item.href}/`)}
+                onNavigate={onNavigate}
+                collapsed={collapsed}
+              />
+            ))}
+          </ul>
+        </SortableContext>
+      </DndContext>
+    </div>
   );
 }
 
@@ -305,18 +338,17 @@ export function Sidebar({
     }
   }, [storageKey]);
 
-  const ordered = React.useMemo(() => applyOrder(items, order), [items, order]);
+  const sections = React.useMemo(() => {
+    const ordered = applyOrder(items, order);
+    return NAV_GROUPS.map((g) => ({ ...g, items: ordered.filter((i) => i.group === g.key) })).filter(
+      (g) => g.items.length > 0,
+    );
+  }, [items, order]);
 
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-
-  function handleDragEnd(e: DragEndEvent) {
-    const { active, over } = e;
-    if (!over || active.id === over.id) return;
-    const hrefs = ordered.map((i) => i.href);
-    const next = arrayMove(hrefs, hrefs.indexOf(String(active.id)), hrefs.indexOf(String(over.id)));
+  // A move inside one section: rebuild the whole saved order section by
+  // section, so every other section keeps its arrangement.
+  function handleReorder(group: NavGroup, hrefs: string[]) {
+    const next = sections.flatMap((s) => (s.key === group ? hrefs : s.items.map((i) => i.href)));
     setOrder(next);
     if (storageKey) {
       try {
@@ -328,103 +360,82 @@ export function Sidebar({
   }
 
   return (
-    <div className={cn("flex h-full flex-col gap-6 py-5", collapsed && "gap-4")}>
-      <div
-        className={cn(
-          "flex items-center gap-2",
-          collapsed ? "flex-col px-2" : "px-4",
-        )}
-      >
-        {collapsed ? (
-          <Link href="/dashboard" aria-label="Home" className="block">
-            <BrandLockup collapsed />
-          </Link>
-        ) : (
-          <Wordmark />
-        )}
-        {onToggleCollapsed && (
-          <Tooltip
-            label={collapsed ? "Expand navigation" : "Collapse navigation"}
-            shortcut="cmd+\\"
-            side="right"
-          >
-            <button
-              type="button"
-              onClick={onToggleCollapsed}
-              aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
-              aria-expanded={!collapsed}
-              className={cn(
-                "grid size-8 shrink-0 place-items-center rounded-chrome border border-transparent text-steel/70",
-                "transition-colors hover:border-hairline-2 hover:bg-coal/60 hover:text-bone",
-                !collapsed && "ml-auto",
-              )}
+    <div className="flex h-full flex-col">
+      <div className={cn("shrink-0", collapsed ? "flex flex-col items-center gap-3 px-2 pt-6" : "px-[33px] pt-6")}>
+        <div className={cn("flex items-center gap-2", collapsed && "flex-col")}>
+          {collapsed ? (
+            <Link href="/dashboard" aria-label="Home" className="pl-emboss block">
+              <BrandLockup collapsed />
+            </Link>
+          ) : (
+            <BrandLockup className="pl-emboss min-w-0 flex-1" wordmarkClassName="w-[100px] flex-none" />
+          )}
+          {onToggleCollapsed && (
+            <Tooltip
+              label={collapsed ? "Expand navigation" : "Collapse navigation"}
+              shortcut="cmd+\\"
+              side="right"
             >
-              {collapsed ? (
-                <PanelLeftOpen className="size-4" />
-              ) : (
-                <PanelLeftClose className="size-4" />
-              )}
-            </button>
-          </Tooltip>
-        )}
+              <button
+                type="button"
+                onClick={onToggleCollapsed}
+                aria-label={collapsed ? "Expand navigation" : "Collapse navigation"}
+                aria-expanded={!collapsed}
+                className={cn(
+                  "grid size-7 shrink-0 place-items-center rounded-[4px] text-steel transition-colors hover:bg-coal hover:text-bone",
+                  !collapsed && "ml-auto",
+                )}
+              >
+                {collapsed ? <PanelLeftOpen className="size-4" /> : <PanelLeftClose className="size-4" />}
+              </button>
+            </Tooltip>
+          )}
+        </div>
+        {!collapsed && <span className="pl-bar mt-3 w-[72px]" aria-hidden />}
       </div>
 
-      <nav className={cn("min-h-0 flex-1 overflow-y-auto", collapsed ? "px-2" : "px-3")}>
-        {/* A stable id keeps dnd-kit's generated aria ids deterministic. Without
-            it the counter differs between the server render and the client one
-            and React reports a hydration mismatch on every nav item. */}
-        <DndContext
-          id="sidebar-nav"
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragEnd={handleDragEnd}
-        >
-          <SortableContext items={ordered.map((i) => i.href)} strategy={verticalListSortingStrategy}>
-            <ul className="space-y-0.5">
-              {ordered.map((item) => (
-                <SortableNavItem
-                  key={item.href}
-                  item={item}
-                  active={pathname === item.href || pathname.startsWith(`${item.href}/`)}
-                  onNavigate={onNavigate}
-                  collapsed={collapsed}
-                />
-              ))}
-            </ul>
-          </SortableContext>
-        </DndContext>
-      </nav>
+      <nav className={cn("min-h-0 flex-1 overflow-y-auto pb-6", collapsed ? "px-2" : "px-[17px]")}>
+        {sections.map((s) => (
+          <NavSection
+            key={s.key}
+            group={s.key}
+            label={s.label}
+            items={s.items}
+            pathname={pathname}
+            collapsed={collapsed}
+            onNavigate={onNavigate}
+            onReorder={handleReorder}
+          />
+        ))}
 
-      <div className={cn("space-y-3", collapsed ? "px-2" : "px-3")}>
+        {!collapsed && <LockedFeatures onNavigate={onNavigate} />}
+
         {isAgencyViewer &&
           (collapsed ? (
-            <Tooltip label="Agency console" side="right">
+            <div className="mt-4">
+              <Tooltip label="Agency console" side="right">
+                <Link href="/agency" onClick={onNavigate} className="pl-nav-item group justify-center px-0!">
+                  <Building2 className="size-[1.1rem] shrink-0 text-steel transition-colors group-hover:text-gold" />
+                  <span className="sr-only">Agency console</span>
+                </Link>
+              </Tooltip>
+            </div>
+          ) : (
+            <div className="mt-6 px-4">
               <Link
                 href="/agency"
                 onClick={onNavigate}
-                className="group flex items-center justify-center rounded-chrome border border-graphite/60 bg-coal/40 py-2 text-steel transition-colors hover:border-gold hover:text-bone"
+                data-variant="secondary"
+                className="pl-key flex h-[34px] items-center justify-center gap-2 px-3"
               >
-                <Building2 className="size-[1.1rem] shrink-0 text-steel/70 transition-colors group-hover:text-gold" />
-                <span className="sr-only">Agency console</span>
+                <Building2 className="size-3.5 shrink-0" />
+                Agency console
               </Link>
-            </Tooltip>
-          ) : (
-            <Link
-              href="/agency"
-              onClick={onNavigate}
-              className="group flex items-center gap-3 rounded-chrome border border-graphite/60 bg-coal/40 px-3 py-2 font-meta text-[0.7rem] uppercase tracking-[0.04em] text-steel transition-colors hover:border-gold hover:text-bone"
-            >
-              <Building2 className="size-[1.1rem] shrink-0 text-steel/70 transition-colors group-hover:text-gold" />
-              Agency console
-            </Link>
+            </div>
           ))}
-        {!collapsed && <LockedFeatures onNavigate={onNavigate} />}
-        {!collapsed && (
-          <div className="px-2">
-            <SidebarCredit />
-          </div>
-        )}
-      </div>
+
+        {!collapsed && <PlanWell />}
+      </nav>
     </div>
   );
 }

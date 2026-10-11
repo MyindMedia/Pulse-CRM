@@ -32,7 +32,8 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
 
   return (
     <TooltipProvider delayDuration={300}>
-      <div className="min-h-dvh bg-ink">
+      {/* pulse-hw switches on the hardware UI (src/app/hardware.css). */}
+      <div className="pulse-hw min-h-dvh bg-ink">
         {/* Slim console top bar - distinct from the studio chrome, no sidebar. */}
         <header className="sticky top-0 z-30 border-b border-graphite/50 bg-obsidian/90 backdrop-blur-md">
           <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4 lg:px-8">
