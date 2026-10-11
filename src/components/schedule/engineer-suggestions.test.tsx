@@ -27,6 +27,18 @@ vi.mock("convex/react", async () => {
   };
 });
 
+// Who is looking: a scheduler by default; a read-only teammate in one test.
+const viewer = { loaded: true, caps: new Set(["sessions.edit", "schedule.manage"]) };
+vi.mock("@/lib/use-capabilities", () => ({
+  useCapabilities: () => ({
+    role: null,
+    kind: null,
+    loaded: viewer.loaded,
+    can: (cap: string) => viewer.caps.has(cap) || viewer.caps.has(`${cap}.own`),
+    canSeeFinancials: false,
+  }),
+}));
+
 const { UnstaffedSessions } = await import("./unstaffed-sessions");
 const { SuggestedEngineers } = await import("./engineer-suggestions");
 
@@ -43,6 +55,22 @@ describe("Needs an engineer: Jev suggestions", () => {
     for (const state of [undefined, new Error("Could not find public function for 'jevEngineerFit:available'")]) {
       gate.enabled = state;
       expect(render()).toBe(off);
+    }
+  });
+
+  it("shows a read-only teammate the gap but no assign control (the server refuses them too)", () => {
+    gate.enabled = false;
+    viewer.caps = new Set(["sessions.read"]);
+    try {
+      const html = render();
+      expect(html).toContain("Nova vocals");
+      expect(html).not.toContain("Assign engineer");
+      // Until capabilities load, the control stays, so it never flashes away.
+      viewer.loaded = false;
+      expect(render()).toContain("Assign engineer");
+    } finally {
+      viewer.caps = new Set(["sessions.edit", "schedule.manage"]);
+      viewer.loaded = true;
     }
   });
 

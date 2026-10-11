@@ -9,6 +9,7 @@ import { AlertTriangle, DoorOpen } from "lucide-react";
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from "@/components/ui/select";
+import { useCapabilities } from "@/lib/use-capabilities";
 import {
   SuggestEngineerButton,
   SuggestedBadge,
@@ -33,6 +34,10 @@ export function UnstaffedSessions() {
   const assign = useMutation(api.sessions.assignEngineer);
   // Jev suggestions are offered only to staff schedulers on a deployment with Jev.
   const canSuggest = useEngineerFitEnabled(Boolean(gaps?.length));
+  // Assigning needs sessions.edit (the server re-checks). Shown while loading so
+  // the control does not flash away for the people who have it.
+  const { can, loaded } = useCapabilities();
+  const canAssign = !loaded || can("sessions.edit");
 
   if (!gaps || gaps.length === 0) return null;
 
@@ -54,7 +59,7 @@ export function UnstaffedSessions() {
       </p>
       <div className="space-y-2">
         {gaps.map((s) => (
-          <GapRow key={s._id} gap={s} engineers={engineers} canSuggest={canSuggest} onPick={pick} />
+          <GapRow key={s._id} gap={s} engineers={engineers} canSuggest={canSuggest} canAssign={canAssign} onPick={pick} />
         ))}
       </div>
     </div>
@@ -67,11 +72,13 @@ function GapRow({
   gap: s,
   engineers,
   canSuggest,
+  canAssign,
   onPick,
 }: {
   gap: Gap;
   engineers: Engineer[] | undefined;
   canSuggest: boolean;
+  canAssign: boolean;
   onPick: (sessionId: string, engineerId: string) => void;
 }) {
   const fit = useEngineerSuggestions();
@@ -95,25 +102,27 @@ function GapRow({
       {canSuggest && !fit.result && (
         <SuggestEngineerButton loading={fit.loading} onClick={() => void fit.ask({ sessionId: s._id })} />
       )}
-      <div className="w-44 shrink-0">
-        <Select onValueChange={(v) => onPick(s._id, v)}>
-          <SelectTrigger><SelectValue placeholder="Assign engineer" /></SelectTrigger>
-          <SelectContent>
-            {(engineers ?? []).map((e) => {
-              const suggestion = suggestionFor(fit.result, e._id);
-              return (
-                <SelectItem
-                  key={e._id}
-                  value={e._id}
-                  trailing={suggestion ? <SuggestedBadge pick={suggestion} /> : undefined}
-                >
-                  {e.name}
-                </SelectItem>
-              );
-            })}
-          </SelectContent>
-        </Select>
-      </div>
+      {canAssign && (
+        <div className="w-44 shrink-0">
+          <Select onValueChange={(v) => onPick(s._id, v)}>
+            <SelectTrigger><SelectValue placeholder="Assign engineer" /></SelectTrigger>
+            <SelectContent>
+              {(engineers ?? []).map((e) => {
+                const suggestion = suggestionFor(fit.result, e._id);
+                return (
+                  <SelectItem
+                    key={e._id}
+                    value={e._id}
+                    trailing={suggestion ? <SuggestedBadge pick={suggestion} /> : undefined}
+                  >
+                    {e.name}
+                  </SelectItem>
+                );
+              })}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
     </div>
   );
 }
