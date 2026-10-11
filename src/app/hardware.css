@@ -524,6 +524,42 @@
   :root:has(.pulse-hw) .pl-led[data-live="true"] { animation: none; }
 }
 
+/* ============================================================
+   Bookings (slice 3.2), per pulse-bookings.png: a day board of rooms by
+   hours on a screen. A booking is a key placed on the timeline; the
+   selected one is the yellow key; a hold is a hatched yellow outline; now
+   is a 2px glowing yellow line (kit section 4, "Calendar block").
+   ============================================================ */
+:root:has(.pulse-hw) .pl-track {
+  background-image: linear-gradient(to right, rgba(255, 255, 255, 0.05) 1px, transparent 1px);
+}
+:root:has(.pulse-hw) .pl-block {
+  border-radius: var(--pl-radius-screen);
+  background: linear-gradient(180deg, var(--pl-face-high), var(--pl-face-raised));
+  box-shadow: var(--pl-shadow-key);
+  color: var(--pl-ink);
+  text-align: left;
+  transition: transform var(--pl-key-press) ease-out, box-shadow var(--pl-key-press) ease-out;
+}
+:root:has(.pulse-hw) .pl-block:active { transform: translate(1px, 2px); box-shadow: var(--pl-shadow-key-pressed); }
+:root:has(.pulse-hw) .pl-block[data-selected="true"] {
+  background: linear-gradient(180deg, var(--pl-yellow-hover), var(--pl-yellow));
+  color: var(--pl-on-yellow);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0.7px 1px 0 #8a6d00, 1.4px 2px 0 #5c4900,
+    0 4px 12px rgba(255, 201, 0, 0.25);
+}
+:root:has(.pulse-hw) .pl-block[data-hold="true"]:not([data-selected="true"]) {
+  background: repeating-linear-gradient(135deg, rgba(255, 201, 0, 0.16) 0 6px, transparent 6px 12px), var(--pl-well);
+  box-shadow: inset 0 0 0 1px var(--pl-yellow);
+  color: var(--pl-yellow);
+}
+:root:has(.pulse-hw) .pl-block[data-dim="true"]:not([data-selected="true"]) { opacity: 0.55; }
+:root:has(.pulse-hw) .pl-nowline {
+  width: 2px;
+  background: var(--pl-yellow);
+  box-shadow: var(--pl-glow-yellow-soft);
+}
+
 /* The top bar shows the page's own title once PageHeader portals it in;
    until then (first paint, pages without a header) the nav label stands in. */
 :root:has(.pulse-hw) .pl-title-slot:not(:empty) + .pl-title-fallback { display: none; }
