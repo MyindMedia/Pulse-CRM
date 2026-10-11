@@ -18,7 +18,7 @@
 
 - [x] 3.1 Studio overview per `screenshots/pulse-overview.png` (#64, #65; live data: today.today, dashboard.overview + revenueSeries, reports.roomUtilization, opsActions, payments.recentDeposits)
 - [x] 3.2 Bookings per `screenshots/pulse-bookings.png` (day board by room with now line, holds hatched, selected booking, today at a glance, session prep; week view; Month opens the calendar; pipeline kept below)
-- [ ] 3.3 Invoices and splits per `screenshots/pulse-invoices-splits.png`
+- [x] 3.3 Invoices and splits per `screenshots/pulse-invoices-splits.png` (cash position, invoices in a screen with status filter, split sheet spotlight, collected chart on Bklit; no BILL tile or Push to BILL: Pulse has no BILL integration)
 
 ## 4. Live data (slice 5)
 

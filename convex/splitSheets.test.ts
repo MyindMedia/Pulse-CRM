@@ -100,3 +100,30 @@ describe("split-sheet logging for future records", () => {
     expect(await t.query(api.splitSheets.forSong, { songId })).toBeNull();
   });
 });
+
+describe("split sheet spotlight (payments page)", () => {
+  let t: ReturnType<typeof convexTest>;
+  beforeEach(() => { t = convexTest(schema); });
+
+  it("is null with no sheets, then picks the sheet out for signature over a newer draft, with no emails", async () => {
+    expect(await t.query(api.splitSheets.spotlight, {})).toBeNull();
+    const sent = await seedSong(t, "Midnight Signal");
+    const draft = await seedSong(t, "Later Draft");
+    await t.run(async (ctx) => {
+      await ctx.db.insert("splitSheets", {
+        orgId: ORG, songId: sent, status: "sent", updatedAt: Date.now() - 60_000,
+        contributors: [
+          { name: "Nova Vega", role: "Artist, writer", masterPct: 40, publishingPct: 40, signed: true, email: "nova@x.com" },
+          { name: "K. Ade", role: "Co-writer", masterPct: 60, publishingPct: 60, signed: false, email: "k@x.com" },
+        ],
+      });
+      await ctx.db.insert("splitSheets", {
+        orgId: ORG, songId: draft, status: "draft", updatedAt: Date.now(),
+        contributors: [{ name: "Solo", role: "Writer", masterPct: 100, publishingPct: 100, signed: false }],
+      });
+    });
+    const s = await t.query(api.splitSheets.spotlight, {});
+    expect(s).toMatchObject({ songTitle: "Midnight Signal", status: "sent", signed: 1, total: 2, artistName: "Nova" });
+    expect(JSON.stringify(s)).not.toContain("@x.com");
+  });
+});
