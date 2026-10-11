@@ -437,6 +437,16 @@
    per pulse-overview.png and spec sections 3 to 5.
    ============================================================ */
 
+/* Stat tile: a size container, so the figure scales down rather than
+   truncating in a narrow tile (8 mono digits always fit; 30px at full
+   width, as in the kit). */
+:root:has(.pulse-hw) .pl-stat { container-type: inline-size; }
+:root:has(.pulse-hw) .pl-stat-figure { font-size: clamp(18px, calc(100cqi / 5), 30px); line-height: 1.15; }
+:root:has(.pulse-hw) .pl-stat-foot { font-size: clamp(10px, calc(100cqi / 11), 12px); }
+@container (max-width: 150px) {
+  :root:has(.pulse-hw) .pl-stat .pl-label { letter-spacing: 0.03em; }
+}
+
 /* Key bank: segmented keys in a well; the selected key stands up with a
    lit LED. */
 :root:has(.pulse-hw) .pl-bank-key[data-on="true"] {

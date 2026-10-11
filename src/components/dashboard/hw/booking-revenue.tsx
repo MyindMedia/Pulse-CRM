@@ -49,7 +49,7 @@ export function BookingRevenue() {
             yDomainTween
             aspectRatio="auto"
             style={{ height: "100%" }}
-            margin={{ top: 14, right: 14, bottom: 26, left: 14 }}
+            margin={{ top: 14, right: 26, bottom: 26, left: 26 }}
           >
             <Grid horizontal vertical stroke="var(--chart-grid)" strokeOpacity={1} />
             <Area dataKey="revenue" fill="var(--chart-line-primary)" fillOpacity={0.32} fadeEdges strokeWidth={2} />
