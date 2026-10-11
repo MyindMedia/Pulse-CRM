@@ -422,6 +422,9 @@ export default defineSchema({
     // off (orgs.setManagersSeeMoney); lib/access.ts then withholds the money
     // capabilities from every manager here, on the web, the phone and the mirror.
     managersSeeMoney: v.optional(v.boolean()),
+    // Sidebar: features from higher plans show grayed out with the tier that
+    // unlocks them. True hides them instead (Settings > Billing).
+    hideLockedFeatures: v.optional(v.boolean()),
     // Max shared media library: whether this studio's library files appear in
     // its agency admin's all-studios view. Unset means no. Only the studio's
     // owner may turn it on (mediaLibrary.setGroupSharing).

@@ -172,7 +172,7 @@ export default function ComparisonPage() {
 
       <div className="mt-8 flex flex-wrap gap-3">
         <Link
-          href="/onboard"
+          href="/pricing"
           className="rounded-full bg-gold px-6 py-3 font-grotesk text-sm font-bold text-gold-ink transition-opacity hover:opacity-90"
         >
           Start on Pulse

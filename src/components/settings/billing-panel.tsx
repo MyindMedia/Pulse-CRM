@@ -1,10 +1,10 @@
 "use client";
 
 import * as React from "react";
-import { useQuery, useAction } from "convex/react";
+import { useQuery, useAction, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
-import { Check, CreditCard, Gauge, Info } from "lucide-react";
+import { Check, CreditCard, Gauge, Info, LayoutList } from "lucide-react";
 import {
   Card,
   CardHeader,
@@ -15,6 +15,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
+import { Switch } from "@/components/ui/toggle";
 import { cn } from "@/lib/utils";
 import { PLAN_TIERS, type Org, type OrgPlan } from "@/components/settings/types";
 
@@ -45,9 +46,53 @@ function UsageRow({
   );
 }
 
-/** Billing surface - current plan, tier comparison, usage. Presentational only. */
+/** Whether the sidebar shows features from higher plans (grayed out, with the
+ *  tier that unlocks them) or hides them. */
+function LockedFeaturesToggle({ org }: { org: Org }) {
+  const setHide = useMutation(api.orgs.setHideLockedFeatures);
+  const [busy, setBusy] = React.useState(false);
+
+  async function toggle(show: boolean) {
+    setBusy(true);
+    try {
+      await setHide({ hide: !show });
+      toast.success(show ? "Higher-plan features show in the sidebar." : "Higher-plan features are hidden.");
+    } catch {
+      toast.error("Could not update that setting.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardContent className="flex items-start justify-between gap-4 pt-5">
+        <div className="flex items-start gap-3">
+          <span className="mt-0.5 grid size-9 shrink-0 place-items-center rounded-lg bg-gold/12 text-gold">
+            <LayoutList className="size-4" />
+          </span>
+          <div>
+            <p className="font-grotesk text-sm font-semibold text-bone">Show features from higher plans</p>
+            <p className="text-xs text-steel">
+              They sit grayed out in the sidebar with the plan that unlocks them (G for Growth,
+              M for Max). Turn this off to hide them.
+            </p>
+          </div>
+        </div>
+        <Switch
+          checked={!org.hideLockedFeatures}
+          disabled={busy}
+          onCheckedChange={toggle}
+          aria-label="Show features from higher plans in the sidebar"
+        />
+      </CardContent>
+    </Card>
+  );
+}
+
+/** Billing surface - current plan, tier comparison, usage. */
 export function BillingPanel({ org }: { org: Org }) {
-  const checkout = useAction(api.billing.beginCheckout);
+  const changePlan = useAction(api.agencyBilling.changeMyPlan);
   const members = useQuery(api.members.list) as { _id: string }[] | undefined;
   const rooms = useQuery(api.rooms.list) as { _id: string }[] | undefined;
   const [switching, setSwitching] = React.useState<OrgPlan | null>(null);
@@ -55,15 +100,16 @@ export function BillingPanel({ org }: { org: Org }) {
   const currentTier =
     PLAN_TIERS.find((t) => t.value === org.tier) ?? PLAN_TIERS[0];
 
-  /* A plan change is a purchase: it goes through Stripe Checkout. There is
-     no "switch" that only rewrites the workspace record. */
+  /* A plan change is a purchase and goes through Stripe, never a write to the
+     workspace record. A studio on a subscription changes it in the Stripe
+     portal (prorated, no second subscription); one without opens Checkout.
+     The tier moves when Stripe confirms the new price. */
   async function choosePlan(plan: OrgPlan) {
     if (plan === org.tier) return;
     setSwitching(plan);
     try {
-      const r = await checkout({ tier: plan, interval: "month" });
-      if (r?.checkoutUrl) window.location.assign(r.checkoutUrl);
-      else toast.error("Stripe did not return a checkout link.");
+      const r = await changePlan({ tier: plan });
+      window.location.assign(r.url);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not start checkout. Try again.");
     } finally {
@@ -139,7 +185,7 @@ export function BillingPanel({ org }: { org: Org }) {
                   {isCurrent
                     ? "Current plan"
                     : switching === tier.value
-                      ? "Opening checkout…"
+                      ? "Opening Stripe…"
                       : `Choose ${tier.label}`}
                 </Button>
               </CardContent>
@@ -147,6 +193,8 @@ export function BillingPanel({ org }: { org: Org }) {
           );
         })}
       </div>
+
+      <LockedFeaturesToggle org={org} />
 
       {/* Usage */}
       <Card>
@@ -174,8 +222,8 @@ export function BillingPanel({ org }: { org: Org }) {
           <div className="flex items-start gap-2 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5">
             <Info className="mt-0.5 size-3.5 shrink-0 text-info" />
             <p className="text-[0.6875rem] text-steel/70">
-              Choosing a plan opens Stripe Checkout. Your plan changes once
-              the payment goes through.
+              Choosing a plan opens Stripe. Upgrades are prorated and unlock
+              as soon as Stripe confirms; downgrades start at the next renewal.
             </p>
           </div>
         </CardContent>

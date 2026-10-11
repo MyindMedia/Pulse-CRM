@@ -64,6 +64,7 @@ export type Org = {
   taxApply: boolean;
   aiReceptionistEnabled: boolean;
   managersSeeMoney: boolean;
+  hideLockedFeatures: boolean;
 };
 
 /** Service keys mirror sessions.serviceType. */

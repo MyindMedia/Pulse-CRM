@@ -3,7 +3,8 @@ import type { MutationCtx } from "./_generated/server";
 import { internalMutation } from "./functions";
 import { internal } from "./_generated/api";
 import { v } from "convex/values";
-import { stripeClient } from "./lib/stripe";
+import { stripeClient, tierForPriceId } from "./lib/stripe";
+import { platformPlanIdForTier } from "./lib/platformAgency";
 import { sendEmail } from "./lib/email";
 import { formatUsd, isTierKey } from "./lib/pricing";
 import { currentPriceCents } from "./lib/billingGate";
@@ -55,6 +56,7 @@ const subV = v.object({
   trial_end: v.optional(v.union(v.number(), v.null())),
   default_payment_method: v.optional(v.any()),
   metadata: v.optional(v.union(v.record(v.string(), v.string()), v.null())),
+  price_id: v.optional(v.union(v.string(), v.null())),
 });
 
 /** Narrow a raw Stripe subscription (webhook object or API result) to the
@@ -76,7 +78,16 @@ export function toSubscriptionShape(obj: Record<string, unknown>): SubscriptionS
     default_payment_method:
       typeof pm === "string" ? pm : pm && typeof pm === "object" ? (pm as { id?: string }).id ?? "pm" : null,
     metadata: (obj.metadata as Record<string, string> | null | undefined) ?? null,
+    price_id: firstPriceId(obj.items),
   };
+}
+
+/** The price on a subscription's first item (webhook object or API result). */
+function firstPriceId(items: unknown): string | null {
+  const first = (items as { data?: { price?: { id?: unknown } | string }[] } | undefined)?.data?.[0];
+  const price = first?.price;
+  if (typeof price === "string") return price;
+  return typeof price?.id === "string" ? price.id : null;
 }
 
 /**
@@ -127,11 +138,25 @@ export async function applyOrgSubscription(
     const planId = ctx.db.normalizeId("agencyPlans", meta.planId);
     if (planId) patch.agencyPlanId = planId;
   }
+  /* The price says the tier. A plan change made in the Stripe portal (an
+     upgrade now, a downgrade at period end) lands here as a new price, and
+     the studio's tier and plan row follow it, so what they paid for is what
+     unlocks. A beta studio keeps its Beta plan row until it graduates. */
+  const priced = sub.price_id ? tierForPriceId(sub.price_id) : null;
+  if (priced && isLiveSubscriptionStatus(sub.status)) {
+    patch.tier = priced.tier;
+    const betaPending = meta.kind === "beta_conversion" && !org.graduatedAt;
+    if (org.agencyId && !betaPending) {
+      const planId = await platformPlanIdForTier(ctx, org.agencyId, priced.tier, priced.interval);
+      if (planId) patch.agencyPlanId = planId;
+    }
+  }
+
   /* Beta to paid. The chosen tier is recorded at checkout; the studio keeps
      the beta (Max) until the first charge lands, which is the end of the beta
      year when they subscribed early. That first charge is the graduation. */
   if (meta.kind === "beta_conversion") {
-    if (isTierKey(meta.tier)) patch.tier = meta.tier;
+    if (isTierKey(meta.tier) && patch.tier === undefined) patch.tier = meta.tier;
     if (org.betaCohort && !org.graduatedAt && sub.status === "active") {
       patch.graduatedAt = now;
       await ctx.db.insert("activity", {

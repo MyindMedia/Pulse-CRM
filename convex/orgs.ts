@@ -92,6 +92,8 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     // Locked purely by price. The UI shows these as upgrade prompts rather
     // than hiding them, so the studio can see what the next tier buys.
     tierLockedFeatures: tierLockedFeatures(tier),
+    // The studio chose to hide those upgrade prompts from the sidebar.
+    hideLockedFeatures: org?.hideLockedFeatures === true,
     // Plan + entitlements, read by every gated surface.
     tier,
     tierLabel: limits.label,
@@ -462,6 +464,19 @@ export const setAiReceptionist = mutation({
  *  screen. lib/access.ts withholds the money capabilities, so the web app, the
  *  phone and every device's mirror change together, and a manager's phone
  *  re-fetches without the figures on its next sync (lib/mirroredTables.ts). */
+/** Show or hide features from higher plans in the sidebar. Leadership's call,
+ *  the same people who can open Settings. */
+export const setHideLockedFeatures = mutation({
+  args: { hide: v.boolean() },
+  handler: async (ctx, { hide }) => {
+    const orgId = await currentOrgWithCapability(ctx, "branding.edit");
+    const org = await ensureOrg(ctx, orgId);
+    if (!org) throw new Error("Org not found");
+    await ctx.db.patch(org._id, { hideLockedFeatures: hide });
+    return null;
+  },
+});
+
 export const setManagersSeeMoney = mutation({
   args: { enabled: v.boolean() },
   handler: async (ctx, { enabled }) => {
