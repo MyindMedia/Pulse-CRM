@@ -52,6 +52,25 @@ describe("equipment.importBulk", () => {
     expect(res).toEqual({ inserted: 1, skipped: 2 });
   });
 
+  it("keeps prices only from someone who may see money (an engineer granted inventory edit does not)", async () => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: ORG, name: "Demo", slug: "demo", tier: "growth", status: "active" });
+      await ctx.db.insert("members", {
+        orgId: ORG, name: "Eng Ellis", role: "engineer", clerkUserId: "u_eng",
+        capabilityOverrides: ["+equipment.edit"], skills: [],
+      });
+      await ctx.db.insert("members", { orgId: ORG, name: "Mo Manager", role: "manager", clerkUserId: "u_mgr", skills: [] });
+    });
+    const row = (name: string) => ({ name, category: "mic" as const, purchaseCents: 320000, currentValueCents: 240000 });
+
+    await t.withIdentity({ subject: "u_eng", orgId: ORG }).mutation(api.equipment.importBulk, { items: [row("From engineer")] });
+    await t.withIdentity({ subject: "u_mgr", orgId: ORG }).mutation(api.equipment.importBulk, { items: [row("From manager")] });
+
+    const items = await t.run(async (ctx) => ctx.db.query("equipment").collect());
+    expect(items.find((i) => i.name === "From engineer")).toMatchObject({ purchaseCents: 0, currentValueCents: 0 });
+    expect(items.find((i) => i.name === "From manager")).toMatchObject({ purchaseCents: 320000, currentValueCents: 240000 });
+  });
+
   it("logs a single summary activity row, not one per item", async () => {
     await t.mutation(api.equipment.importBulk, {
       items: [
