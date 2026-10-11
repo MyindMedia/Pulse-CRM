@@ -379,6 +379,88 @@
 }
 :root:has(.pulse-hw) .pl-icon-key:active { transform: translate(1px, 2px); box-shadow: var(--pl-shadow-key-pressed); }
 
+/* ============================================================
+   Overview (slice 3): the pieces the studio overview is built from,
+   per pulse-overview.png and spec sections 3 to 5.
+   ============================================================ */
+
+/* Key bank: segmented keys in a well; the selected key stands up with a
+   lit LED. */
+:root:has(.pulse-hw) .pl-bank-key[data-on="true"] {
+  background: linear-gradient(180deg, var(--pl-face-high), var(--pl-face-raised));
+  box-shadow: var(--pl-shadow-key);
+  color: var(--pl-ink);
+}
+
+/* Progress groove: machined slot, glowing fill, optional chrome knob. */
+:root:has(.pulse-hw) .pl-groove {
+  border-radius: 999px;
+  background: var(--pl-well);
+  box-shadow: inset 1px 1px 2px rgba(0, 0, 0, 0.85), 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+:root:has(.pulse-hw) .pl-groove-fill {
+  border-radius: 999px;
+  background: var(--pl-metal-300);
+  transition: width 1s linear;
+}
+:root:has(.pulse-hw) .pl-groove-fill[data-tone="yellow"] {
+  background: var(--pl-yellow);
+  box-shadow: 0 0 8px rgba(255, 201, 0, 0.55);
+}
+:root:has(.pulse-hw) .pl-groove-fill[data-tone="copper"] { background: var(--pl-copper); }
+:root:has(.pulse-hw) .pl-knob {
+  width: 14px;
+  height: 14px;
+  border-radius: 999px;
+  transform: translate(-50%, -50%);
+  background: radial-gradient(circle at 35% 30%, var(--pl-metal-100), var(--pl-metal-300) 55%, var(--pl-metal-500));
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.6);
+}
+
+/* Data table on a glass screen: label-style headers, hairline rows, and the
+   selected row tinted yellow with a 2px yellow left edge. */
+:root:has(.pulse-hw) .pl-table th {
+  font-family: var(--font-archivo), Arial, sans-serif;
+  font-size: 10.5px;
+  line-height: 14px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--pl-ink-subtle);
+  text-align: left;
+}
+:root:has(.pulse-hw) .pl-table tbody tr { border-top: 1px solid rgba(255, 255, 255, 0.06); }
+:root:has(.pulse-hw) .pl-table tbody tr[data-selected="true"] {
+  background: var(--pl-yellow-soft);
+  box-shadow: inset 2px 0 0 var(--pl-yellow);
+}
+
+/* The lens module on the live session hero: a raised block (9px bezel,
+   ramp face) holding a screen with a lens in it. Decorative. */
+:root:has(.pulse-hw) .pl-module {
+  border-radius: 10px;
+  padding: 9px;
+  background: linear-gradient(180deg, #343438, #58585c);
+  box-shadow: var(--pl-shadow-key);
+}
+:root:has(.pulse-hw) .pl-lens-ring {
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  border-radius: 999px;
+  border: 2px solid rgba(228, 228, 232, 0.55);
+}
+
+/* Live LED breathes on live-pulse (2.2s), still when motion is reduced. */
+@keyframes pl-live-pulse {
+  0%, 100% { opacity: 1; }
+  45% { opacity: 0.35; }
+}
+:root:has(.pulse-hw) .pl-led[data-live="true"] { animation: pl-live-pulse 2.48s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  :root:has(.pulse-hw) .pl-led[data-live="true"] { animation: none; }
+}
+
 /* The top bar shows the page's own title once PageHeader portals it in;
    until then (first paint, pages without a header) the nav label stands in. */
 :root:has(.pulse-hw) .pl-title-slot:not(:empty) + .pl-title-fallback { display: none; }

@@ -80,6 +80,8 @@ export const today = query({
           status: s.status,
           rateCents: canSeeFinancials ? s.rateCents : null,
           outstandingCents: canSeeFinancials ? outstandingCents : null,
+          // Whether the deposit is in: money, so leadership only.
+          depositPaid: canSeeFinancials ? s.depositPaid : null,
         };
       }),
     );
