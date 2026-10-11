@@ -90,7 +90,7 @@ async function seedPulseAgency(t: TestT) {
       ownerClerkUserId: "u_lawrence", ownerEmail: "l@x.com",
     });
     const base = { agencyId: "agency_pulse", billingInterval: "month" as const, trialDays: 14, active: true, isDefault: false, isPromo: false, requireCardAfterTrial: true, createdAt: 1 };
-    await ctx.db.insert("agencyPlans", { ...base, name: "Core", priceCents: 14999 });
+    await ctx.db.insert("agencyPlans", { ...base, name: "Core", priceCents: 14900 });
     return await ctx.db.insert("agencyPlans", { ...base, name: "Growth", priceCents: 29700 });
   });
 }
