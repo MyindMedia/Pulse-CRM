@@ -67,7 +67,7 @@ function Activate() {
     claimedRef.current = true;
     setErr("");
     claim({ sessionId })
-      .then(() => router.replace("/agency"))
+      .then(() => router.replace("/welcome"))
       .catch((e) => {
         setErr(errorMessage(e));
         claimedRef.current = false;

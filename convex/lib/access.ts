@@ -20,6 +20,7 @@ import {
   moduleOffError,
 } from "./entitlements";
 import { orgGate, DEMO_ORG } from "./tier";
+import { platformAgencyId } from "./platformAgency";
 import { isToggleable } from "./modules";
 import { serverBillingLock } from "./billingGate";
 import type { Doc } from "../_generated/dataModel";
@@ -254,22 +255,23 @@ export async function resolveViewer(ctx: Ctx, opts?: ResolveOptions): Promise<Vi
     // allowlisted operator without a row passed the console gate yet was
     // cap-denied on every studio read of a sub-account (silently emptying
     // waitlist + other cap-gated panels). A non-empty allowlist + matching email
-    // now elevates the caller to OWNER of the SOLE agency, mirroring the
-    // table-backed owner path. Gated to the single-agency case so it can never
-    // escalate across agencies; an empty allowlist elevates nobody (the
-    // console-only "allow all when list is empty" rule stays out of here).
+    // now elevates the caller to OWNER of the Pulse agency (platformAgencyId),
+    // mirroring the table-backed owner path. Bound to that one agency so it can
+    // never escalate into another; an empty allowlist elevates nobody.
     const email = ((identity as { email?: string }).email ?? "").toLowerCase();
     const allow = (process.env.AGENCY_ADMIN_EMAILS ?? "")
       .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
     if (email && allow.includes(email)) {
-      const agencies = await ctx.db.query("agencies").take(2);
-      if (agencies.length === 1) {
+      // The Pulse agency, not "the sole agency": a second agency row (a buyer
+      // agency from the old checkout flow) used to switch this path off.
+      const pulseAgencyId = await platformAgencyId(ctx);
+      if (pulseAgencyId) {
         const selectedOrgId = await selectedAgencyOrgId(
-          ctx, agencies[0].agencyId, clerkUserId, "all",
+          ctx, pulseAgencyId, clerkUserId, "all",
         );
         return {
           kind: "agency_member",
-          agencyId: agencies[0].agencyId,
+          agencyId: pulseAgencyId,
           agencyMemberId: "allowlist" as unknown as AgencyViewer["agencyMemberId"],
           clerkUserId,
           role: "owner",

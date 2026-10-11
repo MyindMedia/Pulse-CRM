@@ -16,6 +16,8 @@ import { sendEmail } from "./lib/email";
 import { activationEmailSubject, activationEmailHtml } from "./lib/emailTemplates/activation";
 import { allowClerkIdentifier } from "./lib/clerkAllowlist";
 import { normalizeEmail } from "./lib/emailKey";
+import { platformAgencyId, platformPlanIdForTier } from "./lib/platformAgency";
+import type { Id } from "./_generated/dataModel";
 
 // Every tier is self-serve: Core, Growth and Max all check out without a call.
 const SELF_SERVE_TIERS = new Set<string>(["core", "growth", "max"]);
@@ -303,7 +305,7 @@ export const checkoutSummary = action({
  *  refuses any other owner. The paid email stays the owner's billing contact. */
 export const claimCheckout = action({
   args: { sessionId: v.string() },
-  handler: async (ctx, { sessionId }) => {
+  handler: async (ctx, { sessionId }): Promise<{ ok: true; orgId: string }> => {
     const identity = await ctx.auth.getUserIdentity();
     if (!identity) throw new Error("not signed in");
     const stripe = stripeClient();
@@ -313,7 +315,7 @@ export const claimCheckout = action({
     }
     /* Only a pay-first signup provisions a workspace. Any other completed
        session paid with the same email (a card save, a beta conversion, a
-       studio plan) must not become an agency. */
+       studio plan) must not become a studio. */
     if (s.mode !== "subscription" || s.metadata?.kind !== "platform_signup") {
       throw new Error("This checkout is not a Pulse signup.");
     }
@@ -333,16 +335,25 @@ export const claimCheckout = action({
     const studioField = (s.custom_fields ?? []).find((f) => f.key === "studio_name");
     const studioName = studioField?.text?.value || identity.name || sessionEmail || myEmail;
     const customerId = typeof s.customer === "string" ? s.customer : s.customer?.id ?? "";
-    await ctx.runMutation(internal.billing.provisionFromCheckout, {
+    const { orgId, planId }: { orgId: string; planId: Id<"agencyPlans"> | null } = await ctx.runMutation(internal.billing.provisionFromCheckout, {
       clerkUserId: identity.subject,
       email: sessionEmail || myEmail,
       loginEmail: myEmail || undefined,
+      ownerName: identity.name || undefined,
       tier: match.tier,
-      agencyName: studioName,
+      interval: match.interval,
+      studioName,
       customerId,
       subscriptionId,
     });
-    return { ok: true };
+    /* Tag the subscription with its studio so every later event (renewal,
+       failed payment, plan change, cancel) routes to the studio's billing,
+       then mirror its status and trial window onto the studio now. */
+    await stripe.subscriptions.update(subscriptionId, {
+      metadata: { ...(sub.metadata ?? {}), kind: "subaccount_plan", orgId, ...(planId ? { planId } : {}) },
+    });
+    await ctx.runAction(internal.trialBilling.syncOrgSubscription, { orgId, subscriptionId });
+    return { ok: true as const, orgId };
   },
 });
 
@@ -374,69 +385,90 @@ export const provisionFromCheckout = internalMutation({
     email: v.string(),
     /** The login's own email when it differs (e.g. an Apple relay address). */
     loginEmail: v.optional(v.string()),
+    ownerName: v.optional(v.string()),
     tier: tierV,
-    agencyName: v.string(),
+    interval: v.optional(intervalV),
+    studioName: v.string(),
     customerId: v.string(),
     subscriptionId: v.string(),
   },
-  handler: async (ctx, args) => {
-    // Already provisioned for this owner? Nothing to do.
-    const mine = await ctx.db
-      .query("agencies")
-      .withIndex("by_owner", (q) => q.eq("ownerClerkUserId", args.clerkUserId))
+  handler: async (ctx, args): Promise<{ orgId: string; planId: Id<"agencyPlans"> | null }> => {
+    /* A buyer gets a STUDIO under the Pulse agency, never an agency of their
+       own: the agency console is the Pulse team's. The subscription lives on
+       the studio (billingSubscriptionId), like every other sub-account plan. */
+
+    // Already provisioned for this subscription? Same owner: done. Another: refuse.
+    const existing = await ctx.db
+      .query("orgs")
+      .filter((q) => q.eq(q.field("billingSubscriptionId"), args.subscriptionId))
       .first();
-    if (mine) return { agencyId: mine.agencyId };
+    if (existing) {
+      const owners = (
+        await ctx.db.query("members").withIndex("by_org", (q) => q.eq("orgId", existing.orgId)).collect()
+      ).filter((m) => m.role === "owner" && m.clerkUserId);
+      if (owners.some((m) => m.clerkUserId === args.clerkUserId)) {
+        return { orgId: existing.orgId, planId: existing.agencyPlanId ?? null };
+      }
+      throw new Error("This subscription is already linked to another account.");
+    }
 
-    // A pending agency may already exist for this subscription (e.g. a retry).
-    let agency = args.subscriptionId
-      ? (await ctx.db.query("agencies").collect()).find(
-          (a) => a.stripeSubscriptionId === args.subscriptionId,
-        )
-      : undefined;
-
-    if (agency) {
-      // Claim an unowned workspace only. One that already has an owner is
-      // never handed to whoever else presents its subscription.
-      if (agency.ownerClerkUserId && agency.ownerClerkUserId !== args.clerkUserId) {
+    /* Before 2026-10-10 a claim made a buyer agency. One owned by somebody
+       else is never handed over; one that is unowned or this buyer's own is
+       retired here, so the studio below replaces it (and the console link
+       and demo-workspace fallback it caused go with it). */
+    const legacy = (await ctx.db.query("agencies").collect()).find(
+      (a) => a.stripeSubscriptionId === args.subscriptionId,
+    );
+    if (legacy) {
+      if (legacy.ownerClerkUserId && legacy.ownerClerkUserId !== args.clerkUserId) {
         throw new Error("This subscription is already linked to another account.");
       }
-      await ctx.db.patch(agency._id, { ownerClerkUserId: args.clerkUserId });
-    } else {
-      const slug =
-        args.agencyName.trim().toLowerCase().replace(/[^a-z0-9-]/g, "-") ||
-        `ag-${Date.now().toString(36)}`;
-      const agencyId = `agency_${slug}_${Date.now().toString(36)}`;
-      const newId = await ctx.db.insert("agencies", {
-        agencyId,
-        name: args.agencyName,
-        slug,
-        plan: args.tier,
-        status: "active",
-        ownerClerkUserId: args.clerkUserId,
-        ownerEmail: normalizeEmail(args.email),
-        stripeCustomerId: args.customerId,
-        stripeSubscriptionId: args.subscriptionId,
-      });
-      agency = (await ctx.db.get(newId))!;
+      const legacyMembers = await ctx.db
+        .query("agencyMembers")
+        .withIndex("by_agency", (q) => q.eq("agencyId", legacy.agencyId))
+        .collect();
+      for (const m of legacyMembers) await ctx.db.delete(m._id);
+      await ctx.db.delete(legacy._id);
     }
 
-    // Ensure the owner member row exists.
-    const existingMember = await ctx.db
-      .query("agencyMembers")
-      .withIndex("by_agency", (q) => q.eq("agencyId", agency!.agencyId))
-      .filter((q) => q.eq(q.field("clerkUserId"), args.clerkUserId))
-      .first();
-    if (!existingMember) {
-      await ctx.db.insert("agencyMembers", {
-        agencyId: agency.agencyId,
-        clerkUserId: args.clerkUserId,
-        email: normalizeEmail(args.loginEmail || args.email),
-        name: args.agencyName,
-        role: "owner",
-        status: "active",
-        invitedAt: Date.now(),
-      });
+    const agencyId = await platformAgencyId(ctx);
+    const planId = agencyId
+      ? await platformPlanIdForTier(ctx, agencyId, args.tier, args.interval ?? "month")
+      : null;
+
+    const name = args.studioName.trim() || "My Studio";
+    const base = name.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "studio";
+    let slug = base;
+    for (let n = 2; await ctx.db.query("orgs").withIndex("by_slug", (q) => q.eq("slug", slug)).first(); n++) {
+      slug = `${base}-${n}`;
     }
-    return { agencyId: agency.agencyId };
+    const orgId = `studio_${slug}_${Date.now().toString(36)}`;
+    const ownerName = args.ownerName?.trim() || name;
+
+    await ctx.db.insert("orgs", {
+      orgId,
+      name,
+      slug,
+      tier: args.tier,
+      status: "active",
+      ...(agencyId ? { agencyId } : {}),
+      ...(planId ? { agencyPlanId: planId } : {}),
+      // The post-claim sync mirrors the real status and trial window from Stripe.
+      billingStatus: "trialing",
+      billingCustomerId: args.customerId || undefined,
+      billingSubscriptionId: args.subscriptionId,
+      ownerName,
+      ownerEmail: normalizeEmail(args.email),
+      createdByAgency: false,
+    });
+    await ctx.db.insert("members", {
+      orgId,
+      name: ownerName,
+      email: normalizeEmail(args.loginEmail || args.email),
+      role: "owner",
+      skills: [],
+      clerkUserId: args.clerkUserId,
+    });
+    return { orgId, planId };
   },
 });
