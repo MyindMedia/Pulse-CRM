@@ -38,6 +38,7 @@
     "@stripe/react-connect-js": "^3.4.3",
     "@stripe/react-stripe-js": "^6.8.1",
     "@stripe/stripe-js": "^9.13.0",
+    "@typesafe-ai/sdk": "^0.6.0",
     "@untitledui/icons": "^0.0.23",
     "@xyflow/react": "^12.11.3",
     "class-variance-authority": "^0.7.1",
