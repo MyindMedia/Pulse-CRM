@@ -35,6 +35,14 @@ import {
   combineDateTime,
   toDateInputValue,
 } from "./constants";
+import {
+  SuggestEngineerButton,
+  SuggestedBadge,
+  SuggestedEngineers,
+  suggestionFor,
+  useEngineerFitEnabled,
+  useEngineerSuggestions,
+} from "@/components/schedule/engineer-suggestions";
 
 const STEP_LABELS = ["Artist", "Service", "Schedule", "Rate"];
 const DURATIONS = [
@@ -76,6 +84,9 @@ export function BookSessionDialog({
   const rooms = useQuery(api.rooms.bookable);
   const engineers = useQuery(api.members.engineers);
   const create = useMutation(api.sessions.create);
+  // Jev engineer-fit suggestions: offered to staff schedulers only, on demand.
+  const canSuggest = useEngineerFitEnabled(open);
+  const fit = useEngineerSuggestions();
 
   const [step, setStep] = useState(0);
   const [saving, setSaving] = useState(false);
@@ -162,6 +173,7 @@ export function BookSessionDialog({
   const selectedSlotOk = slots.some((sl) => sl.startTime === selectedStart && sl.available);
 
   function reset() {
+    fit.clear();
     setStep(0);
     setClient({ name: "" });
     setSongId("");
@@ -213,6 +225,20 @@ export function BookSessionDialog({
     date !== "" && time !== "" && durationMins > 0 && selectedSlotOk,
     title.trim().length > 0 && rateCents > 0 && depositCents <= rateCents,
   ];
+
+  /* What Jev is asked about when the engineer is picked (step 2). The time
+     comes later (step 3), so nobody can be ruled out as busy here. The key
+     drops a suggestion as soon as the service, room, client or song changes. */
+  const fitDraft = {
+    serviceType: serviceType as Parameters<typeof create>[0]["serviceType"],
+    customService: serviceType === "custom" ? customService.trim() || undefined : undefined,
+    artistId: client.artistId ? (client.artistId as Id<"artists">) : undefined,
+    roomId: roomId ? (roomId as Id<"rooms">) : undefined,
+    songId: songId ? (songId as Id<"songs">) : undefined,
+    title: title.trim() || undefined,
+  };
+  const fitKey = JSON.stringify(fitDraft);
+  const fitResult = fit.result?.key === fitKey ? fit.result : null;
 
   const isLast = step === 3;
 
@@ -401,14 +427,34 @@ export function BookSessionDialog({
                     />
                   </SelectTrigger>
                   <SelectContent>
-                    {(engineers ?? []).map((e) => (
-                      <SelectItem key={e._id} value={e._id}>
-                        {e.name} · {titleCase(e.role)}
-                      </SelectItem>
-                    ))}
+                    {(engineers ?? []).map((e) => {
+                      const suggestion = suggestionFor(fitResult, e._id);
+                      return (
+                        <SelectItem
+                          key={e._id}
+                          value={e._id}
+                          trailing={suggestion ? <SuggestedBadge pick={suggestion} /> : undefined}
+                        >
+                          {e.name} · {titleCase(e.role)}
+                        </SelectItem>
+                      );
+                    })}
                   </SelectContent>
                 </Select>
               </Field>
+
+              {canSuggest && (
+                <div className="-mt-1">
+                  {fitResult ? (
+                    <SuggestedEngineers result={fitResult} />
+                  ) : (
+                    <SuggestEngineerButton
+                      loading={fit.loading}
+                      onClick={() => void fit.ask({ draft: fitDraft }, fitKey)}
+                    />
+                  )}
+                </div>
+              )}
             </>
           )}
 
