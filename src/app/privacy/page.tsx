@@ -20,7 +20,7 @@ export const dynamic = "force-static";
 
 export default function PrivacyPolicy() {
   return (
-    <LegalShell title="Privacy Policy" updated="September 15, 2026">
+    <LegalShell title="Privacy Policy" updated="October 10, 2026">
       <Section heading="Who we are">
         <p>
           Pulse is recording studio management software operated by {LEGAL_ENTITY} (&ldquo;Pulse&rdquo;,
@@ -122,11 +122,17 @@ export default function PrivacyPolicy() {
           <li>Clerk: account authentication, including sign-in with Google or Apple when you choose it.</li>
           <li>Convex and Netlify: application hosting and data storage.</li>
           <li>
-            OpenAI: AI features in Pulse, such as drafted client replies, session recaps, weekly
-            briefings, and receipt reading when configured. Bank transactions and balances are never sent to
-            OpenAI. Only the studio records a request needs, which can include client names
-            and session details, are sent to OpenAI&rsquo;s API, and OpenAI does not use data sent
-            through its API to train its models.
+            Anthropic: AI features in Pulse, such as drafted client replies, session recaps, weekly
+            briefings, and the operations agent, run on Anthropic&rsquo;s Claude. Bank transactions and
+            balances are never sent to Anthropic. Only the studio records a request needs, which can
+            include client names and session details, are sent to Anthropic&rsquo;s API, and Anthropic
+            does not use data sent through its API to train its models.
+          </li>
+          <li>
+            OpenAI: a backup for the same AI features when Claude is unavailable, and receipt reading
+            when configured. Bank transactions and balances are never sent to OpenAI. Only the studio
+            records a request needs, which can include client names and session details, are sent to
+            OpenAI&rsquo;s API, and OpenAI does not use data sent through its API to train its models.
           </li>
           <li>
             Google: Gemini reads uploaded receipt images and PDFs through its paid API to extract

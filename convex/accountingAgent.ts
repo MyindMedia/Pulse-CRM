@@ -321,9 +321,10 @@ export async function runAccountingScan(ctx: MutationCtx, orgId: string, opts?: 
   await ctx.db.patch(runId, { status: "completed", summary, completedAt: Date.now() });
   await ctx.db.insert("agentAuditLogs", { orgId, runId, event: "run.completed", detail: summary, actor: AGENT_ACTOR, at: Date.now() });
 
-  // Optional AI wording. Only when a model key exists; the deterministic text
-  // is already saved, so the product works the same without one.
-  if (enrichIds.length > 0 && process.env.OPENAI_API_KEY) {
+  // Optional AI wording. Only when a model key exists (Claude or OpenAI); the
+  // deterministic text is already saved, so the product works the same
+  // without one. Read inline so this mutation module stays free of AI SDKs.
+  if (enrichIds.length > 0 && (process.env.ANTHROPIC_API_KEY || process.env.OPENAI_API_KEY)) {
     await ctx.scheduler.runAfter(0, internal.aiActions.enrichAccountingActions, { ids: enrichIds });
   }
   return { periods, proposed, autoLinked, insights, runId };
