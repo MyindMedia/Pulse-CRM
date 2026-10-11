@@ -2011,6 +2011,18 @@ export default defineSchema({
     model: v.optional(v.string()),
     extractedAt: v.optional(v.number()),
     error: v.optional(v.string()),
+    // Jev's (TypeSafe) suggestion after reading: which of the studio's expense
+    // categories this belongs to, and how likely it is a personal purchase.
+    // Only a suggestion: the owner confirms it, and it never changes an
+    // expense (convex/lib/jev/receiptCategories.ts).
+    categorySuggestion: v.optional(v.object({
+      category: expenseCategoryV,
+      probability: v.number(),
+      confidence: v.number(),
+      looksPersonal: v.number(), // probability of yes, 0 to 1
+      model: v.string(),
+      at: v.number(),
+    })),
     expenseId: v.optional(v.id("expenses")),
     bankTransactionId: v.optional(v.id("bankTransactions")),
   })

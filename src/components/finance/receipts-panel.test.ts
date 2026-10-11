@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { getFunctionName } from "convex/server";
-import { ReceiptsPanel } from "./receipts-panel";
+import { ReceiptsPanel, dialogCategory } from "./receipts-panel";
 
 const state = vi.hoisted(() => ({
   rows: [] as Array<Record<string, unknown>>,
@@ -90,5 +90,27 @@ describe("receipt matching attention", () => {
     expect(html).toContain("Check the receipt details before matching.");
     expect(html).not.toContain("Upload receipts");
     expect(html).not.toContain("Delete");
+  });
+});
+
+describe("Jev category suggestions", () => {
+  beforeEach(() => { state.rows = []; state.queries = []; });
+
+  it("flags a receipt that looks personal, and only that one", () => {
+    state.rows = [receipt({ categorySuggestion: { category: "other", confidence: 0.75, looksPersonal: true } })];
+    expect(render()).toContain("Looks personal?");
+    state.rows = [receipt({ categorySuggestion: { category: "gear", confidence: 0.91, looksPersonal: false } })];
+    expect(render()).not.toContain("Looks personal?");
+    state.rows = [receipt({ categorySuggestion: null })];
+    expect(render()).not.toContain("Looks personal?");
+  });
+
+  it("pre-selects the suggestion, but a person's pick always wins", () => {
+    const gear = { category: "gear" as const, confidence: 0.91, looksPersonal: false };
+    expect(dialogCategory(null, null)).toEqual({ value: "supplies", suggested: false });
+    expect(dialogCategory(null, undefined)).toEqual({ value: "supplies", suggested: false });
+    expect(dialogCategory(null, gear)).toEqual({ value: "gear", suggested: true });
+    expect(dialogCategory("rent", gear)).toEqual({ value: "rent", suggested: false });
+    expect(dialogCategory("gear", gear)).toEqual({ value: "gear", suggested: true });
   });
 });

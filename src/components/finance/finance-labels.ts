@@ -48,6 +48,7 @@ const ACTION_LABEL: Record<string, string> = {
   "receipt.uploaded": "Receipt uploaded",
   "receipt.read": "AI read the receipt",
   "receipt.read_failed": "Receipt could not be read",
+  "receipt.category_suggested": "AI suggested a category",
   "receipt.corrected": "Receipt details corrected",
   "receipt.deleted": "Receipt deleted",
   "match.auto": "Matched automatically",
