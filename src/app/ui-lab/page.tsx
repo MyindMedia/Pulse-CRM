@@ -14,6 +14,9 @@ import { Input } from "@/components/ui/field";
    compared with the kit's mockups before it reaches a real screen. Production
    returns 404. */
 export const metadata = { title: "UI lab", robots: { index: false, follow: false } };
+// Rendered per request so production answers notFound() with a real 404
+// status; prerendered, Netlify served the not-found page as a 200.
+export const dynamic = "force-dynamic";
 
 const SESSIONS = [
   { client: "Nova Vega", room: "Studio A", time: "10:00 to 14:00", engineer: "J. Ortiz", status: "Paid", tone: "positive", amount: "$600.00" },

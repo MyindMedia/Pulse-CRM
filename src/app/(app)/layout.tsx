@@ -84,7 +84,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           className={cn(
             "pl-card pl-side fixed! bottom-6 left-6 top-6 z-20 hidden lg:block",
             "transition-[width] duration-200 ease-out",
-            navCollapsed ? "w-[4.5rem]" : "w-64",
+            navCollapsed ? "w-[4.5rem]" : "w-[232px]",
           )}
         >
           <Brackets />
@@ -98,12 +98,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </SheetContent>
         </Sheet>
 
-        {/* Main column: the top bar chassis, then the page. The rail ends at
-            280px; content starts at 282 like the kit (120 when folded). */}
+        {/* Main column: the top bar chassis, then the page. Spec 6.1: a 232px
+            rail and the same 24px gap as between chassis, so content starts at
+            280 (120 when folded) and the rail's slabs never paint over it. */}
         <div
           className={cn(
             "relative z-10 flex min-h-dvh flex-col px-4 pt-[max(1rem,env(safe-area-inset-top))] transition-[padding] duration-200 ease-out lg:pr-8 lg:pt-6",
-            navCollapsed ? "lg:pl-[120px]" : "lg:pl-[282px]",
+            navCollapsed ? "lg:pl-[120px]" : "lg:pl-[280px]",
           )}
         >
           <StudioBanner />

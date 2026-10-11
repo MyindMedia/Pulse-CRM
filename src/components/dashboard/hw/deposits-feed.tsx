@@ -23,9 +23,9 @@ export function DepositsFeed() {
         right={stripe?.chargesEnabled ? <Badge tone="info">Stripe synced</Badge> : null}
       />
       {rows === undefined ? (
-        <div className="mt-5 flex-1" aria-busy />
+        <div className="mt-3 flex-1" aria-busy />
       ) : rows.length === 0 ? (
-        <div className="mt-5 flex flex-1">
+        <div className="mt-3 flex flex-1">
           <EmptyWell
             action={
               !stripe?.chargesEnabled ? (
@@ -39,7 +39,7 @@ export function DepositsFeed() {
           </EmptyWell>
         </div>
       ) : (
-        <ul className="pl-well mt-5 flex-1 px-3.5 py-1">
+        <ul className="pl-well mt-3 flex-1 px-3.5 py-1">
           {rows.map((d, i) => (
             <li
               key={d._id}

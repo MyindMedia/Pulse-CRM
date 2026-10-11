@@ -105,4 +105,57 @@ describe("hardware overview data", () => {
 
     await expect(t.withIdentity({ subject: "u_eng", orgId: ORG }).query(api.payments.recentDeposits, {})).rejects.toThrow(/invoices\.read/);
   });
+
+  it("period KPIs: today's revenue like for like against yesterday, booked hours for the whole day", async () => {
+    const now = new Date();
+    const dayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const prevStart = dayStart - DAY;
+    await t.run(async (ctx) => {
+      const inv = (amountCents: number, paidAt: number) =>
+        ctx.db.insert("invoices", {
+          orgId: ORG, number: `P-${amountCents}-${paidAt}`, artistId, status: "paid",
+          lineItems: [{ label: "Session", amountCents }], amountCents, dueDate: paidAt, paidAt,
+        });
+      await inv(30000, Math.max(dayStart, Date.now() - 60_000)); // today, so far
+      await inv(10000, prevStart + 60_000); // yesterday, early (inside the like-for-like span)
+      await inv(99900, dayStart - 60_000); // yesterday, late: outside the span unless it is that late now
+    });
+    await session(dayStart + 10 * HOUR, 2);
+    await session(dayStart + 13 * HOUR, 1, { status: "cancelled" });
+    await session(prevStart + 9 * HOUR, 4);
+
+    const r = await t.query(api.dashboard.periodKpis, { start: dayStart, end: dayStart + DAY, prevStart, prevEnd: dayStart });
+    expect(r.money).toBe(true);
+    expect(r.revenueCents).toBe(30000);
+    expect(r.bookedHours).toBe(2);
+    expect(r.bookedHoursDelta).toBeCloseTo(-0.5);
+    expect(r.sessions).toBe(1);
+
+    const eng = await t.withIdentity({ subject: "u_eng", orgId: ORG }).query(api.dashboard.periodKpis, {
+      start: dayStart, end: dayStart + DAY, prevStart, prevEnd: dayStart,
+    });
+    expect(eng).toMatchObject({ money: false, revenueCents: null, revenueDelta: null, bookedHours: 2 });
+
+    await expect(
+      t.query(api.dashboard.periodKpis, { start: dayStart, end: dayStart + 40 * DAY, prevStart, prevEnd: dayStart }),
+    ).rejects.toThrow(/period/);
+  });
+
+  it("monthly goal: an owner sets it, money roles see it, others cannot set or see it", async () => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("members", { orgId: ORG, name: "Olive Owner", role: "owner", clerkUserId: "u_owner", skills: [] });
+    });
+    const owner = t.withIdentity({ subject: "u_owner", orgId: ORG });
+    const eng = t.withIdentity({ subject: "u_eng", orgId: ORG });
+
+    await owner.mutation(api.orgs.setMonthlyRevenueGoal, { cents: 6_000_000 });
+    expect((await owner.query(api.dashboard.overview, {})).kpis).toMatchObject({ monthlyGoalCents: 6_000_000, canSetGoal: true });
+    expect((await eng.query(api.dashboard.overview, {})).kpis).toMatchObject({ monthlyGoalCents: null, canSetGoal: false });
+    await expect(eng.mutation(api.orgs.setMonthlyRevenueGoal, { cents: 100 })).rejects.toThrow();
+    await expect(owner.mutation(api.orgs.setMonthlyRevenueGoal, { cents: -5 })).rejects.toThrow(/above \$0/);
+
+    await owner.mutation(api.orgs.setMonthlyRevenueGoal, { cents: null });
+    expect((await owner.query(api.dashboard.overview, {})).kpis.monthlyGoalCents).toBeNull();
+  });
 });
+

@@ -20,7 +20,7 @@ export const Label = React.forwardRef<
 Label.displayName = "Label";
 
 const fieldBase =
-  "w-full rounded-md border border-graphite/60 bg-obsidian px-3 text-sm text-bone " +
+  "pl-field w-full rounded-md border border-graphite/60 bg-obsidian px-3 text-sm text-bone " +
   "placeholder:text-steel/70 transition-colors outline-none " +
   "focus-visible:border-gold-dim focus-visible:ring-2 focus-visible:ring-gold/20 " +
   "disabled:opacity-50 disabled:cursor-not-allowed";

@@ -11,12 +11,14 @@ import { Brackets } from "@/components/shell/page-header-slot";
 export function Chassis({
   className,
   grid,
-  brackets = true,
+  brackets = false,
   children,
   ...rest
 }: React.HTMLAttributes<HTMLElement> & { grid?: boolean; brackets?: boolean }) {
+  // Brackets belong to the hero chassis only (and the shell's sidebar and
+  // top bar); the kit leaves every other chassis bare.
   return (
-    <section className={cn("pl-card relative flex min-w-0 flex-1 flex-col p-6", grid && "pl-grid", className)} {...rest}>
+    <section className={cn("pl-card relative flex min-w-0 flex-1 flex-col px-6 pb-6 pt-5", grid && "pl-grid", className)} {...rest}>
       {brackets && <Brackets />}
       {children}
     </section>
@@ -41,7 +43,7 @@ export function ChassisTitle({
       <div className="min-w-0">
         {kicker && <div className="mb-2.5">{kicker}</div>}
         <h2 className="truncate font-sans text-base font-bold! leading-[22px] tracking-[-0.01em] text-bone">{title}</h2>
-        {bar && <span className="pl-bar mt-2.5 w-9" aria-hidden />}
+        {bar && <span className="pl-bar mt-2.5 w-12" aria-hidden />}
       </div>
       {right && <div className="flex shrink-0 items-center gap-2">{right}</div>}
     </div>
@@ -109,20 +111,34 @@ export function KeyBank<T extends string>({
   value: T;
   onChange: (v: T) => void;
 }) {
+  const refs = React.useRef<(HTMLButtonElement | null)[]>([]);
+  function onKeyDown(e: React.KeyboardEvent, i: number) {
+    const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
+    if (!step) return;
+    e.preventDefault();
+    const next = (i + step + options.length) % options.length;
+    onChange(options[next].value);
+    refs.current[next]?.focus();
+  }
   return (
     <div role="radiogroup" aria-label={label} className="pl-well inline-flex items-center gap-0.5 p-[3px]">
-      {options.map((o) => {
+      {options.map((o, i) => {
         const on = o.value === value;
         return (
           <button
             key={o.value}
+            ref={(el) => {
+              refs.current[i] = el;
+            }}
             type="button"
             role="radio"
             aria-checked={on}
+            tabIndex={on ? 0 : -1}
+            onKeyDown={(e) => onKeyDown(e, i)}
             data-on={on ? "true" : undefined}
             onClick={() => onChange(o.value)}
             className={cn(
-              "pl-bank-key flex h-8 items-center gap-1.5 rounded-[4px] px-3 font-sans text-[13px] font-bold transition-colors",
+              "pl-bank-key flex h-[30px] items-center gap-1.5 rounded-[4px] px-3 font-sans text-[13px] font-bold transition-colors",
               !on && "text-mist hover:text-bone",
             )}
           >

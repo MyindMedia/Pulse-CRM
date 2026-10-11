@@ -10,6 +10,7 @@ import { BookSessionDialog } from "@/components/calendar/book-session-dialog";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/ui/page";
 import { useOptionalUser } from "@/lib/use-optional-clerk";
+import { DashboardPeriodProvider, PeriodKeys } from "@/components/dashboard/hw/period";
 
 /* No "load demo data" offer lives here.
 
@@ -39,6 +40,7 @@ export default function DashboardPage() {
   const date = now.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
 
   return (
+    <DashboardPeriodProvider>
     <div className="space-y-6">
       <OnboardingNudge />
       <GetPaidBanner />
@@ -47,7 +49,12 @@ export default function DashboardPage() {
         overline="Studio"
         title={first ? `${greeting(now.getHours())}, ${first}` : greeting(now.getHours())}
         description={count === undefined ? date : `${date} · ${count} ${count === 1 ? "session" : "sessions"} today`}
-        actions={<Button onClick={() => setBooking(true)}>New booking</Button>}
+        actions={
+          <>
+            <PeriodKeys />
+            <Button onClick={() => setBooking(true)}>New booking</Button>
+          </>
+        }
       />
 
       {/* Every dashboard tile lives in the customizable grid - drag to
@@ -55,5 +62,6 @@ export default function DashboardPage() {
       <CustomizableDashboard />
       <BookSessionDialog open={booking} onOpenChange={setBooking} />
     </div>
+    </DashboardPeriodProvider>
   );
 }

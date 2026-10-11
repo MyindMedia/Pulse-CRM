@@ -161,7 +161,7 @@ export function CustomizableDashboard() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-6">
       {/* Layout toolbar */}
       <div className="flex items-center justify-end gap-2">
         {editing ? (
