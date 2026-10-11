@@ -5,7 +5,7 @@
 
 const PRIVATE_V4 = [
   /^10\./, /^127\./, /^0\./, /^169\.254\./, /^192\.168\./, /^172\.(1[6-9]|2\d|3[01])\./, /^100\.(6[4-9]|[7-9]\d|1[01]\d|12[0-7])\./,
-  /^22[4-9]\./, /^2[3-5]\d\./,
+  /^192\.0\.0\./, /^198\.1[89]\./, /^22[4-9]\./, /^2[3-5]\d\./,
 ];
 
 /* Wildcard-DNS services answer any name with the address written into it
@@ -46,14 +46,46 @@ const MAX_BYTES = 1_500_000;
 /* RFC 9309 asks crawlers to follow at least five redirect hops for robots.txt. */
 const MAX_REDIRECTS = 5;
 
-/** Whether an IP address is one the server must never fetch. */
+/** The eight 16-bit groups of an IPv6 address in any text form (compressed,
+ *  zero-padded, or ending in a dotted IPv4), or null when it is not one. */
+function hextets(ip: string): number[] | null {
+  let s = ip.replace(/%.*$/, ""); // zone id
+  const v4 = s.match(/^(.*:)(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/);
+  if (v4) {
+    const q = v4.slice(2).map(Number);
+    if (q.some((n) => n > 255)) return null;
+    s = `${v4[1]}${((q[0] << 8) | q[1]).toString(16)}:${((q[2] << 8) | q[3]).toString(16)}`;
+  }
+  const halves = s.split("::");
+  if (halves.length > 2) return null;
+  const head = halves[0] ? halves[0].split(":") : [];
+  const tail = halves.length === 2 && halves[1] ? halves[1].split(":") : [];
+  const groups = halves.length === 2 ? [...head, ...Array(Math.max(0, 8 - head.length - tail.length)).fill("0"), ...tail] : head;
+  if (groups.length !== 8 || groups.some((g) => !/^[0-9a-f]{1,4}$/.test(g))) return null;
+  return groups.map((g) => parseInt(g, 16));
+}
+
+const privateV4 = (a: string) => PRIVATE_V4.some((re) => re.test(a));
+const v4At = (h: number[], i: number) => `${h[i] >> 8}.${h[i] & 255}.${h[i + 1] >> 8}.${h[i + 1] & 255}`;
+
+/** Whether an IP address is one the server must never fetch. IPv6 is read as
+ *  numbers, not text, so a mapped, compatible, NAT64 or 6to4 address that
+ *  carries a private IPv4 is caught however it is written. */
 export function isPrivateIp(ip: string): boolean {
-  const a = ip.toLowerCase();
-  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(a)) return PRIVATE_V4.some((re) => re.test(a));
-  if (a === "::" || a === "::1") return true;
-  if (/^f[cd][0-9a-f]{2}:/.test(a) || /^fe[89ab][0-9a-f]:/.test(a)) return true; // ULA, link-local
-  const mapped = a.match(/^::ffff:(\d{1,3}(\.\d{1,3}){3})$/);
-  if (mapped) return PRIVATE_V4.some((re) => re.test(mapped[1]));
+  const a = ip.toLowerCase().replace(/^\[|\]$/g, "");
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(a)) return privateV4(a);
+  const h = hextets(a);
+  if (!h) return true; // not an address we can read: refuse it
+  const zero = (from: number, to: number) => h.slice(from, to).every((g) => g === 0);
+  if (zero(0, 7) && h[7] <= 1) return true; // :: and ::1
+  if ((h[0] & 0xfe00) === 0xfc00) return true; // fc00::/7 unique local
+  if ((h[0] & 0xffc0) === 0xfe80 || (h[0] & 0xffc0) === 0xfec0) return true; // link-local, old site-local
+  if ((h[0] & 0xff00) === 0xff00) return true; // multicast
+  if (zero(0, 5) && (h[5] === 0xffff || h[5] === 0)) return privateV4(v4At(h, 6)); // ::ffff:a.b.c.d, ::a.b.c.d
+  if (h[0] === 0x64 && h[1] === 0xff9b) return h[2] !== 0 || privateV4(v4At(h, 6)); // NAT64 (and its local-use /48)
+  if (h[0] === 0x2002) return privateV4(v4At(h, 1)); // 6to4 carries an IPv4
+  if (h[0] === 0x2001 && (h[1] === 0 || h[1] === 0xdb8)) return true; // Teredo, documentation
+  if (h[0] === 0x100 && zero(1, 4)) return true; // discard-only
   return false;
 }
 
