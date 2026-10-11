@@ -9,7 +9,7 @@ import {
   PLAN_LIMITS, SELLABLE_TIERS, EARLY_ADOPTER_MONTHS, BETA_PLAN_NAME,
   earlyAdopterApplies, earlyAdopterPriceCents, type TierKey,
 } from "./lib/plans";
-import { BETA_TERM_DAYS, PLATFORM_TRIAL_DAYS } from "./lib/pricing";
+import { BETA_TERM_DAYS, PLATFORM_TRIAL_DAYS, PRICING } from "./lib/pricing";
 import { assertNoCardFreeTrial, isBetaPlan } from "./lib/trialCheckout";
 
 /* ============================================================
@@ -259,6 +259,10 @@ async function insertStarterPlans(
   for (const tier of SELLABLE_TIERS) {
     const p = PLAN_LIMITS[tier as TierKey];
     const intro = earlyAdopterPriceCents(tier as TierKey);
+    // Max is one flat price for every studio; the plan says so in the console.
+    const pitch = PRICING[tier as TierKey].unlimitedStudios
+      ? `${p.pitch} Unlimited studios included.`
+      : p.pitch;
 
     if (earlyAdopterApplies(tier as TierKey, "month")) {
       await ctx.db.insert("agencyPlans", {
@@ -266,7 +270,7 @@ async function insertStarterPlans(
         name: `${p.label} - Early Adopter`,
         description:
           `${money(intro)}/mo for the first ${EARLY_ADOPTER_MONTHS} months, ` +
-          `then ${money(p.priceCents)}/mo. ${p.pitch}`,
+          `then ${money(p.priceCents)}/mo. ${pitch}`,
         priceCents: p.priceCents,
         introPriceCents: intro,
         introMonths: EARLY_ADOPTER_MONTHS,
@@ -283,7 +287,7 @@ async function insertStarterPlans(
     await ctx.db.insert("agencyPlans", {
       agencyId,
       name: p.label,
-      description: `${money(p.priceCents)}/mo. ${p.pitch}`,
+      description: `${money(p.priceCents)}/mo. ${pitch}`,
       priceCents: p.priceCents,
       billingInterval: "month",
       trialDays: PLATFORM_TRIAL_DAYS,

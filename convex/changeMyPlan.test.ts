@@ -72,7 +72,7 @@ async function seedStudio(t: TestT, extra: Record<string, unknown> = {}) {
     });
     const base = { agencyId: "agency_pulse", billingInterval: "month" as const, trialDays: 14, active: true, isDefault: false, isPromo: false, requireCardAfterTrial: true, createdAt: 1 };
     const growth = await ctx.db.insert("agencyPlans", { ...base, name: "Growth", priceCents: 29700 });
-    await ctx.db.insert("agencyPlans", { ...base, name: "Max", priceCents: 49999 });
+    await ctx.db.insert("agencyPlans", { ...base, name: "Max", priceCents: 69900 });
     await ctx.db.insert("orgs", {
       orgId: ORG, name: "Test Studio", slug: "test-studio", tier: "growth", status: "active",
       agencyId: "agency_pulse", agencyPlanId: growth, billingStatus: "trialing",
