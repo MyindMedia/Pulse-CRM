@@ -26,6 +26,7 @@ import { AppTransition } from "@/components/shell/app-motion";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ShellErrorBoundary } from "@/components/shell/shell-error-boundary";
+import { Brackets, PageHeaderSlotProvider } from "@/components/shell/page-header-slot";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileNav, setMobileNav] = useState(false);
@@ -72,18 +73,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* Engagement signal for the beta cohort. Renders nothing. */}
       <BetaLoginTracker />
       {/* pulse-hw switches on the hardware UI (src/app/hardware.css). */}
+      <PageHeaderSlotProvider>
       <div className="pulse-hw relative min-h-dvh bg-ink">
         {/* Studio-light bloom - warm backdrop for the glass to refract */}
         <div className="app-bloom" aria-hidden />
 
-        {/* Desktop rail - stays dark in light mode (dark chrome). */}
+        {/* Desktop rail: its own chassis on the void, 24px in from the edges
+            (kit 6.1, measured from pulse-overview.png). */}
         <aside
           className={cn(
-            "theme-dark-island fixed inset-y-0 left-0 z-20 hidden material-regular lg:block",
+            "pl-card pl-side fixed! bottom-6 left-6 top-6 z-20 hidden lg:block",
             "transition-[width] duration-200 ease-out",
             navCollapsed ? "w-[4.5rem]" : "w-64",
           )}
         >
+          <Brackets />
           <Sidebar collapsed={navCollapsed} onToggleCollapsed={toggleNav} />
         </aside>
 
@@ -94,11 +98,12 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </SheetContent>
         </Sheet>
 
-        {/* Main column */}
+        {/* Main column: the top bar chassis, then the page. The rail ends at
+            280px; content starts at 282 like the kit (120 when folded). */}
         <div
           className={cn(
-            "relative z-10 flex min-h-dvh flex-col transition-[padding] duration-200 ease-out",
-            navCollapsed ? "lg:pl-[4.5rem]" : "lg:pl-64",
+            "relative z-10 flex min-h-dvh flex-col px-4 pt-[max(1rem,env(safe-area-inset-top))] transition-[padding] duration-200 ease-out lg:pr-8 lg:pt-6",
+            navCollapsed ? "lg:pl-[120px]" : "lg:pl-[282px]",
           )}
         >
           <StudioBanner />
@@ -106,7 +111,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <BetaSignatureBanner />
             <BillingBanner />
           <Topbar onOpenMenu={() => setMobileNav(true)} />
-          <main className="flex-1 px-4 py-6 pb-28 lg:px-8 lg:py-8 lg:pb-8">
+          <main className="flex-1 pb-28 pt-6 lg:pb-8">
             <AppTransition>{children}</AppTransition>
           </main>
         </div>
@@ -116,6 +121,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <ClockWidget />
         <MobileTabBar onOpenMore={() => setMobileNav(true)} />
       </div>
+      </PageHeaderSlotProvider>
       </OrgTheme>
     </TooltipProvider>
     </BillingLockGate>
