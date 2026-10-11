@@ -24,5 +24,12 @@ const PRODUCTION_CONVEX_URL = "https://pastel-corgi-340.convex.cloud";
  *  `convex/lib/links.ts` makes. Guarded against here on purpose. */
 export function resolveConvexUrl(): string {
   const fromEnv = process.env.NEXT_PUBLIC_CONVEX_URL;
-  return fromEnv && fromEnv.trim().length > 0 ? fromEnv : PRODUCTION_CONVEX_URL;
+  if (fromEnv && fromEnv.trim().length > 0) return fromEnv;
+  /* Staging must never fall back to production: its pages would then book,
+     charge and write against the live backend. Fail loudly instead
+     (docs/ENVIRONMENTS.md). */
+  if (process.env.NEXT_PUBLIC_DEPLOY_ENV === "staging") {
+    throw new Error("Staging build is missing NEXT_PUBLIC_CONVEX_URL; refusing to fall back to production.");
+  }
+  return PRODUCTION_CONVEX_URL;
 }
