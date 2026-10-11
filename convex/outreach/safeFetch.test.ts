@@ -1,8 +1,11 @@
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { checkUrl, isPublicHostname, robotsAllows, safeGet, guardedFetch, loadRobots, robotsVerdict, classifyFetchError, fetchTuning, USER_AGENT } from "./safeFetch";
+import { checkUrl, isPublicHostname, isPrivateIp, resolvesPublic, dnsTuning, robotsAllows, safeGet, guardedFetch, loadRobots, robotsVerdict, classifyFetchError, fetchTuning, USER_AGENT } from "./safeFetch";
 
-beforeEach(() => { fetchTuning.backoffMs = 0; });
-afterEach(() => { vi.unstubAllGlobals(); });
+const realResolve = dnsTuning.resolve;
+// Page-level tests run against a resolver that says every host is public;
+// the DNS checks have their own tests below.
+beforeEach(() => { fetchTuning.backoffMs = 0; dnsTuning.resolve = async () => ["93.184.216.34"]; });
+afterEach(() => { vi.unstubAllGlobals(); dnsTuning.resolve = realResolve; });
 
 /* Node's undici shape for a failed connection: TypeError("fetch failed") with an errno cause. */
 const nodeErr = (code: string) => Object.assign(new TypeError("fetch failed"), { cause: Object.assign(new Error(code), { code }) });
@@ -58,6 +61,58 @@ describe("SSRF guard", () => {
     vi.stubGlobal("fetch", vi.fn(async () => new Response("a".repeat(3_000_000), { headers: { "content-type": "text/html" } })));
     const r = await safeGet("https://big.example.com/");
     expect(r.ok && r.html.length).toBeLessThanOrEqual(1_500_000 + 64_000);
+  });
+});
+
+describe("DNS rebinding (pentest re-scan, CWE-918)", () => {
+  it.each(["127.0.0.1.nip.io", "10-0-0-1.sslip.io", "app.localtest.me", "169.254.169.254.xip.io", "lvh.me", "api.192.168.1.20.example.com"])(
+    "refuses the wildcard or embedded-IP name %s",
+    (h) => {
+      expect(isPublicHostname(h)).toBe(false);
+    },
+  );
+  it("still accepts ordinary studio domains", () => {
+    expect(isPublicHostname("studio-b.example.com")).toBe(true);
+    expect(isPublicHostname("www.icecreamsound.com")).toBe(true);
+  });
+  it("classifies private and public addresses, IPv4 and IPv6", () => {
+    for (const ip of ["127.0.0.1", "10.1.2.3", "169.254.169.254", "::1", "fd12::1", "fe80::1", "::ffff:192.168.1.1"]) expect(isPrivateIp(ip), ip).toBe(true);
+    for (const ip of ["93.184.216.34", "2606:4700:4700::1111"]) expect(isPrivateIp(ip), ip).toBe(false);
+  });
+  it("refuses a host whose DNS answers include a private address, and fails closed when DNS does not answer", async () => {
+    dnsTuning.resolve = async (h) => (h === "evil.example.com" ? ["93.184.216.34", "169.254.169.254"] : h === "ok.example.com" ? ["93.184.216.34"] : null);
+    expect(await resolvesPublic("evil.example.com")).toBe(false);
+    expect(await resolvesPublic("ok.example.com")).toBe(true);
+    expect(await resolvesPublic("nowhere.example.com")).toBe(false);
+    const f = vi.fn(async () => new Response("secret"));
+    vi.stubGlobal("fetch", f);
+    expect((await guardedFetch("https://evil.example.com/logo.png", "image/*")).ok).toBe(false);
+    expect((await safeGet("https://evil.example.com/")).ok).toBe(false);
+    expect(f).not.toHaveBeenCalled();
+  });
+  it("a name with no DNS record is unreachable (dns), not blocked; resolvers down fails closed as network", async () => {
+    dnsTuning.resolve = async (h) => (h === "gone.example.com" ? [] : null);
+    const f = vi.fn(async () => new Response("page"));
+    vi.stubGlobal("fetch", f);
+    const gone = await safeGet("https://gone.example.com/");
+    expect(gone.ok === false && gone.kind).toBe("dns");
+    const down = await safeGet("https://anything.example.com/");
+    expect(down.ok === false && down.kind).toBe("network");
+    expect(f).not.toHaveBeenCalled();
+  });
+  it("resolves over DNS-over-HTTPS and falls back to the second resolver", async () => {
+    dnsTuning.resolve = realResolve;
+    const f = vi.fn(async (u: string) => {
+      if (u.startsWith("https://cloudflare-dns.com/")) return new Response("down", { status: 503 });
+      if (u.startsWith("https://dns.google/")) {
+        const type = new URL(u).searchParams.get("type");
+        return Response.json({ Answer: type === "A" ? [{ type: 1, data: "10.0.0.9" }] : [] });
+      }
+      return new Response("page");
+    });
+    vi.stubGlobal("fetch", f);
+    expect(await resolvesPublic("sneaky.example.com")).toBe(false); // the A record points inside
+    expect(f.mock.calls.some(([u]) => String(u).startsWith("https://dns.google/"))).toBe(true);
   });
 });
 

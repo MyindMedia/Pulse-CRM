@@ -8,9 +8,21 @@ const PRIVATE_V4 = [
   /^22[4-9]\./, /^2[3-5]\d\./,
 ];
 
+/* Wildcard-DNS services answer any name with the address written into it
+   (127.0.0.1.nip.io, 10-0-0-1.sslip.io), which walks straight past a check
+   on the hostname string. Pentest re-scan 2026-10-11 (CWE-918). */
+const WILDCARD_DNS = /(^|\.)(nip\.io|sslip\.io|xip\.io|localtest\.me|lvh\.me|vcap\.me|lacolhost\.com|traefik\.me|backname\.io)$/;
+/** A private IPv4 written inside a name, dotted or dashed (10.0.0.1.x, 10-0-0-1.x). */
+function embedsPrivateV4(h: string): boolean {
+  const dotted = h.match(/(\d{1,3}[.-]\d{1,3}[.-]\d{1,3}[.-]\d{1,3})/g) ?? [];
+  return dotted.some((m) => PRIVATE_V4.some((re) => re.test(m.replace(/-/g, "."))));
+}
+
 export function isPublicHostname(host: string): boolean {
   const h = host.toLowerCase().replace(/^\[|\]$/g, "");
   if (!h || h === "localhost" || h.endsWith(".localhost") || h.endsWith(".local") || h.endsWith(".internal") || h.endsWith(".lan")) return false;
+  if (WILDCARD_DNS.test(h)) return false;
+  if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(h) && embedsPrivateV4(h)) return false;
   if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return !PRIVATE_V4.some((re) => re.test(h));
   if (h.includes(":")) return false; // any IPv6 literal: refuse
   if (/^\d+$/.test(h) || /^0x/i.test(h)) return false; // integer / hex IPv4 tricks
@@ -33,6 +45,73 @@ export const USER_AGENT = "PulseOutreachBot/1.0 (+https://studiopulse.tech; cont
 const MAX_BYTES = 1_500_000;
 /* RFC 9309 asks crawlers to follow at least five redirect hops for robots.txt. */
 const MAX_REDIRECTS = 5;
+
+/** Whether an IP address is one the server must never fetch. */
+export function isPrivateIp(ip: string): boolean {
+  const a = ip.toLowerCase();
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(a)) return PRIVATE_V4.some((re) => re.test(a));
+  if (a === "::" || a === "::1") return true;
+  if (/^f[cd][0-9a-f]{2}:/.test(a) || /^fe[89ab][0-9a-f]:/.test(a)) return true; // ULA, link-local
+  const mapped = a.match(/^::ffff:(\d{1,3}(\.\d{1,3}){3})$/);
+  if (mapped) return PRIVATE_V4.some((re) => re.test(mapped[1]));
+  return false;
+}
+
+/* DNS over HTTPS. Convex's V8 runtime has no resolver and cannot pin the
+   address fetch() connects to, so the name is resolved first and refused if
+   any answer is private. A name that rebinds between this lookup and the
+   request is the residual gap; a static record pointing inside is closed. */
+const DOH = ["https://cloudflare-dns.com/dns-query", "https://dns.google/resolve"];
+
+async function dohAnswers(host: string): Promise<string[] | null> {
+  for (const base of DOH) {
+    try {
+      const out: string[] = [];
+      for (const type of ["A", "AAAA"]) {
+        const res = await fetch(`${base}?name=${encodeURIComponent(host)}&type=${type}`, {
+          headers: { accept: "application/dns-json" },
+        });
+        if (!res.ok) throw new Error(`DoH ${res.status}`);
+        const body = (await res.json()) as { Answer?: { type: number; data: string }[] };
+        for (const ans of body.Answer ?? []) if (ans.type === 1 || ans.type === 28) out.push(ans.data);
+      }
+      return out;
+    } catch {
+      /* try the next resolver */
+    }
+  }
+  return null;
+}
+
+/** Resolver hook, swappable in tests. Returns the host's addresses, or null
+ *  when no resolver answered. */
+export const dnsTuning: { resolve: (host: string) => Promise<string[] | null> } = { resolve: dohAnswers };
+
+/** What the host's DNS says. "private": an answer points inside (refuse);
+ *  "nxdomain": no address at all (unreachable, not blocked); "unresolved":
+ *  no resolver answered (fail closed, as a network failure). */
+export async function resolveHost(host: string): Promise<"public" | "private" | "nxdomain" | "unresolved"> {
+  const h = host.toLowerCase().replace(/^\[|\]$/g, "");
+  if (/^\d{1,3}(\.\d{1,3}){3}$/.test(h)) return isPrivateIp(h) ? "private" : "public";
+  const ips = await dnsTuning.resolve(h);
+  if (ips === null) return "unresolved";
+  if (ips.length === 0) return "nxdomain";
+  return ips.some(isPrivateIp) ? "private" : "public";
+}
+
+/** True when the host resolves and every address is public. */
+export async function resolvesPublic(host: string): Promise<boolean> {
+  return (await resolveHost(host)) === "public";
+}
+
+/** The guard's verdict on a resolved host, as a fetch failure (or null to go ahead). */
+async function dnsRefusal(host: string): Promise<{ ok: false; reason: string; kind: FailKind } | null> {
+  const r = await resolveHost(host);
+  if (r === "public") return null;
+  if (r === "private") return { ok: false, reason: "Host resolves to a private address", kind: "policy" };
+  if (r === "nxdomain") return { ok: false, reason: FAIL_TEXT.dns, kind: "dns" };
+  return { ok: false, reason: "Could not look up the host", kind: "network" };
+}
 
 /** Timing knobs. Mutable so tests can drop the backoff to zero. */
 export const fetchTuning = { timeoutMs: 8_000, backoffMs: 500 };
@@ -118,6 +197,8 @@ async function getOnce(raw: string, accept: string): Promise<Fetched> {
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     const chk = checkUrl(current);
     if (!chk.ok) return { ok: false, reason: chk.reason, kind: "policy" };
+    const refused = await dnsRefusal(chk.url.hostname);
+    if (refused) return refused;
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), fetchTuning.timeoutMs);
     try {
@@ -166,6 +247,8 @@ export async function guardedFetch(
   for (let hop = 0; hop <= MAX_REDIRECTS; hop++) {
     const chk = checkUrl(current);
     if (!chk.ok) return { ok: false, reason: chk.reason, kind: "policy" };
+    const refused = await dnsRefusal(chk.url.hostname);
+    if (refused) return refused;
     const ctl = new AbortController();
     const timer = setTimeout(() => ctl.abort(), fetchTuning.timeoutMs);
     try {
