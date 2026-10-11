@@ -6,6 +6,7 @@ import { verifySvix } from "./mail/svix";
 import { attachmentStorage, fromWebhook, fromReceived, type ReceivedWebhook, type ReceivedEmail, type InboundMessage } from "./mail/inbound";
 import { mailAgencyId } from "./mail";
 import { storeBytes, isR2NotConfigured } from "./media";
+import { jevEnabled } from "./lib/jevClient";
 
 /* ============================================================
    POST /resend/inbound: Resend Receiving webhook (`email.received`).
@@ -16,6 +17,8 @@ import { storeBytes, isR2NotConfigured } from "./media";
    4. Fetch the full message (the webhook is metadata only). If that fails,
       store what the webhook carried and retry the body with backoff.
    5. Store (route + thread in mail._ingest), then copy attachments to R2.
+   6. Once the body is stored, and only while Jev is configured, a reply to an
+      outreach email gets Jev's label (outreachProspects.triageReply).
    Docs: openspec/changes/email-inboxes/design.md
    ============================================================ */
 
@@ -41,6 +44,11 @@ async function fetchJson<T>(url: string, key: string): Promise<T | null> {
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** Without the Jev key nothing is scheduled, so inbound mail is handled exactly as before. */
+async function scheduleReplyTriage(ctx: ActionCtx, messageId: Id<"mailMessages">) {
+  if (jevEnabled()) await ctx.scheduler.runAfter(0, internal.outreachProspects.triageReply, { messageId });
 }
 
 export async function fetchReceived(resendEmailId: string): Promise<ReceivedEmail | null> {
@@ -83,8 +91,9 @@ export const resendInbound = httpAction(async (ctx, req) => {
   if (out.status === "stored") {
     if (msg.bodyStatus === "pending") {
       await ctx.scheduler.runAfter(HYDRATE_BACKOFF_MS[0], internal.mailInbound._hydrate, { messageId: out.messageId, resendEmailId: meta.resendEmailId, attempt: 1 });
-    } else if (msg.attachments.length) {
-      await ctx.scheduler.runAfter(0, internal.mailInbound._copyAttachments, { messageId: out.messageId });
+    } else {
+      if (msg.attachments.length) await ctx.scheduler.runAfter(0, internal.mailInbound._copyAttachments, { messageId: out.messageId });
+      await scheduleReplyTriage(ctx, out.messageId);
     }
   }
   return json(200, { status: out.status, routed: out.status === "stored" ? out.routed : undefined });
@@ -106,6 +115,7 @@ export const _hydrate = internalAction({
     const msg = fromReceived(a.resendEmailId, full, Date.now());
     await ctx.runMutation(internal.mail._applyBody, { messageId: a.messageId, msg });
     if (msg.attachments.length) await ctx.scheduler.runAfter(0, internal.mailInbound._copyAttachments, { messageId: a.messageId });
+    await scheduleReplyTriage(ctx, a.messageId);
     return null;
   },
 });
