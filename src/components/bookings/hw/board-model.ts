@@ -63,6 +63,21 @@ export function blockGeometry(
   return { left: ((start - range.from) / span) * 100, width: (Math.max(0, end - start) / span) * 100 };
 }
 
+/** Lanes for one room's bookings, so overlapping ones sit one above the other
+ *  instead of covering each other: each booking takes the first lane free at
+ *  its start. Input in start order (bookingsOn); returns a lane per booking. */
+export function laneOf(day: { _id: string; startTime: number; endTime: number }[]): Map<string, number> {
+  const laneEnds: number[] = [];
+  const out = new Map<string, number>();
+  for (const s of day) {
+    let lane = laneEnds.findIndex((end) => end <= s.startTime);
+    if (lane === -1) lane = laneEnds.length;
+    laneEnds[lane] = s.endTime;
+    out.set(s._id, lane);
+  }
+  return out;
+}
+
 /** The booking to select by default: the one running now, else the next one,
  *  else the first of the day. */
 export function defaultSelection(day: BookingRow[], now: number): BookingRow | null {
@@ -88,6 +103,7 @@ export type Glance = {
   noShows30: number;
   noShowsDelta: number | null; // vs the 30 days before that
   sessions: number;
+  rooms: number;
 };
 
 /** "Today at a glance" for the board's day, from bookings already loaded. */
@@ -112,5 +128,6 @@ export function glanceFor(rows: BookingRow[], dayStart: number, rooms: number, n
     noShows30,
     noShowsDelta: prior > 0 ? (noShows30 - prior) / prior : null,
     sessions: rows.filter((s) => !DEAD.has(s.status) && s.startTime >= dayStart && s.startTime < dayEnd).length,
+    rooms,
   };
 }
