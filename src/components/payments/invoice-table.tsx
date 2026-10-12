@@ -81,11 +81,11 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
         <TR>
           <TH>Invoice</TH>
           <TH>Client</TH>
-          <TH>For</TH>
+          <TH className="hidden @2xl:table-cell">For</TH>
           <TH className="text-right">Amount</TH>
           <TH>Status</TH>
           <TH>Due</TH>
-          {/* Created gives way first when the screen is narrow (the Invoices chassis). */}
+          {/* Created, then the category, give way when the screen is narrow (the Invoices chassis). */}
           <TH className="hidden @3xl:table-cell">Created</TH>
           <TH className="w-12" />
         </TR>
@@ -108,7 +108,7 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
                   <span className="truncate font-medium text-bone">{row.artistName}</span>
                 </span>
               </TD>
-              <TD>
+              <TD className="hidden @2xl:table-cell">
                 {(() => {
                   const c = categoryMeta(row.category);
                   const Icon = c.icon;

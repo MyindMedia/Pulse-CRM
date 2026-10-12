@@ -160,7 +160,7 @@ function PaymentsView() {
         </div>
       </div>
 
-      <BookingRevenue title="Collected over time" initialRange="90d" />
+      <BookingRevenue title="Collected over time" initialRange="90d" wide />
 
       <CreateInvoiceDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>
