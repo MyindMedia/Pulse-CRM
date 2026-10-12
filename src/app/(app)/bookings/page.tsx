@@ -208,7 +208,7 @@ export default function BookingsPage() {
         }
       />
 
-      <div className="grid gap-6 xl:grid-cols-[2.2fr_1fr]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[2.2fr_1fr]">
         <Chassis grid brackets>
           <ChassisTitle
             title={title}
@@ -239,7 +239,7 @@ export default function BookingsPage() {
         <SelectedBooking s={selected} money={canSeeFinancials} now={now ?? 0} onOpenSheet={setSheet} />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[2.2fr_1fr]">
+      <div className="grid grid-cols-1 gap-6 xl:grid-cols-[2.2fr_1fr]">
         <AtAGlance
           g={glance}
           money={canSeeFinancials}
@@ -250,7 +250,7 @@ export default function BookingsPage() {
 
       <BookSessionDialog open={bookOpen} onOpenChange={setBookOpen} />
 
-      <div className="grid gap-6 lg:grid-cols-[1.6fr_1fr]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1.6fr_1fr]">
         <Section
           title="Pipeline"
           trailing={
