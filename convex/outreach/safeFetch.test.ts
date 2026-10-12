@@ -65,7 +65,10 @@ describe("SSRF guard", () => {
 });
 
 describe("DNS rebinding (pentest re-scan, CWE-918)", () => {
-  it.each(["127.0.0.1.nip.io", "10-0-0-1.sslip.io", "app.localtest.me", "169.254.169.254.xip.io", "lvh.me", "api.192.168.1.20.example.com"])(
+  it.each([
+    "127.0.0.1.nip.io", "10-0-0-1.sslip.io", "app.localtest.me", "169.254.169.254.xip.io", "lvh.me", "api.192.168.1.20.example.com",
+    "app.localho.st", "localhost.direct", "x.fuf.me", "dev.local.gd", "smackaho.st", "a.b.1u.ms", "7f000001.c0a80001.rbndr.us", "q.rebind.it",
+  ])(
     "refuses the wildcard or embedded-IP name %s",
     (h) => {
       expect(isPublicHostname(h)).toBe(false);
