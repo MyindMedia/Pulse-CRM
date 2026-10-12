@@ -20,7 +20,6 @@ import { notify } from "./lib/notify";
 import { stageChecklistsFor, dropPreChecklistFor } from "./checklists";
 import { ensureSessionShift } from "./shifts";
 import { proposeWaitlistFill } from "./waitlist";
-import { scheduleGoogleCalendarPush, scheduleGoogleCalendarRemove } from "./googleCalendar";
 import { api, internal } from "./_generated/api";
 import { normalizeEmail } from "./lib/emailKey";
 
@@ -272,10 +271,6 @@ export const create = mutation({
       startTime: args.startTime,
       endTime: args.endTime,
     });
-
-    // Two-way calendar: mirror the new session onto the studio's Google
-    // primary calendar (silent no-op when not connected).
-    await scheduleGoogleCalendarPush(ctx, sessionId);
 
     return { sessionId, staffingWarning: warning };
   },
@@ -678,14 +673,6 @@ export const setStatus = mutation({
       await assessNoShowShield(ctx, s, status);
     }
 
-    // Two-way calendar: cancellations pull the Google event; any other status
-    // change is mirrored as a patch (so Google reflects the new state).
-    if (status === "cancelled" && s.status !== "cancelled") {
-      await scheduleGoogleCalendarRemove(ctx, id);
-    } else if (status !== s.status) {
-      await scheduleGoogleCalendarPush(ctx, id);
-    }
-
     if (status === "no_show") {
       const artist = await ctx.db.get(s.artistId);
       if (artist) await ctx.db.patch(s.artistId, { reliability: "watch" });
@@ -815,7 +802,8 @@ async function applyReschedule(
   await ctx.db.patch(s._id, patch);
 
   // Keep the engineer's auto-shift aligned with the new window (soft warning
-  // only, never blocks), then refresh room status + the Google mirror.
+  // only, never blocks), then refresh room status. The Google mirror follows
+  // from the sessions trigger (lib/googleCalendarTrigger.ts).
   await ensureSessionShift(ctx, {
     _id: s._id,
     orgId,
@@ -825,7 +813,6 @@ async function applyReschedule(
     endTime,
   });
   if (s.roomId) await recomputeRoomStatus(ctx, s.roomId);
-  await scheduleGoogleCalendarPush(ctx, s._id);
 
   const deltaMins = Math.round((endTime - startTime - (s.endTime - s.startTime)) / 60_000);
   const newRate = rate?.rateCents ?? s.rateCents;

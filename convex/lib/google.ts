@@ -181,23 +181,34 @@ export async function googleCalendarListEvents(
   return { events, nextSyncToken };
 }
 
-/** Create (POST) or patch (PATCH) an event on the connected account's primary
- *  calendar. Returns the Google event id so the caller can persist it for
- *  future patches/deletes. */
+/** Write an event onto the connected account's primary calendar under a
+ *  known id, creating it when it is not there yet. The id is chosen by Pulse
+ *  (googleCalendar.pulseEventId), so two pushes racing for a new booking land
+ *  on one event instead of two. Returns the id the event lives under: a fresh
+ *  one only when Google refuses to reuse the id of an event it has deleted. */
 export async function googleCalendarUpsertEvent(
   refreshToken: string,
   body: GoogleCalendarEventBody,
-  eventId?: string,
+  eventId: string,
 ): Promise<{ eventId: string }> {
   const accessToken = await accessTokenFromRefresh(refreshToken);
   const base = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
-  const url = eventId ? `${base}/${encodeURIComponent(eventId)}` : base;
-  const method = eventId ? "PATCH" : "POST";
-  const res = await fetch(url, {
-    method,
-    headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  const headers = { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" };
+  const patch = () =>
+    fetch(`${base}/${encodeURIComponent(eventId)}`, { method: "PATCH", headers, body: JSON.stringify(body) });
+  const insert = (withId: boolean) =>
+    fetch(base, { method: "POST", headers, body: JSON.stringify(withId ? { ...body, id: eventId } : body) });
+  const gone = (r: Response) => r.status === 404 || r.status === 410;
+
+  let res = await patch();
+  if (gone(res)) {
+    res = await insert(true);
+    if (res.status === 409) {
+      // The id exists: a concurrent push made it, or it belongs to a deleted event.
+      res = await patch();
+      if (gone(res)) res = await insert(false);
+    }
+  }
   if (!res.ok) throw new Error(`Google Calendar upsert failed (${res.status})`);
   const data = (await res.json()) as { id: string };
   return { eventId: data.id };

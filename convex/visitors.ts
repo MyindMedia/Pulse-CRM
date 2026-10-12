@@ -4,7 +4,6 @@ import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
 import { currentOrg } from "./lib/tenant";
 import { recomputeRoomStatus } from "./lib/roomStatus";
-import { scheduleGoogleCalendarPush } from "./googleCalendar";
 import { sameEmail } from "./lib/emailKey";
 
 /* ============================================================
@@ -105,7 +104,6 @@ async function matchAndCheckInSession(
     const nextStatus = matched.status === "tentative" ? "confirmed" : "in_progress";
     await ctx.db.patch(matched._id, { status: nextStatus });
     if (matched.roomId) await recomputeRoomStatus(ctx, matched.roomId);
-    await scheduleGoogleCalendarPush(ctx, matched._id);
     await ctx.db.insert("activity", {
       orgId,
       kind: "session.checked_in",
