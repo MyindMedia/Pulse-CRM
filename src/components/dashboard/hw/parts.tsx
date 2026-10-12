@@ -39,13 +39,15 @@ export function ChassisTitle({
   right?: React.ReactNode;
 }) {
   return (
-    <div className="flex items-start justify-between gap-3">
-      <div className="min-w-0">
+    /* Actions stay beside the title while it keeps at least 8rem; past that
+       they wrap under it rather than pushing off a phone screen. */
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div className="min-w-0 flex-1 basis-32">
         {kicker && <div className="mb-2.5">{kicker}</div>}
         <h2 className="truncate font-sans text-base font-bold! leading-[22px] tracking-[-0.01em] text-bone">{title}</h2>
         {bar && <span className="pl-bar mt-2.5 w-12" aria-hidden />}
       </div>
-      {right && <div className="flex shrink-0 items-center gap-2">{right}</div>}
+      {right && <div className="flex max-w-full items-center gap-2">{right}</div>}
     </div>
   );
 }
