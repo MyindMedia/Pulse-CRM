@@ -15,9 +15,9 @@ import { HardwareSpecimens } from "./hardware-specimens";
    compared with the kit's mockups before it reaches a real screen. Production
    returns 404. */
 export const metadata = { title: "UI lab", robots: { index: false, follow: false } };
-// Rendered per request so production answers notFound() with a real 404
-// status; prerendered, Netlify served the not-found page as a 200.
-export const dynamic = "force-dynamic";
+// Production gets its real 404 status from src/middleware.ts; this page's
+// notFound() is only a backstop (it renders "not found" under a 200, because
+// the response has started streaming by the time it runs).
 
 const SESSIONS = [
   { client: "Nova Vega", room: "Studio A", time: "10:00 to 14:00", engineer: "J. Ortiz", status: "Paid", tone: "positive", amount: "$600.00" },

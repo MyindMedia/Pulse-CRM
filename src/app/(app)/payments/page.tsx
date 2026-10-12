@@ -4,12 +4,17 @@ import * as React from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Plus, Receipt } from "lucide-react";
-import { PageHeader, Section } from "@/components/ui/page";
+import { Receipt } from "lucide-react";
+import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
-import { MoneySummary, type InvoiceSummary } from "@/components/payments/money-summary";
+import type { InvoiceSummary } from "@/components/payments/money-summary";
+import { CashPosition } from "@/components/payments/hw/cash-position";
+import { SplitSpotlight } from "@/components/payments/hw/split-spotlight";
+import { BookingRevenue } from "@/components/dashboard/hw/booking-revenue";
+import { Chassis, ChassisTitle, KeyBank } from "@/components/dashboard/hw/parts";
+import type { InvoicePeriod } from "@/lib/invoice-filter";
 import { PaymentsSetupWalkthrough } from "@/components/payments/payments-setup-walkthrough";
 import { StatusFilter, type StatusFilterValue } from "@/components/payments/status-filter";
 import { InvoiceFiltersBar } from "@/components/payments/invoice-filters";
@@ -74,72 +79,88 @@ function PaymentsView() {
   const filtersActive =
     filters.search !== "" || filters.category !== "all" || filters.period !== "all";
 
+  // The kit's period keys narrow the invoices like the filters bar's period.
+  const now = new Date();
+  const PERIODS: ReadonlyArray<{ value: InvoicePeriod; label: string }> = [
+    { value: "month", label: now.toLocaleDateString("en-US", { month: "long" }) },
+    { value: "quarter", label: `Q${Math.floor(now.getMonth() / 3) + 1}` },
+    { value: "year", label: String(now.getFullYear()) },
+    { value: "all", label: "All" },
+  ];
+  const periodKey = PERIODS.some((p) => p.value === filters.period) ? filters.period : "all";
+  const open = invoices?.filter((i) => i.status === "sent" || i.status === "viewed" || i.status === "overdue").length ?? 0;
+  const overdue = invoices?.filter((i) => i.status === "overdue").length ?? 0;
+  const caption = invoices === undefined ? "Loading invoices" : `${open} open · ${overdue} overdue · ${invoices.length} on file`;
+
   return (
-    <div className="space-y-7">
+    <div className="space-y-6">
       <PageHeader
         overline="Finance"
-        title="Payments"
-        description="Every invoice the studio has raised - what is collected, what is outstanding, and what still needs chasing."
+        title="Invoices and splits"
+        description={caption}
         actions={
-          <Button onClick={() => setCreateOpen(true)}>
-            <Plus className="size-4" />
-            Create invoice
-          </Button>
+          <>
+            <KeyBank
+              label="Invoice period"
+              options={PERIODS}
+              value={periodKey}
+              onChange={(v) => setFilters({ ...filters, period: v })}
+            />
+            <Button onClick={() => setCreateOpen(true)}>New invoice</Button>
+          </>
         }
       />
 
       <PaymentsSetupWalkthrough />
 
-      <MoneySummary summary={summary} />
+      <CashPosition summary={summary} />
 
-      <Section
-        title="Invoices"
-        trailing={
-          <StatusFilter value={filter} onChange={setFilter} counts={counts} />
-        }
-      >
-        <div className="mb-4">
-          <InvoiceFiltersBar value={filters} onChange={setFilters} categories={categories} />
+      <div className="grid gap-6 xl:grid-cols-[1.55fr_1fr]">
+        <Chassis>
+          <ChassisTitle title="Invoices" bar={false} right={<StatusFilter value={filter} onChange={setFilter} counts={counts} />} />
+          <div className="mt-3">
+            <InvoiceFiltersBar value={filters} onChange={setFilters} categories={categories} />
+          </div>
+          <div className="pl-well mt-3 flex-1 p-3">
+            <div className="pl-screen @container max-h-[620px] overflow-auto px-1 py-1">
+              {invoices === undefined ? (
+                <SkeletonRows rows={6} />
+              ) : invoices.length === 0 ? (
+                <EmptyState
+                  icon={Receipt}
+                  title="No invoices yet"
+                  description="Raise your first invoice to start tracking studio income."
+                  action={<Button onClick={() => setCreateOpen(true)}>New invoice</Button>}
+                />
+              ) : rows.length === 0 ? (
+                <EmptyState
+                  icon={Receipt}
+                  title="Nothing in this view"
+                  description={filtersActive ? "No invoices match your search or filters." : "No invoices match the selected status filter."}
+                  action={
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setFilter("all");
+                        setFilters(DEFAULT_INVOICE_FILTERS);
+                      }}
+                    >
+                      Clear filters
+                    </Button>
+                  }
+                />
+              ) : (
+                <InvoiceTable rows={rows} />
+              )}
+            </div>
+          </div>
+        </Chassis>
+        <div className="flex min-w-0 xl:self-start">
+          <SplitSpotlight />
         </div>
-        {invoices === undefined ? (
-          <SkeletonRows rows={6} />
-        ) : invoices.length === 0 ? (
-          <EmptyState
-            icon={Receipt}
-            title="No invoices yet"
-            description="Raise your first invoice to start tracking studio income."
-            action={
-              <Button onClick={() => setCreateOpen(true)}>
-                <Plus className="size-4" />
-                Create invoice
-              </Button>
-            }
-          />
-        ) : rows.length === 0 ? (
-          <EmptyState
-            icon={Receipt}
-            title="Nothing in this view"
-            description={
-              filtersActive
-                ? "No invoices match your search or filters."
-                : "No invoices match the selected status filter."
-            }
-            action={
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setFilter("all");
-                  setFilters(DEFAULT_INVOICE_FILTERS);
-                }}
-              >
-                Clear filters
-              </Button>
-            }
-          />
-        ) : (
-          <InvoiceTable rows={rows} />
-        )}
-      </Section>
+      </div>
+
+      <BookingRevenue title="Collected over time" initialRange="90d" wide />
 
       <CreateInvoiceDialog open={createOpen} onOpenChange={setCreateOpen} />
     </div>

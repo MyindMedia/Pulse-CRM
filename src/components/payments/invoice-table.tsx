@@ -81,11 +81,12 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
         <TR>
           <TH>Invoice</TH>
           <TH>Client</TH>
-          <TH>For</TH>
+          <TH className="hidden @2xl:table-cell">For</TH>
           <TH className="text-right">Amount</TH>
           <TH>Status</TH>
           <TH>Due</TH>
-          <TH>Created</TH>
+          {/* Created, then the category, give way when the screen is narrow (the Invoices chassis). */}
+          <TH className="hidden @3xl:table-cell">Created</TH>
           <TH className="w-12" />
         </TR>
       </THead>
@@ -100,14 +101,14 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
               onClick={() => router.push(`/payments/${row._id}`)}
               className={cn(overdue && "bg-critical/[0.04]")}
             >
-              <TD className="font-meta text-xs text-bone">{row.number}</TD>
+              <TD className="whitespace-nowrap font-meta text-xs text-bone">{row.number}</TD>
               <TD>
                 <span className="flex items-center gap-2.5">
                   <Avatar name={row.artistName} size="sm" />
                   <span className="truncate font-medium text-bone">{row.artistName}</span>
                 </span>
               </TD>
-              <TD>
+              <TD className="hidden @2xl:table-cell">
                 {(() => {
                   const c = categoryMeta(row.category);
                   const Icon = c.icon;
@@ -128,14 +129,14 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
               <TD>
                 <span
                   className={cn(
-                    "font-meta text-xs",
+                    "whitespace-nowrap font-meta text-xs",
                     overdue ? "font-medium text-critical" : "text-steel",
                   )}
                 >
                   {shortDate(row.dueDate)}
                 </span>
               </TD>
-              <TD className="text-xs text-steel/70">{relativeTime(row._creationTime)}</TD>
+              <TD className="hidden whitespace-nowrap text-xs text-steel/70 @3xl:table-cell">{relativeTime(row._creationTime)}</TD>
               <TD onClick={swallow}>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

@@ -1,9 +1,7 @@
 import { internalAction, internalQuery } from "./_generated/server";
 import { internalMutation } from "./functions";
-import type { MutationCtx } from "./_generated/server";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
 import {
   googleCalendarUpsertEvent,
   googleCalendarDeleteEvent,
@@ -15,11 +13,13 @@ import {
 /* ============================================================
    Two-way Google Calendar sync.
 
-   When a studio is connected to its Google account, every session
-   created or status-changed in Pulse is pushed onto their primary
-   calendar so the studio's source-of-truth schedule reflects Pulse
-   bookings. Cancellations remove the Google event. The mapper layer
-   is pure so its serialisation is unit-tested without the network.
+   When a studio is connected to its Google account, every booking
+   created or changed in Pulse is pushed onto their primary calendar so
+   the studio's source-of-truth schedule reflects Pulse bookings.
+   Cancellations remove the Google event. The push is started by a
+   trigger on the sessions table (lib/googleCalendarTrigger.ts), so no
+   booking path can skip it. The mapper layer is pure so its
+   serialisation is unit-tested without the network.
 
    Read-direction (Google -> Pulse) lives in googleCalendarSync.ts:
    a cron pulls the connected primary calendar's events in as org-wide
@@ -63,6 +63,13 @@ export function sessionToCalendarEvent(
   };
 }
 
+/** Pure: the Google event id a session is written under. Google allows the
+ *  characters 0-9 and a-v; hex of the Convex id stays inside them, so every
+ *  push for one booking addresses the same event. */
+export function pulseEventId(sessionId: string): string {
+  return `pulse${Array.from(new TextEncoder().encode(sessionId), (b) => b.toString(16).padStart(2, "0")).join("")}`;
+}
+
 /** Internal: everything an action needs to push one session. Null when the
  *  org is not Google-connected or when the studio's record is gone. */
 export const _pushContext = internalQuery({
@@ -95,8 +102,9 @@ export const _writebackEventId = internalMutation({
   },
 });
 
-/** Push a Pulse session to the studio's Google primary calendar.
- *  No-op when Google is not configured or the studio is not connected. */
+/** Mirror a Pulse session onto the studio's Google primary calendar: written
+ *  (created or updated) while it is live, removed once it is cancelled or a
+ *  no-show. No-op when Google is not configured or the studio is not connected. */
 export const pushSession = internalAction({
   args: { sessionId: v.id("sessions") },
   handler: async (ctx, { sessionId }) => {
@@ -104,13 +112,18 @@ export const pushSession = internalAction({
     const c = await ctx.runQuery(internal.googleCalendar._pushContext, { sessionId });
     if (!c) return; // not connected; silent no-op
     const body = sessionToCalendarEvent(c.session, { studioName: c.studioName });
+    const eventId = c.googleCalendarEventId ?? pulseEventId(sessionId);
     try {
-      const res = await googleCalendarUpsertEvent(c.googleRefreshToken, body, c.googleCalendarEventId ?? undefined);
-      if (!c.googleCalendarEventId) {
-        await ctx.runMutation(internal.googleCalendar._writebackEventId, {
-          sessionId,
-          eventId: res.eventId,
-        });
+      if (body.status === "cancelled") {
+        await googleCalendarDeleteEvent(c.googleRefreshToken, eventId);
+        if (c.googleCalendarEventId) {
+          await ctx.runMutation(internal.googleCalendar._writebackEventId, { sessionId, eventId: null });
+        }
+        return;
+      }
+      const res = await googleCalendarUpsertEvent(c.googleRefreshToken, body, eventId);
+      if (res.eventId !== c.googleCalendarEventId) {
+        await ctx.runMutation(internal.googleCalendar._writebackEventId, { sessionId, eventId: res.eventId });
       }
     } catch (err) {
       console.error("[googleCalendar.pushSession]", err);
@@ -118,35 +131,26 @@ export const pushSession = internalAction({
   },
 });
 
-/** Remove a Pulse session from the studio's Google primary calendar. */
-export const removeSession = internalAction({
-  args: { sessionId: v.id("sessions") },
-  handler: async (ctx, { sessionId }) => {
-    if (!googleConfigured()) return;
-    const c = await ctx.runQuery(internal.googleCalendar._pushContext, { sessionId });
-    if (!c || !c.googleCalendarEventId) return;
-    try {
-      await googleCalendarDeleteEvent(c.googleRefreshToken, c.googleCalendarEventId);
-      await ctx.runMutation(internal.googleCalendar._writebackEventId, { sessionId, eventId: null });
-    } catch (err) {
-      console.error("[googleCalendar.removeSession]", err);
-    }
+/** The studio's Google refresh token, for an action that has only the org. */
+export const _orgRefreshToken = internalQuery({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+    return org?.googleRefreshToken ?? null;
   },
 });
 
-/** Schedule a push for one session, safe to call from any mutation. No-op when
- *  the org is not Google-connected (the action itself checks again). */
-export async function scheduleGoogleCalendarPush(
-  ctx: MutationCtx,
-  sessionId: Id<"sessions">,
-): Promise<void> {
-  await ctx.scheduler.runAfter(0, internal.googleCalendar.pushSession, { sessionId });
-}
-
-/** Schedule a remove for one session. */
-export async function scheduleGoogleCalendarRemove(
-  ctx: MutationCtx,
-  sessionId: Id<"sessions">,
-): Promise<void> {
-  await ctx.scheduler.runAfter(0, internal.googleCalendar.removeSession, { sessionId });
-}
+/** Remove the Google event of a session that has been deleted from Pulse. */
+export const removeEvent = internalAction({
+  args: { orgId: v.string(), eventId: v.string() },
+  handler: async (ctx, { orgId, eventId }) => {
+    if (!googleConfigured()) return;
+    const token = await ctx.runQuery(internal.googleCalendar._orgRefreshToken, { orgId });
+    if (!token) return;
+    try {
+      await googleCalendarDeleteEvent(token, eventId);
+    } catch (err) {
+      console.error("[googleCalendar.removeEvent]", err);
+    }
+  },
+});

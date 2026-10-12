@@ -154,7 +154,7 @@ export function candidatesFor(s: Signals): ProposedAction[] {
       type: "reengage_quiet_artist",
       priority: "medium",
       title: `Re-engage ${a.name}`,
-      rationale: `No contact in ${QUIET_DAYS}+ days. A short check-in keeps them from churning.`,
+      rationale: `No contact in ${QUIET_DAYS}+ days. Send a short check-in so they don't drift away?`,
       entityType: "artist",
       entityId: a.id,
       payload: a.email
@@ -174,7 +174,7 @@ export function candidatesFor(s: Signals): ProposedAction[] {
       type: "payment_reminder",
       priority: "high",
       title: `Chase invoice ${inv.number}`,
-      rationale: `Invoice ${inv.number} for ${fmtCents(inv.amountCents)} is past due.`,
+      rationale: `Invoice ${inv.number} for ${fmtCents(inv.amountCents)} is past due. Send a reminder?`,
       entityType: "invoice",
       entityId: inv.id,
       payload: inv.email
@@ -194,7 +194,7 @@ export function candidatesFor(s: Signals): ProposedAction[] {
       type: "confirm_unconfirmed_session",
       priority: "high",
       title: `Confirm ${sess.title}`,
-      rationale: `${sess.artistName}'s session is within ${CONFIRM_HORIZON / DAY} days and still tentative. Confirm it to lock the room.`,
+      rationale: `${sess.artistName}'s session is within ${CONFIRM_HORIZON / DAY} days and still tentative. Confirm it and lock the room?`,
       entityType: "session",
       entityId: sess.id,
       payload: { kind: "session_status", sessionId: sess.id, newStatus: "confirmed" },
@@ -206,7 +206,7 @@ export function candidatesFor(s: Signals): ProposedAction[] {
       type: "deposit_unpaid_nudge",
       priority: "medium",
       title: `Deposit unpaid - ${sess.title}`,
-      rationale: `${sess.artistName}'s public booking is holding without a deposit. Nudge before the hold expires.`,
+      rationale: `${sess.artistName}'s public booking is holding without a deposit. Nudge them before the hold expires?`,
       entityType: "session",
       entityId: sess.id,
       payload: sess.email
@@ -226,7 +226,7 @@ export function candidatesFor(s: Signals): ProposedAction[] {
       type: "resolve_revision_overflow",
       priority: "medium",
       title: `${song.title} is over its revision budget`,
-      rationale: "Revisions used meet or exceed the included count. Consider invoicing for extra revisions before more notes come in.",
+      rationale: "Revisions used meet or exceed the included count. Invoice the extra revisions before more notes come in?",
       entityType: "song",
       entityId: song.id,
       payload: { kind: "note_only" },
@@ -238,7 +238,7 @@ export function candidatesFor(s: Signals): ProposedAction[] {
       type: "chase_split_sheet",
       priority: "high",
       title: `Split sheet not locked - ${song.title}`,
-      rationale: `${song.title} is near delivery but its split sheet is not fully executed. Lock it before release.`,
+      rationale: `${song.title} is near delivery but its split sheet is not fully signed. Get it signed before release?`,
       entityType: "song",
       entityId: song.id,
       payload: { kind: "note_only" },
@@ -250,7 +250,7 @@ export function candidatesFor(s: Signals): ProposedAction[] {
       type: "promote_underused_room",
       priority: "low",
       title: `Promote ${room.name}`,
-      rationale: `${room.name} has no bookings in the next ${UPCOMING_WINDOW / DAY} days. Run a rate-cut promo to fill it.`,
+      rationale: `${room.name} has no bookings in the next ${UPCOMING_WINDOW / DAY} days. Run a rate-cut promo to fill it?`,
       entityType: "room",
       entityId: room.id,
       payload: { kind: "note_only" },
@@ -262,7 +262,7 @@ export function candidatesFor(s: Signals): ProposedAction[] {
       type: "complete_rights_metadata",
       priority: "high",
       title: `Rights metadata incomplete - ${song.title}`,
-      rationale: `${song.title} is near release but is missing ${song.missing.join(", ")}. Lock the rights metadata before distribution.`,
+      rationale: `${song.title} is near release but is missing ${song.missing.join(", ")}. Fill in the rights metadata before distribution?`,
       entityType: "song",
       entityId: song.id,
       payload: { kind: "note_only" },
@@ -542,7 +542,15 @@ export async function upsertProposed(ctx: MutationCtx, orgId: string, candidates
       .query("opsActions")
       .withIndex("by_org_dedupe", (q) => q.eq("orgId", orgId).eq("dedupeKey", dedupeKey))
       .collect();
-    if (existing.some((r) => OPEN.has(r.status))) continue;
+    const open = existing.find((r) => OPEN.has(r.status));
+    if (open) {
+      // Keep an untouched rule proposal's reason current. Never touch one an AI
+      // rewrote (source "openai") or one a person has acted on.
+      if (open.status === "proposed" && open.source === "rule" && open.rationale !== c.rationale) {
+        await ctx.db.patch(open._id, { rationale: c.rationale });
+      }
+      continue;
+    }
 
     const policy = await ctx.db
       .query("opsAutonomy")

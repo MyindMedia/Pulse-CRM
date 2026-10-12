@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api, internal } from "./_generated/api";
-import { fetchTuning } from "./outreach/safeFetch";
+import { fetchTuning, dnsTuning } from "./outreach/safeFetch";
 
 type Id = { subject: string; name: string; orgId: string; orgType: string };
 const idOf = (subject: string, orgId: string): Id => ({ subject, name: subject, orgId, orgType: "agency" });
@@ -12,8 +12,11 @@ const SITE = `<html><body><a href="mailto:studio@acme.com">e</a><p>(323) 760-755
 
 describe("outreach prospects", () => {
   let t: ReturnType<typeof convexTest>;
-  beforeEach(() => { t = convexTest(schema); fetchTuning.backoffMs = 0; });
-  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); });
+  // These tests stub page fetches; the guard's DNS check gets a resolver that
+  // calls every studio host public (its own tests live in safeFetch.test.ts).
+  const realResolve = dnsTuning.resolve;
+  beforeEach(() => { t = convexTest(schema); fetchTuning.backoffMs = 0; dnsTuning.resolve = async () => ["93.184.216.34"]; });
+  afterEach(() => { vi.unstubAllGlobals(); vi.unstubAllEnvs(); dnsTuning.resolve = realResolve; });
 
   async function seed(agencyId: string, owner: string, staff?: string) {
     await t.run(async (ctx) => {

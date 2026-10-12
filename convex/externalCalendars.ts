@@ -177,10 +177,14 @@ export const remove = mutation({
    Plain V8 mutations; no top-level node-ical dependency.
    ============================================================ */
 
-export const getInternal = internalQuery({
+/** The feed, only when it belongs to the caller's studio: the sync action is
+ *  public, so an id alone must not start a fetch of another studio's feed. */
+export const getForCaller = internalQuery({
   args: { id: v.id("externalCalendars") },
   handler: async (ctx, { id }) => {
-    return await ctx.db.get(id);
+    const orgId = await currentOrg(ctx);
+    const cal = await ctx.db.get(id);
+    return cal && cal.orgId === orgId ? cal : null;
   },
 });
 
