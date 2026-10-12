@@ -10,8 +10,11 @@ const PRIVATE_V4 = [
 
 /* Wildcard-DNS services answer any name with the address written into it
    (127.0.0.1.nip.io, 10-0-0-1.sslip.io), which walks straight past a check
-   on the hostname string. Pentest re-scan 2026-10-11 (CWE-918). */
-const WILDCARD_DNS = /(^|\.)(nip\.io|sslip\.io|xip\.io|localtest\.me|lvh\.me|vcap\.me|lacolhost\.com|traefik\.me|backname\.io)$/;
+   on the hostname string; rebinding services (rbndr.us, 1u.ms) alternate a
+   public and a private answer to race the DNS check below. Refused by name
+   as a second layer. Pentest re-scans 2026-10-11 (CWE-918). */
+const WILDCARD_DNS =
+  /(^|\.)(nip\.io|sslip\.io|xip\.io|localtest\.me|lvh\.me|vcap\.me|lacolhost\.com|traefik\.me|backname\.io|localho\.st|localhost\.direct|fuf\.me|local\.gd|smackaho\.st|1u\.ms|rbndr\.us|rebind\.it|lock\.cmpxchg8b\.com)$/;
 /** A private IPv4 written inside a name, dotted or dashed (10.0.0.1.x, 10-0-0-1.x). */
 function embedsPrivateV4(h: string): boolean {
   const dotted = h.match(/(\d{1,3}[.-]\d{1,3}[.-]\d{1,3}[.-]\d{1,3})/g) ?? [];
@@ -92,7 +95,11 @@ export function isPrivateIp(ip: string): boolean {
 /* DNS over HTTPS. Convex's V8 runtime has no resolver and cannot pin the
    address fetch() connects to, so the name is resolved first and refused if
    any answer is private. A name that rebinds between this lookup and the
-   request is the residual gap; a static record pointing inside is closed. */
+   request is the residual gap; a static record pointing inside is closed.
+   Accepted (2026-10-11): every caller is agency-scoped (stageDemo.stage,
+   outreach scraping) and agency access is owner-only. A caller that a studio
+   member can reach must fetch from a Node action with a pinned lookup
+   instead, as the iCal import does (lib/icalGuard.ts). */
 const DOH = ["https://cloudflare-dns.com/dns-query", "https://dns.google/resolve"];
 
 async function dohAnswers(host: string): Promise<string[] | null> {
