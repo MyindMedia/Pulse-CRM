@@ -22,7 +22,11 @@ const RANGES = [
  * fade fill, the 8% yellow grid, a dashed crosshair with the date pill, and
  * a sweep while it loads. Colours come from the --chart-* tokens in
  * hardware.css. Same data as the revenue tile (dashboard.revenueSeries). */
-export function BookingRevenue({ title = "Booking revenue", initialRange = "30d" }: { title?: string; initialRange?: Range } = {}) {
+export function BookingRevenue({
+  title = "Booking revenue",
+  initialRange = "30d",
+  wide = false,
+}: { title?: string; initialRange?: Range; wide?: boolean } = {}) {
   const [range, setRange] = React.useState<Range>(initialRange);
   const series = useQuery(api.dashboard.revenueSeries, { range });
   const data = React.useMemo(
@@ -39,8 +43,13 @@ export function BookingRevenue({ title = "Booking revenue", initialRange = "30d"
         right={<KeyBank label="Revenue range" options={RANGES} value={range} onChange={setRange} />}
       />
       <div className="pl-well mt-3 flex flex-1 flex-col p-3">
-        <div className="pl-screen relative min-h-[150px] flex-1 overflow-hidden">
+        <div className={`pl-screen relative flex-1 overflow-hidden ${wide ? "min-h-[240px]" : "min-h-[150px]"}`}>
+          {/* Absolutely filled: outside the dashboard grid the screen's height
+              comes only from min-height, which a percentage height cannot
+              resolve against, so the chart measured 0px and never left its
+              loading state (Invoices page, 2026-10-11). */}
           <AreaChart
+            className="absolute inset-0"
             data={data}
             xDataKey="date"
             status={series === undefined ? "loading" : "ready"}
