@@ -3,11 +3,15 @@
 import * as React from "react";
 import type { BookingRow } from "@/components/bookings/types";
 import { hhmm } from "@/components/dashboard/hw/parts";
-import { addDays, blockGeometry, bookingsOn, hourRange } from "./board-model";
+import { addDays, blockGeometry, bookingsOn, hourRange, laneOf } from "./board-model";
 
 export type BoardRoom = { _id: string; name: string; roomType?: string | null; status?: string };
 
 const NO_ROOM = "__none__";
+/** Width of one hour on the day board; a long day scrolls inside the screen. */
+const HOUR_PX = 52;
+/** Height of one lane of bookings on a room's track. */
+const LANE_PX = 48;
 
 /** Rooms that are bookable on the board, plus a row for bookings with no room. */
 function boardRooms(rooms: BoardRoom[], day: BookingRow[]): BoardRoom[] {
@@ -49,7 +53,7 @@ export function DayTimeline({
 
   return (
     <div className="pl-screen overflow-x-auto">
-      <div className="min-w-[760px] px-3 pb-2">
+      <div className="px-3 pb-2" style={{ minWidth: 132 + hours.length * HOUR_PX }}>
         <div className="grid grid-cols-[132px_1fr] border-b border-white/[0.06]">
           <div className="pl-label py-3">Room</div>
           <div className="relative grid" style={{ gridTemplateColumns: `repeat(${hours.length}, minmax(0, 1fr))` }}>
@@ -63,21 +67,24 @@ export function DayTimeline({
         {list.length === 0 ? (
           <p className="py-8 text-center font-sans text-sm text-steel">Add a room to see bookings by room.</p>
         ) : (
-          list.map((room) => (
+          list.map((room) => {
+            const here = day.filter((s) => inRoom(s, room, rooms));
+            const lanes = laneOf(here);
+            const laneCount = Math.max(1, ...Array.from(lanes.values(), (l) => l + 1));
+            return (
             <div key={room._id} className="grid grid-cols-[132px_1fr] border-b border-white/[0.06] last:border-b-0">
               <div className="min-w-0 py-3 pr-3">
                 <p className="truncate font-sans text-[13px] font-semibold leading-[18px] text-bone">{room.name}</p>
                 {room.roomType && <p className="truncate font-sans text-[11px] leading-4 text-steel">{room.roomType}</p>}
               </div>
               <div
-                className="pl-track relative h-16"
-                style={{ backgroundSize: `calc(100% / ${hours.length}) 100%` }}
+                className="pl-track relative"
+                style={{ backgroundSize: `calc(100% / ${hours.length}) 100%`, height: 16 + laneCount * LANE_PX }}
               >
-                {day
-                  .filter((s) => inRoom(s, room, rooms))
-                  .map((s) => {
+                {here.map((s) => {
                     const g = blockGeometry(s, dayStart, range);
                     const hold = s.status === "tentative";
+                    const lane = lanes.get(s._id) ?? 0;
                     return (
                       <button
                         key={s._id}
@@ -88,8 +95,13 @@ export function DayTimeline({
                         data-dim={s.status === "no_show" ? "true" : undefined}
                         aria-pressed={s._id === selectedId}
                         aria-label={`${hold ? "Hold: " : ""}${s.artistName}, ${hhmm(s.startTime)} to ${hhmm(s.endTime)}`}
-                        className="pl-block absolute bottom-2 top-2 min-w-0 overflow-hidden px-2.5 py-1"
-                        style={{ left: `calc(${g.left}% + 2px)`, width: `calc(${g.width}% - 4px)` }}
+                        className="pl-block absolute min-w-0 overflow-hidden px-2.5 py-1"
+                        style={{
+                          left: `calc(${g.left}% + 2px)`,
+                          width: `calc(${g.width}% - 4px)`,
+                          top: 8 + lane * LANE_PX,
+                          height: LANE_PX - 4,
+                        }}
                       >
                         <span className="block truncate font-sans text-[13px] font-bold leading-[18px]">
                           {hold ? "Hold: " : ""}
@@ -106,7 +118,8 @@ export function DayTimeline({
                 )}
               </div>
             </div>
-          ))
+            );
+          })
         )}
       </div>
     </div>

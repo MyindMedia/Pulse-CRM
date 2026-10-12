@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { addDays, blockGeometry, bookingsOn, defaultSelection, glanceFor, hourRange, startOfDay, startOfWeek } from "./board-model";
+import { addDays, blockGeometry, bookingsOn, defaultSelection, glanceFor, hourRange, laneOf, startOfDay, startOfWeek } from "./board-model";
 import type { BookingRow } from "@/components/bookings/types";
 
 const H = 3_600_000;
@@ -32,6 +32,14 @@ describe("bookings day board", () => {
     expect(blockGeometry(row(20, 6), DAY0, { from: 10, to: 22 }).width).toBeCloseTo((2 / 12) * 100);
   });
 
+  it("stacks overlapping bookings in lanes and reuses a lane once it is free", () => {
+    const a = row(3, 6); // 03:00 to 09:00
+    const b = row(6, 3); // 06:00 to 09:00, overlaps a
+    const c = row(9, 2); // 09:00, after both end
+    const lanes = laneOf([a, b, c]);
+    expect([lanes.get(a._id), lanes.get(b._id), lanes.get(c._id)]).toEqual([0, 1, 0]);
+  });
+
   it("selects the booking running now, else the next one", () => {
     const morning = row(10, 2);
     const live = row(13, 3);
@@ -59,5 +67,6 @@ describe("bookings day board", () => {
     expect(g.depositsDueCents).toBe(13500);
     expect(g.noShows30).toBe(1); // only the one 5 days ago: today's starts after `now`
     expect(g.sessions).toBe(2);
+    expect(g.rooms).toBe(3);
   });
 });

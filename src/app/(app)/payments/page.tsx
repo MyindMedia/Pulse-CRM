@@ -122,7 +122,7 @@ function PaymentsView() {
             <InvoiceFiltersBar value={filters} onChange={setFilters} categories={categories} />
           </div>
           <div className="pl-well mt-3 flex-1 p-3">
-            <div className="pl-screen overflow-x-auto px-1 py-1">
+            <div className="pl-screen @container max-h-[620px] overflow-auto px-1 py-1">
               {invoices === undefined ? (
                 <SkeletonRows rows={6} />
               ) : invoices.length === 0 ? (
@@ -155,7 +155,9 @@ function PaymentsView() {
             </div>
           </div>
         </Chassis>
-        <SplitSpotlight />
+        <div className="flex min-w-0 xl:self-start">
+          <SplitSpotlight />
+        </div>
       </div>
 
       <BookingRevenue title="Collected over time" initialRange="90d" />

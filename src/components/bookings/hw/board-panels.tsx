@@ -148,7 +148,11 @@ export function AtAGlance({ g, money, title }: { g: Glance | null; money: boolea
         ) : (
           <>
             <StatTile label="Booked" value={`${g.bookedHours}h`} highlight foot={<Delta value={g.bookedDelta} against="last week" />} />
-            <StatTile label="Open slots" value={`${g.openHours}h`} foot="of a 12-hour day" />
+            <StatTile
+              label="Open slots"
+              value={`${g.openHours}h`}
+              foot={g.rooms > 1 ? `of ${g.rooms * 12}h across ${g.rooms} rooms` : "of a 12-hour day"}
+            />
             {money ? (
               <StatTile
                 label="Deposits due"
