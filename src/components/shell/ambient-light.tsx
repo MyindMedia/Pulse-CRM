@@ -18,6 +18,7 @@ export function AmbientLight() {
       <span className="pl-ambient-pool pl-ambient-gold" />
       <span className="pl-ambient-pool pl-ambient-copper" />
       <span className="pl-ambient-pool pl-ambient-amber" />
+      <span className="pl-ambient-dim" />
     </div>
   );
 }
