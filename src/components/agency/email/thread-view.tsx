@@ -31,7 +31,13 @@ function formatSize(n: number | null): string {
   return `${(n / 1048576).toFixed(1)} MB`;
 }
 
-function MessageBody({ m }: { m: Message }) {
+/** A message body: received HTML sanitized into a sandboxed iframe (remote
+ *  images held back until asked), or plain text. Shared with the Outreach inbox. */
+export function MessageBody({ m, height }: {
+  m: Pick<Message, "bodyStatus" | "html" | "text" | "from" | "htmlTruncated">;
+  /** Frame height in px; the standard 420px when not given. */
+  height?: number;
+}) {
   const [images, setImages] = React.useState(false);
   if (m.bodyStatus === "pending") {
     return <p className="text-sm text-steel">Fetching the full message from Resend. It will appear here shortly.</p>;
@@ -53,7 +59,8 @@ function MessageBody({ m }: { m: Message }) {
           sandbox={EMAIL_IFRAME_SANDBOX}
           referrerPolicy="no-referrer"
           srcDoc={emailSrcDoc(m.html, { allowRemoteImages: images })}
-          className="h-[420px] w-full rounded-md border border-graphite/40 bg-white"
+          style={height ? { height } : undefined}
+          className={`${height ? "" : "h-[420px] "}w-full rounded-md border border-graphite/40 bg-white`}
         />
         {m.htmlTruncated && <p className="text-xs text-steel/70">This message was very long and was cut short.</p>}
       </div>
@@ -62,7 +69,7 @@ function MessageBody({ m }: { m: Message }) {
   return <p className="whitespace-pre-wrap break-words text-sm text-bone">{m.text ?? "(no content)"}</p>;
 }
 
-function Attachments({ m }: { m: Message }) {
+export function Attachments({ m }: { m: Pick<Message, "_id" | "attachments"> }) {
   const convex = useConvex();
   if (m.attachments.length === 0) return null;
   async function open(index: number) {
