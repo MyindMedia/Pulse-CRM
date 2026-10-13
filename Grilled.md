@@ -1933,3 +1933,12 @@ Requests from Lawrence during the App Store pass, in his words where it matters:
 **Non-goals:** Bluehost, IMAP or any other mail host; forwarding, auto-replies, rules, search; sending attachments; per-studio mailboxes or other domains; AI triage.
 
 **Open:** MX value comes from the Resend dashboard; outbound Message-ID is assigned by Resend so a reply to a brand-new outbound thread threads by subject. Spec: `openspec/changes/email-inboxes/`.
+
+## Design: room light background (2026-10-12)
+
+Ask (Lawrence): "change the system background to be something a dimly lit moving background to create a luxury feel across all screens".
+- **Scope:** every hardware-UI screen (app shell + agency console, anything under `.pulse-hw`). Marketing, sign-in and the onboarding flows keep their own look (those use glass with backdrop blur, where a forever-moving backdrop re-blurs every frame).
+- **Look:** the void stays near-black; three soft pools (Pulse yellow, copper, dim amber) drift on 84s / 112s / 66s alternate loops; film grain dithers the gradients; a light vignette. Cards stay opaque, so the light reads in the gutters and margins.
+- **Tech:** CSS only (`src/app/hardware.css` "Room light", `src/components/shell/ambient-light.tsx`). ThreeUI's ambient backgrounds (NebulaBackground, VoidField, PortalFieldCollection, InterfaceLines) were checked and passed over: they redraw the full screen every frame in WebGL or Canvas, too costly for an always-on app background.
+- **Rules:** reduced motion holds the pools still; `aria-hidden`, no pointer events; tune brightness with the rgba alphas in the three `.pl-ambient-*` rules.
+
