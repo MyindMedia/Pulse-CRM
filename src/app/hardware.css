@@ -130,9 +130,10 @@
    shell's background and under everything in the shell, in any layout. */
 .pulse-hw { isolation: isolate; }
 
-/* ── Room light. Three soft pools of warm light (Pulse yellow, copper, a dim
-      amber) drift on offset 22-38s loops, so the gutters between chassis
-      glow and fade like light moving across a dark control room. The first
+/* ── Room light. A faint digital tile wall drifts under three soft pools of
+      warm light (Pulse yellow, copper, a dim amber) on offset 22-38s loops,
+      so the gutters between chassis glow and fade like light moving across
+      a dark control room. The first
       cut ran 66-112s at about 60% of this brightness: it worked, and nobody
       could see it move. Transform and opacity only: the compositor moves
       layers it rasterized once, nothing repaints, and nothing blurs this
@@ -162,6 +163,58 @@
   opacity: 0.05;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E");
   background-size: 180px 180px;
+}
+/* Digital tile wall: a 28px pad grid drifting one 448px sheet (16 cells)
+   per 60s, so the loop is seamless; a few pads lit gold or copper, and two
+   sheets of glowing pads breathing on and off out of step. The light pools
+   paint above it, so the wall reads as lit by them. Tiles are a texture, so
+   they still read in a 24px gutter, where a soft gradient or a photo cannot.
+   The frame fades the wall toward the middle of the screen, where content
+   (and the odd translucent banner) sits, and keeps it full at the edges. */
+.pl-tiles-frame {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  -webkit-mask-image: radial-gradient(120% 90% at 55% 50%, rgba(0, 0, 0, 0.35) 30%, #000 80%);
+  mask-image: radial-gradient(120% 90% at 55% 50%, rgba(0, 0, 0, 0.35) 30%, #000 80%);
+}
+.pl-tiles {
+  position: absolute;
+  top: -448px;
+  left: -448px;
+  width: calc(100% + 896px);
+  height: calc(100% + 896px);
+  will-change: transform;
+  animation: pl-tiles-drift 60s linear infinite;
+}
+.pl-tiles > span {
+  position: absolute;
+  inset: 0;
+  background-repeat: repeat;
+  background-size: 448px 448px;
+}
+.pl-tiles > .pl-tiles-grid {
+  background-image: url("/hw/tiles-grid.svg?v=1");
+  background-size: 28px 28px;
+}
+.pl-tiles-lit { background-image: url("/hw/tiles-lit.svg?v=1"); }
+.pl-tiles-blink {
+  opacity: 0;
+  animation: pl-tiles-blink 7s ease-in-out infinite;
+}
+.pl-tiles-blink-a { background-image: url("/hw/tiles-blink-a.svg?v=1"); }
+.pl-tiles-blink-b {
+  background-image: url("/hw/tiles-blink-b.svg?v=1");
+  animation-duration: 9.5s;
+  animation-delay: -4s;
+}
+@keyframes pl-tiles-drift {
+  from { transform: translate3d(0, 0, 0); }
+  to   { transform: translate3d(448px, 448px, 0); }
+}
+@keyframes pl-tiles-blink {
+  0%, 100% { opacity: 0; }
+  50%      { opacity: 1; }
 }
 .pl-ambient-pool {
   position: absolute;
@@ -218,9 +271,14 @@
   100% { transform: translate3d(32vw, 24vh, 0) scale(1); opacity: 0.65; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .pl-ambient-pool {
+  .pl-ambient-pool,
+  .pl-tiles {
     animation: none;
     will-change: auto;
+  }
+  .pl-tiles-blink {
+    animation: none;
+    opacity: 0.5;
   }
 }
 :root:has(.pulse-hw) h1,

@@ -26,4 +26,4 @@
 - [ ] 4.2 Boot sequence on the Overview, Bookings and Finance hero chassis, reduced motion respected
 - [~] 4.3 Bklit charts in wells with the 5.5 token mapping; loading keeps the frame (overview booking revenue done: Bklit AreaChart in a well; other charts to follow)
 - [ ] 4.4 Contrast and focus pass (section 8); cross-browser check on staging
-- [x] 4.5 Room light (Lawrence 2026-10-12: "a dimly lit moving background ... luxury feel across all screens"): `AmbientLight` behind every .pulse-hw screen, three warm pools drifting on 66-112s loops, grain + vignette; CSS transforms, not WebGL; still under reduced motion
+- [x] 4.5 Room light (Lawrence 2026-10-12: "a dimly lit moving background ... luxury feel across all screens"): `AmbientLight` behind every .pulse-hw screen, three warm pools drifting on 22-38s loops (#91) over a faint drifting digital tile wall (public/hw/*.svg), grain + vignette; CSS transforms, not WebGL; still under reduced motion
