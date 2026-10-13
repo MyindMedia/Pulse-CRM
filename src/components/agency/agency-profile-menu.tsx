@@ -2,7 +2,6 @@
 
 import * as React from "react";
 import { useQuery, useMutation } from "convex/react";
-import { useClerk, useUser } from "@clerk/nextjs";
 import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
 import { ChevronDown, LogOut, UserPen } from "lucide-react";
@@ -26,6 +25,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import { PhotoUpload } from "@/components/ui/photo-upload";
 import { Badge } from "@/components/ui/badge";
+import { useOptionalSignOut, useOptionalUser } from "@/lib/use-optional-clerk";
 
 /* The signed-in agency operator's corner of the console top bar. Mirrors the
    studio ProfileMenu but reads the agency-side profile (agencyProfile.mine),
@@ -33,8 +33,9 @@ import { Badge } from "@/components/ui/badge";
 
 export function AgencyProfileMenu() {
   const profile = useQuery(api.agencyProfile.mine);
-  const { signOut } = useClerk();
-  const { user } = useUser();
+  // Clerk is not mounted in demo mode; the optional hooks return null there.
+  const signOut = useOptionalSignOut();
+  const { user } = useOptionalUser();
   const [profileOpen, setProfileOpen] = React.useState(false);
 
   // Don't render for non-agency callers (query returns null).
@@ -79,11 +80,15 @@ export function AgencyProfileMenu() {
             <UserPen className="size-4" />
             Edit profile
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={() => void signOut({ redirectUrl: "/sign-in" })}>
-            <LogOut className="size-4" />
-            Sign out
-          </DropdownMenuItem>
+          {signOut && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => void signOut({ redirectUrl: "/sign-in" })}>
+                <LogOut className="size-4" />
+                Sign out
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
