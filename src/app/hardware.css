@@ -131,12 +131,15 @@
 .pulse-hw { isolation: isolate; }
 
 /* ── Room light. Three soft pools of warm light (Pulse yellow, copper, a dim
-      amber) drift on long, offset loops, so the gutters between chassis glow
-      and fade like light moving across a dark control room. Transform and
-      opacity only: the compositor moves layers it rasterized once, nothing
-      repaints, and nothing blurs this layer (chassis are opaque). Grain
-      dithers the dark gradients so they never band; the vignette keeps the
-      edges in shadow. Reduced motion holds the pools still. ── */
+      amber) drift on offset 22-38s loops, so the gutters between chassis
+      glow and fade like light moving across a dark control room. The first
+      cut ran 66-112s at about 60% of this brightness: it worked, and nobody
+      could see it move. Transform and opacity only: the compositor moves
+      layers it rasterized once, nothing repaints, and nothing blurs this
+      layer (chassis are opaque). Grain dithers the dark gradients so they
+      never band; a light vignette shades the corners (the edges are where
+      the void shows, so it stays faint). Reduced motion holds the pools
+      still. ── */
 .pl-ambient {
   position: fixed;
   inset: 0;
@@ -153,7 +156,7 @@
   z-index: 1;
 }
 .pl-ambient::before {
-  background: radial-gradient(130% 95% at 50% 40%, transparent 50%, rgba(0, 0, 0, 0.38) 100%);
+  background: radial-gradient(140% 100% at 50% 45%, transparent 62%, rgba(0, 0, 0, 0.26) 100%);
 }
 .pl-ambient::after {
   opacity: 0.05;
@@ -168,48 +171,51 @@
   animation-iteration-count: infinite;
   animation-direction: alternate;
 }
+/* Each pool's centre starts on a screen edge and travels along it, because
+   the edges and the gutters are where the void shows between chassis. */
 .pl-ambient-gold {
-  width: 80vmax;
-  height: 80vmax;
+  width: 70vmax;
+  height: 70vmax;
   left: -30vmax;
-  top: -42vmax;
-  background: radial-gradient(closest-side, rgba(255, 201, 0, 0.19), rgba(255, 201, 0, 0.07) 42%, transparent);
+  top: -37vmax;
+  background: radial-gradient(closest-side, rgba(255, 201, 0, 0.27), rgba(255, 201, 0, 0.1) 40%, transparent);
   animation-name: pl-drift-gold;
-  animation-duration: 84s;
+  animation-duration: 30s;
 }
 .pl-ambient-copper {
-  width: 72vmax;
-  height: 72vmax;
-  right: -30vmax;
-  bottom: -40vmax;
-  background: radial-gradient(closest-side, rgba(208, 148, 123, 0.18), rgba(208, 148, 123, 0.06) 42%, transparent);
+  width: 64vmax;
+  height: 64vmax;
+  right: -28vmax;
+  bottom: -36vmax;
+  background: radial-gradient(closest-side, rgba(208, 148, 123, 0.25), rgba(208, 148, 123, 0.09) 40%, transparent);
   animation-name: pl-drift-copper;
-  animation-duration: 112s;
+  animation-duration: 38s;
 }
 .pl-ambient-amber {
-  width: 52vmax;
-  height: 52vmax;
-  left: 28vw;
-  top: 30vh;
-  background: radial-gradient(closest-side, rgba(255, 214, 150, 0.11), transparent);
+  width: 46vmax;
+  height: 46vmax;
+  left: 30vw;
+  top: 28vh;
+  background: radial-gradient(closest-side, rgba(255, 214, 150, 0.16), transparent);
   animation-name: pl-drift-amber;
-  animation-duration: 66s;
+  animation-duration: 22s;
 }
 @keyframes pl-drift-gold {
   0%   { transform: translate3d(0, 0, 0) scale(1); }
-  35%  { transform: translate3d(24vw, 12vh, 0) scale(1.08); }
-  70%  { transform: translate3d(44vw, 30vh, 0) scale(0.95); }
-  100% { transform: translate3d(62vw, 10vh, 0) scale(1.04); }
+  35%  { transform: translate3d(30vw, 4vh, 0) scale(1.1); }
+  70%  { transform: translate3d(60vw, 18vh, 0) scale(0.95); }
+  100% { transform: translate3d(86vw, 2vh, 0) scale(1.05); }
 }
 @keyframes pl-drift-copper {
   0%   { transform: translate3d(0, 0, 0) scale(1); }
-  40%  { transform: translate3d(-28vw, -16vh, 0) scale(1.1); }
-  100% { transform: translate3d(-52vw, -6vh, 0) scale(0.94); }
+  40%  { transform: translate3d(-36vw, -8vh, 0) scale(1.1); }
+  75%  { transform: translate3d(-66vw, -22vh, 0) scale(0.95); }
+  100% { transform: translate3d(-90vw, -4vh, 0) scale(1.04); }
 }
 @keyframes pl-drift-amber {
-  0%   { transform: translate3d(-18vw, 12vh, 0) scale(0.9); opacity: 0.55; }
-  50%  { transform: translate3d(14vw, -16vh, 0) scale(1.1); opacity: 1; }
-  100% { transform: translate3d(26vw, 18vh, 0) scale(1); opacity: 0.7; }
+  0%   { transform: translate3d(-26vw, 16vh, 0) scale(0.9); opacity: 0.5; }
+  50%  { transform: translate3d(20vw, -20vh, 0) scale(1.12); opacity: 1; }
+  100% { transform: translate3d(32vw, 24vh, 0) scale(1); opacity: 0.65; }
 }
 @media (prefers-reduced-motion: reduce) {
   .pl-ambient-pool {
