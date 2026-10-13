@@ -27,6 +27,7 @@ import { Sheet, SheetContent } from "@/components/ui/sheet";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { ShellErrorBoundary } from "@/components/shell/shell-error-boundary";
 import { Brackets, PageHeaderSlotProvider } from "@/components/shell/page-header-slot";
+import { AmbientLight } from "@/components/shell/ambient-light";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const [mobileNav, setMobileNav] = useState(false);
@@ -75,8 +76,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       {/* pulse-hw switches on the hardware UI (src/app/hardware.css). */}
       <PageHeaderSlotProvider>
       <div className="pulse-hw relative min-h-dvh bg-ink">
-        {/* Studio-light bloom - warm backdrop for the glass to refract */}
-        <div className="app-bloom" aria-hidden />
+        {/* Room light: dim warm pools drifting across the void */}
+        <AmbientLight />
 
         {/* Desktop rail: its own chassis on the void, 24px in from the edges
             (kit 6.1, measured from pulse-overview.png). */}

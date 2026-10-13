@@ -6,7 +6,7 @@ import { ArrowRight } from "lucide-react";
 import { gsap } from "gsap";
 import { useGSAP } from "@gsap/react";
 import { ScrollTrigger } from "gsap/ScrollTrigger";
-import { DashboardSim } from "./dashboard-sim";
+import { HERO_SCREEN_SIZES, HeroScreens, heroScreenSrcSet } from "./hero-screens";
 
 gsap.registerPlugin(useGSAP, ScrollTrigger);
 
@@ -16,9 +16,7 @@ gsap.registerPlugin(useGSAP, ScrollTrigger);
  * settles into its tilt; on scroll the monitor scrubs flat + scales and the
  * ghost word drifts. All motion is gated behind motion-safe / prefers-reduced-
  * motion so the resting composition is fully visible without JS or animation.
- * Screen is a static dashboard frame for now - swap to the looping Higgsfield
- * dashboard clip (<HlsVideo src="/dashboard-loop.webm" />) when it lands;
- * prompts in docs/dashboard-reveal-video-prompts.md. */
+ * The screen shows real captures of the app (hero-screens.tsx). */
 const CAPABILITIES = [
   "Bookings", "Deposits", "Rooms", "Staff", "Scheduling",
   "Sessions", "Inventory", "Invoices", "Payments", "Automations",
@@ -87,7 +85,7 @@ export function Hero() {
             : { rotateY: 16, scale: 0.84 };
 
           // Mobile Safari drops a large preserve-3d layer that holds live,
-          // animating content (the DashboardSim) once it churns under scroll
+          // animating content (the cross-fading screens) once it churns under scroll
           // transforms - the monitor screen went blank as you scrolled. On
           // mobile the swing is small, so the 3D side walls barely read: render
           // the monitor FLAT there (no preserve-3d, no will-change) so the
@@ -99,8 +97,8 @@ export function Hero() {
             monitorEl.style.willChange = "auto";
           }
 
-          // The entrance is built once the frame, the desk and the sim's logo
-          // have DECODED (capped at 4s), so the DOM screen can never appear
+          // The entrance is built once the frame, the desk and the first screen
+          // have DECODED (capped at 4s), so the screen can never appear
           // on cue while the frame is still downloading. The wait is
           // subtracted from the entrance delay, so on a fast connection the
           // timing against the SiteReveal wipe is unchanged.
@@ -313,12 +311,20 @@ export function Hero() {
 
   return (
     <>
-    {/* The monitor frame and the desk it stands on are the two images the
-        entrance waits for. React hoists these hints into <head>, so the
-        browser asks for them at the top of the waterfall instead of when the
-        parser reaches the stage markup. */}
+    {/* The monitor frame, the desk it stands on and the first screen are the
+        images the entrance waits for. React hoists these hints into <head>,
+        so the browser asks for them at the top of the waterfall instead of
+        when the parser reaches the stage markup. */}
     <link rel="preload" as="image" href={MONITOR_SRC} fetchPriority="high" />
     <link rel="preload" as="image" href={DESK_SRC} fetchPriority="high" />
+    <link
+      rel="preload"
+      as="image"
+      type="image/webp"
+      imageSrcSet={heroScreenSrcSet("overview")}
+      imageSizes={HERO_SCREEN_SIZES}
+      fetchPriority="high"
+    />
     <section
       ref={root}
       className="relative flex min-h-dvh flex-col items-center justify-center overflow-hidden bg-ink px-4 pb-24 pt-28 lg:px-8"
@@ -589,9 +595,9 @@ export function Hero() {
                 and stand below). */}
             <div
               className="absolute overflow-hidden bg-obsidian"
-              style={{ top: "1.2%", left: "1.0%", right: "1.1%", bottom: "26.5%", containerType: "inline-size", backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}
+              style={{ top: "1.2%", left: "1.0%", right: "1.1%", bottom: "26.5%", backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}
             >
-              <DashboardSim />
+              <HeroScreens />
               {/* Faint screen glare only - stronger washes make the dark UI
                   read as a switched-off screen. */}
               <div
