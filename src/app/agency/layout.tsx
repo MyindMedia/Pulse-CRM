@@ -37,7 +37,7 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
       <div className="pulse-hw min-h-dvh bg-ink">
         <AmbientLight />
         {/* Slim console top bar - distinct from the studio chrome, no sidebar. */}
-        <header className="sticky top-0 z-30 border-b border-graphite/50 bg-obsidian/90 backdrop-blur-md">
+        <header className="sticky top-0 z-30 border-b border-graphite/50 bg-obsidian">
           <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4 lg:px-8">
             <AgencyWordmark />
             <nav className="hidden items-center gap-4 text-xs font-medium text-steel sm:flex">
@@ -65,6 +65,9 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
         </header>
 
         <main className="mx-auto max-w-6xl px-4 py-8 lg:px-8 lg:py-10">
+          {/* Module bay, as in the studio shell: the console's content sits in
+              its own dark container over the room light. */}
+          <div className="pl-bay">
           {access === undefined ? (
             <LoadingPanel label="Checking agency access" />
           ) : access.allowed ? (
@@ -99,6 +102,7 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
               </Card>
             </div>
           )}
+          </div>
         </main>
       </div>
     </TooltipProvider>

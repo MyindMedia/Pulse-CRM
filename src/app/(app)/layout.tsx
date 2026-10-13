@@ -108,13 +108,21 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             navCollapsed ? "lg:pl-[120px]" : "lg:pl-[280px]",
           )}
         >
-          <StudioBanner />
-          <BetaClockStarter />
-          <BetaSignatureBanner />
+          {/* Shell notices get a solid backing, so their tints sit on the
+              void and never on the room light. Empty when none show. */}
+          <div className="mb-4 overflow-hidden rounded-chrome bg-ink empty:hidden">
+            <StudioBanner />
+            <BetaClockStarter />
+            <BetaSignatureBanner />
             <BillingBanner />
+          </div>
           <Topbar onOpenMenu={() => setMobileNav(true)} />
           <main className="flex-1 pb-28 pt-6 lg:pb-8">
-            <AppTransition>{children}</AppTransition>
+            {/* Module bay: every page sits in its own dark container, so the
+                room light shows around it and never through a section. */}
+            <div className="pl-bay">
+              <AppTransition>{children}</AppTransition>
+            </div>
           </main>
         </div>
 

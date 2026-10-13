@@ -270,6 +270,42 @@
   50%  { transform: translate3d(20vw, -20vh, 0) scale(1.12); opacity: 1; }
   100% { transform: translate3d(32vw, 24vh, 0) scale(1); opacity: 0.65; }
 }
+/* ── Module bay: every page's content sits in its own dark, opaque
+      container, so the room light only shows around it and never through a
+      section (Lawrence 2026-10-13: "make sure all sections like calendar or
+      modules have a container has its own dark background"). Translucent
+      surfaces inside blend over the bay as they used to over the plain
+      void, and new pages are covered without touching them. ── */
+.pl-bay {
+  position: relative;
+  min-width: 0;
+  background: var(--pl-slab-dark);
+  border-radius: var(--pl-radius-chassis);
+}
+/* Framed with room to breathe only where there is width to spare; below
+   1280px it stays a flush backdrop so no layout loses a pixel. */
+@media (min-width: 1280px) {
+  .pl-bay {
+    padding: 16px;
+    border: 1px solid color-mix(in srgb, var(--pl-edge) 70%, transparent);
+    border-radius: calc(var(--pl-radius-chassis) + 4px);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03), 0 18px 44px rgba(0, 0, 0, 0.35);
+  }
+}
+@media (min-width: 1536px) {
+  .pl-bay { padding: 20px; }
+}
+
+/* Dimmer: the void laid over the tile wall and the light, so the whole room
+   reads at about 20% (Lawrence 2026-10-13: "a dark layer over it where its
+   about 20% visible"). One knob for the entire background: lower the
+   opacity to show more of it. Grain and vignette stay above it. */
+.pl-ambient-dim {
+  position: absolute;
+  inset: 0;
+  background: var(--pl-void);
+  opacity: 0.8;
+}
 @media (prefers-reduced-motion: reduce) {
   .pl-ambient-pool,
   .pl-tiles {
