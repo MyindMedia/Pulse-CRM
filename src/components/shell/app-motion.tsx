@@ -58,7 +58,7 @@ function useCountUpValue(target: number, run: boolean, ms: number) {
 }
 
 /** Animated number - eases 0 -> value on mount, previous -> value on refresh.
- *  Matches the marketing DashboardSim count-up feel. Static under reduced motion. */
+ *  Static under reduced motion. */
 export function CountUp({
   to,
   format = (n) => Math.round(n).toLocaleString(),

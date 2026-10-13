@@ -132,7 +132,7 @@
   --animate-pulse-ring: pulse-ring 2.4s cubic-bezier(.16,1,.3,1) infinite;
   --animate-shimmer: shimmer 1.6s linear infinite;
   --animate-marquee: marquee 32s linear infinite;
-  --animate-sim-screen-in: sim-screen-in 0.4s ease-out;
+  --animate-screen-in: screen-in 0.7s ease-out;
 }
 
 @media print {
@@ -217,12 +217,12 @@
   --chart-scale-pattern-color: oklch(0.96 0.005 106);
 }
 
-/* Marketing device sims: active screen fades in over the previous one.
+/* Hero monitor screens: the active capture fades in over the previous one.
    Pure CSS so the swap cannot strand the screen invisible if JS animation
-   drivers stall (the sims must never look switched off). */
-@keyframes sim-screen-in {
-  from { opacity: 0; transform: translateY(0.5em); }
-  to   { opacity: 1; transform: translateY(0); }
+   drivers stall (the monitor must never look switched off). */
+@keyframes screen-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 @keyframes pulse-ring {
