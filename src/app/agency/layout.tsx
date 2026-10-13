@@ -10,6 +10,7 @@ import { LoadingPanel } from "@/components/ui/feedback";
 import { PulseLogo } from "@/components/brand/pulse-logo";
 import { AgencyProfileMenu } from "@/components/agency/agency-profile-menu";
 import { PlatformBillingBanner } from "@/components/agency/platform-billing";
+import { AmbientLight } from "@/components/shell/ambient-light";
 
 /* The Pulse Agency wordmark - the real brand lockup + the console label. */
 function AgencyWordmark() {
@@ -34,6 +35,7 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
     <TooltipProvider delayDuration={300}>
       {/* pulse-hw switches on the hardware UI (src/app/hardware.css). */}
       <div className="pulse-hw min-h-dvh bg-ink">
+        <AmbientLight />
         {/* Slim console top bar - distinct from the studio chrome, no sidebar. */}
         <header className="sticky top-0 z-30 border-b border-graphite/50 bg-obsidian/90 backdrop-blur-md">
           <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4 lg:px-8">
