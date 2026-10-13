@@ -1,15 +1,21 @@
 "use client";
 
+import * as React from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
+import type { Id } from "@convex/_generated/dataModel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  Activity, Communications, Drafts, Links, Meetings, Overview, Prospects, Settings, TestOnlyBanner,
+  Activity, Communications, Drafts, Links, Meetings, Overview, Settings, TestOnlyBanner,
 } from "@/components/agency/outreach-panels";
+import { OutreachInbox } from "@/components/agency/outreach-inbox";
 import { Discover, Dms } from "@/components/agency/outreach-growth";
 
 export default function OutreachPage() {
   const overview = useQuery(api.outreach.overview, {});
+  const [tab, setTab] = React.useState("overview");
+  // The studio open in the Prospects inbox survives a trip to the Review queue.
+  const [prospect, setProspect] = React.useState<Id<"outreachProspects"> | null>(null);
   return (
     <div className="space-y-6">
       <header className="space-y-1">
@@ -19,7 +25,7 @@ export default function OutreachPage() {
         </p>
       </header>
       {overview && <TestOnlyBanner paused={overview.paused} mode={overview.mode} />}
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs value={tab} onValueChange={setTab} className="space-y-4">
         <TabsList aria-label="Outreach sections">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="discover">Discover</TabsTrigger>
@@ -34,7 +40,9 @@ export default function OutreachPage() {
         </TabsList>
         <TabsContent value="overview"><Overview /></TabsContent>
         <TabsContent value="discover"><Discover /></TabsContent>
-        <TabsContent value="prospects"><Prospects /></TabsContent>
+        <TabsContent value="prospects">
+          <OutreachInbox selected={prospect} onSelect={setProspect} onOpenReviewQueue={() => setTab("drafts")} />
+        </TabsContent>
         <TabsContent value="dms"><Dms /></TabsContent>
         <TabsContent value="drafts"><Drafts /></TabsContent>
         <TabsContent value="communications"><Communications /></TabsContent>

@@ -29,7 +29,9 @@ export function mailAgencyId(): string | null {
 
 type MailAccess = { allowed: true; scope: AgencyScope } | { allowed: false; reason: "signed_out" | "forbidden" | "not_setup" };
 
-async function mailAccess(ctx: Ctx): Promise<MailAccess> {
+/** Who may read and send studiopulse.tech mail. Exported so the Outreach inbox
+ *  shows received mail to exactly the same people as this tab. */
+export async function mailAccess(ctx: Ctx): Promise<MailAccess> {
   const scope = await agencyScope(ctx);
   if (!scope) return { allowed: false, reason: "signed_out" };
   if (!scope.canManage) return { allowed: false, reason: "forbidden" };

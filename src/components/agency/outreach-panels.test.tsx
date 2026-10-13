@@ -11,11 +11,10 @@ vi.mock("convex/react", () => ({
   useMutation: () => async () => null,
 }));
 
-import { Overview, Communications, Meetings, Links, Activity, Settings, TestOnlyBanner, Prospects, Drafts } from "./outreach-panels";
+import { Overview, Communications, Meetings, Links, Activity, Settings, TestOnlyBanner, Drafts } from "./outreach-panels";
 
 const html = (el: React.ReactElement) => renderToStaticMarkup(el);
 const set = (name: string, v: unknown) => { fixtures[`outreach:${name}`] = v; };
-const setP = (v: unknown) => { fixtures["outreachProspects:list"] = v; };
 const snap = (v: unknown) => { fixtures["outreachCalendar:snapshot"] = v; };
 const baseSnap = { canManage: true, mapped: false, keyConfigured: true, fetchedAt: null, ok: null, error: null, calendar: null, slots: [], appointments: [] };
 
@@ -33,17 +32,16 @@ const overview = {
 
 describe("Outreach panels", () => {
   it("every panel shows loading while data is undefined", () => {
-    for (const el of [<Overview />, <Communications />, <Meetings />, <Links />, <Activity />, <Settings />, <Prospects />, <Drafts />]) {
+    for (const el of [<Overview key="o" />, <Communications key="c" />, <Meetings key="m" />, <Links key="l" />, <Activity key="a" />, <Settings key="s" />, <Drafts key="d" />]) {
       expect(html(el)).toMatch(/Loading/i);
     }
   });
 
   it("every panel shows the agency-required state when the server returns null", () => {
     for (const n of ["overview", "communications", "templates", "meetings", "links", "activity"]) set(n, null);
-    fixtures["outreachProspects:list"] = null;
     fixtures["outreachDrafts:list"] = null;
     fixtures["outreachCalendar:snapshot"] = null;
-    for (const el of [<Overview />, <Communications />, <Meetings />, <Links />, <Activity />, <Settings />, <Prospects />, <Drafts />]) {
+    for (const el of [<Overview key="o" />, <Communications key="c" />, <Meetings key="m" />, <Links key="l" />, <Activity key="a" />, <Settings key="s" />, <Drafts key="d" />]) {
       expect(html(el)).toContain("Agency membership required");
     }
   });
@@ -132,37 +130,6 @@ describe("Outreach panels", () => {
     expect(out).toContain("Test only.");
     expect(out).toContain("Nothing is sent, called or texted");
     expect(out).toContain("paused");
-  });
-
-  it("prospects: empty state, and non-managers cannot add", () => {
-    setP({ canManage: false, suppressedCount: 0, rows: [] });
-    const out = html(<Prospects />);
-    expect(out).toContain("No prospects yet");
-    expect(out).toContain("Only an owner or admin can add or change prospects.");
-    expect(out).toMatch(/<textarea[^>]*disabled/);
-  });
-
-  it("prospects: shows published-not-verified labels, generic-inbox warning and the website prompt", () => {
-    setP({
-      canManage: true, suppressedCount: 1,
-      rows: [
-        { id: "p1", handle: "acme", name: null, websiteUrl: null, source: "paste", status: "needs_website", note: null, createdAt: 0, contacts: null },
-        { id: "p2", handle: null, name: "Ice Cream Sound", websiteUrl: "https://icecreamsound.com", source: "paste", status: "scraped", note: null, createdAt: 0,
-          contacts: {
-            emails: [{ address: "studio@icecreamsound.com", generic: true, rank: 73, sourceUrl: "https://icecreamsound.com/contact", suppressed: false }],
-            phones: [{ number: "(323) 760-7557", sourceUrl: "https://icecreamsound.com" }],
-            socials: [{ platform: "instagram", url: "https://instagram.com/icecreamsound" }], booking: ["GoHighLevel"], scrapedAt: 0,
-          } },
-      ],
-    });
-    const out = html(<Prospects />);
-    expect(out).toContain("Confirm website");
-    expect(out).toContain("published, not verified");
-    expect(out).toContain("generic inbox");
-    expect(out).toContain("Confirm routing before pitching");
-    expect(out).toContain("Queue for review");
-    expect(out).toContain("opt-out list");
-    expect(out).not.toMatch(/>\s*Send\s*</i);
   });
 
   it("review queue: gates are explained and Approve stays off until they are met", () => {
@@ -292,97 +259,6 @@ describe("Outreach panels", () => {
 });
 
 describe("Outreach flow: Lawrence first, MaxB follow-ups", () => {
-  const contacts = (address: string, generic: boolean) => ({
-    emails: [{ address, generic, rank: 50, sourceUrl: "https://mix.com/contact", suppressed: false }], phones: [], socials: [], booking: [], scrapedAt: 0,
-  });
-  const queued = (extra: Record<string, unknown> = {}) => ({
-    id: "p1", handle: null, name: "MIX Recording Studio", websiteUrl: "https://mix.com", source: "paste", status: "queued", note: null, createdAt: 0,
-    bookedAt: null, routingConfirmed: false, hook: "Saw your second live room.", hookSourceUrl: "https://mix.com/news", subjectDefault: null, bodyDefault: null,
-    priority: null, fitScore: null, sequence: null, contacts: contacts("jane@mix.com", false), ...extra,
-  });
-
-  it("prepare block: Lawrence is the default sender for the first email, with the opening line prefilled", () => {
-    setP({ canManage: true, suppressedCount: 0, rows: [queued()] });
-    const out = html(<Prospects />);
-    expect(out).toContain("Prepare the email");
-    expect(out).toMatch(/<option value="lawrence" selected="">Lawrence Berment \(first email\)<\/option>/);
-    expect(out).toMatch(/<option value="maxb" disabled="">MaxB \| Pulse \(reply in the thread\)<\/option>/);
-    expect(out).toContain("Opening line");
-    expect(out).toContain('value="Saw your second live room."');
-    expect(out).toContain("Subject (optional)");
-    expect(out).toContain("Body (optional");
-    expect(out).toContain("Source: https://mix.com/news");
-    expect(out).toContain("The first email to a studio comes from Lawrence");
-    expect(out).not.toContain("no approved copy yet");
-    expect(out).toContain("Mark replied");
-  });
-
-  it("prepare is off until there is an opening line", () => {
-    setP({ canManage: true, suppressedCount: 0, rows: [queued({ hook: null })] });
-    const out = html(<Prospects />);
-    expect(out).toMatch(/<button[^>]*disabled[^>]*>Prepare email/);
-    expect(out).toContain("Add an opening line to prepare Lawrence&#x27;s email.");
-  });
-
-  it("once Lawrence has emailed, MaxB replies in the thread and the sequence state is shown", () => {
-    setP({ canManage: true, suppressedCount: 0, rows: [queued({ sequence: { step: 1, status: "active", nextDueAt: 1_800_000_000_000, recipient: "jane@mix.com", stoppedReason: null, stoppedMeaning: null, pendingDraft: false } })] });
-    const out = html(<Prospects />);
-    expect(out).toMatch(/<option value="lawrence" disabled="">/);
-    expect(out).toMatch(/<option value="maxb" selected="">/);
-    expect(out).toContain("MaxB replies in Lawrence&#x27;s thread");
-    expect(out).toContain("Sent: MaxB day 3.");
-    expect(out).toContain("MaxB day 7 will be drafted for review");
-    expect(out).toContain("Stop follow-ups");
-    expect(out).not.toContain("Opening line");
-  });
-
-  it("a stopped sequence says why; a replied studio shows the replied status", () => {
-    setP({ canManage: true, suppressedCount: 0, rows: [queued({ status: "replied", sequence: { step: 0, status: "stopped", nextDueAt: null, recipient: "jane@mix.com", stoppedReason: "replied", stoppedMeaning: "The studio replied.", pendingDraft: false } })] });
-    const out = html(<Prospects />);
-    expect(out).toContain("Follow-ups stopped. The studio replied.");
-    expect(out).toContain("replied");
-    expect(out).toContain("Follow-ups stopped; MaxB can still reply in the thread.");
-    expect(out).not.toContain("Mark replied");
-    expect(out).not.toContain("Stop follow-ups");
-  });
-
-  it("a studio's reply shows Jev's label, and says when the address was opted out automatically", () => {
-    const stopped = { step: 0, status: "stopped", nextDueAt: null, recipient: "jane@mix.com", stoppedReason: "replied", stoppedMeaning: "The studio replied.", pendingDraft: false };
-    setP({ canManage: true, suppressedCount: 0, rows: [queued({ status: "replied", sequence: stopped, replyIntent: { label: "interested", probability: 0.94, confidence: 0.93, optedOut: false, receivedAt: 0 } })] });
-    const yes = html(<Prospects />);
-    expect(yes).toContain(">reply: interested</span>");
-    expect(yes).toContain("94% sure");
-    expect(yes).toContain("A label only: nothing was changed.");
-
-    setP({ canManage: true, suppressedCount: 1, rows: [queued({ status: "suppressed", replyIntent: { label: "unsubscribe", probability: 0.97, confidence: 0.96, optedOut: true, receivedAt: 0 } })] });
-    const stop = html(<Prospects />);
-    expect(stop).toContain(">reply: asked to stop</span>");
-    expect(stop).toContain("The address was opted out automatically.");
-
-    setP({ canManage: true, suppressedCount: 0, rows: [queued()] });
-    expect(html(<Prospects />)).not.toContain("reply: ");
-  });
-
-  it("CSV import and bulk routing confirm are owner/admin tools; confirm says it never approves", () => {
-    setP({ canManage: true, suppressedCount: 0, rows: [queued({ contacts: contacts("info@mix.com", true) })] });
-    const out = html(<Prospects />);
-    expect(out).toContain("Import outreach CSV");
-    expect(out).toContain("never imported as contacts");
-    expect(out).toContain("Up to 200 rows");
-    expect(out).toMatch(/<button[^>]*disabled[^>]*>Confirm routing for selected \(0\)/);
-    expect(out).toContain("it never approves an email");
-    expect(out).toContain("This is a generic inbox. I have confirmed who handles studio operations.");
-    setP({ canManage: true, suppressedCount: 0, rows: [queued({ contacts: contacts("info@mix.com", true), routingConfirmed: true })] });
-    const confirmed = html(<Prospects />);
-    expect(confirmed).toContain("routing confirmed");
-    expect(confirmed).not.toContain("This is a generic inbox. I have confirmed");
-    setP({ canManage: false, suppressedCount: 0, rows: [queued()] });
-    const staff = html(<Prospects />);
-    expect(staff).not.toContain("Import outreach CSV");
-    expect(staff).not.toContain("Confirm routing for selected");
-    expect(staff).not.toContain("Prepare the email");
-  });
-
   it("review queue labels each step and explains the follow-ups still need approval and Send", () => {
     fixtures["outreachDrafts:list"] = { canManage: true, gates: { postalAddress: true, ownerTestConfirmed: true, live: true }, rows: [
       { id: "d1", studio: "MIX", recipient: "jane@mix.com", persona: "MaxB", from: "MaxB | Pulse <info@studiopulse.tech>", subject: "Re: A question", signatureMode: "image",

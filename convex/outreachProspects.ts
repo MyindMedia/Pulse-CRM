@@ -4,7 +4,7 @@ import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import { AccessError } from "./lib/access";
 import { agencyScope, requireAgencyScope, logEvent } from "./outreach/scope";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { prospectContactsV } from "./outreach/tables";
 import { parseSeed, extractEmails, extractPhones, extractSocials, detectBooking, candidatePages, hostOf, isContactPath } from "./outreach/enrich";
 import { checkUrl, loadRobots, robotsVerdict, safeGet, type RobotsPolicy } from "./outreach/safeFetch";
@@ -57,6 +57,53 @@ export function websiteKey(raw: string): string | null {
 
 /* ------------------------------- queries ------------------------------- */
 
+/** One prospect as the browser sees it: the Prospects tab list and the
+ *  inbox's contact card (outreachInbox.conversation) share this shape. */
+export function prospectRow(r: Doc<"outreachProspects">, suppressed: ReadonlySet<string>, s: Doc<"outreachSequences"> | undefined) {
+  return {
+    id: r._id,
+    handle: r.handle ?? null,
+    name: r.name ?? null,
+    websiteUrl: r.websiteUrl ?? null,
+    source: r.source,
+    status: r.status,
+    note: r.note ?? null,
+    bookedAt: r.bookedAt ?? null,
+    repliedAt: r.repliedAt ?? null,
+    replyIntent: r.replyIntent
+      ? {
+          label: r.replyIntent.label,
+          probability: r.replyIntent.probabilities[r.replyIntent.label] ?? null,
+          confidence: r.replyIntent.confidence,
+          optedOut: r.replyIntent.optedOut,
+          receivedAt: r.replyIntent.receivedAt,
+        }
+      : null,
+    routingConfirmed: r.routingConfirmed ?? false,
+    hook: r.hook ?? null,
+    hookSourceUrl: r.hookSourceUrl ?? null,
+    subjectDefault: r.subjectDefault ?? null,
+    bodyDefault: r.bodyDefault ?? null,
+    hasFollowupOverrides: Boolean(r.followups && (r.followups.step1 || r.followups.step2 || r.followups.step3)),
+    fitScore: r.fitScore ?? null,
+    priority: r.priority ?? null,
+    sequence: s
+      ? { step: s.step, status: s.status, nextDueAt: s.nextDueAt ?? null, recipient: s.recipient, stoppedReason: s.stoppedReason ?? null,
+          stoppedMeaning: s.stoppedReason ? STOP_MEANING[s.stoppedReason] : null, pendingDraft: Boolean(s.pendingDraftId) }
+      : null,
+    createdAt: r.createdAt,
+    contacts: r.contacts
+      ? {
+          emails: r.contacts.emails.map((e) => ({ ...e, suppressed: suppressed.has(e.address) })),
+          phones: r.contacts.phones,
+          socials: r.contacts.socials,
+          booking: r.contacts.booking,
+          scrapedAt: r.contacts.scrapedAt,
+        }
+      : null,
+  };
+}
+
 export const list = query({
   args: {},
   handler: async (ctx) => {
@@ -80,51 +127,7 @@ export const list = query({
     return {
       canManage: scope.canManage,
       suppressedCount: sup.length,
-      rows: rows.map((r) => ({
-        id: r._id,
-        handle: r.handle ?? null,
-        name: r.name ?? null,
-        websiteUrl: r.websiteUrl ?? null,
-        source: r.source,
-        status: r.status,
-        note: r.note ?? null,
-        bookedAt: r.bookedAt ?? null,
-        repliedAt: r.repliedAt ?? null,
-        replyIntent: r.replyIntent
-          ? {
-              label: r.replyIntent.label,
-              probability: r.replyIntent.probabilities[r.replyIntent.label] ?? null,
-              confidence: r.replyIntent.confidence,
-              optedOut: r.replyIntent.optedOut,
-              receivedAt: r.replyIntent.receivedAt,
-            }
-          : null,
-        routingConfirmed: r.routingConfirmed ?? false,
-        hook: r.hook ?? null,
-        hookSourceUrl: r.hookSourceUrl ?? null,
-        subjectDefault: r.subjectDefault ?? null,
-        bodyDefault: r.bodyDefault ?? null,
-        hasFollowupOverrides: Boolean(r.followups && (r.followups.step1 || r.followups.step2 || r.followups.step3)),
-        fitScore: r.fitScore ?? null,
-        priority: r.priority ?? null,
-        sequence: (() => {
-          const s = seqByProspect.get(String(r._id));
-          return s
-            ? { step: s.step, status: s.status, nextDueAt: s.nextDueAt ?? null, recipient: s.recipient, stoppedReason: s.stoppedReason ?? null,
-                stoppedMeaning: s.stoppedReason ? STOP_MEANING[s.stoppedReason] : null, pendingDraft: Boolean(s.pendingDraftId) }
-            : null;
-        })(),
-        createdAt: r.createdAt,
-        contacts: r.contacts
-          ? {
-              emails: r.contacts.emails.map((e) => ({ ...e, suppressed: suppressed.has(e.address) })),
-              phones: r.contacts.phones,
-              socials: r.contacts.socials,
-              booking: r.contacts.booking,
-              scrapedAt: r.contacts.scrapedAt,
-            }
-          : null,
-      })),
+      rows: rows.map((r) => prospectRow(r, suppressed, seqByProspect.get(String(r._id)))),
     };
   },
 });

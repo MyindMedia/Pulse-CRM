@@ -15,7 +15,7 @@ import { AmbientLight } from "@/components/shell/ambient-light";
 /* The Pulse Agency wordmark - the real brand lockup + the console label. */
 function AgencyWordmark() {
   return (
-    <Link href="/agency" className="flex items-center gap-3">
+    <Link href="/agency" className="flex shrink-0 items-center gap-3">
       <PulseLogo size="sm" asLink={false} />
       <span className="flex flex-col gap-0.5 border-l border-graphite/60 pl-3 leading-none">
         <span className="font-grotesk text-sm font-bold tracking-tight text-bone">Agency</span>
@@ -37,10 +37,12 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
       <div className="pulse-hw min-h-dvh bg-ink">
         <AmbientLight />
         {/* Slim console top bar - distinct from the studio chrome, no sidebar. */}
-        <header className="sticky top-0 z-30 border-b border-graphite/50 bg-obsidian/90 backdrop-blur-md">
+        <header className="sticky top-0 z-30 border-b border-graphite/50 bg-obsidian">
           <div className="mx-auto flex h-14 max-w-6xl items-center gap-4 px-4 lg:px-8">
             <AgencyWordmark />
-            <nav className="hidden items-center gap-4 text-xs font-medium text-steel sm:flex">
+            {/* Between sm and lg the links outgrow the bar: they scroll inside it
+                instead of pushing the page sideways (834px was 29px too wide). */}
+            <nav className="hidden min-w-0 items-center gap-4 overflow-x-auto whitespace-nowrap text-xs font-medium text-steel [scrollbar-width:none] sm:flex [&::-webkit-scrollbar]:hidden">
               <Link href="/agency" className="hover:text-bone">Sub-accounts</Link>
               <Link href="/agency/plans" className="hover:text-bone">Plans</Link>
               <Link href="/agency/agents" className="hover:text-bone">Agents</Link>
@@ -53,7 +55,7 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
               <Link href="/agency/audit" className="hover:text-bone">Audit</Link>
               <Link href="/agency/settings" className="hover:text-bone">Settings</Link>
             </nav>
-            <div className="ml-auto flex items-center gap-2">
+            <div className="ml-auto flex shrink-0 items-center gap-2">
               {access?.demo && (
                 <span className="hidden rounded-sm border border-graphite/60 bg-coal-2 px-2 py-0.5 font-meta text-[0.625rem] uppercase tracking-wide text-steel/70 sm:inline-block">
                   Demo mode
@@ -65,6 +67,9 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
         </header>
 
         <main className="mx-auto max-w-6xl px-4 py-8 lg:px-8 lg:py-10">
+          {/* Module bay, as in the studio shell: the console's content sits in
+              its own dark container over the room light. */}
+          <div className="pl-bay">
           {access === undefined ? (
             <LoadingPanel label="Checking agency access" />
           ) : access.allowed ? (
@@ -99,6 +104,7 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
               </Card>
             </div>
           )}
+          </div>
         </main>
       </div>
     </TooltipProvider>
