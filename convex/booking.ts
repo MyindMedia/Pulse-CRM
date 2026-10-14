@@ -95,6 +95,16 @@ function publicRoom(room: Doc<"rooms">, hidePricing: boolean) {
   };
 }
 
+// The intro every new studio starts with. On a no-price link it would promise
+// a deposit the page never asks for, so it is swapped for request wording.
+const DEFAULT_INTRO = "Pick a room, choose your time, and lock it in with a deposit.";
+const REQUEST_INTRO = "Pick a room, choose your time, and send a request. The studio confirms it with you.";
+function publicIntro(org: Doc<"orgs"> | null): string | null {
+  const intro = org?.bookingIntro ?? null;
+  if (bookingFeatures(org).hidePricing && (!intro || intro.trim() === DEFAULT_INTRO)) return REQUEST_INTRO;
+  return intro;
+}
+
 /** The studio's branding block for the public page. */
 async function brand(ctx: QueryCtx, org: Doc<"orgs"> | null) {
   return {
@@ -107,8 +117,9 @@ async function brand(ctx: QueryCtx, org: Doc<"orgs"> | null) {
     heroUrl: org?.bookingHeroId ? await fileUrl(ctx, org.bookingHeroId) : null,
     generatedHeroUrl: org?.generatedHeroId ? await fileUrl(ctx, org.generatedHeroId) : null,
     headline: org?.bookingHeadline ?? null,
-    intro: org?.bookingIntro ?? null,
-    depositPolicy: org?.depositPolicyText ?? null,
+    intro: publicIntro(org),
+    // No deposit talk on a link that takes no payment.
+    depositPolicy: bookingFeatures(org).hidePricing ? null : org?.depositPolicyText ?? null,
   };
 }
 
