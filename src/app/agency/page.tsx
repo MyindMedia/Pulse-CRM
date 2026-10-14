@@ -25,6 +25,7 @@ import { CreateSubaccountDialog } from "@/components/agency/create-subaccount-di
 import { BetaInvitesButton } from "@/components/agency/beta-invites-button";
 import { InviteStudioDialog } from "@/components/agency/invite-studio-dialog";
 import { StageDemoDialog } from "@/components/agency/stage-demo-dialog";
+import { BookingFeaturesTable } from "@/components/agency/booking-features-table";
 import {
   SubaccountTable,
   type SubaccountRow,
@@ -281,6 +282,8 @@ export default function AgencyOverviewPage() {
           <SubaccountTable rows={rows} />
         )}
       </Section>
+
+      <Section title="Booking features"><BookingFeaturesTable /></Section>
     </div>
   );
 }

@@ -110,3 +110,9 @@ export function payoutTotals(
   // Owed is what is committed but not yet out the door.
   return { queuedCents, approvedCents, paidCents, owedCents: queuedCents + approvedCents };
 }
+
+/** Second Stripe account per team member (feature G). Design only, OFF.
+ *  While false nothing about member Stripe accounts exists: payouts are
+ *  queued, approved and marked paid by hand exactly as today.
+ *  See docs/plans/member-stripe-design.md before turning this on. */
+export const MEMBER_STRIPE_ENABLED = false;

@@ -32,7 +32,7 @@ const planV = tierV;
  *  with the seed demo workspace hidden, and staff limited to their scoped
  *  sub-accounts. Prevents one agency's console from listing another agency's
  *  (or the demo's) studios. */
-async function visibleOrgs(ctx: QueryCtx) {
+export async function visibleOrgs(ctx: QueryCtx) {
   // UNAUTHENTICATED must see NOTHING: the old `.catch(() => null)` left the
   // agency filter unapplied, handing every org (with revenue rollups) to an
   // anonymous socket - and to the /agency boot race before Clerk attaches.
