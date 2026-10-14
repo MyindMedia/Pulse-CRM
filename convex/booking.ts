@@ -1,4 +1,5 @@
 import { fileUrl } from "./lib/media";
+import { roomBusyIntervals, roomConflict, conflictMessage } from "./lib/roomBusy";
 import { query, action, internalQuery, QueryCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { recordBooked } from "./bookingFunnel";
@@ -429,15 +430,11 @@ export const availability = query({
     const room = await ctx.db.get(roomId);
     if (!room) return { slots: [], booked: [] };
 
-    const sameDay = await ctx.db
-      .query("sessions")
-      .withIndex("by_org_start", (q) =>
-        q.eq("orgId", room.orgId).gte("startTime", dayStart).lt("startTime", dayStart + DAY),
-      )
-      .collect();
-    const booked = sameDay.filter(
-      (s) => s.roomId === roomId && s.status !== "cancelled" && s.status !== "no_show",
-    );
+    // Sessions (incl. pending requests), room blocks and the studio's Google
+    // busy time, through the one shared busy check.
+    const booked = (
+      await roomBusyIntervals(ctx, { orgId: room.orgId, roomId, from: dayStart, to: dayStart + DAY })
+    ).map((b) => ({ startTime: b.start, endTime: b.end }));
 
     const now = Date.now();
     const slots = [];
@@ -674,21 +671,14 @@ export const createBooking = mutation({
       throw new Error("Too many booking requests right now. Please try again shortly.");
     }
 
+    const clash = await roomConflict(ctx, { orgId, roomId, start: args.startTime, end: endTime });
+    if (clash) throw new Error(conflictMessage(clash));
     const around = await ctx.db
       .query("sessions")
       .withIndex("by_org_start", (q) =>
         q.eq("orgId", orgId).gte("startTime", args.startTime - DAY).lt("startTime", endTime),
       )
       .collect();
-    const clash = around.some(
-      (s) =>
-        s.roomId === roomId &&
-        s.status !== "cancelled" &&
-        s.status !== "no_show" &&
-        s.startTime < endTime &&
-        s.endTime > args.startTime,
-    );
-    if (clash) throw new Error("That time was just taken - pick another slot.");
 
     // ── Add-ons: validate the requested engineer + premium gear against the
     // SAME overlapping-sessions window, on the server. A single unit can never

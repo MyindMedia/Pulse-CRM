@@ -63,6 +63,13 @@ const serviceType = v.union(
   v.literal("custom"),
 );
 
+const calendarSyncDirection = v.union(
+  v.literal("two_way"),
+  v.literal("push"), // Pulse -> Google only
+  v.literal("pull"), // Google -> Pulse only
+  v.literal("off"),
+);
+
 const sessionStatus = v.union(
   v.literal("tentative"),
   v.literal("confirmed"),
@@ -513,6 +520,29 @@ export default defineSchema({
     // A card-only studio (active, card saved, no subscription) was asked to
     // confirm its plan. Once per studio.
     planConfirmReminderSentAt: v.optional(v.number()),
+    // ── Booking features (hardcover-booking plan). Every switch is OFF when
+    //    unset, so studios that never touch them keep today's behavior. ──
+    bookingFeatures: v.optional(
+      v.object({
+        // Public link shows no prices and takes no payment; submits a request.
+        hidePricing: v.optional(v.boolean()),
+        // Every public booking lands pending until an owner/manager approves.
+        requireApproval: v.optional(v.boolean()),
+        // Owners/managers can block rooms by day / week / month.
+        roomBlocks: v.optional(v.boolean()),
+        // Changing someone else's booking needs the creator's (or owner's) OK.
+        changeApproval: v.optional(v.boolean()),
+      }),
+    ),
+    // Studio (company) Google Calendar: which calendar and which direction.
+    // Calendar id defaults to "primary" when unset; direction to two_way.
+    googleCalendarId: v.optional(v.string()),
+    googleCalendarName: v.optional(v.string()),
+    googleSyncDirection: v.optional(calendarSyncDirection),
+    googleCalendarPushError: v.optional(v.string()),  // last Pulse -> Google failure
+    googleCalendarPushErrorAt: v.optional(v.number()),
+    // Personal brand look on top of accent color: a preset id or "custom".
+    brandPreset: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
     .index("by_slug", ["slug"])
@@ -1443,6 +1473,23 @@ export default defineSchema({
     amountPaidCents: v.optional(v.number()), // running total of cleared payments
     source: v.optional(v.string()), // "public_booking" | "internal"
     holdExpiresAt: v.optional(v.number()), // unpaid hold auto-releases at this time
+    // Who created the booking (null for public bookings). Change approvals
+    // route to this member.
+    createdByMemberId: v.optional(v.id("members")),
+    // Booking-request approval lifecycle (bookingFeatures.requireApproval).
+    // Unset = no approval involved. Pending holds the slot.
+    requestStatus: v.optional(
+      v.union(v.literal("pending"), v.literal("approved"), v.literal("declined")),
+    ),
+    requestDecidedBy: v.optional(v.id("members")),
+    requestDecidedAt: v.optional(v.number()),
+    declineReason: v.optional(v.string()),
+    // Price computed for internal billing when the public link hid pricing.
+    // Never returned to the public pages.
+    pricingHidden: v.optional(v.boolean()),
+    // Someone moved or deleted this booking's event in Google. Set by the
+    // pull; cleared when the change request is decided.
+    googleChangedAt: v.optional(v.number()),
     balanceRemindedAt: v.optional(v.number()), // set once the "pay in full" nudge fires
     smsRemindersSent: v.optional(v.array(v.string())),
     // Which email reminders have gone out ("24h" / "2h") - sweep dedupe.
@@ -2339,6 +2386,86 @@ export default defineSchema({
   //    they give conflict awareness on the schedule without fabricating
   //    sessions. Pulse-origin events are skipped on pull so nothing loops.
   //    Idempotent on (orgId, googleEventId). ──
+  // ── Room blocks (bookingFeatures.roomBlocks): a room held for a day, week
+  //    or month range. Unavailable on the public link and internal booking.
+  //    Valued at the room's hourly rate for reporting. ──
+  roomBlocks: defineTable({
+    orgId: v.string(),
+    roomId: v.id("rooms"),
+    startTime: v.number(),
+    endTime: v.number(),
+    granularity: v.union(v.literal("day"), v.literal("week"), v.literal("month")),
+    label: v.string(),               // client name, "Maintenance", ...
+    artistId: v.optional(v.id("artists")),
+    hourlyRateCents: v.number(),     // room rate captured at creation
+    valueCents: v.number(),          // hours in range x rate
+    createdByMemberId: v.optional(v.id("members")),
+    googleCalendarEventId: v.optional(v.string()),
+    note: v.optional(v.string()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_start", ["orgId", "startTime"])
+    .index("by_room_start", ["roomId", "startTime"]),
+
+  // ── Change requests on existing bookings (bookingFeatures.changeApproval
+  //    and edits made in Google). The creator or owner decides. ──
+  sessionChangeRequests: defineTable({
+    orgId: v.string(),
+    sessionId: v.id("sessions"),
+    requestedByMemberId: v.optional(v.id("members")), // unset = came from Google
+    origin: v.union(v.literal("pulse"), v.literal("google")),
+    // Proposed changes; only the set fields change.
+    proposed: v.object({
+      startTime: v.optional(v.number()),
+      endTime: v.optional(v.number()),
+      roomId: v.optional(v.id("rooms")),
+      engineerId: v.optional(v.id("members")),
+      status: v.optional(sessionStatus),
+    }),
+    reason: v.optional(v.string()),
+    approverMemberId: v.optional(v.id("members")), // who must decide
+    status: v.union(v.literal("pending"), v.literal("approved"), v.literal("declined"), v.literal("withdrawn")),
+    decidedByMemberId: v.optional(v.id("members")),
+    decidedAt: v.optional(v.number()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_status", ["orgId", "status"])
+    .index("by_session", ["sessionId"])
+    .index("by_approver", ["orgId", "approverMemberId", "status"]),
+
+  // ── Personal Google Calendar per team member. Own token, own sync state.
+  //    Pushes the member's sessions and shifts; pulls their busy time, which
+  //    blocks only them. Titles are never shown to other staff. ──
+  memberCalendars: defineTable({
+    orgId: v.string(),
+    memberId: v.id("members"),
+    googleEmail: v.string(),
+    refreshToken: v.string(),        // server-only; never returned to a client
+    calendarId: v.optional(v.string()), // default "primary"
+    syncDirection: calendarSyncDirection,
+    syncToken: v.optional(v.string()),
+    syncedAt: v.optional(v.number()),
+    syncError: v.optional(v.string()),
+    connectedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_member", ["memberId"]),
+
+  // Busy time pulled from a member's personal calendar (no titles kept).
+  memberBusyBlocks: defineTable({
+    orgId: v.string(),
+    memberId: v.id("members"),
+    googleEventId: v.string(),
+    startTime: v.number(),
+    endTime: v.number(),
+    allDay: v.optional(v.boolean()),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_member_start", ["memberId", "startTime"])
+    .index("by_org_start", ["orgId", "startTime"])
+    .index("by_event", ["memberId", "googleEventId"]),
+
   googleBusyBlocks: defineTable({
     orgId: v.string(),
     googleEventId: v.string(),

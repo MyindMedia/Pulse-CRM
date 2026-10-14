@@ -133,6 +133,7 @@ export async function insertSession(
     endTime: number;
     rateCents: number;
     depositCents?: number;
+    createdByMemberId?: Id<"members">;
   },
 ): Promise<Id<"sessions">> {
   // 15-minute reset buffer between sessions in the same room.
@@ -156,6 +157,7 @@ export async function insertSession(
     depositCents: deposit,
     depositPaid: false,
     intakeCompleted: false,
+    createdByMemberId: args.createdByMemberId,
   });
   await ctx.db.insert("activity", {
     orgId: args.orgId,
@@ -246,6 +248,7 @@ export const create = mutation({
       rateCents = room && room.orgId === orgId ? Math.round((room.hourlyRateCents ?? 0) * hours) : 0;
     }
     const sessionId = await insertSession(ctx, {
+      createdByMemberId: await currentMemberId(ctx),
       orgId,
       title: args.title,
       artistId,
@@ -642,7 +645,13 @@ async function assessNoShowShield(
 export const setStatus = mutation({
   args: { id: v.id("sessions"), status: statusV },
   handler: async (ctx, { id, status }) => {
-    const orgId = await currentOrg(ctx);
+    // Cancelling needs sessions.cancel; every other status change (confirm,
+    // start, complete, no-show) needs sessions.edit. Before this an intern or
+    // accountant could cancel any booking.
+    const orgId = await currentOrgWithCapability(
+      ctx,
+      status === "cancelled" ? "sessions.cancel" : "sessions.edit",
+    );
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) throw new Error("Not found");
     // Snapshot BEFORE the patch: only a fresh transition out of an active state
@@ -1200,3 +1209,17 @@ export const overrideEngineerConfirmation = mutation({
     return { ok: true };
   },
 });
+
+
+/** The signed-in team member, or undefined for the demo / system viewer or an
+ *  agency user without a seat. Used to stamp who created a booking. */
+export async function currentMemberId(ctx: QueryCtx): Promise<Id<"members"> | undefined> {
+  try {
+    const viewer = await resolveViewer(ctx);
+    const raw = (viewer as { memberId?: string }).memberId;
+    if (!raw || raw === "demo" || raw === "system") return undefined;
+    return ctx.db.normalizeId("members", raw) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}
