@@ -10,6 +10,7 @@ import {
   statusColor,
   type Session,
 } from "./constants";
+import { PendingChangeDot } from "./pending-change-dot";
 
 /** Pill for a single session inside a day cell. */
 function SessionPill({
@@ -39,6 +40,7 @@ function SessionPill({
       <span className="min-w-0 flex-1 truncate text-[0.6875rem] font-medium text-bone">
         {session.title}
       </span>
+      <PendingChangeDot sessionId={session._id} />
     </button>
   );
 }

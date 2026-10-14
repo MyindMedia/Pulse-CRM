@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/feedback";
 import { longDate, timeOfDay, duration } from "@/lib/format";
 import { SESSION_STATUS, meta, serviceLabel, titleCase } from "@/lib/labels";
 import { startOfDay, statusColor, type Session } from "./constants";
+import { PendingChangeDot } from "./pending-change-dot";
 
 /** Upcoming sessions grouped by day - the agenda alternative to the grid. */
 export function AgendaList({
@@ -78,6 +79,7 @@ export function AgendaList({
                           <p className="min-w-0 flex-1 text-sm font-medium leading-snug text-bone [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden">
                             {s.title}
                           </p>
+                          <PendingChangeDot sessionId={s._id} />
                           <Badge tone={st.tone} className="shrink-0">
                             {st.label}
                           </Badge>
