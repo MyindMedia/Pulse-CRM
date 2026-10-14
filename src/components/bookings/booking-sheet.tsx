@@ -249,7 +249,7 @@ export function BookingSheet({
                 onDecided={onClose}
               />
               <PendingChangeBanner sessionId={booking._id} />
-              <ChangedInGoogleBadge sessionId={booking._id} changedAt={"googleChangedAt" in booking ? booking.googleChangedAt : undefined} />
+              <ChangedInGoogleBadge sessionId={booking._id} changedAt={("googleChangedAt" in booking ? booking.googleChangedAt : undefined) as number | undefined} />
               <div className="divide-y divide-hairline">
                 <Row label="Client">
                   <span className="inline-flex items-center gap-2">
