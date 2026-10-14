@@ -37,7 +37,11 @@ Source brief: `hardcover-booking-orchestrated-prompt.md`. Branch `feat/hardcover
 - **A. Requests + approval.** External link creates a pending request (slot held, no 60-min expiry). Booker gets email + text "request sent". Owners/managers get email + push + an Approve/Decline card in the inbox and on the booking. Approve → confirmation email + text with date, time, room, engineer, studio address. Decline → polite email + text.
 - **B. Booking without prices.** With `requestMode` on, the public pages and directory never send prices to the browser (server strips them, same pattern as `showGearOnBooking`). Flow: room → room availability → time → engineer + gear request → submit. Price still computed and stored on the session for internal billing.
 - **C. Room blocks.** Owners/managers block a room by day, week or month (start + end, label like client name or maintenance). Shows on the calendar, blocks the public link and internal booking, valued at the room's hourly rate for reports.
-- **D. Google sync.** Code: surface push errors, detect revoked tokens, specific callback errors, warn when no refresh token. Config (needs Lawrence): publish the OAuth app, move the callback to `studiopulse.tech`, start Google verification. Pending requests push as "tentative", approved as "confirmed", blocks as busy events.
+- **D. Google sync, two levels.**
+  - **Studio (company) calendar:** the owner connects once and picks which Google calendar is the studio's shared one (not just "primary"). Every booking, request (tentative), approval (confirmed) and room block is pushed there. Busy time on it blocks the whole studio.
+  - **Team member (personal) calendar:** each team member connects their own Google account from their profile. Their own sessions and shifts are pushed there. Their busy time blocks only them: they can't be requested or assigned as engineer then, and it shows as "Busy" (no titles, for privacy) on the schedule.
+  - New `memberCalendars` connection per member (own token, own sync state); the existing org-level fields stay the studio calendar.
+- **D (fixes).** Code: surface push errors, detect revoked tokens, specific callback errors, warn when no refresh token. Config (needs Lawrence): publish the OAuth app, move the callback to `studiopulse.tech`, start Google verification. Pending requests push as "tentative", approved as "confirmed", blocks as busy events.
 
 ### Phase 2 (about 1 day)
 - **E. Change approvals.** Anyone can create a booking. Changing someone else's booking becomes a proposal: the creator (or owner) gets notified and approves or declines; history shows who asked and who approved.
@@ -55,6 +59,8 @@ Each feature on staging with a demo studio that has it switched on and one that 
 2. "Require approval" and "hide prices" are two separate switches.
 3. Google busy time BLOCKS bookings (public link and internal), replacing the soft-block design of 2026-06-01.
 4. Google: publish the OAuth app and move the callback to `studiopulse.tech`; Claude builds the route and walks Lawrence through the console clicks.
+
+5. Google Calendar at two levels: a shared studio calendar plus a personal calendar per team member (Lawrence, 2026-10-14).
 
 ## Still open
 - Is Hardcover a new studio to create in Pulse, and on which plan?
