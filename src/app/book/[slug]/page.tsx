@@ -221,7 +221,7 @@ function StudioFrontView() {
           initial="hidden"
           animate="show"
           variants={staggerChildren(0.06)}
-          className="grid gap-3 sm:grid-cols-3"
+          className="grid grid-cols-1 gap-3 sm:grid-cols-3"
         >
           {steps.map((step, i) => (
             <motion.li
@@ -268,7 +268,7 @@ function StudioFrontView() {
         </div>
 
         {!front ? (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 3 }).map((_, i) => (
               <div
                 key={i}
@@ -288,7 +288,7 @@ function StudioFrontView() {
             initial="hidden"
             animate="show"
             variants={staggerChildren(0.06)}
-            className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
+            className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"
           >
             {front.services.map((service) => (
               <ServiceCard key={service._id} service={service} slug={slug} tracking={tracking} />
@@ -305,7 +305,7 @@ function StudioFrontView() {
             initial="hidden"
             animate="show"
             variants={staggerChildren(0.06)}
-            className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
+            className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"
           >
             {front.rooms.map((room) => (
               <RoomCard key={room._id} room={room} slug={slug} tracking={tracking} />

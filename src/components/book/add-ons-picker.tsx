@@ -146,7 +146,7 @@ export function AddOnsPicker({
                 Pick who you want to work with - it&apos;s required so the right person can confirm
                 your session. Your booking is finalized once they accept.
               </p>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {engineers.map((e) => (
                   <OptionRow
                     key={e.id}
