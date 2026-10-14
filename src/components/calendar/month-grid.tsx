@@ -10,6 +10,7 @@ import {
   statusColor,
   type Session,
 } from "./constants";
+import { BlockBand, blocksByDay, type RoomBlock } from "./room-blocks";
 
 /** Pill for a single session inside a day cell. */
 function SessionPill({
@@ -50,7 +51,13 @@ export function MonthGrid({
   sessions,
   onOpenSession,
   onPickDay,
+  blocks = [],
+  roomNames = {},
+  onOpenBlock,
 }: {
+  blocks?: RoomBlock[];
+  roomNames?: Record<string, string>;
+  onOpenBlock?: (b: RoomBlock) => void;
   days: number[];
   month: number;
   sessions: Session[];
@@ -70,6 +77,8 @@ export function MonthGrid({
   for (const list of byDay.values()) {
     list.sort((a, b) => a.startTime - b.startTime);
   }
+
+  const blockDays = blocksByDay(blocks, days);
 
   return (
     <div className="overflow-hidden rounded-lg border border-graphite/50 bg-coal">
@@ -126,6 +135,15 @@ export function MonthGrid({
               </span>
 
               <div className="flex flex-col gap-1">
+                {(blockDays.get(dayTs) ?? []).map((b) => (
+                  <BlockBand
+                    key={b._id}
+                    block={b}
+                    roomName={roomNames[b.roomId]}
+                    onOpen={onOpenBlock ?? (() => {})}
+                    compact
+                  />
+                ))}
                 {visible.map((s) => (
                   <SessionPill key={s._id} session={s} onOpen={onOpenSession} />
                 ))}
