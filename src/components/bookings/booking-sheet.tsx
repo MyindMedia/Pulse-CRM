@@ -47,6 +47,7 @@ import { HoldCountdown } from "./hold-countdown";
 import { RequestBadge, RequestDecision } from "./request-decision";
 import { PaymentPanel } from "./payment-panel";
 import { PendingChangeBanner } from "./pending-change-banner";
+import { ChangedInGoogleBadge } from "@/components/calendar/changed-in-google-badge";
 import { proposalNotice } from "@/lib/change-proposal";
 
 function Row({
@@ -248,6 +249,7 @@ export function BookingSheet({
                 onDecided={onClose}
               />
               <PendingChangeBanner sessionId={booking._id} />
+              <ChangedInGoogleBadge sessionId={booking._id} changedAt={"googleChangedAt" in booking ? booking.googleChangedAt : undefined} />
               <div className="divide-y divide-hairline">
                 <Row label="Client">
                   <span className="inline-flex items-center gap-2">

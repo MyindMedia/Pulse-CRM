@@ -59,6 +59,7 @@ import { CompDialog } from "./comp-dialog";
 import { BookSessionDialog, type SessionPrefill } from "./book-session-dialog";
 import { Gift } from "lucide-react";
 import { PendingChangeBanner } from "@/components/bookings/pending-change-banner";
+import { ChangedInGoogleBadge } from "@/components/calendar/changed-in-google-badge";
 import { proposalNotice, type MaybeProposal } from "@/lib/change-proposal";
 
 type SessionStatus =
@@ -199,6 +200,7 @@ export function SessionSheet({
                 amountPaidCents={"amountPaidCents" in detail ? detail.amountPaidCents : undefined}
               />
               <PendingChangeBanner sessionId={detail._id} />
+              <ChangedInGoogleBadge sessionId={detail._id} changedAt={"googleChangedAt" in detail ? detail.googleChangedAt : undefined} />
               <div className="divide-y divide-hairline">
                 <Row label="Artist">
                   <span className="inline-flex items-center gap-2">
