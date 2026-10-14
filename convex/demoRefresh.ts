@@ -47,9 +47,25 @@ export const refreshAll = internalAction({
       // Year fill first (bookings/invoices/pipeline), then finance (payroll,
       // expenses, and the live clock-in) so the shift is stamped against the
       // freshly generated schedule.
-      const year = await ctx.runMutation(internal.seedDemoYear.fillYear, { orgId });
-      if ((year as { error?: string }).error) continue; // org not seeded with a studio yet
-      await ctx.runMutation(internal.seedDemoFinance.fill, { orgId });
+      // Each step runs on its own, so one that times out (the year fill is
+      // large and can hit the 1s mutation limit) never blocks the others.
+      try {
+        const year = await ctx.runMutation(internal.seedDemoYear.fillYear, { orgId });
+        if ((year as { error?: string }).error) continue; // org not seeded with a studio yet
+      } catch (e) {
+        console.error(`demo-refresh: year fill failed for ${orgId}`, e);
+      }
+      try {
+        await ctx.runMutation(internal.seedDemoFinance.fill, { orgId });
+      } catch (e) {
+        console.error(`demo-refresh: finance fill failed for ${orgId}`, e);
+      }
+      // Guarantees the next 24 hours are booked (Arrival prep, wrap-up).
+      try {
+        await ctx.runMutation(internal.demoToday.fill, { orgId });
+      } catch (e) {
+        console.error(`demo-refresh: today fill failed for ${orgId}`, e);
+      }
       refreshed.push(orgId);
     }
     return { refreshed, count: refreshed.length };
