@@ -17,7 +17,8 @@ export type ServiceCardData = {
   name: string;
   blurb: string | null;
   pricingMode: "hourly" | "flat";
-  priceCents: number;
+  /** Absent when the studio hides pricing on its booking link. */
+  priceCents?: number;
   minimumHours: number | null;
   blockHours: number | null;
   heroUrl: string | null;
@@ -69,10 +70,12 @@ export function ServiceCard({
             <h3 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
               {service.name}
             </h3>
-            <p className="shrink-0 font-meta text-lg text-gold">
-              {money(service.priceCents)}
-              {!flat && <span className="text-xs text-steel">/hr</span>}
-            </p>
+            {service.priceCents !== undefined && (
+              <p className="shrink-0 font-meta text-lg text-gold">
+                {money(service.priceCents)}
+                {!flat && <span className="text-xs text-steel">/hr</span>}
+              </p>
+            )}
           </div>
           <p className="font-meta text-[0.65rem] uppercase tracking-[0.06em] text-steel/70">
             {terms}
@@ -81,7 +84,7 @@ export function ServiceCard({
             <p className="text-sm leading-relaxed text-steel">{service.blurb}</p>
           )}
           <span className="mt-auto inline-flex items-center gap-1.5 pt-1 font-meta text-xs uppercase tracking-[0.06em] text-gold transition-colors group-hover:text-gold-bright">
-            Book this
+            {service.priceCents === undefined ? "Request this" : "Book this"}
             <ArrowRight className="size-3.5" />
           </span>
         </div>

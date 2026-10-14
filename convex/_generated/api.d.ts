@@ -48,6 +48,7 @@ import type * as bookableServices from "../bookableServices.js";
 import type * as booking from "../booking.js";
 import type * as bookingFeatures from "../bookingFeatures.js";
 import type * as bookingFunnel from "../bookingFunnel.js";
+import type * as bookingRequests from "../bookingRequests.js";
 import type * as brandHero from "../brandHero.js";
 import type * as branding from "../branding.js";
 import type * as cardOnFile from "../cardOnFile.js";
@@ -399,6 +400,7 @@ declare const fullApi: ApiFromModules<{
   booking: typeof booking;
   bookingFeatures: typeof bookingFeatures;
   bookingFunnel: typeof bookingFunnel;
+  bookingRequests: typeof bookingRequests;
   brandHero: typeof brandHero;
   branding: typeof branding;
   cardOnFile: typeof cardOnFile;

@@ -40,6 +40,7 @@ import {
 } from "@/components/book/add-ons-picker";
 import { PromoCode, emptyPromo, type PromoState } from "@/components/book/promo-code";
 import { SocialProof } from "@/components/book/social-proof";
+import { RequestSummary, ApprovalNote } from "@/components/book/request-summary";
 
 /* useSearchParams() must sit under a Suspense boundary for static export. */
 export default function RoomDetailPage() {
@@ -121,6 +122,9 @@ function RoomDetailView() {
 
   // `room` is non-null past the guards above; bind a stable local for closures.
   const loadedRoom = room;
+  /* Booking link without prices: the server sent no rate, deposit or add-on
+     price, so the page shows "Request booking" and no payment step. */
+  const pricingHidden = loadedRoom.pricingHidden;
 
   // An invalid (or still-checking) code blocks submit: never book at full
   // price while a code sits in the box looking applied.
@@ -130,7 +134,7 @@ function RoomDetailView() {
 
   // Client-side display math only - createBooking recomputes the
   // authoritative amounts (and re-validates the code) on the server.
-  const liveRoomCents = selection ? loadedRoom.hourlyRateCents * selection.durationHours : 0;
+  const liveRoomCents = selection ? (loadedRoom.hourlyRateCents ?? 0) * selection.durationHours : 0;
   const liveListCents = liveRoomCents + (selection ? addOns.addOnTotalCents : 0);
   const promoPct = promo.status === "valid" ? promo.pct : 0;
   const liveRateCents = promoPct
@@ -142,7 +146,18 @@ function RoomDetailView() {
   const fullOnly = loadedRoom.paymentMode === "full";
   const liveDepositCents = fullOnly
     ? liveRateCents
-    : Math.round((liveRateCents * loadedRoom.depositPct) / 100);
+    : Math.round((liveRateCents * (loadedRoom.depositPct ?? 0)) / 100);
+
+  const detailsSection = (
+    <section className="space-y-3">
+      <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
+        Your details
+      </h2>
+      <div className="space-y-5 rounded-lg border border-graphite/50 bg-coal p-5">
+        <BookingForm values={form} onChange={setForm} />
+      </div>
+    </section>
+  );
 
   async function handleContinue() {
     if (!selection || !formValid || !promoOk) return;
@@ -160,13 +175,17 @@ function RoomDetailView() {
         engineerId: addOns.engineerId,
         addOnEquipmentIds: addOns.gear.map((g) => g.id),
         gearRequestNote: addOns.gearRequestNote || undefined,
-        discountCode: promo.status === "valid" ? promo.code : undefined,
+        discountCode: !pricingHidden && promo.status === "valid" ? promo.code : undefined,
         ref: refFromLink,
         src: srcFromLink,
         // Closes the funnel this visitor started. Server-written from here on.
         visitorKey: visitorKey() ?? undefined,
       });
-      toast.success("Booking held - finish payment to confirm.");
+      toast.success(
+        pricingHidden
+          ? "Request sent. The studio will confirm by email and text."
+          : "Booking held - finish payment to confirm.",
+      );
       router.push(`/book/${slug}/checkout/${result.sessionId}`);
     } catch (err) {
       const message =
@@ -211,24 +230,33 @@ function RoomDetailView() {
               {room.name}
             </h1>
           </div>
-          <div className="rounded-lg border border-graphite/50 bg-coal-2 px-4 py-3 text-right">
-            <p className="font-grotesk text-2xl font-semibold text-bone">
-              {money(room.hourlyRateCents)}
-              <span className="text-sm font-normal text-steel/70"> / hr</span>
-            </p>
-          </div>
+          {room.hourlyRateCents !== undefined && (
+            <div className="rounded-lg border border-graphite/50 bg-coal-2 px-4 py-3 text-right">
+              <p className="font-grotesk text-2xl font-semibold text-bone">
+                {money(room.hourlyRateCents)}
+                <span className="text-sm font-normal text-steel/70"> / hr</span>
+              </p>
+            </div>
+          )}
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <Badge tone="neutral">
             <Clock className="size-3" />
             {room.minimumHours}h minimum
           </Badge>
-          <Badge tone="gold">
-            <ShieldCheck className="size-3" />
-            {room.paymentMode === "full"
-              ? "Paid in full to book"
-              : `${room.depositPct}% deposit holds your booking`}
-          </Badge>
+          {pricingHidden ? (
+            <Badge tone="gold">
+              <ShieldCheck className="size-3" />
+              Request to book, no payment now
+            </Badge>
+          ) : (
+            <Badge tone="gold">
+              <ShieldCheck className="size-3" />
+              {room.paymentMode === "full"
+                ? "Paid in full to book"
+                : `${room.depositPct}% deposit holds your booking`}
+            </Badge>
+          )}
           {room.condition && (
             <Badge tone="neutral" className="capitalize">
               {room.condition.replace(/_/g, " ")} condition
@@ -261,14 +289,7 @@ function RoomDetailView() {
           the calendar - so the details arrived after the decision. Stacked,
           in the order the booking actually happens: name yourself, then pick
           the time you want. */}
-      <section className="space-y-3">
-        <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
-          Your details
-        </h2>
-        <div className="space-y-5 rounded-lg border border-graphite/50 bg-coal p-5">
-          <BookingForm values={form} onChange={setForm} />
-        </div>
-      </section>
+      {!pricingHidden && detailsSection}
 
       <section className="space-y-3">
         <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
@@ -292,7 +313,7 @@ function RoomDetailView() {
           nowhere after they select a slot. */}
       <section className="space-y-3">
         <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
-          Engineer and add-ons
+          {pricingHidden ? "Request an engineer and gear" : "Engineer and add-ons"}
         </h2>
         <AddOnsPicker
           roomId={loadedRoom._id}
@@ -305,8 +326,31 @@ function RoomDetailView() {
         />
       </section>
 
+      {/* Link without prices: who they are comes last, right before the
+          request (room, time, engineer and gear first). */}
+      {pricingHidden && detailsSection}
+
       {/* Itemized total + continue */}
       <section className="space-y-3">
+        {pricingHidden ? (
+          <RequestSummary
+            lines={[
+              { label: `${loadedRoom.name}${selection ? ` (${selection.durationHours}h)` : ""}` },
+              ...(addOns.engineerName ? [{ label: "Engineer", value: addOns.engineerName }] : []),
+              ...addOns.gear.map((g) => ({ label: g.name, value: "Requested" })),
+            ]}
+            canSubmit={canSubmit}
+            submitting={submitting}
+            onSubmit={handleContinue}
+            hint={
+              !selection
+                ? "Pick a date and time to continue."
+                : !formValid
+                  ? "Add your name and a valid email to continue."
+                  : null
+            }
+          />
+        ) : (
         <div className="space-y-3 rounded-lg border border-graphite/50 bg-coal p-5">
           <div className="flex items-center justify-between text-sm">
             <span className="text-steel">
@@ -394,7 +438,9 @@ function RoomDetailView() {
               Fix or clear the discount code to continue.
             </p>
           )}
+          {loadedRoom.requiresApproval && <ApprovalNote />}
         </div>
+        )}
       </section>
 
       {/* Social proof: real ratings + client words back the room's rate */}

@@ -1,5 +1,12 @@
 import { fileUrl } from "./lib/media";
-import { roomBusyIntervals, roomConflict, conflictMessage } from "./lib/roomBusy";
+import {
+  roomBusyIntervals,
+  roomConflict,
+  conflictMessage,
+  bookingFeatures,
+  memberIsFree,
+} from "./lib/roomBusy";
+import { announceRequest } from "./bookingRequests";
 import { query, action, internalQuery, QueryCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { recordBooked } from "./bookingFunnel";
@@ -64,6 +71,28 @@ const defaults = (room: Doc<"rooms">) => ({
   // without them touching it.
   paymentMode: room.paymentMode ?? ("deposit" as const),
 });
+
+/* ── Booking link without prices (orgs.bookingFeatures.hidePricing) ──
+   When the studio hides pricing, the public queries never SEND a rate, a
+   deposit or an add-on price: a number hidden with CSS is one devtools panel
+   away from published (same rule as showGearOnBooking). The price is still
+   computed in createBooking and stored on the session for internal billing.
+   With the switch off every field below ships exactly as before. */
+
+/** A room for a public page: the doc plus booking defaults, minus every
+ *  money field when the studio hides pricing. */
+function publicRoom(room: Doc<"rooms">, hidePricing: boolean) {
+  const { hourlyRateCents: _rate, depositPct: _deposit, paymentMode: _mode, ...rest } = room;
+  void _rate; void _deposit; void _mode;
+  const d = defaults(room);
+  return {
+    ...rest,
+    minimumHours: d.minimumHours,
+    ...(hidePricing
+      ? {}
+      : { hourlyRateCents: d.hourlyRateCents, depositPct: d.depositPct, paymentMode: d.paymentMode }),
+  };
+}
 
 /** The studio's branding block for the public page. */
 async function brand(ctx: QueryCtx, org: Doc<"orgs"> | null) {
@@ -156,6 +185,8 @@ export const studioFront = query({
         .first();
     }
     const orgId = org?.orgId ?? (await currentOrg(ctx));
+    const features = bookingFeatures(org);
+    const hidePricing = features.hidePricing;
 
     const rooms = await ctx.db
       .query("rooms")
@@ -184,8 +215,9 @@ export const studioFront = query({
           : room.heroImageUrl ?? null;
         const photos = [...(heroShot ? [heroShot] : []), ...gearPhotos].slice(0, 6);
         return {
-          ...room,
-          ...defaults(room),
+          ...publicRoom(room, hidePricing),
+          // Sort key only; stripped below before anything leaves the server.
+          _sortRate: defaults(room).hourlyRateCents,
           gearCount: gear.length,
           gearPreview: gear.slice(0, 4).map((g) => g.name),
           photos,
@@ -196,21 +228,32 @@ export const studioFront = query({
        where it does it. Only shipped when the studio has switched to it and
        has services to show - a catalogue page with nothing on it is worse
        than the rooms it replaced. */
-    const services = await serviceCards(ctx, orgId, bookable);
+    const services = await serviceCards(ctx, orgId, bookable, hidePricing);
     const catalog = org?.bookingCatalog === "services" && services.length > 0
       ? ("services" as const)
       : ("rooms" as const);
 
     const proof = await socialProof(ctx, org, orgId);
+    const branding = await brand(ctx, org);
     return {
       orgId,
-      org: await brand(ctx, org),
+      // A deposit policy is money copy; with pricing hidden there is no deposit.
+      org: hidePricing ? { ...branding, depositPolicy: null } : branding,
+      // Booking link without prices: the page shows "Request booking" and no
+      // payment step. Requests also land pending when approval is required.
+      pricingHidden: hidePricing,
+      requiresApproval: hidePricing || features.requireApproval,
       whitelabel: await whitelabelFor(ctx, orgId),
       openHour: OPEN_HOUR,
       closeHour: CLOSE_HOUR,
       catalog,
       services,
-      rooms: cards.sort((a, b) => b.hourlyRateCents - a.hourlyRateCents),
+      rooms: cards
+        .sort((a, b) => b._sortRate - a._sortRate)
+        .map(({ _sortRate, ...card }) => {
+          void _sortRate;
+          return card;
+        }),
       // Social proof + engineer credits - the conversion layer.
       testimonials: proof.testimonials,
       reviews: proof.reviews,
@@ -229,6 +272,7 @@ async function serviceCards(
   ctx: QueryCtx,
   orgId: string,
   bookableRooms: Doc<"rooms">[],
+  hidePricing: boolean,
 ) {
   const live = new Set(bookableRooms.map((r) => String(r._id)));
   const rows = (
@@ -246,7 +290,7 @@ async function serviceCards(
       name: s.name,
       blurb: s.blurb ?? null,
       pricingMode: s.pricingMode,
-      priceCents: s.priceCents,
+      ...(hidePricing ? {} : { priceCents: s.priceCents }),
       minimumHours: s.minimumHours ?? null,
       blockHours: s.blockHours ?? null,
       heroUrl: s.heroImageId
@@ -271,13 +315,21 @@ export const service = query({
       .withIndex("by_org", (q) => q.eq("orgId", svc.orgId))
       .first();
 
+    const features = bookingFeatures(org);
+    const hidePricing = features.hidePricing;
+
     /* Add-ons for THIS service. A podcast booking offers podcast edits; a
        vocal session does not offer a green screen film crew. */
     const addOns = (
       await Promise.all((svc.addOnFeeIds ?? []).map((id) => ctx.db.get(id)))
     )
       .filter((f): f is Doc<"feeTemplates"> => Boolean(f?.active))
-      .map((f) => ({ _id: f._id, label: f.label, amountCents: f.amountCents, description: f.description ?? null }));
+      .map((f) => ({
+        _id: f._id,
+        label: f.label,
+        ...(hidePricing ? {} : { amountCents: f.amountCents }),
+        description: f.description ?? null,
+      }));
 
     const showGear = org?.showGearOnBooking !== false && room.showGear !== false;
     const gear = showGear
@@ -297,22 +349,28 @@ export const service = query({
       name: svc.name,
       blurb: svc.blurb ?? null,
       pricingMode: svc.pricingMode,
-      priceCents: svc.priceCents,
       // The picker speaks in hours and an hourly rate. A flat service is its
       // block at its price, which is the same booking with the maths done.
-      hourlyRateCents:
-        svc.pricingMode === "hourly"
-          ? svc.priceCents
-          : Math.round(svc.priceCents / Math.max(1, svc.blockHours ?? 1)),
+      ...(hidePricing
+        ? {}
+        : {
+            priceCents: svc.priceCents,
+            hourlyRateCents:
+              svc.pricingMode === "hourly"
+                ? svc.priceCents
+                : Math.round(svc.priceCents / Math.max(1, svc.blockHours ?? 1)),
+            depositPct: svc.depositPct ?? room.depositPct ?? 30,
+            // Inherited from the room: how a studio takes money is a property
+            // of the studio, not of which product was bought.
+            paymentMode: defaults(room).paymentMode,
+          }),
+      pricingHidden: hidePricing,
+      requiresApproval: hidePricing || features.requireApproval,
       minimumHours:
         svc.pricingMode === "flat"
           ? svc.blockHours ?? 1
           : svc.minimumHours ?? room.minimumHours ?? 1,
       blockHours: svc.blockHours ?? null,
-      depositPct: svc.depositPct ?? room.depositPct ?? 30,
-      // Inherited from the room: how a studio takes money is a property of the
-      // studio, not of which product was bought.
-      paymentMode: defaults(room).paymentMode,
       offerEngineer: room.offerEngineer !== false,
       heroUrl: svc.heroImageId
         ? await fileUrl(ctx, svc.heroImageId)
@@ -322,7 +380,7 @@ export const service = query({
       roomId: svc.roomId,
       roomName: room.name,
       studioName: org?.name ?? "Pulse Studio",
-      depositPolicy: org?.depositPolicyText ?? null,
+      depositPolicy: hidePricing ? null : (org?.depositPolicyText ?? null),
       openHour: OPEN_HOUR,
       closeHour: CLOSE_HOUR,
       showGear,
@@ -381,18 +439,20 @@ export const room = query({
       })),
     );
     const proof = await socialProof(ctx, org, room.orgId);
+    const features = bookingFeatures(org);
+    const hidePricing = features.hidePricing;
     return {
-      ...room,
-      ...defaults(room),
+      ...publicRoom(room, hidePricing),
       heroUrl: room.heroImageId
         ? await fileUrl(ctx, room.heroImageId)
         : (room.heroImageUrl ?? null),
       openHour: OPEN_HOUR,
       closeHour: CLOSE_HOUR,
       studioName: org?.name ?? "Pulse Studio",
-      depositPolicy: org?.depositPolicyText ?? null,
+      depositPolicy: hidePricing ? null : (org?.depositPolicyText ?? null),
       showGear,
-      paymentMode: defaults(room).paymentMode,
+      pricingHidden: hidePricing,
+      requiresApproval: hidePricing || features.requireApproval,
       offerEngineer: room.offerEngineer !== false,
       equipment: equipment.sort((a, b) => a.name.localeCompare(b.name)),
       // Social proof for the room page trust strip.
@@ -417,6 +477,9 @@ export const validateCode = query({
       .query("orgs")
       .withIndex("by_org", (q) => q.eq("orgId", room.orgId))
       .first();
+    // No prices on the page means no discount to show: a percentage off an
+    // unseen number is still a pricing answer.
+    if (bookingFeatures(org).hidePricing) return { valid: false as const };
     const match = await resolveCode(ctx, org, code, roomId, Date.now());
     if (!match) return { valid: false as const };
     return { valid: true as const, code: match.code, pct: match.pct, label: match.label, ...(match.expiresAt ? { expiresAt: match.expiresAt } : {}) };
@@ -462,9 +525,14 @@ export const addOnOptions = query({
   args: { roomId: v.id("rooms"), startTime: v.number(), durationHours: v.number() },
   handler: async (ctx, { roomId, startTime, durationHours }) => {
     const room = await ctx.db.get(roomId);
-    if (!room) return { engineers: [], gear: [] };
+    if (!room) return { engineers: [], gear: [], pricingHidden: false };
     const orgId = room.orgId;
     const endTime = startTime + durationHours * HOUR;
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    const hidePricing = bookingFeatures(org).hidePricing;
 
     // Sessions that could overlap the window (load a day of lead-in, then
     // filter precisely inside the pure helpers).
@@ -496,7 +564,11 @@ export const addOnOptions = query({
           bio: m.bio ?? null,
           credits: m.credits ?? [],
           photoUrl: m.photoId ? await fileUrl(ctx, m.photoId) : (m.clerkImageUrl ?? null),
-          available: engineerAvailable(m._id, startTime, endTime, around),
+          // Their sessions AND their personal calendar: someone busy in their
+          // own Google calendar cannot be requested (lib/roomBusy).
+          available:
+            engineerAvailable(m._id, startTime, endTime, around) &&
+            (await memberIsFree(ctx, { orgId, memberId: m._id, start: startTime, end: endTime })),
         })),
     );
     engineers.sort(
@@ -516,7 +588,7 @@ export const addOnOptions = query({
             id: e._id,
             name: e.name,
             category: e.category,
-            priceCents: e.rentalPriceCents ?? 0,
+            ...(hidePricing ? {} : { priceCents: e.rentalPriceCents ?? 0 }),
             photo: await photoOf(ctx, e),
             quantity: unitsOf(e),
             bookedUnits: booked,
@@ -526,7 +598,7 @@ export const addOnOptions = query({
     );
     gear.sort((a, b) => Number(b.available) - Number(a.available) || a.name.localeCompare(b.name));
 
-    return { engineers, gear };
+    return { engineers, gear, pricingHidden: hidePricing };
   },
 });
 
@@ -550,12 +622,52 @@ export const booking = query({
       session.engineerId ? ctx.db.get(session.engineerId) : null,
     ]);
     const paid = session.amountPaidCents ?? 0;
-    return {
-      ...session,
+    const people = {
       roomName: room?.name ?? "Studio",
       clientName: artist?.name ?? "Guest",
       clientEmail: artist?.email ?? null,
       engineerName: engineer?.name ?? null,
+      // Booking request state for the confirmation page ("Request sent").
+      requestStatus: session.requestStatus ?? null,
+    };
+    /* A request made on a link without prices: the price was computed for the
+       studio's own billing and never goes back to the public page. Only the
+       facts of the booking leave, and no payment step is offered. */
+    if (session.pricingHidden) {
+      return {
+        _id: session._id,
+        orgId: session.orgId,
+        title: session.title,
+        status: session.status,
+        startTime: session.startTime,
+        endTime: session.endTime,
+        serviceType: session.serviceType,
+        customService: session.customService,
+        notes: session.notes,
+        holdExpiresAt: session.holdExpiresAt,
+        gearRequestNote: session.gearRequestNote,
+        ...people,
+        pricingHidden: true as const,
+        // Absent on purpose; typed so the checkout page reads them as unset.
+        ...({} as {
+          rateCents?: undefined;
+          depositCents?: undefined;
+          amountPaidCents?: undefined;
+          paymentMode?: undefined;
+          payments?: undefined;
+          paidCents?: undefined;
+          balanceCents?: undefined;
+          fullyPaid?: undefined;
+        }),
+        addOns: (session.addOns ?? []).map((a) => ({ equipmentId: a.equipmentId, name: a.name })),
+        serviceAddOns: (session.serviceAddOns ?? []).map((a) => ({ feeId: a.feeId, label: a.label })),
+        stripeCheckout: false,
+      };
+    }
+    return {
+      ...session,
+      ...people,
+      pricingHidden: false as const,
       addOns: session.addOns ?? [],
       serviceAddOns: session.serviceAddOns ?? [],
       // The checkout page must not offer a deposit the studio does not accept.
@@ -573,6 +685,21 @@ export const booking = query({
     };
   },
 });
+
+/** What createBooking sends back on a link without prices: the money keys are
+ *  absent (typed so callers read them as undefined, never as a number). */
+type HiddenPriceResult = {
+  sessionId: Id<"sessions">;
+  requestStatus: "pending";
+  pricingHidden: true;
+  rateCents?: undefined;
+  depositCents?: undefined;
+  depositPct?: undefined;
+  addOnTotalCents?: undefined;
+  listValueCents?: undefined;
+  discountPct?: undefined;
+  discountCode?: undefined;
+};
 
 /** Create a held booking. Status starts "tentative" until the deposit clears. */
 export const createBooking = mutation({
@@ -627,6 +754,14 @@ export const createBooking = mutation({
       .query("orgs")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .first();
+    /* Booking requests (docs/plans/hardcover-booking.md, A + B). With
+       requireApproval on, the booking lands as a pending request. With
+       hidePricing on it ALSO lands as a request even when approval is off:
+       nothing was paid, so nothing should confirm on its own. Both off =
+       today's held booking, unchanged. */
+    const features = bookingFeatures(org);
+    const hidePricing = features.hidePricing;
+    const asRequest = hidePricing || features.requireApproval;
     /* A service prices itself. A flat service ("$150 for a two hour shoot")
        is stored as its block and its price; the picker speaks hourly, so it
        is divided back out here and multiplied by a duration the minimum has
@@ -691,7 +826,10 @@ export const createBooking = mutation({
       if (!m || m.orgId !== orgId || !ENGINEER_ROLES.has(m.role)) {
         throw new Error("That engineer is not available to book.");
       }
-      if (!engineerAvailable(m._id, args.startTime, endTime, around)) {
+      if (
+        !engineerAvailable(m._id, args.startTime, endTime, around) ||
+        !(await memberIsFree(ctx, { orgId, memberId: m._id, start: args.startTime, end: endTime }))
+      ) {
         throw new Error(`${m.name} was just booked for that time. Pick another engineer.`);
       }
       engineerId = m._id;
@@ -821,8 +959,11 @@ export const createBooking = mutation({
     /* What is due now. On a paid-in-full room that is the whole thing - the
        "deposit" is the price, so the hold clears the moment it is paid and no
        balance is left to chase. */
-    const depositCents =
-      cfg.paymentMode === "full"
+    /* A link without prices takes no money: the price is stored for the
+       studio's own billing and no public deposit is ever asked for. */
+    const depositCents = hidePricing
+      ? 0
+      : cfg.paymentMode === "full"
         ? rateCents
         : Math.round((rateCents * cfg.depositPct) / 100);
     const sessionId = await ctx.db.insert("sessions", {
@@ -849,7 +990,12 @@ export const createBooking = mutation({
       amountPaidCents: 0,
       ...(serviceAddOns.length ? { serviceAddOns } : {}),
       source: "public_booking",
-      holdExpiresAt: Date.now() + HOLD_MINUTES * 60_000,
+      // A request holds the slot until an owner or manager decides, so it
+      // never gets the 60-minute payment window (automation.tick step 3).
+      ...(asRequest
+        ? { requestStatus: "pending" as const }
+        : { holdExpiresAt: Date.now() + HOLD_MINUTES * 60_000 }),
+      ...(hidePricing ? { pricingHidden: true } : {}),
       ...(engineerId ? { engineerId, engineerRequestStatus: "pending" as const } : {}),
       ...(addOns.length ? { addOns } : {}),
       ...(gearRequestNote ? { gearRequestNote } : {}),
@@ -894,8 +1040,10 @@ export const createBooking = mutation({
 
     await ctx.db.insert("activity", {
       orgId,
-      kind: "booking.created",
-      summary: `Online booking held - ${room.name} for ${args.clientName.trim()}`,
+      kind: asRequest ? "booking.requested" : "booking.created",
+      summary: asRequest
+        ? `Booking request - ${room.name} for ${args.clientName.trim()}, waiting on approval`
+        : `Online booking held - ${room.name} for ${args.clientName.trim()}`,
       entityType: "session",
       entityId: sessionId,
       accent: "gold",
@@ -904,43 +1052,16 @@ export const createBooking = mutation({
       orgId,
       kind: "opportunity",
       severity: "opportunity",
-      title: `New online booking - ${room.name}`,
-      body: `${args.clientName.trim()} held ${args.durationHours}h. The ${money(
-        depositCents,
-      )} deposit holds it for ${HOLD_MINUTES} minutes.`,
+      title: asRequest ? `New booking request - ${room.name}` : `New online booking - ${room.name}`,
+      body: asRequest
+        ? `${args.clientName.trim()} requested ${args.durationHours}h. It holds the slot until an owner or manager approves or declines it.`
+        : `${args.clientName.trim()} held ${args.durationHours}h. The ${money(
+            depositCents,
+          )} deposit holds it for ${HOLD_MINUTES} minutes.`,
       entityType: "session",
       entityId: sessionId,
       status: "new",
     });
-    await notify(ctx, {
-      orgId,
-      channel: "email",
-      recipient: args.clientEmail.trim(),
-      subject: `Hold started - ${room.name}`,
-      body: `Your ${args.durationHours}-hour session is held. Pay the ${money(
-        depositCents,
-      )} deposit within ${HOLD_MINUTES} minutes to confirm it.`,
-      kind: "booking.held",
-      sessionId,
-    });
-    // The hold is a 60-minute PAYMENT window - email alone is the wrong channel
-    // for a clock-ticking action, so also text the pay link when we have a
-    // phone. (The T-15 expiry nudge is scheduled elsewhere; this is the
-    // immediate confirmation.)
-    const phoneE164 = args.clientPhone ? normalizePhone(args.clientPhone) : null;
-    if (phoneE164) {
-      const appUrl = process.env.APP_URL ?? "http://localhost:3000";
-      const payUrl = `${appUrl}/book/${org?.slug ?? ""}/checkout/${sessionId}`;
-      await notify(ctx, {
-        orgId,
-        channel: "sms",
-        recipient: phoneE164,
-        subject: `Hold started - ${room.name}`,
-        body: `${room.name} is held for you. Pay the ${money(depositCents)} deposit within ${HOLD_MINUTES} min to confirm: ${payUrl}`,
-        kind: "booking.held",
-        sessionId,
-      });
-    }
     // Internal team: a new booking request just landed, with any engineer
     // request, rented gear, and a free-text gear ask to follow up on.
     const addOnLine = addOns.length
@@ -951,13 +1072,61 @@ export const createBooking = mutation({
     const discountLine = discount
       ? `\nDiscount code ${discount.code} applied: ${discount.pct}% off (list ${money(listRateCents)}, billed ${money(rateCents)}).`
       : "";
-    await notifyTeam(ctx, {
-      orgId,
-      subject: `New booking - ${room.name}, ${new Date(args.startTime).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`,
-      body: `${args.clientName} (${args.clientEmail.trim()}) requested ${args.durationHours}h in ${room.name}. The room is held pending the ${money(depositCents)} deposit.${engineerLine}${addOnLine}${requestLine}${discountLine}`,
-      kind: "booking.created",
-      sessionId,
-    });
+    if (asRequest) {
+      /* A request: "request received" to the booker, "new request" to each
+         owner and manager (email + push). With prices shown the booker still
+         pays the deposit as today, so the pay link rides along. */
+      const created = await ctx.db.get(sessionId);
+      if (created) {
+        const appBase = process.env.APP_URL ?? "http://localhost:3000";
+        const priceLine = `\n${hidePricing ? "Price (not shown to the client)" : "Price"}: ${money(rateCents)}${depositCents > 0 ? `, deposit ${money(depositCents)}` : ""}.`;
+        const noteLine = args.notes?.trim() ? `\nNotes: ${args.notes.trim()}` : "";
+        await announceRequest(ctx, {
+          session: created,
+          org,
+          depositCents,
+          payUrl: hidePricing ? undefined : `${appBase}/book/${org?.slug ?? ""}/checkout/${sessionId}`,
+          detailLines: `${addOnLine}${requestLine}${discountLine}${priceLine}${noteLine}`.trim(),
+        });
+      }
+    } else {
+      await notify(ctx, {
+        orgId,
+        channel: "email",
+        recipient: args.clientEmail.trim(),
+        subject: `Hold started - ${room.name}`,
+        body: `Your ${args.durationHours}-hour session is held. Pay the ${money(
+          depositCents,
+        )} deposit within ${HOLD_MINUTES} minutes to confirm it.`,
+        kind: "booking.held",
+        sessionId,
+      });
+      // The hold is a 60-minute PAYMENT window - email alone is the wrong channel
+      // for a clock-ticking action, so also text the pay link when we have a
+      // phone. (The T-15 expiry nudge is scheduled elsewhere; this is the
+      // immediate confirmation.)
+      const phoneE164 = args.clientPhone ? normalizePhone(args.clientPhone) : null;
+      if (phoneE164) {
+        const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+        const payUrl = `${appUrl}/book/${org?.slug ?? ""}/checkout/${sessionId}`;
+        await notify(ctx, {
+          orgId,
+          channel: "sms",
+          recipient: phoneE164,
+          subject: `Hold started - ${room.name}`,
+          body: `${room.name} is held for you. Pay the ${money(depositCents)} deposit within ${HOLD_MINUTES} min to confirm: ${payUrl}`,
+          kind: "booking.held",
+          sessionId,
+        });
+      }
+      await notifyTeam(ctx, {
+        orgId,
+        subject: `New booking - ${room.name}, ${new Date(args.startTime).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`,
+        body: `${args.clientName} (${args.clientEmail.trim()}) requested ${args.durationHours}h in ${room.name}. The room is held pending the ${money(depositCents)} deposit.${engineerLine}${addOnLine}${requestLine}${discountLine}`,
+        kind: "booking.created",
+        sessionId,
+      });
+    }
     // Personally notify the requested engineer - their confirmation is what
     // finalizes the booking (managers can override from the session sheet).
     if (engineerId) {
@@ -980,7 +1149,7 @@ export const createBooking = mutation({
         subject: `Action needed: ${args.clientName} requested you - ${room.name}`,
         body: `${args.clientName} requested you for a ${args.durationHours}-hour session in ${room.name} on ${new Date(args.startTime).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.
 
-The booking is finalized once you confirm. Review it here: ${appUrl}/schedule`,
+${asRequest ? "It is a booking request: the studio still has to approve it, and your confirmation lets them know you can take it." : "The booking is finalized once you confirm."} Review it here: ${appUrl}/schedule`,
         kind: "booking.engineer_requested",
         sessionId,
       });
@@ -999,8 +1168,14 @@ The booking is finalized once you confirm. Review it here: ${appUrl}/schedule`,
       });
     }
 
+    // A link without prices never sends a number back to the browser.
+    if (hidePricing) {
+      const hidden: HiddenPriceResult = { sessionId, requestStatus: "pending", pricingHidden: true };
+      return hidden;
+    }
     return {
       sessionId,
+      ...(asRequest ? { requestStatus: "pending" as const } : {}),
       rateCents,
       depositCents,
       depositPct: cfg.depositPct,
@@ -1036,6 +1211,9 @@ export const _chargeContext = internalQuery({
       stripeAccountId: org?.stripeAccountId ?? null,
       chargesEnabled: Boolean(org?.stripeChargesEnabled),
       configured: Boolean(process.env.STRIPE_SECRET_KEY),
+      // A request from a link without prices is billed by the studio
+      // directly; the public page never opens a checkout for it.
+      pricingHidden: session.pricingHidden === true,
     };
   },
 });
@@ -1048,6 +1226,7 @@ export const payViaStripe = action({
   handler: async (ctx, { sessionId, kind }): Promise<{ url: string | null }> => {
     const c = await ctx.runQuery(internal.booking._chargeContext, { sessionId });
     if (!c) throw new ConvexError("Booking not found.");
+    if (c.pricingHidden) throw new ConvexError("The studio will follow up about payment for this booking.");
     // No connected Stripe (or platform Stripe unconfigured) → caller falls back
     // to the simulated path.
     if (!c.configured || !c.stripeAccountId || !c.chargesEnabled) return { url: null };

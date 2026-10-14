@@ -44,6 +44,7 @@ import { meta, SESSION_STATUS } from "@/lib/labels";
 import type { BookingRow, NotificationRow, SessionStatus } from "./types";
 import { isOnline } from "./types";
 import { HoldCountdown } from "./hold-countdown";
+import { RequestBadge, RequestDecision } from "./request-decision";
 import { PaymentPanel } from "./payment-panel";
 import { PendingChangeBanner } from "./pending-change-banner";
 import { proposalNotice } from "@/lib/change-proposal";
@@ -221,6 +222,7 @@ export function BookingSheet({
                 <Badge tone={meta(SESSION_STATUS, booking.status).tone}>
                   {meta(SESSION_STATUS, booking.status).label}
                 </Badge>
+                <RequestBadge requestStatus={booking.requestStatus} />
                 {isOnline(booking) && (
                   <Badge tone="gold">
                     <Globe className="size-2.5" />
@@ -239,6 +241,12 @@ export function BookingSheet({
             </SheetHeader>
 
             <SheetBody className="space-y-5">
+              <RequestDecision
+                sessionId={booking._id}
+                requestStatus={booking.requestStatus}
+                amountPaidCents={booking.amountPaidCents}
+                onDecided={onClose}
+              />
               <PendingChangeBanner sessionId={booking._id} />
               <div className="divide-y divide-hairline">
                 <Row label="Client">

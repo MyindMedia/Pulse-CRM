@@ -7,6 +7,7 @@ import type { Doc } from "./_generated/dataModel";
 import { requireCapability } from "./lib/access";
 import { currentOrg } from "./lib/tenant";
 import { localDayKey, orgTz } from "./lib/tz";
+import { bookingFeatures } from "./lib/roomBusy";
 
 /* ============================================================
    Find a Studio on Pulse - the public directory.
@@ -104,7 +105,10 @@ async function buildListing(
         ? await fileUrl(ctx, org.generatedHeroId)
         : null,
     roomCount: rooms.length,
-    fromHourlyCents: rates.length ? Math.min(...rates) : null,
+    // A studio that hides pricing on its booking link hides it here too. Null
+    // also keeps it out of a max-price search, which would otherwise reveal
+    // the rate one filter at a time.
+    fromHourlyCents: bookingFeatures(org).hidePricing ? null : rates.length ? Math.min(...rates) : null,
     services: [...new Set(rooms.map((r) => r.roomType).filter(Boolean) as string[])].slice(0, 4),
     nextOpenAt,
     bookingPath: `/book/${org.slug}`,

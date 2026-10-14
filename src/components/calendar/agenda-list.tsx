@@ -10,6 +10,7 @@ import { longDate, timeOfDay, duration } from "@/lib/format";
 import { SESSION_STATUS, meta, serviceLabel, titleCase } from "@/lib/labels";
 import { startOfDay, statusColor, type Session } from "./constants";
 import { PendingChangeDot } from "./pending-change-dot";
+import { RequestBadge } from "@/components/bookings/request-decision";
 
 /** Upcoming sessions grouped by day - the agenda alternative to the grid. */
 export function AgendaList({
@@ -79,10 +80,13 @@ export function AgendaList({
                           <p className="min-w-0 flex-1 text-sm font-medium leading-snug text-bone [display:-webkit-box] [-webkit-box-orient:vertical] [-webkit-line-clamp:2] overflow-hidden">
                             {s.title}
                           </p>
-                          <PendingChangeDot sessionId={s._id} />
-                          <Badge tone={st.tone} className="shrink-0">
-                            {st.label}
-                          </Badge>
+                          <span className="flex shrink-0 items-center gap-1">
+                            <PendingChangeDot sessionId={s._id} />
+                            <RequestBadge requestStatus={s.requestStatus} />
+                            <Badge tone={st.tone} className="shrink-0">
+                              {st.label}
+                            </Badge>
+                          </span>
                         </div>
                         <p className="text-xs leading-relaxed text-steel/70">
                           {serviceLabel(s.serviceType, s.customService)}
