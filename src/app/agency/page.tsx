@@ -59,7 +59,7 @@ export default function AgencyOverviewPage() {
         title="System overview"
         description="The whole network in one place - revenue, subscribers, pipelines, outreach, and the studios that drive it all."
         actions={
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <BetaInvitesButton />
             <CreateSubaccountDialog />
             <InviteStudioDialog />
