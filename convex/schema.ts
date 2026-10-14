@@ -543,6 +543,9 @@ export default defineSchema({
     googleCalendarPushErrorAt: v.optional(v.number()),
     // Personal brand look on top of accent color: a preset id or "custom".
     brandPreset: v.optional(v.string()),
+    // Surface style for the whole app + booking page. Unset = "hardware" (the
+    // current Pulse look). "glass" = iOS-style frosted glass surfaces.
+    uiStyle: v.optional(v.union(v.literal("hardware"), v.literal("glass"))),
   })
     .index("by_org", ["orgId"])
     .index("by_slug", ["slug"])
