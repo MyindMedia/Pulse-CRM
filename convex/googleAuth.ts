@@ -4,7 +4,7 @@ import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { currentOrg } from "./lib/tenant";
 import { SETUP_ACCESS } from "./lib/access";
-import { googleConfigured, googleAuthUrl } from "./lib/google";
+import { googleConfigured, googleAuthUrl, RECONNECT_REQUIRED } from "./lib/google";
 
 /* Google account connect (P4). Studios link their Google account so client
    email sends as their real Gmail. OAuth callback is handled in http.ts. */
@@ -18,6 +18,7 @@ export const status = query({
       configured: googleConfigured(),
       connected: Boolean(org?.googleRefreshToken),
       email: org?.googleEmail ?? null,
+      needsReconnect: !org?.googleRefreshToken && org?.googleCalendarSyncError === RECONNECT_REQUIRED,
     };
   },
 });
@@ -57,19 +58,84 @@ export const _consumeOAuthState = internalMutation({
   },
 });
 
+/* The state row carries the level without a schema change: a team member's
+   connect stores `<orgId>::member::<memberId>` in the org column. */
+const MEMBER_MARK = "::member::";
+
+export function encodeMemberState(orgId: string, memberId: string): string {
+  return `${orgId}${MEMBER_MARK}${memberId}`;
+}
+
+export function decodeState(raw: string): { orgId: string; memberId: string | null } {
+  const i = raw.indexOf(MEMBER_MARK);
+  if (i < 0) return { orgId: raw, memberId: null };
+  return { orgId: raw.slice(0, i), memberId: raw.slice(i + MEMBER_MARK.length) };
+}
+
+/** Internal - mint a single-use state nonce for a team member's own connect. */
+export const _createMemberOAuthState = internalMutation({
+  args: { orgId: v.string(), memberId: v.string(), nonce: v.string() },
+  handler: async (ctx, { orgId, memberId, nonce }) => {
+    await ctx.db.insert("oauthStates", {
+      nonce,
+      orgId: encodeMemberState(orgId, memberId),
+      expiresAt: Date.now() + 10 * 60_000,
+    });
+  },
+});
+
+/** Internal - consume a nonce of either level. Null when missing, expired or
+ *  already used; otherwise the org and, for a member connect, the member. */
+export const _consumeState = internalMutation({
+  args: { nonce: v.string() },
+  handler: async (ctx, { nonce }): Promise<{ orgId: string; memberId: string | null } | null> => {
+    const row = await ctx.db.query("oauthStates").withIndex("by_nonce", (q) => q.eq("nonce", nonce)).first();
+    if (!row) return null;
+    await ctx.db.delete(row._id);
+    if (row.expiresAt < Date.now()) return null;
+    return decodeState(row.orgId);
+  },
+});
+
 /** Internal - store the refresh token + connected email after OAuth callback. */
 export const _storeTokens = internalMutation({
   args: { orgId: v.string(), refreshToken: v.string(), email: v.optional(v.string()) },
   handler: async (ctx, { orgId, refreshToken, email }) => {
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     if (org) {
+      // A different Google account has different calendars: forget the old pick.
+      const sameAccount = !org.googleEmail || !email || org.googleEmail === email;
       await ctx.db.patch(org._id, {
         googleRefreshToken: refreshToken,
-        googleEmail: email,
+        googleEmail: email ?? org.googleEmail,
         googleConnectedAt: Date.now(),
         emailProvider: "google",
+        googleCalendarSyncToken: undefined,
+        googleCalendarSyncError: undefined,
+        googleCalendarPushError: undefined,
+        googleCalendarPushErrorAt: undefined,
+        ...(sameAccount ? {} : { googleCalendarId: undefined, googleCalendarName: undefined }),
       });
     }
+  },
+});
+
+/** Internal - Google refused the stored token (invalid_grant). Clear it so
+ *  nothing keeps retrying, fall email back to the internal channel, and leave
+ *  a marker the settings card turns into "Reconnect Google". */
+export const _markReconnect = internalMutation({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+    if (!org?.googleRefreshToken) return;
+    await ctx.db.patch(org._id, {
+      googleRefreshToken: undefined,
+      googleCalendarSyncToken: undefined,
+      googleCalendarSyncError: RECONNECT_REQUIRED,
+      googleCalendarPushError: undefined,
+      googleCalendarPushErrorAt: undefined,
+      ...(org.emailProvider === "google" ? { emailProvider: "internal" as const } : {}),
+    });
   },
 });
 
@@ -102,6 +168,10 @@ export const disconnect = mutation({
         googleEmail: undefined,
         googleConnectedAt: undefined,
         emailProvider: "internal",
+        googleCalendarSyncToken: undefined,
+        googleCalendarSyncError: undefined,
+        googleCalendarPushError: undefined,
+        googleCalendarPushErrorAt: undefined,
       });
     }
   },

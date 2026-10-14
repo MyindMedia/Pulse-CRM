@@ -5,6 +5,7 @@ import { useQuery, useAction, useMutation } from "convex/react";
 import { ConvexError } from "convex/values";
 import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
+import { REASON_MESSAGES } from "@convex/lib/googleReasons";
 import { Mail, CheckCircle2, ArrowUpRight, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -54,7 +55,10 @@ export function EmailConnectCard() {
     if (typeof window === "undefined") return;
     const p = new URLSearchParams(window.location.search);
     if (p.get("google") === "connected") toast.success("Google account connected.");
-    if (p.get("google") === "error") toast.error("Couldn’t connect Google. Try again.");
+    if (p.get("google") === "error") {
+      const reason = (p.get("reason") ?? "server_error") as keyof typeof REASON_MESSAGES;
+      toast.error(REASON_MESSAGES[reason] ?? "Couldn’t connect Google. Try again.");
+    }
   }, []);
 
   async function connectGoogle() {
