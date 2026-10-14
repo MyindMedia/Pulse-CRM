@@ -32,10 +32,19 @@
   --pl-yellow: #ffc900;
   --pl-yellow-hover: #ffd633;
   --pl-yellow-press: #e0b000;
-  --pl-yellow-soft: rgba(255, 201, 0, 0.14);
-  --pl-grid-line: rgba(255, 201, 0, 0.05);
+  /* Brand-followable parts of the yellow family (OrgTheme overrides these
+     per studio; the values here are the stock look). */
+  --pl-yellow-rgb: 255, 201, 0;
+  --pl-yellow-top: #ffe066;
+  --pl-yellow-edge: #8a6d00;
+  --pl-yellow-edge-deep: #5c4900;
+  --pl-yellow-soft: rgba(var(--pl-yellow-rgb), 0.14);
+  --pl-grid-line: rgba(var(--pl-yellow-rgb), 0.05);
   --pl-on-yellow: #111111;
   --pl-copper: #d0947b;
+  --pl-copper-rgb: 208, 148, 123;
+  /* The room light's dim third pool. */
+  --pl-amber-rgb: 255, 214, 150;
   --pl-metal-100: #e4e4e8;
   --pl-metal-300: #9a9aa0;
   --pl-metal-500: #5c5c62;
@@ -56,8 +65,8 @@
   --pl-shadow-key: inset 0 1px 0 rgba(255, 255, 255, 0.22), inset 0 -1px 0 rgba(0, 0, 0, 0.4), 0.7px 1px 0 #18181a,
     1.4px 2px 0 #121214, 0 4px 8px rgba(0, 0, 0, 0.5);
   --pl-shadow-key-pressed: inset 1px 2px 4px rgba(0, 0, 0, 0.7), 0 1px 0 rgba(255, 255, 255, 0.12);
-  --pl-glow-yellow: 0 0 14px 4px rgba(255, 201, 0, 0.65);
-  --pl-glow-yellow-soft: 0 0 8px rgba(255, 201, 0, 0.6);
+  --pl-glow-yellow: 0 0 14px 4px rgba(var(--pl-yellow-rgb), 0.65);
+  --pl-glow-yellow-soft: 0 0 8px rgba(var(--pl-yellow-rgb), 0.6);
   --pl-radius-chassis: 14px;
   --pl-radius-well: 7px;
   --pl-radius-screen: 4px;
@@ -108,7 +117,7 @@
 :root:has(.pulse-hw) {
   --chart-line-primary: var(--pl-yellow);
   --chart-line-secondary: var(--pl-metal-100);
-  --chart-grid: rgba(255, 201, 0, 0.08);
+  --chart-grid: rgba(var(--pl-yellow-rgb), 0.08);
   --chart-crosshair: var(--pl-yellow);
   --chart-background: var(--pl-well);
   --chart-foreground: var(--pl-ink-subtle);
@@ -208,6 +217,51 @@
   animation-duration: 9.5s;
   animation-delay: -4s;
 }
+/* A studio with brand colors (OrgTheme sets data-brand-theme on <html>):
+   the same pads, tinted instead of baked. Each SVG becomes an alpha mask
+   over a solid fill of the brand color (--pl-yellow) or the secondary
+   (--pl-copper); the blinking sheets split into a gold and a copper mask on
+   the span's two pseudo-elements, so the span's blink still fades both.
+   The stock look keeps the baked SVGs above, untouched to the pixel. */
+:root[data-brand-theme] .pl-tiles-lit,
+:root[data-brand-theme] .pl-tiles-blink::before,
+:root[data-brand-theme] .pl-tiles-blink::after {
+  -webkit-mask-repeat: repeat;
+  mask-repeat: repeat;
+  -webkit-mask-size: 448px 448px;
+  mask-size: 448px 448px;
+}
+:root[data-brand-theme] .pl-tiles-lit {
+  background-image: none;
+  background-color: var(--pl-yellow);
+  -webkit-mask-image: url("/hw/tiles-lit.svg?v=1");
+  mask-image: url("/hw/tiles-lit.svg?v=1");
+}
+:root[data-brand-theme] .pl-tiles-blink { background-image: none; }
+:root[data-brand-theme] .pl-tiles-blink::before,
+:root[data-brand-theme] .pl-tiles-blink::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+}
+:root[data-brand-theme] .pl-tiles-blink::before { background-color: var(--pl-yellow); }
+:root[data-brand-theme] .pl-tiles-blink::after { background-color: var(--pl-copper); }
+:root[data-brand-theme] .pl-tiles-blink-a::before {
+  -webkit-mask-image: url("/hw/tiles-blink-a-gold.svg?v=1");
+  mask-image: url("/hw/tiles-blink-a-gold.svg?v=1");
+}
+:root[data-brand-theme] .pl-tiles-blink-a::after {
+  -webkit-mask-image: url("/hw/tiles-blink-a-copper.svg?v=1");
+  mask-image: url("/hw/tiles-blink-a-copper.svg?v=1");
+}
+:root[data-brand-theme] .pl-tiles-blink-b::before {
+  -webkit-mask-image: url("/hw/tiles-blink-b-gold.svg?v=1");
+  mask-image: url("/hw/tiles-blink-b-gold.svg?v=1");
+}
+:root[data-brand-theme] .pl-tiles-blink-b::after {
+  -webkit-mask-image: url("/hw/tiles-blink-b-copper.svg?v=1");
+  mask-image: url("/hw/tiles-blink-b-copper.svg?v=1");
+}
 @keyframes pl-tiles-drift {
   from { transform: translate3d(0, 0, 0); }
   to   { transform: translate3d(448px, 448px, 0); }
@@ -231,7 +285,7 @@
   height: 70vmax;
   left: -30vmax;
   top: -37vmax;
-  background: radial-gradient(closest-side, rgba(255, 201, 0, 0.27), rgba(255, 201, 0, 0.1) 40%, transparent);
+  background: radial-gradient(closest-side, rgba(var(--pl-yellow-rgb), 0.27), rgba(var(--pl-yellow-rgb), 0.1) 40%, transparent);
   animation-name: pl-drift-gold;
   animation-duration: 30s;
 }
@@ -240,7 +294,7 @@
   height: 64vmax;
   right: -28vmax;
   bottom: -36vmax;
-  background: radial-gradient(closest-side, rgba(208, 148, 123, 0.25), rgba(208, 148, 123, 0.09) 40%, transparent);
+  background: radial-gradient(closest-side, rgba(var(--pl-copper-rgb), 0.25), rgba(var(--pl-copper-rgb), 0.09) 40%, transparent);
   animation-name: pl-drift-copper;
   animation-duration: 38s;
 }
@@ -249,7 +303,7 @@
   height: 46vmax;
   left: 30vw;
   top: 28vh;
-  background: radial-gradient(closest-side, rgba(255, 214, 150, 0.16), transparent);
+  background: radial-gradient(closest-side, rgba(var(--pl-amber-rgb), 0.16), transparent);
   animation-name: pl-drift-amber;
   animation-duration: 22s;
 }
@@ -433,11 +487,11 @@
 :root:has(.pulse-hw) .pl-key[data-variant="brutal"] {
   background: linear-gradient(180deg, var(--pl-yellow-hover), var(--pl-yellow));
   color: var(--pl-on-yellow);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -1px 0 rgba(0, 0, 0, 0.25), 0.7px 1px 0 #8a6d00,
-    1.4px 2px 0 #5c4900, 0 4px 12px rgba(255, 201, 0, 0.25);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), inset 0 -1px 0 rgba(0, 0, 0, 0.25), 0.7px 1px 0 var(--pl-yellow-edge),
+    1.4px 2px 0 var(--pl-yellow-edge-deep), 0 4px 12px rgba(var(--pl-yellow-rgb), 0.25);
 }
 :root:has(.pulse-hw) .pl-key[data-variant="primary"]:hover,
-:root:has(.pulse-hw) .pl-key[data-variant="brutal"]:hover { background: linear-gradient(180deg, #ffe066, var(--pl-yellow-hover)); }
+:root:has(.pulse-hw) .pl-key[data-variant="brutal"]:hover { background: linear-gradient(180deg, var(--pl-yellow-top), var(--pl-yellow-hover)); }
 :root:has(.pulse-hw) .pl-key[data-variant="primary"]:active,
 :root:has(.pulse-hw) .pl-key[data-variant="brutal"]:active { background: var(--pl-yellow-press); box-shadow: var(--pl-shadow-key-pressed); }
 :root:has(.pulse-hw) .pl-key:is([data-variant="secondary"], [data-variant="outline"], [data-variant="glass"]) {
@@ -532,7 +586,7 @@
   height: 3px;
   border-radius: 999px;
   background: var(--pl-yellow);
-  box-shadow: 0 0 8px rgba(255, 201, 0, 0.45);
+  box-shadow: 0 0 8px rgba(var(--pl-yellow-rgb), 0.45);
 }
 
 /* Kicker / section label: 10.5px, 700, tracked uppercase. */
@@ -660,7 +714,7 @@
 }
 :root:has(.pulse-hw) .pl-groove-fill[data-tone="yellow"] {
   background: var(--pl-yellow);
-  box-shadow: 0 0 8px rgba(255, 201, 0, 0.55);
+  box-shadow: 0 0 8px rgba(var(--pl-yellow-rgb), 0.55);
 }
 :root:has(.pulse-hw) .pl-groove-fill[data-tone="copper"] { background: var(--pl-copper); }
 :root:has(.pulse-hw) .pl-knob {
@@ -737,11 +791,11 @@
 :root:has(.pulse-hw) .pl-block[data-selected="true"] {
   background: linear-gradient(180deg, var(--pl-yellow-hover), var(--pl-yellow));
   color: var(--pl-on-yellow);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0.7px 1px 0 #8a6d00, 1.4px 2px 0 #5c4900,
-    0 4px 12px rgba(255, 201, 0, 0.25);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.35), 0.7px 1px 0 var(--pl-yellow-edge), 1.4px 2px 0 var(--pl-yellow-edge-deep),
+    0 4px 12px rgba(var(--pl-yellow-rgb), 0.25);
 }
 :root:has(.pulse-hw) .pl-block[data-hold="true"]:not([data-selected="true"]) {
-  background: repeating-linear-gradient(135deg, rgba(255, 201, 0, 0.16) 0 6px, transparent 6px 12px), var(--pl-well);
+  background: repeating-linear-gradient(135deg, rgba(var(--pl-yellow-rgb), 0.16) 0 6px, transparent 6px 12px), var(--pl-well);
   box-shadow: inset 0 0 0 1px var(--pl-yellow);
   color: var(--pl-yellow);
 }

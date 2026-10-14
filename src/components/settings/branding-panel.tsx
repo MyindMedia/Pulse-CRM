@@ -7,13 +7,11 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import {
-  Check,
   Disc3,
   ExternalLink,
   Image as ImageIcon,
   Info,
   Palette,
-  Pipette,
 } from "lucide-react";
 import {
   Card,
@@ -29,11 +27,10 @@ import { Field, Input, Textarea } from "@/components/ui/field";
 import { Switch } from "@/components/ui/toggle";
 import { AssetUploader } from "@/components/settings/asset-uploader";
 import { BookingLinkShare } from "@/components/settings/booking-link-share";
-import { cn } from "@/lib/utils";
+import { BrandColorsCard } from "@/components/settings/brand-colors-card";
 import { extractBrandFromImage } from "@/lib/brand-theme";
-import { ACCENT_SWATCHES, type Org } from "@/components/settings/types";
+import { type Org } from "@/components/settings/types";
 
-const HEX_RE = /^#?[0-9a-fA-F]{6}$/;
 const DEFAULT_HEADLINE = "Book studio time";
 
 /** Branding settings - logo, accent color, identity and booking-page theming. */
@@ -64,7 +61,6 @@ export function BrandingPanel({ org }: { org: Org }) {
 
   const [name, setName] = React.useState(org.name);
   const [tagline, setTagline] = React.useState(org.tagline);
-  const [accent, setAccent] = React.useState(org.accentColor);
   const [headline, setHeadline] = React.useState(org.bookingHeadline ?? "");
   const [intro, setIntro] = React.useState(org.bookingIntro ?? "");
   const [deposit, setDeposit] = React.useState(org.depositPolicyText ?? "");
@@ -87,26 +83,18 @@ export function BrandingPanel({ org }: { org: Org }) {
     setPrevOrgSig(orgSig);
     setName(org.name);
     setTagline(org.tagline);
-    setAccent(org.accentColor);
     setHeadline(org.bookingHeadline ?? "");
     setIntro(org.bookingIntro ?? "");
     setDeposit(org.depositPolicyText ?? "");
     setShowGear(org.showGearOnBooking);
-    setShowGear(org.showGearOnBooking);
   }
 
-  const accentTrim = accent.trim();
-  const accentValid = HEX_RE.test(accentTrim);
-  const normalizedAccent = accentTrim.startsWith("#")
-    ? accentTrim
-    : `#${accentTrim}`;
-  const previewAccent = accentValid ? normalizedAccent : org.accentColor;
+  // Brand colors live in their own card (BrandColorsCard) with their own save.
+  const previewAccent = org.accentColor;
 
   const dirty =
     name.trim() !== org.name ||
     tagline.trim() !== org.tagline ||
-    (accentValid &&
-      normalizedAccent.toLowerCase() !== org.accentColor.toLowerCase()) ||
     headline.trim() !== (org.bookingHeadline ?? "") ||
     intro.trim() !== (org.bookingIntro ?? "") ||
     deposit.trim() !== (org.depositPolicyText ?? "") ||
@@ -124,14 +112,13 @@ export function BrandingPanel({ org }: { org: Org }) {
     try {
       const extracted = await extractBrandFromImage(org.logoUrl);
       if (!extracted) {
-        toast.info("This logo reads as monochrome - pick an accent below instead.");
+        toast.info("This logo reads as monochrome - pick brand colors below instead.");
         return;
       }
       await applyBrandFromLogo({
         accentColor: extracted.accent,
         palette: extracted.palette,
       });
-      setAccent(extracted.accent);
       toast.success("Brand colors matched to your logo - fine-tune below anytime.");
     } catch {
       toast.error("Could not read colors from the logo.");
@@ -155,7 +142,6 @@ export function BrandingPanel({ org }: { org: Org }) {
         accentColor: extracted.accent,
         palette: extracted.palette,
       });
-      setAccent(extracted.accent);
       toast.success(
         "Brand colors matched to your logo - fine-tune below anytime.",
       );
@@ -173,16 +159,11 @@ export function BrandingPanel({ org }: { org: Org }) {
       toast.error("The studio needs a name.");
       return;
     }
-    if (!accentValid) {
-      toast.error("Accent color must be a 6-digit hex value.");
-      return;
-    }
     setSubmitting(true);
     try {
       await updateOrg({
         name: name.trim(),
         tagline: tagline.trim(),
-        accentColor: normalizedAccent,
         bookingHeadline: headline.trim(),
         bookingIntro: intro.trim(),
         depositPolicyText: deposit.trim(),
@@ -199,7 +180,6 @@ export function BrandingPanel({ org }: { org: Org }) {
   function reset() {
     setName(org.name);
     setTagline(org.tagline);
-    setAccent(org.accentColor);
     setHeadline(org.bookingHeadline ?? "");
     setIntro(org.bookingIntro ?? "");
     setDeposit(org.depositPolicyText ?? "");
@@ -217,7 +197,7 @@ export function BrandingPanel({ org }: { org: Org }) {
         <CardHeader>
           <CardTitle>Studio brand</CardTitle>
           <CardDescription>
-            The logo and accent color carry through the app and the public
+            The logo and studio name carry through the app and the public
             booking page.
           </CardDescription>
         </CardHeader>
@@ -285,88 +265,6 @@ export function BrandingPanel({ org }: { org: Org }) {
             </div>
           </Field>
 
-          {/* Accent color */}
-          <Field
-            label="Accent color"
-            hint="Pick a swatch, open the spectrum picker for any color, or enter a 6-digit hex value."
-          >
-            <div className="space-y-3">
-              <div className="flex flex-wrap gap-2">
-                {ACCENT_SWATCHES.map((s) => {
-                  const active =
-                    normalizedAccent.toLowerCase() === s.value.toLowerCase();
-                  return (
-                    <button
-                      key={s.value}
-                      type="button"
-                      onClick={() => setAccent(s.value)}
-                      title={s.label}
-                      aria-label={s.label}
-                      className={cn(
-                        "grid size-8 place-items-center rounded-md border transition-transform",
-                        active
-                          ? "border-bone scale-105"
-                          : "border-graphite/60 hover:scale-105",
-                      )}
-                      style={{ backgroundColor: s.value }}
-                    >
-                      {active && (
-                        <Check className="size-4 text-ink" strokeWidth={3} />
-                      )}
-                    </button>
-                  );
-                })}
-                {/* Full-spectrum picker - the native color input opens the
-                    OS color window (spectrum, sliders, eyedropper). */}
-                <label
-                  title="Custom color - full spectrum"
-                  className="relative grid size-8 cursor-pointer place-items-center overflow-hidden rounded-md border border-graphite/60 transition-transform hover:scale-105"
-                  style={{
-                    background:
-                      "conic-gradient(from 180deg, #e8442e, #e8a02d, #e3d24b, #4db56b, #3fa8c9, #4a5fd0, #9b4dd4, #d44a9b, #e8442e)",
-                  }}
-                >
-                  <input
-                    type="color"
-                    value={accentValid ? normalizedAccent : "#e0a226"}
-                    onChange={(e) => setAccent(e.target.value)}
-                    className="absolute inset-0 size-full cursor-pointer opacity-0"
-                    aria-label="Pick a custom accent color (full spectrum)"
-                  />
-                  <Pipette className="size-3.5 text-white drop-shadow-[0_1px_1px_rgba(0,0,0,0.7)]" />
-                </label>
-              </div>
-              <div className="flex items-center gap-2">
-                <span
-                  className="size-9 shrink-0 rounded-md border border-graphite/60"
-                  style={{
-                    backgroundColor: accentValid
-                      ? normalizedAccent
-                      : "transparent",
-                  }}
-                  aria-hidden
-                />
-                <Input
-                  value={accent}
-                  onChange={(e) => setAccent(e.target.value)}
-                  placeholder="#E0A226"
-                  className={cn(
-                    "max-w-40 font-meta",
-                    !accentValid &&
-                      accentTrim !== "" &&
-                      "border-critical/50",
-                  )}
-                  aria-label="Accent color hex"
-                />
-                {!accentValid && accentTrim !== "" && (
-                  <span className="text-[0.6875rem] text-critical">
-                    Enter a 6-digit hex.
-                  </span>
-                )}
-              </div>
-            </div>
-          </Field>
-
           {/* Identity */}
           <div className="grid gap-5 sm:grid-cols-2">
             <Field label="Studio name" htmlFor="brand-name">
@@ -393,6 +291,8 @@ export function BrandingPanel({ org }: { org: Org }) {
           </div>
         </CardContent>
       </Card>
+
+      <BrandColorsCard org={org} />
 
       {/* Booking page */}
       <Card>
