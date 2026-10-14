@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { entityHref } from "@/lib/entity-href";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
@@ -51,13 +52,6 @@ const SEVERITY = {
   info: { icon: FileText, tone: "text-info", ring: "bg-info/10" },
 } as const;
 
-const KIND_ROUTE: Record<string, string> = {
-  artist: "/roster",
-  song: "/songs",
-  session: "/calendar",
-  invoice: "/payments",
-  opportunity: "/pipeline",
-};
 
 export function ProfileMenu() {
   const org = useQuery(api.orgs.current);
@@ -305,7 +299,7 @@ function AlertsDialog({
             insights.map((it) => {
               const sev = SEVERITY[it.severity as keyof typeof SEVERITY] ?? SEVERITY.info;
               const Icon = sev.icon;
-              const route = it.entityType ? KIND_ROUTE[it.entityType] : undefined;
+              const route = entityHref(it.entityType, it.entityId);
               return (
                 <button
                   key={it._id}
@@ -314,7 +308,7 @@ function AlertsDialog({
                     if (route && it.entityId) {
                       void setStatus({ id: it._id, status: "actioned" });
                       onOpenChange(false);
-                      router.push(`${route}/${it.entityId}`);
+                      router.push(route);
                     }
                   }}
                 >
