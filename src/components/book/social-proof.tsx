@@ -81,7 +81,7 @@ export function SocialProof({
       </div>
 
       {hasTestimonials && (
-        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {testimonials.map((t, i) => (
             <figure
               key={i}
@@ -112,7 +112,7 @@ export function SocialProof({
       )}
 
       {reviews.length > 0 && (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {reviews
             .filter((r) => r.text && r.text.trim())
             .slice(0, 4)
@@ -154,7 +154,7 @@ export function EngineerRoster({
       <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
         Meet your engineers
       </h2>
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {engineers.map((e) => (
           <div
             key={e.id}

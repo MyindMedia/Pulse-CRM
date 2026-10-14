@@ -171,7 +171,7 @@ export default function CheckoutPage() {
               Showing the choice and then refusing it is how a client ends up
               believing they have held a room they have not. */}
           {!fullOnly && (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <ChoiceCard
                 active={choice === "deposit"}
                 onClick={() => setChoice("deposit")}
