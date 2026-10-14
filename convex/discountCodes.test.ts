@@ -111,8 +111,8 @@ describe("discount codes: public validation + booking redemption", () => {
       startTime: start, durationHours: 3, discountCode: "SAVE20",
     });
     // deposit / rate must equal the room's depositPct, on the discounted rate.
-    expect(res.depositCents / res.rateCents).toBeCloseTo(0.3, 5);
-    expect(res.depositCents).toBeLessThan(Math.round(res.listValueCents * 0.3));
+    expect(res.depositCents! / res.rateCents!).toBeCloseTo(0.3, 5);
+    expect(res.depositCents).toBeLessThan(Math.round(res.listValueCents! * 0.3));
   });
 
   it("rejects an unknown code instead of silently billing full price", async () => {

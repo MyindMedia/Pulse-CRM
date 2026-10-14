@@ -282,7 +282,10 @@ async function applyPromptAnswer(
     const session = prompt.sessionId ? await ctx.db.get(prompt.sessionId) : null;
     if (!session) return false;
     if (intent === "yes") {
-      if (session.status === "tentative") await ctx.db.patch(session._id, { status: "confirmed" });
+      // A pending booking request is confirmed by an owner or manager only.
+      if (session.status === "tentative" && session.requestStatus !== "pending") {
+        await ctx.db.patch(session._id, { status: "confirmed" });
+      }
       await answerPrompt(ctx, prompt, "yes");
       queueSend(ctx, phone, renderSms(CLIENT_CONFIRM_ACK, { title: session.title, studio }));
       return true;

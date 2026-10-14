@@ -654,6 +654,11 @@ export const setStatus = mutation({
     );
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) throw new Error("Not found");
+    // A pending booking request is confirmed by approving it (owners and
+    // managers, bookingRequests.approve), which also tells the client.
+    if (s.requestStatus === "pending" && status === "confirmed") {
+      throw new Error("This is a booking request. Approve it to confirm it.");
+    }
     // Snapshot BEFORE the patch: only a fresh transition out of an active state
     // into cancelled / no-show assesses the shield (so a re-set is idempotent).
     const wasActive = s.status !== "cancelled" && s.status !== "no_show";
@@ -1134,7 +1139,20 @@ export const respondToEngineerRequest = mutation({
     }
     const me = await ctx.db.get(viewer.memberId);
     const name = me?.name ?? "Engineer";
-    if (accept) {
+    if (accept && session.requestStatus === "pending") {
+      // A booking request: the engineer can take it, but only an owner or
+      // manager confirms the booking (bookingRequests.approve books the shift).
+      await ctx.db.patch(sessionId, { engineerRequestStatus: "confirmed" });
+      await ctx.db.insert("activity", {
+        orgId: session.orgId,
+        kind: "engineer.confirmed",
+        summary: `${name} can take ${session.title} - request still waiting on approval`,
+        actorName: name,
+        entityType: "session",
+        entityId: sessionId,
+        accent: "gold",
+      });
+    } else if (accept) {
       await ctx.db.patch(sessionId, {
         engineerRequestStatus: "confirmed",
         status: "confirmed",
@@ -1185,6 +1203,9 @@ export const overrideEngineerConfirmation = mutation({
     if (!session || session.orgId !== orgId) throw new Error("Session not found");
     if (session.engineerRequestStatus !== "pending") {
       throw new Error("This request has already been handled.");
+    }
+    if (session.requestStatus === "pending") {
+      throw new Error("This is a booking request. Approve it to confirm it.");
     }
     await ctx.db.patch(sessionId, {
       engineerRequestStatus: "overridden",
