@@ -173,7 +173,9 @@ function BlockForm({
   const remove = useMutation(api.roomBlocks.remove);
   const { role } = useCapabilities();
 
-  const initDate = toDateInputValue(block ? block.startTime : (defaultDate ?? startOfDay(Date.now())));
+  const [initDate] = React.useState(() =>
+    toDateInputValue(block ? block.startTime : (defaultDate ?? startOfDay(Date.now()))),
+  );
   const [roomId, setRoomId] = React.useState<string>(block?.roomId ?? defaultRoomId ?? "");
   const [gran, setGran] = React.useState<RoomBlock["granularity"]>(block?.granularity ?? "day");
   const [startDate, setStartDate] = React.useState(initDate);
