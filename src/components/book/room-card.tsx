@@ -14,9 +14,10 @@ export type RoomCardData = {
   _id: string;
   name: string;
   roomType?: string;
-  hourlyRateCents: number;
+  /** Absent when the studio hides pricing on its booking link. */
+  hourlyRateCents?: number;
   minimumHours: number;
-  depositPct: number;
+  depositPct?: number;
   gearCount: number;
   gearPreview: string[];
   photos: string[];
@@ -58,10 +59,12 @@ export function RoomCard({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            <span className="font-meta text-sm text-bone">
-              {money(room.hourlyRateCents)}
-              <span className="text-steel/70"> / hr</span>
-            </span>
+            {room.hourlyRateCents !== undefined && (
+              <span className="font-meta text-sm text-bone">
+                {money(room.hourlyRateCents)}
+                <span className="text-steel/70"> / hr</span>
+              </span>
+            )}
             <Badge tone="neutral">
               <Clock className="size-3" />
               {room.minimumHours}h minimum

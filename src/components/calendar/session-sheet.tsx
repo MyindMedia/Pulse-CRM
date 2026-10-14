@@ -6,6 +6,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import { useCapabilities } from "@/lib/use-capabilities";
+import { RequestBadge, RequestDecision } from "@/components/bookings/request-decision";
 import { QRCodeSVG } from "qrcode.react";
 import {
   CheckCircle2,
@@ -180,6 +181,7 @@ export function SessionSheet({
                   {meta(SESSION_STATUS, detail.status).label}
                 </Badge>
                 <Badge tone="neutral">{serviceLabel(detail.serviceType, detail.customService)}</Badge>
+                <RequestBadge requestStatus={detail.requestStatus} />
               </div>
               <SheetTitle>{detail.title}</SheetTitle>
               <SheetDescription>
@@ -189,6 +191,11 @@ export function SessionSheet({
             </SheetHeader>
 
             <SheetBody className="space-y-5">
+              <RequestDecision
+                sessionId={detail._id}
+                requestStatus={detail.requestStatus}
+                amountPaidCents={"amountPaidCents" in detail ? detail.amountPaidCents : undefined}
+              />
               <div className="divide-y divide-hairline">
                 <Row label="Artist">
                   <span className="inline-flex items-center gap-2">

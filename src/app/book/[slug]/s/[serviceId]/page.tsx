@@ -27,6 +27,7 @@ import {
   emptyAddOns,
   type AddOnSelection,
 } from "@/components/book/add-ons-picker";
+import { RequestSummary, ApprovalNote } from "@/components/book/request-summary";
 import { cn } from "@/lib/utils";
 import { useTrackBookingStep, visitorKey } from "@/lib/use-booking-funnel";
 
@@ -114,15 +115,17 @@ function ServiceBookingView() {
 
   const svc = service;
   const flat = svc.pricingMode === "flat";
+  /* Booking link without prices: no amounts were sent, so no money UI. */
+  const pricingHidden = svc.pricingHidden;
   const addOnCents = svc.addOns
     .filter((a) => chosenAddOns.includes(a._id))
-    .reduce((sum, a) => sum + a.amountCents, 0);
+    .reduce((sum, a) => sum + (a.amountCents ?? 0), 0);
   /* Display maths only - createBooking recomputes every number on the server,
      from the studio's own prices. */
   const liveServiceCents = selection
     ? flat
-      ? svc.priceCents
-      : svc.priceCents * selection.durationHours
+      ? (svc.priceCents ?? 0)
+      : (svc.priceCents ?? 0) * selection.durationHours
     : 0;
   const liveTotalCents =
     liveServiceCents + (selection ? addOnCents + crew.addOnTotalCents : 0);
@@ -131,7 +134,7 @@ function ServiceBookingView() {
   const fullOnly = svc.paymentMode === "full";
   const liveDepositCents = fullOnly
     ? liveTotalCents
-    : Math.round((liveTotalCents * svc.depositPct) / 100);
+    : Math.round((liveTotalCents * (svc.depositPct ?? 0)) / 100);
   /* An engineer declared as needed but not chosen is a booking the studio
      cannot staff - the same guard the room page has. */
   const engineerOk = !crew.needsEngineer || Boolean(crew.engineerId);
@@ -142,6 +145,17 @@ function ServiceBookingView() {
       prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
     );
   }
+
+  const detailsSection = (
+    <section className="space-y-3">
+      <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
+        Your details
+      </h2>
+      <div className="space-y-5 rounded-lg border border-graphite/50 bg-coal p-5">
+        <BookingForm values={form} onChange={setForm} />
+      </div>
+    </section>
+  );
 
   async function handleContinue() {
     if (!selection || !formValid) return;
@@ -163,7 +177,11 @@ function ServiceBookingView() {
         src: srcFromLink,
         visitorKey: visitorKey() ?? undefined,
       });
-      toast.success("Booking held - finish payment to confirm.");
+      toast.success(
+        pricingHidden
+          ? "Request sent. The studio will confirm by email and text."
+          : "Booking held - finish payment to confirm.",
+      );
       router.push(`/book/${slug}/checkout/${result.sessionId}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not hold that booking.");
@@ -204,10 +222,12 @@ function ServiceBookingView() {
             {svc.blurb && <p className="max-w-xl text-sm text-steel">{svc.blurb}</p>}
           </div>
           <div className="text-right">
-            <p className="font-meta text-2xl text-gold">
-              {money(svc.priceCents)}
-              <span className="text-sm text-steel">{flat ? "" : "/hr"}</span>
-            </p>
+            {svc.priceCents !== undefined && (
+              <p className="font-meta text-2xl text-gold">
+                {money(svc.priceCents)}
+                <span className="text-sm text-steel">{flat ? "" : "/hr"}</span>
+              </p>
+            )}
             <p className="text-xs text-steel">
               {flat
                 ? `${svc.blockHours}-hour session`
@@ -234,14 +254,7 @@ function ServiceBookingView() {
       )}
 
       {/* Details, then the time - the order the booking actually happens. */}
-      <section className="space-y-3">
-        <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
-          Your details
-        </h2>
-        <div className="space-y-5 rounded-lg border border-graphite/50 bg-coal p-5">
-          <BookingForm values={form} onChange={setForm} />
-        </div>
-      </section>
+      {!pricingHidden && detailsSection}
 
       <section className="space-y-3">
         <h2 className="font-grotesk text-lg font-semibold tracking-tight text-bone">
@@ -314,9 +327,11 @@ function ServiceBookingView() {
                         <span className="font-grotesk text-sm font-semibold text-bone">
                           {a.label}
                         </span>
-                        <span className="font-meta text-sm text-gold">
-                          {money(a.amountCents)}
-                        </span>
+                        {a.amountCents !== undefined && (
+                          <span className="font-meta text-sm text-gold">
+                            {money(a.amountCents)}
+                          </span>
+                        )}
                       </span>
                       {a.description && (
                         <span className="mt-1 block text-xs leading-relaxed text-steel">
@@ -332,7 +347,31 @@ function ServiceBookingView() {
         </section>
       )}
 
+      {pricingHidden && detailsSection}
+
       <section className="space-y-3">
+        {pricingHidden ? (
+          <RequestSummary
+            lines={[
+              { label: `${svc.name}${selection && !flat ? ` (${selection.durationHours}h)` : ""}` },
+              ...(crew.engineerName ? [{ label: "Engineer", value: crew.engineerName }] : []),
+              ...crew.gear.map((g) => ({ label: g.name, value: "Requested" })),
+              ...svc.addOns
+                .filter((a) => chosenAddOns.includes(a._id))
+                .map((a) => ({ label: a.label, value: "Requested" })),
+            ]}
+            canSubmit={canSubmit}
+            submitting={submitting}
+            onSubmit={() => void handleContinue()}
+            hint={
+              !selection
+                ? "Pick a date and time to continue."
+                : !formValid
+                  ? "Add your name and a valid email to continue."
+                  : null
+            }
+          />
+        ) : (
         <div className="space-y-3 rounded-lg border border-graphite/50 bg-coal p-5">
           <div className="flex items-center justify-between text-sm">
             <span className="text-steel">
@@ -360,7 +399,7 @@ function ServiceBookingView() {
             .map((a) => (
               <div key={a._id} className="flex items-center justify-between text-sm">
                 <span className="text-steel">{a.label}</span>
-                <span className="font-meta text-bone">{money(a.amountCents)}</span>
+                <span className="font-meta text-bone">{money(a.amountCents ?? 0)}</span>
               </div>
             ))}
           <div className="flex items-center justify-between border-t border-graphite/40 pt-3">
@@ -387,7 +426,9 @@ function ServiceBookingView() {
               Pick a date and time to see your total.
             </p>
           )}
+          {svc.requiresApproval && <ApprovalNote />}
         </div>
+        )}
       </section>
     </div>
   );

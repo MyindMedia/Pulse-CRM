@@ -9,6 +9,7 @@ import { meta, SESSION_STATUS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { bookingMoney, isOnline, type BookingRow } from "./types";
 import { HoldCountdown } from "./hold-countdown";
+import { RequestBadge } from "./request-decision";
 
 /**
  * A single booking in the pipeline. Compact, scannable: client, room,
@@ -51,6 +52,7 @@ export function BookingCard({
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1">
               <Badge tone={status.tone}>{status.label}</Badge>
+              <RequestBadge requestStatus={booking.requestStatus} />
               {online && (
                 <Badge tone="gold">
                   <Globe className="size-2.5" />
