@@ -1,4 +1,6 @@
 import { internalMutation } from "./functions";
+import { internalAction } from "./_generated/server";
+import { internal } from "./_generated/api";
 import { v } from "convex/values";
 import type { Id } from "./_generated/dataModel";
 
@@ -53,6 +55,13 @@ export const fillYear = internalMutation({
     weeksBack: v.optional(v.number()), // history depth (default 40)
     weeksFwd: v.optional(v.number()), // upcoming depth (default 12)
     nowMs: v.optional(v.number()),
+    // Chunking (refreshYear): fill only weeks [weekFrom, weekTo), skip the
+    // wipe and/or the pipeline. One call for the whole year no longer fits
+    // the 1s mutation limit once triggers write a changeLog row per insert.
+    weekFrom: v.optional(v.number()),
+    weekTo: v.optional(v.number()),
+    skipWipe: v.optional(v.boolean()),
+    skipPipeline: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const orgId = args.orgId;
@@ -70,6 +79,7 @@ export const fillYear = internalMutation({
     const engineers = members.slice(0, Math.max(1, Math.min(members.length, 5)));
 
     // ── Wipe prior demo_year content (idempotent re-fill) ──
+    if (!args.skipWipe) {
     const oldSessions = await ctx.db.query("sessions").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
     const oldSeededIds = new Set(oldSessions.filter((x) => x.source === TAG).map((x) => x._id as string));
     const oldNotes = await ctx.db.query("notifications").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
@@ -83,6 +93,7 @@ export const fillYear = internalMutation({
     for (const iv of oldInv) if (iv.number.startsWith("DEMO-")) await ctx.db.delete(iv._id);
     const oldOpps = await ctx.db.query("opportunities").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
     for (const o of oldOpps) if (o.source === TAG) await ctx.db.delete(o._id);
+    }
 
     // Monday of the earliest week in the window.
     const startMonday = (() => {
@@ -98,8 +109,9 @@ export const fillYear = internalMutation({
     let invoiceCount = 0;
     let invSeq = 1000;
 
-    for (let w = 0; w < totalWeeks; w++) {
+    for (let w = args.weekFrom ?? 0; w < Math.min(args.weekTo ?? totalWeeks, totalWeeks); w++) {
       const weekStart = startMonday + w * 7 * DAY;
+      invSeq = 1000 + w * 100; // stable per week, so chunks never collide
 
       // ── Standing staff schedule: each engineer works a few fixed days ──
       for (let e = 0; e < engineers.length; e++) {
@@ -288,7 +300,7 @@ export const fillYear = internalMutation({
     ];
     const pr = makeRng(now + 7);
     let oppCount = 0;
-    for (const sg of STAGES) {
+    for (const sg of args.skipPipeline ? [] : STAGES) {
       for (let i = 0; i < sg.n; i++) {
         const a = pick(artists, pr());
         const service = pick([...SERVICES], pr());
@@ -316,5 +328,80 @@ export const fillYear = internalMutation({
       invoices: invoiceCount,
       opportunities: oppCount,
     };
+  },
+});
+
+/** One page of the demo_year wipe, so refreshYear never holds a whole
+ *  year of deletes in a single mutation. */
+export const wipeYearPage = internalMutation({
+  args: {
+    orgId: v.string(),
+    table: v.union(v.literal("sessions"), v.literal("shifts"), v.literal("invoices"), v.literal("opportunities")),
+    cursor: v.union(v.string(), v.null()),
+  },
+  handler: async (ctx, { orgId, table, cursor }) => {
+    const page = await ctx.db
+      .query(table)
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .paginate({ cursor, numItems: 60 });
+    let removed = 0;
+    for (const row of page.page) {
+      let mine = false;
+      if (table === "sessions") mine = (row as { source?: string }).source === TAG;
+      if (table === "shifts") mine = (row as { createdBy?: string }).createdBy === TAG;
+      if (table === "invoices") mine = (row as { number: string }).number.startsWith("DEMO-");
+      if (table === "opportunities") mine = (row as { source?: string }).source === TAG;
+      if (!mine) continue;
+      if (table === "sessions") {
+        const notes = await ctx.db
+          .query("notifications")
+          .withIndex("by_session", (q) => q.eq("sessionId", row._id as Id<"sessions">))
+          .collect();
+        for (const n of notes) await ctx.db.delete(n._id);
+      }
+      await ctx.db.delete(row._id);
+      removed++;
+    }
+    return { cursor: page.continueCursor, isDone: page.isDone, removed };
+  },
+});
+
+/** The whole rolling year, chunked: wipe page by page, fill week by week,
+ *  then the pipeline. Same result as fillYear in one call. */
+export const refreshYear = internalAction({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const nowMs = Date.now();
+    let removed = 0;
+    for (const table of ["sessions", "shifts", "invoices", "opportunities"] as const) {
+      let cursor: string | null = null;
+      for (;;) {
+        const r: { cursor: string; isDone: boolean; removed: number } = await ctx.runMutation(
+          internal.seedDemoYear.wipeYearPage,
+          { orgId, table, cursor },
+        );
+        removed += r.removed;
+        if (r.isDone) break;
+        cursor = r.cursor;
+      }
+    }
+    const totals = { sessions: 0, shifts: 0, invoices: 0, opportunities: 0 };
+    const weeks = 52; // weeksBack 40 + weeksFwd 12, fillYear's defaults
+    for (let w = 0; w <= weeks; w++) {
+      const r = (await ctx.runMutation(internal.seedDemoYear.fillYear, {
+        orgId,
+        nowMs,
+        skipWipe: true,
+        skipPipeline: w < weeks,
+        weekFrom: w,
+        weekTo: w + 1,
+      })) as { error?: string; sessions?: number; shifts?: number; invoices?: number; opportunities?: number };
+      if (r.error) return { error: r.error };
+      totals.sessions += r.sessions ?? 0;
+      totals.shifts += r.shifts ?? 0;
+      totals.invoices += r.invoices ?? 0;
+      totals.opportunities += r.opportunities ?? 0;
+    }
+    return { orgId, removed, ...totals };
   },
 });

@@ -50,7 +50,7 @@ export const refreshAll = internalAction({
       // Each step runs on its own, so one that times out (the year fill is
       // large and can hit the 1s mutation limit) never blocks the others.
       try {
-        const year = await ctx.runMutation(internal.seedDemoYear.fillYear, { orgId });
+        const year = await ctx.runAction(internal.seedDemoYear.refreshYear, { orgId });
         if ((year as { error?: string }).error) continue; // org not seeded with a studio yet
       } catch (e) {
         console.error(`demo-refresh: year fill failed for ${orgId}`, e);
@@ -59,6 +59,31 @@ export const refreshAll = internalAction({
         await ctx.runMutation(internal.seedDemoFinance.fill, { orgId });
       } catch (e) {
         console.error(`demo-refresh: finance fill failed for ${orgId}`, e);
+      }
+      // Rich page data (projects, releases, packages, reviews...). Re-run after
+      // the year fill because reviews, payments and engineering logs link to
+      // demo sessions the year fill just replaced.
+      for (const step of [
+        internal.seedDemoRichWork.fillSongs,
+        internal.seedDemoRichWork.fillProjects,
+        internal.seedDemoRichWork.fillTasks,
+        internal.seedDemoRichWork.fillRelease,
+        internal.seedDemoRichWork.fillSongWork,
+        internal.seedDemoRichClients.fill,
+        internal.seedDemoRichClients.fillPeople,
+        internal.seedDemoRichClients.fillTraffic,
+        // Ops: gear, payouts, Stripe clearing, marketing, media library.
+        // fillBank is deliberately left out: the pitch org holds real bank data.
+        internal.seedDemoRichOps.fillA,
+        internal.seedDemoRichOps.fillB,
+        internal.seedDemoRichOps.fillC,
+        internal.seedDemoRichOps.fillD,
+      ]) {
+        try {
+          await ctx.runMutation(step, { orgId });
+        } catch (e) {
+          console.error(`demo-refresh: rich fill step failed for ${orgId}`, e);
+        }
       }
       // Guarantees the next 24 hours are booked (Arrival prep, wrap-up).
       try {
