@@ -25,6 +25,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
 import { OpsActionSheet } from "@/components/ai/ops-action-sheet";
 import { DraftCheckBadge } from "@/components/ai/draft-check-badge";
+import { ChangesWaitingCard } from "@/components/bookings/changes-waiting-card";
 
 const DAY = 86_400_000;
 
@@ -180,6 +181,8 @@ export default function InboxPage() {
           ) : null
         }
       />
+
+      <ChangesWaitingCard />
 
       {queue === undefined ? (
         <div className="space-y-3">

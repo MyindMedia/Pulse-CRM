@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useCapabilities } from "@/lib/use-capabilities";
 import { errorMessage } from "@/lib/errors";
+import { proposalNotice } from "@/lib/change-proposal";
 import { Chassis, elapsed, hhmm, usd, useNow } from "./parts";
 
 type Today = FunctionReturnType<typeof api.today.today>;
@@ -125,8 +126,8 @@ function LiveBody({ s, next, now, money, canEdit }: { s: Row; next: Row | null; 
 
   async function add(minutes: number) {
     try {
-      await extend({ id: s._id as Id<"sessions">, addMinutes: minutes });
-      toast.success(`Extended ${minutes} minutes.`);
+      const res = await extend({ id: s._id as Id<"sessions">, addMinutes: minutes });
+      if (!proposalNotice(res)) toast.success(`Extended ${minutes} minutes.`);
     } catch (err) {
       toast.error(errorMessage(err, "Could not extend the session."));
     }

@@ -45,6 +45,8 @@ import type { BookingRow, NotificationRow, SessionStatus } from "./types";
 import { isOnline } from "./types";
 import { HoldCountdown } from "./hold-countdown";
 import { PaymentPanel } from "./payment-panel";
+import { PendingChangeBanner } from "./pending-change-banner";
+import { proposalNotice } from "@/lib/change-proposal";
 
 function Row({
   label,
@@ -200,8 +202,8 @@ export function BookingSheet({
     if (!booking) return;
     setBusy(true);
     try {
-      await setStatus({ id: booking._id, status: next });
-      toast.success(ok);
+      const res = await setStatus({ id: booking._id, status: next });
+      if (!proposalNotice(res)) toast.success(ok);
     } catch {
       toast.error("Action failed - please retry");
     } finally {
@@ -237,6 +239,7 @@ export function BookingSheet({
             </SheetHeader>
 
             <SheetBody className="space-y-5">
+              <PendingChangeBanner sessionId={booking._id} />
               <div className="divide-y divide-hairline">
                 <Row label="Client">
                   <span className="inline-flex items-center gap-2">

@@ -10,6 +10,7 @@ import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from "@/components/ui/select";
 import { useCapabilities } from "@/lib/use-capabilities";
+import { proposalNotice } from "@/lib/change-proposal";
 import {
   SuggestEngineerButton,
   SuggestedBadge,
@@ -44,6 +45,7 @@ export function UnstaffedSessions() {
   async function pick(sessionId: string, engineerId: string) {
     try {
       const res = await assign({ sessionId: sessionId as Id<"sessions">, engineerId: engineerId as Id<"members"> });
+      if (proposalNotice(res)) return;
       toast.success("Engineer assigned.");
       if (res.staffingWarning) toast.warning(res.staffingWarning);
     } catch {

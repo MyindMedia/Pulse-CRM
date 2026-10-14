@@ -57,6 +57,8 @@ import { SessionAiPanel } from "@/components/ai/session-ai-panel";
 import { CompDialog } from "./comp-dialog";
 import { BookSessionDialog, type SessionPrefill } from "./book-session-dialog";
 import { Gift } from "lucide-react";
+import { PendingChangeBanner } from "@/components/bookings/pending-change-banner";
+import { proposalNotice, type MaybeProposal } from "@/lib/change-proposal";
 
 type SessionStatus =
   | "tentative"
@@ -143,8 +145,8 @@ export function SessionSheet({
   async function run(fn: () => Promise<unknown>, ok: string) {
     setBusy(true);
     try {
-      await fn();
-      toast.success(ok);
+      const res = await fn();
+      if (!proposalNotice(res as MaybeProposal)) toast.success(ok);
     } catch {
       toast.error("Action failed - please retry");
     } finally {
@@ -189,6 +191,7 @@ export function SessionSheet({
             </SheetHeader>
 
             <SheetBody className="space-y-5">
+              <PendingChangeBanner sessionId={detail._id} />
               <div className="divide-y divide-hairline">
                 <Row label="Artist">
                   <span className="inline-flex items-center gap-2">
@@ -667,7 +670,8 @@ function FloorActionsPanel({
     setBusy(true);
     try {
       const res = await extend({ id: sessionId, addMinutes: mins });
-      toast.success(`Extended ${mins} min - rate now ${money(res.rateCents)}`);
+      if (res.proposed) proposalNotice(res);
+      else toast.success(`Extended ${mins} min - rate now ${money(res.rateCents)}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not extend the session");
     } finally {
