@@ -61,6 +61,7 @@ import type * as dataRights from "../dataRights.js";
 import type * as deliverables from "../deliverables.js";
 import type * as demoMode from "../demoMode.js";
 import type * as demoRefresh from "../demoRefresh.js";
+import type * as demoToday from "../demoToday.js";
 import type * as directory from "../directory.js";
 import type * as emailNormalization from "../emailNormalization.js";
 import type * as engineeringLogs from "../engineeringLogs.js";
@@ -405,6 +406,7 @@ declare const fullApi: ApiFromModules<{
   deliverables: typeof deliverables;
   demoMode: typeof demoMode;
   demoRefresh: typeof demoRefresh;
+  demoToday: typeof demoToday;
   directory: typeof directory;
   emailNormalization: typeof emailNormalization;
   engineeringLogs: typeof engineeringLogs;
