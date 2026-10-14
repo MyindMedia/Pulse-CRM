@@ -50,9 +50,11 @@ Source brief: `hardcover-booking-orchestrated-prompt.md`. Branch `feat/hardcover
 ## Done means
 Each feature on staging with a demo studio that has it switched on and one that has it off (unchanged behavior), tests green (`tsc`, vitest), browser check on Chromium/Firefox/WebKit, pentest on the public booking request path before ship.
 
-## Open questions for Lawrence
-1. Plan tiers: are these on every plan (Core, Growth, Max), or some on Growth/Max only?
-2. When prices are shown, should "require approval" still be possible (pay deposit, then approve)? Plan assumes yes, as two separate switches.
-3. Should room blocks and approved requests also block Google busy time, or keep Google busy time visible but non-blocking as today?
-4. Google: OK to publish the OAuth app and move the callback to `studiopulse.tech` (Lawrence clicks in Google Cloud console; verification can take weeks)?
-5. Is Hardcover a new studio to create in Pulse, and on which plan?
+## Decisions (Lawrence, 2026-10-14)
+1. Every plan (Core, Growth, Max) gets all of it.
+2. "Require approval" and "hide prices" are two separate switches.
+3. Google busy time BLOCKS bookings (public link and internal), replacing the soft-block design of 2026-06-01.
+4. Google: publish the OAuth app and move the callback to `studiopulse.tech`; Claude builds the route and walks Lawrence through the console clicks.
+
+## Still open
+- Is Hardcover a new studio to create in Pulse, and on which plan?
