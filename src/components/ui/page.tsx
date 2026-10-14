@@ -60,7 +60,7 @@ export function PageHeader({
         </h1>
         {description && <p className="mt-1 max-w-2xl text-sm text-steel">{description}</p>}
       </div>
-      {actions && <div className="flex items-center gap-2">{actions}</div>}
+      {actions && <div className="flex min-w-0 flex-wrap items-center gap-2">{actions}</div>}
     </div>
   );
 }
