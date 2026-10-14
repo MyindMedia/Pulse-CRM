@@ -40,6 +40,10 @@ Source brief: `hardcover-booking-orchestrated-prompt.md`. Branch `feat/hardcover
 - **D. Google sync, two levels.**
   - **Studio (company) calendar:** the owner connects once and picks which Google calendar is the studio's shared one (not just "primary"). Every booking, request (tentative), approval (confirmed) and room block is pushed there. Busy time on it blocks the whole studio.
   - **Team member (personal) calendar:** each team member connects their own Google account from their profile. Their own sessions and shifts are pushed there. Their busy time blocks only them: they can't be requested or assigned as engineer then, and it shows as "Busy" (no titles, for privacy) on the schedule.
+  - **Sync direction is a setting at both levels:** Two-way (default), Pulse to Google only, Google to Pulse only, or Off. Two-way means:
+    - Pulse to Google: bookings, requests, blocks (studio) or own sessions and shifts (member) appear in Google and stay updated.
+    - Google to Pulse: the calendar's other events come into Pulse as busy time (studio: blocks the studio; member: blocks that person).
+    - Edits made in Google to a Pulse booking (moved or deleted) come back as a change request that follows the approval rules (Phase 2 E), never a silent change. Until E ships they show as a "changed in Google" flag on the booking.
   - New `memberCalendars` connection per member (own token, own sync state); the existing org-level fields stay the studio calendar.
 - **D (fixes).** Code: surface push errors, detect revoked tokens, specific callback errors, warn when no refresh token. Config (needs Lawrence): publish the OAuth app, move the callback to `studiopulse.tech`, start Google verification. Pending requests push as "tentative", approved as "confirmed", blocks as busy events.
 
@@ -61,6 +65,7 @@ Each feature on staging with a demo studio that has it switched on and one that 
 4. Google: publish the OAuth app and move the callback to `studiopulse.tech`; Claude builds the route and walks Lawrence through the console clicks.
 
 5. Google Calendar at two levels: a shared studio calendar plus a personal calendar per team member (Lawrence, 2026-10-14).
+6. Both levels have a sync-direction option, Two-way by default (Lawrence, 2026-10-14).
 
 ## Still open
 - Is Hardcover a new studio to create in Pulse, and on which plan?
