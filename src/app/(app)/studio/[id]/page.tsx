@@ -75,6 +75,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, Input } from "@/components/ui/field";
 import { relativeTime } from "@/lib/format";
+import { RoomBlocksSection } from "@/components/calendar/room-blocks";
 import { AddRoomDialog } from "@/components/studio/add-room-dialog";
 
 const DAY_MS = 86_400_000;
@@ -524,6 +525,8 @@ export default function StudioDetailPage() {
           </ul>
         )}
       </section>
+
+      <RoomBlocksSection roomId={room._id} roomName={room.name} />
 
       {/* Installed equipment */}
       <section className="space-y-3">

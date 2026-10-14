@@ -6,6 +6,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { stripeClient } from "./lib/stripe";
 import { currentOrg } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
+import { bookingFeatures } from "./lib/roomBusy";
 import { normalizeEmail, sameEmail } from "./lib/emailKey";
 
 /* ============================================================
@@ -435,6 +436,8 @@ export const publicPlans = query({
   handler: async (ctx, { slug }) => {
     const org = await ctx.db.query("orgs").withIndex("by_slug", (q) => q.eq("slug", slug)).first();
     if (!org) return [];
+    // A booking link without prices sells nothing priced, memberships included.
+    if (bookingFeatures(org).hidePricing) return [];
     const rows = await ctx.db
       .query("membershipPlans")
       .withIndex("by_org", (q) => q.eq("orgId", org.orgId))

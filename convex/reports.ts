@@ -127,6 +127,30 @@ export const roomUtilization = query({
       bookedMs.set(s.roomId, (bookedMs.get(s.roomId) ?? 0) + dur);
     }
 
+    // Room blocks (bookingFeatures.roomBlocks): a SEPARATE "blocked value"
+    // figure - hours inside the window x the rate captured on the block.
+    // Never added to booked hours, utilization or collected revenue.
+    const blockedMs = new Map<string, number>();
+    const blockedCents = new Map<string, number>();
+    const orgRow = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+    if (orgRow?.bookingFeatures?.roomBlocks === true) {
+      const blocks = await ctx.db
+        .query("roomBlocks")
+        .withIndex("by_org_start", (q) =>
+          q.eq("orgId", orgId).gte("startTime", windowStart - 62 * DAY).lte("startTime", now),
+        )
+        .collect();
+      for (const b of blocks) {
+        const ms = Math.max(0, Math.min(b.endTime, now) - Math.max(b.startTime, windowStart));
+        if (ms === 0) continue;
+        blockedMs.set(b.roomId, (blockedMs.get(b.roomId) ?? 0) + ms);
+        blockedCents.set(
+          b.roomId,
+          (blockedCents.get(b.roomId) ?? 0) + Math.round((ms / 3_600_000) * b.hourlyRateCents),
+        );
+      }
+    }
+
     const rows = rooms
       .filter((r) => r.status !== "retired")
       .map((r) => {
@@ -139,6 +163,8 @@ export const roomUtilization = query({
           bookedHours: Math.round(bookedHours * 10) / 10,
           availableHours,
           utilization, // 0..1
+          blockedHours: Math.round(((blockedMs.get(r._id) ?? 0) / 3_600_000) * 10) / 10,
+          blockedValueCents: blockedCents.get(r._id) ?? 0,
         };
       })
       .sort((a, b) => b.utilization - a.utilization);
@@ -150,6 +176,7 @@ export const roomUtilization = query({
       windowDays: UTIL_WINDOW_DAYS,
       bookableHoursPerDay: BOOKABLE_HOURS_PER_DAY,
       avgUtilization: totalAvailable > 0 ? totalBooked / totalAvailable : 0,
+      blockedValueCents: rows.reduce((s, r) => s + r.blockedValueCents, 0),
     };
   },
 });

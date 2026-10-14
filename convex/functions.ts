@@ -29,7 +29,13 @@ import {
 import { MIRRORED_TABLES } from "./lib/mirroredTables";
 import { AUDITED_TABLES, auditEntry } from "./lib/changeAudit";
 import { provisionOnOrgInsert } from "./lib/orgBucketTrigger";
-import { syncSessionToGoogle } from "./lib/googleCalendarTrigger";
+import {
+  syncSessionToGoogle,
+  syncRoomBlockToGoogle,
+  syncMemberCalendars,
+  memberWorkForSession,
+  memberWorkForShift,
+} from "./lib/googleCalendarTrigger";
 
 const triggers = new Triggers<DataModel>();
 
@@ -73,6 +79,23 @@ triggers.register("orgs", async (ctx, change) => {
    (lib/googleCalendarTrigger.ts). */
 triggers.register("sessions", async (ctx, change) => {
   await syncSessionToGoogle(ctx as never, change as never);
+  // The engineer's own calendar, when they connected one.
+  await syncMemberCalendars(ctx as never, memberWorkForSession(change as never), {
+    kind: "session",
+    id: (change as unknown as { id: never }).id,
+  });
+});
+
+/* Room blocks reach the studio calendar as busy events, and hand-made shifts
+   reach the member's own calendar. */
+triggers.register("roomBlocks", async (ctx, change) => {
+  await syncRoomBlockToGoogle(ctx as never, change as never);
+});
+triggers.register("shifts", async (ctx, change) => {
+  await syncMemberCalendars(ctx as never, memberWorkForShift(change as never), {
+    kind: "shift",
+    id: (change as unknown as { id: never }).id,
+  });
 });
 
 /* Refusals say why, in production too.

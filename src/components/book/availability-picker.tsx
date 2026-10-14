@@ -40,8 +40,9 @@ export function AvailabilityPicker({
 }: {
   roomId: Id<"rooms">;
   minimumHours: number;
-  hourlyRateCents: number;
-  depositPct: number;
+  /** Omitted when the studio hides pricing: no price line is shown. */
+  hourlyRateCents?: number;
+  depositPct?: number;
   closeHour: number;
   onChange: (selection: SlotSelection | null) => void;
 }) {
@@ -110,8 +111,9 @@ export function AvailabilityPicker({
     }
   }, [selectionValid, startHour, durationHours, dayStart, onChange]);
 
-  const rateCents = hourlyRateCents * durationHours;
-  const depositCents = Math.round((rateCents * depositPct) / 100);
+  const showPrice = hourlyRateCents !== undefined;
+  const rateCents = (hourlyRateCents ?? 0) * durationHours;
+  const depositCents = Math.round((rateCents * (depositPct ?? 0)) / 100);
 
   function selectSlot(hour: number) {
     setStartHour(hour);
@@ -252,16 +254,20 @@ export function AvailabilityPicker({
               <p className="text-xs text-steel/70">
                 {formatHour(startHour)} - {formatHour(startHour + durationHours)}
               </p>
-              <p className="font-grotesk text-xl font-semibold text-bone">
-                {money(rateCents)}
-              </p>
+              {showPrice && (
+                <p className="font-grotesk text-xl font-semibold text-bone">
+                  {money(rateCents)}
+                </p>
+              )}
             </div>
-            <p className="text-right text-xs text-steel">
-              Deposit to hold
-              <span className="block font-meta text-sm text-gold-bright">
-                {money(depositCents)}
-              </span>
-            </p>
+            {showPrice && depositPct !== undefined && (
+              <p className="text-right text-xs text-steel">
+                Deposit to hold
+                <span className="block font-meta text-sm text-gold-bright">
+                  {money(depositCents)}
+                </span>
+              </p>
+            )}
           </div>
 
           {!selectionValid && (

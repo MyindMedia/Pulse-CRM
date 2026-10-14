@@ -255,12 +255,12 @@ function Kiosk({ authReady }: { authReady: boolean }) {
   return (
     <div
       className="grain flex h-dvh flex-col overflow-hidden bg-ink text-bone"
-      style={brandStyle(org?.accentColor)}
+      style={brandStyle(org?.accentColor, org?.brandSecondary)}
     >
-      {/* ambient gold wash */}
+      {/* ambient wash in the studio brand color (--brand-rgb, brandStyle) */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-x-0 top-0 h-[320px] bg-[radial-gradient(ellipse_60%_100%_at_50%_0%,rgba(253,185,19,0.08),transparent_70%)]"
+        className="pointer-events-none fixed inset-x-0 top-0 h-[320px] bg-[radial-gradient(ellipse_60%_100%_at_50%_0%,rgba(var(--brand-rgb),0.08),transparent_70%)]"
       />
 
       {/* ── Header ── */}

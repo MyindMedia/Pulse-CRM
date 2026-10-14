@@ -37,6 +37,7 @@ const isPublicRoute = createRouteMatcher([
   "/mobile", // the App Store download page - must be reachable signed out and scrapeable
   "/.well-known/apple-app-site-association", // iOS Universal Link verification
   "/plaid/oauth", // native bank OAuth returns without requiring a web login
+  "/google/callback", // Google OAuth return: forwards to Convex, which redirects into the app
   "/sign-in(.*)",
   "/sign-up(.*)",
   "/ui-lab", // staging-only component gallery; 404s in production (src/app/ui-lab)

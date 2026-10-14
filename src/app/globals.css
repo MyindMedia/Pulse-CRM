@@ -79,7 +79,7 @@
   --shadow-pop: 0 30px 80px rgba(0,0,0,.65), 0 2px 8px rgba(0,0,0,.5);
   --shadow-brutal: 5px 5px 0 0 #000;
   --shadow-brutal-gold: 5px 5px 0 0 var(--color-gold);
-  --shadow-glow-gold: 0 0 0 1px rgba(253,185,19,.35), 0 10px 40px rgba(253,185,19,.18);
+  --shadow-glow-gold: 0 0 0 1px rgba(var(--brand-rgb), .35), 0 10px 40px rgba(var(--brand-rgb), .18);
 
   /* - Elevation ladder (composes inset highlight + drop) - */
   --shadow-elev-1:
@@ -105,11 +105,11 @@
   --shadow-gold-soft:
     inset 0 1px 0 0 rgba(255,255,255,.25),
     0 1px 2px rgba(0,0,0,.45),
-    0 6px 16px rgba(253,185,19,.22);
+    0 6px 16px rgba(var(--brand-rgb), .22);
   --shadow-gold-strong:
     inset 0 1px 0 0 rgba(255,255,255,.3),
     0 2px 4px rgba(0,0,0,.5),
-    0 10px 24px rgba(253,185,19,.35);
+    0 10px 24px rgba(var(--brand-rgb), .35);
 
   /* - Motion - */
   --ease-spring: cubic-bezier(.34,1.56,.64,1);
@@ -160,6 +160,10 @@
    scales / blurs). Source: transitions.dev _root.css.
    ============================================================ */
 :root {
+  /* The studio brand accent as an "r, g, b" triplet, for glows and washes
+     drawn at an alpha. Stock Pulse gold; OrgTheme and brandStyle() set the
+     studio's own (src/lib/brand-theme.ts). */
+  --brand-rgb: 253, 185, 19;
   --duration-stagger: 40ms;
   --duration-micro: 80ms;
   --duration-quick: 150ms;
@@ -226,9 +230,9 @@
 }
 
 @keyframes pulse-ring {
-  0%   { box-shadow: 0 0 0 0 rgba(253,185,19,.45); }
-  70%  { box-shadow: 0 0 0 14px rgba(253,185,19,0); }
-  100% { box-shadow: 0 0 0 0 rgba(253,185,19,0); }
+  0%   { box-shadow: 0 0 0 0 rgba(var(--brand-rgb), .45); }
+  70%  { box-shadow: 0 0 0 14px rgba(var(--brand-rgb), 0); }
+  100% { box-shadow: 0 0 0 0 rgba(var(--brand-rgb), 0); }
 }
 @keyframes logo-breathe {
   0%, 100% { transform: scale(1); opacity: .95; }
@@ -503,7 +507,7 @@
       border-color 0.3s ease;
   }
   .hover-glow:hover {
-    box-shadow: 0 0 44px -12px rgba(253, 185, 19, 0.35);
+    box-shadow: 0 0 44px -12px rgba(var(--brand-rgb), 0.35);
   }
 
   /* Slow horizontal marquee (uses the @keyframes marquee). Track holds two
@@ -1109,7 +1113,7 @@ html[data-theme="light"] .theme-dark-island { background-color: var(--color-coal
 /* The marquee. Lucidchart's is a tinted rectangle you can actually see
    against a dark canvas; the library default is nearly invisible here. */
 .patch-canvas .react-flow__selection {
-  background: rgba(253, 185, 19, 0.09);
+  background: rgba(var(--brand-rgb), 0.09);
   border: 1px solid var(--color-gold);
 }
 
@@ -1194,7 +1198,7 @@ html[data-theme="light"] .theme-dark-island { background-color: var(--color-coal
   stroke-width: 2.5;
   stroke-dasharray: 6 5;
   animation: patch-flow 0.7s linear infinite;
-  filter: drop-shadow(0 0 4px rgba(253, 185, 19, 0.5));
+  filter: drop-shadow(0 0 4px rgba(var(--brand-rgb), 0.5));
 }
 
 /* Handles keep their hit area even when the card is small on screen. */

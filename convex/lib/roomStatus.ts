@@ -9,6 +9,7 @@
    time to reset the room.
    ============================================================ */
 import type { MutationCtx } from "../_generated/server";
+import { roomConflict, conflictMessage, sessionHoldsSlot } from "./roomBusy";
 import type { Doc, Id } from "../_generated/dataModel";
 
 /** Minutes of breathing room between sessions so the room can be reset. */
@@ -112,7 +113,7 @@ export async function assertNoBufferConflict(
   for (const other of candidates) {
     if (other._id === excludeSessionId) continue;
     if (other.roomId !== roomId) continue;
-    if (other.status === "cancelled" || other.status === "no_show") continue;
+    if (!sessionHoldsSlot(other)) continue;
     // Overlap check inclusive of the buffer on both sides.
     const overlapping =
       other.startTime - BUFFER_MS < endTime &&
@@ -123,4 +124,13 @@ export async function assertNoBufferConflict(
       );
     }
   }
+  // Room blocks and the studio's Google busy time (no buffer on these).
+  const other = await roomConflict(ctx, {
+    orgId: room.orgId,
+    roomId,
+    start: startTime,
+    end: endTime,
+    excludeSessionId,
+  });
+  if (other && other.kind !== "session") throw new Error(conflictMessage(other));
 }

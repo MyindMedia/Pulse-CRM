@@ -106,7 +106,7 @@ export default function VisitPage() {
       <PublicTheme slug={slug} />
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-x-0 top-0 h-[420px] bg-[radial-gradient(ellipse_60%_100%_at_50%_0%,rgba(253,185,19,0.10),transparent_70%)]"
+        className="pointer-events-none fixed inset-x-0 top-0 h-[420px] bg-[radial-gradient(ellipse_60%_100%_at_50%_0%,rgba(var(--brand-rgb),0.10),transparent_70%)]"
       />
 
       <header className="relative z-10 border-b border-graphite/50 bg-obsidian/80 backdrop-blur">

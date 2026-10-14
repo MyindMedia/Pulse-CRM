@@ -34,6 +34,8 @@ export type BookingRow = {
   source?: "public_booking" | "internal";
   holdExpiresAt?: number;
   balanceRemindedAt?: number;
+  /** Booking request state (bookingFeatures.requireApproval / hidePricing). */
+  requestStatus?: "pending" | "approved" | "declined";
 };
 
 /** A recorded payment as returned by `api.payments.forSession` / `recent`. */

@@ -3,12 +3,15 @@
    own Google account to send client email as their real Gmail.
    Requires GOOGLE_CLIENT_ID + GOOGLE_CLIENT_SECRET on the
    deployment, and the redirect URI registered in Google Cloud:
-     <CONVEX_SITE_URL>/google/callback
+     GOOGLE_REDIRECT_URI, or <CONVEX_SITE_URL>/google/callback when unset.
+   Production uses https://studiopulse.tech/google/callback, which a Next.js
+   route forwards to the Convex endpoint (docs/plans/google-calendar-setup.md).
    ============================================================ */
 
 const SCOPES = [
   "https://www.googleapis.com/auth/gmail.send",
   "https://www.googleapis.com/auth/calendar.events", // two-way studio calendar sync
+  "https://www.googleapis.com/auth/calendar.calendarlist.readonly", // pick which calendar
   "https://www.googleapis.com/auth/userinfo.email",
   "openid",
 ];
@@ -17,18 +20,31 @@ export function googleConfigured(): boolean {
   return Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
 }
 
-/** The OAuth callback lands on the Convex HTTP endpoint (stable, server-side). */
+/** Scopes for a team member's personal calendar: no Gmail send. */
+const MEMBER_SCOPES = [
+  "https://www.googleapis.com/auth/calendar.events",
+  "https://www.googleapis.com/auth/calendar.calendarlist.readonly",
+  "https://www.googleapis.com/auth/userinfo.email",
+  "openid",
+];
+
+/** The OAuth redirect URI. GOOGLE_REDIRECT_URI wins (production sets it to
+ *  https://studiopulse.tech/google/callback, a domain Google can verify);
+ *  otherwise the Convex HTTP endpoint. Sent on both the consent URL and the
+ *  code exchange, so the two always match. */
 export function googleRedirectUri(): string {
+  const explicit = process.env.GOOGLE_REDIRECT_URI?.trim();
+  if (explicit) return explicit;
   const base = process.env.CONVEX_SITE_URL ?? process.env.NEXT_PUBLIC_CONVEX_SITE_URL ?? "";
   return `${base}/google/callback`;
 }
 
-export function googleAuthUrl(state: string): string {
+export function googleAuthUrl(state: string, level: "studio" | "member" = "studio"): string {
   const params = new URLSearchParams({
     client_id: process.env.GOOGLE_CLIENT_ID!,
     redirect_uri: googleRedirectUri(),
     response_type: "code",
-    scope: SCOPES.join(" "),
+    scope: (level === "member" ? MEMBER_SCOPES : SCOPES).join(" "),
     access_type: "offline",
     prompt: "consent",
     state,
@@ -59,6 +75,28 @@ export async function exchangeCode(code: string): Promise<TokenResponse> {
   return (await res.json()) as TokenResponse;
 }
 
+/** Google refused the stored refresh token. `invalidGrant` means the grant is
+ *  gone for good (the owner revoked access, the password changed, or the OAuth
+ *  app is in Testing mode and the 7-day token expired): the only fix is to
+ *  connect again, so callers clear the token and show "Reconnect Google". */
+export class GoogleAuthError extends Error {
+  constructor(
+    message: string,
+    readonly invalidGrant: boolean,
+  ) {
+    super(message);
+    this.name = "GoogleAuthError";
+  }
+}
+
+/** Marker stored in the sync-error field once a token is cleared, so the UI
+ *  can tell "never connected" from "needs reconnect". */
+export const RECONNECT_REQUIRED = "reconnect_required";
+
+export function isInvalidGrant(err: unknown): boolean {
+  return err instanceof GoogleAuthError && err.invalidGrant;
+}
+
 export async function accessTokenFromRefresh(refreshToken: string): Promise<string> {
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
@@ -70,7 +108,15 @@ export async function accessTokenFromRefresh(refreshToken: string): Promise<stri
       grant_type: "refresh_token",
     }),
   });
-  if (!res.ok) throw new Error(`Google token refresh failed (${res.status})`);
+  if (!res.ok) {
+    let reason = "";
+    try {
+      reason = String(((await res.json()) as { error?: string }).error ?? "");
+    } catch {
+      /* body was not JSON */
+    }
+    throw new GoogleAuthError(`Google token refresh failed (${res.status}${reason ? ` ${reason}` : ""})`, reason === "invalid_grant");
+  }
   return ((await res.json()) as TokenResponse).access_token;
 }
 
@@ -123,6 +169,8 @@ export type GoogleCalendarEventBody = {
   start: { dateTime: string };
   end: { dateTime: string };
   status?: "confirmed" | "tentative" | "cancelled";
+  /** "opaque" = shows as busy (the default); room blocks and bookings use it. */
+  transparency?: "opaque" | "transparent";
   // Tags events Pulse creates so the inbound pull can skip them (no loop).
   extendedProperties?: { private?: Record<string, string> };
 };
@@ -134,13 +182,55 @@ export const PULSE_ORIGIN_TAG = "pulse";
 export type GoogleCalendarListEvent = {
   id: string;
   status?: string; // "confirmed" | "tentative" | "cancelled"
+  transparency?: string; // "transparent" = shows as free
   summary?: string;
   start?: { dateTime?: string; date?: string };
   end?: { dateTime?: string; date?: string };
   extendedProperties?: { private?: Record<string, string> };
 };
 
-/** Incremental list of the connected account's primary-calendar events.
+/** Events collection URL of one calendar (primary when none is chosen). */
+export function calendarBase(calendarId?: string): string {
+  return `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(calendarId || "primary")}/events`;
+}
+
+export type GoogleCalendarSummary = { id: string; name: string; primary: boolean; accessRole: string };
+
+/** The connected account's calendars. Throws GoogleScopeMissing on a 403 so the
+ *  UI can ask to reconnect (accounts connected before calendar picking existed
+ *  never granted the calendar-list scope). */
+export class GoogleScopeMissing extends Error {}
+
+export async function googleCalendarList(refreshToken: string): Promise<GoogleCalendarSummary[]> {
+  const accessToken = await accessTokenFromRefresh(refreshToken);
+  const out: GoogleCalendarSummary[] = [];
+  let pageToken: string | undefined;
+  do {
+    const params = new URLSearchParams({ maxResults: "250", minAccessRole: "writer" });
+    if (pageToken) params.set("pageToken", pageToken);
+    const res = await fetch(`https://www.googleapis.com/calendar/v3/users/me/calendarList?${params.toString()}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    if (res.status === 403) throw new GoogleScopeMissing("calendar list scope not granted");
+    if (!res.ok) throw new Error(`Google calendar list failed (${res.status})`);
+    const data = (await res.json()) as {
+      items?: { id: string; summary?: string; summaryOverride?: string; primary?: boolean; accessRole?: string }[];
+      nextPageToken?: string;
+    };
+    for (const c of data.items ?? []) {
+      out.push({
+        id: c.id,
+        name: c.summaryOverride || c.summary || c.id,
+        primary: Boolean(c.primary),
+        accessRole: c.accessRole ?? "writer",
+      });
+    }
+    pageToken = data.nextPageToken;
+  } while (pageToken);
+  return out;
+}
+
+/** Incremental list of the connected account's chosen-calendar events (primary by default).
  *  Pass `syncToken` for a delta pull; omit it (with `timeMin`) for a full pull.
  *  Returns the page of events plus the `nextSyncToken` to persist for next time.
  *  Throws `GoogleSyncTokenExpired` on a 410 so the caller can reset + full-pull. */
@@ -148,7 +238,7 @@ export class GoogleSyncTokenExpired extends Error {}
 
 export async function googleCalendarListEvents(
   refreshToken: string,
-  opts: { syncToken?: string; timeMin?: string },
+  opts: { syncToken?: string; timeMin?: string; calendarId?: string },
 ): Promise<{ events: GoogleCalendarListEvent[]; nextSyncToken: string | null }> {
   const accessToken = await accessTokenFromRefresh(refreshToken);
   const events: GoogleCalendarListEvent[] = [];
@@ -163,7 +253,7 @@ export async function googleCalendarListEvents(
     if (pageToken) params.set("pageToken", pageToken);
 
     const res = await fetch(
-      `https://www.googleapis.com/calendar/v3/calendars/primary/events?${params.toString()}`,
+      `${calendarBase(opts.calendarId)}?${params.toString()}`,
       { headers: { Authorization: `Bearer ${accessToken}` } },
     );
     if (res.status === 410) throw new GoogleSyncTokenExpired("syncToken expired");
@@ -190,9 +280,10 @@ export async function googleCalendarUpsertEvent(
   refreshToken: string,
   body: GoogleCalendarEventBody,
   eventId: string,
+  calendarId?: string,
 ): Promise<{ eventId: string }> {
   const accessToken = await accessTokenFromRefresh(refreshToken);
-  const base = "https://www.googleapis.com/calendar/v3/calendars/primary/events";
+  const base = calendarBase(calendarId);
   const headers = { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" };
   const patch = () =>
     fetch(`${base}/${encodeURIComponent(eventId)}`, { method: "PATCH", headers, body: JSON.stringify(body) });
@@ -218,10 +309,11 @@ export async function googleCalendarUpsertEvent(
 export async function googleCalendarDeleteEvent(
   refreshToken: string,
   eventId: string,
+  calendarId?: string,
 ): Promise<void> {
   const accessToken = await accessTokenFromRefresh(refreshToken);
   const res = await fetch(
-    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`,
+    `${calendarBase(calendarId)}/${encodeURIComponent(eventId)}`,
     { method: "DELETE", headers: { Authorization: `Bearer ${accessToken}` } },
   );
   if (!res.ok && res.status !== 404 && res.status !== 410) {

@@ -22,6 +22,7 @@ import { ensureSessionShift } from "./shifts";
 import { proposeWaitlistFill } from "./waitlist";
 import { api, internal } from "./_generated/api";
 import { normalizeEmail } from "./lib/emailKey";
+import { changeGate, proposeChange, type DirectOr, type ProposalResult } from "./lib/changeApproval";
 
 const ONE_HOUR_MS = 60 * 60 * 1000;
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
@@ -133,6 +134,7 @@ export async function insertSession(
     endTime: number;
     rateCents: number;
     depositCents?: number;
+    createdByMemberId?: Id<"members">;
   },
 ): Promise<Id<"sessions">> {
   // 15-minute reset buffer between sessions in the same room.
@@ -156,6 +158,7 @@ export async function insertSession(
     depositCents: deposit,
     depositPaid: false,
     intakeCompleted: false,
+    createdByMemberId: args.createdByMemberId,
   });
   await ctx.db.insert("activity", {
     orgId: args.orgId,
@@ -246,6 +249,7 @@ export const create = mutation({
       rateCents = room && room.orgId === orgId ? Math.round((room.hourlyRateCents ?? 0) * hours) : 0;
     }
     const sessionId = await insertSession(ctx, {
+      createdByMemberId: await currentMemberId(ctx),
       orgId,
       title: args.title,
       artistId,
@@ -282,7 +286,10 @@ export const create = mutation({
  *  so a read-only teammate (intern, accountant) cannot do it. */
 export const assignEngineer = mutation({
   args: { sessionId: v.id("sessions"), engineerId: v.optional(v.id("members")) },
-  handler: async (ctx, { sessionId, engineerId }) => {
+  handler: async (
+    ctx,
+    { sessionId, engineerId },
+  ): Promise<DirectOr<{ staffingWarning: string | null }>> => {
     const orgId = await currentOrgWithCapability(ctx, "sessions.edit");
     const session = await ctx.db.get(sessionId);
     if (!session || session.orgId !== orgId) throw new Error("Session not found");
@@ -290,18 +297,36 @@ export const assignEngineer = mutation({
       const eng = await ctx.db.get(engineerId);
       if (!eng || eng.orgId !== orgId) throw new Error("Engineer not found");
     }
-    await ctx.db.patch(sessionId, { engineerId });
-    const { warning } = await ensureSessionShift(ctx, {
-      _id: sessionId,
-      orgId,
-      engineerId: engineerId ?? null,
-      roomId: session.roomId ?? null,
-      startTime: session.startTime,
-      endTime: session.endTime,
-    });
-    return { staffingWarning: warning };
+    // Change approvals (bookingFeatures.changeApproval): someone else's
+    // booking gets a proposal instead of an edit. Off = no-op.
+    const proposer = await changeGate(ctx, orgId, session);
+    if (proposer) {
+      if (!engineerId) throw new ConvexError("Only the person who booked this, or an owner, can remove the engineer.");
+      return proposeChange(ctx, { orgId, session, actor: proposer, proposed: { engineerId } });
+    }
+    return applyAssignEngineer(ctx, orgId, session, engineerId);
   },
 });
+
+/** The engineer change itself, shared by `assignEngineer` and an approved
+ *  change request (sessionChanges.ts). */
+export async function applyAssignEngineer(
+  ctx: MutationCtx,
+  orgId: string,
+  session: Doc<"sessions">,
+  engineerId: Id<"members"> | undefined,
+): Promise<{ staffingWarning: string | null }> {
+  await ctx.db.patch(session._id, { engineerId });
+  const { warning } = await ensureSessionShift(ctx, {
+    _id: session._id,
+    orgId,
+    engineerId: engineerId ?? null,
+    roomId: session.roomId ?? null,
+    startTime: session.startTime,
+    endTime: session.endTime,
+  });
+  return { staffingWarning: warning };
+}
 
 /** Comp or discount a session, tracking the foregone revenue. `listValueCents`
  *  is what it would normally bill (defaults to the current rate the first time);
@@ -641,10 +666,44 @@ async function assessNoShowShield(
 
 export const setStatus = mutation({
   args: { id: v.id("sessions"), status: statusV },
-  handler: async (ctx, { id, status }) => {
-    const orgId = await currentOrg(ctx);
+  handler: async (ctx, { id, status }): Promise<void | ProposalResult> => {
+    // Cancelling needs sessions.cancel; every other status change (confirm,
+    // start, complete, no-show) needs sessions.edit. Before this an intern or
+    // accountant could cancel any booking.
+    const orgId = await currentOrgWithCapability(
+      ctx,
+      status === "cancelled" ? "sessions.cancel" : "sessions.edit",
+    );
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) throw new Error("Not found");
+    // A pending booking request is confirmed by approving it (owners and
+    // managers, bookingRequests.approve), which also tells the client.
+    if (s.requestStatus === "pending" && status === "confirmed") {
+      throw new Error("This is a booking request. Approve it to confirm it.");
+    }
+    // Change approvals: cancelling someone else's booking is a proposal when
+    // the studio has the switch on. Other status changes are floor work
+    // (check in, complete, no-show) and stay direct.
+    if (status === "cancelled" && s.status !== "cancelled") {
+      const proposer = await changeGate(ctx, orgId, s);
+      if (proposer) {
+        return proposeChange(ctx, { orgId, session: s, actor: proposer, proposed: { status: "cancelled" } });
+      }
+    }
+    await applyStatus(ctx, orgId, s, status);
+  },
+});
+
+/** A status change and all its side effects (room status, checklists,
+ *  waitlist fill, No-Show Shield fees, completion invoice and payout).
+ *  Shared by `setStatus` and an approved change request (sessionChanges.ts). */
+export async function applyStatus(
+  ctx: MutationCtx,
+  orgId: string,
+  s: Doc<"sessions">,
+  status: Doc<"sessions">["status"],
+): Promise<void> {
+    const id = s._id;
     // Snapshot BEFORE the patch: only a fresh transition out of an active state
     // into cancelled / no-show assesses the shield (so a re-set is idempotent).
     const wasActive = s.status !== "cancelled" && s.status !== "no_show";
@@ -726,8 +785,7 @@ export const setStatus = mutation({
         entityType: "session", entityId: id, accent: "positive",
       });
     }
-  },
-});
+}
 
 export const completeIntake = mutation({
   args: { id: v.id("sessions") },
@@ -783,18 +841,25 @@ function recomputeDurationRate(
  * the by-duration rate, keep the engineer shift + room status + Google mirror
  * in sync, and log the change. Both `reschedule` and `extend` route through it.
  */
-async function applyReschedule(
+export async function applyReschedule(
   ctx: MutationCtx,
   orgId: string,
   s: Doc<"sessions">,
   startTime: number,
   endTime: number,
+  /** Move to another room as well (an approved change request). Omitted =
+   *  same room, exactly as before. */
+  newRoomId?: Id<"rooms">,
 ): Promise<{ rateCents: number; startTime: number; endTime: number }> {
   if (endTime <= startTime) throw new Error("The session must end after it starts.");
+  const moveRoom = newRoomId !== undefined && newRoomId !== s.roomId;
+  const oldRoomId = s.roomId;
+  if (moveRoom) s = { ...s, roomId: newRoomId };
   await assertNoBufferConflict(ctx, s.roomId, startTime, endTime, s._id);
 
   const rate = recomputeDurationRate(s, startTime, endTime);
   const patch: Record<string, unknown> = { startTime, endTime };
+  if (moveRoom) patch.roomId = newRoomId;
   if (rate) {
     patch.rateCents = rate.rateCents;
     if (rate.listValueCents !== undefined) patch.listValueCents = rate.listValueCents;
@@ -813,6 +878,7 @@ async function applyReschedule(
     endTime,
   });
   if (s.roomId) await recomputeRoomStatus(ctx, s.roomId);
+  if (moveRoom && oldRoomId) await recomputeRoomStatus(ctx, oldRoomId);
 
   const deltaMins = Math.round((endTime - startTime - (s.endTime - s.startTime)) / 60_000);
   const newRate = rate?.rateCents ?? s.rateCents;
@@ -837,10 +903,18 @@ async function applyReschedule(
  *  `sessions.edit`; conflict-checked; recomputes the by-duration rate. */
 export const reschedule = mutation({
   args: { id: v.id("sessions"), startTime: v.number(), endTime: v.number() },
-  handler: async (ctx, { id, startTime, endTime }) => {
+  handler: async (
+    ctx,
+    { id, startTime, endTime },
+  ): Promise<DirectOr<{ rateCents: number; startTime: number; endTime: number }>> => {
     const orgId = await currentOrgWithCapability(ctx, "sessions.edit");
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) throw new Error("Not found");
+    const proposer = await changeGate(ctx, orgId, s);
+    if (proposer) {
+      if (endTime <= startTime) throw new Error("The session must end after it starts.");
+      return proposeChange(ctx, { orgId, session: s, actor: proposer, proposed: { startTime, endTime } });
+    }
     return applyReschedule(ctx, orgId, s, startTime, endTime);
   },
 });
@@ -853,13 +927,18 @@ export const extend = mutation({
   handler: async (
     ctx,
     { id, addMinutes },
-  ): Promise<{ rateCents: number; startTime: number; endTime: number }> => {
+  ): Promise<DirectOr<{ rateCents: number; startTime: number; endTime: number }>> => {
     const orgId = await currentOrgWithCapability(ctx, "sessions.edit");
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) throw new Error("Not found");
     const mins = Math.round(addMinutes);
     if (mins === 0) throw new Error("Pick how long to extend the session.");
     const endTime = s.endTime + mins * 60_000;
+    const proposer = await changeGate(ctx, orgId, s);
+    if (proposer) {
+      if (endTime <= s.startTime) throw new Error("The session must end after it starts.");
+      return proposeChange(ctx, { orgId, session: s, actor: proposer, proposed: { endTime } });
+    }
     return applyReschedule(ctx, orgId, s, s.startTime, endTime);
   },
 });
@@ -1125,7 +1204,20 @@ export const respondToEngineerRequest = mutation({
     }
     const me = await ctx.db.get(viewer.memberId);
     const name = me?.name ?? "Engineer";
-    if (accept) {
+    if (accept && session.requestStatus === "pending") {
+      // A booking request: the engineer can take it, but only an owner or
+      // manager confirms the booking (bookingRequests.approve books the shift).
+      await ctx.db.patch(sessionId, { engineerRequestStatus: "confirmed" });
+      await ctx.db.insert("activity", {
+        orgId: session.orgId,
+        kind: "engineer.confirmed",
+        summary: `${name} can take ${session.title} - request still waiting on approval`,
+        actorName: name,
+        entityType: "session",
+        entityId: sessionId,
+        accent: "gold",
+      });
+    } else if (accept) {
       await ctx.db.patch(sessionId, {
         engineerRequestStatus: "confirmed",
         status: "confirmed",
@@ -1177,6 +1269,9 @@ export const overrideEngineerConfirmation = mutation({
     if (session.engineerRequestStatus !== "pending") {
       throw new Error("This request has already been handled.");
     }
+    if (session.requestStatus === "pending") {
+      throw new Error("This is a booking request. Approve it to confirm it.");
+    }
     await ctx.db.patch(sessionId, {
       engineerRequestStatus: "overridden",
       status: "confirmed",
@@ -1200,3 +1295,17 @@ export const overrideEngineerConfirmation = mutation({
     return { ok: true };
   },
 });
+
+
+/** The signed-in team member, or undefined for the demo / system viewer or an
+ *  agency user without a seat. Used to stamp who created a booking. */
+export async function currentMemberId(ctx: QueryCtx): Promise<Id<"members"> | undefined> {
+  try {
+    const viewer = await resolveViewer(ctx);
+    const raw = (viewer as { memberId?: string }).memberId;
+    if (!raw || raw === "demo" || raw === "system") return undefined;
+    return ctx.db.normalizeId("members", raw) ?? undefined;
+  } catch {
+    return undefined;
+  }
+}

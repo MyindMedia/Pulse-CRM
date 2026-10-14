@@ -10,6 +10,8 @@ import {
   statusColor,
   type Session,
 } from "./constants";
+import { BlockBand, blocksByDay, type RoomBlock } from "./room-blocks";
+import { PendingChangeDot } from "./pending-change-dot";
 
 /** Pill for a single session inside a day cell. */
 function SessionPill({
@@ -26,7 +28,12 @@ function SessionPill({
         e.stopPropagation();
         onOpen(session._id);
       }}
-      className="flex w-full items-center gap-1.5 overflow-hidden rounded-sm border border-graphite/50 bg-coal-2 px-1.5 py-1 text-left outline-none transition-colors hover:border-graphite/60 hover:bg-coal-3 focus-visible:ring-2 focus-visible:ring-gold/30"
+      title={session.requestStatus === "pending" ? "Booking request, waiting on approval" : undefined}
+      className={cn(
+        "flex w-full items-center gap-1.5 overflow-hidden rounded-sm border border-graphite/50 bg-coal-2 px-1.5 py-1 text-left outline-none transition-colors hover:border-graphite/60 hover:bg-coal-3 focus-visible:ring-2 focus-visible:ring-gold/30",
+        // A pending booking request reads differently at a glance.
+        session.requestStatus === "pending" && "border-dashed border-caution/60",
+      )}
     >
       <span
         aria-hidden
@@ -37,8 +44,10 @@ function SessionPill({
         {timeOfDay(session.startTime)}
       </span>
       <span className="min-w-0 flex-1 truncate text-[0.6875rem] font-medium text-bone">
+        {session.requestStatus === "pending" && <span className="text-caution">Request · </span>}
         {session.title}
       </span>
+      <PendingChangeDot sessionId={session._id} />
     </button>
   );
 }
@@ -50,7 +59,13 @@ export function MonthGrid({
   sessions,
   onOpenSession,
   onPickDay,
+  blocks = [],
+  roomNames = {},
+  onOpenBlock,
 }: {
+  blocks?: RoomBlock[];
+  roomNames?: Record<string, string>;
+  onOpenBlock?: (b: RoomBlock) => void;
   days: number[];
   month: number;
   sessions: Session[];
@@ -70,6 +85,8 @@ export function MonthGrid({
   for (const list of byDay.values()) {
     list.sort((a, b) => a.startTime - b.startTime);
   }
+
+  const blockDays = blocksByDay(blocks, days);
 
   return (
     <div className="overflow-hidden rounded-lg border border-graphite/50 bg-coal">
@@ -126,6 +143,15 @@ export function MonthGrid({
               </span>
 
               <div className="flex flex-col gap-1">
+                {(blockDays.get(dayTs) ?? []).map((b) => (
+                  <BlockBand
+                    key={b._id}
+                    block={b}
+                    roomName={roomNames[b.roomId]}
+                    onOpen={onOpenBlock ?? (() => {})}
+                    compact
+                  />
+                ))}
                 {visible.map((s) => (
                   <SessionPill key={s._id} session={s} onOpen={onOpenSession} />
                 ))}

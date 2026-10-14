@@ -9,6 +9,7 @@ import { currentOrg, currentActor, currentOrgWithCapability, currentMoneySight }
 import { AccessError, resolveViewer, SETUP_ACCESS } from "./lib/access";
 import { US_STATES, findState } from "./lib/usTaxRates";
 import { isValidTimezone } from "./lib/tz";
+import { brandSecondaryOf, isHexColor } from "./lib/brandPresets";
 import { meterStorageUpload, tierForOrg } from "./usage";
 import { PLAN_LIMITS, priceLabel, POWERED_BY_PULSE_REQUIRED } from "./lib/plans";
 import {
@@ -74,6 +75,10 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     // Undefined means on: managers have always seen money until an owner says not.
     managersSeeMoney: org?.managersSeeMoney !== false,
     brandPalette: org?.brandPalette ?? null,
+    // Brand colors chosen in Settings > Branding (every plan): the preset id
+    // and the secondary color that tints the room light's second pool.
+    brandPreset: org?.brandPreset ?? null,
+    brandSecondary: org ? brandSecondaryOf(org) : null,
     tagline: org?.tagline ?? "Your music business runs itself.",
     logoUrl: org?.logoId ? await fileUrl(ctx, org.logoId) : null,
     bookingHeroUrl: org?.bookingHeroId ? await fileUrl(ctx, org.bookingHeroId) : null,
@@ -195,6 +200,9 @@ export const update = mutation({
   handler: async (ctx, patch) => {
     if (patch.timezone !== undefined && !isValidTimezone(patch.timezone)) {
       throw new Error("Unknown timezone.");
+    }
+    if (patch.accentColor !== undefined && !isHexColor(patch.accentColor)) {
+      throw new Error("Accent color must be a 6-digit hex value like #fdb913.");
     }
     const orgId = await currentOrgWithCapability(ctx, "branding.edit", undefined, SETUP_ACCESS);
     const org = await ensureOrg(ctx, orgId);

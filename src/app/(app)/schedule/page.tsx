@@ -14,6 +14,8 @@ import { SkeletonRows } from "@/components/ui/skeleton";
 import { ShiftDialog, type EditableShift } from "@/components/schedule/shift-dialog";
 import { TimeOffInbox } from "@/components/schedule/time-off-inbox";
 import { MySchedulePanel } from "@/components/schedule/my-schedule-panel";
+import { MyCalendarCard } from "@/components/calendar/my-calendar-card";
+import { useMemberBusy, BusyChips } from "@/components/schedule/member-busy";
 import { EngineerRequests } from "@/components/schedule/engineer-requests";
 import { UnstaffedSessions } from "@/components/schedule/unstaffed-sessions";
 import { cn } from "@/lib/utils";
@@ -55,6 +57,7 @@ export default function SchedulePage() {
   const working = useQuery(api.shifts.whosWorking, {});
   const closures = useQuery(api.shifts.closedDaysInRange, { from: weekStart, to: weekEnd });
   const cancelShift = useMutation(api.shifts.cancel);
+  const memberBusy = useMemberBusy(weekStart, weekEnd);
 
   const weekLabel = `${new Date(weekStart).toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${new Date(weekEnd - DAY).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
 
@@ -254,6 +257,7 @@ export default function SchedulePage() {
                     return (
                       <td key={di} className="group/cell min-w-[88px] align-top">
                         <div className="flex min-h-[44px] flex-col gap-1 p-1.5">
+                          <BusyChips items={memberBusy[m._id]?.[di]} />
                           {cell.map((s) => {
                             const cp = chipProps(s);
                             return (
@@ -307,6 +311,7 @@ export default function SchedulePage() {
 
       <TimeOffInbox />
       <MySchedulePanel />
+      <MyCalendarCard />
 
       <ShiftDialog
         open={dialogOpen}

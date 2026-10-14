@@ -21,6 +21,8 @@ export type Session = {
   depositPaid: boolean;
   intakeCompleted: boolean;
   notes?: string;
+  /** Booking request state: a pending request shows as "Request". */
+  requestStatus?: "pending" | "approved" | "declined";
 };
 
 /* The seven services, plus the studio's own. "custom" is last on purpose: it
