@@ -14,6 +14,7 @@ import { TeamPanel } from "@/components/settings/team-panel";
 import { BillingPanel } from "@/components/settings/billing-panel";
 import { IntegrationsPanel } from "@/components/settings/integrations-panel";
 import { BrandingPanel } from "@/components/settings/branding-panel";
+import { BookingFeaturesPanel } from "@/components/settings/booking-features-panel";
 import { WhiteLabelPanel } from "@/components/settings/white-label-panel";
 import { DirectoryPanel } from "@/components/settings/directory-panel";
 import { ModuleSwitchboard } from "@/components/modules/module-switchboard";
@@ -128,6 +129,7 @@ function SettingsView() {
           <TabsContent value="branding">
             <div className="space-y-5">
               <BrandingPanel org={org} />
+              <BookingFeaturesPanel />
               <WhiteLabelPanel />
               <DirectoryPanel />
               <TestimonialsPanel org={org} />
