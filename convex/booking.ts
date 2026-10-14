@@ -1,4 +1,5 @@
 import { fileUrl } from "./lib/media";
+import { brandSecondaryOf } from "./lib/brandPresets";
 import {
   roomBusyIntervals,
   roomConflict,
@@ -101,6 +102,7 @@ async function brand(ctx: QueryCtx, org: Doc<"orgs"> | null) {
     tagline: org?.tagline ?? "Book your session.",
     accentColor: org?.accentColor ?? "#fdb913",
     palette: org?.brandPalette ?? null,
+    brandSecondary: org ? brandSecondaryOf(org) : null,
     logoUrl: org?.logoId ? await fileUrl(ctx, org.logoId) : null,
     heroUrl: org?.bookingHeroId ? await fileUrl(ctx, org.bookingHeroId) : null,
     generatedHeroUrl: org?.generatedHeroId ? await fileUrl(ctx, org.generatedHeroId) : null,

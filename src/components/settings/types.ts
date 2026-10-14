@@ -41,6 +41,9 @@ export type Org = {
   tierLabel: string;
   status: string;
   accentColor: string;
+  /** Brand colors (Settings > Branding): preset id and chosen secondary. */
+  brandPreset?: string | null;
+  brandSecondary?: string | null;
   timezone: string | null;
   briefRequireAll: boolean;
   /** Booking page: show the room's gear list to clients. */
