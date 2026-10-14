@@ -2,7 +2,7 @@ import { httpRouter } from "convex/server";
 import { httpAction } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { stripeClient } from "./lib/stripe";
-import { exchangeCode, emailFromIdToken } from "./lib/google";
+import { handleGoogleCallback } from "./lib/googleCallback";
 import { plaid, verifyPlaidWebhook } from "./lib/plaid";
 
 const http = httpRouter();
@@ -33,40 +33,16 @@ function ghlShape(json: unknown): boolean {
   );
 }
 
-/* Google OAuth callback - exchanges the code, stores the studio's refresh token
-   (state carries the orgId), then bounces back to the app settings. */
+/* Google OAuth callback - exchanges the code and stores the refresh token for
+   the studio or, when the state belongs to a team member, for that member's
+   personal calendar. Production reaches this through the Next.js route at
+   studiopulse.tech/google/callback (src/app/google/callback/route.ts), which
+   forwards here. Failures redirect with a specific reason
+   (lib/googleCallback.ts). */
 http.route({
   path: "/google/callback",
   method: "GET",
-  handler: httpAction(async (ctx, req) => {
-    const url = new URL(req.url);
-    const code = url.searchParams.get("code");
-    const state = url.searchParams.get("state");
-    const appUrl = process.env.APP_URL ?? "http://localhost:3000";
-    if (!code || !state) {
-      return Response.redirect(`${appUrl}/settings?google=error`, 302);
-    }
-    try {
-      // CSRF: resolve the org from the single-use server-side nonce, NOT from a
-      // client-controlled state value. A forged callback yields no org and is
-      // rejected.
-      const orgId = await ctx.runMutation(internal.googleAuth._consumeOAuthState, { nonce: state });
-      if (!orgId) {
-        return Response.redirect(`${appUrl}/settings?google=error`, 302);
-      }
-      const tokens = await exchangeCode(code);
-      if (tokens.refresh_token) {
-        await ctx.runMutation(internal.googleAuth._storeTokens, {
-          orgId,
-          refreshToken: tokens.refresh_token,
-          email: emailFromIdToken(tokens.id_token) ?? undefined,
-        });
-      }
-      return Response.redirect(`${appUrl}/settings?google=connected`, 302);
-    } catch {
-      return Response.redirect(`${appUrl}/settings?google=error`, 302);
-    }
-  }),
+  handler: httpAction(async (ctx, req) => handleGoogleCallback(ctx, req)),
 });
 
 /* Stripe webhook receiver - verifies signature, dispatches to
