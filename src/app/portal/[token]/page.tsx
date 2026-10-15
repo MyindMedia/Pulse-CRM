@@ -8,6 +8,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { errorMessage } from "@/lib/errors";
 import { Loader2, MessageSquare, Music2, CalendarCheck, Receipt, Sparkles, SendHorizontal, CalendarPlus, ArrowUpRight, Download, Play, Lock, FileAudio } from "lucide-react";
+import { PulseLoader } from "@/components/brand/pulse-loader";
 
 const usd = (c: number) => `$${(c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const when = (ts: number) => new Date(ts).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
@@ -47,7 +48,7 @@ export default function ClientPortalPage() {
       />
       <div className="relative mx-auto w-full max-w-2xl space-y-5">
         {data === undefined ? (
-          <div className="grid place-items-center py-24"><Loader2 className="size-6 animate-spin text-gold" /></div>
+          <PulseLoader variant="compact" message="Loading" />
         ) : data === null ? (
           <div className="rounded-chrome border border-graphite/50 bg-coal/60 p-8 text-center shadow-elev-2">
             <p className="font-grotesk text-lg font-semibold text-bone">This link is no longer valid</p>

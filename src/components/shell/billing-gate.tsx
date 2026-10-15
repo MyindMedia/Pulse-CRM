@@ -5,6 +5,7 @@ import { useAction, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
 import { CreditCard, Hourglass, Lock, Sparkles } from "lucide-react";
+import { PulseLoader } from "@/components/brand/pulse-loader";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody,
@@ -196,9 +197,7 @@ export function BillingLockGate({ children }: { children: React.ReactNode }) {
   const billing = useQuery(api.agencyBilling.myBilling);
   if (billing === undefined) {
     return (
-      <div className="grid min-h-dvh place-items-center bg-ink">
-        <Hourglass className="size-6 animate-pulse text-gold" aria-hidden />
-      </div>
+      <PulseLoader message="Checking your plan" />
     );
   }
   if (billing?.locked) return <BillingLock />;
