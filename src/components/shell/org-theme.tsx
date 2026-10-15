@@ -3,6 +3,7 @@ import * as React from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { BRAND_THEME_KEYS, deriveBrandTheme } from "@/lib/brand-theme";
+import { useUiStyleRoot } from "@/lib/ui-style";
 
 /* Rethemes the authenticated app to the ACTIVE org's brand (agency view-as
    included - orgs.current resolves the acting studio) by overriding the gold
@@ -19,6 +20,8 @@ export function OrgTheme({ children }: { children: React.ReactNode }) {
   const org = useQuery(api.orgs.current);
   const accent = org?.accentColor ?? null;
   const secondary = org?.brandSecondary ?? null;
+  // Pulse Hardware (default) or iOS Glass: a root attribute glass.css keys on.
+  useUiStyleRoot(org?.uiStyle);
 
   React.useEffect(() => {
     const root = document.documentElement;

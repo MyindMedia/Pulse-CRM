@@ -31,6 +31,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
 import type { Org } from "@/components/settings/types";
+import { UiStylePicker } from "@/components/settings/ui-style-picker";
 
 const HEX_RE = /^#?[0-9a-fA-F]{6}$/;
 const norm = (hex: string) => (hex.trim().startsWith("#") ? hex.trim() : `#${hex.trim()}`).toLowerCase();
@@ -143,7 +144,7 @@ export function BrandColorsCard({ org }: { org: Org }) {
         <CardTitle>Brand colors</CardTitle>
         <CardDescription>
           On every plan. Your colors carry through buttons, highlights, focus rings, charts and the
-          moving background, in the app, on the booking page and on the kiosk.
+          moving background, in the app, on the booking page and on the kiosk. Pick the look below too.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -204,6 +205,9 @@ export function BrandColorsCard({ org }: { org: Org }) {
             />
           </div>
         )}
+
+        {/* Surface style: saves on pick, separate from the colors */}
+        <UiStylePicker org={org} tokens={tokens} />
 
         {/* Live preview */}
         <div className="space-y-2">
