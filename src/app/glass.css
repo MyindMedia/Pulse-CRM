@@ -317,17 +317,62 @@
 
 /* ── Thick: dense data straight on the page ─────────────────────
    The calendar month grid, the day and week agenda groups, list panels and
-   segmented groups are bg-coal containers; tables wear a rounded wrapper.
+   segmented groups are bg-coal containers; tables wear a rounded wrapper
+   (rounded-xl from <Table>, rounded-chrome on the Schedule team grid,
+   rounded-lg on hand-rolled ones); chrome panels are bg-coal/40.
    Sitting straight on the page (not inside another material) they take the
    thick smoke, so the grid reads as one dark pane the light glows through.
    Inside a card or a dialog bg-coal stays the light iOS fill above. */
-[data-ui-style=glass]:not(#g) .pl-bay :is(.bg-coal, .rounded-xl:has(> table)):not(
+[data-ui-style=glass]:not(#g) .pl-bay :is(.bg-coal, [class*=rounded]:has(> table), .rounded-chrome.bg-coal\/40):not(
   input, textarea, select, button, .pl-field, .pl-search,
   :is(.pl-card, [role=dialog], .glass-liquid, .glass-strong, .material-thin, .material-regular) *
 ) {
   background: var(--glass-thick-flat);
   border-color: var(--gl-edge-soft);
   box-shadow: var(--glass-edge), var(--gl-shadow-1);
+}
+
+/* ── Every other container on the page ──────────────────────────
+   Any rounded, bordered block in the bay that no rule above dresses
+   (pipeline cards, callouts, list panels, hand-rolled sections) was a
+   see-through tint (bg-coal-2, bg-obsidian/60, bg-gold/[0.06], none).
+   Straight on the page it takes the thick smoke; inside another such
+   container it is the light iOS fill, so nesting never stacks smoke.
+   Pills, icon tiles (size-*), dashed drop zones and fields stay as they are. */
+[data-ui-style=glass]:not(#g) .pl-bay :is(div, section, article, aside, ul, ol, form, details, fieldset)[class*=rounded-][class*=border]:not(
+  .rounded-full, .border-dashed, [class*=size-], .pl-field, .pl-search, .pl-card, .glass, .glass-liquid, .glass-strong,
+  .material-ultrathin, .material-thin, .material-regular, .material-thick,
+  [class*="bg-gold/"], [class*="bg-caution/"], [class*="bg-critical/"], [class*="bg-positive/"], [class*="bg-info/"],
+  :is(.pl-card, [role=dialog], .glass-liquid, .glass-strong, .material-thin, .material-regular) *
+) {
+  background: var(--glass-thick-flat);
+  border-color: var(--gl-edge-soft);
+  box-shadow: var(--glass-edge), var(--gl-shadow-1);
+}
+/* Status and brand callouts keep their own tint: the smoke goes behind
+   them as a darkening frost of the page instead (few of these, so the
+   blur costs nothing measurable). */
+[data-ui-style=glass]:not(#g) .pl-bay :is(div, section, article, aside, ul, ol, form, details, fieldset)[class*=rounded-][class*=border]:is(
+  [class*="bg-gold/"], [class*="bg-caution/"], [class*="bg-critical/"], [class*="bg-positive/"], [class*="bg-info/"]
+):not(.rounded-full, [class*=size-], :is(.pl-card, [role=dialog], .glass-liquid, .glass-strong, .material-thin, .material-regular) *) {
+  -webkit-backdrop-filter: blur(24px) saturate(140%) brightness(0.42);
+  backdrop-filter: blur(24px) saturate(140%) brightness(0.42);
+  box-shadow: var(--glass-edge), var(--gl-shadow-1);
+}
+/* Clickable containers keep a hover lift. */
+[data-ui-style=glass]:not(#g) .pl-bay :is(div, li, article)[class*=rounded-][class*=border]:is([role=button], .cursor-pointer, [draggable=true]):hover:not(
+  :is(.pl-card, [role=dialog], .glass-liquid, .glass-strong, .material-thin, .material-regular) *
+) {
+  background: linear-gradient(rgba(255, 255, 255, 0.05), rgba(255, 255, 255, 0.05)), var(--glass-thick-flat);
+}
+/* Nested: a container inside a smoked container is the light fill. */
+[data-ui-style=glass]:not(#g) .pl-bay :is(.bg-coal, [class*=rounded-][class*=border]):not(.rounded-full, [class*=size-]) :is(div, section, article, aside, ul, ol, li, form, details, fieldset)[class*=rounded-][class*=border]:not(
+  .rounded-full, .border-dashed, [class*=size-], .pl-field, .pl-search, .pl-card, .glass, .glass-liquid, .glass-strong,
+  .material-ultrathin, .material-thin, .material-regular, .material-thick,
+  [class*="bg-gold"], [class*="bg-caution"], [class*="bg-critical"], [class*="bg-positive"], [class*="bg-info"]
+) {
+  background: var(--glass-tint), rgba(255, 255, 255, 0.035);
+  box-shadow: inset 0 1px 0 var(--gl-edge-soft);
 }
 
 /* ── Overlays: dialog, sheet, command palette, popover, menus ── */
