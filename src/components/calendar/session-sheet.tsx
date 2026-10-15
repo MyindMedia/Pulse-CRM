@@ -60,6 +60,14 @@ import { CompDialog } from "./comp-dialog";
 import { BookSessionDialog, type SessionPrefill } from "./book-session-dialog";
 import { Gift } from "lucide-react";
 import { PendingChangeBanner } from "@/components/bookings/pending-change-banner";
+import {
+  MessageLog,
+  SessionFilesPanel,
+  SessionHistoryPanel,
+  SessionInvoicesPanel,
+  SessionNotesPanel,
+  SpecialRequestsPanel,
+} from "./session-extras";
 import { ChangedInGoogleBadge } from "@/components/calendar/changed-in-google-badge";
 import { proposalNotice, type MaybeProposal } from "@/lib/change-proposal";
 
@@ -110,7 +118,9 @@ const STATUS_VERB: Record<SessionStatus, string> = {
   no_show: "Mark no-show",
 };
 
-/** Full session detail drawer with deposit, intake and status workflow. */
+/** Full session detail in a centered modal: every field of the booking, money,
+ *  special requests, staff notes, files and songs, invoices, prep, messages
+ *  and history, with the deposit, intake and status workflow in the footer. */
 export function SessionSheet({
   sessionId,
   onClose,
@@ -159,10 +169,18 @@ export function SessionSheet({
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent width="md">
-        {!detail ? (
+      <SheetContent width="xl">
+        {detail === null ? (
           <>
             <SheetHeader>
+              <SheetTitle>Session not found</SheetTitle>
+              <SheetDescription>This booking was deleted, or it belongs to another studio.</SheetDescription>
+            </SheetHeader>
+          </>
+        ) : !detail ? (
+          <>
+            <SheetHeader>
+              <SheetTitle className="sr-only">Loading session</SheetTitle>
               <Skeleton className="h-5 w-52" />
               <Skeleton className="h-4 w-36" />
             </SheetHeader>
@@ -175,7 +193,7 @@ export function SessionSheet({
         ) : (
           <>
             <SheetHeader>
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span
                   aria-hidden
                   className="size-2.5 rounded-full"
@@ -202,155 +220,194 @@ export function SessionSheet({
               />
               <PendingChangeBanner sessionId={detail._id} />
               <ChangedInGoogleBadge sessionId={detail._id} changedAt={"googleChangedAt" in detail ? detail.googleChangedAt : undefined} />
-              <div className="divide-y divide-hairline">
-                <Row label="Artist">
-                  <EntityLink type="artist" id={detail.artistId} className="inline-flex items-center gap-2 hover:text-gold">
-                    <Avatar name={detail.artistName} size="xs" />
-                    <span className="truncate">{detail.artistName}</span>
-                  </EntityLink>
-                </Row>
-                <Row label="Song" icon={Music2}>
-                  {detail.songTitle ? (
-                    <EntityLink type="song" id={detail.songId} className="hover:text-gold">{detail.songTitle}</EntityLink>
-                  ) : (
-                    <span className="text-steel/70">Not linked</span>
-                  )}
-                </Row>
-                <Row label="Engineer" icon={Headphones}>
-                  {detail.engineerName ? (
-                    <span className="inline-flex flex-wrap items-center gap-2">
-                      <Avatar
-                        name={detail.engineerName}
-                        src={engineerPhotoUrl}
-                        size="xs"
-                        className="rounded-full"
-                      />
-                      <span className="truncate">{detail.engineerName}</span>
-                      {detail.engineerRequestStatus === "pending" && (
-                        <>
-                          <Badge tone="caution">awaiting confirmation</Badge>
-                          {can("schedule.manage") && (
-                            <button
-                              type="button"
-                              className="text-xs font-medium text-gold hover:underline"
-                              onClick={() =>
-                                void overrideConfirm({ sessionId: detail._id })
-                                  .then(() => toast.success("Booking finalized by override."))
-                                  .catch((e) => toast.error(e instanceof Error ? e.message : "Could not override."))
-                              }
-                            >
-                              Confirm on their behalf
-                            </button>
+              <div className="grid gap-6 lg:grid-cols-2">
+                <div className="min-w-0 space-y-5">
+                  <div className="divide-y divide-hairline">
+                    <Row label="Artist">
+                      <EntityLink type="artist" id={detail.artistId} className="inline-flex items-center gap-2 hover:text-gold">
+                        <Avatar name={detail.artistName} size="xs" />
+                        <span className="truncate">{detail.artistName}</span>
+                      </EntityLink>
+                    </Row>
+                    <Row label="Song" icon={Music2}>
+                      {detail.songTitle ? (
+                        <EntityLink type="song" id={detail.songId} className="hover:text-gold">{detail.songTitle}</EntityLink>
+                      ) : (
+                        <span className="text-steel/70">Not linked</span>
+                      )}
+                    </Row>
+                    <Row label="Engineer" icon={Headphones}>
+                      {detail.engineerName ? (
+                        <span className="inline-flex flex-wrap items-center gap-2">
+                          <Avatar
+                            name={detail.engineerName}
+                            src={engineerPhotoUrl}
+                            size="xs"
+                            className="rounded-full"
+                          />
+                          <span className="truncate">{detail.engineerName}</span>
+                          {detail.engineerRequestStatus === "pending" && (
+                            <>
+                              <Badge tone="caution">awaiting confirmation</Badge>
+                              {can("schedule.manage") && (
+                                <button
+                                  type="button"
+                                  className="text-xs font-medium text-gold hover:underline"
+                                  onClick={() =>
+                                    void overrideConfirm({ sessionId: detail._id })
+                                      .then(() => toast.success("Booking finalized by override."))
+                                      .catch((e) => toast.error(e instanceof Error ? e.message : "Could not override."))
+                                  }
+                                >
+                                  Confirm on their behalf
+                                </button>
+                              )}
+                            </>
                           )}
-                        </>
+                          {detail.engineerRequestStatus === "confirmed" && (
+                            <Badge tone="positive">confirmed</Badge>
+                          )}
+                          {detail.engineerRequestStatus === "overridden" && (
+                            <Badge tone="gold">finalized by manager</Badge>
+                          )}
+                        </span>
+                      ) : (
+                        <span className="text-steel/70">Unassigned</span>
                       )}
-                      {detail.engineerRequestStatus === "confirmed" && (
-                        <Badge tone="positive">confirmed</Badge>
+                    </Row>
+                    <Row label="Room" icon={DoorOpen}>
+                      {detail.roomName ? (
+                        <EntityLink type="room" id={detail.roomId} className="hover:text-gold">{detail.roomName}</EntityLink>
+                      ) : (
+                        <span className="text-steel/70">Unassigned</span>
                       )}
-                      {detail.engineerRequestStatus === "overridden" && (
-                        <Badge tone="gold">finalized by manager</Badge>
-                      )}
-                    </span>
-                  ) : (
-                    <span className="text-steel/70">Unassigned</span>
-                  )}
-                </Row>
-                <Row label="Room" icon={DoorOpen}>
-                  {detail.roomName ? (
-                    <EntityLink type="room" id={detail.roomId} className="hover:text-gold">{detail.roomName}</EntityLink>
-                  ) : (
-                    <span className="text-steel/70">Unassigned</span>
-                  )}
-                </Row>
-                <Row label="Rate" icon={Wallet}>
-                  <span className="flex flex-wrap items-center gap-2">
-                    <span className="font-meta font-semibold text-gold-bright">
-                      {money(detail.rateCents)}
-                    </span>
-                    {detail.compType && (
-                      <Badge tone="caution" className="capitalize">
-                        {detail.compType} ·{" "}
-                        {money(Math.max(0, (detail.listValueCents ?? detail.rateCents) - detail.rateCents))} foregone
+                    </Row>
+                    <Row label="When" icon={Clock}>
+                      <span className="font-meta">
+                        {longDate(detail.startTime)} · {timeOfDay(detail.startTime)} - {timeOfDay(detail.endTime)}
+                      </span>
+                    </Row>
+                    <Row label="Rate" icon={Wallet}>
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="font-meta font-semibold text-gold-bright">
+                          {money(detail.rateCents)}
+                        </span>
+                        {detail.compType && (
+                          <Badge tone="caution" className="capitalize">
+                            {detail.compType} ·{" "}
+                            {money(Math.max(0, (detail.listValueCents ?? detail.rateCents) - detail.rateCents))} foregone
+                          </Badge>
+                        )}
+                        {detail.status !== "cancelled" && (
+                          <button
+                            type="button"
+                            onClick={() => setCompOpen(true)}
+                            className="inline-flex items-center gap-1 text-[0.6875rem] font-medium text-steel transition-colors hover:text-gold"
+                          >
+                            <Gift className="size-3" />
+                            {detail.compType ? "Edit comp" : "Comp / discount"}
+                          </button>
+                        )}
+                      </span>
+                    </Row>
+                    <Row label="Deposit">
+                      <span className="inline-flex items-center gap-2">
+                        <span className="font-meta text-steel">{money(detail.depositCents)}</span>
+                        <Badge tone={detail.depositPaid ? "positive" : "caution"}>
+                          {detail.depositPaid ? "Paid" : "Unpaid"}
+                        </Badge>
+                      </span>
+                    </Row>
+                    {"rateCents" in detail && typeof detail.rateCents === "number" && (
+                      <Row label="Paid / balance">
+                        <span className="inline-flex flex-wrap items-center justify-end gap-2 font-meta">
+                          <span className="text-steel">{money(detail.amountPaidCents ?? 0)} paid</span>
+                          <Badge tone={detail.rateCents - (detail.amountPaidCents ?? 0) > 0 ? "caution" : "positive"}>
+                            {detail.rateCents - (detail.amountPaidCents ?? 0) > 0
+                              ? `${money(detail.rateCents - (detail.amountPaidCents ?? 0))} due`
+                              : "Paid in full"}
+                          </Badge>
+                        </span>
+                      </Row>
+                    )}
+                    <Row label="Intake">
+                      <Badge tone={detail.intakeCompleted ? "positive" : "caution"}>
+                        {detail.intakeCompleted ? "Completed" : "Pending"}
                       </Badge>
-                    )}
-                    {detail.status !== "cancelled" && (
-                      <button
-                        type="button"
-                        onClick={() => setCompOpen(true)}
-                        className="inline-flex items-center gap-1 text-[0.6875rem] font-medium text-steel transition-colors hover:text-gold"
-                      >
-                        <Gift className="size-3" />
-                        {detail.compType ? "Edit comp" : "Comp / discount"}
-                      </button>
-                    )}
-                  </span>
-                </Row>
-                <Row label="Deposit">
-                  <span className="inline-flex items-center gap-2">
-                    <span className="font-meta text-steel">{money(detail.depositCents)}</span>
-                    <Badge tone={detail.depositPaid ? "positive" : "caution"}>
-                      {detail.depositPaid ? "Paid" : "Unpaid"}
-                    </Badge>
-                  </span>
-                </Row>
-                <Row label="Intake">
-                  <Badge tone={detail.intakeCompleted ? "positive" : "caution"}>
-                    {detail.intakeCompleted ? "Completed" : "Pending"}
-                  </Badge>
-                </Row>
-              </div>
+                    </Row>
+                  </div>
 
-              {detail.notes && (
-                <div className="space-y-1.5">
-                  <p className="text-xs font-medium text-steel">Notes</p>
-                  <p className="rounded-md border border-graphite/50 bg-coal-2 p-3 text-sm leading-relaxed text-steel">
-                    {detail.notes}
-                  </p>
+
+                  {detail.notes && detail.source !== "public_booking" && (
+                    <section className="space-y-1.5" aria-label="Booking notes">
+                      <p className="overline">Booking notes</p>
+                      <p className="whitespace-pre-wrap rounded-md border border-graphite/50 bg-coal-2 p-3 text-sm leading-relaxed text-steel">
+                        {detail.notes}
+                      </p>
+                    </section>
+                  )}
+
+                  <SpecialRequestsPanel session={detail} />
+
+                  <SessionNotesPanel sessionId={detail._id} />
+
+                  <SessionFilesPanel sessionId={detail._id} artistId={detail.artistId} />
+
+                  {/* Mid-session floor actions: extend the window + add gear */}
+                  {detail.status !== "cancelled" &&
+                    detail.status !== "no_show" &&
+                    detail.status !== "completed" && (
+                      <FloorActionsPanel sessionId={detail._id} busy={busy} setBusy={setBusy} />
+                    )}
+
+                  {/* Pre + post session checklists for staff / interns */}
+                  <ChecklistsPanel sessionId={detail._id} />
+
+                  {/* Engineering log - the recall sheet, now editable */}
+                  <RecallPanel sessionId={detail._id} log={detail.engineeringLog ?? null} />
+
+
                 </div>
-              )}
+                <div className="min-w-0 space-y-5">
+                  {/* Payment - booking ledger and staff record-a-payment */}
+                  <PaymentPanel
+                    sessionId={detail._id}
+                    rateCents={detail.rateCents}
+                    depositCents={detail.depositCents}
+                    amountPaidCents={detail.amountPaidCents}
+                    cancelled={detail.status === "cancelled"}
+                  />
 
-              {/* Mid-session floor actions: extend the window + add gear */}
-              {detail.status !== "cancelled" &&
-                detail.status !== "no_show" &&
-                detail.status !== "completed" && (
-                  <FloorActionsPanel sessionId={detail._id} busy={busy} setBusy={setBusy} />
-                )}
+                  <SessionInvoicesPanel sessionId={detail._id} />
 
-              {/* Pre + post session checklists for staff / interns */}
-              <ChecklistsPanel sessionId={detail._id} />
+                  {/* Apply prepaid package hours - draw down a client's active credit */}
+                  {detail.status !== "cancelled" && (
+                    <ApplyPackagePanel
+                      sessionId={detail._id}
+                      artistId={detail.artistId}
+                      rateCents={detail.rateCents}
+                    />
+                  )}
 
-              {/* AI artifacts: recap email, prep packet, reminders */}
-              <SessionAiPanel sessionId={detail._id} />
+                  {/* Collect balance on the spot - pay link + QR / copy / text */}
+                  <CollectBalancePanel
+                    sessionId={detail._id}
+                    balanceCents={Math.max(
+                      0,
+                      detail.rateCents - (detail.amountPaidCents ?? 0),
+                    )}
+                  />
 
-              {/* Engineering log - the recall sheet, now editable */}
-              <RecallPanel sessionId={detail._id} log={detail.engineeringLog ?? null} />
+                  <SessionHistoryPanel sessionId={detail._id} />
 
-              {/* Payment - booking ledger and staff record-a-payment */}
-              <PaymentPanel
-                sessionId={detail._id}
-                rateCents={detail.rateCents}
-                depositCents={detail.depositCents}
-                amountPaidCents={detail.amountPaidCents}
-                cancelled={detail.status === "cancelled"}
-              />
+                  <MessageLog sessionId={detail._id} />
 
-              {/* Apply prepaid package hours - draw down a client's active credit */}
-              {detail.status !== "cancelled" && (
-                <ApplyPackagePanel
-                  sessionId={detail._id}
-                  artistId={detail.artistId}
-                  rateCents={detail.rateCents}
-                />
-              )}
+                  {/* AI artifacts: recap email, prep packet, reminders */}
+                  <SessionAiPanel sessionId={detail._id} />
 
-              {/* Collect balance on the spot - pay link + QR / copy / text */}
-              <CollectBalancePanel
-                sessionId={detail._id}
-                balanceCents={Math.max(
-                  0,
-                  detail.rateCents - (detail.amountPaidCents ?? 0),
-                )}
-              />
+
+                </div>
+              </div>
             </SheetBody>
 
             <SheetFooter className="flex-wrap">

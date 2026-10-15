@@ -12,8 +12,6 @@ import {
   Globe,
   Headphones,
   LogIn,
-  Mail,
-  MessageSquare,
   Music2,
 } from "lucide-react";
 import {
@@ -35,13 +33,20 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { Avatar } from "@/components/ui/avatar";
+import {
+  MessageLog,
+  SessionFilesPanel,
+  SessionHistoryPanel,
+  SessionInvoicesPanel,
+  SessionNotesPanel,
+  SpecialRequestsPanel,
+} from "@/components/calendar/session-extras";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/feedback";
-import { longDate, timeOfDay, duration, relativeTime } from "@/lib/format";
+import { longDate, timeOfDay, duration } from "@/lib/format";
 import { meta, SESSION_STATUS } from "@/lib/labels";
-import type { BookingRow, NotificationRow, SessionStatus } from "./types";
+import type { BookingRow, SessionStatus } from "./types";
 import { isOnline } from "./types";
 import { HoldCountdown } from "./hold-countdown";
 import { RequestBadge, RequestDecision } from "./request-decision";
@@ -85,62 +90,6 @@ function SessionRiskBadge({ sessionId }: { sessionId: BookingRow["_id"] }) {
   );
 }
 
-/** The message log for one booking - read-only, simulated sends. */
-function MessageLog({ sessionId }: { sessionId: BookingRow["_id"] }) {
-  const messages = useQuery(api.notifications.forSession, { sessionId }) as
-    | NotificationRow[]
-    | undefined;
-
-  return (
-    <div className="space-y-1.5">
-      <p className="overline">Message log</p>
-      {messages === undefined ? (
-        <div className="space-y-1.5">
-          {[0, 1].map((i) => (
-            <Skeleton key={i} className="h-12 w-full" />
-          ))}
-        </div>
-      ) : messages.length === 0 ? (
-        <p className="rounded-md border border-dashed border-graphite/60 py-5 text-center text-xs text-steel/70">
-          No confirmations or reminders sent for this booking yet.
-        </p>
-      ) : (
-        <ul className="space-y-1.5">
-          {messages.map((msg) => (
-            <li
-              key={msg._id}
-              className="rounded-md border border-graphite/50 bg-coal-2 p-2.5"
-            >
-              <div className="flex items-center justify-between gap-2">
-                <span className="inline-flex items-center gap-1.5 text-xs font-medium text-bone">
-                  {msg.channel === "email" ? (
-                    <Mail className="size-3.5 text-steel/70" />
-                  ) : (
-                    <MessageSquare className="size-3.5 text-steel/70" />
-                  )}
-                  {msg.subject}
-                </span>
-                <span className="shrink-0 text-[0.625rem] text-steel/70">
-                  {relativeTime(msg._creationTime)}
-                </span>
-              </div>
-              <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-steel">
-                {msg.body}
-              </p>
-              <p className="mt-1 font-meta text-[0.5625rem] uppercase tracking-wide text-steel/70">
-                {msg.channel} · {msg.recipient}
-              </p>
-            </li>
-          ))}
-        </ul>
-      )}
-      <p className="text-[0.625rem] text-steel/70">
-        Confirmations and reminders are emailed to the client and logged here.
-      </p>
-    </div>
-  );
-}
-
 /** Status transitions offered from the Bookings screen, mirroring the calendar
  *  SessionSheet workflow so both surfaces drive the same lifecycle. */
 const NEXT_STATUSES: Record<SessionStatus, SessionStatus[]> = {
@@ -162,7 +111,9 @@ const STATUS_VERB: Record<SessionStatus, string> = {
   no_show: "Mark no-show",
 };
 
-/** Full booking detail drawer: schedule, payment, history and messages. */
+/** Full booking detail in a centered modal: schedule, client, payment,
+ *  special requests, staff notes, files and songs, invoices, history and
+ *  messages. */
 export function BookingSheet({
   booking,
   onClose,
@@ -171,6 +122,8 @@ export function BookingSheet({
   onClose: () => void;
 }) {
   const open = booking !== null;
+  // The full booking (special requests, add-ons) for the requests panel.
+  const full = useQuery(api.sessions.get, booking ? { id: booking._id } : "skip");
   // Member roster (with photos) so the engineer line can show their photo.
   const engineers = useQuery(api.members.engineers, booking ? {} : "skip");
   const engineerPhotoUrl =
@@ -216,7 +169,7 @@ export function BookingSheet({
 
   return (
     <Sheet open={open} onOpenChange={(o) => !o && onClose()}>
-      <SheetContent width="md">
+      <SheetContent width="xl">
         {!booking ? null : (
           <>
             <SheetHeader>
@@ -251,67 +204,84 @@ export function BookingSheet({
               />
               <PendingChangeBanner sessionId={booking._id} />
               <ChangedInGoogleBadge sessionId={booking._id} changedAt={("googleChangedAt" in booking ? booking.googleChangedAt : undefined) as number | undefined} />
-              <div className="divide-y divide-hairline">
-                <Row label="Client">
-                  <span className="inline-flex items-center gap-2">
-                    <Avatar name={booking.artistName} size="xs" />
-                    <EntityLink type="artist" id={booking.artistId} className="truncate hover:underline">
-                      {booking.artistName}
-                    </EntityLink>
-                  </span>
-                </Row>
-                <Row label="Song" icon={Music2}>
-                  {booking.songTitle ? (
-                    <EntityLink type="song" id={booking.songId} className="hover:underline">
-                      {booking.songTitle}
-                    </EntityLink>
-                  ) : (
-                    <span className="text-steel/70">Not linked</span>
-                  )}
-                </Row>
-                <Row label="Room" icon={DoorOpen}>
-                  {booking.roomName ? (
-                    <EntityLink type="room" id={booking.roomId} className="hover:underline">
-                      {booking.roomName}
-                    </EntityLink>
-                  ) : (
-                    <span className="text-steel/70">Unassigned</span>
-                  )}
-                </Row>
-                <Row label="Engineer" icon={Headphones}>
-                  {booking.engineerName ? (
-                    <span className="inline-flex items-center gap-2">
-                      <Avatar
-                        name={booking.engineerName}
-                        src={engineerPhotoUrl}
-                        size="xs"
-                        className="rounded-full"
-                      />
-                      <span className="truncate">{booking.engineerName}</span>
-                    </span>
-                  ) : (
-                    <span className="text-steel/70">Unassigned</span>
-                  )}
-                </Row>
-                <Row label="Schedule" icon={Clock}>
-                  {duration(booking.startTime, booking.endTime)} session
-                </Row>
-                {booking.status === "tentative" && booking.holdExpiresAt && (
-                  <Row label="Hold">
-                    <HoldCountdown expiresAt={booking.holdExpiresAt} />
-                  </Row>
-                )}
+              <div className="grid gap-6 lg:grid-cols-2">
+                <div className="min-w-0 space-y-5">
+                  <div className="divide-y divide-hairline">
+                    <Row label="Client">
+                      <span className="inline-flex items-center gap-2">
+                        <Avatar name={booking.artistName} size="xs" />
+                        <EntityLink type="artist" id={booking.artistId} className="truncate hover:underline">
+                          {booking.artistName}
+                        </EntityLink>
+                      </span>
+                    </Row>
+                    <Row label="Song" icon={Music2}>
+                      {booking.songTitle ? (
+                        <EntityLink type="song" id={booking.songId} className="hover:underline">
+                          {booking.songTitle}
+                        </EntityLink>
+                      ) : (
+                        <span className="text-steel/70">Not linked</span>
+                      )}
+                    </Row>
+                    <Row label="Room" icon={DoorOpen}>
+                      {booking.roomName ? (
+                        <EntityLink type="room" id={booking.roomId} className="hover:underline">
+                          {booking.roomName}
+                        </EntityLink>
+                      ) : (
+                        <span className="text-steel/70">Unassigned</span>
+                      )}
+                    </Row>
+                    <Row label="Engineer" icon={Headphones}>
+                      {booking.engineerName ? (
+                        <span className="inline-flex items-center gap-2">
+                          <Avatar
+                            name={booking.engineerName}
+                            src={engineerPhotoUrl}
+                            size="xs"
+                            className="rounded-full"
+                          />
+                          <span className="truncate">{booking.engineerName}</span>
+                        </span>
+                      ) : (
+                        <span className="text-steel/70">Unassigned</span>
+                      )}
+                    </Row>
+                    <Row label="Schedule" icon={Clock}>
+                      {duration(booking.startTime, booking.endTime)} session
+                    </Row>
+                    {booking.status === "tentative" && booking.holdExpiresAt && (
+                      <Row label="Hold">
+                        <HoldCountdown expiresAt={booking.holdExpiresAt} />
+                      </Row>
+                    )}
+                  </div>
+
+                  {full && <SpecialRequestsPanel session={full} />}
+
+                  <SessionNotesPanel sessionId={booking._id} />
+
+                  <SessionFilesPanel sessionId={booking._id} artistId={booking.artistId} />
+
+                </div>
+                <div className="min-w-0 space-y-5">
+                  <PaymentPanel
+                    sessionId={booking._id}
+                    rateCents={booking.rateCents}
+                    depositCents={booking.depositCents}
+                    amountPaidCents={booking.amountPaidCents}
+                    cancelled={booking.status === "cancelled"}
+                  />
+
+                  <SessionInvoicesPanel sessionId={booking._id} />
+
+                  <SessionHistoryPanel sessionId={booking._id} />
+
+                  <MessageLog sessionId={booking._id} />
+
+                </div>
               </div>
-
-              <PaymentPanel
-                sessionId={booking._id}
-                rateCents={booking.rateCents}
-                depositCents={booking.depositCents}
-                amountPaidCents={booking.amountPaidCents}
-                cancelled={booking.status === "cancelled"}
-              />
-
-              <MessageLog sessionId={booking._id} />
             </SheetBody>
 
             {NEXT_STATUSES[booking.status].length > 0 && (

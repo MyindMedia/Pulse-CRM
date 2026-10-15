@@ -19,6 +19,7 @@ import { AgencyHomeRedirect } from "@/components/shell/agency-home-redirect";
 import { LiveToasts } from "@/components/shell/live-toasts";
 import { CommandPalette } from "@/components/shell/command-palette";
 import { GlobalSessionSheet } from "@/components/shell/global-session-sheet";
+import { GlobalInvoiceModal } from "@/components/shell/global-invoice-modal";
 import { ClockWidget } from "@/components/timeclock/clock-widget";
 import { MobileTabBar } from "@/components/shell/mobile-tabbar";
 import { FeatureGuard } from "@/components/shell/feature-guard";
@@ -95,7 +96,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         {/* Mobile nav drawer */}
         <Sheet open={mobileNav} onOpenChange={setMobileNav}>
-          <SheetContent width="sm" className="theme-dark-island material-regular lg:hidden">
+          <SheetContent width="sm" placement="side" className="theme-dark-island material-regular lg:hidden">
             <Sidebar onNavigate={() => setMobileNav(false)} />
           </SheetContent>
         </Sheet>
@@ -130,6 +131,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <BillingLock />
         <CommandPalette />
         <GlobalSessionSheet />
+        <GlobalInvoiceModal />
         <ClockWidget />
         <MobileTabBar onOpenMore={() => setMobileNav(true)} />
       </div>
