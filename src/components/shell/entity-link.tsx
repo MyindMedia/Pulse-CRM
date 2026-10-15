@@ -4,8 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode, MouseEvent } from "react";
 import { cn } from "@/lib/utils";
-import { entityHref, sessionHref } from "@/lib/entity-href";
+import { entityHref, invoiceHref, sessionHref } from "@/lib/entity-href";
 import { useOpenSession } from "@/lib/use-open-session";
+import { useOpenInvoice } from "@/lib/use-open-invoice";
 
 /** Shared focus ring for every drill-down link, so a keyboard user sees where
  *  they are on any list. */
@@ -51,8 +52,46 @@ export function SessionLink({
   );
 }
 
+/** Opens an invoice's modal in place, on whatever page this sits on. Same
+ *  contract as SessionLink: a real <a>, a plain click never navigates. */
+export function InvoiceLink({
+  invoiceId,
+  children,
+  className,
+  title,
+  stopPropagation = false,
+}: {
+  invoiceId: string;
+  children: ReactNode;
+  className?: string;
+  title?: string;
+  stopPropagation?: boolean;
+}) {
+  const pathname = usePathname();
+  const openInvoice = useOpenInvoice();
+  function onClick(event: MouseEvent<HTMLAnchorElement>) {
+    if (stopPropagation) event.stopPropagation();
+    if (event.defaultPrevented || event.button !== 0) return;
+    if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    event.preventDefault();
+    openInvoice(invoiceId);
+  }
+  return (
+    <a
+      href={invoiceHref(invoiceId, { pathname })}
+      onClick={onClick}
+      title={title}
+      data-drill="invoice"
+      className={cn(DRILL_FOCUS, className)}
+    >
+      {children}
+    </a>
+  );
+}
+
 /** Links any entity to its detail (see `entityHref`). A session goes through
- *  SessionLink; anything with no destination renders its children as is. */
+ *  SessionLink and an invoice through InvoiceLink; anything with no
+ *  destination renders its children as is. */
 export function EntityLink({
   type,
   id,
@@ -73,6 +112,13 @@ export function EntityLink({
       <SessionLink sessionId={id} className={className} title={title} stopPropagation={stopPropagation}>
         {children}
       </SessionLink>
+    );
+  }
+  if (id && type === "invoice") {
+    return (
+      <InvoiceLink invoiceId={id} className={className} title={title} stopPropagation={stopPropagation}>
+        {children}
+      </InvoiceLink>
     );
   }
   const href = entityHref(type, id ?? undefined);

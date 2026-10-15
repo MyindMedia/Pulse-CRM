@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -49,8 +49,8 @@ import { NotesPanel } from "@/components/roster/notes-panel";
 import { EditArtistDialog, type EditableArtist } from "@/components/roster/edit-artist-dialog";
 import { DataRightsMenu } from "@/components/roster/data-rights-menu";
 import { artistTypeLabel } from "@/components/roster/constants";
-import { SessionLink, DRILL_FOCUS } from "@/components/shell/entity-link";
-import { cn } from "@/lib/utils";
+import { SessionLink, InvoiceLink } from "@/components/shell/entity-link";
+import { useOpenInvoice } from "@/lib/use-open-invoice";
 import { useOpenSession } from "@/lib/use-open-session";
 
 /* ── Social link helpers ───────────────────────────────────── */
@@ -86,7 +86,7 @@ function outstandingHint(invoices: { status: string; dueDate: number }[]): strin
 
 export default function ArtistDetailPage() {
   const { id } = useParams<{ id: string }>();
-  const router = useRouter();
+  const openInvoice = useOpenInvoice();
   const artistId = id as Id<"artists">;
   const data = useQuery(api.artists.get, { id: artistId });
   const openSession = useOpenSession();
@@ -430,17 +430,16 @@ export default function ArtistDetailPage() {
                     <TR
                       key={invoice._id}
                       interactive
-                      onClick={() => router.push(`/payments/${invoice._id}`)}
+                      onClick={() => openInvoice(invoice._id)}
                     >
                       <TD>
-                        <Link
-                          href={`/payments/${invoice._id}`}
-                          data-drill="invoice"
-                          className={cn(DRILL_FOCUS, "font-meta font-medium text-bone hover:text-gold")}
-                          onClick={(e) => e.stopPropagation()}
+                        <InvoiceLink
+                          invoiceId={invoice._id}
+                          stopPropagation
+                          className="font-meta font-medium text-bone hover:text-gold"
                         >
                           {invoice.number}
-                        </Link>
+                        </InvoiceLink>
                       </TD>
                       <TD className="text-steel">{shortDate(invoice.dueDate)}</TD>
                       <TD className="text-right font-meta tabular-nums font-medium text-bone">

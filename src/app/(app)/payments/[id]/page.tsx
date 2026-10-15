@@ -5,20 +5,14 @@ import { useParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { ArrowLeft, Receipt, User, Music2 } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ArrowLeft, Receipt } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
-import { InvoiceSheet } from "@/components/payments/invoice-sheet";
-import { StatusTimeline } from "@/components/payments/status-timeline";
-import { InvoiceActions } from "@/components/payments/invoice-actions";
-import { InvoiceActivity } from "@/components/payments/invoice-activity";
+import { InvoiceDetailView } from "@/components/payments/invoice-detail";
 import { Badge } from "@/components/ui/badge";
 import { categoryMeta } from "@/components/payments/category";
 import type { InvoiceDetail, ActivityRow } from "@/components/payments/types";
-import { SessionLink, DRILL_FOCUS } from "@/components/shell/entity-link";
-import { cn } from "@/lib/utils";
 
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -96,111 +90,7 @@ export default function InvoiceDetailPage() {
         </div>
       </div>
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_20rem]">
-        {/* The invoice document */}
-        <div className="min-w-0">
-          <InvoiceSheet invoice={invoice} />
-        </div>
-
-        {/* Side panel - timeline, actions, links, activity */}
-        <aside className="space-y-4">
-          <Card>
-            <CardHeader>
-              <CardTitle>Lifecycle</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <StatusTimeline status={invoice.status} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Actions</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <InvoiceActions
-                id={invoice._id}
-                number={invoice.number}
-                status={invoice.status}
-                amountCents={invoice.amountCents}
-              />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Linked records</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Link
-                href={`/roster/${invoice.artistId}`}
-                data-drill="artist"
-                className={cn(DRILL_FOCUS, "flex items-center gap-2.5 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5 transition-colors hover:border-graphite/60 hover:bg-coal-3")}
-              >
-                <span className="grid size-7 place-items-center rounded-md bg-coal-3 text-steel/70">
-                  <User className="size-3.5" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-[0.625rem] font-meta uppercase tracking-wide text-steel/70">
-                    Client
-                  </span>
-                  <span className="block truncate text-sm font-medium text-bone">
-                    {invoice.artist?.name ?? "Unknown"}
-                  </span>
-                </span>
-              </Link>
-
-              {invoice.songId && invoice.songTitle && (
-                <Link
-                  href={`/songs/${invoice.songId}`}
-                  data-drill="song"
-                  className={cn(DRILL_FOCUS, "flex items-center gap-2.5 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5 transition-colors hover:border-graphite/60 hover:bg-coal-3")}
-                >
-                  <span className="grid size-7 place-items-center rounded-md bg-coal-3 text-gold">
-                    <Music2 className="size-3.5" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[0.625rem] font-meta uppercase tracking-wide text-steel/70">
-                      Song
-                    </span>
-                    <span className="block truncate text-sm font-medium text-bone">
-                      {invoice.songTitle}
-                    </span>
-                  </span>
-                </Link>
-              )}
-
-              {invoice.sessionId && (
-                <SessionLink
-                  sessionId={invoice.sessionId}
-                  className="flex items-center gap-2.5 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5 transition-colors hover:border-graphite/60 hover:bg-coal-3"
-                >
-                  <span className="grid size-7 place-items-center rounded-md bg-coal-3 text-gold-dim">
-                    <Receipt className="size-3.5" />
-                  </span>
-                  <span className="min-w-0">
-                    <span className="block text-[0.625rem] font-meta uppercase tracking-wide text-steel/70">
-                      Session{invoice.serviceType ? ` · ${invoice.serviceType}` : ""}
-                    </span>
-                    <span className="block truncate text-sm font-medium text-bone">
-                      {invoice.sessionTitle || "Open booking"}
-                    </span>
-                  </span>
-                </SessionLink>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Activity</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <InvoiceActivity rows={activity} />
-            </CardContent>
-          </Card>
-        </aside>
-      </div>
+      <InvoiceDetailView invoice={invoice} activity={activity} />
     </div>
   );
 }

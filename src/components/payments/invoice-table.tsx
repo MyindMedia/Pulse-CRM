@@ -1,8 +1,7 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useOpenInvoice } from "@/lib/use-open-invoice";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -30,7 +29,7 @@ import { Button } from "@/components/ui/button";
 import { money, relativeTime, shortDate } from "@/lib/format";
 import { meta, INVOICE_STATUS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
-import { EntityLink, DRILL_FOCUS } from "@/components/shell/entity-link";
+import { EntityLink, InvoiceLink } from "@/components/shell/entity-link";
 import type { InvoiceRow } from "./types";
 import { categoryMeta } from "./category";
 import { RecordPaymentDialog, type RecordPaymentTarget } from "./record-payment-dialog";
@@ -41,7 +40,7 @@ function swallow(e: React.MouseEvent) {
 }
 
 export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
-  const router = useRouter();
+  const openInvoice = useOpenInvoice();
   const setStatus = useMutation(api.invoices.setStatus);
   const remove = useMutation(api.invoices.remove);
   const [recordTarget, setRecordTarget] = React.useState<RecordPaymentTarget | null>(null);
@@ -100,19 +99,18 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
             <TR
               key={row._id}
               interactive
-              onClick={() => router.push(`/payments/${row._id}`)}
+              onClick={() => openInvoice(row._id)}
               className={cn(overdue && "bg-critical/[0.04]")}
             >
               <TD className="whitespace-nowrap font-meta text-xs text-bone">
                 {/* The real link for keyboard and new-tab use; the row click is the mouse shortcut. */}
-                <Link
-                  href={`/payments/${row._id}`}
-                  onClick={swallow}
-                  data-drill="invoice"
-                  className={cn(DRILL_FOCUS, "hover:text-gold hover:underline")}
+                <InvoiceLink
+                  invoiceId={row._id}
+                  stopPropagation
+                  className="hover:text-gold hover:underline"
                 >
                   {row.number}
-                </Link>
+                </InvoiceLink>
               </TD>
               <TD>
                 <EntityLink
@@ -170,7 +168,7 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
                     <DropdownMenuLabel>{row.number}</DropdownMenuLabel>
-                    <DropdownMenuItem onSelect={() => router.push(`/payments/${row._id}`)}>
+                    <DropdownMenuItem onSelect={() => openInvoice(row._id)}>
                       <Eye className="size-4" />
                       View
                     </DropdownMenuItem>

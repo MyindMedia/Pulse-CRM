@@ -1,15 +1,23 @@
 import { describe, it, expect } from "vitest";
-import { entityHref, sessionHref, withSessionParam } from "./entity-href";
+import { entityHref, invoiceHref, sessionHref, withInvoiceParam, withSessionParam } from "./entity-href";
 
 describe("entityHref", () => {
   it("maps every entity with a detail page to its route", () => {
     expect(entityHref("artist", "a1")).toBe("/roster/a1");
     expect(entityHref("client", "a1")).toBe("/roster/a1");
     expect(entityHref("song", "s1")).toBe("/songs/s1");
-    expect(entityHref("invoice", "i1")).toBe("/payments/i1");
     expect(entityHref("payment", "i1")).toBe("/payments/i1");
     expect(entityHref("project", "p1")).toBe("/projects/p1");
     expect(entityHref("room", "r1")).toBe("/studio/r1");
+  });
+
+  it("opens an invoice in its modal: on Payments by default, in place when given a location", () => {
+    expect(entityHref("invoice", "i1")).toBe("/payments?invoice=i1");
+    expect(invoiceHref("i1")).toBe("/payments?invoice=i1");
+    expect(entityHref("invoice", "i1", { pathname: "/roster/a1", search: "?tab=money&session=s1" })).toBe(
+      "/roster/a1?tab=money&session=s1&invoice=i1",
+    );
+    expect(withInvoiceParam("?invoice=i1&tab=x", null)).toBe("?tab=x");
   });
 
   it("opens a deal on the pipeline board and a member on Settings > Team", () => {
