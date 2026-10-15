@@ -317,11 +317,13 @@
 
 /* ── Thick: dense data straight on the page ─────────────────────
    The calendar month grid, the day and week agenda groups, list panels and
-   segmented groups are bg-coal containers; tables wear a rounded wrapper.
+   segmented groups are bg-coal containers; tables wear a rounded wrapper
+   (rounded-xl from <Table>, rounded-chrome on the Schedule team grid,
+   rounded-lg on hand-rolled ones); chrome panels are bg-coal/40.
    Sitting straight on the page (not inside another material) they take the
    thick smoke, so the grid reads as one dark pane the light glows through.
    Inside a card or a dialog bg-coal stays the light iOS fill above. */
-[data-ui-style=glass]:not(#g) .pl-bay :is(.bg-coal, .rounded-xl:has(> table)):not(
+[data-ui-style=glass]:not(#g) .pl-bay :is(.bg-coal, [class*=rounded]:has(> table), .rounded-chrome.bg-coal\/40):not(
   input, textarea, select, button, .pl-field, .pl-search,
   :is(.pl-card, [role=dialog], .glass-liquid, .glass-strong, .material-thin, .material-regular) *
 ) {
