@@ -15,9 +15,9 @@ import { EntityLink } from "@/components/shell/entity-link";
 
 /* The change log: who changed what, and when.
  *
- * Every signed-in change to patch, inventory, check-ins, checklists, bookings,
- * clients, the team and the rest lands here, recorded by the server as it
- * happens (convex/lib/changeAudit.ts). Owners and managers only. A manager
+ * Every signed-in change, in every part of Pulse, lands here, recorded by the
+ * server as it happens (convex/lib/changeAudit.ts). New tables are covered
+ * the day they ship unless they are named there as machinery. Owners and managers only. A manager
  * whose owner has hidden money sees that a figure changed and who changed it,
  * never the figure. */
 
@@ -28,9 +28,12 @@ const AREAS = [
   { value: "checkins", label: "Check-ins" },
   { value: "checklists", label: "Checklists" },
   { value: "bookings", label: "Bookings and rooms" },
+  { value: "sessionNotes", label: "Session notes and files" },
   { value: "clients", label: "Clients" },
   { value: "team", label: "Team and time" },
   { value: "money", label: "Money" },
+  { value: "settings", label: "Settings and access" },
+  { value: "requests", label: "Feature requests" },
   { value: "other", label: "Everything else" },
 ];
 
@@ -52,7 +55,12 @@ const NOUN: Record<string, string> = {
   expenses: "expense", payouts: "payout", packageProducts: "package", packageCredits: "package credit",
   feeTemplates: "fee", membershipPlans: "membership plan", clientMessages: "client message",
   opportunities: "deal", songs: "song", deliverables: "deliverable", splitSheets: "split sheet",
-  licenses: "license",
+  licenses: "license", sessionNotes: "session note", sessionSongs: "session song", mediaAssets: "file",
+  mediaVersions: "file version", mediaNotes: "file note", gearCheckouts: "gear check-out",
+  assetDocuments: "gear document", featureRequests: "feature request", featureRequestVotes: "feature vote",
+  googleEvents: "Google event", roomBlocks: "room block", sessionChangeRequests: "booking change request",
+  orgs: "studio settings", invites: "invite", projects: "project", projectTasks: "project task",
+  memberships: "membership", receipts: "receipt", waitlistEntries: "waitlist entry",
 };
 
 const VERB = { insert: "added", update: "changed", delete: "removed" } as const;
@@ -74,6 +82,7 @@ function words(field: string): string {
 }
 
 function shown(value: unknown, field: string): string {
+  if (field === "ownerMemberId" && (value === null || value === undefined)) return "the studio";
   if (value === null || value === undefined) return "empty";
   if (typeof value === "number" && field.endsWith("Cents")) {
     return (value / 100).toLocaleString("en-US", { style: "currency", currency: "USD" });
@@ -102,7 +111,7 @@ function ChangeLogView() {
       <PageHeader
         overline="Reports"
         title="Change log"
-        description="Who changed what, and when. Patch, inventory, check-ins, checklists, bookings, clients and the team, recorded as it happens."
+        description="Who changed what, and when, anywhere in Pulse, recorded as it happens. Passwords and connection keys are never shown, only that they changed."
       />
 
       <div className="flex flex-wrap items-center gap-2">
