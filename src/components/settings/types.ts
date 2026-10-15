@@ -44,6 +44,8 @@ export type Org = {
   /** Brand colors (Settings > Branding): preset id and chosen secondary. */
   brandPreset?: string | null;
   brandSecondary?: string | null;
+  /** Surface style: Pulse Hardware (default) or iOS Glass. */
+  uiStyle?: "hardware" | "glass";
   timezone: string | null;
   briefRequireAll: boolean;
   /** Booking page: show the room's gear list to clients. */

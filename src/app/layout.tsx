@@ -17,6 +17,8 @@ import { Toaster } from "sonner";
 import "./globals.css";
 // The hardware UI layer (pulse-ui-kit); scoped to the app shell by .pulse-hw.
 import "./hardware.css";
+// iOS Glass skin (orgs.uiStyle = "glass"); inert until data-ui-style="glass" is set on <html>.
+import "./glass.css";
 import { fromPriceLabel } from "@/components/marketing/pricing-tiers";
 import { IS_STAGING } from "@/lib/deploy-env";
 import { StagingBadge } from "@/components/shell/staging-badge";

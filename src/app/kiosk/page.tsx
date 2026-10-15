@@ -39,6 +39,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ShellErrorBoundary } from "@/components/shell/shell-error-boundary";
 import { brandStyle } from "@/lib/brand-theme";
+import { GlassBackdrop } from "@/components/shell/glass-backdrop";
+import { useUiStyleRoot } from "@/lib/ui-style";
 import {
   MONTH_NAMES,
   WEEKDAY_LABELS,
@@ -204,6 +206,7 @@ function Kiosk({ authReady }: { authReady: boolean }) {
   }
 
   const org = useQuery(api.orgs.current);
+  const glass = useUiStyleRoot(org?.uiStyle);
 
   const anchorDate = new Date(anchor);
   const year = anchorDate.getFullYear();
@@ -254,9 +257,12 @@ function Kiosk({ authReady }: { authReady: boolean }) {
 
   return (
     <div
+      data-glass-root
       className="grain flex h-dvh flex-col overflow-hidden bg-ink text-bone"
       style={brandStyle(org?.accentColor, org?.brandSecondary)}
     >
+      {/* iOS Glass: the moving room light the panels frost over. */}
+      {glass && <GlassBackdrop />}
       {/* ambient wash in the studio brand color (--brand-rgb, brandStyle) */}
       <div
         aria-hidden

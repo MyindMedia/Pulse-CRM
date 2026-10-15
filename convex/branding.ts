@@ -142,3 +142,27 @@ export const setBrandColors = mutation({
     return { preset: args.preset, primary, secondary };
   },
 });
+
+/**
+ * Surface style for the whole studio: "hardware" (Pulse Hardware, the default)
+ * or "glass" (iOS Glass). Every plan, like brand colors. Stored as written;
+ * unset reads as hardware everywhere, so a studio that never touches it is
+ * unchanged. The server validates the value, so a client cannot store a third
+ * style the stylesheet has no rules for.
+ */
+export const setUiStyle = mutation({
+  args: { uiStyle: v.string() },
+  handler: async (ctx, { uiStyle }) => {
+    if (uiStyle !== "hardware" && uiStyle !== "glass") {
+      throw new Error("Unknown look. Pick Pulse Hardware or iOS Glass.");
+    }
+    const orgId = await currentOrgWithCapability(ctx, "branding.edit", undefined, SETUP_ACCESS);
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    if (!org) throw new Error("Set up the studio first.");
+    await ctx.db.patch(org._id, { uiStyle });
+    return { uiStyle };
+  },
+});
