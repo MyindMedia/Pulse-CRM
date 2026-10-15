@@ -808,6 +808,11 @@
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
 
+/* The detail modal takes focus itself on open (ui/sheet.tsx) so a phone
+   keyboard never jumps up; the container is not a control, so no ring. Its
+   buttons and fields keep theirs. */
+[role=dialog][data-placement]:not(#g):focus-visible { outline: none; }
+
 /* Skeleton shimmer */
 .skeleton { position: relative; overflow: hidden; background: var(--color-coal-2); }
 .skeleton::after {

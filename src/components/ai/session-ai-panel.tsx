@@ -44,12 +44,12 @@ export function SessionAiPanel({ sessionId }: { sessionId: Id<"sessions"> }) {
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="inline-flex items-center gap-1.5 text-xs font-medium text-steel">
           <Sparkles className="size-3.5 text-gold" />
           Pulse Agent
         </p>
-        <div className="flex items-center gap-1">
+        <div className="flex flex-wrap items-center justify-end gap-1">
           <Button variant="ghost" size="sm" onClick={runPrep} disabled={prepPending}>
             <FileText className="size-3.5" /> Generate prep
           </Button>

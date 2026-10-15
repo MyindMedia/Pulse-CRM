@@ -26,6 +26,7 @@ export function SheetContent({
   children,
   width = "md",
   placement = "center",
+  onOpenAutoFocus,
   ...props
 }: React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content> & {
   width?: "sm" | "md" | "lg" | "xl";
@@ -37,6 +38,15 @@ export function SheetContent({
       <DialogPrimitive.Overlay className="anim-overlay fixed inset-0 z-50 bg-ink/80 backdrop-blur-sm" />
       <DialogPrimitive.Content
         data-placement={placement}
+        // A modal full of fields would otherwise focus the first one, which on
+        // a phone throws the keyboard up over the record. Focus the modal
+        // itself instead: the trap, Tab order and Escape all still work.
+        onOpenAutoFocus={(event) => {
+          onOpenAutoFocus?.(event);
+          if (event.defaultPrevented || side) return;
+          event.preventDefault();
+          (event.currentTarget as HTMLElement | null)?.focus({ preventScroll: true });
+        }}
         className={cn(
           side
             ? cn(
@@ -45,7 +55,7 @@ export function SheetContent({
               )
             : cn(
                 // Phone: full screen, rising from the bottom like an iOS sheet.
-                "anim-modal fixed inset-0 z-50 flex min-w-0 flex-col glass-liquid shadow-elev-4 text-bone",
+                "anim-modal fixed inset-0 z-50 flex min-w-0 flex-col glass-liquid shadow-elev-4 text-bone outline-none",
                 "pt-[env(safe-area-inset-top)] pb-[env(safe-area-inset-bottom)]",
                 // From 640px: a centered modal, Dialog's look at detail width.
                 "sm:inset-auto sm:left-1/2 sm:top-1/2 sm:max-h-[90dvh] sm:w-[calc(100vw-3rem)] sm:-translate-x-1/2 sm:-translate-y-1/2 sm:rounded-chrome sm:overflow-hidden sm:pt-0 sm:pb-0",

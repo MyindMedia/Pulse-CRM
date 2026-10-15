@@ -133,6 +133,11 @@ export function SessionSheet({
     api.sessions.get,
     sessionId ? { id: sessionId as Id<"sessions"> } : "skip",
   );
+  // Songs linked in the Files and songs section, so the Song line agrees.
+  const linked = useQuery(
+    api.sessionFiles.list,
+    sessionId ? { sessionId: sessionId as Id<"sessions"> } : "skip",
+  );
   // Member roster (with photos) so the engineer line can show their photo.
   const engineers = useQuery(api.members.engineers, sessionId ? {} : "skip");
   const { can } = useCapabilities();
@@ -232,6 +237,11 @@ export function SessionSheet({
                     <Row label="Song" icon={Music2}>
                       {detail.songTitle ? (
                         <EntityLink type="song" id={detail.songId} className="hover:text-gold">{detail.songTitle}</EntityLink>
+                      ) : linked && linked.songs.length > 0 ? (
+                        <EntityLink type="song" id={linked.songs[0].songId} className="hover:text-gold">
+                          {linked.songs[0].title}
+                          {linked.songs.length > 1 ? ` +${linked.songs.length - 1}` : ""}
+                        </EntityLink>
                       ) : (
                         <span className="text-steel/70">Not linked</span>
                       )}
@@ -283,7 +293,7 @@ export function SessionSheet({
                       )}
                     </Row>
                     <Row label="When" icon={Clock}>
-                      <span className="font-meta">
+                      <span>
                         {longDate(detail.startTime)} · {timeOfDay(detail.startTime)} - {timeOfDay(detail.endTime)}
                       </span>
                     </Row>

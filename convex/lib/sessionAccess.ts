@@ -42,7 +42,9 @@ export async function staffSession(
   const session = await ctx.db.get(sessionId);
   if (!session || session.orgId !== orgId) throw new ConvexError("Session not found.");
   const identity = await ctx.auth.getUserIdentity();
-  const memberId = viewer.kind === "studio_member" ? viewer.memberId : undefined;
+  // The demo and system viewers carry a placeholder member id, not a real row.
+  const memberId =
+    viewer.kind === "studio_member" ? (ctx.db.normalizeId("members", viewer.memberId) ?? undefined) : undefined;
   const member = memberId ? await ctx.db.get(memberId) : null;
   return {
     viewer,
