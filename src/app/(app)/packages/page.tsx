@@ -13,6 +13,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
 import { money, shortDate } from "@/lib/format";
 import { ProductDialog, type PackageTarget } from "@/components/packages/product-dialog";
+import { EntityLink } from "@/components/shell/entity-link";
 
 export default function PackagesPage() {
   const products = useQuery(api.packages.list, {});
@@ -182,13 +183,18 @@ export default function PackagesPage() {
               const pct = c.hoursTotal > 0 ? (c.hoursRemaining / c.hoursTotal) * 100 : 0;
               const tone =
                 c.status === "active" ? "positive" : c.status === "depleted" ? "neutral" : "caution";
+              const artistId = c.artistId;
               return (
                 <div
                   key={c._id}
                   className="flex flex-wrap items-center gap-3 rounded-lg border border-graphite/50 bg-coal p-3"
                 >
                   <div className="min-w-0 flex-1">
-                    <p className="truncate font-grotesk font-medium text-bone">{c.artistName}</p>
+                    <p className="truncate font-grotesk font-medium text-bone">
+                      <EntityLink type="artist" id={artistId} className="hover:text-gold hover:underline">
+                        {c.artistName}
+                      </EntityLink>
+                    </p>
                     <p className="flex flex-wrap items-center gap-2 text-xs text-steel/70">
                       {c.name}
                       <span className="text-steel/40">·</span>

@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { errorMessage } from "@/lib/errors";
+import { EntityLink } from "@/components/shell/entity-link";
 import { Chassis, ChassisTitle, EmptyWell, Groove, usd } from "./parts";
 
 const pct = (v: number) => `${Math.round(v * 100)}%`;
@@ -39,7 +40,14 @@ export function RoomUtilization() {
         <div className="mt-3 flex flex-1 flex-col justify-between gap-4">
           {u.rows.slice(0, 4).map((r, i) => (
             <div key={r.roomId}>
-              <Row label={r.roomName} value={pct(r.utilization)} />
+              <Row
+                label={
+                  <EntityLink type="room" id={r.roomId} className="truncate hover:text-bone hover:underline">
+                    {r.roomName}
+                  </EntityLink>
+                }
+                value={pct(r.utilization)}
+              />
               <Groove value={r.utilization} tone={i === 0 && r.utilization > 0 ? "yellow" : "metal"} />
             </div>
           ))}
@@ -69,7 +77,7 @@ export function RoomUtilization() {
   );
 }
 
-function Row({ label, value, action }: { label: string; value: string; action?: React.ReactNode }) {
+function Row({ label, value, action }: { label: React.ReactNode; value: string; action?: React.ReactNode }) {
   return (
     <div className="mb-2 flex items-center justify-between gap-3 font-sans text-[13px] leading-[18px]">
       <span className="flex min-w-0 items-center gap-1.5 truncate text-mist">

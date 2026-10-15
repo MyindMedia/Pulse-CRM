@@ -6,6 +6,7 @@ import { api } from "@convex/_generated/api";
 import { Badge } from "@/components/ui/badge";
 import { longDate, money, timeOfDay } from "@/lib/format";
 import { useCapabilities } from "@/lib/use-capabilities";
+import { SessionLink } from "@/components/shell/entity-link";
 import { RequestDecision } from "./request-decision";
 
 /* Pending booking requests, for owners and managers, at the top of the
@@ -27,14 +28,28 @@ export function BookingRequestsSection() {
       </div>
       <div className="grid gap-3 lg:grid-cols-2">
         {rows.map((r) => (
-          <div key={r._id} className="space-y-3 rounded-lg border border-graphite/50 bg-coal p-4 shadow-elev-1">
+          // The whole card opens the booking in place (stretched link on the
+          // client name); Approve / Decline sit above it and keep their clicks.
+          <div
+            key={r._id}
+            data-request-card={r._id}
+            className="relative space-y-3 rounded-lg border border-graphite/50 bg-coal p-4 shadow-elev-1 transition-colors hover:border-gold/40"
+          >
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <Badge tone="caution">Request</Badge>
                   {r.pricingHidden && <Badge tone="neutral">No prices shown</Badge>}
                 </div>
-                <p className="mt-1 truncate font-grotesk text-sm font-semibold text-bone">{r.clientName}</p>
+                <p className="mt-1 truncate font-grotesk text-sm font-semibold text-bone">
+                  <SessionLink
+                    sessionId={r._id}
+                    title={`Open the booking request from ${r.clientName}`}
+                    className="after:absolute after:inset-0 after:rounded-lg after:content-[''] hover:text-gold"
+                  >
+                    {r.clientName}
+                  </SessionLink>
+                </p>
                 <p className="mt-0.5 flex items-center gap-1.5 text-xs text-steel">
                   <CalendarCheck01 className="size-3.5 shrink-0" />
                   {longDate(r.startTime)} · {timeOfDay(r.startTime)} - {timeOfDay(r.endTime)}
@@ -60,12 +75,14 @@ export function BookingRequestsSection() {
                 <Line label="Contact" value={[r.clientEmail, r.clientPhone].filter(Boolean).join(" · ")} />
               )}
             </dl>
-            <RequestDecision
-              sessionId={r._id}
-              requestStatus="pending"
-              amountPaidCents={r.amountPaidCents}
-              compact
-            />
+            <div className="relative z-10">
+              <RequestDecision
+                sessionId={r._id}
+                requestStatus="pending"
+                amountPaidCents={r.amountPaidCents}
+                compact
+              />
+            </div>
           </div>
         ))}
       </div>

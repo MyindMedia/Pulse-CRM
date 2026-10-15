@@ -44,6 +44,7 @@ export function TodayTimeline({
           <li key={s._id}>
             <button
               type="button"
+              data-drill="session"
               onClick={() => onOpen?.(s._id)}
               className={cn(
                 "flex w-full items-stretch gap-3 rounded-chrome p-3 text-left outline-none transition-colors focus-visible:ring-2 focus-visible:ring-gold/30",

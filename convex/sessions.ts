@@ -96,6 +96,9 @@ export const upcoming = query({
     const rows = await ctx.db
       .query("sessions")
       .withIndex("by_org_start", (q) => q.eq("orgId", orgId).gte("startTime", now))
+      // Dead bookings never take a slot in the list, so a cancelled one can't
+      // push a live booking or a pending request out of view.
+      .filter((q) => q.and(q.neq(q.field("status"), "cancelled"), q.neq(q.field("status"), "no_show")))
       .take(limit ?? 8);
     return redactEach("sessions", await Promise.all(rows.map((r) => hydrate(ctx, r))), await currentMoneySight(ctx));
   },

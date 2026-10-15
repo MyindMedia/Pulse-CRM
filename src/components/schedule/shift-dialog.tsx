@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/select";
 import { Spinner } from "@/components/ui/feedback";
 import { combineDateTime, toDateInputValue } from "@/components/calendar/constants";
+import { useOpenSession } from "@/lib/use-open-session";
 
 type Opt = { _id: string; name: string };
 export type EditableShift = {
@@ -27,6 +28,8 @@ export type EditableShift = {
   roomId?: string;
   note?: string;
   status: "scheduled" | "confirmed" | "cancelled";
+  /** Set when the shift was made by booking an engineer onto a session. */
+  sessionId?: string;
 };
 
 const hhmm = (ts: number) => {
@@ -49,6 +52,7 @@ export function ShiftDialog({
   const create = useMutation(api.shifts.create);
   const update = useMutation(api.shifts.update);
   const cancelShift = useMutation(api.shifts.cancel);
+  const openSession = useOpenSession();
   const editing = !!shift;
 
   const [memberId, setMemberId] = React.useState("");
@@ -200,6 +204,21 @@ export function ShiftDialog({
               </Button>
             ) : (
               <DialogClose asChild><Button type="button" variant="ghost" disabled={saving}>Cancel</Button></DialogClose>
+            )}
+            {shift?.sessionId && (
+              <Button
+                type="button"
+                variant="secondary"
+                data-drill="session"
+                disabled={saving}
+                onClick={() => {
+                  const id = shift.sessionId!;
+                  onOpenChange(false);
+                  openSession(id);
+                }}
+              >
+                Open booking
+              </Button>
             )}
             <Button type="submit" disabled={!valid || saving}>
               {saving ? <Spinner className="text-gold-ink" /> : <CalendarClock className="size-3.5" />}

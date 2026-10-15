@@ -42,6 +42,7 @@ import {
 } from "@/components/pipeline/filters";
 import { DealCard } from "@/components/pipeline/deal-card";
 import { DealSheet } from "@/components/pipeline/deal-sheet";
+import { DealParamOpener } from "@/components/pipeline/deal-param";
 import { AddOpportunityDialog } from "@/components/pipeline/add-opportunity-dialog";
 import {
   KANBAN_STAGES,
@@ -271,6 +272,7 @@ export default function PipelinePage() {
 
       <AddOpportunityDialog open={addOpen} onOpenChange={setAddOpen} />
       <DealSheet oppId={openDealId} onClose={() => setOpenDealId(null)} />
+      <DealParamOpener onOpen={setOpenDealId} />
     </div>
   );
 }

@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Mail, MessageSquare, Receipt } from "lucide-react";
@@ -15,8 +16,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { money, relativeTime } from "@/lib/format";
 import { titleCase } from "@/lib/labels";
 import type { NotificationRow, PaymentRow } from "./types";
+import { SessionLink } from "@/components/shell/entity-link";
 
-/** Read-only feed of the most recent cleared payments workspace-wide. */
+/** The most recent cleared payments workspace-wide; each opens its booking. */
 export function RecentPaymentsPanel() {
   const payments = useQuery(api.payments.recent, { limit: 8 }) as
     | PaymentRow[]
@@ -42,10 +44,11 @@ export function RecentPaymentsPanel() {
         ) : (
           <ul className="divide-y divide-hairline">
             {payments.map((p) => (
-              <li
-                key={p._id}
-                className="flex items-center justify-between gap-3 py-2.5 first:pt-0 last:pb-0"
-              >
+              <li key={p._id} className="py-1 first:pt-0 last:pb-0">
+                <SessionLink
+                  sessionId={p.sessionId}
+                  className="-mx-2 flex items-center justify-between gap-3 rounded-md px-2 py-1.5 transition-colors hover:bg-coal-2"
+                >
                 <span className="inline-flex min-w-0 items-center gap-2">
                   <span className="grid size-7 shrink-0 place-items-center rounded-md bg-coal-3 text-steel/70">
                     <Receipt className="size-3.5" />
@@ -68,6 +71,7 @@ export function RecentPaymentsPanel() {
                     {relativeTime(p.paidAt ?? p._creationTime)}
                   </span>
                 </span>
+                </SessionLink>
               </li>
             ))}
           </ul>
@@ -77,7 +81,7 @@ export function RecentPaymentsPanel() {
   );
 }
 
-/** Read-only feed of the most recent confirmations and reminders. */
+/** The most recent confirmations and reminders; one about a booking opens it. */
 export function MessagesPanel() {
   const messages = useQuery(api.notifications.recent, { limit: 8 }) as
     | NotificationRow[]
@@ -106,10 +110,8 @@ export function MessagesPanel() {
         ) : (
           <ul className="space-y-2">
             {messages.map((msg) => (
-              <li
-                key={msg._id}
-                className="rounded-md border border-graphite/50 bg-coal-2 p-2.5"
-              >
+              <li key={msg._id}>
+                <MessageShell sessionId={msg.sessionId}>
                 <div className="flex items-center justify-between gap-2">
                   <span className="inline-flex min-w-0 items-center gap-1.5 text-xs font-medium text-bone">
                     {msg.channel === "email" ? (
@@ -127,11 +129,23 @@ export function MessagesPanel() {
                 <p className="mt-1 font-meta text-[0.5625rem] uppercase tracking-wide text-steel/70">
                   {msg.recipient} · {relativeTime(msg._creationTime)}
                 </p>
+                </MessageShell>
               </li>
             ))}
           </ul>
         )}
       </CardContent>
     </Card>
+  );
+}
+
+/** A message card: a link to its booking when it has one, plain otherwise. */
+function MessageShell({ sessionId, children }: { sessionId?: string; children: ReactNode }) {
+  const box = "block rounded-md border border-graphite/50 bg-coal-2 p-2.5";
+  if (!sessionId) return <div className={box}>{children}</div>;
+  return (
+    <SessionLink sessionId={sessionId} className={`${box} transition-colors hover:border-graphite/70 hover:bg-coal-3`}>
+      {children}
+    </SessionLink>
   );
 }

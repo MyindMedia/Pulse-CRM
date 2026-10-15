@@ -19,6 +19,7 @@ export type BookingRow = {
   title: string;
   artistId: Id<"artists">;
   artistName: string;
+  songId?: Id<"songs">;
   songTitle?: string | null;
   roomId?: Id<"rooms">;
   roomName?: string | null;
@@ -55,6 +56,8 @@ export type PaymentRow = {
 /** A logged notification as returned by `api.notifications.recent` / `forSession`. */
 export type NotificationRow = {
   _id: Id<"notifications">;
+  /** The booking this message was about, when there is one. */
+  sessionId?: Id<"sessions">;
   channel: "email" | "sms";
   recipient: string;
   subject: string;

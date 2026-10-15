@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { EntityLink } from "@/components/shell/entity-link";
 import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -155,7 +156,15 @@ export function RoomCard({
         <div className="flex items-start justify-between gap-2">
           <div className="min-w-0">
             <p className="truncate font-grotesk text-sm font-semibold text-bone">
-              {room.name}
+              {/* The card's click is mouse only; this link is the keyboard way in. */}
+              <EntityLink
+                type="room"
+                id={room._id}
+                stopPropagation
+                className="hover:text-gold-bright"
+              >
+                {room.name}
+              </EntityLink>
             </p>
             <p className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
               {room.roomType ?? "Room"}

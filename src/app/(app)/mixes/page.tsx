@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/ui/feedback";
 import { SkeletonCards } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/errors";
 import { Select2, formatBytes, openUrl, uploadToR2 } from "@/components/library/shared";
+import { EntityLink } from "@/components/shell/entity-link";
 
 const STATUS: Record<string, { label: string; tone: "neutral" | "info" | "positive" | "gold" }> = {
   delivered: { label: "Delivered", tone: "info" },
@@ -136,7 +137,11 @@ function Mixes() {
       ) : (
         list.map((song) => (
           <Card key={song.songId} className="p-4">
-            <h2 className="font-grotesk text-base font-semibold text-bone">{song.songTitle}</h2>
+            <h2 className="font-grotesk text-base font-semibold text-bone">
+              <EntityLink type="song" id={song.songId} className="hover:text-gold-bright hover:underline">
+                {song.songTitle}
+              </EntityLink>
+            </h2>
             <ul className="mt-3 space-y-3">
               {song.versions.map((v) => {
                 const st = STATUS[v.status] ?? STATUS.delivered;

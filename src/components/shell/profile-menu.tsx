@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { entityHref } from "@/lib/entity-href";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
 import { useOptionalSignOut, useOptionalUser } from "@/lib/use-optional-clerk";
@@ -40,6 +40,14 @@ import { PhotoUpload } from "@/components/ui/photo-upload";
 import { EmptyState } from "@/components/ui/feedback";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+
+/** Where an alert opens, read at click time: a booking opens its sheet on the
+ *  current page (the shell's global sheet reads ?session=), anything else
+ *  goes to its own page. */
+function openTarget(type: string | undefined, id: string | undefined | null, pathname: string) {
+  const search = typeof window === "undefined" ? "" : window.location.search;
+  return entityHref(type, id, { pathname, search });
+}
 
 /* The signed-in user's corner of the topbar: their avatar (uploaded photo or
    Clerk account picture), with a menu for editing their profile, reviewing
@@ -264,6 +272,7 @@ function AlertsDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const insights = useQuery(api.insights.open, open ? { limit: 25 } : "skip");
   const markAllSeen = useMutation(api.insights.markAllSeen);
   const setStatus = useMutation(api.insights.setStatus);
@@ -308,7 +317,7 @@ function AlertsDialog({
                     if (route && it.entityId) {
                       void setStatus({ id: it._id, status: "actioned" });
                       onOpenChange(false);
-                      router.push(route);
+                      router.push(openTarget(it.entityType, it.entityId, pathname)!, { scroll: false });
                     }
                   }}
                 >

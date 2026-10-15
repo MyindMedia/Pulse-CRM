@@ -55,6 +55,10 @@ export function ReportCard({
   );
 }
 
+/** The look of a drill-down name inside a report table: reads as text, shows
+ *  it is a link on hover. Pair with EntityLink / SessionLink. */
+export const REPORT_LINK = "hover:text-gold hover:underline underline-offset-2";
+
 /** Compact stat shown above a report table - "Total outstanding", etc. */
 export function ReportStat({
   label,

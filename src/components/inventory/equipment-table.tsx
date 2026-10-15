@@ -1,5 +1,6 @@
 "use client";
 
+import { EntityLink } from "@/components/shell/entity-link";
 import * as React from "react";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -286,10 +287,16 @@ export function EquipmentTable({
                       Storage
                     </Badge>
                   ) : (
-                    <span className="inline-flex items-center gap-1.5 text-steel">
+                    <EntityLink
+                      type="room"
+                      id={item.installedInRoomId}
+                      stopPropagation
+                      title={`Open ${item.roomName ?? "the room"}`}
+                      className="inline-flex items-center gap-1.5 text-steel hover:text-gold hover:underline"
+                    >
                       <DoorOpen className="size-3.5 text-steel/70" />
                       {item.roomName ?? "Room"}
-                    </span>
+                    </EntityLink>
                   )}
                 </TD>
                 <TD className="text-right font-meta tabular-nums text-steel">

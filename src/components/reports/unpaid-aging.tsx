@@ -4,7 +4,8 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { money } from "@/lib/format";
-import { ReportCard, ReportStat } from "./report-shell";
+import { EntityLink } from "@/components/shell/entity-link";
+import { ReportCard, ReportStat, REPORT_LINK } from "./report-shell";
 
 export function UnpaidAgingReport() {
   const data = useQuery(api.reports.unpaidAging);
@@ -43,7 +44,11 @@ export function UnpaidAgingReport() {
             <TBody>
               {data.rows.map((r) => (
                 <TR key={r.artistId}>
-                  <TD className="font-medium">{r.artistName}</TD>
+                  <TD className="font-medium">
+                    <EntityLink type="artist" id={r.artistId} className={REPORT_LINK}>
+                      {r.artistName}
+                    </EntityLink>
+                  </TD>
                   <TD className="text-right tabular-nums text-steel">{r.b0 ? money(r.b0) : "-"}</TD>
                   <TD className="text-right tabular-nums text-steel">{r.b30 ? money(r.b30) : "-"}</TD>
                   <TD className="text-right tabular-nums text-steel">{r.b60 ? money(r.b60) : "-"}</TD>

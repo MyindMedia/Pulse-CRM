@@ -27,6 +27,24 @@ import { OpsActionSheet } from "@/components/ai/ops-action-sheet";
 import { DraftCheckBadge } from "@/components/ai/draft-check-badge";
 import { BookingRequestsSection } from "@/components/bookings/booking-requests-section";
 import { ChangesWaitingCard } from "@/components/bookings/changes-waiting-card";
+import { EntityLink } from "@/components/shell/entity-link";
+import { entityHref } from "@/lib/entity-href";
+
+/** Button label for the record an action is about. */
+const ENTITY_LABEL: Record<string, string> = {
+  session: "Open booking",
+  booking: "Open booking",
+  artist: "Open client",
+  client: "Open client",
+  song: "Open song",
+  invoice: "Open invoice",
+  payment: "Open invoice",
+  project: "Open project",
+  room: "Open room",
+  opportunity: "Open deal",
+  deal: "Open deal",
+  member: "Open team",
+};
 
 const DAY = 86_400_000;
 
@@ -118,15 +136,7 @@ function InboxCard({ action, onOpen }: { action: Doc<"opsActions">; onOpen: (a: 
               {p.kind === "ledger_draft" && <span>draft entry, nothing changes until you approve</span>}
               {p.kind === "receipt_link" && <span>{p.exact ? "exact receipt match" : "possible receipt match"}</span>}
               {p.kind === "acct_note" && <span>finding, approving only acknowledges it</span>}
-              {p.kind === "social_post" && (
-                <a
-                  href={`/marketing/compose?post=${p.postId}`}
-                  className="underline"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  open in composer
-                </a>
-              )}
+              {p.kind === "social_post" && <span>social post draft</span>}
             </div>
           </div>
           <ChevronRight className="mt-0.5 size-4 shrink-0 text-steel/70" />
@@ -135,6 +145,25 @@ function InboxCard({ action, onOpen }: { action: Doc<"opsActions">; onOpen: (a: 
       </button>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
+        {/* The record this action is about. Kept out of the card button so
+            no link sits inside another control. */}
+        {entityHref(action.entityType, action.entityId) && (
+          <Button variant="outline" size="sm" asChild>
+            <EntityLink type={action.entityType ?? ""} id={action.entityId}>
+              {ENTITY_LABEL[action.entityType ?? ""] ?? "Open"}
+            </EntityLink>
+          </Button>
+        )}
+        {p.kind === "session_status" && action.entityType !== "session" && (
+          <Button variant="outline" size="sm" asChild>
+            <EntityLink type="session" id={p.sessionId}>Open booking</EntityLink>
+          </Button>
+        )}
+        {p.kind === "social_post" && (
+          <Button variant="outline" size="sm" asChild>
+            <a href={`/marketing/compose?post=${p.postId}`}>Open in composer</a>
+          </Button>
+        )}
         <Button size="sm" disabled={pending} onClick={() => run(() => approve({ id: action._id }), action.type.startsWith("acct_") ? "Approved." : "Approved + sent.")}>
           <Check className="size-3.5" /> Approve
         </Button>

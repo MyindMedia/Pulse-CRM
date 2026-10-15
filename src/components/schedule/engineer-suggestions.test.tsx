@@ -29,6 +29,12 @@ vi.mock("convex/react", async () => {
 
 // Who is looking: a scheduler by default; a read-only teammate in one test.
 const viewer = { loaded: true, caps: new Set(["sessions.edit", "schedule.manage"]) };
+// The gap's title opens the booking in place, which reads the app router.
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  usePathname: () => "/schedule",
+}));
+
 vi.mock("@/lib/use-capabilities", () => ({
   useCapabilities: () => ({
     role: null,

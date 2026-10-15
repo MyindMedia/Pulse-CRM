@@ -7,6 +7,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import { useCapabilities } from "@/lib/use-capabilities";
 import { RequestBadge, RequestDecision } from "@/components/bookings/request-decision";
+import { EntityLink } from "@/components/shell/entity-link";
 import { QRCodeSVG } from "qrcode.react";
 import {
   CheckCircle2,
@@ -203,13 +204,17 @@ export function SessionSheet({
               <ChangedInGoogleBadge sessionId={detail._id} changedAt={"googleChangedAt" in detail ? detail.googleChangedAt : undefined} />
               <div className="divide-y divide-hairline">
                 <Row label="Artist">
-                  <span className="inline-flex items-center gap-2">
+                  <EntityLink type="artist" id={detail.artistId} className="inline-flex items-center gap-2 hover:text-gold">
                     <Avatar name={detail.artistName} size="xs" />
                     <span className="truncate">{detail.artistName}</span>
-                  </span>
+                  </EntityLink>
                 </Row>
                 <Row label="Song" icon={Music2}>
-                  {detail.songTitle ?? <span className="text-steel/70">Not linked</span>}
+                  {detail.songTitle ? (
+                    <EntityLink type="song" id={detail.songId} className="hover:text-gold">{detail.songTitle}</EntityLink>
+                  ) : (
+                    <span className="text-steel/70">Not linked</span>
+                  )}
                 </Row>
                 <Row label="Engineer" icon={Headphones}>
                   {detail.engineerName ? (
@@ -251,7 +256,11 @@ export function SessionSheet({
                   )}
                 </Row>
                 <Row label="Room" icon={DoorOpen}>
-                  {detail.roomName ?? <span className="text-steel/70">Unassigned</span>}
+                  {detail.roomName ? (
+                    <EntityLink type="room" id={detail.roomId} className="hover:text-gold">{detail.roomName}</EntityLink>
+                  ) : (
+                    <span className="text-steel/70">Unassigned</span>
+                  )}
                 </Row>
                 <Row label="Rate" icon={Wallet}>
                   <span className="flex flex-wrap items-center gap-2">

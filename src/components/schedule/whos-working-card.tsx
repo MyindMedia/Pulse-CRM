@@ -8,6 +8,7 @@ import { CalendarClock, DoorOpen, ArrowRight } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar } from "@/components/ui/avatar";
 import { StatusIndicator } from "@/components/indicator";
+import { EntityLink } from "@/components/shell/entity-link";
 
 function fmt(ts: number) {
   return new Date(ts).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" }).replace(":00", "");
@@ -49,7 +50,9 @@ export function WhosWorkingCard() {
                     <li key={s._id} className="flex items-center gap-2 text-sm text-bone">
                       <StatusIndicator color="emerald" pulse />
                       <Avatar name={s.memberName} src={s.memberPhotoUrl} size="xs" className="rounded-full" />
-                      <span className="truncate">{s.memberName}</span>
+                      <EntityLink type="member" id={s.memberId} className="truncate hover:underline">
+                        {s.memberName}
+                      </EntityLink>
                       {s.roomName && (
                         <span className="inline-flex items-center gap-0.5 truncate text-xs text-steel/70">
                           <DoorOpen className="size-3" />{s.roomName}
@@ -75,7 +78,9 @@ export function WhosWorkingCard() {
                         <span className="font-meta text-steel/70">{fmt(s.startTime)}</span>
                       )}
                       <Avatar name={s.memberName} src={s.memberPhotoUrl} size="xs" className="rounded-full" />
-                      <span className="truncate">{s.memberName}</span>
+                      <EntityLink type="member" id={s.memberId} className="truncate hover:underline">
+                        {s.memberName}
+                      </EntityLink>
                       {s.roomName && <span className="truncate text-steel/70">· {s.roomName}</span>}
                     </li>
                   ))}

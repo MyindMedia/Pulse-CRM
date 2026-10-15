@@ -49,6 +49,9 @@ import { NotesPanel } from "@/components/roster/notes-panel";
 import { EditArtistDialog, type EditableArtist } from "@/components/roster/edit-artist-dialog";
 import { DataRightsMenu } from "@/components/roster/data-rights-menu";
 import { artistTypeLabel } from "@/components/roster/constants";
+import { SessionLink, DRILL_FOCUS } from "@/components/shell/entity-link";
+import { cn } from "@/lib/utils";
+import { useOpenSession } from "@/lib/use-open-session";
 
 /* ── Social link helpers ───────────────────────────────────── */
 
@@ -86,6 +89,7 @@ export default function ArtistDetailPage() {
   const router = useRouter();
   const artistId = id as Id<"artists">;
   const data = useQuery(api.artists.get, { id: artistId });
+  const openSession = useOpenSession();
 
   const [editOpen, setEditOpen] = React.useState(false);
   // Controlled so the Outstanding stat tile can jump straight to Invoices.
@@ -245,11 +249,13 @@ export default function ArtistDetailPage() {
           value={<CountUp to={data.lifetimeValueCents} format={(n) => money(n, { compact: true })} />}
           icon={DollarSign}
           accent
+          onClick={data.outstandingCents !== null && data.invoices.length > 0 ? () => setTab("invoices") : undefined}
         />
         <StatTile
           label="Sessions"
           value={<CountUp to={data.sessionCount} />}
           icon={CalendarCheck}
+          onClick={data.sessions.length > 0 ? () => setTab("sessions") : undefined}
         />
         {/* A client's balance is money: null for anyone without it. */}
         {data.outstandingCents !== null && (
@@ -315,7 +321,8 @@ export default function ArtistDetailPage() {
                     <Link
                       key={song._id}
                       href={`/songs/${song._id}`}
-                      className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-coal-2"
+                      data-drill="song"
+                      className="flex items-center gap-3 px-4 py-3 outline-none transition-colors hover:bg-coal-2 focus-visible:bg-coal-2 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gold/40"
                     >
                       <span className="grid size-9 shrink-0 place-items-center rounded-md border border-graphite/50 bg-obsidian text-steel/70">
                         <Music2 className="size-4" />
@@ -357,11 +364,31 @@ export default function ArtistDetailPage() {
                 </TR>
               </THead>
               <TBody>
-                {data.sessions.map((session) => {
+                {[...data.sessions]
+                  .sort((a, b) => b.startTime - a.startTime)
+                  .map((session) => {
                   const status = meta(SESSION_STATUS, session.status);
+                  const pending = session.requestStatus === "pending";
                   return (
-                    <TR key={session._id}>
-                      <TD className="font-medium">{session.title}</TD>
+                    <TR
+                      key={session._id}
+                      interactive
+                      onClick={() => openSession(session._id)}
+                    >
+                      <TD className="font-medium">
+                        <SessionLink
+                          sessionId={session._id}
+                          stopPropagation
+                          className="text-bone hover:text-gold"
+                        >
+                          {session.title}
+                        </SessionLink>
+                        {pending && (
+                          <Badge tone="gold" className="ml-2">
+                            Request pending
+                          </Badge>
+                        )}
+                      </TD>
                       <TD className="text-steel">{shortDate(session.startTime)}</TD>
                       <TD className="text-steel">{timeOfDay(session.startTime)}</TD>
                       <TD className="font-meta tabular-nums text-steel/70">
@@ -372,7 +399,7 @@ export default function ArtistDetailPage() {
                       </TD>
                     </TR>
                   );
-                })}
+                  })}
               </TBody>
             </Table>
           )}
@@ -408,7 +435,8 @@ export default function ArtistDetailPage() {
                       <TD>
                         <Link
                           href={`/payments/${invoice._id}`}
-                          className="font-meta font-medium text-bone hover:text-gold"
+                          data-drill="invoice"
+                          className={cn(DRILL_FOCUS, "font-meta font-medium text-bone hover:text-gold")}
                           onClick={(e) => e.stopPropagation()}
                         >
                           {invoice.number}

@@ -69,6 +69,8 @@ export const recentDeposits = query({
           clientName: artist?.name ?? p.payerName ?? "Client",
           roomName: room?.name ?? null,
           sessionStart: session?.startTime ?? null,
+          sessionId: session ? p.sessionId : null,
+          artistId: session?.artistId ?? null,
         };
       }),
     );

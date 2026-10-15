@@ -1,11 +1,28 @@
 "use client";
 
+import type { ReactNode } from "react";
+import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HBars, CategoryDonut } from "@/components/charts";
 import { RecoveredByPulse } from "@/components/dashboard/recovered-by-pulse";
+import { entityHref } from "@/lib/entity-href";
+import { DRILL_FOCUS, EntityLink } from "@/components/shell/entity-link";
+import { cn } from "@/lib/utils";
+
+/** The quiet "see the full list" link under a chart. */
+function ChartLink({ href, children }: { href: string; children: ReactNode }) {
+  return (
+    <Link
+      href={href}
+      className={cn(DRILL_FOCUS, "mt-3 inline-block text-xs font-medium text-gold hover:underline")}
+    >
+      {children}
+    </Link>
+  );
+}
 
 /* Self-contained dashboard tiles (each subscribes to its own data - Convex
    dedupes identical queries) so the customizable grid can mount them in any
@@ -23,6 +40,7 @@ export function PipelineChartCard() {
         ) : (
           <HBars data={data.charts.pipelineByStage} labelKey="stage" valueKey="count" />
         )}
+        <ChartLink href="/pipeline">Open pipeline</ChartLink>
       </CardContent>
     </Card>
   );
@@ -40,6 +58,7 @@ export function ServiceChartCard() {
         ) : (
           <CategoryDonut data={data.charts.bookingsByService} labelKey="service" valueKey="count" />
         )}
+        <ChartLink href="/bookings">Open bookings</ChartLink>
       </CardContent>
     </Card>
   );
@@ -57,6 +76,7 @@ export function CatalogChartCard() {
         ) : (
           <HBars data={data.charts.songsByStage} labelKey="stage" valueKey="count" />
         )}
+        <ChartLink href="/songs">Open songs</ChartLink>
       </CardContent>
     </Card>
   );
@@ -78,9 +98,18 @@ export function InsightsCard() {
         ) : (
           <ul className="divide-y divide-hairline-2/40">
             {insights.map((it) => (
-              <li key={it._id} className="px-4 py-3">
-                <p className="text-sm font-medium text-bone">{it.title}</p>
-                <p className="mt-0.5 line-clamp-2 text-xs leading-relaxed text-steel">{it.body}</p>
+              <li key={it._id}>
+                <EntityLink
+                  type={it.entityType ?? ""}
+                  id={it.entityId}
+                  className={cn(
+                    "block rounded-none px-4 py-3",
+                    entityHref(it.entityType, it.entityId) && "transition-colors hover:bg-coal-2",
+                  )}
+                >
+                  <span className="block text-sm font-medium text-bone">{it.title}</span>
+                  <span className="mt-0.5 line-clamp-2 block text-xs leading-relaxed text-steel">{it.body}</span>
+                </EntityLink>
               </li>
             ))}
           </ul>

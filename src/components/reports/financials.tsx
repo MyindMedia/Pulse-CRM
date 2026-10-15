@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import {
@@ -19,6 +20,8 @@ import { Input } from "@/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { money, percent } from "@/lib/format";
+import { DRILL_FOCUS } from "@/components/shell/entity-link";
+import { cn } from "@/lib/utils";
 import {
   expenseDetailCsv,
   bankReconciliationCsv,
@@ -76,6 +79,11 @@ export function FinancialReport() {
   );
 
   const taxGroups = report?.byTaxCategory.map((group) => ({ label: group.taxCategory, amountCents: group.amountCents })) ?? [];
+
+  // Bank lists open on the same window as this report (the banking page reads
+  // ?start, ?end and ?filter).
+  const bankHref = (filter: "attention" | "in") =>
+    bounds ? `/banking?filter=${filter}&start=${bounds.bankStart}&end=${bounds.bankEnd}` : `/banking?filter=${filter}`;
 
   const filenamePeriod = bounds ? `${bounds.startLabel}_${bounds.endLabel}` : "period";
   const valid = bounds !== null;
@@ -185,10 +193,10 @@ export function FinancialReport() {
                 icon={TrendingUp}
                 rows={[
                   { label: "Booking payments", amountCents: report.revenueFromPaymentsCents },
-                  { label: "Paid invoices", amountCents: report.revenueFromInvoicesCents },
-                  { label: "Prepaid packages", amountCents: report.revenueFromPackagesCents },
+                  { label: "Paid invoices", amountCents: report.revenueFromInvoicesCents, href: "/payments?status=paid" },
+                  { label: "Prepaid packages", amountCents: report.revenueFromPackagesCents, href: "/packages" },
                   { label: "Memberships", amountCents: report.revenueFromMembershipsCents },
-                  { label: "Classified bank income", amountCents: report.revenueFromBankCents },
+                  { label: "Classified bank income", amountCents: report.revenueFromBankCents, href: bankHref("in") },
                 ]}
                 total={report.revenueCents}
               />
@@ -198,6 +206,7 @@ export function FinancialReport() {
                 rows={report.byCategory.map((category) => ({
                   label: EXPENSE_CATEGORY_LABEL.get(category.category) ?? category.category,
                   amountCents: category.amountCents,
+                  href: "/expenses",
                 }))}
                 total={report.expensesCents}
                 empty="No recorded expenses in this period."
@@ -236,11 +245,11 @@ export function FinancialReport() {
         >
           {report && (
             <div className="grid grid-cols-2 gap-2.5">
-              <AttentionStat icon={AlertTriangle} label="Bank charges to reconcile" value={report.reconciliation.unmatchedOutflows} />
-              <AttentionStat icon={AlertTriangle} label="Deposits to classify" value={report.reconciliation.unmatchedInflows} />
-              <AttentionStat icon={FileCheck2} label="Unmatched receipts" value={report.reconciliation.receiptsUnmatched} />
-              <AttentionStat icon={AlertTriangle} label="Receipts needing review" value={report.reconciliation.receiptsNeedingReview} />
-              <AttentionStat icon={FileCheck2} label="Expenses without receipts" value={report.reconciliation.expensesWithoutReceipt} />
+              <AttentionStat icon={AlertTriangle} label="Bank charges to reconcile" value={report.reconciliation.unmatchedOutflows} href={bankHref("attention")} />
+              <AttentionStat icon={AlertTriangle} label="Deposits to classify" value={report.reconciliation.unmatchedInflows} href={bankHref("attention")} />
+              <AttentionStat icon={FileCheck2} label="Unmatched receipts" value={report.reconciliation.receiptsUnmatched} href="/expenses" />
+              <AttentionStat icon={AlertTriangle} label="Receipts needing review" value={report.reconciliation.receiptsNeedingReview} href="/expenses" />
+              <AttentionStat icon={FileCheck2} label="Expenses without receipts" value={report.reconciliation.expensesWithoutReceipt} href="/expenses" />
             </div>
           )}
         </ReportCard>
@@ -309,7 +318,7 @@ function BreakdownTable({
 }: {
   title: string;
   icon: typeof TrendingUp;
-  rows: Array<{ label: string; amountCents: number }>;
+  rows: Array<{ label: string; amountCents: number; href?: string }>;
   total: number;
   empty?: string;
 }) {
@@ -322,7 +331,15 @@ function BreakdownTable({
         <dl className="mt-3 space-y-2">
           {rows.map((row) => (
             <div key={row.label} className="flex items-center justify-between gap-4 text-sm">
-              <dt className="text-steel">{row.label}</dt>
+              <dt className="text-steel">
+                {row.href ? (
+                  <Link href={row.href} data-drill="report-row" className={cn(DRILL_FOCUS, "hover:text-gold hover:underline underline-offset-2")}>
+                    {row.label}
+                  </Link>
+                ) : (
+                  row.label
+                )}
+              </dt>
               <dd className="font-meta tabular-nums text-bone">{money(row.amountCents)}</dd>
             </div>
           ))}
@@ -335,14 +352,25 @@ function BreakdownTable({
   );
 }
 
-function AttentionStat({ icon: Icon, label, value }: { icon: typeof AlertTriangle; label: string; value: number }) {
-  return (
-    <div className="rounded-lg border border-graphite/50 bg-coal-2 px-3.5 py-3">
+function AttentionStat({ icon: Icon, label, value, href }: { icon: typeof AlertTriangle; label: string; value: number; href?: string }) {
+  const body = (
+    <>
       <div className="flex items-start justify-between gap-2">
         <p className="text-xs text-steel">{label}</p>
         <Icon className={value > 0 ? "size-4 text-caution" : "size-4 text-positive"} aria-hidden="true" />
       </div>
       <p className="mt-2 font-grotesk text-xl font-bold tabular-nums text-bone">{value}</p>
-    </div>
+    </>
+  );
+  const box = "block rounded-lg border border-graphite/50 bg-coal-2 px-3.5 py-3";
+  if (!href) return <div className={box}>{body}</div>;
+  return (
+    <Link
+      href={href}
+      data-drill="report-row"
+      className={cn(DRILL_FOCUS, box, "rounded-lg transition-colors hover:border-gold/40 hover:bg-coal-3")}
+    >
+      {body}
+    </Link>
   );
 }
