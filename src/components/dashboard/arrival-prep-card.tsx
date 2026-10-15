@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useMutation } from "convex/react";
-import { useSnapshotQuery } from "@/lib/boot-snapshot";
+import { useSnapshotQuery, useSnapshotQueryResult } from "@/lib/boot-snapshot";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Check, CircleParking, Coffee, DoorOpen, Eye, UserCheck } from "lucide-react";
@@ -53,7 +53,14 @@ export function ArrivalPrepCard({ className }: { className?: string }) {
   // Prep state for the same upcoming window, fetched alongside it rather than
   // after it: the old forSessions call had to wait for `upcoming` to name the
   // sessions, which cost the dashboard a second round trip on every load.
-  const prep = useSnapshotQuery(api.arrivalPrep.forUpcoming, { limit: 12 });
+  // If the backend does not have forUpcoming yet (the site deployed before
+  // Convex), fall back to the old way instead of failing the dashboard.
+  const fast = useSnapshotQueryResult(api.arrivalPrep.forUpcoming, { limit: 12 });
+  const slow = useSnapshotQuery(
+    api.arrivalPrep.forSessions,
+    fast.error && upcoming !== undefined ? { sessionIds: arrivals.map((s) => s._id) } : "skip",
+  );
+  const prep = fast.error ? slow : fast.value;
 
   function doneSteps(sessionId: string): Set<string> {
     return new Set(prep?.[sessionId] ?? []);

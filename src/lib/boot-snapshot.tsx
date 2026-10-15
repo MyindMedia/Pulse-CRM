@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useQuery } from "convex/react";
+import { useQueries, type RequestForQueries } from "convex/react";
+import type { Value } from "convex/values";
 import { getFunctionName, type FunctionArgs, type FunctionReference, type FunctionReturnType } from "convex/server";
 import {
   type BootRecord,
@@ -173,18 +174,40 @@ const useIsoLayoutEffect = typeof window === "undefined" ? React.useEffect : Rea
 /**
  * useQuery, plus the boot cache: the live result when there is one, else the
  * value this person's dashboard last rendered (or undefined). In boot mode the
- * live query is skipped entirely.
+ * live query is skipped entirely. A query error throws, like useQuery.
  */
 export function useSnapshotQuery<Q extends FunctionReference<"query">>(
   query: Q,
   args: FunctionArgs<Q> | "skip",
 ): FunctionReturnType<Q> | undefined {
+  const { value, error } = useSnapshotQueryResult(query, args);
+  if (error) throw error;
+  return value;
+}
+
+/**
+ * useSnapshotQuery that hands a query error back instead of throwing, for a
+ * caller with a fallback (for example a query the deployed backend may not
+ * have yet while the site and Convex deploy one after the other).
+ */
+export function useSnapshotQueryResult<Q extends FunctionReference<"query">>(
+  query: Q,
+  args: FunctionArgs<Q> | "skip",
+): { value: FunctionReturnType<Q> | undefined; error: Error | null } {
   const boot = useBootMode();
   const store = useBootSnapshotStore();
   const skip = args === "skip" || boot;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const live = useQuery(query, (skip ? "skip" : args) as any) as FunctionReturnType<Q> | undefined;
   const key = args === "skip" ? null : queryKey(getFunctionName(query), args);
+  // Keyed on the serialized args, as useQuery does, so a new args object with
+  // the same values never resubscribes.
+  const requests = React.useMemo(
+    (): RequestForQueries => (skip ? {} : { q: { query, args: args as Record<string, Value> } }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [skip, key],
+  );
+  const raw = useQueries(requests).q as FunctionReturnType<Q> | Error | undefined;
+  const error = raw instanceof Error ? raw : null;
+  const live = raw instanceof Error ? undefined : raw;
   const cached = live === undefined && key && store ? (store.get(key) as FunctionReturnType<Q> | undefined) : undefined;
 
   React.useEffect(() => {
@@ -193,13 +216,13 @@ export function useSnapshotQuery<Q extends FunctionReference<"query">>(
 
   const report = React.useContext(TileContext);
   const id = React.useId();
-  const stale = live === undefined && cached !== undefined;
+  const stale = live === undefined && cached !== undefined && !error;
   useIsoLayoutEffect(() => {
     report?.(id, stale);
   }, [report, id, stale]);
   useIsoLayoutEffect(() => () => report?.(id, false), [report, id]);
 
-  return live ?? cached;
+  return { value: live ?? (error ? undefined : cached), error };
 }
 
 /**

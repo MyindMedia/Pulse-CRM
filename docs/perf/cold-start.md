@@ -127,7 +127,10 @@ the JavaScript and (in production) Clerk.
 - **Arrival prep in one trip.** New query `arrivalPrep.forUpcoming` returns
   prep state for the same upcoming window as `sessions.upcoming`, so both go
   out together instead of one after the other. `forSessions` is unchanged for
-  its other callers.
+  its other callers, and the card falls back to it if the backend does not
+  have `forUpcoming` yet (site deployed before Convex): checked by rewriting
+  the subscription to a missing function in the browser, the dashboard still
+  renders and arrival prep loads through `forSessions`.
 - **Saved KPI period read at first render**, not in an effect, so the Month
   query no longer goes out and gets replaced.
 - **Closed UI no longer loads or queries on a cold start:** the booking
@@ -148,12 +151,12 @@ Medians of 3 runs. ms from navigation start.
 
 | Profile | Visit | Shell before | Shell after | First KPI before | First KPI after | Live KPI before | Live KPI after | LCP before | LCP after |
 |---|---|---:|---:|---:|---:|---:|---:|---:|---:|
-| normal | cold | 117 | 30 | 158 | 103 | 158 | 103 | 228 | 164 |
-| normal | warm | 48 | 20 | 67 | 47 | 67 | 47 | 156 | 104 |
-| Slow 3G + 4x CPU | cold | 29,401 | 8,314 | 29,949 | 28,344 | 29,949 | 28,344 | 30,052 | 28,436 |
-| Slow 3G + 4x CPU | warm | 4,947 | 2,128 | 5,467 | 4,920 | 5,467 | 4,920 | 5,552 | 5,008 |
-| socket held 3 s | cold | 3,135 | 27 | 3,195 | 3,108 | 3,195 | 3,108 | 3,272 | 3,164 |
-| socket held 3 s | warm | 3,063 | 20 | 3,128 | **342** | 3,128 | 3,057 | 3,192 | 372 |
+| normal | cold | 117 | 28 | 158 | 102 | 158 | 102 | 228 | 164 |
+| normal | warm | 48 | 21 | 67 | 47 | 67 | 47 | 156 | 104 |
+| Slow 3G + 4x CPU | cold | 29,401 | 8,304 | 29,949 | 28,314 | 29,949 | 28,314 | 30,052 | 28,408 |
+| Slow 3G + 4x CPU | warm | 4,947 | 2,131 | 5,467 | 4,924 | 5,467 | 4,924 | 5,552 | 5,012 |
+| socket held 3 s | cold | 3,135 | 26 | 3,195 | 3,108 | 3,195 | 3,108 | 3,272 | 3,168 |
+| socket held 3 s | warm | 3,063 | 21 | 3,128 | **336** | 3,128 | 3,047 | 3,192 | 372 |
 
 Reading it:
 
@@ -162,7 +165,7 @@ Reading it:
   whenever the data path is slow. FCP itself barely moves (the old first paint
   was the logo loader; it is now the chassis).
 - **Returning visits show the dashboard from cache almost at once** when the
-  session or socket is slow: first figures at 342 ms instead of 3.1 s, live
+  session or socket is slow: first figures at 336 ms instead of 3.1 s, live
   figures swap in when they land.
 - **Live data arrives sooner** in every profile, from the round trips removed
   and the smaller bundle: 35% faster on loopback cold, 10% on throttled warm,
@@ -184,7 +187,7 @@ Reading it:
 
 | Route | Before (raw) | After (raw) | Change | After (gzip) |
 |---|---:|---:|---:|---:|
-| `/dashboard` | 2,170 KB | 1,507 KB | **-663 KB (-31%)** | 459 KB (was 649) |
+| `/dashboard` | 2,170 KB | 1,508 KB | **-662 KB (-31%)** | 459 KB (was 649) |
 | `/payments` | 1,782 KB | 1,661 KB | -121 KB | 512 KB |
 | `/settings` | 2,266 KB | 2,145 KB | -121 KB | 660 KB |
 | `/bookings` | 1,637 KB | 1,567 KB | -70 KB | 476 KB |
@@ -238,9 +241,9 @@ both are present on `develop` too and are not touched here.
   `socket held 3 s` profile stands in for it. Measure on staging with a real
   account before and after merging to confirm.
 - **Real Safari** and real devices: checked with Playwright WebKit only.
-- The production Convex deployment needs `arrivalPrep.forUpcoming` deployed
-  with this branch (Convex deploys with the site; nothing was deployed from
-  this branch).
+- Convex needs a deploy for `arrivalPrep.forUpcoming` (it is not part of the
+  Netlify build). Until then the card uses the old `forSessions` path, so
+  either deploy order is safe. Nothing was deployed from this branch.
 
 ## Next
 
