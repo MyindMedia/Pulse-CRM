@@ -7,6 +7,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Dancing_Script, Great_Vibes, Caveat, Homemade_Apple } from "next/font/google";
 import { Loader2, ShieldCheck, CheckCircle2, AlertTriangle, Eraser, PenLine, Type } from "lucide-react";
+import { PulseLoader } from "@/components/brand/pulse-loader";
 import { cn } from "@/lib/utils";
 
 /*
@@ -85,7 +86,7 @@ export default function SignSplitSheetPage() {
       />
       <div className="relative mx-auto w-full max-w-2xl">
         {data === undefined ? (
-          <div className="grid place-items-center py-24"><Loader2 className="size-6 animate-spin text-gold" /></div>
+          <PulseLoader variant="compact" message="Loading" />
         ) : data === null ? (
           <div className="rounded-chrome border border-graphite/50 bg-coal/60 p-8 text-center shadow-elev-2">
             <AlertTriangle className="mx-auto size-6 text-critical" />

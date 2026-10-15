@@ -3,7 +3,9 @@
 import * as React from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { buildThemeVars, isDark } from "@/lib/theme-ramp";
+import { buildThemeVars, hardwareRadiusVars, isDark } from "@/lib/theme-ramp";
+import { ensureFontStylesheet, themeFontVars } from "@/lib/theme-fonts";
+import { BRAND_OWNED_THEME_VARS, brandGoldFor, brandGuardFor } from "@/lib/brand-theme";
 import { RADIUS_PX } from "@convex/lib/themeSpec";
 
 /**
@@ -37,17 +39,22 @@ export function PublicTheme({
     };
 
     const c = theme.colors;
-    for (const [prop, value] of Object.entries(
-      buildThemeVars({
-        background: c.background,
-        surface: c.surface,
-        text: c.text,
-        primary: c.primary,
-        accent: c.accent,
-        muted: c.muted,
-        border: c.border,
-      }),
-    )) {
+    // Brand colors, when the studio set them, own the accent family; the
+    // rest of the ramp is the theme's (lib/themePrecedence.ts).
+    const ramp = buildThemeVars({
+      background: c.background,
+      surface: c.surface,
+      text: c.text,
+      primary: c.primary,
+      accent: c.accent,
+      muted: c.muted,
+      border: c.border,
+    });
+    if (theme.brandDriven) {
+      for (const k of BRAND_OWNED_THEME_VARS) delete ramp[k];
+      Object.assign(ramp, brandGoldFor(c.primary, brandGuardFor(theme)));
+    }
+    for (const [prop, value] of Object.entries(ramp)) {
       set(prop, value);
     }
 
@@ -56,12 +63,12 @@ export function PublicTheme({
       set("--radius-chrome", r);
       set("--radius-md", r);
     }
-    if (theme.fontHeading) {
-      set("--font-grotesk", `"${theme.fontHeading}", ui-sans-serif, sans-serif`);
-      set("--font-chrome", `"${theme.fontHeading}", ui-sans-serif, sans-serif`);
-    }
-    if (theme.fontBody) {
-      set("--font-inter", `"${theme.fontBody}", ui-sans-serif, sans-serif`);
+    for (const [prop, value] of Object.entries(hardwareRadiusVars(theme.radius))) set(prop, value);
+    // Load the chosen faces, then point the type voices at them.
+    ensureFontStylesheet(document, theme.fontHeading);
+    ensureFontStylesheet(document, theme.fontBody);
+    for (const [prop, value] of Object.entries(themeFontVars(theme.fontHeading, theme.fontBody))) {
+      set(prop, value);
     }
     root.dataset.themeMode = isDark(c.background) ? "dark" : "light";
     root.dataset.whitelabel = "true";

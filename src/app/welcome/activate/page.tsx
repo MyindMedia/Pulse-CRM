@@ -5,7 +5,8 @@ import Link from "next/link";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useAction, useConvexAuth } from "convex/react";
 import { useAuth, SignUp } from "@clerk/nextjs";
-import { CheckCircle2, Loader2 } from "lucide-react";
+import { CheckCircle2 } from "lucide-react";
+import { PulseLogoMark } from "@/components/brand/pulse-loader";
 import { api } from "@convex/_generated/api";
 import { clerkAppearance } from "@/lib/clerk-appearance";
 import { PulseLogo } from "@/components/brand/pulse-logo";
@@ -93,7 +94,7 @@ function Activate() {
           </p>
         ) : isSignedIn ? (
           <div className="flex flex-col items-center gap-3">
-            <Loader2 className="size-8 animate-spin text-gold" />
+            <PulseLogoMark size={96} />
             <h1 className="font-grotesk text-2xl font-bold text-bone">Setting up your studio…</h1>
             <p className="text-sm text-steel">Linking your subscription and getting your workspace ready.</p>
             {err && (

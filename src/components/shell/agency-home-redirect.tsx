@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
-import { Disc3 } from "lucide-react";
+import { PulseLoader } from "@/components/brand/pulse-loader";
 import { api } from "@convex/_generated/api";
 import { useCapabilities } from "@/lib/use-capabilities";
 import { DEMO_ORG } from "@convex/lib/tier";
@@ -25,14 +25,7 @@ export function AgencyHomeRedirect({ children }: { children: React.ReactNode }) 
 
   if (toConsole) {
     return (
-      <div className="grid min-h-dvh place-items-center bg-ink">
-        <div className="flex flex-col items-center gap-3">
-          <Disc3 className="size-8 animate-spin text-gold" aria-hidden />
-          <p className="font-meta text-xs uppercase tracking-[0.2em] text-steel/70">
-            Opening the agency console
-          </p>
-        </div>
-      </div>
+      <PulseLoader message="Opening the agency console" />
     );
   }
   return <>{children}</>;

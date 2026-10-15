@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Loader2 } from "lucide-react";
+import { PulseLoader } from "@/components/brand/pulse-loader";
 import { cn } from "@/lib/utils";
 
 /** Empty state - icon, headline, supporting line, optional action. */
@@ -44,10 +45,5 @@ export function Spinner({ className }: { className?: string }) {
 
 /** Centered loading block for full-panel waits. */
 export function LoadingPanel({ label = "Loading" }: { label?: string }) {
-  return (
-    <div className="flex items-center justify-center gap-2 py-16 text-sm text-steel/70">
-      <Spinner />
-      {label}
-    </div>
-  );
+  return <PulseLoader variant="compact" message={label} />;
 }

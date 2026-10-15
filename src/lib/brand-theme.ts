@@ -152,7 +152,12 @@ function normalizeHex(hex: string): string | null {
  *   gold-dim    subdued borders on dark
  *   gold-ink    text ON the accent (very dark tinted, 4.5:1 or better)
  */
-export function deriveBrandTokens(accent: string | null | undefined): BrandTokens | null {
+export function deriveBrandTokens(
+  accent: string | null | undefined,
+  /** Surface accent text must read on. Defaults to the hardware face; a
+   *  light white-label theme passes its own surface. */
+  guardSurface: string = GUARD_SURFACE,
+): BrandTokens | null {
   if (!accent) return null;
   const rgb = hexToRgb(accent);
   if (!rgb) return null;
@@ -165,7 +170,8 @@ export function deriveBrandTokens(accent: string | null | undefined): BrandToken
   // explodes near white (#f2eded reads s=0.16 with almost no visible color).
   const chroma = s * (1 - Math.abs(2 * l - 1));
   if (chroma < 0.08) {
-    const gold = hslToHex(h, 0.04, 0.74);
+    const mono = hslToHex(h, 0.04, 0.74);
+    const gold = guardSurface === GUARD_SURFACE ? mono : ensureContrast(mono, guardSurface).color;
     return {
       "--color-gold": gold,
       "--color-gold-bright": hslToHex(h, 0.04, 0.88),
@@ -179,7 +185,7 @@ export function deriveBrandTokens(accent: string | null | undefined): BrandToken
   // pastel brands keep most of their lightness (capped at 0.82 so hover and
   // the glow ramp still have headroom) instead of being pushed to a mid tone.
   const baseS = Math.max(0.45, s);
-  const gold = ensureContrast(hslToHex(h, baseS, Math.max(0.42, Math.min(0.82, l)))).color;
+  const gold = ensureContrast(hslToHex(h, baseS, Math.max(0.42, Math.min(0.82, l))), guardSurface).color;
   const baseL = rgbToHsl(...hexToRgb(gold)!)[2];
   return {
     "--color-gold": gold,
@@ -254,6 +260,7 @@ export const BRAND_THEME_KEYS = [
 export function deriveBrandTheme(
   primary: string | null | undefined,
   secondary?: string | null,
+  guardSurface: string = GUARD_SURFACE,
 ): BrandTheme | null {
   const p = primary ? normalizeHex(primary) : null;
   const sec = secondary ? normalizeHex(secondary) : null;
@@ -296,7 +303,7 @@ export function deriveBrandTheme(
     };
   }
 
-  const gold = deriveBrandTokens(p)!;
+  const gold = deriveBrandTokens(p, guardSurface)!;
   Object.assign(tokens, gold);
   const accent = gold["--color-gold"];
   const onAccent = gold["--color-gold-ink"];
@@ -325,10 +332,10 @@ export function deriveBrandTheme(
     secondary: secondaryHex,
     onAccent,
     contrast: {
-      accentOnSurface: contrastRatio(accent, GUARD_SURFACE),
+      accentOnSurface: contrastRatio(accent, guardSurface),
       onAccent: contrastRatio(onAccent, accent),
     },
-    adjusted: contrastRatio(p!, GUARD_SURFACE) < AA_TEXT,
+    adjusted: contrastRatio(p!, guardSurface) < AA_TEXT,
   };
 }
 
@@ -386,8 +393,12 @@ export function stockBrandTokens(): BrandTokens {
 }
 
 /** Full token set for a preview: the brand's own, layered over stock. */
-export function previewBrandTokens(primary: string | null | undefined, secondary?: string | null): BrandTokens {
-  const tokens = { ...stockBrandTokens(), ...(deriveBrandTheme(primary, secondary)?.tokens ?? {}) };
+export function previewBrandTokens(
+  primary: string | null | undefined,
+  secondary?: string | null,
+  guardSurface: string = GUARD_SURFACE,
+): BrandTokens {
+  const tokens = { ...stockBrandTokens(), ...(deriveBrandTheme(primary, secondary, guardSurface)?.tokens ?? {}) };
   return { ...tokens, ...scopedBrandTokens(tokens) };
 }
 
@@ -486,4 +497,56 @@ export async function extractBrandFromImage(source: File | Blob | string): Promi
   } finally {
     if (typeof source !== "string") URL.revokeObjectURL(url);
   }
+}
+
+/* ── brand colors over a white-label theme ────────────────── */
+
+/** The theme tokens brand colors own when they drive a white-label theme
+ *  (convex/lib/themePrecedence.ts): the accent family and its glows. */
+export const BRAND_OWNED_THEME_VARS = [
+  "--color-gold",
+  "--color-gold-bright",
+  "--color-gold-deep",
+  "--color-gold-dim",
+  "--color-gold-ink",
+  "--shadow-brutal-gold",
+  "--shadow-glow-gold",
+  "--shadow-gold-soft",
+  "--shadow-gold-strong",
+] as const;
+
+/**
+ * The surface brand text has to read on. The hardware face for a dark
+ * theme (the stock guard, so nothing moves for a dark studio); the lighter
+ * of a light white-label theme's background and surface otherwise, so a
+ * brand color on a pale theme still clears 4.5:1.
+ */
+export function brandGuardFor(
+  theme: { active?: boolean; brandDriven?: boolean; colors?: { background: string; surface: string } } | null | undefined,
+): string {
+  if (!theme?.active || !theme.brandDriven || !theme.colors) return GUARD_SURFACE;
+  const { background, surface } = theme.colors;
+  if (relativeLuminance(background) < 0.4) return GUARD_SURFACE;
+  return relativeLuminance(surface) > relativeLuminance(background) ? surface : background;
+}
+
+/**
+ * The accent family a brand-driven white-label theme paints, guarded against
+ * `guard`. Matches what OrgTheme writes for the same brand and guard, so the
+ * two layers never disagree. Empty for stock gold on a dark theme: the
+ * stylesheet's own gold is already right there.
+ */
+export function brandGoldFor(primary: string, guard: string = GUARD_SURFACE): BrandTokens {
+  const derived = deriveBrandTokens(primary, guard);
+  if (derived) return derived;
+  if (guard === GUARD_SURFACE) return {};
+  const gold = ensureContrast(DEFAULT_ACCENT, guard).color;
+  const [h, s, l] = rgbToHsl(...hexToRgb(gold)!);
+  return {
+    "--color-gold": gold,
+    "--color-gold-bright": hslToHex(h, s, Math.min(0.9, l + 0.12)),
+    "--color-gold-deep": hslToHex(h, s, Math.max(0.2, l - 0.12)),
+    "--color-gold-dim": hslToHex(h, s * 0.75, Math.min(0.85, l + 0.3)),
+    "--color-gold-ink": onColor(gold),
+  };
 }

@@ -1,14 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useMutation } from "convex/react";
-import { ConvexError } from "convex/values";
-import { api } from "@convex/_generated/api";
-import { toast } from "sonner";
 import { cn } from "@/lib/utils";
-import type { Org } from "@/components/settings/types";
-
-type Look = "hardware" | "glass";
+import { useBrandingDraft } from "@/components/settings/branding-draft";
+import type { Look } from "@/lib/brand-draft";
 
 const LOOKS: { id: Look; label: string; blurb: string }[] = [
   { id: "hardware", label: "Pulse Hardware", blurb: "Machined studio gear: solid panels, physical keys. The default." },
@@ -16,29 +11,15 @@ const LOOKS: { id: Look; label: string; blurb: string }[] = [
 ];
 
 /**
- * The studio's surface style, two tiles with a live mini preview in the
- * studio's own colors. Saves the moment you pick one (branding.setUiStyle),
- * so the whole app, the booking page and the kiosk switch together.
- * `tokens` are the brand tokens of the colors being previewed above.
+ * The studio's surface style, two tiles with a mini preview in the studio's
+ * own colors. Picking one edits the Branding draft; Apply saves it
+ * (branding.setUiStyle), so the whole app, the booking page and the kiosk
+ * switch together. `tokens` are the brand tokens of the colors being
+ * previewed above.
  */
-export function UiStylePicker({ org, tokens }: { org: Org; tokens: Record<string, string> }) {
-  const setUiStyle = useMutation(api.branding.setUiStyle);
-  const saved: Look = org.uiStyle === "glass" ? "glass" : "hardware";
-  const [pending, setPending] = React.useState<Look | null>(null);
-  const active = pending ?? saved;
-
-  async function pick(next: Look) {
-    if (next === active || pending) return;
-    setPending(next);
-    try {
-      await setUiStyle({ uiStyle: next });
-      toast.success(next === "glass" ? "iOS Glass is on." : "Pulse Hardware is on.");
-    } catch (err) {
-      toast.error(err instanceof ConvexError ? String(err.data) : "Could not save the look.");
-    } finally {
-      setPending(null);
-    }
-  }
+export function UiStylePicker({ tokens }: { tokens: Record<string, string> }) {
+  const { draft, setLook, applying } = useBrandingDraft();
+  const active: Look = draft.look;
 
   return (
     <div className="space-y-2">
@@ -52,8 +33,8 @@ export function UiStylePicker({ org, tokens }: { org: Org; tokens: Record<string
               type="button"
               role="radio"
               aria-checked={on}
-              disabled={pending !== null}
-              onClick={() => void pick(look.id)}
+              disabled={applying}
+              onClick={() => setLook(look.id)}
               className={cn(
                 "group min-w-0 rounded-xl border p-2 text-left transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold",
                 on ? "border-gold bg-coal-2" : "border-graphite/60 hover:border-hairline-2",
