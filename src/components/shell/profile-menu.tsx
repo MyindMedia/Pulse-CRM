@@ -13,6 +13,7 @@ import {
   Bell,
   ChevronDown,
   FileText,
+  Lightbulb,
   LogOut,
   Sparkles,
   TrendingUp,
@@ -131,6 +132,12 @@ export function ProfileMenu() {
                 {alertCount}
               </span>
             )}
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/feature-requests">
+              <Lightbulb className="size-4" />
+              Feature requests
+            </Link>
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           {signOut && (

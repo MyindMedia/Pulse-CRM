@@ -4,7 +4,7 @@ import * as React from "react";
 import { useQuery } from "convex/react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@convex/_generated/api";
-import { Boxes, Building2, CreditCard, Crown, Database, Palette, Receipt, Users, Plug } from "lucide-react";
+import { Boxes, Building2, CreditCard, Crown, Database, Palette, Receipt, Users, Plug, Lightbulb } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -30,6 +30,7 @@ import { ExportPanel } from "@/components/settings/export-panel";
 import { MembershipsPanel } from "@/components/settings/memberships-panel";
 import { InventoryImportPanel } from "@/components/settings/inventory-import-panel";
 import { AiReceptionistPanel } from "@/components/settings/ai-receptionist-panel";
+import { FeatureRequestsPanel } from "@/components/feature-requests/feature-board";
 import { ManagersMoneyPanel } from "@/components/settings/managers-money-panel";
 import type { Org } from "@/components/settings/types";
 import { CapabilityGuard } from "@/components/shell/capability-guard";
@@ -54,7 +55,7 @@ export default function SettingsPage() {
   );
 }
 
-const TABS = ["workspace", "branding", "pricing", "team", "integrations", "memberships", "billing", "inventory", "data"];
+const TABS = ["workspace", "branding", "pricing", "team", "integrations", "memberships", "billing", "inventory", "data", "requests"];
 
 function SettingsView() {
   const org = useQuery(api.orgs.current) as Org | undefined;
@@ -111,6 +112,10 @@ function SettingsView() {
             <TabsTrigger value="data">
               <Database className="size-4" />
               Data
+            </TabsTrigger>
+            <TabsTrigger value="requests">
+              <Lightbulb className="size-4" />
+              Feature requests
             </TabsTrigger>
           </TabsList>
 
@@ -188,6 +193,9 @@ function SettingsView() {
                   wipes whatever it is pointed at. */}
               {org.orgId === DEMO_ORG && <DataPanel />}
             </div>
+          </TabsContent>
+          <TabsContent value="requests">
+            <FeatureRequestsPanel />
           </TabsContent>
         </Tabs>
         </BrandingDraftProvider>

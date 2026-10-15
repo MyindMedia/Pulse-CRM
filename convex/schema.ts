@@ -1621,6 +1621,63 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_session", ["sessionId"]),
 
+  // ── Feature requests - one platform-wide board. Any studio member files a
+  //    request or votes; only the Pulse platform owner / agency admins change
+  //    status, edit or merge. Requester identity (orgId, name, email) is kept
+  //    for the owner and NEVER returned to other studios. ──
+  featureRequests: defineTable({
+    title: v.string(),
+    description: v.optional(v.string()),
+    category: v.optional(v.string()),
+    status: v.union(
+      v.literal("pending"),
+      v.literal("in_the_works"),
+      v.literal("beta"),
+      v.literal("q1"),
+      v.literal("q2"),
+      v.literal("q3"),
+      v.literal("q4"),
+      v.literal("shipped"),
+      v.literal("declined"),
+    ),
+    votes: v.number(), // denormalised count of featureRequestVotes rows
+    requesterOrgId: v.string(),
+    requesterOrgName: v.string(),
+    requesterClerkId: v.string(),
+    requesterName: v.optional(v.string()),
+    requesterEmail: v.optional(v.string()),
+    mergedInto: v.optional(v.id("featureRequests")), // hidden from the board
+    createdAt: v.number(),
+    updatedAt: v.number(),
+  })
+    .index("by_votes", ["votes"])
+    .index("by_status_votes", ["status", "votes"])
+    .index("by_requester_created", ["requesterClerkId", "createdAt"])
+    .searchIndex("search_title", { searchField: "title", filterFields: ["status"] }),
+
+  featureRequestVotes: defineTable({
+    requestId: v.id("featureRequests"),
+    voterClerkId: v.string(),
+    voterOrgId: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_request_voter", ["requestId", "voterClerkId"])
+    .index("by_voter", ["voterClerkId"])
+    .index("by_request", ["requestId"]),
+
+  // ── Agency notifications - the platform owner's in-app inbox (the bell in
+  //    the agency console). Feature requests are the first writer. ──
+  agencyNotifications: defineTable({
+    agencyId: v.string(),
+    kind: v.string(), // feature_request.new ...
+    title: v.string(),
+    body: v.string(),
+    href: v.optional(v.string()),
+    refId: v.optional(v.string()),
+    readAt: v.optional(v.number()),
+    createdAt: v.number(),
+  }).index("by_agency_created", ["agencyId", "createdAt"]),
+
   // ── Engineering log - "Recall Sheet 2.0" ──
   engineeringLogs: defineTable({
     orgId: v.string(),
