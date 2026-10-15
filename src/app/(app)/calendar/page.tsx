@@ -86,8 +86,11 @@ function CalendarView() {
       setView("day");
     }
   }, []);
-  const [openSessionId, setOpenSessionId] = useState<string | null>(null);
-  const [bookOpen, setBookOpen] = useState(false);
+  // Deep links work on first load too: ?session=<id> opens that booking's sheet
+  // and ?new=1 the booking modal. (Before, only a link that changed AFTER the
+  // page mounted opened anything, so a link from an email or the bell did not.)
+  const [openSessionId, setOpenSessionId] = useState<string | null>(() => params.get("session"));
+  const [bookOpen, setBookOpen] = useState(() => params.get("new") === "1");
   const [bookDate, setBookDate] = useState<number | undefined>(undefined);
 
   // Deep links: ?new=1 opens the booking modal; ?session=<id> opens the sheet.
