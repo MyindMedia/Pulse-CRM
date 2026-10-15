@@ -1,0 +1,479 @@
+/* ============================================================
+   iOS Glass (orgs.uiStyle = "glass")
+
+   An Apple iOS 26 / visionOS style Liquid Glass skin for the whole studio:
+   frosted translucent panels over the moving room light, a thin specular
+   edge, a soft inner glow, large continuous corners, pill controls, and the
+   studio's brand colors tinting the glass.
+
+   Opt in with data-ui-style="glass" on <html> (OrgTheme in the app shell,
+   useUiStyleRoot on the public pages). With the attribute absent every rule
+   here is inert, so the default Pulse Hardware look (hardware.css) is
+   byte-for-byte unchanged. Imported AFTER hardware.css.
+
+   Specificity: hardware.css scopes with `:root:has(.pulse-hw) .x` (up to five
+   classes deep for key variants). Every glass selector is prefixed with
+   P = [data-ui-style=glass]:not(#g), whose id-weight beats any class chain,
+   so this file never needs !important except against inline styles (toasts).
+
+   Method: tokens first (the app's gold/coal/hairline tokens become glass
+   values, so utility classes follow without per-component rewrites), then
+   the shared primitives through their existing classes.
+
+   Cost: backdrop-filter sits on page-level containers only (cards, the
+   rail, the top bar, dialogs, sheets, popovers). Cards nested inside a card
+   and anything that repeats in a long list use a plain tint, because a
+   backdrop-filter inside a backdrop-filter can only see its parent anyway.
+   ============================================================ */
+
+/* ── Tokens: dark (the app shell, and public pages by default) ── */
+[data-ui-style=glass]:not(#g) {
+  --gl-base-rgb: 12, 12, 18;
+  --gl-brand-rgb: var(--pl-yellow-rgb, 255, 201, 0);
+  --gl-edge: rgba(255, 255, 255, 0.16);
+  --gl-edge-soft: rgba(255, 255, 255, 0.09);
+  --gl-spec: rgba(255, 255, 255, 0.42);
+  --gl-glow: rgba(255, 255, 255, 0.05);
+  --gl-shadow-1: 0 8px 28px rgba(0, 0, 0, 0.32), 0 1px 3px rgba(0, 0, 0, 0.3);
+  --gl-shadow-2: 0 24px 64px rgba(0, 0, 0, 0.5), 0 4px 14px rgba(0, 0, 0, 0.35);
+  /* Brand tint, one layer on top of the glass fill. */
+  --gl-tint: linear-gradient(rgba(var(--gl-brand-rgb), 0.07), rgba(var(--gl-brand-rgb), 0.07));
+  /* Fills: a bright diagonal sheen, the brand tint, then a dark base that
+     keeps white text above 4.5:1 even where a light pool passes behind. */
+  --gl-fill-1: linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02) 60%),
+    var(--gl-tint), rgba(var(--gl-base-rgb), 0.73);
+  --gl-fill-2: linear-gradient(145deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.02) 60%),
+    var(--gl-tint), rgba(var(--gl-base-rgb), 0.8);
+  --gl-fill-3: linear-gradient(145deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.015) 60%),
+    var(--gl-tint), rgba(var(--gl-base-rgb), 0.5);
+  --gl-fill-inset: rgba(255, 255, 255, 0.06);
+  --gl-blur-1: blur(16px) saturate(160%);
+  --gl-blur-2: blur(24px) saturate(180%);
+  --gl-scrim: rgba(6, 6, 10, 0.38);
+  --gl-dim: 0.22;
+  /* Secondary text steps up a notch: it sits on a lit, blurred surface, not
+     a flat slab, so the hardware greys would fall under 4.5:1. */
+  --pl-ink-muted: #e0e0e5;
+  --pl-ink-subtle: #cbcbd2;
+  /* !important for the same reason as the surface tokens below: the Max
+     white-label theme writes its text ramp inline on <html>. */
+  --color-mist: var(--pl-ink-muted) !important;
+  --color-ash: var(--pl-ink-muted) !important;
+  --color-steel: var(--pl-ink-subtle) !important;
+  --color-ash-dim: var(--pl-ink-subtle) !important;
+  --color-slate: var(--pl-ink-subtle) !important;
+  --gl-radius-card: 24px;
+  --gl-radius-sheet: 30px;
+  --pl-radius-chassis: 24px;
+  --radius-chrome: 22px;
+
+  /* The app's own tokens, as glass. !important because the Max white-label
+     theme paints these same surface tokens inline on <html>, and an inline
+     style would otherwise turn every bg-coal panel back into a solid slab. Surfaces become see-through whites on
+     the dark field, so a bg-coal panel inside a card frosts instead of
+     going opaque. ink (the canvas) stays solid. */
+  --color-coal: rgba(255, 255, 255, 0.05) !important;
+  --color-coal-2: rgba(255, 255, 255, 0.08) !important;
+  --color-coal-3: rgba(255, 255, 255, 0.17) !important;
+  --color-obsidian: rgba(10, 10, 16, 0.34) !important;
+  --color-hairline: rgba(255, 255, 255, 0.12) !important;
+  --color-hairline-2: rgba(255, 255, 255, 0.2) !important;
+  --color-graphite: rgba(255, 255, 255, 0.14) !important;
+}
+
+/* ── Tokens: light (public pages only; the app shell is dark-forced) ── */
+[data-ui-style=glass][data-theme=light]:not(#g):not(:has(.pulse-hw)) {
+  --gl-base-rgb: 255, 255, 255;
+  --gl-edge: rgba(255, 255, 255, 0.85);
+  --gl-edge-soft: rgba(255, 255, 255, 0.6);
+  --gl-spec: rgba(255, 255, 255, 0.95);
+  --gl-glow: rgba(255, 255, 255, 0.35);
+  --gl-shadow-1: 0 8px 28px rgba(60, 50, 30, 0.12), 0 1px 3px rgba(60, 50, 30, 0.1);
+  --gl-shadow-2: 0 24px 64px rgba(60, 50, 30, 0.22), 0 4px 14px rgba(60, 50, 30, 0.12);
+  --gl-tint: linear-gradient(rgba(var(--gl-brand-rgb), 0.07), rgba(var(--gl-brand-rgb), 0.07));
+  --gl-fill-1: linear-gradient(145deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.2) 60%),
+    var(--gl-tint), rgba(var(--gl-base-rgb), 0.3);
+  --gl-fill-2: linear-gradient(145deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.3) 60%),
+    var(--gl-tint), rgba(var(--gl-base-rgb), 0.45);
+  --gl-fill-3: linear-gradient(145deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.12) 60%),
+    var(--gl-tint), rgba(var(--gl-base-rgb), 0.18);
+  --gl-fill-inset: rgba(255, 255, 255, 0.5);
+  --gl-scrim: rgba(232, 230, 223, 0.45);
+  --gl-dim: 0.6;
+  --pl-ink-muted: #38352e;
+  --pl-ink-subtle: #55514a;
+  --color-mist: #38352e !important;
+  --color-ash: #4a463d !important;
+  --color-steel: #55514a !important;
+  --color-ash-dim: #5d594f !important;
+  --color-slate: #5d594f !important;
+  --color-coal: rgba(255, 255, 255, 0.55) !important;
+  --color-coal-2: rgba(255, 255, 255, 0.7) !important;
+  --color-coal-3: rgba(255, 255, 255, 0.85) !important;
+  --color-obsidian: rgba(255, 255, 255, 0.45) !important;
+  --color-hairline: rgba(0, 0, 0, 0.08) !important;
+  --color-hairline-2: rgba(0, 0, 0, 0.14) !important;
+  --color-graphite: rgba(0, 0, 0, 0.1) !important;
+}
+
+/* ── Canvas ───────────────────────────────────────────────────
+   The room light stays and moves exactly as before; the dimmer over it is
+   lifted so the pools and tiles actually reach the glass. */
+[data-ui-style=glass]:not(#g) .pl-ambient-dim { opacity: var(--gl-dim); }
+/* Same pools, same drift, brighter: glass needs light behind it to show. */
+[data-ui-style=glass]:not(#g) .pl-ambient-gold {
+  background: radial-gradient(closest-side, rgba(var(--pl-yellow-rgb), 0.45), rgba(var(--pl-yellow-rgb), 0.16) 42%, transparent);
+}
+[data-ui-style=glass]:not(#g) .pl-ambient-copper {
+  background: radial-gradient(closest-side, rgba(var(--pl-copper-rgb), 0.42), rgba(var(--pl-copper-rgb), 0.15) 42%, transparent);
+}
+[data-ui-style=glass]:not(#g) .pl-ambient-amber {
+  background: radial-gradient(closest-side, rgba(var(--pl-amber-rgb), 0.3), transparent);
+}
+/* The module bay was an opaque container that kept the light out of
+   sections. Glass wants the light behind every panel, so the bay is a
+   transparent layout box here. */
+[data-ui-style=glass]:not(#g) .pl-bay {
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+/* Shell notices had a solid backing so tints sat on the void. */
+[data-ui-style=glass]:not(#g) .pulse-hw .bg-ink.empty\:hidden { background: transparent; }
+/* Public pages wrap themselves in this so the backdrop (z-index -1) sits
+   above the wrapper's own paint and below its content. */
+[data-ui-style=glass]:not(#g) [data-glass-root] {
+  isolation: isolate;
+  background-color: transparent;
+}
+[data-ui-style=glass]:not(#g) [data-glass-root]::before { display: none; }
+
+/* ── Surfaces: cards, the rail, the top bar ────────────────── */
+[data-ui-style=glass]:not(#g) .pl-card {
+  background: var(--gl-fill-1);
+  border: 1px solid var(--gl-edge-soft);
+  border-radius: var(--gl-radius-card);
+  -webkit-backdrop-filter: var(--gl-blur-1);
+  backdrop-filter: var(--gl-blur-1);
+  box-shadow:
+    inset 0 1px 0 var(--gl-spec),
+    inset 0 0 28px var(--gl-glow),
+    var(--gl-shadow-1);
+}
+[data-ui-style=glass]:not(#g) .pl-card:hover {
+  box-shadow:
+    inset 0 1px 0 var(--gl-spec),
+    inset 0 0 28px var(--gl-glow),
+    var(--gl-shadow-1);
+}
+/* The hardware gloss slot becomes the specular rim: a 1px masked gradient
+   border, bright at the top-left, fading, with a faint brand trace at the
+   bottom-right. */
+[data-ui-style=glass]:not(#g) .pl-card::before {
+  z-index: 1;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.55) 0%,
+    rgba(255, 255, 255, 0.1) 32%,
+    rgba(255, 255, 255, 0.04) 64%,
+    rgba(var(--gl-brand-rgb), 0.3) 100%
+  );
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  opacity: 0.9;
+}
+[data-ui-style=glass][data-theme=light]:not(#g):not(:has(.pulse-hw)) .pl-card::before {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0.3) 40%,
+    rgba(var(--gl-brand-rgb), 0.25));
+}
+/* Page content (everything in the module bay) is plain translucent tint, no
+   backdrop-filter. The room light under it is soft gradients plus a faint
+   tile wall, so a blur adds almost nothing to the look, but each blurred
+   layer re-runs every frame while the light drifts (measured: a dashboard
+   scrolled at 31ms/frame with a blur per card, 19ms without). The rail, top
+   bar, dialogs, sheets, popovers, toasts and tab bar keep the real blur. */
+[data-ui-style=glass]:not(#g) .pl-bay :is(.pl-card, .material-ultrathin, .material-thin, .material-regular, .glass) {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+/* Cards inside cards: tint only. */
+[data-ui-style=glass]:not(#g) .pl-card .pl-card {
+  background: var(--gl-fill-3);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: inset 0 1px 0 var(--gl-edge), 0 2px 10px rgba(0, 0, 0, 0.18);
+}
+[data-ui-style=glass]:not(#g) .pl-card .pl-card::before { opacity: 0.5; }
+/* Rail and top bar: a touch denser, since text sits right on them. */
+[data-ui-style=glass]:not(#g) .pl-card.pl-side {
+  background: var(--gl-fill-2);
+  border-radius: 30px;
+  will-change: transform;
+}
+[data-ui-style=glass]:not(#g) header.pl-card { border-radius: 28px; background: var(--gl-fill-2); }
+
+/* The utility materials and the older glass classes (Card tiers, tab bar,
+   command palette, dialogs, popovers). Hardware flattened these to graphite. */
+[data-ui-style=glass]:not(#g) :is(.material-ultrathin, .material-thin, .glass) {
+  background: var(--gl-fill-3);
+  border: 1px solid var(--gl-edge-soft);
+  -webkit-backdrop-filter: var(--gl-blur-1);
+  backdrop-filter: var(--gl-blur-1);
+  box-shadow: inset 0 1px 0 var(--gl-spec), inset 0 0 22px var(--gl-glow), var(--gl-shadow-1);
+}
+[data-ui-style=glass]:not(#g) :is(.material-regular, .material-thick, .glass-strong, .glass-liquid) {
+  background: var(--gl-fill-2);
+  border: 1px solid var(--gl-edge);
+  -webkit-backdrop-filter: var(--gl-blur-2);
+  backdrop-filter: var(--gl-blur-2);
+  box-shadow: inset 0 1px 0 var(--gl-spec), inset 0 0 26px var(--gl-glow), var(--gl-shadow-2);
+}
+/* A Card is both .pl-card and .material-*: keep its rim and corner. */
+[data-ui-style=glass]:not(#g) .pl-card:is(.material-thin, .material-regular) {
+  border-color: var(--gl-edge-soft);
+  border-radius: var(--gl-radius-card);
+}
+
+/* ── Overlays: dialog, sheet, command palette, popover, menus ── */
+[data-ui-style=glass]:not(#g) .anim-overlay {
+  background: var(--gl-scrim);
+  -webkit-backdrop-filter: blur(10px) saturate(120%);
+  backdrop-filter: blur(10px) saturate(120%);
+}
+[data-ui-style=glass]:not(#g) :is([role=dialog], [role=alertdialog]).glass-liquid {
+  border-radius: var(--gl-radius-sheet);
+}
+/* The side sheet floats with a gap on every side instead of a full-height slab. */
+[data-ui-style=glass]:not(#g) [role=dialog].anim-sheet {
+  top: 10px;
+  right: 10px;
+  height: calc(100dvh - 20px);
+  max-width: calc(100vw - 20px);
+  border-radius: var(--gl-radius-sheet);
+  overflow: hidden;
+}
+@media (max-width: 640px) {
+  [data-ui-style=glass]:not(#g) [role=dialog].anim-sheet { top: 6px; right: 6px; height: calc(100dvh - 12px); max-width: calc(100vw - 12px); }
+}
+[data-ui-style=glass]:not(#g) :is(.glass-strong) { border-radius: 18px; }
+/* Menu rows and list rows highlight as soft pills. */
+[data-ui-style=glass]:not(#g) [role=menuitem],
+[data-ui-style=glass]:not(#g) [role=menuitemcheckbox],
+[data-ui-style=glass]:not(#g) [role=menuitemradio],
+[data-ui-style=glass]:not(#g) [role=option] { border-radius: 12px; }
+[data-ui-style=glass]:not(#g) :is([data-highlighted], [aria-selected=true]):is([role=menuitem], [role=option], [role=menuitemcheckbox]) {
+  background: rgba(var(--gl-brand-rgb), 0.16);
+}
+/* Mobile tab bar floats as a pill above the home indicator. */
+[data-ui-style=glass]:not(#g) nav[aria-label=Primary].material-thick {
+  left: 12px;
+  right: 12px;
+  bottom: calc(10px + env(safe-area-inset-bottom));
+  border-radius: 999px;
+  border: 1px solid var(--gl-edge);
+  padding-bottom: 0 !important;
+}
+/* Toasts: sonner paints inline styles, so these need !important. */
+[data-ui-style=glass]:not(#g) [data-sonner-toast] {
+  background: var(--gl-fill-2) !important;
+  border: 1px solid var(--gl-edge) !important;
+  border-radius: 22px !important;
+  -webkit-backdrop-filter: var(--gl-blur-2);
+  backdrop-filter: var(--gl-blur-2);
+  box-shadow: inset 0 1px 0 var(--gl-spec), var(--gl-shadow-2) !important;
+}
+/* Tooltips */
+[data-ui-style=glass]:not(#g) [role=tooltip],
+[data-ui-style=glass]:not(#g) [data-radix-popper-content-wrapper] > [data-state][data-side].rounded-md:not(.glass-strong) {
+  border-radius: 12px;
+}
+
+/* ── Controls ─────────────────────────────────────────────────
+   Keys become pills: sentence case, no machined shadow. */
+[data-ui-style=glass]:not(#g) .pl-key {
+  border-radius: 999px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28), 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+[data-ui-style=glass]:not(#g) .pl-key[data-variant="primary"],
+[data-ui-style=glass]:not(#g) .pl-key[data-variant="brutal"] {
+  background: linear-gradient(180deg, var(--pl-yellow-top), var(--pl-yellow));
+  color: var(--pl-on-yellow);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.6),
+    inset 0 -1px 0 rgba(0, 0, 0, 0.12),
+    0 6px 18px rgba(var(--pl-yellow-rgb), 0.32);
+}
+[data-ui-style=glass]:not(#g) .pl-key[data-variant="primary"]:hover,
+[data-ui-style=glass]:not(#g) .pl-key[data-variant="brutal"]:hover {
+  background: linear-gradient(180deg, var(--pl-yellow-top), var(--pl-yellow-hover));
+}
+[data-ui-style=glass]:not(#g) .pl-key[data-variant="primary"]:active,
+[data-ui-style=glass]:not(#g) .pl-key[data-variant="brutal"]:active {
+  background: var(--pl-yellow-press);
+  box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.25);
+}
+[data-ui-style=glass]:not(#g) .pl-key:is([data-variant="secondary"], [data-variant="outline"], [data-variant="glass"]) {
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--gl-edge);
+  color: var(--pl-ink);
+}
+[data-ui-style=glass]:not(#g) .pl-key:is([data-variant="secondary"], [data-variant="outline"], [data-variant="glass"]):hover {
+  background: rgba(255, 255, 255, 0.2);
+}
+[data-ui-style=glass]:not(#g) .pl-key[data-variant="danger"] {
+  background: var(--pl-negative-soft);
+  border: 1px solid rgba(255, 107, 111, 0.35);
+  color: var(--pl-negative);
+}
+[data-ui-style=glass]:not(#g) .pl-key[data-variant="ghost"] { background: transparent; box-shadow: none; }
+[data-ui-style=glass]:not(#g) .pl-key[data-variant="ghost"]:hover { background: rgba(255, 255, 255, 0.12); }
+[data-ui-style=glass]:not(#g) .pl-key:active { transform: scale(0.97); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.25); }
+[data-ui-style=glass]:not(#g) .pl-key:disabled { box-shadow: none; }
+
+/* Fields: soft recessed glass, near-pill. */
+[data-ui-style=glass]:not(#g) .pl-field {
+  border-radius: 16px;
+  background: var(--gl-fill-inset);
+  border: 1px solid var(--gl-edge-soft);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.22);
+}
+[data-ui-style=glass]:not(#g) textarea.pl-field { border-radius: 18px; }
+[data-ui-style=glass]:not(#g) .pl-field:focus-visible {
+  border-color: rgba(var(--gl-brand-rgb), 0.7);
+  box-shadow: 0 0 0 3px rgba(var(--gl-brand-rgb), 0.22), inset 0 1px 2px rgba(0, 0, 0, 0.22);
+}
+[data-ui-style=glass]:not(#g) .pl-search {
+  border-radius: 999px;
+  background: var(--gl-fill-inset);
+  border: 1px solid var(--gl-edge-soft);
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.22);
+}
+[data-ui-style=glass]:not(#g) .pl-icon-key {
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid var(--gl-edge);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.28);
+}
+[data-ui-style=glass]:not(#g) .pl-icon-key:active { box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.25); transform: scale(0.96); }
+
+/* Tabs */
+[data-ui-style=glass]:not(#g) [role=tablist] { border-radius: 999px; padding: 4px; }
+[data-ui-style=glass]:not(#g) [role=tab] { border-radius: 999px; }
+[data-ui-style=glass]:not(#g) [role=tab][data-state=active] {
+  background: linear-gradient(rgba(var(--gl-brand-rgb), 0.2), rgba(var(--gl-brand-rgb), 0.12)), rgba(var(--gl-base-rgb), 0.6);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+/* Chips, rails and rows */
+[data-ui-style=glass]:not(#g) .pl-chip { border-radius: 999px; padding: 2px 10px; letter-spacing: 0.04em; }
+[data-ui-style=glass]:not(#g) .pl-chip[data-tone="neutral"] { background: rgba(255, 255, 255, 0.12); }
+[data-ui-style=glass]:not(#g) .pl-nav-item { border-radius: 14px; font-weight: 500; }
+[data-ui-style=glass]:not(#g) .pl-nav-item:hover { background: rgba(255, 255, 255, 0.1); }
+[data-ui-style=glass]:not(#g) .pl-nav-item[data-active="true"] {
+  background: linear-gradient(180deg, rgba(var(--gl-brand-rgb), 0.24), rgba(var(--gl-brand-rgb), 0.12));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 0 0 1px rgba(var(--gl-brand-rgb), 0.28);
+  color: var(--pl-yellow-hover);
+}
+[data-ui-style=glass]:not(#g) .pl-nav-count { font-variant-numeric: tabular-nums; }
+[data-ui-style=glass]:not(#g) .pl-well,
+[data-ui-style=glass]:not(#g) .pl-screen {
+  background: var(--gl-fill-inset);
+  border-radius: 16px;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.3), inset 0 0 0 1px var(--gl-edge-soft);
+}
+[data-ui-style=glass]:not(#g) .pl-module,
+[data-ui-style=glass]:not(#g) .pl-block { border-radius: 12px; }
+[data-ui-style=glass]:not(#g) .pl-block {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.2), rgba(255, 255, 255, 0.1));
+  border: 1px solid var(--gl-edge-soft);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.32), 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+[data-ui-style=glass]:not(#g) .pl-block[data-selected="true"] {
+  background: linear-gradient(180deg, var(--pl-yellow-top), var(--pl-yellow));
+  border-color: transparent;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.55), 0 6px 18px rgba(var(--pl-yellow-rgb), 0.3);
+}
+[data-ui-style=glass]:not(#g) .pl-block[data-hold="true"]:not([data-selected="true"]) {
+  background: repeating-linear-gradient(135deg, rgba(var(--pl-yellow-rgb), 0.2) 0 6px, transparent 6px 12px), rgba(12, 12, 18, 0.4);
+  box-shadow: inset 0 0 0 1px rgba(var(--pl-yellow-rgb), 0.8);
+}
+[data-ui-style=glass]:not(#g) .pl-block:active { transform: scale(0.98); }
+[data-ui-style=glass]:not(#g) .pl-table th { letter-spacing: 0.04em; }
+[data-ui-style=glass]:not(#g) .pl-groove { border-radius: 999px; box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.3); }
+[data-ui-style=glass]:not(#g) .pl-groove-fill { border-radius: 999px; }
+[data-ui-style=glass]:not(#g) .pl-knob { box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4); }
+
+/* ── Hardware decoration, softened or hidden ──────────────── */
+[data-ui-style=glass]:not(#g) .pl-brackets { display: none; }
+[data-ui-style=glass]:not(#g) .pl-grid::after { display: none; }
+[data-ui-style=glass]:not(#g) .pl-emboss { filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.35)); }
+[data-ui-style=glass]:not(#g) .pl-bar { height: 3px; box-shadow: 0 0 10px rgba(var(--pl-yellow-rgb), 0.35); }
+/* LEDs stay as small status dots, without the machined bezel glare. */
+[data-ui-style=glass]:not(#g) .pl-led { background: rgba(255, 255, 255, 0.28); }
+[data-ui-style=glass]:not(#g) .pl-led[data-on="true"] {
+  background: var(--pl-yellow);
+  box-shadow: 0 0 8px rgba(var(--pl-yellow-rgb), 0.5);
+}
+[data-ui-style=glass]:not(#g) .overline,
+[data-ui-style=glass]:not(#g) .pl-label { letter-spacing: 0.06em; }
+
+/* ── Accessibility and fallbacks ──────────────────────────────
+   No blur support, or the OS asks for reduced transparency: solid tinted
+   surfaces with the same edges, shapes and shadows. The room light keeps
+   moving; only the see-through goes. */
+@media (prefers-reduced-transparency: reduce) {
+  [data-ui-style=glass]:not(#g) {
+    --gl-fill-1: var(--gl-tint), #1e1e26;
+    --gl-fill-2: var(--gl-tint), #23232c;
+    --gl-fill-3: var(--gl-tint), #1a1a22;
+    --gl-fill-inset: #15151b;
+    --gl-blur-1: none;
+    --gl-blur-2: none;
+    --gl-scrim: rgba(6, 6, 10, 0.72);
+    --gl-dim: 0.8;
+    --color-coal: #1d1d24 !important;
+    --color-coal-2: #24242c !important;
+    --color-coal-3: #2e2e37 !important;
+    --color-obsidian: #17171d !important;
+  }
+  [data-ui-style=glass][data-theme=light]:not(#g):not(:has(.pulse-hw)) {
+    --gl-fill-1: var(--gl-tint), #f6f4ee;
+    --gl-fill-2: var(--gl-tint), #fbfaf6;
+    --gl-fill-3: var(--gl-tint), #efede6;
+    --gl-fill-inset: #ebe8e0;
+    --gl-scrim: rgba(232, 230, 223, 0.8);
+    --color-coal: #f6f4ee !important;
+    --color-coal-2: #fbfaf6 !important;
+    --color-coal-3: #ffffff !important;
+    --color-obsidian: #ebe8e0 !important;
+  }
+  [data-ui-style=glass]:not(#g) :is(.anim-overlay, [data-sonner-toast], .pl-card, .pl-card .pl-card) {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  [data-ui-style=glass]:not(#g) {
+    --gl-fill-1: var(--gl-tint), #1e1e26;
+    --gl-fill-2: var(--gl-tint), #23232c;
+    --gl-fill-3: var(--gl-tint), #1a1a22;
+    --gl-scrim: rgba(6, 6, 10, 0.72);
+    --gl-dim: 0.8;
+    --color-coal: #1d1d24 !important;
+    --color-coal-2: #24242c !important;
+    --color-coal-3: #2e2e37 !important;
+    --color-obsidian: #17171d !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-ui-style=glass]:not(#g) .pl-key:active,
+  [data-ui-style=glass]:not(#g) .pl-icon-key:active,
+  [data-ui-style=glass]:not(#g) .pl-block:active { transform: none; }
+}

@@ -6,6 +6,8 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Disc3 } from "lucide-react";
 import { brandStyle } from "@/lib/brand-theme";
+import { GlassBackdrop } from "@/components/shell/glass-backdrop";
+import { useUiStyleRoot } from "@/lib/ui-style";
 
 /**
  * Public booking chrome - NO app sidebar. A slim wordmark bar and a
@@ -21,12 +23,16 @@ export default function BookLayout({ children }: { children: React.ReactNode }) 
   const slug = Array.isArray(raw) ? raw[0] : raw;
   const front = useQuery(api.booking.studioFront, slug ? { slug } : {});
   const studioName = front?.org.name ?? "Pulse";
+  const glass = useUiStyleRoot(front?.org.uiStyle);
 
   return (
     <div
+      data-glass-root
       className="grain relative flex min-h-dvh flex-col bg-ink text-bone"
       style={brandStyle(front?.org.accentColor, front?.org.brandSecondary)}
     >
+      {/* iOS Glass: the moving room light the panels frost over. */}
+      {glass && <GlassBackdrop />}
       {/* ambient wash in the studio brand color (--brand-rgb, brandStyle) */}
       <div
         aria-hidden

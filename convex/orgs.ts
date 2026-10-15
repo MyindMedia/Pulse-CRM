@@ -79,6 +79,8 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     // and the secondary color that tints the room light's second pool.
     brandPreset: org?.brandPreset ?? null,
     brandSecondary: org ? brandSecondaryOf(org) : null,
+    // Surface style (Settings > Branding > Look). Unset is the hardware look.
+    uiStyle: org?.uiStyle ?? ("hardware" as const),
     tagline: org?.tagline ?? "Your music business runs itself.",
     logoUrl: org?.logoId ? await fileUrl(ctx, org.logoId) : null,
     bookingHeroUrl: org?.bookingHeroId ? await fileUrl(ctx, org.bookingHeroId) : null,
