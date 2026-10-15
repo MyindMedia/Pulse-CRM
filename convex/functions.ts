@@ -63,7 +63,7 @@ for (const table of MIRRORED_TABLES) {
 /* The change log owners and managers read (lib/changeAudit.ts). A second
    trigger on the same writes, recording who made each change and what it
    touched. Signed-in writes only: scheduled jobs are not people. */
-for (const table of AUDITED_TABLES) {
+for (const table of AUDITED_TABLES as Extract<keyof DataModel, string>[]) {
   triggers.register(table, async (ctx, change) => {
     const entry = await auditEntry(ctx, table, change as never);
     if (entry) await ctx.innerDb.insert("changeAudit", entry);

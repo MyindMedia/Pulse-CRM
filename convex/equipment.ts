@@ -5,6 +5,7 @@ import { mutation } from "./functions";
 import { Doc, Id } from "./_generated/dataModel";
 import { v, ConvexError } from "convex/values";
 import { currentOrg, assertOrg, currentOrgWithCapability, currentMoneySight } from "./lib/tenant";
+import { resolveViewer } from "./lib/access";
 import { searchGearCatalog } from "./lib/gearCatalog";
 import { meterStorageUpload } from "./usage";
 
@@ -43,6 +44,41 @@ const statusV = v.union(
   v.literal("retired"),
 );
 
+/* ── Who owns a piece, and who may change it ─────────────────────────────
+   Gear with no owner is the studio's. A teammate's own gear (a producer's
+   mic, an engineer's laptop) carries their member id: they may add, edit and
+   remove it without inventory rights, it stays out of the studio's asset
+   value, and it is never rented out. Inventory rights change anything, and
+   only they move a piece between the studio and a person. */
+type GearEditor = { orgId: string; manager: boolean; memberId: Id<"members"> | null };
+
+async function gearEditor(ctx: MutationCtx): Promise<GearEditor> {
+  const viewer = await resolveViewer(ctx);
+  if (viewer.capabilities.has("equipment.edit")) {
+    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
+    return { orgId, manager: true, memberId: viewer.kind === "studio_member" ? viewer.memberId : null };
+  }
+  const orgId = await currentOrgWithCapability(ctx, "equipment.read");
+  if (viewer.kind !== "studio_member") {
+    throw new ConvexError("Only a teammate can add gear of their own.");
+  }
+  return { orgId, manager: false, memberId: viewer.memberId };
+}
+
+function assertMayEdit(editor: GearEditor, item: Doc<"equipment">) {
+  if (editor.manager) return;
+  if (!item.ownerMemberId || item.ownerMemberId !== editor.memberId) {
+    throw new ConvexError("Only a manager, or the teammate who owns it, can change this gear.");
+  }
+}
+
+async function assertTeammate(ctx: MutationCtx, orgId: string, memberId: Id<"members">) {
+  const member = await ctx.db.get(memberId);
+  if (!member || member.orgId !== orgId) throw new ConvexError("That teammate is not on this studio.");
+}
+
+const PERSONAL_NOT_RENTABLE = "Personal gear can't be rented out. Only studio gear can be a rental add-on.";
+
 /** An item's display photo - an uploaded file wins over the seeded URL. */
 async function photoOf(ctx: QueryCtx, item: Doc<"equipment">): Promise<string | null> {
   if (item.photoId) return await fileUrl(ctx, item.photoId);
@@ -75,9 +111,13 @@ export const list = query({
     location: v.optional(v.string()),
     /** "gear" | "furniture" - filter by asset class. */
     assetClass: v.optional(v.string()),
+    /** "studio", "personal", "mine", a member id, or omitted for everyone's. */
+    owner: v.optional(v.string()),
   },
-  handler: async (ctx, { category, location, assetClass }) => {
+  handler: async (ctx, { category, location, assetClass, owner }) => {
     const orgId = await currentOrg(ctx);
+    const viewer = await resolveViewer(ctx);
+    const me = viewer.kind === "studio_member" ? viewer.memberId : null;
     let rows = await ctx.db
       .query("equipment")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -90,11 +130,46 @@ export const list = query({
     } else if (location && location !== "all") {
       rows = rows.filter((r) => r.installedInRoomId === location);
     }
-    const hydrated = await Promise.all(rows.map((r) => hydrate(ctx, r)));
+    if (owner === "studio") rows = rows.filter((r) => !r.ownerMemberId);
+    else if (owner === "personal") rows = rows.filter((r) => !!r.ownerMemberId);
+    else if (owner === "mine") rows = me ? rows.filter((r) => r.ownerMemberId === me) : [];
+    else if (owner && owner !== "all") rows = rows.filter((r) => r.ownerMemberId === owner);
+
+    const owners = await ownerNames(ctx, rows);
+    const out = await openCheckouts(ctx, orgId);
+    const hydrated = await Promise.all(
+      rows.map(async (r) => ({
+        ...(await hydrate(ctx, r)),
+        ownerName: r.ownerMemberId ? (owners.get(r.ownerMemberId) ?? "Former teammate") : null,
+        ownedByMe: !!me && r.ownerMemberId === me,
+        checkedOutTo: out.get(r._id) ?? null,
+      })),
+    );
     // What the gear cost and is worth stays with whoever may see money.
     return redactEach("equipment", hydrated.sort((a, b) => a.name.localeCompare(b.name)), await currentMoneySight(ctx));
   },
 });
+
+/** Owner names, one read per teammate rather than per piece. A member who
+ *  has left reads as missing, and the caller says "Former teammate". */
+async function ownerNames(ctx: QueryCtx, rows: Doc<"equipment">[]) {
+  const ids = [...new Set(rows.map((r) => r.ownerMemberId).filter((id): id is Id<"members"> => !!id))];
+  const names = new Map<string, string>();
+  for (const id of ids) {
+    const member = await ctx.db.get(id);
+    if (member) names.set(id, member.name);
+  }
+  return names;
+}
+
+/** Who has each piece right now, from the open check-outs. */
+async function openCheckouts(ctx: QueryCtx, orgId: string) {
+  const open = await ctx.db
+    .query("gearCheckouts")
+    .withIndex("by_org_open", (q) => q.eq("orgId", orgId).eq("inAt", undefined))
+    .collect();
+  return new Map<string, string>(open.map((c) => [c.equipmentId, c.holderLabel]));
+}
 
 /** Equipment installed in one room. */
 export const forRoom = query({
@@ -133,10 +208,16 @@ export const summary = query({
   args: {},
   handler: async (ctx) => {
     const orgId = await currentOrg(ctx);
-    const rows = await ctx.db
+    const everything = await ctx.db
       .query("equipment")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .collect();
+    // The studio's figures are the studio's gear. A teammate's own gear is
+    // counted beside them, never inside them.
+    const rows = everything.filter((r) => !r.ownerMemberId);
+    const personal = everything.filter((r) => !!r.ownerMemberId);
+    const viewer = await resolveViewer(ctx);
+    const me = viewer.kind === "studio_member" ? viewer.memberId : null;
     const qty = (r: { quantity?: number }) => (r.quantity && r.quantity > 0 ? r.quantity : 1);
     const purchaseTotal = rows.reduce((s, r) => s + r.purchaseCents * qty(r), 0);
     const currentTotal = rows.reduce((s, r) => s + r.currentValueCents * qty(r), 0);
@@ -165,6 +246,10 @@ export const summary = query({
       furnitureCount: furniture.length,
       furnitureCurrent: figure(sum(furniture, "currentValueCents")),
       furniturePurchase: figure(sum(furniture, "purchaseCents")),
+      // Teammates' own gear, beside the studio's.
+      personalCount: personal.length,
+      personalCurrent: figure(sum(personal, "currentValueCents")),
+      mineCount: me ? personal.filter((r) => r.ownerMemberId === me).length : 0,
     };
   },
 });
@@ -196,9 +281,20 @@ export const create = mutation({
     photoUrl: v.optional(v.string()),
     rentable: v.optional(v.boolean()),
     rentalPriceCents: v.optional(v.number()),
+    /** A teammate who owns the piece. Omitted: the studio does. */
+    ownerMemberId: v.optional(v.id("members")),
   },
   handler: async (ctx, args) => {
-    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
+    const editor = await gearEditor(ctx);
+    const orgId = editor.orgId;
+    // Without inventory rights, what you add is yours.
+    const ownerMemberId = editor.manager ? args.ownerMemberId : (editor.memberId ?? undefined);
+    if (ownerMemberId) await assertTeammate(ctx, orgId, ownerMemberId);
+    if (ownerMemberId && args.rentable) throw new ConvexError(PERSONAL_NOT_RENTABLE);
+    if (ownerMemberId) {
+      args.rentable = undefined;
+      args.rentalPriceCents = undefined;
+    }
     // What gear cost, is worth and rents for is money.
     if (!(await currentMoneySight(ctx)).money) {
       args.purchaseCents = 0;
@@ -227,6 +323,7 @@ export const create = mutation({
       photoUrl: args.photoUrl,
       rentable: args.rentable,
       rentalPriceCents: args.rentalPriceCents,
+      ownerMemberId,
     });
     await ctx.db.insert("activity", {
       orgId,
@@ -379,11 +476,21 @@ export const update = mutation({
     rentalPriceCents: v.optional(v.number()),
     /** Keep this piece off the public booking page, without uninstalling it. */
     hideOnBooking: v.optional(v.boolean()),
+    /** Who owns it: a teammate, or null for the studio. Managers only. */
+    ownerMemberId: v.optional(v.union(v.id("members"), v.null())),
   },
-  handler: async (ctx, { id, ...patch }) => {
-    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
+  handler: async (ctx, { id, ownerMemberId, ...patch }) => {
+    const editor = await gearEditor(ctx);
+    const orgId = editor.orgId;
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
+    assertMayEdit(editor, item);
+    if (ownerMemberId !== undefined) {
+      if (!editor.manager) throw new ConvexError("Only a manager can change who owns a piece.");
+      if (ownerMemberId) await assertTeammate(ctx, orgId, ownerMemberId);
+    }
+    const personal = ownerMemberId !== undefined ? !!ownerMemberId : !!item.ownerMemberId;
+    if (personal && patch.rentable) throw new ConvexError(PERSONAL_NOT_RENTABLE);
     if (!(await currentMoneySight(ctx)).money) {
       delete patch.purchaseCents;
       delete patch.currentValueCents;
@@ -396,6 +503,9 @@ export const update = mutation({
         ([key, val]) => val !== undefined || key === "rentable" || key === "hideOnBooking",
       ),
     );
+    if (ownerMemberId !== undefined) clean.ownerMemberId = ownerMemberId ?? undefined;
+    // Handing a piece to a person takes it off the rentals list.
+    if (personal && item.rentable) clean.rentable = false;
     await ctx.db.patch(id, clean);
   },
 });
@@ -441,6 +551,7 @@ export const setRentable = mutation({
     const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
+    if (rentable && item.ownerMemberId) throw new ConvexError(PERSONAL_NOT_RENTABLE);
     const patch: Record<string, unknown> = { rentable };
     // Offering gear for rent is inventory; its price is money.
     if (rentalPriceCents !== undefined && (await currentMoneySight(ctx)).money) {
@@ -485,7 +596,7 @@ export const rentableBoard = query({
           rentalPriceCents: sight.money ? (e.rentalPriceCents ?? 0) : null,
           upcomingRentals: upcomingByItem.get(e._id) ?? 0,
         });
-      } else if (!isFurniture(e.category)) {
+      } else if (!isFurniture(e.category) && !e.ownerMemberId) {
         // Only real gear (mics, instruments, outboard...) can be rented out -
         // never furniture / acoustic / decor / cable.
         candidates.push(base);
@@ -501,9 +612,11 @@ export const rentableBoard = query({
 export const install = mutation({
   args: { id: v.id("equipment"), roomId: v.id("rooms") },
   handler: async (ctx, { id, roomId }) => {
-    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
+    const editor = await gearEditor(ctx);
+    const orgId = editor.orgId;
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
+    assertMayEdit(editor, item);
     const room = await ctx.db.get(roomId);
     assertOrg(room, orgId);
     // Assigning to a room marks the item in use (leave maintenance/retired as-is).
@@ -524,9 +637,11 @@ export const install = mutation({
 export const moveToStorage = mutation({
   args: { id: v.id("equipment") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
+    const editor = await gearEditor(ctx);
+    const orgId = editor.orgId;
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
+    assertMayEdit(editor, item);
     // Back to storage => available again (preserve maintenance/retired flags).
     const status = item.status === "in_use" ? "available" : item.status;
     await ctx.db.patch(id, { installedInRoomId: undefined, status });
@@ -546,9 +661,11 @@ export const moveToStorage = mutation({
 export const setStatus = mutation({
   args: { id: v.id("equipment"), status: statusV },
   handler: async (ctx, { id, status }) => {
-    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
+    const editor = await gearEditor(ctx);
+    const orgId = editor.orgId;
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
+    assertMayEdit(editor, item);
     await ctx.db.patch(id, { status });
   },
 });
@@ -592,9 +709,11 @@ async function assertNotPatched(ctx: MutationCtx, item: Doc<"equipment">) {
 export const remove = mutation({
   args: { id: v.id("equipment") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
+    const editor = await gearEditor(ctx);
+    const orgId = editor.orgId;
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
+    assertMayEdit(editor, item);
     await assertNotPatched(ctx, item);
     await ctx.db.delete(id);
   },
@@ -694,7 +813,7 @@ export const bulkRemove = mutation({
 export const generateUploadUrl = mutation({
   args: {},
   handler: async (ctx) => {
-    await currentOrgWithCapability(ctx, "equipment.edit");
+    await gearEditor(ctx);
     return await ctx.storage.generateUploadUrl();
   },
 });
@@ -703,9 +822,11 @@ export const generateUploadUrl = mutation({
 export const setPhoto = mutation({
   args: { id: v.id("equipment"), storageId: fileRefV },
   handler: async (ctx, { id, storageId }) => {
-    const orgId = await currentOrgWithCapability(ctx, "equipment.edit");
+    const editor = await gearEditor(ctx);
+    const orgId = editor.orgId;
     const item = await ctx.db.get(id);
     assertOrg(item, orgId);
+    assertMayEdit(editor, item);
     await claimFile(ctx, storageId, orgId);
     await meterStorageUpload(ctx, orgId, storageId, item.photoId ?? null);
     const previous = item.photoId;

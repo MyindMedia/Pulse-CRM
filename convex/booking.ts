@@ -595,7 +595,7 @@ export const addOnOptions = query({
       .collect();
     const gear = await Promise.all(
       equip
-        .filter((e) => e.rentable)
+        .filter((e) => e.rentable && !e.ownerMemberId)
         .map(async (e) => {
           const booked = bookedUnits(e._id, startTime, endTime, around);
           return {
@@ -854,7 +854,7 @@ export const createBooking = mutation({
     const addOns: { equipmentId: Id<"equipment">; name: string; priceCents: number }[] = [];
     for (const eqId of args.addOnEquipmentIds ?? []) {
       const item = await ctx.db.get(eqId);
-      if (!item || item.orgId !== orgId || !item.rentable) {
+      if (!item || item.orgId !== orgId || !item.rentable || item.ownerMemberId) {
         throw new Error("One of the gear add-ons is no longer available.");
       }
       const booked = bookedUnits(item._id, args.startTime, endTime, around);

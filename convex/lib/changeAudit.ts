@@ -12,10 +12,33 @@
  * copy of every document. */
 import type { GenericMutationCtx } from "convex/server";
 import type { DataModel } from "../_generated/dataModel";
-import { MIRRORED_TABLES } from "./mirroredTables";
+import schema from "../schema";
 
-/** Every table the phone mirrors, plus the studio's membership plans. */
-export const AUDITED_TABLES = [...MIRRORED_TABLES, "membershipPlans"] as const;
+/* Every table, so a new feature is in the log the day it ships, less the
+ * ones that are machinery rather than anyone's work: logs of their own,
+ * delivery and push plumbing, counters, AI scratch space, and copies of
+ * other systems (bank and Stripe feeds, outside calendars). A table whose
+ * rows carry no studio (agency staff, global settings) is skipped by
+ * `auditEntry` itself. */
+export const UNAUDITED_TABLES: ReadonlySet<string> = new Set([
+  // Logs already
+  "changeAudit", "changeLog", "auditEvents", "agentAuditLogs", "patchAudit", "financeAudit", "mediaEvents", "activity",
+  // Sign-in, delivery and device plumbing
+  "oauthStates", "pushSubscriptions", "apnsDevices", "pushAlerts", "notifications", "appState",
+  "agencyWorkspaceSelections", "smsPrompts", "stripeEvents", "unroutedMessages", "users",
+  // Counters and traces
+  "usageCounters", "bookingVisits", "jevShadow", "recoveryEvents", "patchVocabGaps", "demoRows",
+  // The AI's own working memory
+  "agentRuns", "agentMessages", "agentUsage", "agentMemories", "agentInsights", "studioGraphNodes",
+  "studioGraphEdges", "insights", "aiArtifacts",
+  // Feeds copied in from other systems, one row per outside record
+  "bankTransactions", "stripeLedgerEntries", "stripePayouts", "revenueEntries",
+  "externalCalendarEvents", "memberBusyBlocks", "googleBusyBlocks",
+]);
+
+export const AUDITED_TABLES: readonly string[] = Object.keys(schema.tables).filter(
+  (table) => !UNAUDITED_TABLES.has(table),
+);
 
 /** Areas the log is filtered by, in the words a studio uses. */
 export const AUDIT_AREAS: Readonly<Record<string, { label: string; tables: readonly string[] }>> = {
@@ -23,16 +46,32 @@ export const AUDIT_AREAS: Readonly<Record<string, { label: string; tables: reado
     label: "Patch",
     tables: ["patchSpaces", "deviceInstances", "ports", "connections", "patchAnnotations", "patchGroups"],
   },
-  inventory: { label: "Inventory", tables: ["equipment", "softwareLicenses"] },
+  inventory: { label: "Inventory", tables: ["equipment", "softwareLicenses", "gearCheckouts", "assetDocuments"] },
   checkins: { label: "Check-ins", tables: ["visitors"] },
   checklists: { label: "Checklists", tables: ["sessionChecklists", "arrivalPrep"] },
   projects: { label: "Projects", tables: ["projects", "projectTasks", "projectLinks"] },
-  bookings: { label: "Bookings and rooms", tables: ["sessions", "rooms", "bookableServices"] },
+  bookings: {
+    label: "Bookings and rooms",
+    tables: ["sessions", "rooms", "bookableServices", "roomBlocks", "sessionChangeRequests", "googleEvents", "waitlistEntries"],
+  },
+  sessionNotes: {
+    label: "Session notes and files",
+    tables: ["sessionNotes", "sessionSongs", "mediaAssets", "mediaVersions", "mediaNotes", "engineeringLogs", "revisionComments"],
+  },
   clients: { label: "Clients", tables: ["artists", "clientMessages", "opportunities"] },
   team: { label: "Team and time", tables: ["members", "shifts", "timeEntries", "timeOff", "availability"] },
+  settings: {
+    label: "Settings and access",
+    tables: ["orgs", "invites", "collaboratorGrants", "agentPolicies", "agentRules", "agentAutomations", "opsAutonomy", "externalCalendars", "memberCalendars"],
+  },
+  requests: { label: "Feature requests", tables: ["featureRequests", "featureRequestVotes"] },
   money: {
     label: "Money",
-    tables: ["invoices", "payments", "expenses", "payouts", "packageProducts", "packageCredits", "feeTemplates", "membershipPlans"],
+    tables: [
+      "invoices", "payments", "expenses", "payouts", "packageProducts", "packageCredits", "feeTemplates", "membershipPlans",
+      "memberships", "receipts", "bankConnections", "bankAccounts", "ledgerAccounts", "journalEntries", "openingBalances",
+      "reportedStatements", "bankStatementBalances", "financeMatchRejections",
+    ],
   },
 };
 
@@ -50,7 +89,24 @@ export function areaOf(table: string): string {
 /** Fields that move on their own and would fill the log with nothing. */
 const QUIET_FIELDS = new Set([
   "updatedAt", "lastSeenAt", "lastActiveAt", "lastSyncedAt", "lastContactAt", "clerkImageUrl",
+  "googleCalendarSyncToken", "syncToken",
 ]);
+
+/** Fields whose values never enter the log: tokens, keys and anything
+ *  encrypted. The log still says the field changed, and who changed it. */
+export function isSecretField(field: string): boolean {
+  return /token|secret|password|cipher|apikey|api_key|credential|signature/i.test(field) || /Iv$/.test(field);
+}
+
+/** The studio a row belongs to. Most carry `orgId`; a feature request
+ *  carries the studio that asked. */
+function orgOf(doc: Record<string, unknown> | null | undefined): string | undefined {
+  for (const key of ["orgId", "requesterOrgId", "voterOrgId"]) {
+    const value = doc?.[key];
+    if (typeof value === "string" && value) return value;
+  }
+  return undefined;
+}
 
 type Change = {
   id: string;
@@ -82,6 +138,7 @@ function same(a: unknown, b: unknown): boolean {
 function small(doc: Record<string, unknown>, fields: string[]) {
   const out: Record<string, string | number | boolean | null> = {};
   for (const field of fields) {
+    if (isSecretField(field)) continue;
     const value = doc[field];
     if (value === null || typeof value === "number" || typeof value === "boolean") out[field] = value;
     else if (typeof value === "string" && value.length <= 140) out[field] = value;
@@ -105,8 +162,7 @@ export async function auditEntry(
 ): Promise<AuditRow | null> {
   const identity = await ctx.auth.getUserIdentity();
   if (!identity) return null;
-  const doc = change.newDoc ?? change.oldDoc;
-  const orgId = typeof doc?.orgId === "string" ? doc.orgId : undefined;
+  const orgId = orgOf(change.newDoc ?? change.oldDoc);
   if (!orgId) return null;
 
   const before = change.oldDoc ?? {};

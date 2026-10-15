@@ -1358,6 +1358,10 @@ export default defineSchema({
       v.literal("other"),
     ),
     installedInRoomId: v.optional(v.id("rooms")), // unset → in storage
+    /* Who owns the piece. Unset means the studio does. Set, it is a
+       teammate's own gear: they may edit it without inventory rights, it
+       stays out of the studio's asset value, and it is never rented out. */
+    ownerMemberId: v.optional(v.id("members")),
     /* Keep this piece off the public booking page while leaving it installed
        and inventoried. The room's list is a sales page, not an asset
        register: a studio lists the desk and the U47, not forty cables and the
@@ -1417,7 +1421,8 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_org_room", ["orgId", "installedInRoomId"])
     .index("by_org_category", ["orgId", "category"])
-    .index("by_org_barcode", ["orgId", "barcode"]),
+    .index("by_org_barcode", ["orgId", "barcode"])
+    .index("by_org_owner", ["orgId", "ownerMemberId"]),
 
   // ── Asset documents - receipts / invoices / warranties attached to a
   //    hardware (equipment) or software item. Kept for tax, insurance and

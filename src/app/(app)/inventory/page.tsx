@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { toast } from "sonner";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
-import { Boxes, Cpu, DoorOpen, Package, Plus, Search, Sofa, Wallet, X } from "lucide-react";
+import { Boxes, Cpu, DoorOpen, Package, Plus, Search, Sofa, UserRound, Wallet, X } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { CountUp } from "@/components/shell/app-motion";
@@ -36,6 +36,7 @@ import {
   type EditableEquipment,
 } from "@/components/inventory/equipment-dialog";
 import { GearCheckoutPanel } from "@/components/inventory/gear-checkout-panel";
+import { useCapabilities } from "@/lib/use-capabilities";
 import {
   InstallDialog,
   type InstallTarget,
@@ -50,6 +51,10 @@ export default function InventoryPage() {
   const [category, setCategory] = React.useState<string>(ALL);
   const [location, setLocation] = React.useState<string>(ALL);
   const [assetClass, setAssetClass] = React.useState<string>(ALL);
+  const [owner, setOwner] = React.useState<string>(ALL);
+  // Presentation only: the server decides what each person may change.
+  const { can, loaded: capsLoaded } = useCapabilities();
+  const manager = can("equipment.edit");
 
   const [addOpen, setAddOpen] = React.useState(false);
   const [editItem, setEditItem] = React.useState<EditableEquipment | undefined>(
@@ -72,6 +77,7 @@ export default function InventoryPage() {
   function setCategoryAndClear(v: string) { setCategory(v); setSelected(new Set()); }
   function setLocationAndClear(v: string) { setLocation(v); setSelected(new Set()); }
   function setAssetClassAndClear(v: string) { setAssetClass(v); setSelected(new Set()); }
+  function setOwnerAndClear(v: string) { setOwner(v); setSelected(new Set()); }
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -114,7 +120,11 @@ export default function InventoryPage() {
     category: category === ALL ? undefined : (category as EquipmentCategory),
     location: location === ALL ? undefined : location,
     assetClass: assetClass === ALL ? undefined : assetClass,
+    owner: owner === ALL ? undefined : owner,
   }) as EquipmentRow[] | undefined;
+  const team = useQuery(api.members.list, manager ? {} : "skip") as
+    | { _id: Id<"members">; name: string }[]
+    | undefined;
 
   const loading = items === undefined;
 
@@ -129,7 +139,7 @@ export default function InventoryPage() {
     [items, q],
   );
 
-  const filtering = category !== ALL || location !== ALL || assetClass !== ALL || !!q.trim();
+  const filtering = category !== ALL || location !== ALL || assetClass !== ALL || owner !== ALL || !!q.trim();
   const empty = !loading && (visible?.length ?? 0) === 0;
 
   function handleEdit(item: EquipmentRow) {
@@ -144,6 +154,9 @@ export default function InventoryPage() {
       condition: item.condition,
       notes: item.notes,
       photo: item.photo,
+      rentable: item.rentable,
+      rentalPriceCents: item.rentalPriceCents,
+      ownerMemberId: item.ownerMemberId ?? null,
     });
     setEditOpen(true);
   }
@@ -158,11 +171,11 @@ export default function InventoryPage() {
       <PageHeader
         overline="Assets"
         title="Inventory"
-        description="Every console, mic, instrument and rig the studio owns - what it cost, what it is worth, and where it lives."
+        description="Every console, mic, instrument and rig in the building - the studio's and the team's own - what it cost, what it is worth, and where it lives."
         actions={
           <Button onClick={() => setAddOpen(true)}>
             <Plus className="size-4" />
-            Add equipment
+            {capsLoaded && !manager ? "Add my gear" : "Add equipment"}
           </Button>
         }
       />
@@ -175,7 +188,13 @@ export default function InventoryPage() {
           ))}
         </div>
       ) : (
-        <div className="rise-stagger grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5">
+        <div
+          className={
+            summary.personalCount > 0
+              ? "rise-stagger grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6"
+              : "rise-stagger grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-5"
+          }
+        >
           {/* What the gear is worth is money; the server sends null to anyone
               without it, and the tiles become counts. */}
           {summary.currentTotal !== null ? (
@@ -214,6 +233,18 @@ export default function InventoryPage() {
             />
           ) : (
             <StatTile label="Furniture" value={<CountUp to={summary.furnitureCount} />} icon={Sofa} hint="furniture & space" />
+          )}
+          {summary.personalCount > 0 && (
+            <StatTile
+              label="Team's own gear"
+              value={<CountUp to={summary.personalCount} />}
+              icon={UserRound}
+              hint={
+                summary.mineCount > 0
+                  ? `${summary.mineCount} yours · not in the studio's value`
+                  : "not in the studio's value"
+              }
+            />
           )}
           <StatTile
             label="Installed"
@@ -310,6 +341,24 @@ export default function InventoryPage() {
             </SelectContent>
           </Select>
         </div>
+        <div className="w-full sm:w-48">
+          <Select value={owner} onValueChange={setOwnerAndClear}>
+            <SelectTrigger aria-label="Filter by owner">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Everyone&apos;s gear</SelectItem>
+              <SelectItem value="studio">Studio gear</SelectItem>
+              <SelectItem value="personal">Team&apos;s own gear</SelectItem>
+              <SelectItem value="mine">My gear</SelectItem>
+              {(team ?? []).map((m) => (
+                <SelectItem key={m._id} value={m._id}>
+                  {m.name}&apos;s gear
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
         {filtering && (
           <Button
             variant="ghost"
@@ -319,6 +368,7 @@ export default function InventoryPage() {
               setCategory(ALL);
               setLocation(ALL);
               setAssetClass(ALL);
+              setOwner(ALL);
               clearSelection();
             }}
           >
