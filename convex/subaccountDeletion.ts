@@ -47,6 +47,8 @@ export const ORG_TABLES = [
   // Booking requests, room blocks, change approvals, personal calendars
   // (docs/plans/hardcover-booking.md). Member tokens go with the rows.
   "roomBlocks", "sessionChangeRequests", "memberCalendars", "memberBusyBlocks",
+  // Session modal: staff notes and extra linked songs.
+  "sessionNotes", "sessionSongs",
   // Banking and receipts (openspec add-bank-sync-receipts). Plaid items are
   // removed at Plaid and receipt files deleted before these rows go.
   "bankTransactions", "bankAccounts", "bankConnections", "receipts",

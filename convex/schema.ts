@@ -1556,6 +1556,34 @@ export default defineSchema({
     .index("by_song", ["songId"])
     .index("by_artist", ["artistId"]),
 
+  // Staff-only notes on one booking, newest first in the session modal. Never
+  // sent to the client and never on a public page. The author is the signed-in
+  // staff member (agency operators carry no member id, only their user id).
+  sessionNotes: defineTable({
+    orgId: v.string(),
+    sessionId: v.id("sessions"),
+    body: v.string(),
+    authorMemberId: v.optional(v.id("members")),
+    authorClerkUserId: v.string(),
+    authorName: v.string(),
+    createdAt: v.number(),
+  })
+    .index("by_session", ["sessionId", "createdAt"])
+    .index("by_org", ["orgId", "createdAt"]),
+
+  // Extra songs worked on in one session. sessions.songId stays the booking's
+  // main song (the iOS app mirrors it); this join table holds any others.
+  sessionSongs: defineTable({
+    orgId: v.string(),
+    sessionId: v.id("sessions"),
+    songId: v.id("songs"),
+    linkedBy: v.string(),
+    linkedAt: v.number(),
+  })
+    .index("by_session", ["sessionId", "linkedAt"])
+    .index("by_song", ["songId"])
+    .index("by_org", ["orgId"]),
+
   // ── Payments - the booking-payment ledger and the provider seam.
   //    Simulated today; real Stripe records land in the same shape. ──
   payments: defineTable({

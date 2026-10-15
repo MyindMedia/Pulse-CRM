@@ -289,26 +289,35 @@ export const deleteAsset = mutation({
   handler: async (ctx, { assetId }) => {
     const orgId = await libOrg(ctx, "deliverables.upload");
     const asset = await ownAsset(ctx, orgId, assetId);
-    const versions = await ctx.db.query("mediaVersions").withIndex("by_asset", (q) => q.eq("assetId", assetId)).collect();
-    const files = new Map<Id<"mediaFiles">, number>();
-    for (const ver of versions) files.set(ver.mediaId, ver.size);
-    let freed = 0;
-    for (const [mediaId, size] of files) {
-      freed += size;
-      await deleteFile(ctx, mediaId);
-    }
-    for (const ver of versions) {
-      const notes = await ctx.db.query("mediaNotes").withIndex("by_version", (q) => q.eq("versionId", ver._id)).collect();
-      for (const n of notes) await ctx.db.delete(n._id);
-      await ctx.db.delete(ver._id);
-    }
-    const events = await ctx.db.query("mediaEvents").withIndex("by_asset", (q) => q.eq("assetId", assetId)).collect();
-    for (const e of events) await ctx.db.delete(e._id);
-    await ctx.db.delete(asset._id);
-    if (freed > 0) await recordUsage(ctx, orgId, "storage_bytes", -freed);
+    await removeAsset(ctx, orgId, asset);
     return null;
   },
 });
+
+/** Deletes an asset the caller has already proven is theirs: every version,
+ *  note and event, each distinct R2 object, and the bytes go back to the
+ *  storage allowance. Shared with the session modal (sessionFiles.remove). */
+export async function removeAsset(ctx: MutationCtx, orgId: string, asset: Doc<"mediaAssets">): Promise<void> {
+  if (asset.orgId !== orgId) throw new ConvexError("File not found.");
+  const assetId = asset._id;
+  const versions = await ctx.db.query("mediaVersions").withIndex("by_asset", (q) => q.eq("assetId", assetId)).collect();
+  const files = new Map<Id<"mediaFiles">, number>();
+  for (const ver of versions) files.set(ver.mediaId, ver.size);
+  let freed = 0;
+  for (const [mediaId, size] of files) {
+    freed += size;
+    await deleteFile(ctx, mediaId);
+  }
+  for (const ver of versions) {
+    const notes = await ctx.db.query("mediaNotes").withIndex("by_version", (q) => q.eq("versionId", ver._id)).collect();
+    for (const n of notes) await ctx.db.delete(n._id);
+    await ctx.db.delete(ver._id);
+  }
+  const events = await ctx.db.query("mediaEvents").withIndex("by_asset", (q) => q.eq("assetId", assetId)).collect();
+  for (const e of events) await ctx.db.delete(e._id);
+  await ctx.db.delete(assetId);
+  if (freed > 0) await recordUsage(ctx, orgId, "storage_bytes", -freed);
+}
 
 /* ── Reads ──────────────────────────────────────────────────── */
 
