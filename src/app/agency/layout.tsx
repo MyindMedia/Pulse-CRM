@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { LoadingPanel } from "@/components/ui/feedback";
 import { PulseLogo } from "@/components/brand/pulse-logo";
 import { AgencyProfileMenu } from "@/components/agency/agency-profile-menu";
+import { AgencyBell } from "@/components/agency/agency-bell";
 import { PlatformBillingBanner } from "@/components/agency/platform-billing";
 import { AmbientLight } from "@/components/shell/ambient-light";
 
@@ -49,6 +50,7 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
               <Link href="/agency/autopilot" className="hover:text-bone">Autopilot</Link>
               <Link href="/agency/outreach" className="hover:text-bone">Outreach</Link>
               {mail?.allowed && <Link href="/agency/email" className="hover:text-bone">Email</Link>}
+              <Link href="/agency/feature-requests" className="hover:text-bone">Requests</Link>
               <Link href="/agency/staff" className="hover:text-bone">Staff</Link>
               <Link href="/agency/unrouted" className="hover:text-bone">Unrouted texts</Link>
               <Link href="/agency/branding" className="hover:text-bone">Branding</Link>
@@ -61,6 +63,7 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
                   Demo mode
                 </span>
               )}
+              {access?.allowed && <AgencyBell />}
               <AgencyProfileMenu />
             </div>
           </div>
