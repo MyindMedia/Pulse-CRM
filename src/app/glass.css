@@ -406,6 +406,33 @@
 [data-ui-style=glass]:not(#g) [role=dialog].anim-sheet > .flex-1.overflow-y-auto {
   background: rgba(14, 14, 20, 0.13);
 }
+/* The centered detail modal (ui/sheet.tsx, placement center): thick glass,
+   the sheet corner, and the same header / body panes as the side sheet. On a
+   phone it is an iOS card sheet: it starts just under the status bar with
+   rounded top corners and runs to the bottom edge. */
+[data-ui-style=glass]:not(#g) [role=dialog].anim-modal {
+  background: var(--glass-thick);
+  -webkit-backdrop-filter: var(--glass-thick-fx);
+  backdrop-filter: var(--glass-thick-fx);
+  border-radius: var(--gl-radius-sheet);
+  overflow: hidden;
+}
+@media (max-width: 639.98px) {
+  [data-ui-style=glass]:not(#g) [role=dialog].anim-modal {
+    top: calc(env(safe-area-inset-top) + 10px);
+    padding-top: 0;
+    border-bottom-left-radius: 0;
+    border-bottom-right-radius: 0;
+    border-bottom-width: 0;
+  }
+  [data-ui-style=glass]:not(#g) [role=dialog].anim-modal > button[aria-label=Close] { top: 1rem; }
+}
+[data-ui-style=glass]:not(#g) [role=dialog].anim-modal > .shrink-0.border-b {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.015));
+}
+[data-ui-style=glass]:not(#g) [role=dialog].anim-modal > .flex-1.overflow-y-auto {
+  background: rgba(14, 14, 20, 0.13);
+}
 [data-ui-style=glass]:not(#g) :is(.glass-strong) { border-radius: 18px; }
 /* Menu rows and list rows highlight as soft pills. */
 [data-ui-style=glass]:not(#g) [role=menuitem],

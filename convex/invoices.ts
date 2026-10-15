@@ -1,8 +1,9 @@
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
-import { v } from "convex/values";
+import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { currentOrgWithCapability } from "./lib/tenant";
+import { AccessError } from "./lib/access";
 import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
 
@@ -16,7 +17,7 @@ const statusV = v.union(
 );
 
 /** Flip "sent"/"viewed" rows to "overdue" when read past their due date. */
-function effectiveStatus(inv: { status: string; dueDate: number }): string {
+export function effectiveStatus(inv: { status: string; dueDate: number }): string {
   if ((inv.status === "sent" || inv.status === "viewed") && inv.dueDate < Date.now()) {
     return "overdue";
   }
@@ -92,7 +93,16 @@ export const list = query({
 export const get = query({
   args: { id: v.id("invoices") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrgWithCapability(ctx, "invoices.read");
+    // The invoice modal opens from any page through ?invoice=, so a caller
+    // without client money gets "not found" rather than a thrown query that
+    // takes the whole screen down.
+    let orgId: string;
+    try {
+      orgId = await currentOrgWithCapability(ctx, "invoices.read");
+    } catch (err) {
+      if (err instanceof AccessError || err instanceof ConvexError) return null;
+      throw err;
+    }
     const inv = await ctx.db.get(id);
     if (!inv || inv.orgId !== orgId) return null;
     const [artist, song, session] = await Promise.all([

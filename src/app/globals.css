@@ -264,6 +264,8 @@
                      to   { opacity: 0; transform: scale(.97) translateY(6px); } }
 @keyframes sheet-in  { from { transform: translateX(100%); } to { transform: translateX(0); } }
 @keyframes sheet-out { from { transform: translateX(0); } to { transform: translateX(100%); } }
+@keyframes modal-up-in  { from { transform: translateY(100%); } to { transform: translateY(0); } }
+@keyframes modal-up-out { from { transform: translateY(0); } to { transform: translateY(100%); } }
 @keyframes rise-in { from { opacity: 0; transform: translateY(4px) scale(.985); }
                      to   { opacity: 1; transform: translateY(0) scale(1); } }
 /* Futurist entrance: content rises out of a soft blur (transitions.dev
@@ -776,6 +778,15 @@
   .anim-pop[data-state="closed"] { animation: pop-out var(--duration-quick) ease-in; }
   .anim-sheet[data-state="open"] { animation: sheet-in var(--duration-fast) var(--ease-smooth-out); }
   .anim-sheet[data-state="closed"] { animation: sheet-out var(--duration-quick) ease-in; }
+  /* The detail modal (ui/sheet.tsx). A phone gets an iOS sheet rising from
+     the bottom; from 640px it scales and fades in from the center like a
+     Dialog. Reduced motion collapses both through the global rule below. */
+  .anim-modal[data-state="open"] { animation: modal-up-in var(--duration-fast) var(--ease-smooth-out); }
+  .anim-modal[data-state="closed"] { animation: modal-up-out var(--duration-quick) ease-in; }
+  @media (min-width: 640px) {
+    .anim-modal[data-state="open"] { animation: pop-in var(--duration-fast) var(--ease-smooth-out); }
+    .anim-modal[data-state="closed"] { animation: pop-out var(--duration-quick) ease-in; }
+  }
   .anim-rise[data-state="open"] { animation: rise-in var(--duration-quick) var(--ease-out); }
 
   /* Entrance voice - rise + fade on mount, matching AppReveal's curve.
@@ -796,6 +807,11 @@
   .no-scrollbar::-webkit-scrollbar { display: none; }
   .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
 }
+
+/* The detail modal takes focus itself on open (ui/sheet.tsx) so a phone
+   keyboard never jumps up; the container is not a control, so no ring. Its
+   buttons and fields keep theirs. */
+[role=dialog][data-placement]:not(#g):focus-visible { outline: none; }
 
 /* Skeleton shimmer */
 .skeleton { position: relative; overflow: hidden; background: var(--color-coal-2); }

@@ -27,11 +27,14 @@ export function InvoiceActions({
   number,
   status,
   amountCents,
+  onDeleted,
 }: {
   id: Id<"invoices">;
   number: string;
   status: InvoiceStatus;
   amountCents: number;
+  /** In the invoice modal: close it instead of leaving for Payments. */
+  onDeleted?: () => void;
 }) {
   const router = useRouter();
   const setStatus = useMutation(api.invoices.setStatus);
@@ -87,7 +90,8 @@ export function InvoiceActions({
     try {
       await remove({ id });
       toast.success(`Invoice ${number} deleted`);
-      router.push("/payments");
+      if (onDeleted) onDeleted();
+      else router.push("/payments");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not delete");
       setBusy(null);
