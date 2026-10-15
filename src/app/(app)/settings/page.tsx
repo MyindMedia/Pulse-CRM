@@ -130,9 +130,13 @@ function SettingsView() {
             </Card>
           </TabsContent>
           <TabsContent value="branding">
-            {/* Preview first on a phone, a sticky column beside the controls on wide screens. */}
+            {/* Preview first on a phone, a sticky column beside the controls on wide screens.
+                The sticky sits on a plain wrapper: the hardware .pl-card rule forces
+                position: relative on the Card itself, which silently beat xl:sticky. */}
             <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,460px)] xl:items-start">
-              <BrandPreview className="xl:sticky xl:top-6 xl:order-last" />
+              <div className="min-w-0 xl:sticky xl:top-6 xl:order-last">
+                <BrandPreview />
+              </div>
             <div className="min-w-0 space-y-5">
               <BrandingPanel org={org} />
               <BookingFeaturesPanel />
