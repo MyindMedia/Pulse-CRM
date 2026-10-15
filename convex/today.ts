@@ -70,6 +70,7 @@ export const today = query({
           _id: s._id,
           title: s.title,
           clientName: artist?.name ?? "Unknown",
+          artistId: s.artistId,
           roomId: s.roomId ?? null,
           roomName: room?.name ?? null,
           engineerName: engineer?.name ?? null,

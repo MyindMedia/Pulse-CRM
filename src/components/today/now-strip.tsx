@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import { DoorOpen, DoorClosed } from "lucide-react";
@@ -11,7 +12,8 @@ type TodayData = FunctionReturnType<typeof api.today.today>;
 type Room = TodayData["rooms"][number];
 
 /** The "now" strip - every room and whether it's busy (and until when). The
- *  glanceable heartbeat an operator keeps in the corner of their eye all day. */
+ *  glanceable heartbeat an operator keeps in the corner of their eye all day.
+ *  Each card opens its room. */
 export function NowStrip({ rooms, now }: { rooms: Room[]; now: number }) {
   if (rooms.length === 0) return null;
   return (
@@ -19,10 +21,12 @@ export function NowStrip({ rooms, now }: { rooms: Room[]; now: number }) {
       {rooms.map((r) => {
         const busy = r.busyUntil !== null && r.busyUntil > now;
         return (
-          <div
+          <Link
             key={r.roomId}
+            href={`/studio/${encodeURIComponent(r.roomId)}`}
+            data-drill="room"
             className={cn(
-              "rounded-chrome p-3.5 transition-colors",
+              "block rounded-chrome p-3.5 outline-none transition-colors hover:bg-coal-2 focus-visible:ring-2 focus-visible:ring-gold/40",
               busy ? "material-thin border-gold-dim/50 bg-gold/[0.05]" : "material-thin",
             )}
           >
@@ -55,7 +59,7 @@ export function NowStrip({ rooms, now }: { rooms: Room[]; now: number }) {
                 <span className="text-steel/70">Open the rest of the day</span>
               )}
             </p>
-          </div>
+          </Link>
         );
       })}
     </div>

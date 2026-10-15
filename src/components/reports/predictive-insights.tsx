@@ -7,7 +7,8 @@ import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { money, shortDate, timeOfDay } from "@/lib/format";
-import { ReportCard } from "./report-shell";
+import { EntityLink, SessionLink } from "@/components/shell/entity-link";
+import { ReportCard, REPORT_LINK } from "./report-shell";
 
 /** Upcoming sessions ranked by learned no-show risk, with a deposit nudge. */
 export function AtRiskSessionsReport() {
@@ -39,7 +40,9 @@ export function AtRiskSessionsReport() {
             return (
               <TR key={r.sessionId}>
                 <TD className="font-medium">
-                  {r.title}
+                  <SessionLink sessionId={r.sessionId} className={REPORT_LINK}>
+                    {r.title}
+                  </SessionLink>
                   <span className="block text-xs text-steel/70">{r.artistName}</span>
                 </TD>
                 <TD className="text-steel">
@@ -101,7 +104,11 @@ export function PricingRecommendationsReport() {
             const utilTone = r.utilizationPct >= 85 ? "positive" : r.utilizationPct <= 30 ? "caution" : "info";
             return (
               <TR key={r.roomId}>
-                <TD className="font-medium">{r.name}</TD>
+                <TD className="font-medium">
+                  <EntityLink type="room" id={r.roomId} className={REPORT_LINK} title={`Open ${r.name}`}>
+                    {r.name}
+                  </EntityLink>
+                </TD>
                 <TD>
                   <div className="flex items-center gap-2.5">
                     <Progress value={r.utilizationPct} max={100} tone={utilTone} className="flex-1" />

@@ -23,6 +23,7 @@ import { timeOfDay } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { PrepChip } from "./arrival-prep-card";
 import { DeviceAlertsChip } from "./device-alerts-chip";
+import { SessionLink } from "@/components/shell/entity-link";
 
 /* Session wrap-up + studio refresh: sessions ending (or just ended) carry a
    wrap checklist - files, billing, gear, notes - and, when another booking
@@ -89,7 +90,11 @@ export function WrapUpCard({ className }: { className?: string }) {
                 <li key={s._id} className="space-y-2 px-4 py-3">
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-bone">{s.artistName}</p>
+                      <p className="truncate text-sm font-medium text-bone">
+                        <SessionLink sessionId={s._id} className="hover:underline">
+                          {s.artistName}
+                        </SessionLink>
+                      </p>
                       <p className="truncate text-xs text-steel/70">
                         {endLabel(s.endTime, now)} · until {timeOfDay(s.endTime)}
                         {s.roomName ? ` · ${s.roomName}` : ""}

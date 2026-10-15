@@ -21,6 +21,7 @@ import { Progress } from "@/components/ui/progress";
 import { Spinner } from "@/components/ui/feedback";
 import { meta, CAMPAIGN_STATUS } from "@/lib/labels";
 import { longDate, percent } from "@/lib/format";
+import { EntityLink } from "@/components/shell/entity-link";
 import { RolloutTimeline } from "./rollout-timeline";
 import type { Campaign } from "./types";
 
@@ -91,7 +92,11 @@ export function CampaignSheet({
           <div className="flex items-start justify-between gap-3 pr-8">
             <div className="min-w-0">
               <p className="overline">{campaign.artistName}</p>
-              <SheetTitle className="mt-0.5 truncate">{campaign.songTitle}</SheetTitle>
+              <SheetTitle className="mt-0.5 truncate">
+                <EntityLink type="song" id={campaign.songId} className="hover:text-gold-bright hover:underline">
+                  {campaign.songTitle}
+                </EntityLink>
+              </SheetTitle>
             </div>
             <Badge tone={status.tone}>{status.label}</Badge>
           </div>

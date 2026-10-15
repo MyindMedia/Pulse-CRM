@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { CalendarCheck, Radio, UserCheck, Users } from "lucide-react";
@@ -13,6 +14,9 @@ import { NowStrip } from "@/components/today/now-strip";
 import { TodayTimeline } from "@/components/today/today-timeline";
 import { ArrivalsPanel, BalancesPanel, TomorrowPanel } from "@/components/today/side-panels";
 import { WhosWorkingCard } from "@/components/schedule/whos-working-card";
+
+/** A counter that opens the list it counts. */
+const TILE_LINK = "block rounded-chrome outline-none focus-visible:ring-2 focus-visible:ring-gold/40";
 
 /**
  * The operator's live view of the day - at-a-glance counters, what's in each
@@ -36,29 +40,37 @@ export function TodayBoard() {
         <SkeletonCards cards={4} />
       ) : (
         <div className="rise-stagger grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <StatTile
-            label="Sessions today"
-            value={<CountUp to={data.counts.sessionsToday} />}
-            icon={CalendarCheck}
-            hint={data.counts.remaining ? `${data.counts.remaining} still to come` : "all wrapped"}
-          />
-          <StatTile
-            label="Live now"
-            value={<CountUp to={data.counts.live} />}
-            icon={Radio}
-            accent={data.counts.live > 0}
-          />
-          <StatTile
-            label="Arrivals left"
-            value={<CountUp to={data.counts.arrivals} />}
-            icon={UserCheck}
-          />
-          <StatTile
-            label="On the clock"
-            value={<CountUp to={data.counts.staffOnShift} />}
-            icon={Users}
-            hint="staff clocked in"
-          />
+          <Link href="/bookings" data-drill="stat" className={TILE_LINK}>
+            <StatTile
+              label="Sessions today"
+              value={<CountUp to={data.counts.sessionsToday} />}
+              icon={CalendarCheck}
+              hint={data.counts.remaining ? `${data.counts.remaining} still to come` : "all wrapped"}
+            />
+          </Link>
+          <Link href="/bookings" data-drill="stat" className={TILE_LINK}>
+            <StatTile
+              label="Live now"
+              value={<CountUp to={data.counts.live} />}
+              icon={Radio}
+              accent={data.counts.live > 0}
+            />
+          </Link>
+          <Link href="/bookings" data-drill="stat" className={TILE_LINK}>
+            <StatTile
+              label="Arrivals left"
+              value={<CountUp to={data.counts.arrivals} />}
+              icon={UserCheck}
+            />
+          </Link>
+          <Link href="/schedule" data-drill="stat" className={TILE_LINK}>
+            <StatTile
+              label="On the clock"
+              value={<CountUp to={data.counts.staffOnShift} />}
+              icon={Users}
+              hint="staff clocked in"
+            />
+          </Link>
         </div>
       )}
 

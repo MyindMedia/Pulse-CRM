@@ -6,6 +6,7 @@ import { api } from "@convex/_generated/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { shortDate } from "@/lib/format";
+import { SessionLink } from "@/components/shell/entity-link";
 import { Chassis, ChassisTitle, EmptyWell, usd } from "./parts";
 
 /* Deposits (kit 6.2 "deposits feed"): the deposits that cleared most
@@ -45,12 +46,22 @@ export function DepositsFeed() {
               key={d._id}
               className={`flex items-center justify-between gap-3 py-3 ${i ? "border-t border-white/[0.06]" : ""}`}
             >
-              <div className="min-w-0">
-                <p className="truncate font-sans text-sm leading-5 text-bone">{d.clientName}</p>
-                <p className="truncate font-sans text-[11px] leading-4 text-steel">
-                  {[d.roomName, d.sessionStart ? shortDate(d.sessionStart) : null].filter(Boolean).join(", ")}
-                </p>
-              </div>
+              {/* The deposit opens the booking it paid for, in place. */}
+              {d.sessionId ? (
+                <SessionLink sessionId={d.sessionId} title="Open booking" className="block min-w-0 hover:text-gold">
+                  <p className="truncate font-sans text-sm leading-5 text-bone">{d.clientName}</p>
+                  <p className="truncate font-sans text-[11px] leading-4 text-steel">
+                    {[d.roomName, d.sessionStart ? shortDate(d.sessionStart) : null].filter(Boolean).join(", ")}
+                  </p>
+                </SessionLink>
+              ) : (
+                <div className="min-w-0">
+                  <p className="truncate font-sans text-sm leading-5 text-bone">{d.clientName}</p>
+                  <p className="truncate font-sans text-[11px] leading-4 text-steel">
+                    {[d.roomName, d.sessionStart ? shortDate(d.sessionStart) : null].filter(Boolean).join(", ")}
+                  </p>
+                </div>
+              )}
               <span className="shrink-0 font-mono text-[13px] text-positive tabular-nums">+{usd(d.amountCents, { cents: true })}</span>
             </li>
           ))}

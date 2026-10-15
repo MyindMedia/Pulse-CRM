@@ -30,6 +30,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
+import { EntityLink, SessionLink } from "@/components/shell/entity-link";
 import {
   Dialog,
   DialogBody,
@@ -155,7 +156,12 @@ export default function VisitorsPage() {
                           <div className="flex items-center gap-2.5">
                             <Avatar name={v.name} size="sm" />
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-medium text-bone">{v.name}</p>
+                              <p className="truncate text-sm font-medium text-bone">
+                                {/* Linked to the client record when the visit matched one. */}
+                                <EntityLink type="artist" id={v.artistId} className="hover:text-gold hover:underline">
+                                  {v.name}
+                                </EntityLink>
+                              </p>
                               <p className="truncate text-xs text-steel/70">
                                 {v.email}
                                 {v.phone ? ` · ${v.phone}` : ""}
@@ -168,10 +174,10 @@ export default function VisitorsPage() {
                           {v.hostName && (
                             <p className="text-xs text-steel/70">Here to see {v.hostName}</p>
                           )}
-                          {v.sessionTitle && (
-                            <Badge tone="gold" className="mt-1">
-                              Session: {v.sessionTitle}
-                            </Badge>
+                          {v.sessionId && v.sessionTitle && (
+                            <SessionLink sessionId={v.sessionId} className="mt-1 inline-block hover:underline" title="Open this booking">
+                              <Badge tone="gold">Session: {v.sessionTitle}</Badge>
+                            </SessionLink>
                           )}
                         </TD>
                         <TD>
@@ -251,7 +257,11 @@ export default function VisitorsPage() {
                           <div className="flex items-center gap-2.5">
                             <Avatar name={c.name} size="sm" />
                             <div className="min-w-0">
-                              <p className="truncate text-sm font-medium text-bone">{c.name}</p>
+                              <p className="truncate text-sm font-medium text-bone">
+                                <EntityLink type="artist" id={c.artistId} className="hover:text-gold hover:underline">
+                                  {c.name}
+                                </EntityLink>
+                              </p>
                               <p className="truncate text-xs text-steel/70">{c.email}</p>
                             </div>
                           </div>

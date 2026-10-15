@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Avatar } from "@/components/ui/avatar";
 import { Field, Input } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
+import { SessionLink } from "@/components/shell/entity-link";
 import {
   Select, SelectTrigger, SelectValue, SelectContent, SelectItem,
 } from "@/components/ui/select";
@@ -86,14 +87,30 @@ export function MySchedulePanel() {
             <p className="text-sm text-steel/70">Nothing scheduled.</p>
           ) : (
             <>
-              {mine.shifts.map((s) => (
-                <div key={s._id} className="flex items-center gap-2 text-sm text-bone">
-                  <Avatar name={s.memberName} src={s.memberPhotoUrl} size="xs" className="rounded-full" />
-                  <span className="font-meta text-xs text-steel/70">{dt(s.startTime)}</span>
-                  {s.roomName && <span className="inline-flex items-center gap-0.5 text-xs text-steel/70"><DoorOpen className="size-3" />{s.roomName}</span>}
-                  {s.kind === "session" && <Badge tone="gold">session</Badge>}
-                </div>
-              ))}
+              {mine.shifts.map((s) => {
+                const row = (
+                  <>
+                    <Avatar name={s.memberName} src={s.memberPhotoUrl} size="xs" className="rounded-full" />
+                    <span className="font-meta text-xs text-steel/70">{dt(s.startTime)}</span>
+                    {s.roomName && <span className="inline-flex items-center gap-0.5 text-xs text-steel/70"><DoorOpen className="size-3" />{s.roomName}</span>}
+                    {s.kind === "session" && <Badge tone="gold">session</Badge>}
+                  </>
+                );
+                // A session shift opens its booking; a plain shift has nothing to open.
+                return s.kind === "session" && s.sessionId ? (
+                  <SessionLink
+                    key={s._id}
+                    sessionId={s.sessionId}
+                    className="-mx-1.5 flex items-center gap-2 rounded-md px-1.5 py-0.5 text-sm text-bone transition-colors hover:bg-coal-2"
+                  >
+                    {row}
+                  </SessionLink>
+                ) : (
+                  <div key={s._id} className="flex items-center gap-2 text-sm text-bone">
+                    {row}
+                  </div>
+                );
+              })}
             </>
           )}
         </CardContent>

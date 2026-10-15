@@ -6,7 +6,8 @@ import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { money, shortDate } from "@/lib/format";
 import { meta, ARTIST_STATUS } from "@/lib/labels";
-import { ReportCard, ReportStat } from "./report-shell";
+import { EntityLink } from "@/components/shell/entity-link";
+import { ReportCard, ReportStat, REPORT_LINK } from "./report-shell";
 
 export function DormantClientsReport() {
   const data = useQuery(api.reports.dormantClients);
@@ -45,7 +46,11 @@ export function DormantClientsReport() {
                 const st = meta(ARTIST_STATUS, r.status);
                 return (
                   <TR key={r.artistId}>
-                    <TD className="font-medium">{r.artistName}</TD>
+                    <TD className="font-medium">
+                      <EntityLink type="artist" id={r.artistId} className={REPORT_LINK}>
+                        {r.artistName}
+                      </EntityLink>
+                    </TD>
                     <TD>
                       <Badge tone={st.tone}>{st.label}</Badge>
                     </TD>

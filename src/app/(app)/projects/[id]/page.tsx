@@ -18,11 +18,24 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useCapabilities } from "@/lib/use-capabilities";
 import { shortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { EntityLink } from "@/components/shell/entity-link";
 import {
   LINK_KIND_LABEL, PICKABLE_KINDS, STAGE_LABEL, fromDateInput, toDateInput,
 } from "@/components/projects/constants";
 
 const NONE = "none";
+
+/** A project link's kind, as the entity type its drill-down opens.
+ *  A deliverable has no page of its own, so it stays plain text. */
+const LINK_ENTITY: Record<string, string | undefined> = {
+  session: "session",
+  song: "song",
+  room: "room",
+  engineer: "member",
+  invoice: "invoice",
+  opportunity: "deal",
+  artist: "artist",
+};
 const STAGES = ["tracking", "editing", "mixing", "mastering", "delivery", "complete"] as const;
 
 function fail(err: unknown) {
@@ -198,7 +211,13 @@ export default function ProjectDetailPage() {
           {project.links.map((l) => (
             <li key={l._id} className="inline-flex items-center gap-2 rounded-md border border-graphite/60 bg-coal/40 px-2.5 py-1 text-sm text-bone">
               <span className="text-xs text-steel">{LINK_KIND_LABEL[l.kind]}</span>
-              {l.label}
+              {LINK_ENTITY[l.kind] ? (
+                <EntityLink type={LINK_ENTITY[l.kind]!} id={l.refId} className="hover:text-gold hover:underline">
+                  {l.label}
+                </EntityLink>
+              ) : (
+                l.label
+              )}
               {editable && (
                 <button type="button" aria-label={`Unlink ${l.label}`} className="text-steel hover:text-critical"
                   onClick={async () => { try { await removeLink({ id: l._id }); } catch (e) { fail(e); } }}><X className="size-3.5" /></button>

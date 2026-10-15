@@ -18,6 +18,7 @@ import { MyCalendarCard } from "@/components/calendar/my-calendar-card";
 import { useMemberBusy, BusyChips } from "@/components/schedule/member-busy";
 import { EngineerRequests } from "@/components/schedule/engineer-requests";
 import { UnstaffedSessions } from "@/components/schedule/unstaffed-sessions";
+import { EntityLink } from "@/components/shell/entity-link";
 import { cn } from "@/lib/utils";
 
 const DAY = 86_400_000;
@@ -40,7 +41,7 @@ type Member = { _id: string; name: string; avatarColor?: string; photoUrl?: stri
 type Shift = {
   _id: string; memberId: string; memberName: string; memberPhotoUrl?: string | null;
   roomName: string | null;
-  roomId?: string; note?: string; kind: "scheduled" | "session";
+  roomId?: string; note?: string; kind: "scheduled" | "session"; sessionId?: string;
   status: "scheduled" | "confirmed" | "cancelled"; startTime: number; endTime: number;
 };
 
@@ -82,7 +83,7 @@ export default function SchedulePage() {
     setDialogOpen(true);
   }
   function openEdit(s: Shift) {
-    setEditShift({ _id: s._id, memberId: s.memberId, startTime: s.startTime, endTime: s.endTime, roomId: s.roomId, note: s.note, status: s.status });
+    setEditShift({ _id: s._id, memberId: s.memberId, startTime: s.startTime, endTime: s.endTime, roomId: s.roomId, note: s.note, status: s.status, sessionId: s.kind === "session" ? s.sessionId : undefined });
     setDialogOpen(true);
   }
   function quickCancel(s: Shift) {
@@ -245,7 +246,9 @@ export default function SchedulePage() {
                     <span className="inline-flex items-center gap-2">
                       <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: colorOf(m._id) }} />
                       <Avatar name={m.name} src={m.photoUrl} color={m.avatarColor} size="xs" className="rounded-full" />
-                      {m.name}
+                      <EntityLink type="member" id={m._id} className="hover:underline">
+                        {m.name}
+                      </EntityLink>
                     </span>
                   </td>
                   {Array.from({ length: 7 }).map((_, di) => {

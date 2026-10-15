@@ -10,6 +10,8 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
 import { money, shortDate } from "@/lib/format";
+import { SessionLink } from "@/components/shell/entity-link";
+import { REPORT_LINK } from "./report-shell";
 import { CheckCircle2, UserX, Ban, TimerOff } from "lucide-react";
 
 /* The booking archive: everything resolved off the operational board -
@@ -74,7 +76,9 @@ export function BookingArchiveReport() {
                           {shortDate(s.startTime)}
                         </TD>
                         <TD className="max-w-64">
-                          <span className="block truncate text-bone">{s.title}</span>
+                          <SessionLink sessionId={s._id} className={`block truncate text-bone ${REPORT_LINK}`}>
+                            {s.title}
+                          </SessionLink>
                         </TD>
                         <TD className="text-steel">{s.artistName}</TD>
                         <TD>

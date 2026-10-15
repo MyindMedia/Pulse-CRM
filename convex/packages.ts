@@ -176,6 +176,7 @@ export const soldCredits = query({
         return {
           _id: c._id,
           name: c.name,
+          artistId: c.artistId,
           artistName: artist?.name ?? "Unknown client",
           hoursTotal: c.hoursTotal,
           hoursRemaining: c.hoursRemaining,

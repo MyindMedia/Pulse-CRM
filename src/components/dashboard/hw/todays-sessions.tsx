@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useQuery } from "convex/react";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { EntityLink, SessionLink } from "@/components/shell/entity-link";
+import { useOpenSession } from "@/lib/use-open-session";
 import { Chassis, ChassisTitle, EmptyWell, hhmm, usd, useNow } from "./parts";
 import { pickLive } from "./live-hero";
 
@@ -31,11 +32,11 @@ export function statusChip(s: Row, now: number, money: boolean): { label: string
 
 /* Today's sessions (kit 6.2): a data table on a glass screen. The session
  * running now (or the next one) is the selected row: yellow tint and a 2px
- * yellow left edge. Rows open the booking in the calendar. */
+ * yellow left edge. Rows open the booking in place; the room opens its page. */
 export function TodaysSessions() {
   const data = useQuery(api.today.today, {});
   const now = useNow(30_000);
-  const router = useRouter();
+  const openSession = useOpenSession();
 
   const head = (
     <ChassisTitle
@@ -93,15 +94,23 @@ export function TodaysSessions() {
                   <tr
                     key={s._id}
                     data-selected={s._id === selected ? "true" : undefined}
-                    onClick={() => router.push(`/calendar?session=${s._id}`)}
+                    onClick={() => openSession(s._id)}
                     className="h-[61px] cursor-pointer hover:bg-white/[0.03]"
                   >
                     <td className="px-3 text-bone">
-                      <Link href={`/calendar?session=${s._id}`} onClick={(e) => e.stopPropagation()} className="hover:underline">
+                      <SessionLink sessionId={s._id} stopPropagation className="hover:underline">
                         {s.clientName}
-                      </Link>
+                      </SessionLink>
                     </td>
-                    <td className="px-3 text-mist">{s.roomName ?? "-"}</td>
+                    <td className="px-3 text-mist">
+                      {s.roomId && s.roomName ? (
+                        <EntityLink type="room" id={s.roomId} stopPropagation className="hover:text-bone hover:underline">
+                          {s.roomName}
+                        </EntityLink>
+                      ) : (
+                        s.roomName ?? "-"
+                      )}
+                    </td>
                     <td className="px-3 font-mono text-[13px] leading-[18px] text-mist tabular-nums">
                       {hhmm(s.startTime)} to {hhmm(s.endTime)}
                     </td>
