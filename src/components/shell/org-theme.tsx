@@ -2,7 +2,7 @@
 import * as React from "react";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { BRAND_THEME_KEYS, deriveBrandTheme } from "@/lib/brand-theme";
+import { BRAND_THEME_KEYS, brandGuardFor, deriveBrandTheme } from "@/lib/brand-theme";
 import { useUiStyleRoot } from "@/lib/ui-style";
 
 /* Rethemes the authenticated app to the ACTIVE org's brand (agency view-as
@@ -22,10 +22,15 @@ export function OrgTheme({ children }: { children: React.ReactNode }) {
   const secondary = org?.brandSecondary ?? null;
   // Pulse Hardware (default) or iOS Glass: a root attribute glass.css keys on.
   useUiStyleRoot(org?.uiStyle);
+  // A Max white-label theme driven by these brand colors may be light; the
+  // accent is then guarded against its surface instead of the dark face.
+  // Same guard WhiteLabelTheme uses, so the two layers write equal values.
+  const wl = useQuery(api.theme.get);
+  const guard = brandGuardFor(wl);
 
   React.useEffect(() => {
     const root = document.documentElement;
-    const theme = deriveBrandTheme(accent, secondary);
+    const theme = deriveBrandTheme(accent, secondary, guard);
     for (const key of BRAND_THEME_KEYS) {
       const value = theme?.tokens[key];
       if (value) root.style.setProperty(key, value);
@@ -39,7 +44,7 @@ export function OrgTheme({ children }: { children: React.ReactNode }) {
       for (const key of BRAND_THEME_KEYS) root.style.removeProperty(key);
       delete root.dataset.brandTheme;
     };
-  }, [accent, secondary]);
+  }, [accent, secondary, guard]);
 
   return <>{children}</>;
 }
