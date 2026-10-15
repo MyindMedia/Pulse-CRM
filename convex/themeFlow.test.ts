@@ -133,3 +133,46 @@ describe("client email", () => {
     expect(e.footerText).toBeNull();
   });
 });
+
+/* Owner decision 2026-10-14: brand colors override the white-label theme's
+   colors (primary, accent, email accent) and leave every other preference
+   custom. Off when brand colors were never set. */
+describe("brand colors over the white-label theme", () => {
+  it("Max with a brand preset: brand primary wins, the rest of the theme stays", async () => {
+    const t = convexTest(schema);
+    const asOwner = await studio(t, "max", BRAND);
+    await asOwner.mutation(api.branding.setBrandColors, { preset: "emerald" });
+    const theme = await asOwner.query(api.theme.get, {});
+    expect(theme.brandDriven).toBe(true);
+    expect(theme.colors.primary).toBe("#2fbf71");
+    expect(theme.colors.accent).toBe("#2fbf71");
+    expect(theme.colors.background).toBe("#0B0B10");
+    expect(theme.fontHeading).toBe("Sora");
+    expect(theme.emailHeaderColor).toBe("#2fbf71");
+    const pub = await t.query(api.theme.publicBySlug, { slug: "vault" });
+    expect(pub.colors.primary).toBe("#2fbf71");
+    expect(pub.colors.surface).toBe("#141420");
+    const email = await t.query(internal.theme._emailTheme, { orgId: "org1" });
+    expect(email.accent).toBe("#2fbf71");
+    expect(email.footerText).toBe("Vault Studios, Atlanta");
+  });
+
+  it("Max without brand colors: unchanged", async () => {
+    const t = convexTest(schema);
+    const asOwner = await studio(t, "max", BRAND);
+    const theme = await asOwner.query(api.theme.get, {});
+    expect(theme.brandDriven).toBe(false);
+    expect(theme.colors.primary).toBe("#7C3AED");
+    expect(theme.emailHeaderColor).toBe("#7C3AED");
+  });
+
+  it("below Max: no theme, brand set or not", async () => {
+    const t = convexTest(schema);
+    const asOwner = await studio(t, "growth", BRAND);
+    await asOwner.mutation(api.branding.setBrandColors, { preset: "emerald" });
+    const theme = await asOwner.query(api.theme.get, {});
+    expect(theme.active).toBe(false);
+    expect(theme.brandDriven).toBe(false);
+    expect(theme.colors.primary).toBe(PULSE_DEFAULT_COLORS.primary);
+  });
+});

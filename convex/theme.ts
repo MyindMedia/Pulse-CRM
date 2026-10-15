@@ -22,6 +22,7 @@ import {
   DENSITY_SCALE,
   type ThemeColorKey,
 } from "./lib/themeSpec";
+import { resolveEmailAccent, resolveThemePalette } from "./lib/themePrecedence";
 
 /* ============================================================
    White-label theming - the Max tier's defining feature.
@@ -55,46 +56,13 @@ const themeArgs = {
 
 const COLOR_KEYS = Object.keys(THEME_COLOR_VARS) as ThemeColorKey[];
 
-/* The palette a workspace paints with.
- *
- * Written once and used by every caller - the signed-in shell, the booking
- * page, the portal, the outgoing email - because two copies of this drifted
- * once already and a studio's app does not get to be a different colour from
- * its own booking page.
- *
- * Precedence, weakest first:
- *   1. Pulse's own defaults
- *   2. orgs.accentColor - the "Accent color" in Settings > Workspace
- *   3. the saved white-label theme
- *
- * (2) is the one that was missing. That control is set per sub-account and had
- * always coloured the CLIENT-facing surfaces - booking, kiosk, invoice - while
- * the app itself stayed Pulse gold. An agency switching between sub-accounts
- * saw the logo change and the colour not, which reads as broken rather than as
- * two separate settings, because nobody has the schema in their head. A studio
- * that wants finer control still has the white-label panel, and it wins.
- */
-function paletteFor(
-  org: Doc<"orgs"> | null,
-  active: boolean,
-): Record<string, string> {
-  const colors: Record<string, string> = { ...PULSE_DEFAULT_COLORS };
-  if (!active) return colors;
-
-  const accent = org?.accentColor;
-  if (accent && isHexColor(accent)) {
-    colors.primary = accent.trim();
-    colors.accent = accent.trim();
-  }
-
-  const saved = org?.theme;
-  if (saved) {
-    for (const k of COLOR_KEYS) {
-      const val = saved[k];
-      if (val && isHexColor(val)) colors[k] = val;
-    }
-  }
-  return colors;
+/* The palette a workspace paints with, written once and used by every
+ * caller (the signed-in shell, the booking page, the portal, the outgoing
+ * email), because two copies of this drifted once already. The precedence
+ * rules, including brand colors winning over the theme's primary and accent,
+ * live in lib/themePrecedence.ts. */
+function paletteFor(org: Doc<"orgs"> | null, active: boolean) {
+  return resolveThemePalette(org, active);
 }
 
 /**
@@ -113,11 +81,15 @@ export const get = query({
     const tier = await tierForOrg(ctx, orgId);
     const active = PLAN_LIMITS[tier].whitelabel === "full";
     const saved = org?.theme;
-    const colors = paletteFor(org ?? null, active);
+    const palette = paletteFor(org ?? null, active);
+    const colors = palette.colors;
 
     return {
       active,
       tier,
+      // Brand colors (every plan) set the theme's primary, accent and email
+      // accent; the rest of the theme stays the studio's own.
+      brandDriven: palette.brandDriven,
       // Never removable, at any tier or price.
       poweredByPulse: true,
       appName: (active && saved?.appName) || null,
@@ -150,7 +122,7 @@ export const get = query({
         active && saved?.loginBackgroundId
           ? await fileUrl(ctx, saved.loginBackgroundId)
           : null,
-      emailHeaderColor: (active && saved?.emailHeaderColor) || colors.primary,
+      emailHeaderColor: resolveEmailAccent(saved, palette, active),
       emailFooterText: (active && saved?.emailFooterText) || null,
     };
   },
@@ -290,7 +262,8 @@ async function themeFor(ctx: QueryCtx, org: Doc<"orgs"> | null) {
   const tier = org ? await tierForOrg(ctx, org.orgId) : "core";
   const active = Boolean(org) && PLAN_LIMITS[tier].whitelabel === "full";
   const saved = org?.theme;
-  return { active, tier, saved, colors: paletteFor(org, active) };
+  const palette = paletteFor(org, active);
+  return { active, tier, saved, colors: palette.colors, palette, brandDriven: palette.brandDriven };
 }
 
 /** PUBLIC. The theme for a studio's client-facing pages, by booking slug. */
@@ -301,9 +274,10 @@ export const publicBySlug = query({
       .query("orgs")
       .withIndex("by_slug", (q) => q.eq("slug", slug))
       .first();
-    const { active, colors, saved } = await themeFor(ctx, org ?? null);
+    const { active, colors, saved, brandDriven } = await themeFor(ctx, org ?? null);
     return {
       active,
+      brandDriven,
       // Never removable, on any surface.
       poweredByPulse: true,
       appName: (active && saved?.appName) || org?.name || null,
@@ -337,9 +311,10 @@ export const publicByGrant = query({
           .withIndex("by_org", (q) => q.eq("orgId", grant.orgId))
           .first()
       : null;
-    const { active, colors, saved } = await themeFor(ctx, org ?? null);
+    const { active, colors, saved, brandDriven } = await themeFor(ctx, org ?? null);
     return {
       active,
+      brandDriven,
       poweredByPulse: true,
       appName: (active && saved?.appName) || org?.name || null,
       colors,
@@ -359,10 +334,10 @@ export const _emailTheme = internalQuery({
       .query("orgs")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .first();
-    const { active, colors, saved } = await themeFor(ctx, org ?? null);
+    const { active, saved, palette } = await themeFor(ctx, org ?? null);
     return {
       active,
-      accent: (active && saved?.emailHeaderColor) || colors.primary,
+      accent: resolveEmailAccent(saved, palette, active),
       footerText: (active && saved?.emailFooterText) || null,
       appName: (active && saved?.appName) || org?.name || null,
     };

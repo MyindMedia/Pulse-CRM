@@ -16,6 +16,8 @@ import { IntegrationsPanel } from "@/components/settings/integrations-panel";
 import { BrandingPanel } from "@/components/settings/branding-panel";
 import { BookingFeaturesPanel } from "@/components/settings/booking-features-panel";
 import { WhiteLabelPanel } from "@/components/settings/white-label-panel";
+import { BrandingDraftProvider } from "@/components/settings/branding-draft";
+import { BrandPreview } from "@/components/settings/brand-preview";
 import { DirectoryPanel } from "@/components/settings/directory-panel";
 import { ModuleSwitchboard } from "@/components/modules/module-switchboard";
 import { TestimonialsPanel } from "@/components/settings/testimonials-panel";
@@ -71,6 +73,7 @@ function SettingsView() {
       {org === undefined ? (
         <SettingsSkeleton />
       ) : (
+        <BrandingDraftProvider org={org}>
         <Tabs defaultValue={initialTab} className="space-y-5">
           <TabsList>
             <TabsTrigger value="workspace">
@@ -127,12 +130,16 @@ function SettingsView() {
             </Card>
           </TabsContent>
           <TabsContent value="branding">
-            <div className="space-y-5">
+            {/* Preview first on a phone, a sticky column beside the controls on wide screens. */}
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(0,460px)] xl:items-start">
+              <BrandPreview className="xl:sticky xl:top-6 xl:order-last" />
+            <div className="min-w-0 space-y-5">
               <BrandingPanel org={org} />
               <BookingFeaturesPanel />
               <WhiteLabelPanel />
               <DirectoryPanel />
               <TestimonialsPanel org={org} />
+            </div>
             </div>
           </TabsContent>
           <TabsContent value="pricing">
@@ -179,6 +186,7 @@ function SettingsView() {
             </div>
           </TabsContent>
         </Tabs>
+        </BrandingDraftProvider>
       )}
     </div>
   );

@@ -139,3 +139,20 @@ export function buildThemeVars(t: ThemeInput): Record<string, string> {
     "--shadow-gold-strong": `0 10px 24px ${rgbaString(t.primary, 0.35)}`,
   };
 }
+
+/**
+ * Corner radii for the hardware kit (hardware.css --pl-radius-*), which draws
+ * its chassis, wells and keys from its own radius tokens rather than
+ * --radius-chrome. Without these a Corners choice barely showed in the app.
+ * Soft is the stock kit and writes nothing, so a studio that never touches
+ * Corners renders exactly as before.
+ */
+export function hardwareRadiusVars(radius: string | null | undefined): Record<string, string> {
+  if (radius === "sharp") {
+    return { "--pl-radius-chassis": "4px", "--pl-radius-well": "3px", "--pl-radius-screen": "2px" };
+  }
+  if (radius === "round") {
+    return { "--pl-radius-chassis": "22px", "--pl-radius-well": "12px", "--pl-radius-screen": "8px" };
+  }
+  return {};
+}
