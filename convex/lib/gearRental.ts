@@ -53,10 +53,11 @@ export function unitsOf(item: { quantity?: number }): number {
 /** Whether an item can be rented onto a session in [start,end): it must be
  *  flagged rentable, in serviceable condition, and have a free unit. */
 export function gearAvailable(
-  item: { quantity?: number; status: string; rentable?: boolean },
+  item: { quantity?: number; status: string; rentable?: boolean; ownerMemberId?: string },
   booked: number,
 ): boolean {
-  if (!item.rentable) return false;
+  // A teammate's own gear is never rented out, whatever the flag says.
+  if (!item.rentable || item.ownerMemberId) return false;
   if (item.status === "maintenance" || item.status === "retired") return false;
   return booked < unitsOf(item);
 }

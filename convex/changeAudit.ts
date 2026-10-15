@@ -44,6 +44,18 @@ export const list = query({
         ...(sight.money ? [] : (MONEY_FIELDS[row.tableName] ?? [])),
         ...(sight.books ? [] : (BOOKS_FIELDS[row.tableName] ?? [])),
       ]);
+      // A teammate's id reads as their name ("owner: Dre -> studio").
+      const named = async (values: Record<string, unknown> | undefined) => {
+        if (!values) return values;
+        const out: Record<string, unknown> = { ...values };
+        for (const [field, value] of Object.entries(values)) {
+          if (!field.endsWith("MemberId") || typeof value !== "string") continue;
+          const id = ctx.db.normalizeId("members", value);
+          const member = id ? await ctx.db.get(id) : null;
+          out[field] = member && member.orgId === orgId ? member.name : "Former teammate";
+        }
+        return out;
+      };
       const strip = (values: unknown) => {
         if (!values || typeof values !== "object") return undefined;
         const kept = Object.fromEntries(
@@ -63,8 +75,8 @@ export const list = query({
         actorMemberId: row.actorMemberId ?? null,
         label: row.label ?? null,
         fields: row.fields,
-        before: strip(row.before) ?? null,
-        after: strip(row.after) ?? null,
+        before: (await named(strip(row.before))) ?? null,
+        after: (await named(strip(row.after))) ?? null,
       });
     }
     return out;

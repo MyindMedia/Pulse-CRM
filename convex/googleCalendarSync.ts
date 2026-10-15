@@ -1,4 +1,5 @@
-import { action, query, internalAction, internalQuery } from "./_generated/server";
+import { action, query, internalAction, internalQuery, type MutationCtx } from "./_generated/server";
+import type { Id } from "./_generated/dataModel";
 import { internalMutation } from "./functions";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
@@ -13,6 +14,8 @@ import {
   type GoogleCalendarListEvent,
 } from "./lib/google";
 import { studioPullsGoogle, studioPushesGoogle } from "./lib/roomBusy";
+import { mapEventDetails, type EventDetails } from "./lib/googleEvents";
+import { matchRoom, isConfident, type RoomLike } from "./lib/googleRoomMatch";
 
 /* ============================================================
    Inbound Google Calendar sync (Google -> Pulse).
@@ -93,9 +96,47 @@ export function mapGoogleEvent(raw: GoogleCalendarListEvent, pulseEventIds: Set<
 export type PulseSessionRef = { sessionId: string; startTime: number; endTime: number };
 
 export type PulseChange =
-  | { kind: "moved"; sessionId: string; startTime: number; endTime: number }
+  | { kind: "moved"; sessionId: string; startTime?: number; endTime?: number; roomId?: string }
   | { kind: "deleted"; sessionId: string }
   | { kind: "unchanged"; sessionId: string };
+
+/** A booking imported from the studio calendar, as the pull sees it. */
+export type ImportedRef = PulseSessionRef & {
+  roomId?: string;
+  /** The room this event matched with confidence on the previous pull. */
+  lastMatchedRoomId?: string;
+};
+
+/** Pure: like classifyPulseEvent, for a booking that was imported from Google,
+ *  which also notices the event's ROOM changing (a new room resource, location
+ *  or title naming another room with confidence). A room is only proposed when
+ *  the match itself changed since the last pull, so a room the studio picked
+ *  by hand at import is not re-proposed on every edit. */
+export function classifyImportedEvent(
+  raw: GoogleCalendarListEvent,
+  ref: ImportedRef,
+  rooms: RoomLike[],
+): { change: PulseChange | null; matchedRoomId?: string } {
+  const base = classifyPulseEvent(raw, new Map([[raw.id, ref]]))!;
+  if (base.kind === "deleted") return { change: base };
+  const m = matchRoom(
+    {
+      title: raw.summary,
+      location: raw.location,
+      attendees: (raw.attendees ?? []).map((a) => ({ email: a.email, name: a.displayName, resource: a.resource })),
+    },
+    rooms,
+  );
+  const matchedRoomId = m.roomId && isConfident(m.confidence) ? m.roomId : undefined;
+  const differs = matchedRoomId !== undefined && matchedRoomId !== ref.roomId;
+  const roomMoved = differs && matchedRoomId !== ref.lastMatchedRoomId;
+  // Same other room as last time: already proposed (or declined, or the
+  // studio chose the room by hand). Nothing new; leave any request alone.
+  if (differs && !roomMoved && base.kind === "unchanged") return { change: null, matchedRoomId };
+  if (!roomMoved) return { change: base, matchedRoomId };
+  if (base.kind === "moved") return { change: { ...base, roomId: matchedRoomId }, matchedRoomId };
+  return { change: { kind: "moved", sessionId: ref.sessionId, roomId: matchedRoomId }, matchedRoomId };
+}
 
 /** Pure: is this event a Pulse booking (by its stored event id), and if so did
  *  someone move or delete it in Google? Null for events that are not ours. A
@@ -130,16 +171,112 @@ export const _syncContext = internalQuery({
       .filter((id): id is string => Boolean(id));
     const pulseSessions = sessions
       .filter((s) => s.googleCalendarEventId && s.status !== "cancelled" && s.status !== "no_show" && s.status !== "completed")
-      .map((s) => ({ eventId: s.googleCalendarEventId!, sessionId: s._id, startTime: s.startTime, endTime: s.endTime }));
+      .map((s) => ({
+        eventId: s.googleCalendarEventId!,
+        sessionId: s._id,
+        startTime: s.startTime,
+        endTime: s.endTime,
+        roomId: s.roomId as string | undefined,
+        imported: s.source === "google",
+      }));
+    // Events Pulse wrote itself (bookings it pushed). Imported bookings are
+    // not on this list: their event was the studio's first, and its details
+    // keep refreshing in googleEvents.
+    const pushedEventIds = sessions
+      .filter((s) => s.googleCalendarEventId && s.source !== "google")
+      .map((s) => s.googleCalendarEventId!);
+    const importedIds = new Set(pulseSessions.filter((p) => p.imported).map((p) => p.eventId));
+    const lastMatched: Record<string, string> = {};
+    if (importedIds.size > 0) {
+      for (const eventId of importedIds) {
+        const row = await ctx.db
+          .query("googleEvents")
+          .withIndex("by_event", (q) => q.eq("orgId", orgId).eq("googleEventId", eventId))
+          .first();
+        if (row?.matchedRoomId) lastMatched[eventId] = row.matchedRoomId;
+      }
+    }
+    const rooms = await ctx.db.query("rooms").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
     return {
       googleRefreshToken: org.googleRefreshToken,
       calendarId: org.googleCalendarId ?? "primary",
       syncToken: org.googleCalendarSyncToken ?? null,
       pulseEventIds,
       pulseSessions,
+      pushedEventIds,
+      lastMatched,
+      rooms: rooms.map((r) => ({ _id: r._id as string, name: r.name, status: r.status })),
+      autoImport: org.googleAutoImport === true,
     };
   },
 });
+
+const eventDetailsV = v.object({
+  googleEventId: v.string(),
+  title: v.string(),
+  startTime: v.number(),
+  endTime: v.number(),
+  allDay: v.boolean(),
+  location: v.optional(v.string()),
+  description: v.optional(v.string()),
+  attendees: v.array(
+    v.object({
+      email: v.optional(v.string()),
+      name: v.optional(v.string()),
+      responseStatus: v.optional(v.string()),
+      resource: v.optional(v.boolean()),
+      organizer: v.optional(v.boolean()),
+      self: v.optional(v.boolean()),
+    }),
+  ),
+  organizerEmail: v.optional(v.string()),
+  organizerName: v.optional(v.string()),
+  htmlLink: v.optional(v.string()),
+  status: v.union(v.literal("confirmed"), v.literal("tentative"), v.literal("cancelled")),
+  googleUpdatedAt: v.optional(v.number()),
+  recurringEventId: v.optional(v.string()),
+  matchedRoomId: v.optional(v.string()),
+});
+
+/** Events that ended this long ago and never became bookings are dropped. */
+const DETAILS_KEEP_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** Upsert the details rows, mark Google deletions cancelled (a row someone
+ *  ignored or imported keeps its history), and drop old unimported rows. */
+async function writeEventDetails(
+  ctx: MutationCtx,
+  orgId: string,
+  calendarId: string,
+  details: (EventDetails & { matchedRoomId?: string })[],
+  cancels: string[],
+  now: number,
+): Promise<void> {
+  const rooms = new Set((await ctx.db.query("rooms").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()).map((r) => r._id as string));
+  for (const d of details) {
+    const existing = await ctx.db
+      .query("googleEvents")
+      .withIndex("by_event", (q) => q.eq("orgId", orgId).eq("googleEventId", d.googleEventId))
+      .first();
+    const matchedRoomId = d.matchedRoomId && rooms.has(d.matchedRoomId) ? (d.matchedRoomId as Id<"rooms">) : undefined;
+    const row = { ...d, matchedRoomId, calendarId, updatedAt: now };
+    if (existing) await ctx.db.patch(existing._id, row);
+    else await ctx.db.insert("googleEvents", { orgId, ...row });
+  }
+  for (const googleEventId of cancels) {
+    const existing = await ctx.db
+      .query("googleEvents")
+      .withIndex("by_event", (q) => q.eq("orgId", orgId).eq("googleEventId", googleEventId))
+      .first();
+    if (existing && existing.status !== "cancelled") await ctx.db.patch(existing._id, { status: "cancelled", updatedAt: now });
+  }
+  const old = await ctx.db
+    .query("googleEvents")
+    .withIndex("by_org_start", (q) => q.eq("orgId", orgId).lt("startTime", now - DETAILS_KEEP_MS))
+    .take(100);
+  for (const r of old) {
+    if (!r.importedSessionId && r.endTime < now - DETAILS_KEEP_MS) await ctx.db.delete(r._id);
+  }
+}
 
 /** Apply one pull's worth of changes idempotently + persist the next syncToken. */
 export const _applyDelta = internalMutation({
@@ -156,10 +293,20 @@ export const _applyDelta = internalMutation({
     ),
     cancels: v.array(v.string()),
     nextSyncToken: v.union(v.string(), v.null()),
+    // Event details for the "From Google" review list (googleEvents).
+    calendarId: v.optional(v.string()),
+    details: v.optional(v.array(eventDetailsV)),
+    detailCancels: v.optional(v.array(v.string())),
   },
-  handler: async (ctx, { orgId, upserts, cancels, nextSyncToken }) => {
+  handler: async (ctx, { orgId, upserts, cancels, nextSyncToken, calendarId, details, detailCancels }) => {
     const now = Date.now();
     for (const b of upserts) {
+      // Imported while this pull was in flight: the booking holds the time now.
+      const imported = await ctx.db
+        .query("googleEvents")
+        .withIndex("by_event", (q) => q.eq("orgId", orgId).eq("googleEventId", b.googleEventId))
+        .first();
+      if (imported?.importedSessionId) continue;
       const existing = await ctx.db
         .query("googleBusyBlocks")
         .withIndex("by_event", (q) => q.eq("orgId", orgId).eq("googleEventId", b.googleEventId))
@@ -183,6 +330,7 @@ export const _applyDelta = internalMutation({
         .first();
       if (existing) await ctx.db.delete(existing._id);
     }
+    await writeEventDetails(ctx, orgId, calendarId ?? "primary", details ?? [], detailCancels ?? [], now);
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     if (org) {
       await ctx.db.patch(org._id, {
@@ -203,7 +351,13 @@ export const _recordGoogleChanges = internalMutation({
     orgId: v.string(),
     changes: v.array(
       v.union(
-        v.object({ kind: v.literal("moved"), sessionId: v.id("sessions"), startTime: v.number(), endTime: v.number() }),
+        v.object({
+          kind: v.literal("moved"),
+          sessionId: v.id("sessions"),
+          startTime: v.optional(v.number()),
+          endTime: v.optional(v.number()),
+          roomId: v.optional(v.id("rooms")),
+        }),
         v.object({ kind: v.literal("deleted"), sessionId: v.id("sessions") }),
         v.object({ kind: v.literal("unchanged"), sessionId: v.id("sessions") }),
       ),
@@ -229,12 +383,30 @@ export const _recordGoogleChanges = internalMutation({
         continue;
       }
 
-      const proposed =
-        ch.kind === "moved" ? { startTime: ch.startTime, endTime: ch.endTime } : { status: "cancelled" as const };
+      const proposed: {
+        startTime?: number;
+        endTime?: number;
+        roomId?: Id<"rooms">;
+        status?: "cancelled";
+      } =
+        ch.kind === "moved"
+          ? {
+              ...(ch.startTime !== undefined ? { startTime: ch.startTime } : {}),
+              ...(ch.endTime !== undefined ? { endTime: ch.endTime } : {}),
+              ...(ch.roomId !== undefined ? { roomId: ch.roomId } : {}),
+            }
+          : { status: "cancelled" as const };
+      if (ch.kind === "moved" && proposed.roomId) {
+        // The new room must be this studio's.
+        const room = await ctx.db.get(proposed.roomId);
+        if (!room || room.orgId !== orgId) delete proposed.roomId;
+      }
+      if (Object.keys(proposed).length === 0) continue;
       const same = (r: (typeof pending)[number]) =>
-        r.proposed.startTime === (proposed as { startTime?: number }).startTime &&
-        r.proposed.endTime === (proposed as { endTime?: number }).endTime &&
-        r.proposed.status === (proposed as { status?: string }).status;
+        r.proposed.startTime === proposed.startTime &&
+        r.proposed.endTime === proposed.endTime &&
+        r.proposed.roomId === proposed.roomId &&
+        r.proposed.status === proposed.status;
       if (pending.some(same)) continue;
       if (pending.length > 0) {
         await ctx.db.patch(pending[0]._id, { proposed });
@@ -251,7 +423,12 @@ export const _recordGoogleChanges = internalMutation({
         sessionId: session._id,
         origin: "google",
         proposed,
-        reason: ch.kind === "moved" ? "Moved in Google Calendar" : "Deleted in Google Calendar",
+        reason:
+          ch.kind === "deleted"
+            ? "Deleted in Google Calendar"
+            : proposed.startTime === undefined && proposed.endTime === undefined
+              ? "Room changed in Google Calendar"
+              : "Moved in Google Calendar",
         approverMemberId: approver,
         status: "pending",
       });
@@ -292,6 +469,20 @@ export const pullOrg = internalAction({
     const bySessionEventId = new Map<string, PulseSessionRef>(
       c.pulseSessions.map((p) => [p.eventId, { sessionId: p.sessionId, startTime: p.startTime, endTime: p.endTime }]),
     );
+    const importedRefs = new Map<string, ImportedRef>(
+      c.pulseSessions
+        .filter((p) => p.imported)
+        .map((p) => [
+          p.eventId,
+          {
+            sessionId: p.sessionId,
+            startTime: p.startTime,
+            endTime: p.endTime,
+            roomId: p.roomId,
+            lastMatchedRoomId: c.lastMatched[p.eventId],
+          },
+        ]),
+    );
     const fullPullOpts = {
       timeMin: new Date(Date.now() - FULL_PULL_LOOKBACK_MS).toISOString(),
       calendarId: c.calendarId,
@@ -316,8 +507,36 @@ export const pullOrg = internalAction({
       const upserts: MappedBlock[] = [];
       const cancels: string[] = [];
       const pulseChanges: PulseChange[] = [];
+      const details: (EventDetails & { matchedRoomId?: string })[] = [];
+      const detailCancels: string[] = [];
+      const pushedIds = new Set(c.pushedEventIds);
+      const pulseOwned = (id: string, raw: GoogleCalendarListEvent) =>
+        pushedIds.has(id) || (raw.extendedProperties?.private?.[PULSE_ORIGIN_TAG] === "1" && !importedRefs.has(id));
+      const keepDetails = (raw: GoogleCalendarListEvent, matchedRoomId?: string) => {
+        const d = mapEventDetails(raw, pulseOwned);
+        if (d.kind === "upsert") {
+          const m =
+            matchedRoomId !== undefined
+              ? matchedRoomId
+              : (() => {
+                  const r = matchRoom(
+                    { title: d.details.title, location: d.details.location, attendees: d.details.attendees },
+                    c.rooms,
+                  );
+                  return r.roomId && isConfident(r.confidence) ? r.roomId : undefined;
+                })();
+          details.push({ ...d.details, matchedRoomId: m });
+        } else if (d.kind === "cancel") detailCancels.push(d.googleEventId);
+      };
       for (const raw of listed.events) {
         // A Pulse booking edited in Google becomes a change request, not a block.
+        const imported = raw.id ? importedRefs.get(raw.id) : undefined;
+        if (imported) {
+          const { change, matchedRoomId } = classifyImportedEvent(raw, imported, c.rooms);
+          if (change) pulseChanges.push(change);
+          keepDetails(raw, matchedRoomId);
+          continue;
+        }
         const pc = classifyPulseEvent(raw, bySessionEventId);
         if (pc) {
           pulseChanges.push(pc);
@@ -326,6 +545,7 @@ export const pullOrg = internalAction({
         const m = mapGoogleEvent(raw, pulseIds);
         if (m.kind === "upsert") upserts.push(m.block);
         else if (m.kind === "cancel") cancels.push(m.googleEventId);
+        keepDetails(raw);
       }
 
       if (pulseChanges.length > 0) {
@@ -339,7 +559,13 @@ export const pullOrg = internalAction({
         upserts,
         cancels,
         nextSyncToken: listed.nextSyncToken,
+        calendarId: c.calendarId,
+        details,
+        detailCancels,
       });
+      // Confident, conflict-free events become bookings on their own when the
+      // studio switched that on; the rest wait in the review list.
+      if (c.autoImport) await ctx.runMutation(internal.googleImport._autoImport, { orgId });
     } catch (err) {
       console.error("[googleCalendarSync.pullOrg]", orgId, err);
       if (isInvalidGrant(err)) {
@@ -399,6 +625,7 @@ export const status = query({
       pushError: org?.googleCalendarPushError ?? null,
       pushErrorAt: org?.googleCalendarPushErrorAt ?? null,
       blockCount: blocks.length,
+      autoImport: org?.googleAutoImport === true,
     };
   },
 });

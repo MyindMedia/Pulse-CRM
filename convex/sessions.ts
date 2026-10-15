@@ -967,7 +967,7 @@ export const gearOptions = query({
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .collect();
     return equip
-      .filter((e) => e.rentable)
+      .filter((e) => e.rentable && !e.ownerMemberId)
       .map((e) => {
         const booked = bookedUnits(e._id, s.startTime, s.endTime, around, s._id);
         return {
@@ -993,7 +993,7 @@ export const addGear = mutation({
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) throw new Error("Not found");
     const item = await ctx.db.get(equipmentId);
-    if (!item || item.orgId !== orgId || !item.rentable) {
+    if (!item || item.orgId !== orgId || !item.rentable || item.ownerMemberId) {
       throw new Error("That gear isn't available to rent.");
     }
     if ((s.addOns ?? []).some((a) => a.equipmentId === equipmentId)) {

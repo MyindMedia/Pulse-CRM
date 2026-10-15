@@ -38,6 +38,28 @@ describe("arrival prep checklist", () => {
     expect(prep[sessionId]).toEqual(["parking"]);
   });
 
+  it("forUpcoming returns the same prep state without naming session ids", async () => {
+    await t.mutation(api.arrivalPrep.setStep, { sessionId, step: "welcome", done: true });
+    // A cancelled upcoming booking and a past one are outside the window.
+    const [cancelled, past] = await t.run(async (ctx) => {
+      const s = await ctx.db.get(sessionId);
+      const base = { ...s!, _id: undefined, _creationTime: undefined } as Record<string, unknown>;
+      delete base._id;
+      delete base._creationTime;
+      const c = await ctx.db.insert("sessions", { ...base, status: "cancelled" } as never);
+      const p = await ctx.db.insert("sessions", {
+        ...base, startTime: Date.now() - 7_200_000, endTime: Date.now() - 3_600_000,
+      } as never);
+      await ctx.db.insert("arrivalPrep", { orgId: ORG, sessionId: c, done: ["room"] } as never);
+      await ctx.db.insert("arrivalPrep", { orgId: ORG, sessionId: p, done: ["room"] } as never);
+      return [c, p];
+    });
+    const prep = await t.query(api.arrivalPrep.forUpcoming, { limit: 12 });
+    expect(prep[sessionId]).toEqual(["welcome"]);
+    expect(prep[cancelled]).toBeUndefined();
+    expect(prep[past]).toBeUndefined();
+  });
+
   it("accepts per-item rental steps only for gear actually on the session", async () => {
     const equipmentId = await t.run(async (ctx) =>
       ctx.db.insert("equipment", {

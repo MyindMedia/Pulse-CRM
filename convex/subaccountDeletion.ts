@@ -39,7 +39,7 @@ export const ORG_TABLES = [
   "invoices", "feeTemplates", "packageProducts", "packageCredits", "reviews",
   "recoveryEvents", "expenses", "softwareLicenses", "opportunities", "syncOpportunities",
   "releaseCampaigns", "licenses", "activity", "insights", "aiArtifacts", "sessionChecklists",
-  "externalCalendars", "externalCalendarEvents", "googleBusyBlocks", "opsActions",
+  "externalCalendars", "externalCalendarEvents", "googleBusyBlocks", "googleEvents", "opsActions",
   "opsAutonomy", "agentRules", "payouts", "bookingVisits", "usageCounters", "shifts",
   "timeEntries", "smsPrompts", "availability", "timeOff", "clientMessages", "smsContacts", "changeAudit", "waitlistEntries",
   "membershipPlans", "memberships", "patchSpaces", "deviceInstances", "patchVocabGaps",

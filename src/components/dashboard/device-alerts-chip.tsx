@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { BellRing, Check } from "lucide-react";
 import { pushSupported, currentEndpoint, enableDeviceAlerts } from "@/lib/push";
 import { cn } from "@/lib/utils";
+import { useBootMode } from "@/lib/boot-snapshot";
 
 /* The "enable device alerts" affordance in the prep widgets' headers. Shows
    only where push is supported; flips to a quiet check once this device is
@@ -14,6 +15,13 @@ import { cn } from "@/lib/utils";
    change, studio refresh) with the device's own sound + haptics. */
 
 export function DeviceAlertsChip() {
+  // A device setting, not dashboard data: the boot preview leaves it out
+  // (its queries would run before the session is confirmed).
+  if (useBootMode()) return null;
+  return <DeviceAlertsChipLive />;
+}
+
+function DeviceAlertsChipLive() {
   const vapidKey = useQuery(api.push.publicKey);
   const subscribeMutation = useMutation(api.push.subscribe);
 

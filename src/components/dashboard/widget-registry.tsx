@@ -1,27 +1,75 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { TodayBoard } from "@/components/today/today-board";
-import { ProjectsTodayCard } from "@/components/projects/today-card";
-import { WrapUpCard } from "@/components/dashboard/wrapup-card";
-import { UpcomingSessionsCard } from "@/components/dashboard/upcoming-sessions-card";
-import { ActivityCard } from "@/components/dashboard/activity-card";
-import {
-  PipelineChartCard,
-  ServiceChartCard,
-  CatalogChartCard,
-  InsightsCard,
-  RecoveredCard,
-} from "@/components/dashboard/chart-cards";
-import { PulseAiPanel } from "@/components/ai/pulse-ai-panel";
-import { OpsAutopilotPanel } from "@/components/ai/ops-autopilot-panel";
+import dynamic from "next/dynamic";
 import { LiveSessionHero } from "@/components/dashboard/hw/live-hero";
 import { MonthKpis } from "@/components/dashboard/hw/month-kpis";
-import { BookingRevenue } from "@/components/dashboard/hw/booking-revenue";
 import { RoomUtilization } from "@/components/dashboard/hw/room-utilization";
 import { OpsManager } from "@/components/dashboard/hw/ops-manager";
 import { TodaysSessions } from "@/components/dashboard/hw/todays-sessions";
 import { DepositsFeed } from "@/components/dashboard/hw/deposits-feed";
+
+/* Code splitting. The default overview's light tiles ship with the page; the
+   revenue chart (visx) and every widget that starts in the Add widget tray
+   load as their own chunks, so a cold load downloads only what the screen
+   shows. Each placeholder holds the tile's footprint so nothing jumps when
+   the chunk lands. */
+function ChunkPlaceholder() {
+  return <div aria-hidden className="pl-card min-h-[220px] flex-1 opacity-60" />;
+}
+
+const BookingRevenue = dynamic(
+  () => import("@/components/dashboard/hw/booking-revenue").then((m) => m.BookingRevenue),
+  { loading: () => <ChunkPlaceholder /> },
+);
+const TodayBoard = dynamic(
+  () => import("@/components/today/today-board").then((m) => m.TodayBoard),
+  { loading: () => <ChunkPlaceholder /> },
+);
+const ProjectsTodayCard = dynamic(
+  () => import("@/components/projects/today-card").then((m) => m.ProjectsTodayCard),
+  { loading: () => <ChunkPlaceholder /> },
+);
+const WrapUpCard = dynamic(
+  () => import("@/components/dashboard/wrapup-card").then((m) => m.WrapUpCard),
+  { loading: () => <ChunkPlaceholder /> },
+);
+const UpcomingSessionsCard = dynamic(
+  () => import("@/components/dashboard/upcoming-sessions-card").then((m) => m.UpcomingSessionsCard),
+  { loading: () => <ChunkPlaceholder /> },
+);
+const ActivityCard = dynamic(
+  () => import("@/components/dashboard/activity-card").then((m) => m.ActivityCard),
+  { loading: () => <ChunkPlaceholder /> },
+);
+const PipelineChartCard = dynamic(
+  () => import("@/components/dashboard/chart-cards").then((m) => m.PipelineChartCard),
+  { loading: () => <ChunkPlaceholder /> },
+);
+const ServiceChartCard = dynamic(
+  () => import("@/components/dashboard/chart-cards").then((m) => m.ServiceChartCard),
+  { loading: () => <ChunkPlaceholder /> },
+);
+const CatalogChartCard = dynamic(
+  () => import("@/components/dashboard/chart-cards").then((m) => m.CatalogChartCard),
+  { loading: () => <ChunkPlaceholder /> },
+);
+const InsightsCard = dynamic(
+  () => import("@/components/dashboard/chart-cards").then((m) => m.InsightsCard),
+  { loading: () => <ChunkPlaceholder /> },
+);
+const RecoveredCard = dynamic(
+  () => import("@/components/dashboard/chart-cards").then((m) => m.RecoveredCard),
+  { loading: () => <ChunkPlaceholder /> },
+);
+const PulseAiPanel = dynamic(
+  () => import("@/components/ai/pulse-ai-panel").then((m) => m.PulseAiPanel),
+  { loading: () => <ChunkPlaceholder /> },
+);
+const OpsAutopilotPanel = dynamic(
+  () => import("@/components/ai/ops-autopilot-panel").then((m) => m.OpsAutopilotPanel),
+  { loading: () => <ChunkPlaceholder /> },
+);
 
 /* The dashboard widget catalog. Every tile the dashboard can show lives here;
    the customizable grid renders from this list in the user's saved order.
@@ -41,6 +89,9 @@ export type DashboardWidgetDef = {
   defaultHidden?: boolean;
   /** False for composite boards that carry their own section titles. */
   titled?: boolean;
+  /** Renders from the boot cache (its queries go through useSnapshotQuery),
+   *  so the cold-load preview can show it. Others hold their place there. */
+  bootSafe?: boolean;
   /** Capability the widget's data needs. Without it the widget is not
    *  rendered at all, so its query never runs (and never throws). */
   capability?: string;
@@ -62,6 +113,7 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
   /* ── The hardware overview (kit pulse-overview.png), the default layout ── */
   {
     key: "live",
+    bootSafe: true,
     title: "Live now",
     blurb: "The session running now, or the next one, with its timer and keys",
     span: "hero",
@@ -70,6 +122,7 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
   },
   {
     key: "kpis",
+    bootSafe: true,
     title: "This month",
     blurb: "Revenue, booked hours, deposits held, outstanding",
     span: "side",
@@ -78,6 +131,7 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
   },
   {
     key: "revenue",
+    bootSafe: true,
     title: "Booking revenue",
     blurb: "Collected revenue over 30 days, 90 days or the year",
     span: "third-wide",
@@ -87,6 +141,7 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
   },
   {
     key: "rooms",
+    bootSafe: true,
     title: "Room utilization",
     blurb: "How booked each room was over the last 30 days",
     span: "third",
@@ -96,6 +151,7 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
   },
   {
     key: "ops",
+    bootSafe: true,
     title: "Ops manager",
     blurb: "Pulse AI's top suggestions, to review or snooze",
     span: "third",
@@ -105,6 +161,7 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
   },
   {
     key: "today-sessions",
+    bootSafe: true,
     title: "Today's sessions",
     blurb: "Every booking today with its room, engineer and status",
     span: "hero",
@@ -113,6 +170,7 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
   },
   {
     key: "deposits",
+    bootSafe: true,
     title: "Deposits",
     blurb: "The deposits that cleared most recently",
     span: "side",

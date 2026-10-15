@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useSnapshotQuery } from "@/lib/boot-snapshot";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import { Badge } from "@/components/ui/badge";
@@ -34,7 +34,7 @@ export function statusChip(s: Row, now: number, money: boolean): { label: string
  * running now (or the next one) is the selected row: yellow tint and a 2px
  * yellow left edge. Rows open the booking in place; the room opens its page. */
 export function TodaysSessions() {
-  const data = useQuery(api.today.today, {});
+  const data = useSnapshotQuery(api.today.today, {});
   const now = useNow(30_000);
   const openSession = useOpenSession();
 

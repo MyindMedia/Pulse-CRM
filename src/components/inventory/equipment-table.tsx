@@ -59,6 +59,13 @@ export type EquipmentRow = {
   effectiveStatus: string;
   /** Uploaded display photo, or null when none is set. */
   photo: string | null;
+  /** The teammate who owns it; absent when the studio does. */
+  ownerMemberId?: Id<"members">;
+  /** Their name, "Former teammate" once they have left, null for studio gear. */
+  ownerName: string | null;
+  ownedByMe: boolean;
+  /** Who has it checked out right now. */
+  checkedOutTo: string | null;
 };
 
 const COLUMN_COUNT = 10;
@@ -139,8 +146,9 @@ export function EquipmentTable({
           ? `${item.name} removed from rentals.`
           : `${item.name} is now rentable. Set its price on the Rentals page.`,
       );
-    } catch {
-      toast.error("Could not update. Try again.");
+    } catch (err) {
+      const said = (err as { data?: unknown })?.data;
+      toast.error(typeof said === "string" ? said : "Could not update. Try again.");
     } finally {
       setPendingId(null);
     }
@@ -262,7 +270,15 @@ export function EquipmentTable({
                             Rentable{item.rentalPriceCents ? ` · ${money(item.rentalPriceCents)}` : ""}
                           </Badge>
                         )}
+                        {item.ownerName && (
+                          <Badge tone="info" className="shrink-0">
+                            {item.ownedByMe ? "Yours" : `Owned by ${item.ownerName}`}
+                          </Badge>
+                        )}
                       </p>
+                      {item.checkedOutTo && (
+                        <p className="text-[0.6875rem] text-caution">Out with {item.checkedOutTo}</p>
+                      )}
                       {item.serialNumber && (
                         <p className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                           SN {item.serialNumber}
@@ -364,7 +380,8 @@ export function EquipmentTable({
                       )}
 
                       {/* Rentable toggle - gear only (not furniture). */}
-                      {assetClass(item.category) === "gear" && (
+                      {/* A teammate's own gear is never rented out. */}
+                      {assetClass(item.category) === "gear" && !item.ownerName && (
                         <>
                           <DropdownMenuSeparator />
                           <DropdownMenuItem onSelect={() => handleToggleRentable(item)}>

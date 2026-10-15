@@ -177,6 +177,8 @@ describe("(b) only the Accounting modules reach the ledger", () => {
     "../accountingAgent.ts", "../agents/accounting.ts", "../lib/statements.ts",
     // Types only: the ids a ledger payload names.
     "../opsBrain.ts",
+    // Names the tables for the change log's Money filter; reads no rows.
+    "../lib/changeAudit.ts",
   ]);
 
   it("no other module reads or writes the ledger tables or calls the ledger API", () => {

@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
+import { useSnapshotQuery } from "@/lib/boot-snapshot";
 import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
 import { Pencil } from "lucide-react";
@@ -21,8 +22,8 @@ const pct = (v: number) => `${Math.round(v * 100)}%`;
  * until a goal is set it shows the studio-wide average, and whoever may set
  * the goal gets a key for it. */
 export function RoomUtilization() {
-  const u = useQuery(api.reports.roomUtilization, {});
-  const o = useQuery(api.dashboard.overview, {});
+  const u = useSnapshotQuery(api.reports.roomUtilization, {});
+  const o = useSnapshotQuery(api.dashboard.overview, {});
   const goal = o?.kpis.monthlyGoalCents ?? null;
   const revenue = o?.kpis.revenueThisMonth ?? null;
   const canSetGoal = o?.kpis.canSetGoal === true;

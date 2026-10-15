@@ -541,6 +541,9 @@ export default defineSchema({
     googleSyncDirection: v.optional(calendarSyncDirection),
     googleCalendarPushError: v.optional(v.string()),  // last Pulse -> Google failure
     googleCalendarPushErrorAt: v.optional(v.number()),
+    // Import events from the studio Google calendar as bookings on their own
+    // when the room match is confident and the room is free. Off when unset.
+    googleAutoImport: v.optional(v.boolean()),
     // Personal brand look on top of accent color: a preset id or "custom".
     brandPreset: v.optional(v.string()),
     // Surface style for the whole app + booking page. Unset = "hardware" (the
@@ -1355,6 +1358,10 @@ export default defineSchema({
       v.literal("other"),
     ),
     installedInRoomId: v.optional(v.id("rooms")), // unset → in storage
+    /* Who owns the piece. Unset means the studio does. Set, it is a
+       teammate's own gear: they may edit it without inventory rights, it
+       stays out of the studio's asset value, and it is never rented out. */
+    ownerMemberId: v.optional(v.id("members")),
     /* Keep this piece off the public booking page while leaving it installed
        and inventoried. The room's list is a sales page, not an asset
        register: a studio lists the desk and the U47, not forty cables and the
@@ -1414,7 +1421,8 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_org_room", ["orgId", "installedInRoomId"])
     .index("by_org_category", ["orgId", "category"])
-    .index("by_org_barcode", ["orgId", "barcode"]),
+    .index("by_org_barcode", ["orgId", "barcode"])
+    .index("by_org_owner", ["orgId", "ownerMemberId"]),
 
   // ── Asset documents - receipts / invoices / warranties attached to a
   //    hardware (equipment) or software item. Kept for tax, insurance and
@@ -2561,6 +2569,52 @@ export default defineSchema({
     startTime: v.number(),
     endTime: v.number(),
     allDay: v.optional(v.boolean()),
+    updatedAt: v.number(),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_start", ["orgId", "startTime"])
+    .index("by_event", ["orgId", "googleEventId"]),
+
+  // ── Events on the studio Google calendar, with their details, for the
+  //    "From Google" review list (convex/googleImport.ts). Written by the
+  //    studio pull when it brings Google in (two_way or pull). Studio-private:
+  //    descriptions and guest emails never reach a public page. Pulse's own
+  //    pushed events are never stored here: they are already sessions. ──
+  googleEvents: defineTable({
+    orgId: v.string(),
+    calendarId: v.string(),
+    googleEventId: v.string(),
+    title: v.string(),
+    startTime: v.number(),
+    endTime: v.number(),
+    allDay: v.boolean(),
+    location: v.optional(v.string()),
+    description: v.optional(v.string()), // plain text, capped
+    attendees: v.array(
+      v.object({
+        email: v.optional(v.string()),
+        name: v.optional(v.string()),
+        responseStatus: v.optional(v.string()),
+        resource: v.optional(v.boolean()), // a Google Workspace room resource
+        organizer: v.optional(v.boolean()),
+        self: v.optional(v.boolean()),
+      }),
+    ),
+    organizerEmail: v.optional(v.string()),
+    organizerName: v.optional(v.string()),
+    htmlLink: v.optional(v.string()),
+    status: v.union(v.literal("confirmed"), v.literal("tentative"), v.literal("cancelled")),
+    googleUpdatedAt: v.optional(v.number()),
+    recurringEventId: v.optional(v.string()),
+    // The room the pull last matched with confidence (exact or strong). A
+    // change here on an imported booking files a room change request.
+    matchedRoomId: v.optional(v.id("rooms")),
+    // Set once it became a Pulse booking (by hand or auto-import).
+    importedSessionId: v.optional(v.id("sessions")),
+    importedAt: v.optional(v.number()),
+    // Hidden from the review list by someone at the studio.
+    ignoredAt: v.optional(v.number()),
+    ignoredByMemberId: v.optional(v.id("members")),
     updatedAt: v.number(),
   })
     .index("by_org", ["orgId"])

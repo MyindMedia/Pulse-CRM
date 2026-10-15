@@ -1,15 +1,22 @@
 "use client";
 
+import { useEffect } from "react";
 import Link from "next/link";
 import { SignIn } from "@clerk/nextjs";
 import { clerkAppearance } from "@/lib/clerk-appearance";
 import { SignInBrand } from "@/components/shell/sign-in-brand";
+import { wipeBootSnapshots } from "@/lib/boot-snapshot";
 
 const CLERK_ENABLED = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
 /* Studio owners sign in here once Clerk is configured. With no Clerk key
    the app runs in demo mode and no sign-in is required. */
 export default function SignInPage() {
+  // Reaching sign-in means no one is signed in on this browser (or the
+  // session ended elsewhere): drop any cached dashboard and theme.
+  useEffect(() => {
+    if (CLERK_ENABLED) wipeBootSnapshots();
+  }, []);
   return (
     <div className="relative grid min-h-dvh place-items-center bg-ink p-6">
       {/* Aurora backdrop - the glass sign-in card refracts these drifting

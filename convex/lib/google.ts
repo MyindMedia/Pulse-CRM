@@ -165,6 +165,8 @@ export async function gmailSend(
 
 export type GoogleCalendarEventBody = {
   summary: string;
+  /** Unset leaves the event's own description alone on a PATCH (events
+   *  imported from Google keep what the studio wrote there). */
   description?: string;
   start: { dateTime: string };
   end: { dateTime: string };
@@ -184,9 +186,25 @@ export type GoogleCalendarListEvent = {
   status?: string; // "confirmed" | "tentative" | "cancelled"
   transparency?: string; // "transparent" = shows as free
   summary?: string;
-  start?: { dateTime?: string; date?: string };
-  end?: { dateTime?: string; date?: string };
+  start?: { dateTime?: string; date?: string; timeZone?: string };
+  end?: { dateTime?: string; date?: string; timeZone?: string };
   extendedProperties?: { private?: Record<string, string> };
+  // Details the studio calendar pull keeps for the "From Google" review list.
+  // All come back on events.list under the existing calendar.events scope.
+  location?: string;
+  description?: string;
+  htmlLink?: string;
+  updated?: string;
+  recurringEventId?: string;
+  organizer?: { email?: string; displayName?: string; self?: boolean };
+  attendees?: {
+    email?: string;
+    displayName?: string;
+    responseStatus?: string;
+    resource?: boolean;
+    organizer?: boolean;
+    self?: boolean;
+  }[];
 };
 
 /** Events collection URL of one calendar (primary when none is chosen). */

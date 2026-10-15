@@ -37,6 +37,10 @@ export type SessionForCalendar = {
   serviceType?: string;
   /** Booking-request state (sessions.requestStatus). Unset on ordinary bookings. */
   requestStatus?: "pending" | "approved" | "declined";
+  /** The booking was imported from an event already on the studio calendar
+   *  (sessions.source "google"). Its push patches that event's time, title and
+   *  status, and leaves the studio's own description alone. */
+  imported?: boolean;
 };
 
 /** Pure: Pulse session -> Google Calendar event body. Status maps onto the
@@ -56,6 +60,17 @@ export function sessionToCalendarEvent(
 
   const serviceLine = session.serviceType ? ` (${session.serviceType})` : "";
   const studio = opts?.studioName ?? "the studio";
+
+  if (session.imported) {
+    // The event was the studio's before it was a Pulse booking: keep its
+    // title as written and its description, and leave no Pulse tag on it.
+    return {
+      summary: session.title,
+      start: { dateTime: new Date(session.startTime).toISOString() },
+      end: { dateTime: new Date(session.endTime).toISOString() },
+      status: googleStatus,
+    };
+  }
 
   return {
     summary: `${session.title}${serviceLine}`,
@@ -149,6 +164,7 @@ export const _pushContext = internalQuery({
         status: session.status,
         serviceType: session.serviceType,
         requestStatus: session.requestStatus,
+        imported: session.source === "google",
       },
     };
   },

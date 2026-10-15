@@ -11,15 +11,24 @@ export type UiStyle = "hardware" | "glass";
  * The attribute is removed on unmount, so leaving a glass studio's page never
  * leaks the skin onto the next route.
  */
-export function useUiStyleRoot(style: UiStyle | null | undefined): boolean {
+export function useUiStyleRoot(
+  style: UiStyle | null | undefined,
+  /** Pass true once the style is KNOWN (not loading). Hardware then also
+   *  clears an attribute something else left behind, such as the boot
+   *  cache's first-paint guess (src/lib/boot-cache.ts). */
+  known = false,
+): boolean {
   const glass = style === "glass";
   React.useEffect(() => {
-    if (!glass) return;
+    if (!glass) {
+      if (known) delete document.documentElement.dataset.uiStyle;
+      return;
+    }
     const root = document.documentElement;
     root.dataset.uiStyle = "glass";
     return () => {
       delete root.dataset.uiStyle;
     };
-  }, [glass]);
+  }, [glass, known]);
   return glass;
 }

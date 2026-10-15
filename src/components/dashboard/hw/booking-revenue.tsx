@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { useQuery } from "convex/react";
+import { useSnapshotQuery } from "@/lib/boot-snapshot";
 import { api } from "@convex/_generated/api";
 import { AreaChart } from "@/components/charts/area-chart";
 import { Area } from "@/components/charts/area";
@@ -28,7 +28,7 @@ export function BookingRevenue({
   wide = false,
 }: { title?: string; initialRange?: Range; wide?: boolean } = {}) {
   const [range, setRange] = React.useState<Range>(initialRange);
-  const series = useQuery(api.dashboard.revenueSeries, { range });
+  const series = useSnapshotQuery(api.dashboard.revenueSeries, { range });
   const data = React.useMemo(
     () => (series?.points ?? []).map((p) => ({ date: new Date(p.start), revenue: p.cents / 100 })),
     [series],

@@ -33,6 +33,7 @@ import {
 import { PhotoUploader } from "./photo-uploader";
 import { AssetDocuments } from "./asset-documents";
 import { PhotoUpload } from "@/components/ui/photo-upload";
+import { useCapabilities } from "@/lib/use-capabilities";
 
 /** An equipment record in an editable shape. Pass to edit; omit to create. */
 export type EditableEquipment = {
@@ -47,6 +48,8 @@ export type EditableEquipment = {
   notes?: string;
   rentable?: boolean;
   rentalPriceCents?: number;
+  /** The teammate who owns it; absent when the studio does. */
+  ownerMemberId?: Id<"members"> | null;
   /** Current display photo URL, when one is set. */
   photo?: string | null;
 };
@@ -63,7 +66,12 @@ type FormState = {
   notes: string;
   rentable: boolean;
   rentalPrice: string;
+  /** A teammate's member id, or STUDIO. */
+  owner: string;
 };
+
+/** Sentinel select value for "the studio owns it". */
+const STUDIO = "__studio__";
 
 /** Sentinel select value for "not installed - sits in storage". */
 const STORAGE = "__storage__";
@@ -80,6 +88,7 @@ const BLANK: FormState = {
   notes: "",
   rentable: false,
   rentalPrice: "",
+  owner: STUDIO,
 };
 
 function toForm(item: EditableEquipment): FormState {
@@ -95,6 +104,7 @@ function toForm(item: EditableEquipment): FormState {
     notes: item.notes ?? "",
     rentable: item.rentable ?? false,
     rentalPrice: item.rentalPriceCents ? (item.rentalPriceCents / 100).toString() : "",
+    owner: item.ownerMemberId ?? STUDIO,
   };
 }
 
@@ -129,6 +139,13 @@ export function EquipmentDialog({
   const updateEquipment = useMutation(api.equipment.update);
   const genPhotoUrl = useMutation(api.equipment.generateUploadUrl);
   const rooms = useQuery(api.rooms.bookable);
+  // Presentation only; the server applies the same rules.
+  const { can } = useCapabilities();
+  const manager = can("equipment.edit");
+  const seesMoney = can("invoices.read");
+  const team = useQuery(api.members.list, manager ? {} : "skip") as
+    | { _id: Id<"members">; name: string }[]
+    | undefined;
 
   const [form, setForm] = React.useState<FormState>(item ? toForm(item) : blank);
   const [submitting, setSubmitting] = React.useState(false);
@@ -220,8 +237,12 @@ export function EquipmentDialog({
       toast.error("Give the equipment a name.");
       return;
     }
-    const purchaseCents = dollarsToCents(form.purchase);
-    const currentValueCents = dollarsToCents(form.currentValue);
+    // Someone who can't see money never sees or sets the figures; the server
+    // keeps none from them either way.
+    const purchaseCents = seesMoney ? dollarsToCents(form.purchase) : 0;
+    const currentValueCents = seesMoney ? dollarsToCents(form.currentValue) : 0;
+    const personal = manager ? form.owner !== STUDIO : true;
+    const rentable = form.rentable && !personal;
     if (purchaseCents === null) {
       toast.error("Purchase value must be greater than zero.");
       return;
@@ -231,7 +252,7 @@ export function EquipmentDialog({
       return;
     }
     // Rental price is only meaningful when the item is offered as an add-on.
-    const rentalPriceCents = form.rentable
+    const rentalPriceCents = rentable
       ? Math.max(0, Math.round((parseFloat(form.rentalPrice) || 0) * 100))
       : 0;
     setSubmitting(true);
@@ -242,13 +263,17 @@ export function EquipmentDialog({
           name,
           category: form.category,
           quantity: Math.max(1, parseInt(form.quantity, 10) || 1),
-          purchaseCents,
-          currentValueCents,
           serialNumber: form.serialNumber.trim() || undefined,
           condition: form.condition.trim() || undefined,
           notes: form.notes.trim() || undefined,
-          rentable: form.rentable,
-          rentalPriceCents,
+          ...(seesMoney ? { purchaseCents, currentValueCents } : {}),
+          ...(manager
+            ? {
+                rentable,
+                rentalPriceCents,
+                ownerMemberId: form.owner === STUDIO ? null : (form.owner as Id<"members">),
+              }
+            : {}),
         });
         toast.success(`${name} updated.`);
       } else {
@@ -267,14 +292,16 @@ export function EquipmentDialog({
           notes: form.notes.trim() || undefined,
           photoId: photoId ? (photoId as Id<"_storage">) : undefined,
           photoUrl: !photoId && catalogPhotoUrl ? catalogPhotoUrl : undefined,
-          rentable: form.rentable || undefined,
-          rentalPriceCents: form.rentable ? rentalPriceCents : undefined,
+          rentable: rentable || undefined,
+          rentalPriceCents: rentable ? rentalPriceCents : undefined,
+          ownerMemberId: manager && form.owner !== STUDIO ? (form.owner as Id<"members">) : undefined,
         });
         toast.success(`${name} added to inventory.`);
       }
       onOpenChange(false);
-    } catch {
-      toast.error("Could not save the equipment. Try again.");
+    } catch (err) {
+      const said = (err as { data?: unknown })?.data;
+      toast.error(typeof said === "string" ? said : "Could not save the equipment. Try again.");
     } finally {
       setSubmitting(false);
     }
@@ -494,6 +521,33 @@ export function EquipmentDialog({
               )}
             </div>
 
+            {manager ? (
+              <Field
+                label="Owned by"
+                htmlFor="equip-owner"
+                hint="A teammate's own gear stays out of the studio's value and is never rented out."
+              >
+                <Select value={form.owner} onValueChange={(v) => set("owner", v)}>
+                  <SelectTrigger id="equip-owner">
+                    <SelectValue placeholder="The studio" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={STUDIO}>The studio</SelectItem>
+                    {(team ?? []).map((m) => (
+                      <SelectItem key={m._id} value={m._id}>
+                        {m.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+            ) : (
+              <p className="rounded-md border border-graphite/50 bg-coal-2 px-3 py-2 text-xs text-steel">
+                This is listed as <span className="text-bone">your own gear</span>. You can edit or remove it any time;
+                a manager can see it too.
+              </p>
+            )}
+
             <div className="grid gap-4 sm:grid-cols-3">
               <Field
                 label="Quantity"
@@ -512,6 +566,8 @@ export function EquipmentDialog({
                   autoComplete="off"
                 />
               </Field>
+              {seesMoney && (
+                <>
               <Field
                 label="Purchase value"
                 htmlFor="equip-purchase"
@@ -548,6 +604,8 @@ export function EquipmentDialog({
                   required
                 />
               </Field>
+                </>
+              )}
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
@@ -583,7 +641,7 @@ export function EquipmentDialog({
 
             {/* Rental add-on: offer this item on the public booking page.
                 Gear only - never furniture / acoustic / decor / cable. */}
-            {assetClass(form.category) === "gear" && (
+            {assetClass(form.category) === "gear" && manager && form.owner === STUDIO && (
             <div className="space-y-3 rounded-md border border-graphite/50 bg-coal-2 p-3">
               <label className="flex cursor-pointer items-start gap-2.5">
                 <input

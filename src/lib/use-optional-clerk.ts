@@ -1,6 +1,7 @@
 "use client";
 
 import { useClerk, useUser } from "@clerk/nextjs";
+import { wipeBootSnapshots } from "./boot-snapshot";
 
 /* Demo mode (no publishable key) boots without <ClerkProvider>, and Clerk
    hooks throw when called outside it - which used to crash the whole app
@@ -17,10 +18,17 @@ export function useOptionalUser(): { user: ReturnType<typeof useUser>["user"] } 
   return { user };
 }
 
-/** Clerk's signOut when configured; null in demo mode (hide the control). */
-export function useOptionalSignOut(): ReturnType<typeof useClerk>["signOut"] | null {
+type SignOut = ReturnType<typeof useClerk>["signOut"];
+
+/** Clerk's signOut when configured; null in demo mode (hide the control).
+ *  Signing out first wipes the boot cache (the cached dashboard and theme,
+ *  src/lib/boot-cache.ts), so the next person on this browser sees none of it. */
+export function useOptionalSignOut(): SignOut | null {
   if (!CLERK_ENABLED) return null;
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const { signOut } = useClerk();
-  return signOut;
+  return ((...args: Parameters<SignOut>) => {
+    wipeBootSnapshots();
+    return signOut(...args);
+  }) as SignOut;
 }

@@ -35,6 +35,7 @@ import { AgendaList } from "@/components/calendar/agenda-list";
 import { SessionSheet } from "@/components/calendar/session-sheet";
 import { BlockRoomDialog, BlockSheet, BlocksStrip, useRoomBlocks, type RoomBlock } from "@/components/calendar/room-blocks";
 import { BookSessionDialog } from "@/components/calendar/book-session-dialog";
+import { GoogleImportCard } from "@/components/calendar/google-import";
 import {
   MONTH_NAMES,
   monthGridDays,
@@ -220,6 +221,9 @@ function CalendarView() {
           </div>
         }
       />
+
+      {/* Events on the studio Google calendar waiting to become bookings. */}
+      <GoogleImportCard />
 
       {/* Controls */}
       <div className="flex flex-wrap items-center gap-3">

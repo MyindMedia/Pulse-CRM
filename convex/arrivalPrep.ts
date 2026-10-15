@@ -45,6 +45,33 @@ export const forSessions = query({
   },
 });
 
+/** Prep state for the next `limit` upcoming sessions: the same window
+ *  sessions.upcoming returns (start in the future, cancelled and no-show
+ *  bookings left out), so the dashboard can ask for both at once instead of
+ *  waiting for the session list to name the ids. Returns the same shape as
+ *  forSessions. */
+export const forUpcoming = query({
+  args: { limit: v.optional(v.number()) },
+  handler: async (ctx, { limit }) => {
+    const orgId = await currentOrg(ctx);
+    const now = Date.now();
+    const rows = await ctx.db
+      .query("sessions")
+      .withIndex("by_org_start", (q) => q.eq("orgId", orgId).gte("startTime", now))
+      .filter((q) => q.and(q.neq(q.field("status"), "cancelled"), q.neq(q.field("status"), "no_show")))
+      .take(Math.min(Math.max(limit ?? 8, 1), 24));
+    const out: Record<string, string[]> = {};
+    for (const s of rows) {
+      const row = await ctx.db
+        .query("arrivalPrep")
+        .withIndex("by_org_session", (q) => q.eq("orgId", orgId).eq("sessionId", s._id))
+        .first();
+      if (row) out[s._id] = row.done;
+    }
+    return out;
+  },
+});
+
 /** Sessions in their wrap-up window: ending within the next 45 minutes or
  *  ended within the last 45 (in progress / confirmed / completed). Each row
  *  carries the NEXT session in the same room within 2h of the end - the
