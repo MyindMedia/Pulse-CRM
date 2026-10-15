@@ -18,6 +18,7 @@ import { MyCalendarCard } from "@/components/calendar/my-calendar-card";
 import { useMemberBusy, BusyChips } from "@/components/schedule/member-busy";
 import { EngineerRequests } from "@/components/schedule/engineer-requests";
 import { UnstaffedSessions } from "@/components/schedule/unstaffed-sessions";
+import { GoogleImportCard } from "@/components/calendar/google-import";
 import { EntityLink } from "@/components/shell/entity-link";
 import { cn } from "@/lib/utils";
 
@@ -156,6 +157,8 @@ export default function SchedulePage() {
       <EngineerRequests />
 
       <UnstaffedSessions />
+
+      <GoogleImportCard />
 
       {/* Week nav */}
       <div className="flex items-center justify-between">

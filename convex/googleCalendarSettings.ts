@@ -57,6 +57,10 @@ export const setCalendar = mutation({
     }
     const old = await ctx.db.query("googleBusyBlocks").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
     for (const b of old) await ctx.db.delete(b._id);
+    // The old calendar's events leave the review list too; ones that became
+    // bookings stay, so their bookings keep their history.
+    const events = await ctx.db.query("googleEvents").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
+    for (const e of events) if (!e.importedSessionId) await ctx.db.delete(e._id);
     await ctx.db.patch(org._id, {
       googleCalendarId: calendarId,
       googleCalendarName: calendarName,
