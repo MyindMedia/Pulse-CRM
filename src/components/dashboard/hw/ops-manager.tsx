@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
+import { useSnapshotQuery } from "@/lib/boot-snapshot";
 import { api } from "@convex/_generated/api";
 import type { Doc } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
@@ -19,7 +20,7 @@ const DAY = 86_400_000;
  * open the same sheet. Approving still happens in the sheet, never in one
  * click from here. */
 export function OpsManager() {
-  const queue = useQuery(api.opsActions.list, { limit: 3 });
+  const queue = useSnapshotQuery(api.opsActions.list, { limit: 3 });
   const snooze = useMutation(api.opsActions.snooze);
   const [open, setOpen] = React.useState<Doc<"opsActions"> | null>(null);
 

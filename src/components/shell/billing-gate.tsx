@@ -5,7 +5,8 @@ import { useAction, useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
 import { CreditCard, Hourglass, Lock, Sparkles } from "lucide-react";
-import { PulseLoader } from "@/components/brand/pulse-loader";
+import { BootShell } from "@/components/shell/boot-shell";
+import { DashboardPrefetch } from "@/components/dashboard/dashboard-prefetch";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody,
@@ -195,13 +196,25 @@ export function BillingBanner() {
  *  the same reason. */
 export function BillingLockGate({ children }: { children: React.ReactNode }) {
   const billing = useQuery(api.agencyBilling.myBilling);
+  // The dashboard's queries go out in the same batch as this plan check
+  // instead of after it (see DashboardPrefetch). It stays mounted across the
+  // swap so their answers are still cached when the tiles read them.
+  const prefetch = <DashboardPrefetch />;
   if (billing === undefined) {
     return (
-      <PulseLoader message="Checking your plan" />
+      <>
+        {prefetch}
+        <BootShell />
+      </>
     );
   }
   if (billing?.locked) return <BillingLock />;
-  return <>{children}</>;
+  return (
+    <>
+      {prefetch}
+      {children}
+    </>
+  );
 }
 
 /** Full-screen lock when the trial lapsed and a card is required. */

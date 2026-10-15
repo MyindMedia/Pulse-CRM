@@ -21,14 +21,19 @@ export function OrgTheme({ children }: { children: React.ReactNode }) {
   const accent = org?.accentColor ?? null;
   const secondary = org?.brandSecondary ?? null;
   // Pulse Hardware (default) or iOS Glass: a root attribute glass.css keys on.
-  useUiStyleRoot(org?.uiStyle);
+  useUiStyleRoot(org?.uiStyle, org !== undefined);
   // A Max white-label theme driven by these brand colors may be light; the
   // accent is then guarded against its surface instead of the dark face.
   // Same guard WhiteLabelTheme uses, so the two layers write equal values.
   const wl = useQuery(api.theme.get);
   const guard = brandGuardFor(wl);
+  // Nothing is written or cleared while either answer is still loading, so
+  // the cached first-paint theme (src/lib/boot-cache.ts) holds until the
+  // live one is known instead of flashing stock gold in between.
+  const ready = org !== undefined && wl !== undefined;
 
   React.useEffect(() => {
+    if (!ready) return;
     const root = document.documentElement;
     const theme = deriveBrandTheme(accent, secondary, guard);
     for (const key of BRAND_THEME_KEYS) {
@@ -44,7 +49,7 @@ export function OrgTheme({ children }: { children: React.ReactNode }) {
       for (const key of BRAND_THEME_KEYS) root.style.removeProperty(key);
       delete root.dataset.brandTheme;
     };
-  }, [accent, secondary, guard]);
+  }, [ready, accent, secondary, guard]);
 
   return <>{children}</>;
 }

@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useMutation, useQuery } from "convex/react";
+import { useMutation } from "convex/react";
+import { useSnapshotQuery } from "@/lib/boot-snapshot";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -59,7 +60,7 @@ export function pickLive(sessions: Row[], now: number): { live: Row | null; next
  * on the blueprint grid, with the lens module on the right. Every sentence
  * is assembled from today's bookings; nothing here is made up. */
 export function LiveSessionHero() {
-  const data = useQuery(api.today.today, {});
+  const data = useSnapshotQuery(api.today.today, {});
   const now = useNow(1000);
   const { can } = useCapabilities();
 

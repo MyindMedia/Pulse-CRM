@@ -22,6 +22,25 @@ import "./glass.css";
 import { fromPriceLabel } from "@/components/marketing/pricing-tiers";
 import { IS_STAGING } from "@/lib/deploy-env";
 import { StagingBadge } from "@/components/shell/staging-badge";
+import { auth } from "@clerk/nextjs/server";
+import { bootThemeScript } from "@/lib/boot-cache";
+import { BootUserProvider } from "@/lib/boot-user";
+
+const CLERK_ENABLED = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
+
+/* Who is signed in, for the boot cache (src/lib/boot-cache.ts): the cached
+   first-paint theme and dashboard are chosen per person. The middleware has
+   already verified this request's Clerk session, so auth() answers from it
+   without a network call. Demo mode (no Clerk) has one viewer, "demo". */
+async function bootUserId(): Promise<string | null> {
+  if (!CLERK_ENABLED) return "demo";
+  try {
+    const { userId } = await auth();
+    return userId ?? null;
+  } catch {
+    return null;
+  }
+}
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const jetbrainsMono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono", display: "swap" });
@@ -120,6 +139,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
    */
   const host = (await headers()).get("host") ?? "";
   const isSatellite = isSatelliteHost(host);
+  const bootUser = await bootUserId();
+  const bootScript = bootThemeScript(bootUser);
   return (
     <html
       lang="en"
@@ -154,10 +175,16 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               "(function(){try{var t=localStorage.getItem('pulse-theme');document.documentElement.dataset.theme=(t==='light'||t==='dark')?t:'dark';}catch(e){document.documentElement.dataset.theme='dark';}})();",
           }}
         />
+        {/* First paint in the studio's own colors on app routes: this
+            person's cached theme (brand, white-label, Hardware or Glass),
+            applied before the shell below is painted. Public pages are
+            skipped inside the script. */}
+        {bootScript && <script dangerouslySetInnerHTML={{ __html: bootScript }} />}
         {/* Tooltips live at the root, not just inside the app shell, so the
             public surfaces (booking, kiosk, portal) can label their icon
             controls too. */}
         <TooltipProvider delayDuration={300}>
+          <BootUserProvider userId={bootUser}>
           <ConvexClientProvider isSatellite={isSatellite}>
             {/* Turns pulse:// links into navigation inside the macOS/iOS app. A
                 no-op in a browser (src/lib/shell.ts). */}
@@ -165,6 +192,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
             <StagingBadge />
             {children}
           </ConvexClientProvider>
+          </BootUserProvider>
         </TooltipProvider>
         <Toaster
           theme="dark"

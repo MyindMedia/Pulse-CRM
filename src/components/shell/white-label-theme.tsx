@@ -67,6 +67,9 @@ export function WhiteLabelTheme() {
       // Tells the rest of the CSS which way round this theme is, so anything
       // keyed on light or dark reacts instead of assuming.
       root.dataset.themeMode = isDark(c.background) ? "dark" : "light";
+    } else {
+      // Clears a first-paint guess the boot cache may have left.
+      delete root.dataset.themeMode;
     }
 
     // Load the chosen faces, then point the type voices at them.

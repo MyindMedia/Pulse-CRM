@@ -1,8 +1,12 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
+import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
-import { SessionSheet } from "@/components/calendar/session-sheet";
+
+/* Loaded the first time a booking is opened (or deep-linked), not on every
+   cold load of every page; then kept mounted so closing animates. */
+const SessionSheet = dynamic(() => import("@/components/calendar/session-sheet").then((m) => m.SessionSheet), { ssr: false });
 import { SESSION_PARAM } from "@/lib/entity-href";
 import { useOpenSession } from "@/lib/use-open-session";
 
@@ -13,7 +17,10 @@ function GlobalSessionSheetInner() {
   const pathname = usePathname();
   const sessionId = useSearchParams().get(SESSION_PARAM);
   const openSession = useOpenSession();
+  const [armed, setArmed] = useState(false);
+  if (sessionId && !armed) setArmed(true);
   if (pathname === "/calendar" || pathname.startsWith("/calendar/")) return null;
+  if (!armed) return null;
   return <SessionSheet sessionId={sessionId} onClose={() => openSession(null)} />;
 }
 

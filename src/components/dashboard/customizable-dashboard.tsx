@@ -32,6 +32,7 @@ import { Section } from "@/components/ui/page";
 import { ArrivalPrepCard } from "@/components/dashboard/arrival-prep-card";
 import { useOptionalUser } from "@/lib/use-optional-clerk";
 import { useCapabilities } from "@/lib/use-capabilities";
+import { SnapshotTile, useBootMode } from "@/lib/boot-snapshot";
 import {
   type DashboardLayout,
   hideKey,
@@ -95,6 +96,11 @@ function SortableWidget({
   );
 }
 
+/** Holds a tile's place in the boot preview for a widget with no cache. */
+function TilePlaceholder() {
+  return <div aria-hidden className="pl-card min-h-[220px] flex-1 animate-pulse opacity-60" />;
+}
+
 /**
  * The customizable dashboard grid. Widgets come from the registry; the user's
  * order + hidden set persists per user (same localStorage pattern as the
@@ -111,6 +117,9 @@ export function CustomizableDashboard() {
     normalizeLayout(null, WIDGET_KEYS, DEFAULT_HIDDEN),
   );
   const [editing, setEditing] = React.useState(false);
+  // The boot preview (cached figures, session not yet confirmed) renders this
+  // grid inert; widgets that cannot render from the cache hold their place.
+  const boot = useBootMode();
 
   // Hydrate the saved layout after mount (matches the sidebar pattern so the
   // first paint agrees with the server render).
@@ -215,9 +224,11 @@ export function CustomizableDashboard() {
 
       {/* PINNED: Arrival prep always leads the dashboard - the front desk's
           next-client alert + checklist stays above every custom layout. */}
-      <Section title="Arrival prep">
-        <ArrivalPrepCard />
-      </Section>
+      <SnapshotTile>
+        <Section title="Arrival prep">
+          <ArrivalPrepCard />
+        </Section>
+      </SnapshotTile>
 
       {/* The grid */}
       {editing ? (
@@ -242,12 +253,21 @@ export function CustomizableDashboard() {
           {shown.map((key) => {
             const def = BY_KEY.get(key);
             if (!def) return null;
+            const body =
+              boot && !def.bootSafe ? (
+                <TilePlaceholder />
+              ) : def.titled === false ? (
+                def.render()
+              ) : (
+                <Section title={def.title}>{def.render()}</Section>
+              );
             return (
               // flex column: a chassis fills its grid cell, so chassis in one row
-              // share a height like the kit's.
-              <div key={key} className={cn(SPAN_CLASS[def.span], "flex flex-col")}>
-                {def.titled === false ? def.render() : <Section title={def.title}>{def.render()}</Section>}
-              </div>
+              // share a height like the kit's. SnapshotTile keeps the tile inert
+              // while it shows the cached figures from the last visit.
+              <SnapshotTile key={key} className={cn(SPAN_CLASS[def.span], "flex flex-col")}>
+                {body}
+              </SnapshotTile>
             );
           })}
         </div>

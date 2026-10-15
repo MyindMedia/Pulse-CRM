@@ -22,16 +22,12 @@ const PeriodContext = React.createContext<{ period: Period; setPeriod: (p: Perio
 });
 
 export function DashboardPeriodProvider({ children }: { children: React.ReactNode }) {
-  const [period, setPeriodState] = React.useState<Period>("month");
   // Remember the choice per browser (a convenience; Month is the default).
-  React.useEffect(() => {
-    try {
-      const saved = localStorage.getItem(KEY);
-      if (saved === "day" || saved === "week" || saved === "month") setPeriodState(saved);
-    } catch {
-      /* storage unavailable */
-    }
-  }, []);
+  // Read at first render, not in an effect: the effect version subscribed the
+  // month's KPI query, then dropped it for the saved period one round trip
+  // later. The dashboard never renders during hydration (it waits behind the
+  // shell's gates), so reading storage here cannot mismatch the server HTML.
+  const [period, setPeriodState] = React.useState<Period>(savedPeriod);
   const setPeriod = React.useCallback((p: Period) => {
     setPeriodState(p);
     try {
@@ -42,6 +38,18 @@ export function DashboardPeriodProvider({ children }: { children: React.ReactNod
   }, []);
   const value = React.useMemo(() => ({ period, setPeriod }), [period, setPeriod]);
   return <PeriodContext.Provider value={value}>{children}</PeriodContext.Provider>;
+}
+
+/** The period this browser last chose, or Month. */
+export function savedPeriod(): Period {
+  try {
+    if (typeof window === "undefined") return "month";
+    const saved = localStorage.getItem(KEY);
+    if (saved === "day" || saved === "week" || saved === "month") return saved;
+  } catch {
+    /* storage unavailable */
+  }
+  return "month";
 }
 
 export function useDashboardPeriod() {

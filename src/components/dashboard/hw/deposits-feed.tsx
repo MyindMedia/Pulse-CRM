@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useSnapshotQuery } from "@/lib/boot-snapshot";
 import { api } from "@convex/_generated/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -13,8 +13,8 @@ import { Chassis, ChassisTitle, EmptyWell, usd } from "./parts";
  * recently, each with its client, room and booking date. The chip says
  * Stripe synced only when the studio's Stripe account can take charges. */
 export function DepositsFeed() {
-  const rows = useQuery(api.payments.recentDeposits, { limit: 6 });
-  const stripe = useQuery(api.stripeConnect.status, {});
+  const rows = useSnapshotQuery(api.payments.recentDeposits, { limit: 6 });
+  const stripe = useSnapshotQuery(api.stripeConnect.status, {});
 
   return (
     <Chassis>

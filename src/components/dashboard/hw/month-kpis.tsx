@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "convex/react";
+import { useSnapshotQuery } from "@/lib/boot-snapshot";
 import { api } from "@convex/_generated/api";
 import { Chassis, ChassisTitle, Delta, StatTile, usd } from "./parts";
 import { useDashboardPeriod, usePeriodBounds } from "./period";
@@ -15,8 +15,8 @@ const fmtHours = (h: number) => new Intl.NumberFormat("en-US", { maximumFraction
 export function MonthKpis() {
   const { period } = useDashboardPeriod();
   const b = usePeriodBounds(period);
-  const p = useQuery(api.dashboard.periodKpis, { start: b.start, end: b.end, prevStart: b.prevStart, prevEnd: b.prevEnd });
-  const o = useQuery(api.dashboard.overview, {});
+  const p = useSnapshotQuery(api.dashboard.periodKpis, { start: b.start, end: b.end, prevStart: b.prevStart, prevEnd: b.prevEnd });
+  const o = useSnapshotQuery(api.dashboard.overview, {});
 
   if (!p || !o) {
     return (
