@@ -1,9 +1,9 @@
 "use client";
 
 import * as React from "react";
-import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useHydrated } from "./use-hydrated";
+import { useSnapshotQuery } from "./boot-snapshot";
 
 /**
  * Read the current viewer's role + capabilities for capability-aware UI.
@@ -24,7 +24,9 @@ export function useCapabilities() {
    * handle the loading state, so this costs one frame and nothing else.
    */
   const hydrated = useHydrated();
-  const live = useQuery(api.access.myCapabilities, {});
+  // Live when answered; in the dashboard's boot preview, the role this person
+  // had last time (src/lib/boot-snapshot.tsx). Presentation only either way.
+  const live = useSnapshotQuery(api.access.myCapabilities, {});
   const data = hydrated ? live : undefined;
   const caps = React.useMemo(() => new Set(data?.capabilities ?? []), [data]);
   const can = React.useCallback(

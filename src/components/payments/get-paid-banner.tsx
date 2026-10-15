@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useSnapshotQuery } from "@/lib/boot-snapshot";
 import { api } from "@convex/_generated/api";
 import { CreditCard, ArrowRight, X } from "lucide-react";
 
@@ -12,7 +12,7 @@ import { CreditCard, ArrowRight, X } from "lucide-react";
  * Dismissible per session (not a gate).
  */
 export function GetPaidBanner() {
-  const status = useQuery(api.stripeConnect.status, {});
+  const status = useSnapshotQuery(api.stripeConnect.status, {});
   const [dismissed, setDismissed] = React.useState(false);
 
   // Hide while loading, once live, or if dismissed this session.

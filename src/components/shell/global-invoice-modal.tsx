@@ -1,8 +1,12 @@
 "use client";
 
-import { Suspense } from "react";
+import { Suspense, useState } from "react";
+import dynamic from "next/dynamic";
 import { usePathname, useSearchParams } from "next/navigation";
-import { InvoiceModal } from "@/components/payments/invoice-modal";
+
+/* Loaded the first time a invoice is opened (or deep-linked), not on every
+   cold load of every page; then kept mounted so closing animates. */
+const InvoiceModal = dynamic(() => import("@/components/payments/invoice-modal").then((m) => m.InvoiceModal), { ssr: false });
 import { INVOICE_PARAM } from "@/lib/entity-href";
 import { useOpenInvoice } from "@/lib/use-open-invoice";
 
@@ -13,7 +17,10 @@ function GlobalInvoiceModalInner() {
   const pathname = usePathname();
   const invoiceId = useSearchParams().get(INVOICE_PARAM);
   const openInvoice = useOpenInvoice();
+  const [armed, setArmed] = useState(false);
+  if (invoiceId && !armed) setArmed(true);
   if (/^\/payments\/[^/]+$/.test(pathname)) return null;
+  if (!armed) return null;
   return <InvoiceModal invoiceId={invoiceId} onClose={() => openInvoice(null)} />;
 }
 

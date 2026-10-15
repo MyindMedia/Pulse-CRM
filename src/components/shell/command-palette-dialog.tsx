@@ -1,0 +1,151 @@
+"use client";
+
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import { Command } from "cmdk";
+import { useQuery } from "convex/react";
+import { api } from "@convex/_generated/api";
+import { NAV } from "@/lib/nav";
+import { useCapabilities } from "@/lib/use-capabilities";
+import { Music2, Users, ArrowRight, Plus } from "lucide-react";
+import * as DialogPrimitive from "@radix-ui/react-dialog";
+
+const QUICK_ACTIONS: { label: string; href: string; icon: typeof Plus; feature: string; capability?: string }[] = [
+  { label: "New song", href: "/songs?new=1", icon: Plus, feature: "songs" },
+  { label: "Add artist", href: "/roster?new=1", icon: Plus, feature: "clients" },
+  { label: "Book a session", href: "/calendar?new=1", icon: Plus, feature: "calendar" },
+  { label: "Create invoice", href: "/payments?new=1", icon: Plus, feature: "payments", capability: "invoices.send" },
+];
+
+/** The palette itself; loaded by CommandPalette (command-palette.tsx) the
+ *  first time it opens, together with the roster and songs it searches. */
+export default function CommandPaletteDialog({
+  open,
+  setOpen,
+}: {
+  open: boolean;
+  setOpen: React.Dispatch<React.SetStateAction<boolean>>;
+}) {
+  const router = useRouter();
+  const roster = useQuery(api.artists.roster) ?? [];
+  const songs = useQuery(api.songs.picker, {}) ?? [];
+  // Hide nav features the agency has disabled for this sub-account (matches sidebar).
+  const org = useQuery(api.orgs.current);
+  const disabled = new Set(org?.disabledFeatures ?? []);
+  // And what this person's role cannot reach, the way the sidebar hides it: a
+  // search box that offers Payroll to an engineer is the same leak as a link.
+  const { can, loaded } = useCapabilities();
+  const allowed = (capability?: string) => !capability || (loaded && can(capability));
+  const navItems = NAV.filter((item) => (!item.feature || !disabled.has(item.feature)) && allowed(item.capability));
+  const quickActions = QUICK_ACTIONS.filter((a) => !disabled.has(a.feature) && allowed(a.capability));
+
+  const go = (href: string) => {
+    setOpen(false);
+    router.push(href);
+  };
+
+  return (
+    <DialogPrimitive.Root open={open} onOpenChange={setOpen}>
+      <DialogPrimitive.Portal>
+        <DialogPrimitive.Overlay className="anim-overlay fixed inset-0 z-50 bg-ink/80 backdrop-blur-sm" />
+        <DialogPrimitive.Content
+          className="anim-pop fixed left-1/2 top-[12vh] z-50 w-[calc(100vw-2rem)] max-w-xl -translate-x-1/2 overflow-hidden rounded-chrome glass-liquid shadow-elev-4 text-bone"
+          aria-label="Command palette"
+        >
+          <DialogPrimitive.Title className="sr-only">Command palette</DialogPrimitive.Title>
+          <Command loop className="[&_[cmdk-group-heading]]:overline [&_[cmdk-group-heading]]:px-3 [&_[cmdk-group-heading]]:py-1.5">
+            <div className="border-b border-graphite/50 px-3">
+              <Command.Input
+                autoFocus
+                placeholder="Search songs, artists, or jump to a screen…"
+                className="h-12 w-full bg-transparent text-sm text-bone placeholder:text-steel/70 outline-none"
+              />
+            </div>
+            <Command.List className="max-h-[56vh] overflow-y-auto p-2">
+              <Command.Empty className="px-3 py-8 text-center text-sm text-steel/70">
+                Nothing matches that.
+              </Command.Empty>
+
+              <Command.Group heading="Quick actions">
+                {quickActions.map((a) => (
+                  <Item key={a.label} onSelect={() => go(a.href)}>
+                    <a.icon className="size-4 text-gold" />
+                    {a.label}
+                  </Item>
+                ))}
+              </Command.Group>
+
+              <Command.Group heading="Navigate">
+                {navItems.map((n) => (
+                  <Item key={n.href} value={`go ${n.label} ${n.blurb}`} onSelect={() => go(n.href)}>
+                    <n.icon className="size-4 text-steel/70" />
+                    <span>{n.label}</span>
+                    <span className="ml-auto truncate text-xs text-steel/70">{n.blurb}</span>
+                  </Item>
+                ))}
+              </Command.Group>
+
+              {songs.length > 0 && (
+                <Command.Group heading="Songs">
+                  {songs.slice(0, 8).map((s) => (
+                    <Item
+                      key={s._id}
+                      value={`song ${s.title}`}
+                      onSelect={() => go(`/songs/${s._id}`)}
+                    >
+                      <Music2 className="size-4 text-steel/70" />
+                      <span>{s.title}</span>
+                      <span className="ml-auto font-meta text-[0.625rem] uppercase text-steel/70">
+                        {s.stage}
+                      </span>
+                      <ArrowRight className="size-3.5 text-steel/70" />
+                    </Item>
+                  ))}
+                </Command.Group>
+              )}
+
+              {roster.length > 0 && (
+                <Command.Group heading="Clients">
+                  {roster.slice(0, 8).map((a) => (
+                    <Item
+                      key={a._id}
+                      value={`artist ${a.name}`}
+                      onSelect={() => go(`/roster/${a._id}`)}
+                    >
+                      <Users className="size-4 text-steel/70" />
+                      <span>{a.name}</span>
+                      <span className="ml-auto font-meta text-[0.625rem] uppercase text-steel/70">
+                        {a.type}
+                      </span>
+                      <ArrowRight className="size-3.5 text-steel/70" />
+                    </Item>
+                  ))}
+                </Command.Group>
+              )}
+            </Command.List>
+          </Command>
+        </DialogPrimitive.Content>
+      </DialogPrimitive.Portal>
+    </DialogPrimitive.Root>
+  );
+}
+
+function Item({
+  children,
+  onSelect,
+  value,
+}: {
+  children: React.ReactNode;
+  onSelect: () => void;
+  value?: string;
+}) {
+  return (
+    <Command.Item
+      value={value}
+      onSelect={onSelect}
+      className="flex cursor-pointer items-center gap-2.5 rounded-md px-3 py-2 text-sm text-bone outline-none data-[selected=true]:bg-coal-2"
+    >
+      {children}
+    </Command.Item>
+  );
+}

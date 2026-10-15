@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useQuery, useMutation } from "convex/react";
+import { useMutation } from "convex/react";
+import { useSnapshotQuery } from "@/lib/boot-snapshot";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { Check, CircleParking, Coffee, DoorOpen, Eye, UserCheck } from "lucide-react";
@@ -34,7 +35,7 @@ function countdown(startTime: number, now: number): { label: string; soon: boole
 }
 
 export function ArrivalPrepCard({ className }: { className?: string }) {
-  const upcoming = useQuery(api.sessions.upcoming, { limit: 12 });
+  const upcoming = useSnapshotQuery(api.sessions.upcoming, { limit: 12 });
   const setStep = useMutation(api.arrivalPrep.setStep);
   const [parkingFor, setParkingFor] = React.useState<{ sessionId: Id<"sessions">; name: string } | null>(null);
 
@@ -49,10 +50,10 @@ export function ArrivalPrepCard({ className }: { className?: string }) {
     [upcoming, now],
   );
 
-  const prep = useQuery(
-    api.arrivalPrep.forSessions,
-    upcoming === undefined ? "skip" : { sessionIds: arrivals.map((s) => s._id) },
-  );
+  // Prep state for the same upcoming window, fetched alongside it rather than
+  // after it: the old forSessions call had to wait for `upcoming` to name the
+  // sessions, which cost the dashboard a second round trip on every load.
+  const prep = useSnapshotQuery(api.arrivalPrep.forUpcoming, { limit: 12 });
 
   function doneSteps(sessionId: string): Set<string> {
     return new Set(prep?.[sessionId] ?? []);
@@ -177,8 +178,11 @@ export function ArrivalPrepCard({ className }: { className?: string }) {
           </ul>
         )}
       </CardContent>
+      {/* Mounted only while open: it reads the studio on mount, and nothing
+          on a cold load should wait for a dialog nobody opened. */}
+      {parkingFor !== null && (
       <ParkingSignDialog
-        open={parkingFor !== null}
+        open
         onOpenChange={(o) => {
           if (!o) setParkingFor(null);
         }}
@@ -187,6 +191,7 @@ export function ArrivalPrepCard({ className }: { className?: string }) {
           if (parkingFor) void mark(parkingFor.sessionId, "parking", true);
         }}
       />
+      )}
     </Card>
   );
 }

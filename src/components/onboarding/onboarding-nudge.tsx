@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "convex/react";
+import { useSnapshotQuery } from "@/lib/boot-snapshot";
 import { api } from "@convex/_generated/api";
 import { Sparkles, ArrowRight, X } from "lucide-react";
 import * as React from "react";
@@ -12,7 +12,7 @@ import * as React from "react";
  * active either way - this is a gentle prompt, not a gate).
  */
 export function OnboardingNudge() {
-  const mine = useQuery(api.onboarding.mine, {});
+  const mine = useSnapshotQuery(api.onboarding.mine, {});
   const [dismissed, setDismissed] = React.useState(false);
 
   if (!mine || mine.onboardingCompletedAt || dismissed) return null;
