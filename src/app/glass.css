@@ -1,10 +1,12 @@
 /* ============================================================
    iOS Glass (orgs.uiStyle = "glass")
 
-   An Apple iOS 26 / visionOS style Liquid Glass skin for the whole studio:
-   frosted translucent panels over the moving room light, a thin specular
-   edge, a soft inner glow, large continuous corners, pill controls, and the
-   studio's brand colors tinting the glass.
+   An Apple iOS 26 / visionOS style skin for the whole studio, in the dark
+   frosted materials iOS uses: smoked, neutral, tinted glass over the moving
+   room light, so the light glows through as a soft haze while the text on
+   top stays solid. A faint top specular edge, a soft inner shadow, large
+   continuous corners, pill controls, and only a trace of the studio's brand
+   color in the glass.
 
    Opt in with data-ui-style="glass" on <html> (OrgTheme in the app shell,
    useUiStyleRoot on the public pages). With the attribute absent every rule
@@ -16,45 +18,81 @@
    P = [data-ui-style=glass]:not(#g), whose id-weight beats any class chain,
    so this file never needs !important except against inline styles (toasts).
 
-   Method: tokens first (the app's gold/coal/hairline tokens become glass
-   values, so utility classes follow without per-component rewrites), then
-   the shared primitives through their existing classes.
+   Materials (Lawrence 2026-10-14: "too clear, it's not smokey like iOS
+   glass ... a dark background on items like the calendar or the
+   container"). Four, thinnest to thickest, each a dark smoked tint plus
+   blur plus a saturation boost plus the specular edge:
+     ultrathin  nav rail, top bar, tab bar, segmented controls, chips
+     thin       popovers, menus, selects, toasts, the sheet header
+     regular    cards, containers, dialogs, sheets
+     thick      dense data: the calendar grid and agenda, tables, list
+                panels, the sheet body, inputs
 
-   Cost: backdrop-filter sits on page-level containers only (cards, the
-   rail, the top bar, dialogs, sheets, popovers). Cards nested inside a card
-   and anything that repeats in a long list use a plain tint, because a
-   backdrop-filter inside a backdrop-filter can only see its parent anyway.
+   Cost: backdrop-filter sits on page-level chrome only (the rail, the top
+   bar, dialogs, sheets, popovers, toasts, the tab bar). Everything inside
+   the module bay (cards, the calendar, tables) uses the "-flat" variant of
+   its material: the same smoke a notch denser plus a static frost grain, no
+   blur, because each blurred layer re-runs every frame while the light
+   drifts (measured: a dashboard scrolled at 31ms/frame with a blur per
+   card, 19ms without).
    ============================================================ */
 
 /* ── Tokens: dark (the app shell, and public pages by default) ── */
 [data-ui-style=glass]:not(#g) {
-  --gl-base-rgb: 12, 12, 18;
   --gl-brand-rgb: var(--pl-yellow-rgb, 255, 201, 0);
-  --gl-edge: rgba(255, 255, 255, 0.16);
-  --gl-edge-soft: rgba(255, 255, 255, 0.09);
-  --gl-spec: rgba(255, 255, 255, 0.42);
-  --gl-glow: rgba(255, 255, 255, 0.05);
+  --gl-edge: rgba(255, 255, 255, 0.14);
+  --gl-edge-soft: rgba(255, 255, 255, 0.08);
+  --gl-spec: rgba(255, 255, 255, 0.2);
   --gl-shadow-1: 0 8px 28px rgba(0, 0, 0, 0.32), 0 1px 3px rgba(0, 0, 0, 0.3);
   --gl-shadow-2: 0 24px 64px rgba(0, 0, 0, 0.5), 0 4px 14px rgba(0, 0, 0, 0.35);
-  /* Brand tint, one layer on top of the glass fill. */
-  --gl-tint: linear-gradient(rgba(var(--gl-brand-rgb), 0.07), rgba(var(--gl-brand-rgb), 0.07));
-  /* Fills: a bright diagonal sheen, the brand tint, then a dark base that
-     keeps white text above 4.5:1 even where a light pool passes behind. */
-  --gl-fill-1: linear-gradient(145deg, rgba(255, 255, 255, 0.08), rgba(255, 255, 255, 0.02) 60%),
-    var(--gl-tint), rgba(var(--gl-base-rgb), 0.73);
-  --gl-fill-2: linear-gradient(145deg, rgba(255, 255, 255, 0.09), rgba(255, 255, 255, 0.02) 60%),
-    var(--gl-tint), rgba(var(--gl-base-rgb), 0.8);
-  --gl-fill-3: linear-gradient(145deg, rgba(255, 255, 255, 0.07), rgba(255, 255, 255, 0.015) 60%),
-    var(--gl-tint), rgba(var(--gl-base-rgb), 0.5);
+
+  /* Shared layers. The brand only tints; the base is smoked neutral. */
+  --glass-tint: linear-gradient(rgba(var(--gl-brand-rgb), 0.04), rgba(var(--gl-brand-rgb), 0.04));
+  /* Light falling on the top of the pane, gone by 40%. */
+  --glass-sheen: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(255, 255, 255, 0) 40%);
+  /* Frost: a static fine grain (painted once, no per-frame cost) that
+     scatters the light a little, the way frosted glass does. */
+  --glass-frost: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='f'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 0 0 0 0.06 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23f)'/%3E%3C/svg%3E");
+  /* Smoke per thickness. The -flat alphas are for surfaces with no blur:
+     without blur to melt what is behind, a denser smoke does that job. */
+  --glass-ultrathin-smoke: rgba(30, 30, 36, 0.58);
+  --glass-thin-smoke: rgba(26, 26, 32, 0.64);
+  --glass-regular-smoke: rgba(22, 22, 28, 0.68);
+  --glass-regular-smoke-flat: rgba(22, 22, 28, 0.72);
+  --glass-thick-smoke: rgba(18, 18, 24, 0.72);
+  --glass-thick-smoke-flat: rgba(18, 18, 24, 0.76);
+
+  --glass-ultrathin: var(--glass-frost), var(--glass-sheen), var(--glass-tint), var(--glass-ultrathin-smoke);
+  --glass-thin: var(--glass-frost), var(--glass-sheen), var(--glass-tint), var(--glass-thin-smoke);
+  --glass-regular: var(--glass-frost), var(--glass-sheen), var(--glass-tint), var(--glass-regular-smoke);
+  --glass-thick: var(--glass-frost), var(--glass-sheen), var(--glass-tint), var(--glass-thick-smoke);
+  --glass-regular-flat: var(--glass-frost), var(--glass-sheen), var(--glass-tint), var(--glass-regular-smoke-flat);
+  --glass-thick-flat: var(--glass-frost), var(--glass-tint), var(--glass-thick-smoke-flat);
+  /* Fields: a recessed well of the thick smoke. */
+  --glass-field: var(--glass-tint), var(--glass-thick-smoke);
+
+  --glass-ultrathin-fx: blur(24px) saturate(170%);
+  --glass-thin-fx: blur(28px) saturate(180%);
+  --glass-regular-fx: blur(32px) saturate(180%);
+  --glass-thick-fx: blur(40px) saturate(190%);
+
+  /* Specular top edge, a hairline all round, and a soft inner shadow that
+     pools at the bottom of the pane. */
+  --glass-edge: inset 0 1px 0 var(--gl-spec), inset 0 0 0 1px rgba(255, 255, 255, 0.045),
+    inset 0 -18px 36px -24px rgba(0, 0, 0, 0.55);
+
   --gl-fill-inset: rgba(255, 255, 255, 0.06);
-  --gl-blur-1: blur(16px) saturate(160%);
-  --gl-blur-2: blur(24px) saturate(180%);
-  --gl-scrim: rgba(6, 6, 10, 0.38);
+  --gl-scrim: rgba(6, 6, 10, 0.46);
   --gl-dim: 0.22;
-  /* Secondary text steps up a notch: it sits on a lit, blurred surface, not
-     a flat slab, so the hardware greys would fall under 4.5:1. */
-  --pl-ink-muted: #e0e0e5;
-  --pl-ink-subtle: #cbcbd2;
+  /* Text steps up a notch: it sits on lit glass, not a flat slab, so the
+     hardware greys would fall under 4.5:1 where the light is brightest.
+     Every step clears 4.5:1 on every material over the brightest and the
+     darkest pixel the room light reaches (worst pixel, frost included). */
+  --pl-ink-muted: #e8e8ec;
+  --pl-ink-subtle: #dadae0;
+  /* Tertiary text: what text-steel/70 and friends become under glass. A
+     see-through grey loses contrast twice on glass, so it is solid here. */
+  --gl-ink-tertiary: #cdcdd4;
   /* !important for the same reason as the surface tokens below: the Max
      white-label theme writes its text ramp inline on <html>. */
   --color-mist: var(--pl-ink-muted) !important;
@@ -69,39 +107,51 @@
 
   /* The app's own tokens, as glass. !important because the Max white-label
      theme paints these same surface tokens inline on <html>, and an inline
-     style would otherwise turn every bg-coal panel back into a solid slab. Surfaces become see-through whites on
-     the dark field, so a bg-coal panel inside a card frosts instead of
-     going opaque. ink (the canvas) stays solid. */
+     style would otherwise turn every bg-coal panel back into a solid slab.
+     Inside a material these are see-through whites (the iOS fills), so a
+     bg-coal panel inside a card frosts instead of going opaque; a bg-coal
+     container sitting straight on the page gets the thick smoke below.
+     ink (the canvas) stays solid. */
   --color-coal: rgba(255, 255, 255, 0.05) !important;
   --color-coal-2: rgba(255, 255, 255, 0.08) !important;
   --color-coal-3: rgba(255, 255, 255, 0.17) !important;
   --color-obsidian: rgba(10, 10, 16, 0.34) !important;
-  --color-hairline: rgba(255, 255, 255, 0.12) !important;
-  --color-hairline-2: rgba(255, 255, 255, 0.2) !important;
+  --color-hairline: rgba(255, 255, 255, 0.1) !important;
+  --color-hairline-2: rgba(255, 255, 255, 0.18) !important;
   --color-graphite: rgba(255, 255, 255, 0.14) !important;
 }
 
-/* ── Tokens: light (public pages only; the app shell is dark-forced) ── */
+/* ── Tokens: light (public pages only; the app shell is dark-forced) ──
+   Frosted white. Every material is as opaque as, or more opaque than, the
+   surface it replaced, so dark text never loses contrast. */
 [data-ui-style=glass][data-theme=light]:not(#g):not(:has(.pulse-hw)) {
-  --gl-base-rgb: 255, 255, 255;
   --gl-edge: rgba(255, 255, 255, 0.85);
   --gl-edge-soft: rgba(255, 255, 255, 0.6);
   --gl-spec: rgba(255, 255, 255, 0.95);
-  --gl-glow: rgba(255, 255, 255, 0.35);
   --gl-shadow-1: 0 8px 28px rgba(60, 50, 30, 0.12), 0 1px 3px rgba(60, 50, 30, 0.1);
   --gl-shadow-2: 0 24px 64px rgba(60, 50, 30, 0.22), 0 4px 14px rgba(60, 50, 30, 0.12);
-  --gl-tint: linear-gradient(rgba(var(--gl-brand-rgb), 0.07), rgba(var(--gl-brand-rgb), 0.07));
-  --gl-fill-1: linear-gradient(145deg, rgba(255, 255, 255, 0.55), rgba(255, 255, 255, 0.2) 60%),
-    var(--gl-tint), rgba(var(--gl-base-rgb), 0.3);
-  --gl-fill-2: linear-gradient(145deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.3) 60%),
-    var(--gl-tint), rgba(var(--gl-base-rgb), 0.45);
-  --gl-fill-3: linear-gradient(145deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.12) 60%),
-    var(--gl-tint), rgba(var(--gl-base-rgb), 0.18);
+  --glass-tint: linear-gradient(rgba(var(--gl-brand-rgb), 0.07), rgba(var(--gl-brand-rgb), 0.07));
+  --glass-ultrathin: linear-gradient(145deg, rgba(255, 255, 255, 0.4), rgba(255, 255, 255, 0.12) 60%),
+    var(--glass-tint), rgba(255, 255, 255, 0.18);
+  --glass-thin: linear-gradient(145deg, rgba(255, 255, 255, 0.65), rgba(255, 255, 255, 0.3) 60%),
+    var(--glass-tint), rgba(255, 255, 255, 0.45);
+  --glass-regular: var(--glass-thin);
+  --glass-thick: linear-gradient(145deg, rgba(255, 255, 255, 0.7), rgba(255, 255, 255, 0.4) 60%),
+    var(--glass-tint), rgba(255, 255, 255, 0.55);
+  --glass-regular-flat: var(--glass-regular);
+  --glass-thick-flat: var(--glass-thick);
+  --glass-field: rgba(255, 255, 255, 0.5);
+  --glass-ultrathin-fx: blur(16px) saturate(160%);
+  --glass-thin-fx: blur(24px) saturate(180%);
+  --glass-regular-fx: blur(24px) saturate(180%);
+  --glass-thick-fx: blur(24px) saturate(180%);
+  --glass-edge: inset 0 1px 0 var(--gl-spec), inset 0 0 28px rgba(255, 255, 255, 0.35);
   --gl-fill-inset: rgba(255, 255, 255, 0.5);
   --gl-scrim: rgba(232, 230, 223, 0.45);
   --gl-dim: 0.6;
   --pl-ink-muted: #38352e;
   --pl-ink-subtle: #55514a;
+  --gl-ink-tertiary: #5d594f;
   --color-mist: #38352e !important;
   --color-ash: #4a463d !important;
   --color-steel: #55514a !important;
@@ -148,24 +198,16 @@
 }
 [data-ui-style=glass]:not(#g) [data-glass-root]::before { display: none; }
 
-/* ── Surfaces: cards, the rail, the top bar ────────────────── */
+/* ── Regular: cards and containers ───────────────────────────── */
 [data-ui-style=glass]:not(#g) .pl-card {
-  background: var(--gl-fill-1);
+  background: var(--glass-regular);
   border: 1px solid var(--gl-edge-soft);
   border-radius: var(--gl-radius-card);
-  -webkit-backdrop-filter: var(--gl-blur-1);
-  backdrop-filter: var(--gl-blur-1);
-  box-shadow:
-    inset 0 1px 0 var(--gl-spec),
-    inset 0 0 28px var(--gl-glow),
-    var(--gl-shadow-1);
+  -webkit-backdrop-filter: var(--glass-regular-fx);
+  backdrop-filter: var(--glass-regular-fx);
+  box-shadow: var(--glass-edge), var(--gl-shadow-1);
 }
-[data-ui-style=glass]:not(#g) .pl-card:hover {
-  box-shadow:
-    inset 0 1px 0 var(--gl-spec),
-    inset 0 0 28px var(--gl-glow),
-    var(--gl-shadow-1);
-}
+[data-ui-style=glass]:not(#g) .pl-card:hover { box-shadow: var(--glass-edge), var(--gl-shadow-1); }
 /* The hardware gloss slot becomes the specular rim: a 1px masked gradient
    border, bright at the top-left, fading, with a faint brand trace at the
    bottom-right. */
@@ -174,10 +216,10 @@
   padding: 1px;
   background: linear-gradient(
     135deg,
-    rgba(255, 255, 255, 0.55) 0%,
-    rgba(255, 255, 255, 0.1) 32%,
-    rgba(255, 255, 255, 0.04) 64%,
-    rgba(var(--gl-brand-rgb), 0.3) 100%
+    rgba(255, 255, 255, 0.38) 0%,
+    rgba(255, 255, 255, 0.08) 32%,
+    rgba(255, 255, 255, 0.03) 64%,
+    rgba(var(--gl-brand-rgb), 0.22) 100%
   );
   -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
   -webkit-mask-composite: xor;
@@ -189,52 +231,103 @@
   background: linear-gradient(135deg, rgba(255, 255, 255, 1), rgba(255, 255, 255, 0.3) 40%,
     rgba(var(--gl-brand-rgb), 0.25));
 }
-/* Page content (everything in the module bay) is plain translucent tint, no
-   backdrop-filter. The room light under it is soft gradients plus a faint
-   tile wall, so a blur adds almost nothing to the look, but each blurred
-   layer re-runs every frame while the light drifts (measured: a dashboard
-   scrolled at 31ms/frame with a blur per card, 19ms without). The rail, top
-   bar, dialogs, sheets, popovers, toasts and tab bar keep the real blur. */
-[data-ui-style=glass]:not(#g) .pl-bay :is(.pl-card, .material-ultrathin, .material-thin, .material-regular, .glass) {
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-}
-/* Cards inside cards: tint only. */
-[data-ui-style=glass]:not(#g) .pl-card .pl-card {
-  background: var(--gl-fill-3);
-  -webkit-backdrop-filter: none;
-  backdrop-filter: none;
-  box-shadow: inset 0 1px 0 var(--gl-edge), 0 2px 10px rgba(0, 0, 0, 0.18);
-}
-[data-ui-style=glass]:not(#g) .pl-card .pl-card::before { opacity: 0.5; }
-/* Rail and top bar: a touch denser, since text sits right on them. */
+
+/* ── Ultrathin: the rail, the top bar, the tab bar ───────────── */
 [data-ui-style=glass]:not(#g) .pl-card.pl-side {
-  background: var(--gl-fill-2);
+  background: var(--glass-ultrathin);
+  -webkit-backdrop-filter: var(--glass-ultrathin-fx);
+  backdrop-filter: var(--glass-ultrathin-fx);
   border-radius: 30px;
   will-change: transform;
 }
-[data-ui-style=glass]:not(#g) header.pl-card { border-radius: 28px; background: var(--gl-fill-2); }
+[data-ui-style=glass]:not(#g) header.pl-card {
+  background: var(--glass-ultrathin);
+  -webkit-backdrop-filter: var(--glass-ultrathin-fx);
+  backdrop-filter: var(--glass-ultrathin-fx);
+  border-radius: 28px;
+}
 
-/* The utility materials and the older glass classes (Card tiers, tab bar,
-   command palette, dialogs, popovers). Hardware flattened these to graphite. */
-[data-ui-style=glass]:not(#g) :is(.material-ultrathin, .material-thin, .glass) {
-  background: var(--gl-fill-3);
+/* The utility materials and the older glass classes (Card tiers, buttons,
+   segmented tabs, table heads, the tab bar, the command palette, dialogs,
+   popovers). Hardware flattened these to graphite. */
+[data-ui-style=glass]:not(#g) .material-ultrathin {
+  background: var(--glass-ultrathin);
   border: 1px solid var(--gl-edge-soft);
-  -webkit-backdrop-filter: var(--gl-blur-1);
-  backdrop-filter: var(--gl-blur-1);
-  box-shadow: inset 0 1px 0 var(--gl-spec), inset 0 0 22px var(--gl-glow), var(--gl-shadow-1);
+  -webkit-backdrop-filter: var(--glass-ultrathin-fx);
+  backdrop-filter: var(--glass-ultrathin-fx);
+  box-shadow: var(--glass-edge), var(--gl-shadow-1);
 }
-[data-ui-style=glass]:not(#g) :is(.material-regular, .material-thick, .glass-strong, .glass-liquid) {
-  background: var(--gl-fill-2);
+[data-ui-style=glass]:not(#g) :is(.material-thin, .glass, .glass-strong) {
+  background: var(--glass-thin);
+  border: 1px solid var(--gl-edge-soft);
+  -webkit-backdrop-filter: var(--glass-thin-fx);
+  backdrop-filter: var(--glass-thin-fx);
+  box-shadow: var(--glass-edge), var(--gl-shadow-1);
+}
+[data-ui-style=glass]:not(#g) .glass-strong { border-color: var(--gl-edge); box-shadow: var(--glass-edge), var(--gl-shadow-2); }
+[data-ui-style=glass]:not(#g) :is(.material-regular, .glass-liquid) {
+  background: var(--glass-regular);
   border: 1px solid var(--gl-edge);
-  -webkit-backdrop-filter: var(--gl-blur-2);
-  backdrop-filter: var(--gl-blur-2);
-  box-shadow: inset 0 1px 0 var(--gl-spec), inset 0 0 26px var(--gl-glow), var(--gl-shadow-2);
+  -webkit-backdrop-filter: var(--glass-regular-fx);
+  backdrop-filter: var(--glass-regular-fx);
+  box-shadow: var(--glass-edge), var(--gl-shadow-2);
 }
-/* A Card is both .pl-card and .material-*: keep its rim and corner. */
+/* The mobile tab bar is navigation chrome: ultrathin. */
+[data-ui-style=glass]:not(#g) .material-thick {
+  background: var(--glass-ultrathin);
+  border: 1px solid var(--gl-edge);
+  -webkit-backdrop-filter: var(--glass-ultrathin-fx);
+  backdrop-filter: var(--glass-ultrathin-fx);
+  box-shadow: var(--glass-edge), var(--gl-shadow-2);
+}
+/* A Card is both .pl-card and .material-*: it stays regular, with its rim
+   and corner. */
 [data-ui-style=glass]:not(#g) .pl-card:is(.material-thin, .material-regular) {
+  background: var(--glass-regular);
+  -webkit-backdrop-filter: var(--glass-regular-fx);
+  backdrop-filter: var(--glass-regular-fx);
   border-color: var(--gl-edge-soft);
   border-radius: var(--gl-radius-card);
+  box-shadow: var(--glass-edge), var(--gl-shadow-1);
+}
+
+/* ── Module bay: the same materials, flat (no blur) ──────────────
+   Page content (everything in the bay) carries the smoke and the frost
+   grain without a backdrop-filter, so scrolling stays at 60fps while the
+   light drifts. The rail, top bar, dialogs, sheets, popovers, toasts and
+   tab bar keep the real blur. */
+[data-ui-style=glass]:not(#g) .pl-bay :is(.pl-card, .material-thin, .material-regular, .glass) {
+  background: var(--glass-regular-flat);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+[data-ui-style=glass]:not(#g) .pl-bay .material-ultrathin {
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+}
+/* Cards inside cards: no more smoke, an iOS fill instead, so the inner
+   panel reads as a lighter grouped section of the same pane. */
+[data-ui-style=glass]:not(#g) .pl-card .pl-card {
+  background: var(--glass-tint), rgba(255, 255, 255, 0.035);
+  -webkit-backdrop-filter: none;
+  backdrop-filter: none;
+  box-shadow: inset 0 1px 0 var(--gl-edge-soft), 0 2px 10px rgba(0, 0, 0, 0.18);
+}
+[data-ui-style=glass]:not(#g) .pl-card .pl-card::before { opacity: 0.5; }
+
+/* ── Thick: dense data straight on the page ─────────────────────
+   The calendar month grid, the day and week agenda groups, list panels and
+   segmented groups are bg-coal containers; tables wear a rounded wrapper.
+   Sitting straight on the page (not inside another material) they take the
+   thick smoke, so the grid reads as one dark pane the light glows through.
+   Inside a card or a dialog bg-coal stays the light iOS fill above. */
+[data-ui-style=glass]:not(#g) .pl-bay :is(.bg-coal, .rounded-xl:has(> table)):not(
+  input, textarea, select, button, .pl-field, .pl-search,
+  :is(.pl-card, [role=dialog], .glass-liquid, .glass-strong, .material-thin, .material-regular) *
+) {
+  background: var(--glass-thick-flat);
+  border-color: var(--gl-edge-soft);
+  box-shadow: var(--glass-edge), var(--gl-shadow-1);
 }
 
 /* ── Overlays: dialog, sheet, command palette, popover, menus ── */
@@ -246,17 +339,27 @@
 [data-ui-style=glass]:not(#g) :is([role=dialog], [role=alertdialog]).glass-liquid {
   border-radius: var(--gl-radius-sheet);
 }
-/* The side sheet floats with a gap on every side instead of a full-height slab. */
+/* The side sheet floats with a gap on every side instead of a full-height
+   slab. Its width stays the sheet's own (max-w-md/xl/2xl); only phones cap
+   it to the viewport. */
 [data-ui-style=glass]:not(#g) [role=dialog].anim-sheet {
   top: 10px;
   right: 10px;
   height: calc(100dvh - 20px);
-  max-width: calc(100vw - 20px);
   border-radius: var(--gl-radius-sheet);
   overflow: hidden;
 }
 @media (max-width: 640px) {
   [data-ui-style=glass]:not(#g) [role=dialog].anim-sheet { top: 6px; right: 6px; height: calc(100dvh - 12px); max-width: calc(100vw - 12px); }
+}
+/* Inside the sheet's one blur: the header lifts to a thin pane, the body
+   deepens to thick (regular 0.68 plus 0.13 more smoke reaches 0.72), and
+   the footer stays regular. */
+[data-ui-style=glass]:not(#g) [role=dialog].anim-sheet > .shrink-0.border-b {
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.015));
+}
+[data-ui-style=glass]:not(#g) [role=dialog].anim-sheet > .flex-1.overflow-y-auto {
+  background: rgba(14, 14, 20, 0.13);
 }
 [data-ui-style=glass]:not(#g) :is(.glass-strong) { border-radius: 18px; }
 /* Menu rows and list rows highlight as soft pills. */
@@ -276,20 +379,32 @@
   border: 1px solid var(--gl-edge);
   padding-bottom: 0 !important;
 }
-/* Toasts: sonner paints inline styles, so these need !important. */
+/* Toasts: thin. sonner paints inline styles, so these need !important. */
 [data-ui-style=glass]:not(#g) [data-sonner-toast] {
-  background: var(--gl-fill-2) !important;
+  background: var(--glass-thin) !important;
   border: 1px solid var(--gl-edge) !important;
   border-radius: 22px !important;
-  -webkit-backdrop-filter: var(--gl-blur-2);
-  backdrop-filter: var(--gl-blur-2);
-  box-shadow: inset 0 1px 0 var(--gl-spec), var(--gl-shadow-2) !important;
+  -webkit-backdrop-filter: var(--glass-thin-fx);
+  backdrop-filter: var(--glass-thin-fx);
+  box-shadow: var(--glass-edge), var(--gl-shadow-2) !important;
 }
 /* Tooltips */
 [data-ui-style=glass]:not(#g) [role=tooltip],
 [data-ui-style=glass]:not(#g) [data-radix-popper-content-wrapper] > [data-state][data-side].rounded-md:not(.glass-strong) {
   border-radius: 12px;
 }
+
+/* ── Text on glass ────────────────────────────────────────────
+   The see-through text utilities (text-steel/70 and kin) become solid
+   steps, and brand-colored text takes the lighter top of the brand ramp, so
+   every label clears 4.5:1 on every material. */
+[data-ui-style=glass]:not(#g) :is(.text-steel\/30, .text-steel\/40, .text-steel\/45, .text-steel\/50, .text-steel\/55, .text-steel\/60, .text-steel\/70, .text-steel\/75, .text-steel\/80, .text-steel\/85, .text-steel\/90) { color: var(--gl-ink-tertiary); }
+[data-ui-style=glass]:not(#g) :is(.placeholder\:text-steel\/30, .placeholder\:text-steel\/50, .placeholder\:text-steel\/60, .placeholder\:text-steel\/70)::placeholder { color: var(--gl-ink-tertiary); }
+[data-ui-style=glass]:not(#g) :is(.text-mist\/60, .text-mist\/75, .text-mist\/80, .text-mist\/85, .text-mist\/90) { color: var(--pl-ink-subtle); }
+[data-ui-style=glass]:not(#g) :is(.text-bone\/80, .text-bone\/90) { color: var(--pl-ink-muted); }
+[data-ui-style=glass]:not(#g) :is(.text-gold, .text-gold\/70, .text-gold\/80, .text-gold\/90) { color: var(--pl-yellow-top, #ffe066); }
+/* Light public pages keep their own dark text ramp. */
+[data-ui-style=glass][data-theme=light]:not(#g):not(:has(.pulse-hw)) :is(.text-steel\/30, .text-steel\/40, .text-steel\/45, .text-steel\/50, .text-steel\/55, .text-steel\/60, .text-steel\/70, .text-steel\/75, .text-steel\/80, .text-steel\/85, .text-steel\/90, .text-mist\/60, .text-mist\/75, .text-mist\/80, .text-mist\/85, .text-mist\/90, .text-bone\/80, .text-bone\/90, .text-gold, .text-gold\/70, .text-gold\/80, .text-gold\/90) { color: revert-layer; }
 
 /* ── Controls ─────────────────────────────────────────────────
    Keys become pills: sentence case, no machined shadow. */
@@ -337,10 +452,10 @@
 [data-ui-style=glass]:not(#g) .pl-key:active { transform: scale(0.97); box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.25); }
 [data-ui-style=glass]:not(#g) .pl-key:disabled { box-shadow: none; }
 
-/* Fields: soft recessed glass, near-pill. */
+/* Fields: a recessed well of thick smoke, near-pill. */
 [data-ui-style=glass]:not(#g) .pl-field {
   border-radius: 16px;
-  background: var(--gl-fill-inset);
+  background: var(--glass-field);
   border: 1px solid var(--gl-edge-soft);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.22);
 }
@@ -351,7 +466,7 @@
 }
 [data-ui-style=glass]:not(#g) .pl-search {
   border-radius: 999px;
-  background: var(--gl-fill-inset);
+  background: var(--glass-field);
   border: 1px solid var(--gl-edge-soft);
   box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.22);
 }
@@ -367,7 +482,7 @@
 [data-ui-style=glass]:not(#g) [role=tablist] { border-radius: 999px; padding: 4px; }
 [data-ui-style=glass]:not(#g) [role=tab] { border-radius: 999px; }
 [data-ui-style=glass]:not(#g) [role=tab][data-state=active] {
-  background: linear-gradient(rgba(var(--gl-brand-rgb), 0.2), rgba(var(--gl-brand-rgb), 0.12)), rgba(var(--gl-base-rgb), 0.6);
+  background: linear-gradient(rgba(var(--gl-brand-rgb), 0.2), rgba(var(--gl-brand-rgb), 0.12)), rgba(18, 18, 24, 0.6);
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
@@ -379,7 +494,9 @@
 [data-ui-style=glass]:not(#g) .pl-nav-item[data-active="true"] {
   background: linear-gradient(180deg, rgba(var(--gl-brand-rgb), 0.24), rgba(var(--gl-brand-rgb), 0.12));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3), 0 0 0 1px rgba(var(--gl-brand-rgb), 0.28);
-  color: var(--pl-yellow-hover);
+  /* White on the brand pill, the iOS sidebar selection: a brand-colored
+     label on a brand-tinted pill falls under 4.5:1 for the lighter brands. */
+  color: var(--pl-ink);
 }
 [data-ui-style=glass]:not(#g) .pl-nav-count { font-variant-numeric: tabular-nums; }
 [data-ui-style=glass]:not(#g) .pl-well,
@@ -425,17 +542,24 @@
 [data-ui-style=glass]:not(#g) .pl-label { letter-spacing: 0.06em; }
 
 /* ── Accessibility and fallbacks ──────────────────────────────
-   No blur support, or the OS asks for reduced transparency: solid tinted
-   surfaces with the same edges, shapes and shadows. The room light keeps
-   moving; only the see-through goes. */
+   No blur support, or the OS asks for reduced transparency: every material
+   turns solid smoked dark (and solid frosted white on light public pages),
+   with the same edges, shapes and shadows. The room light keeps moving;
+   only the see-through goes. */
 @media (prefers-reduced-transparency: reduce) {
   [data-ui-style=glass]:not(#g) {
-    --gl-fill-1: var(--gl-tint), #1e1e26;
-    --gl-fill-2: var(--gl-tint), #23232c;
-    --gl-fill-3: var(--gl-tint), #1a1a22;
+    --glass-ultrathin: var(--glass-tint), #22222a;
+    --glass-thin: var(--glass-tint), #1f1f27;
+    --glass-regular: var(--glass-tint), #1c1c23;
+    --glass-thick: var(--glass-tint), #18181e;
+    --glass-regular-flat: var(--glass-regular);
+    --glass-thick-flat: var(--glass-thick);
+    --glass-field: var(--glass-tint), #141419;
+    --glass-ultrathin-fx: none;
+    --glass-thin-fx: none;
+    --glass-regular-fx: none;
+    --glass-thick-fx: none;
     --gl-fill-inset: #15151b;
-    --gl-blur-1: none;
-    --gl-blur-2: none;
     --gl-scrim: rgba(6, 6, 10, 0.72);
     --gl-dim: 0.8;
     --color-coal: #1d1d24 !important;
@@ -444,9 +568,13 @@
     --color-obsidian: #17171d !important;
   }
   [data-ui-style=glass][data-theme=light]:not(#g):not(:has(.pulse-hw)) {
-    --gl-fill-1: var(--gl-tint), #f6f4ee;
-    --gl-fill-2: var(--gl-tint), #fbfaf6;
-    --gl-fill-3: var(--gl-tint), #efede6;
+    --glass-ultrathin: var(--glass-tint), #efede6;
+    --glass-thin: var(--glass-tint), #f6f4ee;
+    --glass-regular: var(--glass-tint), #f6f4ee;
+    --glass-thick: var(--glass-tint), #fbfaf6;
+    --glass-regular-flat: var(--glass-regular);
+    --glass-thick-flat: var(--glass-thick);
+    --glass-field: #ebe8e0;
     --gl-fill-inset: #ebe8e0;
     --gl-scrim: rgba(232, 230, 223, 0.8);
     --color-coal: #f6f4ee !important;
@@ -454,16 +582,23 @@
     --color-coal-3: #ffffff !important;
     --color-obsidian: #ebe8e0 !important;
   }
-  [data-ui-style=glass]:not(#g) :is(.anim-overlay, [data-sonner-toast], .pl-card, .pl-card .pl-card) {
+  [data-ui-style=glass]:not(#g) :is(.anim-overlay, [data-sonner-toast]) {
     -webkit-backdrop-filter: none !important;
     backdrop-filter: none !important;
   }
+  /* Nested cards: a solid step lighter than the pane, not a see-through fill. */
+  [data-ui-style=glass]:not(#g) .pl-card .pl-card { background: var(--glass-tint), #24242c; }
+  [data-ui-style=glass][data-theme=light]:not(#g):not(:has(.pulse-hw)) .pl-card .pl-card { background: var(--glass-tint), #fbfaf6; }
 }
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   [data-ui-style=glass]:not(#g) {
-    --gl-fill-1: var(--gl-tint), #1e1e26;
-    --gl-fill-2: var(--gl-tint), #23232c;
-    --gl-fill-3: var(--gl-tint), #1a1a22;
+    --glass-ultrathin: var(--glass-tint), #22222a;
+    --glass-thin: var(--glass-tint), #1f1f27;
+    --glass-regular: var(--glass-tint), #1c1c23;
+    --glass-thick: var(--glass-tint), #18181e;
+    --glass-regular-flat: var(--glass-regular);
+    --glass-thick-flat: var(--glass-thick);
+    --glass-field: var(--glass-tint), #141419;
     --gl-scrim: rgba(6, 6, 10, 0.72);
     --gl-dim: 0.8;
     --color-coal: #1d1d24 !important;
@@ -471,6 +606,7 @@
     --color-coal-3: #2e2e37 !important;
     --color-obsidian: #17171d !important;
   }
+  [data-ui-style=glass]:not(#g) .pl-card .pl-card { background: var(--glass-tint), #24242c; }
 }
 @media (prefers-reduced-motion: reduce) {
   [data-ui-style=glass]:not(#g) .pl-key:active,
