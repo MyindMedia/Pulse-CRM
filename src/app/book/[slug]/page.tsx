@@ -201,7 +201,7 @@ function StudioFrontView() {
             </a>
             <span className="text-xs text-mist/60">
               {pricingHidden
-                ? "Live availability · No payment to request"
+                ? "Live availability"
                 : "Live availability · A deposit locks it in"}
             </span>
           </motion.div>
@@ -313,8 +313,9 @@ function StudioFrontView() {
           </motion.div>
         )}
 
-        {/* Deposit policy */}
-        {front && (
+        {/* Deposit policy. A no-price link takes no payment, so it says nothing
+            about money at all. */}
+        {front && !pricingHidden && (
           <div
             className="flex items-start gap-2.5 rounded-md border border-graphite/50 bg-coal-2 px-4 py-3"
             style={{
@@ -326,9 +327,7 @@ function StudioFrontView() {
               style={{ color: accent }}
             />
             <p className="text-xs text-steel">
-              {pricingHidden
-                ? "No payment to book. Send a request and the studio confirms it by email and text."
-                : front.org.depositPolicy?.trim() ||
+              {front.org.depositPolicy?.trim() ||
                   "A deposit holds your slot and is credited toward the final invoice. You will see the exact amount before you pay."}
             </p>
           </div>

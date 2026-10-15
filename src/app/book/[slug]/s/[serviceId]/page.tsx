@@ -368,7 +368,9 @@ function ServiceBookingView() {
                 ? "Pick a date and time to continue."
                 : !formValid
                   ? "Add your name and a valid email to continue."
-                  : null
+                  : !engineerOk
+                    ? "Pick an engineer above, or untick \"I need an engineer\"."
+                    : null
             }
           />
         ) : (
