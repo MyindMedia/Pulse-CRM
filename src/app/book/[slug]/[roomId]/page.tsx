@@ -131,6 +131,18 @@ function RoomDetailView() {
   const promoOk = promo.status === "none" || promo.status === "valid";
   const engineerOk = !addOns.needsEngineer || Boolean(addOns.engineerId);
   const canSubmit = Boolean(selection) && formValid && promoOk && engineerOk && !submitting;
+  // Why the button is dimmed, said right under it. The engineer case used to
+  // say nothing there, so a ticked "I need an engineer" with no pick looked
+  // like a broken button.
+  const blockedHint = !selection
+    ? "Pick a date and time to continue."
+    : !formValid
+      ? "Add your name and a valid email to continue."
+      : !engineerOk
+        ? "Pick an engineer above, or untick \"I need an engineer\"."
+        : !promoOk
+          ? "Fix or clear the discount code to continue."
+          : null;
 
   // Client-side display math only - createBooking recomputes the
   // authoritative amounts (and re-validates the code) on the server.
@@ -342,13 +354,7 @@ function RoomDetailView() {
             canSubmit={canSubmit}
             submitting={submitting}
             onSubmit={handleContinue}
-            hint={
-              !selection
-                ? "Pick a date and time to continue."
-                : !formValid
-                  ? "Add your name and a valid email to continue."
-                  : null
-            }
+            hint={blockedHint}
           />
         ) : (
         <div className="space-y-3 rounded-lg border border-graphite/50 bg-coal p-5">
@@ -423,20 +429,8 @@ function RoomDetailView() {
             )}
           </Button>
 
-          {!selection && (
-            <p className="text-center text-xs text-steel/70">
-              Pick a date and time to continue.
-            </p>
-          )}
-          {selection && !formValid && (
-            <p className="text-center text-xs text-steel/70">
-              Add your name and a valid email to continue.
-            </p>
-          )}
-          {selection && formValid && !promoOk && (
-            <p className="text-center text-xs text-steel/70">
-              Fix or clear the discount code to continue.
-            </p>
+          {blockedHint && (
+            <p className="text-center text-xs text-steel/70">{blockedHint}</p>
           )}
           {loadedRoom.requiresApproval && <ApprovalNote />}
         </div>

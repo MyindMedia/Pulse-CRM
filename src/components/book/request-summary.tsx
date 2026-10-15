@@ -32,10 +32,6 @@ export function RequestSummary({
           {l.value && <span className="shrink-0 font-meta text-bone">{l.value}</span>}
         </div>
       ))}
-      <p className="flex items-start gap-2 border-t border-graphite/50 pt-3 text-xs text-steel">
-        <ShieldTick className="mt-0.5 size-3.5 shrink-0 text-gold" />
-        No payment now. The studio reviews your request and confirms it by email and text.
-      </p>
       <Button type="button" size="lg" className="w-full" disabled={!canSubmit} onClick={onSubmit}>
         {submitting ? (
           <>
