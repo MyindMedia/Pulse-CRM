@@ -8,11 +8,13 @@ import { Progress } from "@/components/ui/progress";
 import { meta, SONG_STAGE, titleCase } from "@/lib/labels";
 import { musicalKey, compactNumber } from "@/lib/format";
 import { tintFromString } from "@/lib/utils";
+import { EntityLink } from "@/components/shell/entity-link";
 
 type SongCardData = {
   _id: string;
   title: string;
   artistName: string;
+  artistId?: string;
   kind: string;
   stage: string;
   genre?: string;
@@ -27,7 +29,9 @@ type SongCardData = {
   streamCount?: number;
 };
 
-/** Catalog grid card - tonal cover, identity, stage, and revision budget at a glance. */
+/** Catalog grid card - tonal cover, identity, stage, and revision budget at a glance.
+ *  The title is a stretched link (its ::after covers the card), so the whole
+ *  card opens the song while the artist name stays its own link to the roster. */
 export function SongCard({ song }: { song: SongCardData }) {
   const stage = meta(SONG_STAGE, song.stage);
   const tint = song.coverColor ?? tintFromString(song.title);
@@ -35,8 +39,8 @@ export function SongCard({ song }: { song: SongCardData }) {
   const over = song.revisionsUsed > song.revisionsIncluded;
 
   return (
-    <Card interactive className="group overflow-hidden p-0">
-      <Link href={`/songs/${song._id}`} className="block">
+    <Card interactive className="group relative overflow-hidden p-0">
+      <div>
         {/* Cover block - real art when set, tonal fallback otherwise */}
         <div
           className="relative flex h-28 items-end overflow-hidden p-3"
@@ -74,9 +78,23 @@ export function SongCard({ song }: { song: SongCardData }) {
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
               <p className="truncate font-grotesk text-sm font-semibold text-bone">
-                {song.title}
+                <Link
+                  href={`/songs/${song._id}`}
+                  data-drill="song"
+                  className="outline-none after:absolute after:inset-0 after:content-[''] focus-visible:after:ring-2 focus-visible:after:ring-inset focus-visible:after:ring-gold/40"
+                >
+                  {song.title}
+                </Link>
               </p>
-              <p className="truncate text-xs text-steel/70">{song.artistName}</p>
+              <p className="truncate text-xs text-steel/70">
+                {song.artistId ? (
+                  <EntityLink type="artist" id={song.artistId} className="relative z-10 hover:text-bone hover:underline">
+                    {song.artistName}
+                  </EntityLink>
+                ) : (
+                  song.artistName
+                )}
+              </p>
             </div>
             <Badge tone={stage.tone}>{stage.label}</Badge>
           </div>
@@ -134,7 +152,7 @@ export function SongCard({ song }: { song: SongCardData }) {
             )}
           </div>
         </div>
-      </Link>
+      </div>
     </Card>
   );
 }

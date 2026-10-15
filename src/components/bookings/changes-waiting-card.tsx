@@ -1,11 +1,11 @@
 "use client";
 
-import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { ArrowRight, ClockRefresh } from "@untitledui/icons";
 import { Badge } from "@/components/ui/badge";
 import { longDate, timeOfDay } from "@/lib/format";
+import { SessionLink } from "@/components/shell/entity-link";
 import { ChangeDecisionButtons } from "./pending-change-banner";
 
 /* "Changes waiting for you" (bookingFeatures.changeApproval): every proposed
@@ -36,13 +36,14 @@ export function ChangesWaitingCard() {
                 </p>
                 {c.reason && <p className="text-xs text-steel">&ldquo;{c.reason}&rdquo;</p>}
               </div>
-              <Link
-                href={`/calendar?session=${c.sessionId}`}
+              <SessionLink
+                sessionId={c.sessionId}
+                title={`Open ${c.sessionTitle}`}
                 className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-gold hover:underline"
               >
                 Open
                 <ArrowRight className="size-3.5" />
-              </Link>
+              </SessionLink>
             </div>
             <ChangeDecisionButtons change={c} />
           </div>

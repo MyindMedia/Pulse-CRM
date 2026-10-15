@@ -57,6 +57,7 @@ export function AgendaList({
                   <li key={s._id}>
                     <button
                       type="button"
+                      data-drill="session"
                       onClick={() => onOpenSession(s._id)}
                       className="flex w-full items-stretch gap-3 px-4 py-3 text-left outline-none transition-colors hover:bg-coal-2 focus-visible:ring-2 focus-visible:ring-gold/30"
                     >

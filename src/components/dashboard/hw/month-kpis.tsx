@@ -39,24 +39,27 @@ export function MonthKpis() {
           value: usd(p.revenueCents ?? 0),
           highlight: true,
           foot: <Delta value={p.revenueDelta} against={b.against} />,
+          href: "/payments",
         },
-        { label: "Booked hours", value: fmtHours(p.bookedHours), foot: <Delta value={p.bookedHoursDelta} against={b.against} /> },
+        { label: "Booked hours", value: fmtHours(p.bookedHours), foot: <Delta value={p.bookedHoursDelta} against={b.against} />, href: "/bookings" },
         {
           label: "Deposits held",
           value: usd(k.depositsHeldCents ?? 0),
           foot: `${k.depositsHeldCount ?? 0} ${k.depositsHeldCount === 1 ? "booking" : "bookings"}`,
+          href: "/bookings",
         },
         {
           label: "Outstanding",
           value: usd(k.outstandingCents ?? 0),
           foot: k.overdueCount ? <span className="text-critical">{k.overdueCount} overdue</span> : "none overdue",
+          href: "/payments",
         },
       ]
     : [
-        { label: "Booked hours", value: fmtHours(p.bookedHours), highlight: true, foot: <Delta value={p.bookedHoursDelta} against={b.against} /> },
-        { label: "Sessions", value: String(p.sessions), foot: period === "day" ? "today" : period === "week" ? "this week" : `in ${b.title}` },
-        { label: "New leads", value: String(k.newLeadsThisWeek), foot: "this week" },
-        { label: "Active songs", value: String(k.activeSongs), foot: "in production" },
+        { label: "Booked hours", value: fmtHours(p.bookedHours), highlight: true, foot: <Delta value={p.bookedHoursDelta} against={b.against} />, href: "/bookings" },
+        { label: "Sessions", value: String(p.sessions), foot: period === "day" ? "today" : period === "week" ? "this week" : `in ${b.title}`, href: "/bookings" },
+        { label: "New leads", value: String(k.newLeadsThisWeek), foot: "this week", href: "/pipeline" },
+        { label: "Active songs", value: String(k.activeSongs), foot: "in production", href: "/songs" },
       ];
 
   return (
@@ -64,7 +67,7 @@ export function MonthKpis() {
       <ChassisTitle title={b.title} />
       <div className="mt-3 grid flex-1 grid-cols-2 gap-3">
         {tiles.map((t) => (
-          <StatTile key={t.label} label={t.label} value={t.value} highlight={t.highlight} foot={t.foot} />
+          <StatTile key={t.label} label={t.label} value={t.value} highlight={t.highlight} foot={t.foot} href={t.href} />
         ))}
       </div>
     </Chassis>

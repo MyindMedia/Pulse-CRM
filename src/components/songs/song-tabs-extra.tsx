@@ -23,6 +23,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { ACCENT_TONE, CAMPAIGN_STATUS, SESSION_STATUS, SYNC_STAGE, meta, serviceLabel, titleCase } from "@/lib/labels";
 import { longDate, shortDate, timeOfDay, duration, relativeTime, money } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { SessionLink } from "@/components/shell/entity-link";
 
 /* ════════════════ Sessions ════════════════ */
 
@@ -54,7 +55,11 @@ export function SessionsTab({ sessions }: { sessions: SessionRow[] }) {
           const st = meta(SESSION_STATUS, s.status);
           const start = new Date(s.startTime);
           return (
-            <div key={s._id} className="flex items-center gap-3 p-4">
+            <SessionLink
+              key={s._id}
+              sessionId={s._id}
+              className="flex items-center gap-3 rounded-none p-4 transition-colors hover:bg-coal-2 focus-visible:ring-inset"
+            >
               <div className="grid size-12 shrink-0 place-items-center rounded-md border border-graphite/50 bg-obsidian text-center">
                 <span className="font-grotesk text-sm font-bold leading-none text-bone">
                   {start.getDate()}
@@ -71,7 +76,7 @@ export function SessionsTab({ sessions }: { sessions: SessionRow[] }) {
                 </p>
               </div>
               <Badge tone={st.tone}>{st.label}</Badge>
-            </div>
+            </SessionLink>
           );
         })}
       </CardContent>

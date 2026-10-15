@@ -18,6 +18,7 @@ import {
 import { useCapabilities } from "@/lib/use-capabilities";
 import { errorMessage } from "@/lib/errors";
 import { proposalNotice } from "@/lib/change-proposal";
+import { useOpenSession } from "@/lib/use-open-session";
 import { Chassis, elapsed, hhmm, usd, useNow } from "./parts";
 
 type Today = FunctionReturnType<typeof api.today.today>;
@@ -118,6 +119,7 @@ function DepositChip({ paid }: { paid: boolean | null }) {
 
 function LiveBody({ s, next, now, money, canEdit }: { s: Row; next: Row | null; now: number; money: boolean; canEdit: boolean }) {
   const extend = useMutation(api.sessions.extend);
+  const openSession = useOpenSession();
   const hours = Math.max(0.25, (s.endTime - s.startTime) / 3_600_000);
   const where = s.roomName ? `in ${s.roomName}` : "in the studio";
   const nextLine = next
@@ -186,8 +188,8 @@ function LiveBody({ s, next, now, money, canEdit }: { s: Row; next: Row | null; 
             </DropdownMenuContent>
           </DropdownMenu>
         )}
-        <Button size="sm" variant="secondary" asChild>
-          <Link href={`/calendar?session=${s._id}`}>Add notes</Link>
+        <Button size="sm" variant="secondary" data-drill="session" onClick={() => openSession(s._id)}>
+          Add notes
         </Button>
         {s.roomId && (
           <Button size="sm" variant="ghost" asChild>
@@ -200,6 +202,7 @@ function LiveBody({ s, next, now, money, canEdit }: { s: Row; next: Row | null; 
 }
 
 function NextBody({ s, now, money }: { s: Row; now: number; money: boolean }) {
+  const openSession = useOpenSession();
   return (
     <>
       <Head kicker={<Badge tone="gold">Up next</Badge>} title={`${s.roomName ?? "The studio"} is free until ${hhmm(s.startTime)}`} />
@@ -224,8 +227,8 @@ function NextBody({ s, now, money }: { s: Row; now: number; money: boolean }) {
         )}
       </div>
       <div className="mt-auto flex flex-wrap items-center gap-2 pt-6">
-        <Button size="sm" variant="secondary" asChild>
-          <Link href={`/calendar?session=${s._id}`}>Open booking</Link>
+        <Button size="sm" variant="secondary" data-drill="session" onClick={() => openSession(s._id)}>
+          Open booking
         </Button>
       </div>
     </>

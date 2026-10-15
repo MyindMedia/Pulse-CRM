@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -29,6 +30,7 @@ import { Button } from "@/components/ui/button";
 import { money, relativeTime, shortDate } from "@/lib/format";
 import { meta, INVOICE_STATUS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
+import { EntityLink, DRILL_FOCUS } from "@/components/shell/entity-link";
 import type { InvoiceRow } from "./types";
 import { categoryMeta } from "./category";
 import { RecordPaymentDialog, type RecordPaymentTarget } from "./record-payment-dialog";
@@ -101,12 +103,30 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
               onClick={() => router.push(`/payments/${row._id}`)}
               className={cn(overdue && "bg-critical/[0.04]")}
             >
-              <TD className="whitespace-nowrap font-meta text-xs text-bone">{row.number}</TD>
+              <TD className="whitespace-nowrap font-meta text-xs text-bone">
+                {/* The real link for keyboard and new-tab use; the row click is the mouse shortcut. */}
+                <Link
+                  href={`/payments/${row._id}`}
+                  onClick={swallow}
+                  data-drill="invoice"
+                  className={cn(DRILL_FOCUS, "hover:text-gold hover:underline")}
+                >
+                  {row.number}
+                </Link>
+              </TD>
               <TD>
-                <span className="flex items-center gap-2.5">
+                <EntityLink
+                  type="artist"
+                  id={row.artistId}
+                  stopPropagation
+                  title={`Open ${row.artistName}`}
+                  className="group/artist flex items-center gap-2.5"
+                >
                   <Avatar name={row.artistName} size="sm" />
-                  <span className="truncate font-medium text-bone">{row.artistName}</span>
-                </span>
+                  <span className="truncate font-medium text-bone group-hover/artist:text-gold group-hover/artist:underline">
+                    {row.artistName}
+                  </span>
+                </EntityLink>
               </TD>
               <TD className="hidden @2xl:table-cell">
                 {(() => {

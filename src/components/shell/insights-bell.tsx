@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { entityHref } from "@/lib/entity-href";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import {
@@ -22,6 +22,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
 import { cn } from "@/lib/utils";
+
+/** Where an alert opens, read at click time: a booking opens its sheet on the
+ *  current page (the shell's global sheet reads ?session=), anything else
+ *  goes to its own page. */
+function openTarget(type: string | undefined, id: string | undefined | null, pathname: string) {
+  const search = typeof window === "undefined" ? "" : window.location.search;
+  return entityHref(type, id, { pathname, search });
+}
 
 const SEVERITY = {
   warning: { icon: AlertTriangle, tone: "text-critical", ring: "bg-critical/10" },
@@ -63,6 +71,7 @@ export function InsightsBell() {
   const [open, setOpen] = React.useState(false);
   const [view, setView] = React.useState<View>("insights");
   const router = useRouter();
+  const pathname = usePathname();
   const counts = useQuery(api.insights.counts);
   const insights = useQuery(api.insights.open, { limit: 10 });
   const activity = useQuery(api.notifications.activityFeed, { limit: 20 });
@@ -140,7 +149,7 @@ export function InsightsBell() {
                               onClick={() => {
                                 void setStatus({ id: it._id, status: "actioned" });
                                 setOpen(false);
-                                router.push(entityHref(it.entityType, it.entityId)!);
+                                router.push(openTarget(it.entityType, it.entityId, pathname)!, { scroll: false });
                               }}
                             >
                               Open
@@ -182,7 +191,7 @@ export function InsightsBell() {
                   onClick={() => {
                     if (route && row.entityId) {
                       setOpen(false);
-                      router.push(route);
+                      router.push(openTarget(row.entityType, row.entityId, pathname)!, { scroll: false });
                     }
                   }}
                   className="group flex w-full gap-2.5 rounded-md p-2.5 text-left transition-colors hover:bg-coal-2 disabled:cursor-default"

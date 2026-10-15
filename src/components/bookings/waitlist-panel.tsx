@@ -19,6 +19,7 @@ import { Field } from "@/components/ui/field";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from "@/components/ui/select";
+import { EntityLink } from "@/components/shell/entity-link";
 
 const SERVICES = ["recording", "mixing", "mastering", "production", "consultation", "rehearsal", "writing"] as const;
 const ANY = "__any__";
@@ -68,7 +69,11 @@ export function WaitlistPanel() {
                     {e.priority === "high" ? <Star className="size-3.5 text-gold" /> : <ListPlus className="size-3.5" />}
                   </span>
                   <span className="min-w-0">
-                    <span className="block truncate text-sm text-bone">{e.artistName}</span>
+                    <span className="block truncate text-sm text-bone">
+                      <EntityLink type="artist" id={e.artistId} className="hover:underline">
+                        {e.artistName}
+                      </EntityLink>
+                    </span>
                     <span className="block truncate font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
                       {e.roomName ?? "Any room"}{e.serviceType ? ` · ${e.serviceType}` : ""}
                     </span>

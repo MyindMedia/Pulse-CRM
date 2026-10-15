@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { bookingMoney, type BookingRow } from "@/components/bookings/types";
 import { errorMessage } from "@/lib/errors";
+import { EntityLink } from "@/components/shell/entity-link";
 import { Chassis, ChassisTitle, Delta, EmptyWell, Groove, StatTile, hhmm, usd } from "@/components/dashboard/hw/parts";
 import type { Glance } from "./board-model";
 
@@ -42,9 +43,10 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 }
 
 /* The selected booking (kit: SELECTED chassis): its details in a well, how
- * much is paid on a groove, and the keys. Collect balance and Cancel open
- * the booking sheet, which records payments and confirms a cancel;
- * Reschedule opens the booking in the calendar. */
+ * much is paid on a groove, and the keys. Open booking, Collect balance and
+ * Cancel open the booking sheet, which records payments and confirms a
+ * cancel; Reschedule opens the booking in the calendar. The client and room
+ * names open their pages. */
 export function SelectedBooking({
   s,
   money,
@@ -75,11 +77,23 @@ export function SelectedBooking({
     <Chassis brackets>
       <ChassisTitle
         kicker={<Badge tone="solid">Selected</Badge>}
-        title={s.artistName}
+        title={
+          <EntityLink type="artist" id={s.artistId} className="hover:underline">
+            {s.artistName}
+          </EntityLink>
+        }
         right={<Badge tone={chip.tone}>{chip.label}</Badge>}
       />
       <div className="pl-well mt-3 px-3 py-1.5">
-        <Row label="Room">{s.roomName ?? "No room"}</Row>
+        <Row label="Room">
+          {s.roomId && s.roomName ? (
+            <EntityLink type="room" id={s.roomId} className="hover:underline">
+              {s.roomName}
+            </EntityLink>
+          ) : (
+            s.roomName ?? "No room"
+          )}
+        </Row>
         <Row label="Time">
           <span className="font-mono">
             {hhmm(s.startTime)} to {hhmm(s.endTime)}
@@ -119,6 +133,9 @@ export function SelectedBooking({
         </div>
       )}
       <div className="mt-auto flex flex-wrap items-center gap-2 pt-5">
+        <Button size="sm" variant="secondary" data-drill="session" onClick={() => onOpenSheet(s)}>
+          Open booking
+        </Button>
         {money && m.balance > 0 && !closed && (
           <Button size="sm" onClick={() => onOpenSheet(s)}>
             Collect balance

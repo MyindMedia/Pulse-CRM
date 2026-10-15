@@ -313,6 +313,10 @@ function CalendarView() {
             sessions={sessions ?? []}
             onOpenSession={setOpenSessionId}
             onPickDay={openBookingForDay}
+            onShowDay={(ts) => {
+              setAnchor(startOfDay(ts));
+              setView("day");
+            }}
             blocks={roomBlocks}
             roomNames={roomNames}
             onOpenBlock={setOpenBlock}
@@ -358,7 +362,14 @@ function CalendarView() {
         onOpenChange={setBookOpen}
         initialDate={bookDate}
       />
-      <SessionSheet sessionId={openSessionId} onClose={() => setOpenSessionId(null)} />
+      <SessionSheet
+        sessionId={openSessionId}
+        onClose={() => {
+          setOpenSessionId(null);
+          // Drop ?session so the same booking link opens it again.
+          if (params.get("session")) router.replace("/calendar", { scroll: false });
+        }}
+      />
     </div>
   );
 }

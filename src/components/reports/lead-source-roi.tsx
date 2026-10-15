@@ -1,12 +1,15 @@
 "use client";
 
+import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { HBars } from "@/components/charts";
 import { money, percent } from "@/lib/format";
 import { titleCase } from "@/lib/labels";
-import { ReportCard, ReportStat } from "./report-shell";
+import { DRILL_FOCUS } from "@/components/shell/entity-link";
+import { cn } from "@/lib/utils";
+import { ReportCard, ReportStat, REPORT_LINK } from "./report-shell";
 
 export function LeadSourceRoiReport() {
   const data = useQuery(api.reports.leadSourceRoi);
@@ -51,7 +54,12 @@ export function LeadSourceRoiReport() {
             <TBody>
               {data.rows.map((r) => (
                 <TR key={r.source}>
-                  <TD className="font-medium capitalize">{titleCase(r.source)}</TD>
+                  <TD className="font-medium capitalize">
+                    {/* The roster has no source filter yet, so this opens the full client list. */}
+                    <Link href="/roster" data-drill="report-row" title="Open the client list" className={cn(DRILL_FOCUS, REPORT_LINK)}>
+                      {titleCase(r.source)}
+                    </Link>
+                  </TD>
                   <TD className="text-right tabular-nums text-steel">{r.leads}</TD>
                   <TD className="text-right tabular-nums text-steel">{r.converted}</TD>
                   <TD className="text-right font-meta tabular-nums text-positive">

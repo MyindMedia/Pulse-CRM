@@ -35,6 +35,7 @@ export function ProjectCard({
   return (
     <Link
       href={`/projects/${p._id}`}
+      data-drill="project"
       className={cn(
         "block space-y-2 rounded-lg border bg-coal/60 p-3 outline-none transition-colors",
         "hover:border-gold-dim focus-visible:ring-2 focus-visible:ring-gold/30",

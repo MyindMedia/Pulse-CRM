@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Card, CardContent } from "@/components/ui/card";
 import { Filter } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { DRILL_FOCUS } from "@/components/shell/entity-link";
 
 /* What the booking page converted, end to end.
 
@@ -13,10 +15,10 @@ import { cn } from "@/lib/utils";
    the supporting detail. */
 
 const STAGES = [
-  { key: "page", label: "Saw the page" },
-  { key: "room", label: "Opened a room" },
-  { key: "checkout", label: "Reached the deposit" },
-  { key: "booked", label: "Booked" },
+  { key: "page", label: "Saw the page", href: "/visitors" },
+  { key: "room", label: "Opened a room", href: "/visitors" },
+  { key: "checkout", label: "Reached the deposit", href: "/visitors" },
+  { key: "booked", label: "Booked", href: "/bookings" },
 ] as const;
 
 export function BookingFunnelCard({ days = 30 }: { days?: number }) {
@@ -61,7 +63,9 @@ export function BookingFunnelCard({ days = 30 }: { days?: number }) {
             return (
               <div key={s.key}>
                 <div className="flex items-baseline justify-between gap-3 text-xs">
-                  <span className="text-steel">{s.label}</span>
+                  <Link href={s.href} data-drill="report-row" className={cn(DRILL_FOCUS, "text-steel hover:text-gold hover:underline underline-offset-2")}>
+                    {s.label}
+                  </Link>
                   <span className="font-mono tabular-nums text-bone">{n}</span>
                 </div>
                 <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-graphite/40">
@@ -86,7 +90,9 @@ export function BookingFunnelCard({ days = 30 }: { days?: number }) {
         {f.sources.length > 0 && (
           <div className="border-t border-graphite/50 pt-3">
             <p className="font-meta text-[0.625rem] uppercase tracking-[0.08em] text-steel/60">
-              Where they came from
+              <Link href="/visitors" data-drill="report-row" className={cn(DRILL_FOCUS, "hover:text-gold hover:underline underline-offset-2")}>
+                Where they came from
+              </Link>
             </p>
             <ul className="mt-1.5 space-y-1">
               {f.sources.slice(0, 5).map((s) => (

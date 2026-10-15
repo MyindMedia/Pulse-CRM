@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { CalendarCheck2, Check, X } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { SessionLink } from "@/components/shell/entity-link";
 
 function fmtWhen(start: number, end: number): string {
   const d = new Date(start);
@@ -61,7 +62,9 @@ export function EngineerRequests() {
           >
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-bone">
-                {r.artistName} · {r.serviceType.replace(/_/g, " ")}
+                <SessionLink sessionId={r._id} className="hover:underline">
+                  {r.artistName} · {r.serviceType.replace(/_/g, " ")}
+                </SessionLink>
               </p>
               <p className="text-xs text-steel/80">
                 {fmtWhen(r.startTime, r.endTime)}

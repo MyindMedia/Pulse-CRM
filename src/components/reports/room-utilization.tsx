@@ -5,7 +5,8 @@ import { api } from "@convex/_generated/api";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
 import { money, percent } from "@/lib/format";
-import { ReportCard, ReportStat } from "./report-shell";
+import { EntityLink } from "@/components/shell/entity-link";
+import { ReportCard, ReportStat, REPORT_LINK } from "./report-shell";
 
 export function RoomUtilizationReport() {
   const data = useQuery(api.reports.roomUtilization);
@@ -52,7 +53,9 @@ export function RoomUtilizationReport() {
                 return (
                   <TR key={r.roomId}>
                     <TD className="font-medium">
-                      {r.roomName}
+                      <EntityLink type="room" id={r.roomId} className={REPORT_LINK} title={`Open ${r.roomName}`}>
+                        {r.roomName}
+                      </EntityLink>
                       {r.roomType && (
                         <span className="ml-2 font-meta text-[0.625rem] uppercase text-steel/70">
                           {r.roomType}

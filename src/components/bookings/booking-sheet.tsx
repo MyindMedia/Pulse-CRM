@@ -49,6 +49,7 @@ import { PaymentPanel } from "./payment-panel";
 import { PendingChangeBanner } from "./pending-change-banner";
 import { ChangedInGoogleBadge } from "@/components/calendar/changed-in-google-badge";
 import { proposalNotice } from "@/lib/change-proposal";
+import { EntityLink } from "@/components/shell/entity-link";
 
 function Row({
   label,
@@ -254,16 +255,26 @@ export function BookingSheet({
                 <Row label="Client">
                   <span className="inline-flex items-center gap-2">
                     <Avatar name={booking.artistName} size="xs" />
-                    <span className="truncate">{booking.artistName}</span>
+                    <EntityLink type="artist" id={booking.artistId} className="truncate hover:underline">
+                      {booking.artistName}
+                    </EntityLink>
                   </span>
                 </Row>
                 <Row label="Song" icon={Music2}>
-                  {booking.songTitle ?? (
+                  {booking.songTitle ? (
+                    <EntityLink type="song" id={booking.songId} className="hover:underline">
+                      {booking.songTitle}
+                    </EntityLink>
+                  ) : (
                     <span className="text-steel/70">Not linked</span>
                   )}
                 </Row>
                 <Row label="Room" icon={DoorOpen}>
-                  {booking.roomName ?? (
+                  {booking.roomName ? (
+                    <EntityLink type="room" id={booking.roomId} className="hover:underline">
+                      {booking.roomName}
+                    </EntityLink>
+                  ) : (
                     <span className="text-steel/70">Unassigned</span>
                   )}
                 </Row>

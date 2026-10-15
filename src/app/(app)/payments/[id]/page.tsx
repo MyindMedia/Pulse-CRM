@@ -17,6 +17,8 @@ import { InvoiceActivity } from "@/components/payments/invoice-activity";
 import { Badge } from "@/components/ui/badge";
 import { categoryMeta } from "@/components/payments/category";
 import type { InvoiceDetail, ActivityRow } from "@/components/payments/types";
+import { SessionLink, DRILL_FOCUS } from "@/components/shell/entity-link";
+import { cn } from "@/lib/utils";
 
 export default function InvoiceDetailPage() {
   const { id } = useParams<{ id: string }>();
@@ -132,7 +134,8 @@ export default function InvoiceDetailPage() {
             <CardContent className="space-y-2">
               <Link
                 href={`/roster/${invoice.artistId}`}
-                className="flex items-center gap-2.5 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5 transition-colors hover:border-graphite/60 hover:bg-coal-3"
+                data-drill="artist"
+                className={cn(DRILL_FOCUS, "flex items-center gap-2.5 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5 transition-colors hover:border-graphite/60 hover:bg-coal-3")}
               >
                 <span className="grid size-7 place-items-center rounded-md bg-coal-3 text-steel/70">
                   <User className="size-3.5" />
@@ -150,7 +153,8 @@ export default function InvoiceDetailPage() {
               {invoice.songId && invoice.songTitle && (
                 <Link
                   href={`/songs/${invoice.songId}`}
-                  className="flex items-center gap-2.5 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5 transition-colors hover:border-graphite/60 hover:bg-coal-3"
+                  data-drill="song"
+                  className={cn(DRILL_FOCUS, "flex items-center gap-2.5 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5 transition-colors hover:border-graphite/60 hover:bg-coal-3")}
                 >
                   <span className="grid size-7 place-items-center rounded-md bg-coal-3 text-gold">
                     <Music2 className="size-3.5" />
@@ -166,9 +170,9 @@ export default function InvoiceDetailPage() {
                 </Link>
               )}
 
-              {invoice.sessionId && invoice.sessionTitle && (
-                <Link
-                  href={`/calendar?session=${invoice.sessionId}`}
+              {invoice.sessionId && (
+                <SessionLink
+                  sessionId={invoice.sessionId}
                   className="flex items-center gap-2.5 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2.5 transition-colors hover:border-graphite/60 hover:bg-coal-3"
                 >
                   <span className="grid size-7 place-items-center rounded-md bg-coal-3 text-gold-dim">
@@ -179,10 +183,10 @@ export default function InvoiceDetailPage() {
                       Session{invoice.serviceType ? ` · ${invoice.serviceType}` : ""}
                     </span>
                     <span className="block truncate text-sm font-medium text-bone">
-                      {invoice.sessionTitle}
+                      {invoice.sessionTitle || "Open booking"}
                     </span>
                   </span>
-                </Link>
+                </SessionLink>
               )}
             </CardContent>
           </Card>

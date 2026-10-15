@@ -33,6 +33,7 @@ import { timeOfDay, shortDate } from "@/lib/format";
 import { ParkingSignDialog } from "@/components/parking/parking-sign-dialog";
 import { PrepChip } from "@/components/dashboard/arrival-prep-card";
 import { cn } from "@/lib/utils";
+import { EntityLink, SessionLink } from "@/components/shell/entity-link";
 
 /* The Pre-session brief - the page the T-15 device alert opens. Everything
    staff need to prep from the BOOKING itself: who is coming, when, where,
@@ -133,6 +134,9 @@ export default function BriefPage() {
   const { sessionId } = useParams<{ sessionId: string }>();
   const id = sessionId as Id<"sessions">;
   const brief = useQuery(api.arrivalPrep.brief, { sessionId: id });
+  // The brief carries names only; the booking itself carries the ids each
+  // name drills into (artist, room, engineer, song).
+  const booking = useQuery(api.sessions.get, { id });
   const setStep = useMutation(api.arrivalPrep.setStep);
   const [now] = React.useState(() => Date.now());
   const [parkingOpen, setParkingOpen] = React.useState(false);
@@ -186,14 +190,35 @@ export default function BriefPage() {
     <div className="mx-auto max-w-3xl space-y-5">
       <div className="space-y-2">
         <p className="overline">Pre-session brief</p>
-        <h1 className="font-grotesk text-3xl font-bold text-bone">{brief.artistName}</h1>
-        <p className="text-sm text-steel">{brief.title}</p>
+        <h1 className="font-grotesk text-3xl font-bold text-bone">
+          <EntityLink type="artist" id={booking?.artistId} className="hover:text-gold-bright">
+            {brief.artistName}
+          </EntityLink>
+        </h1>
+        <p className="text-sm text-steel">
+          <SessionLink sessionId={brief._id} className="hover:text-bone hover:underline" title="Open booking">
+            {brief.title}
+          </SessionLink>
+        </p>
         <div className="flex flex-wrap items-center gap-2 pt-1">
           <Badge tone="gold">
             {shortDate(brief.startTime)} · {timeOfDay(brief.startTime)} - {timeOfDay(brief.endTime)}
           </Badge>
-          {brief.roomName && <Badge tone="info">{brief.roomName}</Badge>}
-          {brief.engineerName && <Badge tone="neutral">Engineer: {brief.engineerName}</Badge>}
+          {brief.roomName && (
+            <EntityLink type="room" id={booking?.roomId} className="hover:opacity-80">
+              <Badge tone="info">{brief.roomName}</Badge>
+            </EntityLink>
+          )}
+          {brief.engineerName && (
+            <EntityLink type="member" id={booking?.engineerId} className="hover:opacity-80">
+              <Badge tone="neutral">Engineer: {brief.engineerName}</Badge>
+            </EntityLink>
+          )}
+          {booking?.songId && booking.songTitle && (
+            <EntityLink type="song" id={booking.songId} className="hover:opacity-80">
+              <Badge tone="neutral">Song: {booking.songTitle}</Badge>
+            </EntityLink>
+          )}
           <Badge tone="neutral">{brief.serviceType}</Badge>
           {beforeStart && mins <= 60 && (
             <Badge tone={mins <= 15 ? "critical" : "caution"}>starts in {mins} min</Badge>

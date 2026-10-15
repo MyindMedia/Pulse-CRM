@@ -24,11 +24,25 @@ import type { InvoiceRow } from "@/components/payments/types";
 import { DEFAULT_INVOICE_FILTERS, type InvoiceFilters, filterInvoices } from "@/lib/invoice-filter";
 import { CapabilityGuard } from "@/components/shell/capability-guard";
 
+const STATUS_VALUES: ReadonlyArray<StatusFilterValue> = ["all", "draft", "sent", "viewed", "overdue", "paid", "void"];
+
+function parseStatus(raw: string | null): StatusFilterValue {
+  return STATUS_VALUES.includes(raw as StatusFilterValue) ? (raw as StatusFilterValue) : "all";
+}
+
 function PaymentsView() {
   const router = useRouter();
   const searchParams = useSearchParams();
 
-  const [filter, setFilter] = React.useState<StatusFilterValue>("all");
+  // ?status=<invoice status> pre-selects the status filter, so a report or
+  // chart can drill into "overdue" or "paid" invoices directly.
+  const statusParam = searchParams.get("status");
+  const [filter, setFilter] = React.useState<StatusFilterValue>(() => parseStatus(statusParam));
+  const [prevStatusParam, setPrevStatusParam] = React.useState(statusParam);
+  if (prevStatusParam !== statusParam) {
+    setPrevStatusParam(statusParam);
+    setFilter(parseStatus(statusParam));
+  }
   const [filters, setFilters] = React.useState<InvoiceFilters>(DEFAULT_INVOICE_FILTERS);
   const [createOpen, setCreateOpen] = React.useState(false);
 
