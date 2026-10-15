@@ -9,11 +9,15 @@ import { meta, SESSION_STATUS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { bookingMoney, isOnline, type BookingRow } from "./types";
 import { HoldCountdown } from "./hold-countdown";
+import { RequestBadge } from "./request-decision";
+import { EntityLink } from "@/components/shell/entity-link";
 
 /**
  * A single booking in the pipeline. Compact, scannable: client, room,
  * schedule, paid-vs-total progress and status. Online bookings carry
- * an explicit badge; holds show a live expiry countdown.
+ * an explicit badge; holds show a live expiry countdown. The whole card
+ * opens the booking (its title button stretches over the card); the client
+ * name sits above that layer and opens the client.
  */
 export function BookingCard({
   booking,
@@ -27,14 +31,12 @@ export function BookingCard({
   const status = meta(SESSION_STATUS, booking.status);
 
   return (
-    <button
-      type="button"
-      onClick={onClick}
+    <div
       className={cn(
-        "group w-full rounded-lg border border-graphite/50 bg-coal p-3.5 text-left",
-        "transition-all duration-150 outline-none",
+        "group relative w-full rounded-lg border border-graphite/50 bg-coal p-3.5 text-left",
+        "transition-all duration-150",
         "hover:border-graphite/60 hover:bg-coal-2",
-        "focus-visible:ring-2 focus-visible:ring-gold/30",
+        "has-[button:focus-visible]:ring-2 has-[button:focus-visible]:ring-gold/30",
       )}
     >
       <div className="flex items-start gap-3">
@@ -42,15 +44,27 @@ export function BookingCard({
         <div className="min-w-0 flex-1 space-y-2">
           <div className="flex items-start justify-between gap-2">
             <div className="min-w-0">
-              <p className="truncate text-sm font-medium text-bone">
+              <button
+                type="button"
+                onClick={onClick}
+                data-drill="session"
+                className="block w-full truncate text-left text-sm font-medium text-bone outline-none after:absolute after:inset-0 after:z-[1] after:rounded-lg"
+              >
                 {booking.title}
-              </p>
+              </button>
               <p className="truncate text-xs text-steel/70">
-                {booking.artistName}
+                <EntityLink
+                  type="artist"
+                  id={booking.artistId}
+                  className="relative z-10 hover:text-bone hover:underline"
+                >
+                  {booking.artistName}
+                </EntityLink>
               </p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1">
               <Badge tone={status.tone}>{status.label}</Badge>
+              <RequestBadge requestStatus={booking.requestStatus} />
               {online && (
                 <Badge tone="gold">
                   <Globe className="size-2.5" />
@@ -103,6 +117,6 @@ export function BookingCard({
           </div>
         </div>
       </div>
-    </button>
+    </div>
   );
 }

@@ -15,6 +15,7 @@ import {
   SearchX,
   ShieldCheck,
 } from "lucide-react";
+import { Send01 } from "@untitledui/icons";
 import { EmptyState } from "@/components/ui/feedback";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fadeUp, staggerChildren } from "@/lib/motion";
@@ -29,6 +30,14 @@ const STEPS = [
   { icon: MousePointerClick, label: "Pick a room", note: "Browse rooms and gear." },
   { icon: CalendarRange, label: "Choose a time", note: "See live availability." },
   { icon: CreditCard, label: "Pay to hold", note: "A deposit locks it in." },
+];
+
+/* Booking link without prices (bookingFeatures.hidePricing): no payment step,
+   the visitor sends a request and the studio confirms. */
+const REQUEST_STEPS = [
+  { icon: MousePointerClick, label: "Pick a room", note: "Browse rooms and gear." },
+  { icon: CalendarRange, label: "Choose a time", note: "See live availability." },
+  { icon: Send01, label: "Request booking", note: "The studio confirms by email and text." },
 ];
 
 const DEFAULT_HEADLINE = "Book studio time";
@@ -58,6 +67,8 @@ function StudioFrontView() {
   // The server decides: "services" only when the studio switched to it AND has
   // services live, so the page can never render an empty catalogue.
   const servicesFirst = front?.catalog === "services";
+  const pricingHidden = front?.pricingHidden === true;
+  const steps = pricingHidden ? REQUEST_STEPS : STEPS;
   // Anonymous funnel: how many people saw this page, against how many booked.
   useTrackBookingStep(slug, "page");
 
@@ -186,10 +197,12 @@ function StudioFrontView() {
               href="#rooms"
               className="inline-flex items-center gap-2 rounded-md bg-gold px-6 py-3 font-grotesk text-sm font-semibold text-gold-ink transition-all duration-200 hover:-translate-y-0.5 hover:bg-gold-bright"
             >
-              Book a room
+              {pricingHidden ? "Request a booking" : "Book a room"}
             </a>
             <span className="text-xs text-mist/60">
-              Live availability · A deposit locks it in
+              {pricingHidden
+                ? "Live availability"
+                : "Live availability · A deposit locks it in"}
             </span>
           </motion.div>
         </motion.div>
@@ -208,9 +221,9 @@ function StudioFrontView() {
           initial="hidden"
           animate="show"
           variants={staggerChildren(0.06)}
-          className="grid gap-3 sm:grid-cols-3"
+          className="grid grid-cols-1 gap-3 sm:grid-cols-3"
         >
-          {STEPS.map((step, i) => (
+          {steps.map((step, i) => (
             <motion.li
               key={step.label}
               variants={fadeUp}
@@ -255,7 +268,7 @@ function StudioFrontView() {
         </div>
 
         {!front ? (
-          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
             {Array.from({ length: 3 }).map((_, i) => (
               <div
                 key={i}
@@ -275,7 +288,7 @@ function StudioFrontView() {
             initial="hidden"
             animate="show"
             variants={staggerChildren(0.06)}
-            className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
+            className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"
           >
             {front.services.map((service) => (
               <ServiceCard key={service._id} service={service} slug={slug} tracking={tracking} />
@@ -292,7 +305,7 @@ function StudioFrontView() {
             initial="hidden"
             animate="show"
             variants={staggerChildren(0.06)}
-            className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3"
+            className="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3"
           >
             {front.rooms.map((room) => (
               <RoomCard key={room._id} room={room} slug={slug} tracking={tracking} />
@@ -300,8 +313,9 @@ function StudioFrontView() {
           </motion.div>
         )}
 
-        {/* Deposit policy */}
-        {front && (
+        {/* Deposit policy. A no-price link takes no payment, so it says nothing
+            about money at all. */}
+        {front && !pricingHidden && (
           <div
             className="flex items-start gap-2.5 rounded-md border border-graphite/50 bg-coal-2 px-4 py-3"
             style={{
@@ -314,7 +328,7 @@ function StudioFrontView() {
             />
             <p className="text-xs text-steel">
               {front.org.depositPolicy?.trim() ||
-                "A deposit holds your slot and is credited toward the final invoice. You will see the exact amount before you pay."}
+                  "A deposit holds your slot and is credited toward the final invoice. You will see the exact amount before you pay."}
             </p>
           </div>
         )}
@@ -334,7 +348,7 @@ function StudioFrontView() {
       )}
 
       {/* Memberships (hidden until the studio publishes a subscribable package) */}
-      <MembershipPlans slug={slug} accent={accent} />
+      {!pricingHidden && <MembershipPlans slug={slug} accent={accent} />}
     </div>
   );
 }

@@ -5,7 +5,8 @@ import { api } from "@convex/_generated/api";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { money, shortDate } from "@/lib/format";
-import { ReportCard, ReportStat } from "./report-shell";
+import { SessionLink } from "@/components/shell/entity-link";
+import { ReportCard, ReportStat, REPORT_LINK } from "./report-shell";
 
 function reasonLabel(r: string) {
   return r.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
@@ -68,7 +69,11 @@ export function CompsReport() {
             <TBody>
               {data.rows.map((r) => (
                 <TR key={r.sessionId}>
-                  <TD className="font-medium">{r.title}</TD>
+                  <TD className="font-medium">
+                    <SessionLink sessionId={r.sessionId} className={REPORT_LINK}>
+                      {r.title}
+                    </SessionLink>
+                  </TD>
                   <TD className="text-steel">{r.artistName}</TD>
                   <TD>
                     <Badge tone="caution" className="capitalize">{r.compType}</Badge>

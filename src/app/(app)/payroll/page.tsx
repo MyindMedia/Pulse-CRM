@@ -1,5 +1,6 @@
 "use client";
 
+import { EntityLink } from "@/components/shell/entity-link";
 import * as React from "react";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
@@ -118,12 +119,13 @@ export default function PayrollPage() {
         actions={
           <Button onClick={doPost} disabled={posting || !data || data.rows.length === 0}>
             <ArrowRightLeft className="size-4" />
-
-      <PayoutsPanel />
             {posting ? "Posting…" : "Post to expenses"}
           </Button>
         }
       />
+
+      {/* Lived inside the Post button above (a whole panel in a button). */}
+      <PayoutsPanel />
 
       <div className="flex flex-wrap items-center gap-3">
         <div className="w-full sm:w-48">
@@ -180,7 +182,9 @@ export default function PayrollPage() {
             data.rows.map((r) => (
               <TR key={r.memberId}>
                 <TD>
-                  <span className="text-bone">{r.name}</span>
+                  <EntityLink type="member" id={r.memberId} className="text-bone hover:text-gold hover:underline">
+                    {r.name}
+                  </EntityLink>
                   <span className="ml-2 text-xs capitalize text-steel/70">{r.role.replace(/_/g, " ")}</span>
                   {r.openCount > 0 && <span className="ml-2 rounded-full border border-gold/40 px-1.5 py-0.5 text-[0.625rem] uppercase tracking-wide text-gold">on the clock</span>}
                 </TD>

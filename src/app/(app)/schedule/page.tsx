@@ -14,8 +14,11 @@ import { SkeletonRows } from "@/components/ui/skeleton";
 import { ShiftDialog, type EditableShift } from "@/components/schedule/shift-dialog";
 import { TimeOffInbox } from "@/components/schedule/time-off-inbox";
 import { MySchedulePanel } from "@/components/schedule/my-schedule-panel";
+import { MyCalendarCard } from "@/components/calendar/my-calendar-card";
+import { useMemberBusy, BusyChips } from "@/components/schedule/member-busy";
 import { EngineerRequests } from "@/components/schedule/engineer-requests";
 import { UnstaffedSessions } from "@/components/schedule/unstaffed-sessions";
+import { EntityLink } from "@/components/shell/entity-link";
 import { cn } from "@/lib/utils";
 
 const DAY = 86_400_000;
@@ -38,7 +41,7 @@ type Member = { _id: string; name: string; avatarColor?: string; photoUrl?: stri
 type Shift = {
   _id: string; memberId: string; memberName: string; memberPhotoUrl?: string | null;
   roomName: string | null;
-  roomId?: string; note?: string; kind: "scheduled" | "session";
+  roomId?: string; note?: string; kind: "scheduled" | "session"; sessionId?: string;
   status: "scheduled" | "confirmed" | "cancelled"; startTime: number; endTime: number;
 };
 
@@ -55,6 +58,7 @@ export default function SchedulePage() {
   const working = useQuery(api.shifts.whosWorking, {});
   const closures = useQuery(api.shifts.closedDaysInRange, { from: weekStart, to: weekEnd });
   const cancelShift = useMutation(api.shifts.cancel);
+  const memberBusy = useMemberBusy(weekStart, weekEnd);
 
   const weekLabel = `${new Date(weekStart).toLocaleDateString("en-US", { month: "short", day: "numeric" })} - ${new Date(weekEnd - DAY).toLocaleDateString("en-US", { month: "short", day: "numeric" })}`;
 
@@ -79,7 +83,7 @@ export default function SchedulePage() {
     setDialogOpen(true);
   }
   function openEdit(s: Shift) {
-    setEditShift({ _id: s._id, memberId: s.memberId, startTime: s.startTime, endTime: s.endTime, roomId: s.roomId, note: s.note, status: s.status });
+    setEditShift({ _id: s._id, memberId: s.memberId, startTime: s.startTime, endTime: s.endTime, roomId: s.roomId, note: s.note, status: s.status, sessionId: s.kind === "session" ? s.sessionId : undefined });
     setDialogOpen(true);
   }
   function quickCancel(s: Shift) {
@@ -242,7 +246,9 @@ export default function SchedulePage() {
                     <span className="inline-flex items-center gap-2">
                       <span className="size-2 shrink-0 rounded-full" style={{ backgroundColor: colorOf(m._id) }} />
                       <Avatar name={m.name} src={m.photoUrl} color={m.avatarColor} size="xs" className="rounded-full" />
-                      {m.name}
+                      <EntityLink type="member" id={m._id} className="hover:underline">
+                        {m.name}
+                      </EntityLink>
                     </span>
                   </td>
                   {Array.from({ length: 7 }).map((_, di) => {
@@ -254,6 +260,7 @@ export default function SchedulePage() {
                     return (
                       <td key={di} className="group/cell min-w-[88px] align-top">
                         <div className="flex min-h-[44px] flex-col gap-1 p-1.5">
+                          <BusyChips items={memberBusy[m._id]?.[di]} />
                           {cell.map((s) => {
                             const cp = chipProps(s);
                             return (
@@ -307,6 +314,7 @@ export default function SchedulePage() {
 
       <TimeOffInbox />
       <MySchedulePanel />
+      <MyCalendarCard />
 
       <ShiftDialog
         open={dialogOpen}

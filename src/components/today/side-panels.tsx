@@ -55,6 +55,7 @@ export function ArrivalsPanel({
             <li key={a._id}>
               <button
                 type="button"
+                data-drill="session"
                 onClick={() => onOpen?.(a._id)}
                 className="flex w-full items-center gap-3 rounded-md px-2 py-1.5 text-left outline-none transition-colors hover:bg-coal-2 focus-visible:ring-2 focus-visible:ring-gold/30"
               >
@@ -112,6 +113,7 @@ export function BalancesPanel({
             <li key={s._id}>
               <button
                 type="button"
+                data-drill="session"
                 onClick={() => onOpen?.(s._id)}
                 className="flex w-full items-center justify-between gap-3 rounded-md px-2 py-1.5 text-left outline-none transition-colors hover:bg-coal-2 focus-visible:ring-2 focus-visible:ring-gold/30"
               >

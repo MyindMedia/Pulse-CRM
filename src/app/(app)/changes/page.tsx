@@ -11,6 +11,7 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
 import { CapabilityGuard } from "@/components/shell/capability-guard";
+import { EntityLink } from "@/components/shell/entity-link";
 
 /* The change log: who changed what, and when.
  *
@@ -51,10 +52,17 @@ const NOUN: Record<string, string> = {
   expenses: "expense", payouts: "payout", packageProducts: "package", packageCredits: "package credit",
   feeTemplates: "fee", membershipPlans: "membership plan", clientMessages: "client message",
   opportunities: "deal", songs: "song", deliverables: "deliverable", splitSheets: "split sheet",
-  licenses: "licence",
+  licenses: "license",
 };
 
 const VERB = { insert: "added", update: "changed", delete: "removed" } as const;
+
+/** Tables whose rows have somewhere to open (see entityHref). A removed row
+ *  has nowhere to go, so it stays plain text. */
+const ENTITY_OF: Record<string, string> = {
+  sessions: "session", artists: "artist", rooms: "room", members: "member",
+  invoices: "invoice", opportunities: "deal", songs: "song", projects: "project",
+};
 
 function words(field: string): string {
   return field
@@ -150,11 +158,30 @@ function ChangeLogView() {
                       <TD className="whitespace-nowrap text-xs text-steel tabular-nums">
                         {new Date(row.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
                       </TD>
-                      <TD className="whitespace-nowrap text-sm text-bone">{row.actorName}</TD>
+                      <TD className="whitespace-nowrap text-sm text-bone">
+                        <EntityLink type="member" id={row.actorMemberId} className="hover:text-gold hover:underline">
+                          {row.actorName}
+                        </EntityLink>
+                      </TD>
                       <TD className="text-sm text-steel">
                         <span className="text-bone">{VERB[row.op]}</span>{" "}
-                        {NOUN[row.tableName] ?? words(row.tableName)}
-                        {row.label ? <span className="text-bone"> {row.label}</span> : null}
+                        {(() => {
+                          const type = row.op === "delete" ? undefined : ENTITY_OF[row.tableName];
+                          const noun = NOUN[row.tableName] ?? words(row.tableName);
+                          const text = (
+                            <>
+                              {noun}
+                              {row.label ? <span className="text-bone"> {row.label}</span> : null}
+                            </>
+                          );
+                          return type ? (
+                            <EntityLink type={type} id={row.docId} className="hover:text-gold hover:underline">
+                              {text}
+                            </EntityLink>
+                          ) : (
+                            text
+                          );
+                        })()}
                         <Badge tone="neutral" className="ml-2 align-middle">{AREAS.find((a) => a.value === row.area)?.label ?? "Other"}</Badge>
                       </TD>
                       <TD className="text-xs text-steel">

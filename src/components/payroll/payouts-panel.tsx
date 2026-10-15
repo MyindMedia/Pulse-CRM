@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/toggle";
 import { money } from "@/lib/format";
+import { EntityLink, SessionLink } from "@/components/shell/entity-link";
 
 /* Engineer payouts.
 
@@ -105,11 +106,18 @@ export function PayoutsPanel() {
               >
                 <span className="min-w-0 flex-1">
                   <span className="flex flex-wrap items-center gap-2">
-                    <span className="text-sm font-medium text-bone">{p.memberName}</span>
+                    <EntityLink type="member" id={p.memberId} className="text-sm font-medium text-bone hover:text-gold hover:underline">
+                      {p.memberName}
+                    </EntityLink>
                     <Badge tone={TONE[p.status]}>{p.status}</Badge>
                   </span>
                   {/* The working, not just the answer. */}
                   <span className="mt-0.5 block text-xs text-steel/70">{p.explanation}</span>
+                  {p.sessionId && (
+                    <SessionLink sessionId={p.sessionId} className="mt-0.5 inline-block text-xs text-gold hover:underline">
+                      Open the booking
+                    </SessionLink>
+                  )}
                 </span>
                 <span className="shrink-0 font-mono text-sm tabular-nums text-bone">
                   {money(p.amountCents)}

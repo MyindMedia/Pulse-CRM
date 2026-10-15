@@ -232,7 +232,19 @@ export default function BookingsPage() {
             ) : view === "day" ? (
               <DayTimeline rows={rows} rooms={rooms} dayStart={anchor} now={now} selectedId={selected?._id ?? null} onSelect={(s) => setSelectedId(s._id)} />
             ) : (
-              <WeekTimeline rows={rows} rooms={rooms} weekStart={startOfWeek(anchor)} now={now} selectedId={selected?._id ?? null} onSelect={(s) => setSelectedId(s._id)} />
+              <WeekTimeline
+                rows={rows}
+                rooms={rooms}
+                weekStart={startOfWeek(anchor)}
+                now={now}
+                selectedId={selected?._id ?? null}
+                onSelect={(s) => setSelectedId(s._id)}
+                onShowDay={(d) => {
+                  setView("day");
+                  setAnchor(d);
+                  setSelectedId(null);
+                }}
+              />
             )}
           </div>
         </Chassis>

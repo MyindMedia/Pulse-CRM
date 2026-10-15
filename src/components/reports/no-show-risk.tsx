@@ -6,7 +6,8 @@ import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { meta, RELIABILITY } from "@/lib/labels";
-import { ReportCard, ReportStat } from "./report-shell";
+import { EntityLink } from "@/components/shell/entity-link";
+import { ReportCard, ReportStat, REPORT_LINK } from "./report-shell";
 
 export function NoShowRiskReport() {
   const data = useQuery(api.reports.noShowRisk);
@@ -46,7 +47,11 @@ export function NoShowRiskReport() {
                   r.band === "high" ? "critical" : r.band === "medium" ? "caution" : "info";
                 return (
                   <TR key={r.artistId}>
-                    <TD className="font-medium">{r.artistName}</TD>
+                    <TD className="font-medium">
+                      <EntityLink type="artist" id={r.artistId} className={REPORT_LINK}>
+                        {r.artistName}
+                      </EntityLink>
+                    </TD>
                     <TD>
                       <Badge tone={rel.tone}>{rel.label}</Badge>
                     </TD>

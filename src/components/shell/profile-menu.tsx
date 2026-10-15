@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { entityHref } from "@/lib/entity-href";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { useQuery, useMutation } from "convex/react";
 import { useOptionalSignOut, useOptionalUser } from "@/lib/use-optional-clerk";
@@ -40,6 +41,14 @@ import { EmptyState } from "@/components/ui/feedback";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
+/** Where an alert opens, read at click time: a booking opens its sheet on the
+ *  current page (the shell's global sheet reads ?session=), anything else
+ *  goes to its own page. */
+function openTarget(type: string | undefined, id: string | undefined | null, pathname: string) {
+  const search = typeof window === "undefined" ? "" : window.location.search;
+  return entityHref(type, id, { pathname, search });
+}
+
 /* The signed-in user's corner of the topbar: their avatar (uploaded photo or
    Clerk account picture), with a menu for editing their profile, reviewing
    their alerts, and signing out. Replaces the old static plan chip - the plan
@@ -51,13 +60,6 @@ const SEVERITY = {
   info: { icon: FileText, tone: "text-info", ring: "bg-info/10" },
 } as const;
 
-const KIND_ROUTE: Record<string, string> = {
-  artist: "/roster",
-  song: "/songs",
-  session: "/calendar",
-  invoice: "/payments",
-  opportunity: "/pipeline",
-};
 
 export function ProfileMenu() {
   const org = useQuery(api.orgs.current);
@@ -270,6 +272,7 @@ function AlertsDialog({
   onOpenChange: (v: boolean) => void;
 }) {
   const router = useRouter();
+  const pathname = usePathname();
   const insights = useQuery(api.insights.open, open ? { limit: 25 } : "skip");
   const markAllSeen = useMutation(api.insights.markAllSeen);
   const setStatus = useMutation(api.insights.setStatus);
@@ -305,7 +308,7 @@ function AlertsDialog({
             insights.map((it) => {
               const sev = SEVERITY[it.severity as keyof typeof SEVERITY] ?? SEVERITY.info;
               const Icon = sev.icon;
-              const route = it.entityType ? KIND_ROUTE[it.entityType] : undefined;
+              const route = entityHref(it.entityType, it.entityId);
               return (
                 <button
                   key={it._id}
@@ -314,7 +317,7 @@ function AlertsDialog({
                     if (route && it.entityId) {
                       void setStatus({ id: it._id, status: "actioned" });
                       onOpenChange(false);
-                      router.push(`${route}/${it.entityId}`);
+                      router.push(openTarget(it.entityType, it.entityId, pathname)!, { scroll: false });
                     }
                   }}
                 >

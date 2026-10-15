@@ -18,6 +18,7 @@ import { AuthGate } from "@/components/shell/auth-gate";
 import { AgencyHomeRedirect } from "@/components/shell/agency-home-redirect";
 import { LiveToasts } from "@/components/shell/live-toasts";
 import { CommandPalette } from "@/components/shell/command-palette";
+import { GlobalSessionSheet } from "@/components/shell/global-session-sheet";
 import { ClockWidget } from "@/components/timeclock/clock-widget";
 import { MobileTabBar } from "@/components/shell/mobile-tabbar";
 import { FeatureGuard } from "@/components/shell/feature-guard";
@@ -128,6 +129,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
         <BillingLock />
         <CommandPalette />
+        <GlobalSessionSheet />
         <ClockWidget />
         <MobileTabBar onOpenMore={() => setMobileNav(true)} />
       </div>

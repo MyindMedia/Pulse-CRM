@@ -69,6 +69,8 @@ export const recentDeposits = query({
           clientName: artist?.name ?? p.payerName ?? "Client",
           roomName: room?.name ?? null,
           sessionStart: session?.startTime ?? null,
+          sessionId: session ? p.sessionId : null,
+          artistId: session?.artistId ?? null,
         };
       }),
     );
@@ -139,7 +141,10 @@ export async function settlePayment(
     amountPaidCents: paidTotal,
     depositPaid: paidTotal >= session.depositCents,
   };
-  if (session.status === "tentative" && paidTotal >= session.depositCents) {
+  // A booking request still waits for an owner or manager to approve it;
+  // the deposit alone does not confirm it (bookingRequests.ts).
+  const awaitingApproval = session.requestStatus === "pending";
+  if (session.status === "tentative" && paidTotal >= session.depositCents && !awaitingApproval) {
     patch.status = "confirmed";
     patch.holdExpiresAt = undefined;
   }
@@ -167,9 +172,11 @@ export async function settlePayment(
       channel: "email",
       recipient: artist.email,
       subject: fullyPaid ? `Paid in full - ${session.title}` : `Deposit received - ${session.title}`,
-      body: fullyPaid
-        ? `We received ${money(amountCents)}. Your session is fully paid and locked in. See you in the studio.`
-        : `We received your ${money(amountCents)} deposit. Your session is held. The ${money(
+      body: awaitingApproval
+        ? `We received your ${money(amountCents)} payment. Your request is with the studio for approval, and we'll let you know as soon as it's reviewed.`
+        : fullyPaid
+          ? `We received ${money(amountCents)}. Your session is fully paid and locked in. See you in the studio.`
+          : `We received your ${money(amountCents)} deposit. Your session is held. The ${money(
             session.rateCents - paidTotal,
           )} balance is due up to 2 hours before your start time.`,
       kind: fullyPaid ? "payment.full" : "payment.deposit",

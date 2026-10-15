@@ -1,5 +1,6 @@
 "use client";
 
+import { EntityLink, SessionLink } from "@/components/shell/entity-link";
 import * as React from "react";
 import Link from "next/link";
 import { useMutation, useQuery } from "convex/react";
@@ -75,7 +76,22 @@ export function GearCheckoutPanel() {
               <div className="min-w-0">
                 <p className="truncate font-medium text-bone">{r.equipmentName}</p>
                 <p className="text-xs text-steel">
-                  {r.holderLabel} · out {new Date(r.outAt).toLocaleDateString()}
+                  {r.holderSessionId ? (
+                    <SessionLink sessionId={r.holderSessionId} className="text-bone hover:text-gold hover:underline">
+                      {r.holderLabel}
+                    </SessionLink>
+                  ) : r.holderArtistId ? (
+                    <EntityLink type="artist" id={r.holderArtistId} className="text-bone hover:text-gold hover:underline">
+                      {r.holderLabel}
+                    </EntityLink>
+                  ) : r.holderMemberId ? (
+                    <EntityLink type="member" id={r.holderMemberId} className="text-bone hover:text-gold hover:underline">
+                      {r.holderLabel}
+                    </EntityLink>
+                  ) : (
+                    r.holderLabel
+                  )}{" "}
+                  · out {new Date(r.outAt).toLocaleDateString()}
                   {r.dueAt ? ` · due ${new Date(r.dueAt).toLocaleString()}` : ""}
                 </p>
               </div>

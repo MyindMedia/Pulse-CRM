@@ -5,6 +5,20 @@ import { v } from "convex/values";
 import { requireCapability } from "./lib/access";
 import { PLAN_LIMITS } from "./lib/plans";
 import { tierForPlan } from "./lib/tier";
+import { currentOrgWithCapability } from "./lib/tenant";
+import { SETUP_ACCESS } from "./lib/access";
+import {
+  CUSTOM_PRESET_ID,
+  STOCK_SECONDARY,
+  isHexColor,
+  presetById,
+} from "./lib/brandPresets";
+
+function assertHex(value: string | undefined, what: string) {
+  if (value !== undefined && !isHexColor(value)) {
+    throw new Error(`${what} must be a 6-digit hex value like #fdb913.`);
+  }
+}
 
 /* ============================================================
    Branding mutations - both agency-level (white-label) and
@@ -19,6 +33,7 @@ export const updateAgencyBranding = mutation({
     customDomain: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    assertHex(args.accentColor, "Accent color");
     const viewer = await requireCapability(ctx, "branding.edit");
     if (viewer.kind !== "agency_member") throw new Error("agency only");
     const ag = await ctx.db
@@ -66,6 +81,7 @@ export const updateStudioBranding = mutation({
     bookingIntro: v.optional(v.string()),
   },
   handler: async (ctx, args) => {
+    assertHex(args.accentColor, "Accent color");
     const viewer = await requireCapability(ctx, "branding.edit");
     const orgId = "orgId" in viewer ? viewer.orgId : undefined;
     if (!orgId) throw new Error("requires active org");
@@ -80,5 +96,73 @@ export const updateStudioBranding = mutation({
       bookingHeadline: args.bookingHeadline ?? org.bookingHeadline,
       bookingIntro: args.bookingIntro ?? org.bookingIntro,
     });
+  },
+});
+
+/**
+ * Studio brand colors: a preset, or "custom" with a primary and an optional
+ * secondary. Every plan (decision 2026-10-14); separate from the Max-only
+ * full white-label theme in theme.ts, which stays as it is.
+ * Writes accentColor, brandPalette [primary, secondary] and brandPreset.
+ * The server resolves a named preset's colors itself, so a client can never
+ * save a preset id with someone else's colors, and validates every hex.
+ */
+export const setBrandColors = mutation({
+  args: {
+    preset: v.string(),
+    primary: v.optional(v.string()),
+    secondary: v.optional(v.string()),
+  },
+  handler: async (ctx, args) => {
+    let primary: string;
+    let secondary: string;
+    if (args.preset === CUSTOM_PRESET_ID) {
+      if (!args.primary) throw new Error("Pick a primary color.");
+      assertHex(args.primary, "Primary color");
+      assertHex(args.secondary, "Secondary color");
+      primary = args.primary.toLowerCase();
+      secondary = (args.secondary ?? STOCK_SECONDARY).toLowerCase();
+    } else {
+      const preset = presetById(args.preset);
+      if (!preset) throw new Error("Unknown color preset.");
+      primary = preset.primary;
+      secondary = preset.secondary;
+    }
+    const orgId = await currentOrgWithCapability(ctx, "branding.edit", undefined, SETUP_ACCESS);
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    if (!org) throw new Error("Set up the studio first.");
+    await ctx.db.patch(org._id, {
+      accentColor: primary,
+      brandPalette: [primary, secondary],
+      brandPreset: args.preset,
+    });
+    return { preset: args.preset, primary, secondary };
+  },
+});
+
+/**
+ * Surface style for the whole studio: "hardware" (Pulse Hardware, the default)
+ * or "glass" (iOS Glass). Every plan, like brand colors. Stored as written;
+ * unset reads as hardware everywhere, so a studio that never touches it is
+ * unchanged. The server validates the value, so a client cannot store a third
+ * style the stylesheet has no rules for.
+ */
+export const setUiStyle = mutation({
+  args: { uiStyle: v.string() },
+  handler: async (ctx, { uiStyle }) => {
+    if (uiStyle !== "hardware" && uiStyle !== "glass") {
+      throw new Error("Unknown look. Pick Pulse Hardware or iOS Glass.");
+    }
+    const orgId = await currentOrgWithCapability(ctx, "branding.edit", undefined, SETUP_ACCESS);
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    if (!org) throw new Error("Set up the studio first.");
+    await ctx.db.patch(org._id, { uiStyle });
+    return { uiStyle };
   },
 });

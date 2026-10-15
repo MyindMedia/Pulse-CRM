@@ -25,6 +25,7 @@ import { money, timeOfDay, shortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { popIn, fadeUp } from "@/lib/motion";
 import { BookingSummary } from "@/components/book/booking-summary";
+import { RequestStatusPage, RequestPendingBanner } from "@/components/book/request-status";
 
 type PayChoice = "deposit" | "full";
 
@@ -60,6 +61,9 @@ export default function CheckoutPage() {
       </div>
     );
   }
+
+  // A request from a link without prices: no amounts, no payment step.
+  if (booking.pricingHidden) return <RequestStatusPage slug={slug} booking={booking} />;
 
   const notPaid = booking.paidCents === 0;
   /* The studio sells this room paid-in-full, so there is no deposit to offer.
@@ -97,6 +101,8 @@ export default function CheckoutPage() {
         <ArrowLeft className="size-4" />
         Studio
       </Link>
+
+      <RequestPendingBanner requestStatus={booking.requestStatus} />
 
       {/* Confirmation banner once anything has been paid */}
       {!notPaid && !released && (
@@ -165,7 +171,7 @@ export default function CheckoutPage() {
               Showing the choice and then refusing it is how a client ends up
               believing they have held a room they have not. */}
           {!fullOnly && (
-            <div className="grid gap-3 sm:grid-cols-2">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <ChoiceCard
                 active={choice === "deposit"}
                 onClick={() => setChoice("deposit")}

@@ -39,6 +39,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ShellErrorBoundary } from "@/components/shell/shell-error-boundary";
 import { brandStyle } from "@/lib/brand-theme";
+import { GlassBackdrop } from "@/components/shell/glass-backdrop";
+import { useUiStyleRoot } from "@/lib/ui-style";
 import {
   MONTH_NAMES,
   WEEKDAY_LABELS,
@@ -204,6 +206,7 @@ function Kiosk({ authReady }: { authReady: boolean }) {
   }
 
   const org = useQuery(api.orgs.current);
+  const glass = useUiStyleRoot(org?.uiStyle);
 
   const anchorDate = new Date(anchor);
   const year = anchorDate.getFullYear();
@@ -254,13 +257,16 @@ function Kiosk({ authReady }: { authReady: boolean }) {
 
   return (
     <div
+      data-glass-root
       className="grain flex h-dvh flex-col overflow-hidden bg-ink text-bone"
-      style={brandStyle(org?.accentColor)}
+      style={brandStyle(org?.accentColor, org?.brandSecondary)}
     >
-      {/* ambient gold wash */}
+      {/* iOS Glass: the moving room light the panels frost over. */}
+      {glass && <GlassBackdrop />}
+      {/* ambient wash in the studio brand color (--brand-rgb, brandStyle) */}
       <div
         aria-hidden
-        className="pointer-events-none fixed inset-x-0 top-0 h-[320px] bg-[radial-gradient(ellipse_60%_100%_at_50%_0%,rgba(253,185,19,0.08),transparent_70%)]"
+        className="pointer-events-none fixed inset-x-0 top-0 h-[320px] bg-[radial-gradient(ellipse_60%_100%_at_50%_0%,rgba(var(--brand-rgb),0.08),transparent_70%)]"
       />
 
       {/* ── Header ── */}

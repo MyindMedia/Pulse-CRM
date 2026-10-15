@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { Brackets } from "@/components/shell/page-header-slot";
 
@@ -60,14 +61,17 @@ export function StatTile({
   value,
   highlight,
   foot,
+  href,
 }: {
   label: string;
   value: string;
   highlight?: boolean;
   foot?: React.ReactNode;
+  /** The list this figure is counted from; the whole tile links there. */
+  href?: string;
 }) {
-  return (
-    <div className="pl-well pl-stat min-w-0 px-4 py-3.5">
+  const body = (
+    <>
       <div className="flex items-center justify-between gap-2">
         <span className="pl-label truncate">{label}</span>
         <span className="pl-led" data-on={highlight ? "true" : undefined} aria-hidden />
@@ -81,8 +85,20 @@ export function StatTile({
         {value}
       </p>
       <div className="pl-stat-foot mt-2.5 min-h-4 truncate font-mono text-xs leading-4 text-steel">{foot}</div>
-    </div>
+    </>
   );
+  if (href) {
+    return (
+      <Link
+        href={href}
+        data-drill="stat"
+        className="pl-well pl-stat block min-w-0 px-4 py-3.5 outline-none transition-colors hover:bg-white/[0.03] focus-visible:ring-2 focus-visible:ring-gold/40"
+      >
+        {body}
+      </Link>
+    );
+  }
+  return <div className="pl-well pl-stat min-w-0 px-4 py-3.5">{body}</div>;
 }
 
 /** A signed change with its arrow; the word "vs …" stays muted. Status never

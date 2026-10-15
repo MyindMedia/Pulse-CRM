@@ -13,6 +13,7 @@ import {
   DoorOpen,
   LayoutGrid,
   List,
+  Lock,
   Plus,
   Tablet,
 } from "lucide-react";
@@ -32,6 +33,7 @@ import { cn } from "@/lib/utils";
 import { MonthGrid } from "@/components/calendar/month-grid";
 import { AgendaList } from "@/components/calendar/agenda-list";
 import { SessionSheet } from "@/components/calendar/session-sheet";
+import { BlockRoomDialog, BlockSheet, BlocksStrip, useRoomBlocks, type RoomBlock } from "@/components/calendar/room-blocks";
 import { BookSessionDialog } from "@/components/calendar/book-session-dialog";
 import {
   MONTH_NAMES,
@@ -84,8 +86,11 @@ function CalendarView() {
       setView("day");
     }
   }, []);
-  const [openSessionId, setOpenSessionId] = useState<string | null>(null);
-  const [bookOpen, setBookOpen] = useState(false);
+  // Deep links work on first load too: ?session=<id> opens that booking's sheet
+  // and ?new=1 the booking modal. (Before, only a link that changed AFTER the
+  // page mounted opened anything, so a link from an email or the bell did not.)
+  const [openSessionId, setOpenSessionId] = useState<string | null>(() => params.get("session"));
+  const [bookOpen, setBookOpen] = useState(() => params.get("new") === "1");
   const [bookDate, setBookDate] = useState<number | undefined>(undefined);
 
   // Deep links: ?new=1 opens the booking modal; ?session=<id> opens the sheet.
@@ -139,6 +144,16 @@ function CalendarView() {
 
   const sessions = byRoom(rangeSessions as Session[] | undefined);
 
+  // Room blocks (studio switch + owner/manager only to edit).
+  const [blockOpen, setBlockOpen] = useState(false);
+  const [openBlock, setOpenBlock] = useState<RoomBlock | null>(null);
+  const blockRange = view === "agenda" ? { from: Date.now(), to: Date.now() + 90 * DAY_MS } : range;
+  const { canEdit: canBlock, blocks: roomBlocks } = useRoomBlocks(blockRange, filterRoomId);
+  const roomNames = useMemo(
+    () => Object.fromEntries((rooms ?? []).map((r) => [r._id, r.name])),
+    [rooms],
+  );
+
   // Stable "today" snapshot at mount keeps the render pure.
   const [today] = useState(() => startOfDay(Date.now()));
   const agendaSessions = useMemo(() => {
@@ -187,6 +202,12 @@ function CalendarView() {
                 Open kiosk
               </a>
             </Button>
+            {canBlock && (
+              <Button variant="outline" onClick={() => setBlockOpen(true)}>
+                <Lock className="size-4" />
+                Block room
+              </Button>
+            )}
             <Button
               onClick={() => {
                 setBookDate(undefined);
@@ -268,7 +289,7 @@ function CalendarView() {
       {loading ? (
         <Skeleton className="h-[34rem] w-full" />
       ) : view === "month" ? (
-        monthEmpty ? (
+        monthEmpty && roomBlocks.length === 0 ? (
           <EmptyState
             icon={CalendarRange}
             title={`Nothing booked in ${MONTH_NAMES[month]}`}
@@ -292,10 +313,17 @@ function CalendarView() {
             sessions={sessions ?? []}
             onOpenSession={setOpenSessionId}
             onPickDay={openBookingForDay}
+            onShowDay={(ts) => {
+              setAnchor(startOfDay(ts));
+              setView("day");
+            }}
+            blocks={roomBlocks}
+            roomNames={roomNames}
+            onOpenBlock={setOpenBlock}
           />
         )
       ) : listViews ? (
-        (sessions?.length ?? 0) === 0 ? (
+        (sessions?.length ?? 0) === 0 && roomBlocks.length === 0 ? (
           <EmptyState
             icon={CalendarRange}
             title={view === "day" ? "Nothing booked this day" : "Nothing booked this week"}
@@ -308,18 +336,40 @@ function CalendarView() {
             }
           />
         ) : (
-          <AgendaList sessions={sessions ?? []} onOpenSession={setOpenSessionId} />
+          <div className="space-y-5">
+            <BlocksStrip blocks={roomBlocks} roomNames={roomNames} onOpen={setOpenBlock} />
+            {(sessions?.length ?? 0) > 0 && (
+              <AgendaList sessions={sessions ?? []} onOpenSession={setOpenSessionId} />
+            )}
+          </div>
         )
       ) : (
-        <AgendaList sessions={agendaSessions} onOpenSession={setOpenSessionId} />
+        <div className="space-y-5">
+          <BlocksStrip blocks={roomBlocks} roomNames={roomNames} onOpen={setOpenBlock} />
+          <AgendaList sessions={agendaSessions} onOpenSession={setOpenSessionId} />
+        </div>
       )}
+
+      <BlockRoomDialog
+        open={blockOpen}
+        onOpenChange={setBlockOpen}
+        defaultRoomId={filterRoomId !== "all" ? filterRoomId : undefined}
+      />
+      <BlockSheet block={openBlock} canEdit={canBlock} onClose={() => setOpenBlock(null)} />
 
       <BookSessionDialog
         open={bookOpen}
         onOpenChange={setBookOpen}
         initialDate={bookDate}
       />
-      <SessionSheet sessionId={openSessionId} onClose={() => setOpenSessionId(null)} />
+      <SessionSheet
+        sessionId={openSessionId}
+        onClose={() => {
+          setOpenSessionId(null);
+          // Drop ?session so the same booking link opens it again.
+          if (params.get("session")) router.replace("/calendar", { scroll: false });
+        }}
+      />
     </div>
   );
 }

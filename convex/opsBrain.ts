@@ -312,7 +312,8 @@ export async function gatherSignals(ctx: MutationCtx, orgId: string): Promise<Si
 
   const sessions = await ctx.db.query("sessions").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
   const unconfirmedSessions = sessions
-    .filter((sess) => sess.status === "tentative" && sess.startTime > now && sess.startTime <= now + CONFIRM_HORIZON)
+    // Booking requests are decided in the Requests section, not by a confirm card.
+    .filter((sess) => sess.status === "tentative" && sess.requestStatus !== "pending" && sess.startTime > now && sess.startTime <= now + CONFIRM_HORIZON)
     .slice(0, 10)
     .map((sess) => ({ id: sess._id, title: sess.title, startTime: sess.startTime, artistName: artistMap.get(sess.artistId)?.name ?? "the artist" }));
   const depositUnpaid = sessions

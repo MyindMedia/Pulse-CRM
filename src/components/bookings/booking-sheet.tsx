@@ -44,7 +44,12 @@ import { meta, SESSION_STATUS } from "@/lib/labels";
 import type { BookingRow, NotificationRow, SessionStatus } from "./types";
 import { isOnline } from "./types";
 import { HoldCountdown } from "./hold-countdown";
+import { RequestBadge, RequestDecision } from "./request-decision";
 import { PaymentPanel } from "./payment-panel";
+import { PendingChangeBanner } from "./pending-change-banner";
+import { ChangedInGoogleBadge } from "@/components/calendar/changed-in-google-badge";
+import { proposalNotice } from "@/lib/change-proposal";
+import { EntityLink } from "@/components/shell/entity-link";
 
 function Row({
   label,
@@ -200,8 +205,8 @@ export function BookingSheet({
     if (!booking) return;
     setBusy(true);
     try {
-      await setStatus({ id: booking._id, status: next });
-      toast.success(ok);
+      const res = await setStatus({ id: booking._id, status: next });
+      if (!proposalNotice(res)) toast.success(ok);
     } catch {
       toast.error("Action failed - please retry");
     } finally {
@@ -219,6 +224,7 @@ export function BookingSheet({
                 <Badge tone={meta(SESSION_STATUS, booking.status).tone}>
                   {meta(SESSION_STATUS, booking.status).label}
                 </Badge>
+                <RequestBadge requestStatus={booking.requestStatus} />
                 {isOnline(booking) && (
                   <Badge tone="gold">
                     <Globe className="size-2.5" />
@@ -237,20 +243,38 @@ export function BookingSheet({
             </SheetHeader>
 
             <SheetBody className="space-y-5">
+              <RequestDecision
+                sessionId={booking._id}
+                requestStatus={booking.requestStatus}
+                amountPaidCents={booking.amountPaidCents}
+                onDecided={onClose}
+              />
+              <PendingChangeBanner sessionId={booking._id} />
+              <ChangedInGoogleBadge sessionId={booking._id} changedAt={("googleChangedAt" in booking ? booking.googleChangedAt : undefined) as number | undefined} />
               <div className="divide-y divide-hairline">
                 <Row label="Client">
                   <span className="inline-flex items-center gap-2">
                     <Avatar name={booking.artistName} size="xs" />
-                    <span className="truncate">{booking.artistName}</span>
+                    <EntityLink type="artist" id={booking.artistId} className="truncate hover:underline">
+                      {booking.artistName}
+                    </EntityLink>
                   </span>
                 </Row>
                 <Row label="Song" icon={Music2}>
-                  {booking.songTitle ?? (
+                  {booking.songTitle ? (
+                    <EntityLink type="song" id={booking.songId} className="hover:underline">
+                      {booking.songTitle}
+                    </EntityLink>
+                  ) : (
                     <span className="text-steel/70">Not linked</span>
                   )}
                 </Row>
                 <Row label="Room" icon={DoorOpen}>
-                  {booking.roomName ?? (
+                  {booking.roomName ? (
+                    <EntityLink type="room" id={booking.roomId} className="hover:underline">
+                      {booking.roomName}
+                    </EntityLink>
+                  ) : (
                     <span className="text-steel/70">Unassigned</span>
                   )}
                 </Row>

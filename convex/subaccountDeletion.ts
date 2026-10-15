@@ -44,6 +44,9 @@ export const ORG_TABLES = [
   "timeEntries", "smsPrompts", "availability", "timeOff", "clientMessages", "smsContacts", "changeAudit", "waitlistEntries",
   "membershipPlans", "memberships", "patchSpaces", "deviceInstances", "patchVocabGaps",
   "patchAnnotations", "patchGroups", "ports", "connections", "patchAudit",
+  // Booking requests, room blocks, change approvals, personal calendars
+  // (docs/plans/hardcover-booking.md). Member tokens go with the rows.
+  "roomBlocks", "sessionChangeRequests", "memberCalendars", "memberBusyBlocks",
   // Banking and receipts (openspec add-bank-sync-receipts). Plaid items are
   // removed at Plaid and receipt files deleted before these rows go.
   "bankTransactions", "bankAccounts", "bankConnections", "receipts",

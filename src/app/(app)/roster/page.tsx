@@ -260,7 +260,8 @@ function RosterView() {
                       <TD>
                         <Link
                           href={`/roster/${artist._id}`}
-                          className="flex items-center gap-3"
+                          data-drill="artist"
+                          className="flex items-center gap-3 rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-gold/40"
                           onClick={(e) => e.stopPropagation()}
                         >
                           <Avatar name={artist.name} color={artist.avatarColor} size="md" />

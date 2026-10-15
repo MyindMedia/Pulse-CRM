@@ -14,6 +14,7 @@ export type AddOnSelection = {
   engineerName?: string;
   /** Client declared they need an engineer - picking a person is required. */
   needsEngineer: boolean;
+  /** priceCents is 0 when the studio hides pricing (never sent). */
   gear: { id: Id<"equipment">; name: string; priceCents: number }[];
   gearRequestNote: string;
   addOnTotalCents: number;
@@ -72,9 +73,9 @@ export function AddOnsPicker({
       engineerId: needsEngineer ? eng?.id : undefined,
       engineerName: needsEngineer ? eng?.name : undefined,
       needsEngineer,
-      gear: liveGear.map((g) => ({ id: g.id, name: g.name, priceCents: g.priceCents })),
+      gear: liveGear.map((g) => ({ id: g.id, name: g.name, priceCents: g.priceCents ?? 0 })),
       gearRequestNote: note.trim(),
-      addOnTotalCents: liveGear.reduce((s, g) => s + g.priceCents, 0),
+      addOnTotalCents: liveGear.reduce((s, g) => s + (g.priceCents ?? 0), 0),
     };
   }, [options, engineerId, gearIds, note, needsEngineer]);
 
@@ -145,7 +146,7 @@ export function AddOnsPicker({
                 Pick who you want to work with - it&apos;s required so the right person can confirm
                 your session. Your booking is finalized once they accept.
               </p>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {engineers.map((e) => (
                   <OptionRow
                     key={e.id}
@@ -181,9 +182,9 @@ export function AddOnsPicker({
           <div className="flex items-center gap-2">
             <Music4 className="size-4 text-gold" />
             <h3 className="font-grotesk text-base font-semibold tracking-tight text-bone">
-              Premium gear add-ons
+              {options.pricingHidden ? "Request specific gear" : "Premium gear add-ons"}
             </h3>
-            <span className="text-xs text-steel/60">a-la-carte</span>
+            {!options.pricingHidden && <span className="text-xs text-steel/60">a-la-carte</span>}
           </div>
           <div className="space-y-2">
             {gear.map((g) => {
@@ -237,10 +238,12 @@ export function AddOnsPicker({
                         : "Unavailable for this time"}
                     </span>
                   </span>
-                  <span className="shrink-0 font-meta text-sm text-gold-bright">
-                    {money(g.priceCents)}
-                    <span className="text-xs text-steel/60"> /session</span>
-                  </span>
+                  {g.priceCents !== undefined && (
+                    <span className="shrink-0 font-meta text-sm text-gold-bright">
+                      {money(g.priceCents)}
+                      <span className="text-xs text-steel/60"> /session</span>
+                    </span>
+                  )}
                 </button>
               );
             })}

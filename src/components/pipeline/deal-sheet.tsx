@@ -34,6 +34,7 @@ import { Button } from "@/components/ui/button";
 import { IconButton } from "@/components/ui/icon-button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar } from "@/components/ui/avatar";
+import { EntityLink } from "@/components/shell/entity-link";
 import { Field, Input } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Spinner } from "@/components/ui/feedback";
@@ -225,22 +226,33 @@ export function DealSheet({
               {/* Core facts */}
               <div className="divide-y divide-hairline">
                 <Row label="Artist">
-                  <span className="inline-flex items-center gap-2">
+                  <EntityLink
+                    type="artist"
+                    id={detail.artist ? detail.artistId : null}
+                    title={detail.artist ? `Open ${detail.artist.name}` : undefined}
+                    className="group/artist inline-flex items-center gap-2"
+                  >
                     <Avatar
                       name={detail.artist?.name ?? "Unknown"}
                       color={detail.artist?.avatarColor}
                       size="xs"
                     />
-                    <span className="truncate">{detail.artist?.name ?? "Unknown"}</span>
-                  </span>
+                    <span className="truncate group-hover/artist:text-gold group-hover/artist:underline">
+                      {detail.artist?.name ?? "Unknown"}
+                    </span>
+                  </EntityLink>
                 </Row>
 
                 <Row label="Song">
                   {detail.songTitle ? (
-                    <span className="inline-flex items-center gap-1.5">
+                    <EntityLink
+                      type="song"
+                      id={detail.songId}
+                      className="inline-flex items-center gap-1.5 hover:text-gold hover:underline"
+                    >
                       <Music2 className="size-3.5 text-steel/70" />
                       {detail.songTitle}
-                    </span>
+                    </EntityLink>
                   ) : (
                     <span className="text-steel/70">Not linked</span>
                   )}

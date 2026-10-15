@@ -26,7 +26,8 @@ import {
   DialogBody,
   DialogFooter,
 } from "@/components/ui/dialog";
-import { tintFromString } from "@/lib/utils";
+import { cn, tintFromString } from "@/lib/utils";
+import { DRILL_FOCUS } from "@/components/shell/entity-link";
 import { MEMBER_ROLE } from "@/components/studio/constants";
 import {
   MemberDialog,
@@ -76,18 +77,11 @@ export function MemberCard({ member }: { member: TeamMember }) {
 
   return (
     <>
+      {/* The card's click is mouse only. The name is the keyboard way in, so the
+          card never wraps its own menu button and email link in a role="button". */}
       <Card
         className="flex cursor-pointer flex-col transition-colors hover:border-graphite"
-        role="button"
-        tabIndex={0}
-        aria-label={`View ${member.name}`}
         onClick={() => setDetailOpen(true)}
-        onKeyDown={(e) => {
-          if (e.key === "Enter" || e.key === " ") {
-            e.preventDefault();
-            setDetailOpen(true);
-          }
-        }}
       >
         <CardContent className="flex flex-1 flex-col gap-3 p-4 pt-4">
           <div className="flex items-start justify-between gap-2">
@@ -100,7 +94,18 @@ export function MemberCard({ member }: { member: TeamMember }) {
               />
               <div className="min-w-0">
                 <p className="truncate font-grotesk text-sm font-semibold text-bone">
-                  {member.name}
+                  <button
+                    type="button"
+                    data-drill="member"
+                    aria-label={`View ${member.name}`}
+                    className={cn(DRILL_FOCUS, "max-w-full truncate text-left hover:text-gold-bright")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setDetailOpen(true);
+                    }}
+                  >
+                    {member.name}
+                  </button>
                 </p>
                 <Badge tone={role.tone} className="mt-1">
                   {role.label}

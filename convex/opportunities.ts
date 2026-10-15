@@ -3,7 +3,7 @@ import { mutation } from "./functions";
 import { v } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
 import { currentOrg, currentOrgWithCapability, currentMoneySight } from "./lib/tenant";
-import { insertSession } from "./sessions";
+import { currentMemberId, insertSession } from "./sessions";
 
 import { redactMoney, redactEach } from "./lib/money";
 const stageV = v.union(
@@ -281,6 +281,7 @@ export const convertToBooking = mutation({
     const rateCents = args.rateCents ?? opp.valueCents;
 
     const sessionId = await insertSession(ctx, {
+      createdByMemberId: await currentMemberId(ctx),
       orgId,
       title: `${artist.name} - ${titleCaseService(opp.serviceType)}`,
       artistId: opp.artistId,

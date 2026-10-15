@@ -3,6 +3,7 @@
 import * as React from "react";
 import type { BookingRow } from "@/components/bookings/types";
 import { hhmm } from "@/components/dashboard/hw/parts";
+import { EntityLink } from "@/components/shell/entity-link";
 import { addDays, blockGeometry, bookingsOn, hourRange, laneOf } from "./board-model";
 
 export type BoardRoom = { _id: string; name: string; roomType?: string | null; status?: string };
@@ -18,6 +19,16 @@ function boardRooms(rooms: BoardRoom[], day: BookingRow[]): BoardRoom[] {
   const live = rooms.filter((r) => r.status !== "retired");
   const hasNoRoom = day.some((s) => !s.roomId || !live.some((r) => r._id === s.roomId));
   return hasNoRoom ? [...live, { _id: NO_ROOM, name: "No room", roomType: "Not assigned" }] : live;
+}
+
+/** A real room's name opens its page; the "No room" row stays plain. */
+function RoomName({ room }: { room: BoardRoom }) {
+  if (room._id === NO_ROOM) return <>{room.name}</>;
+  return (
+    <EntityLink type="room" id={room._id} className="hover:underline">
+      {room.name}
+    </EntityLink>
+  );
 }
 
 function inRoom(s: BookingRow, room: BoardRoom, rooms: BoardRoom[]) {
@@ -74,7 +85,9 @@ export function DayTimeline({
             return (
             <div key={room._id} className="grid grid-cols-[132px_1fr] border-b border-white/[0.06] last:border-b-0">
               <div className="min-w-0 py-3 pr-3">
-                <p className="truncate font-sans text-[13px] font-semibold leading-[18px] text-bone">{room.name}</p>
+                <p className="truncate font-sans text-[13px] font-semibold leading-[18px] text-bone">
+                  <RoomName room={room} />
+                </p>
                 {room.roomType && <p className="truncate font-sans text-[11px] leading-4 text-steel">{room.roomType}</p>}
               </div>
               <div
@@ -134,6 +147,7 @@ export function WeekTimeline({
   now,
   selectedId,
   onSelect,
+  onShowDay,
 }: {
   rows: BookingRow[];
   rooms: BoardRoom[];
@@ -141,6 +155,9 @@ export function WeekTimeline({
   now: number;
   selectedId: string | null;
   onSelect: (s: BookingRow) => void;
+  /** Opens one day on the day board, so bookings past the first three in a
+   *  cell are never out of reach. */
+  onShowDay?: (dayStart: number) => void;
 }) {
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
   const week = rows.filter((s) => s.status !== "cancelled" && s.startTime < addDays(weekStart, 7) && s.endTime > weekStart);
@@ -162,7 +179,9 @@ export function WeekTimeline({
         {list.map((room) => (
           <div key={room._id} className="grid grid-cols-[132px_repeat(7,minmax(0,1fr))] border-b border-white/[0.06] last:border-b-0">
             <div className="min-w-0 py-3 pr-3">
-              <p className="truncate font-sans text-[13px] font-semibold leading-[18px] text-bone">{room.name}</p>
+              <p className="truncate font-sans text-[13px] font-semibold leading-[18px] text-bone">
+                <RoomName room={room} />
+              </p>
               {room.roomType && <p className="truncate font-sans text-[11px] leading-4 text-steel">{room.roomType}</p>}
             </div>
             {days.map((d) => {
@@ -183,7 +202,18 @@ export function WeekTimeline({
                       <span className="block truncate font-sans text-[12px] font-bold leading-4">{s.artistName}</span>
                     </button>
                   ))}
-                  {cell.length > 3 && <p className="px-1 font-mono text-[10px] text-steel">+{cell.length - 3} more</p>}
+                  {cell.length > 3 &&
+                    (onShowDay ? (
+                      <button
+                        type="button"
+                        onClick={() => onShowDay(d)}
+                        className="rounded-sm px-1 font-mono text-[10px] text-steel outline-none hover:text-bone hover:underline focus-visible:ring-2 focus-visible:ring-gold/40"
+                      >
+                        +{cell.length - 3} more
+                      </button>
+                    ) : (
+                      <p className="px-1 font-mono text-[10px] text-steel">+{cell.length - 3} more</p>
+                    ))}
                 </div>
               );
             })}

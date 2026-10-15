@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
+import { entityHref } from "@/lib/entity-href";
+import { usePathname, useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import {
@@ -22,19 +23,20 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
 import { cn } from "@/lib/utils";
 
+/** Where an alert opens, read at click time: a booking opens its sheet on the
+ *  current page (the shell's global sheet reads ?session=), anything else
+ *  goes to its own page. */
+function openTarget(type: string | undefined, id: string | undefined | null, pathname: string) {
+  const search = typeof window === "undefined" ? "" : window.location.search;
+  return entityHref(type, id, { pathname, search });
+}
+
 const SEVERITY = {
   warning: { icon: AlertTriangle, tone: "text-critical", ring: "bg-critical/10" },
   opportunity: { icon: TrendingUp, tone: "text-gold", ring: "bg-gold/10" },
   info: { icon: FileText, tone: "text-info", ring: "bg-info/10" },
 } as const;
 
-const KIND_ROUTE: Record<string, string> = {
-  artist: "/roster",
-  song: "/songs",
-  session: "/calendar",
-  invoice: "/payments",
-  opportunity: "/pipeline",
-};
 
 // Map an activity row to an icon + tone. Falls back to the row's `accent`.
 const ACCENT_STYLE: Record<string, { tone: string; ring: string }> = {
@@ -69,6 +71,7 @@ export function InsightsBell() {
   const [open, setOpen] = React.useState(false);
   const [view, setView] = React.useState<View>("insights");
   const router = useRouter();
+  const pathname = usePathname();
   const counts = useQuery(api.insights.counts);
   const insights = useQuery(api.insights.open, { limit: 10 });
   const activity = useQuery(api.notifications.activityFeed, { limit: 20 });
@@ -139,14 +142,14 @@ export function InsightsBell() {
                         <p className="text-sm font-medium text-bone">{it.title}</p>
                         <p className="mt-0.5 text-xs leading-relaxed text-steel">{it.body}</p>
                         <div className="mt-2 flex items-center gap-2 opacity-0 transition-opacity group-hover:opacity-100">
-                          {it.entityType && it.entityId && KIND_ROUTE[it.entityType] && (
+                          {entityHref(it.entityType, it.entityId) && (
                             <Button
                               size="sm"
                               variant="secondary"
                               onClick={() => {
                                 void setStatus({ id: it._id, status: "actioned" });
                                 setOpen(false);
-                                router.push(`${KIND_ROUTE[it.entityType!]}/${it.entityId}`);
+                                router.push(openTarget(it.entityType, it.entityId, pathname)!, { scroll: false });
                               }}
                             >
                               Open
@@ -179,7 +182,7 @@ export function InsightsBell() {
             activity.map((row) => {
               const style = ACCENT_STYLE[row.accent ?? "info"] ?? ACCENT_STYLE.info;
               const Icon = activityIcon(row.kind);
-              const route = row.entityType ? KIND_ROUTE[row.entityType] : undefined;
+              const route = entityHref(row.entityType, row.entityId);
               return (
                 <button
                   key={row._id}
@@ -188,7 +191,7 @@ export function InsightsBell() {
                   onClick={() => {
                     if (route && row.entityId) {
                       setOpen(false);
-                      router.push(`${route}/${row.entityId}`);
+                      router.push(openTarget(row.entityType, row.entityId, pathname)!, { scroll: false });
                     }
                   }}
                   className="group flex w-full gap-2.5 rounded-md p-2.5 text-left transition-colors hover:bg-coal-2 disabled:cursor-default"

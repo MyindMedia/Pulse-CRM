@@ -15,6 +15,7 @@ import { EmptyState } from "@/components/ui/feedback";
 import { SkeletonCards } from "@/components/ui/skeleton";
 import { errorMessage } from "@/lib/errors";
 import { APPROVAL, Select2, formatBytes, openUrl, uploadToR2 } from "@/components/library/shared";
+import { EntityLink, SessionLink } from "@/components/shell/entity-link";
 
 const KINDS = ["session", "stem", "mix", "master", "artwork", "deliverable", "other"] as const;
 type Kind = (typeof KINDS)[number];
@@ -135,7 +136,17 @@ function GuestLinks({ assetId }: { assetId: Id<"mediaAssets"> }) {
   );
 }
 
-function Detail({ assetId, onDeleted }: { assetId: Id<"mediaAssets">; onDeleted: () => void }) {
+function Detail({
+  assetId,
+  onDeleted,
+  songTitle,
+  sessionTitle,
+}: {
+  assetId: Id<"mediaAssets">;
+  onDeleted: () => void;
+  songTitle?: string | null;
+  sessionTitle?: string | null;
+}) {
   const d = useQuery(api.mediaLibrary.detail, { assetId });
   const convex = useConvex();
   const upload = useUploader();
@@ -168,6 +179,17 @@ function Detail({ assetId, onDeleted }: { assetId: Id<"mediaAssets">; onDeleted:
         <h3 className="font-grotesk text-lg font-semibold text-bone">{d.asset.name}</h3>
         <Badge>{KIND_LABEL[d.asset.kind]}</Badge>
         {d.asset.tags.map((t) => <Badge key={t} tone="info">{t}</Badge>)}
+        {/* The row above is one button, so the song and session it is tagged to drill from here. */}
+        {d.asset.songId && (
+          <EntityLink type="song" id={d.asset.songId} className="text-xs text-gold hover:underline">
+            Song: {songTitle ?? "Open song"}
+          </EntityLink>
+        )}
+        {d.asset.sessionId && (
+          <SessionLink sessionId={d.asset.sessionId} className="text-xs text-gold hover:underline">
+            Session: {sessionTitle ?? "Open session"}
+          </SessionLink>
+        )}
         <span className="text-xs text-steel">{d.asset.versionCount} versions, {formatBytes(d.asset.totalBytes)}</span>
         <span className="ml-auto flex gap-2">
           <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-graphite/60 px-3 py-1.5 text-xs text-bone hover:border-gold">
@@ -298,7 +320,7 @@ function Library({ shared }: { shared: boolean }) {
               </button>
               {open === r._id && (allStudios && "isThisStudio" in r && !r.isThisStudio
                 ? <SharedDetail assetId={r._id} convex={convex} />
-                : <div className="mt-2"><Detail assetId={r._id} onDeleted={() => setOpen(null)} /></div>)}
+                : <div className="mt-2"><Detail assetId={r._id} onDeleted={() => setOpen(null)} songTitle={r.songTitle} sessionTitle={r.sessionTitle} /></div>)}
             </li>
           ))}
         </ul>

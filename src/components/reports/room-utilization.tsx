@@ -4,8 +4,9 @@ import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { Table, THead, TBody, TR, TH, TD } from "@/components/ui/table";
 import { Progress } from "@/components/ui/progress";
-import { percent } from "@/lib/format";
-import { ReportCard, ReportStat } from "./report-shell";
+import { money, percent } from "@/lib/format";
+import { EntityLink } from "@/components/shell/entity-link";
+import { ReportCard, ReportStat, REPORT_LINK } from "./report-shell";
 
 export function RoomUtilizationReport() {
   const data = useQuery(api.reports.roomUtilization);
@@ -28,7 +29,11 @@ export function RoomUtilizationReport() {
         <div className="space-y-4">
           <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
             <ReportStat label="Avg utilization" value={percent(data.avgUtilization)} tone="gold" />
-            <ReportStat label="Window" value={`${data.windowDays} days`} />
+            {data.blockedValueCents > 0 ? (
+              <ReportStat label="Blocked value (not revenue)" value={money(data.blockedValueCents)} />
+            ) : (
+              <ReportStat label="Window" value={`${data.windowDays} days`} />
+            )}
           </div>
 
           <Table>
@@ -37,6 +42,7 @@ export function RoomUtilizationReport() {
                 <TH>Room</TH>
                 <TH className="text-right">Booked</TH>
                 <TH className="text-right">Available</TH>
+                {data.blockedValueCents > 0 && <TH className="text-right">Blocked value</TH>}
                 <TH className="w-[28%]">Utilization</TH>
               </TR>
             </THead>
@@ -47,7 +53,9 @@ export function RoomUtilizationReport() {
                 return (
                   <TR key={r.roomId}>
                     <TD className="font-medium">
-                      {r.roomName}
+                      <EntityLink type="room" id={r.roomId} className={REPORT_LINK} title={`Open ${r.roomName}`}>
+                        {r.roomName}
+                      </EntityLink>
                       {r.roomType && (
                         <span className="ml-2 font-meta text-[0.625rem] uppercase text-steel/70">
                           {r.roomType}
@@ -56,6 +64,11 @@ export function RoomUtilizationReport() {
                     </TD>
                     <TD className="text-right tabular-nums text-steel">{r.bookedHours}h</TD>
                     <TD className="text-right tabular-nums text-steel/70">{r.availableHours}h</TD>
+                    {data.blockedValueCents > 0 && (
+                      <TD className="text-right tabular-nums text-steel/70">
+                        {r.blockedValueCents > 0 ? money(r.blockedValueCents) : "-"}
+                      </TD>
+                    )}
                     <TD>
                       <div className="flex items-center gap-2.5">
                         <Progress value={r.utilization} tone={tone} className="flex-1" />

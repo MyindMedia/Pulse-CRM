@@ -254,6 +254,10 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     // Everything below is public-booking lifecycle only: internal sessions
     // are never auto-cancelled, forfeited, or auto-advanced.
     if (!isPublic) continue;
+    // A booking request waits for an owner or manager, never for a payment
+    // clock: no hold nudge, no hold release (bookingRequests.ts). It has no
+    // holdExpiresAt either; this is the safety net.
+    const pendingRequest = s.requestStatus === "pending";
     const email = await emailFor(ctx, s.artistId);
 
     // 2c. Hold-expiry SMS nudge - a public hold with an unpaid deposit about to
@@ -262,6 +266,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     //     per session (deduped via notifications, kind "booking.hold_nudge"),
     //     and it honors SMS opt-outs.
     if (
+      !pendingRequest &&
       s.status === "tentative" &&
       paid === 0 &&
       s.holdExpiresAt &&
@@ -304,7 +309,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     }
 
     // 3. Hold expiry - an unpaid hold past its window is released.
-    if (s.status === "tentative" && paid === 0 && s.holdExpiresAt && s.holdExpiresAt < now) {
+    if (!pendingRequest && s.status === "tentative" && paid === 0 && s.holdExpiresAt && s.holdExpiresAt < now) {
       await ctx.db.patch(s._id, { status: "cancelled" });
       await ctx.db.insert("activity", {
         orgId: s.orgId,

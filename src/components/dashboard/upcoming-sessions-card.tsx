@@ -15,11 +15,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
 import { meta, SESSION_STATUS } from "@/lib/labels";
 import { timeOfDay } from "@/lib/format";
+import { SessionLink } from "@/components/shell/entity-link";
+import { RequestBadge } from "@/components/bookings/request-decision";
 
 /**
  * Upcoming sessions in the dashboard-3 list interface: bordered header with
- * a description, hairline-divided rows, status badges. Same data + links the
- * dashboard always carried.
+ * a description, hairline-divided rows, status badges. Each row opens its
+ * booking in place (the shell's session sheet), pending requests included.
  */
 export function UpcomingSessionsCard({ className }: { className?: string }) {
   const upcoming = useQuery(api.sessions.upcoming, { limit: 6 });
@@ -52,9 +54,9 @@ export function UpcomingSessionsCard({ className }: { className?: string }) {
               const st = meta(SESSION_STATUS, s.status);
               return (
                 <li key={s._id}>
-                  <Link
-                    href="/calendar"
-                    className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-coal-2"
+                  <SessionLink
+                    sessionId={s._id}
+                    className="flex items-center gap-3 rounded-none px-4 py-3 transition-colors hover:bg-coal-2"
                   >
                     <div className="grid size-10 shrink-0 place-items-center rounded-md border border-graphite/50 bg-obsidian text-center">
                       <span className="font-grotesk text-sm font-bold leading-none text-bone">
@@ -71,8 +73,11 @@ export function UpcomingSessionsCard({ className }: { className?: string }) {
                         {s.roomName ? ` · ${s.roomName}` : ""}
                       </p>
                     </div>
-                    <Badge tone={st.tone}>{st.label}</Badge>
-                  </Link>
+                    <span className="flex shrink-0 items-center gap-1">
+                      <RequestBadge requestStatus={s.requestStatus} />
+                      <Badge tone={st.tone}>{st.label}</Badge>
+                    </span>
+                  </SessionLink>
                 </li>
               );
             })}

@@ -8,6 +8,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Progress } from "@/components/ui/progress";
 import { SkeletonRows } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
+import { EntityLink } from "@/components/shell/entity-link";
 
 const DAY = 86_400_000;
 function startOfWeek(ts: number): number {
@@ -50,7 +51,9 @@ export function StaffingReport() {
               <div key={r.memberId} className="space-y-1">
                 <div className="flex items-center justify-between text-sm">
                   <span className="font-medium text-bone">
-                    {r.name}
+                    <EntityLink type="member" id={r.memberId} className="hover:text-gold hover:underline underline-offset-2" title="Open the team in Settings">
+                      {r.name}
+                    </EntityLink>
                     {r.role && <span className="ml-1.5 text-xs text-steel/70">{r.role}</span>}
                   </span>
                   <span className="font-meta text-steel">

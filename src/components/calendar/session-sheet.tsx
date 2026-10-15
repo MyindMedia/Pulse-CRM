@@ -6,6 +6,8 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import { useCapabilities } from "@/lib/use-capabilities";
+import { RequestBadge, RequestDecision } from "@/components/bookings/request-decision";
+import { EntityLink } from "@/components/shell/entity-link";
 import { QRCodeSVG } from "qrcode.react";
 import {
   CheckCircle2,
@@ -57,6 +59,9 @@ import { SessionAiPanel } from "@/components/ai/session-ai-panel";
 import { CompDialog } from "./comp-dialog";
 import { BookSessionDialog, type SessionPrefill } from "./book-session-dialog";
 import { Gift } from "lucide-react";
+import { PendingChangeBanner } from "@/components/bookings/pending-change-banner";
+import { ChangedInGoogleBadge } from "@/components/calendar/changed-in-google-badge";
+import { proposalNotice, type MaybeProposal } from "@/lib/change-proposal";
 
 type SessionStatus =
   | "tentative"
@@ -143,8 +148,8 @@ export function SessionSheet({
   async function run(fn: () => Promise<unknown>, ok: string) {
     setBusy(true);
     try {
-      await fn();
-      toast.success(ok);
+      const res = await fn();
+      if (!proposalNotice(res as MaybeProposal)) toast.success(ok);
     } catch {
       toast.error("Action failed - please retry");
     } finally {
@@ -180,6 +185,7 @@ export function SessionSheet({
                   {meta(SESSION_STATUS, detail.status).label}
                 </Badge>
                 <Badge tone="neutral">{serviceLabel(detail.serviceType, detail.customService)}</Badge>
+                <RequestBadge requestStatus={detail.requestStatus} />
               </div>
               <SheetTitle>{detail.title}</SheetTitle>
               <SheetDescription>
@@ -189,15 +195,26 @@ export function SessionSheet({
             </SheetHeader>
 
             <SheetBody className="space-y-5">
+              <RequestDecision
+                sessionId={detail._id}
+                requestStatus={detail.requestStatus}
+                amountPaidCents={"amountPaidCents" in detail ? detail.amountPaidCents : undefined}
+              />
+              <PendingChangeBanner sessionId={detail._id} />
+              <ChangedInGoogleBadge sessionId={detail._id} changedAt={"googleChangedAt" in detail ? detail.googleChangedAt : undefined} />
               <div className="divide-y divide-hairline">
                 <Row label="Artist">
-                  <span className="inline-flex items-center gap-2">
+                  <EntityLink type="artist" id={detail.artistId} className="inline-flex items-center gap-2 hover:text-gold">
                     <Avatar name={detail.artistName} size="xs" />
                     <span className="truncate">{detail.artistName}</span>
-                  </span>
+                  </EntityLink>
                 </Row>
                 <Row label="Song" icon={Music2}>
-                  {detail.songTitle ?? <span className="text-steel/70">Not linked</span>}
+                  {detail.songTitle ? (
+                    <EntityLink type="song" id={detail.songId} className="hover:text-gold">{detail.songTitle}</EntityLink>
+                  ) : (
+                    <span className="text-steel/70">Not linked</span>
+                  )}
                 </Row>
                 <Row label="Engineer" icon={Headphones}>
                   {detail.engineerName ? (
@@ -239,7 +256,11 @@ export function SessionSheet({
                   )}
                 </Row>
                 <Row label="Room" icon={DoorOpen}>
-                  {detail.roomName ?? <span className="text-steel/70">Unassigned</span>}
+                  {detail.roomName ? (
+                    <EntityLink type="room" id={detail.roomId} className="hover:text-gold">{detail.roomName}</EntityLink>
+                  ) : (
+                    <span className="text-steel/70">Unassigned</span>
+                  )}
                 </Row>
                 <Row label="Rate" icon={Wallet}>
                   <span className="flex flex-wrap items-center gap-2">
@@ -667,7 +688,8 @@ function FloorActionsPanel({
     setBusy(true);
     try {
       const res = await extend({ id: sessionId, addMinutes: mins });
-      toast.success(`Extended ${mins} min - rate now ${money(res.rateCents)}`);
+      if (res.proposed) proposalNotice(res);
+      else toast.success(`Extended ${mins} min - rate now ${money(res.rateCents)}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not extend the session");
     } finally {

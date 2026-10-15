@@ -59,15 +59,9 @@ export function DealCard({
           <p className="min-w-0 flex-1 truncate font-grotesk text-sm font-semibold text-bone">
             {opp.title}
           </p>
-          <span
-            className="mt-0.5 shrink-0 cursor-grab text-steel/70 opacity-0 transition-opacity group-hover:opacity-100 active:cursor-grabbing"
-            {...attributes}
-            {...listeners}
-            onClick={(e) => e.stopPropagation()}
-            aria-label="Drag deal"
-          >
-            <GripVertical className="size-4" />
-          </span>
+          {/* Room for the drag handle, which sits outside this button so no
+              control is nested inside another. */}
+          <span aria-hidden className="w-4 shrink-0" />
         </div>
 
         <div className="mt-2 flex items-center gap-2">
@@ -97,6 +91,15 @@ export function DealCard({
           </span>
         </div>
       </button>
+
+      <span
+        className="absolute right-2 top-3 mt-0.5 cursor-grab text-steel/70 opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gold/30 active:cursor-grabbing"
+        {...attributes}
+        {...listeners}
+        aria-label={`Drag ${opp.title}`}
+      >
+        <GripVertical className="size-4" />
+      </span>
     </div>
   );
 }

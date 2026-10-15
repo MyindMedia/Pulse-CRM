@@ -75,7 +75,9 @@ import {
 } from "@/components/ui/dialog";
 import { Field, Input } from "@/components/ui/field";
 import { relativeTime } from "@/lib/format";
+import { RoomBlocksSection } from "@/components/calendar/room-blocks";
 import { AddRoomDialog } from "@/components/studio/add-room-dialog";
+import { EntityLink, SessionLink } from "@/components/shell/entity-link";
 
 const DAY_MS = 86_400_000;
 
@@ -500,16 +502,33 @@ export default function StudioDetailPage() {
               .map((s) => (
                 <li
                   key={s._id}
-                  className="rounded-lg border border-graphite/50 bg-coal p-3 shadow-elev-1"
+                  className="relative rounded-lg border border-graphite/50 bg-coal p-3 shadow-elev-1 transition-colors hover:border-gold-dim"
                 >
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-medium text-bone">
-                        {s.title ?? s.serviceType}
+                        {/* Stretched link: the whole card opens the booking in place. */}
+                        <SessionLink
+                          sessionId={s._id}
+                          className="after:absolute after:inset-0 after:rounded-lg after:content-[''] focus-visible:ring-0 focus-visible:after:ring-2 focus-visible:after:ring-gold/40"
+                        >
+                          {s.title ?? s.serviceType}
+                        </SessionLink>
                       </p>
                       <p className="font-meta text-[0.6875rem] uppercase tracking-wide text-steel/70">
                         {s.serviceType}
-                        {s.artistName ? ` · ${s.artistName}` : ""}
+                        {s.artistName ? (
+                          <>
+                            {" · "}
+                            <EntityLink
+                              type="artist"
+                              id={s.artistId}
+                              className="relative z-10 hover:text-bone hover:underline"
+                            >
+                              {s.artistName}
+                            </EntityLink>
+                          </>
+                        ) : null}
                       </p>
                     </div>
                     <Badge tone="neutral" dot>
@@ -524,6 +543,8 @@ export default function StudioDetailPage() {
           </ul>
         )}
       </section>
+
+      <RoomBlocksSection roomId={room._id} roomName={room.name} />
 
       {/* Installed equipment */}
       <section className="space-y-3">
