@@ -89,6 +89,14 @@ export const myPending = query({
   },
 });
 
+/** Object size from `Content-Range: bytes 0-0/<size>`; 0 when unknown. */
+export async function sizeByRange(url: string): Promise<number> {
+  const res = await fetch(url, { headers: { Range: "bytes=0-0", "Accept-Encoding": "identity" } });
+  const total = /\/(\d+)\s*$/.exec(res.headers.get("content-range") ?? "")?.[1];
+  await res.body?.cancel();
+  return total ? Number(total) : 0;
+}
+
 export const confirmUpload = action({
   args: { mediaId: v.id("mediaFiles") },
   handler: async (ctx, { mediaId }): Promise<{ mediaId: Id<"mediaFiles">; size: number }> => {
@@ -97,14 +105,19 @@ export const confirmUpload = action({
     const r2 = r2For(row.bucket, row.bucketName);
     await r2.syncMetadata(ctx, row.key);
     const meta = await r2.getMetadata(ctx, row.key);
-    if (!meta || !meta.size) throw new ConvexError("The file did not arrive. Try uploading again.");
+    // R2 serves text files (txt, csv, json, lyrics) compressed, and the HEAD the
+    // component runs then carries no Content-Length, so meta.size is missing even
+    // though the object is there. A one-byte ranged GET is never compressed and
+    // its Content-Range names the full size.
+    const size = meta ? meta.size || (await sizeByRange(await r2.getUrl(row.key, { expiresIn: 60 }))) : 0;
+    if (!meta || !size) throw new ConvexError("The file did not arrive. Try uploading again.");
     const max = PURPOSES[row.purpose as MediaPurpose]?.maxBytes ?? 0;
-    if (max && meta.size > max) {
+    if (max && size > max) {
       await ctx.runMutation(internal.media._discard, { mediaId });
       throw new ConvexError(`That file is too large (limit ${Math.round(max / 1048576)} MB).`);
     }
-    await ctx.runMutation(internal.media._markReady, { mediaId, size: meta.size, contentType: meta.contentType });
-    return { mediaId, size: meta.size };
+    await ctx.runMutation(internal.media._markReady, { mediaId, size, contentType: meta.contentType });
+    return { mediaId, size };
   },
 });
 
