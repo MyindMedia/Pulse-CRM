@@ -1,7 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { Loader2, Lock } from "lucide-react";
+import { Lock } from "lucide-react";
+import { PulseLoader } from "@/components/brand/pulse-loader";
 import { useCapabilities } from "@/lib/use-capabilities";
 
 /**
@@ -25,7 +26,7 @@ export function CapabilityGuard({
   if (!loaded) {
     return (
       <div className="grid min-h-[40vh] place-items-center">
-        <Loader2 className="size-5 animate-spin text-gold" />
+        <PulseLoader variant="compact" message="Loading" />
       </div>
     );
   }

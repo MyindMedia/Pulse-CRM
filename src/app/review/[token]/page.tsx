@@ -8,6 +8,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { errorMessage } from "@/lib/errors";
 import { Loader2, Star, CheckCircle2, Disc3 } from "lucide-react";
+import { PulseLoader } from "@/components/brand/pulse-loader";
 
 /**
  * Public post-session review page. The route param is the sessionId (Convex ids
@@ -61,9 +62,7 @@ export default function ReviewPage() {
       />
       <div className="relative mx-auto flex w-full max-w-md flex-1 flex-col justify-center space-y-5 py-10">
         {info === undefined ? (
-          <div className="grid place-items-center py-24">
-            <Loader2 className="size-6 animate-spin text-gold" />
-          </div>
+          <PulseLoader variant="compact" message="Loading" />
         ) : !info?.valid ? (
           <div className="rounded-chrome border border-graphite/50 bg-coal/60 p-8 text-center shadow-elev-2">
             <p className="font-grotesk text-lg font-semibold text-bone">This review link is not valid</p>

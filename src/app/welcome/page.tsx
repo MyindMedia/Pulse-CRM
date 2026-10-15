@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { errorMessage } from "@/lib/errors";
 import { extractBrandFromImage } from "@/lib/brand-theme";
 import { Check, ChevronRight, Copy, ExternalLink, ImagePlus, Loader2, Sparkles } from "lucide-react";
+import { PulseLoader } from "@/components/brand/pulse-loader";
 import { QRCodeSVG } from "qrcode.react";
 import { PulseLogo } from "@/components/brand/pulse-logo";
 import { Button } from "@/components/ui/button";
@@ -50,9 +51,7 @@ export default function WelcomePage() {
 
   if (mine === undefined) {
     return (
-      <div className="grid min-h-dvh place-items-center bg-ink text-steel">
-        <Loader2 className="size-5 animate-spin text-gold" />
-      </div>
+      <PulseLoader message="Loading" />
     );
   }
   if (mine === null) {
