@@ -7,6 +7,7 @@ import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import { Loader2, CheckCircle2, CreditCard, ShieldCheck } from "lucide-react";
+import { PulseLoader } from "@/components/brand/pulse-loader";
 
 const usd = (c: number) => `$${(c / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 
@@ -45,7 +46,7 @@ export default function InvoicePayPage() {
       />
       <div className="relative w-full max-w-md rounded-chrome border border-graphite/50 bg-coal/60 p-6 shadow-elev-2">
         {inv === undefined ? (
-          <div className="grid place-items-center py-16"><Loader2 className="size-6 animate-spin text-gold" /></div>
+          <PulseLoader variant="compact" message="Loading" />
         ) : inv === null ? (
           <div className="py-12 text-center">
             <p className="font-grotesk text-lg font-semibold text-bone">Invoice not found</p>

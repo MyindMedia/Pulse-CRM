@@ -6,6 +6,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
 import { Check, ChevronRight, Loader2, Plus, X, CalendarClock } from "lucide-react";
+import { PulseLoader } from "@/components/brand/pulse-loader";
 import { PulseLogo } from "@/components/brand/pulse-logo";
 import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
@@ -34,9 +35,7 @@ export default function WelcomeTeamPage() {
 
   if (profile === undefined) {
     return (
-      <div className="grid min-h-dvh place-items-center bg-ink text-steel">
-        <Loader2 className="size-5 animate-spin text-gold" />
-      </div>
+      <PulseLoader message="Loading" />
     );
   }
   if (profile === null) {

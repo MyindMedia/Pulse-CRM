@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { useConvexAuth } from "convex/react";
-import { Disc3 } from "lucide-react";
+import { PulseLoader } from "@/components/brand/pulse-loader";
 
 const CLERK_ENABLED = Boolean(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY);
 
@@ -36,14 +36,7 @@ function ClerkAuthGate({ children }: { children: React.ReactNode }) {
 
   if (!ready && (isLoading || !isAuthenticated)) {
     return (
-      <div className="grid min-h-dvh place-items-center bg-ink">
-        <div className="flex flex-col items-center gap-3">
-          <Disc3 className="size-8 animate-spin text-gold" aria-hidden />
-          <p className="font-meta text-xs uppercase tracking-[0.2em] text-steel/70">
-            Opening your studio
-          </p>
-        </div>
-      </div>
+      <PulseLoader message="Opening your studio" />
     );
   }
   return <>{children}</>;

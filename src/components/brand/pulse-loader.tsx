@@ -1,75 +1,145 @@
-"use client";
-
 import * as React from "react";
 import { cn } from "@/lib/utils";
+import { loaderCss, centrelinePaths } from "./pulse-loader-css";
+import {
+  LOGO_BOUNDS as B,
+  LOGO_GOLD,
+  OUTLINE_LOOPS,
+  REVEAL_WIDTH,
+} from "./pulse-logo-data";
 
-/** Full-screen Pulse loader. Used by app-shell route-transition
- * `loading.tsx` files. The logo lives at the center under a slow
- * gold pulse-ring; underneath, three dots cycle to indicate work.
+/* The Pulse loading animation: the traced Pulse logo on a loop, the same
+ * mark as the iOS launch screen (pulse-native LaunchScreen.swift). The line
+ * draws itself in along the logo's centreline, beats lub-dub with a soft gold
+ * glow, wipes out, and draws again, so a long load keeps reading as alive.
  *
- * Designed to feel calm + on-brand, not "spinner anxious". The
- * underlying pulse-ring / logo-breathe / dot-bounce keyframes are
- * defined in src/app/globals.css. */
-export function PulseLoader({
-  message,
-  fullscreen = true,
+ * Always Pulse gold (#FDCE01, the logo's own gold, not the brand-following
+ * token), whatever the studio is themed as. Pure SVG + CSS, no JS timers.
+ * Reduced motion: the finished logo with a gentle opacity breathe.
+ *
+ * `variant="page"` fills the viewport with the wordmark. `variant="compact"`
+ * is a bare mark for panels. */
+
+const PATHS = centrelinePaths();
+const ASPECT = B.width / B.height;
+
+export function PulseLogoMark({
+  size = 196,
   className,
 }: {
-  message?: string;
-  fullscreen?: boolean;
+  /** Width of the mark in CSS px; height follows the logo's own proportions. */
+  size?: number;
   className?: string;
 }) {
+  const uid = React.useId().replace(/[^a-zA-Z0-9]/g, "");
+  const maskId = `plm${uid}`;
+  return (
+    <>
+      <style href="pulse-loader" precedence="default">
+        {loaderCss()}
+      </style>
+      <div
+        aria-hidden
+        className={cn("pl-mark", className)}
+        style={
+          {
+            width: size,
+            height: size / ASPECT,
+            ["--pl-k" as string]: size / 196,
+          } as React.CSSProperties
+        }
+      >
+        <svg
+          viewBox={`${B.x} ${B.y} ${B.width} ${B.height}`}
+          width="100%"
+          height="100%"
+          style={{ display: "block", overflow: "visible" }}
+          focusable="false"
+        >
+          <defs>
+            <mask
+              id={maskId}
+              maskUnits="userSpaceOnUse"
+              x={B.x - 40}
+              y={B.y - 40}
+              width={B.width + 80}
+              height={B.height + 80}
+            >
+              <g
+                fill="none"
+                stroke="#fff"
+                strokeWidth={REVEAL_WIDTH}
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                {PATHS.map((p, i) => (
+                  <path
+                    key={i}
+                    className={`pl-t${i}`}
+                    d={p.d}
+                    pathLength={1}
+                    strokeDasharray="1 2"
+                    strokeDashoffset={0}
+                  />
+                ))}
+              </g>
+            </mask>
+          </defs>
+          <path
+            d={OUTLINE_LOOPS.join("")}
+            fill={LOGO_GOLD}
+            fillRule="nonzero"
+            mask={`url(#${maskId})`}
+          />
+        </svg>
+      </div>
+    </>
+  );
+}
+
+export function PulseLoader({
+  message,
+  variant = "page",
+  size,
+  className,
+}: {
+  /** Accessible name. Shown under the mark in compact, not on the page variant
+   * (which always reads PULSE / STUDIO OS, like the iOS launch screen). */
+  message?: string;
+  variant?: "page" | "compact";
+  size?: number;
+  className?: string;
+}) {
+  const compact = variant === "compact";
   return (
     <div
+      role="status"
+      aria-live="polite"
+      aria-label={message ?? "Loading"}
       className={cn(
-        "relative grid place-items-center bg-ink",
-        fullscreen ? "min-h-dvh w-full" : "py-16",
+        "relative grid w-full place-items-center",
+        compact ? "py-10" : "min-h-dvh bg-ink",
         className,
       )}
     >
-      {/* Soft gold radial behind the logo */}
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-0 opacity-50"
-        style={{
-          background:
-            "radial-gradient(60% 50% at 50% 45%, rgba(253,185,19,0.10), transparent 70%)",
-        }}
-      />
-      <div className="relative flex flex-col items-center gap-6">
-        {/* Concentric pulse rings behind the logo. The second ring is
-            offset by half a cycle for layered emanation. */}
-        <div className="relative grid place-items-center px-8 py-6">
-          <span
-            aria-hidden
-            className="pulse-ring pointer-events-none absolute left-1/2 top-1/2 size-24 -translate-x-1/2 -translate-y-1/2 rounded-full"
-            style={{ boxShadow: "0 0 0 0 rgba(253,185,19,0.45)" }}
-          />
-          <span
-            aria-hidden
-            className="pulse-ring-2 pointer-events-none absolute left-1/2 top-1/2 size-24 -translate-x-1/2 -translate-y-1/2 rounded-full"
-            style={{ boxShadow: "0 0 0 0 rgba(253,185,19,0.25)" }}
-          />
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/pulse-logo-main.png"
-            alt="Pulse"
-            className="logo-breathe relative z-10 h-auto w-64 select-none"
-            style={{ filter: "drop-shadow(0 6px 20px rgba(253,185,19,0.25))" }}
-            draggable={false}
-          />
-        </div>
-
-        <div className="flex flex-col items-center gap-1.5">
-          <span className="overline text-steel">
-            {message ?? "Tuning the room"}
-          </span>
-          <span className="flex items-center gap-1">
-            <span className="dot-bounce" />
-            <span className="dot-bounce" style={{ animationDelay: "120ms" }} />
-            <span className="dot-bounce" style={{ animationDelay: "240ms" }} />
-          </span>
-        </div>
+      <div className="flex flex-col items-center gap-[18px]">
+        <PulseLogoMark size={size ?? (compact ? 72 : 196)} />
+        {compact ? (
+          message ? (
+            <p className="pl-word font-meta text-[11px] uppercase tracking-[0.2em] text-steel/70">
+              {message}
+            </p>
+          ) : null
+        ) : (
+          <>
+            <p className="pl-word font-grotesk text-[34px] font-semibold uppercase leading-none tracking-[2px] text-bone">
+              Pulse
+            </p>
+            <p className="pl-word font-meta text-[11px] uppercase tracking-[3px] text-steel/90">
+              Studio OS
+            </p>
+          </>
+        )}
       </div>
     </div>
   );
