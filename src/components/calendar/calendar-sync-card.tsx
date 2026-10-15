@@ -8,6 +8,9 @@ import { toast } from "sonner";
 import { CalendarCheck01 as CalendarCheck, CheckCircle, Loading02 as Loader2, RefreshCw01 as RefreshCw, AlertTriangle } from "@untitledui/icons";
 import { Button } from "@/components/ui/button";
 import { CalendarSyncControls, sinceLabel, useGoogleReturn, type SyncDirection } from "./calendar-sync-controls";
+import { Switch } from "@/components/ui/toggle";
+import { useCapabilities } from "@/lib/use-capabilities";
+import { GoogleImportDialog } from "./google-import";
 
 /**
  * The studio's shared Google calendar. After connecting, the owner picks which
@@ -22,6 +25,10 @@ export function CalendarSyncCard() {
   const listCalendars = useAction(api.googleCalendarSettings.listCalendars);
   const setCalendar = useMutation(api.googleCalendarSettings.setCalendar);
   const setDirection = useMutation(api.googleCalendarSettings.setDirection);
+  const setAutoImport = useMutation(api.googleImport.setAutoImport);
+  const review = useQuery(api.googleImport.reviewList, {});
+  const { can } = useCapabilities();
+  const [reviewOpen, setReviewOpen] = React.useState(false);
   const returned = useGoogleReturn();
   const [busy, setBusy] = React.useState(false);
   const [calendars, setCalendars] = React.useState<{ id: string; name: string; primary: boolean }[] | null>(null);
@@ -143,6 +150,35 @@ export function CalendarSyncCard() {
                 <AlertTriangle className="mt-0.5 size-3.5 shrink-0" />
                 Pulse could not write to Google{status.pushErrorAt ? ` (${sinceLabel(status.pushErrorAt)})` : ""}: {status.pushError}
               </p>
+            )}
+            {status.pulls && (
+              <div className="space-y-3 rounded-lg border border-graphite/50 bg-coal-2/40 p-3">
+                <div className="flex items-start gap-3">
+                  <div className="min-w-0 flex-1">
+                    <p className="text-sm font-medium text-bone">Import Google events as bookings</p>
+                    <p className="mt-0.5 text-xs text-steel">
+                      When a Google event clearly names one of your rooms and the room is free, it becomes a booking on its
+                      own. Everything else waits in the From Google list.
+                    </p>
+                  </div>
+                  <Switch
+                    aria-label="Import Google events as bookings"
+                    checked={status.autoImport}
+                    disabled={!can("schedule.manage")}
+                    onCheckedChange={(enabled) =>
+                      setAutoImport({ enabled })
+                        .then(() => toast.success(enabled ? "Auto-import is on." : "Auto-import is off."))
+                        .catch(() => toast.error("Could not change auto-import."))
+                    }
+                  />
+                </div>
+                <Button size="sm" variant="secondary" onClick={() => setReviewOpen(true)}>
+                  {review && review.events.length > 0
+                    ? `Review ${review.events.length} event${review.events.length === 1 ? "" : "s"} from Google`
+                    : "Review events from Google"}
+                </Button>
+                <GoogleImportDialog open={reviewOpen} onOpenChange={setReviewOpen} />
+              </div>
             )}
             {status.error && (
               <p className="flex items-start gap-1.5 text-xs text-critical">

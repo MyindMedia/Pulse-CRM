@@ -29,6 +29,9 @@ export function googleWorkFor(change: SessionChange): { kind: "push" } | { kind:
     return eventId ? { kind: "remove", eventId } : null;
   }
   const { oldDoc, newDoc } = change;
+  // A booking imported from the studio calendar already IS that Google event:
+  // creating it must not write a second copy. Later edits patch the same event.
+  if (change.operation === "insert" && newDoc?.source === "google" && newDoc.googleCalendarEventId) return null;
   if (change.operation === "update" && oldDoc && newDoc && CALENDAR_FIELDS.every((f) => oldDoc[f] === newDoc[f])) {
     return null;
   }
