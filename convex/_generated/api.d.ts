@@ -70,6 +70,7 @@ import type * as directory from "../directory.js";
 import type * as emailNormalization from "../emailNormalization.js";
 import type * as engineeringLogs from "../engineeringLogs.js";
 import type * as equipment from "../equipment.js";
+import type * as featureRequests from "../featureRequests.js";
 import type * as expenses from "../expenses.js";
 import type * as exports from "../exports.js";
 import type * as externalCalendars from "../externalCalendars.js";
@@ -134,6 +135,7 @@ import type * as lib_emailTemplates_invite from "../lib/emailTemplates/invite.js
 import type * as lib_emailTemplates_layout from "../lib/emailTemplates/layout.js";
 import type * as lib_emailTemplates_trialEmails from "../lib/emailTemplates/trialEmails.js";
 import type * as lib_entitlements from "../lib/entitlements.js";
+import type * as lib_featureRequests from "../lib/featureRequests.js";
 import type * as lib_fileRef from "../lib/fileRef.js";
 import type * as lib_financeCategories from "../lib/financeCategories.js";
 import type * as lib_financeLinks from "../lib/financeLinks.js";
@@ -439,6 +441,7 @@ declare const fullApi: ApiFromModules<{
   emailNormalization: typeof emailNormalization;
   engineeringLogs: typeof engineeringLogs;
   equipment: typeof equipment;
+  featureRequests: typeof featureRequests;
   expenses: typeof expenses;
   exports: typeof exports;
   externalCalendars: typeof externalCalendars;
@@ -503,6 +506,7 @@ declare const fullApi: ApiFromModules<{
   "lib/emailTemplates/layout": typeof lib_emailTemplates_layout;
   "lib/emailTemplates/trialEmails": typeof lib_emailTemplates_trialEmails;
   "lib/entitlements": typeof lib_entitlements;
+  "lib/featureRequests": typeof lib_featureRequests;
   "lib/fileRef": typeof lib_fileRef;
   "lib/financeCategories": typeof lib_financeCategories;
   "lib/financeLinks": typeof lib_financeLinks;
