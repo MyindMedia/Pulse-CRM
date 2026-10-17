@@ -14,7 +14,7 @@ import { Reveal } from "./reveal";
  * visitor presses play, and the press itself is the user gesture that lets the
  * film start with sound. Phones get the 720p cut through <source media>. */
 
-const POSTER = "/video/pulse-one-session-poster.jpg";
+const POSTER = "/video/pulse-one-session-poster.jpg?v=3";
 const SRC_1080 = siteMedia("/video/pulse-one-session-1080.mp4");
 const SRC_720 = siteMedia("/video/pulse-one-session-720.mp4");
 const CAPTIONS = "/video/pulse-one-session.en.vtt";
