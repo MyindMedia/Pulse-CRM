@@ -16,6 +16,7 @@ import { Overview, Communications, Meetings, Links, Activity, Settings, TestOnly
 const html = (el: React.ReactElement) => renderToStaticMarkup(el);
 const set = (name: string, v: unknown) => { fixtures[`outreach:${name}`] = v; };
 const snap = (v: unknown) => { fixtures["outreachCalendar:snapshot"] = v; };
+const NO_SCHEDULE = { at: null, spacingMin: 3, timezone: "America/Los_Angeles", waiting: 0 };
 const baseSnap = { canManage: true, mapped: false, keyConfigured: true, fetchedAt: null, ok: null, error: null, calendar: null, slots: [], appointments: [] };
 
 beforeEach(() => { for (const k of Object.keys(fixtures)) delete fixtures[k]; });
@@ -133,7 +134,7 @@ describe("Outreach panels", () => {
   });
 
   it("review queue: gates are explained and Approve stays off until they are met", () => {
-    fixtures["outreachDrafts:list"] = {
+    fixtures["outreachDrafts:list"] = { schedule: NO_SCHEDULE,
       canManage: true, gates: { postalAddress: false, ownerTestConfirmed: false },
       rows: [{ id: "d1", studio: "MIX", recipient: "jane@mix.com", persona: "MaxB", from: "MaxB | Pulse <info@studiopulse.tech>",
         subject: "Your studio has a sound. Now give it a system.", signatureMode: "original", status: "draft", holdReason: null, approvedAt: null, createdAt: 0 }],
@@ -141,20 +142,20 @@ describe("Outreach panels", () => {
     const out = html(<Drafts />);
     expect(out).toContain("postal address missing");
     expect(out).toContain("owner test not confirmed");
-    expect(out).toContain("Approving does not send");
+    expect(out).toContain("the approval lasts 24 hours and each email goes with its own Send click");
     expect(out).toMatch(/<button[^>]*disabled[^>]*>Approve this email|Approve this email/);
     expect(out).toContain("Approve is off until the postal address is set");
     expect(out).toContain("original signature");
   });
 
   it("review queue: a held draft shows why, and an empty queue says how to start", () => {
-    fixtures["outreachDrafts:list"] = { canManage: true, gates: { postalAddress: true, ownerTestConfirmed: true }, rows: [
+    fixtures["outreachDrafts:list"] = { schedule: NO_SCHEDULE, canManage: true, gates: { postalAddress: true, ownerTestConfirmed: true }, rows: [
       { id: "d2", studio: "UNION", recipient: "info@union.com", persona: "MaxB", from: "x", subject: "s", signatureMode: "static", status: "hold",
         holdReason: "Generic inbox: confirm who handles studio operations before pitching.", approvedAt: null, createdAt: 0 }] };
     const held = html(<Drafts />);
     expect(held).toContain("Generic inbox");
     expect(held).not.toContain("Approve this email");
-    fixtures["outreachDrafts:list"] = { canManage: true, gates: { postalAddress: true, ownerTestConfirmed: true }, rows: [] };
+    fixtures["outreachDrafts:list"] = { schedule: NO_SCHEDULE, canManage: true, gates: { postalAddress: true, ownerTestConfirmed: true }, rows: [] };
     expect(html(<Drafts />)).toContain("No drafts yet");
   });
 
@@ -171,14 +172,29 @@ describe("Outreach panels", () => {
 
   it("review queue: Send is hidden until live sending is on, and is a two-step action", () => {
     const row = { id: "d1", studio: "MIX", recipient: "jane@mix.com", persona: "MaxB", from: "x", subject: "s", signatureMode: "image", status: "approved", holdReason: null, approvedAt: 1, createdAt: 0 };
-    fixtures["outreachDrafts:list"] = { canManage: true, gates: { postalAddress: true, ownerTestConfirmed: true, live: false }, rows: [row] };
+    fixtures["outreachDrafts:list"] = { schedule: NO_SCHEDULE, canManage: true, gates: { postalAddress: true, ownerTestConfirmed: true, live: false }, rows: [row] };
     const off = html(<Drafts />);
     expect(off).toContain("Sending is off. An owner can turn it on in Settings.");
     expect(off).not.toContain("Send now");
-    fixtures["outreachDrafts:list"] = { canManage: true, gates: { postalAddress: true, ownerTestConfirmed: true, live: true }, rows: [row] };
+    fixtures["outreachDrafts:list"] = { schedule: NO_SCHEDULE, canManage: true, gates: { postalAddress: true, ownerTestConfirmed: true, live: true }, rows: [row] };
     const on = html(<Drafts />);
     expect(on).toContain("Send now");
     expect(on).not.toContain("Confirm: send to"); // only after the first click
+  });
+
+  it("review queue: with a send time set, approving queues the email and a scheduled one can be unscheduled", () => {
+    const monday = Date.UTC(2026, 9, 19, 15, 0); // Mon Oct 19, 8:00 AM Pacific
+    const schedule = { at: monday, spacingMin: 3, timezone: "America/Los_Angeles", waiting: 1 };
+    const draft = { id: "d1", studio: "MIX", recipient: "jane@mix.com", persona: "Lawrence", from: "x", subject: "s", signatureMode: "image", status: "draft", holdReason: null, approvedAt: null, createdAt: 0, sendAt: null, scheduleNote: null };
+    const queued = { ...draft, id: "d2", status: "scheduled", approvedAt: 1, sendAt: monday };
+    fixtures["outreachDrafts:list"] = { schedule, canManage: true, gates: { postalAddress: true, ownerTestConfirmed: true, live: true }, rows: [draft, queued] };
+    const out = html(<Drafts />);
+    expect(out).toContain("Scheduled send");
+    expect(out).toContain("Mon, Oct 19, 8:00 AM PDT");
+    expect(out).toContain("one every 3 minutes. 1 waiting.");
+    expect(out).toContain("Approve for the scheduled send");
+    expect(out).toContain("Sends Mon, Oct 19, 8:00 AM PDT");
+    expect(out).toContain("Unschedule");
   });
 
   it("settings: live sending lists what is missing, and only the owner can change it", () => {
@@ -260,7 +276,7 @@ describe("Outreach panels", () => {
 
 describe("Outreach flow: Lawrence first, MaxB follow-ups", () => {
   it("review queue labels each step and explains the follow-ups still need approval and Send", () => {
-    fixtures["outreachDrafts:list"] = { canManage: true, gates: { postalAddress: true, ownerTestConfirmed: true, live: true }, rows: [
+    fixtures["outreachDrafts:list"] = { schedule: NO_SCHEDULE, canManage: true, gates: { postalAddress: true, ownerTestConfirmed: true, live: true }, rows: [
       { id: "d1", studio: "MIX", recipient: "jane@mix.com", persona: "MaxB", from: "MaxB | Pulse <info@studiopulse.tech>", subject: "Re: A question", signatureMode: "image",
         status: "draft", holdReason: null, approvedAt: null, createdAt: 0, step: 2, label: "Step 2: Day 7 follow-up (MaxB)", threaded: true,
         observation: null, subjectOverride: null, bodyOverride: null, editable: { observation: false, subject: false, body: true } },
