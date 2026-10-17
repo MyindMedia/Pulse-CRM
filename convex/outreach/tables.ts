@@ -91,6 +91,12 @@ export const outreachTables = {
     postalAddress: v.optional(v.string()),
     testConfirmedAt: v.optional(v.number()),
     testConfirmedNote: v.optional(v.string()),
+    /* Scheduled send: while this time is ahead, an approved email waits for it
+       instead of a Send click, then goes out one every `scheduleSpacingMin`
+       minutes (default 3). `lastScheduledSendAt` paces the queue. */
+    scheduledSendAt: v.optional(v.number()),
+    scheduleSpacingMin: v.optional(v.number()),
+    lastScheduledSendAt: v.optional(v.number()),
     updatedAt: v.number(),
     updatedBy: v.string(),
   }).index("by_agency", ["agencyId"]),
@@ -247,6 +253,10 @@ export const outreachTables = {
     approvedBy: v.optional(v.string()),
     approvedAt: v.optional(v.number()),
     approvedHash: v.optional(v.string()),
+    /* Approved for a scheduled send: when it goes, without a Send click. */
+    sendAt: v.optional(v.number()),
+    /* Why a scheduled send did not go (a check failed at send time). */
+    scheduleNote: v.optional(v.string()),
     createdAt: v.number(),
   })
     .index("by_agency", ["agencyId", "createdAt"])
