@@ -74,6 +74,12 @@ const MAXB_SIGNOFF = ["MaxB (Roverto Benson)", "Outreach Lead, Pulse OS"] as con
 const hi = (studio: string) => (studio ? `Hi ${studio} team,` : "Hi there,");
 const orYour = (studio: string) => studio || "your studio";
 
+/* Lawrence's own words about himself (2026-10-16). His credit is the one
+   accolade outreach may carry, and only in his email, worded exactly so. */
+export const LAWRENCE_CREDIT = "a Grammy-nominated producer";
+export const LAWRENCE_OPENER =
+  "I’m Lawrence, a Grammy-nominated producer. I’ve spent countless hours in studios over the years, and I’ve noticed a lot of things that get forgotten or could be done better.";
+
 export const TEMPLATES: Record<TemplateKey, Template> = {
   lawrence_first: {
     key: "lawrence_first",
@@ -86,7 +92,7 @@ export const TEMPLATES: Record<TemplateKey, Template> = {
     preheader: (studio) => `A short note from Lawrence about running ${orYour(studio)}.`,
     greeting: hi,
     middle: [
-      "I’m Lawrence, a producer who’s run studios. For years I juggled a booking app, a spreadsheet and deposit texts to know who was in which room.",
+      LAWRENCE_OPENER,
       "So I built Pulse OS, the studio operating system: bookings, deposits, staff scheduling, gear, invoicing and reporting in one place. On their phones, your team gets the Pulse app: checklists, clock in/out, session notes.",
     ],
     offer: "Founding studios get 50% off the first 3 months.",
@@ -181,7 +187,9 @@ export const MAX_OBSERVATION_CHARS = 400;
 export const MAX_SUBJECT_CHARS = 150;
 export const MAX_BODY_CHARS = 1500;
 
-/* Copy rules for everything a recipient reads, overrides and opening lines included. */
+/* Copy rules for everything a recipient reads, overrides and opening lines included.
+   Lawrence's email may carry his own credit, in exactly LAWRENCE_CREDIT's words;
+   any other award claim, and any in MaxB's mail or a signature, is refused. */
 export const AWARD_RE = /grammy|award|nominated/i;
 export const CRM_RE = /\bCRM\b/i;
 
@@ -310,7 +318,8 @@ ${paragraphs.map((p) => `      <p style="font-size:15px;line-height:1.75;color:#
   // Campaign rules: no em dashes, no accolade claims, and it is never called a CRM.
   const readable = [subject, t.preheader(studio), paragraphs.join("\n"), t.signoff.join("\n"), text, addressLine].join("\n");
   if (readable.includes("—")) throw new Error("Em dash is not allowed in campaign copy");
-  if (AWARD_RE.test(readable)) throw new Error("Award language is not allowed in outreach copy");
+  const claims = t.persona === "lawrence" ? readable.split(LAWRENCE_CREDIT).join("") : readable;
+  if (AWARD_RE.test(claims)) throw new Error("Award language is not allowed in outreach copy");
   if (CRM_RE.test(readable)) throw new Error("Call it Pulse OS, the studio operating system, not a CRM");
 
   const links = [...new Set([...html.matchAll(/(?:href|src)="([^"]+)"/g)].map((m) => m[1]))];

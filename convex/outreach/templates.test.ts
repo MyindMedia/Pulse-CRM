@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { renderEmail, PERSONAS, TEMPLATES, SEQUENCE_TEMPLATES, FOLLOWUP_DAYS, THREAD_REPLY_TO, contentHash, templateForStep, type TemplateKey } from "./templates";
+import { renderEmail, PERSONAS, TEMPLATES, SEQUENCE_TEMPLATES, FOLLOWUP_DAYS, THREAD_REPLY_TO, contentHash, templateForStep, LAWRENCE_CREDIT, type TemplateKey } from "./templates";
 import {
   ORIGINAL_ROVERTO, ORIGINAL_LAWRENCE, STATIC_ROVERTO, STATIC_LAWRENCE, signatureHtml, signatureImageHtml, inlineImagesFor, withDataUris,
   type SignatureKey, type SignatureMode,
@@ -21,8 +21,8 @@ describe("Lawrence's first email", () => {
     const body = r.text.split("\n\n");
     expect(body[0]).toBe("Hi MIX Recording Studio team,");
     expect(body[1]).toBe(HOOK); // the opening line comes first
-    expect(r.text).toContain("I’m Lawrence, a producer who’s run studios.");
-    expect(r.text).toMatch(/booking app, a spreadsheet and deposit texts/);
+    expect(r.text).toContain("I’m Lawrence, a Grammy-nominated producer. I’ve spent countless hours in studios over the years");
+    expect(r.text).toContain("things that get forgotten or could be done better.");
     expect(r.text).toContain("Pulse OS, the studio operating system: bookings, deposits, staff scheduling, gear, invoicing and reporting in one place.");
     expect(r.text).toContain("the Pulse app: checklists, clock in/out, session notes.");
     expect(r.text).toContain("50% off the first 3 months");
@@ -133,11 +133,13 @@ describe("personas per step", () => {
 });
 
 describe("award language guard", () => {
-  it("no template render, signature HTML, alt text or persona copy mentions an award", () => {
+  it("no template render, signature HTML, alt text or persona copy mentions an award, beyond Lawrence's own credit", () => {
+    const withoutCredit = (s: string) => s.split(LAWRENCE_CREDIT).join("");
     for (const k of ALL_TEMPLATES) {
       for (const mode of MODES) {
         const r = renderEmail(k === "lawrence_first" ? { ...base, signatureMode: mode } : { ...reply(k), signatureMode: mode });
-        expect(r.subject + r.html + r.text, `${k}/${mode}`).not.toMatch(BANNED);
+        const copy = r.subject + r.html + r.text;
+        expect(k === "lawrence_first" ? withoutCredit(copy) : copy, `${k}/${mode}`).not.toMatch(BANNED);
       }
     }
     for (const key of ["lawrence", "roverto"] as SignatureKey[]) {
@@ -148,14 +150,17 @@ describe("award language guard", () => {
     expect(JSON.stringify(PERSONAS)).not.toMatch(BANNED);
     for (const t of Object.values(TEMPLATES)) {
       const copy = [t.name, t.subject("X"), t.preheader("X"), t.greeting("X"), ...t.middle, t.offer ?? "", t.closing("d"), t.cta, ...t.signoff].join(" ");
-      expect(copy, t.key).not.toMatch(BANNED);
+      expect(t.persona === "lawrence" ? withoutCredit(copy) : copy, t.key).not.toMatch(BANNED);
       expect(copy, t.key).not.toMatch(/\bCRM\b/i);
     }
   });
 
   it("refuses award language or CRM even in an opening line or override", () => {
     expect(() => renderEmail({ ...base, observation: "Loved your award-winning live room." })).toThrow(/Award/);
-    expect(() => renderEmail({ ...base, bodyOverride: "A Grammy-nominated producer built it." })).toThrow(/Award/);
+    expect(() => renderEmail({ ...base, bodyOverride: "A Grammy-winning producer built it." })).toThrow(/Award/);
+    expect(() => renderEmail({ ...base, bodyOverride: "I'm Lawrence, a Grammy-nominated producer, and Pulse is award-winning." })).toThrow(/Award/);
+    expect(() => renderEmail({ ...reply("maxb_followup_1"), bodyOverride: "Lawrence is a Grammy-nominated producer." })).toThrow(/Award/);
+    expect(renderEmail({ ...base, bodyOverride: "I'm Lawrence, a Grammy-nominated producer." }).text).toContain("a Grammy-nominated producer");
     expect(() => renderEmail({ ...reply("maxb_followup_1"), bodyOverride: "Our CRM for studios." })).toThrow(/not a CRM/);
   });
 
