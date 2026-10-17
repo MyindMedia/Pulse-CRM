@@ -3,6 +3,7 @@ import { SiteReveal } from "./site-reveal";
 import { SiteBackdrop } from "./site-backdrop";
 import { LandingNav } from "./landing-nav";
 import { Hero } from "./hero";
+import { ExplainerVideo } from "./explainer-video";
 import { Chain } from "./chain";
 import { Features } from "./features";
 import { MobileAppSection } from "./mobile-app";
@@ -27,6 +28,7 @@ export function LandingPage() {
       <LandingNav />
       <main>
         <Hero />
+        <ExplainerVideo />
         <Chain />
         <Features />
         <MobileAppSection />
