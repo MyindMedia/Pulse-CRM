@@ -33,6 +33,8 @@ crons.interval("zuops-sync", { minutes: 1 }, internal.outreachZuops.syncAll, {})
 // put its draft in the Review queue. Drafts only: never approves, never sends. Also stops a
 // sequence when the studio replied, booked, bounced, complained or opted out.
 crons.interval("outreach-sequences", { hours: 1 }, internal.outreachSequences.tick, {});
+// Approved outreach emails waiting for their scheduled send time, one every few minutes.
+crons.interval("outreach-scheduled-send", { minutes: 1 }, internal.outreachSend._sendDue, {});
 
 // Confirmation calls for booked demos. Does nothing unless an agency turned it on in
 // Outreach > Settings; dry run by default. See docs/CONFIRMATION-CALLS.md.

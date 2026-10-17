@@ -560,7 +560,7 @@ export function Settings() {
 /* ------------------------------- Review queue ------------------------------- */
 
 const DRAFT_TONE: Record<string, Tone> = {
-  draft: "info", hold: "caution", approved: "positive", expired: "caution", cancelled: "neutral", sending: "info", sent: "positive",
+  draft: "info", hold: "caution", approved: "positive", scheduled: "positive", expired: "caution", cancelled: "neutral", sending: "info", sent: "positive",
 };
 
 function DraftPreview({ id }: { id: Id<"outreachDrafts"> }) {
@@ -594,12 +594,79 @@ function DraftPreview({ id }: { id: Id<"outreachDrafts"> }) {
 
 type DraftEdit = { observation?: string; subject?: string; body?: string };
 
+/** When approved emails go out on their own, and how far apart. */
+function ScheduleCard({ schedule, canManage, when }: {
+  schedule: { at: number | null; spacingMin: number; timezone: string; waiting: number };
+  canManage: boolean;
+  when: (at: number) => string;
+}) {
+  const setScheduledSend = useMutation(api.outreach.setScheduledSend);
+  const [value, setValue] = React.useState("");
+  const [spacing, setSpacing] = React.useState(String(schedule.spacingMin));
+  const [busy, setBusy] = React.useState(false);
+  const [error, setError] = React.useState<string | null>(null);
+
+  async function save(at: number | null) {
+    setBusy(true); setError(null);
+    try {
+      await setScheduledSend({ at, spacingMin: Number(spacing) || schedule.spacingMin });
+      setValue("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message.replace(/^[\s\S]*Uncaught (Convex)?Error:?\s*/, "").slice(0, 200) : "Could not save the send time.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Scheduled send</CardTitle>
+        <CardDescription>
+          {schedule.at
+            ? `Approved emails go out ${when(schedule.at)}, one every ${schedule.spacingMin} minutes. ${schedule.waiting} waiting. Pause in Settings stops the queue.`
+            : "No send time set: each approved email goes with its own Send click. Set a time to approve now and send later."}
+        </CardDescription>
+      </CardHeader>
+      {canManage && (
+        <CardContent className="flex flex-wrap items-end gap-3 text-sm">
+          <label className="space-y-1">
+            <span className="block text-xs text-steel">Send time (your time)</span>
+            <input
+              type="datetime-local"
+              value={value}
+              onChange={(e) => setValue(e.target.value)}
+              className="h-9 rounded-md border border-graphite/60 bg-obsidian px-2 text-sm text-bone"
+            />
+          </label>
+          <label className="space-y-1">
+            <span className="block text-xs text-steel">Minutes apart</span>
+            <input
+              type="number" min={1} max={60} value={spacing}
+              onChange={(e) => setSpacing(e.target.value)}
+              className="h-9 w-20 rounded-md border border-graphite/60 bg-obsidian px-2 text-sm text-bone"
+            />
+          </label>
+          <Button variant="primary" disabled={busy || !value} onClick={() => void save(new Date(value).getTime())}>
+            {schedule.at ? "Move send time" : "Set send time"}
+          </Button>
+          {schedule.at && (
+            <Button variant="ghost" disabled={busy} onClick={() => void save(null)}>Clear send time</Button>
+          )}
+          {error && <p role="alert" className="w-full text-xs text-critical">{error}</p>}
+        </CardContent>
+      )}
+    </Card>
+  );
+}
+
 export function Drafts() {
   const data = useQuery(api.outreachDrafts.list, {});
   const approve = useMutation(api.outreachDrafts.approve);
   const cancel = useMutation(api.outreachDrafts.cancel);
   const edit = useMutation(api.outreachDrafts.edit);
   const send = useMutation(api.outreachSend.send);
+  const unschedule = useMutation(api.outreachDrafts.unschedule);
   const [confirming, setConfirming] = React.useState<string | null>(null);
   const [open, setOpen] = React.useState<string | null>(null);
   const [editing, setEditing] = React.useState<string | null>(null);
@@ -616,13 +683,18 @@ export function Drafts() {
     }
   }
   const gatesOk = data.gates.postalAddress && data.gates.ownerTestConfirmed;
+  const when = (at: number) =>
+    new Date(at).toLocaleString("en-US", {
+      timeZone: data.schedule.timezone, weekday: "short", month: "short", day: "numeric",
+      hour: "numeric", minute: "2-digit", timeZoneName: "short",
+    });
 
   return (
     <div className="space-y-4">
       <Card>
         <CardHeader>
           <CardTitle>Before anything can be approved</CardTitle>
-          <CardDescription>Approval is tied to the exact email and expires in 24 hours. Approving does not send: each approved email is sent with its own Send click, and only while live sending is on. MaxB&apos;s follow-ups appear here on day 3, 7 and 14 after Lawrence&apos;s email is sent; each one still needs your approval and your own Send click. Editing a draft clears its approval.</CardDescription>
+          <CardDescription>Approval is tied to the exact email. With a send time set below, approving queues the email for it and nothing else is needed; without one, the approval lasts 24 hours and each email goes with its own Send click. Either way, only while live sending is on. MaxB&apos;s follow-ups appear here on day 3, 7 and 14 after Lawrence&apos;s email is sent; each one still needs your approval and your own Send click. Editing a draft clears its approval.</CardDescription>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-3 text-sm">
           <Badge tone={data.gates.postalAddress ? "positive" : "caution"}>postal address {data.gates.postalAddress ? "set" : "missing"}</Badge>
@@ -630,6 +702,7 @@ export function Drafts() {
           <Badge tone={data.gates.live ? "positive" : "neutral"}>live sending {data.gates.live ? "on" : "off"}</Badge>
         </CardContent>
       </Card>
+      <ScheduleCard schedule={data.schedule} canManage={data.canManage} when={when} />
       {msg && <p role="status" className="text-sm text-positive">{msg}</p>}
       {err && <p role="alert" className="text-sm text-critical">{err}</p>}
       {data.rows.length === 0 ? (
@@ -651,6 +724,8 @@ export function Drafts() {
                       <Badge tone={DRAFT_TONE[d.status] ?? "neutral"}>{d.status}</Badge>
                       {d.holdReason && <p className="max-w-xs text-xs text-caution">{d.holdReason}</p>}
                       {d.status === "expired" && <p className="text-xs text-steel/70">Approval expired. Prepare it again.</p>}
+                      {d.status === "scheduled" && d.sendAt && <p className="text-xs text-positive">Sends {when(d.sendAt)}</p>}
+                      {d.scheduleNote && <p className="max-w-xs text-xs text-caution">{d.scheduleNote}</p>}
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -658,11 +733,21 @@ export function Drafts() {
                       {open === d.id ? "Hide preview" : "Preview"}
                     </Button>
                     {data.canManage && d.status === "draft" && (
-                      <Button variant="primary" disabled={!gatesOk} onClick={() => void run(() => approve({ id: d.id as Id<"outreachDrafts"> }), "Approved for this exact email. Nothing was sent.")}>
-                        Approve this email
+                      <Button variant="primary" disabled={!gatesOk} onClick={() => void run(
+                        () => approve({ id: d.id as Id<"outreachDrafts"> }),
+                        data.schedule.at
+                          ? `Approved. It sends ${when(data.schedule.at)}. Nothing was sent yet.`
+                          : "Approved for this exact email. Nothing was sent.",
+                      )}>
+                        {data.schedule.at ? "Approve for the scheduled send" : "Approve this email"}
                       </Button>
                     )}
-                    {data.canManage && d.status === "approved" && (
+                    {data.canManage && d.status === "scheduled" && (
+                      <Button variant="ghost" onClick={() => void run(() => unschedule({ id: d.id as Id<"outreachDrafts"> }), "Taken off the schedule. Approve it again to send it.")}>
+                        Unschedule
+                      </Button>
+                    )}
+                    {data.canManage && (d.status === "approved" || d.status === "scheduled") && (
                       data.gates.live ? (
                         confirming === d.id ? (
                           <>
@@ -678,7 +763,7 @@ export function Drafts() {
                         <span className="self-center text-xs text-steel">Sending is off. An owner can turn it on in Settings.</span>
                       )
                     )}
-                    {data.canManage && d.editable && ["draft", "hold", "approved"].includes(d.status) && (
+                    {data.canManage && d.editable && ["draft", "hold", "approved", "scheduled"].includes(d.status) && (
                       <Button variant="ghost" onClick={() => setEditing(editing === d.id ? null : d.id)}>
                         {editing === d.id ? "Close editor" : "Edit copy"}
                       </Button>

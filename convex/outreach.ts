@@ -212,6 +212,50 @@ export const setPaused = mutation({
   },
 });
 
+/** Sets when approved emails go out without a Send click, or clears it.
+ *  Emails approved while it is ahead join the queue; moving the time moves
+ *  the emails already queued; clearing it leaves them where they are
+ *  (unschedule them one by one, or pause). */
+async function applySchedule(ctx: MutationCtx, agencyId: string, actor: string, at: number | null, spacingMin?: number) {
+  if (at !== null && at <= Date.now()) throw new Error("Pick a time in the future");
+  if (spacingMin !== undefined && (!Number.isFinite(spacingMin) || spacingMin < 1 || spacingMin > 60)) {
+    throw new Error("Space the sends between 1 and 60 minutes apart");
+  }
+  const existing = await settingsFor(ctx, agencyId);
+  if (!existing) throw new Error("Set up Outreach first");
+  await ctx.db.patch(existing._id, {
+    scheduledSendAt: at ?? undefined,
+    ...(spacingMin !== undefined ? { scheduleSpacingMin: Math.round(spacingMin) } : {}),
+    updatedAt: Date.now(), updatedBy: actor,
+  });
+  if (at !== null) {
+    const drafts = await ctx.db.query("outreachDrafts").withIndex("by_agency", (q) => q.eq("agencyId", agencyId)).collect();
+    for (const d of drafts) {
+      if (d.status === "approved" && d.sendAt !== undefined && d.sendAt > Date.now()) await ctx.db.patch(d._id, { sendAt: at });
+    }
+  }
+  await logEvent(ctx, agencyId, actor, at ? "outreach.send_scheduled" : "outreach.send_schedule_cleared", "ok", undefined, at ? new Date(at).toISOString() : undefined);
+}
+
+export const setScheduledSend = mutation({
+  args: { at: v.union(v.number(), v.null()), spacingMin: v.optional(v.number()) },
+  handler: async (ctx, { at, spacingMin }) => {
+    const scope = await requireAgencyScope(ctx);
+    if (!scope.canManage) throw new AccessError("FORBIDDEN", "Only an owner or admin can schedule sends");
+    await applySchedule(ctx, scope.agencyId, scope.actor, at, spacingMin);
+    return null;
+  },
+});
+
+/** The same, by an operator for an agency (no browser session needed). */
+export const setScheduledSendFor = internalMutation({
+  args: { agencyId: v.string(), operator: v.string(), at: v.union(v.number(), v.null()), spacingMin: v.optional(v.number()) },
+  handler: async (ctx, a) => {
+    await applySchedule(ctx, a.agencyId, a.operator, a.at, a.spacingMin);
+    return null;
+  },
+});
+
 /** Turns live sending on or off. Owner only. Turning it on needs every gate
  *  met and the word SEND typed. Nothing is sent by this: each email still
  *  needs its own approval and its own Send click. */

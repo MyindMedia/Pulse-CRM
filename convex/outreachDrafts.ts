@@ -6,7 +6,7 @@ import { agencyScope, requireAgencyScope, logEvent } from "./outreach/scope";
 import type { Doc, Id } from "./_generated/dataModel";
 import { PERSONAS, TEMPLATES, LAWRENCE_OPENER, isTemplateKey, type PersonaKey } from "./outreach/templates";
 import { inlineImagesFor, withDataUris } from "./outreach/signatures";
-import { APPROVAL_TTL_MS, GENERIC_HOLD, renderAndHash, cleanText, studioName, sendableStatuses, type DraftContent } from "./outreach/drafting";
+import { approvalLive, SCHEDULE_SPACING_MIN, GENERIC_HOLD, renderAndHash, cleanText, studioName, sendableStatuses, type DraftContent } from "./outreach/drafting";
 import { sequenceFor, stopSequence, threadClosed, followupProblem } from "./outreach/sequence";
 
 /* ============================================================
@@ -69,21 +69,30 @@ export const list = query({
     const scope = await agencyScope(ctx);
     if (!scope) return null;
     const settings = await settingsFor(ctx, scope.agencyId);
-    const rows = await ctx.db.query("outreachDrafts").withIndex("by_agency", (q) => q.eq("agencyId", scope.agencyId)).order("desc").take(50);
+    const rows = await ctx.db.query("outreachDrafts").withIndex("by_agency", (q) => q.eq("agencyId", scope.agencyId)).order("desc").take(300);
     const now = Date.now();
+    const scheduledAt = settings?.scheduledSendAt && settings.scheduledSendAt > now ? settings.scheduledSendAt : null;
     return {
       canManage: scope.canManage,
+      schedule: {
+        at: scheduledAt,
+        spacingMin: settings?.scheduleSpacingMin ?? SCHEDULE_SPACING_MIN,
+        timezone: settings?.timezone ?? "America/Los_Angeles",
+        waiting: rows.filter((d) => d.status === "approved" && d.sendAt !== undefined).length,
+      },
       gates: { postalAddress: !!settings?.postalAddress, ownerTestConfirmed: !!settings?.testConfirmedAt, live: settings?.mode === "live" && settings.paused === false },
       rows: rows
         .filter((d) => d.status !== "superseded")
         .map((d) => {
           const p = PERSONAS[d.persona];
-          const expired = d.status === "approved" && d.approvedAt !== undefined && now - d.approvedAt > APPROVAL_TTL_MS;
+          const expired = d.status === "approved" && !approvalLive(d, now);
+          const scheduled = d.status === "approved" && !expired && d.sendAt !== undefined;
           const t = isTemplateKey(d.templateKey) ? TEMPLATES[d.templateKey] : null;
           return {
             id: d._id, studio: d.studio || d.recipient, recipient: d.recipient, persona: p.label,
             from: `${p.fromName} <${p.fromEmail}>`, subject: d.subject, signatureMode: d.signatureMode,
-            status: expired ? ("expired" as const) : d.status, holdReason: d.holdReason ?? null,
+            status: expired ? ("expired" as const) : scheduled ? ("scheduled" as const) : d.status, holdReason: d.holdReason ?? null,
+            sendAt: d.sendAt ?? null, scheduleNote: d.scheduleNote ?? null,
             approvedAt: d.approvedAt ?? null, createdAt: d.createdAt,
             step: d.sequenceStep ?? null, label: stepLabel(d), threaded: !!d.inReplyTo,
             observation: d.observation ?? null, subjectOverride: d.subjectOverride ?? null, bodyOverride: d.bodyOverride ?? null,
@@ -215,6 +224,7 @@ export const edit = mutation({
       observation: next.observation, subjectOverride: next.subjectOverride, bodyOverride: next.bodyOverride,
       subject: r.subject, html: r.html, text: r.text, contentHash: hash, blockers: r.blockers,
       status: d.status === "hold" ? "hold" : "draft", approvedBy: undefined, approvedAt: undefined, approvedHash: undefined,
+      sendAt: undefined, scheduleNote: undefined,
     });
     await logEvent(ctx, scope.agencyId, scope.actor, "outreach.draft_edited", "ok", d.recipient, d.status === "approved" ? "approval cleared" : undefined);
     return null;
@@ -243,8 +253,26 @@ export const approve = mutation({
       await ctx.db.patch(id, { status: "superseded" });
       throw new Error("The content or settings changed since this draft was prepared. Prepare it again.");
     }
-    await ctx.db.patch(id, { status: "approved", approvedBy: scope.actor, approvedAt: Date.now(), approvedHash: hash, blockers: r.blockers });
-    await logEvent(ctx, scope.agencyId, scope.actor, "outreach.draft_approved", "ok", d.recipient, hash.slice(0, 12));
+    // While a scheduled send time is ahead, approving queues the email for it.
+    const now = Date.now();
+    const sendAt = settings.scheduledSendAt && settings.scheduledSendAt > now ? settings.scheduledSendAt : undefined;
+    await ctx.db.patch(id, { status: "approved", approvedBy: scope.actor, approvedAt: now, approvedHash: hash, blockers: r.blockers, sendAt, scheduleNote: undefined });
+    await logEvent(ctx, scope.agencyId, scope.actor, "outreach.draft_approved", "ok", d.recipient, sendAt ? `${hash.slice(0, 12)} scheduled` : hash.slice(0, 12));
+    return { sendAt: sendAt ?? null };
+  },
+});
+
+/** Takes an approved email out of the scheduled queue. It goes back to the
+ *  review queue unapproved; approve it again to send or reschedule it. */
+export const unschedule = mutation({
+  args: { id: v.id("outreachDrafts") },
+  handler: async (ctx, { id }) => {
+    const scope = await requireManager(ctx);
+    const d = await ctx.db.get(id);
+    if (!d || d.agencyId !== scope.agencyId) throw new AccessError("FORBIDDEN", "Draft not found");
+    if (d.status !== "approved") throw new Error("Only an approved email waiting to send can be taken off the schedule");
+    await ctx.db.patch(id, { status: "draft", approvedBy: undefined, approvedAt: undefined, approvedHash: undefined, sendAt: undefined, scheduleNote: undefined });
+    await logEvent(ctx, scope.agencyId, scope.actor, "outreach.draft_unscheduled", "ok", d.recipient);
     return null;
   },
 });

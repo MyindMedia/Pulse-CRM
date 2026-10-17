@@ -180,4 +180,105 @@ describe("outreach live sending", () => {
     await t.action(internal.outreachSend._checkStatuses, { agencyId: AG });
     expect((await as("ua").query(api.outreach.communications, {}))?.[0].status).toBe("delivered");
   });
+
+  /* Scheduled send: approve now, send later. */
+  async function queuedProspect(n: number) {
+    const email = `owner${n}@studio${n}.com`;
+    const pid = await t.run(async (ctx) => await ctx.db.insert("outreachProspects", {
+      agencyId: AG, dedupeKey: `site:studio${n}.com`, name: `Studio ${n}`, websiteUrl: `https://studio${n}.com`, source: "paste", status: "queued", createdAt: 1, updatedAt: 1,
+      contacts: { emails: [{ address: email, generic: false, rank: 50, sourceUrl: `https://studio${n}.com/contact` }], phones: [], socials: [], booking: [], pages: [], scrapedAt: 1 },
+    }));
+    const id = await as("ua").mutation(api.outreachDrafts.prepare, { prospectId: pid, email, persona: "lawrence", templateKey: "lawrence_first", observation: HOOK });
+    return { id, email };
+  }
+  const statusOf = (id: unknown) => t.run(async (ctx) => (await ctx.db.get(id as never) as { status: string; sendAt?: number; scheduleNote?: string } | null));
+
+  it("approving while a send time is set queues the email for it, with no Send click", async () => {
+    await seed(); await gates(); await goLive(); resend();
+    const monday = Date.now() + 3 * 86_400_000;
+    await as("ua").mutation(api.outreach.setScheduledSend, { at: monday });
+    const { id } = await queuedProspect(1);
+    const r = await as("ua").mutation(api.outreachDrafts.approve, { id });
+    expect(r?.sendAt).toBe(monday);
+    const row = (await as("ua").query(api.outreachDrafts.list, {}))!.rows.find((d) => d.id === id);
+    expect(row?.status).toBe("scheduled");
+
+    // Nothing goes before the time, and the approval outlives 24 hours.
+    vi.advanceTimersByTime(2 * 86_400_000);
+    await t.mutation(internal.outreachSend._sendDue, {});
+    expect((await statusOf(id))?.status).toBe("approved");
+
+    vi.setSystemTime(monday + 1000);
+    await t.mutation(internal.outreachSend._sendDue, {});
+    expect((await statusOf(id))?.status).toBe("sending");
+    const comms = await t.run((ctx) => ctx.db.query("outreachCommunications").collect());
+    expect(comms).toHaveLength(1);
+  });
+
+  it("sends one email per spacing interval, earliest approved first", async () => {
+    await seed(); await gates(); await goLive(); resend();
+    const at = Date.now() + 86_400_000;
+    await as("ua").mutation(api.outreach.setScheduledSend, { at, spacingMin: 3 });
+    const a = await queuedProspect(1); const b = await queuedProspect(2); const c = await queuedProspect(3);
+    for (const d of [a, b, c]) { await as("ua").mutation(api.outreachDrafts.approve, { id: d.id }); vi.advanceTimersByTime(1000); }
+
+    vi.setSystemTime(at + 1000);
+    await t.mutation(internal.outreachSend._sendDue, {});
+    await t.mutation(internal.outreachSend._sendDue, {}); // same minute: nothing more
+    expect([(await statusOf(a.id))?.status, (await statusOf(b.id))?.status]).toEqual(["sending", "approved"]);
+    vi.advanceTimersByTime(60_000);
+    await t.mutation(internal.outreachSend._sendDue, {});
+    expect((await statusOf(b.id))?.status).toBe("approved");
+    vi.advanceTimersByTime(2 * 60_000);
+    await t.mutation(internal.outreachSend._sendDue, {});
+    expect((await statusOf(b.id))?.status).toBe("sending");
+    expect((await statusOf(c.id))?.status).toBe("approved");
+  });
+
+  it("a paused queue waits; an opted-out address is taken off with the reason, and the next one goes", async () => {
+    await seed(); await gates(); await goLive(); resend();
+    const at = Date.now() + 86_400_000;
+    await as("ua").mutation(api.outreach.setScheduledSend, { at });
+    const a = await queuedProspect(1); const b = await queuedProspect(2);
+    await as("ua").mutation(api.outreachDrafts.approve, { id: a.id });
+    vi.advanceTimersByTime(1000);
+    await as("ua").mutation(api.outreachDrafts.approve, { id: b.id });
+
+    await as("ua").mutation(api.outreach.setPaused, { paused: true });
+    vi.setSystemTime(at + 1000);
+    await t.mutation(internal.outreachSend._sendDue, {});
+    expect((await statusOf(a.id))?.status).toBe("approved");
+
+    await as("ua").mutation(api.outreach.setPaused, { paused: false });
+    await t.run(async (ctx) => { await ctx.db.insert("outreachSuppressions", { agencyId: AG, email: a.email, reason: "unsubscribe", at: 1 }); });
+    await t.mutation(internal.outreachSend._sendDue, {});
+    const skipped = await statusOf(a.id);
+    expect(skipped?.status).toBe("approved");
+    expect(skipped?.sendAt).toBeUndefined();
+    expect(skipped?.scheduleNote).toMatch(/opted out/);
+    expect((await statusOf(b.id))?.status).toBe("sending");
+  });
+
+  it("unschedule and edit take an email out of the queue; moving the time moves the queue", async () => {
+    await seed(); await gates(); await goLive(); resend();
+    const at = Date.now() + 86_400_000;
+    await as("ua").mutation(api.outreach.setScheduledSend, { at });
+    const a = await queuedProspect(1); const b = await queuedProspect(2);
+    await as("ua").mutation(api.outreachDrafts.approve, { id: a.id });
+    await as("ua").mutation(api.outreachDrafts.approve, { id: b.id });
+
+    const later = at + 3_600_000;
+    await as("ua").mutation(api.outreach.setScheduledSend, { at: later });
+    expect((await statusOf(b.id))?.sendAt).toBe(later);
+
+    await as("ua").mutation(api.outreachDrafts.unschedule, { id: a.id });
+    expect((await statusOf(a.id))?.status).toBe("draft");
+    expect((await statusOf(a.id))?.sendAt).toBeUndefined();
+    await as("ua").mutation(api.outreachDrafts.edit, { id: b.id, observation: "Saw your new live room." });
+    expect((await statusOf(b.id))?.status).toBe("draft");
+    expect((await statusOf(b.id))?.sendAt).toBeUndefined();
+
+    await expect(as("ua").mutation(api.outreach.setScheduledSend, { at: Date.now() - 1 })).rejects.toThrow(/future/);
+    await expect(as("ustaff").mutation(api.outreach.setScheduledSend, { at })).rejects.toThrow();
+  });
 });

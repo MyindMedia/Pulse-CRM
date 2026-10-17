@@ -5,6 +5,17 @@ import { inlineImagesFor, type SignatureMode } from "./signatures";
    rendered, and what its approval binds to. Pure apart from hashing. */
 
 export const APPROVAL_TTL_MS = 24 * 60 * 60 * 1000;
+
+/** Whether an approval still stands. A scheduled one lasts until a day after
+ *  its send time (a long queue, or a pause, can hold it past the hour);
+ *  otherwise a day from approval. */
+export function approvalLive(d: { approvedAt?: number; sendAt?: number }, now: number): boolean {
+  if (d.approvedAt === undefined) return false;
+  return d.sendAt !== undefined ? now <= d.sendAt + APPROVAL_TTL_MS : now - d.approvedAt <= APPROVAL_TTL_MS;
+}
+
+/** Default gap between scheduled sends, in minutes. */
+export const SCHEDULE_SPACING_MIN = 3;
 export const GENERIC_HOLD = "Generic inbox: confirm who handles studio operations before pitching.";
 
 /** Everything on a draft that decides what is sent. */
