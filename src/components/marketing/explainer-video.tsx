@@ -66,10 +66,11 @@ export function ExplainerVideo() {
                 type="button"
                 onClick={start}
                 aria-label="Play the Pulse explainer video, 71 seconds, with sound"
-                className="group absolute inset-0 grid place-items-center bg-black/25 transition-colors hover:bg-black/10"
+                className="group absolute inset-0 flex items-end justify-center bg-black/10 pb-[8%] transition-colors hover:bg-transparent sm:pb-[10%]"
               >
-                <span className="grid size-20 place-items-center rounded-full bg-gold text-[#1a1400] shadow-gold-soft transition-transform duration-300 group-hover:scale-110 sm:size-24">
-                  <Play className="ml-1 size-8 fill-current sm:size-10" />
+                {/* Lower third: the poster's "This is / PULSE" lockup owns the upper middle. */}
+                <span className="grid size-14 place-items-center rounded-full bg-gold text-[#1a1400] shadow-gold-soft transition-transform duration-300 group-hover:scale-110 sm:size-20 lg:size-24">
+                  <Play className="ml-1 size-6 fill-current sm:size-8 lg:size-10" />
                 </span>
               </button>
             )}
