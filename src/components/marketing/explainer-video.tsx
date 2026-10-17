@@ -14,7 +14,7 @@ import { Reveal } from "./reveal";
  * visitor presses play, and the press itself is the user gesture that lets the
  * film start with sound. Phones get the 720p cut through <source media>. */
 
-const POSTER = "/video/pulse-one-session-poster.jpg";
+const POSTER = "/video/pulse-one-session-poster.jpg?v=3";
 const SRC_1080 = siteMedia("/video/pulse-one-session-1080.mp4");
 const SRC_720 = siteMedia("/video/pulse-one-session-720.mp4");
 const CAPTIONS = "/video/pulse-one-session.en.vtt";
@@ -66,10 +66,11 @@ export function ExplainerVideo() {
                 type="button"
                 onClick={start}
                 aria-label="Play the Pulse explainer video, 71 seconds, with sound"
-                className="group absolute inset-0 grid place-items-center bg-black/25 transition-colors hover:bg-black/10"
+                className="group absolute inset-0 flex items-end justify-center bg-black/10 pb-[5%] transition-colors hover:bg-transparent sm:pb-[10%]"
               >
-                <span className="grid size-20 place-items-center rounded-full bg-gold text-[#1a1400] shadow-gold-soft transition-transform duration-300 group-hover:scale-110 sm:size-24">
-                  <Play className="ml-1 size-8 fill-current sm:size-10" />
+                {/* Lower third: the poster's "This is / PULSE" lockup owns the upper middle. */}
+                <span className="grid size-11 place-items-center rounded-full bg-gold text-[#1a1400] shadow-gold-soft transition-transform duration-300 group-hover:scale-110 sm:size-20 lg:size-24">
+                  <Play className="ml-0.5 size-5 fill-current sm:size-8 lg:size-10" />
                 </span>
               </button>
             )}
