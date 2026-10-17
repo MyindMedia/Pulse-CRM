@@ -64,6 +64,31 @@ describe("outreach drafts and approval", () => {
     expect(row).toMatchObject({ step: 0, label: "Step 0: First email (Lawrence)", threaded: false });
   });
 
+  it("swaps the opener into every open first email, keeps the rest of each body, and clears approval", async () => {
+    await seed("org_a", "ua");
+    await gates("org_a");
+    const ua = as("ua", "org_a");
+    const pid = await queuedProspect("org_a", [{ address: "jane@mix.com", generic: false }]);
+    const body = "I'm Lawrence, a producer who's run studios. When I ran rooms, the calendar was the hardest part.\n\nSo I built Pulse OS, the studio operating system.";
+    const id = await ua.mutation(api.outreachDrafts.prepare, first(pid, "jane@mix.com", { bodyOverride: body }));
+    await ua.mutation(api.outreachDrafts.approve, { id });
+
+    const dry = await t.mutation(internal.outreachDrafts._rewriteLawrenceOpener, { agencyId: "org_a", dryRun: true });
+    expect(dry.changed).toBe(1);
+    expect((await t.run((ctx) => ctx.db.get(id)))?.status).toBe("approved");
+
+    await t.mutation(internal.outreachDrafts._rewriteLawrenceOpener, { agencyId: "org_a", dryRun: false });
+    const d = (await t.run((ctx) => ctx.db.get(id)))!;
+    expect(d.status).toBe("draft");
+    expect(d.approvedAt).toBeUndefined();
+    expect(d.text).toContain("I'm Lawrence, a Grammy-nominated producer. I've spent countless hours in studios");
+    expect(d.text).toContain("So I built Pulse OS, the studio operating system.");
+    expect(d.text).not.toContain("hardest part");
+    // Run twice, changes nothing the second time.
+    expect((await t.mutation(internal.outreachDrafts._rewriteLawrenceOpener, { agencyId: "org_a", dryRun: true })).changed).toBe(0);
+    await ua.mutation(api.outreachDrafts.approve, { id });
+  });
+
   it("a prospect known only by its website is greeted \"Hi there,\", and the queue titles it by address", async () => {
     await seed("org_a", "ua");
     const pid = await t.run(async (ctx) => await ctx.db.insert("outreachProspects", {

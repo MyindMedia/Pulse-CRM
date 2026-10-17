@@ -1,10 +1,10 @@
 import { query, internalQuery } from "./_generated/server";
-import { mutation } from "./functions";
+import { mutation, internalMutation } from "./functions";
 import { v } from "convex/values";
 import { AccessError } from "./lib/access";
 import { agencyScope, requireAgencyScope, logEvent } from "./outreach/scope";
 import type { Doc, Id } from "./_generated/dataModel";
-import { PERSONAS, TEMPLATES, isTemplateKey, type PersonaKey } from "./outreach/templates";
+import { PERSONAS, TEMPLATES, LAWRENCE_OPENER, isTemplateKey, type PersonaKey } from "./outreach/templates";
 import { inlineImagesFor, withDataUris } from "./outreach/signatures";
 import { APPROVAL_TTL_MS, GENERIC_HOLD, renderAndHash, cleanText, studioName, sendableStatuses, type DraftContent } from "./outreach/drafting";
 import { sequenceFor, stopSequence, threadClosed, followupProblem } from "./outreach/sequence";
@@ -269,3 +269,37 @@ export const cancel = mutation({
 });
 
 export const _get = internalQuery({ args: { id: v.id("outreachDrafts") }, handler: async (ctx, { id }) => await ctx.db.get(id) });
+
+/* One-off, run by an operator: put Lawrence's new opener (LAWRENCE_OPENER)
+   into every open first email. A draft with its own body keeps everything
+   after its first paragraph; one without already renders the template.
+   Like an edit, it is a new message: approval is cleared. `dryRun` reports
+   what would change and writes nothing. */
+export const _rewriteLawrenceOpener = internalMutation({
+  args: { agencyId: v.string(), dryRun: v.boolean() },
+  handler: async (ctx, { agencyId, dryRun }) => {
+    const settings = await settingsFor(ctx, agencyId);
+    const opener = LAWRENCE_OPENER.replace(/’/g, "'");
+    const drafts = await ctx.db.query("outreachDrafts").withIndex("by_agency", (q) => q.eq("agencyId", agencyId)).collect();
+    let changed = 0;
+    let unchanged = 0;
+    let sample: string | null = null;
+    for (const d of drafts) {
+      if (d.templateKey !== "lawrence_first" || !OPEN.has(d.status)) continue;
+      const rest = d.bodyOverride ? d.bodyOverride.split(/\n\s*\n/).slice(1).join("\n\n") : "";
+      const bodyOverride = d.bodyOverride ? [opener, rest].filter(Boolean).join("\n\n") : undefined;
+      const next: DraftContent = { ...contentOf(d), bodyOverride };
+      const { r, hash } = await renderAndHash(next, settings);
+      if (hash === d.contentHash) { unchanged++; continue; }
+      changed++;
+      sample ??= r.text;
+      if (dryRun) continue;
+      await ctx.db.patch(d._id, {
+        bodyOverride, subject: r.subject, html: r.html, text: r.text, contentHash: hash, blockers: r.blockers,
+        status: d.status === "hold" ? "hold" : "draft", approvedBy: undefined, approvedAt: undefined, approvedHash: undefined,
+      });
+      await logEvent(ctx, agencyId, "operator: new opener", "outreach.draft_edited", "ok", d.recipient, d.status === "approved" ? "approval cleared" : undefined);
+    }
+    return { changed, unchanged, dryRun, sample };
+  },
+});
