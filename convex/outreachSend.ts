@@ -8,7 +8,7 @@ import { requireAgencyScope, logEvent } from "./outreach/scope";
 import { redact, canTransition, type CommStatus } from "./outreach/policy";
 import { PERSONAS, THREAD_REPLY_TO } from "./outreach/templates";
 import { inlineImagesFor } from "./outreach/signatures";
-import { APPROVAL_TTL_MS, renderAndHash, messageIdFor, sendableStatuses } from "./outreach/drafting";
+import { approvalLive, SCHEDULE_SPACING_MIN, renderAndHash, messageIdFor, sendableStatuses } from "./outreach/drafting";
 import { sequenceFor, stopSequencesFor, nextDueAt, LAST_STEP, followupProblem } from "./outreach/sequence";
 
 /* ============================================================
@@ -25,7 +25,51 @@ import { sequenceFor, stopSequencesFor, nextDueAt, LAST_STEP, followupProblem } 
    inboxes, so a studio's answer reaches Lawrence and MaxB.
    ============================================================ */
 
-/** Validates everything, records the attempt, and hands off to the delivery action. */
+/** Validates everything, records the attempt, and hands off to the delivery
+ *  action. Shared by Send now and the scheduled sender; throws a sentence
+ *  when any check fails. */
+async function startSend(ctx: MutationCtx, agencyId: string, actor: string, d: Doc<"outreachDrafts">) {
+  const id = d._id;
+  const settings = await ctx.db.query("outreachSettings").withIndex("by_agency", (q) => q.eq("agencyId", agencyId)).unique();
+  if (settings?.mode !== "live") throw new Error("Live sending is off. An owner must turn it on in Settings.");
+  if (settings.paused) throw new Error("Outreach is paused");
+  if (d.status !== "approved" || d.approvedAt === undefined || !d.approvedHash) throw new Error("Only an approved draft can be sent");
+  if (!approvalLive(d, Date.now())) throw new Error("The approval expired. Prepare and approve it again.");
+  const persona = PERSONAS[d.persona];
+  if (!settings.senders.some((s) => s.verified && s.address === persona.fromEmail)) throw new Error("The sending identity is not verified");
+  if (!settings.postalAddress) throw new Error("A business mailing address is required");
+  if ((await ctx.db.query("outreachSuppressions").withIndex("by_agency_email", (q) => q.eq("agencyId", agencyId).eq("email", d.recipient)).unique()) !== null) {
+    throw new Error("That address has opted out");
+  }
+  const prospect = await ctx.db.get(d.prospectId);
+  if (!prospect || !sendableStatuses(d.templateKey).includes(prospect.status)) throw new Error("The prospect is no longer queued");
+  const problem = await followupProblem(ctx, d);
+  if (problem) throw new Error(problem);
+
+  // The approved content must be exactly what is about to go out.
+  const { hash } = await renderAndHash({
+    recipient: d.recipient, persona: d.persona, templateKey: d.templateKey, studio: d.studio, signatureMode: d.signatureMode,
+    observation: d.observation, subjectOverride: d.subjectOverride, bodyOverride: d.bodyOverride,
+    threadSubject: d.threadSubject, inReplyTo: d.inReplyTo, references: d.references,
+  }, settings);
+  if (hash !== d.approvedHash) {
+    await ctx.db.patch(id, { status: "superseded" });
+    throw new Error("The content or settings changed since approval. Prepare and approve it again.");
+  }
+
+  const key = `draft:${id}`;
+  const dup = await ctx.db.query("outreachCommunications").withIndex("by_agency_key", (q) => q.eq("agencyId", agencyId).eq("idempotencyKey", key)).unique();
+  if (dup) throw new Error("This email was already sent or is being sent");
+  const commId = await ctx.db.insert("outreachCommunications", {
+    agencyId, channel: "email", templateKey: d.templateKey, recipient: d.recipient,
+    sender: `${persona.fromName} <${persona.fromEmail}>`, subject: d.subject, isTest: false, status: "submitting",
+    messageId: messageIdFor(id), idempotencyKey: key, createdAt: Date.now(),
+  });
+  await ctx.db.patch(id, { status: "sending" });
+  await logEvent(ctx, agencyId, actor, "outreach.email_send_requested", "ok", d.recipient);
+  await ctx.scheduler.runAfter(0, internal.outreachSend._deliver, { draftId: id, commId });
+}
+
 export const send = mutation({
   args: { id: v.id("outreachDrafts") },
   handler: async (ctx, { id }) => {
@@ -33,44 +77,44 @@ export const send = mutation({
     if (!scope.canManage) throw new AccessError("FORBIDDEN", "Only an owner or admin can send");
     const d = await ctx.db.get(id);
     if (!d || d.agencyId !== scope.agencyId) throw new AccessError("FORBIDDEN", "Draft not found");
-    const settings = await ctx.db.query("outreachSettings").withIndex("by_agency", (q) => q.eq("agencyId", scope.agencyId)).unique();
-    if (settings?.mode !== "live") throw new Error("Live sending is off. An owner must turn it on in Settings.");
-    if (settings.paused) throw new Error("Outreach is paused");
-    if (d.status !== "approved" || d.approvedAt === undefined || !d.approvedHash) throw new Error("Only an approved draft can be sent");
-    if (Date.now() - d.approvedAt > APPROVAL_TTL_MS) throw new Error("The approval expired. Prepare and approve it again.");
-    const persona = PERSONAS[d.persona];
-    if (!settings.senders.some((s) => s.verified && s.address === persona.fromEmail)) throw new Error("The sending identity is not verified");
-    if (!settings.postalAddress) throw new Error("A business mailing address is required");
-    if ((await ctx.db.query("outreachSuppressions").withIndex("by_agency_email", (q) => q.eq("agencyId", scope.agencyId).eq("email", d.recipient)).unique()) !== null) {
-      throw new Error("That address has opted out");
-    }
-    const prospect = await ctx.db.get(d.prospectId);
-    if (!prospect || !sendableStatuses(d.templateKey).includes(prospect.status)) throw new Error("The prospect is no longer queued");
-    const problem = await followupProblem(ctx, d);
-    if (problem) throw new Error(problem);
+    await startSend(ctx, scope.agencyId, scope.actor, d);
+    return null;
+  },
+});
 
-    // The approved content must be exactly what is about to go out.
-    const { hash } = await renderAndHash({
-      recipient: d.recipient, persona: d.persona, templateKey: d.templateKey, studio: d.studio, signatureMode: d.signatureMode,
-      observation: d.observation, subjectOverride: d.subjectOverride, bodyOverride: d.bodyOverride,
-      threadSubject: d.threadSubject, inReplyTo: d.inReplyTo, references: d.references,
-    }, settings);
-    if (hash !== d.approvedHash) {
-      await ctx.db.patch(id, { status: "superseded" });
-      throw new Error("The content or settings changed since approval. Prepare and approve it again.");
+/* The scheduled sender, every minute. For each studio agency that is live and
+   not paused, the earliest due approved email goes out, at most one per
+   spacing interval, so a Monday 8:00 queue leaves one email every 3 minutes.
+   An email that fails a check at send time is taken out of the queue with the
+   reason on it, and never retried on its own. A paused queue simply waits. */
+export const _sendDue = internalMutation({
+  args: {},
+  handler: async (ctx) => {
+    const now = Date.now();
+    for (const settings of await ctx.db.query("outreachSettings").collect()) {
+      if (settings.mode !== "live" || settings.paused) continue;
+      const spacing = (settings.scheduleSpacingMin ?? SCHEDULE_SPACING_MIN) * 60_000;
+      // A few seconds of slack: the cron fires on the minute, give or take.
+      if (settings.lastScheduledSendAt !== undefined && now - settings.lastScheduledSendAt < spacing - 10_000) continue;
+      const drafts = await ctx.db.query("outreachDrafts").withIndex("by_agency", (q) => q.eq("agencyId", settings.agencyId)).collect();
+      const due = drafts
+        .filter((d) => d.status === "approved" && d.sendAt !== undefined && d.sendAt <= now)
+        .sort((a, b) => a.sendAt! - b.sendAt! || (a.approvedAt ?? 0) - (b.approvedAt ?? 0));
+      for (const d of due) {
+        try {
+          await startSend(ctx, settings.agencyId, `scheduled, approved by ${d.approvedBy ?? "an owner"}`, d);
+          await ctx.db.patch(settings._id, { lastScheduledSendAt: now });
+          break;
+        } catch (e) {
+          const why = e instanceof Error ? e.message : "A check failed";
+          const current = await ctx.db.get(d._id);
+          if (current && current.status === "approved") {
+            await ctx.db.patch(d._id, { sendAt: undefined, scheduleNote: `Not sent on schedule: ${why}` });
+          }
+          await logEvent(ctx, settings.agencyId, "system", "outreach.scheduled_send_skipped", "denied", d.recipient, why);
+        }
+      }
     }
-
-    const key = `draft:${id}`;
-    const dup = await ctx.db.query("outreachCommunications").withIndex("by_agency_key", (q) => q.eq("agencyId", scope.agencyId).eq("idempotencyKey", key)).unique();
-    if (dup) throw new Error("This email was already sent or is being sent");
-    const commId = await ctx.db.insert("outreachCommunications", {
-      agencyId: scope.agencyId, channel: "email", templateKey: d.templateKey, recipient: d.recipient,
-      sender: `${persona.fromName} <${persona.fromEmail}>`, subject: d.subject, isTest: false, status: "submitting",
-      messageId: messageIdFor(id), idempotencyKey: key, createdAt: Date.now(),
-    });
-    await ctx.db.patch(id, { status: "sending" });
-    await logEvent(ctx, scope.agencyId, scope.actor, "outreach.email_send_requested", "ok", d.recipient);
-    await ctx.scheduler.runAfter(0, internal.outreachSend._deliver, { draftId: id, commId });
     return null;
   },
 });
