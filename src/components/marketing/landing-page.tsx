@@ -7,7 +7,6 @@ import { ExplainerVideo } from "./explainer-video";
 import { Chain } from "./chain";
 import { Features } from "./features";
 import { MobileAppSection } from "./mobile-app";
-import { LogoMarquee } from "./logo-marquee";
 import { Pricing } from "./pricing";
 import { Contact } from "./contact";
 import { Faq } from "./faq";
@@ -32,7 +31,8 @@ export function LandingPage() {
         <Chain />
         <Features />
         <MobileAppSection />
-        <LogoMarquee />
+        {/* Studios strip (LogoMarquee) hidden for now, 2026-10-18. Re-add the import and
+            <LogoMarquee /> here to bring it back. */}
         {/* The plans at a glance; the full page is /pricing. */}
         <Pricing />
         <Contact />

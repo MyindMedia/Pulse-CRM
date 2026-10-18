@@ -32,8 +32,8 @@ const COLUMNS = [
 export function Footer() {
   return (
     <footer className="relative border-t border-graphite/50 px-4 py-14 lg:px-8">
-      {/* 5 cells: brand blurb + Product + Account + Legal + Made by. */}
-      <div className="mx-auto grid max-w-6xl gap-10 sm:grid-cols-2 lg:grid-cols-5">
+      {/* 4 cells: brand blurb + Product + Account + Legal. */}
+      <div className="mx-auto grid max-w-6xl gap-10 sm:grid-cols-2 lg:grid-cols-4">
         <div className="space-y-4">
           <PulseLogo size="md" href="/" />
           <p className="font-grotesk max-w-xs text-sm text-mist/75">
@@ -60,15 +60,10 @@ export function Footer() {
             </ul>
           </div>
         ))}
-
-        <div>
-          <p className="chrome-meta text-steel">Made by</p>
-          <p className="font-grotesk mt-4 whitespace-nowrap text-sm text-mist/75">Lawrence &ldquo;ThaMyind&rdquo; Berment</p>
-        </div>
       </div>
 
       <div className="chrome-meta mx-auto mt-12 flex max-w-6xl flex-col items-center justify-between gap-3 border-t border-graphite/50 pt-6 text-steel/70 sm:flex-row">
-        <p>&copy; 2026 ThaMyind. All rights reserved.</p>
+        <p>&copy; 2026 Pulse. All rights reserved.</p>
         <p>Pulse · v1.0</p>
       </div>
     </footer>
