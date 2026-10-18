@@ -35,8 +35,7 @@ export function ExplainerVideo() {
     <section id="watch" className="relative px-4 py-24 lg:px-8">
       <div className="mx-auto max-w-6xl">
         <Reveal className="mx-auto max-w-2xl text-center">
-          <p className="chrome-meta text-steel">See how it works &middot; 71 seconds</p>
-          <h2 className="chrome-display mt-4 text-4xl leading-[1.05] text-bone sm:text-5xl">
+          <h2 className="chrome-display text-4xl leading-[1.05] text-bone sm:text-5xl">
             One session, <span className="text-gold">start to finish</span>
           </h2>
           <p className="font-grotesk mt-5 text-[17px] font-medium leading-relaxed tracking-[-0.01em] text-mist/80">
