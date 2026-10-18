@@ -233,7 +233,7 @@ function WhileYouWait() {
         <p className="chrome-meta text-gold">While you wait</p>
         <h2 id="watch-title" className="chrome-display chrome-fill mt-3 text-[2rem] sm:text-5xl">One session, start to finish</h2>
         <p className="font-grotesk mt-4 text-base leading-relaxed text-mist">
-          71 seconds: one booking from a 1:12 AM request to a paid balance. Your demo goes deeper
+          One booking from a 1:12 AM request to a paid balance. Your demo goes deeper
           on the parts you picked.
         </p>
       </Reveal>

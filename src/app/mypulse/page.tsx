@@ -174,7 +174,7 @@ export default async function MyPulsePage() {
             <Overline>The ad</Overline>
           </div>
           <p className="mt-3 max-w-2xl text-[0.975rem] leading-relaxed text-ash">
-            Runs 1:46 min. It follows one studio owner through a night of paperwork and
+            It follows one studio owner through a night of paperwork and
             leaves him back at the desk making music. Everything on screen is the real app.
           </p>
           <div className="mt-5 overflow-hidden rounded-chrome border border-hairline bg-black shadow-card">
