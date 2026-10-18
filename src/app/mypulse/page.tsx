@@ -354,7 +354,7 @@ export default async function MyPulsePage() {
 
         <footer className="mt-20 flex flex-wrap items-center justify-between gap-3 border-t border-hairline pt-5">
           <span className="font-meta text-[11px] uppercase tracking-[0.12em] text-ash">
-            Pulse · ThaMyind · studiopulse.tech
+            Pulse · studiopulse.tech
           </span>
           <span className="font-meta text-[11px] uppercase tracking-[0.12em] text-ash">
             {TOTAL_FEATURES} built · {ROADMAP.length} not built

@@ -232,7 +232,7 @@ export default async function Image() {
             color: "#6e6e76",
           }}
         >
-          PULSE BY THAMYIND · STUDIOPULSE.TECH
+          PULSE · STUDIOPULSE.TECH
         </div>
       </div>
     ),
