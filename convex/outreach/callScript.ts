@@ -128,13 +128,63 @@ export function buildAgentOpener(v: ScriptVars): string {
   return `Hey ${name || "there"}, this is MaxB, Pulse's AI assistant. You booked a Pulse demo with Lawrence, so I'm calling to confirm your time and learn a little about your studio. Got a couple minutes?`;
 }
 
-/** The text to the owner after a MaxB call: who, when, and what the studio said. */
-export function buildBriefSms(v: { name?: string; demoTime: string; brief?: string; answeredBy?: string; minutes?: number }): string {
+export type Answer = { q: string; a: string };
+
+/** The customer's answers in their own words, each under the question MaxB asked just before.
+ *  Takes Bland's untrusted `transcripts` array; system lines, backchannels and anything said
+ *  before MaxB spoke (the "Hello?") are dropped. */
+export function extractAnswers(transcripts: unknown, maxChars = 6000): Answer[] {
+  if (!Array.isArray(transcripts)) return [];
+  const out: Answer[] = [];
+  let q = "";
+  let a: string[] = [];
+  let used = 0;
+  const flush = () => {
+    const text = clean(a.join(" "));
+    if (q && text && used + text.length <= maxChars) { out.push({ q, a: text }); used += text.length + q.length; }
+    a = [];
+  };
+  for (const t of transcripts) {
+    if (!t || typeof t !== "object") continue;
+    const who = (t as { user?: unknown }).user;
+    const text = (t as { text?: unknown }).text;
+    if (typeof text !== "string") continue;
+    if (who === "user") { a.push(text); continue; }
+    if (who !== "assistant" || text.includes("<backchannel>")) continue;
+    flush();
+    const sentences = clean(text).match(/[^.?!]+[.?!]*/g)?.map((x) => x.trim()).filter(Boolean) ?? [];
+    const asked = sentences.filter((x) => x.endsWith("?"));
+    q = (asked.length ? asked.slice(-2).join(" ") : sentences.at(-1) ?? "").slice(0, 160);
+  }
+  flush();
+  return out;
+}
+
+/** The texts to the owner after a MaxB call: who, when, the customer's answers, then the brief.
+ *  Split on blank lines into parts that fit one long SMS each. */
+export function buildCallReport(v: {
+  name?: string; demoTime: string; brief?: string; answers?: Answer[]; answeredBy?: string; minutes?: number;
+}, maxPart = 1400): string[] {
   const who = clean(v.name ?? "").slice(0, 60) || "Unknown contact";
-  const body = clean(v.brief ?? "")
-    || (v.answeredBy?.toLowerCase().includes("voicemail") ? "MaxB reached voicemail, so there is no brief." : "The call ended without a brief.");
   const len = v.minutes !== undefined ? `, ${Math.max(1, Math.round(v.minutes))} min` : "";
-  return `Pulse demo brief: ${who}\nDemo: ${v.demoTime}\n\n${body}\n\nMaxB call${len}. Full record in Pulse, Outreach > Calls.`;
+  const blocks = [`Pulse demo call: ${who}\nDemo: ${v.demoTime}\nMaxB call${len}.`];
+  const answers = v.answers ?? [];
+  if (answers.length) {
+    blocks.push("What they said:");
+    for (const x of answers) blocks.push(x.q ? `Q: ${x.q}\nA: ${x.a}` : `A: ${x.a}`);
+  } else {
+    blocks.push(v.answeredBy?.toLowerCase().includes("voicemail") ? "MaxB reached voicemail, so there are no answers." : "No answers came back from the call.");
+  }
+  const brief = clean(v.brief ?? "");
+  if (brief) blocks.push(`Brief: ${brief}`);
+
+  const parts: string[] = [];
+  let cur = "";
+  for (const b of blocks.flatMap((b) => (b.length > maxPart ? b.match(new RegExp(`[\\s\\S]{1,${maxPart}}`, "g")) ?? [] : [b]))) {
+    if (cur && cur.length + 2 + b.length > maxPart) { parts.push(cur); cur = b; } else cur = cur ? `${cur}\n\n${b}` : b;
+  }
+  if (cur) parts.push(cur);
+  return parts.length > 1 ? parts.map((p, i) => `(${i + 1}/${parts.length}) ${p}`) : parts;
 }
 
 /** The full task prompt for Bland. */

@@ -8,7 +8,7 @@ import { agencyScope, requireAgencyScope, logEvent } from "./outreach/scope";
 import { zuopsGet, parseLead } from "./outreach/zuops";
 import { buildCallBody, placeCall, webhookUrl } from "./lib/bland";
 import {
-  CALL_SCRIPT_APPROVED, buildAgentOpener, buildBriefSms, buildFirstSentence, buildTask,
+  CALL_SCRIPT_APPROVED, buildAgentOpener, buildCallReport, buildFirstSentence, buildTask,
 } from "./outreach/callScript";
 import { sendSms } from "./lib/sms";
 import {
@@ -403,7 +403,7 @@ export const _applyEvent = internalMutation({
     callLengthMin: v.optional(v.number()),
     optOut: v.boolean(),
   },
-  handler: async (ctx, a): Promise<{ found: boolean }> => {
+  handler: async (ctx, a): Promise<{ found: boolean; firstCompletion?: Id<"outreachCalls"> }> => {
     let row = await ctx.db.query("outreachCalls").withIndex("by_bland_call", (q) => q.eq("blandCallId", a.blandCallId)).first();
     if (!row && a.externalId) {
       // The dial's response was lost; our own id came back in external_id.
@@ -426,10 +426,6 @@ export const _applyEvent = internalMutation({
         error: a.failed ? (a.errorMessage?.slice(0, 200) ?? "The call failed") : undefined,
       },
     });
-    // First completion only: Bland can post the same result more than once.
-    if (status === "completed" && row.status !== "completed") {
-      await ctx.scheduler.runAfter(0, internal.outreachCalls._textBrief, { callId: row._id });
-    }
     if (a.optOut) {
       const booking = await ctx.db.get(row.bookingId);
       const email = booking?.contactEmail?.toLowerCase();
@@ -438,7 +434,8 @@ export const _applyEvent = internalMutation({
       if (!dup) await ctx.db.insert("outreachCallOptOuts", { agencyId: row.agencyId, phone, email, reason: "Asked not to be called during the confirmation call", at: now, callId: row._id });
       await logEvent(ctx, row.agencyId, "system", "outreach.call_opt_out", "ok", row._id as string);
     }
-    return { found: true };
+    // First completion only: Bland can post the same result more than once.
+    return { found: true, firstCompletion: status === "completed" && row.status !== "completed" ? row._id : undefined };
   },
 });
 
@@ -471,15 +468,22 @@ export const _logBrief = internalMutation({
   },
 });
 
-/** Text the owner MaxB's brief as soon as a call completes. CALL_BRIEF_SMS_TO unset = off. */
+/** Text the owner the customer's answers and MaxB's brief as soon as a call completes.
+ *  The answers come straight from the webhook and are never written to a table.
+ *  CALL_BRIEF_SMS_TO unset = off. */
 export const _textBrief = internalAction({
-  args: { callId: v.id("outreachCalls") },
-  handler: async (ctx, { callId }): Promise<string> => {
+  args: { callId: v.id("outreachCalls"), answers: v.optional(v.array(v.object({ q: v.string(), a: v.string() }))) },
+  handler: async (ctx, { callId, answers }): Promise<string> => {
     const to = usPhone(process.env.CALL_BRIEF_SMS_TO);
     if (!to) return "off";
     const c = await ctx.runQuery(internal.outreachCalls._briefContext, { callId });
     if (!c) return "missing";
-    const status = await sendSms({ to, body: buildBriefSms(c) });
+    let status = "sent";
+    // In order, one at a time, so the parts arrive as 1/n, 2/n.
+    for (const body of buildCallReport({ ...c, answers })) {
+      const s = await sendSms({ to, body });
+      if (s !== "sent") status = s;
+    }
     await ctx.runMutation(internal.outreachCalls._logBrief, { agencyId: c.agencyId, callId, status });
     return status;
   },
