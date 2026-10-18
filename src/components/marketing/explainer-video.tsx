@@ -53,7 +53,7 @@ export function ExplainerPlayer() {
         <button
           type="button"
           onClick={start}
-          aria-label="Play the Pulse explainer video, 71 seconds, with sound"
+          aria-label="Play the Pulse explainer video, with sound"
           className="group absolute inset-0 flex items-end justify-center bg-black/10 pb-[5%] transition-colors hover:bg-transparent sm:pb-[10%]"
         >
           {/* Lower third: the poster's "This is / PULSE" lockup owns the upper middle. */}
