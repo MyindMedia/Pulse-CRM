@@ -11,7 +11,7 @@ import {
   CALL_SCRIPT_APPROVED, buildFirstSentence, buildTask,
 } from "./outreach/callScript";
 import {
-  DEFAULT_SETTINGS, capDay, evaluate, formatDemoTime, maskPhone, usPhone, validateSettings, type CallSettings, type Decision,
+  DEFAULT_SETTINGS, capDay, demoTimeParts, evaluate, formatDemoTime, maskPhone, usPhone, validateSettings, type CallSettings, type Decision,
 } from "./outreach/callPolicy";
 
 /* Confirmation calls: the automated Bland call that confirms a booked demo.
@@ -270,10 +270,18 @@ export const _planDue = internalMutation({
         const firstName = (b.contactName ?? "").split(/\s+/)[0];
         const vars = { firstName, demoTime: formatDemoTime(b.startsAt, d.calleeTz) };
         const id = await write({ status: "queued" }); // reserve the row (and its id) before building the body
+        // BLAND_AGENT_ID set: the Bland agent (MaxB) runs the call from its own script and
+        // asks the demo questions; unset: the inline confirmation script below.
+        const agentId = process.env.BLAND_AGENT_ID || undefined;
+        const when = demoTimeParts(b.startsAt, d.calleeTz);
         const input = {
-          phone: d.phone, task: buildTask(vars), firstSentence: buildFirstSentence(vars), from: s.fromNumber, voice: s.voice,
+          phone: d.phone, task: buildTask(vars), firstSentence: buildFirstSentence(vars), from: s.fromNumber, voice: agentId ? undefined : s.voice,
           maxDurationMinutes: s.maxDurationMinutes, externalId: id as string,
           metadata: { agency_id: agencyId, booking_id: b._id as string, call_id: id as string },
+          agentId,
+          requestData: agentId
+            ? { prospect_name: firstName, appointment_start: when.start, appointment_timezone: when.zone, calendar_name: "Pulse 30-minute demo", booking_page_url: "https://studiopulse.tech/demo" }
+            : undefined,
         };
         used++;
         if (s.mode === "dry_run") {
