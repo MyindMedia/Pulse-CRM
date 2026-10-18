@@ -128,6 +128,15 @@ export function buildAgentOpener(v: ScriptVars): string {
   return `Hey ${name || "there"}, this is MaxB, Pulse's AI assistant. You booked a Pulse demo with Lawrence, so I'm calling to confirm your time and learn a little about your studio. Got a couple minutes?`;
 }
 
+/** The text to the owner after a MaxB call: who, when, and what the studio said. */
+export function buildBriefSms(v: { name?: string; demoTime: string; brief?: string; answeredBy?: string; minutes?: number }): string {
+  const who = clean(v.name ?? "").slice(0, 60) || "Unknown contact";
+  const body = clean(v.brief ?? "")
+    || (v.answeredBy?.toLowerCase().includes("voicemail") ? "MaxB reached voicemail, so there is no brief." : "The call ended without a brief.");
+  const len = v.minutes !== undefined ? `, ${Math.max(1, Math.round(v.minutes))} min` : "";
+  return `Pulse demo brief: ${who}\nDemo: ${v.demoTime}\n\n${body}\n\nMaxB call${len}. Full record in Pulse, Outreach > Calls.`;
+}
+
 /** The full task prompt for Bland. */
 export function buildTask(v: ScriptVars): string {
   const name = first(v.firstName);

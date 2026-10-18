@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { CALL_SCRIPT_APPROVED, buildAgentOpener, buildFirstSentence, buildTask } from "./outreach/callScript";
+import { CALL_SCRIPT_APPROVED, buildAgentOpener, buildBriefSms, buildFirstSentence, buildTask } from "./outreach/callScript";
 import { liveBlockers } from "./outreachCalls";
 
 describe("script approval gate", () => {
@@ -26,5 +26,13 @@ describe("script approval gate", () => {
     expect(o).not.toContain("Sims");
     expect(buildAgentOpener({ demoTime: "x" }).startsWith("Hey there,")).toBe(true);
     expect(o).not.toMatch(/—/);
+  });
+  it("the owner brief text names the contact and demo, and says why a brief is missing", () => {
+    const t = buildBriefSms({ name: "Mike Sims", demoTime: "Monday, October 26 at 3:00 PM PDT", brief: "Two rooms.\nWants invoicing \u2014 fast.", minutes: 3.16 });
+    expect(t.startsWith("Pulse demo brief: Mike Sims\nDemo: Monday, October 26 at 3:00 PM PDT\n\nTwo rooms. Wants invoicing fast.")).toBe(true);
+    expect(t).toContain("MaxB call, 3 min.");
+    expect(t).not.toMatch(/\u2014/);
+    expect(buildBriefSms({ demoTime: "x", answeredBy: "voicemail" })).toContain("MaxB reached voicemail");
+    expect(buildBriefSms({ demoTime: "x" })).toContain("Unknown contact");
   });
 });

@@ -8,8 +8,9 @@ import { agencyScope, requireAgencyScope, logEvent } from "./outreach/scope";
 import { zuopsGet, parseLead } from "./outreach/zuops";
 import { buildCallBody, placeCall, webhookUrl } from "./lib/bland";
 import {
-  CALL_SCRIPT_APPROVED, buildAgentOpener, buildFirstSentence, buildTask,
+  CALL_SCRIPT_APPROVED, buildAgentOpener, buildBriefSms, buildFirstSentence, buildTask,
 } from "./outreach/callScript";
+import { sendSms } from "./lib/sms";
 import {
   DEFAULT_SETTINGS, capDay, demoTimeParts, evaluate, formatDemoTime, maskPhone, usPhone, validateSettings, type CallSettings, type Decision,
 } from "./outreach/callPolicy";
@@ -425,6 +426,10 @@ export const _applyEvent = internalMutation({
         error: a.failed ? (a.errorMessage?.slice(0, 200) ?? "The call failed") : undefined,
       },
     });
+    // First completion only: Bland can post the same result more than once.
+    if (status === "completed" && row.status !== "completed") {
+      await ctx.scheduler.runAfter(0, internal.outreachCalls._textBrief, { callId: row._id });
+    }
     if (a.optOut) {
       const booking = await ctx.db.get(row.bookingId);
       const email = booking?.contactEmail?.toLowerCase();
@@ -434,5 +439,48 @@ export const _applyEvent = internalMutation({
       await logEvent(ctx, row.agencyId, "system", "outreach.call_opt_out", "ok", row._id as string);
     }
     return { found: true };
+  },
+});
+
+/* ----------------------------- owner brief ----------------------------- */
+
+export const _briefContext = internalQuery({
+  args: { callId: v.id("outreachCalls") },
+  handler: async (ctx, { callId }) => {
+    const c = await ctx.db.get(callId);
+    if (!c) return null;
+    const b = await ctx.db.get(c.bookingId);
+    const s = await ctx.db.query("outreachCallSettings").withIndex("by_agency", (q) => q.eq("agencyId", c.agencyId)).first();
+    const tz = toSettings(s).timezone; // the owner reads it, so the owner's zone
+    return {
+      agencyId: c.agencyId,
+      name: b?.contactName,
+      demoTime: b ? formatDemoTime(b.startsAt, tz) : "unknown",
+      brief: c.result?.summary,
+      answeredBy: c.answeredBy,
+      minutes: c.result?.callLengthMin,
+    };
+  },
+});
+
+export const _logBrief = internalMutation({
+  args: { agencyId: v.string(), callId: v.id("outreachCalls"), status: v.string() },
+  handler: async (ctx, a) => {
+    await logEvent(ctx, a.agencyId, "system", "outreach.call_brief_sms", a.status === "sent" ? "ok" : "denied", a.callId as string, a.status);
+    return null;
+  },
+});
+
+/** Text the owner MaxB's brief as soon as a call completes. CALL_BRIEF_SMS_TO unset = off. */
+export const _textBrief = internalAction({
+  args: { callId: v.id("outreachCalls") },
+  handler: async (ctx, { callId }): Promise<string> => {
+    const to = usPhone(process.env.CALL_BRIEF_SMS_TO);
+    if (!to) return "off";
+    const c = await ctx.runQuery(internal.outreachCalls._briefContext, { callId });
+    if (!c) return "missing";
+    const status = await sendSms({ to, body: buildBriefSms(c) });
+    await ctx.runMutation(internal.outreachCalls._logBrief, { agencyId: c.agencyId, callId, status });
+    return status;
   },
 });
