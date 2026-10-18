@@ -74,6 +74,7 @@ const isPublicRoute = createRouteMatcher([
   "/vs", // comparison page - reachable by direct link only, noindex (names a rival)
   "/pricing", // public price page - linked from the nav, must be anonymous-reachable
   "/pricing/(.*)", // its social card (opengraph-image, twitter-image)
+  "/booked", // post-booking page linked from the Zuops demo confirmation text
   // Beta preview: recipients are gated by their own access code and the signed
   // agreement, checked server-side. They have no Pulse login yet by design.
   "/preview",
