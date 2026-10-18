@@ -61,7 +61,8 @@ export const blandEvents = httpAction(async (ctx, req) => {
     failed,
     errorMessage,
     answeredBy: str(p.answered_by, 40),
-    summary: str(p.summary, 600),
+    // An agent call (MaxB) extracts a founder_brief: what the studio said, for the demo.
+    summary: str((p.variables as Record<string, unknown> | undefined)?.founder_brief, 600) ?? str(p.summary, 600),
     disposition: str(p.disposition_tag, 60),
     callLengthMin: length,
     optOut: isOptOut(p),

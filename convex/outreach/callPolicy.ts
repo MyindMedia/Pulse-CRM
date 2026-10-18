@@ -226,6 +226,15 @@ export function isOptOut(payload: Record<string, unknown>): boolean {
 }
 
 /** "Thursday, October 9 at 2:30 PM PDT", in the callee's zone. */
+/** The demo time split for an agent prompt: "Monday, October 26 at 3:00 PM" and "Pacific Daylight Time". */
+export function demoTimeParts(ts: number, tz: string): { start: string; zone: string } {
+  const d = new Date(ts);
+  const day = d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: tz });
+  const time = d.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit", timeZone: tz });
+  const zone = new Intl.DateTimeFormat("en-US", { timeZone: tz, timeZoneName: "long" }).formatToParts(d).find((x) => x.type === "timeZoneName")?.value ?? tz;
+  return { start: `${day} at ${time}`, zone };
+}
+
 export function formatDemoTime(ts: number, tz: string): string {
   const d = new Date(ts);
   const day = d.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric", timeZone: tz });

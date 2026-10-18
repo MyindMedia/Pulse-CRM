@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  DEFAULT_SETTINGS, evaluate, inWindow, usPhone, looksLikeTest, maskPhone, isOptOut, validateSettings, formatDemoTime,
+  DEFAULT_SETTINGS, evaluate, inWindow, usPhone, looksLikeTest, maskPhone, isOptOut, validateSettings, formatDemoTime, demoTimeParts,
   type BookingFacts, type Facts, type CallSettings,
 } from "./callPolicy";
 import { areaCodeZones, isUsTimezone } from "./areaCodes";
@@ -172,6 +172,10 @@ describe("helpers", () => {
     expect(isUsTimezone("America/Chicago")).toBe(true);
     expect(isUsTimezone("America/Toronto")).toBe(false);
   });
+  it("demoTimeParts splits the time from a spoken zone name", () => {
+    expect(demoTimeParts(NOW, "America/Los_Angeles")).toEqual({ start: "Tuesday, October 13 at 2:00 PM", zone: expect.stringMatching(/^Pacific (Daylight|Standard) Time$/) });
+  });
+
   it("formatDemoTime is in the given zone", () => {
     expect(formatDemoTime(NOW, "America/Los_Angeles")).toMatch(/Tuesday, October 13 at 2:00 PM P[DS]T/);
   });

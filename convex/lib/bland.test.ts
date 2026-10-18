@@ -17,6 +17,13 @@ describe("bland client", () => {
     expect(buildCallBody({ ...input, voice: "Karen" })).toHaveProperty("voice", "Karen");
   });
 
+  it("runs a Bland agent instead of the inline script when an agent id is given", () => {
+    const b = buildCallBody({ ...input, agentId: "agent-1", requestData: { prospect_name: "Mike" } });
+    expect(b).toMatchObject({ agent_id: "agent-1", request_data: { prospect_name: "Mike" }, from: "+14086921713", record: false });
+    expect(b).not.toHaveProperty("task");
+    expect(b).not.toHaveProperty("first_sentence");
+  });
+
   it("posts with a bare authorization header and returns the call id", async () => {
     const f = vi.fn(async () => new Response(JSON.stringify({ status: "success", call_id: "c-1" }), { status: 200 }));
     const r = await placeCall({ a: 1 }, "KEY", f as unknown as typeof fetch);

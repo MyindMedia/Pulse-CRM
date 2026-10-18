@@ -16,17 +16,24 @@ export type BlandCallInput = {
   webhook: string;
   externalId: string;
   metadata: Record<string, string>;
+  /** A Bland agent (v2 Agents API) to run instead of task + firstSentence. The
+   *  agent holds the script; requestData carries the booking facts it reads. */
+  agentId?: string;
+  requestData?: Record<string, string>;
 };
 
 /** The exact JSON body POSTed to Bland. Dry run stores this same object. */
 export function buildCallBody(i: BlandCallInput): Record<string, unknown> {
+  const script = i.agentId
+    ? { agent_id: i.agentId, request_data: i.requestData ?? {} }
+    : { task: i.task, first_sentence: i.firstSentence };
   return {
     phone_number: i.phone,
-    task: i.task,
-    first_sentence: i.firstSentence,
+    ...script,
     from: i.from,
     ...(i.voice ? { voice: i.voice } : {}),
     max_duration: i.maxDurationMinutes,
+    // Off even when the agent records by default: California needs every party's consent.
     record: false,
     // Let the callee speak first so a voicemail greeting is not talked over.
     wait_for_greeting: true,
