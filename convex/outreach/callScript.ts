@@ -121,6 +121,13 @@ export function buildFirstSentence(v: ScriptVars): string {
   return `Hi${name ? ` ${name}` : ""}, this is ${AGENT_NAME}, an AI assistant calling for Pulse. I'm calling to confirm your demo ${clean(v.demoTime)}. Is this a good moment?`;
 }
 
+/** MaxB's opener for an agent call. Sent as first_sentence: without it Bland's agent
+ *  improvises its own greeting first and then says this line too. */
+export function buildAgentOpener(v: ScriptVars): string {
+  const name = first(v.firstName);
+  return `Hey ${name || "there"}, this is MaxB, Pulse's AI assistant. You booked a Pulse demo with Lawrence, so I'm calling to confirm your time and learn a little about your studio. Got a couple minutes?`;
+}
+
 /** The full task prompt for Bland. */
 export function buildTask(v: ScriptVars): string {
   const name = first(v.firstName);

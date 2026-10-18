@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { CALL_SCRIPT_APPROVED, buildFirstSentence, buildTask } from "./outreach/callScript";
+import { CALL_SCRIPT_APPROVED, buildAgentOpener, buildFirstSentence, buildTask } from "./outreach/callScript";
 import { liveBlockers } from "./outreachCalls";
 
 describe("script approval gate", () => {
@@ -19,5 +19,12 @@ describe("script approval gate", () => {
     expect(task).toContain("Tuesday, October 13 at 2:00 PM PDT");
     expect(task).toContain("do not call");
     expect(first + buildTask({ demoTime: "x" }).slice(task.indexOf("## Objective"))).not.toMatch(/—/);
+  });
+  it("the MaxB opener discloses the AI first and uses only the first name", () => {
+    const o = buildAgentOpener({ firstName: "Mike Sims", demoTime: "x" });
+    expect(o.startsWith("Hey Mike, this is MaxB, Pulse's AI assistant.")).toBe(true);
+    expect(o).not.toContain("Sims");
+    expect(buildAgentOpener({ demoTime: "x" }).startsWith("Hey there,")).toBe(true);
+    expect(o).not.toMatch(/—/);
   });
 });

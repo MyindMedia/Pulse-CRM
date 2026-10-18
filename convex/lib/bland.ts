@@ -25,7 +25,7 @@ export type BlandCallInput = {
 /** The exact JSON body POSTed to Bland. Dry run stores this same object. */
 export function buildCallBody(i: BlandCallInput): Record<string, unknown> {
   const script = i.agentId
-    ? { agent_id: i.agentId, request_data: i.requestData ?? {} }
+    ? { agent_id: i.agentId, request_data: i.requestData ?? {}, first_sentence: i.firstSentence }
     : { task: i.task, first_sentence: i.firstSentence };
   return {
     phone_number: i.phone,

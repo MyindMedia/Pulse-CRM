@@ -8,7 +8,7 @@ import { agencyScope, requireAgencyScope, logEvent } from "./outreach/scope";
 import { zuopsGet, parseLead } from "./outreach/zuops";
 import { buildCallBody, placeCall, webhookUrl } from "./lib/bland";
 import {
-  CALL_SCRIPT_APPROVED, buildFirstSentence, buildTask,
+  CALL_SCRIPT_APPROVED, buildAgentOpener, buildFirstSentence, buildTask,
 } from "./outreach/callScript";
 import {
   DEFAULT_SETTINGS, capDay, demoTimeParts, evaluate, formatDemoTime, maskPhone, usPhone, validateSettings, type CallSettings, type Decision,
@@ -275,7 +275,7 @@ export const _planDue = internalMutation({
         const agentId = process.env.BLAND_AGENT_ID || undefined;
         const when = demoTimeParts(b.startsAt, d.calleeTz);
         const input = {
-          phone: d.phone, task: buildTask(vars), firstSentence: buildFirstSentence(vars), from: s.fromNumber, voice: agentId ? undefined : s.voice,
+          phone: d.phone, task: buildTask(vars), firstSentence: agentId ? buildAgentOpener(vars) : buildFirstSentence(vars), from: s.fromNumber, voice: agentId ? undefined : s.voice,
           maxDurationMinutes: s.maxDurationMinutes, externalId: id as string,
           metadata: { agency_id: agencyId, booking_id: b._id as string, call_id: id as string },
           agentId,

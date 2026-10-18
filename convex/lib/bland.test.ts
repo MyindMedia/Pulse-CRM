@@ -21,7 +21,8 @@ describe("bland client", () => {
     const b = buildCallBody({ ...input, agentId: "agent-1", requestData: { prospect_name: "Mike" } });
     expect(b).toMatchObject({ agent_id: "agent-1", request_data: { prospect_name: "Mike" }, from: "+14086921713", record: false });
     expect(b).not.toHaveProperty("task");
-    expect(b).not.toHaveProperty("first_sentence");
+    // The opener goes as first_sentence so the agent does not improvise a greeting first.
+    expect(b).toHaveProperty("first_sentence", input.firstSentence);
   });
 
   it("posts with a bare authorization header and returns the call id", async () => {
