@@ -18,3 +18,11 @@
   to = "https://zuops.com/f/pulse-30-minute-demo-intake-draft-fbib"
   status = 302
   force = true
+
+# Contact card on /booked ("Save the number"): iOS and Android only offer
+# "Add to contacts" when it is served as a vCard.
+[[headers]]
+  for = "/pulse-demo-call.vcf"
+  [headers.values]
+    Content-Type = "text/vcard; charset=utf-8"
+    Content-Disposition = "attachment; filename=\"Pulse.vcf\""

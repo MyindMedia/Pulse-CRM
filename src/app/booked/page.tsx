@@ -7,13 +7,13 @@ import { BookedExperience } from "./booked-experience";
 
    The Zuops booking form cannot redirect, so the link rides in the Zuops
    confirmation text. The page shows the booking the way Pulse shows a client's
-   booking, lets the studio pick what the demo should focus on (sent back by
-   text to the same Zuops thread, so nothing is stored here), and plays the
-   film while they wait. No personal data in the URL or on the page. */
+   booking, tells the studio a confirmation call is coming (and from which
+   number), and plays the film while they wait. The page collects nothing, and
+   no personal data goes in the URL or on the page. */
 
 export const metadata: Metadata = {
   title: "Your Pulse demo is booked",
-  description: "Your 30-minute Pulse demo is confirmed. Tell us what to focus on, and watch one session, start to finish.",
+  description: "Your 30-minute Pulse demo is confirmed. Expect a quick confirmation call, and watch one session, start to finish.",
   alternates: { canonical: "/booked" },
   robots: { index: false, follow: false },
 };
