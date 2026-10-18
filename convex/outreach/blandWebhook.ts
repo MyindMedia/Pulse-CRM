@@ -1,12 +1,14 @@
 import { httpAction } from "../_generated/server";
 import { internal } from "../_generated/api";
 import { isOptOut } from "./callPolicy";
+import { extractAnswers } from "./callScript";
 
 /* POST /bland/events
    Bland posts the post-call result here. Guarded by BLAND_WEBHOOK_SECRET, taken from
    ?secret=, or the x-pulse-secret / Authorization: Bearer header. 503 while the secret is
    unset (never open), 401 when wrong. The body is untrusted: only fields we read are
-   copied, transcripts are scanned for a stop request and never stored. */
+   copied. Transcripts are scanned for a stop request, and on the first completed event the
+   customer's answers are texted to the owner; they are never written to a table. */
 
 const json = (status: number, body: unknown) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -67,6 +69,13 @@ export const blandEvents = httpAction(async (ctx, req) => {
     callLengthMin: length,
     optOut: isOptOut(p),
   });
+  if (r.firstCompletion) {
+    try {
+      await ctx.runAction(internal.outreachCalls._textBrief, { callId: r.firstCompletion, answers: extractAnswers(p.transcripts) });
+    } catch {
+      // The call result is saved; a failed text must not make Bland retry it.
+    }
+  }
   // 200 even for a call we do not know, so Bland does not retry forever and nothing is revealed.
   return json(200, { ok: true, matched: r.found });
 });
