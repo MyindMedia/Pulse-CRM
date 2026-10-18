@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { CALL_SCRIPT_APPROVED, buildAgentOpener, buildBriefSms, buildFirstSentence, buildTask } from "./outreach/callScript";
+import { CALL_SCRIPT_APPROVED, buildAgentOpener, buildCallReport, buildFirstSentence, extractAnswers, buildTask } from "./outreach/callScript";
 import { liveBlockers } from "./outreachCalls";
 
 describe("script approval gate", () => {
@@ -27,12 +27,34 @@ describe("script approval gate", () => {
     expect(buildAgentOpener({ demoTime: "x" }).startsWith("Hey there,")).toBe(true);
     expect(o).not.toMatch(/—/);
   });
-  it("the owner brief text names the contact and demo, and says why a brief is missing", () => {
-    const t = buildBriefSms({ name: "Mike Sims", demoTime: "Monday, October 26 at 3:00 PM PDT", brief: "Two rooms.\nWants invoicing \u2014 fast.", minutes: 3.16 });
-    expect(t.startsWith("Pulse demo brief: Mike Sims\nDemo: Monday, October 26 at 3:00 PM PDT\n\nTwo rooms. Wants invoicing fast.")).toBe(true);
-    expect(t).toContain("MaxB call, 3 min.");
-    expect(t).not.toMatch(/\u2014/);
-    expect(buildBriefSms({ demoTime: "x", answeredBy: "voicemail" })).toContain("MaxB reached voicemail");
-    expect(buildBriefSms({ demoTime: "x" })).toContain("Unknown contact");
+  it("pulls the customer's answers under MaxB's questions, dropping system lines", () => {
+    const t = [
+      { user: "user", text: "Hello?" },
+      { user: "assistant", text: "Hey Mike, this is MaxB. Got a couple minutes?" },
+      { user: "user", text: "Gary." },
+      { user: "assistant", text: "Alright. How did you hear about Pulse? Was it through Lawrence, or somewhere else?" },
+      { user: "agent-action", text: "[Waiting]" },
+      { user: "user", text: "Through Lawrence." },
+      { user: "user", text: "He showed me." },
+      { user: "assistant", text: "yes <backchannel>" },
+      { user: "assistant", text: "Got you. The main thing is bookings." },
+      { user: "user", text: "Okay." },
+    ];
+    expect(extractAnswers(t)).toEqual([
+      { q: "Got a couple minutes?", a: "Gary." },
+      { q: "How did you hear about Pulse? Was it through Lawrence, or somewhere else?", a: "Through Lawrence. He showed me." },
+      { q: "The main thing is bookings.", a: "Okay." },
+    ]);
+    expect(extractAnswers("nope")).toEqual([]);
+  });
+  it("the owner report leads with who and when, lists the answers, and splits long calls", () => {
+    const [one] = buildCallReport({ name: "Mike Sims", demoTime: "Monday, October 26 at 3:00 PM PDT", minutes: 3.16,
+      answers: [{ q: "How did you hear about Pulse?", a: "Lawrence." }], brief: "Two rooms.\nWants invoicing \u2014 fast." });
+    expect(one).toBe("Pulse demo call: Mike Sims\nDemo: Monday, October 26 at 3:00 PM PDT\nMaxB call, 3 min.\n\nWhat they said:\n\nQ: How did you hear about Pulse?\nA: Lawrence.\n\nBrief: Two rooms. Wants invoicing fast.");
+    expect(buildCallReport({ demoTime: "x", answeredBy: "voicemail" })[0]).toContain("MaxB reached voicemail");
+    const many = buildCallReport({ demoTime: "x", answers: Array.from({ length: 30 }, (_, i) => ({ q: `Question ${i}?`, a: "y".repeat(120) })) });
+    expect(many.length).toBeGreaterThan(1);
+    expect(many[0].startsWith(`(1/${many.length}) Pulse demo call`)).toBe(true);
+    expect(many.every((m) => m.length <= 1410)).toBe(true);
   });
 });
