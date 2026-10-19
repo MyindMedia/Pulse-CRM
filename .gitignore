@@ -57,7 +57,8 @@ next-env.d.ts
 scripts/.a2p-state.env
 
 # Local agent/session folders
-.claude/
+.claude/*
+!.claude/settings.json
 .hermes/
 
 # clone-ui captures (regenerable); plan files are committed
