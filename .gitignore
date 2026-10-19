@@ -56,8 +56,9 @@ next-env.d.ts
 .netlify
 scripts/.a2p-state.env
 
-# Local agent/session folders
-.claude/
+# Local agent/session folders (shared project settings are committed)
+.claude/*
+!.claude/settings.json
 .hermes/
 
 # clone-ui captures (regenerable); plan files are committed
