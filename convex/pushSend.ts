@@ -34,7 +34,7 @@ export const sendToOrg = internalAction({
     const privateKey = process.env.VAPID_PRIVATE_KEY;
     if (!publicKey || !privateKey) return { sent: 0, reason: "vapid-unset" };
     webpush.setVapidDetails(
-      process.env.VAPID_SUBJECT ?? "mailto:info@thamyind.com",
+      process.env.VAPID_SUBJECT ?? "mailto:info@studiopulse.tech",
       publicKey,
       privateKey,
     );

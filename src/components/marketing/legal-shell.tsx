@@ -14,7 +14,7 @@ import { PulseLogo } from "@/components/brand/pulse-logo";
 
 export const LEGAL_ENTITY = "Myind Media LLC";
 export const LEGAL_ADDRESS = "835 Wilshire Blvd, Los Angeles, CA 90017, United States";
-export const LEGAL_EMAIL = "info@myindmedia.org";
+export const LEGAL_EMAIL = "support@studiopulse.tech";
 export const LEGAL_PHONE = "+1 (408) 410-0931";
 
 export function LegalShell({
