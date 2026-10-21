@@ -48,6 +48,9 @@ export const MIRRORED_TABLES = [
   "reviews",
   // W6 - client comms.
   "clientMessages",
+  // Read, archived and "AI replies off" for each conversation, so the phone's
+  // inbox shows the same unread dots and filters as the web Messages page.
+  "messageThreads",
   // W7 - the patch map. Six tables, not seven: `deviceProfiles` is deliberately
   // absent because a GLOBAL profile has no orgId at all, and this mirror pulls
   // by an orgId-first index. Mirroring it would hand every device a profile the
