@@ -76,7 +76,7 @@ def cmd_campaign():
         "HasEmbeddedPhone":"true",
         "OptInKeywords":["START"],"OptInMessage":"You are now opted in to Pulse alerts. Reply STOP to opt out.",
         "OptOutKeywords":["STOP"],"OptOutMessage":"You have opted out of Pulse alerts. No further messages will be sent.",
-        "HelpKeywords":["HELP"],"HelpMessage":"Pulse alerts from Myind Media LLC. Reply STOP to opt out. Contact info@myindsound.com.",
+        "HelpKeywords":["HELP"],"HelpMessage":"Pulse alerts from Myind Media LLC. Reply STOP to opt out. Contact support@studiopulse.tech.",
     })
     print("campaign ->",st)
     print(json.dumps({k:d.get(k) for k in ("sid","campaign_status","errors")},indent=2))
