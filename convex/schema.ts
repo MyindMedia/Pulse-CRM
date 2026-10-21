@@ -3134,7 +3134,9 @@ export default defineSchema({
     readAt: v.optional(v.number()),
     archivedAt: v.optional(v.number()),
     aiRepliesOff: v.optional(v.boolean()),
-  }).index("by_org_artist", ["orgId", "artistId"]),
+  })
+    .index("by_org", ["orgId"]) // the native mirror's snapshot (lib/mirroredTables.ts)
+    .index("by_org_artist", ["orgId", "artistId"]),
 
   // Which studio last texted a phone, and when. Every studio texts from the one
   // shared number, so a reply is routed to the studio that last wrote to it.
