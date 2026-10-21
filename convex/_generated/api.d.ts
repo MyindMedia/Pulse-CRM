@@ -225,6 +225,7 @@ import type * as lib_tierV from "../lib/tierV.js";
 import type * as lib_trialCheckout from "../lib/trialCheckout.js";
 import type * as lib_tz from "../lib/tz.js";
 import type * as lib_usTaxRates from "../lib/usTaxRates.js";
+import type * as lib_zuopsSms from "../lib/zuopsSms.js";
 import type * as licensing from "../licensing.js";
 import type * as mail from "../mail.js";
 import type * as mail_address from "../mail/address.js";
@@ -374,6 +375,7 @@ import type * as twilioA2P from "../twilioA2P.js";
 import type * as usage from "../usage.js";
 import type * as visitors from "../visitors.js";
 import type * as waitlist from "../waitlist.js";
+import type * as zuopsStudioTags from "../zuopsStudioTags.js";
 
 import type {
   ApiFromModules,
@@ -599,6 +601,7 @@ declare const fullApi: ApiFromModules<{
   "lib/trialCheckout": typeof lib_trialCheckout;
   "lib/tz": typeof lib_tz;
   "lib/usTaxRates": typeof lib_usTaxRates;
+  "lib/zuopsSms": typeof lib_zuopsSms;
   licensing: typeof licensing;
   mail: typeof mail;
   "mail/address": typeof mail_address;
@@ -748,6 +751,7 @@ declare const fullApi: ApiFromModules<{
   usage: typeof usage;
   visitors: typeof visitors;
   waitlist: typeof waitlist;
+  zuopsStudioTags: typeof zuopsStudioTags;
 }>;
 
 /**

@@ -98,3 +98,56 @@ export async function fetchZuopsInbound(
     return { ok: false, reason: "Could not reach Zuops." };
   }
 }
+
+/** The Zuops tag that groups one studio's contacts inside the shared sub-account. */
+export function studioTag(studioName: string): string {
+  return `Studio: ${studioName.replace(/\s+/g, " ").trim()}`.slice(0, 80);
+}
+
+/** Puts a phone's Zuops lead in a studio's group: creates the lead with the
+ *  tag (and the client's name), or adds the tag to the lead Zuops already has.
+ *  A name is only written onto a lead that has none, so a real sales lead
+ *  keeps its own. Never runs intake. */
+export async function tagZuopsLead(
+  args: { phone: string; tag: string; name?: string },
+  fetchImpl: typeof fetch = fetch,
+): Promise<"tagged" | "failed" | "off"> {
+  const cfg = zuopsSmsConfig();
+  if (!cfg) return "off";
+  try {
+    const create = await fetchImpl(`${ZUOPS_BASE}/v1/leads`, {
+      method: "POST",
+      headers: headers(cfg.key),
+      body: JSON.stringify({
+        workspace_id: cfg.workspaceId,
+        phone: args.phone,
+        tags: [ZUOPS_SMS_TAG, args.tag],
+        run_intake: false,
+        ...(args.name ? { full_name: args.name } : {}),
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    const json = rec(await create.json().catch(() => ({})));
+    if (create.status === 201 || create.status === 200) return "tagged";
+    if (create.status !== 409) return "failed";
+    const leadId = str(rec(json.details).lead_id);
+    if (!leadId) return "failed";
+    let named = true;
+    if (args.name) {
+      const got = await fetchImpl(`${ZUOPS_BASE}/v1/leads/${encodeURIComponent(leadId)}?workspace_id=${encodeURIComponent(cfg.workspaceId)}`, {
+        headers: headers(cfg.key),
+        signal: AbortSignal.timeout(15_000),
+      });
+      named = !got.ok || !!str(rec(rec(rec(await got.json().catch(() => ({}))).data).lead).full_name);
+    }
+    const patch = await fetchImpl(`${ZUOPS_BASE}/v1/leads/${encodeURIComponent(leadId)}`, {
+      method: "PATCH",
+      headers: headers(cfg.key),
+      body: JSON.stringify({ add_tags: [ZUOPS_SMS_TAG, args.tag], ...(!named && args.name ? { full_name: args.name } : {}) }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    return patch.ok ? "tagged" : "failed";
+  } catch {
+    return "failed";
+  }
+}
