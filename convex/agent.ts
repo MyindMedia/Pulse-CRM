@@ -881,9 +881,10 @@ export const sendArtifactDraft = action({
     if (c.provider === "google" && c.googleRefreshToken && googleConfigured()) {
       channel = "google";
       try {
-        await gmailSend(c.googleRefreshToken, { from: c.googleEmail ?? "me", to: c.to, subject, html });
+        await gmailSend(c.googleRefreshToken, { from: c.googleEmail ?? undefined, to: c.to, subject, html });
         status = "sent";
-      } catch {
+      } catch (err) {
+        console.error("[agent] Gmail send failed", err);
         status = "failed";
       }
     } else {

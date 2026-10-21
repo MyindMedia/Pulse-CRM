@@ -125,38 +125,63 @@ export function emailFromIdToken(idToken?: string): string | null {
   if (!idToken) return null;
   try {
     const payload = idToken.split(".")[1];
-    const json = JSON.parse(Buffer.from(payload, "base64url").toString("utf8"));
+    const b64 = payload.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(payload.length / 4) * 4, "=");
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const json = JSON.parse(new TextDecoder().decode(bytes));
     return (json.email as string) ?? null;
   } catch {
     return null;
   }
 }
 
-function base64url(input: string): string {
-  return Buffer.from(input, "utf8").toString("base64").replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+/* No Node `Buffer` here: this module runs in Convex's default runtime, where
+   Buffer is undefined. Tests run under Node, so a Buffer call stays green in
+   vitest and throws in production (every Gmail send failed that way). */
+function utf8ToBase64(input: string): string {
+  const bytes = new TextEncoder().encode(input);
+  let bin = "";
+  for (let i = 0; i < bytes.length; i += 0x8000) bin += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  return btoa(bin);
 }
 
-/** Send an email through the connected Gmail account via the Gmail API. */
-export async function gmailSend(
-  refreshToken: string,
-  args: { from: string; to: string; subject: string; html: string },
-): Promise<void> {
-  const accessToken = await accessTokenFromRefresh(refreshToken);
-  const mime = [
-    `From: ${args.from}`,
+export function base64url(input: string): string {
+  return utf8ToBase64(input).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+
+/** RFC 2047 encoded-word for a header that holds non-ASCII text. */
+function encodeHeader(value: string): string {
+  return /[^\x20-\x7e]/.test(value) ? `=?UTF-8?B?${utf8ToBase64(value)}?=` : value;
+}
+
+/** Build the raw RFC 822 message. Without a known address the From header is
+ *  left out and Gmail fills in the connected account. */
+export function gmailMime(args: { from?: string; to: string; subject: string; html: string }): string {
+  return [
+    ...(args.from?.includes("@") ? [`From: ${args.from}`] : []),
     `To: ${args.to}`,
-    `Subject: ${args.subject}`,
+    `Subject: ${encodeHeader(args.subject)}`,
     "MIME-Version: 1.0",
     'Content-Type: text/html; charset="UTF-8"',
     "",
     args.html,
   ].join("\r\n");
+}
+
+/** Send an email through the connected Gmail account via the Gmail API. */
+export async function gmailSend(
+  refreshToken: string,
+  args: { from?: string; to: string; subject: string; html: string },
+): Promise<void> {
+  const accessToken = await accessTokenFromRefresh(refreshToken);
   const res = await fetch("https://gmail.googleapis.com/gmail/v1/users/me/messages/send", {
     method: "POST",
     headers: { Authorization: `Bearer ${accessToken}`, "Content-Type": "application/json" },
-    body: JSON.stringify({ raw: base64url(mime) }),
+    body: JSON.stringify({ raw: base64url(gmailMime(args)) }),
   });
-  if (!res.ok) throw new Error(`Gmail send failed (${res.status})`);
+  if (!res.ok) {
+    const detail = (await res.text().catch(() => "")).slice(0, 300);
+    throw new Error(`Gmail send failed (${res.status}) ${detail}`.trim());
+  }
 }
 
 /* ============================================================
