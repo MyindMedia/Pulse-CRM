@@ -394,7 +394,12 @@ async function handleInboundText(ctx: MutationCtx, from: string, body: string) {
       .query("orgs")
       .withIndex("by_org", (q) => q.eq("orgId", match.orgId))
       .first();
-    if (!consumed && org?.aiReceptionistEnabled === true) {
+    // The studio can turn the AI off for one client on the Messages page.
+    const thread = await ctx.db
+      .query("messageThreads")
+      .withIndex("by_org_artist", (q) => q.eq("orgId", match.orgId).eq("artistId", match._id))
+      .first();
+    if (!consumed && org?.aiReceptionistEnabled === true && thread?.aiRepliesOff !== true) {
       await ctx.scheduler.runAfter(0, internal.receptionist.handle, {
         orgId: match.orgId,
         from,

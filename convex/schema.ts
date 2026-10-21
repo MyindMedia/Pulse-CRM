@@ -3122,6 +3122,18 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_artist", ["artistId"]),
 
+  // The Messages page's state for one client's conversation. Read and archived
+  // are per studio, not per person. A message newer than archivedAt brings the
+  // conversation back to the inbox. aiRepliesOff keeps the AI receptionist
+  // from answering this client; keyword flows (YES, STOP) still run.
+  messageThreads: defineTable({
+    orgId: v.string(),
+    artistId: v.id("artists"),
+    readAt: v.optional(v.number()),
+    archivedAt: v.optional(v.number()),
+    aiRepliesOff: v.optional(v.boolean()),
+  }).index("by_org_artist", ["orgId", "artistId"]),
+
   // Which studio last texted a phone, and when. Every studio texts from the one
   // shared number, so a reply is routed to the studio that last wrote to it.
   // Pruned after 90 days (messages.prune) and erased with the client.

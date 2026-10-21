@@ -248,6 +248,7 @@ import type * as mediaLibraryTables from "../mediaLibraryTables.js";
 import type * as memberCalendar from "../memberCalendar.js";
 import type * as members from "../members.js";
 import type * as memberships from "../memberships.js";
+import type * as messageInbox from "../messageInbox.js";
 import type * as messages from "../messages.js";
 import type * as migrations from "../migrations.js";
 import type * as migrations_dashes from "../migrations_dashes.js";
@@ -624,6 +625,7 @@ declare const fullApi: ApiFromModules<{
   memberCalendar: typeof memberCalendar;
   members: typeof members;
   memberships: typeof memberships;
+  messageInbox: typeof messageInbox;
   messages: typeof messages;
   migrations: typeof migrations;
   migrations_dashes: typeof migrations_dashes;

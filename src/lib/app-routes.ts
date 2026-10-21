@@ -8,7 +8,7 @@
  */
 export const APP_ROUTE_SEGMENTS = [
   "agent", "banking", "bookings", "brief", "calendar", "changes", "clock", "dashboard", "expenses",
-  "feature-requests", "inbox", "inventory", "library", "licensing", "marketing", "mixes", "packages",
+  "feature-requests", "inbox", "inventory", "library", "licensing", "marketing", "messages", "mixes", "packages",
   "patch", "payments", "payroll", "pipeline", "projects", "releases", "rentals", "reports", "roster",
   "schedule", "settings", "software", "songs", "studio", "today", "visitors",
 ] as const;
