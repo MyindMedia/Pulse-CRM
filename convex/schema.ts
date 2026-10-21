@@ -3066,7 +3066,9 @@ export default defineSchema({
   })
     .index("by_phone_status", ["phone", "status"])
     .index("by_entry", ["entryId"])
-    .index("by_session", ["sessionId"]),
+    .index("by_session", ["sessionId"])
+    // The Pulse agent's view of the studio's texts (lib/agentActivity.ts).
+    .index("by_org_sent", ["orgId", "sentAt"]),
 
   // ── Recurring weekly availability a staff member sets for themselves. ──
   availability: defineTable({

@@ -60,6 +60,8 @@ import { sendEmail } from "./lib/email";
 import { sendSms } from "./lib/sms";
 import { studioHealthFor } from "./agentHealth";
 import { sameEmail } from "./lib/emailKey";
+import { businessActivity, formatActivity } from "./lib/agentActivity";
+import { orgTz } from "./lib/tz";
 
 /* ============================================================
    Pulse Agent - tenant-isolated AI ops manager, one org at a
@@ -355,6 +357,10 @@ export const _context = internalQuery({
         staleLeads: staleLeads.length,
         activeSongs: activeSongs.length,
       },
+      // The business in motion: sessions today, every client conversation,
+      // texts to the team and their answers, who is on the clock.
+      tz: orgTz(org),
+      activity: await businessActivity(ctx, orgId, orgTz(org), now),
       brain: {
         topClients: graph.topClients.map((c) => c.label),
         clientConcentration: graph.clientConcentration,
@@ -470,7 +476,7 @@ export const runAgentLLM = internalAction({
         "You are Pulse Agent, an AI studio operations manager inside the Pulse platform.",
         tenantGuard(cx.orgName),
         "You may analyze data, explain patterns, and recommend actions. You may NOT claim any external action was performed.",
-        "You can see this studio's full operating picture: revenue, invoices, sessions, leads, songs, rooms, equipment/inventory (purchase value, current value, depreciation, condition, state, quantity, AND a per-room value breakdown), and software & licenses. Answer questions about any of it directly from the data provided - including the current value of a specific room (use the 'Value by room' breakdown). Only say something is not tracked when the data explicitly shows zero of it.",
+        "You can see this studio's full operating picture: revenue, invoices, sessions, leads, songs, rooms, equipment/inventory (purchase value, current value, depreciation, condition, state, quantity, AND a per-room value breakdown), software & licenses, AND what is happening right now: today's sessions, every client conversation (texts, email, portal) from the last week including who is waiting on a reply, the texts Pulse sent the team or clients with a YES/NO question and how they answered, who is on the clock, today's shifts, and session changes waiting for a decision. Answer questions about any of it directly from the data provided - including the current value of a specific room (use the 'Value by room' breakdown). Only say something is not tracked when the data explicitly shows zero of it.",
         "For client-facing, financial, calendar, file-delivery, or automation-enabling actions, propose an approval (do not send).",
         MONEY_HANDOFF_LINE,
         `Tone: ${tone}. Write for a busy studio owner in plain, natural language.`,
@@ -566,11 +572,12 @@ export const runAgentLLM = internalAction({
         b && (b.topClients.length || b.history.length)
           ? `\n\n${fenceUntrusted("STUDIO BRAIN (relationships + history)", brainContent)}`
           : "";
+      const activityBlock = `\n\n${formatActivity(cx.activity, cx.tz, Date.now())}`;
       const userPrompt = [
         `Studio: ${cx.orgName} (plan: ${cx.plan}).`,
         `Overall studio health is ${cx.health.band} (the weakest areas are ${weakestAreas(cx.health.components)}).`,
         `Current snapshot:\n${snapshot}`,
-        `User request: ${prompt}${inventoryBlock}${softwareBlock}${memoryBlock}${brainBlock}`,
+        `User request: ${prompt}${inventoryBlock}${softwareBlock}${memoryBlock}${brainBlock}${activityBlock}`,
       ].join("\n\n");
 
       // Judgment task -> the full GPT-5 tier, with a forced JSON contract so we
