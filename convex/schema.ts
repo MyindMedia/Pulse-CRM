@@ -3152,6 +3152,16 @@ export default defineSchema({
     .index("by_phone", ["phone"])
     .index("by_received", ["receivedAt"]),
 
+  // Where the inbound SMS poll resumes, one row per provider + sub-account
+  // (Zuops replies are polled, not pushed). `position` is the provider's
+  // cursor, or "since:<ISO time>" before the first page has come back.
+  smsInboundCursors: defineTable({
+    provider: v.string(),
+    account: v.string(),
+    position: v.string(),
+    updatedAt: v.number(),
+  }).index("by_provider_account", ["provider", "account"]),
+
   // ── Waitlist - artists waiting for an open slot. When a hold expires or a
   //    booking is cancelled, smart-fill ranks matching entries and proposes a
   //    `waitlist_fill` action (notify the best match) into the approval inbox. ──

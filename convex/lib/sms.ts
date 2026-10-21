@@ -1,9 +1,10 @@
 /* Outbound SMS. Provider-agnostic: SMS_PROVIDER picks the driver ("twilio" by
-   default, "telnyx" supported). Returns a status string so callers can record
-   it. No-ops to "simulated" when unconfigured - so the whole SMS layer ships
+   default; "zuops", "ghl", "telnyx" and "loopmessage" supported). Returns a
+   status string so callers can record it. No-ops to "simulated" when unconfigured - so the whole SMS layer ships
    and runs before any provider account / A2P registration exists (mirrors the
    Resend email + Stripe rollout). */
 import { stripEmDashes } from "./text";
+import { sendZuopsSms } from "./zuopsSms";
 
 export type SmsStatus = "sent" | "failed" | "simulated";
 
@@ -13,6 +14,7 @@ export async function sendSms(args: { to: string; body: string }): Promise<SmsSt
   const payload = { to: args.to, body: stripEmDashes(args.body) };
   if (provider === "loopmessage") return sendLoopMessage(payload);
   if (provider === "telnyx") return sendTelnyx(payload);
+  if (provider === "zuops") return sendZuopsSms(payload);
   if (provider === "ghl") return sendGhl(payload);
   return sendTwilio(payload);
 }
