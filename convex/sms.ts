@@ -7,6 +7,7 @@ import type { Id } from "./_generated/dataModel";
 import type { MutationCtx } from "./_generated/server";
 import { currentOrg } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
+import { teamLink } from "./lib/links";
 import { sendSms, type SmsStatus } from "./lib/sms";
 import { normalizePhone } from "./lib/phone";
 import { recordSmsContact } from "./lib/smsContacts";
@@ -238,6 +239,7 @@ export const _dueReminders = internalQuery({
               title: s.title,
               soon,
               date: dateStr,
+              link: teamLink(`/brief/${s._id}`),
             }),
           });
         }

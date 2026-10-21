@@ -7,7 +7,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { sendSms } from "./lib/sms";
 import { normalizePhone } from "./lib/phone";
 import { parseSmsIntent, parseRating } from "./lib/smsKeywords";
-import { appUrl } from "./lib/links";
+import { appUrl, teamLink } from "./lib/links";
 import { orgTz, dateLabel } from "./lib/tz";
 import {
   renderSms,
@@ -220,6 +220,7 @@ async function broadcastCover(
     studio: studioName(org),
     title: session.title,
     date: dateStr,
+    link: teamLink(`/brief/${session._id}`),
   });
   for (const m of candidates) {
     const phone = normalizePhone(m.phone!);
@@ -484,7 +485,7 @@ async function applyPromptAnswer(
       queueSend(
         ctx,
         m.phone,
-        renderSms(MGR_INTERN_APPROVAL, { studio, name: intern?.name ?? "an intern" }),
+        renderSms(MGR_INTERN_APPROVAL, { studio, name: intern?.name ?? "an intern", link: teamLink("/clock") }),
       );
     }
     return true;
@@ -615,7 +616,7 @@ export const _timeclockDue = internalQuery({
             memberId: member._id,
             phone,
             name: member.name,
-            body: renderSms(INTERN_PROMPT, { studio }),
+            body: renderSms(INTERN_PROMPT, { studio, link: teamLink("/clock") }),
           });
         } else if (
           e.internPromptSentAt &&
@@ -639,7 +640,7 @@ export const _timeclockDue = internalQuery({
             memberId: member._id,
             phone,
             name: member.name,
-            body: renderSms(OT_PROMPT, { studio }),
+            body: renderSms(OT_PROMPT, { studio, link: teamLink("/clock") }),
           });
         } else if (e.otPromptSentAt && !e.otStatus && now - e.otPromptSentAt > REPLY_WINDOW) {
           otExpired.push({ entryId: e._id, name: member.name });
@@ -937,6 +938,7 @@ export const _digestDue = internalQuery({
       sessions: String(sessions.length),
       revenue,
       flags: flagBits.length > 0 ? `, ${flagBits.join(", ")}` : "",
+      link: teamLink("/dashboard"),
     });
     const phones: string[] = [];
     for (const m of await ctx.db
