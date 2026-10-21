@@ -1,10 +1,12 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { teamLink } from "./links";
 import {
   renderSms,
   displayPhone,
   CLIENT_REMINDER,
   STAFF_REMINDER,
   MANUAL_CLIENT,
+  OT_PROMPT,
 } from "./smsTemplates";
 
 describe("displayPhone", () => {
@@ -94,5 +96,21 @@ describe("registered message shapes", () => {
     expect(renderSms(MANUAL_CLIENT, { studio: "Aurum Sound Studio", body: "Your stems are ready." })).toBe(
       "Pulse: Aurum Sound Studio: Your stems are ready.",
     );
+  });
+});
+
+describe("team texts link to what they are about", () => {
+  afterEach(() => vi.unstubAllEnvs());
+
+  it("ends a staff reminder with a studiopulse.tech link that opens in the app", () => {
+    vi.stubEnv("APP_URL", "https://studiopulse.tech");
+    const body = renderSms(STAFF_REMINDER, { studio: "Myind Sound", title: "Mixing", soon: "tomorrow", date: "Fri 9 AM", link: teamLink("/brief/s1") });
+    expect(body).toBe('Pulse: Myind Sound - you are booked for "Mixing" tomorrow (Fri 9 AM). Open: https://studiopulse.tech/brief/s1 Reply STOP to opt out.');
+  });
+
+  it("drops the link off a real https host, so dev never texts localhost", () => {
+    vi.stubEnv("APP_URL", "http://localhost:3000");
+    expect(teamLink("/clock")).toBeNull();
+    expect(renderSms(OT_PROMPT, { studio: "Myind Sound", link: teamLink("/clock") })).not.toContain("Open:");
   });
 });

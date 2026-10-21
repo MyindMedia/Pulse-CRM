@@ -9,3 +9,11 @@ export function appUrl(): string {
 export function invoicePayUrl(invoiceId: string): string {
   return `${appUrl()}/pay/invoice/${invoiceId}`;
 }
+
+/** A link in a team text to the screen it is about (/brief/<id>, /clock).
+ *  Opens in the Pulse app on a phone that has it. Null off a real https host,
+ *  so a dev or test deployment never texts anyone a localhost address. */
+export function teamLink(path: string): string | null {
+  const base = appUrl();
+  return base.startsWith("https://") ? `${base}${path}` : null;
+}
