@@ -73,7 +73,7 @@ export const TERMS_SECTIONS: { title: string; body: string[] }[] = [
   {
     title: "10. Contact",
     body: [
-      "Questions about these Terms: support@thamyind.com. These Terms are governed by the laws of the State of California, USA.",
+      "Questions about these Terms: support@studiopulse.tech. These Terms are governed by the laws of the State of California, USA.",
     ],
   },
 ];
