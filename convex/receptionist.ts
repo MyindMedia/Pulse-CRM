@@ -2,7 +2,7 @@ import { internalAction, internalQuery, type QueryCtx } from "./_generated/serve
 import { internalMutation } from "./functions";
 import { v } from "convex/values";
 import { internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 import { normalizePhone } from "./lib/phone";
 import { sendSms, type SmsStatus } from "./lib/sms";
 import { completeJSON } from "./lib/openai";
@@ -80,9 +80,17 @@ export function heuristicIntent(body: string): Intent {
 
 /** LLM intent classification over the FENCED inbound text. Falls back to the
  *  deterministic heuristic whenever the model is unavailable or returns junk. */
-export async function classifyIntent(body: string): Promise<Intent & { source: IntentSource }> {
+export async function classifyIntent(
+  body: string,
+  history: string[] = [],
+): Promise<Intent & { source: IntentSource }> {
+  // The conversation so far, so "yes", "10 works" or "same time next week"
+  // reads against what was said before it. Fenced: both sides are free text.
+  const earlier = history.length
+    ? `The conversation before it, oldest first:\n\n${fenceUntrusted("EARLIER MESSAGES", history.join("\n"))}\n\n`
+    : "";
   const ai = await completeJSON<Intent>(
-    `Classify this inbound text message a client sent to a recording studio.\n\n${fenceUntrusted(
+    `Classify this inbound text message a client sent to a recording studio.\n\n${earlier}The new message:\n\n${fenceUntrusted(
       "INBOUND TEXT",
       body,
     )}\n\nReturn JSON: isBookingInquiry (true if they are asking about booking, availability, rates, or studio time), wantsHuman (true if they explicitly want a person to call/reply, or it is a complaint/refund/urgent matter), summary (a short neutral paraphrase, max 20 words).`,
@@ -158,13 +166,19 @@ export const _context = internalQuery({
 
     // Idempotency marker: an outbound receptionist reply for this exact inbound.
     let alreadyReplied = false;
-    if (resolvedArtistId && clientMessageId) {
-      const marker = `receptionist:${clientMessageId}`;
-      const prior = await ctx.db
-        .query("clientMessages")
-        .withIndex("by_artist", (q) => q.eq("artistId", resolvedArtistId as Id<"artists">))
-        .collect();
-      alreadyReplied = prior.some((m) => m.direction === "out" && m.sentBy === marker);
+    let history: string[] = [];
+    if (resolvedArtistId) {
+      const prior = (
+        await ctx.db
+          .query("clientMessages")
+          .withIndex("by_artist", (q) => q.eq("artistId", resolvedArtistId as Id<"artists">))
+          .collect()
+      ).filter((m) => m.orgId === orgId);
+      if (clientMessageId) {
+        const marker = `receptionist:${clientMessageId}`;
+        alreadyReplied = prior.some((m) => m.direction === "out" && m.sentBy === marker);
+      }
+      history = threadHistory(prior, clientMessageId ?? null);
     }
 
     return {
@@ -175,10 +189,30 @@ export const _context = internalQuery({
       studioName: org?.name ?? "Our studio",
       slug: org?.slug ?? null,
       alreadyReplied,
+      history,
       earliestOpenLabel: enabled ? await earliestOpenDayLabel(ctx, orgId) : null,
     };
   },
 });
+
+/** The last few messages of a client's thread before the one being answered,
+ *  oldest first, one line each, for the classifier. Kept short: the newest
+ *  turns carry the meaning and every line is untrusted text. */
+export function threadHistory(
+  messages: Array<Pick<Doc<"clientMessages">, "_id" | "_creationTime" | "direction" | "body">>,
+  currentId: Id<"clientMessages"> | null,
+  max = 6,
+): string[] {
+  return messages
+    .filter((m) => m._id !== currentId)
+    .sort((a, b) => a._creationTime - b._creationTime)
+    .slice(-max)
+    .map((m) => {
+      const one = m.body.replace(/\s+/g, " ").trim();
+      const text = one.length > 200 ? `${one.slice(0, 197)}...` : one;
+      return `${m.direction === "in" ? "Client" : "Studio"}: ${text}`;
+    });
+}
 
 /** Cheap, bounded next-open-day scan (soft context only, never a promise). Finds
  *  the first of the next 14 days with no held/tentative/confirmed session, and
@@ -286,7 +320,7 @@ export const handle = internalAction({
     if (!c.artistId) return { status: "skipped_no_thread" };
     if (c.alreadyReplied) return { status: "skipped_duplicate" };
 
-    const intent = await classifyIntent(body);
+    const intent = await classifyIntent(body, c.history);
 
     // Listen-only Jev comparison (JEV_SHADOW=1): Jev answers the same two
     // questions in the background and the pair is logged without the text.

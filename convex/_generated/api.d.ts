@@ -102,6 +102,7 @@ import type * as ledgerTables from "../ledgerTables.js";
 import type * as lib_access from "../lib/access.js";
 import type * as lib_accessPolicies from "../lib/accessPolicies.js";
 import type * as lib_accessTypes from "../lib/accessTypes.js";
+import type * as lib_agentActivity from "../lib/agentActivity.js";
 import type * as lib_agentScope from "../lib/agentScope.js";
 import type * as lib_aiGuard from "../lib/aiGuard.js";
 import type * as lib_aiVerify from "../lib/aiVerify.js";
@@ -479,6 +480,7 @@ declare const fullApi: ApiFromModules<{
   "lib/access": typeof lib_access;
   "lib/accessPolicies": typeof lib_accessPolicies;
   "lib/accessTypes": typeof lib_accessTypes;
+  "lib/agentActivity": typeof lib_agentActivity;
   "lib/agentScope": typeof lib_agentScope;
   "lib/aiGuard": typeof lib_aiGuard;
   "lib/aiVerify": typeof lib_aiVerify;
