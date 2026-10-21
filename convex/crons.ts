@@ -32,6 +32,8 @@ crons.interval("zuops-sync", { minutes: 1 }, internal.outreachZuops.syncAll, {})
 // Replies to Pulse texts when Zuops carries SMS (SMS_PROVIDER=zuops). Zuops cannot push
 // them to a sub-account key, so they are pulled: STOP/START, two-way flows, client threads.
 crons.interval("sms-zuops-inbound", { minutes: 1 }, internal.sms._pollZuopsInbound, {});
+// Groups each studio's texted contacts in Zuops under a "Studio: <name>" tag.
+crons.interval("sms-zuops-studio-tags", { minutes: 2 }, internal.zuopsStudioTags.tick, {});
 
 // Outreach follow-ups: when a MaxB step (day 3, 7, 14 after Lawrence's first email) is due,
 // put its draft in the Review queue. Drafts only: never approves, never sends. Also stops a

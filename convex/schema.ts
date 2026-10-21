@@ -3129,8 +3129,12 @@ export default defineSchema({
     phone: v.string(), // normalized E.164
     orgId: v.string(),
     lastSentAt: v.number(),
+    // When the Zuops lead for this phone was tagged with this studio
+    // (zuopsStudioTags.ts). Unset = not yet.
+    zuopsTaggedAt: v.optional(v.number()),
   })
     .index("by_phone", ["phone"])
+    .index("by_zuops_tagged", ["zuopsTaggedAt", "lastSentAt"])
     .index("by_phone_org", ["phone", "orgId"])
     .index("by_org", ["orgId"])
     .index("by_last_sent", ["lastSentAt"]),
