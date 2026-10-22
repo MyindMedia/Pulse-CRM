@@ -1979,6 +1979,7 @@ Owner request: "Google review should be something that is enabled by the team in
 7. Streaming account sign-in: DROPPED for now (Spotify/Apple/TIDAL sign-in gives listener data only, cannot prove artist identity; Spotify dev mode caps 25 users). Identity = paste artist link or search name. Revisit if a service opens artist verification.
 8. Plans: Catalog Import on Growth (with Songs); Royalty Statements + Shares on Max (with split sheets); Growth sees royalties locked with upgrade prompt.
 9. CSV formats: auto-detected DistroKid, TuneCore, CD Baby + "Other" column picker remembered per studio.
+10. (added mid-build) Royalties ship dark behind an agency toggle: Agency > Settings "Royalties" switch on the agency record, OFF by default. When on, Max studios under that agency see Royalties; when off, every royalty surface and function is unavailable (not just hidden). Catalog Import is not behind the toggle.
 
 **Defaults (decided without asking, change if wrong)**
 - Dedupe: match existing Songs by ISRC, else title + primary artist; enrich, never duplicate; one song can be credited to several Members.
