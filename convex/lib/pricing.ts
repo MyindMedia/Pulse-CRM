@@ -326,6 +326,8 @@ export type CapabilityKey =
   | "rentals"
   | "maintenance"
   | "splitSheets"
+  | "catalogImport"
+  | "royalties"
   | "aiReceptionist"
   | "aiAutonomy"
   | "apiExports"
@@ -365,6 +367,9 @@ export const CAPABILITY_TIER: Record<CapabilityKey, TierKey> = {
   dailySummary: "core",
   healthScore: "core",
   finishedMixes: "core",
+  // Split sheets on every plan (owner decision 2026-10-22). On Core a sheet
+  // carries a basic song record; the Songs list and stages stay Growth.
+  splitSheets: "core",
   // Growth
   agent: "growth",
   inbox: "growth",
@@ -389,10 +394,11 @@ export const CAPABILITY_TIER: Record<CapabilityKey, TierKey> = {
   projects: "growth",
   mediaLibrary: "growth",
   gearCheckout: "growth",
+  catalogImport: "growth",
   // Max
   releases: "max",
   licensing: "max",
-  splitSheets: "max",
+  royalties: "max",
   aiAutonomy: "max",
   customDomain: "max",
   whiteLabelUi: "max",
@@ -606,12 +612,14 @@ const RAW_FEATURE_GROUPS: RawFeatureGroup[] = [
       f("Notes on one version of a mix", "core", "finishedMixes"),
       f("Every song in one place", "growth", "songs"),
       f("Paste a streaming link", "growth", "songs"),
-      f("Who owns what share of a song", "max", "splitSheets"),
-      f("Real signatures by link", "max", "splitSheets"),
-      f("The form fills itself in", "max", "splitSheets"),
+      f("Pull in your whole catalog with credits", "growth", "catalogImport", { built: false }),
+      f("Who owns what share of a song", "core", "splitSheets", { moved: "down" }),
+      f("Real signatures by link", "core", "splitSheets", { moved: "down" }),
+      f("The form fills itself in", "core", "splitSheets", { moved: "down" }),
+      f("Royalty statements split by the signed sheet", "max", "royalties", { built: false }),
       f("A plan for putting a song out", "max", "releases"),
       f("Selling the right to use a song", "max", "licensing"),
-      f("Print who owns what", "max", "splitSheets"),
+      f("Print who owns what", "core", "splitSheets", { moved: "down" }),
     ],
   },
   {
@@ -1122,6 +1130,14 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   "Selling the right to use a song": [
     "Licensing for songs and beats.",
     "You can sell permission to use a song in a film, on television, in an ad or in a game. You can also sell a beat, at levels running from a cheap audio file up to an exclusive license.",
+  ],
+  "Pull in your whole catalog with credits": [
+    "Bring every song you have released into Pulse at once.",
+    "Pick your role, artist, writer, producer or engineer, and Pulse finds your released songs with their codes, credits and a drafted split sheet for each.",
+  ],
+  "Royalty statements split by the signed sheet": [
+    "Upload a distributor statement and see who is owed what.",
+    "Each line is matched to the song, divided by the signed split sheet, and every contributor gets a private statement. You pay them yourself and mark it paid.",
   ],
   "Print who owns what": [
     "A download of the full ownership picture.",

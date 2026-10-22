@@ -2,6 +2,7 @@ import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
 import { currentOrg, assertOrg, currentOrgWithCapability} from "./lib/tenant";
+import { validEmail } from "./lib/emailKey";
 
 const contributorV = v.object({
   name: v.string(),
@@ -181,5 +182,87 @@ export const spotlight = query({
         signed: c.signed,
       })),
     };
+  },
+});
+
+/** Every split sheet in the workspace, newest first, for the Split sheets
+ *  page. On every plan: Core has no Songs list, so this is where its sheets
+ *  live. Names, shares and signing state; never signatures. */
+export const list = query({
+  args: {},
+  handler: async (ctx) => {
+    const orgId = await currentOrgWithCapability(ctx, "splitsheet.read", undefined, { entitlement: "splitSheets" });
+    const sheets = await ctx.db
+      .query("splitSheets")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .order("desc")
+      .take(500);
+    const out = [];
+    for (const s of sheets) {
+      const song = await ctx.db.get(s.songId);
+      const artist = song ? await ctx.db.get(song.artistId) : null;
+      out.push({
+        _id: s._id,
+        songId: s.songId,
+        songTitle: song?.title ?? "Untitled",
+        artistName: artist?.name ?? null,
+        isrc: song?.isrc ?? null,
+        imported: Boolean(song?.importedAt),
+        status: s.status,
+        updatedAt: s.updatedAt,
+        signed: s.contributors.filter((c) => c.signed).length,
+        total: s.contributors.length,
+        missingEmail: s.contributors.filter((c) => !c.signed && !validEmail(c.email)).length,
+      });
+    }
+    return out;
+  },
+});
+
+/** Start a split sheet from nothing: a basic song (title, artist, ISRC) and an
+ *  empty draft sheet, in one step. This is how Core makes sheets, since the
+ *  Songs list is Growth; on Growth the song also shows in Songs. */
+export const createWithSong = mutation({
+  args: {
+    title: v.string(),
+    artistId: v.id("artists"),
+    isrc: v.optional(v.string()),
+  },
+  handler: async (ctx, { title, artistId, isrc }) => {
+    const orgId = await currentOrgWithCapability(ctx, "splitsheet.edit");
+    const name = title.trim().slice(0, 200);
+    if (!name) throw new Error("Give the song a title.");
+    const artist = await ctx.db.get(artistId);
+    assertOrg(artist, orgId);
+    const cleanIsrc = isrc?.replace(/[^A-Za-z0-9]/g, "").toUpperCase().slice(0, 12) || undefined;
+    const songId = await ctx.db.insert("songs", {
+      orgId,
+      title: name,
+      artistId,
+      kind: "single",
+      stage: "writing",
+      isrc: cleanIsrc,
+      moodTags: [],
+      referenceTracks: [],
+      revisionsIncluded: 3,
+      revisionsUsed: 0,
+      splitOnly: true,
+    });
+    const sheetId = await ctx.db.insert("splitSheets", {
+      orgId,
+      songId,
+      status: "draft",
+      contributors: [],
+      updatedAt: Date.now(),
+    });
+    await ctx.db.insert("activity", {
+      orgId,
+      kind: "split.created",
+      summary: `Split sheet started for "${name}" by ${artist.name}`,
+      entityType: "song",
+      entityId: songId,
+      accent: "gold",
+    });
+    return { songId, sheetId };
   },
 });

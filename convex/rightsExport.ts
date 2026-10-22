@@ -123,8 +123,9 @@ export const packet = query({
   args: { songId: v.id("songs") },
   handler: async (ctx, { songId }) => {
     const orgId = await currentOrg(ctx);
-    await requireCapability(ctx, "songs.read", { orgId });
-    // "Print who owns what" is sold with the split sheets (Max). A read, so
+    // Gated on split sheets, not Songs: Core prints its sheets too.
+    await requireCapability(ctx, "songs.read", { orgId, entitlement: "splitSheets" });
+    // "Print who owns what" is sold with the split sheets (every plan). A read, so
     // it degrades to null (the dialog's "nothing to export" state) rather
     // than throwing into a page.
     if (!(await orgHasFeature(ctx, orgId, "splitSheets"))) return null;

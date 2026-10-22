@@ -151,17 +151,56 @@ describe("code: split gates refuse and allow at the configured tier", () => {
     await expect(core.query(api.recovery.summary, {})).resolves.toBeDefined();
   });
 
-  it("print who owns what is Max: Growth gets nothing to export, without an error", async () => {
+  it("print who owns what is on every plan: Core gets the packet", async () => {
     const t = convexTest(schema);
-    const growth = await studio(t, "o_growth", "growth");
+    const core = await studio(t, "o_core", "core");
     const songId = await t.run(async (ctx) => {
       const artistId = await ctx.db.insert("artists", {
-        orgId: "o_growth", name: "A", type: "artist", genres: [], tags: [], status: "active",
+        orgId: "o_core", name: "A", type: "artist", genres: [], tags: [], status: "active",
         lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
       } as never);
-      return ctx.db.insert("songs", { orgId: "o_growth", title: "S", artistId, stage: "writing", kind: "single", moodTags: [], referenceTracks: [], revisionsIncluded: 3, revisionsUsed: 0 } as never);
+      return ctx.db.insert("songs", { orgId: "o_core", title: "S", artistId, stage: "writing", kind: "single", moodTags: [], referenceTracks: [], revisionsIncluded: 3, revisionsUsed: 0 } as never);
     });
-    await expect(growth.query(api.rightsExport.packet, { songId })).resolves.toBeNull();
+    const packet = await core.query(api.rightsExport.packet, { songId });
+    expect(packet).not.toBeNull();
+    expect(packet?.csv).toBeTruthy();
+  });
+});
+
+describe("split sheets are on every plan", () => {
+  it("Core starts a sheet with a basic song, edits it, and sends it for signature", async () => {
+    const t = convexTest(schema);
+    const core = await studio(t, "o_core", "core");
+    const artistId = await t.run((ctx) => ctx.db.insert("artists", {
+      orgId: "o_core", name: "Nova", type: "artist", genres: [], tags: [], status: "active",
+      lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
+    } as never));
+    const { songId, sheetId } = await core.mutation(api.splitSheets.createWithSong, { title: "Skyline", artistId, isrc: "us-abc-24-00001" });
+    const song = await t.run((ctx) => ctx.db.get(songId));
+    expect(song).toMatchObject({ title: "Skyline", isrc: "USABC2400001", splitOnly: true });
+    await core.mutation(api.splitSheets.upsert, {
+      songId,
+      contributors: [
+        { name: "Nova", role: "Artist", masterPct: 60, publishingPct: 50, email: "nova@x.com", signed: false },
+        { name: "Mo", role: "Producer", masterPct: 40, publishingPct: 50, email: "mo@x.com", signed: false },
+      ],
+    });
+    const links = await core.mutation(api.splitSignatures.issue, { splitSheetId: sheetId });
+    expect(links).toHaveLength(2);
+    const list = await core.query(api.splitSheets.list, {});
+    expect(list).toHaveLength(1);
+    expect(list[0]).toMatchObject({ songTitle: "Skyline", artistName: "Nova", status: "sent", total: 2, missingEmail: 0 });
+  });
+
+  it("a sheet cannot be started on another studio's artist", async () => {
+    const t = convexTest(schema);
+    const core = await studio(t, "o_core", "core");
+    await studio(t, "o_other", "max");
+    const theirs = await t.run((ctx) => ctx.db.insert("artists", {
+      orgId: "o_other", name: "X", type: "artist", genres: [], tags: [], status: "active",
+      lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
+    } as never));
+    await expect(core.mutation(api.splitSheets.createWithSong, { title: "S", artistId: theirs })).rejects.toThrow();
   });
 });
 

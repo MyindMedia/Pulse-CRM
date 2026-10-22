@@ -1,15 +1,15 @@
 ## 1. Gating and schema
 
-- [ ] 1.1 Add capability keys `catalogImport` (growth) and `royalties` (max) to `convex/lib/pricing.ts` (CapabilityKey, CAPABILITY_TIER, feature rows) and update pricing tests
-- [ ] 1.1b Move `splitSheets` to `core` (CAPABILITY_TIER + the four split-sheet feature rows + any marketing/pricing copy naming Max); add `splitSheets.createWithSong` (gated on splitSheets only) that inserts a basic song (title, artist, ISRC) plus the sheet; Split Sheets page lists sheets without needing the Songs module; tests that Core can create, edit and send a sheet but is refused every Songs query
-- [ ] 1.2 Add `agencies.royaltiesEnabled` (optional boolean) and `requireRoyalties(ctx, orgId)` with the `ROYALTIES_OFF` error; unit-test tier x toggle combinations
-- [ ] 1.3 Agency toggle: `agencySettings.setRoyaltiesEnabled` (agency members only) + `summary` field; switch on Agency > Settings; test that a studio owner is refused
-- [ ] 1.4 Schema: `creditIdentities`, `catalogImports`, `catalogImportItems`, `songs.importedFrom`, `songs.creditedMembers`, `members.importedCredits`, `royaltyStatements`, `royaltyLines`, `royaltyShares`, `royaltyMappings`, `collaboratorGrants` scope `royalty_statement`, media purpose `royalty_statement`
+- [x] 1.1 Add capability keys `catalogImport` (growth) and `royalties` (max) to `convex/lib/pricing.ts` (CapabilityKey, CAPABILITY_TIER, feature rows) and update pricing tests
+- [x] 1.1b Move `splitSheets` to `core` (CAPABILITY_TIER + the four split-sheet feature rows + any marketing/pricing copy naming Max); add `splitSheets.createWithSong` (gated on splitSheets only) that inserts a basic song (title, artist, ISRC) plus the sheet; Split Sheets page lists sheets without needing the Songs module; a Split sheets page (/splits, nav on every plan) lists and edits sheets outside Songs; tests that Core can create, edit and send a sheet
+- [x] 1.2 Add `agencies.royaltiesEnabled` (optional boolean) and `requireRoyalties(ctx, orgId)` with the `ROYALTIES_OFF` error; unit-test tier x toggle combinations
+- [x] 1.3 Agency toggle: `agencySettings.setRoyaltiesEnabled` (agency members only) + `summary` field; switch on Agency > Settings; test that a studio owner is refused
+- [x] 1.4 Schema: `creditIdentities`, `catalogImports`, `catalogImportItems`, `songs.importedFrom`, `songs.creditedMembers`, `members.importedCredits`, `royaltyStatements`, `royaltyLines`, `royaltyShares`, `royaltyMappings`, `collaboratorGrants` scope `royalty_statement`, media purpose `royalty_statement`
 
 ## 2. Split sheet email requirement
 
-- [ ] 2.1 `splitSignatures.issue` refuses when any contributor lacks a valid email and names them; test both scenarios
-- [ ] 2.2 Split sheet editor marks contributor email required and shows the refusal
+- [x] 2.1 `splitSignatures.issue` refuses when any contributor lacks a valid email and names them; test both scenarios
+- [x] 2.2 Split sheet editor marks contributor email required and shows the refusal
 
 ## 3. Catalog discovery (pure + lookups)
 
