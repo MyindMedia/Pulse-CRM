@@ -198,7 +198,11 @@ export const listing = query({
       .withIndex("by_slug", (q) => q.eq("slug", slug))
       .first();
     if (!org || listedOrgs([org]).length === 0) return null;
-    return await buildListing(ctx, org, { withAvailability: true });
+    const l = await buildListing(ctx, org, { withAvailability: true });
+    if (!l) return null;
+    // Link to the City Page only when it exists (2+ studios), never to a 404.
+    const hasCityPage = l.citySlug !== null && (await cityGroups(ctx, false)).some((g) => g.slug === l.citySlug);
+    return { ...l, hasCityPage };
   },
 });
 
@@ -232,7 +236,7 @@ export const pageMeta = query({
     return {
       name: org.name,
       // The tagline is on the booking page; the blurb is public once listed.
-      description: (org.tagline ?? (listed ? org.directoryBlurb : undefined) ?? "").trim() || null,
+      description: (org.tagline?.trim() || (listed ? org.directoryBlurb?.trim() : "") || "").replace(/\s+/g, " ") || null,
       city: listed ? org.directoryCity ?? null : null,
       region: listed ? org.directoryRegion ?? null : null,
       listed,

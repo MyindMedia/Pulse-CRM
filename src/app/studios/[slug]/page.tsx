@@ -46,7 +46,7 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
     l.fromHourlyCents !== null ? `from ${money(l.fromHourlyCents)} an hour` : null,
     "Book online with live open dates.",
   ].filter(Boolean);
-  const description = bits.join(". ").replace(/\.\./g, ".");
+  const description = bits.join(". ").replace(/\s+/g, " ").replace(/\.\./g, ".");
   return {
     title,
     description,
@@ -134,10 +134,10 @@ export default async function StudioProfilePage({ params }: Params) {
       "@type": "BreadcrumbList",
       itemListElement: [
         { "@type": "ListItem", position: 1, name: "Find a studio", item: `${SITE_URL}/studios` },
-        ...(l.citySlug && l.city
+        ...(l.hasCityPage && l.citySlug && l.city
           ? [{ "@type": "ListItem", position: 2, name: l.city, item: `${SITE_URL}/studios/in/${l.citySlug}` }]
           : []),
-        { "@type": "ListItem", position: l.citySlug && l.city ? 3 : 2, name: l.name, item: `${SITE_URL}/studios/${l.slug}` },
+        { "@type": "ListItem", position: l.hasCityPage && l.city ? 3 : 2, name: l.name, item: `${SITE_URL}/studios/${l.slug}` },
       ],
     },
   ];
@@ -259,7 +259,7 @@ export default async function StudioProfilePage({ params }: Params) {
 
       <p className="mt-14 border-t border-graphite/50 pt-5 text-xs text-steel/60">
         {l.name} takes bookings through Pulse. The booking goes straight to the studio, with no commission.{" "}
-        {l.citySlug && l.city ? (
+        {l.hasCityPage && l.citySlug && l.city ? (
           <Link href={`/studios/in/${l.citySlug}`} className="text-gold underline-offset-2 hover:underline">
             More studios in {l.city}
           </Link>

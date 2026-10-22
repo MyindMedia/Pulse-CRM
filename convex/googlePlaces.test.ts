@@ -129,10 +129,12 @@ describe("Find a Studio pages", () => {
     const t = convexTest(schema);
     await studio(t, "o1", "vault", "Atlanta");
     expect(await t.query(api.directory.city, { slug: "atlanta-ga" })).toBeNull();
+    expect((await t.query(api.directory.listing, { slug: "vault" }))!.hasCityPage).toBe(false);
     await studio(t, "o2", "echo", "Atlanta");
     await studio(t, "o3", "hidden", "Atlanta", false);
     const c = (await t.query(api.directory.city, { slug: "atlanta-ga" }))!;
     expect(c.listings.map((l) => l.slug)).toEqual(["echo", "vault"]);
+    expect((await t.query(api.directory.listing, { slug: "vault" }))!.hasCityPage).toBe(true);
     expect((await t.query(api.directory.search, {})).cityPages).toEqual([{ slug: "atlanta-ga", city: "Atlanta", region: "GA" }]);
   });
 

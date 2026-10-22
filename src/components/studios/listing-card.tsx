@@ -6,7 +6,7 @@ import type { GooglePlace } from "@convex/lib/places";
 import { money } from "@/lib/format";
 import { GoogleRatingBadge } from "@/components/google/google-reviews";
 
-export type StudioListing = NonNullable<FunctionReturnType<typeof api.directory.listing>>;
+export type StudioListing = Omit<NonNullable<FunctionReturnType<typeof api.directory.listing>>, "hasCityPage">;
 
 /** One studio in a server-rendered list (City Pages). */
 export function ListingCard({ l, google }: { l: StudioListing; google?: GooglePlace }) {
