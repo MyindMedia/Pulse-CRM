@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Input, Textarea, Field } from "@/components/ui/field";
+import { DEALS_DISCLOSURE } from "@convex/lib/deals";
 import {
   Select,
   SelectTrigger,
@@ -29,6 +30,9 @@ export type BookingFormValues = {
   clientPhone: string;
   serviceType: ServiceType;
   notes: string;
+  /** "Text me deals": marketing consent, separate from reminder texts and
+   *  never pre-ticked (lib/deals.ts). */
+  dealsOptIn: boolean;
 };
 
 export const emptyBookingForm: BookingFormValues = {
@@ -37,6 +41,7 @@ export const emptyBookingForm: BookingFormValues = {
   clientPhone: "",
   serviceType: "recording",
   notes: "",
+  dealsOptIn: false,
 };
 
 export function BookingForm({
@@ -106,6 +111,17 @@ export function BookingForm({
           autoComplete="tel"
         />
       </Field>
+      {values.clientPhone.trim() && (
+        <label className="flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed text-steel">
+          <input
+            type="checkbox"
+            checked={values.dealsOptIn}
+            onChange={(e) => set("dealsOptIn", e.target.checked)}
+            className="mt-0.5 size-4 shrink-0 accent-[#fdb913]"
+          />
+          <span>{DEALS_DISCLOSURE}</span>
+        </label>
+      )}
       <Field label="What are you booking for?">
         <Select
           value={values.serviceType}

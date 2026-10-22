@@ -67,6 +67,7 @@ const AGENT_META: Record<string, { label: string; group: string; order: number }
   weak_lead_source: { label: "Lead Source ROI", group: "Revenue Ops", order: 11 },
   promote_underused_room: { label: "Promote Room", group: "Revenue Ops", order: 11 },
   social_post_draft: { label: "Social Post", group: "Marketing", order: 12 },
+  gap_deal_text: { label: "Deal Text", group: "Marketing", order: 12 },
   // Accounting agent: money only. Approving posts through the ledger.
   acct_clearing_draft: { label: "Clear Deposits", group: "Accounting", order: 13 },
   acct_cash_draw_reclass: { label: "Cash Owner Draw", group: "Accounting", order: 13 },
@@ -137,6 +138,7 @@ function InboxCard({ action, onOpen }: { action: Doc<"opsActions">; onOpen: (a: 
               {p.kind === "receipt_link" && <span>{p.exact ? "exact receipt match" : "possible receipt match"}</span>}
               {p.kind === "acct_note" && <span>finding, approving only acknowledges it</span>}
               {p.kind === "social_post" && <span>social post draft</span>}
+              {p.kind === "sms_blast" && <span>deal text to {p.artistIds.length} opted-in client{p.artistIds.length === 1 ? "" : "s"}</span>}
             </div>
           </div>
           <ChevronRight className="mt-0.5 size-4 shrink-0 text-steel/70" />

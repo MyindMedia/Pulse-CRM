@@ -15,6 +15,7 @@ export type SmsIntent =
   | "reschedule"
   | "late"
   | "claim"
+  | "deals"
   | "rating"
   | "text"; // free text - no keyword matched
 
@@ -41,6 +42,7 @@ export function parseSmsIntent(raw: string): SmsIntent {
   if (/^(RESCHEDULE|RESCHED)$/.test(word)) return "reschedule";
   if (/^(LATE|RUNNING LATE)$/.test(word)) return "late";
   if (/^CLAIM$/.test(word)) return "claim";
+  if (/^DEALS?$/.test(word)) return "deals";
   if (/^[1-5]$/.test(word)) return "rating";
   return "text";
 }

@@ -5,6 +5,7 @@ import { motion } from "motion/react";
 import { ArrowUpRight, Clock, Sparkles } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { money } from "@/lib/format";
+import { describeWindow, type OffPeakWindow } from "@convex/lib/offPeak";
 import { fadeUp } from "@/lib/motion";
 import { RoomCover } from "@/components/book/room-cover";
 import { withTracking, type TrackingParams } from "@/lib/tracking-links";
@@ -18,6 +19,8 @@ export type RoomCardData = {
   hourlyRateCents?: number;
   minimumHours: number;
   depositPct?: number;
+  /** Off-peak windows, only when the studio prices with them. */
+  offPeak?: { windows: OffPeakWindow[]; tz: string } | null;
   gearCount: number;
   gearPreview: string[];
   photos: string[];
@@ -69,6 +72,11 @@ export function RoomCard({
               <Clock className="size-3" />
               {room.minimumHours}h minimum
             </Badge>
+            {room.offPeak && room.hourlyRateCents !== undefined && (
+              <Badge tone="gold" title={room.offPeak.windows.map(describeWindow).join("; ")}>
+                Off-peak up to {Math.max(...room.offPeak.windows.map((w) => w.pct))}% off
+              </Badge>
+            )}
           </div>
 
           <div className="space-y-1.5 border-t border-graphite/50 pt-3">

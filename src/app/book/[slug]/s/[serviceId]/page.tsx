@@ -29,6 +29,7 @@ import {
 } from "@/components/book/add-ons-picker";
 import { RequestSummary, ApprovalNote } from "@/components/book/request-summary";
 import { cn } from "@/lib/utils";
+import { offPeakRoomCents } from "@convex/lib/offPeak";
 import { useTrackBookingStep, visitorKey } from "@/lib/use-booking-funnel";
 
 /* ============================================================
@@ -125,7 +126,13 @@ function ServiceBookingView() {
   const liveServiceCents = selection
     ? flat
       ? (svc.priceCents ?? 0)
-      : (svc.priceCents ?? 0) * selection.durationHours
+      : offPeakRoomCents({
+          hourlyRateCents: svc.priceCents ?? 0,
+          windows: svc.offPeak?.windows,
+          startTime: selection.startTime,
+          durationHours: selection.durationHours,
+          tz: svc.offPeak?.tz ?? "UTC",
+        }).cents
     : 0;
   const liveTotalCents =
     liveServiceCents + (selection ? addOnCents + crew.addOnTotalCents : 0);
@@ -166,6 +173,7 @@ function ServiceBookingView() {
         clientName: form.clientName.trim(),
         clientEmail: form.clientEmail.trim(),
         clientPhone: form.clientPhone.trim() || undefined,
+        dealsOptIn: form.clientPhone.trim() && form.dealsOptIn ? true : undefined,
         startTime: selection.startTime,
         durationHours: selection.durationHours,
         notes: form.notes.trim() || undefined,
@@ -267,6 +275,7 @@ function ServiceBookingView() {
             hourlyRateCents={svc.hourlyRateCents}
             depositPct={svc.depositPct}
             closeHour={svc.closeHour}
+            offPeak={svc.offPeak}
             onChange={handleSelection}
           />
         </div>

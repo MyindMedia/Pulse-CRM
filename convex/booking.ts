@@ -31,6 +31,9 @@ import {
 } from "./lib/gearRental";
 import { normalizeEmail, sameEmail } from "./lib/emailKey";
 import { resolveCode, recordRedemption } from "./promos";
+import { offPeakRoomCents, bestOfOffPeakAndPromo } from "./lib/offPeak";
+import { DEALS_CONSENT_VERSION } from "./lib/deals";
+import { orgTz } from "./lib/tz";
 
 /* Staff roles a client can request to run their session, on the public page. */
 const ENGINEER_ROLES = new Set(["owner", "engineer", "assistant_engineer", "producer"]);
@@ -80,15 +83,23 @@ const defaults = (room: Doc<"rooms">) => ({
    computed in createBooking and stored on the session for internal billing.
    With the switch off every field below ships exactly as before. */
 
+/** Off-peak windows the public page prices with (lib/offPeak.ts), in the
+ *  studio's timezone, or null: switch off, no windows, or pricing hidden. */
+function publicOffPeak(org: Doc<"orgs"> | null, room: Doc<"rooms">, hidePricing: boolean) {
+  if (hidePricing || org?.offPeakEnabled !== true || !room.offPeakWindows?.length) return null;
+  return { windows: room.offPeakWindows, tz: orgTz(org) };
+}
+
 /** A room for a public page: the doc plus booking defaults, minus every
  *  money field when the studio hides pricing. */
-function publicRoom(room: Doc<"rooms">, hidePricing: boolean) {
-  const { hourlyRateCents: _rate, depositPct: _deposit, paymentMode: _mode, ...rest } = room;
-  void _rate; void _deposit; void _mode;
+function publicRoom(room: Doc<"rooms">, hidePricing: boolean, org: Doc<"orgs"> | null) {
+  const { hourlyRateCents: _rate, depositPct: _deposit, paymentMode: _mode, offPeakWindows: _windows, ...rest } = room;
+  void _rate; void _deposit; void _mode; void _windows;
   const d = defaults(room);
   return {
     ...rest,
     minimumHours: d.minimumHours,
+    offPeak: publicOffPeak(org, room, hidePricing),
     ...(hidePricing
       ? {}
       : { hourlyRateCents: d.hourlyRateCents, depositPct: d.depositPct, paymentMode: d.paymentMode }),
@@ -229,7 +240,7 @@ export const studioFront = query({
           : room.heroImageUrl ?? null;
         const photos = [...(heroShot ? [heroShot] : []), ...gearPhotos].slice(0, 6);
         return {
-          ...publicRoom(room, hidePricing),
+          ...publicRoom(room, hidePricing, org),
           // Sort key only; stripped below before anything leaves the server.
           _sortRate: defaults(room).hourlyRateCents,
           gearCount: gear.length,
@@ -378,6 +389,8 @@ export const service = query({
             // of the studio, not of which product was bought.
             paymentMode: defaults(room).paymentMode,
           }),
+      // Off-peak prices hourly services only, like createBooking.
+      offPeak: svc.pricingMode === "hourly" ? publicOffPeak(org, room, hidePricing) : null,
       pricingHidden: hidePricing,
       requiresApproval: hidePricing || features.requireApproval,
       minimumHours:
@@ -456,7 +469,7 @@ export const room = query({
     const features = bookingFeatures(org);
     const hidePricing = features.hidePricing;
     return {
-      ...publicRoom(room, hidePricing),
+      ...publicRoom(room, hidePricing, org),
       heroUrl: room.heroImageId
         ? await fileUrl(ctx, room.heroImageId)
         : (room.heroImageUrl ?? null),
@@ -713,6 +726,7 @@ type HiddenPriceResult = {
   listValueCents?: undefined;
   discountPct?: undefined;
   discountCode?: undefined;
+  offPeakCents?: undefined;
 };
 
 /** Create a held booking. Status starts "tentative" until the deposit clears. */
@@ -752,6 +766,9 @@ export const createBooking = mutation({
     // Post attribution: a ?src=<postId> tracked link. Its own arg, resolved
     // independently of the room/service path below.
     src: v.optional(v.string()),
+    // The client ticked "Text me deals" (lib/deals.ts DEALS_DISCLOSURE).
+    // Unticked never clears an earlier opt-in.
+    dealsOptIn: v.optional(v.boolean()),
   },
   handler: async (ctx, args) => {
     const svc = args.serviceId ? await ctx.db.get(args.serviceId) : null;
@@ -926,6 +943,16 @@ export const createBooking = mutation({
       }
     }
 
+    // Deal-text consent needs a number to text and the client's own tick.
+    const dealsConsent =
+      args.dealsOptIn && args.clientPhone?.trim()
+        ? {
+            dealsOptInAt: Date.now(),
+            dealsOptInSource: "booking_form" as const,
+            dealsConsentVersion: DEALS_CONSENT_VERSION,
+          }
+        : null;
+
     const email = args.clientEmail.trim().toLowerCase();
     const existing = (
       await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()
@@ -940,6 +967,7 @@ export const createBooking = mutation({
         !existing.referredByArtistId && referredByArtistId && referredByArtistId !== existing._id;
       await ctx.db.patch(existing._id, {
         phone: args.clientPhone ?? existing.phone,
+        ...(dealsConsent && !existing.dealsOptInAt ? dealsConsent : {}),
         lastContactAt: Date.now(),
         source: existing.source ?? effectiveSource,
         ...(setReferrer ? { referredByArtistId } : {}),
@@ -960,16 +988,39 @@ export const createBooking = mutation({
         lastContactAt: Date.now(),
         source: effectiveSource,
         ...(referredByArtistId ? { referredByArtistId } : {}),
+        ...(dealsConsent ?? {}),
       });
+    }
+    // A new opt-in gets its confirmation text, so whoever owns the number
+    // knows and can reply STOP (gapDeals._confirmOptIn).
+    if (dealsConsent && !existing?.dealsOptInAt) {
+      await ctx.scheduler.runAfter(0, internal.gapDeals._confirmOptIn, { artistId });
     }
 
     // The undiscounted (list) total, then the rate actually billed. The
     // deposit is computed off the billed rate so it stays proportional to
     // what the client owes, discounted or not.
     const listRateCents = cfg.hourlyRateCents * args.durationHours + addOnTotalCents;
-    const rateCents = discount
-      ? Math.round((listRateCents * (100 - discount.pct)) / 100)
-      : listRateCents;
+    /* Off-peak (lib/offPeak.ts): room time only, hour by hour in studio time,
+       for the room's own rate or an hourly service. Never stacked with a
+       promo: the client pays the lower total and a losing code is not spent. */
+    const offPeakOn =
+      org?.offPeakEnabled === true && (!svc || svc.pricingMode === "hourly") && !!room.offPeakWindows?.length;
+    const roomTime = offPeakRoomCents({
+      hourlyRateCents: cfg.hourlyRateCents,
+      windows: offPeakOn ? room.offPeakWindows : undefined,
+      startTime: args.startTime,
+      durationHours: args.durationHours,
+      tz: orgTz(org),
+    });
+    const priced = bestOfOffPeakAndPromo({
+      roomFullCents: cfg.hourlyRateCents * args.durationHours,
+      roomOffPeakCents: roomTime.cents,
+      addOnCents: addOnTotalCents,
+      promoPct: discount ? discount.pct : null,
+    });
+    if (priced.applied !== "promo") discount = null;
+    const rateCents = priced.rateCents;
     /* What is due now. On a paid-in-full room that is the whole thing - the
        "deposit" is the price, so the hold clears the moment it is paid and no
        balance is left to chase. */
@@ -1022,6 +1073,7 @@ export const createBooking = mutation({
             compReason: `Code ${discount.code}`,
           }
         : {}),
+      ...(priced.applied === "off_peak" ? { offPeakCents: priced.offPeakSavingsCents } : {}),
     });
 
     // Close the booking-page funnel: this visitor got all the way through.
@@ -1197,6 +1249,7 @@ ${asRequest ? "It is a booking request: the studio still has to approve it, and 
       listValueCents: listRateCents,
       discountPct: discount?.pct ?? 0,
       discountCode: discount?.code ?? null,
+      offPeakCents: priced.offPeakSavingsCents,
     };
   },
 });
