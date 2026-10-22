@@ -11,8 +11,8 @@ import { requireFeature, orgHasFeature } from "./lib/entitlements";
 import { PLAN_LIMITS } from "./lib/plans";
 import { tierForOrg } from "./lib/tier";
 import { creditSourceV, CREDIT_ROLES } from "./catalogTables";
-import { parseArtistLink, mergeCandidates, titleKey, type Candidate } from "./lib/catalogMerge";
-import { searchIdentities, resolveArtistLink, discover, type IdentityCandidate } from "./lib/catalogDiscovery";
+import { parseArtistLink, mergeCandidates, titleKey, byPriority, corroborates, type Candidate } from "./lib/catalogMerge";
+import { searchIdentities, resolveArtistLink, discoverAll, findSiblings, type IdentityCandidate } from "./lib/catalogDiscovery";
 import { enrichItem, type EnrichOutcome } from "./lib/catalogEnrich";
 import { artistKey, isClient } from "./lib/catalogArtists";
 import { primaryArtist } from "./lib/musicLink";
@@ -306,6 +306,37 @@ export const _addItems = internalMutation({
   },
 });
 
+/** Identities the import found on its own (the same person at the sources
+ *  they did not pick), saved like picked ones so the next import reuses them. */
+export const _addIdentities = internalMutation({
+  args: { importId: v.id("catalogImports"), identities: v.array(identityArgV) },
+  handler: async (ctx, { importId, identities }) => {
+    const job = await ctx.db.get(importId);
+    if (!job) return;
+    const existing = await ctx.db
+      .query("creditIdentities")
+      .withIndex("by_org_subject", (q) => q.eq("orgId", job.orgId).eq("subjectKind", job.subjectKind).eq("subjectId", job.subjectId))
+      .collect();
+    const ids = [...job.identityIds];
+    for (const i of identities) {
+      const id =
+        existing.find((e) => e.source === i.source && e.sourceId === i.sourceId)?._id ??
+        (await ctx.db.insert("creditIdentities", {
+          orgId: job.orgId,
+          subjectKind: job.subjectKind,
+          subjectId: job.subjectId,
+          source: i.source,
+          sourceId: i.sourceId.slice(0, 80),
+          name: i.name.slice(0, 200),
+          imageUrl: i.imageUrl?.startsWith("https://") ? i.imageUrl.slice(0, 500) : undefined,
+          createdAt: Date.now(),
+        }));
+      if (!ids.includes(id)) ids.push(id);
+    }
+    await ctx.db.patch(importId, { identityIds: ids });
+  },
+});
+
 export const _setStatus = internalMutation({
   args: {
     importId: v.id("catalogImports"),
@@ -343,13 +374,46 @@ export const runDiscovery = internalAction({
     const loaded = await ctx.runQuery(internal.catalogImport._job, { importId });
     if (!loaded) return;
     try {
-      const raw: Candidate[] = [];
-      for (const identity of loaded.identities) {
-        raw.push(...(await discover(identity, loaded.job.roles)));
+      const roles = loaded.job.roles;
+      const have = [...new Set(loaded.identities.map((i) => i.source))];
+      const lead = loaded.identities.find((i) => i.source === "genius") ?? loaded.identities[0];
+      // Every source at once: the picked identities, and the same name at
+      // the sources they did not pick.
+      const [picked, others] = await Promise.all([
+        discoverAll(loaded.identities, roles),
+        lead && have.length < 4
+          ? findSiblings(lead.name, have).then((found) => discoverAll(found, roles))
+          : Promise.resolve([]),
+      ]);
+      const raw: Candidate[] = picked.flatMap((p) => p.found);
+      const known = new Set(raw.map((c) => titleKey(c.title)));
+      if (known.size === 0) {
+        // The picked profile found nothing for these roles (a Deezer pick for
+        // a producer): two other sources that agree stand in for it.
+        for (const o of others) {
+          const titles = new Set(o.found.map((c) => titleKey(c.title)));
+          if (others.some((x) => x.identity.source !== o.identity.source && corroborates(x.found, titles))) {
+            for (const t of titles) known.add(t);
+            break;
+          }
+        }
       }
-      // Genius first in the merge: its lists come ordered by popularity.
-      raw.sort((a, b) => Number(b.sources.includes("genius")) - Number(a.sources.includes("genius")));
-      const { items, capped } = mergeCandidates(raw);
+      // A sibling counts only when its songs overlap; one per source.
+      const kept: IdentityCandidate[] = [];
+      for (const o of others) {
+        if (kept.some((k) => k.source === o.identity.source)) continue;
+        if (!corroborates(o.found, known)) continue;
+        kept.push(o.identity);
+        raw.push(...o.found);
+      }
+      if (kept.length > 0) {
+        await ctx.runMutation(internal.catalogImport._addIdentities, {
+          importId,
+          identities: kept.map(({ source, sourceId, name, imageUrl }) => ({ source, sourceId, name, imageUrl })),
+        });
+      }
+      // Genius first, so its title, artist and art win; the rest fill gaps.
+      const { items, capped } = mergeCandidates(byPriority(raw));
       for (let i = 0; i < items.length; i += 100) {
         await ctx.runMutation(internal.catalogImport._addItems, { importId, items: items.slice(i, i + 100) });
       }

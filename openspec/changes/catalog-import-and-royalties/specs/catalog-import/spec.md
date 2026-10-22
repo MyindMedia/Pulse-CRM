@@ -38,7 +38,7 @@ The system SHALL let the person choose one or more Credit Roles (Artist, Writer,
 - **THEN** the import candidates contain the 40 producer recordings and none of the vocalist-only recordings
 
 ### Requirement: Credit Identity is picked, not typed
-The system SHALL resolve a Credit Identity either from a pasted Spotify, Apple Music or TIDAL artist link or from search results across the credit sources, SHALL show each candidate with enough context to tell same-name people apart (source, image when available, top songs), and SHALL store the chosen identity by source and source ID. Discovery SHALL follow the stored IDs, never a free-text name.
+The system SHALL resolve a Credit Identity either from a pasted Spotify, Apple Music or TIDAL artist link or from search results across the credit sources, SHALL show each candidate with enough context to tell same-name people apart (source, image when available, top songs), and SHALL store the chosen identity by source and source ID. Discovery SHALL follow the stored IDs; a name is used only to find the same person at the other sources, under the corroboration rule below.
 
 #### Scenario: Two people share a name
 - **WHEN** a search for "Mike Dean" returns two MusicBrainz artists and the person picks the one whose top songs they recognise
@@ -47,6 +47,17 @@ The system SHALL resolve a Credit Identity either from a pasted Spotify, Apple M
 #### Scenario: Artist link pasted
 - **WHEN** a person pastes an Apple Music artist link
 - **THEN** the system resolves the artist ID from the link and offers it as the Credit Identity without a search
+
+### Requirement: Every source on every import, Genius first
+Every import SHALL read every credit source (Genius, MusicBrainz, Apple Music, Deezer), not only the sources the person picked. For each source the person did not pick, the system SHALL search by the picked identity's name (Genius when picked, else the first), consider only exact name matches, and keep at most one, and only when its songs overlap the songs already found: one shared title, or two once ten or more titles are known. When the picked identities found nothing for the chosen roles, two other sources that agree with each other SHALL stand in. Kept identities SHALL be stored like picked ones. Sources SHALL run in parallel. When sources disagree on a field, Genius SHALL win, then MusicBrainz, then Apple Music, then Deezer; later sources only fill empty fields, and credits from every source are combined and deduplicated.
+
+#### Scenario: One Genius pick reads all four sources
+- **WHEN** a person picks only their Genius profile and the same name exists at MusicBrainz, Apple Music and Deezer with overlapping songs
+- **THEN** the import stores all four identities, merges the songs into one list with no duplicates, and each song keeps Genius's title and art with MusicBrainz's ISRC
+
+#### Scenario: Same-name stranger at another source
+- **WHEN** Apple Music has two artists named "Mike Dean" and only one shares songs with the picked profile
+- **THEN** only that one is imported, and the stranger's songs never reach the studio
 
 ### Requirement: Background import with progress and cap
 The system SHALL run discovery and enrichment as a background job, SHALL show progress (found, imported, merged, failed) while it runs, SHALL keep running if the person leaves the page, and SHALL cap one import at 500 songs, telling the person when the cap was reached.
@@ -60,7 +71,7 @@ The system SHALL run discovery and enrichment as a background job, SHALL show pr
 - **THEN** the job completes and its result is visible on their next visit
 
 ### Requirement: Dedupe against existing Songs
-The system SHALL match each candidate to an existing Song in the Studio by ISRC first, then by cleaned title plus primary artist. A matched Song SHALL be enriched (blank fields only, credits added to a draft split sheet with no contributors) and SHALL NOT be duplicated. One Song MAY be credited to several Members.
+Within one import, candidates from every source SHALL merge into one song by ISRC first, then by cleaned title (featuring and remaster tags removed, remixes kept apart) plus primary artist. The system SHALL match each candidate to an existing Song in the Studio by ISRC first, then by cleaned title plus primary artist. A matched Song SHALL be enriched (blank fields only, credits added to a draft split sheet with no contributors) and SHALL NOT be duplicated. One Song MAY be credited to several Members.
 
 #### Scenario: Song already in the studio
 - **WHEN** an imported recording's ISRC equals an existing Song's ISRC

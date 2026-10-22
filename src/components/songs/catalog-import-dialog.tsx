@@ -240,7 +240,7 @@ export function CatalogImportDialog({
               {/* 3. Which profile is you */}
               <Field
                 label="Find the profile that is you"
-                hint="Paste a Spotify, Apple Music or TIDAL artist link, or type a name. Pick every profile that is you (up to four)."
+                hint="Paste a Spotify, Apple Music or TIDAL artist link, or type a name. Pick the profile that is you; we also check Genius, MusicBrainz, Apple Music and Deezer for the rest."
               >
                 <form
                   className="flex gap-2"
@@ -355,7 +355,7 @@ function ImportProgress({ importId, onAgain }: { importId: Id<"catalogImports">;
                 : "Import stopped"}
         </p>
         <Badge tone={job.status === "done" ? "positive" : job.status === "failed" ? "critical" : "info"}>
-          {job.identities.map((i) => i.name).filter((n, i, a) => a.indexOf(n) === i).join(", ")}
+          {job.identities.map((i) => SOURCE_LABEL[i.source] ?? i.source).filter((n, i, a) => a.indexOf(n) === i).join(", ")}
         </Badge>
       </div>
       {job.status === "discovering" ? (

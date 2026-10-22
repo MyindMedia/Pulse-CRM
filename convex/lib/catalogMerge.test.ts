@@ -7,6 +7,9 @@ import {
   holdsChosenRole,
   parseReleaseDate,
   cleanIsrc,
+  byPriority,
+  corroborates,
+  titleKey,
   type Candidate,
 } from "./catalogMerge";
 
@@ -121,5 +124,60 @@ describe("parsing", () => {
   it("ISRCs", () => {
     expect(cleanIsrc("us-sm1-18-06411")).toBe("USSM11806411");
     expect(cleanIsrc("nope")).toBeUndefined();
+  });
+});
+
+describe("byPriority + mergeCandidates", () => {
+  it("lets Genius win on conflicts and the other sources fill the gaps", () => {
+    const { items } = mergeCandidates(
+      byPriority([
+        c({ title: "Blue Room", artistName: "Lena Vox", coverUrl: "deezer.jpg", album: "Deezer Album", sources: ["deezer"], refs: { deezerTrackId: 1 } }),
+        c({ title: "Blue Room", artistName: "Lena Vox", isrc: "USABC2600001", roles: ["Artist"], sources: ["musicbrainz"], refs: { mbRecordingId: "m" } }),
+        c({ title: "Blue Room (feat. Ky)", artistName: "Lena Vox", coverUrl: "genius.jpg", sources: ["genius"], refs: { geniusSongId: 9 } }),
+        c({ title: "Blue Room", artistName: "Lena Vox", releaseDate: 5, sources: ["apple"], refs: { appleTrackId: 3 } }),
+      ]),
+    );
+    expect(items).toHaveLength(1);
+    expect(items[0]).toMatchObject({
+      title: "Blue Room (feat. Ky)",
+      coverUrl: "genius.jpg",
+      isrc: "USABC2600001",
+      album: "Deezer Album",
+      releaseDate: 5,
+      roles: ["Artist"],
+      sources: ["genius", "musicbrainz", "apple", "deezer"],
+      refs: { geniusSongId: 9, mbRecordingId: "m", appleTrackId: 3, deezerTrackId: 1 },
+    });
+  });
+
+  it("keeps a remix and a different artist's song of the same name apart", () => {
+    const { items } = mergeCandidates(
+      byPriority([
+        c({ title: "Blue Room", artistName: "Lena Vox", sources: ["genius"] }),
+        c({ title: "Blue Room (Remix)", artistName: "Lena Vox", sources: ["deezer"] }),
+        c({ title: "Blue Room", artistName: "Someone Else", sources: ["apple"] }),
+      ]),
+    );
+    expect(items.map((i) => [i.title, i.artistName])).toEqual([
+      ["Blue Room", "Lena Vox"],
+      ["Blue Room", "Someone Else"],
+      ["Blue Room (Remix)", "Lena Vox"],
+    ]);
+  });
+});
+
+describe("corroborates", () => {
+  const known = (titles: string[]) => new Set(titles.map(titleKey));
+  it("needs one shared song for a small catalog", () => {
+    expect(corroborates([c({ title: "Blue Room" })], known(["Blue Room", "Night Drive"]))).toBe(true);
+    expect(corroborates([c({ title: "Other" })], known(["Blue Room"]))).toBe(false);
+  });
+  it("needs two shared songs once ten are known, so one stray title is not enough", () => {
+    const ten = known(Array.from({ length: 10 }, (_, i) => `Song ${i}`));
+    expect(corroborates([c({ title: "Song 1" }), c({ title: "Song 1" })], ten)).toBe(false);
+    expect(corroborates([c({ title: "Song 1" }), c({ title: "Song 2" })], ten)).toBe(true);
+  });
+  it("never vouches for anyone when nothing is known", () => {
+    expect(corroborates([c({ title: "Blue Room" })], new Set())).toBe(false);
   });
 });

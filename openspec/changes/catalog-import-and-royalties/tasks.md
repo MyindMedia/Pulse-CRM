@@ -49,3 +49,11 @@
 - [x] 8.1 Full vitest, tsc, lint; cross-browser check on the new pages
 - [x] 8.2 compliance-ops audit (earnings data, contributor emails) and `/pentest` of the CSV upload and token page; fix and re-prove
 - [ ] 8.3 PR, merge, Convex deploy; confirm royalties are absent with the agency switch off and present for a Max studio with it on; leave the switch OFF
+
+## 9. Every source, Genius first (Lawrence, 2026-10-22)
+
+- [x] 9.1 Name search adds Apple Music; `findSiblings` finds the picked person at every unpicked source (exact name, two per source)
+- [x] 9.2 `runDiscovery` runs all sources in parallel (`discoverAll`), keeps a sibling only when `corroborates`, stores kept ones (`_addIdentities`)
+- [x] 9.3 Merge sorted by `SOURCE_PRIORITY` (Genius, MusicBrainz, Apple Music, Deezer); enrichment adds Apple Music as the backup for art, album, release and genre
+- [x] 9.4 Tests: merge priority, remix kept apart, corroboration thresholds, end-to-end discovery from one Genius pick with a same-name stranger, Apple fallback match
+- [ ] 9.5 PR, merge, Convex deploy
