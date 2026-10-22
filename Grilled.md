@@ -1962,3 +1962,31 @@ Owner request: "Google review should be something that is enabled by the team in
 - Needs a Google Places API key (`GOOGLE_PLACES_API_KEY`, server only, Convex + Netlify). None exists yet; gcloud needs re-auth. Until set, the Integrations card says Google reviews are not available yet.
 
 **Non-goals:** Google sign-in / replying to reviews, importing Google reviews into Pulse, Yelp or other review sites, paid search.
+
+## Feature: Catalog Import + Royalty Statements (grilled 2026-10-22)
+
+**Goal (owner's words):** "allow users to connect their own tidal, apple music, spotify accounts to import their works and pull credits etc for song and split royalties ... they can select their role producer, writer, engineer, artist etc and pull in their catalogue."
+
+**Context found in code:** logins are studio Members (owner/engineer/producer...); Roster Artists have no login (token client portal only). Songs belong to the Studio and move writing -> released. Split sheets (Max) carry master% + publishing% and sign by emailed token; `splitSignatures.issue` silently skips contributors with no email, so such a sheet can never be fully executed. Engineer payouts are a ledger (approve -> mark paid); no money moves through Pulse. Glossary terms added to CONTEXT.md under "Catalog and Royalties".
+
+**Decisions**
+1. Two entry points: a Member imports their own credits from their profile (choosing Credit Roles: Artist, Writer, Producer, Engineer, Mix Engineer, Mastering Engineer, Vocalist, Musician); the Studio imports a Roster Artist's catalog from the artist page. Imported Catalog Songs land as stage Released, tagged, hidden from the active pipeline by default. A Member's top credits can fill their booking-page Notable Credits.
+2. Verification: the person picks their exact Credit Identity from search results (Genius / MusicBrainz / streaming artist link), stored by source ID, never a typed name. Imported songs are internal. Owner/manager Credit Approval is required before credits show publicly; labelled with their source. Credits never move money; only signed split sheets do.
+3. Royalties: Statements + Mark paid. Upload distributor CSV, match lines by ISRC, compute Royalty Shares from the signed split sheet, email Contributor Statements, account holder pays outside Pulse and marks paid. No money through Pulse (no KYC / 1099 / money-transmitter exposure).
+4. Distributor income uses master%; publishing statements (Songtrust / MLC / PRO) use publishing% (later, same flow).
+5. Unsigned sheet -> Unallocated Income, "waiting on N signatures", nudges; auto-allocates when fully executed. No-ISRC-match -> Unmatched Line (match or create song).
+6. Contributors: per-period statement email + private no-login token link to their history at this studio. Email becomes required on every split-sheet row before sending for signature.
+7. Streaming account sign-in: DROPPED for now (Spotify/Apple/TIDAL sign-in gives listener data only, cannot prove artist identity; Spotify dev mode caps 25 users). Identity = paste artist link or search name. Revisit if a service opens artist verification.
+8. Plans: Catalog Import on Growth (with Songs); Royalty Statements + Shares on Max (with split sheets); Growth sees royalties locked with upgrade prompt.
+9. CSV formats: auto-detected DistroKid, TuneCore, CD Baby + "Other" column picker remembered per studio.
+
+**Defaults (decided without asking, change if wrong)**
+- Dedupe: match existing Songs by ISRC, else title + primary artist; enrich, never duplicate; one song can be credited to several Members.
+- Catalog Import runs as a background job with progress (MusicBrainz ~1 req/s: ~5 min per 240 songs); cap 500 songs per import.
+
+**Dependencies / open**
+- `GENIUS_ACCESS_TOKEN` (Lawrence to create at genius.com/api-clients, store in 1Password "Genius API"): needed for producer/writer catalogs and most hip-hop credits. Genius artist-songs coverage of producer credits to be verified once the token exists.
+- A real DistroKid / TuneCore / CD Baby statement sample to build the readers against (deleted after).
+- Gates before calling done: OpenSpec proposal, compliance-ops (earnings + contributor emails), pentest on the CSV upload + token statement page.
+
+**Non-goals:** streaming sign-in; paying out through Pulse; PRO/MLC registration; publishing statements in v1; proving legal ownership.
