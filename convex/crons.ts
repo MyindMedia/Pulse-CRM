@@ -46,6 +46,10 @@ crons.interval("outreach-scheduled-send", { minutes: 1 }, internal.outreachSend.
 // Outreach > Settings; dry run by default. See docs/CONFIRMATION-CALLS.md.
 crons.interval("confirmation-calls", { minutes: 1 }, internal.outreachCalls.dispatchDueCalls, {});
 
+// Fill-the-gap deal texts: hourly, acting only where it is 9am studio time and
+// the studio turned deal texts on (gapDeals.ts). Off by default everywhere.
+crons.interval("gap-deal-texts", { hours: 1 }, internal.gapDeals.sweep, {});
+
 // Recompute every room's auto status from the live calendar.
 crons.interval("room-status", { minutes: 15 }, internal.maintenance.recomputeAllRoomStatuses);
 

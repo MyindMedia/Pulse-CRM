@@ -4,7 +4,7 @@ import * as React from "react";
 import { useQuery } from "convex/react";
 import { useSearchParams } from "next/navigation";
 import { api } from "@convex/_generated/api";
-import { Boxes, Building2, CreditCard, Crown, Database, Palette, Receipt, Users, Plug, Lightbulb } from "lucide-react";
+import { Boxes, Building2, CreditCard, Crown, Database, Palette, Receipt, Users, Plug, Lightbulb, TrendingUp } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
@@ -32,6 +32,7 @@ import { InventoryImportPanel } from "@/components/settings/inventory-import-pan
 import { AiReceptionistPanel } from "@/components/settings/ai-receptionist-panel";
 import { FeatureRequestsPanel } from "@/components/feature-requests/feature-board";
 import { ManagersMoneyPanel } from "@/components/settings/managers-money-panel";
+import { GrowthPanel } from "@/components/settings/growth-panel";
 import type { Org } from "@/components/settings/types";
 import { CapabilityGuard } from "@/components/shell/capability-guard";
 
@@ -55,7 +56,7 @@ export default function SettingsPage() {
   );
 }
 
-const TABS = ["workspace", "branding", "pricing", "team", "integrations", "memberships", "billing", "inventory", "data", "requests"];
+const TABS = ["workspace", "branding", "pricing", "growth", "team", "integrations", "memberships", "billing", "inventory", "data", "requests"];
 
 function SettingsView() {
   const org = useQuery(api.orgs.current) as Org | undefined;
@@ -88,6 +89,10 @@ function SettingsView() {
             <TabsTrigger value="pricing">
               <Receipt className="size-4" />
               Pricing
+            </TabsTrigger>
+            <TabsTrigger value="growth">
+              <TrendingUp className="size-4" />
+              Growth
             </TabsTrigger>
             <TabsTrigger value="team">
               <Users className="size-4" />
@@ -156,6 +161,9 @@ function SettingsView() {
               <PricingPanel org={org} />
               <CancellationPolicyPanel />
             </div>
+          </TabsContent>
+          <TabsContent value="growth">
+            <GrowthPanel />
           </TabsContent>
           <TabsContent value="team">
             <div className="space-y-5">

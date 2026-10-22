@@ -23,6 +23,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/feedback";
 import { money } from "@/lib/format";
+import { offPeakRoomCents, bestOfOffPeakAndPromo } from "@convex/lib/offPeak";
 import { GearGallery } from "@/components/book/gear-gallery";
 import {
   AvailabilityPicker,
@@ -148,10 +149,23 @@ function RoomDetailView() {
   // authoritative amounts (and re-validates the code) on the server.
   const liveRoomCents = selection ? (loadedRoom.hourlyRateCents ?? 0) * selection.durationHours : 0;
   const liveListCents = liveRoomCents + (selection ? addOns.addOnTotalCents : 0);
-  const promoPct = promo.status === "valid" ? promo.pct : 0;
-  const liveRateCents = promoPct
-    ? Math.round((liveListCents * (100 - promoPct)) / 100)
-    : liveListCents;
+  // Off-peak or the code, whichever is lower; never both (same as the server).
+  const liveOffPeak = selection
+    ? offPeakRoomCents({
+        hourlyRateCents: loadedRoom.hourlyRateCents ?? 0,
+        windows: loadedRoom.offPeak?.windows,
+        startTime: selection.startTime,
+        durationHours: selection.durationHours,
+        tz: loadedRoom.offPeak?.tz ?? "UTC",
+      })
+    : null;
+  const livePrice = bestOfOffPeakAndPromo({
+    roomFullCents: liveRoomCents,
+    roomOffPeakCents: liveOffPeak?.cents ?? liveRoomCents,
+    addOnCents: selection ? addOns.addOnTotalCents : 0,
+    promoPct: promo.status === "valid" ? promo.pct : null,
+  });
+  const liveRateCents = livePrice.rateCents;
   const liveDiscountCents = liveListCents - liveRateCents;
   /* A paid-in-full room takes the whole amount up front; the "deposit" is the
      price. createBooking does the same sum server-side. */
@@ -180,6 +194,7 @@ function RoomDetailView() {
         clientName: form.clientName.trim(),
         clientEmail: form.clientEmail.trim(),
         clientPhone: form.clientPhone.trim() || undefined,
+        dealsOptIn: form.clientPhone.trim() && form.dealsOptIn ? true : undefined,
         startTime: selection.startTime,
         durationHours: selection.durationHours,
         serviceType: form.serviceType,
@@ -314,6 +329,7 @@ function RoomDetailView() {
             hourlyRateCents={room.hourlyRateCents}
             depositPct={room.depositPct}
             closeHour={room.closeHour}
+            offPeak={room.offPeak}
             onChange={handleSelection}
           />
         </div>
@@ -385,13 +401,24 @@ function RoomDetailView() {
               onChange={setPromo}
             />
           </div>
-          {promo.status === "valid" && (
+          {livePrice.applied === "off_peak" && (
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-steel">Off-peak savings</span>
+              <span className="font-meta text-positive">-{money(liveDiscountCents)}</span>
+            </div>
+          )}
+          {promo.status === "valid" && livePrice.applied !== "off_peak" && (
             <div className="flex items-center justify-between text-sm">
               <span className="text-steel">Discount ({promo.pct}% off)</span>
               <span className="font-meta text-positive">
                 {selection ? `-${money(liveDiscountCents)}` : "-"}
               </span>
             </div>
+          )}
+          {promo.status === "valid" && livePrice.applied === "off_peak" && (
+            <p className="text-xs text-steel/70">
+              The off-peak rate beats your code here, so we used it. Your code stays unused.
+            </p>
           )}
 
           <div className="flex items-center justify-between border-t border-graphite/50 pt-3 text-sm">

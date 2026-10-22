@@ -9,6 +9,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { money } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { offPeakRoomCents, offPeakPctAt, type OffPeakWindow } from "@convex/lib/offPeak";
 
 /** Local midnight (ms) for an offset of N days from today. */
 function dayStartFor(offset: number) {
@@ -36,6 +37,7 @@ export function AvailabilityPicker({
   hourlyRateCents,
   depositPct,
   closeHour,
+  offPeak,
   onChange,
 }: {
   roomId: Id<"rooms">;
@@ -44,6 +46,8 @@ export function AvailabilityPicker({
   hourlyRateCents?: number;
   depositPct?: number;
   closeHour: number;
+  /** The studio's off-peak windows (studio timezone), or null/omitted. */
+  offPeak?: { windows: OffPeakWindow[]; tz: string } | null;
   onChange: (selection: SlotSelection | null) => void;
 }) {
   const days = React.useMemo(
@@ -112,7 +116,19 @@ export function AvailabilityPicker({
   }, [selectionValid, startHour, durationHours, dayStart, onChange]);
 
   const showPrice = hourlyRateCents !== undefined;
-  const rateCents = (hourlyRateCents ?? 0) * durationHours;
+  // Same hour-by-hour maths as createBooking (lib/offPeak.ts).
+  const priced =
+    startHour !== null
+      ? offPeakRoomCents({
+          hourlyRateCents: hourlyRateCents ?? 0,
+          windows: offPeak?.windows,
+          startTime: dayStart + startHour * 3_600_000,
+          durationHours,
+          tz: offPeak?.tz ?? "UTC",
+        })
+      : null;
+  const rateCents = priced ? priced.cents : (hourlyRateCents ?? 0) * durationHours;
+  const offPeakHours = priced?.offPeakHours ?? 0;
   const depositCents = Math.round((rateCents * (depositPct ?? 0)) / 100);
 
   function selectSlot(hour: number) {
@@ -183,6 +199,8 @@ export function AvailabilityPicker({
                 slot.hour > startHour &&
                 slot.hour < startHour + durationHours &&
                 selectionValid;
+              const offPeakPct =
+                showPrice && offPeak ? offPeakPctAt(offPeak.windows, slot.startTime, offPeak.tz) : 0;
               return (
                 <button
                   key={slot.hour}
@@ -202,6 +220,11 @@ export function AvailabilityPicker({
                   )}
                 >
                   {formatHour(slot.hour)}
+                  {slot.available && offPeakPct > 0 && (
+                    <span className={cn("block text-[0.625rem] font-normal", selected ? "text-gold-ink" : "text-positive")}>
+                      {offPeakPct}% off
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -257,6 +280,11 @@ export function AvailabilityPicker({
               {showPrice && (
                 <p className="font-grotesk text-xl font-semibold text-bone">
                   {money(rateCents)}
+                  {offPeakHours > 0 && (
+                    <span className="ml-2 align-middle font-meta text-xs font-normal text-positive">
+                      Off-peak rate
+                    </span>
+                  )}
                 </p>
               )}
             </div>

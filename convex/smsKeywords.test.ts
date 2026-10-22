@@ -37,6 +37,12 @@ describe("parseSmsIntent (two-way SMS keyword router)", () => {
     expect(parseSmsIntent("HELP")).toBe("help");
   });
 
+  it("classifies DEALS (deal-text opt-in), whole message only", () => {
+    expect(parseSmsIntent("DEALS")).toBe("deals");
+    expect(parseSmsIntent("deal")).toBe("deals");
+    expect(parseSmsIntent("any deals this week?")).toBe("text");
+  });
+
   it("classifies CLAIM and 1-5 ratings", () => {
     expect(parseSmsIntent("CLAIM")).toBe("claim");
     expect(parseSmsIntent("claim!")).toBe("claim");

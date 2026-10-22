@@ -5,7 +5,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Doc } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
-import { Check, X, Clock, Mail, CalendarCheck, Sparkles, Loader2 } from "lucide-react";
+import { Check, X, Clock, Mail, CalendarCheck, Sparkles, Loader2, MessageSquare } from "lucide-react";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter,
 } from "@/components/ui/dialog";
@@ -37,9 +37,11 @@ function Inner({ action, onClose }: { action: Doc<"opsActions">; onClose: () => 
 
   const p = action.payload;
   const isEmail = p.kind === "email";
+  const isText = p.kind === "sms_blast";
+  const draftBody = p.kind === "email" || p.kind === "sms_blast" ? p.body ?? "" : "";
   const [to] = React.useState(isEmail ? (p.to ?? "") : "");
   const [subject] = React.useState(isEmail ? (p.subject ?? "") : "");
-  const [body, setBody] = React.useState(isEmail ? (p.body ?? "") : "");
+  const [body, setBody] = React.useState(draftBody);
   const [artBody, setArtBody] = React.useState<string | null>(null);
   const [busy, setBusy] = React.useState(false);
 
@@ -60,7 +62,7 @@ function Inner({ action, onClose }: { action: Doc<"opsActions">; onClose: () => 
       if (action.artifactId && artBody !== null && artBody.trim() !== (artifact?.body ?? "").trim()) {
         await updateArtifact({ id: action.artifactId, body: artBody.trim() });
       }
-      const editedBody = isEmail && body.trim() !== (p.kind === "email" ? p.body ?? "" : "").trim() ? body.trim() : undefined;
+      const editedBody = (isEmail || isText) && body.trim() !== draftBody.trim() ? body.trim() : undefined;
       await approve(editedBody ? { id: action._id, editedBody } : { id: action._id });
       toast.success("Approved + executed.");
       onClose();
@@ -99,6 +101,17 @@ function Inner({ action, onClose }: { action: Doc<"opsActions">; onClose: () => 
             <Field label="Subject"><Input value={subject} disabled /></Field>
             <Field label="Message" htmlFor="ops-body" hint="Edit before you approve - your version is what sends.">
               <Textarea id="ops-body" rows={8} value={body} onChange={(e) => setBody(e.target.value)} />
+            </Field>
+          </>
+        )}
+
+        {p.kind === "sms_blast" && (
+          <>
+            <p className="inline-flex items-center gap-1.5 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2 text-sm text-steel">
+              <MessageSquare className="size-4 text-gold" /> Goes to {p.artistIds.length} client{p.artistIds.length === 1 ? "" : "s"} who opted in to deal texts, between 10am and 7pm.
+            </p>
+            <Field label="Text" htmlFor="ops-sms" hint="Edit before you approve. Pulse adds your studio name, the booking link and Reply STOP to opt out.">
+              <Textarea id="ops-sms" rows={3} maxLength={300} value={body} onChange={(e) => setBody(e.target.value)} />
             </Field>
           </>
         )}

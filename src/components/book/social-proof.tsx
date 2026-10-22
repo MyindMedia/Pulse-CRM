@@ -79,6 +79,9 @@ export function SocialProof({
           </span>
         )}
       </div>
+      {hasReviews && (
+        <p className="-mt-3 text-xs text-steel/70">Showing reviews rated 4 or 5 stars.</p>
+      )}
 
       {hasTestimonials && (
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">

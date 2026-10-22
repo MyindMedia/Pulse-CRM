@@ -40,7 +40,10 @@ import {
   REVIEW_THANKS,
   REVIEW_LOW_ACK,
   OWNER_DIGEST,
+  DEALS_OPTIN_ACK,
 } from "./lib/smsTemplates";
+import { routeInboundText } from "./lib/smsRouting";
+import { DEALS_CONSENT_VERSION } from "./lib/deals";
 
 function money(cents: number): string {
   return `$${Math.round(cents / 100).toLocaleString("en-US")}`;
@@ -429,9 +432,9 @@ async function applyPromptAnswer(
     });
     await answerPrompt(ctx, prompt, String(rating));
     if (rating >= 4) {
-      queueSend(ctx, phone, renderSms(REVIEW_THANKS, { studio }));
+      queueSend(ctx, phone, renderSms(REVIEW_THANKS, { studio, google: org?.googleReviewUrl }));
     } else {
-      queueSend(ctx, phone, renderSms(REVIEW_LOW_ACK, {}));
+      queueSend(ctx, phone, renderSms(REVIEW_LOW_ACK, { google: org?.googleReviewUrl }));
       await alertManagers(
         ctx,
         prompt.orgId,
@@ -530,12 +533,13 @@ async function applyPromptAnswer(
   return false;
 }
 
-/** Keywords that work without an open prompt: HELP, RESCHEDULE, LATE. */
+/** Keywords that work without an open prompt: HELP, RESCHEDULE, LATE, DEALS. */
 async function handleStandaloneKeyword(
   ctx: MutationCtx,
   phone: string,
   intent: ReturnType<typeof parseSmsIntent>,
 ): Promise<boolean> {
+  if (intent === "deals") return await optIntoDeals(ctx, phone);
   if (intent !== "help" && intent !== "reschedule" && intent !== "late" && intent !== "claim")
     return false;
 
@@ -582,6 +586,27 @@ async function handleStandaloneKeyword(
     return true;
   }
   return false;
+}
+
+/* DEALS: the client asks for deal texts. Written consent for marketing texts
+   (lib/deals.ts), recorded on the client row of the studio this phone talks
+   to, picked the same way an inbound reply is routed. A phone that sent STOP
+   stays opted out until START; an unclear studio is not guessed at. */
+async function optIntoDeals(ctx: MutationCtx, phone: string): Promise<boolean> {
+  if (await isOptedOut(ctx, phone)) return false;
+  const route = await routeInboundText(ctx, phone);
+  if (route.kind !== "routed" || route.routedBy === "best_guess") return false;
+  const artist = route.artist;
+  if (!artist.dealsOptInAt) {
+    await ctx.db.patch(artist._id, {
+      dealsOptInAt: Date.now(),
+      dealsOptInSource: "sms_keyword",
+      dealsConsentVersion: DEALS_CONSENT_VERSION,
+    });
+  }
+  const org = await orgOf(ctx, artist.orgId);
+  queueSend(ctx, phone, renderSms(DEALS_OPTIN_ACK, { studio: studioName(org) }));
+  return true;
 }
 
 // ── Timeclock sweep (cron): overtime + intern checks, caps + escalation ──

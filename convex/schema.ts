@@ -534,6 +534,21 @@ export default defineSchema({
         changeApproval: v.optional(v.boolean()),
       }),
     ),
+    // ── Growth (openspec/changes/off-peak-and-google-reviews). Off when unset. ──
+    // Room off-peak windows price public bookings.
+    offPeakEnabled: v.optional(v.boolean()),
+    // "Fill the gap" deal texts to opted-in clients. The Pulse agent decides;
+    // "approve" (default) sends its picks to the inbox, "auto" sends them.
+    dealTexts: v.optional(
+      v.object({
+        enabled: v.boolean(),
+        mode: v.union(v.literal("approve"), v.literal("auto")),
+      }),
+    ),
+    // Last deal text this studio sent (any room), for the agent's context.
+    lastDealTextAt: v.optional(v.number()),
+    // Sent to every client who rates a session by text (never only 4-5).
+    googleReviewUrl: v.optional(v.string()),
     // Studio (company) Google Calendar: which calendar and which direction.
     // Calendar id defaults to "primary" when unset; direction to two_way.
     googleCalendarId: v.optional(v.string()),
@@ -1077,6 +1092,12 @@ export default defineSchema({
     tags: v.array(v.string()),
     avatarColor: v.optional(v.string()),
     instagram: v.optional(v.string()),
+    // Deal texts (TCPA): marketing texts only after this opt-in. Separate from
+    // reminder texts; STOP (smsOptOuts) still blocks everything.
+    dealsOptInAt: v.optional(v.number()),
+    dealsOptInSource: v.optional(v.union(v.literal("booking_form"), v.literal("sms_keyword"))),
+    dealsConsentVersion: v.optional(v.string()),
+    lastDealTextAt: v.optional(v.number()),
     // Marketing: the artist agreed to be named in the studio's posts.
     okToFeature: v.optional(v.boolean()),
     spotify: v.optional(v.string()),
@@ -1292,6 +1313,18 @@ export default defineSchema({
     name: v.string(),
     roomType: v.optional(v.string()), // "Live room", "Mix suite", "Writing room"...
     hourlyRateCents: v.optional(v.number()),
+    // Off-peak windows, studio time (convex/lib/offPeak.ts). Used only while
+    // orgs.offPeakEnabled is on.
+    offPeakWindows: v.optional(
+      v.array(
+        v.object({
+          days: v.array(v.number()),
+          startHour: v.number(),
+          endHour: v.number(),
+          pct: v.number(),
+        }),
+      ),
+    ),
     status: v.union(
       v.literal("available"),
       v.literal("in_use"),
@@ -1546,6 +1579,9 @@ export default defineSchema({
     // listValue - rateCents); `compReason` is why. Absent = a normal booking.
     compType: v.optional(v.union(v.literal("comped"), v.literal("discounted"))),
     listValueCents: v.optional(v.number()),
+    // Off-peak savings on a public booking (room time only). A price the
+    // studio set, so it is NOT a comp and stays out of foregone revenue.
+    offPeakCents: v.optional(v.number()),
     compReason: v.optional(v.string()),
     // No-Show Shield outcomes on a cancelled / no-show session.
     cancellationFeeCents: v.optional(v.number()),
@@ -2650,6 +2686,8 @@ export default defineSchema({
       v.literal("profit_improvement"),
       v.literal("studio_risk"),
       v.literal("social_post_draft"),
+      // Growth: the Pulse agent's pick of a gap worth a deal text.
+      v.literal("gap_deal_text"),
       // Accounting agent (money only; convex/lib/agentScope.ts is the allowlist).
       v.literal("acct_clearing_draft"),
       v.literal("acct_cash_draw_reclass"),
@@ -2684,6 +2722,16 @@ export default defineSchema({
       }),
       v.object({ kind: v.literal("note_only") }),
       v.object({ kind: v.literal("social_post"), postId: v.id("socialPosts") }),
+      // Growth: one deal text to opted-in clients about a room's free block.
+      // Consent, STOP and the 7-day cap are re-checked at send time.
+      v.object({
+        kind: v.literal("sms_blast"),
+        roomId: v.id("rooms"),
+        gapStart: v.number(),
+        gapEnd: v.number(),
+        body: v.string(),
+        artistIds: v.array(v.id("artists")),
+      }),
       // Accounting agent. A balanced DRAFT journal entry; approving posts it.
       v.object({
         kind: v.literal("ledger_draft"),

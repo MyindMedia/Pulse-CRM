@@ -178,11 +178,27 @@ export const REVIEW_REQUEST =
   "Pulse: Thanks for recording at {studio}! How was your session? " +
   "Reply with a rating 1-5. Reply STOP to opt out.";
 
+/* The Google line goes to EVERY rater, low or high (Google prohibits asking
+   only happy customers for reviews). It drops out when the studio has no
+   review link on file. */
 export const REVIEW_THANKS =
-  "Pulse: Thank you! We are glad the session landed. See you next time at {studio}.";
+  "Pulse: Thank you! We are glad the session landed. See you next time at {studio}." +
+  "[[ Mind sharing it on Google? {google}]]";
 
 export const REVIEW_LOW_ACK =
-  "Pulse: Sorry the session missed the mark - the owner has been notified personally and will make it right.";
+  "Pulse: Sorry the session missed the mark - the owner has been notified personally and will make it right." +
+  "[[ You can also review us on Google: {google}]]";
+
+/* ── Deal texts (marketing; opt-in only, lib/deals.ts) ─────────────────── */
+
+/** Reply to a client who texted DEALS. */
+export const DEALS_OPTIN_ACK =
+  "Pulse: You are on the {studio} deals list - open studio time and offers, up to 4 texts a month. " +
+  "Msg & data rates may apply. Reply STOP to opt out.";
+
+/** Fill-the-gap offer. {body} is the studio-approved line. */
+export const GAP_DEAL =
+  "Pulse: {studio} - {body}[[ Book: {link}]] Reply STOP to opt out.";
 
 /** Balance due before the session, with the checkout link. */
 export const BALANCE_DUE_SMS =
