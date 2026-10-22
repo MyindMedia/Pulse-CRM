@@ -20,8 +20,8 @@ Convex deployment env (set on each deployment with `npx convex env set`):
 | Var | Production | Staging (fiery-cricket-350) |
 |---|---|---|
 | `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | existing OAuth client | same client |
-| `GOOGLE_REDIRECT_URI` | `https://studiopulse.tech/google/callback` | `https://studiopulse-staging.netlify.app/google/callback` |
-| `APP_URL` | `https://studiopulse.tech` | `https://studiopulse-staging.netlify.app` |
+| `GOOGLE_REDIRECT_URI` | `https://studiopulse.tech/google/callback` | `https://studiopulse-staging.netlify.app/google/callback` (the old bare URL; it 301s to the branch deploy with the query string, so the Google client needs no change) |
+| `APP_URL` | `https://studiopulse.tech` | `https://develop--studiopulse-staging.netlify.app` |
 
 Netlify (site env) already needs `NEXT_PUBLIC_CONVEX_URL`. The forwarder derives the `.convex.site` origin from it; set `NEXT_PUBLIC_CONVEX_SITE_URL` only if the two ever differ.
 

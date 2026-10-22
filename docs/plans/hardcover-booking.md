@@ -7,7 +7,7 @@ Source brief: `hardcover-booking-orchestrated-prompt.md`. Branch `feat/hardcover
 
 - Every behavior is a per-studio setting, **off by default**, so no live studio changes until someone turns it on.
 - The agency can turn each setting on for one studio or many from the agency console (new bulk control).
-- Flow: `develop` → staging (studiopulse-staging.netlify.app + Convex `fiery-cricket-350`) → Lawrence tests → "ship it" → `main` + prod Convex deploy. No direct prod deploys.
+- Flow: `develop` → staging (develop--studiopulse-staging.netlify.app + Convex `fiery-cricket-350`) → Lawrence tests → "ship it" → `main` + prod Convex deploy. No direct prod deploys.
 - The iOS app mirrors `orgs` and `sessions`: new fields are optional only, never renamed (see the 1.2.1 hotfix lesson).
 - Copy: "Pulse, the studio OS", never CRM, no em dashes, American spelling.
 

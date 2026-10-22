@@ -6,13 +6,23 @@ Pulse runs two complete copies. Build and test on **staging**; only promote to
 | | Production | Staging |
 |---|---|---|
 | Git branch | `main` | `develop` |
-| Netlify site | `pulse-dash-kit` → https://studiopulse.tech | `studiopulse-staging` → https://studiopulse-staging.netlify.app |
+| Netlify site | `pulse-dash-kit` → https://studiopulse.tech | `studiopulse-staging` → https://develop--studiopulse-staging.netlify.app (branch deploy) |
 | Convex backend | `pastel-corgi-340` (prod) | `fiery-cricket-350` (dev) |
 | Backend deploys | by hand: `npx convex deploy` with the prod key | automatically, in the staging site's Netlify build |
+| Netlify credits | 15 per deploy (production deploy) | **0**: `develop` is a *branch deploy*; failed builds are free too |
 | Clerk login | production instance (`clerk.studiopulse.tech`) | development instance (`alive-emu-4.clerk.accounts.dev`), separate test users |
 | Stripe | live account | sandbox (test mode, card `4242 4242 4242 4242`) |
 | Data | real studios | test data only |
 | Look | normal | amber **Staging · test data** pill at the top, `noindex` |
+
+**Why a branch deploy (2026-10-22):** every Netlify *production* deploy costs 15
+credits, and staging used to be the `studiopulse-staging` site's production
+branch, so 87 `develop` merges in two weeks cost about 1,300 credits. The site's
+production branch is now the unused `staging-prod-unused`; `develop` builds as a
+free branch deploy at https://develop--studiopulse-staging.netlify.app. The old
+https://studiopulse-staging.netlify.app is a redirect-only production deploy that
+301s every path (query string kept) to the branch URL. Do **not** set the
+production branch back to `develop`, and never push a `staging-prod-unused` branch.
 
 **Never copy production data into staging.** Staging is a public URL and its
 data is not protected like production's. Use seeded demo data and test
@@ -30,9 +40,9 @@ accounts.
    `fiery-cricket-350` first (`npx convex deploy --cmd 'npm run build'`), so the
    staging frontend and backend always match.
 3. **Check the staging deploy actually happened.** A green `git push` proves
-   nothing: confirm a new deploy on `studiopulse-staging` whose `commit_ref` is your
-   commit reaches `ready`, then load the routes you changed (HTTP 200).
-4. **Lawrence tests on https://studiopulse-staging.netlify.app.**
+   nothing: confirm a new deploy on `studiopulse-staging` with `context: branch-deploy`,
+   `branch: develop` and your `commit_ref` reaches `ready`, then load the routes you changed (HTTP 200).
+4. **Lawrence tests on https://develop--studiopulse-staging.netlify.app.**
 5. **Promote, only when Lawrence says ship it:**
    1. Open a pull request `develop` → `main`.
    2. Run `npx tsc --noEmit` and `npx vitest run` (the known failures on main
@@ -54,7 +64,8 @@ accounts.
   Stripe sandbox publishable key, and a Convex **dev** deploy key
   (`CONVEX_DEPLOY_KEY`).
 - **Staging Convex env** (`fiery-cricket-350`): Clerk dev issuer and secret,
-  Stripe sandbox keys and price ids, `NEXT_PUBLIC_APP_URL` = the staging URL,
+  Stripe sandbox keys and price ids, `APP_URL` and `NEXT_PUBLIC_APP_URL` = the branch URL above,
+  `GOOGLE_REDIRECT_URI` = the old bare URL (it 301s to the branch URL),
   `PULSE_AGENCY_ID` = the staging agency. `PULSE_DEMO_MODE` must stay
   **unset**: with it, anyone on the public staging URL is an owner without
   signing in.
