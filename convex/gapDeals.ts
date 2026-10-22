@@ -18,14 +18,14 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { sendSms } from "./lib/sms";
 import { normalizePhone } from "./lib/phone";
-import { renderSms, GAP_DEAL } from "./lib/smsTemplates";
+import { renderSms, GAP_DEAL, DEALS_OPTIN_ACK } from "./lib/smsTemplates";
 import { appUrl } from "./lib/links";
 import { orgTz, clockTime, dateLabel, localDayKey } from "./lib/tz";
 import { localMidnight } from "./lib/roomBlockRange";
 import { roomBusyIntervals, sessionHoldsSlot } from "./lib/roomBusy";
 import { freeBlocks, padSessions, MIN_GAP_MS, type Interval } from "./lib/gaps";
 import { localWeekdayHour, offPeakPctAt } from "./lib/offPeak";
-import { canGetDealText, dealsEnabled, dealsMode, decideGapDeal, nextSendTime } from "./lib/deals";
+import { canGetDealText, dealsEnabled, dealsMode, decideGapDeal, nextSendTime, dealTextsLive } from "./lib/deals";
 import { askChoice } from "./lib/typesafe";
 
 const HOUR = 3_600_000;
@@ -279,6 +279,29 @@ export const sweep = internalAction({
   },
 });
 
+/** Confirm a new deal-text opt-in by text, once. Only while deal texts are
+ *  live; anyone opted in earlier is confirmed before their first deal text
+ *  (deliverGapDeal). */
+export const _confirmOptIn = internalMutation({
+  args: { artistId: v.id("artists") },
+  handler: async (ctx, { artistId }) => {
+    if (!dealTextsLive()) return;
+    const artist = await ctx.db.get(artistId);
+    if (!artist?.dealsOptInAt || artist.dealsConfirmSentAt || artist.erasedAt || !artist.phone) return;
+    const phone = normalizePhone(artist.phone);
+    if (!phone || (await isOptedOut(ctx, phone))) return;
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", artist.orgId))
+      .first();
+    await ctx.db.patch(artistId, { dealsConfirmSentAt: Date.now() });
+    await ctx.scheduler.runAfter(0, internal.smsFlows._send, {
+      to: phone,
+      body: renderSms(DEALS_OPTIN_ACK, { studio: org?.name ?? "the studio" }),
+    });
+  },
+});
+
 /** Send one deal text and log it to the client's thread. */
 export const _deliver = internalAction({
   args: { artistId: v.id("artists"), phone: v.string(), text: v.string() },
@@ -332,8 +355,17 @@ export async function deliverGapDeal(
     if (!artist || artist.orgId !== action.orgId || !canGetDealText(artist, now)) continue;
     const phone = normalizePhone(artist.phone!);
     if (!phone || (await isOptedOut(ctx, phone))) continue;
-    await ctx.db.patch(artistId, { lastDealTextAt: now });
-    await ctx.scheduler.runAfter(0, internal.gapDeals._deliver, { artistId, phone, text });
+    // Never confirmed (opted in before deal texts went live): confirm first,
+    // and let the deal follow a minute later.
+    const confirmFirst = !artist.dealsConfirmSentAt;
+    await ctx.db.patch(artistId, { lastDealTextAt: now, ...(confirmFirst ? { dealsConfirmSentAt: now } : {}) });
+    if (confirmFirst) {
+      await ctx.scheduler.runAfter(0, internal.smsFlows._send, {
+        to: phone,
+        body: renderSms(DEALS_OPTIN_ACK, { studio: org.name ?? "the studio" }),
+      });
+    }
+    await ctx.scheduler.runAfter(confirmFirst ? 60_000 : 0, internal.gapDeals._deliver, { artistId, phone, text });
     sent++;
   }
   if (sent > 0) await ctx.db.patch(org._id, { lastDealTextAt: now });

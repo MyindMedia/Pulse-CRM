@@ -597,13 +597,12 @@ async function optIntoDeals(ctx: MutationCtx, phone: string): Promise<boolean> {
   const route = await routeInboundText(ctx, phone);
   if (route.kind !== "routed" || route.routedBy === "best_guess") return false;
   const artist = route.artist;
-  if (!artist.dealsOptInAt) {
-    await ctx.db.patch(artist._id, {
-      dealsOptInAt: Date.now(),
-      dealsOptInSource: "sms_keyword",
-      dealsConsentVersion: DEALS_CONSENT_VERSION,
-    });
-  }
+  await ctx.db.patch(artist._id, {
+    ...(artist.dealsOptInAt
+      ? {}
+      : { dealsOptInAt: Date.now(), dealsOptInSource: "sms_keyword" as const, dealsConsentVersion: DEALS_CONSENT_VERSION }),
+    dealsConfirmSentAt: Date.now(),
+  });
   const org = await orgOf(ctx, artist.orgId);
   queueSend(ctx, phone, renderSms(DEALS_OPTIN_ACK, { studio: studioName(org) }));
   return true;

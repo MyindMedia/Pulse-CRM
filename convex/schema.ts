@@ -1097,6 +1097,8 @@ export default defineSchema({
     dealsOptInAt: v.optional(v.number()),
     dealsOptInSource: v.optional(v.union(v.literal("booking_form"), v.literal("sms_keyword"))),
     dealsConsentVersion: v.optional(v.string()),
+    // When the opt-in confirmation text went out (carrier rule: confirm every opt-in).
+    dealsConfirmSentAt: v.optional(v.number()),
     lastDealTextAt: v.optional(v.number()),
     // Marketing: the artist agreed to be named in the studio's posts.
     okToFeature: v.optional(v.boolean()),

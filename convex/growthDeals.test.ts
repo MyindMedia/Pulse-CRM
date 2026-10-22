@@ -110,6 +110,20 @@ describe("off-peak pricing at booking", () => {
     expect(hidden?.offPeak).toBeNull();
   });
 
+  it("confirms a new opt-in by text once deal texts are live", async () => {
+    vi.useFakeTimers();
+    await t.mutation(api.booking.createBooking, {
+      roomId: room, clientName: "Nova", clientEmail: "nova@x.com", clientPhone: "404-555-0109",
+      startTime: start, durationHours: 1, dealsOptIn: true,
+    });
+    await t.finishAllScheduledFunctions(vi.runAllTimers);
+    vi.useRealTimers();
+    const a = await t.run(async (ctx) => (await ctx.db.query("artists").collect())[0]);
+    expect(a.dealsConfirmSentAt).toBeGreaterThan(0);
+    const sends = await scheduledSends(t);
+    expect(sends.some((s) => s.to === "+14045550109" && /deals list/.test(s.body ?? ""))).toBe(true);
+  });
+
   it("records deal-text consent only when ticked with a phone, and never clears it", async () => {
     await t.mutation(api.booking.createBooking, {
       roomId: room, clientName: "Nova", clientEmail: "nova@x.com", clientPhone: "404-555-0101",
@@ -317,6 +331,8 @@ describe("fill-the-gap deal texts", () => {
     );
     expect(thread[0].body).toContain("Room A is open tomorrow afternoon.");
     expect(thread[0].body).toContain("Reply STOP");
+    // Nova was never confirmed, so the confirmation went first.
+    expect(n?.dealsConfirmSentAt).toBeGreaterThan(0);
   });
 
   it("approved after 7pm waits for 10am instead of texting at night", async () => {

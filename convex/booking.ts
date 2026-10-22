@@ -991,6 +991,11 @@ export const createBooking = mutation({
         ...(dealsConsent ?? {}),
       });
     }
+    // A new opt-in gets its confirmation text, so whoever owns the number
+    // knows and can reply STOP (gapDeals._confirmOptIn).
+    if (dealsConsent && !existing?.dealsOptInAt) {
+      await ctx.scheduler.runAfter(0, internal.gapDeals._confirmOptIn, { artistId });
+    }
 
     // The undiscounted (list) total, then the rate actually billed. The
     // deposit is computed off the billed rate so it stays proportional to
