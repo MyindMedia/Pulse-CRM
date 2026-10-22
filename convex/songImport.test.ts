@@ -111,6 +111,23 @@ describe("songImport.applyToSong", () => {
     expect(song!.referenceTracks.filter((r: { url: string }) => r.url === "https://x")).toHaveLength(1);
   });
 
+  it("fills ISRC, ISWC and BPM only when blank", async () => {
+    const { songId } = await seedSong(t);
+    await t.mutation(api.songImport.applyToSong, {
+      songId, sourceUrl: "https://open.spotify.com/track/abc",
+      isrc: "usum72202697", iswc: "T-123.456.789-0", bpm: 92.6, credits: [],
+    });
+    let song = await t.run((ctx) => ctx.db.get(songId));
+    expect(song).toMatchObject({ isrc: "USUM72202697", iswc: "T-123.456.789-0", bpm: 93 });
+
+    await t.mutation(api.songImport.applyToSong, {
+      songId, sourceUrl: "https://open.spotify.com/track/abc",
+      isrc: "GBAAA0000001", iswc: "T-000.000.000-0", bpm: 120, credits: [],
+    });
+    song = await t.run((ctx) => ctx.db.get(songId));
+    expect(song).toMatchObject({ isrc: "USUM72202697", iswc: "T-123.456.789-0", bpm: 93 });
+  });
+
   it("rejects a song from another org", async () => {
     const songId = await t.run(async (ctx) => {
       const artistId = await ctx.db.insert("artists", {
