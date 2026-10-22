@@ -91,6 +91,7 @@ export function NewSongDialog({
       setImported(result);
       if (result.title) setTitle(result.title);
       if (result.genre && !genre.trim()) setGenre(result.genre);
+      if (result.bpm && !bpm.trim()) setBpm(String(result.bpm));
       // Auto-select the artist when a roster name matches the import.
       if (result.artistName && !artistId) {
         const match = (roster ?? []).find(
@@ -141,6 +142,9 @@ export function NewSongDialog({
             coverStorageId: imported.coverStorageId ?? undefined,
             genre: imported.genre ?? undefined,
             releaseDate: imported.releaseDate ?? undefined,
+            isrc: imported.isrc ?? undefined,
+            iswc: imported.iswc ?? undefined,
+            bpm: imported.bpm ?? undefined,
             artistName: imported.artistName ?? undefined,
             credits: imported.credits,
           });

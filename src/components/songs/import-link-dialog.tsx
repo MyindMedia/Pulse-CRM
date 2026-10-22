@@ -33,6 +33,9 @@ export type LinkImport = {
   album: string | null;
   genre: string | null;
   releaseDate: number | null;
+  isrc: string | null;
+  iswc: string | null;
+  bpm: number | null;
   coverStorageId: Id<"_storage"> | Id<"mediaFiles"> | null;
   coverPreviewUrl: string | null;
   credits: { name: string; role: string }[];
@@ -64,12 +67,19 @@ export function ImportPreview({ result }: { result: LinkImport }) {
               result.provider === "spotify" ? "Spotify" : "Apple Music",
               result.genre,
               result.releaseDate ? new Date(result.releaseDate).getFullYear() : null,
+              result.bpm ? `${result.bpm} BPM` : null,
+              result.isrc ? `ISRC ${result.isrc}` : null,
             ]
               .filter(Boolean)
               .join(" · ")}
           </p>
         </div>
       </div>
+      {result.credits.length === 0 && (
+        <p className="mt-3 border-t border-graphite/50 pt-2.5 text-xs text-steel/70">
+          No public credits found for this song. Add writers and producers on its split sheet.
+        </p>
+      )}
       {result.credits.length > 0 && (
         <div className="mt-3 border-t border-graphite/50 pt-2.5">
           <p className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
@@ -128,6 +138,9 @@ export function ImportLinkDialog({
         coverStorageId: result.coverStorageId ?? undefined,
         genre: result.genre ?? undefined,
         releaseDate: result.releaseDate ?? undefined,
+        isrc: result.isrc ?? undefined,
+        iswc: result.iswc ?? undefined,
+        bpm: result.bpm ?? undefined,
         artistName: result.artistName ?? undefined,
         credits: result.credits,
       });
