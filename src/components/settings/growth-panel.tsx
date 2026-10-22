@@ -194,6 +194,7 @@ export function GrowthPanel() {
       {/* ── Google reviews ── */}
       <GoogleReviewCard
         saved={data.googleReviewUrl}
+        linked={data.googleLinked}
         busy={pending === "google"}
         onSave={(url) => save("google", { googleReviewUrl: url }, url ? "Google review link saved." : "Google review link removed.")}
       />
@@ -203,10 +204,12 @@ export function GrowthPanel() {
 
 function GoogleReviewCard({
   saved,
+  linked,
   busy,
   onSave,
 }: {
   saved: string;
+  linked: boolean;
   busy: boolean;
   onSave: (url: string) => void;
 }) {
@@ -233,33 +236,43 @@ function GoogleReviewCard({
         </div>
       </CardHeader>
       <CardContent>
-        <form
-          className="flex flex-col gap-3 sm:flex-row sm:items-end"
-          onSubmit={(e) => {
-            e.preventDefault();
-            onSave(url.trim());
-          }}
-        >
-          <div className="min-w-0 flex-1">
-            <Field
-              label="Review link"
-              htmlFor="google-review-url"
-              hint="From your Google Business Profile: Ask for reviews, then copy the link."
-            >
-              <Input
-                id="google-review-url"
-                type="url"
-                inputMode="url"
-                placeholder="https://g.page/r/..."
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-              />
-            </Field>
-          </div>
-          <Button type="submit" disabled={!dirty || busy} className="shrink-0">
-            Save
-          </Button>
-        </form>
+        {linked ? (
+          <p className="text-sm text-steel">
+            Your Google Listing sets this link.{" "}
+            <a href="/settings?tab=integrations" className="text-gold underline-offset-2 hover:underline">
+              Manage it in Integrations
+            </a>
+            .
+          </p>
+        ) : (
+          <form
+            className="flex flex-col gap-3 sm:flex-row sm:items-end"
+            onSubmit={(e) => {
+              e.preventDefault();
+              onSave(url.trim());
+            }}
+          >
+            <div className="min-w-0 flex-1">
+              <Field
+                label="Review link"
+                htmlFor="google-review-url"
+                hint="From your Google Business Profile: Ask for reviews, then copy the link."
+              >
+                <Input
+                  id="google-review-url"
+                  type="url"
+                  inputMode="url"
+                  placeholder="https://g.page/r/..."
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                />
+              </Field>
+            </div>
+            <Button type="submit" disabled={!dirty || busy} className="shrink-0">
+              Save
+            </Button>
+          </form>
+        )}
       </CardContent>
     </Card>
   );

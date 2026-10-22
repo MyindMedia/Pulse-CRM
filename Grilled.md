@@ -1944,3 +1944,21 @@ Ask (Lawrence): "change the system background to be something a dimly lit moving
 - **Follow-ups (2026-10-12/13):** "im not seeing the moving backgrounds" → #91 made the light 3x faster and brighter along the edges. Then: "i need it to be a moving image that's faint in the background or a digital tile image that moves" → chose the **digital tile wall** (public/hw/*.svg, 28px pad grid drifting one 448px sheet per 60s, a few lit pads, two sheets of pads blinking out of step, faded toward the middle). Why tiles over a photo: chassis are opaque, so the background only shows in thin margins and gutters; a texture still reads there, a faint photo turns to mud.
 - **2026-10-13:** "add a dark layer over it where its about 20% visible" → `.pl-ambient-dim` (the void at 80% over tiles + light; one knob for the whole background). "make sure all sections like calendar or modules have a container has its own dark background" → the **module bay** (`.pl-bay`): every page's content in the app shell and agency console sits in one opaque dark container (#18181a), framed with padding at 1280px+ and flush below so no layout loses width; shell notices get a solid backing; agency header is opaque. Audit (30 routes): 70 on-canvas blocks + 143 translucent panels before, 0 after.
 
+
+## Feature: Google reviews integration + Find a Studio SEO (grilled 2026-10-21)
+
+Owner request: "Google review should be something that is enabled by the team in settings or integrations and allows them to connect the reviews portal and also display it on the public page and in the Find A studio. We also need to get Find a studio to pop up on google and in LLM systems on searches."
+
+**Decisions (grilled, all Recommended options):**
+- **Connect by finding the business:** Settings > Integrations > Google reviews. The team types the studio name, picks its Google listing (Places API text search), done. No Google sign-in. Gets rating, review count and Google's 5 featured reviews, and builds the "leave a review" link automatically (feeds the SMS review thank-you from PR #176). Google sign-in for all reviews + replies (Business Profile API) is a later phase, not this one.
+- **Display:** star rating + count badge on the Find a Studio card and the booking page header; a "From Google" section with the 5 featured reviews and "See all on Google" on the booking page and studio profile. Kept separate from Pulse's own reviews; Google attribution always shown.
+- **Low ratings:** connecting and showing are two switches. When shown, Pulse shows exactly what Google returns, no filtering. The team can hide the whole section; Pulse never picks which Google reviews appear (FTC review-suppression rule).
+- **SEO pages:** server-rendered `/studios`; a profile page per listed studio (`/studios/<slug>`); a city page once a city has 2+ listed studios; structured data on each; sitemap and llms.txt list them automatically; booking pages get real titles and descriptions.
+
+**Constraints found while grilling:**
+- Google Places terms: only the place ID may be stored. Rating, reviews and address are fetched from Google when a page renders and are never written to the database.
+- Google's review-snippet rules forbid marking up third-party ratings, so structured data `aggregateRating` uses Pulse's own published reviews only, never Google's.
+- The public directory may expose nothing the booking page does not already show (directory.ts SAFETY), so structured data uses city and region, not the private contact address.
+- Needs a Google Places API key (`GOOGLE_PLACES_API_KEY`, server only, Convex + Netlify). None exists yet; gcloud needs re-auth. Until set, the Integrations card says Google reviews are not available yet.
+
+**Non-goals:** Google sign-in / replying to reviews, importing Google reviews into Pulse, Yelp or other review sites, paid search.

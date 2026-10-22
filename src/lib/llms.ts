@@ -45,7 +45,35 @@ const PAGES: Array<[string, string, string]> = [
 
 const link = (path: string) => `${SITE_URL}${path === "/" ? "" : path}`;
 
-export function llmsTxt(): string {
+/** Listed Studios and City Pages, from directory.sitemapEntries. */
+export type DirectoryForLlms = {
+  studios: Array<{ slug: string; name: string; city: string | null; region: string | null; blurb: string | null }>;
+  cities: Array<{ slug: string; city: string; region: string | null; count: number }>;
+};
+
+/** "Studios on Pulse": so an assistant asked for a studio in a city can
+ *  name real ones and link to their pages. Empty directory, no section. */
+function directoryLines(dir: DirectoryForLlms | null | undefined, limit: number): string[] {
+  if (!dir || dir.studios.length === 0) return [];
+  const where = (c: { city: string | null; region: string | null }) => [c.city, c.region].filter(Boolean).join(", ");
+  const lines = [
+    "## Studios on Pulse",
+    "",
+    "Recording and music studios that take bookings through Pulse, with live open dates and their own rates. The booking goes straight to the studio, with no commission.",
+    "",
+  ];
+  if (dir.cities.length) {
+    lines.push(...dir.cities.map((c) => `- [Recording studios in ${where(c)}](${link(`/studios/in/${c.slug}`)}): ${c.count} studios`), "");
+  }
+  for (const s of dir.studios.slice(0, limit)) {
+    const at = where(s);
+    lines.push(`- [${s.name}](${link(`/studios/${s.slug}`)})${at ? `, ${at}` : ""}${s.blurb ? `: ${s.blurb.replace(/\s+/g, " ").trim()}` : ""}`);
+  }
+  lines.push("");
+  return lines;
+}
+
+export function llmsTxt(dir?: DirectoryForLlms | null): string {
   const plans = planCards();
   const lines = [
     "# Pulse OS",
@@ -67,6 +95,7 @@ export function llmsTxt(): string {
     ...PAGES.map(([name, path, what]) => `- [${name}](${link(path)}): ${what}`),
     `- [Pulse on the App Store](${PULSE_IOS_APP_URL}): My Studio Pulse for iPhone, free`,
     "",
+    ...directoryLines(dir, 50),
     "## Optional",
     "",
     `- [Full product description](${SITE_URL}/llms-full.txt): every plan, every feature and the FAQ in one file`,
@@ -75,7 +104,7 @@ export function llmsTxt(): string {
   return lines.join("\n");
 }
 
-export function llmsFullTxt(): string {
+export function llmsFullTxt(dir?: DirectoryForLlms | null): string {
   const lines: string[] = [
     "# Pulse OS: full product description",
     "",
@@ -130,6 +159,8 @@ export function llmsFullTxt(): string {
 
   lines.push("## Frequently asked questions", "");
   for (const f of faqs()) lines.push(`### ${f.q}`, "", f.a, "");
+
+  lines.push(...directoryLines(dir, 500));
 
   return lines.join("\n");
 }

@@ -23,6 +23,8 @@ import { RoomCard } from "@/components/book/room-card";
 import { ServiceCard } from "@/components/book/service-card";
 import { MembershipPlans } from "@/components/book/membership-plans";
 import { SocialProof, EngineerRoster } from "@/components/book/social-proof";
+import { useGooglePlace } from "@/components/google/google-place-context";
+import { GoogleRatingBadge, GoogleReviewsSection } from "@/components/google/google-reviews";
 import { useTrackBookingStep } from "@/lib/use-booking-funnel";
 import { readTrackingParams } from "@/lib/tracking-links";
 
@@ -64,6 +66,7 @@ function StudioFrontView() {
     [searchParams],
   );
   const front = useQuery(api.booking.studioFront, { slug });
+  const google = useGooglePlace();
   // The server decides: "services" only when the studio switched to it AND has
   // services live, so the page can never render an empty catalogue.
   const servicesFirst = front?.catalog === "services";
@@ -170,6 +173,12 @@ function StudioFrontView() {
               </span>
             </span>
           </motion.div>
+
+          {google && (
+            <motion.div variants={fadeUp} className="mb-4">
+              <GoogleRatingBadge place={google} />
+            </motion.div>
+          )}
 
           <motion.h1
             variants={fadeUp}
@@ -346,6 +355,9 @@ function StudioFrontView() {
           accent={accent}
         />
       )}
+
+      {/* Google's rating and featured reviews, when the studio shows them */}
+      {google && <GoogleReviewsSection place={google} />}
 
       {/* Memberships (hidden until the studio publishes a subscribable package) */}
       {!pricingHidden && <MembershipPlans slug={slug} accent={accent} />}

@@ -549,6 +549,12 @@ export default defineSchema({
     lastDealTextAt: v.optional(v.number()),
     // Sent to every client who rates a session by text (never only 4-5).
     googleReviewUrl: v.optional(v.string()),
+    // Google Listing (Settings > Integrations). Google's Places terms allow
+    // storing the place ID only; rating and reviews are fetched when a page
+    // renders. Showing them publicly is a separate switch.
+    googlePlaceId: v.optional(v.string()),
+    googlePlaceConnectedAt: v.optional(v.number()),
+    googleReviewsShown: v.optional(v.boolean()),
     // Studio (company) Google Calendar: which calendar and which direction.
     // Calendar id defaults to "primary" when unset; direction to two_way.
     googleCalendarId: v.optional(v.string()),

@@ -64,6 +64,7 @@ export const get = query({
       offPeakEnabled: org?.offPeakEnabled === true,
       dealTexts: { enabled: org?.dealTexts?.enabled === true, mode: dealsMode(org), live: dealTextsLive() },
       googleReviewUrl: org?.googleReviewUrl ?? "",
+      googleLinked: Boolean(org?.googlePlaceId),
       dealsOptedIn: artists.filter((a) => a.dealsOptInAt && !a.erasedAt).length,
       rooms: rooms.map((r) => ({
         _id: r._id,
@@ -110,6 +111,12 @@ export const set = mutation({
     }
 
     if (args.googleReviewUrl !== undefined) {
+      if (org.googlePlaceId) {
+        throw new ConvexError({
+          code: "INVALID",
+          message: "Your Google Listing sets this link. Unlink it in Integrations to paste your own.",
+        });
+      }
       const cleaned = cleanGoogleReviewUrl(args.googleReviewUrl);
       if ("error" in cleaned) throw new ConvexError({ code: "INVALID", message: cleaned.error });
       if ((cleaned.url ?? undefined) !== org.googleReviewUrl) {
