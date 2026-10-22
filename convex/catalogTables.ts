@@ -116,6 +116,7 @@ export const catalogTables = {
     songId: v.optional(v.id("songs")),
     error: v.optional(v.string()),
   })
+    .index("by_org", ["orgId"])
     .index("by_import_state", ["importId", "state"]),
 
   /** A Member's imported credit. Internal until an owner or manager approves
@@ -131,6 +132,7 @@ export const catalogTables = {
     approvedAt: v.optional(v.number()),
     createdAt: v.number(),
   })
+    .index("by_org", ["orgId"])
     .index("by_org_member", ["orgId", "memberId"])
     .index("by_org_member_approved", ["orgId", "memberId", "approved"])
     .index("by_member_song", ["memberId", "songId"]),
@@ -171,6 +173,7 @@ export const catalogTables = {
     songId: v.optional(v.id("songs")),
     state: v.union(v.literal("allocated"), v.literal("unallocated"), v.literal("unmatched")),
   })
+    .index("by_org", ["orgId"])
     .index("by_statement", ["statementId"])
     .index("by_org_state", ["orgId", "state"])
     .index("by_org_song", ["orgId", "songId"]),
@@ -190,6 +193,7 @@ export const catalogTables = {
     paidMethod: v.optional(v.string()),
     paidBy: v.optional(v.string()),
   })
+    .index("by_org", ["orgId"])
     .index("by_line", ["lineId"])
     .index("by_statement", ["statementId"])
     .index("by_org_contributor", ["orgId", "contributorKey"]),
@@ -208,5 +212,7 @@ export const catalogTables = {
       period: v.optional(v.string()),
     }),
     createdAt: v.number(),
-  }).index("by_org_signature", ["orgId", "headerSignature"]),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_org_signature", ["orgId", "headerSignature"]),
 };

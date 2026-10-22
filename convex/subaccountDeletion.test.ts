@@ -284,3 +284,16 @@ describe("banking and receipt cleanup", () => {
     }
   });
 });
+
+describe("catalog and royalty tables", () => {
+  it("every org-owned catalog/royalty table dies with the workspace", async () => {
+    const { catalogTables } = await import("./catalogTables");
+    const { ORG_TABLES } = await import("./subaccountDeletion");
+    const listed = new Set<string>(ORG_TABLES);
+    const orgOwned = Object.entries(catalogTables)
+      .filter(([, def]) => "orgId" in ((def as unknown as { validator: { fields: object } }).validator.fields))
+      .map(([name]) => name);
+    expect(orgOwned.length).toBeGreaterThan(0);
+    expect(orgOwned.filter((n) => !listed.has(n))).toEqual([]);
+  });
+});

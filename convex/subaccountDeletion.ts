@@ -58,6 +58,11 @@ export const ORG_TABLES = [
   "financeMatchRejections", "financeAudit",
   // The double-entry ledger (openspec ledger-books-statements).
   "ledgerAccounts", "journalEntries", "openingBalances", "reportedStatements", "bankStatementBalances",
+  // Catalog Import and Royalties (openspec catalog-import-and-royalties):
+  // contributor emails and earnings die with the workspace. Statement CSVs
+  // are mediaFiles rows, so their R2 objects go with the files above.
+  "creditIdentities", "catalogImports", "catalogImportItems", "importedCredits",
+  "royaltyStatements", "royaltyLines", "royaltyShares", "royaltyMappings",
   // Last on purpose. Every delete above fires a trigger that appends here, so
   // sweeping the feed first would leave a fresh activity trace - orgId, table,
   // docId, timestamps - of a workspace that was told it was destroyed.
