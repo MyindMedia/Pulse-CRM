@@ -16,7 +16,7 @@ Pulse already imports one song from one Spotify or Apple Music link (`convex/son
 ## Decisions
 
 ### D1. Credit Identity table, one row per person per source
-`creditIdentities { orgId, subject: {kind: "member"|"artist", id}, source: "musicbrainz"|"genius"|"deezer"|"apple"|"spotify"|"tidal", sourceId, name, imageUrl?, roles[] }`. Links resolve to a source ID (Apple artist ID from the URL; Spotify and TIDAL artist pages give a name through og tags, which is then matched to a Deezer/MusicBrainz artist the person confirms). Alternative considered: store a name and search each time. Rejected: same-name collisions (Grilled decision 2).
+`creditIdentities { orgId, subject: {kind: "member"|"artist", id}, source: "musicbrainz"|"genius"|"deezer"|"apple"|"spotify"|"tidal", sourceId, name, imageUrl?, roles[] }`. Links resolve to a source ID (Apple artist ID from the URL; a Spotify artist page gives a name through og tags, which is then matched to a Genius / MusicBrainz / Deezer artist the person confirms). TIDAL artist pages expose no name (no og tags, and oEmbed does not cover artists), so a TIDAL link asks the person to type the name and pick from the results. Alternative considered: store a name and search each time. Rejected: same-name collisions (Grilled decision 2).
 
 ### D2. Discovery by role, per source
 - Artist role: Deezer artist albums then tracks (ISRC on every track), and iTunes `lookup?id=<artist>&entity=song&limit=200` when the identity is an Apple artist.
@@ -30,6 +30,9 @@ Candidates from all sources merge by ISRC, else cleaned title + primary artist (
 
 ### D4. Shared song upsert
 Extract the create-or-enrich logic from `songImport.applyToSong` into one internal helper used by both the single-link importer and Catalog Import. Songs gain `importedFrom?: { importId, identityId, source }` and `creditedMembers?: Id<"members">[]`. The Songs list shows imported rows with an "Imported" badge; an "Imported" filter narrows to `importedFrom` rows (index `by_org_imported`). Cover art goes through `storeCover` to R2 as today.
+
+### D4a. Catalog Artists
+When an imported song's primary artist matches neither the roster artist being imported nor an existing artist row (name key match), the job inserts an artist with `catalogOnly: true`, status dormant, source `catalog_import`, no contact details. `lib/catalogArtists.isClient` filters these out of `artists.list`, `roster`, `counts`, the dashboard roster size and the studio brain (Grilled decision 13). Alternative: a free-text artist name on the song. Rejected: `songs.artistId` is required and used everywhere.
 
 ### D4b. Import Destination and billing
 `catalogImport.start` takes `destinationOrgId`. Allowed destinations = orgs where the caller has a `members` row with a role that can create Songs (their own sign-up workspace is one of these). `requireFeature(ctx, destinationOrgId, "catalogImport")` gates on the destination's plan, so the destination's subscription pays. Every row the job writes (`catalogImports`, songs, split sheets, `creditIdentities`) carries `destinationOrgId`; identities are copied per workspace, never shared, so tenant isolation holds and copies never sync. Alternative: one personal catalog mirrored into studios. Rejected: cross-tenant writes and sync conflicts.
@@ -69,6 +72,7 @@ Additive only: new tables, optional fields, new capability keys. `agencies.royal
 ## Open Questions
 
 
-- Genius `artists/:id/songs` coverage of producer and writer credits: verify once `GENIUS_ACCESS_TOKEN` exists.
+- Genius coverage: verified 2026-10-22 (Mike Dean, producer + mix: 150 Genius songs alongside 650 MusicBrainz relations). Resolved.
+- Optional sources after this change: Discogs (engineer and mastering credits; needs a user-created `DISCOGS_TOKEN`), Wikidata (ID bridging, no key), Cover Art Archive (art by MusicBrainz release, no key). Spotify client credentials add no credits and their terms bar feeding Spotify data to AI, so they stay out.
 - Real DistroKid, TuneCore and CD Baby sample files to confirm headers (fixtures are built from their published column lists until then).
 - Should publishing statements (Songtrust / MLC) follow in a later change using publishing %? Out of scope here.

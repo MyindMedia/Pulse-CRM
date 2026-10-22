@@ -13,17 +13,17 @@
 
 ## 3. Catalog discovery (pure + lookups)
 
-- [ ] 3.1 Link parsing for Spotify / Apple Music / TIDAL artist URLs in `convex/lib/musicLink.ts` with tests
-- [ ] 3.2 Identity search across Deezer, MusicBrainz, Genius returning candidates with source, ID, image, top songs (`convex/lib/catalogLookup.ts`)
-- [ ] 3.3 Discovery by role: Deezer artist albums/tracks, iTunes artist songs, MusicBrainz recording-rels and work-rels, Genius artist songs (token-gated); map relation types to Credit Roles
-- [ ] 3.4 Candidate merge by ISRC then cleaned title + primary artist, cap 500; pure function with tests
+- [x] 3.1 Link parsing for Spotify / Apple Music / TIDAL artist URLs (`convex/lib/catalogMerge.ts` `parseArtistLink`) with tests
+- [x] 3.2 Identity search across Deezer, MusicBrainz, Genius returning candidates with source, ID, image, top songs (`convex/lib/catalogDiscovery.ts`)
+- [x] 3.3 Discovery by role: Deezer artist albums/tracks, iTunes artist songs, MusicBrainz recording-rels and work-rels, Genius artist songs (token-gated); map relation types to Credit Roles
+- [x] 3.4 Candidate merge by ISRC then cleaned title + primary artist, cap 500; pure function with tests
 
 ## 4. Catalog Import job
 
-- [ ] 4.1 Extract the create-or-enrich song upsert from `songImport.applyToSong` into a shared internal helper; keep existing songImport tests green
-- [ ] 4.2 `catalogImport.saveIdentity`, `start(destinationOrgId)`, `status` (reactive), batch worker via `ctx.scheduler.runAfter`, paced for MusicBrainz; `requireFeature(destinationOrgId, catalogImport)`; destination must be a workspace where the caller can create Songs; member-self vs owner/manager-for-artist permissions; tests for wrong-destination refusal and no cross-workspace writes
-- [ ] 4.3 Imported Catalog Songs: stage released, `importedFrom`, `creditedMembers`, drafted split sheet; dedupe tests (ISRC match, title match, two members one song)
-- [ ] 4.4 Songs list shows imported songs with an "Imported" badge; "Imported" filter (index `by_org_imported`)
+- [x] 4.1 Extract the create-or-enrich song upsert from `songImport.applyToSong` into a shared internal helper; keep existing songImport tests green
+- [x] 4.2 `catalogImport.start(destinationOrgId)` (saves the picked identities), `status` (reactive), batch worker via `ctx.scheduler.runAfter`, paced for MusicBrainz; `requireFeature(destinationOrgId, catalogImport)`; destination must be a workspace where the caller can create Songs; member-self vs owner/manager-for-artist permissions; tests for wrong-destination refusal and no cross-workspace writes
+- [x] 4.3 Imported Catalog Songs: stage released, `importedFrom`, `creditedMembers`, drafted split sheet; dedupe tests (ISRC match, title match, two members one song)
+- [x] 4.4 Songs list shows imported songs with an "Imported" badge; "Imported" filter (index `by_org_imported`)
 
 ## 5. Catalog Import UI and Credit Approval
 

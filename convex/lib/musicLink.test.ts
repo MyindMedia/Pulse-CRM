@@ -187,3 +187,23 @@ describe("catalog lookup helpers", () => {
     expect(pickDeezerHit(hits, "Blinding Lights", "Nobody")).toBeNull();
   });
 });
+
+describe("dedupeCredits across sources", () => {
+  it("never repeats a role when merging already-merged credits", () => {
+    expect(
+      dedupeCredits([
+        { name: "Mike Dean", role: "Writer / Producer / Musician" },
+        { name: "Mike Dean", role: "Producer" },
+        { name: "Mike Dean", role: "Engineer" },
+      ]),
+    ).toEqual([{ name: "Mike Dean", role: "Writer / Producer / Musician / Engineer" }]);
+  });
+  it("treats typographic hyphens and accents as the same name", () => {
+    const out = dedupeCredits([
+      { name: "Guy‐Manuel de Homem‐Christo", role: "Writer" },
+      { name: "Guy-Manuel de Homem-Christo", role: "Vocalist" },
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].role).toBe("Writer / Vocalist");
+  });
+});

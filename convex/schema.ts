@@ -1115,6 +1115,10 @@ export default defineSchema({
     lastDealTextAt: v.optional(v.number()),
     // Marketing: the artist agreed to be named in the studio's posts.
     okToFeature: v.optional(v.boolean()),
+    // Created by a Catalog Import only to carry an imported song's artist name.
+    // Not a client: kept out of Clients, counts, pickers and suggestions
+    // (lib/catalogArtists.ts). No email or phone, so nothing messages them.
+    catalogOnly: v.optional(v.boolean()),
     spotify: v.optional(v.string()),
     notes: v.optional(v.string()),
     status: v.union(v.literal("lead"), v.literal("active"), v.literal("dormant"), v.literal("vip")),

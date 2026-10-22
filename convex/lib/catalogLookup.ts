@@ -58,13 +58,28 @@ export async function musicBrainz(
   title: string,
   artist: string | null,
   isrc: string | null,
-): Promise<{ credits: ImportedCredit[]; iswc: string | null; isrc: string | null }> {
+  opts: {
+    /** A known recording (Catalog Import found it): skips the lookup. */
+    recordingId?: string;
+    /** Recordings read for relationships; fewer is faster. */
+    maxRecordings?: number;
+  } = {},
+): Promise<{
+  credits: ImportedCredit[];
+  iswc: string | null;
+  isrc: string | null;
+  /** From the first recording read: its credited artist and first release. */
+  artist: string | null;
+  releaseDate: number | null;
+}> {
   const credits: ImportedCredit[] = [];
   let iswc: string | null = null;
   let foundIsrc: string | null = null;
+  let foundArtist: string | null = null;
+  let releaseDate: number | null = null;
   try {
-    let ids: string[] = [];
-    if (isrc) {
+    let ids: string[] = opts.recordingId ? [opts.recordingId] : [];
+    if (ids.length === 0 && isrc) {
       const hit = await fetchJson(`https://musicbrainz.org/ws/2/isrc/${encodeURIComponent(isrc)}?fmt=json`, MB_HEADERS).catch(() => null);
       ids = ((hit?.recordings ?? []) as { id?: string }[]).flatMap((r) => (r.id ? [r.id] : []));
     }
@@ -83,12 +98,18 @@ export async function musicBrainz(
     }
 
     let workId: string | undefined;
-    for (const id of ids.slice(0, 3)) {
+    for (const id of ids.slice(0, opts.maxRecordings ?? 3)) {
       await pause(1100);
       const rec = await fetchJson(
-        `https://musicbrainz.org/ws/2/recording/${id}?inc=artist-rels+work-rels&fmt=json`,
+        `https://musicbrainz.org/ws/2/recording/${id}?inc=artist-rels+work-rels+isrcs+artist-credits&fmt=json`,
         MB_HEADERS,
       );
+      foundIsrc ??= (rec.isrcs as string[] | undefined)?.[0] ?? null;
+      foundArtist ??= (rec["artist-credit"] as { name?: string }[] | undefined)?.[0]?.name ?? null;
+      if (releaseDate === null && typeof rec["first-release-date"] === "string") {
+        const t = Date.parse(rec["first-release-date"].length === 4 ? `${rec["first-release-date"]}-01-01` : rec["first-release-date"]);
+        releaseDate = Number.isFinite(t) ? t : null;
+      }
       const rels: MbRel[] = rec.relations ?? [];
       for (const rel of rels) {
         const role = rel.type ? creditRole(rel.type) : null;
@@ -114,7 +135,7 @@ export async function musicBrainz(
   } catch {
     // Rate limits / lookup misses just mean fewer prefilled credits.
   }
-  return { credits: dedupeCredits(credits), iswc, isrc: foundIsrc };
+  return { credits: dedupeCredits(credits), iswc, isrc: foundIsrc, artist: foundArtist, releaseDate };
 }
 
 /** Deezer's open API: ISRC, release date, album genre and (when known) BPM.

@@ -72,6 +72,8 @@ export const catalogTables = {
     imported: v.number(),
     merged: v.number(),
     failed: v.number(),
+    // Songs where the identity held none of the chosen roles (Genius lists).
+    skipped: v.number(),
     // Candidates left out because of the 500-song cap.
     capped: v.number(),
     startedBy: v.string(),
@@ -95,10 +97,18 @@ export const catalogTables = {
     coverUrl: v.optional(v.string()),
     roles: v.array(v.string()),
     sources: v.array(v.string()),
+    refs: v.object({
+      deezerTrackId: v.optional(v.number()),
+      mbRecordingId: v.optional(v.string()),
+      mbWorkId: v.optional(v.string()),
+      geniusSongId: v.optional(v.number()),
+      appleTrackId: v.optional(v.number()),
+    }),
     state: v.union(
       v.literal("pending"),
       v.literal("imported"),
       v.literal("merged"),
+      v.literal("skipped"),
       v.literal("failed"),
     ),
     songId: v.optional(v.id("songs")),

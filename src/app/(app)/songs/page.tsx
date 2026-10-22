@@ -42,11 +42,18 @@ const KIND_FILTERS: { value: string; label: string }[] = [
   { value: "spec", label: "Spec" },
 ];
 
+const ORIGIN_FILTERS: { value: string; label: string }[] = [
+  { value: "all", label: "All songs" },
+  { value: "studio", label: "Studio songs" },
+  { value: "imported", label: "Imported" },
+];
+
 function SongsCatalog() {
   const searchParams = useSearchParams();
 
   const [stage, setStage] = useState<string>("all");
   const [kind, setKind] = useState<string>("all");
+  const [origin, setOrigin] = useState<string>("all");
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -74,18 +81,21 @@ function SongsCatalog() {
           ? undefined
           : (kind as "single" | "album_track" | "beat" | "spec" | "ep"),
       search: debouncedSearch || undefined,
+      origin: origin === "all" ? undefined : (origin as "imported" | "studio"),
     }),
-    [stage, kind, debouncedSearch],
+    [stage, kind, origin, debouncedSearch],
   );
 
   const songs = useQuery(api.songs.list, queryArgs);
   const stageCounts = useQuery(api.songs.byStage);
 
-  const filtersActive = stage !== "all" || kind !== "all" || debouncedSearch.length > 0;
+  const filtersActive =
+    stage !== "all" || kind !== "all" || origin !== "all" || debouncedSearch.length > 0;
 
   function clearFilters() {
     setStage("all");
     setKind("all");
+    setOrigin("all");
     setSearchInput("");
     setDebouncedSearch("");
   }
@@ -125,6 +135,18 @@ function SongsCatalog() {
               {KIND_FILTERS.map((k) => (
                 <SelectItem key={k.value} value={k.value}>
                   {k.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={origin} onValueChange={setOrigin}>
+            <SelectTrigger className="w-40" aria-label="Song origin">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ORIGIN_FILTERS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
                 </SelectItem>
               ))}
             </SelectContent>

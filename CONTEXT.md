@@ -59,6 +59,9 @@ Ubiquitous language for the Pulse codebase. Glossary only: no implementation det
 **Imported Catalog Song**
 : A Song that arrived through a Catalog Import. It is already Released, appears in the Songs list with an Imported badge, and can be filtered on its own.
 
+**Catalog Artist**
+: The artist name on an Imported Catalog Song when that artist is not a client of the Studio. It exists only to label the song: it is never a client, never counted on the roster, never offered in pickers and never messaged.
+
 **Credit Role**
 : The part a person played on a song: Artist, Writer, Producer, Engineer, Mix Engineer, Mastering Engineer, Vocalist or Musician. A person chooses which Credit Roles their Catalog Import searches under. One person can hold several Credit Roles on one song.
 
