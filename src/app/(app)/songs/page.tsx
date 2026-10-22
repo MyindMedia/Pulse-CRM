@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Music4, Plus, Search, X } from "lucide-react";
+import { Library, Music4, Plus, Search, X } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
@@ -21,6 +21,7 @@ import { SONG_STAGE } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { SongCard } from "@/components/songs/song-card";
 import { NewSongDialog } from "@/components/songs/new-song-dialog";
+import { CatalogImportDialog } from "@/components/songs/catalog-import-dialog";
 
 const STAGE_KEYS = [
   "writing",
@@ -57,6 +58,7 @@ function SongsCatalog() {
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   // Auto-open the New Song dialog when ?new=1 is present.
   const handledNewParam = useRef(false);
@@ -107,10 +109,16 @@ function SongsCatalog() {
         title="Songs"
         description="Every track in the studio - from a working title in writing to a released record. The catalog is the spine of the whole product."
         actions={
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="size-4" />
-            New song
-          </Button>
+          <>
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Library className="size-4" />
+              Import my catalog
+            </Button>
+            <Button onClick={() => setDialogOpen(true)}>
+              <Plus className="size-4" />
+              New song
+            </Button>
+          </>
         }
       />
 
@@ -222,6 +230,7 @@ function SongsCatalog() {
       )}
 
       <NewSongDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <CatalogImportDialog open={importOpen} onOpenChange={setImportOpen} subject={{ kind: "member" }} />
     </div>
   );
 }

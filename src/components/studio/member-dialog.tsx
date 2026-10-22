@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/select";
 import { TagInput } from "@/components/roster/tag-input";
 import { MEMBER_ROLES, type MemberRole } from "@/components/studio/constants";
+import { ImportedCreditsPanel } from "@/components/studio/imported-credits-panel";
 
 export type EditableMember = {
   _id: Id<"members">;
@@ -338,6 +339,7 @@ export function MemberDialog({
                     rows={2}
                   />
                 </Field>
+                {member?._id && <ImportedCreditsPanel memberId={member._id} />}
                 <div className="grid gap-4 sm:grid-cols-2">
                   <Field label="Spotify profile" hint="Artist or profile page link.">
                     <Input

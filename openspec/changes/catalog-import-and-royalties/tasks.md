@@ -27,8 +27,8 @@
 
 ## 5. Catalog Import UI and Credit Approval
 
-- [ ] 5.1 "Import my catalog" on the member profile and "Import catalog" on the roster artist page: destination picker ("My account" or a studio, with each one's plan), role picker, link-or-search identity picker with same-name disambiguation, progress panel
-- [ ] 5.2 `members.importedCredits` written by the job; `approveCredits` (owner/manager); booking page shows approved credits labelled with source; tests that unapproved credits never reach the public query
+- [x] 5.1 "Import my catalog" (profile menu and Songs page) and "Import catalog" on the roster artist page: destination picker ("My account" or a studio, with each one's plan), role picker, link-or-search identity picker with same-name disambiguation, progress panel
+- [x] 5.2 `importedCredits` rows written by the job; `approveCredits` (owner/manager); booking page shows approved credits labelled with source; tests that unapproved credits never reach the public query
 
 ## 6. Royalty statements
 

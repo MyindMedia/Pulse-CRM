@@ -235,6 +235,7 @@ export const get = query({
       capped: job.capped,
       done: job.imported + job.merged + job.failed + job.skipped,
       startedAt: job.startedAt,
+      heartbeatAt: job.heartbeatAt ?? job.startedAt,
       finishedAt: job.finishedAt ?? null,
       error: job.error ?? null,
       identities: identities.map((i) => ({ source: i!.source, name: i!.name })),
@@ -495,7 +496,10 @@ export const _applyItem = internalMutation({
 
     if (outcome.kind !== "ok") {
       await ctx.db.patch(itemId, { state: outcome.kind === "skip" ? "skipped" : "failed", error: outcome.reason });
-      await ctx.db.patch(importId, outcome.kind === "skip" ? { skipped: job.skipped + 1 } : { failed: job.failed + 1 });
+      await ctx.db.patch(importId, {
+        ...(outcome.kind === "skip" ? { skipped: job.skipped + 1 } : { failed: job.failed + 1 }),
+        heartbeatAt: Date.now(),
+      });
       return;
     }
 
@@ -558,7 +562,10 @@ export const _applyItem = internalMutation({
     }
 
     await ctx.db.patch(itemId, { state: merged ? "merged" : "imported", songId: song._id });
-    await ctx.db.patch(importId, merged ? { merged: job.merged + 1 } : { imported: job.imported + 1 });
+    await ctx.db.patch(importId, {
+      ...(merged ? { merged: job.merged + 1 } : { imported: job.imported + 1 }),
+      heartbeatAt: Date.now(),
+    });
   },
 });
 

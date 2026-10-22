@@ -79,6 +79,8 @@ export const catalogTables = {
     startedBy: v.string(),
     startedByName: v.optional(v.string()),
     startedAt: v.number(),
+    // Last time a batch wrote a song; a chain quiet for minutes has stopped.
+    heartbeatAt: v.optional(v.number()),
     finishedAt: v.optional(v.number()),
     error: v.optional(v.string()),
   })
@@ -130,6 +132,7 @@ export const catalogTables = {
     createdAt: v.number(),
   })
     .index("by_org_member", ["orgId", "memberId"])
+    .index("by_org_member_approved", ["orgId", "memberId", "approved"])
     .index("by_member_song", ["memberId", "songId"]),
 
   /** One uploaded distributor statement. */
