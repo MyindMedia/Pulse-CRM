@@ -46,6 +46,6 @@
 
 ## 8. Gates and ship
 
-- [ ] 8.1 Full vitest, tsc, lint; cross-browser check on the new pages
-- [ ] 8.2 compliance-ops audit (earnings data, contributor emails) and `/pentest` of the CSV upload and token page; fix and re-prove
+- [x] 8.1 Full vitest, tsc, lint; cross-browser check on the new pages
+- [x] 8.2 compliance-ops audit (earnings data, contributor emails) and `/pentest` of the CSV upload and token page; fix and re-prove
 - [ ] 8.3 PR, merge, Convex deploy; confirm royalties are absent with the agency switch off and present for a Max studio with it on; leave the switch OFF

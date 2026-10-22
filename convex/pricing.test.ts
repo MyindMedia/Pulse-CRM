@@ -157,8 +157,8 @@ describe("the public table", () => {
   it("hides a feature until it is built", () => {
     const unbuilt = ALL_FEATURES.filter((f) => !f.built);
     for (const f of unbuilt) expect(groups.flatMap((g) => g.items).map((x) => x.name)).not.toContain(f.name);
-    // All 155 existing features are built and public.
-    expect(groups.filter((g) => g.id !== "production").flatMap((g) => g.items)).toHaveLength(155);
+    // All 156 existing features are built and public.
+    expect(groups.filter((g) => g.id !== "production").flatMap((g) => g.items)).toHaveLength(156);
   });
 
   it("never says CRM, and uses no em dashes, anywhere in the config", () => {

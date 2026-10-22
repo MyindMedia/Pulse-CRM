@@ -612,10 +612,11 @@ const RAW_FEATURE_GROUPS: RawFeatureGroup[] = [
       f("Notes on one version of a mix", "core", "finishedMixes"),
       f("Every song in one place", "growth", "songs"),
       f("Paste a streaming link", "growth", "songs"),
-      f("Pull in your whole catalog with credits", "growth", "catalogImport", { built: false }),
+      f("Pull in your whole catalog with credits", "growth", "catalogImport"),
       f("Who owns what share of a song", "core", "splitSheets", { moved: "down" }),
       f("Real signatures by link", "core", "splitSheets", { moved: "down" }),
       f("The form fills itself in", "core", "splitSheets", { moved: "down" }),
+      // Hidden until the agency royalties switch goes on (convex/lib/royaltiesGate.ts).
       f("Royalty statements split by the signed sheet", "max", "royalties", { built: false }),
       f("A plan for putting a song out", "max", "releases"),
       f("Selling the right to use a song", "max", "licensing"),
