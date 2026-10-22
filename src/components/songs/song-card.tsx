@@ -27,6 +27,7 @@ type SongCardData = {
   revisionsIncluded: number;
   revisionsUsed: number;
   streamCount?: number;
+  imported?: boolean;
 };
 
 /** Catalog grid card - tonal cover, identity, stage, and revision budget at a glance.
@@ -103,6 +104,9 @@ export function SongCard({ song }: { song: SongCardData }) {
             <span className="rounded-sm border border-graphite/50 bg-coal-2 px-1.5 py-0.5 text-steel">
               {titleCase(song.kind)}
             </span>
+            {song.imported && (
+              <span className="rounded-sm border border-info/40 bg-info/10 px-1.5 py-0.5 text-info">Imported</span>
+            )}
             {song.genre && (
               <span className="rounded-sm border border-graphite/50 bg-coal-2 px-1.5 py-0.5 text-steel">
                 {song.genre}
@@ -133,6 +137,8 @@ export function SongCard({ song }: { song: SongCardData }) {
             </div>
           )}
 
+          {/* Imported Catalog Songs carry no client work, so no revision budget. */}
+          {!song.imported && (
           <div className="space-y-1.5 border-t border-graphite/50 pt-2.5">
             <div className="flex items-center justify-between font-meta text-[0.625rem] uppercase tracking-wide">
               <span className="text-steel/70">Revisions</span>
@@ -151,6 +157,7 @@ export function SongCard({ song }: { song: SongCardData }) {
               </p>
             )}
           </div>
+          )}
         </div>
       </div>
     </Card>

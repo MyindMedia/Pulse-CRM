@@ -21,6 +21,7 @@ import {
   CalendarCheck,
   Wallet,
   Clock,
+  Library,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -47,6 +48,7 @@ import { ActivityTimeline } from "@/components/roster/activity-timeline";
 import { ClientMessages } from "@/components/roster/client-messages";
 import { NotesPanel } from "@/components/roster/notes-panel";
 import { EditArtistDialog, type EditableArtist } from "@/components/roster/edit-artist-dialog";
+import { CatalogImportDialog } from "@/components/songs/catalog-import-dialog";
 import { DataRightsMenu } from "@/components/roster/data-rights-menu";
 import { artistTypeLabel } from "@/components/roster/constants";
 import { SessionLink, InvoiceLink } from "@/components/shell/entity-link";
@@ -92,6 +94,7 @@ export default function ArtistDetailPage() {
   const openSession = useOpenSession();
 
   const [editOpen, setEditOpen] = React.useState(false);
+  const [importOpen, setImportOpen] = React.useState(false);
   // Controlled so the Outstanding stat tile can jump straight to Invoices.
   const [tab, setTab] = React.useState("timeline");
 
@@ -223,6 +226,10 @@ export default function ArtistDetailPage() {
                 <Music2 className="size-4" />
                 New song
               </Link>
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => setImportOpen(true)}>
+              <Library className="size-4" />
+              Import catalog
             </Button>
             <Button asChild size="sm">
               <Link href="/calendar?new=1">
@@ -467,6 +474,13 @@ export default function ArtistDetailPage() {
       </Tabs>
 
       <EditArtistDialog artist={editable} open={editOpen} onOpenChange={setEditOpen} />
+      <CatalogImportDialog
+        open={importOpen}
+        onOpenChange={setImportOpen}
+        subject={{ kind: "artist", artistId }}
+        subjectName={data.name}
+        orgId={data.orgId}
+      />
     </div>
   );
 }

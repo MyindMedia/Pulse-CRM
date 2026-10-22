@@ -64,6 +64,7 @@ export const summary = query({
       customDomain: agency?.customDomain ?? null,
       customDomainAvailable: customDomainAllowed(agency?.plan),
       stripeConnected: Boolean(agency?.stripeCustomerId),
+      royaltiesEnabled: agency?.royaltiesEnabled === true,
       role: viewer.role,
       counts: {
         studios: orgs.length,
@@ -99,5 +100,25 @@ export const updateProfile = mutation({
     if (supportEmail !== undefined) patch.supportEmail = supportEmail.trim() || undefined;
     if (appName !== undefined) patch.appName = appName.trim() || undefined;
     await ctx.db.patch(agency._id, patch);
+  },
+});
+
+/** The agency's Royalties switch. Off by default; while off every studio
+ *  under the agency has no Royalties surface and every royalty function
+ *  refuses (lib/royaltiesGate.ts). Agency owners and admins only. */
+export const setRoyaltiesEnabled = mutation({
+  args: { enabled: v.boolean() },
+  handler: async (ctx, { enabled }) => {
+    const viewer = await resolveViewer(ctx);
+    if (viewer.kind !== "agency_member" || (viewer.role !== "owner" && viewer.role !== "admin")) {
+      throw new Error("Only an agency owner or admin can switch Royalties.");
+    }
+    const agency = await ctx.db
+      .query("agencies")
+      .withIndex("by_agency", (q) => q.eq("agencyId", viewer.agencyId))
+      .first();
+    if (!agency) throw new Error("Agency not found.");
+    await ctx.db.patch(agency._id, { royaltiesEnabled: enabled });
+    return { enabled };
   },
 });

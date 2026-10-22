@@ -38,6 +38,7 @@ const PRIVATE = [
   "/pay/",
   "/files/",
   "/sign/",
+  "/royalty/",
   "/invite",
   "/preview",
   "/mypulse",

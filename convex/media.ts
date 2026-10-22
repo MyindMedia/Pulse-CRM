@@ -28,6 +28,10 @@ const purposeV = v.union(
   v.literal("video"), v.literal("deliverable"), v.literal("document"), v.literal("receipt"),
 );
 
+/** Server-side writes may also store purposes no browser upload can name:
+ *  royalty statements arrive only through royalties.ts after its gate. */
+const storedPurposeV = v.union(purposeV, v.literal("royalty_statement"));
+
 /** Creates the pending row and the signed upload URL. Callers run their own
  *  authorization first; this only validates what is being uploaded. */
 export async function createUpload(
@@ -218,7 +222,7 @@ export async function readFileBlob(
 /** Pending row for a server-side write. Returns where the bytes must go. */
 export const _reserveStored = internalMutation({
   args: {
-    scope: v.string(), purpose: purposeV, fileName: v.string(), mimeType: v.string(), size: v.number(), actor: v.string(), legacyStorageId: v.optional(v.id("_storage")),
+    scope: v.string(), purpose: storedPurposeV, fileName: v.string(), mimeType: v.string(), size: v.number(), actor: v.string(), legacyStorageId: v.optional(v.id("_storage")),
     /** false for bytes a third party chose (an inbound email attachment): the
      *  per-purpose checks and the daily limit apply. Unset = our own bytes. */
     trusted: v.optional(v.boolean()),

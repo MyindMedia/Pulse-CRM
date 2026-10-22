@@ -18,6 +18,7 @@ import {
   capabilitiesForTier,
 } from "./lib/entitlements";
 import { evaluateBillingGate, effectivePriceCents } from "./lib/billingGate";
+import { royaltiesSwitchOn } from "./lib/royaltiesGate";
 
 /** Internal: every active, non-demo studio subaccount's orgId. The cron
  * fan-outs (weekly briefing, rate-cut sweep, ops-brain scan) iterate this
@@ -61,6 +62,7 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
   // metering resolves it, so entitlements and quotas never disagree.
   const tier = await tierForOrg(ctx, orgId);
   const limits = PLAN_LIMITS[tier];
+  const royaltiesOn = await royaltiesSwitchOn(ctx, orgId);
   return {
     orgId,
     name: org?.name ?? "Pulse Studio",
@@ -95,10 +97,14 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     // Feature toggles (nav gating). The effective list is the union of what
     // the agency switched off and everything this tier never included, so a
     // studio can never be handed a capability it did not pay for.
-    disabledFeatures: effectiveDisabledFeatures(tier, org?.disabledFeatures),
+    // Royalties also stay fully hidden (not even "locked") until the agency
+    // turns them on (lib/royaltiesGate).
+    disabledFeatures: royaltiesOn
+      ? effectiveDisabledFeatures(tier, org?.disabledFeatures)
+      : [...new Set([...effectiveDisabledFeatures(tier, org?.disabledFeatures), "royalties"])],
     // Locked purely by price. The UI shows these as upgrade prompts rather
     // than hiding them, so the studio can see what the next tier buys.
-    tierLockedFeatures: tierLockedFeatures(tier),
+    tierLockedFeatures: tierLockedFeatures(tier).filter((k) => royaltiesOn || k !== "royalties"),
     // The studio chose to hide those upgrade prompts from the sidebar.
     hideLockedFeatures: org?.hideLockedFeatures === true,
     // Plan + entitlements, read by every gated surface.

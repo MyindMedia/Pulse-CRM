@@ -21,7 +21,8 @@ async function seedSheet(t: ReturnType<typeof convexTest>) {
       contributors: [
         { name: "Already Signed", role: "Writer", masterPct: 50, publishingPct: 50, email: "signed@x.com", signed: true },
         { name: "Needs To Sign", role: "Producer", masterPct: 50, publishingPct: 50, email: "needs@x.com", signed: false },
-        { name: "No Email", role: "Engineer", masterPct: 0, publishingPct: 0, signed: false },
+        // Signed on paper before Pulse: no email needed, no link issued.
+        { name: "Signed Offline", role: "Engineer", masterPct: 0, publishingPct: 0, signed: true },
       ],
     });
     return { splitSheetId };
@@ -51,6 +52,33 @@ describe("split-sheet e-signature", () => {
 
     const sheet = await t.run(async (ctx) => ctx.db.get(splitSheetId));
     expect(sheet?.status).toBe("sent");
+  });
+
+  it("refuses to send while an unsigned contributor has no email, naming them", async () => {
+    const { splitSheetId } = await seedSheet(t);
+    await t.run(async (ctx) => {
+      const sheet = (await ctx.db.get(splitSheetId))!;
+      await ctx.db.patch(splitSheetId, {
+        contributors: [
+          ...sheet.contributors,
+          { name: "Mo Beats", role: "Producer", masterPct: 0, publishingPct: 0, signed: false },
+          { name: "Typo", role: "Writer", masterPct: 0, publishingPct: 0, email: "typo@nowhere", signed: false },
+        ],
+      });
+    });
+    await expect(t.mutation(api.splitSignatures.issue, { splitSheetId })).rejects.toMatchObject({
+      data: { code: "SPLIT_EMAIL_REQUIRED", names: ["Mo Beats", "Typo"] },
+    });
+    const sheet = await t.run(async (ctx) => ctx.db.get(splitSheetId));
+    expect(sheet?.status).toBe("draft");
+    const grants = await t.run(async (ctx) => ctx.db.query("collaboratorGrants").collect());
+    expect(grants).toHaveLength(0);
+  });
+
+  it("sends once every unsigned contributor has an email", async () => {
+    const { splitSheetId } = await seedSheet(t);
+    const links = await t.mutation(api.splitSignatures.issue, { splitSheetId });
+    expect(links.map((l) => l.email)).toEqual(["needs@x.com"]);
   });
 
   it("re-issue revokes the prior unused link for the same contributor", async () => {

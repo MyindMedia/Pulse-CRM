@@ -1,6 +1,7 @@
 import { action, internalQuery } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
-import { claimFile, retireFile, type FileRef } from "./lib/media";
+import { type FileRef } from "./lib/media";
+import { fillSongFromImport } from "./lib/songEnrich";
 import { fileRefV } from "./lib/fileRef";
 import { storeBytes } from "./media";
 import { mutation } from "./functions";
@@ -11,7 +12,6 @@ import {
   parseMusicLink,
   upscaleAppleArt,
   dedupeCredits,
-  buildContributors,
   metaContent,
   artistFromSpotifyDescription,
   searchTitle,
@@ -61,7 +61,7 @@ export const access = internalQuery({
 
 /** Pull the cover image into the studio's R2 bucket so the song owns a copy -
     the CDN URL on the streaming service is neither stable nor hotlink-safe. */
-async function storeCover(
+export async function storeCover(
   ctx: ActionCtx,
   orgId: string,
   artUrl: string | null,
@@ -145,7 +145,7 @@ export const fetchFromLink = action({
     // MusicBrainz goes after Deezer so the ISRC can pin the exact recording.
     const mb = cleanTitle
       ? await musicBrainz(cleanTitle, mainArtist, catalog?.isrc ?? null)
-      : { credits: [], iswc: null, isrc: null };
+      : { credits: [], iswc: null, isrc: null, artist: null, releaseDate: null };
 
     return {
       provider: link.provider,
@@ -188,57 +188,10 @@ export const applyToSong = mutation({
     const song = await ctx.db.get(songId);
     assertOrg(song, orgId);
 
-    // The imported cover must be this studio's own upload; it replaces the old one.
-    await claimFile(ctx, coverStorageId, orgId);
-    const previousCover = coverStorageId ? song!.coverArtId : undefined;
-    // Imported metadata fills blanks; it never overwrites studio-entered data.
-    await ctx.db.patch(songId, {
-      ...(coverStorageId ? { coverArtId: coverStorageId } : {}),
-      ...(genre && !song!.genre ? { genre } : {}),
-      ...(releaseDate && !song!.releaseDate ? { releaseDate } : {}),
-      ...(isrc && !song!.isrc ? { isrc: isrc.trim().toUpperCase().slice(0, 12) } : {}),
-      ...(iswc && !song!.iswc ? { iswc: iswc.trim().slice(0, 20) } : {}),
-      ...(bpm && bpm > 0 && bpm < 400 && !song!.bpm ? { bpm: Math.round(bpm) } : {}),
+    // The imported cover replaces the old one; everything else fills blanks.
+    const { sheetPrefilled } = await fillSongFromImport(ctx, orgId, song!, {
+      coverStorageId, replaceCover: true, genre, releaseDate, isrc, iswc, bpm, sourceUrl, artistName, credits,
     });
-    await retireFile(ctx, previousCover, coverStorageId);
-
-    // Keep provenance: the source link joins the reference tracks once.
-    if (!song!.referenceTracks.some((r) => r.url === sourceUrl)) {
-      await ctx.db.patch(songId, {
-        referenceTracks: [
-          ...song!.referenceTracks,
-          { title: "Imported source", url: sourceUrl },
-        ],
-      });
-    }
-
-    // Split-sheet prefill: only when there's no sheet yet, or the existing
-    // sheet is an empty draft. A sheet with contributors is studio work.
-    let sheetPrefilled = false;
-    if (credits.length > 0) {
-      const artist = await ctx.db.get(song!.artistId);
-      const contributors = buildContributors(
-        credits,
-        artistName ?? artist?.name,
-      );
-      const existing = await ctx.db
-        .query("splitSheets")
-        .withIndex("by_song", (q) => q.eq("songId", songId))
-        .first();
-      if (!existing) {
-        await ctx.db.insert("splitSheets", {
-          orgId,
-          songId,
-          status: "draft",
-          contributors,
-          updatedAt: Date.now(),
-        });
-        sheetPrefilled = true;
-      } else if (existing.status === "draft" && existing.contributors.length === 0) {
-        await ctx.db.patch(existing._id, { contributors, updatedAt: Date.now() });
-        sheetPrefilled = true;
-      }
-    }
 
     await ctx.db.insert("activity", {
       orgId,

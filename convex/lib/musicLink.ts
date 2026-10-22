@@ -54,6 +54,7 @@ export function creditRole(mbType: string): string | null {
   if (t === "composer" || t === "lyricist" || t === "writer") return "Writer";
   if (t === "producer") return "Producer";
   if (t === "mix") return "Mix Engineer";
+  if (t === "mastering") return "Mastering Engineer";
   if (t === "recording" || t === "engineer" || t === "audio") return "Engineer";
   if (t === "vocal") return "Vocalist";
   if (t === "instrument") return "Musician";
@@ -69,11 +70,15 @@ export function dedupeCredits(credits: ImportedCredit[]): ImportedCredit[] {
     role.includes("Writer") ? 0 : role.includes("Producer") ? 1 : 2;
   const byName = new Map<string, { name: string; roles: string[] }>();
   for (const c of credits) {
-    const key = c.name.trim().toLowerCase();
+    // Letters and digits only: "Guy‐Manuel" (U+2010) and "Guy-Manuel" are one person.
+    const key = c.name.normalize("NFKD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
     if (!key) continue;
-    const entry = byName.get(key);
-    if (!entry) byName.set(key, { name: c.name.trim(), roles: [c.role] });
-    else if (!entry.roles.includes(c.role)) entry.roles.push(c.role);
+    const entry = byName.get(key) ?? { name: c.name.trim(), roles: [] };
+    byName.set(key, entry);
+    // An already-merged credit arrives as "Writer / Producer".
+    for (const role of c.role.split(" / ")) {
+      if (role && !entry.roles.includes(role)) entry.roles.push(role);
+    }
   }
   // Within one person, list the roles that carry splits first.
   const order = ["Writer", "Producer", "Artist", "Vocalist", "Musician", "Mix Engineer", "Mastering Engineer", "Engineer"];

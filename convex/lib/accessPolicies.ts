@@ -303,6 +303,9 @@ export const GUEST_SCOPE_CAPABILITIES: Record<GrantScope, ReadonlyArray<Capabili
     "invoices.read",
     "revisionComments.write",
   ],
+  // The contributor's royalty page reads through its own token query
+  // (royalties.contributorView); the grant carries no app capabilities.
+  royalty_statement: [],
 };
 
 /** Capabilities whose grants/denies get audited. Keep tight to avoid noise. */
@@ -335,6 +338,7 @@ export const GUEST_SCOPE_DEFAULT_TTL_MS: Record<GrantScope, number> = {
   deliverable: 7 * 24 * 60 * 60 * 1000,
   splitsheet: 30 * 24 * 60 * 60 * 1000,
   artist_portal: 365 * 24 * 60 * 60 * 1000,
+  royalty_statement: 180 * 24 * 60 * 60 * 1000,
 };
 
 // ── Override token application ──────────────────────────────

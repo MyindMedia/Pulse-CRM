@@ -36,8 +36,14 @@ export const STAGE_ORDER = [
 ] as const;
 
 export const list = query({
-  args: { stage: v.optional(stageV), kind: v.optional(kindV), search: v.optional(v.string()) },
-  handler: async (ctx, { stage, kind, search }) => {
+  args: {
+    stage: v.optional(stageV),
+    kind: v.optional(kindV),
+    search: v.optional(v.string()),
+    // "imported": Imported Catalog Songs only; "studio": everything else.
+    origin: v.optional(v.union(v.literal("imported"), v.literal("studio"))),
+  },
+  handler: async (ctx, { stage, kind, search, origin }) => {
     const orgId = await currentOrg(ctx);
     let rows;
     if (search && search.trim()) {
@@ -50,10 +56,16 @@ export const list = query({
         .query("songs")
         .withIndex("by_org_stage", (q) => q.eq("orgId", orgId).eq("stage", stage))
         .collect();
+    } else if (origin === "imported") {
+      rows = await ctx.db
+        .query("songs")
+        .withIndex("by_org_imported", (q) => q.eq("orgId", orgId).gt("importedAt", 0))
+        .collect();
     } else {
       rows = await ctx.db.query("songs").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
     }
     if (kind) rows = rows.filter((r) => r.kind === kind);
+    if (origin) rows = rows.filter((r) => Boolean(r.importedAt) === (origin === "imported"));
 
     const artistIds = [...new Set(rows.map((r) => r.artistId))];
     const artists = new Map(
@@ -65,6 +77,7 @@ export const list = query({
           ...r,
           artistName: artists.get(r.artistId)?.name ?? "Unknown",
           coverUrl: r.coverArtId ? await fileUrl(ctx, r.coverArtId) : null,
+          imported: Boolean(r.importedAt),
         })),
       )
     ).sort((a, b) => b._creationTime - a._creationTime);

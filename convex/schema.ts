@@ -6,6 +6,7 @@ import { outreachTables } from "./outreach/tables";
 import { mailTables } from "./mail/tables";
 import { projectTables } from "./projectsTables";
 import { mediaLibraryTables } from "./mediaLibraryTables";
+import { catalogTables } from "./catalogTables";
 import { ledgerTables } from "./ledgerTables";
 import { expenseCategoryV, incomeCategoryV, moneyInKindV } from "./lib/financeValidators";
 import { tierV } from "./lib/tierV";
@@ -206,6 +207,7 @@ export default defineSchema({
   ...mailTables,
   ...projectTables,
   ...mediaLibraryTables,
+  ...catalogTables,
   ...ledgerTables,
   // ── Orgs - one row per studio subaccount. orgId is the Clerk org id
   //    (org_xxx) or "pulse-demo". The agency console provisions these. ──
@@ -646,6 +648,9 @@ export default defineSchema({
     markupCents: v.optional(v.number()),
     // Agency-level settings
     supportEmail: v.optional(v.string()),   // shown to studios; billing/support contact
+    // Royalties ship dark: Max studios under this agency get Royalty Statements
+    // only while this is true. Absent = off (requireRoyalties, lib/royaltiesGate.ts).
+    royaltiesEnabled: v.optional(v.boolean()),
     // Provisioning
     ownerClerkUserId: v.string(),
     ownerEmail: v.string(),
@@ -705,6 +710,8 @@ export default defineSchema({
       v.literal("deliverable"),
       v.literal("splitsheet"),
       v.literal("artist_portal"),
+      // A contributor's royalty history at one studio; entityId = the orgId.
+      v.literal("royalty_statement"),
     ),
     entityId: v.string(),                 // sessions._id | songs._id | etc.
     capabilities: v.array(v.string()),
@@ -1108,6 +1115,10 @@ export default defineSchema({
     lastDealTextAt: v.optional(v.number()),
     // Marketing: the artist agreed to be named in the studio's posts.
     okToFeature: v.optional(v.boolean()),
+    // Created by a Catalog Import only to carry an imported song's artist name.
+    // Not a client: kept out of Clients, counts, pickers and suggestions
+    // (lib/catalogArtists.ts). No email or phone, so nothing messages them.
+    catalogOnly: v.optional(v.boolean()),
     spotify: v.optional(v.string()),
     notes: v.optional(v.string()),
     status: v.union(v.literal("lead"), v.literal("active"), v.literal("dormant"), v.literal("vip")),
@@ -1265,8 +1276,21 @@ export default defineSchema({
     // Song Workspace overview signals
     deadline: v.optional(v.number()),
     ownerMemberId: v.optional(v.id("members")),
+    // Catalog Import provenance. importedAt also drives the "Imported" filter.
+    importedAt: v.optional(v.number()),
+    importedFrom: v.optional(v.object({
+      importId: v.id("catalogImports"),
+      identityId: v.id("creditIdentities"),
+      source: v.string(),
+    })),
+    // Members credited on this song by imports (one song, several members).
+    creditedMembers: v.optional(v.array(v.id("members"))),
+    // Created on Core behind a split sheet: a basic record, not a Songs entry.
+    splitOnly: v.optional(v.boolean()),
   })
     .index("by_org", ["orgId"])
+    .index("by_org_imported", ["orgId", "importedAt"])
+    .index("by_org_isrc", ["orgId", "isrc"])
     .index("by_org_stage", ["orgId", "stage"])
     .index("by_org_artist", ["orgId", "artistId"])
     .index("by_parent", ["parentSongId"])

@@ -2,6 +2,7 @@ import { v } from "convex/values";
 import { query } from "./_generated/server";
 import { resolveViewer } from "./lib/access";
 import { DEMO_ORG } from "./lib/tenant";
+import { isClient } from "./lib/catalogArtists";
 
 const DAY = 86_400_000;
 
@@ -197,7 +198,7 @@ export const overview = query({
         monthlyGoalCents: canSeeFinancials ? org?.monthlyRevenueGoalCents ?? null : null,
         canSetGoal: canSeeFinancials && viewer.capabilities.has("branding.edit"),
         activeSongs: songs.filter((s) => s.stage !== "released" && s.stage !== "delivered").length,
-        rosterSize: artists.length,
+        rosterSize: artists.filter(isClient).length,
       },
       charts: {
         revenueTrend: canSeeFinancials ? revenueTrend : [],

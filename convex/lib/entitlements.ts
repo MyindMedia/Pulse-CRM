@@ -48,6 +48,7 @@ export const NAV_CAPABILITIES = [
   "software",
   "mediaLibrary",
   "projects",
+  "royalties",
 ] as const satisfies readonly CapabilityKey[];
 
 const NAV_SET = new Set<string>(NAV_CAPABILITIES);
@@ -249,7 +250,7 @@ export const ENTITLEMENT_FOR_CAPABILITY: Record<string, CapabilityKey> = {
   // sheet, notes and history) pass their own entitlement.
   "patch.read": "patch",
   "patch.edit": "patch",
-  // Editing a split sheet is Max. Signing one deliberately is NOT
+  // Editing a split sheet is on every plan. Signing one deliberately is NOT
   // gated: an artist mid-signature must never hit an upgrade wall.
   "splitsheet.edit": "splitSheets",
   // Full white-label theming.

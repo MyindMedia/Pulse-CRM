@@ -1,4 +1,5 @@
 import { fileUrl } from "./lib/media";
+import { publicCredits } from "./lib/importedCreditLabels";
 import { brandSecondaryOf } from "./lib/brandPresets";
 import {
   roomBusyIntervals,
@@ -174,21 +175,20 @@ async function engineerProfiles(ctx: QueryCtx, orgId: string) {
     .collect();
   const profiles = await Promise.all(
     members
-      .filter(
-        (m) =>
-          ENGINEER_ROLES.has(m.role) &&
-          ((m.bio && m.bio.trim().length > 0) || (m.credits && m.credits.length > 0)),
-      )
+      .filter((m) => ENGINEER_ROLES.has(m.role))
       .map(async (m) => ({
         id: m._id,
         name: m.name,
         role: m.role,
         bio: m.bio ?? null,
-        credits: m.credits ?? [],
+        // Typed Notable Credits, then approved imported ones.
+        credits: await publicCredits(ctx, m),
         photoUrl: m.photoId ? await fileUrl(ctx, m.photoId) : (m.clerkImageUrl ?? null),
       })),
   );
-  return profiles.sort((a, b) => a.name.localeCompare(b.name));
+  return profiles
+    .filter((p) => (p.bio && p.bio.trim().length > 0) || p.credits.length > 0)
+    .sort((a, b) => a.name.localeCompare(b.name));
 }
 
 /** Public studio front. `slug` selects a studio; omitted → the active org. */
@@ -589,7 +589,7 @@ export const addOnOptions = query({
           // Bio + notable credits are the proof-of-work shown at the point a
           // client is choosing who runs their session.
           bio: m.bio ?? null,
-          credits: m.credits ?? [],
+          credits: await publicCredits(ctx, m),
           photoUrl: m.photoId ? await fileUrl(ctx, m.photoId) : (m.clerkImageUrl ?? null),
           // Their sessions AND their personal calendar: someone busy in their
           // own Google calendar cannot be requested (lib/roomBusy).
