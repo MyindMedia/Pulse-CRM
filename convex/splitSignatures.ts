@@ -6,6 +6,7 @@ import { currentOrg, currentActor } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { whitelabelFor } from "./usage";
 import { sameEmail, validEmail } from "./lib/emailKey";
+import { allocateSongLines } from "./lib/royaltyAllocate";
 
 /* ============================================================
    Split-sheet e-signature.
@@ -224,6 +225,7 @@ export const sign = mutation({
     const allSigned = next.every((c) => c.signed);
     if (allSigned && sheet.status !== "fully_executed") {
       await ctx.db.patch(sheet._id, { status: "fully_executed", updatedAt: now });
+      await allocateSongLines(ctx, sheet.orgId, sheet.songId);
     }
 
     await ctx.db.insert("auditEvents", {

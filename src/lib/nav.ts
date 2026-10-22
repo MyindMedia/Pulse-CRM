@@ -31,6 +31,7 @@ import {
   FolderOpen,
   ListChecks,
   Disc3,
+  Coins,
   type LucideIcon,
 } from "lucide-react";
 
@@ -67,6 +68,7 @@ export const NAV: NavItem[] = [
   { label: "Songs", href: "/songs", icon: Music2, blurb: "The catalog - every record in flight", feature: "songs", group: "music" },
   { label: "Projects", href: "/projects", icon: ListChecks, blurb: "Post-production: tracking to delivery, tasks, owners and due dates", feature: "projects", capability: "projects.read", group: "music" },
   { label: "Split sheets", href: "/splits", icon: Scale, blurb: "Who owns what share of each song, signed by everyone on it", capability: "splitsheet.read", group: "music" },
+  { label: "Royalties", href: "/royalties", icon: Coins, blurb: "Distributor statements divided by the signed split sheets", feature: "royalties", capability: "invoices.read", group: "music" },
   { label: "Finished mixes", href: "/mixes", icon: Disc3, blurb: "Numbered mix and master versions, notes on each version, client approval", capability: "deliverables.read", group: "music" },
   { label: "Media library", href: "/library", icon: FolderOpen, blurb: "Every session, stem, mix, master and artwork file, with version history and approval", feature: "mediaLibrary", capability: "deliverables.read", group: "music" },
   { label: "Clients", href: "/roster", icon: Users, blurb: "Everyone the studio works with - artists, clients, leads", feature: "clients", group: "business" },

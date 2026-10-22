@@ -170,7 +170,7 @@ export const MODULES: ModuleDef[] = [
     blurb: "Ownership splits with real e-signatures" },
   { key: "catalogImport", label: "Catalog import", area: "catalog", nav: false,
     blurb: "Pull a released catalog in with credits, codes and drafted split sheets" },
-  { key: "royalties", label: "Royalties", area: "catalog", nav: false,
+  { key: "royalties", label: "Royalties", area: "catalog", nav: true,
     blurb: "Distributor statements divided by the signed split sheets" },
   { key: "releases", label: "Releases", area: "catalog", nav: true,
     blurb: "Rollout campaigns" },

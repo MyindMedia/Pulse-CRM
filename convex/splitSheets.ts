@@ -3,6 +3,7 @@ import { mutation } from "./functions";
 import { v } from "convex/values";
 import { currentOrg, assertOrg, currentOrgWithCapability} from "./lib/tenant";
 import { validEmail } from "./lib/emailKey";
+import { allocateSongLines } from "./lib/royaltyAllocate";
 
 const contributorV = v.object({
   name: v.string(),
@@ -94,6 +95,7 @@ export const upsert = mutation({
         status: status ?? existing.status,
         updatedAt: Date.now(),
       });
+      if ((status ?? existing.status) === "fully_executed") await allocateSongLines(ctx, orgId, songId);
       if (changed) {
         await ctx.db.insert("activity", {
           orgId,
@@ -136,6 +138,8 @@ export const setStatus = mutation({
     assertOrg(sheet, orgId);
     await ctx.db.patch(id, { status, updatedAt: Date.now() });
     if (status === "fully_executed") {
+      // Held royalty income for this song is allocated from the signed sheet.
+      await allocateSongLines(ctx, orgId, sheet.songId);
       const song = await ctx.db.get(sheet.songId);
       await ctx.db.insert("activity", {
         orgId,

@@ -24,6 +24,7 @@ export function featureForPath(pathname: string): FeatureKey | null {
     agent: "agent",
     brief: "bookings",
     songs: "songs",
+    royalties: "royalties",
     roster: "clients",
     messages: "clients",
     pipeline: "pipeline",

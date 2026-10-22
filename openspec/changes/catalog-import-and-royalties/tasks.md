@@ -32,12 +32,12 @@
 
 ## 6. Royalty statements
 
-- [ ] 6.1 `convex/lib/royaltyCsv.ts`: header detection + parsers for DistroKid, TuneCore, CD Baby, and mapped CSV; string-to-cents parsing; fixtures and tests
-- [ ] 6.2 `convex/lib/royaltyMath.ts`: largest-remainder allocation; tests for exact sums and rounding
-- [ ] 6.3 Upload flow: R2 private purpose (CSV, 20 MB), duplicate refusal by SHA-256, statement + lines written in batches, ISRC matching, unallocated vs unmatched states; all behind `requireRoyalties`
-- [ ] 6.4 Allocation on split sheet `fully_executed`; matching an Unmatched Line to a Song or creating one
-- [ ] 6.5 Mark paid (single share, or contributor x period) with date and method; no payment calls
-- [ ] 6.6 Royalties UI (Max + toggle on): statements list, per-song and per-contributor views, Unallocated ("waiting on N signatures") and Unmatched queues, column-mapping dialog
+- [x] 6.1 `convex/lib/royaltyCsv.ts`: header detection + parsers for DistroKid, TuneCore, CD Baby, and mapped CSV; string-to-cents parsing; fixtures and tests
+- [x] 6.2 `convex/lib/royaltyMath.ts`: largest-remainder allocation; tests for exact sums and rounding
+- [x] 6.3 Upload flow: R2 private purpose (CSV, 20 MB), duplicate refusal by SHA-256, statement + lines written in batches, ISRC matching, unallocated vs unmatched states; all behind `requireRoyalties`
+- [x] 6.4 Allocation on split sheet `fully_executed`; matching an Unmatched Line to a Song or creating one
+- [x] 6.5 Mark paid (single share, or contributor x period) with date and method; no payment calls
+- [x] 6.6 Royalties UI (Max + toggle on): statements list, per-song and per-contributor views, Unallocated ("waiting on N signatures") and Unmatched queues, column-mapping dialog
 
 ## 7. Contributor Statements
 
