@@ -181,6 +181,37 @@ export function geniusSongRoles(song: GeniusSongFull, geniusArtistId: number): s
   return [...roles];
 }
 
+/** Who wins when sources disagree: Genius, then MusicBrainz (ISRCs and
+ *  credits), then Apple Music, then Deezer. Merging keeps the first value it
+ *  sees, so candidates are sorted by this before mergeCandidates. */
+export const SOURCE_PRIORITY = ["genius", "musicbrainz", "apple", "deezer"] as const;
+
+function sourceRank(c: Candidate): number {
+  const ranks = c.sources.map((s) => (SOURCE_PRIORITY as readonly string[]).indexOf(s)).filter((r) => r >= 0);
+  return ranks.length ? Math.min(...ranks) : SOURCE_PRIORITY.length;
+}
+
+/** Stable sort, Genius first. */
+export function byPriority(input: Candidate[]): Candidate[] {
+  return [...input].sort((a, b) => sourceRank(a) - sourceRank(b));
+}
+
+/** Is a same-name identity found by search really this person: its songs
+ *  must overlap the songs already found. One shared title is enough for a
+ *  small catalog; from ten known songs up it takes two, so a stray
+ *  "Intro" does not pull in a stranger's catalog. */
+export function corroborates(found: Candidate[], known: Set<string>): boolean {
+  if (known.size === 0) return false;
+  const need = known.size >= 10 ? 2 : 1;
+  const shared = new Set<string>();
+  for (const c of found) {
+    const k = titleKey(c.title);
+    if (known.has(k)) shared.add(k);
+    if (shared.size >= need) return true;
+  }
+  return false;
+}
+
 /** Does the song hold at least one of the roles the person asked for. */
 export function holdsChosenRole(found: string[], chosen: string[]): boolean {
   return found.some((r) => chosen.includes(r));

@@ -5,6 +5,11 @@
    catalogLookup.ts). Every call is best-effort: a source that fails
    contributes nothing and the others carry on.
 
+   Every import reads every source: the identities the person picked,
+   plus the same person found by name at the sources they did not pick
+   (findSiblings), kept only when their songs overlap (corroborates in
+   catalogMerge.ts). Genius leads on conflicts; the others fill gaps.
+
    Sources and what each discovers:
      deezer       Artist role: the artist's albums, then their tracks.
      apple        Artist role: iTunes lookup of the artist's songs.
@@ -26,6 +31,7 @@ import {
   type Candidate,
 } from "./catalogMerge";
 import type { CreditSource } from "../catalogTables";
+import { artistKey } from "./catalogArtists";
 
 export const MB_HEADERS = {
   "User-Agent": "Pulse-StudioOS/1.0 (https://studiopulse.tech)",
@@ -57,8 +63,44 @@ const s = (v: unknown) => (typeof v === "string" && v.trim() ? v.trim() : undefi
 export async function searchIdentities(name: string): Promise<IdentityCandidate[]> {
   const q = name.trim();
   if (!q) return [];
-  const [dz, mb, gn] = await Promise.all([deezerArtists(q), mbArtists(q), geniusArtists(q)]);
-  return [...gn, ...mb, ...dz];
+  const [gn, mb, ap, dz] = await Promise.all([geniusArtists(q), mbArtists(q), appleArtists(q), deezerArtists(q)]);
+  return [...gn, ...mb, ...ap, ...dz];
+}
+
+const SEARCH: Record<CreditSource, (q: string) => Promise<IdentityCandidate[]>> = {
+  genius: geniusArtists,
+  musicbrainz: mbArtists,
+  apple: appleArtists,
+  deezer: deezerArtists,
+};
+
+/** The same name at every source the import does not cover yet, up to two
+ *  exact matches per source. A name match alone proves nothing: the import
+ *  keeps one only when its songs overlap the songs already found. */
+export async function findSiblings(name: string, have: CreditSource[]): Promise<IdentityCandidate[]> {
+  const want = artistKey(name);
+  if (!want) return [];
+  const missing = (Object.keys(SEARCH) as CreditSource[]).filter((src) => !have.includes(src));
+  const found = await Promise.all(missing.map((src) => SEARCH[src](name.trim())));
+  return found.flatMap((list) => list.filter((c) => artistKey(c.name) === want).slice(0, 2));
+}
+
+async function appleArtists(q: string): Promise<IdentityCandidate[]> {
+  try {
+    const found = await fetchJson(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&entity=musicArtist&limit=4`);
+    type A = { artistId?: number; artistName?: string; primaryGenreName?: string };
+    return ((found?.results ?? []) as A[])
+      .filter((a) => typeof a.artistId === "number" && a.artistName)
+      .map((a) => ({
+        source: "apple" as const,
+        sourceId: String(a.artistId),
+        name: a.artistName!,
+        detail: a.primaryGenreName ? `${a.primaryGenreName} on Apple Music` : "Apple Music artist",
+        topSongs: [],
+      }));
+  } catch {
+    return [];
+  }
 }
 
 async function deezerArtists(q: string): Promise<IdentityCandidate[]> {
@@ -169,6 +211,24 @@ export async function resolveArtistLink(
 }
 
 export type DiscoverIdentity = { source: CreditSource; sourceId: string; name: string };
+
+/** Discover several identities at once: sources in parallel, identities at
+ *  one source in turn (MusicBrainz allows about one request a second). */
+export async function discoverAll<T extends DiscoverIdentity>(
+  identities: T[],
+  roles: string[],
+): Promise<{ identity: T; found: Candidate[] }[]> {
+  const bySource = new Map<CreditSource, T[]>();
+  for (const i of identities) bySource.set(i.source, [...(bySource.get(i.source) ?? []), i]);
+  const runs = await Promise.all(
+    [...bySource.values()].map(async (list) => {
+      const out: { identity: T; found: Candidate[] }[] = [];
+      for (const identity of list) out.push({ identity, found: await discover(identity, roles) });
+      return out;
+    }),
+  );
+  return runs.flat();
+}
 
 /** Every song this identity holds one of `roles` on, as raw candidates. */
 export async function discover(identity: DiscoverIdentity, roles: string[], limit = IMPORT_CAP + 200): Promise<Candidate[]> {

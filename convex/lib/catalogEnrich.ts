@@ -1,18 +1,22 @@
 /* ============================================================
    Catalog Import enrichment: one discovered song -> everything Pulse
    keeps (ISRC, ISWC, BPM, genre, release, cover, credits), using the
-   same sources and rules as the single-link importer. Plain fetch, no
-   ctx. Order matters: MusicBrainz first pins the recording (artist,
-   ISRC), so Deezer and Genius can look it up exactly.
+   same sources and rules as the single-link importer, plus Apple Music.
+   Plain fetch, no ctx. Genius goes first and wins on conflicts (every
+   later source only fills what is still empty); MusicBrainz then pins
+   the recording (artist, ISRC), so Deezer and Genius can look it up
+   exactly, and Apple Music fills whatever is left.
    ============================================================ */
 import { fetchJson, musicBrainz, deezer, genius } from "./catalogLookup";
 import { MB_HEADERS, MB_PAUSE_MS } from "./catalogDiscovery";
-import { dedupeCredits, deezerMeta, geniusCredits, primaryArtist, searchTitle, creditRole, type ImportedCredit } from "./musicLink";
+import { dedupeCredits, deezerMeta, geniusCredits, primaryArtist, searchTitle, creditRole, upscaleAppleArt, type ImportedCredit } from "./musicLink";
+import { artistKey } from "./catalogArtists";
 import {
   cleanIsrc,
   geniusSongRoles,
   holdsChosenRole,
   parseReleaseDate,
+  titleKey,
   type CatalogRefs,
   type GeniusSongFull,
 } from "./catalogMerge";
@@ -150,6 +154,17 @@ export async function enrichItem(
   // 5. Genius credits by search when discovery did not come from Genius.
   if (!geniusDone) credits.push(...(await genius(cleanTitle, primaryArtist(artist))));
 
+  // 6. Apple Music: the backup for art, album, release date and genre.
+  if (!coverUrl || !album || !releaseDate || !genre) {
+    const ap = await appleTrack(item.refs.appleTrackId, cleanTitle, primaryArtist(artist)).catch(() => null);
+    if (ap) {
+      coverUrl ??= ap.coverUrl;
+      album ??= ap.album;
+      releaseDate ??= ap.releaseDate;
+      genre ??= ap.genre;
+    }
+  }
+
   return {
     kind: "ok",
     song: {
@@ -165,5 +180,38 @@ export async function enrichItem(
       roles: [...roles],
       credits: dedupeCredits(credits),
     },
+  };
+}
+
+type AppleRow = {
+  wrapperType?: string; trackName?: string; artistName?: string; collectionName?: string;
+  releaseDate?: string; artworkUrl100?: string; primaryGenreName?: string;
+};
+
+/** One song on Apple Music: by its own track id, else the search hit with the
+ *  same cleaned title and primary artist. */
+export async function appleTrack(
+  trackId: number | undefined,
+  title: string,
+  artist: string | null,
+): Promise<{ coverUrl?: string; album?: string; releaseDate?: number; genre?: string } | null> {
+  const url = trackId
+    ? `https://itunes.apple.com/lookup?id=${trackId}`
+    : `https://itunes.apple.com/search?term=${encodeURIComponent(`${title} ${artist ?? ""}`.trim())}&entity=song&limit=10`;
+  const data = await fetchJson(url);
+  const rows = ((data?.results ?? []) as AppleRow[]).filter((r) => r.wrapperType === "track" && r.trackName);
+  const want = titleKey(title);
+  const who = artist ? artistKey(artist) : null;
+  const hit = trackId
+    ? rows[0]
+    : rows.find(
+        (r) => titleKey(searchTitle(r.trackName!)) === want && (!who || artistKey(primaryArtist(r.artistName ?? null) ?? "") === who),
+      );
+  if (!hit) return null;
+  return {
+    coverUrl: hit.artworkUrl100 ? upscaleAppleArt(hit.artworkUrl100) : undefined,
+    album: str(hit.collectionName),
+    releaseDate: parseReleaseDate(hit.releaseDate),
+    genre: str(hit.primaryGenreName),
   };
 }
