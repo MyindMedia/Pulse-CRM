@@ -1,7 +1,7 @@
 ## 1. Gating and schema
 
 - [ ] 1.1 Add capability keys `catalogImport` (growth) and `royalties` (max) to `convex/lib/pricing.ts` (CapabilityKey, CAPABILITY_TIER, feature rows) and update pricing tests
-- [ ] 1.1b Move `splitSheets` to `core` (CAPABILITY_TIER + the four split-sheet feature rows + any marketing/pricing copy naming Max); give Core a way to hold the song a sheet belongs to per the Open Question; update entitlement tests
+- [ ] 1.1b Move `splitSheets` to `core` (CAPABILITY_TIER + the four split-sheet feature rows + any marketing/pricing copy naming Max); add `splitSheets.createWithSong` (gated on splitSheets only) that inserts a basic song (title, artist, ISRC) plus the sheet; Split Sheets page lists sheets without needing the Songs module; tests that Core can create, edit and send a sheet but is refused every Songs query
 - [ ] 1.2 Add `agencies.royaltiesEnabled` (optional boolean) and `requireRoyalties(ctx, orgId)` with the `ROYALTIES_OFF` error; unit-test tier x toggle combinations
 - [ ] 1.3 Agency toggle: `agencySettings.setRoyaltiesEnabled` (agency members only) + `summary` field; switch on Agency > Settings; test that a studio owner is refused
 - [ ] 1.4 Schema: `creditIdentities`, `catalogImports`, `catalogImportItems`, `songs.importedFrom`, `songs.creditedMembers`, `members.importedCredits`, `royaltyStatements`, `royaltyLines`, `royaltyShares`, `royaltyMappings`, `collaboratorGrants` scope `royalty_statement`, media purpose `royalty_statement`

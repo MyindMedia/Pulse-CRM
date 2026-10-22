@@ -118,6 +118,7 @@ import type * as lib_bookingMessages from "../lib/bookingMessages.js";
 import type * as lib_booksImport from "../lib/booksImport.js";
 import type * as lib_brandCardUrl from "../lib/brandCardUrl.js";
 import type * as lib_brandPresets from "../lib/brandPresets.js";
+import type * as lib_catalogLookup from "../lib/catalogLookup.js";
 import type * as lib_changeApproval from "../lib/changeApproval.js";
 import type * as lib_changeAudit from "../lib/changeAudit.js";
 import type * as lib_checklistTemplates from "../lib/checklistTemplates.js";
@@ -504,6 +505,7 @@ declare const fullApi: ApiFromModules<{
   "lib/booksImport": typeof lib_booksImport;
   "lib/brandCardUrl": typeof lib_brandCardUrl;
   "lib/brandPresets": typeof lib_brandPresets;
+  "lib/catalogLookup": typeof lib_catalogLookup;
   "lib/changeApproval": typeof lib_changeApproval;
   "lib/changeAudit": typeof lib_changeAudit;
   "lib/checklistTemplates": typeof lib_checklistTemplates;

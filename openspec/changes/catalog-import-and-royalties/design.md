@@ -60,7 +60,7 @@ A new `collaboratorGrants` scope `royalty_statement` with `entityId = orgId`, ke
 - [Financial data and contributor emails (compliance)] → royalties dark by default; token page scoped to one email at one org; run compliance-ops and a pentest of the upload and token page before enabling.
 - [Large statements (100k+ lines)] → batched inserts in scheduled mutations; per-statement totals precomputed.
 - [Imported songs swamp the Songs page] → owner wants them visible (Grilled decision 11); badge plus an "Imported" filter, and the list stays paginated.
-- [Split sheets on Core while Songs is Growth] → a split sheet needs a Song; resolve before building (Open Questions).
+- [Split sheets on Core while Songs is Growth] → on Core, `splitSheets.createWithSong` inserts a basic song (title, artist, ISRC) and the sheet together; Song queries and mutations stay Growth-gated, so Core never sees the Songs list or stages.
 
 ## Migration Plan
 
@@ -68,7 +68,6 @@ Additive only: new tables, optional fields, new capability keys. `agencies.royal
 
 ## Open Questions
 
-- Core has split sheets but not Songs: give Core the Songs module, or let a Core split sheet create a minimal song record (title, artist, ISRC) without the Songs pipeline UI?
 
 - Genius `artists/:id/songs` coverage of producer and writer credits: verify once `GENIUS_ACCESS_TOKEN` exists.
 - Real DistroKid, TuneCore and CD Baby sample files to confirm headers (fixtures are built from their published column lists until then).
