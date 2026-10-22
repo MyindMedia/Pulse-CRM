@@ -30,3 +30,20 @@ Ubiquitous language for the Pulse codebase. Glossary only: no implementation det
 
 **Promo**
 : A time-boxed discount a Studio offers, identified by a code, that can be attached to a Post and redeemed on the booking page. Distinct from the existing owner-issued Discount Code in that a Promo has a start and end.
+
+## Find a Studio
+
+**Listed Studio**
+: A Studio that has opted in to appear in Find a Studio. Off by default. Only a Listed Studio with at least one bookable room is shown.
+
+**Studio Profile**
+: The public Find a Studio page for one Listed Studio: what it offers, where it is, what people say, and a way to book. Distinct from the Booking Page, which is where the booking happens.
+
+**City Page**
+: A public Find a Studio page gathering the Listed Studios in one city. Exists only once a city has two or more Listed Studios.
+
+**Google Listing**
+: The Studio's own place on Google Maps, linked in Integrations so its Google rating and featured reviews can appear on Pulse. Distinct from a Connected Account, which is for publishing Posts. A Studio links at most one Google Listing.
+
+**Google Reviews Shown**
+: The Studio's choice to display its Google Listing's rating and featured reviews publicly. Linking a Google Listing does not show it; the Studio turns this on separately, and when on, everything Google returns is shown unfiltered.
