@@ -5,8 +5,9 @@ import { EmailConnectCard } from "@/components/email/email-connect-card";
 import { CalendarSyncCard } from "@/components/calendar/calendar-sync-card";
 import { SmsRemindersCard } from "@/components/sms/sms-reminders-card";
 import { PlaidConnectCard } from "@/components/finance/plaid-connect-card";
+import { GoogleReviewsCard } from "@/components/google/google-reviews-card";
 
-/** Connect the studio's payments, banking, messaging, and calendar services. */
+/** Connect the studio's payments, banking, messaging, calendar and review services. */
 export function IntegrationsPanel() {
   return (
     <div className="space-y-4">
@@ -39,6 +40,12 @@ export function IntegrationsPanel() {
         <p className="text-sm text-steel">Automated session reminders by SMS to clients and engineers.</p>
       </div>
       <SmsRemindersCard />
+
+      <div className="pt-2">
+        <h2 className="font-grotesk text-base font-semibold text-bone">Reviews</h2>
+        <p className="text-sm text-steel">Show your Google rating and reviews where clients find and book you.</p>
+      </div>
+      <GoogleReviewsCard />
     </div>
   );
 }

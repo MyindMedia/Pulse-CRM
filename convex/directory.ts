@@ -217,6 +217,30 @@ function cityPagesOf(listings: Listing[]) {
     .sort((a, b) => a.city.localeCompare(b.city));
 }
 
+/** PUBLIC. What a booking page's <head> and the Google section need: only
+ *  what the booking page already shows, plus city and region when the
+ *  studio listed itself (that is when it chose to make them public). */
+export const pageMeta = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .first();
+    if (!org || (org.status ?? "active") !== "active") return null;
+    const listed = listedOrgs([org]).length > 0;
+    return {
+      name: org.name,
+      // The tagline is on the booking page; the blurb is public once listed.
+      description: (org.tagline ?? (listed ? org.directoryBlurb : undefined) ?? "").trim() || null,
+      city: listed ? org.directoryCity ?? null : null,
+      region: listed ? org.directoryRegion ?? null : null,
+      listed,
+      googlePlaceId: org.googleReviewsShown === true && org.googlePlaceId ? org.googlePlaceId : null,
+    };
+  },
+});
+
 type CityGroup = { slug: string; city: string; region: string | null; listings: Listing[] };
 
 async function cityGroups(ctx: QueryCtx, withAvailability: boolean): Promise<CityGroup[]> {

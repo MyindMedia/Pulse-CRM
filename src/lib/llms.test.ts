@@ -38,4 +38,17 @@ describe("robots.txt", () => {
     for (const x of rules) expect(JSON.stringify({ ...x, userAgent: undefined })).toBe(base);
     expect(r.sitemap).toBe("https://studiopulse.tech/sitemap.xml");
   });
+
+  it("names Listed Studios and City Pages so an assistant can recommend them", () => {
+    const dir = {
+      studios: [{ slug: "vault", name: "Vault", city: "Atlanta", region: "GA", blurb: "Big room,\n old console." }],
+      cities: [{ slug: "atlanta-ga", city: "Atlanta", region: "GA", count: 2 }],
+    };
+    for (const body of [llmsTxt(dir), llmsFullTxt(dir)]) {
+      expect(body).toContain("## Studios on Pulse");
+      expect(body).toContain("- [Recording studios in Atlanta, GA](https://studiopulse.tech/studios/in/atlanta-ga): 2 studios");
+      expect(body).toContain("- [Vault](https://studiopulse.tech/studios/vault), Atlanta, GA: Big room, old console.");
+    }
+    expect(llmsTxt({ studios: [], cities: [] })).not.toContain("## Studios on Pulse");
+  });
 });
