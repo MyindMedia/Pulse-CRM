@@ -71,6 +71,7 @@ const isPublicRoute = createRouteMatcher([
   "/files/(.*)", // expiring media-library guest link - token-authed, no login
   "/portal(.*)", // client concierge magic-link portal - token-authed, no login
   "/sign(.*)", // split-sheet e-signature magic-link - token-authed, no login
+  "/royalty/(.*)", // contributor royalty statement link - token-authed, no login (the slash keeps /royalties private)
   "/visit/(.*)", // visitor QR self check-in - org derived from the slug, no login
   // Public marketing + directory surfaces. These exist FOR people who have no
   // account, so protecting them 404s exactly the audience they were built for

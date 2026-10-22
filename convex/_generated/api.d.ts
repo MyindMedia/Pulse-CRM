@@ -359,6 +359,7 @@ import type * as roomBlocks from "../roomBlocks.js";
 import type * as rooms from "../rooms.js";
 import type * as royalties from "../royalties.js";
 import type * as royaltiesNode from "../royaltiesNode.js";
+import type * as royaltyStatements from "../royaltyStatements.js";
 import type * as seed from "../seed.js";
 import type * as seedDemoFinance from "../seedDemoFinance.js";
 import type * as seedDemoFurniture from "../seedDemoFurniture.js";
@@ -761,6 +762,7 @@ declare const fullApi: ApiFromModules<{
   rooms: typeof rooms;
   royalties: typeof royalties;
   royaltiesNode: typeof royaltiesNode;
+  royaltyStatements: typeof royaltyStatements;
   seed: typeof seed;
   seedDemoFinance: typeof seedDemoFinance;
   seedDemoFurniture: typeof seedDemoFurniture;

@@ -41,8 +41,8 @@
 
 ## 7. Contributor Statements
 
-- [ ] 7.1 Grant scope `royalty_statement` (email-keyed, 180-day expiry, revocable) and public query returning only that contributor's shares at that studio; tests for cross-contributor and cross-org isolation
-- [ ] 7.2 Statement email via `sendEmail` + `brandEmail`, sent only on owner action; public token page
+- [x] 7.1 Grant scope `royalty_statement` (email-keyed, 180-day expiry, revocable) and public query returning only that contributor's shares at that studio; tests for cross-contributor and cross-org isolation
+- [x] 7.2 Statement email via `sendEmail` + `brandEmail`, sent only on owner action; public token page
 
 ## 8. Gates and ship
 
