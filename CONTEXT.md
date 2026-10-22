@@ -51,10 +51,13 @@ Ubiquitous language for the Pulse codebase. Glossary only: no implementation det
 ## Catalog and Royalties
 
 **Catalog Import**
-: Bringing a person's already-released songs into a Studio's Songs. Started either by a Member for their own credits, or by the Studio for a Roster Artist. Distinct from the Song Import, which enriches one song from one streaming link.
+: Bringing a person's already-released songs into one workspace's Songs: either their own account or a Studio they are a Member of (the Import Destination), or by a Studio for a Roster Artist. Paid for by the plan of the destination workspace. Distinct from the Song Import, which enriches one song from one streaming link.
+
+**Import Destination**
+: The one workspace a Catalog Import fills, chosen each time. Each workspace keeps its own copy of the songs, credits and split sheets; copies in different workspaces never sync.
 
 **Imported Catalog Song**
-: A Song that arrived through a Catalog Import. It is already Released, and it is hidden from the active pipeline by default so in-progress work stays visible.
+: A Song that arrived through a Catalog Import. It is already Released, appears in the Songs list with an Imported badge, and can be filtered on its own.
 
 **Credit Role**
 : The part a person played on a song: Artist, Writer, Producer, Engineer, Mix Engineer, Mastering Engineer, Vocalist or Musician. A person chooses which Credit Roles their Catalog Import searches under. One person can hold several Credit Roles on one song.

@@ -1980,6 +1980,8 @@ Owner request: "Google review should be something that is enabled by the team in
 8. Plans: Catalog Import on Growth (with Songs); Royalty Statements + Shares on Max (with split sheets); Growth sees royalties locked with upgrade prompt.
 9. CSV formats: auto-detected DistroKid, TuneCore, CD Baby + "Other" column picker remembered per studio.
 10. (added mid-build) Royalties ship dark behind an agency toggle: Agency > Settings "Royalties" switch on the agency record, OFF by default. When on, Max studios under that agency see Royalties; when off, every royalty surface and function is unavailable (not just hidden). Catalog Import is not behind the toggle.
+11. (revised 2026-10-22, owner) Catalog Import populates the Songs list (Imported badge + filter, NOT hidden by default; supersedes the "hidden" part of decision 1) and is paid for by the destination workspace's own subscription. Every sign-up is its own workspace, so a person imports either into "My account" or into a studio they belong to, chosen per import; each workspace keeps its own copy and they never sync (tenant isolation).
+12. (2026-10-22, owner, supersedes an earlier "Max, Growth sees preview" answer) Split sheets are on EVERY plan (Core, Growth, Max): drafting, editing, sending for signature. `splitSheets` moves from max to core in CAPABILITY_TIER and marketing copy. Royalty Statements stay Max + agency toggle. Open: split sheets hang off a Song and Songs is Growth, so Core needs a way to hold the song a sheet belongs to (see Dependencies).
 
 **Defaults (decided without asking, change if wrong)**
 - Dedupe: match existing Songs by ISRC, else title + primary artist; enrich, never duplicate; one song can be credited to several Members.

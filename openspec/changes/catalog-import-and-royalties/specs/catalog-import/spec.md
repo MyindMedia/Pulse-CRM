@@ -1,7 +1,7 @@
 ## ADDED Requirements
 
 ### Requirement: Catalog Import entry points
-The system SHALL let a Member start a Catalog Import for their own credits from their profile, and SHALL let an owner or manager start a Catalog Import for a Roster Artist from that artist's page. Catalog Import SHALL require the `catalogImport` capability (Growth and above).
+The system SHALL let a Member start a Catalog Import for their own credits from their profile, and SHALL let an owner or manager start a Catalog Import for a Roster Artist from that artist's page. Catalog Import SHALL require the `catalogImport` capability (Growth and above) on the Import Destination workspace, so the import is paid for by that workspace's own subscription.
 
 #### Scenario: Member imports their own catalog
 - **WHEN** a Member on a Growth studio opens their profile and chooses "Import my catalog"
@@ -14,6 +14,21 @@ The system SHALL let a Member start a Catalog Import for their own credits from 
 #### Scenario: Core studio is refused
 - **WHEN** a user on a Core studio calls any Catalog Import function
 - **THEN** the system refuses with the standard upgrade error naming Growth
+
+### Requirement: Import Destination picked per import
+The system SHALL ask, for each Catalog Import a Member starts, which workspace it fills: their own account workspace or any Studio they are a Member of. It SHALL list only workspaces where the person may create Songs, SHALL check the plan of the chosen workspace, and SHALL write songs, credits and split sheets only into that workspace. Copies of the same song in different workspaces SHALL NOT sync.
+
+#### Scenario: Import into my own account
+- **WHEN** a producer on a Growth personal workspace who is also a Member of a Core studio starts an import and picks "My account"
+- **THEN** the songs land in their personal workspace and nothing is written to the studio
+
+#### Scenario: Destination plan too low
+- **WHEN** the same producer picks the Core studio as destination
+- **THEN** the system refuses with the standard upgrade error naming Growth, for that studio
+
+#### Scenario: Two workspaces, no sync
+- **WHEN** the producer imports the same catalog into their account and into a Growth studio, then edits a song's title in the studio
+- **THEN** the song in their own account keeps its original title
 
 ### Requirement: Credit Roles selection
 The system SHALL let the person choose one or more Credit Roles (Artist, Writer, Producer, Engineer, Mix Engineer, Mastering Engineer, Vocalist, Musician) and SHALL only import songs where the Credit Identity holds at least one chosen Credit Role.
@@ -56,11 +71,15 @@ The system SHALL match each candidate to an existing Song in the Studio by ISRC 
 - **THEN** the Studio has one Song and it lists both Members as credited
 
 ### Requirement: Imported Catalog Songs
-A Song created by a Catalog Import SHALL be at stage Released, SHALL record that it came from a Catalog Import (who started it, which identity and source), SHALL carry cover art, ISRC, ISWC, release date, genre and credits when the sources provide them, and SHALL get a draft split sheet from its credits. Imported Catalog Songs SHALL be hidden from the active Songs pipeline by default and shown under an "Imported catalog" filter.
+A Song created by a Catalog Import SHALL be at stage Released, SHALL record that it came from a Catalog Import (who started it, which identity and source), SHALL carry cover art, ISRC, ISWC, release date, genre and credits when the sources provide them, and SHALL get a draft split sheet from its credits on every plan. Imported Catalog Songs SHALL appear in the Songs list with an "Imported" badge, and an "Imported" filter SHALL show only them.
 
 #### Scenario: Default Songs view
-- **WHEN** a studio with 12 working songs and 200 Imported Catalog Songs opens Songs
-- **THEN** the default view shows the 12 working songs and an "Imported catalog" filter shows the 200
+- **WHEN** a workspace with 12 working songs and 200 Imported Catalog Songs opens Songs
+- **THEN** the list shows all 212, the 200 carry an "Imported" badge, and the "Imported" filter narrows to the 200
+
+#### Scenario: Split sheets ready after import
+- **WHEN** an import finishes on any plan
+- **THEN** each new song with credits has a draft split sheet the owner can edit and send for signature
 
 ### Requirement: Credit Approval before public display
 Imported credits SHALL be visible only inside the Studio until an owner or manager approves them. Only approved credits SHALL appear in a Member's booking-page Notable Credits, and each public credit SHALL name its source. An imported credit SHALL NOT create or change any Royalty Share.

@@ -1,6 +1,7 @@
 ## 1. Gating and schema
 
 - [ ] 1.1 Add capability keys `catalogImport` (growth) and `royalties` (max) to `convex/lib/pricing.ts` (CapabilityKey, CAPABILITY_TIER, feature rows) and update pricing tests
+- [ ] 1.1b Move `splitSheets` to `core` (CAPABILITY_TIER + the four split-sheet feature rows + any marketing/pricing copy naming Max); give Core a way to hold the song a sheet belongs to per the Open Question; update entitlement tests
 - [ ] 1.2 Add `agencies.royaltiesEnabled` (optional boolean) and `requireRoyalties(ctx, orgId)` with the `ROYALTIES_OFF` error; unit-test tier x toggle combinations
 - [ ] 1.3 Agency toggle: `agencySettings.setRoyaltiesEnabled` (agency members only) + `summary` field; switch on Agency > Settings; test that a studio owner is refused
 - [ ] 1.4 Schema: `creditIdentities`, `catalogImports`, `catalogImportItems`, `songs.importedFrom`, `songs.creditedMembers`, `members.importedCredits`, `royaltyStatements`, `royaltyLines`, `royaltyShares`, `royaltyMappings`, `collaboratorGrants` scope `royalty_statement`, media purpose `royalty_statement`
@@ -20,13 +21,13 @@
 ## 4. Catalog Import job
 
 - [ ] 4.1 Extract the create-or-enrich song upsert from `songImport.applyToSong` into a shared internal helper; keep existing songImport tests green
-- [ ] 4.2 `catalogImport.saveIdentity`, `start`, `status` (reactive), batch worker via `ctx.scheduler.runAfter`, paced for MusicBrainz; `requireFeature(catalogImport)`; member-self vs owner/manager-for-artist permissions
+- [ ] 4.2 `catalogImport.saveIdentity`, `start(destinationOrgId)`, `status` (reactive), batch worker via `ctx.scheduler.runAfter`, paced for MusicBrainz; `requireFeature(destinationOrgId, catalogImport)`; destination must be a workspace where the caller can create Songs; member-self vs owner/manager-for-artist permissions; tests for wrong-destination refusal and no cross-workspace writes
 - [ ] 4.3 Imported Catalog Songs: stage released, `importedFrom`, `creditedMembers`, drafted split sheet; dedupe tests (ISRC match, title match, two members one song)
-- [ ] 4.4 Songs list excludes imported songs by default; "Imported catalog" filter
+- [ ] 4.4 Songs list shows imported songs with an "Imported" badge; "Imported" filter (index `by_org_imported`)
 
 ## 5. Catalog Import UI and Credit Approval
 
-- [ ] 5.1 "Import my catalog" on the member profile and "Import catalog" on the roster artist page: role picker, link-or-search identity picker with same-name disambiguation, progress panel
+- [ ] 5.1 "Import my catalog" on the member profile and "Import catalog" on the roster artist page: destination picker ("My account" or a studio, with each one's plan), role picker, link-or-search identity picker with same-name disambiguation, progress panel
 - [ ] 5.2 `members.importedCredits` written by the job; `approveCredits` (owner/manager); booking page shows approved credits labelled with source; tests that unapproved credits never reach the public query
 
 ## 6. Royalty statements

@@ -29,13 +29,16 @@ Candidates from all sources merge by ISRC, else cleaned title + primary artist (
 `catalogImports { orgId, identityIds, roles, status, found, imported, merged, failed, capped, startedBy, startedAt, finishedAt }`. An action discovers candidates and stores them (`catalogImportItems`), then schedules batches of 10 through `ctx.scheduler.runAfter`, each batch running the PR #178 enrichment and a mutation that creates or merges Songs. Batches pace MusicBrainz at about 1 request per second. Progress is a reactive query on the job row. Cap 500 enforced at discovery. Alternative: one long action. Rejected: a failure would lose all progress, and Convex action time limits.
 
 ### D4. Shared song upsert
-Extract the create-or-enrich logic from `songImport.applyToSong` into one internal helper used by both the single-link importer and Catalog Import. Songs gain `importedFrom?: { importId, identityId, source }` and `creditedMembers?: Id<"members">[]`. The Songs list query excludes `importedFrom` rows unless the "Imported catalog" filter is chosen. Cover art goes through `storeCover` to R2 as today.
+Extract the create-or-enrich logic from `songImport.applyToSong` into one internal helper used by both the single-link importer and Catalog Import. Songs gain `importedFrom?: { importId, identityId, source }` and `creditedMembers?: Id<"members">[]`. The Songs list shows imported rows with an "Imported" badge; an "Imported" filter narrows to `importedFrom` rows (index `by_org_imported`). Cover art goes through `storeCover` to R2 as today.
+
+### D4b. Import Destination and billing
+`catalogImport.start` takes `destinationOrgId`. Allowed destinations = orgs where the caller has a `members` row with a role that can create Songs (their own sign-up workspace is one of these). `requireFeature(ctx, destinationOrgId, "catalogImport")` gates on the destination's plan, so the destination's subscription pays. Every row the job writes (`catalogImports`, songs, split sheets, `creditIdentities`) carries `destinationOrgId`; identities are copied per workspace, never shared, so tenant isolation holds and copies never sync. Alternative: one personal catalog mirrored into studios. Rejected: cross-tenant writes and sync conflicts.
 
 ### D5. Credit Approval
 `members.importedCredits?: { songId, role, source, approved: boolean, approvedBy?, approvedAt? }[]`. Booking-page credits = existing free-text `credits` plus approved imported credits, each labelled with its source. Approval mutation requires owner/manager. Alternative: auto-public with a "self-reported" label. Rejected in grilling.
 
 ### D6. Royalties gating: tier AND agency switch
-New capability `royalties: "max"` and `catalogImport: "growth"` in `CAPABILITY_TIER`. A helper `requireRoyalties(ctx, orgId)` = `requireFeature(ctx, orgId, "royalties")` plus a check of `agencies.royaltiesEnabled === true` for the org's agency; it throws a distinct `ROYALTIES_OFF` error. Every royalty query and mutation calls it first; navigation reads the same through a query. The toggle mutation requires an agency member with settings rights. Alternative: env flag like `DEAL_TEXTS_LIVE`. Rejected: Lawrence asked for a toggle in Agency, and an env flag needs a deploy to flip.
+New capability `royalties: "max"` and `catalogImport: "growth"` in `CAPABILITY_TIER`, and `splitSheets` moves from `"max"` to `"core"` (owner decision: split sheets on every plan), including the four Max-labelled split-sheet feature rows in the pricing table. A helper `requireRoyalties(ctx, orgId)` = `requireFeature(ctx, orgId, "royalties")` plus a check of `agencies.royaltiesEnabled === true` for the org's agency; it throws a distinct `ROYALTIES_OFF` error. Every royalty query and mutation calls it first; navigation reads the same through a query. The toggle mutation requires an agency member with settings rights. Alternative: env flag like `DEAL_TEXTS_LIVE`. Rejected: Lawrence asked for a toggle in Agency, and an env flag needs a deploy to flip.
 
 ### D7. Statement storage and parsing
 CSV uploaded to R2 as a new private media purpose `royalty_statement` (CSV only, 20 MB cap). An action reads it back, detects the format from headers with pure parsers in `convex/lib/royaltyCsv.ts` (DistroKid, TuneCore, CD Baby, mapped), and writes `royaltyStatements { orgId, source, periodStart, periodEnd, currency, grossCents, lineCount, fileHash, uploadedBy }` and `royaltyLines { statementId, orgId, isrc, title?, store?, country?, units?, amountCents, songId?, state: "allocated"|"unallocated"|"unmatched" }`, inserted in batches. `fileHash` (SHA-256) refuses duplicates. Saved mappings live in `royaltyMappings { orgId, headerSignature, columns }`. Amounts parse from strings to integer cents (no floats); non-USD lines keep their currency and are reported per currency.
@@ -56,13 +59,16 @@ A new `collaboratorGrants` scope `royalty_statement` with `entityId = orgId`, ke
 - [Wrong-person imports] → identity by source ID, internal until Credit Approval, and credits never move money.
 - [Financial data and contributor emails (compliance)] → royalties dark by default; token page scoped to one email at one org; run compliance-ops and a pentest of the upload and token page before enabling.
 - [Large statements (100k+ lines)] → batched inserts in scheduled mutations; per-statement totals precomputed.
-- [Imported songs swamp the Songs page] → hidden by default behind a filter (Grilled decision 1).
+- [Imported songs swamp the Songs page] → owner wants them visible (Grilled decision 11); badge plus an "Imported" filter, and the list stays paginated.
+- [Split sheets on Core while Songs is Growth] → a split sheet needs a Song; resolve before building (Open Questions).
 
 ## Migration Plan
 
 Additive only: new tables, optional fields, new capability keys. `agencies.royaltiesEnabled` absent means off. The split-sheet email requirement affects only future sends. Rollback: turn the agency switch off; Catalog Import songs stay as normal Songs.
 
 ## Open Questions
+
+- Core has split sheets but not Songs: give Core the Songs module, or let a Core split sheet create a minimal song record (title, artist, ISRC) without the Songs pipeline UI?
 
 - Genius `artists/:id/songs` coverage of producer and writer credits: verify once `GENIUS_ACCESS_TOKEN` exists.
 - Real DistroKid, TuneCore and CD Baby sample files to confirm headers (fixtures are built from their published column lists until then).

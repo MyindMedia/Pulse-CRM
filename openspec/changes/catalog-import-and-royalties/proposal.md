@@ -5,7 +5,9 @@ Pulse users want their released work inside Pulse: an artist's discography, or a
 ## What Changes
 
 - **Catalog Import (Growth).** A Member imports their own catalog from their profile, choosing Credit Roles (Artist, Writer, Producer, Engineer, Mix Engineer, Mastering Engineer, Vocalist, Musician). The Studio imports a Roster Artist's catalog from the artist page. The person picks their exact Credit Identity (an artist link from Spotify, Apple Music or TIDAL, or a search result from Genius / MusicBrainz / Deezer), stored by source ID. Import runs in the background with progress, capped at 500 songs, and dedupes against existing Songs by ISRC, then title + primary artist.
-- **Imported Catalog Songs** land at stage Released, tagged as imported, hidden from the active pipeline by default, each enriched with ISRC, ISWC, credits and a drafted split sheet.
+- **Import Destination.** Each import fills one workspace the person picks: their own account or a studio they belong to. That workspace's plan pays; copies never sync.
+- **Imported Catalog Songs** land at stage Released in the Songs list with an "Imported" badge and filter, each enriched with ISRC, ISWC, credits and a drafted split sheet.
+- **Split sheets on every plan.** `splitSheets` moves from Max to Core.
 - **Credit Approval.** A Member's imported credits can fill their booking-page Notable Credits only after an owner or manager approves them; public credits carry their source.
 - **Royalty Statements (Max, behind an agency toggle).** Upload a DistroKid, TuneCore or CD Baby CSV (auto-detected) or any CSV through a remembered column mapping. Lines match Songs by ISRC; master % from the signed split sheet gives each contributor's Royalty Share. Unsigned sheets hold income as Unallocated; unknown ISRCs become Unmatched Lines. Contributors get a per-period statement email with a private no-login history link. The account holder pays outside Pulse and marks shares paid. No money moves through Pulse.
 - **Agency toggle.** A "Royalties" switch on the agency record, off by default. While off, every royalty function refuses and every royalty surface is absent for every studio under that agency.
