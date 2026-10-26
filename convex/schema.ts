@@ -2920,6 +2920,48 @@ export default defineSchema({
     .index("by_email", ["email"])
     .index("by_claimed_org", ["claimedOrgId"]),
 
+  // ── Signup leads - someone who started a public trial on the pricing page.
+  //
+  //    Saved before Stripe Checkout opens, because the hosted checkout is the
+  //    last place Pulse would otherwise see them: a checkout left open is
+  //    gone without a trace. Platform-scoped (no orgId): these people do not
+  //    have a studio yet. Reminders follow consent, stop on conversion or
+  //    unsubscribe, and are off until TRIAL_NUDGES_LIVE is set. ──
+  signupLeads: defineTable({
+    email: v.string(), // normalized
+    studioName: v.string(),
+    tier: v.string(),
+    interval: v.string(),
+    // notice: told under the field, may be emailed (outside the EU/UK).
+    // opt_in: ticked the box. none: EU/UK/unknown without the box, never emailed.
+    consent: v.union(v.literal("notice"), v.literal("opt_in"), v.literal("none")),
+    country: v.optional(v.string()),
+    status: v.union(
+      v.literal("open"),
+      v.literal("converted"),
+      v.literal("unsubscribed"),
+      v.literal("stale"),
+    ),
+    // Resume + unsubscribe links. Unguessable, one per lead.
+    token: v.string(),
+    // The latest start: the reminder clock runs from here.
+    startedAt: v.number(),
+    startCount: v.number(),
+    lastSessionId: v.optional(v.string()),
+    nudgesSent: v.number(),
+    nextNudgeAt: v.optional(v.number()),
+    lastNudgeAt: v.optional(v.number()),
+    resumedAt: v.optional(v.number()),
+    convertedAt: v.optional(v.number()),
+    unsubscribedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_email", ["email"])
+    .index("by_token", ["token"])
+    .index("by_session", ["lastSessionId"])
+    .index("by_status_next", ["status", "nextNudgeAt"])
+    .index("by_created", ["createdAt"]),
+
   // ── Agent rules - a deterministic standing rule, usually promoted from an
   //    insight the owner got tired of approving.
   //

@@ -185,36 +185,96 @@ export const myPlan = query({
    and claimCheckout links it to the paid subscription.
    ============================================================ */
 
-/** Public (no auth) - start a pay-first signup checkout for a self-serve tier. */
+/** The pay-first signup checkout, shared by the pricing page and the resume
+ *  link in a reminder email. The lead id rides in metadata so the webhook can
+ *  close the lead the moment the checkout completes. */
+export async function createSignupCheckout(args: {
+  tier: TierKey;
+  interval: "month" | "year";
+  email?: string;
+  studioName?: string;
+  leadId?: string;
+}): Promise<{ checkoutUrl: string | null; earlyAdopter: boolean; sessionId: string }> {
+  const { tier, interval } = args;
+  if (!SELF_SERVE_TIERS.has(tier)) throw new Error("That tier is not self-serve.");
+  const stripe = stripeClient();
+  const priceId = priceIdForTier(tier, interval);
+  // The landing page sells the launch offer, so the till has to honour it.
+  const discounts = await earlyAdopterDiscounts(stripe, tier, interval);
+  const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  const meta: Record<string, string> = {
+    kind: "platform_signup",
+    intendedTier: tier,
+    intendedInterval: interval,
+    ...(args.leadId ? { leadId: args.leadId } : {}),
+  };
+  const studioName = args.studioName?.trim();
+  const session = await stripe.checkout.sessions.create(
+    buildSubscriptionCheckoutParams({
+      lineItems: [{ price: priceId, quantity: 1 }],
+      customerEmail: args.email,
+      discounts,
+      customFields: [
+        {
+          key: "studio_name",
+          label: { type: "custom", custom: "Your studio or group name" },
+          type: "text",
+          ...(studioName ? { text: { default_value: studioName.slice(0, 255) } } : {}),
+        },
+      ],
+      trial: trialSpec({ trialDays: PLATFORM_TRIAL_DAYS, now: Date.now() }),
+      metadata: meta,
+      successUrl: `${baseUrl}/welcome/activate?session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${baseUrl}/pricing`,
+    }),
+  );
+  return { checkoutUrl: session.url, earlyAdopter: Boolean(discounts), sessionId: session.id };
+}
+
+/** Public (no auth) - start a pay-first signup checkout for a self-serve tier.
+ *  With an email, the person is saved as a Signup Lead first, so a checkout
+ *  left open is someone Pulse can still reach (see signupLeads.ts). Without
+ *  one it behaves as it always did, for a page that has not reloaded yet. */
 export const beginPublicCheckout = action({
-  args: { tier: tierV, interval: v.optional(intervalV) },
-  handler: async (_ctx, { tier, interval: wanted }) => {
+  args: {
+    tier: tierV,
+    interval: v.optional(intervalV),
+    email: v.optional(v.string()),
+    studioName: v.optional(v.string()),
+    /** Ticked the reminder box (shown where the law asks for one). */
+    optedIn: v.optional(v.boolean()),
+    /** ISO country from the visitor's request, read by /api/geo. */
+    country: v.optional(v.string()),
+  },
+  handler: async (ctx, args): Promise<{ checkoutUrl: string | null; earlyAdopter: boolean }> => {
+    const tier = args.tier as TierKey;
     if (!SELF_SERVE_TIERS.has(tier)) throw new Error("That tier is not self-serve.");
-    const interval = wanted ?? "month";
-    const stripe = stripeClient();
-    const priceId = priceIdForTier(tier as TierKey, interval);
-    // The landing page sells the launch offer, so the till has to honour it.
-    const discounts = await earlyAdopterDiscounts(stripe, tier as TierKey, interval);
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
-    const meta = { kind: "platform_signup", intendedTier: tier, intendedInterval: interval };
-    const session = await stripe.checkout.sessions.create(
-      buildSubscriptionCheckoutParams({
-        lineItems: [{ price: priceId, quantity: 1 }],
-        discounts,
-        customFields: [
-          {
-            key: "studio_name",
-            label: { type: "custom", custom: "Your studio or group name" },
-            type: "text",
-          },
-        ],
-        trial: trialSpec({ trialDays: PLATFORM_TRIAL_DAYS, now: Date.now() }),
-        metadata: meta,
-        successUrl: `${baseUrl}/welcome/activate?session_id={CHECKOUT_SESSION_ID}`,
-        cancelUrl: `${baseUrl}/pricing`,
-      }),
-    );
-    return { checkoutUrl: session.url, earlyAdopter: Boolean(discounts) };
+    const interval = args.interval ?? "month";
+    let lead: { leadId: string; email: string; studioName: string } | null = null;
+    if (args.email !== undefined) {
+      lead = await ctx.runMutation(internal.signupLeads._start, {
+        email: args.email,
+        studioName: args.studioName ?? "",
+        tier,
+        interval,
+        optedIn: Boolean(args.optedIn),
+        country: args.country,
+      });
+    }
+    const out = await createSignupCheckout({
+      tier,
+      interval,
+      email: lead?.email,
+      studioName: lead?.studioName,
+      leadId: lead?.leadId,
+    });
+    if (lead) {
+      await ctx.runMutation(internal.signupLeads._setSession, {
+        leadId: lead.leadId as Id<"signupLeads">,
+        sessionId: out.sessionId,
+      });
+    }
+    return { checkoutUrl: out.checkoutUrl, earlyAdopter: out.earlyAdopter };
   },
 });
 

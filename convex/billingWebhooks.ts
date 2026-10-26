@@ -1,4 +1,5 @@
 import { MutationCtx } from "./_generated/server";
+import { markLeadConverted } from "./signupLeads";
 import { internalMutation } from "./functions";
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
@@ -291,6 +292,10 @@ export const handle = internalMutation({
 
       // Pay-first signup: email the buyer their activation link so they can
       // finish creating their login even if they closed the success page.
+      if (meta.kind === "platform_signup") {
+        // A lead who finished: no more "finish setting up" reminders.
+        await markLeadConverted(ctx, { leadId: meta.leadId, email: ownerEmail });
+      }
       if (meta.kind === "platform_signup" && ownerEmail) {
         await ctx.scheduler.runAfter(0, internal.billing.sendActivationEmail, {
           email: normalizeEmail(ownerEmail),

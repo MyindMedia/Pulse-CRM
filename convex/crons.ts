@@ -159,4 +159,8 @@ crons.daily("demo-refresh", { hourUTC: 8, minuteUTC: 30 }, internal.demoRefresh.
 crons.interval("org-buckets-sweep", { hours: 1 }, internal.orgBuckets.sweepNewOrgs, {});
 crons.daily("beta-ending-warnings", { hourUTC: 16, minuteUTC: 0 }, internal.betaClock.sweepWarnings, {});
 
+// Reminders for people who started a trial and stopped at checkout
+// (signupLeads.ts). Sends nothing until TRIAL_NUDGES_LIVE=true.
+crons.interval("signup-lead-reminders", { minutes: 15 }, internal.signupLeads.sweep, {});
+
 export default crons;

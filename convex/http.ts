@@ -188,6 +188,20 @@ http.route({
   }),
 });
 
+/* One-click unsubscribe (RFC 8058) for the trial reminder emails. Mail
+   clients POST here from the List-Unsubscribe header without opening a page;
+   the token is the lead's own random link token. Always 200, so the answer
+   says nothing about whether a token exists. */
+http.route({
+  path: "/signup/unsubscribe",
+  method: "POST",
+  handler: httpAction(async (ctx, req) => {
+    const token = new URL(req.url).searchParams.get("t") ?? "";
+    await ctx.runMutation(internal.signupLeads._unsubscribe, { token }).catch(() => {});
+    return new Response("Unsubscribed", { status: 200, headers: { "Content-Type": "text/plain" } });
+  }),
+});
+
 /* Plaid webhook - bank feed updates and connection status.
    openspec add-bank-sync-receipts (finance/bank-sync). Nothing is trusted until
    the Plaid-Verification JWT checks out against Plaid's key for its kid, is no

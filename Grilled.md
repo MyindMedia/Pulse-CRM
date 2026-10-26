@@ -1994,3 +1994,23 @@ Owner request: "Google review should be something that is enabled by the team in
 - Gates before calling done: OpenSpec proposal, compliance-ops (earnings + contributor emails), pentest on the CSV upload + token statement page.
 
 **Non-goals:** streaming sign-in; paying out through Pulse; PRO/MLC registration; publishing statements in v1; proving legal ownership.
+
+## Feature: Unfinished sign-up recovery (grilled 2026-10-26)
+
+**Goal (owner's words):** "can we do something to track these people? especially the ones that didn't check out and retarget them?"
+
+**Context found in code:** the public trial path is Pricing card -> `billing.beginPublicCheckout` (anonymous, tier + interval only) -> Stripe hosted Checkout -> `/welcome/activate`. Pulse first learns the email after checkout completes, nothing is stored before it, there is no `checkout.session.expired` handling, no analytics or pixels on the site, and no general marketing unsubscribe. Since launch (2026-10-10) every non-test checkout session expired with no email captured.
+
+**Decisions**
+1. Channel: email follow-ups we own, plus a lead list. No ad pixels or retargeting ads in this change.
+2. Capture: "Start free trial" first asks for email + studio name on Pulse. That saves a Signup Lead, then opens Stripe Checkout with the email prefilled.
+3. Cadence: 3 emails. 1 hour after they leave (finish setup + resume link), day 1 (what Pulse does for a studio), day 4 (last nudge + book a demo). Emails stop the moment the lead checks out or unsubscribes.
+4. Consent: US and everywhere else see a notice under the email field ("We'll send a few reminders to finish setup. Unsubscribe anytime."). EU/EEA/UK visitors (Netlify geo) get an unticked opt-in box, and no box means no emails. Every email carries one-click unsubscribe (List-Unsubscribe + List-Unsubscribe-Post). The privacy policy is updated to match.
+5. Rollout: lead capture and an "Unfinished sign-ups" list in the agency admin go live immediately. The emails sit behind `TRIAL_NUDGES_LIVE` (Convex env), off until the owner approves sample copy.
+
+**Defaults (decided without asking, change if wrong)**
+- Resume links create a fresh Checkout session from the lead (email prefilled), so they never expire with Stripe's 24h session.
+- One open lead per email: starting again reuses it and restarts the schedule. A lead older than 7 days is never emailed, so a late switch-on does not mail stale leads.
+- A lead converts when `checkout.session.completed` arrives for its session or its email.
+
+**Non-goals:** Meta/Google pixels, cookie banner, SMS nudges, Clerk webhooks.

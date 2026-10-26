@@ -147,6 +147,7 @@ import type * as lib_emailTemplates_betaWelcome from "../lib/emailTemplates/beta
 import type * as lib_emailTemplates_billingEmails from "../lib/emailTemplates/billingEmails.js";
 import type * as lib_emailTemplates_invite from "../lib/emailTemplates/invite.js";
 import type * as lib_emailTemplates_layout from "../lib/emailTemplates/layout.js";
+import type * as lib_emailTemplates_signupNudge from "../lib/emailTemplates/signupNudge.js";
 import type * as lib_emailTemplates_trialEmails from "../lib/emailTemplates/trialEmails.js";
 import type * as lib_entitlements from "../lib/entitlements.js";
 import type * as lib_featureRequests from "../lib/featureRequests.js";
@@ -223,6 +224,7 @@ import type * as lib_royaltyMath from "../lib/royaltyMath.js";
 import type * as lib_ruleSpec from "../lib/ruleSpec.js";
 import type * as lib_secretBox from "../lib/secretBox.js";
 import type * as lib_sessionAccess from "../lib/sessionAccess.js";
+import type * as lib_signupLeads from "../lib/signupLeads.js";
 import type * as lib_sms from "../lib/sms.js";
 import type * as lib_smsContacts from "../lib/smsContacts.js";
 import type * as lib_smsKeywords from "../lib/smsKeywords.js";
@@ -377,6 +379,7 @@ import type * as sessionFiles from "../sessionFiles.js";
 import type * as sessionNotes from "../sessionNotes.js";
 import type * as sessions from "../sessions.js";
 import type * as shifts from "../shifts.js";
+import type * as signupLeads from "../signupLeads.js";
 import type * as sms from "../sms.js";
 import type * as smsFlows from "../smsFlows.js";
 import type * as smsTestFixtures from "../smsTestFixtures.js";
@@ -550,6 +553,7 @@ declare const fullApi: ApiFromModules<{
   "lib/emailTemplates/billingEmails": typeof lib_emailTemplates_billingEmails;
   "lib/emailTemplates/invite": typeof lib_emailTemplates_invite;
   "lib/emailTemplates/layout": typeof lib_emailTemplates_layout;
+  "lib/emailTemplates/signupNudge": typeof lib_emailTemplates_signupNudge;
   "lib/emailTemplates/trialEmails": typeof lib_emailTemplates_trialEmails;
   "lib/entitlements": typeof lib_entitlements;
   "lib/featureRequests": typeof lib_featureRequests;
@@ -626,6 +630,7 @@ declare const fullApi: ApiFromModules<{
   "lib/ruleSpec": typeof lib_ruleSpec;
   "lib/secretBox": typeof lib_secretBox;
   "lib/sessionAccess": typeof lib_sessionAccess;
+  "lib/signupLeads": typeof lib_signupLeads;
   "lib/sms": typeof lib_sms;
   "lib/smsContacts": typeof lib_smsContacts;
   "lib/smsKeywords": typeof lib_smsKeywords;
@@ -780,6 +785,7 @@ declare const fullApi: ApiFromModules<{
   sessionNotes: typeof sessionNotes;
   sessions: typeof sessions;
   shifts: typeof shifts;
+  signupLeads: typeof signupLeads;
   sms: typeof sms;
   smsFlows: typeof smsFlows;
   smsTestFixtures: typeof smsTestFixtures;
