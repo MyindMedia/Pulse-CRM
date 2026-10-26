@@ -23,6 +23,7 @@ import { money } from "@/lib/format";
 import { TrendArea, HBars, CategoryDonut } from "@/components/charts";
 import { CreateSubaccountDialog } from "@/components/agency/create-subaccount-dialog";
 import { BetaInvitesButton } from "@/components/agency/beta-invites-button";
+import { SignupLeadsButton } from "@/components/agency/signup-leads-button";
 import { InviteStudioDialog } from "@/components/agency/invite-studio-dialog";
 import { StageDemoDialog } from "@/components/agency/stage-demo-dialog";
 import { BookingFeaturesTable } from "@/components/agency/booking-features-table";
@@ -61,6 +62,7 @@ export default function AgencyOverviewPage() {
         description="The whole network in one place - revenue, subscribers, pipelines, outreach, and the studios that drive it all."
         actions={
           <div className="flex flex-wrap items-center gap-2">
+            <SignupLeadsButton />
             <BetaInvitesButton />
             <CreateSubaccountDialog />
             <InviteStudioDialog />

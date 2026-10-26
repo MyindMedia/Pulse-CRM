@@ -4,7 +4,7 @@ import { Suspense, useEffect, useMemo, useRef, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { Music4, Plus, Search, X } from "lucide-react";
+import { Library, Music4, Plus, Search, X } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/field";
@@ -21,6 +21,7 @@ import { SONG_STAGE } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import { SongCard } from "@/components/songs/song-card";
 import { NewSongDialog } from "@/components/songs/new-song-dialog";
+import { CatalogImportDialog } from "@/components/songs/catalog-import-dialog";
 
 const STAGE_KEYS = [
   "writing",
@@ -42,14 +43,22 @@ const KIND_FILTERS: { value: string; label: string }[] = [
   { value: "spec", label: "Spec" },
 ];
 
+const ORIGIN_FILTERS: { value: string; label: string }[] = [
+  { value: "all", label: "All songs" },
+  { value: "studio", label: "Studio songs" },
+  { value: "imported", label: "Imported" },
+];
+
 function SongsCatalog() {
   const searchParams = useSearchParams();
 
   const [stage, setStage] = useState<string>("all");
   const [kind, setKind] = useState<string>("all");
+  const [origin, setOrigin] = useState<string>("all");
   const [searchInput, setSearchInput] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   // Auto-open the New Song dialog when ?new=1 is present.
   const handledNewParam = useRef(false);
@@ -74,18 +83,21 @@ function SongsCatalog() {
           ? undefined
           : (kind as "single" | "album_track" | "beat" | "spec" | "ep"),
       search: debouncedSearch || undefined,
+      origin: origin === "all" ? undefined : (origin as "imported" | "studio"),
     }),
-    [stage, kind, debouncedSearch],
+    [stage, kind, origin, debouncedSearch],
   );
 
   const songs = useQuery(api.songs.list, queryArgs);
   const stageCounts = useQuery(api.songs.byStage);
 
-  const filtersActive = stage !== "all" || kind !== "all" || debouncedSearch.length > 0;
+  const filtersActive =
+    stage !== "all" || kind !== "all" || origin !== "all" || debouncedSearch.length > 0;
 
   function clearFilters() {
     setStage("all");
     setKind("all");
+    setOrigin("all");
     setSearchInput("");
     setDebouncedSearch("");
   }
@@ -97,10 +109,16 @@ function SongsCatalog() {
         title="Songs"
         description="Every track in the studio - from a working title in writing to a released record. The catalog is the spine of the whole product."
         actions={
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="size-4" />
-            New song
-          </Button>
+          <>
+            <Button variant="outline" onClick={() => setImportOpen(true)}>
+              <Library className="size-4" />
+              Import my catalog
+            </Button>
+            <Button onClick={() => setDialogOpen(true)}>
+              <Plus className="size-4" />
+              New song
+            </Button>
+          </>
         }
       />
 
@@ -125,6 +143,18 @@ function SongsCatalog() {
               {KIND_FILTERS.map((k) => (
                 <SelectItem key={k.value} value={k.value}>
                   {k.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Select value={origin} onValueChange={setOrigin}>
+            <SelectTrigger className="w-40" aria-label="Song origin">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ORIGIN_FILTERS.map((o) => (
+                <SelectItem key={o.value} value={o.value}>
+                  {o.label}
                 </SelectItem>
               ))}
             </SelectContent>
@@ -200,6 +230,7 @@ function SongsCatalog() {
       )}
 
       <NewSongDialog open={dialogOpen} onOpenChange={setDialogOpen} />
+      <CatalogImportDialog open={importOpen} onOpenChange={setImportOpen} subject={{ kind: "member" }} />
     </div>
   );
 }

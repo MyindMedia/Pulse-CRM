@@ -75,18 +75,18 @@ describe("the feature list", () => {
     expect(FEATURE_GROUPS[14].title).toBe("Production, media and gear check-out");
   });
 
-  it("totals Core 76 / Growth 49 / Max 30 over the 155 existing features", () => {
+  it("totals Core 80 / Growth 50 / Max 27 over the 157 listed features", () => {
     const totals = tierTotals(EXISTING_GROUPS);
     // Actual computed totals, asserted exactly:
-    expect(totals).toEqual({ core: 76, growth: 49, max: 30 });
-    expect(totals.core + totals.growth + totals.max).toBe(155);
+    expect(totals).toEqual({ core: 80, growth: 50, max: 27 });
+    expect(totals.core + totals.growth + totals.max).toBe(157);
   });
 
   it("keeps the group sizes from the checklist", () => {
-    expect(EXISTING_GROUPS.map((g) => g.items.length)).toEqual([16, 16, 7, 10, 11, 9, 11, 10, 16, 8, 7, 11, 11, 12]);
+    expect(EXISTING_GROUPS.map((g) => g.items.length)).toEqual([16, 16, 7, 10, 11, 9, 11, 12, 16, 8, 7, 11, 11, 12]);
   });
 
-  it("marks the eight moved features", () => {
+  it("marks the twelve moved features", () => {
     const moved = ALL_FEATURES.filter((f) => f.moved).map((f) => `${f.name} -> ${f.tier}`).sort();
     expect(moved).toEqual([
       "A map of the cables -> growth",
@@ -94,9 +94,13 @@ describe("the feature list", () => {
       "Google Calendar, both ways -> core",
       "Look up what a socket does -> growth",
       "Other calendars mark hours busy -> core",
+      "Print who owns what -> core",
+      "Real signatures by link -> core",
       "Send from your own Gmail -> core",
       "Software subscriptions -> growth",
       "Studio health score -> core",
+      "The form fills itself in -> core",
+      "Who owns what share of a song -> core",
     ]);
   });
 
@@ -153,8 +157,8 @@ describe("the public table", () => {
   it("hides a feature until it is built", () => {
     const unbuilt = ALL_FEATURES.filter((f) => !f.built);
     for (const f of unbuilt) expect(groups.flatMap((g) => g.items).map((x) => x.name)).not.toContain(f.name);
-    // All 155 existing features are built and public.
-    expect(groups.filter((g) => g.id !== "production").flatMap((g) => g.items)).toHaveLength(155);
+    // All 156 existing features are built and public.
+    expect(groups.filter((g) => g.id !== "production").flatMap((g) => g.items)).toHaveLength(156);
   });
 
   it("never says CRM, and uses no em dashes, anywhere in the config", () => {

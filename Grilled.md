@@ -1944,3 +1944,73 @@ Ask (Lawrence): "change the system background to be something a dimly lit moving
 - **Follow-ups (2026-10-12/13):** "im not seeing the moving backgrounds" → #91 made the light 3x faster and brighter along the edges. Then: "i need it to be a moving image that's faint in the background or a digital tile image that moves" → chose the **digital tile wall** (public/hw/*.svg, 28px pad grid drifting one 448px sheet per 60s, a few lit pads, two sheets of pads blinking out of step, faded toward the middle). Why tiles over a photo: chassis are opaque, so the background only shows in thin margins and gutters; a texture still reads there, a faint photo turns to mud.
 - **2026-10-13:** "add a dark layer over it where its about 20% visible" → `.pl-ambient-dim` (the void at 80% over tiles + light; one knob for the whole background). "make sure all sections like calendar or modules have a container has its own dark background" → the **module bay** (`.pl-bay`): every page's content in the app shell and agency console sits in one opaque dark container (#18181a), framed with padding at 1280px+ and flush below so no layout loses width; shell notices get a solid backing; agency header is opaque. Audit (30 routes): 70 on-canvas blocks + 143 translucent panels before, 0 after.
 
+
+## Feature: Google reviews integration + Find a Studio SEO (grilled 2026-10-21)
+
+Owner request: "Google review should be something that is enabled by the team in settings or integrations and allows them to connect the reviews portal and also display it on the public page and in the Find A studio. We also need to get Find a studio to pop up on google and in LLM systems on searches."
+
+**Decisions (grilled, all Recommended options):**
+- **Connect by finding the business:** Settings > Integrations > Google reviews. The team types the studio name, picks its Google listing (Places API text search), done. No Google sign-in. Gets rating, review count and Google's 5 featured reviews, and builds the "leave a review" link automatically (feeds the SMS review thank-you from PR #176). Google sign-in for all reviews + replies (Business Profile API) is a later phase, not this one.
+- **Display:** star rating + count badge on the Find a Studio card and the booking page header; a "From Google" section with the 5 featured reviews and "See all on Google" on the booking page and studio profile. Kept separate from Pulse's own reviews; Google attribution always shown.
+- **Low ratings:** connecting and showing are two switches. When shown, Pulse shows exactly what Google returns, no filtering. The team can hide the whole section; Pulse never picks which Google reviews appear (FTC review-suppression rule).
+- **SEO pages:** server-rendered `/studios`; a profile page per listed studio (`/studios/<slug>`); a city page once a city has 2+ listed studios; structured data on each; sitemap and llms.txt list them automatically; booking pages get real titles and descriptions.
+
+**Constraints found while grilling:**
+- Google Places terms: only the place ID may be stored. Rating, reviews and address are fetched from Google when a page renders and are never written to the database.
+- Google's review-snippet rules forbid marking up third-party ratings, so structured data `aggregateRating` uses Pulse's own published reviews only, never Google's.
+- The public directory may expose nothing the booking page does not already show (directory.ts SAFETY), so structured data uses city and region, not the private contact address.
+- Needs a Google Places API key (`GOOGLE_PLACES_API_KEY`, server only, Convex + Netlify). None exists yet; gcloud needs re-auth. Until set, the Integrations card says Google reviews are not available yet.
+
+**Non-goals:** Google sign-in / replying to reviews, importing Google reviews into Pulse, Yelp or other review sites, paid search.
+
+## Feature: Catalog Import + Royalty Statements (grilled 2026-10-22)
+
+**Goal (owner's words):** "allow users to connect their own tidal, apple music, spotify accounts to import their works and pull credits etc for song and split royalties ... they can select their role producer, writer, engineer, artist etc and pull in their catalogue."
+
+**Context found in code:** logins are studio Members (owner/engineer/producer...); Roster Artists have no login (token client portal only). Songs belong to the Studio and move writing -> released. Split sheets (Max) carry master% + publishing% and sign by emailed token; `splitSignatures.issue` silently skips contributors with no email, so such a sheet can never be fully executed. Engineer payouts are a ledger (approve -> mark paid); no money moves through Pulse. Glossary terms added to CONTEXT.md under "Catalog and Royalties".
+
+**Decisions**
+1. Two entry points: a Member imports their own credits from their profile (choosing Credit Roles: Artist, Writer, Producer, Engineer, Mix Engineer, Mastering Engineer, Vocalist, Musician); the Studio imports a Roster Artist's catalog from the artist page. Imported Catalog Songs land as stage Released, tagged, hidden from the active pipeline by default. A Member's top credits can fill their booking-page Notable Credits.
+2. Verification: the person picks their exact Credit Identity from search results (Genius / MusicBrainz / streaming artist link), stored by source ID, never a typed name. Imported songs are internal. Owner/manager Credit Approval is required before credits show publicly; labelled with their source. Credits never move money; only signed split sheets do.
+3. Royalties: Statements + Mark paid. Upload distributor CSV, match lines by ISRC, compute Royalty Shares from the signed split sheet, email Contributor Statements, account holder pays outside Pulse and marks paid. No money through Pulse (no KYC / 1099 / money-transmitter exposure).
+4. Distributor income uses master%; publishing statements (Songtrust / MLC / PRO) use publishing% (later, same flow).
+5. Unsigned sheet -> Unallocated Income, "waiting on N signatures", nudges; auto-allocates when fully executed. No-ISRC-match -> Unmatched Line (match or create song).
+6. Contributors: per-period statement email + private no-login token link to their history at this studio. Email becomes required on every split-sheet row before sending for signature.
+7. Streaming account sign-in: DROPPED for now (Spotify/Apple/TIDAL sign-in gives listener data only, cannot prove artist identity; Spotify dev mode caps 25 users). Identity = paste artist link or search name. Revisit if a service opens artist verification.
+8. Plans: Catalog Import on Growth (with Songs); Royalty Statements + Shares on Max (with split sheets); Growth sees royalties locked with upgrade prompt.
+9. CSV formats: auto-detected DistroKid, TuneCore, CD Baby + "Other" column picker remembered per studio.
+10. (added mid-build) Royalties ship dark behind an agency toggle: Agency > Settings "Royalties" switch on the agency record, OFF by default. When on, Max studios under that agency see Royalties; when off, every royalty surface and function is unavailable (not just hidden). Catalog Import is not behind the toggle.
+11. (revised 2026-10-22, owner) Catalog Import populates the Songs list (Imported badge + filter, NOT hidden by default; supersedes the "hidden" part of decision 1) and is paid for by the destination workspace's own subscription. Every sign-up is its own workspace, so a person imports either into "My account" or into a studio they belong to, chosen per import; each workspace keeps its own copy and they never sync (tenant isolation).
+12. (2026-10-22, owner, supersedes an earlier "Max, Growth sees preview" answer) Split sheets are on EVERY plan (Core, Growth, Max): drafting, editing, sending for signature. `splitSheets` moves from max to core in CAPABILITY_TIER and marketing copy. Royalty Statements stay Max + agency toggle. Core: creating a split sheet also creates a basic song (title, artist, ISRC) behind it; Core gets no Songs list, stages or Catalog Import, so Growth keeps its upgrade reason (owner, 2026-10-22).
+13. (2026-10-22, owner) An imported song whose artist is not already on the roster gets a hidden Catalog Artist (`artists.catalogOnly`): it carries the name on the song but stays out of Clients, roster counts, pickers, suggestions and messaging. It has no email or phone, so nothing can text or email it.
+
+**Defaults (decided without asking, change if wrong)**
+- Dedupe: match existing Songs by ISRC, else title + primary artist; enrich, never duplicate; one song can be credited to several Members.
+- Catalog Import runs as a background job with progress (MusicBrainz ~1 req/s: ~5 min per 240 songs); cap 500 songs per import.
+
+**Dependencies / open**
+- `GENIUS_ACCESS_TOKEN` (Lawrence to create at genius.com/api-clients, store in 1Password "Genius API"): needed for producer/writer catalogs and most hip-hop credits. Genius artist-songs coverage of producer credits to be verified once the token exists.
+- A real DistroKid / TuneCore / CD Baby statement sample to build the readers against (deleted after).
+- Gates before calling done: OpenSpec proposal, compliance-ops (earnings + contributor emails), pentest on the CSV upload + token statement page.
+
+**Non-goals:** streaming sign-in; paying out through Pulse; PRO/MLC registration; publishing statements in v1; proving legal ownership.
+
+## Feature: Unfinished sign-up recovery (grilled 2026-10-26)
+
+**Goal (owner's words):** "can we do something to track these people? especially the ones that didn't check out and retarget them?"
+
+**Context found in code:** the public trial path is Pricing card -> `billing.beginPublicCheckout` (anonymous, tier + interval only) -> Stripe hosted Checkout -> `/welcome/activate`. Pulse first learns the email after checkout completes, nothing is stored before it, there is no `checkout.session.expired` handling, no analytics or pixels on the site, and no general marketing unsubscribe. Since launch (2026-10-10) every non-test checkout session expired with no email captured.
+
+**Decisions**
+1. Channel: email follow-ups we own, plus a lead list. No ad pixels or retargeting ads in this change.
+2. Capture: "Start free trial" first asks for email + studio name on Pulse. That saves a Signup Lead, then opens Stripe Checkout with the email prefilled.
+3. Cadence: 3 emails. 1 hour after they leave (finish setup + resume link), day 1 (what Pulse does for a studio), day 4 (last nudge + book a demo). Emails stop the moment the lead checks out or unsubscribes.
+4. Consent: US and everywhere else see a notice under the email field ("We'll send a few reminders to finish setup. Unsubscribe anytime."). EU/EEA/UK visitors (Netlify geo) get an unticked opt-in box, and no box means no emails. Every email carries one-click unsubscribe (List-Unsubscribe + List-Unsubscribe-Post). The privacy policy is updated to match.
+5. Rollout: lead capture and an "Unfinished sign-ups" list in the agency admin go live immediately. The emails sit behind `TRIAL_NUDGES_LIVE` (Convex env), off until the owner approves sample copy.
+
+**Defaults (decided without asking, change if wrong)**
+- Resume links create a fresh Checkout session from the lead (email prefilled), so they never expire with Stripe's 24h session.
+- One open lead per email: starting again reuses it and restarts the schedule. A lead older than 7 days is never emailed, so a late switch-on does not mail stale leads.
+- A lead converts when `checkout.session.completed` arrives for its session or its email.
+
+**Non-goals:** Meta/Google pixels, cookie banner, SMS nudges, Clerk webhooks.

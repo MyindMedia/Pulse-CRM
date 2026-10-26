@@ -13,6 +13,7 @@ import {
   Bell,
   ChevronDown,
   FileText,
+  Library,
   Lightbulb,
   LogOut,
   Sparkles,
@@ -41,6 +42,7 @@ import { PhotoUpload } from "@/components/ui/photo-upload";
 import { EmptyState } from "@/components/ui/feedback";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { CatalogImportDialog } from "@/components/songs/catalog-import-dialog";
 
 /** Where an alert opens, read at click time: a booking opens its sheet on the
  *  current page (the shell's global sheet reads ?session=), anything else
@@ -71,6 +73,7 @@ export function ProfileMenu() {
 
   const [profileOpen, setProfileOpen] = React.useState(false);
   const [alertsOpen, setAlertsOpen] = React.useState(false);
+  const [importOpen, setImportOpen] = React.useState(false);
 
   // Best available identity: member row first, Clerk account as fallback
   // (owners may not have a member row in older orgs).
@@ -124,6 +127,12 @@ export function ProfileMenu() {
             <UserPen className="size-4" />
             Edit profile
           </DropdownMenuItem>
+          {profile && (
+            <DropdownMenuItem onSelect={() => setImportOpen(true)}>
+              <Library className="size-4" />
+              Import my catalog
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem onSelect={() => setAlertsOpen(true)}>
             <Bell className="size-4" />
             Alerts
@@ -150,6 +159,14 @@ export function ProfileMenu() {
       </DropdownMenu>
 
       <ProfileDialog open={profileOpen} onOpenChange={setProfileOpen} fallbackName={name} />
+      {profile && (
+        <CatalogImportDialog
+          open={importOpen}
+          onOpenChange={setImportOpen}
+          subject={{ kind: "member" }}
+          subjectName={profile.name}
+        />
+      )}
       <AlertsDialog open={alertsOpen} onOpenChange={setAlertsOpen} />
     </>
   );

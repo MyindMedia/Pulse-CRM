@@ -20,7 +20,7 @@ export const dynamic = "force-static";
 
 export default function PrivacyPolicy() {
   return (
-    <LegalShell title="Privacy Policy" updated="October 10, 2026">
+    <LegalShell title="Privacy Policy" updated="October 26, 2026">
       <Section heading="Who we are">
         <p>
           Pulse is recording studio management software operated by {LEGAL_ENTITY} (&ldquo;Pulse&rdquo;,
@@ -57,6 +57,11 @@ export default function PrivacyPolicy() {
             and the vendor, date, total, tax, and last four card digits read from them.
           </li>
           <li>
+            <strong className="text-mist">Trial sign-ups</strong>: when you start a Pulse free trial,
+            the email address, studio name, plan, and country you start it from, saved before you
+            reach checkout.
+          </li>
+          <li>
             <strong className="text-mist">Technical data</strong>: IP address, device and browser
             type, and log data used to keep the service secure and working.
           </li>
@@ -67,6 +72,12 @@ export default function PrivacyPolicy() {
         <ul className="list-disc space-y-1.5 pl-5">
           <li>To create, confirm, change, and remind you about studio bookings.</li>
           <li>To send account and service notifications you have asked to receive.</li>
+          <li>
+            If you start a Pulse free trial and do not finish checkout, to send you up to three
+            reminder emails within four days. Visitors in the EU, EEA, UK, and Switzerland get these
+            only if they tick the box to ask for them. Every reminder has a one-click unsubscribe
+            link, and a trial sign-up that never becomes an account is deleted after 180 days.
+          </li>
           <li>To take payment and issue invoices and receipts.</li>
           <li>
             To import a studio&rsquo;s bank transactions and balances, read uploaded receipts, and match
@@ -168,6 +179,73 @@ export default function PrivacyPolicy() {
         <p>
           Where a recording studio uses Pulse to manage its own clients, that studio is the
           controller of its client data and we process it on the studio&rsquo;s instructions.
+        </p>
+      </Section>
+
+      <Section heading="Google user data">
+        <p>
+          A studio, or a member of its team, can choose to connect a Google account to Pulse. When
+          they do, Pulse asks Google for these permissions and uses them only for the purposes
+          listed:
+        </p>
+        <ul className="list-disc space-y-1.5 pl-5">
+          <li>
+            <strong className="text-mist">Email address</strong>: to show which Google account is
+            connected and, for a studio, to send email from that address.
+          </li>
+          <li>
+            <strong className="text-mist">Send email on your behalf (Gmail send, studio accounts
+            only)</strong>: to send the booking confirmations, reminders, invoices, and client
+            replies the studio creates in Pulse from its own Gmail address. Pulse cannot read,
+            search, or delete anything in the inbox.
+          </li>
+          <li>
+            <strong className="text-mist">Calendar list</strong>: read only, so you can pick which
+            of your calendars Pulse syncs with.
+          </li>
+          <li>
+            <strong className="text-mist">Calendar events</strong>: to add, update, and remove Pulse
+            sessions on the chosen Google Calendar, and to read events on it so the Pulse schedule
+            shows when you are busy, avoids double bookings, and lets the studio turn a Google event
+            into a Pulse booking when it chooses to.
+          </li>
+        </ul>
+        <p>
+          Pulse stores the connected email address, an OAuth refresh token, and the details of
+          calendar events it reads (title, time, location, description, guests, and meeting link).
+          This data is stored with our hosting provider, encrypted in transit and at rest, and is
+          used only to provide these features. We do not sell Google user data, use it for
+          advertising, or transfer it to anyone except as needed to provide these features, to
+          comply with the law, or as part of a merger or acquisition with notice to users. Google
+          user data is not used to develop, improve, or train generalized AI or machine learning
+          models. Once a studio imports a Google event as a booking, it becomes a Pulse booking and
+          is handled like any other booking described in this policy. Pulse staff do not read
+          Google user data except with your permission, for security reasons, or where the law
+          requires.
+        </p>
+        <p>
+          You can disconnect Google at any time in Pulse settings, which deletes the stored token.
+          You can also remove Pulse&rsquo;s access at{" "}
+          <a href="https://myaccount.google.com/permissions" className="text-gold hover:underline">
+            myaccount.google.com/permissions
+          </a>
+          . Calendar data Pulse copied is deleted when the studio account is deleted, or sooner on
+          request to{" "}
+          <a href={`mailto:${LEGAL_EMAIL}`} className="text-gold hover:underline">
+            {LEGAL_EMAIL}
+          </a>
+          .
+        </p>
+        <p className="border-l-2 border-gold/60 pl-4 text-mist">
+          Pulse&rsquo;s use and transfer to any other app of information received from Google APIs
+          will adhere to the{" "}
+          <a
+            href="https://developers.google.com/terms/api-services-user-data-policy"
+            className="text-gold hover:underline"
+          >
+            Google API Services User Data Policy
+          </a>
+          , including the Limited Use requirements.
         </p>
       </Section>
 

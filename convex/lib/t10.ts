@@ -146,7 +146,7 @@ export function computeT10Alerts(
           key: `you10:${sh._id}`,
           title: "Your shift starts in 10 minutes",
           body: `On at ${clock(sh.startTime, tz)}. Clock in when you get there.`,
-          url: "/shift",
+          url: "/clock",
           clerkUserIds: mine,
           strictAudience: true,
         });
@@ -170,7 +170,7 @@ export function computeT10Alerts(
         key: `nc:${sh._id}`,
         title: "You're on the schedule and not clocked in",
         body: `Your shift started at ${clock(sh.startTime, tz)}. Open Pulse and clock in so the hours land on your pay.`,
-        url: "/shift",
+        url: "/clock",
         clerkUserIds: mine,
         strictAudience: true,
       });

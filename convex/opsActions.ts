@@ -20,6 +20,7 @@ import { sendEmail } from "./lib/email";
 import { studioEmailHtml } from "./lib/emailTemplates/layout";
 import { recordApprovalLearning, recordDismissLearning } from "./predictions";
 import { approvePost } from "./marketing/posts";
+import { deliverGapDeal } from "./gapDeals";
 import { isAccountingType } from "./lib/agentScope";
 import {
   approveAccountingAction,
@@ -354,6 +355,11 @@ export const approve = mutation({
       if (action.payload.kind === "email" && trimmed !== action.payload.body) {
         patch.payload = { ...action.payload, body: trimmed };
       }
+      if (action.payload.kind === "sms_blast" && trimmed !== action.payload.body) {
+        // One text, not a thread: keep the studio's line short.
+        if (trimmed.length > 300) throw new Error("Keep the deal text under 300 characters.");
+        patch.payload = { ...action.payload, body: trimmed };
+      }
     }
 
     if (action.payload.kind === "social_post") {
@@ -470,6 +476,15 @@ export const finalize = internalMutation({
       } else {
         result = "session not found";
       }
+    } else if (p.kind === "sms_blast") {
+      // Deal text (gapDeals.ts): consent, STOP, cap, window and the room are
+      // re-checked now. Outside 10am-7pm it waits, still approved.
+      const out = await deliverGapDeal(ctx, action, p);
+      if ("retryAt" in out) {
+        await ctx.scheduler.runAt(out.retryAt, internal.opsActions.execute, { id });
+        return;
+      }
+      result = out.result;
     } else if (p.kind === "social_post") {
       // The post itself was already approved and scheduled in `approve`
       // (before this action was scheduled). No notifications row: the post's

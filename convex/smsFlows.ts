@@ -7,7 +7,7 @@ import type { Doc, Id } from "./_generated/dataModel";
 import { sendSms } from "./lib/sms";
 import { normalizePhone } from "./lib/phone";
 import { parseSmsIntent, parseRating } from "./lib/smsKeywords";
-import { appUrl } from "./lib/links";
+import { appUrl, teamLink } from "./lib/links";
 import { orgTz, dateLabel } from "./lib/tz";
 import {
   renderSms,
@@ -40,7 +40,10 @@ import {
   REVIEW_THANKS,
   REVIEW_LOW_ACK,
   OWNER_DIGEST,
+  DEALS_OPTIN_ACK,
 } from "./lib/smsTemplates";
+import { routeInboundText } from "./lib/smsRouting";
+import { DEALS_CONSENT_VERSION } from "./lib/deals";
 
 function money(cents: number): string {
   return `$${Math.round(cents / 100).toLocaleString("en-US")}`;
@@ -220,6 +223,7 @@ async function broadcastCover(
     studio: studioName(org),
     title: session.title,
     date: dateStr,
+    link: teamLink(`/brief/${session._id}`),
   });
   for (const m of candidates) {
     const phone = normalizePhone(m.phone!);
@@ -428,9 +432,9 @@ async function applyPromptAnswer(
     });
     await answerPrompt(ctx, prompt, String(rating));
     if (rating >= 4) {
-      queueSend(ctx, phone, renderSms(REVIEW_THANKS, { studio }));
+      queueSend(ctx, phone, renderSms(REVIEW_THANKS, { studio, google: org?.googleReviewUrl }));
     } else {
-      queueSend(ctx, phone, renderSms(REVIEW_LOW_ACK, {}));
+      queueSend(ctx, phone, renderSms(REVIEW_LOW_ACK, { google: org?.googleReviewUrl }));
       await alertManagers(
         ctx,
         prompt.orgId,
@@ -484,7 +488,7 @@ async function applyPromptAnswer(
       queueSend(
         ctx,
         m.phone,
-        renderSms(MGR_INTERN_APPROVAL, { studio, name: intern?.name ?? "an intern" }),
+        renderSms(MGR_INTERN_APPROVAL, { studio, name: intern?.name ?? "an intern", link: teamLink("/clock") }),
       );
     }
     return true;
@@ -529,12 +533,13 @@ async function applyPromptAnswer(
   return false;
 }
 
-/** Keywords that work without an open prompt: HELP, RESCHEDULE, LATE. */
+/** Keywords that work without an open prompt: HELP, RESCHEDULE, LATE, DEALS. */
 async function handleStandaloneKeyword(
   ctx: MutationCtx,
   phone: string,
   intent: ReturnType<typeof parseSmsIntent>,
 ): Promise<boolean> {
+  if (intent === "deals") return await optIntoDeals(ctx, phone);
   if (intent !== "help" && intent !== "reschedule" && intent !== "late" && intent !== "claim")
     return false;
 
@@ -583,6 +588,26 @@ async function handleStandaloneKeyword(
   return false;
 }
 
+/* DEALS: the client asks for deal texts. Written consent for marketing texts
+   (lib/deals.ts), recorded on the client row of the studio this phone talks
+   to, picked the same way an inbound reply is routed. A phone that sent STOP
+   stays opted out until START; an unclear studio is not guessed at. */
+async function optIntoDeals(ctx: MutationCtx, phone: string): Promise<boolean> {
+  if (await isOptedOut(ctx, phone)) return false;
+  const route = await routeInboundText(ctx, phone);
+  if (route.kind !== "routed" || route.routedBy === "best_guess") return false;
+  const artist = route.artist;
+  await ctx.db.patch(artist._id, {
+    ...(artist.dealsOptInAt
+      ? {}
+      : { dealsOptInAt: Date.now(), dealsOptInSource: "sms_keyword" as const, dealsConsentVersion: DEALS_CONSENT_VERSION }),
+    dealsConfirmSentAt: Date.now(),
+  });
+  const org = await orgOf(ctx, artist.orgId);
+  queueSend(ctx, phone, renderSms(DEALS_OPTIN_ACK, { studio: studioName(org) }));
+  return true;
+}
+
 // ── Timeclock sweep (cron): overtime + intern checks, caps + escalation ──
 
 export const _timeclockDue = internalQuery({
@@ -615,7 +640,7 @@ export const _timeclockDue = internalQuery({
             memberId: member._id,
             phone,
             name: member.name,
-            body: renderSms(INTERN_PROMPT, { studio }),
+            body: renderSms(INTERN_PROMPT, { studio, link: teamLink("/clock") }),
           });
         } else if (
           e.internPromptSentAt &&
@@ -639,7 +664,7 @@ export const _timeclockDue = internalQuery({
             memberId: member._id,
             phone,
             name: member.name,
-            body: renderSms(OT_PROMPT, { studio }),
+            body: renderSms(OT_PROMPT, { studio, link: teamLink("/clock") }),
           });
         } else if (e.otPromptSentAt && !e.otStatus && now - e.otPromptSentAt > REPLY_WINDOW) {
           otExpired.push({ entryId: e._id, name: member.name });
@@ -937,6 +962,7 @@ export const _digestDue = internalQuery({
       sessions: String(sessions.length),
       revenue,
       flags: flagBits.length > 0 ? `, ${flagBits.join(", ")}` : "",
+      link: teamLink("/dashboard"),
     });
     const phones: string[] = [];
     for (const m of await ctx.db

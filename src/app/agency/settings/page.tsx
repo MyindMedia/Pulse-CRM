@@ -11,6 +11,7 @@ import {
   Hourglass,
   Lock,
   Palette,
+  Receipt,
   Tag,
   Users,
 } from "lucide-react";
@@ -21,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import { Field, Input } from "@/components/ui/field";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/toggle";
 import { PlatformBillingCard } from "@/components/agency/platform-billing";
 
 export default function AgencySettingsPage() {
@@ -131,7 +133,51 @@ export default function AgencySettingsPage() {
           </Card>
         </Section>
       </div>
+
+      <RoyaltiesSwitch enabled={summary?.royaltiesEnabled === true} canEdit={summary?.role === "owner" || summary?.role === "admin"} />
     </div>
+  );
+}
+
+/** Royalties ship dark: off until the agency turns them on here. While off,
+ *  no studio sees Royalties and every royalty function refuses. */
+function RoyaltiesSwitch({ enabled, canEdit }: { enabled: boolean; canEdit: boolean }) {
+  const setEnabled = useMutation(api.agencySettings.setRoyaltiesEnabled);
+  const [busy, setBusy] = React.useState(false);
+  async function flip(next: boolean) {
+    setBusy(true);
+    try {
+      await setEnabled({ enabled: next });
+      toast.success(next ? "Royalties are on for Max studios." : "Royalties are off.");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not change Royalties.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <Section title="Features">
+      <Card>
+        <CardContent className="flex items-start gap-3 py-4">
+          <span className="grid size-9 shrink-0 place-items-center rounded-md bg-coal-2 text-gold">
+            <Receipt className="size-4" />
+          </span>
+          <div className="min-w-0 flex-1">
+            <label htmlFor="royalties-switch" className="text-sm font-medium text-bone">Royalties</label>
+            <p className="text-xs text-steel">
+              Max studios upload distributor statements and Pulse divides each line by the signed split sheet.
+              Off by default. While off, no studio sees Royalties.
+            </p>
+          </div>
+          <Switch
+            id="royalties-switch"
+            checked={enabled}
+            disabled={!canEdit || busy}
+            onCheckedChange={(next) => void flip(next)}
+          />
+        </CardContent>
+      </Card>
+    </Section>
   );
 }
 

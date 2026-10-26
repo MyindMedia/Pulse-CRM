@@ -245,6 +245,8 @@ const DESC: Record<string, string> = {
     "Each song with its artwork, how far along it is, and which sessions made it.",
   "Paste a streaming link":
     "Paste a link to the song on a streaming service and Pulse fills in the artwork and the details.",
+  "Pull in your whole catalog with credits":
+    "Pick your roles, paste your artist link or type your name, and every song you are credited on lands in Songs with its credits and a drafted split sheet.",
   "Who owns what share of a song":
     "The percentage each writer and producer owns, agreed and written down in one form.",
   "Real signatures by link":

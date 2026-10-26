@@ -74,6 +74,8 @@ export function subscriptionTrialData(spec: TrialSpec): Partial<TrialData> {
 export function buildSubscriptionCheckoutParams(args: {
   lineItems: CheckoutLineItem[];
   customer?: string;
+  /** Prefill for a buyer with no Stripe customer yet. Ignored with `customer`. */
+  customerEmail?: string;
   trial: TrialSpec;
   metadata: Record<string, string>;
   successUrl: string;
@@ -83,7 +85,11 @@ export function buildSubscriptionCheckoutParams(args: {
 }): SessionCreateParams {
   return {
     mode: "subscription",
-    ...(args.customer ? { customer: args.customer } : {}),
+    ...(args.customer
+      ? { customer: args.customer }
+      : args.customerEmail
+        ? { customer_email: args.customerEmail }
+        : {}),
     line_items: args.lineItems,
     // Card at the start, every time, trial or not.
     payment_method_collection: "always",

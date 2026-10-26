@@ -1,6 +1,7 @@
 import { action, internalQuery } from "./_generated/server";
 import type { ActionCtx } from "./_generated/server";
-import { claimFile, retireFile, type FileRef } from "./lib/media";
+import { type FileRef } from "./lib/media";
+import { fillSongFromImport } from "./lib/songEnrich";
 import { fileRefV } from "./lib/fileRef";
 import { storeBytes } from "./media";
 import { mutation } from "./functions";
@@ -10,19 +11,24 @@ import { currentOrgWithCapability, assertOrg } from "./lib/tenant";
 import {
   parseMusicLink,
   upscaleAppleArt,
-  creditRole,
   dedupeCredits,
-  buildContributors,
   metaContent,
   artistFromSpotifyDescription,
+  searchTitle,
+  primaryArtist,
   type ImportedCredit,
 } from "./lib/musicLink";
+import { MAX_COVER_BYTES, fetchWithTimeout, fetchJson, musicBrainz, deezer, genius } from "./lib/catalogLookup";
 
 /* ============================================================
    Song importer - paste a Spotify or Apple Music link and pull
    the track's cover art + metadata, plus songwriter/producer
-   credits (best-effort, via the open MusicBrainz database -
-   neither streaming service exposes credits publicly).
+   credits. Neither streaming service exposes credits or ISRCs
+   without a developer account, so the link only identifies the
+   song; the details come from open catalogs, all best-effort:
+   Deezer (ISRC, release date, genre, BPM), MusicBrainz (credits,
+   ISWC) and Genius (writer/producer credits, only when
+   GENIUS_ACCESS_TOKEN is set).
 
    `fetchFromLink` (action) does the network work and stores the
    cover into _storage; it writes nothing else. The client then
@@ -31,14 +37,6 @@ import {
    split sheet from the credits.
    ============================================================ */
 
-const FETCH_TIMEOUT_MS = 8000;
-const MAX_COVER_BYTES = 4 * 1024 * 1024;
-const MB_HEADERS = {
-  // MusicBrainz requires an identifying User-Agent on API traffic.
-  "User-Agent": "Pulse-StudioOS/1.0 (https://studiopulse.tech)",
-  Accept: "application/json",
-};
-
 export type LinkImportResult = {
   provider: "spotify" | "apple";
   title: string | null;
@@ -46,6 +44,9 @@ export type LinkImportResult = {
   album: string | null;
   genre: string | null;
   releaseDate: number | null;
+  isrc: string | null;
+  iswc: string | null;
+  bpm: number | null;
   /** An R2 mediaFiles id (a Convex storage id only on a deployment without R2). */
   coverStorageId: FileRef | null;
   coverPreviewUrl: string | null;
@@ -58,78 +59,9 @@ export const access = internalQuery({
   handler: async (ctx) => currentOrgWithCapability(ctx, "songs.edit"),
 });
 
-async function fetchWithTimeout(url: string, headers?: Record<string, string>) {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
-  try {
-    return await fetch(url, { headers, signal: controller.signal });
-  } finally {
-    clearTimeout(timer);
-  }
-}
-
-async function fetchJson(url: string, headers?: Record<string, string>) {
-  const res = await fetchWithTimeout(url, headers);
-  if (!res.ok) throw new Error(`${res.status}`);
-  return res.json();
-}
-
-/** Best-effort credits from MusicBrainz: recording rels give producers and
-    engineers; the linked work's rels give the writers. Any failure returns
-    what was gathered so far - credits are a bonus, never a blocker. */
-async function musicBrainzCredits(
-  title: string,
-  artist: string | null,
-): Promise<ImportedCredit[]> {
-  const credits: ImportedCredit[] = [];
-  try {
-    const quote = (s: string) => `"${s.replace(/"/g, "")}"`;
-    const query = `recording:${quote(title)}${artist ? ` AND artist:${quote(artist)}` : ""}`;
-    const search = await fetchJson(
-      `https://musicbrainz.org/ws/2/recording?query=${encodeURIComponent(query)}&fmt=json&limit=1`,
-      MB_HEADERS,
-    );
-    const recordingId: string | undefined = search.recordings?.[0]?.id;
-    if (!recordingId) return credits;
-
-    const rec = await fetchJson(
-      `https://musicbrainz.org/ws/2/recording/${recordingId}?inc=artist-rels+work-rels&fmt=json`,
-      MB_HEADERS,
-    );
-    type Rel = {
-      type?: string;
-      artist?: { name?: string };
-      work?: { id?: string };
-      ["target-type"]?: string;
-    };
-    const rels: Rel[] = rec.relations ?? [];
-    for (const rel of rels) {
-      const role = rel.type ? creditRole(rel.type) : null;
-      if (role && rel.artist?.name) credits.push({ name: rel.artist.name, role });
-    }
-
-    const workId = rels.find((r) => r["target-type"] === "work" && r.work?.id)?.work?.id;
-    if (workId) {
-      const work = await fetchJson(
-        `https://musicbrainz.org/ws/2/work/${workId}?inc=artist-rels&fmt=json`,
-        MB_HEADERS,
-      );
-      for (const rel of (work.relations ?? []) as Rel[]) {
-        const role = rel.type ? creditRole(rel.type) : null;
-        if (role === "Writer" && rel.artist?.name) {
-          credits.push({ name: rel.artist.name, role });
-        }
-      }
-    }
-  } catch {
-    // Rate limits / lookup misses just mean fewer prefilled credits.
-  }
-  return dedupeCredits(credits);
-}
-
 /** Pull the cover image into the studio's R2 bucket so the song owns a copy -
     the CDN URL on the streaming service is neither stable nor hotlink-safe. */
-async function storeCover(
+export async function storeCover(
   ctx: ActionCtx,
   orgId: string,
   artUrl: string | null,
@@ -203,21 +135,32 @@ export const fetchFromLink = action({
       throw new Error("Couldn't read that link - double-check it and try again.");
     }
 
-    const [credits, coverStorageId] = await Promise.all([
-      title ? musicBrainzCredits(title, artistName) : Promise.resolve([]),
+    const cleanTitle = title ? searchTitle(title) : null;
+    const mainArtist = primaryArtist(artistName);
+    const [catalog, coverStorageId, geniusFound] = await Promise.all([
+      cleanTitle ? deezer(cleanTitle, mainArtist, null) : Promise.resolve(null),
       storeCover(ctx, orgId, artUrl),
+      cleanTitle ? genius(cleanTitle, mainArtist) : Promise.resolve([]),
     ]);
+    // MusicBrainz goes after Deezer so the ISRC can pin the exact recording.
+    const mb = cleanTitle
+      ? await musicBrainz(cleanTitle, mainArtist, catalog?.isrc ?? null)
+      : { credits: [], iswc: null, isrc: null, artist: null, releaseDate: null };
 
     return {
       provider: link.provider,
       title,
       artistName,
-      album,
-      genre,
-      releaseDate,
+      album: album ?? catalog?.album ?? null,
+      genre: genre ?? catalog?.genre ?? null,
+      releaseDate: releaseDate ?? catalog?.releaseDate ?? null,
+      isrc: catalog?.isrc ?? mb.isrc,
+      iswc: mb.iswc,
+      bpm: catalog?.bpm ?? null,
       coverStorageId,
       coverPreviewUrl: coverStorageId ? await ctx.runQuery(internal.media._fileUrl, { ref: coverStorageId }) : artUrl,
-      credits,
+      // Genius first: its writer/producer lists are fuller; dedupe merges roles.
+      credits: dedupeCredits([...geniusFound, ...mb.credits]),
     };
   },
 });
@@ -234,62 +177,21 @@ export const applyToSong = mutation({
     coverStorageId: v.optional(fileRefV),
     genre: v.optional(v.string()),
     releaseDate: v.optional(v.number()),
+    isrc: v.optional(v.string()),
+    iswc: v.optional(v.string()),
+    bpm: v.optional(v.number()),
     artistName: v.optional(v.string()),
     credits: v.array(creditV),
   },
-  handler: async (ctx, { songId, sourceUrl, coverStorageId, genre, releaseDate, artistName, credits }) => {
+  handler: async (ctx, { songId, sourceUrl, coverStorageId, genre, releaseDate, isrc, iswc, bpm, artistName, credits }) => {
     const orgId = await currentOrgWithCapability(ctx, "songs.edit");
     const song = await ctx.db.get(songId);
     assertOrg(song, orgId);
 
-    // The imported cover must be this studio's own upload; it replaces the old one.
-    await claimFile(ctx, coverStorageId, orgId);
-    const previousCover = coverStorageId ? song!.coverArtId : undefined;
-    // Imported metadata fills blanks; it never overwrites studio-entered data.
-    await ctx.db.patch(songId, {
-      ...(coverStorageId ? { coverArtId: coverStorageId } : {}),
-      ...(genre && !song!.genre ? { genre } : {}),
-      ...(releaseDate && !song!.releaseDate ? { releaseDate } : {}),
+    // The imported cover replaces the old one; everything else fills blanks.
+    const { sheetPrefilled } = await fillSongFromImport(ctx, orgId, song!, {
+      coverStorageId, replaceCover: true, genre, releaseDate, isrc, iswc, bpm, sourceUrl, artistName, credits,
     });
-    await retireFile(ctx, previousCover, coverStorageId);
-
-    // Keep provenance: the source link joins the reference tracks once.
-    if (!song!.referenceTracks.some((r) => r.url === sourceUrl)) {
-      await ctx.db.patch(songId, {
-        referenceTracks: [
-          ...song!.referenceTracks,
-          { title: "Imported source", url: sourceUrl },
-        ],
-      });
-    }
-
-    // Split-sheet prefill: only when there's no sheet yet, or the existing
-    // sheet is an empty draft. A sheet with contributors is studio work.
-    let sheetPrefilled = false;
-    if (credits.length > 0) {
-      const artist = await ctx.db.get(song!.artistId);
-      const contributors = buildContributors(
-        credits,
-        artistName ?? artist?.name,
-      );
-      const existing = await ctx.db
-        .query("splitSheets")
-        .withIndex("by_song", (q) => q.eq("songId", songId))
-        .first();
-      if (!existing) {
-        await ctx.db.insert("splitSheets", {
-          orgId,
-          songId,
-          status: "draft",
-          contributors,
-          updatedAt: Date.now(),
-        });
-        sheetPrefilled = true;
-      } else if (existing.status === "draft" && existing.contributors.length === 0) {
-        await ctx.db.patch(existing._id, { contributors, updatedAt: Date.now() });
-        sheetPrefilled = true;
-      }
-    }
 
     await ctx.db.insert("activity", {
       orgId,

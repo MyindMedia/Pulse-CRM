@@ -8,6 +8,7 @@ import { requireCapability } from "./lib/access";
 import { currentOrg } from "./lib/tenant";
 import { localDayKey, orgTz } from "./lib/tz";
 import { bookingFeatures } from "./lib/roomBusy";
+import { citySlug, CITY_PAGE_MIN_STUDIOS } from "./lib/places";
 
 /* ============================================================
    Find a Studio on Pulse - the public directory.
@@ -45,6 +46,11 @@ type Listing = {
   services: string[];
   nextOpenAt: number | null;
   bookingPath: string;
+  /** City Page key, when the studio named its city. */
+  citySlug: string | null;
+  /** Only when the studio chose to show its Google reviews. A place ID is
+   *  public on Google Maps; the rating itself is fetched, never stored. */
+  googlePlaceId: string | null;
 };
 
 async function buildListing(
@@ -112,7 +118,15 @@ async function buildListing(
     services: [...new Set(rooms.map((r) => r.roomType).filter(Boolean) as string[])].slice(0, 4),
     nextOpenAt,
     bookingPath: `/book/${org.slug}`,
+    citySlug: org.directoryCity ? citySlug(org.directoryCity, org.directoryRegion) || null : null,
+    googlePlaceId: org.googleReviewsShown === true && org.googlePlaceId ? org.googlePlaceId : null,
   };
+}
+
+function listedOrgs(orgs: Doc<"orgs">[]): Doc<"orgs">[] {
+  return orgs.filter(
+    (o) => o.directoryListed === true && (o.status ?? "active") === "active" && o.orgId !== "pulse-demo",
+  );
 }
 
 /**
@@ -130,9 +144,7 @@ export const search = query({
     openWithinDays: v.optional(v.number()),
   },
   handler: async (ctx, args) => {
-    const orgs = (await ctx.db.query("orgs").collect()).filter(
-      (o) => o.directoryListed === true && (o.status ?? "active") === "active" && o.orgId !== "pulse-demo",
-    );
+    const orgs = listedOrgs(await ctx.db.query("orgs").collect());
 
     const listings: Listing[] = [];
     for (const org of orgs.slice(0, MAX_RESULTS * 2)) {
@@ -171,6 +183,8 @@ export const search = query({
       // Facets for the filter UI, from what is actually listed.
       cities: [...new Set(listings.map((l) => l.city).filter(Boolean) as string[])].sort(),
       regions: [...new Set(listings.map((l) => l.region).filter(Boolean) as string[])].sort(),
+      // Cities that have a City Page, for links from the directory.
+      cityPages: cityPagesOf(listings),
     };
   },
 });
@@ -183,8 +197,99 @@ export const listing = query({
       .query("orgs")
       .withIndex("by_slug", (q) => q.eq("slug", slug))
       .first();
-    if (!org || org.directoryListed !== true) return null;
-    return await buildListing(ctx, org, { withAvailability: true });
+    if (!org || listedOrgs([org]).length === 0) return null;
+    const l = await buildListing(ctx, org, { withAvailability: true });
+    if (!l) return null;
+    // Link to the City Page only when it exists (2+ studios), never to a 404.
+    const hasCityPage = l.citySlug !== null && (await cityGroups(ctx, false)).some((g) => g.slug === l.citySlug);
+    return { ...l, hasCityPage };
+  },
+});
+
+/** Cities with enough Listed Studios for a City Page, from listings in hand. */
+function cityPagesOf(listings: Listing[]) {
+  const seen = new Map<string, { slug: string; city: string; region: string | null; count: number }>();
+  for (const l of listings) {
+    if (!l.city || !l.citySlug) continue;
+    const c = seen.get(l.citySlug) ?? { slug: l.citySlug, city: l.city, region: l.region, count: 0 };
+    c.count++;
+    seen.set(l.citySlug, c);
+  }
+  return [...seen.values()]
+    .filter((c) => c.count >= CITY_PAGE_MIN_STUDIOS)
+    .map(({ slug, city, region }) => ({ slug, city, region }))
+    .sort((a, b) => a.city.localeCompare(b.city));
+}
+
+/** PUBLIC. What a booking page's <head> and the Google section need: only
+ *  what the booking page already shows, plus city and region when the
+ *  studio listed itself (that is when it chose to make them public). */
+export const pageMeta = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_slug", (q) => q.eq("slug", slug))
+      .first();
+    if (!org || (org.status ?? "active") !== "active") return null;
+    const listed = listedOrgs([org]).length > 0;
+    return {
+      name: org.name,
+      // The tagline is on the booking page; the blurb is public once listed.
+      description: (org.tagline?.trim() || (listed ? org.directoryBlurb?.trim() : "") || "").replace(/\s+/g, " ") || null,
+      city: listed ? org.directoryCity ?? null : null,
+      region: listed ? org.directoryRegion ?? null : null,
+      listed,
+      googlePlaceId: org.googleReviewsShown === true && org.googlePlaceId ? org.googlePlaceId : null,
+    };
+  },
+});
+
+type CityGroup = { slug: string; city: string; region: string | null; listings: Listing[] };
+
+async function cityGroups(ctx: QueryCtx, withAvailability: boolean): Promise<CityGroup[]> {
+  const groups = new Map<string, CityGroup>();
+  for (const org of listedOrgs(await ctx.db.query("orgs").collect()).slice(0, MAX_RESULTS * 4)) {
+    const l = await buildListing(ctx, org, { withAvailability });
+    if (!l || !l.city || !l.citySlug) continue;
+    const g = groups.get(l.citySlug) ?? { slug: l.citySlug, city: l.city, region: l.region, listings: [] };
+    g.listings.push(l);
+    groups.set(l.citySlug, g);
+  }
+  return [...groups.values()].filter((g) => g.listings.length >= CITY_PAGE_MIN_STUDIOS);
+}
+
+/** PUBLIC. A City Page: the Listed Studios in one city, or null when fewer
+ *  than CITY_PAGE_MIN_STUDIOS share it (a thin page is worse than none). */
+export const city = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    const g = (await cityGroups(ctx, true)).find((c) => c.slug === slug);
+    if (!g) return null;
+    g.listings.sort((a, b) => a.name.localeCompare(b.name));
+    return g;
+  },
+});
+
+/** PUBLIC. What the sitemap and llms.txt list: every Listed Studio with
+ *  something bookable, and every city that has a City Page. */
+export const sitemapEntries = query({
+  args: {},
+  handler: async (ctx) => {
+    const studios: Array<{ slug: string; name: string; city: string | null; region: string | null; blurb: string | null }> = [];
+    for (const org of listedOrgs(await ctx.db.query("orgs").collect()).slice(0, MAX_RESULTS * 4)) {
+      const l = await buildListing(ctx, org, { withAvailability: false });
+      if (l) studios.push({ slug: l.slug, name: l.name, city: l.city, region: l.region, blurb: l.blurb });
+    }
+    const cities = (await cityGroups(ctx, false)).map((g) => ({
+      slug: g.slug,
+      city: g.city,
+      region: g.region,
+      count: g.listings.length,
+    }));
+    studios.sort((a, b) => a.name.localeCompare(b.name));
+    cities.sort((a, b) => a.city.localeCompare(b.city));
+    return { studios, cities };
   },
 });
 

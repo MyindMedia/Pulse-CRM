@@ -23,6 +23,7 @@ const EMAIL_COLUMNS: { table: string; column: string }[] = [
   { table: "members", column: "email" },
   { table: "invites", column: "email" },
   { table: "betaInvites", column: "email" },
+  { table: "signupLeads", column: "email" },
   { table: "collaboratorGrants", column: "email" },
   { table: "artists", column: "email" },
   { table: "visitors", column: "email" },

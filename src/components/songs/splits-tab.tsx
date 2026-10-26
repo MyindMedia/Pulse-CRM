@@ -16,6 +16,10 @@ import { Input } from "@/components/ui/field";
 import { Checkbox } from "@/components/ui/toggle";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { errorMessage } from "@/lib/errors";
+
+/** Mirrors validEmail in convex/lib/emailKey.ts: the signing link goes here. */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 type Contributor = {
   name: string;
@@ -160,7 +164,7 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
         toast.message("Everyone with an email has already signed.");
       }
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not issue signing links.");
+      toast.error(errorMessage(err, "Could not issue signing links."));
     } finally {
       setStatusUpdating(false);
     }
@@ -281,10 +285,13 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
                     placeholder="00000000000"
                   />
                   <LabelledInput
-                    label="Email"
+                    label="Email (required to sign)"
                     value={c.email ?? ""}
                     onChange={(v) => patch(i, { email: v })}
                     placeholder="name@email.com"
+                    type="email"
+                    required={!c.signed}
+                    invalid={!c.signed && !EMAIL_RE.test((c.email ?? "").trim())}
                   />
                   <div className="flex items-center justify-between gap-2 pt-5">
                     <label className="flex items-center gap-2 text-xs font-medium text-steel">
@@ -392,15 +399,21 @@ function LabelledInput({
   onChange,
   placeholder,
   inputMode,
+  type,
+  required,
+  invalid,
 }: {
   label: string;
   value: string;
   onChange: (value: string) => void;
   placeholder?: string;
   inputMode?: "text" | "numeric" | "decimal";
+  type?: "text" | "email";
+  required?: boolean;
+  invalid?: boolean;
 }) {
   return (
-    <div className="space-y-1">
+    <label className="block space-y-1">
       <span className="font-meta text-[0.625rem] uppercase tracking-wide text-steel/70">
         {label}
       </span>
@@ -409,8 +422,11 @@ function LabelledInput({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         inputMode={inputMode}
-        className="h-9"
+        type={type}
+        required={required}
+        aria-invalid={invalid || undefined}
+        className={cn("h-9", invalid && "border-critical/70")}
       />
-    </div>
+    </label>
   );
 }

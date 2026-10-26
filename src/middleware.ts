@@ -27,7 +27,16 @@ const isPublicRoute = createRouteMatcher([
   "/",
   "/opengraph-image(.*)", // social share card - must be scrapeable
   "/twitter-image(.*)", // social share card - must be scrapeable
+  // Crawler files. A 307 to /sign-in here hid the whole site from search and
+  // from AI assistants: robots.txt, the sitemap and llms.txt all redirected.
+  "/robots.txt",
+  "/sitemap.xml",
+  "/llms.txt",
+  "/llms-full.txt",
   "/welcome/activate(.*)", // pay-first signup: reached before the account exists
+  "/start/(.*)", // trial reminder "finish setting up" link - token-authed, before any account
+  "/unsubscribe/(.*)", // trial reminder unsubscribe link - token-authed, no login
+  "/api/geo", // country for the trial form's consent box - read-only, stores nothing
   // Legal pages must stay anonymous-reachable: A2P 10DLC / TCR campaign review
   // fetches them signed-out, and a 307 to /sign-in reads to the reviewer as
   // "no privacy policy" - which is exactly why a campaign was rejected before.
@@ -65,6 +74,7 @@ const isPublicRoute = createRouteMatcher([
   "/files/(.*)", // expiring media-library guest link - token-authed, no login
   "/portal(.*)", // client concierge magic-link portal - token-authed, no login
   "/sign(.*)", // split-sheet e-signature magic-link - token-authed, no login
+  "/royalty/(.*)", // contributor royalty statement link - token-authed, no login (the slash keeps /royalties private)
   "/visit/(.*)", // visitor QR self check-in - org derived from the slug, no login
   // Public marketing + directory surfaces. These exist FOR people who have no
   // account, so protecting them 404s exactly the audience they were built for

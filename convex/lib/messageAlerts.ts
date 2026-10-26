@@ -33,7 +33,7 @@ export async function alertStudioOfClientMessage(ctx: MutationCtx, artist: Doc<"
     orgId,
     title: `${artist.name} sent a message`,
     body: "Open Messages to read it and reply.",
-    url: `/roster/${artist._id}`,
+    url: `/messages?client=${artist._id}`,
     tag: "client-message",
     clerkUserIds: [...audience],
     strictAudience: true,

@@ -4,8 +4,10 @@ import { orgTz, dateLabel } from "./lib/tz";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
+import type { MutationCtx } from "./_generated/server";
 import { currentOrg } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
+import { teamLink } from "./lib/links";
 import { sendSms, type SmsStatus } from "./lib/sms";
 import { normalizePhone } from "./lib/phone";
 import { recordSmsContact } from "./lib/smsContacts";
@@ -22,6 +24,7 @@ import {
 } from "./lib/smsTemplates";
 import { routeInbound } from "./smsFlows";
 import { parseSmsIntent } from "./lib/smsKeywords";
+import { zuopsSmsConfig, fetchZuopsInbound } from "./lib/zuopsSms";
 
 /* SMS: automated session reminders (cron), manual studio→client texts, and
    inbound replies + STOP/START opt-out handling (A2P 10DLC compliance).
@@ -236,6 +239,7 @@ export const _dueReminders = internalQuery({
               title: s.title,
               soon,
               date: dateStr,
+              link: teamLink(`/brief/${s._id}`),
             }),
           });
         }
@@ -327,75 +331,160 @@ export const _testSend = internalAction({
  *  thread (best-effort phone match across artists). */
 export const _handleInbound = internalMutation({
   args: { from: v.string(), body: v.string() },
-  handler: async (ctx, { from, body }) => {
-    const phone = normalizePhone(from);
-    if (!phone) return;
-    const intent = parseSmsIntent(body);
+  handler: async (ctx, { from, body }) => handleInboundText(ctx, from, body),
+});
 
-    if (intent === "stop") {
-      const existing = await ctx.db.query("smsOptOuts").withIndex("by_phone", (q) => q.eq("phone", phone)).first();
-      if (existing) await ctx.db.patch(existing._id, { optedOut: true, updatedAt: Date.now() });
-      else await ctx.db.insert("smsOptOuts", { phone, optedOut: true, updatedAt: Date.now() });
-      return;
-    }
-    if (intent === "start") {
-      const existing = await ctx.db.query("smsOptOuts").withIndex("by_phone", (q) => q.eq("phone", phone)).first();
-      if (existing) await ctx.db.patch(existing._id, { optedOut: false, updatedAt: Date.now() });
-      return;
-    }
+/** The shared inbound path, so a pushed reply (/sms/inbound) and a polled one
+ *  (Zuops) are handled identically. */
+async function handleInboundText(ctx: MutationCtx, from: string, body: string) {
+  const phone = normalizePhone(from);
+  if (!phone) return;
+  const intent = parseSmsIntent(body);
 
-    // Two-way flows: YES/NO/EXTEND/APPROVE/... against the sender's open
-    // prompt, plus the standalone HELP/RESCHEDULE/LATE keywords.
-    const consumed = await routeInbound(ctx, phone, body);
+  if (intent === "stop") {
+    const existing = await ctx.db.query("smsOptOuts").withIndex("by_phone", (q) => q.eq("phone", phone)).first();
+    if (existing) await ctx.db.patch(existing._id, { optedOut: true, updatedAt: Date.now() });
+    else await ctx.db.insert("smsOptOuts", { phone, optedOut: true, updatedAt: Date.now() });
+    return;
+  }
+  if (intent === "start") {
+    const existing = await ctx.db.query("smsOptOuts").withIndex("by_phone", (q) => q.eq("phone", phone)).first();
+    if (existing) await ctx.db.patch(existing._id, { optedOut: false, updatedAt: Date.now() });
+    return;
+  }
 
-    // Which studio is this for? Every studio texts from one shared number, so
-    // the reply is routed on who wrote to this phone last (lib/smsRouting.ts),
-    // and held for the agency when that is not clear.
-    const route = await routeInboundText(ctx, phone);
-    if (route.kind === "unrouted") {
-      await ctx.db.insert("unroutedMessages", {
-        phone,
-        body,
-        candidateOrgIds: route.candidateOrgIds,
-        agencyId: route.agencyId,
-        receivedAt: Date.now(),
-        status: "open",
-      });
-      return;
-    }
-    const match = route.kind === "routed" ? route.artist : null;
-    if (match && route.kind === "routed") {
-      const clientMessageId = await ctx.db.insert("clientMessages", {
+  // Two-way flows: YES/NO/EXTEND/APPROVE/... against the sender's open
+  // prompt, plus the standalone HELP/RESCHEDULE/LATE keywords.
+  const consumed = await routeInbound(ctx, phone, body);
+
+  // Which studio is this for? Every studio texts from one shared number, so
+  // the reply is routed on who wrote to this phone last (lib/smsRouting.ts),
+  // and held for the agency when that is not clear.
+  const route = await routeInboundText(ctx, phone);
+  if (route.kind === "unrouted") {
+    await ctx.db.insert("unroutedMessages", {
+      phone,
+      body,
+      candidateOrgIds: route.candidateOrgIds,
+      agencyId: route.agencyId,
+      receivedAt: Date.now(),
+      status: "open",
+    });
+    return;
+  }
+  const match = route.kind === "routed" ? route.artist : null;
+  if (match && route.kind === "routed") {
+    const clientMessageId = await ctx.db.insert("clientMessages", {
+      orgId: match.orgId,
+      artistId: match._id,
+      direction: "in",
+      subject: "Text message",
+      body,
+      channel: "sms",
+      status: "received",
+      routedBy: route.routedBy,
+    });
+    // The two-way flows answered for themselves; a free-form reply needs a person.
+    if (!consumed) await alertStudioOfClientMessage(ctx, match);
+
+    // AI receptionist (opt-in, Tier 4): when the studio has enabled it, hand
+    // the inbound off to an action that may auto-reply with the booking link.
+    // We only SCHEDULE it here (this is a mutation - no LLM/HTTP inline), and
+    // all opt-out/recording behavior above stays intact + unconditional.
+    // Skipped when a flow already consumed the reply - one answer, one voice.
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", match.orgId))
+      .first();
+    // The studio can turn the AI off for one client on the Messages page.
+    const thread = await ctx.db
+      .query("messageThreads")
+      .withIndex("by_org_artist", (q) => q.eq("orgId", match.orgId).eq("artistId", match._id))
+      .first();
+    if (!consumed && org?.aiReceptionistEnabled === true && thread?.aiRepliesOff !== true) {
+      await ctx.scheduler.runAfter(0, internal.receptionist.handle, {
         orgId: match.orgId,
-        artistId: match._id,
-        direction: "in",
-        subject: "Text message",
+        from,
         body,
-        channel: "sms",
-        status: "received",
-        routedBy: route.routedBy,
+        clientMessageId,
+        artistId: match._id,
       });
-      // The two-way flows answered for themselves; a free-form reply needs a person.
-      if (!consumed) await alertStudioOfClientMessage(ctx, match);
-
-      // AI receptionist (opt-in, Tier 4): when the studio has enabled it, hand
-      // the inbound off to an action that may auto-reply with the booking link.
-      // We only SCHEDULE it here (this is a mutation - no LLM/HTTP inline), and
-      // all opt-out/recording behavior above stays intact + unconditional.
-      // Skipped when a flow already consumed the reply - one answer, one voice.
-      const org = await ctx.db
-        .query("orgs")
-        .withIndex("by_org", (q) => q.eq("orgId", match.orgId))
-        .first();
-      if (!consumed && org?.aiReceptionistEnabled === true) {
-        await ctx.scheduler.runAfter(0, internal.receptionist.handle, {
-          orgId: match.orgId,
-          from,
-          body,
-          clientMessageId,
-          artistId: match._id,
-        });
-      }
     }
+  }
+}
+
+// ── Zuops replies (polled) ──────────────────────────────────────────────
+
+/** Where the Zuops reply poll resumes for this sub-account, or null before its first run. */
+export const _zuopsCursor = internalQuery({
+  args: { account: v.string() },
+  handler: async (ctx, { account }) => {
+    const row = await ctx.db
+      .query("smsInboundCursors")
+      .withIndex("by_provider_account", (q) => q.eq("provider", "zuops").eq("account", account))
+      .first();
+    return row?.position ?? null;
+  },
+});
+
+/** Handles one page of Zuops replies and moves the cursor in the same
+ *  transaction, so a page is applied once. `expected` is the position the
+ *  page was read from: when another run already moved past it, this page is
+ *  dropped instead of being handled twice. */
+export const _ingestZuopsInbound = internalMutation({
+  args: {
+    account: v.string(),
+    expected: v.union(v.string(), v.null()),
+    position: v.string(),
+    messages: v.array(v.object({ id: v.string(), from: v.string(), body: v.string() })),
+  },
+  handler: async (ctx, { account, expected, position, messages }) => {
+    const row = await ctx.db
+      .query("smsInboundCursors")
+      .withIndex("by_provider_account", (q) => q.eq("provider", "zuops").eq("account", account))
+      .first();
+    if ((row?.position ?? null) !== expected) return { applied: false };
+    for (const m of messages) await handleInboundText(ctx, m.from, m.body);
+    if (row) await ctx.db.patch(row._id, { position, updatedAt: Date.now() });
+    else await ctx.db.insert("smsInboundCursors", { provider: "zuops", account, position, updatedAt: Date.now() });
+    return { applied: true };
+  },
+});
+
+/** Cron, every minute: pull new texts sent to the Zuops number and run them
+ *  through the same path as /sms/inbound (STOP/START, two-way flows, client
+ *  threads). Only while Zuops is the live provider, so the sub-account's own
+ *  sales texts are not read while another provider carries Pulse SMS. The
+ *  first run starts from now; nothing older is replayed. */
+export const _pollZuopsInbound = internalAction({
+  args: {},
+  handler: async (ctx) => {
+    if ((process.env.SMS_PROVIDER ?? "").toLowerCase() !== "zuops") return { skipped: "provider" };
+    const cfg = zuopsSmsConfig();
+    if (!cfg) return { skipped: "config" };
+    const account = cfg.workspaceId;
+    const stored: string | null = await ctx.runQuery(internal.sms._zuopsCursor, { account });
+    if (stored === null) {
+      const since = `since:${new Date().toISOString()}`;
+      await ctx.runMutation(internal.sms._ingestZuopsInbound, { account, expected: null, position: since, messages: [] });
+      return { started: since };
+    }
+    let expected: string = stored;
+    let handled = 0;
+    for (let page = 0; page < 5; page++) {
+      const start = expected.startsWith("since:") ? { since: expected.slice(6) } : { cursor: expected };
+      const res = await fetchZuopsInbound(start);
+      if (!res.ok) return { error: res.reason, handled };
+      const position: string = res.next ?? expected;
+      if (res.messages.length === 0 && position === expected) break;
+      const { applied }: { applied: boolean } = await ctx.runMutation(internal.sms._ingestZuopsInbound, {
+        account, expected, position, messages: res.messages,
+      });
+      if (!applied) break;
+      handled += res.messages.length;
+      expected = position;
+      if (!res.more) break;
+    }
+    return { handled };
   },
 });

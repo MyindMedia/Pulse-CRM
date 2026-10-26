@@ -24,7 +24,8 @@ export type GrantScope =
   | "song"
   | "deliverable"
   | "splitsheet"
-  | "artist_portal";
+  | "artist_portal"
+  | "royalty_statement";
 
 /** Dot-namespaced capability string: <module>.<action>. */
 export type Capability = string;

@@ -49,7 +49,12 @@ export function renderSms(template: string, vars: SmsVars): string {
 
 /* ── The registered message shapes ──────────────────────────────────────
    Keep these in lockstep with the A2P campaign samples. Changing the visible
-   wording means re-registering samples with the carriers. */
+   wording means re-registering samples with the carriers.
+
+   Team texts end in an optional "Open: <link>" to the thing they are about
+   (lib/links.ts teamLink). On a phone with the Pulse app the link opens that
+   screen in the app (a Universal Link, see the apple-app-site-association
+   route); anywhere else it opens the web app. */
 
 /** Session reminder to the client (24h / 2h before). */
 export const CLIENT_REMINDER =
@@ -58,7 +63,7 @@ export const CLIENT_REMINDER =
 
 /** Session reminder to the engineer or staff member on the booking. */
 export const STAFF_REMINDER =
-  'Pulse: {studio} - you are booked for "{title}" {soon} ({date}). Reply STOP to opt out.';
+  'Pulse: {studio} - you are booked for "{title}" {soon} ({date}).[[ Open: {link}]] Reply STOP to opt out.';
 
 /** Free-form text a studio sends a client by hand from the client screen.
  *  The operator's own words are the payload; we only prepend identification. */
@@ -89,7 +94,7 @@ export const CLIENT_REBOOK_ACK =
 
 /** 2h-before confirm question to the staffer working the session. */
 export const STAFF_CONFIRM_2H =
-  'Pulse: {studio} - are you confirmed to work "{title}" {soon} ({date})? ' +
+  'Pulse: {studio} - are you confirmed to work "{title}" {soon} ({date})?[[ Open: {link}]] ' +
   "Reply YES to confirm or NO if you cannot make it.";
 
 export const STAFF_CONFIRM_ACK = "Pulse: Confirmed - thanks. See you at {studio}.";
@@ -103,7 +108,7 @@ export const MGR_APPROVAL_ACK = "Pulse: Got it - {name} has been notified.";
 /** Staff overtime check at the 8-hour mark. */
 export const OT_PROMPT =
   "Pulse: {studio} - you have been clocked in 8 hours. Are you working " +
-  "overtime? Reply YES to confirm overtime or NO to be clocked out at 8 hours.";
+  "overtime? Reply YES to confirm overtime or NO to be clocked out at 8 hours.[[ Open: {link}]]";
 
 export const OT_YES_ACK =
   "Pulse: Overtime confirmed at {studio}. Your hours keep counting - remember to clock out.";
@@ -114,7 +119,7 @@ export const OT_NO_ACK =
 /** Intern 4-hour check-in + the manager approval leg. */
 export const INTERN_PROMPT =
   "Pulse: {studio} - you have hit 4 hours. Interns need approval to continue. " +
-  "Reply EXTEND to request permission, or clock out now.";
+  "Reply EXTEND to request permission, or clock out now.[[ Open: {link}]]";
 
 export const INTERN_EXTEND_ACK =
   "Pulse: Request sent - stay clocked in while a manager reviews. We will text you the decision.";
@@ -130,7 +135,7 @@ export const INTERN_TIMEOUT =
 
 export const MGR_INTERN_APPROVAL =
   "Pulse: {studio} - intern {name} has hit 4 hours and requests permission to " +
-  "continue. Reply APPROVE or DENY.";
+  "continue. Reply APPROVE or DENY.[[ Open: {link}]]";
 
 /** Generic manager alert (client declined, staff declined, OT unanswered...). */
 export const MGR_ALERT = "Pulse: {studio} - {body}";
@@ -164,7 +169,7 @@ export const WAITLIST_TAKEN =
 /** Uncovered session offered to another engineer. */
 export const COVER_OFFER =
   'Pulse: {studio} needs an engineer for "{title}" ({date}). ' +
-  "Reply YES to take it - first reply wins.";
+  "Reply YES to take it - first reply wins.[[ Open: {link}]]";
 
 export const COVER_ACK = 'Pulse: "{title}" ({date}) is yours. {studio} has been notified.';
 
@@ -173,11 +178,27 @@ export const REVIEW_REQUEST =
   "Pulse: Thanks for recording at {studio}! How was your session? " +
   "Reply with a rating 1-5. Reply STOP to opt out.";
 
+/* The Google line goes to EVERY rater, low or high (Google prohibits asking
+   only happy customers for reviews). It drops out when the studio has no
+   review link on file. */
 export const REVIEW_THANKS =
-  "Pulse: Thank you! We are glad the session landed. See you next time at {studio}.";
+  "Pulse: Thank you! We are glad the session landed. See you next time at {studio}." +
+  "[[ Mind sharing it on Google? {google}]]";
 
 export const REVIEW_LOW_ACK =
-  "Pulse: Sorry the session missed the mark - the owner has been notified personally and will make it right.";
+  "Pulse: Sorry the session missed the mark - the owner has been notified personally and will make it right." +
+  "[[ You can also review us on Google: {google}]]";
+
+/* ── Deal texts (marketing; opt-in only, lib/deals.ts) ─────────────────── */
+
+/** Reply to a client who texted DEALS. */
+export const DEALS_OPTIN_ACK =
+  "Pulse: You are on the {studio} deals list - open studio time and offers, up to 4 texts a month. " +
+  "Msg & data rates may apply. Reply STOP to opt out.";
+
+/** Fill-the-gap offer. {body} is the studio-approved line. */
+export const GAP_DEAL =
+  "Pulse: {studio} - {body}[[ Book: {link}]] Reply STOP to opt out.";
 
 /** Balance due before the session, with the checkout link. */
 export const BALANCE_DUE_SMS =
@@ -186,4 +207,4 @@ export const BALANCE_DUE_SMS =
 
 /** The 8am owner digest. Only sent on days with activity. */
 export const OWNER_DIGEST =
-  "Pulse daily - {studio}: {sessions} session(s) today ({revenue}){flags}. Have a good one.";
+  "Pulse daily - {studio}: {sessions} session(s) today ({revenue}){flags}.[[ Open: {link}]] Have a good one.";

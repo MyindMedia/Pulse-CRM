@@ -6,6 +6,7 @@ import { outreachTables } from "./outreach/tables";
 import { mailTables } from "./mail/tables";
 import { projectTables } from "./projectsTables";
 import { mediaLibraryTables } from "./mediaLibraryTables";
+import { catalogTables } from "./catalogTables";
 import { ledgerTables } from "./ledgerTables";
 import { expenseCategoryV, incomeCategoryV, moneyInKindV } from "./lib/financeValidators";
 import { tierV } from "./lib/tierV";
@@ -206,6 +207,7 @@ export default defineSchema({
   ...mailTables,
   ...projectTables,
   ...mediaLibraryTables,
+  ...catalogTables,
   ...ledgerTables,
   // ── Orgs - one row per studio subaccount. orgId is the Clerk org id
   //    (org_xxx) or "pulse-demo". The agency console provisions these. ──
@@ -534,6 +536,27 @@ export default defineSchema({
         changeApproval: v.optional(v.boolean()),
       }),
     ),
+    // ── Growth (openspec/changes/off-peak-and-google-reviews). Off when unset. ──
+    // Room off-peak windows price public bookings.
+    offPeakEnabled: v.optional(v.boolean()),
+    // "Fill the gap" deal texts to opted-in clients. The Pulse agent decides;
+    // "approve" (default) sends its picks to the inbox, "auto" sends them.
+    dealTexts: v.optional(
+      v.object({
+        enabled: v.boolean(),
+        mode: v.union(v.literal("approve"), v.literal("auto")),
+      }),
+    ),
+    // Last deal text this studio sent (any room), for the agent's context.
+    lastDealTextAt: v.optional(v.number()),
+    // Sent to every client who rates a session by text (never only 4-5).
+    googleReviewUrl: v.optional(v.string()),
+    // Google Listing (Settings > Integrations). Google's Places terms allow
+    // storing the place ID only; rating and reviews are fetched when a page
+    // renders. Showing them publicly is a separate switch.
+    googlePlaceId: v.optional(v.string()),
+    googlePlaceConnectedAt: v.optional(v.number()),
+    googleReviewsShown: v.optional(v.boolean()),
     // Studio (company) Google Calendar: which calendar and which direction.
     // Calendar id defaults to "primary" when unset; direction to two_way.
     googleCalendarId: v.optional(v.string()),
@@ -625,6 +648,9 @@ export default defineSchema({
     markupCents: v.optional(v.number()),
     // Agency-level settings
     supportEmail: v.optional(v.string()),   // shown to studios; billing/support contact
+    // Royalties ship dark: Max studios under this agency get Royalty Statements
+    // only while this is true. Absent = off (requireRoyalties, lib/royaltiesGate.ts).
+    royaltiesEnabled: v.optional(v.boolean()),
     // Provisioning
     ownerClerkUserId: v.string(),
     ownerEmail: v.string(),
@@ -684,6 +710,8 @@ export default defineSchema({
       v.literal("deliverable"),
       v.literal("splitsheet"),
       v.literal("artist_portal"),
+      // A contributor's royalty history at one studio; entityId = the orgId.
+      v.literal("royalty_statement"),
     ),
     entityId: v.string(),                 // sessions._id | songs._id | etc.
     capabilities: v.array(v.string()),
@@ -1077,8 +1105,20 @@ export default defineSchema({
     tags: v.array(v.string()),
     avatarColor: v.optional(v.string()),
     instagram: v.optional(v.string()),
+    // Deal texts (TCPA): marketing texts only after this opt-in. Separate from
+    // reminder texts; STOP (smsOptOuts) still blocks everything.
+    dealsOptInAt: v.optional(v.number()),
+    dealsOptInSource: v.optional(v.union(v.literal("booking_form"), v.literal("sms_keyword"))),
+    dealsConsentVersion: v.optional(v.string()),
+    // When the opt-in confirmation text went out (carrier rule: confirm every opt-in).
+    dealsConfirmSentAt: v.optional(v.number()),
+    lastDealTextAt: v.optional(v.number()),
     // Marketing: the artist agreed to be named in the studio's posts.
     okToFeature: v.optional(v.boolean()),
+    // Created by a Catalog Import only to carry an imported song's artist name.
+    // Not a client: kept out of Clients, counts, pickers and suggestions
+    // (lib/catalogArtists.ts). No email or phone, so nothing messages them.
+    catalogOnly: v.optional(v.boolean()),
     spotify: v.optional(v.string()),
     notes: v.optional(v.string()),
     status: v.union(v.literal("lead"), v.literal("active"), v.literal("dormant"), v.literal("vip")),
@@ -1236,8 +1276,21 @@ export default defineSchema({
     // Song Workspace overview signals
     deadline: v.optional(v.number()),
     ownerMemberId: v.optional(v.id("members")),
+    // Catalog Import provenance. importedAt also drives the "Imported" filter.
+    importedAt: v.optional(v.number()),
+    importedFrom: v.optional(v.object({
+      importId: v.id("catalogImports"),
+      identityId: v.id("creditIdentities"),
+      source: v.string(),
+    })),
+    // Members credited on this song by imports (one song, several members).
+    creditedMembers: v.optional(v.array(v.id("members"))),
+    // Created on Core behind a split sheet: a basic record, not a Songs entry.
+    splitOnly: v.optional(v.boolean()),
   })
     .index("by_org", ["orgId"])
+    .index("by_org_imported", ["orgId", "importedAt"])
+    .index("by_org_isrc", ["orgId", "isrc"])
     .index("by_org_stage", ["orgId", "stage"])
     .index("by_org_artist", ["orgId", "artistId"])
     .index("by_parent", ["parentSongId"])
@@ -1292,6 +1345,18 @@ export default defineSchema({
     name: v.string(),
     roomType: v.optional(v.string()), // "Live room", "Mix suite", "Writing room"...
     hourlyRateCents: v.optional(v.number()),
+    // Off-peak windows, studio time (convex/lib/offPeak.ts). Used only while
+    // orgs.offPeakEnabled is on.
+    offPeakWindows: v.optional(
+      v.array(
+        v.object({
+          days: v.array(v.number()),
+          startHour: v.number(),
+          endHour: v.number(),
+          pct: v.number(),
+        }),
+      ),
+    ),
     status: v.union(
       v.literal("available"),
       v.literal("in_use"),
@@ -1546,6 +1611,9 @@ export default defineSchema({
     // listValue - rateCents); `compReason` is why. Absent = a normal booking.
     compType: v.optional(v.union(v.literal("comped"), v.literal("discounted"))),
     listValueCents: v.optional(v.number()),
+    // Off-peak savings on a public booking (room time only). A price the
+    // studio set, so it is NOT a comp and stays out of foregone revenue.
+    offPeakCents: v.optional(v.number()),
     compReason: v.optional(v.string()),
     // No-Show Shield outcomes on a cancelled / no-show session.
     cancellationFeeCents: v.optional(v.number()),
@@ -2650,6 +2718,8 @@ export default defineSchema({
       v.literal("profit_improvement"),
       v.literal("studio_risk"),
       v.literal("social_post_draft"),
+      // Growth: the Pulse agent's pick of a gap worth a deal text.
+      v.literal("gap_deal_text"),
       // Accounting agent (money only; convex/lib/agentScope.ts is the allowlist).
       v.literal("acct_clearing_draft"),
       v.literal("acct_cash_draw_reclass"),
@@ -2684,6 +2754,16 @@ export default defineSchema({
       }),
       v.object({ kind: v.literal("note_only") }),
       v.object({ kind: v.literal("social_post"), postId: v.id("socialPosts") }),
+      // Growth: one deal text to opted-in clients about a room's free block.
+      // Consent, STOP and the 7-day cap are re-checked at send time.
+      v.object({
+        kind: v.literal("sms_blast"),
+        roomId: v.id("rooms"),
+        gapStart: v.number(),
+        gapEnd: v.number(),
+        body: v.string(),
+        artistIds: v.array(v.id("artists")),
+      }),
       // Accounting agent. A balanced DRAFT journal entry; approving posts it.
       v.object({
         kind: v.literal("ledger_draft"),
@@ -2839,6 +2919,48 @@ export default defineSchema({
     .index("by_agency_status", ["agencyId", "status"])
     .index("by_email", ["email"])
     .index("by_claimed_org", ["claimedOrgId"]),
+
+  // ── Signup leads - someone who started a public trial on the pricing page.
+  //
+  //    Saved before Stripe Checkout opens, because the hosted checkout is the
+  //    last place Pulse would otherwise see them: a checkout left open is
+  //    gone without a trace. Platform-scoped (no orgId): these people do not
+  //    have a studio yet. Reminders follow consent, stop on conversion or
+  //    unsubscribe, and are off until TRIAL_NUDGES_LIVE is set. ──
+  signupLeads: defineTable({
+    email: v.string(), // normalized
+    studioName: v.string(),
+    tier: v.string(),
+    interval: v.string(),
+    // notice: told under the field, may be emailed (outside the EU/UK).
+    // opt_in: ticked the box. none: EU/UK/unknown without the box, never emailed.
+    consent: v.union(v.literal("notice"), v.literal("opt_in"), v.literal("none")),
+    country: v.optional(v.string()),
+    status: v.union(
+      v.literal("open"),
+      v.literal("converted"),
+      v.literal("unsubscribed"),
+      v.literal("stale"),
+    ),
+    // Resume + unsubscribe links. Unguessable, one per lead.
+    token: v.string(),
+    // The latest start: the reminder clock runs from here.
+    startedAt: v.number(),
+    startCount: v.number(),
+    lastSessionId: v.optional(v.string()),
+    nudgesSent: v.number(),
+    nextNudgeAt: v.optional(v.number()),
+    lastNudgeAt: v.optional(v.number()),
+    resumedAt: v.optional(v.number()),
+    convertedAt: v.optional(v.number()),
+    unsubscribedAt: v.optional(v.number()),
+    createdAt: v.number(),
+  })
+    .index("by_email", ["email"])
+    .index("by_token", ["token"])
+    .index("by_session", ["lastSessionId"])
+    .index("by_status_next", ["status", "nextNudgeAt"])
+    .index("by_created", ["createdAt"]),
 
   // ── Agent rules - a deterministic standing rule, usually promoted from an
   //    insight the owner got tired of approving.
@@ -3066,7 +3188,9 @@ export default defineSchema({
   })
     .index("by_phone_status", ["phone", "status"])
     .index("by_entry", ["entryId"])
-    .index("by_session", ["sessionId"]),
+    .index("by_session", ["sessionId"])
+    // The Pulse agent's view of the studio's texts (lib/agentActivity.ts).
+    .index("by_org_sent", ["orgId", "sentAt"]),
 
   // ── Recurring weekly availability a staff member sets for themselves. ──
   availability: defineTable({
@@ -3122,6 +3246,20 @@ export default defineSchema({
     .index("by_org", ["orgId"])
     .index("by_artist", ["artistId"]),
 
+  // The Messages page's state for one client's conversation. Read and archived
+  // are per studio, not per person. A message newer than archivedAt brings the
+  // conversation back to the inbox. aiRepliesOff keeps the AI receptionist
+  // from answering this client; keyword flows (YES, STOP) still run.
+  messageThreads: defineTable({
+    orgId: v.string(),
+    artistId: v.id("artists"),
+    readAt: v.optional(v.number()),
+    archivedAt: v.optional(v.number()),
+    aiRepliesOff: v.optional(v.boolean()),
+  })
+    .index("by_org", ["orgId"]) // the native mirror's snapshot (lib/mirroredTables.ts)
+    .index("by_org_artist", ["orgId", "artistId"]),
+
   // Which studio last texted a phone, and when. Every studio texts from the one
   // shared number, so a reply is routed to the studio that last wrote to it.
   // Pruned after 90 days (messages.prune) and erased with the client.
@@ -3129,8 +3267,12 @@ export default defineSchema({
     phone: v.string(), // normalized E.164
     orgId: v.string(),
     lastSentAt: v.number(),
+    // When the Zuops lead for this phone was tagged with this studio
+    // (zuopsStudioTags.ts). Unset = not yet.
+    zuopsTaggedAt: v.optional(v.number()),
   })
     .index("by_phone", ["phone"])
+    .index("by_zuops_tagged", ["zuopsTaggedAt", "lastSentAt"])
     .index("by_phone_org", ["phone", "orgId"])
     .index("by_org", ["orgId"])
     .index("by_last_sent", ["lastSentAt"]),
@@ -3151,6 +3293,16 @@ export default defineSchema({
     .index("by_agency_status", ["agencyId", "status"])
     .index("by_phone", ["phone"])
     .index("by_received", ["receivedAt"]),
+
+  // Where the inbound SMS poll resumes, one row per provider + sub-account
+  // (Zuops replies are polled, not pushed). `position` is the provider's
+  // cursor, or "since:<ISO time>" before the first page has come back.
+  smsInboundCursors: defineTable({
+    provider: v.string(),
+    account: v.string(),
+    position: v.string(),
+    updatedAt: v.number(),
+  }).index("by_provider_account", ["provider", "account"]),
 
   // ── Waitlist - artists waiting for an open slot. When a hold expires or a
   //    booking is cancelled, smart-fill ranks matching entries and proposes a

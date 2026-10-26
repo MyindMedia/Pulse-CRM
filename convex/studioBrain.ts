@@ -19,6 +19,7 @@ import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import { currentOrgWithCapability } from "./lib/tenant";
 import { summarizeGraph, neighbors, type GNode, type GEdge } from "./lib/studioGraph";
+import { isClient } from "./lib/catalogArtists";
 
 const DAY = 86_400_000;
 const SESSION_WINDOW = 365 * DAY; // graph holds the last year of sessions + all future
@@ -57,6 +58,7 @@ async function deriveGraph(ctx: QueryCtx | MutationCtx, orgId: string): Promise<
   };
 
   for (const a of artists) {
+    if (!isClient(a)) continue; // catalog-import artists are names, not clients
     addNode({
       kind: "artist", refId: a._id, label: a.name,
       attrs: { status: a.status, lifetimeValueCents: a.lifetimeValueCents, sessionCount: a.sessionCount, reliability: a.reliability },
@@ -66,6 +68,7 @@ async function deriveGraph(ctx: QueryCtx | MutationCtx, orgId: string): Promise<
   for (const m of members) addNode({ kind: "staff", refId: m._id, label: m.name, attrs: { role: m.role } });
   for (const s of songs) {
     if (s.stage === "delivered" && (s._creationTime ?? now) < windowStart) continue; // prune old delivered
+    if (s.importedAt) continue; // an imported back catalog is not work in flight
     addNode({ kind: "song", refId: s._id, label: s.title, attrs: { stage: s.stage } });
   }
   // Only rentable gear gets a node (the bookable assets the manager cares about).

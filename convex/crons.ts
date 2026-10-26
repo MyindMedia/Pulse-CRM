@@ -29,6 +29,12 @@ crons.interval("media-sweep-pending", { hours: 6 }, internal.media.sweepPending,
 // per run) until the Zuops webhook is registered, then it is only the safety net behind it.
 crons.interval("zuops-sync", { minutes: 1 }, internal.outreachZuops.syncAll, {});
 
+// Replies to Pulse texts when Zuops carries SMS (SMS_PROVIDER=zuops). Zuops cannot push
+// them to a sub-account key, so they are pulled: STOP/START, two-way flows, client threads.
+crons.interval("sms-zuops-inbound", { minutes: 1 }, internal.sms._pollZuopsInbound, {});
+// Groups each studio's texted contacts in Zuops under a "Studio: <name>" tag.
+crons.interval("sms-zuops-studio-tags", { minutes: 2 }, internal.zuopsStudioTags.tick, {});
+
 // Outreach follow-ups: when a MaxB step (day 3, 7, 14 after Lawrence's first email) is due,
 // put its draft in the Review queue. Drafts only: never approves, never sends. Also stops a
 // sequence when the studio replied, booked, bounced, complained or opted out.
@@ -39,6 +45,10 @@ crons.interval("outreach-scheduled-send", { minutes: 1 }, internal.outreachSend.
 // Confirmation calls for booked demos. Does nothing unless an agency turned it on in
 // Outreach > Settings; dry run by default. See docs/CONFIRMATION-CALLS.md.
 crons.interval("confirmation-calls", { minutes: 1 }, internal.outreachCalls.dispatchDueCalls, {});
+
+// Fill-the-gap deal texts: hourly, acting only where it is 9am studio time and
+// the studio turned deal texts on (gapDeals.ts). Off by default everywhere.
+crons.interval("gap-deal-texts", { hours: 1 }, internal.gapDeals.sweep, {});
 
 // Recompute every room's auto status from the live calendar.
 crons.interval("room-status", { minutes: 15 }, internal.maintenance.recomputeAllRoomStatuses);
@@ -148,5 +158,9 @@ crons.daily("demo-refresh", { hourUTC: 8, minuteUTC: 30 }, internal.demoRefresh.
 // 30, 7 and 1 days out - each exactly once, tracked on the org.
 crons.interval("org-buckets-sweep", { hours: 1 }, internal.orgBuckets.sweepNewOrgs, {});
 crons.daily("beta-ending-warnings", { hourUTC: 16, minuteUTC: 0 }, internal.betaClock.sweepWarnings, {});
+
+// Reminders for people who started a trial and stopped at checkout
+// (signupLeads.ts). Sends nothing until TRIAL_NUDGES_LIVE=true.
+crons.interval("signup-lead-reminders", { minutes: 15 }, internal.signupLeads.sweep, {});
 
 export default crons;

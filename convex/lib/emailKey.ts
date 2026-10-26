@@ -42,3 +42,9 @@ export function findByEmail<T extends { email?: string | null }>(
 ): T | undefined {
   return rows.find((r) => sameEmail(r.email, email));
 }
+
+/** Loose check: something@something.tld. The signing link goes to this
+ *  address, so a typo here means a sheet that can never be fully signed. */
+export function validEmail(email: string | undefined): boolean {
+  return Boolean(email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim()));
+}

@@ -99,6 +99,8 @@ export const PURPOSES = {
   video: { bucket: "media", maxBytes: 200 * MB(), image: false },
   document: { bucket: "private", maxBytes: 100 * MB(), image: false },
   receipt: { bucket: "private", maxBytes: 25 * MB(), image: false },
+  // Distributor statements: CSV only, uploaded through royalties.ts after its gate.
+  royalty_statement: { bucket: "private", maxBytes: 20 * MB(), image: false },
 } as const satisfies Record<string, { bucket: MediaBucket; maxBytes: number; image: boolean }>;
 export type MediaPurpose = keyof typeof PURPOSES;
 

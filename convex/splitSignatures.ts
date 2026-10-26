@@ -1,11 +1,12 @@
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
-import { v } from "convex/values";
+import { ConvexError, v } from "convex/values";
 import type { Doc, Id } from "./_generated/dataModel";
 import { currentOrg, currentActor } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { whitelabelFor } from "./usage";
-import { sameEmail } from "./lib/emailKey";
+import { sameEmail, validEmail } from "./lib/emailKey";
+import { allocateSongLines } from "./lib/royaltyAllocate";
 
 /* ============================================================
    Split-sheet e-signature.
@@ -35,7 +36,9 @@ function newToken(): string {
   return crypto.randomUUID().replace(/-/g, "");
 }
 
-/** Studio: issue a one-use signing link per still-unsigned contributor with email.
+/** Studio: issue a one-use signing link per still-unsigned contributor.
+ *  Refuses while any unsigned contributor has no valid email (and names them):
+ *  skipping them would leave a sheet that can never be fully executed.
  *  Returns the recipients + tokens so the studio can email them. */
 export const issue = mutation({
   args: { splitSheetId: v.id("splitSheets") },
@@ -46,13 +49,24 @@ export const issue = mutation({
     if (!sheet || sheet.orgId !== orgId) throw new Error("Split sheet not found");
     const actor = await currentActor(ctx);
 
+    const missing = sheet.contributors
+      .filter((c) => !c.signed && !validEmail(c.email))
+      .map((c) => c.name.trim() || "Unnamed contributor");
+    if (missing.length > 0) {
+      throw new ConvexError({
+        code: "SPLIT_EMAIL_REQUIRED",
+        names: missing,
+        message: `Add an email for ${missing.join(", ")} before sending. Each person signs from their own link.`,
+      });
+    }
+
     const expiresAt = Date.now() + YEAR_MS;
     const out: { name: string; email: string; token: string; contributorIndex: number }[] = [];
 
     for (let i = 0; i < sheet.contributors.length; i++) {
       const c = sheet.contributors[i];
       if (c.signed) continue;
-      if (!c.email || !c.email.trim()) continue;
+      if (!c.email) continue; // unreachable: checked above
 
       // Revoke any prior unused signing grants for this sheet+email so a
       // re-issue cleanly supersedes the old link.
@@ -211,6 +225,7 @@ export const sign = mutation({
     const allSigned = next.every((c) => c.signed);
     if (allSigned && sheet.status !== "fully_executed") {
       await ctx.db.patch(sheet._id, { status: "fully_executed", updatedAt: now });
+      await allocateSongLines(ctx, sheet.orgId, sheet.songId);
     }
 
     await ctx.db.insert("auditEvents", {

@@ -5,6 +5,7 @@ import { currentOrg, currentOrgWithCapability, currentMoneySight } from "./lib/t
 import { normalizeEmail } from "./lib/emailKey";
 
 import { redactMoney, redactEach } from "./lib/money";
+import { isClient } from "./lib/catalogArtists";
 const artistTypeV = v.union(
   v.literal("artist"),
   v.literal("producer"),
@@ -36,6 +37,7 @@ export const list = query({
         .withIndex("by_org", (q) => q.eq("orgId", orgId))
         .collect();
     }
+    rows = rows.filter(isClient);
     const sight = await currentMoneySight(ctx);
     // Ranked by what a client is worth only for someone allowed to know it.
     const ordered = sight.money
@@ -54,6 +56,7 @@ export const roster = query({
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .collect();
     return rows
+      .filter(isClient)
       .map((r) => ({ _id: r._id, name: r.name, type: r.type, avatarColor: r.avatarColor }))
       .sort((a, b) => a.name.localeCompare(b.name));
   },
@@ -96,7 +99,7 @@ export const counts = query({
   args: {},
   handler: async (ctx) => {
     const orgId = await currentOrg(ctx);
-    const rows = await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
+    const rows = (await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect()).filter(isClient);
     return {
       total: rows.length,
       lead: rows.filter((r) => r.status === "lead").length,
