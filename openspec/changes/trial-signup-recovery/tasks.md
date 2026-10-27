@@ -29,5 +29,5 @@
 - [x] 5.1 convex-test suite for every spec scenario
 - [x] 5.2 tsc, vitest, eslint on changed files, `next build`
 - [ ] 5.3 PR, deploy preview checks, merge, Convex prod deploy, live smoke (lead row created, checkout prefilled)
-- [ ] 5.4 Compliance note + pentest of the new public endpoints
+- [x] 5.4 Compliance note + pentest of the new public endpoints
 - [ ] 5.5 Send sample emails to the owner, and set `TRIAL_NUDGES_LIVE` only on his OK

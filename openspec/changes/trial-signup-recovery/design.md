@@ -29,3 +29,13 @@ Public trial path today: `SubscribeButton` -> `billing.beginPublicCheckout({tier
 ## Migration Plan
 
 Additive table and fields, so no backfill. Deploy Convex prod after merge. Emails stay off until `npx convex env set TRIAL_NUDGES_LIVE true` with the owner's OK. Rollback: unset the env and revert the PR. The table can stay.
+
+## Compliance and security record (2026-10-26)
+
+- **Data held:** email, studio name, chosen plan, country code, consent mode, timestamps. No card data (Stripe Checkout hosts the card form, SAQ A unchanged), no PHI.
+- **Vendors:** Convex (store), Resend (send), Netlify (geo header), Stripe (checkout). All four are already Pulse processors under their DPAs; no new vendor.
+- **US (CAN-SPAM):** notice under the email field, a working one-click unsubscribe (RFC 8058 `List-Unsubscribe` + `List-Unsubscribe-Post`), at most three reminders per address ever.
+- **EU/EEA/UK/CH (GDPR, PECR):** unticked box; no box means consent `none` and the sweep never mails the row. Unknown country is treated as EU. Consent is decided on the server, not trusted from the client.
+- **Retention:** never emailed after 7 days; unconverted rows deleted after 180 days. Disclosed in /privacy.
+- **Pentest:** Strix run `pulse-182_4a2f` (code + staging), 0 findings. Its live-probe agent hit the budget reserve, so the dynamic checks were repeated by hand: signed-out `list` returns nothing, guessed and malformed tokens return `not_found`, the one-click POST answers 200 without revealing whether the token exists, internal functions are unreachable from outside, an oversized email is rejected. The scan's own test leads were unsubscribed before any reminder went out.
+- Not legal advice.
