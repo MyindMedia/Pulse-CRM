@@ -4,7 +4,7 @@ Owner request, 2026-10-10: "use the assets in pulse-ui-kit.zip to update UI in o
 
 ## What Changes
 
-Built on staging (`develop`) in slices, each reviewed on https://studiopulse-staging.netlify.app before the next; promoted to production only when the owner says ship.
+Built on staging (`develop`) in slices, each reviewed on https://develop--studiopulse-staging.netlify.app before the next; promoted to production only when the owner says ship.
 
 1. **Foundation:** kit tokens mapped onto the app's own token names, Archivo, chassis Card, key Button, chip Badge, solid graphite instead of glass, yellow focus ring. Scoped to the app shell and agency console (`.pulse-hw`); marketing pages unchanged. Staging-only `/ui-lab` gallery.
 2. **Shell:** sidebar and top bar as chassis with LEDs and the pushed-in active item; corner brackets.

@@ -20,7 +20,7 @@ export const dynamic = "force-static";
 
 export default function PrivacyPolicy() {
   return (
-    <LegalShell title="Privacy Policy" updated="October 20, 2026">
+    <LegalShell title="Privacy Policy" updated="October 26, 2026">
       <Section heading="Who we are">
         <p>
           Pulse is recording studio management software operated by {LEGAL_ENTITY} (&ldquo;Pulse&rdquo;,
@@ -57,6 +57,11 @@ export default function PrivacyPolicy() {
             and the vendor, date, total, tax, and last four card digits read from them.
           </li>
           <li>
+            <strong className="text-mist">Trial sign-ups</strong>: when you start a Pulse free trial,
+            the email address, studio name, plan, and country you start it from, saved before you
+            reach checkout.
+          </li>
+          <li>
             <strong className="text-mist">Technical data</strong>: IP address, device and browser
             type, and log data used to keep the service secure and working.
           </li>
@@ -67,6 +72,12 @@ export default function PrivacyPolicy() {
         <ul className="list-disc space-y-1.5 pl-5">
           <li>To create, confirm, change, and remind you about studio bookings.</li>
           <li>To send account and service notifications you have asked to receive.</li>
+          <li>
+            If you start a Pulse free trial and do not finish checkout, to send you up to three
+            reminder emails within four days. Visitors in the EU, EEA, UK, and Switzerland get these
+            only if they tick the box to ask for them. Every reminder has a one-click unsubscribe
+            link, and a trial sign-up that never becomes an account is deleted after 180 days.
+          </li>
           <li>To take payment and issue invoices and receipts.</li>
           <li>
             To import a studio&rsquo;s bank transactions and balances, read uploaded receipts, and match

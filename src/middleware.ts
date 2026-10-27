@@ -34,6 +34,9 @@ const isPublicRoute = createRouteMatcher([
   "/llms.txt",
   "/llms-full.txt",
   "/welcome/activate(.*)", // pay-first signup: reached before the account exists
+  "/start/(.*)", // trial reminder "finish setting up" link - token-authed, before any account
+  "/unsubscribe/(.*)", // trial reminder unsubscribe link - token-authed, no login
+  "/api/geo", // country for the trial form's consent box - read-only, stores nothing
   // Legal pages must stay anonymous-reachable: A2P 10DLC / TCR campaign review
   // fetches them signed-out, and a 307 to /sign-in reads to the reviewer as
   // "no privacy policy" - which is exactly why a campaign was rejected before.

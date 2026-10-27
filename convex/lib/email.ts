@@ -20,6 +20,8 @@ export async function sendEmail(args: {
   audience?: EmailAudience;
   /** Skip all branding handling. Outreach only (convex/outreachSend.ts). */
   raw?: boolean;
+  /** Extra mail headers, e.g. List-Unsubscribe on reminder mail. */
+  headers?: Record<string, string>;
 }): Promise<EmailStatus> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return "simulated";
@@ -37,6 +39,7 @@ export async function sendEmail(args: {
         to: [args.to],
         subject,
         html,
+        ...(args.headers ? { headers: args.headers } : {}),
       }),
     });
     return res.ok ? "sent" : "failed";
