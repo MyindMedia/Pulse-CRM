@@ -31,6 +31,7 @@ function AgencyWordmark() {
 export default function AgencyLayout({ children }: { children: React.ReactNode }) {
   const access = useQuery(api.agency.access);
   const mail = useQuery(api.mail.access, access?.allowed ? {} : "skip");
+  const crm = useQuery(api.crm.access, access?.allowed ? {} : "skip");
 
   return (
     <TooltipProvider delayDuration={300}>
@@ -49,6 +50,7 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
               <Link href="/agency/agents" className="hover:text-bone">Agents</Link>
               <Link href="/agency/autopilot" className="hover:text-bone">Autopilot</Link>
               <Link href="/agency/outreach" className="hover:text-bone">Outreach</Link>
+              {crm?.allowed && <Link href="/agency/crm" className="hover:text-bone">CRM</Link>}
               {mail?.allowed && <Link href="/agency/email" className="hover:text-bone">Email</Link>}
               <Link href="/agency/feature-requests" className="hover:text-bone">Requests</Link>
               <Link href="/agency/staff" className="hover:text-bone">Staff</Link>

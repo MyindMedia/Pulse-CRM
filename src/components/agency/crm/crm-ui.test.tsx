@@ -1,0 +1,152 @@
+import { beforeEach, describe, expect, it, vi } from "vitest";
+import { renderToStaticMarkup } from "react-dom/server";
+import { getFunctionName } from "convex/server";
+
+/* Formatters, the write gate and the shared states. Server-rendered with mocked
+   Convex queries; not a browser check. */
+const fixtures: Record<string, unknown> = {};
+vi.mock("convex/react", () => ({
+  useQuery: (ref: never, args?: unknown) => (args === "skip" ? undefined : fixtures[getFunctionName(ref)]),
+  useAction: () => async () => ({ ok: true, status: 200, json: null, limits: {} }),
+}));
+
+import { CrmProvider } from "./crm-context";
+import {
+  ConfirmDialog, ReadOnlyBanner, StageBadge, WriteButton, ZuErrorState, dateTime, money, phone, refreshGate, relTime,
+  stageTone, syncedAgo, writeBlock, READ_ONLY_REASON, NEEDS_ADMIN_REASON, SyncBar,
+} from "./crm-ui";
+
+const html = (el: React.ReactElement) => renderToStaticMarkup(el);
+const status = (s: Partial<{ keyConfigured: boolean; writesOn: boolean; adminKey: boolean; webhookConfigured: boolean }>) => {
+  fixtures["crm:status"] = { keyConfigured: true, writesOn: true, adminKey: true, webhookConfigured: false, ...s };
+  fixtures["crm:signal"] = { at: 0, lead: 0, booking: 0, message: 0, call: 0, deal: 0 };
+};
+
+beforeEach(() => { for (const k of Object.keys(fixtures)) delete fixtures[k]; });
+
+describe("formatters", () => {
+  it("money: cents to dollars, whole amounts without cents, nothing as a dash", () => {
+    expect(money(118800)).toBe("$1,188");
+    expect(money(1050)).toBe("$10.50");
+    expect(money(0)).toBe("$0");
+    expect(money(null)).toBe("–");
+    expect(money(undefined)).toBe("–");
+    expect(money(2500, "eur")).toBe("€25");
+    expect(money(2500, "not-a-code")).toBe("$25");
+  });
+
+  it("phone: US numbers formatted, others left as given", () => {
+    expect(phone("+12135550142")).toBe("(213) 555-0142");
+    expect(phone("2135550142")).toBe("(213) 555-0142");
+    expect(phone("+442071234567")).toBe("+442071234567");
+    expect(phone(null)).toBe("");
+  });
+
+  it("relTime: recent times in words, older ones as a date", () => {
+    const now = Date.parse("2026-11-11T12:00:00Z");
+    expect(relTime("2026-11-11T11:59:40Z", now)).toBe("just now");
+    expect(relTime("2026-11-11T11:55:00Z", now)).toBe("5 min ago");
+    expect(relTime("2026-11-11T09:00:00Z", now)).toBe("3 h ago");
+    expect(relTime("2026-11-10T08:00:00Z", now)).toBe("Yesterday");
+    expect(relTime("2026-11-06T08:00:00Z", now)).toBe("Nov 6");
+    expect(relTime("2025-11-06T08:00:00Z", now)).toBe("Nov 6, 2025");
+    expect(relTime(null, now)).toBe("");
+    expect(relTime("not a date", now)).toBe("");
+  });
+
+  it("dateTime: in the given time zone with its name", () => {
+    expect(dateTime("2026-11-12T22:00:00Z", "America/Los_Angeles")).toBe("Thu, Nov 12, 2:00 PM PST");
+    expect(dateTime("2026-11-12T22:00:00Z", "Not/AZone")).toMatch(/Nov 12/);
+    expect(dateTime(null)).toBe("");
+  });
+
+  it("synced line and the 30 second refresh gate (U-08)", () => {
+    expect(syncedAgo(null, 0)).toBe("Not synced yet");
+    expect(syncedAgo(1000, 2000)).toBe("Synced just now");
+    expect(syncedAgo(0, 12_000)).toBe("Synced 12 s ago");
+    expect(syncedAgo(0, 180_000)).toBe("Synced 3 min ago");
+    expect(refreshGate(null, 5)).toEqual({ ok: true, waitS: 0 });
+    expect(refreshGate(0, 10_000)).toEqual({ ok: false, waitS: 20 });
+    expect(refreshGate(0, 30_000)).toEqual({ ok: true, waitS: 0 });
+  });
+
+  it("copy has no em dashes", () => {
+    for (const s of [READ_ONLY_REASON, NEEDS_ADMIN_REASON, money(null)]) expect(s).not.toContain("—");
+  });
+});
+
+describe("write gate (X-08)", () => {
+  it("writeBlock says why a write is off", () => {
+    expect(writeBlock({ canWrite: false, hasAdminKey: true })).toBe(READ_ONLY_REASON);
+    expect(writeBlock({ canWrite: true, hasAdminKey: false })).toBeNull();
+    expect(writeBlock({ canWrite: true, hasAdminKey: false }, true)).toBe(NEEDS_ADMIN_REASON);
+    expect(writeBlock({ canWrite: true, hasAdminKey: true }, true)).toBeNull();
+  });
+
+  it("WriteButton is off with the reason when this deployment is read only", () => {
+    status({ writesOn: false });
+    const out = html(<CrmProvider><WriteButton>Save to Zuops</WriteButton></CrmProvider>);
+    expect(out).toMatch(/<button[^>]*\sdisabled=""/);
+    expect(out).toContain(READ_ONLY_REASON);
+  });
+
+  it("an admin WriteButton is off without a Full access key, a normal one is on", () => {
+    status({ adminKey: false });
+    const admin = html(<CrmProvider><WriteButton admin>Delete</WriteButton></CrmProvider>);
+    expect(admin).toMatch(/<button[^>]*\sdisabled=""/);
+    expect(admin).toContain(NEEDS_ADMIN_REASON);
+    const normal = html(<CrmProvider><WriteButton>Save</WriteButton></CrmProvider>);
+    expect(normal).not.toMatch(/\sdisabled=""/);
+    expect(normal).not.toContain(NEEDS_ADMIN_REASON);
+  });
+
+  it("WriteButton is off while the status is still loading or with no provider", () => {
+    expect(html(<WriteButton>Save</WriteButton>)).toMatch(/\sdisabled=""/);
+    expect(html(<CrmProvider><WriteButton>Save</WriteButton></CrmProvider>)).toMatch(/\sdisabled=""/);
+  });
+});
+
+describe("states", () => {
+  it("read-only banner shows only when the key is set and writes are off", () => {
+    status({ writesOn: false });
+    expect(html(<CrmProvider><ReadOnlyBanner /></CrmProvider>)).toContain("Read only here. This deployment cannot change Zuops.");
+    status({ writesOn: true });
+    expect(html(<CrmProvider><ReadOnlyBanner /></CrmProvider>)).toBe("");
+    status({ keyConfigured: false, writesOn: false });
+    expect(html(<CrmProvider><ReadOnlyBanner /></CrmProvider>)).toBe("");
+  });
+
+  it("error state shows Zuops's reason as given, with Retry", () => {
+    const out = html(<ZuErrorState error={{ reason: "That time was just taken.", code: "slot_full", status: 409 }} onRetry={() => undefined} />);
+    expect(out).toContain("That time was just taken.");
+    expect(out).toContain("Zuops refused");
+    expect(out).toContain("Retry");
+    expect(out).toContain('role="alert"');
+    expect(html(<ZuErrorState error={{ reason: "x", status: 0 }} />)).toContain("Could not reach Zuops");
+  });
+
+  it("stage badge is a word and an icon, never color alone", () => {
+    const out = html(<StageBadge stage={{ id: "s", key: "booked", label: "Booked", color: "cyan", behavior: "booked" }} />);
+    expect(out).toContain("Booked");
+    expect(out).toContain("<svg");
+    expect(html(<StageBadge stage="quote_sent" />)).toContain("Quote sent");
+    expect(html(<StageBadge stage={null} />)).toContain("No stage");
+    expect(stageTone("emerald")).toBe("positive");
+    expect(stageTone("rose")).toBe("critical");
+    expect(stageTone(undefined)).toBe("neutral");
+  });
+
+  it("sync bar renders the synced line and a Refresh button", () => {
+    const out = html(<SyncBar fetchedAt={null} onRefresh={() => undefined} />);
+    expect(out).toContain("Not synced yet");
+    expect(out).toContain("Refresh");
+  });
+
+  it("confirm dialog renders its trigger closed; nothing runs until the confirm button", () => {
+    const onConfirm = vi.fn();
+    const out = html(<ConfirmDialog title="Delete?" body="Gone for good." confirmLabel="Delete" onConfirm={onConfirm} trigger={<button type="button">Open</button>} />);
+    expect(out).toContain("Open");
+    expect(out).not.toContain("Gone for good.");
+    expect(onConfirm).not.toHaveBeenCalled();
+  });
+});
