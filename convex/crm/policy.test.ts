@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ZU_OPS, ZU_OPS_GENERATED_FROM } from "./ops.generated";
-import { REACHES, REACHES_PATHS, opIdFor, level, needsConfirm, gate, buildPath, pickFields, BODY_MAX_BYTES } from "./policy";
+import { REACHES, REACHES_PATHS, CHANGES_SENDING, CHANGES_SENDING_PATHS, CONFIRM_REASONS, opIdFor, level, needsConfirm, needsConfirmFor, confirmKind, gate, buildPath, pickFields, BODY_MAX_BYTES } from "./policy";
 
 const ops = Object.values(ZU_OPS);
 const op = (id: string) => {
@@ -42,10 +42,44 @@ describe("REACHES", () => {
     }
   });
 
-  it("needsConfirm: reaching ops and every DELETE", () => {
-    for (const o of ops) expect(needsConfirm(o)).toBe(REACHES.has(o.id) || o.method === "DELETE");
+  it("X-06 every CHANGES_SENDING (method, path) exists in the registry, so a rename fails here", () => {
+    for (const [m, p] of CHANGES_SENDING_PATHS) expect(opIdFor(m, p), `${m} ${p}`).toBeTruthy();
+    expect(CHANGES_SENDING.size).toBe(CHANGES_SENDING_PATHS.length);
+    expect([...CHANGES_SENDING].sort()).toEqual([
+      "configure_outreach", "create_automation", "duplicate_automation", "invite_member", "set_ai_receptionist", "set_ai_texting",
+      "set_appointment_emails", "set_automated_texts_from", "set_nurture", "update_automation", "update_nurture", "update_survey_rules",
+    ]);
+    for (const id of CHANGES_SENDING) expect(REACHES.has(id)).toBe(false);
+  });
+
+  it("needsConfirm: reaching ops, ops that change automatic sending, and every DELETE", () => {
+    for (const o of ops) expect(needsConfirm(o)).toBe(REACHES.has(o.id) || CHANGES_SENDING.has(o.id) || o.method === "DELETE");
     expect(needsConfirm(op("list_leads"))).toBe(false);
     expect(needsConfirm(op("delete_lead"))).toBe(true);
+  });
+
+  it("confirmKind names why, for the dialog", () => {
+    expect(confirmKind(op("send_message"))).toBe("reaches");
+    expect(confirmKind(op("set_nurture"))).toBe("changes_sending");
+    expect(confirmKind(op("invite_member"))).toBe("changes_sending");
+    expect(confirmKind(op("delete_lead"))).toBe("delete");
+    expect(confirmKind(op("create_lead"))).toBeNull();
+    expect(confirmKind(op("list_leads"))).toBeNull();
+    for (const o of ops) expect(needsConfirm(o)).toBe(confirmKind(o) !== null);
+  });
+
+  it("X-06 create_lead needs confirm only when run_intake would start the new-lead texts", () => {
+    const create = op("create_lead");
+    expect(needsConfirmFor(create, { full_name: "x" })).toBe(false);
+    expect(needsConfirmFor(create, undefined)).toBe(false);
+    expect(needsConfirmFor(create, { full_name: "x", run_intake: false })).toBe(false);
+    expect(needsConfirmFor(create, { full_name: "x", run_intake: true })).toBe(true);
+    expect(needsConfirmFor(create, { full_name: "x", run_intake: "true" })).toBe(true);
+    expect(needsConfirmFor(op("update_lead"), { run_intake: true })).toBe(false);
+    const flags = { writesOn: true, adminKey: false };
+    expect(gate(create, flags, false, { full_name: "x", run_intake: true })).toEqual({ ok: false, code: "needs_confirm", reason: "Confirm before this runs: it starts the new-lead texts for this person." });
+    expect(gate(create, flags, true, { full_name: "x", run_intake: true })).toEqual({ ok: true });
+    expect(gate(create, flags, false, { full_name: "x" })).toEqual({ ok: true });
   });
 });
 
@@ -68,9 +102,9 @@ describe("level and gate", () => {
   });
 
   it("X-06 reaching ops need confirm", () => {
-    const r = gate(op("send_message"), { writesOn: true, adminKey: false }, false);
-    expect(r).toMatchObject({ ok: false, code: "needs_confirm" });
-    if (!r.ok) expect(r.reason).toMatch(/reaches real people or deletes something/);
+    expect(gate(op("send_message"), { writesOn: true, adminKey: false }, false)).toEqual({ ok: false, code: "needs_confirm", reason: CONFIRM_REASONS.reaches });
+    expect(gate(op("set_ai_texting"), { writesOn: true, adminKey: false }, false)).toEqual({ ok: false, code: "needs_confirm", reason: "Confirm before this runs: it changes what is sent automatically to real people." });
+    expect(gate(op("delete_lead"), { writesOn: true, adminKey: true }, false)).toEqual({ ok: false, code: "needs_confirm", reason: "Confirm before this runs: it deletes something." });
     expect(gate(op("send_message"), { writesOn: true, adminKey: false }, true)).toEqual({ ok: true });
   });
 });

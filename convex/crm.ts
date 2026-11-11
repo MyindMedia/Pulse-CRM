@@ -111,9 +111,9 @@ export const call = action({
     const b = pickFields(op.body, args.body, "body");
     if (!b.ok) return refuse("bad_field", b.reason);
 
-    // 6. Switches and confirmation.
+    // 6. Switches and confirmation (the body matters for create_lead with run_intake).
     const adminKey = env("ZUOPS_CRM_ADMIN_KEY");
-    const g = gate(op, { writesOn: env("ZUOPS_CRM_WRITES") === "on", adminKey: !!adminKey }, args.confirm === true);
+    const g = gate(op, { writesOn: env("ZUOPS_CRM_WRITES") === "on", adminKey: !!adminKey }, args.confirm === true, b.value);
     if (!g.ok) return refuse(g.code, g.reason);
 
     // 7. The key for this level.

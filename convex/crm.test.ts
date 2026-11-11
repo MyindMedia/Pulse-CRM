@@ -5,7 +5,7 @@ import schema from "./schema";
 import { api, internal } from "./_generated/api";
 import * as crm from "./crm";
 import { ZU_OPS } from "./crm/ops.generated";
-import { REACHES, level } from "./crm/policy";
+import { REACHES, CHANGES_SENDING, CONFIRM_REASONS, confirmKind, level } from "./crm/policy";
 
 /* Agency CRM: access, the call gates, audit, pulses and prune.
    Test ids carry the eval ids from specs/features/agency-crm-zuops/eval.md. */
@@ -195,22 +195,38 @@ describe("crm", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("X-06 every operation that reaches people and every DELETE is refused without confirm, no request", async () => {
+  it("X-06 every operation that reaches people, changes automatic sending, or deletes is refused without confirm, no request", async () => {
     writesOn();
     vi.stubEnv("ZUOPS_CRM_ADMIN_KEY", "zu-admin-test");
-    const flagged = Object.values(ZU_OPS).filter((o) => REACHES.has(o.id) || o.method === "DELETE");
-    expect(flagged.length).toBeGreaterThan(40);
+    const flagged = Object.values(ZU_OPS).filter((o) => REACHES.has(o.id) || CHANGES_SENDING.has(o.id) || o.method === "DELETE");
+    expect(flagged.length).toBeGreaterThan(50);
+    for (const id of CHANGES_SENDING) expect(flagged.map((o) => o.id)).toContain(id);
     for (const o of flagged) {
+      const kind = confirmKind(o)!;
       for (const confirm of [undefined, false]) {
         const r = await owner().action(api.crm.call, { op: o.id, path: pathFor(o.id), confirm });
-        expect(r, o.id).toMatchObject({ ok: false, code: "needs_confirm" });
-        expect(r.reason).toMatch(/reaches real people or deletes something/);
+        expect(r, o.id).toMatchObject({ ok: false, code: "needs_confirm", reason: CONFIRM_REASONS[kind] });
       }
     }
     expect(calls).toHaveLength(0);
     const sent = await owner().action(api.crm.call, { op: "send_message", body: { lead_id: "l1", channel: "sms", body: "x" }, confirm: true });
     expect(sent.ok).toBe(true);
     expect(calls).toHaveLength(1);
+  });
+
+  it("X-06 create_lead with run_intake needs confirm (it sends the first text); without it, no confirm", async () => {
+    writesOn();
+    for (const run_intake of [true, "true"]) {
+      const r = await owner().action(api.crm.call, { op: "create_lead", body: { full_name: "x", run_intake } });
+      expect(r).toMatchObject({ ok: false, code: "needs_confirm", reason: "Confirm before this runs: it starts the new-lead texts for this person." });
+      expect(await owner().action(api.crm.call, { op: "create_lead", body: { full_name: "x", run_intake }, confirm: false })).toMatchObject({ code: "needs_confirm" });
+    }
+    expect(calls).toHaveLength(0);
+    expect(await owner().action(api.crm.call, { op: "create_lead", body: { full_name: "x", run_intake: true }, confirm: true })).toMatchObject({ ok: true });
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ full_name: "x", run_intake: true });
+    expect(await owner().action(api.crm.call, { op: "create_lead", body: { full_name: "x" } })).toMatchObject({ ok: true });
+    expect(await owner().action(api.crm.call, { op: "create_lead", body: { full_name: "x", run_intake: false } })).toMatchObject({ ok: true });
+    expect(calls).toHaveLength(3);
   });
 
   it("X-08 admin operations without ZUOPS_CRM_ADMIN_KEY say they need a Full access key; with it they use that key", async () => {

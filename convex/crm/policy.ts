@@ -43,6 +43,29 @@ export const REACHES: ReadonlySet<string> = new Set(
   REACHES_PATHS.map(([m, p]) => opIdFor(m, p)).filter((id): id is string => typeof id === "string"),
 );
 
+/** Operations that change what Zuops sends automatically to real people: follow-up
+ *  and AI texting, the AI receptionist, appointment emails, survey rules, auto-greet,
+ *  who automated texts come from, automation building, and team invites. Same rule
+ *  as REACHES_PATHS: every pair must resolve in the registry (a test checks it). */
+export const CHANGES_SENDING_PATHS: ReadonlyArray<readonly [ZuOp["method"], string]> = [
+  ["PUT", "/v1/nurture-sequence"],
+  ["PATCH", "/v1/nurture-sequence"],
+  ["PATCH", "/v1/ai-texting"],
+  ["PUT", "/v1/ai-receptionist"],
+  ["PUT", "/v1/appointment-emails"],
+  ["PATCH", "/v1/surveys/{form_id}/rules"],
+  ["POST", "/v1/workspaces/{workspace_id}/outreach"],
+  ["PUT", "/v1/imessage/automated-texts"],
+  ["POST", "/v1/workspace-automations"],
+  ["PATCH", "/v1/workspace-automations/{automation_id}"],
+  ["POST", "/v1/workspace-automations/{automation_id}/duplicate"],
+  ["POST", "/v1/members"],
+];
+
+export const CHANGES_SENDING: ReadonlySet<string> = new Set(
+  CHANGES_SENDING_PATHS.map(([m, p]) => opIdFor(m, p)).filter((id): id is string => typeof id === "string"),
+);
+
 export type Level = "read" | "write" | "admin";
 
 export function level(op: ZuOp): Level {
@@ -51,8 +74,48 @@ export function level(op: ZuOp): Level {
   return "write";
 }
 
+export type ConfirmKind = "reaches" | "changes_sending" | "delete";
+
+/** Why an operation needs a confirm, for the UI to word its dialog. Body-independent. */
+export function confirmKind(op: ZuOp): ConfirmKind | null {
+  if (REACHES.has(op.id)) return "reaches";
+  if (CHANGES_SENDING.has(op.id)) return "changes_sending";
+  if (op.method === "DELETE") return "delete";
+  return null;
+}
+
 export function needsConfirm(op: ZuOp): boolean {
-  return REACHES.has(op.id) || op.method === "DELETE";
+  return confirmKind(op) !== null;
+}
+
+const CREATE_LEAD = opIdFor("POST", "/v1/leads");
+
+/** `create_lead` with `run_intake` works the lead like a new form lead and sends the
+ *  first text. Anything other than an absent or false `run_intake` counts, so a
+ *  string "true" cannot slip past the confirm. */
+function startsIntake(op: ZuOp, body: unknown): boolean {
+  if (op.id !== CREATE_LEAD || !body || typeof body !== "object") return false;
+  const v = (body as Record<string, unknown>).run_intake;
+  return v !== undefined && v !== null && v !== false;
+}
+
+export const CONFIRM_REASONS = {
+  reaches: "Confirm before this runs: it reaches real people.",
+  changes_sending: "Confirm before this runs: it changes what is sent automatically to real people.",
+  delete: "Confirm before this runs: it deletes something.",
+  starts_intake: "Confirm before this runs: it starts the new-lead texts for this person.",
+} as const;
+
+/** The confirm reason for this operation with this body, or null when none is needed. */
+export function confirmReason(op: ZuOp, body?: unknown): string | null {
+  const kind = confirmKind(op);
+  if (kind) return CONFIRM_REASONS[kind];
+  if (startsIntake(op, body)) return CONFIRM_REASONS.starts_intake;
+  return null;
+}
+
+export function needsConfirmFor(op: ZuOp, body?: unknown): boolean {
+  return confirmReason(op, body) !== null;
 }
 
 export type GateResult = { ok: true } | { ok: false; code: "read_only" | "needs_admin_key" | "needs_confirm"; reason: string };
@@ -60,15 +123,15 @@ export type GateResult = { ok: true } | { ok: false; code: "read_only" | "needs_
 export const GATE_REASONS = {
   read_only: "This deployment is read only against Zuops.",
   needs_admin_key: "Needs a Full access key.",
-  needs_confirm: "Confirm before this runs: it reaches real people or deletes something.",
 } as const;
 
-export function gate(op: ZuOp, flags: { writesOn: boolean; adminKey: boolean }, confirm: boolean): GateResult {
+export function gate(op: ZuOp, flags: { writesOn: boolean; adminKey: boolean }, confirm: boolean, body?: unknown): GateResult {
   const lv = level(op);
   if (lv === "read") return { ok: true };
   if (!flags.writesOn) return { ok: false, code: "read_only", reason: GATE_REASONS.read_only };
   if (lv === "admin" && !flags.adminKey) return { ok: false, code: "needs_admin_key", reason: GATE_REASONS.needs_admin_key };
-  if (needsConfirm(op) && confirm !== true) return { ok: false, code: "needs_confirm", reason: GATE_REASONS.needs_confirm };
+  const why = confirmReason(op, body);
+  if (why && confirm !== true) return { ok: false, code: "needs_confirm", reason: why };
   return { ok: true };
 }
 
