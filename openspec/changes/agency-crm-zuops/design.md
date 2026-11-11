@@ -69,3 +69,29 @@ No AI model is in this path. Consent and opt-out are enforced by Zuops at send t
 - Webhook cannot be registered with the current key. Mitigation: reconcile cron is sufficient at this volume; queue the Full access key.
 - Double sends on retry. Mitigation: `Idempotency-Key` per logical send, generated in the browser when the composer opens, reused on retry.
 - Mirror drift. Mitigation: every screen shows "synced N seconds ago" and a Refresh; the cron re-reads on a cursor.
+
+## Addendum 2026-11-11: every Zuops function, pass-through instead of a mirror
+
+Owner after approval: "every single function that can be used in my pulse crm that exists in zuops should be configured", social media included. The Zuops OpenAPI spec lists 352 operations in 32 areas. This addendum replaces D2 and D3 and extends D4.
+
+### D2 (replaces). Pass-through, nothing stored
+Every screen reads Zuops live through one Convex action. Convex stores no lead data: no mirror tables, no snapshots. Reasons: 352 operations cannot each have a mirror; a mirror is a second copy that drifts; and holding no personal data is the smaller risk. Cost: a screen load is one to three API calls (about 300 to 600 ms each) instead of a reactive query. The browser keeps a 30 second in-memory cache and refetches on a signal, after its own writes, on focus, and every 60 seconds while visible.
+
+### D3 (replaces). Signal instead of sync
+`POST /zu/events` verifies the HMAC, de-duplicates on the delivery id, and inserts one `crmPulses` row: event name, lead id, booking id, message id, time. No names, no bodies. `crm.signal` returns the newest pulse time per kind; open screens subscribe to it and refetch what changed. Without a registered webhook the 60 second refresh covers it. There is no reconcile cron and no cursor.
+
+### D11. Operation registry
+`scripts/zu-ops.mjs` reads `https://api.usezu.com/openapi.json` and `llms.txt` (for scopes) and writes `convex/crm/ops.generated.ts`: for each operation its id, method, path, area, summary, scope, path parameters, query fields and body fields (name, type, required, enum, short description). `--check` fails when the live spec and the file differ, so a new Zuops function shows up as a failing check, then a regenerate.
+
+`crm.call({ op, path, query, body, idem, confirm })` is the only way out:
+1. access (D1); 2. op must be in the registry; 3. path values must match `^[A-Za-z0-9_.:@-]{1,128}$` and are URL-encoded; 4. query and body keys must be registry fields (`workspace_id` is dropped, never sent); 5. non-GET needs `ZUOPS_CRM_WRITES=on`; 6. `:admin` scope needs `ZUOPS_CRM_ADMIN_KEY`; 7. operations that reach people, and every DELETE, need `confirm: true`; 8. every non-GET gets an `Idempotency-Key` (the caller's, else generated) and an audit row (actor, op, path ids; never the body).
+The answer is `{ ok, status, json (a string), reason, code, limits }`. JSON travels as a string so a large payload never meets Convex's 1,024-field limit.
+
+### D12. Operations that reach people
+Flagged `reaches` in `convex/crm/policy.ts` (an explicit list, checked by a test against the registry so a renamed operation fails loudly): send message, send scheduled now, approve suggested reply, email campaign send and send rest, automation enroll and toggle, estimate send, contract send, proposal send, report send and test email, reward game send, survey send, Google Business post approve and publish, review reply, support ticket message and reply, iMessage reaction. Booking, rescheduling and cancelling notify the lead by design and are single, deliberate actions, so they are not double-confirmed but are audited.
+
+### D13. Screens
+Curated: Dashboard, Leads, Pipeline, Inbox, Calendar, Social. Config-driven (one generic resource component, one config entry per resource): Campaigns, Automations, Forms, Calls, Settings, and More (invoices and estimates, reviews, contracts, proposals, reports, short links, widget, media, AI Brain, ads and Google, reward games, surveys, support, offers). Functions: a searchable catalog of all 352 operations, each with a form built from the registry, for anything a curated screen does not surface.
+
+### Tables
+Only `crmPulses { agencyId, event, deliveryId, leadId?, bookingId?, messageId?, at }` with `by_agency_at` and `by_delivery`. Pruned daily to 7 days. Audit rows go to the existing `outreachEvents`.
