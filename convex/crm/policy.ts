@@ -161,31 +161,55 @@ const isPlainObject = (x: unknown): x is Record<string, unknown> => {
   return proto === Object.prototype || proto === null;
 };
 
+const OPEN_KEY = /^[A-Za-z0-9_]{1,64}$/;
+
+/** A copy without any `workspace_id` key at any depth. */
+function withoutWorkspace(x: unknown): unknown {
+  if (Array.isArray(x)) return x.map(withoutWorkspace);
+  if (x && typeof x === "object") {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(x as Record<string, unknown>)) if (k !== "workspace_id") out[k] = withoutWorkspace(v);
+    return out;
+  }
+  return x;
+}
+
 /** Keep only fields the registry knows for this operation.
  *
  *  Missing `required` fields are NOT refused here on purpose: Zuops answers 400
  *  with a sentence that names the field and the rule (for example "subject is
  *  required for email"), which is a better reason than a generic one from Pulse,
  *  and our copy of the rules could drift from theirs. Unknown keys ARE refused,
- *  so nothing outside the documented surface is ever sent. */
+ *  so nothing outside the documented surface is ever sent.
+ *
+ *  `open` is for a body the spec does not list but Zuops documents in prose
+ *  (`openBody` in the registry: field-less PATCH and PUT, and every DELETE). Any
+ *  plain-object keys of a simple shape are accepted, `workspace_id` is removed at
+ *  every depth, and the 64 KB cap still applies. Queries are always strict. */
 export function pickFields(
   fields: ZuField[],
   input: unknown,
   kind: "query" | "body",
+  open = false,
 ): { ok: true; value: Record<string, unknown> } | { ok: false; reason: string } {
   if (input === undefined || input === null) return { ok: true, value: {} };
   if (!isPlainObject(input)) return { ok: false, reason: kind === "query" ? "The filters must be a set of named values." : "The request body must be a set of named fields." };
+  const isOpen = open && kind === "body";
   const known = new Set(fields.map((f) => f.name));
   const out: Record<string, unknown> = {};
   for (const [k, v] of Object.entries(input)) {
     if (k === "workspace_id") continue; // the key is locked to one sub-account; never sent
-    if (!known.has(k)) return { ok: false, reason: `"${k}" is not a field this Zuops function accepts.` };
+    if (isOpen) {
+      if (!OPEN_KEY.test(k)) return { ok: false, reason: `"${k.slice(0, 64)}" is not a field name Zuops uses.` };
+    } else if (!known.has(k)) {
+      return { ok: false, reason: `"${k}" is not a field this Zuops function accepts.` };
+    }
     if (v === undefined) continue;
     if (kind === "query") {
       const okType = typeof v === "string" || typeof v === "boolean" || (typeof v === "number" && Number.isFinite(v));
       if (!okType) return { ok: false, reason: `"${k}" must be text, a number or true/false.` };
     }
-    out[k] = v;
+    out[k] = isOpen ? withoutWorkspace(v) : v;
   }
   if (kind === "body") {
     let size: number;

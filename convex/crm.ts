@@ -108,7 +108,7 @@ export const call = action({
     const q = pickFields(op.query, args.query, "query");
     if (!q.ok) return refuse("bad_field", q.reason);
     if (op.method === "GET" && args.body !== undefined) return refuse("bad_field", "A read does not take a request body.");
-    const b = pickFields(op.body, args.body, "body");
+    const b = pickFields(op.body, args.body, "body", op.openBody === true);
     if (!b.ok) return refuse("bad_field", b.reason);
 
     // 6. Switches and confirmation (the body matters for create_lead with run_intake).

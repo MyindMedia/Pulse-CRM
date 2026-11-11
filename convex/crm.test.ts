@@ -176,6 +176,38 @@ describe("crm", () => {
     expect(calls).toHaveLength(0);
   });
 
+  it("open bodies: update_stage sends prose-documented fields, drops workspace_id, and is still size capped; strict ops still refuse unknown keys", async () => {
+    writesOn();
+    const r = await owner().action(api.crm.call, { op: "update_stage", path: { stage_id: "st_1" }, body: { label: "Quoted", color: "amber", hidden: false } });
+    expect(r.ok).toBe(true);
+    expect(calls[0].url).toBe("https://api.usezu.com/v1/stages/st_1");
+    expect(calls[0].init.method).toBe("PATCH");
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ label: "Quoted", color: "amber", hidden: false });
+
+    await owner().action(api.crm.call, { op: "update_stage", path: { stage_id: "st_1" }, body: { label: "x", workspace_id: "b77d090e", extra: { workspace_id: "b77d090e", keep: 1 } } });
+    expect(JSON.parse(String(calls[1].init.body))).toEqual({ label: "x", extra: { keep: 1 } });
+    expect(String(calls[1].init.body)).not.toContain("workspace_id");
+
+    expect(await owner().action(api.crm.call, { op: "update_stage", path: { stage_id: "st_1" }, body: { label: "x".repeat(65 * 1024) } })).toMatchObject({ ok: false, code: "bad_field" });
+    expect(await owner().action(api.crm.call, { op: "update_stage", path: { stage_id: "st_1" }, body: { "bad key": 1 } })).toMatchObject({ ok: false, code: "bad_field" });
+    expect(await owner().action(api.crm.call, { op: "create_lead", body: { full_name: "x", label: "nope" } })).toMatchObject({ ok: false, code: "bad_field" });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("X-06 delete_stage with move_to needs confirm; with it the body reaches Zuops", async () => {
+    writesOn();
+    vi.stubEnv("ZUOPS_CRM_ADMIN_KEY", "zu-admin-test");
+    const refused = await owner().action(api.crm.call, { op: "delete_stage", path: { stage_id: "st_2" }, body: { move_to: "contacted" } });
+    expect(refused).toMatchObject({ ok: false, code: "needs_confirm", reason: "Confirm before this runs: it deletes something." });
+    expect(calls).toHaveLength(0);
+    const ok = await owner().action(api.crm.call, { op: "delete_stage", path: { stage_id: "st_2" }, body: { move_to: "contacted" }, confirm: true });
+    expect(ok.ok).toBe(true);
+    expect(calls[0].url).toBe("https://api.usezu.com/v1/stages/st_2");
+    expect(calls[0].init.method).toBe("DELETE");
+    expect(header(0, "Authorization")).toBe("Bearer zu-admin-test");
+    expect(JSON.parse(String(calls[0].init.body))).toEqual({ move_to: "contacted" });
+  });
+
   it("no key set: not_connected, no request", async () => {
     vi.stubEnv("ZUOPS_CRM_API_KEY", "");
     expect(await owner().action(api.crm.call, { op: "list_leads" })).toMatchObject({ ok: false, code: "not_connected" });

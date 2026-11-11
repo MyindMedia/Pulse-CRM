@@ -146,6 +146,33 @@ describe("pickFields", () => {
     expect(pickFields(create.body, "x", "body").ok).toBe(false);
     expect(pickFields(create.body, undefined, "body")).toEqual({ ok: true, value: {} });
   });
+  it("openBody: field-less PATCH and PUT and every DELETE are open; POST stays strict; suggest is advisory", () => {
+    for (const o of ops) {
+      const open = o.method === "DELETE" || ((o.method === "PATCH" || o.method === "PUT") && o.body.length === 0);
+      expect(o.openBody === true, o.id).toBe(open);
+      if (o.suggest) {
+        expect(o.openBody, o.id).toBe(true);
+        expect(o.suggest.some((f) => f.required), o.id).toBe(false);
+      }
+    }
+    expect(op("update_stage").suggest!.map((f) => f.name)).toEqual(expect.arrayContaining(["label", "color"]));
+    expect(op("archive_conversation").openBody).toBeUndefined(); // a field-less POST is a pure action: strict
+  });
+
+  it("openBody accepts documented-in-prose keys, drops workspace_id at any depth, refuses odd key names", () => {
+    const stage = op("update_stage");
+    expect(pickFields(stage.body, { label: "Quoted", color: "amber", hidden: false }, "body", true)).toEqual({ ok: true, value: { label: "Quoted", color: "amber", hidden: false } });
+    expect(pickFields(stage.body, { label: "x", workspace_id: "w", meta: { workspace_id: "w", keep: [{ workspace_id: "w", a: 1 }] } }, "body", true)).toEqual({
+      ok: true, value: { label: "x", meta: { keep: [{ a: 1 }] } },
+    });
+    for (const bad of ["la bel", "a.b", "__proto__x-", "x".repeat(65), ""]) expect(pickFields(stage.body, { [bad]: 1 }, "body", true).ok, bad).toBe(false);
+    expect(pickFields(stage.body, ["label"], "body", true).ok).toBe(false);
+    expect(pickFields(stage.body, { label: "x".repeat(BODY_MAX_BYTES) }, "body", true).ok).toBe(false);
+    // Without the open flag the same op is strict, and queries are always strict.
+    expect(pickFields(stage.body, { label: "x" }, "body").ok).toBe(false);
+    expect(pickFields([], { label: "x" }, "query", true).ok).toBe(false);
+  });
+
   it("caps a body at 64 KB", () => {
     expect(pickFields(create.body, { full_name: "x".repeat(BODY_MAX_BYTES) }, "body").ok).toBe(false);
   });
