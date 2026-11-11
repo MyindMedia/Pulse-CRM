@@ -2014,3 +2014,35 @@ Owner request: "Google review should be something that is enabled by the team in
 - A lead converts when `checkout.session.completed` arrives for its session or its email.
 
 **Non-goals:** Meta/Google pixels, cookie banner, SMS nudges, Clerk webhooks.
+
+
+---
+
+## Epic: Agency CRM on Zuops (owner request 2026-11-11, awaiting eval approval)
+
+**Goal:** a CRM tab in the Agency Command Center (`/agency/crm`) that is a full working front end for the Pulse OS Zuops sub-account. Owner's words: "zuops will be the back bone of the data" and "conversations, messaging, outreach emails, lead staging, all of it thats available in zuops needs to be in my app".
+
+**Scope (phase 1):** dashboard, leads, pipeline, inbox and messaging, calendar, email campaigns, automations (switch and enroll), smart forms, calls, settings. Phase 2 (separate change): invoices, reviews, contracts, proposals, reports, short links, website widget, media, AI Brain, ads.
+
+**Target users:** Lawrence and admins of the Pulse platform agency. Not agency staff, not studios.
+
+**Stack:** existing (Next.js App Router, Convex, Clerk). Zuops REST API at `https://api.usezu.com/v1` (reference `https://api.usezu.com/llms.txt`). Convex mirrors leads, stages, conversation summaries and appointments; message bodies, transcripts and recordings are read on open and never stored.
+
+**Constraints:**
+- Zuops is the record. Every write goes to Zuops first; a refusal changes nothing in Pulse.
+- Nothing is sent unless a person presses Send. Bulk actions confirm with the recipient count. Retries carry an Idempotency-Key.
+- Staging is read only against Zuops (`ZUOPS_CRM_WRITES` unset): staging and production share the one real sub-account.
+- Keys and the signing secret stay in Convex env and 1Password (`op://Security/Zuops Pulse OS`).
+- The Outreach tab and the existing `zuops-sync` booking sync are not changed.
+- No em dashes in copy.
+
+**Facts verified 2026-11-11 (read-only GETs):** the key answers on `api.usezu.com`, is locked to the Pulse OS sub-account only, and is access level `write` (no `:admin` scopes: no webhooks, deletes, team invites, alert recipients, automation building). 22 leads, 5 stages, 1 calendar, 15 conversations, 14 automations (3 on), 1 smart form, 1 outbound webhook (disabled, pointed at the retired Bland receiver).
+
+**Non-goals:** Pulse-only CRM fields; automated sending started by Pulse; building automation steps; per-studio CRM.
+
+**Open:**
+- Owner approval of `specs/features/agency-crm-zuops/eval.md` and `mockup.html` (verified-build gate). Ten decisions made without asking are listed in eval.md.
+- A Full access key (field `API Full` on the 1Password item) to register the webhook and unlock admin-only controls. Until then, sync is a one-minute reconcile.
+- Legal review: High tier, adds a way to text and email leads from Pulse.
+
+Spec: `openspec/changes/agency-crm-zuops/`. Branch `feat/agency-crm-zu` (worktree `~/Dev/pulse-wt-zucrm`).
