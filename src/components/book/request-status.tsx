@@ -41,7 +41,7 @@ function copyFor(b: RequestBooking) {
     return {
       Icon: XCircle,
       tone: "border-critical/30 bg-critical/10 text-critical",
-      title: "This booking was cancelled",
+      title: "This booking was canceled",
       body: "We sent you the details. Send a new request anytime and we'll find another time.",
     };
   }
