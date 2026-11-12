@@ -196,6 +196,10 @@ export function isProductionUiLab(pathname: string, staging: boolean): boolean {
   return !staging && (pathname === "/ui-lab" || pathname.startsWith("/ui-lab/"));
 }
 
+/* Where /demo sends people. Also set in netlify.toml, which answers first in
+   production; keep the two the same. */
+const DEMO_FORM_URL = "https://go.studiopulse.tech/demo";
+
 export default async function middleware(req: NextRequest, event: NextFetchEvent) {
   // The page's own notFound() runs after Next has begun streaming, so it can
   // only render "not found" under a 200. The status has to be set here.
@@ -207,8 +211,11 @@ export default async function middleware(req: NextRequest, event: NextFetchEvent
   }
   // Public product-demo redirect must run before Clerk protects app routes.
   if (req.nextUrl.pathname === "/demo") {
+    // The demo form shows under our own address: go.studiopulse.tech/demo is a
+    // short link that frames the form, so the visitor never lands on the form
+    // host's domain. The query string rides along so UTM tags reach the lead.
     return expireStaleClientCookie(req, NextResponse.redirect(
-      "https://zuops.com/f/pulse-30-minute-demo-intake-draft-fbib", 302,
+      `${DEMO_FORM_URL}${req.nextUrl.search}`, 302,
     ));
   }
   const res = await handler(req, event);
