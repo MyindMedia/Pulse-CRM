@@ -7,6 +7,7 @@ import { stripeClient } from "./lib/stripe";
 import { appUrl } from "./lib/links";
 import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
+import { recordRecoveryOnPaid } from "./lib/recoveryOnPaid";
 
 /* ============================================================
    Public invoice payment. No auth - a client opens the pay link
@@ -103,6 +104,8 @@ export async function settleInvoice(ctx: MutationCtx, invoiceId: Id<"invoices">)
   const inv = await ctx.db.get(invoiceId);
   if (!inv || inv.status === "paid") return;
   await ctx.db.patch(invoiceId, { status: "paid", paidAt: Date.now(), paymentMethod: "card" });
+  // Won-back money (a paid fee, or a bill paid after a reminder). Reporting only.
+  await recordRecoveryOnPaid(ctx, inv);
   const artist = await ctx.db.get(inv.artistId);
   await ctx.db.insert("activity", {
     orgId: inv.orgId,

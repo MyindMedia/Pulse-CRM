@@ -1985,7 +1985,9 @@ export default defineSchema({
     note: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
-    .index("by_org_at", ["orgId", "at"]),
+    .index("by_org_at", ["orgId", "at"])
+    // One fee / reminder recovery per invoice (lib/recoveryOnPaid.ts).
+    .index("by_invoice", ["invoiceId"]),
 
   // ── Expenses - money OUT. The other half of the books: rent, utilities,
   //    subscriptions, gear, repairs, contractor/engineer payouts, marketing,
