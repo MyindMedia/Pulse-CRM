@@ -105,7 +105,7 @@ export async function settleInvoice(ctx: MutationCtx, invoiceId: Id<"invoices">)
   if (!inv || inv.status === "paid") return;
   await ctx.db.patch(invoiceId, { status: "paid", paidAt: Date.now(), paymentMethod: "card" });
   // Won-back money (a paid fee, or a bill paid after a reminder). Reporting only.
-  await recordRecoveryOnPaid(ctx, inv);
+  await recordRecoveryOnPaid(ctx, inv, "card");
   const artist = await ctx.db.get(inv.artistId);
   await ctx.db.insert("activity", {
     orgId: inv.orgId,

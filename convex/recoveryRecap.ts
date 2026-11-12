@@ -78,7 +78,8 @@ export const recapForOrg = internalMutation({
     // paid: lib/recoveryOnPaid.ts writes (or, for a fee logged at billing
     // before that change, re-dates) the event at the paid time, so a fee paid
     // a month after it was billed lands in the month it was paid. A legacy
-    // fee event whose invoice is still unpaid is listed as waiting.
+    // fee event whose invoice is still unpaid is listed as waiting, and one
+    // settled with studio credit is not counted.
     let totalCents = 0;
     let pendingCents = 0;
     const pendingInvoices = new Set<string>();
@@ -93,6 +94,8 @@ export const recapForOrg = internalMutation({
           }
           continue;
         }
+        // Settled with studio credit: no money came in.
+        if (inv.paymentMethod === "credit") continue;
       }
       totalCents += e.amountCents;
       byKindMap.set(e.kind, (byKindMap.get(e.kind) ?? 0) + e.amountCents);

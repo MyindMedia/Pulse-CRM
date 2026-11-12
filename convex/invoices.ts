@@ -249,7 +249,7 @@ export const setStatus = mutation({
       }
       // Won-back money: a paid No-Show Shield fee, or an invoice paid after a
       // reminder went out. Only on the transition INTO paid, once per invoice.
-      await recordRecoveryOnPaid(ctx, inv);
+      await recordRecoveryOnPaid(ctx, inv, paymentMethod);
       const methodLabel = paymentMethod ? METHOD_LABELS[paymentMethod] : null;
       await ctx.db.insert("activity", {
         orgId,

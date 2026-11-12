@@ -148,3 +148,16 @@ describe("monthly recovery recap across months", () => {
     expect(mail?.body).not.toContain("Pulse recovered $0");
   });
 });
+
+describe("monthly recovery recap and studio credit", () => {
+  it("does not count a fee settled with studio credit (R28/R29)", async () => {
+    const t = convexTest(schema);
+    await seed(t, "paid");
+    await t.run(async (ctx) => {
+      for (const inv of await ctx.db.query("invoices").collect()) await ctx.db.patch(inv._id, { paymentMethod: "credit" });
+    });
+    const { mail } = await recap(t);
+    expect(mail?.subject).toContain("Pulse recovered $50 ");
+    expect(mail?.body).not.toContain("no-show fees");
+  });
+});

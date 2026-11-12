@@ -163,7 +163,7 @@ export const _markFeePaid = internalMutation({
     if (!inv || inv.status === "paid" || inv.status === "void") return;
     await ctx.db.patch(invoiceId, { status: "paid", paidAt: Date.now(), paymentMethod: "card" });
     // Won-back money: the fee is counted now that it is collected. Reporting only.
-    await recordRecoveryOnPaid(ctx, inv);
+    await recordRecoveryOnPaid(ctx, inv, "card");
     await ctx.db.insert("activity", {
       orgId: inv.orgId,
       kind: "invoice.paid",

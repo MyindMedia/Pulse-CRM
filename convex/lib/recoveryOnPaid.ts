@@ -32,9 +32,16 @@ export function feeKindOf(inv: Pick<Doc<"invoices">, "sessionId" | "lineItems">)
   return FEE_LABELS.find((f) => label.endsWith(f.suffix))?.kind ?? null;
 }
 
-/** Call right after `inv` (the row as it was BEFORE the update) moved into paid. */
-export async function recordRecoveryOnPaid(ctx: MutationCtx, inv: Doc<"invoices">): Promise<void> {
+/** Call right after `inv` (the row as it was BEFORE the update) moved into
+ *  paid, with how it was paid. Studio credit brings no money in, so an
+ *  invoice settled with credit is never won back. */
+export async function recordRecoveryOnPaid(
+  ctx: MutationCtx,
+  inv: Doc<"invoices">,
+  paymentMethod: Doc<"invoices">["paymentMethod"],
+): Promise<void> {
   if (inv.status === "paid" || inv.amountCents <= 0) return;
+  if (paymentMethod === "credit") return;
   const already = await ctx.db
     .query("recoveryEvents")
     .withIndex("by_invoice", (q) => q.eq("invoiceId", inv._id))
