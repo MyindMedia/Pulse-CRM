@@ -4,6 +4,8 @@ import schema from "./schema";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { settleInvoice } from "./invoicePay";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 
 /* client-messages-recovery-recap: the monthly recap said "Pulse recovered $X
    ... No action needed" while fee invoices were still drafts nobody had sent,
@@ -159,5 +161,17 @@ describe("monthly recovery recap and studio credit", () => {
     const { mail } = await recap(t);
     expect(mail?.subject).toContain("Pulse recovered $50 ");
     expect(mail?.body).not.toContain("no-show fees");
+  });
+});
+
+/* R30/R31: nothing records a waitlist_fill recovery, so the won-back copy
+   must not claim resold canceled hours. */
+describe("won-back copy claims only what is counted", () => {
+  it("does not claim canceled hours it resold", () => {
+    const root = join(__dirname, "..");
+    for (const f of ["convex/lib/pricing.ts", "src/app/mypulse/features.ts"]) {
+      expect(readFileSync(join(root, f), "utf8"), f).not.toMatch(/canceled hours it resold/i);
+    }
+    expect(readFileSync(join(root, "convex/recoveryRecap.ts"), "utf8")).not.toMatch(/waitlist backfills/i);
   });
 });

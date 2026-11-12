@@ -860,7 +860,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "Money Pulse won back": [
     "A monthly total of money your studio would otherwise have lost.",
-    "Pulse adds up kept deposits, late fees, canceled hours it resold, and bills paid after a reminder, and sends you the total once a month.",
+    "Pulse adds up kept deposits, late fees once they are paid, and bills paid after a reminder, and sends you the total once a month.",
   ],
   "Sales tax": [
     "Tax settings for your studio.",

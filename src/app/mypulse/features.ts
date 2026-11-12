@@ -128,7 +128,7 @@ const DESC: Record<string, string> = {
   "Saved charges":
     "Charges the studio adds all the time, saved once and dropped onto a bill in one click.",
   "Money Pulse won back":
-    "Pulse adds up the money the studio would have lost. It counts kept deposits, late fees, canceled hours it resold, and bills paid after a reminder, and it sends the total once a month.",
+    "Pulse adds up the money the studio would have lost. It counts kept deposits, late fees once they are paid, and bills paid after a reminder, and it sends the total once a month.",
   "Sales tax":
     "The studio saves its state and its tax rate. Pulse does not add tax to bills or checkout yet.",
   "Prepaid blocks of hours":

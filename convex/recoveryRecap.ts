@@ -22,7 +22,6 @@ const LABELS: Record<string, string> = {
   deposit_forfeited: "Forfeited deposits",
   cancellation_fee: "Late-cancel fees",
   no_show_fee: "No-show fees",
-  waitlist_fill: "Waitlist backfills",
   reminder_collected: "Reminder-driven payments",
 };
 
