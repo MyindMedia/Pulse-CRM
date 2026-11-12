@@ -338,7 +338,7 @@ const calls: ResourceDef[] = [
       ],
     },
     detail: { op: "get_call", pathParam: "call_id" },
-    note: "A recording link works for 15 minutes and opens in a new tab. Demo confirmation calls placed by Pulse stay under Outreach, Meetings.",
+    note: "A recording link works for 15 minutes and opens in a new tab. Demo confirmation calls placed by Pulse are under Prospects, Meetings.",
   },
   {
     key: "call-campaigns",

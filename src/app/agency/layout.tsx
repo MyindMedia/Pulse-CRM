@@ -50,7 +50,6 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
               <Link href="/agency/plans" className="hover:text-bone">Plans</Link>
               <Link href="/agency/agents" className="hover:text-bone">Agents</Link>
               <Link href="/agency/autopilot" className="hover:text-bone">Autopilot</Link>
-              <Link href="/agency/outreach" className="hover:text-bone">Outreach</Link>
               {mail?.allowed && <Link href="/agency/email" className="hover:text-bone">Email</Link>}
               <Link href="/agency/feature-requests" className="hover:text-bone">Requests</Link>
               <Link href="/agency/staff" className="hover:text-bone">Staff</Link>

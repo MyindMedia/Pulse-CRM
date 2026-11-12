@@ -1,56 +1,26 @@
 "use client";
 
 import * as React from "react";
-import { useQuery } from "convex/react";
-import { api } from "@convex/_generated/api";
-import type { Id } from "@convex/_generated/dataModel";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  Activity, Communications, Drafts, Links, Meetings, Overview, Settings, TestOnlyBanner,
-} from "@/components/agency/outreach-panels";
-import { OutreachInbox } from "@/components/agency/outreach-inbox";
-import { Discover, Dms } from "@/components/agency/outreach-growth";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-export default function OutreachPage() {
-  const overview = useQuery(api.outreach.overview, {});
-  const [tab, setTab] = React.useState("overview");
-  // The studio open in the Prospects inbox survives a trip to the Review queue.
-  const [prospect, setProspect] = React.useState<Id<"outreachProspects"> | null>(null);
+/* Outreach moved into the CRM as its Prospects tab (owner request 2026-11-11).
+   The route stays so old bookmarks and links in emails or notifications still
+   land somewhere. A server redirect cannot carry the #prospects hash, so the
+   browser replaces the URL itself; the link is the fallback without JavaScript. */
+
+const PROSPECTS_HREF = "/agency/crm#prospects";
+
+export default function OutreachMovedPage() {
+  const router = useRouter();
+  React.useEffect(() => {
+    router.replace(PROSPECTS_HREF);
+  }, [router]);
   return (
-    <div className="space-y-6">
-      <header className="space-y-1">
-        <h1 className="chrome-display text-2xl leading-[0.95] text-bone">Outreach</h1>
-        <p className="text-sm text-steel">
-          Outbound email, meetings, booking links and calendars in one place.
-        </p>
-      </header>
-      {overview && <TestOnlyBanner paused={overview.paused} mode={overview.mode} />}
-      <Tabs value={tab} onValueChange={setTab} className="space-y-4">
-        <TabsList aria-label="Outreach sections">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          <TabsTrigger value="discover">Discover</TabsTrigger>
-          <TabsTrigger value="prospects">Prospects</TabsTrigger>
-          <TabsTrigger value="dms">DMs</TabsTrigger>
-          <TabsTrigger value="drafts">Review queue</TabsTrigger>
-          <TabsTrigger value="communications">Communications</TabsTrigger>
-          <TabsTrigger value="meetings">Meetings</TabsTrigger>
-          <TabsTrigger value="links">Links &amp; calendars</TabsTrigger>
-          <TabsTrigger value="activity">Activity</TabsTrigger>
-          <TabsTrigger value="settings">Settings</TabsTrigger>
-        </TabsList>
-        <TabsContent value="overview"><Overview /></TabsContent>
-        <TabsContent value="discover"><Discover /></TabsContent>
-        <TabsContent value="prospects">
-          <OutreachInbox selected={prospect} onSelect={setProspect} onOpenReviewQueue={() => setTab("drafts")} />
-        </TabsContent>
-        <TabsContent value="dms"><Dms /></TabsContent>
-        <TabsContent value="drafts"><Drafts /></TabsContent>
-        <TabsContent value="communications"><Communications /></TabsContent>
-        <TabsContent value="meetings"><Meetings /></TabsContent>
-        <TabsContent value="links"><Links /></TabsContent>
-        <TabsContent value="activity"><Activity /></TabsContent>
-        <TabsContent value="settings"><Settings /></TabsContent>
-      </Tabs>
-    </div>
+    <p className="text-sm text-steel">
+      <Link href={PROSPECTS_HREF} className="text-gold-bright underline underline-offset-2 hover:text-bone">
+        Outreach moved into the CRM. Open Prospects.
+      </Link>
+    </p>
   );
 }

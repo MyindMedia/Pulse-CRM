@@ -19,6 +19,31 @@ export type CrmStatus = {
   mock?: boolean;
 };
 
+/** The CRM page's tabs, in order; the id is the URL hash. Prospects is the
+ *  prospecting workspace (Convex only, works without a Zuops key); every other
+ *  tab reads Zuops. */
+export const CRM_TABS = [
+  ["dashboard", "Dashboard"],
+  ["leads", "Leads"],
+  ["prospects", "Prospects"],
+  ["pipeline", "Pipeline"],
+  ["inbox", "Inbox"],
+  ["calendar", "Calendar"],
+  ["social", "Social"],
+  ["campaigns", "Campaigns"],
+  ["automations", "Automations"],
+  ["forms", "Forms"],
+  ["calls", "Calls"],
+  ["more", "More"],
+  ["settings", "Settings"],
+  ["functions", "Functions"],
+] as const;
+
+export type CrmTabId = (typeof CRM_TABS)[number][0];
+
+/** Tabs that do not need Zuops. */
+export const NO_ZUOPS_TABS: readonly CrmTabId[] = ["prospects"];
+
 export type CrmSignalKind = "lead" | "booking" | "message" | "call" | "deal";
 export type CrmSignal = { at: number } & Record<CrmSignalKind, number>;
 

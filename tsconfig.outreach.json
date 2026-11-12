@@ -28,6 +28,8 @@
   "include": [
     "src/app/agency/outreach/page.tsx",
     "src/components/agency/outreach-panels.tsx",
+    "src/components/agency/outreach-workspace.tsx",
+    "src/components/agency/outreach-workspace.test.tsx",
     "convex/outreach.ts",
     "convex/outreachProspects.ts",
     "convex/outreachDrafts.ts",

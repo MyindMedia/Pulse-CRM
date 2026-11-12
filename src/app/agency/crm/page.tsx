@@ -9,7 +9,7 @@ import { Badge } from "@/components/ui/badge";
 import { EmptyState, LoadingPanel } from "@/components/ui/feedback";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  CrmNavProvider, CrmPanelActive, CrmProvider, useCrm, type CrmNav, type LeadsJump,
+  CRM_TABS, CrmNavProvider, CrmPanelActive, CrmProvider, NO_ZUOPS_TABS, useCrm, type CrmNav, type CrmTabId, type LeadsJump,
 } from "@/components/agency/crm/crm-context";
 import { ReadOnlyBanner, TOUCH, UnauthorizedState } from "@/components/agency/crm/crm-ui";
 import { clearZuCache, setZuOwner } from "@/components/agency/crm/use-zu";
@@ -30,25 +30,11 @@ const CrmInbox = dynamic(() => import("@/components/agency/crm/crm-inbox").then(
 const CrmCalendar = dynamic(() => import("@/components/agency/crm/crm-calendar").then((m) => m.CrmCalendar), { ssr: false, loading: panelLoading });
 const CrmSocial = dynamic(() => import("@/components/agency/crm/crm-social").then((m) => m.CrmSocial), { ssr: false, loading: panelLoading });
 const CrmResources = dynamic(() => import("@/components/agency/crm/crm-resources").then((m) => m.CrmResources), { ssr: false, loading: panelLoading });
+const OutreachWorkspace = dynamic(() => import("@/components/agency/outreach-workspace").then((m) => m.OutreachWorkspace), { ssr: false, loading: panelLoading });
 const CrmFunctions = dynamic(() => import("@/components/agency/crm/crm-functions").then((m) => m.CrmFunctions), { ssr: false, loading: panelLoading });
 
-const TABS = [
-  ["dashboard", "Dashboard"],
-  ["leads", "Leads"],
-  ["pipeline", "Pipeline"],
-  ["inbox", "Inbox"],
-  ["calendar", "Calendar"],
-  ["social", "Social"],
-  ["campaigns", "Campaigns"],
-  ["automations", "Automations"],
-  ["forms", "Forms"],
-  ["calls", "Calls"],
-  ["more", "More"],
-  ["settings", "Settings"],
-  ["functions", "Functions"],
-] as const;
-
-type TabId = (typeof TABS)[number][0];
+const TABS = CRM_TABS;
+type TabId = CrmTabId;
 const TAB_IDS: readonly string[] = TABS.map(([id]) => id);
 
 function subscribeHash(fn: () => void) {
@@ -56,9 +42,9 @@ function subscribeHash(fn: () => void) {
   return () => window.removeEventListener("hashchange", fn);
 }
 
-function useHashTab(): [TabId, (t: TabId) => void] {
+function useHashTab(fallback: TabId): [TabId, (t: TabId) => void] {
   const hash = React.useSyncExternalStore(subscribeHash, () => window.location.hash.slice(1), () => "");
-  const tab = (TAB_IDS.includes(hash) ? hash : "dashboard") as TabId;
+  const tab = (TAB_IDS.includes(hash) ? hash : fallback) as TabId;
   const go = React.useCallback((t: TabId) => {
     if (window.location.hash.slice(1) === t) return;
     // replaceState keeps tab switches out of the Back history; the event lets
@@ -111,16 +97,30 @@ function Header({ children }: { children?: React.ReactNode }) {
     <header className="flex flex-wrap items-end gap-3">
       <div className="min-w-0 flex-1 space-y-1">
         <h1 className="chrome-display text-2xl leading-[0.95] text-bone">CRM</h1>
-        <p className="text-sm text-steel">Leads, pipeline, inbox and bookings, read live from Zuops.</p>
+        <p className="text-sm text-steel">Prospects, leads, pipeline, inbox and bookings. Everything but Prospects is read live from Zuops.</p>
       </div>
       {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
     </header>
   );
 }
 
+const PROSPECTS_NOTE =
+  "Studios you are prospecting, before they become leads in Zuops. Emails go out from Lawrence or MaxB with their own signatures, and each one still needs your approval.";
+
+function ZuopsMissing() {
+  return (
+    <EmptyState
+      icon={KeyRound}
+      title="Zuops key missing"
+      description="Set ZUOPS_CRM_API_KEY in this deployment's Convex environment. Until then this section has nothing to read. Prospects works without it."
+    />
+  );
+}
+
 function CrmConsole() {
   const { status } = useCrm();
-  const [tab, go] = useHashTab();
+  // Without a Zuops key the page opens on Prospects, the one tab that works.
+  const [tab, go] = useHashTab(status && !status.keyConfigured ? "prospects" : "dashboard");
   const [visited, setVisited] = React.useState<TabId[]>([]);
   if (!visited.includes(tab)) setVisited([...visited, tab]);
   // Each jump bumps a nonce, so opening the same lead twice still reacts (F-U15).
@@ -136,22 +136,21 @@ function CrmConsole() {
 
   if (status === undefined) return <LoadingPanel label="Checking the Zuops connection" />;
   if (status === null) return <UnauthorizedState />;
-  if (!status.keyConfigured) {
-    return (
-      <div className="space-y-6">
-        <Header>
-          <Badge tone="critical"><XCircle className="size-3" aria-hidden />Zuops not connected</Badge>
-        </Header>
-        <EmptyState
-          icon={KeyRound}
-          title="Zuops key missing"
-          description="Set ZUOPS_CRM_API_KEY in this deployment's Convex environment. Until then the CRM has nothing to read."
-        />
-      </div>
-    );
-  }
+  const connected = status.keyConfigured;
+  const zuopsTab = !NO_ZUOPS_TABS.includes(tab);
 
   const panel = (id: TabId): React.ReactNode => {
+    // Prospects is Convex only and works with or without Zuops (owner request
+    // 2026-11-11); every other tab needs the Zuops key.
+    if (id === "prospects") {
+      return (
+        <div className="space-y-4">
+          <p className="text-sm text-steel">{PROSPECTS_NOTE}</p>
+          <OutreachWorkspace />
+        </div>
+      );
+    }
+    if (!connected) return <ZuopsMissing />;
     switch (id) {
       case "dashboard": return <CrmDashboard />;
       case "leads": return <CrmLeads jump={leadsJump.filter} jumpNonce={leadsJump.nonce} />;
@@ -168,15 +167,18 @@ function CrmConsole() {
     <CrmNavProvider value={nav}>
       <div className="space-y-6">
         <Header>
-          {status.mock
-            ? <Badge tone="caution"><FlaskConical className="size-3" aria-hidden />Mock data</Badge>
-            : <Badge tone="positive"><CheckCircle2 className="size-3" aria-hidden />Zuops connected</Badge>}
-          {status.webhookConfigured
+          {!connected
+            ? <Badge tone="critical"><XCircle className="size-3" aria-hidden />Zuops not connected</Badge>
+            : status.mock
+              ? <Badge tone="caution"><FlaskConical className="size-3" aria-hidden />Mock data</Badge>
+              : <Badge tone="positive"><CheckCircle2 className="size-3" aria-hidden />Zuops connected</Badge>}
+          {connected && (status.webhookConfigured
             ? <Badge tone="positive"><Radio className="size-3" aria-hidden />Live updates</Badge>
-            : <Badge tone="caution"><Clock className="size-3" aria-hidden />Checks every minute</Badge>}
-          {!status.writesOn && <Badge tone="caution"><Lock className="size-3" aria-hidden />Read only</Badge>}
+            : <Badge tone="caution"><Clock className="size-3" aria-hidden />Checks every minute</Badge>)}
+          {connected && !status.writesOn && <Badge tone="caution"><Lock className="size-3" aria-hidden />Read only</Badge>}
         </Header>
-        <ReadOnlyBanner />
+        {/* Read only is about Zuops writes; Prospects has its own approvals. */}
+        {connected && zuopsTab && <ReadOnlyBanner />}
         <Tabs value={tab} onValueChange={(v) => go(v as TabId)} className="space-y-4">
           <TabsList aria-label="CRM sections" className="w-full justify-start">
             {TABS.map(([id, label]) => <TabsTrigger key={id} value={id} className={TOUCH}>{label}</TabsTrigger>)}

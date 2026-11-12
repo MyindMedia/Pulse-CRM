@@ -2046,3 +2046,5 @@ Owner request: "Google review should be something that is enabled by the team in
 - Legal review: High tier, adds a way to text and email leads from Pulse.
 
 Spec: `openspec/changes/agency-crm-zuops/`. Branch `feat/agency-crm-zu` (worktree `~/Dev/pulse-wt-zucrm`).
+
+**Addendum 2026-11-11 (owner, after the build):** every Zuops function is in scope, social included (all 352 operations; design moved to pass-through, Pulse stores no lead data). Outreach is folded into the CRM as the **Prospects** tab and the separate Outreach tab is removed; this is UI only, so outreach emails keep going out from Lawrence or MaxB with their own signatures and still need approval one by one. Prospects are not pushed into Zuops as leads (Zuops auto-greet could text people who never opted in): open decision. Draft PR #185.

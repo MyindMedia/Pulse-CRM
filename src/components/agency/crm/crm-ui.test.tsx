@@ -202,3 +202,37 @@ describe("R3-U1 focus return", () => {
     expect(restoreFocus({ el: null, key: null, anchor: null })).toBe(false);
   });
 });
+
+// For the page render below: panels are lazy chunks (a stub here) and there is
+// no Clerk in the test (as in demo mode).
+vi.mock("next/dynamic", () => ({ default: () => function Lazy() { return <p>Loading this section</p>; } }));
+vi.mock("@/lib/use-optional-clerk", () => ({ useOptionalUser: () => ({ user: null }) }));
+
+describe("Prospects tab (owner request 2026-11-11)", () => {
+  it("the CRM tab list has Prospects right after Leads, and only Prospects works without Zuops", async () => {
+    const { CRM_TABS, NO_ZUOPS_TABS } = await import("./crm-context");
+    const ids = CRM_TABS.map(([id]) => id);
+    expect(ids.indexOf("prospects")).toBe(ids.indexOf("leads") + 1);
+    expect(CRM_TABS.find(([id]) => id === "prospects")?.[1]).toBe("Prospects");
+    expect(NO_ZUOPS_TABS).toEqual(["prospects"]);
+  });
+
+  it("without a Zuops key the page still opens, on Prospects, with its note, and the header says Zuops is not connected", async () => {
+    fixtures["crm:access"] = { allowed: true };
+    status({ keyConfigured: false, writesOn: false, adminKey: false });
+    const { default: CrmPage } = await import("@/app/agency/crm/page");
+    const out = html(<CrmPage />);
+    expect(out).toContain("Zuops not connected");
+    expect(out).toMatch(/>Prospects<\/button>/);
+    expect(out).toContain("Studios you are prospecting, before they become leads in Zuops. Emails go out from Lawrence or MaxB with their own signatures, and each one still needs your approval.");
+    expect(out).not.toContain("Read only here.");
+  });
+
+  it("with no CRM access nothing below the gate renders, Prospects included", async () => {
+    fixtures["crm:access"] = { allowed: false, reason: "forbidden" };
+    const { default: CrmPage } = await import("@/app/agency/crm/page");
+    const out = html(<CrmPage />);
+    expect(out).not.toContain("Studios you are prospecting");
+    expect(out).not.toMatch(/>Prospects<\/button>/);
+  });
+});
