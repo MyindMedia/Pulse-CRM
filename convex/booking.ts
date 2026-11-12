@@ -413,7 +413,12 @@ export const service = query({
       roomId: svc.roomId,
       roomName: room.name,
       studioName: org?.name ?? "Pulse Studio",
-      depositPolicy: hidePricing ? null : clientPolicyText(org),
+      depositPolicy: hidePricing
+        ? null
+        : clientPolicyText(org, {
+            paymentMode: defaults(room).paymentMode,
+            depositPct: svc.depositPct ?? defaults(room).depositPct,
+          }),
       openHour: OPEN_HOUR,
       closeHour: CLOSE_HOUR,
       showGear,
@@ -482,7 +487,7 @@ export const room = query({
       openHour: OPEN_HOUR,
       closeHour: CLOSE_HOUR,
       studioName: org?.name ?? "Pulse Studio",
-      depositPolicy: hidePricing ? null : clientPolicyText(org),
+      depositPolicy: hidePricing ? null : clientPolicyText(org, defaults(room)),
       showGear,
       pricingHidden: hidePricing,
       requiresApproval: hidePricing || features.requireApproval,

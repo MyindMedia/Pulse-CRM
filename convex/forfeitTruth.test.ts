@@ -85,3 +85,45 @@ describe("booking page policy line", () => {
     expect(front?.org.depositPolicy).toContain("If you cancel within 48 hours");
   });
 });
+
+/* R16/R17: the default policy said "A deposit holds your slot ... the deposit
+   is kept" on paid-in-full and 0% deposit rooms, which take no deposit. */
+describe("booking page policy line per room", () => {
+  async function roomPolicy(room: Record<string, unknown>) {
+    const t = convexTest(schema);
+    const roomId = await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: ORG, name: "Truth Studio", slug: "truth", tier: "growth", status: "active", ownerEmail: "owner@t.test" } as never);
+      return await ctx.db.insert("rooms", {
+        orgId: ORG, name: "Room A", status: "available", bookable: true, hourlyRateCents: 10000, minimumHours: 1, depositPct: 30, ...room,
+      } as never);
+    });
+    const page = await t.query(api.booking.room, { roomId } as never);
+    return (page as { depositPolicy: string | null } | null)?.depositPolicy ?? null;
+  }
+
+  it("a paid-in-full room says payment in full confirms it, with no deposit", async () => {
+    const text = await roomPolicy({ paymentMode: "full" });
+    expect(text).toContain("Payment in full confirms your booking.");
+    expect(text).not.toContain("deposit");
+  });
+
+  it("a 0% deposit room states only the 2h balance rule", async () => {
+    const text = await roomPolicy({ depositPct: 0 });
+    expect(text).toContain("at least 2 hours before your session");
+    expect(text).not.toContain("deposit holds");
+    expect(text).not.toContain("deposit is kept");
+  });
+
+  it("a deposit room keeps the deposit wording", async () => {
+    expect(await roomPolicy({})).toContain("A deposit holds your slot");
+  });
+
+  it("studio-wide wording does not depend on a room", () => {
+    const text = clientPolicyText({});
+    expect(text).not.toContain("A deposit holds your slot");
+    expect(text).toContain("at least 2 hours before your session");
+    expect(clientPolicyText({ cancellationFeePct: 50 }, { depositPct: 0 })).toBe(
+      "No deposit is needed. Pay the balance at least 2 hours before your session, or the booking is released. If you do not show up, a fee of 50% of the booking applies.",
+    );
+  });
+});
