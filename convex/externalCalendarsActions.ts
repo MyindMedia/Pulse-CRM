@@ -128,10 +128,11 @@ function toParsed(ev: IcalEvent, start: unknown, end: unknown, allDay: boolean, 
   };
 }
 
-/** Pure: an .ics body -> the busy events Pulse stores. `tz` is the studio's
- *  zone, used for all-day events. A recurring series (RRULE) becomes one event
- *  per occurrence in [now - 1 day, now + 180 days], honouring EXDATE and
- *  RECURRENCE-ID overrides, each with the uid `${uid}:${occurrenceStartMs}`. */
+/** Pure: an .ics body -> the busy events Pulse stores, those overlapping
+ *  [now - 1 day, now + 180 days]. `tz` is the studio's zone, used for all-day
+ *  events. A recurring series (RRULE) becomes one event per occurrence in that
+ *  window, honouring EXDATE and RECURRENCE-ID overrides, each with the uid
+ *  `${uid}:${occurrenceStartMs}`. */
 export function parseIcal(raw: string, opts: { tz: string; now?: number }): ParsedEvent[] {
   const now = opts.now ?? Date.now();
   const parsed = ical.sync.parseICS(raw) as Record<string, IcalEvent | undefined>;
@@ -155,7 +156,11 @@ export function parseIcal(raw: string, opts: { tz: string; now?: number }): Pars
     const one = toParsed(ev, ev.start, ev.end, ev.datetype === "date", uid, opts.tz);
     if (one) out.push(one);
   }
-  return out;
+  // Only a bounded window is stored: years of past events would only cost
+  // writes and never block a booking.
+  const from = now - FEED_WINDOW_PAST_MS;
+  const to = now + FEED_WINDOW_FUTURE_MS;
+  return out.filter((e) => e.endTime > from && e.startTime <= to);
 }
 
 type SyncResult =
@@ -174,21 +179,36 @@ export const sync = action({
   },
 });
 
-/** Feeds refreshed per cron run. Each is one guarded GET + parse. */
-const REFRESH_BATCH = 25;
+/** A feed is due once its last refresh is older than this. The cron runs every
+ *  30 minutes, so a little less keeps each feed on that cadence. */
+export const REFRESH_EVERY_MS = 25 * 60_000;
+/** Most feeds started per cron run; the rest are stalest-first next run. */
+const REFRESH_FANOUT_CAP = 500;
 
-/** Cron: refresh the stalest active feeds across every studio, so outside
- *  calendar busy time keeps blocking bookings without anyone pressing sync. */
+/** Cron: start a refresh for every due active feed across every studio, one
+ *  scheduled action per feed, so outside calendar busy time keeps blocking
+ *  bookings without anyone pressing sync, however many feeds there are. */
 export const refreshDue = internalAction({
   args: {},
-  handler: async (ctx): Promise<{ refreshed: number; ok: number }> => {
-    const due: Doc<"externalCalendars">[] = await ctx.runQuery(internal.externalCalendars.dueForRefresh, { limit: REFRESH_BATCH });
-    let ok = 0;
+  handler: async (ctx): Promise<{ scheduled: number }> => {
+    const due: Doc<"externalCalendars">[] = await ctx.runQuery(internal.externalCalendars.dueForRefresh, {
+      limit: REFRESH_FANOUT_CAP,
+      before: Date.now() - REFRESH_EVERY_MS,
+    });
     for (const cal of due) {
-      const r = await syncFeed(ctx, cal);
-      if (r.ok) ok++;
+      await ctx.scheduler.runAfter(0, internal.externalCalendarsActions.refreshOne, { id: cal._id });
     }
-    return { refreshed: due.length, ok };
+    return { scheduled: due.length };
+  },
+});
+
+/** One feed's scheduled refresh (from refreshDue). */
+export const refreshOne = internalAction({
+  args: { id: v.id("externalCalendars") },
+  handler: async (ctx, { id }): Promise<SyncResult> => {
+    const cal: Doc<"externalCalendars"> | null = await ctx.runQuery(internal.externalCalendars.getInternal, { id });
+    if (!cal || !cal.active) return { ok: false, reason: "inactive" } as const;
+    return await syncFeed(ctx, cal);
   },
 });
 

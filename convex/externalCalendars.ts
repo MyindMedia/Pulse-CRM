@@ -14,6 +14,7 @@ import { query, internalQuery } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { currentOrg } from "./lib/tenant";
 import { orgTz } from "./lib/tz";
+import type { Doc } from "./_generated/dataModel";
 
 /** Guess the source from an iCal URL host. */
 function detectSource(url: string): "google" | "ical" | "outlook" | "apple" | "other" {
@@ -211,14 +212,24 @@ export const orgTimezone = internalQuery({
 });
 
 /** Cron: the active feeds that have gone longest without a refresh (never
- *  synced first), across every studio. Bounded by `limit`. */
+ *  synced first), across every studio, optionally only those last refreshed
+ *  before `before`. Bounded by `limit`. */
 export const dueForRefresh = internalQuery({
-  args: { limit: v.number() },
-  handler: async (ctx, { limit }) =>
+  args: { limit: v.number(), before: v.optional(v.number()) },
+  handler: async (ctx, { limit, before }) =>
     await ctx.db
       .query("externalCalendars")
-      .withIndex("by_active_sync", (q) => q.eq("active", true))
+      .withIndex("by_active_sync", (q) =>
+        // A never-synced feed has no lastSyncAt, which sorts before any number.
+        before === undefined ? q.eq("active", true) : q.eq("active", true).lt("lastSyncAt", before),
+      )
       .take(limit),
+});
+
+/** One feed by id, for the cron's per-feed refresh (no caller). */
+export const getInternal = internalQuery({
+  args: { id: v.id("externalCalendars") },
+  handler: async (ctx, { id }) => await ctx.db.get(id),
 });
 
 export const upsertEvents = internalMutation({
@@ -240,15 +251,23 @@ export const upsertEvents = internalMutation({
     const cal = await ctx.db.get(calendarId);
     if (!cal) return;
 
-    // Delete + re-insert is simpler than diffing for read-only feeds.
+    // Diff by uid: an unchanged event is not rewritten, so a refresh that
+    // finds nothing new writes nothing and wakes no availability query.
     const existing = await ctx.db
       .query("externalCalendarEvents")
       .withIndex("by_calendar", (q) => q.eq("calendarId", calendarId))
       .collect();
-    for (const e of existing) await ctx.db.delete(e._id);
+    const byUid = new Map<string, Doc<"externalCalendarEvents">>();
+    for (const e of existing) {
+      if (byUid.has(e.externalUid)) await ctx.db.delete(e._id);
+      else byUid.set(e.externalUid, e);
+    }
 
+    const seen = new Set<string>();
     for (const e of events) {
-      await ctx.db.insert("externalCalendarEvents", {
+      if (seen.has(e.uid)) continue;
+      seen.add(e.uid);
+      const row = {
         orgId: cal.orgId,
         calendarId,
         roomId: cal.roomId,
@@ -259,13 +278,31 @@ export const upsertEvents = internalMutation({
         allDay: e.allDay,
         location: e.location,
         description: e.description,
-      });
+      };
+      const prev = byUid.get(e.uid);
+      if (!prev) {
+        await ctx.db.insert("externalCalendarEvents", row);
+        continue;
+      }
+      byUid.delete(e.uid);
+      const same =
+        prev.orgId === row.orgId &&
+        prev.roomId === row.roomId &&
+        prev.title === row.title &&
+        prev.startTime === row.startTime &&
+        prev.endTime === row.endTime &&
+        (prev.allDay ?? false) === row.allDay &&
+        prev.location === row.location &&
+        prev.description === row.description;
+      if (!same) await ctx.db.replace(prev._id, row);
     }
+    // What the feed no longer has (or is now outside the stored window).
+    for (const gone of byUid.values()) await ctx.db.delete(gone._id);
 
     await ctx.db.patch(calendarId, {
       lastSyncAt: Date.now(),
       lastError: undefined,
-      eventCount: events.length,
+      eventCount: seen.size,
     });
   },
 });

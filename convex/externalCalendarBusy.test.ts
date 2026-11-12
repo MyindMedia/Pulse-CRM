@@ -167,3 +167,55 @@ describe("a feed's copy of a Pulse booking does not block", () => {
     expect(hit?.kind).toBe("calendar");
   });
 });
+
+/* Review 2026-11-12 R27: the refresh rewrote every event on every run and
+   the cron took a fixed 25 feeds. */
+describe("feed refresh keeps writes and staleness bounded", () => {
+  it("upsertEvents leaves unchanged rows alone, updates changed ones and removes dropped ones", async () => {
+    const t = convexTest(schema);
+    const feed = await t.run(async (ctx) => {
+      const r = await ctx.db.insert("rooms", { orgId: "org1", name: "A", status: "available" } as never);
+      return await ctx.db.insert("externalCalendars", {
+        orgId: "org1", roomId: r, label: "Feed", source: "ical", icalUrl: "https://x.example/a.ics", active: true,
+      });
+    });
+    const ev = (uid: string, startTime: number, title = uid) => ({ uid, title, startTime, endTime: startTime + HOUR, allDay: false });
+    await t.mutation(internal.externalCalendars.upsertEvents, {
+      calendarId: feed, events: [ev("a", 1_000), ev("b", 2_000), ev("c", 3_000)],
+    });
+    const rows = async () =>
+      await t.run((ctx) => ctx.db.query("externalCalendarEvents").withIndex("by_calendar", (q) => q.eq("calendarId", feed)).collect());
+    const before = new Map((await rows()).map((r) => [r.externalUid, r]));
+
+    await t.mutation(internal.externalCalendars.upsertEvents, {
+      calendarId: feed, events: [ev("a", 1_000), ev("b", 2_500, "moved"), ev("d", 4_000)],
+    });
+    const after = new Map((await rows()).map((r) => [r.externalUid, r]));
+    expect([...after.keys()].sort()).toEqual(["a", "b", "d"]);
+    // Unchanged: the very same document, never rewritten.
+    expect(after.get("a")!._id).toBe(before.get("a")!._id);
+    // Changed in place.
+    expect(after.get("b")!._id).toBe(before.get("b")!._id);
+    expect(after.get("b")!.startTime).toBe(2_500);
+    expect(after.get("b")!.title).toBe("moved");
+    const cal = await t.run((ctx) => ctx.db.get(feed));
+    expect(cal!.eventCount).toBe(3);
+  });
+
+  it("the cron only picks feeds not refreshed recently", async () => {
+    const t = convexTest(schema);
+    const now = Date.now();
+    await t.run(async (ctx) => {
+      const r = await ctx.db.insert("rooms", { orgId: "org1", name: "A", status: "available" } as never);
+      const feed = (label: string, lastSyncAt?: number) =>
+        ctx.db.insert("externalCalendars", {
+          orgId: "org1", roomId: r, label, source: "ical", icalUrl: "https://x.example/a.ics", active: true, lastSyncAt,
+        });
+      await feed("Fresh", now - 60_000);
+      await feed("Stale", now - 3 * HOUR);
+      await feed("Never");
+    });
+    const due = await t.query(internal.externalCalendars.dueForRefresh, { limit: 100, before: now - 25 * 60_000 });
+    expect(due.map((d) => d.label)).toEqual(["Never", "Stale"]);
+  });
+});
