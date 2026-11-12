@@ -1133,7 +1133,9 @@ export const createBooking = mutation({
       kind: asRequest ? "booking.requested" : "booking.created",
       summary: asRequest
         ? `Booking request - ${room.name} for ${args.clientName.trim()}, waiting on approval`
-        : `Online booking held - ${room.name} for ${args.clientName.trim()}`,
+        : noDepositDue
+          ? `Online booking confirmed - ${room.name} for ${args.clientName.trim()} (no deposit due)`
+          : `Online booking held - ${room.name} for ${args.clientName.trim()}`,
       entityType: "session",
       entityId: sessionId,
       accent: "gold",
@@ -1145,9 +1147,17 @@ export const createBooking = mutation({
       title: asRequest ? `New booking request - ${room.name}` : `New online booking - ${room.name}`,
       body: asRequest
         ? `${args.clientName.trim()} requested ${args.durationHours}h. It holds the slot until an owner or manager approves or declines it.`
-        : `${args.clientName.trim()} held ${args.durationHours}h. The ${money(
-            depositCents,
-          )} deposit holds it for ${HOLD_MINUTES} minutes.`,
+        : noDepositDue
+          ? `${args.clientName.trim()} booked ${args.durationHours}h. No deposit was due; the ${money(
+              rateCents,
+            )} balance is due 2 hours before start.`
+          : shortNoticeNoDeposit
+            ? `${args.clientName.trim()} held ${args.durationHours}h. The ${money(
+                rateCents,
+              )} payment in full holds it for ${HOLD_MINUTES} minutes.`
+            : `${args.clientName.trim()} held ${args.durationHours}h. The ${money(
+                depositCents,
+              )} deposit holds it for ${HOLD_MINUTES} minutes.`,
       entityType: "session",
       entityId: sessionId,
       status: "new",

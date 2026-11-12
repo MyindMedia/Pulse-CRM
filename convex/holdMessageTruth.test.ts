@@ -86,6 +86,23 @@ describe("hold message", () => {
     expect(session?.status).toBe("confirmed");
     expect(session?.holdExpiresAt).toBeUndefined();
   });
+
+  /* R14: staff saw "held ... The $0.00 deposit holds it for 60 minutes" for a
+     booking that is confirmed with no hold. */
+  it("staff activity and insight for a confirmed 0% booking do not describe a hold", async () => {
+    const t = convexTest(schema);
+    const room = await studio(t, { depositPct: 0 });
+    await bookEmailOnly(t, room);
+    const { activity, insight } = await t.run(async (ctx) => ({
+      activity: (await ctx.db.query("activity").collect()).find((a) => a.kind === "booking.created"),
+      insight: (await ctx.db.query("insights").collect()).find((i) => i.title.startsWith("New online booking")),
+    }));
+    expect(activity?.summary).toContain("Online booking confirmed");
+    expect(activity?.summary).toContain("no deposit due");
+    expect(insight?.body).not.toContain("holds it for");
+    expect(insight?.body).not.toContain("$0");
+    expect(insight?.body).toContain("balance is due 2 hours before start");
+  });
 });
 
 /* client-messages-engineer-finalized: the engineer email said "The booking is
