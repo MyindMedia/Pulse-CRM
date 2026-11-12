@@ -5,7 +5,7 @@ import schema from "./schema";
 import { api, internal } from "./_generated/api";
 import * as crm from "./crm";
 import { ZU_OPS } from "./crm/ops.generated";
-import { REACHES, CHANGES_SENDING, CONFIRM_REASONS, confirmKind, level } from "./crm/policy";
+import { CLASSIFIED, CONFIRM_REASONS, confirmKind, level } from "./crm/policy";
 
 /* Agency CRM: access, the call gates, audit, pulses and prune.
    Test ids carry the eval ids from specs/features/agency-crm-zuops/eval.md. */
@@ -227,12 +227,15 @@ describe("crm", () => {
     expect(calls).toHaveLength(0);
   });
 
-  it("X-06 every operation that reaches people, changes automatic sending, or deletes is refused without confirm, no request", async () => {
+  it("X-06 F-B1 every non-safe classified operation and every DELETE is refused without confirm, no request", async () => {
     writesOn();
     vi.stubEnv("ZUOPS_CRM_ADMIN_KEY", "zu-admin-test");
-    const flagged = Object.values(ZU_OPS).filter((o) => REACHES.has(o.id) || CHANGES_SENDING.has(o.id) || o.method === "DELETE");
-    expect(flagged.length).toBeGreaterThan(50);
-    for (const id of CHANGES_SENDING) expect(flagged.map((o) => o.id)).toContain(id);
+    // Iterates the whole classification, not a set derived from it.
+    const flagged = Object.entries(CLASSIFIED)
+      .filter(([id, [, kind]]) => kind !== "safe" || ZU_OPS[id].method === "DELETE")
+      .map(([id]) => ZU_OPS[id]);
+    expect(flagged.length).toBe(Object.keys(CLASSIFIED).length - Object.entries(CLASSIFIED).filter(([id, [, k]]) => k === "safe" && ZU_OPS[id].method !== "DELETE").length);
+    expect(flagged.length).toBeGreaterThan(110);
     for (const o of flagged) {
       const kind = confirmKind(o)!;
       for (const confirm of [undefined, false]) {

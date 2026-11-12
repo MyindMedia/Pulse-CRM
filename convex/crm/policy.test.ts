@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ZU_OPS, ZU_OPS_GENERATED_FROM } from "./ops.generated";
-import { REACHES, REACHES_PATHS, CHANGES_SENDING, CHANGES_SENDING_PATHS, CONFIRM_REASONS, opIdFor, level, needsConfirm, needsConfirmFor, confirmKind, gate, buildPath, pickFields, BODY_MAX_BYTES } from "./policy";
+import { CLASSIFIED, BODY_RULES, CONFIRM_REASONS, opIdFor, level, needsConfirm, needsConfirmFor, confirmKind, sendKind, gate, buildPath, pickFields, BODY_MAX_BYTES } from "./policy";
 
 const ops = Object.values(ZU_OPS);
 const op = (id: string) => {
@@ -32,40 +32,94 @@ describe("registry", () => {
   });
 });
 
-describe("REACHES", () => {
-  it("X-06 every listed (method, path) exists in the registry, so a rename fails here", () => {
-    for (const [m, p] of REACHES_PATHS) expect(opIdFor(m, p), `${m} ${p}`).toBeTruthy();
-    expect(REACHES.size).toBe(REACHES_PATHS.length);
-    expect(REACHES.size).toBe(20);
-    for (const id of ["send_message", "send_scheduled_message_now", "approve_reply_suggestion", "send_email_campaign", "send_email_campaign_rest", "enroll_automation", "toggle_ws_automation", "react_to_message"]) {
-      expect(REACHES.has(id)).toBe(true);
+describe("F-B1 classification of every write", () => {
+  const writes = ops.filter((o) => o.method !== "GET");
+
+  it("F-B1 (a) every non-GET registry operation is classified", () => {
+    const missing = writes.filter((o) => !Object.prototype.hasOwnProperty.call(CLASSIFIED, o.id)).map((o) => o.id);
+    expect(missing).toEqual([]);
+    expect(Object.keys(CLASSIFIED)).toHaveLength(writes.length);
+  });
+
+  it("F-B1 (b) the map names no operation outside the registry, and no read", () => {
+    for (const id of Object.keys(CLASSIFIED)) {
+      expect(ZU_OPS[id], id).toBeDefined();
+      expect(ZU_OPS[id].method, id).not.toBe("GET");
     }
+    for (const id of Object.keys(BODY_RULES)) expect(CLASSIFIED[id], id).toBeDefined();
   });
 
-  it("X-06 every CHANGES_SENDING (method, path) exists in the registry, so a rename fails here", () => {
-    for (const [m, p] of CHANGES_SENDING_PATHS) expect(opIdFor(m, p), `${m} ${p}`).toBeTruthy();
-    expect(CHANGES_SENDING.size).toBe(CHANGES_SENDING_PATHS.length);
-    expect([...CHANGES_SENDING].sort()).toEqual([
-      "configure_outreach", "create_automation", "duplicate_automation", "invite_member", "set_ai_receptionist", "set_ai_texting",
-      "set_appointment_emails", "set_automated_texts_from", "set_nurture", "update_automation", "update_nurture", "update_survey_rules",
-    ]);
-    for (const id of CHANGES_SENDING) expect(REACHES.has(id)).toBe(false);
+  it("F-B1 (c) each entry's METHOD /path still matches the registry", () => {
+    for (const [id, [route]] of Object.entries(CLASSIFIED)) expect(route, id).toBe(`${ZU_OPS[id].method} ${ZU_OPS[id].path}`);
+    for (const [id, [route]] of Object.entries(CLASSIFIED)) expect(opIdFor(...(route.split(" ") as [string, string])), id).toBe(id);
   });
 
-  it("needsConfirm: reaching ops, ops that change automatic sending, and every DELETE", () => {
-    for (const o of ops) expect(needsConfirm(o)).toBe(REACHES.has(o.id) || CHANGES_SENDING.has(o.id) || o.method === "DELETE");
+  it("F-B1 a body-rule op records its empty-body kind in the map", () => {
+    for (const [id, rule] of Object.entries(BODY_RULES)) expect(rule({}), id).toBe(CLASSIFIED[id][1]);
+  });
+
+  it("F-B1 required minimum kinds", () => {
+    const kindOf = (id: string) => CLASSIFIED[id][1];
+    for (const id of ["send_message", "send_scheduled_message_now", "approve_reply_suggestion", "send_email_campaign", "send_email_campaign_rest", "enroll_automation", "toggle_ws_automation", "send_estimate", "send_contract", "send_proposal", "send_report", "send_gbp_report_test", "send_reward_game", "send_survey", "approve_gbp_post", "publish_gbp_post", "reply_gbp_review", "add_support_message", "reply_support_ticket", "react_to_message"]) expect(kindOf(id), id).toBe("reaches");
+    for (const id of ["set_nurture", "update_nurture", "set_ai_texting", "set_ai_receptionist", "set_appointment_emails", "update_survey_rules", "configure_outreach", "set_automated_texts_from", "create_automation", "update_automation", "duplicate_automation", "create_calendar", "update_calendar", "create_offer", "update_offer", "update_imessage_line", "update_website_widget", "save_report_schedule", "save_report_alert", "set_gbp_report_settings"]) expect(kindOf(id), id).toBe("changes_sending");
+    for (const id of ["create_outbound_webhook", "update_outbound_webhook", "create_alert_recipient", "update_alert_recipient", "invite_member", "update_member_role", "share_report", "make_gbp_connect_link"]) expect(kindOf(id), id).toBe("exposes");
+    for (const id of ["start_listings", "scan_listings", "start_rank_scan", "create_rank_keyword", "setup_ai_visibility", "start_ai_visibility_check", "write_ai_visibility_questions", "ask_website_analytics", "generate_calendar_design", "generate_menu_design", "write_gbp_posts", "draft_gbp_reply", "write_gbp_embed_faq", "refresh_gbp_embed_facts", "try_reward_game", "apply_gbp_optimizer"]) expect(kindOf(id), id).toBe("spends");
+    for (const id of ["create_lead_source", "create_booking", "reschedule_booking", "cancel_booking", "update_lead", "set_lead_stage", "create_lead_note", "archive_conversation", "mark_conversation_read", "unenroll_automation", "dismiss_reply_suggestion"]) expect(kindOf(id), id).toBe("safe");
+  });
+
+  it("F-B1 body rules read the body; on means anything but absent, null or false", () => {
+    const k = (id: string, body?: unknown) => confirmKind(op(id), body);
+    expect(k("create_gbp_post", { body: "x" })).toBeNull();
+    expect(k("create_gbp_post", { body: "x", approve: true })).toBe("reaches");
+    expect(k("create_gbp_post", { approve: "yes" })).toBe("reaches");
+    expect(k("update_scheduled_message", { status: "cancelled" })).toBeNull();
+    expect(k("update_scheduled_message", { status: "cancelled", body: "x" })).toBe("changes_sending");
+    expect(k("update_scheduled_message", { status: "pending" })).toBe("changes_sending");
+    expect(k("update_scheduled_message")).toBe("changes_sending");
+    expect(k("set_lead_ai_pause", { paused: true })).toBeNull();
+    expect(k("set_lead_ai_pause", { paused: false })).toBe("changes_sending");
+    expect(k("set_lead_ai_pause", { paused: "true" })).toBe("changes_sending");
+    expect(k("update_booking", { notes: "x" })).toBeNull();
+    expect(k("update_booking", { notify_lead: true })).toBe("changes_sending");
+    expect(k("update_booking", { status: "confirmed" })).toBe("changes_sending");
+    expect(k("update_booking", { status: "no_show" })).toBeNull();
+    expect(k("move_dm_leads", {})).toBeNull();
+    expect(k("move_dm_leads", { apply: true })).toBe("changes_sending");
+    expect(k("apply_gbp_optimizer", { dry_run: true })).toBeNull();
+    expect(k("apply_gbp_optimizer", { dry_run: "true" })).toBe("spends");
+    expect(k("apply_gbp_optimizer", {})).toBe("spends");
+    expect(k("create_email_campaign", { name: "x" })).toBeNull();
+    expect(k("create_email_campaign", { brief: "a spring promo" })).toBe("spends");
+    expect(k("update_report", { name: "x" })).toBeNull();
+    expect(k("update_report", { prompt: "email it monthly" })).toBe("changes_sending");
+    expect(k("update_reward_game", { status: "live" })).toBe("changes_sending");
+    expect(k("update_smart_form", { is_published: true })).toBe("changes_sending");
+    expect(k("create_proposal", { build: { brief: "x" } })).toBe("spends");
+  });
+
+  it("F-B1 an unclassified or moved write fails closed as reaching people", () => {
+    const ghost = { ...op("update_lead"), id: "brand_new_write" };
+    expect(sendKind(ghost)).toBe("reaches");
+    const moved = { ...op("update_lead"), path: "/v1/leads/{lead_id}/v2" };
+    expect(confirmKind(moved)).toBe("reaches");
+    expect(confirmKind(op("list_leads"))).toBeNull();
+  });
+
+  it("needsConfirm: every non-safe kind and every DELETE", () => {
+    for (const o of ops) expect(needsConfirm(o), o.id).toBe(o.method !== "GET" && (sendKind(o) !== "safe" || o.method === "DELETE"));
     expect(needsConfirm(op("list_leads"))).toBe(false);
     expect(needsConfirm(op("delete_lead"))).toBe(true);
+    for (const o of ops) expect(needsConfirm(o)).toBe(confirmKind(o) !== null);
   });
 
   it("confirmKind names why, for the dialog", () => {
     expect(confirmKind(op("send_message"))).toBe("reaches");
     expect(confirmKind(op("set_nurture"))).toBe("changes_sending");
-    expect(confirmKind(op("invite_member"))).toBe("changes_sending");
+    expect(confirmKind(op("invite_member"))).toBe("exposes");
+    expect(confirmKind(op("start_listings"))).toBe("spends");
     expect(confirmKind(op("delete_lead"))).toBe("delete");
     expect(confirmKind(op("create_lead"))).toBeNull();
     expect(confirmKind(op("list_leads"))).toBeNull();
-    for (const o of ops) expect(needsConfirm(o)).toBe(confirmKind(o) !== null);
   });
 
   it("X-06 create_lead needs confirm only when run_intake would start the new-lead texts", () => {
@@ -103,6 +157,8 @@ describe("level and gate", () => {
 
   it("X-06 reaching ops need confirm", () => {
     expect(gate(op("send_message"), { writesOn: true, adminKey: false }, false)).toEqual({ ok: false, code: "needs_confirm", reason: CONFIRM_REASONS.reaches });
+    expect(gate(op("start_listings"), { writesOn: true, adminKey: false }, false)).toEqual({ ok: false, code: "needs_confirm", reason: "Confirm before this runs: it uses credits or starts paid work." });
+    expect(gate(op("create_alert_recipient"), { writesOn: true, adminKey: true }, false)).toEqual({ ok: false, code: "needs_confirm", reason: "Confirm before this runs: it sends lead data outside the account or changes who can access it." });
     expect(gate(op("set_ai_texting"), { writesOn: true, adminKey: false }, false)).toEqual({ ok: false, code: "needs_confirm", reason: "Confirm before this runs: it changes what is sent automatically to real people." });
     expect(gate(op("delete_lead"), { writesOn: true, adminKey: true }, false)).toEqual({ ok: false, code: "needs_confirm", reason: "Confirm before this runs: it deletes something." });
     expect(gate(op("send_message"), { writesOn: true, adminKey: false }, true)).toEqual({ ok: true });
