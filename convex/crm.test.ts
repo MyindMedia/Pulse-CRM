@@ -639,5 +639,10 @@ describe("crm", () => {
     // The only CRM cron is the prune, which deletes rows and calls nothing.
     const crons = readFileSync("convex/crons.ts", "utf8");
     expect(crons.match(/internal\.crm\.\w+/g)).toEqual(["internal.crm.prunePulses"]);
+    // U-17: the prospects cron only swaps tags and marks do-not-contact; its file has no
+    // sending path, never sends the intake flag and never mentions a phone.
+    expect(crons.match(/internal\.crmProspects\.\w+/g)).toEqual(["internal.crmProspects.syncStatuses"]);
+    const prospects = readFileSync("convex/crmProspects.ts", "utf8");
+    for (const needle of ["/v1/messages", "/send", "/enroll", "run_intake", "phone"]) expect(prospects, `crmProspects.ts ${needle}`).not.toContain(needle);
   });
 });

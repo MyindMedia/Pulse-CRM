@@ -32,9 +32,12 @@ crons.interval("zuops-sync", { minutes: 1 }, internal.outreachZuops.syncAll, {})
 // Replies to Pulse texts when Zuops carries SMS (SMS_PROVIDER=zuops). Zuops cannot push
 // them to a sub-account key, so they are pulled: STOP/START, two-way flows, client threads.
 crons.interval("sms-zuops-inbound", { minutes: 1 }, internal.sms._pollZuopsInbound, {});
-// Agency CRM: drop webhook pulses (event names and ids) older than 7 days. Deletes only;
-// the CRM has no scheduled job that calls Zuops.
+// Agency CRM: drop webhook pulses (event names and ids) older than 7 days. Deletes only.
 crons.daily("crm-pulses-prune", { hourUTC: 10, minuteUTC: 20 }, internal.crm.prunePulses, {});
+// Outreach prospects already in Zuops: swap their status tag and mark opted-out ones
+// do-not-contact. Never creates a lead, moves a stage or sends anything. No-op unless
+// ZUOPS_CRM_WRITES is "on"; at most 25 requests per run.
+crons.interval("crm-prospects-sync", { minutes: 15 }, internal.crmProspects.syncStatuses, {});
 // Groups each studio's texted contacts in Zuops under a "Studio: <name>" tag.
 crons.interval("sms-zuops-studio-tags", { minutes: 2 }, internal.zuopsStudioTags.tick, {});
 

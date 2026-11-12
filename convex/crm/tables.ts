@@ -26,4 +26,22 @@ export const crmTables = {
     .index("by_agency_kind_at", ["agencyId", "kind", "at"])
     .index("by_delivery", ["deliveryId"])
     .index("by_at", ["at"]),
+
+  /* One row per Outreach prospect that is a lead in Zuops (convex/crmProspects.ts).
+     Ids and status words only: never a name, email, phone or website. */
+  crmProspectLinks: defineTable({
+    agencyId: v.string(),
+    prospectId: v.id("outreachProspects"),
+    zuLeadId: v.string(),
+    pushedAt: v.number(),
+    /** The status tag last written to the lead, for example "Outreach: email sent". */
+    lastStatus: v.string(),
+    lastSyncedAt: v.number(),
+    /** The prospect opted out after linking and the lead was marked do-not-contact. */
+    dnc: v.optional(v.boolean()),
+    /** The lead already existed in Zuops (409 duplicate); its stage was left as it was. */
+    matched: v.optional(v.boolean()),
+  })
+    .index("by_agency_prospect", ["agencyId", "prospectId"])
+    .index("by_agency", ["agencyId"]),
 };
