@@ -19,7 +19,7 @@ const FAQS = [
   },
   {
     q: "What does the AI studio manager do?",
-    a: "It runs the operational busywork for you: chases unpaid deposits, follows up on new leads, fills cancellations, drafts client replies, flags no-show and scheduling risks, and scores your studio's profitability so you can see where to make more money. It works inside your studio only and never sees another studio's data. Included on the Growth and Max plans.",
+    a: "It suggests the next step and does it when you approve: chasing unpaid deposits, following up on new leads, filling cancellations, drafting client replies, flagging no-show and scheduling risks, and scoring your studio's profitability so you can see where to make more money. It works inside your studio only and never sees another studio's data. Included on the Growth and Max plans.",
   },
   {
     q: "Does Pulse handle song splits and rights?",
@@ -31,7 +31,7 @@ const FAQS = [
   },
   {
     q: "Is the booking page branded as my studio?",
-    a: "Yes. On every plan your booking and payment pages carry your studio's name, logo and colors. Growth puts your brand inside the app, and Max puts the whole app on your own web address.",
+    a: "Yes. On every plan your booking and payment pages carry your studio's name, logo and colors. Growth puts your brand inside the app, and Max puts your brand on the whole app.",
   },
 ];
 

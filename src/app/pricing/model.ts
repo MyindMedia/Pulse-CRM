@@ -59,7 +59,7 @@ const PUBLIC_NAME: Record<string, string> = {
   "Their own web address": "Your own web address",
   "Fake data for a pitch": "Sample data for a demo",
   // The count changes every release; the public line states the fact only.
-  "955 automatic checks": "Automatic checks on money, privacy and plans",
+  "Thousands of automatic checks": "Automatic checks on money, privacy and plans",
 };
 
 const PUBLIC_GROUP_TITLE: Record<string, string> = {

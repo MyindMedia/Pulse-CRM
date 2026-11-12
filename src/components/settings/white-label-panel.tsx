@@ -115,8 +115,8 @@ export function WhiteLabelPanel() {
             {locked ? (
               <>
                 <p className="mt-1 text-xs text-steel">
-                  Put your logo, colors, fonts and sign-in screen on the whole app, on your own
-                  domain. Your team and your clients see your brand. A small Powered by Pulse line
+                  Put your logo, colors, fonts and sign-in screen on the whole app. Your team
+                  and your clients see your brand. A small Powered by Pulse line
                   sits under your logo. Try the palette, fonts and corners below in the preview;
                   they apply on {PLAN_LIMITS[need].label}.
                 </p>

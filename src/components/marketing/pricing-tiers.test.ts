@@ -64,6 +64,12 @@ describe("the public price tiles", () => {
 describe("the entry price in metadata", () => {
   it("matches the cheapest tile, so a search result cannot quote a dead price", () => {
     const cheapest = marketingTiers()[0];
-    expect(fromPriceLabel()).toBe(`From ${cheapest.price}/mo`);
+    expect(fromPriceLabel().startsWith(`From ${cheapest.price}/mo`)).toBe(true);
+  });
+
+  it("never quotes an intro price without the step-up", () => {
+    const cheapest = marketingTiers()[0];
+    if (cheapest.stepUp) expect(fromPriceLabel()).toMatch(/for \d+ months, then \$/);
+    else expect(fromPriceLabel()).toBe(`From ${cheapest.price}/mo`);
   });
 });
