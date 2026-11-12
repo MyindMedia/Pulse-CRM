@@ -44,6 +44,7 @@ import { money, relativeTime, shortDate } from "@/lib/format";
 import { meta, INVOICE_STATUS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import type { NotificationRow } from "@/components/bookings/types";
+import { notificationNotSentNote } from "@/components/bookings/types";
 
 /* The parts of the session modal beyond the booking's own fields: staff notes,
    files and songs, special requests, invoices, arrival prep, the message log
@@ -673,6 +674,9 @@ export function MessageLog({ sessionId }: { sessionId: Id<"sessions"> }) {
               <p className="mt-1 truncate font-meta text-[0.5625rem] uppercase tracking-wide text-steel/70">
                 {msg.channel} · {msg.recipient}
               </p>
+              {notificationNotSentNote(msg) && (
+                <p className="mt-1 text-[0.625rem] font-medium text-gold">{notificationNotSentNote(msg)}</p>
+              )}
             </li>
           ))}
         </ul>
