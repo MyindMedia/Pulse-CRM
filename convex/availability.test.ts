@@ -35,6 +35,37 @@ describe("availability + time-off", () => {
     expect(b.slots[0].weekday).toBe(5);
   });
 
+  it("a time-off request alerts the studio's manager inbox", async () => {
+    await t.run(async (ctx) => {
+      const org = (await ctx.db.query("orgs").collect()).find((o) => o.orgId === "pulse-demo");
+      await ctx.db.patch(org!._id, { ownerEmail: "owner@demo.com" });
+    });
+    const now = Date.now();
+    await t.mutation(api.availability.requestTimeOff, { startTime: now + 86400000, endTime: now + 2 * 86400000, reason: "Trip" });
+    const sent = await t.run(async (ctx) =>
+      (await ctx.db.query("notifications").collect()).filter((n) => n.kind === "timeoff.requested"));
+    expect(sent).toHaveLength(1);
+    expect(sent[0].recipient).toBe("owner@demo.com");
+    expect(sent[0].body).toMatch(/Eng Ellis/);
+  });
+
+  it("the time-off alert names the days in the studio's own zone", async () => {
+    await t.run(async (ctx) => {
+      const org = (await ctx.db.query("orgs").collect()).find((o) => o.orgId === "pulse-demo");
+      await ctx.db.patch(org!._id, { ownerEmail: "owner@demo.com", timezone: "America/Los_Angeles" });
+    });
+    // The form sends local midnight of the first day and local 23:59 of the
+    // last day: Tue Mar 10 to Thu Mar 12, 2026 in Los Angeles (UTC-7). The
+    // end is already Mar 13 in UTC.
+    const startTime = Date.UTC(2026, 2, 10, 7, 0);
+    const endTime = Date.UTC(2026, 2, 13, 6, 59);
+    await t.mutation(api.availability.requestTimeOff, { startTime, endTime });
+    const sent = await t.run(async (ctx) =>
+      (await ctx.db.query("notifications").collect()).find((n) => n.kind === "timeoff.requested"));
+    expect(sent?.body).toContain("from Tue, Mar 10 to Thu, Mar 12");
+    expect(sent?.body).not.toMatch(/Mar 13/);
+  });
+
   it("request → pending → approve flow notifies the staff member", async () => {
     const now = Date.now();
     await t.mutation(api.availability.requestTimeOff, { startTime: now + 86400000, endTime: now + 2 * 86400000, reason: "Trip" });

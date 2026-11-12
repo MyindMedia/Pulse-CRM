@@ -65,8 +65,8 @@ export function CancellationPolicyPanel() {
   const pctNum = parseFloat(pct);
   const preview =
     Number.isFinite(pctNum) && pctNum > 0
-      ? `A client who cancels within ${Number.isFinite(hoursNum) ? hoursNum : 0}h of the start, or no-shows, is charged ${pctNum}% of the booking rate. Any paid deposit is forfeited toward that fee.`
-      : "No fee is charged yet. Set a percentage above to arm the shield.";
+      ? `A client who cancels within ${Number.isFinite(hoursNum) ? hoursNum : 0}h of the start, or no-shows, owes ${pctNum}% of the booking rate. Pulse keeps any paid deposit toward that fee and drafts a bill for the rest when staff mark it.`
+      : "No fee applies yet. Set a percentage above to arm the shield.";
 
   return (
     <Card>

@@ -157,6 +157,7 @@ export default function InventoryPage() {
       rentable: item.rentable,
       rentalPriceCents: item.rentalPriceCents,
       ownerMemberId: item.ownerMemberId ?? null,
+      barcode: item.barcode ?? null,
     });
     setEditOpen(true);
   }

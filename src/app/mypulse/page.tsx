@@ -14,7 +14,7 @@ import {
   TOTAL_FEATURES,
   tierName,
 } from "./features";
-import { accessRows, priceRows, pooledTiers, type FactRow } from "@/components/marketing/plan-facts";
+import { accessRows, priceRows, type FactRow } from "@/components/marketing/plan-facts";
 import { includesLine } from "../pricing/model";
 import { siteMedia } from "@/lib/media";
 
@@ -254,8 +254,8 @@ export default async function MyPulsePage() {
         <section className="mt-16">
           <Overline>Prices</Overline>
           <p className="mt-3 max-w-2xl text-[0.975rem] leading-relaxed text-ash">
-            Month to month, or yearly with the months free shown below. Max is one flat
-            price for unlimited studios, with no charge per studio.
+            Month to month, or yearly with the months free shown below. Every plan
+            covers one studio, with no charge per login.
           </p>
           <div className="mt-5">
             <FactTable rows={priceRows()} caption="Prices by plan" />
@@ -268,8 +268,6 @@ export default async function MyPulsePage() {
           <p className="mt-3 max-w-2xl text-[0.975rem] leading-relaxed text-ash">
             Roles, rooms, studios and allowances on each plan. Plans are priced by
             features, never per login.
-            {pooledTiers().length > 0 &&
-              ` On ${pooledTiers().map(tierName).join(" and ")}, allowances are shared across every studio in the group.`}
           </p>
           <div className="mt-5">
             <FactTable rows={accessRows()} caption="Access and allowances by plan" />

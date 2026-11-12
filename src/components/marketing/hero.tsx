@@ -620,7 +620,7 @@ export function Hero() {
           className="font-grotesk mx-auto mt-10 max-w-[540px] text-[17px] font-medium leading-relaxed tracking-[-0.01em] text-mist/85 [text-shadow:0_1px_4px_rgba(0,0,0,0.85),0_2px_18px_rgba(0,0,0,0.7)] motion-safe:opacity-0"
         >
           Bookings, payments, staff shifts, inventory and song rights in one place,
-          with an AI manager that automates the operations, so your team runs
+          with an AI manager that suggests the next step and does it when you approve, so your team runs
           sessions instead of chasing admin.
         </p>
 

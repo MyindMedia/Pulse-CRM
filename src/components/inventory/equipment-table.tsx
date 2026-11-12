@@ -66,6 +66,8 @@ export type EquipmentRow = {
   ownedByMe: boolean;
   /** Who has it checked out right now. */
   checkedOutTo: string | null;
+  /** The label code, when one is assigned. */
+  barcode?: string;
 };
 
 const COLUMN_COUNT = 10;

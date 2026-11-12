@@ -77,3 +77,28 @@ describe("agency Royalties switch", () => {
     expect((await gate(t)).code).toBe("ROYALTIES_OFF");
   });
 });
+
+describe("module switchboard follows the royalties switch", () => {
+  const row = async (t: ReturnType<typeof convexTest>) => {
+    const b = await t.withIdentity({ subject: "u_studio", orgId: "o1" }).query(api.modules.board, {});
+    return b.areas.flatMap((a) => a.modules).find((m) => m.key === "royalties");
+  };
+
+  it("a Max studio with the switch off is not shown Royalties as on", async () => {
+    const t = convexTest(schema);
+    await setup(t, "max", false);
+    expect(await row(t)).toBeUndefined();
+  });
+
+  it("a Growth studio with the switch off is not sold Royalties as an upgrade", async () => {
+    const t = convexTest(schema);
+    await setup(t, "growth", undefined);
+    expect(await row(t)).toBeUndefined();
+  });
+
+  it("with the switch on, a Max studio sees it on", async () => {
+    const t = convexTest(schema);
+    await setup(t, "max", true);
+    expect((await row(t))?.enabled).toBe(true);
+  });
+});

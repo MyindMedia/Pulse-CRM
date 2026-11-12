@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { scoreEntry, rankWaitlist, bestFit, type RankableEntry, type FreedSlot } from "./waitlist";
 
 const ORG = "pulse-demo"; // demo viewer resolves to this org with owner caps
@@ -98,7 +98,196 @@ describe("waitlist smart-fill (integration)", () => {
     expect(res.actions[0].entityId).toBe(sessionId);
     expect(res.actions[0].payload.kind).toBe("email");
     expect(res.actions[0].payload.kind === "email" && res.actions[0].payload.to).toBe("nova@x.com");
-    expect(res.entry?.status).toBe("notified");
+    // Truth audit B3 (bookings-clients-feat-waiting-list): a proposal that is
+    // still waiting for approval has offered nothing yet, so the entry stays
+    // "waiting" and the text sweep (smsFlows) can still reach this person.
+    expect(res.entry?.status).toBe("waiting");
+    expect(res.entry?.lastNotifiedAt).toBeUndefined();
+
+    // Once the offer is approved and sent, the entry is marked notified.
+    await t.run((ctx) => ctx.db.patch(res.actions[0]._id, { status: "approved" }));
+    await t.action(internal.opsActions.execute, { id: res.actions[0]._id });
+    const after = await t.run((ctx) => ctx.db.get(entryId));
+    expect(after?.status).toBe("notified");
+    expect(after?.lastNotifiedAt).toBeTypeOf("number");
+
+    // Once the offer email is executed, the entry is notified (#199: finalize
+    // with a sent email keeps it notified).
+    await t.mutation(internal.opsActions.finalize, { id: res.actions[0]._id, emailStatus: "sent" });
+    const afterFinalize = await t.run((ctx) => ctx.db.get(entryId));
+    expect(afterFinalize?.status).toBe("notified");
+    expect(afterFinalize?.lastNotifiedAt).toBeDefined();
+  });
+
+  it("a failed offer email leaves the entry waiting", async () => {
+    const { sessionId, entryId } = await t.run(async (ctx) => {
+      const waitingArtist = await ctx.db.insert("artists", {
+        orgId: ORG, name: "Nova", type: "artist", email: "nova@x.com", genres: [], tags: [],
+        status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
+      });
+      const bookedArtist = await ctx.db.insert("artists", {
+        orgId: ORG, name: "Booked", type: "artist", email: "b@x.com", genres: [], tags: [],
+        status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
+      });
+      const sessionId = await ctx.db.insert("sessions", {
+        orgId: ORG, title: "Tracking day", artistId: bookedArtist, serviceType: "recording",
+        startTime: Date.now() + DAY, endTime: Date.now() + DAY + 7_200_000,
+        status: "confirmed", rateCents: 20000, depositCents: 5000, depositPaid: true, intakeCompleted: false,
+      });
+      const entryId = await ctx.db.insert("waitlistEntries", {
+        orgId: ORG, artistId: waitingArtist, priority: "standard", status: "waiting", createdAt: Date.now(),
+      });
+      return { sessionId, entryId };
+    });
+    await t.mutation(api.sessions.setStatus, { id: sessionId, status: "cancelled" });
+    const action = await t.run(async (ctx) =>
+      (await ctx.db.query("opsActions").collect()).find((a) => a.orgId === ORG && a.type === "waitlist_fill"),
+    );
+    await t.mutation(internal.opsActions.finalize, { id: action!._id, emailStatus: "failed" });
+    expect((await t.run((ctx) => ctx.db.get(entryId)))?.status).toBe("waiting");
+  });
+
+  // R03/R04/R34: the winner stays "waiting" until the offer is sent, so a
+  // second slot freed before approval must go to the next-best match, and the
+  // offer must name (and finalize must mark) that exact entry.
+  async function seedTwoFreedSlots() {
+    return t.run(async (ctx) => {
+      const roomId = await ctx.db.insert("rooms", {
+        orgId: ORG, name: "Studio A", roomType: "Live room", status: "available", hourlyRateCents: 10000,
+      });
+      const mk = (name: string, email: string) => ctx.db.insert("artists", {
+        orgId: ORG, name, type: "artist", email, genres: [], tags: [],
+        status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
+      });
+      const top = await mk("Nova", "nova@x.com");
+      const next = await mk("Kai", "kai@x.com");
+      const booked = await mk("Booked", "b@x.com");
+      const session = (offset: number) => ctx.db.insert("sessions", {
+        orgId: ORG, title: "Tracking day", artistId: booked, serviceType: "recording", roomId,
+        startTime: Date.now() + offset, endTime: Date.now() + offset + 7_200_000,
+        status: "confirmed", rateCents: 20000, depositCents: 0, depositPaid: false, intakeCompleted: false,
+      });
+      const s1 = await session(DAY);
+      const s2 = await session(2 * DAY);
+      const topEntry = await ctx.db.insert("waitlistEntries", {
+        orgId: ORG, artistId: top, roomId, serviceType: "recording", priority: "high", status: "waiting", createdAt: Date.now(),
+      });
+      const nextEntry = await ctx.db.insert("waitlistEntries", {
+        orgId: ORG, artistId: next, roomId, serviceType: "recording", priority: "standard", status: "waiting", createdAt: Date.now(),
+      });
+      return { s1, s2, topEntry, nextEntry };
+    });
+  }
+  const fills = () => t.run(async (ctx) =>
+    (await ctx.db.query("opsActions").collect()).filter((a) => a.orgId === ORG && a.type === "waitlist_fill"));
+
+  it("two slots freed before approval go to two different people, each offer naming its entry", async () => {
+    const { s1, s2, topEntry, nextEntry } = await seedTwoFreedSlots();
+    await t.mutation(api.sessions.setStatus, { id: s1, status: "cancelled" });
+    await t.mutation(api.sessions.setStatus, { id: s2, status: "cancelled" });
+    const actions = await fills();
+    expect(actions).toHaveLength(2);
+    const byEntity = new Map(actions.map((a) => [a.entityId, a.payload.kind === "email" ? a.payload : null]));
+    expect(byEntity.get(s1)).toMatchObject({ to: "nova@x.com", waitlistEntryId: topEntry });
+    expect(byEntity.get(s2)).toMatchObject({ to: "kai@x.com", waitlistEntryId: nextEntry });
+  });
+
+  it("a dismissed offer frees the person for the next slot", async () => {
+    const { s1, s2, topEntry } = await seedTwoFreedSlots();
+    await t.mutation(api.sessions.setStatus, { id: s1, status: "cancelled" });
+    const [first] = await fills();
+    await t.run((ctx) => ctx.db.patch(first._id, { status: "dismissed" }));
+    await t.mutation(api.sessions.setStatus, { id: s2, status: "cancelled" });
+    const second = (await fills()).find((a) => a.entityId === s2);
+    expect(second?.payload).toMatchObject({ waitlistEntryId: topEntry });
+  });
+
+  it("finalize marks the offered entry, not another entry with the same email", async () => {
+    const { s1, topEntry } = await seedTwoFreedSlots();
+    // Same client, a second (older) waiting entry for another room.
+    const otherEntry = await t.run(async (ctx) => {
+      const top = (await ctx.db.get(topEntry))!;
+      const roomB = await ctx.db.insert("rooms", {
+        orgId: ORG, name: "Studio B", roomType: "Booth", status: "available", hourlyRateCents: 10000,
+      });
+      return ctx.db.insert("waitlistEntries", {
+        orgId: ORG, artistId: top.artistId, roomId: roomB, priority: "standard", status: "waiting", createdAt: 1,
+      });
+    });
+    await t.mutation(api.sessions.setStatus, { id: s1, status: "cancelled" });
+    const [action] = await fills();
+    await t.mutation(internal.opsActions.finalize, { id: action._id, emailStatus: "sent" });
+    const [offered, other] = await t.run(async (ctx) => [await ctx.db.get(topEntry), await ctx.db.get(otherEntry)]);
+    expect(offered?.status).toBe("notified");
+    expect(other?.status).toBe("waiting");
+  });
+
+  // R32: the winner stays reachable by the SMS sweep, so by the time the owner
+  // approves the email the slot may be texted, claimed or rebooked.
+  async function approvedOfferThen(change: (ctx: Parameters<Parameters<typeof t.run>[0]>[0], ids: Awaited<ReturnType<typeof seedTwoFreedSlots>>) => Promise<unknown>) {
+    const ids = await seedTwoFreedSlots();
+    await t.mutation(api.sessions.setStatus, { id: ids.s1, status: "cancelled" });
+    const [action] = await fills();
+    await t.run((ctx) => ctx.db.patch(action._id, { status: "approved" }));
+    await t.run((ctx) => change(ctx, ids));
+    await t.action(internal.opsActions.execute, { id: action._id });
+    return t.run(async (ctx) => ({
+      action: await ctx.db.get(action._id),
+      mails: (await ctx.db.query("notifications").collect()).filter((n) => n.kind === "waitlist.offer"),
+      entry: await ctx.db.get(ids.topEntry),
+    }));
+  }
+
+  it("does not email an offer for a slot the same client was already texted about", async () => {
+    const out = await approvedOfferThen(async (ctx, { s1, topEntry }) => {
+      const e = (await ctx.db.get(topEntry))!;
+      await ctx.db.insert("smsPrompts", {
+        orgId: ORG, phone: "+15550001111", kind: "waitlist_claim", sessionId: s1, artistId: e.artistId,
+        status: "open", sentAt: Date.now(), expiresAt: Date.now() + DAY,
+      });
+    });
+    expect(out.mails).toHaveLength(0);
+    expect(out.action?.status).toBe("executed");
+    expect(out.action?.result).toMatch(/^noted: not sent/);
+    expect(out.entry?.status).toBe("waiting");
+  });
+
+  it("does not email an offer for a slot someone already claimed by text", async () => {
+    const out = await approvedOfferThen(async (ctx, { s1, nextEntry }) => {
+      const e = (await ctx.db.get(nextEntry))!;
+      await ctx.db.insert("smsPrompts", {
+        orgId: ORG, phone: "+15550002222", kind: "waitlist_claim", sessionId: s1, artistId: e.artistId,
+        status: "answered", answer: "claim", sentAt: Date.now(), expiresAt: Date.now() + DAY, answeredAt: Date.now(),
+      });
+    });
+    expect(out.mails).toHaveLength(0);
+    expect(out.action?.result).toMatch(/claimed/);
+  });
+
+  it("does not email an offer once the room is rebooked for that time", async () => {
+    const out = await approvedOfferThen(async (ctx, { s1, nextEntry }) => {
+      const s = (await ctx.db.get(s1))!;
+      const e = (await ctx.db.get(nextEntry))!;
+      await ctx.db.insert("sessions", {
+        orgId: ORG, title: "Rebooked", artistId: e.artistId, serviceType: "recording", roomId: s.roomId,
+        startTime: s.startTime, endTime: s.endTime, status: "confirmed",
+        rateCents: 20000, depositCents: 0, depositPaid: false, intakeCompleted: false,
+      });
+    });
+    expect(out.mails).toHaveLength(0);
+    expect(out.action?.result).toMatch(/booked by someone else/);
+  });
+
+  it("does not email an offer once the client's entry is booked", async () => {
+    const out = await approvedOfferThen((ctx, { topEntry }) => ctx.db.patch(topEntry, { status: "booked" }));
+    expect(out.mails).toHaveLength(0);
+    expect(out.entry?.status).toBe("booked");
+  });
+
+  it("still emails the offer when the slot is open and untouched", async () => {
+    const out = await approvedOfferThen(async () => null);
+    expect(out.mails).toHaveLength(1);
+    expect(out.entry?.status).toBe("notified");
   });
 
   it("does not propose a fill when the waitlist is empty", async () => {

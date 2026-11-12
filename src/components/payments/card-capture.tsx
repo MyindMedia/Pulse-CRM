@@ -153,7 +153,7 @@ function CardForm({ onSaved, returnUrl }: { onSaved?: () => void; returnUrl?: st
       return;
     }
 
-    toast.success("Card saved. No-show and late-cancel fees can be charged to it.");
+    toast.success("Card sent to Stripe. Pulse does not charge saved cards yet, so fees still go out as a bill.");
     setSaving(false);
     onSaved?.();
   }

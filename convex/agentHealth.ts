@@ -14,21 +14,51 @@ type Component = { key: string; label: string; score: number; weight: number; si
 
 function clamp(n: number) { return Math.max(0, Math.min(100, Math.round(n))); }
 
+/* Every read below is an indexed range over only the rows the score uses,
+   and each one is capped. The panel sits on the home screen and the fleet
+   view runs it once per studio, so it must never grow with a studio's whole
+   history (Convex fails a query past 16,384 documents read). Worst case is
+   about 8,000 documents. */
+export const HEALTH_READ_CAP = 300;
+const UNPAID_INVOICE = ["draft", "sent", "viewed", "overdue"] as const;
+const OPEN_STAGE = ["inquiry", "qualified", "proposal", "booked", "in_progress", "delivered"] as const;
+/** Songs still being made. Delivered and released songs are finished. */
+const ACTIVE_SONG = ["writing", "demo", "tracking", "editing", "mixing", "mastering"] as const;
+
 export async function studioHealthFor(ctx: QueryCtx, orgId: string) {
   const now = Date.now();
   const monthStart = new Date(); monthStart.setUTCDate(1); monthStart.setUTCHours(0, 0, 0, 0);
+  const cap = HEALTH_READ_CAP;
+  const horizon = now + 14 * DAY;
 
-  const payments = await ctx.db.query("payments").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
-  const invoices = await ctx.db.query("invoices").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
-  const sessions = await ctx.db.query("sessions").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
-  const rooms = await ctx.db.query("rooms").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
-  const opps = await ctx.db.query("opportunities").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
-  const songs = await ctx.db.query("songs").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
-  const artists = await ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
+  const [payments, invoiceRuns, sessions, rooms, oppRuns, songRuns, artists] = await Promise.all([
+    // Payments made this month only.
+    ctx.db.query("payments")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId).gte("_creationTime", monthStart.getTime()))
+      .take(cap * 4),
+    // Unpaid invoices only, status by status.
+    Promise.all(UNPAID_INVOICE.map((status) =>
+      ctx.db.query("invoices").withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", status)).take(cap))),
+    // Sessions starting in the next 14 days only.
+    ctx.db.query("sessions")
+      .withIndex("by_org_start", (q) => q.eq("orgId", orgId).gte("startTime", now).lte("startTime", horizon))
+      .take(cap * 4),
+    ctx.db.query("rooms").withIndex("by_org", (q) => q.eq("orgId", orgId)).take(cap),
+    // Open opportunities only, stage by stage.
+    Promise.all(OPEN_STAGE.map((stage) =>
+      ctx.db.query("opportunities").withIndex("by_org_stage", (q) => q.eq("orgId", orgId).eq("stage", stage)).take(cap))),
+    // Songs still in production only, stage by stage.
+    Promise.all(ACTIVE_SONG.map((stage) =>
+      ctx.db.query("songs").withIndex("by_org_stage", (q) => q.eq("orgId", orgId).eq("stage", stage)).take(cap))),
+    // The most recent clients: retention is a share, so a recent sample is enough.
+    ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId)).order("desc").take(cap * 4),
+  ]);
+  const unpaid = invoiceRuns.flat();
+  const opps = oppRuns.flat();
+  const songs = songRuns.flat();
 
   // 1. Revenue health (30) - collection rate, penalize overdue.
-  const paidThisMonth = payments.filter((p) => p.status === "paid" && p._creationTime >= monthStart.getTime()).reduce((s, p) => s + (p.amountCents ?? 0), 0);
-  const unpaid = invoices.filter((i) => i.status !== "paid" && i.status !== "void");
+  const paidThisMonth = payments.filter((p) => p.status === "paid").reduce((s, p) => s + (p.amountCents ?? 0), 0);
   const overdue = unpaid.filter((i) => (i.dueDate ?? Infinity) < now);
   const overdueCents = overdue.reduce((s, i) => s + (i.amountCents ?? 0), 0);
   const collectBase = paidThisMonth + overdueCents;
@@ -37,7 +67,6 @@ export async function studioHealthFor(ctx: QueryCtx, orgId: string) {
 
   // 2. Booking utilization (20) - session-hours next 14d vs bookable capacity.
   const bookable = rooms.filter((r) => r.bookable !== false && r.status !== "retired");
-  const horizon = now + 14 * DAY;
   const bookedHours = sessions
     .filter((s) => s.startTime >= now && s.startTime <= horizon && s.status !== "cancelled" && s.status !== "no_show")
     .reduce((sum, s) => sum + (s.endTime - s.startTime) / 3_600_000, 0);

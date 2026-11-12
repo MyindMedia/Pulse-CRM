@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { money, relativeTime } from "@/lib/format";
 import { titleCase } from "@/lib/labels";
 import type { NotificationRow, PaymentRow } from "./types";
+import { notificationNotSentNote } from "./types";
 import { SessionLink } from "@/components/shell/entity-link";
 
 /** The most recent cleared payments workspace-wide; each opens its booking. */
@@ -129,6 +130,9 @@ export function MessagesPanel() {
                 <p className="mt-1 font-meta text-[0.5625rem] uppercase tracking-wide text-steel/70">
                   {msg.recipient} · {relativeTime(msg._creationTime)}
                 </p>
+                {notificationNotSentNote(msg) && (
+                  <p className="mt-1 text-[0.625rem] font-medium text-gold">{notificationNotSentNote(msg)}</p>
+                )}
                 </MessageShell>
               </li>
             ))}

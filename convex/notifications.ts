@@ -4,7 +4,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import { currentOrg } from "./lib/tenant";
 import { AccessError } from "./lib/access";
-import { sendEmail } from "./lib/email";
+import { sendEmail, studioReplyTo } from "./lib/email";
 import { studioEmailHtml } from "./lib/emailTemplates/layout";
 import { sendSms } from "./lib/sms";
 
@@ -18,7 +18,7 @@ export const _get = internalQuery({
     const n = await ctx.db.get(id);
     if (!n) return null;
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", n.orgId)).first();
-    return { ...n, orgName: org?.name ?? "Your studio" };
+    return { ...n, orgName: org?.name ?? "Your studio", replyTo: studioReplyTo(org) };
   },
 });
 
@@ -44,7 +44,8 @@ export const deliver = internalAction({
     if (n.channel === "email") {
       // Branded studio-framed email (escapes + linkifies pay URLs internally).
       const html = studioEmailHtml({ studioName: n.orgName, bodyText: n.body });
-      status = await sendEmail({ to: n.recipient, subject: n.subject, html });
+      // Replies go to the studio: the bodies say "Reply to this email".
+      status = await sendEmail({ to: n.recipient, subject: n.subject, html, replyTo: n.replyTo });
     } else {
       status = await sendSms({ to: n.recipient, body: n.body });
     }

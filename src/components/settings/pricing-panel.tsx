@@ -232,7 +232,7 @@ function tierBullets(tier: TierKey): string[] {
     n >= UNLIMITED ? `Unlimited ${many}` : `${n} ${n === 1 ? one : many}`;
   const lead: Record<TierKey, string[]> = {
     core: [
-      "Booking page, deposits, card on file",
+      "Booking page and deposits",
       "No-show rules, bills and the 3/7/14 day reminders",
       "Google Calendar both ways and your own Gmail",
     ],
@@ -243,13 +243,14 @@ function tierBullets(tier: TierKey): string[] {
     ],
     max: [
       "Everything in Growth, plus:",
-      "Your brand on the whole app and your own web address",
-      "Releases, licensing, split sheets",
+      "Your brand on the whole app",
+      "Release plans, license records",
     ],
   };
   return [
     ...lead[tier],
-    [count(a.rooms, "room", "rooms"), count(a.studios, "studio", "studios"), `${a.storageGb.toLocaleString("en-US")} GB`].join(" \u00b7 "),
+    // No studio count: every plan runs one studio today, and none is sold on more.
+    [count(a.rooms, "room", "rooms"), `${a.storageGb.toLocaleString("en-US")} GB`].join(" \u00b7 "),
   ];
 }
 
@@ -690,11 +691,10 @@ function TaxConfigCard({ org }: { org: Org }) {
           />
           <span className="flex-1">
             <span className="block text-sm font-medium text-bone">
-              Apply tax to new invoices automatically
+              Plan to charge tax (not active yet)
             </span>
             <span className="block text-xs text-steel">
-              When on, every new invoice adds a tax line item at the effective rate.
-              Existing invoices are not retroactively recalculated.
+              Saved for your records. Pulse does not add tax to invoices yet.
             </span>
           </span>
         </label>
@@ -702,8 +702,9 @@ function TaxConfigCard({ org }: { org: Org }) {
         {selected && !selected.taxesServices && (
           <p className="rounded-md border border-caution/30 bg-caution/10 p-3 text-xs text-caution">
             Heads up: {selected.name} generally does <strong>not</strong> tax
-            recording-studio services. Most studios in this state leave the
-            checkbox off. Confirm with your accountant before flipping it on.
+            recording-studio services. This setting is saved for your records
+            only: Pulse does not add tax to any invoice. Confirm with your
+            accountant what to charge.
           </p>
         )}
       </CardContent>

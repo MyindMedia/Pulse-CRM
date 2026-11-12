@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useMutation, useQuery } from "convex/react";
+import { ConvexError } from "convex/values";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
@@ -550,7 +551,14 @@ function CollectBalancePanel({
       await sendSms({ id: sessionId });
       toast.success("Pay link texted to the client");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Could not send the text");
+      // A ConvexError's own text is in .data (e.g. the client replied STOP).
+      toast.error(
+        err instanceof ConvexError
+          ? String(err.data)
+          : err instanceof Error
+            ? err.message
+            : "Could not send the text",
+      );
     } finally {
       setTexting(false);
     }

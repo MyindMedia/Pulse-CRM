@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
 import { toast } from "sonner";
+import { bookingToast } from "@/lib/checkout-view";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import {
@@ -208,11 +209,7 @@ function RoomDetailView() {
         // Closes the funnel this visitor started. Server-written from here on.
         visitorKey: visitorKey() ?? undefined,
       });
-      toast.success(
-        pricingHidden
-          ? "Request sent. The studio will confirm by email and text."
-          : "Booking held - finish payment to confirm.",
-      );
+      toast.success(bookingToast(result, pricingHidden));
       router.push(`/book/${slug}/checkout/${result.sessionId}`);
     } catch (err) {
       const message =

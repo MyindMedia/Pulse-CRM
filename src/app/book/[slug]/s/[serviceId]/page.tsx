@@ -7,6 +7,7 @@ import { useQuery, useMutation } from "convex/react";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
+import { bookingToast } from "@/lib/checkout-view";
 import { ArrowLeft, DoorClosed, Music4, Check } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/feedback";
@@ -185,11 +186,7 @@ function ServiceBookingView() {
         src: srcFromLink,
         visitorKey: visitorKey() ?? undefined,
       });
-      toast.success(
-        pricingHidden
-          ? "Request sent. The studio will confirm by email and text."
-          : "Booking held - finish payment to confirm.",
-      );
+      toast.success(bookingToast(result, pricingHidden));
       router.push(`/book/${slug}/checkout/${result.sessionId}`);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not hold that booking.");

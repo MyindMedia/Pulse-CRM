@@ -20,7 +20,8 @@ function fmtWhen(start: number, end: number): string {
 
 /**
  * The signed-in engineer's pending booking requests. A client picked THEM at
- * booking time; accepting finalizes the booking (and creates the shift),
+ * booking time; accepting creates the shift and finalizes the booking (an
+ * unpaid public hold stays tentative until its deposit is paid),
  * declining hands it back to the managers to restaff. Renders nothing when
  * there's nothing to answer.
  */
@@ -34,8 +35,14 @@ export function EngineerRequests() {
   async function answer(sessionId: Id<"sessions">, accept: boolean) {
     setBusyId(sessionId);
     try {
-      await respond({ sessionId, accept });
-      toast.success(accept ? "Confirmed - the booking is locked in." : "Declined - the studio will restaff it.");
+      const res = await respond({ sessionId, accept });
+      toast.success(
+        !accept
+          ? "Declined - the studio will restaff it."
+          : res.finalized
+            ? "Confirmed - the booking is locked in."
+            : "Confirmed - you are on the schedule. The booking is final once the client pays.",
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not respond.");
     } finally {

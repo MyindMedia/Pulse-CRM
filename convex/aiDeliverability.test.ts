@@ -349,3 +349,31 @@ describe("daily digest: schedule honored + delivered to the owner once", () => {
     expect(rows).toHaveLength(0);
   });
 });
+
+describe("daily summary fires at the hour picked, in the studio's time zone", () => {
+  afterEach(() => vi.useRealTimers());
+
+  async function setup(timezone: string) {
+    const t = convexTest(schema);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: "o_tz", name: "LA Studio", slug: "la", tier: "core", status: "active", timezone });
+      await ctx.db.insert("agentPolicies", {
+        orgId: "o_tz", enabled: true, defaultTone: "professional", autonomy: "suggest",
+        digestEnabled: true, digestHourLocal: 8, updatedAt: 0,
+      });
+    });
+    return t;
+  }
+
+  it("8 AM in Los Angeles, not 8 AM UTC", async () => {
+    // 2026-01-15: Los Angeles is UTC-8.
+    vi.useFakeTimers();
+    vi.setSystemTime(Date.UTC(2026, 0, 15, 8, 5)); // 08:05 UTC = 00:05 in LA
+    let t = await setup("America/Los_Angeles");
+    expect(await t.mutation(internal.agent._maybeStartDigest, { orgId: "o_tz" })).toBeNull();
+
+    vi.setSystemTime(Date.UTC(2026, 0, 15, 16, 5)); // 16:05 UTC = 08:05 in LA
+    t = await setup("America/Los_Angeles");
+    expect(await t.mutation(internal.agent._maybeStartDigest, { orgId: "o_tz" })).not.toBeNull();
+  });
+});

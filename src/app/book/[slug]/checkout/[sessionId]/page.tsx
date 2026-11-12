@@ -26,6 +26,7 @@ import { cn } from "@/lib/utils";
 import { popIn, fadeUp } from "@/lib/motion";
 import { BookingSummary } from "@/components/book/booking-summary";
 import { RequestStatusPage, RequestPendingBanner } from "@/components/book/request-status";
+import { checkoutView } from "@/lib/checkout-view";
 
 type PayChoice = "deposit" | "full";
 
@@ -66,10 +67,11 @@ export default function CheckoutPage() {
   if (booking.pricingHidden) return <RequestStatusPage slug={slug} booking={booking} />;
 
   const notPaid = booking.paidCents === 0;
-  /* The studio sells this room paid-in-full, so there is no deposit to offer.
-     createBooking already set depositCents to the whole amount; this is the
-     page telling the truth about it. */
-  const fullOnly = booking.paymentMode === "full";
+  /* No deposit to offer: a paid-in-full room (createBooking set depositCents
+     to the whole amount) or a 0% deposit room (a $0 deposit cannot be paid).
+     Either way the only choice is "Pay in full". */
+  const view = checkoutView(booking);
+  const fullOnly = view.fullOnly;
   const released = booking.status === "cancelled";
 
   // Real money only: every payment goes through hosted Stripe Checkout on the
@@ -117,12 +119,18 @@ export default function CheckoutPage() {
           </span>
           <div className="space-y-1">
             <h1 className="font-grotesk text-2xl font-semibold tracking-tight text-bone">
-              {booking.fullyPaid ? "You're booked" : "Your booking is held"}
+              {booking.requestStatus === "pending"
+                ? "Payment received"
+                : booking.fullyPaid
+                  ? "You're booked"
+                  : "Your booking is held"}
             </h1>
             <p className="text-sm text-steel">
-              {booking.fullyPaid
-                ? "Paid in full. We've emailed your confirmation - see you in the studio."
-                : "Your deposit cleared and the room is held. The balance is due up to 2 hours before your session."}
+              {booking.requestStatus === "pending"
+                ? "Waiting on the studio to approve. We'll let you know once it's confirmed."
+                : booking.fullyPaid
+                  ? "Paid in full. We've emailed your confirmation - see you in the studio."
+                  : "Your deposit cleared and the room is held. The balance is due up to 2 hours before your session."}
             </p>
           </div>
         </motion.div>
@@ -140,13 +148,9 @@ export default function CheckoutPage() {
         <div className="space-y-1">
           <p className="overline">Checkout</p>
           <h1 className="font-grotesk text-3xl font-semibold tracking-tight text-bone">
-            Hold your session
+            {view.heading}
           </h1>
-          <p className="text-sm text-steel">
-            {fullOnly
-              ? "This session is paid in full to confirm it."
-              : "Pay a deposit to hold the room, or settle the full amount now."}
-          </p>
+          <p className="text-sm text-steel">{view.intro}</p>
         </div>
       )}
 
@@ -191,9 +195,7 @@ export default function CheckoutPage() {
 
           <div className="flex items-start gap-2 rounded-md border border-graphite/60 bg-coal-2 px-3 py-2.5 text-xs text-steel">
             <Info className="size-3.5 shrink-0 text-gold-dim" />
-            {fullOnly
-              ? "This studio confirms sessions on payment in full. Nothing is held until it clears."
-              : "A deposit holds your booking; the balance is due up to 2 hours before your session, or the hold is released."}
+            {view.note}
           </div>
 
           <div className="border-t border-graphite/50 pt-4">

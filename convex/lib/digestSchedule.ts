@@ -6,12 +6,9 @@
    honors agentPolicies.digestHourLocal (the hour the owner picked in
    the Agent settings UI) instead of the old drifting ~20h cadence.
 
-   TIMEZONE ASSUMPTION (documented, deliberate): orgs carry no
-   timezone field anywhere in the schema, and every other piece of
-   date math in convex/ (period(), weekly briefing windows, month
-   starts) uses UTC. So "local" here means the digestHourLocal value
-   interpreted against UTC. If/when orgs grow a tz field, pass its
-   offset via `utcOffsetMinutes` and nothing else changes.
+   TIMEZONE: the caller (agent._maybeStartDigest) passes the studio's
+   offset from orgs.timezone, so the hour is the studio's own. A studio
+   with no zone on file passes no offset and the hour is read against UTC.
    ============================================================ */
 
 export const DIGEST_MIN_GAP_MS = 20 * 60 * 60 * 1000; // 20h: one digest per day, tolerant of tick jitter
@@ -23,8 +20,7 @@ export type DigestScheduleInput = {
   digestHourLocal: number;
   /** Epoch ms of the last digest start, if any. */
   lastDigestAt?: number;
-  /** Org-local offset from UTC in minutes (unused today - no org tz field - but
-   *  the seam exists so honoring a future tz field is a one-line change). */
+  /** Org-local offset from UTC in minutes (from the studio's time zone). */
   utcOffsetMinutes?: number;
   /** Minimum gap between digests. Defaults to 20h. */
   minGapMs?: number;

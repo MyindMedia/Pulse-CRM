@@ -6,11 +6,11 @@ import { Reveal } from "./reveal";
  *  rooms, staff, gear and billing with no manual hand-offs. */
 const STEPS = [
   { icon: CalendarCheck, label: "Booking", note: "Booked online, deposit auto-collected" },
-  { icon: DoorOpen, label: "Room", note: "Auto-assigned, never double-booked" },
+  { icon: DoorOpen, label: "Room", note: "Client picks the room, never double-booked" },
   { icon: CalendarClock, label: "Staff", note: "Engineer scheduled to the room" },
-  { icon: Boxes, label: "Inventory", note: "Gear checked out to the session" },
+  { icon: Boxes, label: "Inventory", note: "Gear scanned out to the session" },
   { icon: Clock, label: "Session", note: "Hours tracked while the room runs" },
-  { icon: Receipt, label: "Invoice", note: "Balance auto-invoiced and paid" },
+  { icon: Receipt, label: "Invoice", note: "Balance invoice drafted for you" },
 ];
 
 export function Chain() {
@@ -20,12 +20,12 @@ export function Chain() {
         <Reveal className="mx-auto max-w-2xl text-center">
           <p className="chrome-meta text-steel">Automate your studio operations</p>
           <h2 className="chrome-display mt-4 text-4xl leading-[1.05] text-bone sm:text-5xl">
-            From booking to <span className="text-gold">paid</span>, the studio runs itself
+            From booking to <span className="text-gold">paid</span>, in one flow
           </h2>
           <p className="font-grotesk mt-5 text-[17px] font-medium leading-relaxed tracking-[-0.01em] text-mist/80">
-            Rooms, staff, gear and invoices stay in sync automatically. Every booking
-            flows through the studio on its own, so nothing slips and no one chases
-            paperwork.
+            Rooms, staff, gear and invoices share the same booking. Pulse does the
+            routine steps and lines up the rest for a person to finish, so less
+            slips and there is less paperwork to chase.
           </p>
         </Reveal>
 

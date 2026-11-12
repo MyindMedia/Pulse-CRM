@@ -5,7 +5,7 @@ import { PRICING, TIERS, formatUsd } from "@convex/lib/pricing";
 import { LandingNav } from "@/components/marketing/landing-nav";
 import { Footer } from "@/components/marketing/footer";
 import { PULSE_IOS_APP_URL } from "@/components/marketing/app-store";
-import { accessRows, pooledTiers } from "@/components/marketing/plan-facts";
+import { accessRows } from "@/components/marketing/plan-facts";
 import {
   SITE_KEYWORDS,
   jsonLdHtml,
@@ -39,7 +39,7 @@ const PRICE_LINE = TIERS.map(
 ).join(", ");
 
 const TITLE = "Pricing: Core, Growth and Max | Pulse OS for recording studios";
-const DESCRIPTION = `Pulse OS plans for recording and music studios. ${PRICE_LINE}, with unlimited studios on Max at one flat price. Month to month, no per-seat fees, no booking commission.`;
+const DESCRIPTION = `Pulse OS plans for recording and music studios. ${PRICE_LINE}. Month to month, no per-seat fees, no booking commission.`;
 const SHARE_TITLE = "Pulse OS pricing. Core, Growth and Max.";
 
 export const metadata: Metadata = {
@@ -78,7 +78,6 @@ export default function PricingPage() {
   const cards = planCards();
   const groups = comparisonGroups();
   const access = accessRows();
-  const pooled = pooledTiers();
   const app = appTiers();
   const questions = faqs();
 
@@ -102,8 +101,7 @@ export default function PricingPage() {
             One studio operating system. Three plans.
           </h1>
           <p className="font-grotesk mx-auto mt-5 max-w-2xl text-[17px] leading-relaxed text-mist">
-            Pick the plan that matches how your studio works. {includesLine()} Max covers
-            unlimited studios at one flat price.
+            Pick the plan that matches how your studio works. {includesLine()}
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link prefetch={false}
@@ -142,8 +140,6 @@ export default function PricingPage() {
         <section aria-labelledby="access-title" className="mx-auto mt-24 max-w-5xl">
           <SectionHead over="What each plan includes" title="Rooms, roles and allowances">
             Every plan is priced by features, never per login.
-            {pooled.length > 0 &&
-              ` On ${pooled.map((t) => PRICING[t].name).join(" and ")}, allowances are shared across all your studios.`}
           </SectionHead>
           <h3 id="access-title" className="sr-only">
             Allowances by plan

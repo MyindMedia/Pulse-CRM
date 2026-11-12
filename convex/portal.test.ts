@@ -69,6 +69,9 @@ describe("client concierge portal", () => {
     const res = await t.action(api.portal.ask, { token: "ask-token", question: "When is my next session?" });
     expect(res.source).toBe("fallback");
     expect(res.answer).toContain("song");
+    // The Messages box sits above the concierge on the portal page, never below.
+    expect(res.answer).toContain("send the studio a message in the Messages box on this page");
+    expect(res.answer).not.toMatch(/below/);
 
     const grant = await t.run(async (ctx) => ctx.db.get(grantId as Id<"collaboratorGrants">));
     expect(grant?.useCount).toBe(1);

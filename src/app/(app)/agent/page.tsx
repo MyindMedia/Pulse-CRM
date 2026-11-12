@@ -2,10 +2,11 @@
 
 import * as React from "react";
 import { useQuery, useMutation } from "convex/react";
+import { ConvexError } from "convex/values";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
-import { Sparkles, Send, Loader2, X, Lightbulb, ShieldCheck, Gauge, Brain, Trash2, Plus, Repeat, Info } from "lucide-react";
+import { Sparkles, Send, Loader2, X, Lightbulb, ShieldCheck, Brain, Trash2, Plus, Repeat, Info } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,11 +18,10 @@ import {
 } from "@/components/ui/select";
 import { ApprovalEditDialog, type ApprovalItem } from "@/components/agent/approval-edit-dialog";
 import { AgentInfoModal } from "@/components/agent/agent-info-modal";
-import { cn } from "@/lib/utils";
+import { HealthPanel } from "@/components/agent/health-panel";
 
 const SEV_TONE = { info: "neutral", opportunity: "positive", warning: "caution", critical: "critical" } as const;
 const RISK_TONE = { low: "neutral", medium: "caution", high: "critical", critical: "critical" } as const;
-const BAND_TONE = { strong: "positive", steady: "info", watch: "caution", "at risk": "critical" } as const;
 const MEMORY_TYPES = ["studio_profile", "tone_preferences", "business_rules", "client_patterns", "risk_notes", "automation_history"] as const;
 
 const SUGGESTED = [
@@ -38,7 +38,7 @@ export default function AgentPage() {
       <PageHeader
         overline="Studio intelligence"
         title="Pulse Agent"
-        description="Your AI studio operations manager. It reads this studio's data, flags what matters, and prepares actions for your approval - it never sends anything on its own."
+        description="Your AI studio operations manager. It reads this studio's data, flags what matters, and prepares actions for your approval. It never sends anything on its own unless you raise its autonomy."
         actions={
           <Button variant="outline" onClick={() => setInfoOpen(true)}>
             <Info className="size-4" />
@@ -61,44 +61,6 @@ export default function AgentPage() {
         </div>
       </div>
     </div>
-  );
-}
-
-function HealthPanel() {
-  const health = useQuery(api.agentHealth.studioHealth, {});
-  if (health === undefined) return null;
-  return (
-    <Card>
-      <CardContent className="pt-5">
-        <div className="flex flex-wrap items-center gap-5">
-          <div className="flex items-center gap-3">
-            <span className="grid size-12 place-items-center rounded-chrome bg-gold/12 text-gold"><Gauge className="size-6" /></span>
-            <div>
-              <div className="flex items-baseline gap-2">
-                <span className="font-grotesk text-3xl font-bold text-bone">{health.overall}</span>
-                <span className="text-sm text-steel/70">/100</span>
-                <Badge tone={BAND_TONE[health.band as keyof typeof BAND_TONE]}>{health.band}</Badge>
-              </div>
-              <p className="text-xs text-steel/70">Studio health</p>
-            </div>
-          </div>
-          <div className="grid flex-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-            {health.components.map((c) => (
-              <div key={c.key}>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-steel">{c.label}</span>
-                  <span className="font-meta text-steel/70">{c.score}</span>
-                </div>
-                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-coal-3">
-                  <div className={cn("h-full rounded-full", c.score >= 70 ? "bg-positive" : c.score >= 45 ? "bg-gold" : "bg-critical")} style={{ width: `${c.score}%` }} />
-                </div>
-                <p className="mt-0.5 text-[0.625rem] text-steel/70">{c.signal}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -152,15 +114,27 @@ function AutomationsPanel() {
           <p className="py-2 text-xs text-steel/70">No automations yet.</p>
         ) : (
           list.map((a) => (
-            <div key={a._id} className="flex items-center justify-between gap-2 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2">
-              <div className="min-w-0">
-                <p className="truncate font-grotesk text-sm font-semibold text-bone">{a.name}</p>
-                <p className="text-[0.625rem] text-steel/70">{a.cadence} · {a.runCount} run{a.runCount === 1 ? "" : "s"}</p>
+            <div key={a._id} className="rounded-md border border-graphite/50 bg-coal-2 px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate font-grotesk text-sm font-semibold text-bone">{a.name}</p>
+                  <p className="text-[0.625rem] text-steel/70">{a.cadence} · {a.runCount} run{a.runCount === 1 ? "" : "s"}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Switch checked={a.enabled} onCheckedChange={(v) => toggle({ id: a._id, enabled: v })} aria-label="Toggle automation" />
+                  <button onClick={() => remove({ id: a._id })} aria-label="Delete" className="text-steel/70 hover:text-critical"><Trash2 className="size-3.5" /></button>
+                </div>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <Switch checked={a.enabled} onCheckedChange={(v) => toggle({ id: a._id, enabled: v })} aria-label="Toggle automation" />
-                <button onClick={() => remove({ id: a._id })} aria-label="Delete" className="text-steel/70 hover:text-critical"><Trash2 className="size-3.5" /></button>
-              </div>
+              {a.lastAnswer && (
+                <div className="mt-2 border-t border-graphite/40 pt-2">
+                  <p className="text-[0.625rem] uppercase tracking-wide text-steel/60">
+                    Latest answer · {new Date(a.lastAnswer.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-xs text-steel">
+                    {a.lastAnswer.body ?? (a.lastAnswer.status === "queued" || a.lastAnswer.status === "running" ? "Working on it..." : "No answer was written.")}
+                  </p>
+                </div>
+              )}
             </div>
           ))
         )}
@@ -240,8 +214,9 @@ function CommandBar() {
       const id = await createRun({ prompt: q });
       setRunId(id);
       setPrompt("");
-    } catch {
-      toast.error("Could not reach the agent.");
+    } catch (err) {
+      const msg = err instanceof ConvexError && typeof err.data === "string" ? err.data : "Could not reach the agent.";
+      toast.error(msg);
     } finally {
       setBusy(false);
     }
