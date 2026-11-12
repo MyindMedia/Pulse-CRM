@@ -6,7 +6,7 @@ import type { Id } from "./_generated/dataModel";
 import { crmAccess, pinnedAgencyId, requireCrm } from "./crm/access";
 import { ZU_OPS, type ZuOp } from "./crm/ops.generated";
 import { buildPath, gate, level, pickFields, redactSecrets } from "./crm/policy";
-import { MOCK_KEY, mockBase, zuRequest, type ZuLimits } from "./crm/zu";
+import { zuRequest, zuTarget, zuWritesOn, type ZuLimits } from "./crm/zu";
 import { CRM_EVENTS, signalKind } from "./crm/webhook";
 import { redact } from "./outreach/policy";
 
@@ -41,11 +41,12 @@ export const status = query({
   handler: async (ctx) => {
     const a = await crmAccess(ctx);
     if (!a.allowed) return null;
-    const mock = mockBase() !== null;
+    const target = zuTarget();
+    const mock = target.mock !== null;
     const out: { keyConfigured: boolean; writesOn: boolean; adminKey: boolean; webhookConfigured: boolean; mock?: true } = {
-      keyConfigured: mock || !!env("ZUOPS_CRM_API_KEY"),
-      writesOn: env("ZUOPS_CRM_WRITES") === "on",
-      adminKey: mock || !!env("ZUOPS_CRM_ADMIN_KEY"),
+      keyConfigured: !!target.apiKey,
+      writesOn: zuWritesOn(),
+      adminKey: !!target.adminKey,
       webhookConfigured: !!env("ZUOPS_CRM_WEBHOOK_SECRET"),
     };
     if (mock) out.mock = true;
@@ -117,8 +118,7 @@ export const call = action({
     const who: { agencyId: string; actor: string } = await ctx.runQuery(internal.crm._gate, {});
 
     // 2. A key, or the local mock (whose requests never carry a real key).
-    const mock = mockBase();
-    const apiKey = mock ? MOCK_KEY : env("ZUOPS_CRM_API_KEY");
+    const { mock, apiKey, adminKey } = zuTarget();
     if (!apiKey) return refuse("not_connected", "Zuops is not connected on this deployment yet.");
 
     // 3. A registry operation.
@@ -149,8 +149,7 @@ export const call = action({
     const audit = { agencyId: who.agencyId, actor: who.actor, op: op.id, resource: auditResource(op, pathValues, leadId) };
 
     // 6. Switches and confirmation (some kinds depend on the body). Refusals here are audited.
-    const adminKey = mock ? MOCK_KEY : env("ZUOPS_CRM_ADMIN_KEY");
-    const g = gate(op, { writesOn: env("ZUOPS_CRM_WRITES") === "on", adminKey: !!adminKey }, args.confirm === true, b.value);
+    const g = gate(op, { writesOn: zuWritesOn(), adminKey: !!adminKey }, args.confirm === true, b.value);
     if (!g.ok) {
       if (isWrite) await ctx.runMutation(internal.crm._auditDenied, { ...audit, code: g.code });
       return refuse(g.code, g.reason);
