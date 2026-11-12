@@ -7,6 +7,7 @@ import { money } from "./lib/money";
 import { appUrl } from "./lib/links";
 import { proposeWaitlistFill } from "./waitlist";
 import { createCompletionInvoice } from "./sessions";
+import { drawDownOnCompletion } from "./packages";
 import { normalizePhone } from "./lib/phone";
 import { renderSms, BALANCE_DUE_SMS } from "./lib/smsTemplates";
 import { dropPreChecklistFor } from "./checklists";
@@ -107,6 +108,8 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     ) {
       if (s.status === "in_progress" || paid > 0) {
         await ctx.db.patch(s._id, { status: "completed", autoResolved: "auto_completed" });
+        // Prepaid hours come off on every path that completes a session.
+        await drawDownOnCompletion(ctx, s);
       } else if (s.status === "confirmed") {
         await ctx.db.patch(s._id, { status: "no_show", autoResolved: "auto_no_show" });
       } else {
@@ -411,8 +414,10 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
       await ctx.db.patch(s._id, { status: "completed" });
       // Same balance-invoice fan-out as the manual completion path in
       // sessions.setStatus: bill only what is still owed (usually nothing -
-      // public bookings reach here fully paid), never double-invoice.
-      const invoiceId = await createCompletionInvoice(ctx, s);
+      // public bookings reach here fully paid), never double-invoice. Prepaid
+      // hours come off first so the invoice covers only the rest.
+      const drawn = await drawDownOnCompletion(ctx, s);
+      const invoiceId = await createCompletionInvoice(ctx, drawn);
       await ctx.db.insert("activity", {
         orgId: s.orgId,
         kind: "session.completed",

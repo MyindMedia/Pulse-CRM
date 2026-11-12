@@ -4,7 +4,8 @@ import { fireRules } from "./agentRules";
 import { queuePayoutForSession } from "./payouts";
 import { Doc, Id } from "./_generated/dataModel";
 import { v, ConvexError } from "convex/values";
-import { currentOrg, currentOrgWithCapability, currentMoneySight } from "./lib/tenant";
+import { currentOrg, currentOrgWithCapability, currentMoneySight, currentActor } from "./lib/tenant";
+import { drawDownOnCompletion, returnHoursForSession, prepaidValueForSession } from "./packages";
 import { resolveViewer } from "./lib/access";
 import {
   assertNoBufferConflict,
@@ -710,6 +711,11 @@ export async function applyStatus(
     // into cancelled / no-show assesses the shield (so a re-set is idempotent).
     const wasActive = s.status !== "cancelled" && s.status !== "no_show";
     await ctx.db.patch(id, { status });
+    // Prepaid hours: a completed session voided back to cancelled gets its
+    // hours put back on the client's block.
+    if (s.status === "completed" && status === "cancelled") {
+      await returnHoursForSession(ctx, s, { reason: "voided", byName: await currentActor(ctx) });
+    }
     // Status change cascades to the room: cancelling an active session
     // flips the room back to available; starting one flips it to in_use.
     if (s.roomId) await recomputeRoomStatus(ctx, s.roomId);
@@ -751,10 +757,16 @@ export async function applyStatus(
 
     // Session completed → fan out: invoice the balance + queue a recap insight.
     if (status === "completed") {
+      // Take the session's hours off the prepaid block chosen for it (once),
+      // then bill only what is left.
+      if (s.status !== "completed") s = await drawDownOnCompletion(ctx, s);
+      // Prepaid hours cut the rate; the session's full price still counts for
+      // the client's lifetime value and the engineer's percentage pay.
+      const fullRateCents = s.rateCents + (await prepaidValueForSession(ctx, s._id));
       const artist = await ctx.db.get(s.artistId);
       await ctx.db.patch(s.artistId, {
         sessionCount: (artist?.sessionCount ?? 0) + 1,
-        lifetimeValueCents: (artist?.lifetimeValueCents ?? 0) + s.rateCents,
+        lifetimeValueCents: (artist?.lifetimeValueCents ?? 0) + fullRateCents,
         lastContactAt: Date.now(),
         status: artist?.status === "lead" ? "active" : artist?.status,
       });
@@ -762,7 +774,7 @@ export async function applyStatus(
       // The engineer's cut, worked out now while the numbers are in front of
       // us rather than in someone's head at the end of the month. Queues only;
       // paying it out is still a decision a person makes.
-      await queuePayoutForSession(ctx, { ...s, status: "completed" });
+      await queuePayoutForSession(ctx, { ...s, rateCents: fullRateCents, status: "completed" });
       // Standing rules the owner promoted from an insight, fired on the real
       // event rather than discovered by polling for it.
       await fireRules(ctx, orgId, "session.completed", {

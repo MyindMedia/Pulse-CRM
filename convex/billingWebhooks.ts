@@ -185,12 +185,28 @@ export const handle = internalMutation({
           await markProcessed(ctx, event.id, `${e.type}.account_mismatch`);
           return { ok: true };
         }
+        // Only money that has arrived becomes hours.
+        if (typeof obj.payment_status === "string" && obj.payment_status !== "paid") {
+          await markProcessed(ctx, event.id, `${e.type}.package_unpaid`);
+          return { ok: true };
+        }
+        const productId = ctx.db.normalizeId("packageProducts", meta.productId);
+        const artistId = ctx.db.normalizeId("artists", meta.artistId);
+        if (!productId || !artistId) {
+          await markProcessed(ctx, event.id, `${e.type}.package_bad_ids`);
+          return { ok: true };
+        }
+        const paidCents = typeof obj.amount_total === "number" ? obj.amount_total : undefined;
         try {
           await applyPackagePurchase(ctx, {
             orgId: meta.orgId,
-            productId: meta.productId as Id<"packageProducts">,
-            artistId: meta.artistId as Id<"artists">,
+            productId,
+            artistId,
             stripeReference: (obj.payment_intent as string) ?? (obj.id as string),
+            source: "stripe",
+            hours: meta.hours ? Number(meta.hours) : undefined,
+            // What Stripe actually collected, else what the link offered.
+            priceCents: paidCents ?? (meta.priceCents ? Number(meta.priceCents) : undefined),
           });
         } catch (err) {
           console.error("[webhook] package credit skipped:", (err as Error).message);

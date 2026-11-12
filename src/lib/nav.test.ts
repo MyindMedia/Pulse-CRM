@@ -15,3 +15,16 @@ describe("nav sections", () => {
     expect(studio.slice(0, 2)).toEqual(["Dashboard", "Bookings"]);
   });
 });
+
+/* H6: Packages is sold on Growth (lib/pricing.ts "packages"), so a Core studio
+   must not see the screen in the nav or reach it by URL. */
+describe("packages plan gate", () => {
+  it("ties the Packages item and route to the Growth packages entitlement", async () => {
+    const { featureForPath } = await import("./features");
+    const { effectiveDisabledFeatures } = await import("@convex/lib/entitlements");
+    expect(NAV.find((i) => i.href === "/packages")?.feature).toBe("packages");
+    expect(featureForPath("/packages")).toBe("packages");
+    expect(effectiveDisabledFeatures("core", [])).toContain("packages");
+    expect(effectiveDisabledFeatures("growth", [])).not.toContain("packages");
+  });
+});

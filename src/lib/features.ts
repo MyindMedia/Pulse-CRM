@@ -46,6 +46,8 @@ export function featureForPath(pathname: string): FeatureKey | null {
     patch: "patch",
     library: "mediaLibrary",
     projects: "projects",
+    // Prepaid hour blocks are sold on Growth (lib/pricing.ts "packages").
+    packages: "packages",
   };
   return map[seg] ?? null;
 }

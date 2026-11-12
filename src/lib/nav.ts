@@ -80,7 +80,7 @@ export const NAV: NavItem[] = [
   { label: "Time Clock", href: "/clock", icon: AlarmClock, blurb: "Clock in and out - your hours and recent entries", feature: "schedule", group: "studio" },
   { label: "Visitors", href: "/visitors", icon: UserCheck, blurb: "Front-desk guest log - QR check-in, timestamps and outreach contacts", feature: "visitors", group: "studio" },
   { label: "Payments", href: "/payments", icon: Receipt, blurb: "Invoices and cash flow", feature: "payments", capability: "invoices.read", group: "business" },
-  { label: "Packages", href: "/packages", icon: Package, blurb: "Prepaid hour blocks - sell studio time up front", capability: "invoices.read", group: "business" },
+  { label: "Packages", href: "/packages", icon: Package, blurb: "Prepaid hour blocks - sell studio time up front", feature: "packages", capability: "invoices.read", group: "business" },
   { label: "Expenses", href: "/expenses", icon: Wallet, blurb: "Costs and profit - the other half of the books", capability: "insights.read", group: "business" },
   { label: "Banking", href: "/banking", icon: Landmark, blurb: "Bank and card accounts, synced - balances, transactions and reconciliation", capability: "insights.read", group: "business" },
   { label: "Payroll", href: "/payroll", icon: Clock3, blurb: "Staff hours, rates and labor cost", feature: "schedule", capability: "insights.read", group: "business" },
