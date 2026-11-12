@@ -203,7 +203,7 @@ export const MODULES: ModuleDef[] = [
   { key: "reports", label: "Reports", area: "reporting", nav: true,
     blurb: "Revenue command center and operating KPIs" },
   { key: "apiExports", label: "Data exports", area: "reporting", nav: false,
-    blurb: "The studio's numbers, out, on demand" },
+    blurb: "The studio's numbers, out, on demand, on every plan" },
 
   // ── Branding & white label ──
   { key: "whiteLabelUi", label: "White-label UI", area: "brand", nav: false,

@@ -8,6 +8,7 @@ import { sendSms, type SmsStatus } from "./lib/sms";
 import { completeJSON } from "./lib/openai";
 import { fenceUntrusted } from "./lib/aiGuard";
 import { notifyTeam } from "./lib/notify";
+import { gatedFeatureOn } from "./lib/planGates";
 import { appUrl } from "./lib/links";
 import { stripEmDashes } from "./lib/text";
 
@@ -141,7 +142,7 @@ export const _context = internalQuery({
   },
   handler: async (ctx, { orgId, from, clientMessageId, artistId }) => {
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
-    const enabled = org?.aiReceptionistEnabled === true;
+    const enabled = org?.aiReceptionistEnabled === true && (await gatedFeatureOn(ctx, orgId, "aiReceptionist"));
 
     const phone = normalizePhone(from);
     const optOut = phone

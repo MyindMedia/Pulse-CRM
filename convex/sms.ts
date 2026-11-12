@@ -24,6 +24,7 @@ import {
   MANUAL_CLIENT,
 } from "./lib/smsTemplates";
 import { routeInbound } from "./smsFlows";
+import { gatedFeatureOn } from "./lib/planGates";
 import { parseSmsIntent } from "./lib/smsKeywords";
 import { zuopsSmsConfig, fetchZuopsInbound } from "./lib/zuopsSms";
 
@@ -404,7 +405,12 @@ async function handleInboundText(ctx: MutationCtx, from: string, body: string) {
       .query("messageThreads")
       .withIndex("by_org_artist", (q) => q.eq("orgId", match.orgId).eq("artistId", match._id))
       .first();
-    if (!consumed && org?.aiReceptionistEnabled === true && thread?.aiRepliesOff !== true) {
+    // The plan (Growth) and the operator's module switch are checked here too,
+    // not only when the switch was flipped (lib/planGates.ts).
+    if (
+      !consumed && org?.aiReceptionistEnabled === true && thread?.aiRepliesOff !== true &&
+      (await gatedFeatureOn(ctx, match.orgId, "aiReceptionist"))
+    ) {
       await ctx.scheduler.runAfter(0, internal.receptionist.handle, {
         orgId: match.orgId,
         from,

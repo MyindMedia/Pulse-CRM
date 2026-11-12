@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import { currentOrg } from "./lib/tenant";
 import { recomputeRoomStatus } from "./lib/roomStatus";
 import { sameEmail } from "./lib/emailKey";
+import { gatedFeatureOn, requireGatedFeature } from "./lib/planGates";
 
 /* ============================================================
    Visitors - the front-desk guest log.
@@ -21,6 +22,19 @@ import { sameEmail } from "./lib/emailKey";
    ============================================================ */
 
 const HOURLY_CHECKIN_CAP = 60;
+
+const CHECKIN_UNAVAILABLE = "Check-in is not available for this studio. Ask the front desk for help.";
+
+/** PUBLIC - may the /visit/<slug> page offer check-in? Says only yes or no,
+ *  so the page can show a plain message instead of a form that will fail. */
+export const checkInAvailable = query({
+  args: { slug: v.string() },
+  handler: async (ctx, { slug }) => {
+    const org = await ctx.db.query("orgs").withIndex("by_slug", (q) => q.eq("slug", slug)).first();
+    if (!org) return false;
+    return await gatedFeatureOn(ctx, org.orgId, "visitors");
+  },
+});
 
 // How far around "now" a booking counts as the visit the guest is arriving
 // for. Wide on the late side (a 9pm session's client can sign in at noon for
@@ -253,6 +267,10 @@ export const register = mutation({
       .first();
     if (!org) throw new Error("This check-in link isn't active. Ask the front desk for help.");
     const orgId = org.orgId;
+    // Visitor check-in is a Growth feature (lib/planGates.ts).
+    if (!(await gatedFeatureOn(ctx, orgId, "visitors"))) {
+      throw new Error(CHECKIN_UNAVAILABLE);
+    }
 
     // Abuse guard: an unauthenticated endpoint that writes CRM rows needs a
     // ceiling. 60 check-ins/org/hour is far above any real lobby's traffic.
@@ -291,6 +309,7 @@ export const registerManual = mutation({
   args: registerFields,
   handler: async (ctx, args) => {
     const orgId = await currentOrg(ctx);
+    await requireGatedFeature(ctx, orgId, "visitors");
     return recordVisit(ctx, orgId, args, "front_desk");
   },
 });
@@ -300,6 +319,7 @@ export const checkOut = mutation({
   args: { id: v.id("visitors") },
   handler: async (ctx, { id }) => {
     const orgId = await currentOrg(ctx);
+    await requireGatedFeature(ctx, orgId, "visitors");
     const visit = await ctx.db.get(id);
     if (!visit || visit.orgId !== orgId) throw new Error("Not found");
     if (visit.checkOutAt) return; // already checked out - keep the first stamp
@@ -313,6 +333,7 @@ export const list = query({
   args: { from: v.optional(v.number()), to: v.optional(v.number()) },
   handler: async (ctx, { from, to }) => {
     const orgId = await currentOrg(ctx);
+    await requireGatedFeature(ctx, orgId, "visitors");
     const visits = await ctx.db
       .query("visitors")
       .withIndex("by_org_checkin", (idx) => {
@@ -345,6 +366,7 @@ export const directory = query({
   args: {},
   handler: async (ctx) => {
     const orgId = await currentOrg(ctx);
+    await requireGatedFeature(ctx, orgId, "visitors");
     const visits = await ctx.db
       .query("visitors")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))

@@ -19,6 +19,7 @@ import {
 } from "./lib/entitlements";
 import { evaluateBillingGate, effectivePriceCents } from "./lib/billingGate";
 import { royaltiesSwitchOn } from "./lib/royaltiesGate";
+import { requireFeature } from "./lib/entitlements";
 
 /** Internal: every active, non-demo studio subaccount's orgId. The cron
  * fan-outs (weekly briefing, rate-cut sweep, ops-brain scan) iterate this
@@ -474,6 +475,9 @@ export const setAiReceptionist = mutation({
   args: { enabled: v.boolean() },
   handler: async (ctx, { enabled }) => {
     const orgId = await currentOrgWithCapability(ctx, "branding.edit");
+    // Turning it ON needs the plan (Growth) and the operator's module switch.
+    // Turning it off is always allowed.
+    if (enabled) await requireFeature(ctx, orgId, "aiReceptionist");
     const org = await ensureOrg(ctx, orgId);
     if (!org) throw new Error("Org not found");
     await ctx.db.patch(org._id, { aiReceptionistEnabled: enabled });

@@ -424,6 +424,10 @@ export default defineSchema({
     // "Suggest quiet-hour deals": the weekly sweep drafts promos for
     // underused windows only when this is on. Off when absent.
     quietHourDeals: v.optional(v.boolean()),
+    // Plan gates (truth-plan-gates): a studio below Growth that was already
+    // using the AI receptionist or visitor check-in keeps it until this
+    // date. Absent means no notice date has been set yet (keeps working).
+    planGraceUntil: v.optional(v.number()),
     // Marketing: which GHL location this org publishes through. Absent means
     // the platform default (GHL_LOCATION_ID + GHL_API_KEY). tokenRef names an
     // env var; the token itself is never stored in the database.
