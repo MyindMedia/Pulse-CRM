@@ -1032,6 +1032,12 @@ export const createBooking = mutation({
       : cfg.paymentMode === "full"
         ? rateCents
         : Math.round((rateCents * cfg.depositPct) / 100);
+    /* A room with a 0% deposit asks for nothing up front, so there is nothing
+       to hold the slot for: it is booked straight away, and the usual 2h
+       balance rule (automation.tick step 4) still applies. A 60-minute hold
+       here would ask for a $0 payment the checkout cannot take and then
+       release the slot. */
+    const noDepositDue = !asRequest && depositCents === 0;
     const sessionId = await ctx.db.insert("sessions", {
       orgId,
       title: `${args.clientName.trim()} - ${svc ? svc.name : room.name}`,
@@ -1047,7 +1053,7 @@ export const createBooking = mutation({
       roomId: roomId,
       startTime: args.startTime,
       endTime,
-      status: "tentative",
+      status: noDepositDue ? ("confirmed" as const) : ("tentative" as const),
       rateCents,
       depositCents,
       depositPaid: false,
@@ -1060,7 +1066,9 @@ export const createBooking = mutation({
       // never gets the 60-minute payment window (automation.tick step 3).
       ...(asRequest
         ? { requestStatus: "pending" as const }
-        : { holdExpiresAt: Date.now() + HOLD_MINUTES * 60_000 }),
+        : noDepositDue
+          ? {}
+          : { holdExpiresAt: Date.now() + HOLD_MINUTES * 60_000 }),
       ...(hidePricing ? { pricingHidden: true } : {}),
       ...(engineerId ? { engineerId, engineerRequestStatus: "pending" as const } : {}),
       ...(addOns.length ? { addOns } : {}),
@@ -1157,14 +1165,36 @@ export const createBooking = mutation({
         });
       }
     } else {
+      // Every hold message carries the pay link: an email-only booker has no
+      // other way to act on it. On a paid-in-full room the amount due is the
+      // whole price, so it is a "payment", not a "deposit".
+      const appUrl = process.env.APP_URL ?? "http://localhost:3000";
+      const payUrl = `${appUrl}/book/${org?.slug ?? ""}/checkout/${sessionId}`;
+      const dueWord = cfg.paymentMode === "full" ? "payment" : "deposit";
+      const payWhat = cfg.paymentMode === "full" ? `Pay ${money(depositCents)}` : `Pay the ${money(depositCents)} deposit`;
+      const held = noDepositDue
+        ? {
+            subject: `Booked - ${room.name}`,
+            email:
+              `Your ${args.durationHours}-hour session is booked. No deposit is needed.` +
+              (rateCents > 0
+                ? ` Pay the ${money(rateCents)} balance at least 2 hours before it starts, or the booking is released: ${payUrl}`
+                : ""),
+            sms:
+              `${room.name} is booked for you. No deposit is needed.` +
+              (rateCents > 0 ? ` Pay the ${money(rateCents)} balance at least 2 hours before it starts: ${payUrl}` : ""),
+          }
+        : {
+            subject: `Hold started - ${room.name}`,
+            email: `Your ${args.durationHours}-hour session is held. ${payWhat} within ${HOLD_MINUTES} minutes to confirm it: ${payUrl}`,
+            sms: `${room.name} is held for you. ${payWhat} within ${HOLD_MINUTES} min to confirm: ${payUrl}`,
+          };
       await notify(ctx, {
         orgId,
         channel: "email",
         recipient: args.clientEmail.trim(),
-        subject: `Hold started - ${room.name}`,
-        body: `Your ${args.durationHours}-hour session is held. Pay the ${money(
-          depositCents,
-        )} deposit within ${HOLD_MINUTES} minutes to confirm it.`,
+        subject: held.subject,
+        body: held.email,
         kind: "booking.held",
         sessionId,
       });
@@ -1174,14 +1204,12 @@ export const createBooking = mutation({
       // immediate confirmation.)
       const phoneE164 = args.clientPhone ? normalizePhone(args.clientPhone) : null;
       if (phoneE164) {
-        const appUrl = process.env.APP_URL ?? "http://localhost:3000";
-        const payUrl = `${appUrl}/book/${org?.slug ?? ""}/checkout/${sessionId}`;
         await notify(ctx, {
           orgId,
           channel: "sms",
           recipient: phoneE164,
-          subject: `Hold started - ${room.name}`,
-          body: `${room.name} is held for you. Pay the ${money(depositCents)} deposit within ${HOLD_MINUTES} min to confirm: ${payUrl}`,
+          subject: held.subject,
+          body: held.sms,
           kind: "booking.held",
           sessionId,
         });
@@ -1189,7 +1217,7 @@ export const createBooking = mutation({
       await notifyTeam(ctx, {
         orgId,
         subject: `New booking - ${room.name}, ${new Date(args.startTime).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`,
-        body: `${args.clientName} (${args.clientEmail.trim()}) requested ${args.durationHours}h in ${room.name}. The room is held pending the ${money(depositCents)} deposit.${engineerLine}${addOnLine}${requestLine}${discountLine}`,
+        body: `${args.clientName} (${args.clientEmail.trim()}) requested ${args.durationHours}h in ${room.name}. ${noDepositDue ? `No deposit was due, so it is booked; the ${money(rateCents)} balance is due 2 hours before start.` : `The room is held pending the ${money(depositCents)} ${dueWord}.`}${engineerLine}${addOnLine}${requestLine}${discountLine}`,
         kind: "booking.created",
         sessionId,
       });
