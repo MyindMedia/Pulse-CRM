@@ -746,11 +746,16 @@ export const executeApproval = internalAction({
       } else if (ap.actionType === "enable_automation") {
         const created = await ctx.runMutation(internal.agentAutomations._fromApproval, { orgId: ap.orgId, payload: ap.proposedPayload });
         ok = created; result = created ? "automation created" : "automation payload missing a prompt";
+      } else if (ap.actionType === "send_email" || ap.actionType === "send_sms") {
+        // A send with nobody to send to: nothing went out, so it is recorded
+        // as failed, never as approved.
+        ok = false; result = "not sent: no recipient";
       } else {
         // No executor for this type (lib/agentActions.ts). Record the approval
         // and what is still to be done; never mark it executed, because nothing
         // was created.
-        await ctx.runMutation(internal.agent._markNotDone, { id, result: `Approved, not done by Pulse. ${manualStepFor(ap.actionType)}` });
+        const step = manualStepFor(ap.actionType);
+        await ctx.runMutation(internal.agent._markNotDone, { id, result: step ? `Approved, not done by Pulse. ${step}` : "Approved, not done by Pulse." });
         return;
       }
     } catch (err) {

@@ -22,3 +22,10 @@ export function manualStepFor(actionType: string): string | null {
   if (isAutoExecuted(actionType)) return null;
   return WHERE[actionType] ?? "Pulse does not do this for you. Do it by hand.";
 }
+
+/** An email or text can be approved only with a recipient and a message:
+ *  without a recipient nothing would be sent. Other types need no fields. */
+export function canApproveSend(actionType: string, to: string, body: string): boolean {
+  if (actionType !== "send_email" && actionType !== "send_sms") return true;
+  return to.trim() !== "" && body.trim() !== "";
+}

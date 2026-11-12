@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Field, Input, Textarea } from "@/components/ui/field";
-import { manualStepFor } from "@convex/lib/agentActions";
+import { canApproveSend, manualStepFor } from "@convex/lib/agentActions";
 
 const RISK_TONE = { low: "neutral", medium: "caution", high: "critical", critical: "critical" } as const;
 
@@ -130,7 +130,7 @@ function Inner({ item, onClose }: { item: ApprovalItem; onClose: () => void }) {
 
       <DialogFooter>
         <Button variant="ghost" onClick={doReject} disabled={busy}><X className="size-4" />Reject</Button>
-        <Button onClick={doApprove} disabled={busy || (structured && !body.trim())}>
+        <Button onClick={doApprove} disabled={busy || !canApproveSend(item.actionType, to, body)}>
           {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
           {structured ? "Approve & send" : manualStep ? "Approve (I will do it)" : "Approve"}
         </Button>

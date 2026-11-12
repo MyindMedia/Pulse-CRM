@@ -140,6 +140,38 @@ describe("Pulse Agent", () => {
     expect(invoices).toHaveLength(0);
   });
 
+  it("an approved email or text with no recipient is recorded as failed, never 'null'", async () => {
+    const email = await import("./lib/email");
+    const sms = await import("./lib/sms");
+    const sendEmailSpy = vi.spyOn(email, "sendEmail");
+    const sendSmsSpy = vi.spyOn(sms, "sendSms");
+    for (const actionType of ["send_email", "send_sms"] as const) {
+      const id = await t.run(async (ctx) => ctx.db.insert("agentApprovals", {
+        orgId: ORG, actionType, title: "Follow up", explanation: "Standing rule.",
+        proposedPayload: { body: "Thanks for coming in" }, riskLevel: "low", status: "pending", createdAt: Date.now(),
+      }));
+      await t.mutation(api.agent.approveRequest, { id });
+      await drain(t);
+      const ap = await t.run(async (ctx) => ctx.db.get(id));
+      expect(ap?.status, actionType).toBe("failed");
+      expect(ap?.result, actionType).toBe("not sent: no recipient");
+      expect(ap?.result ?? "").not.toMatch(/null/);
+    }
+    expect(sendEmailSpy).not.toHaveBeenCalled();
+    expect(sendSmsSpy).not.toHaveBeenCalled();
+    sendEmailSpy.mockRestore();
+    sendSmsSpy.mockRestore();
+  });
+
+  it("the approve button needs a recipient and a message for a send", async () => {
+    const { canApproveSend } = await import("./lib/agentActions");
+    expect(canApproveSend("send_email", "", "Hi")).toBe(false);
+    expect(canApproveSend("send_sms", "   ", "Hi")).toBe(false);
+    expect(canApproveSend("send_email", "a@b.co", "  ")).toBe(false);
+    expect(canApproveSend("send_email", "a@b.co", "Hi")).toBe(true);
+    expect(canApproveSend("create_invoice", "", "")).toBe(true);
+  });
+
   it("an approved assistant text to a number that replied STOP is not sent", async () => {
     const sms = await import("./lib/sms");
     const spy = vi.spyOn(sms, "sendSms");
