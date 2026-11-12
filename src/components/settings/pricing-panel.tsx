@@ -691,7 +691,7 @@ function TaxConfigCard({ org }: { org: Org }) {
           />
           <span className="flex-1">
             <span className="block text-sm font-medium text-bone">
-              Apply tax to new invoices
+              Plan to charge tax (not active yet)
             </span>
             <span className="block text-xs text-steel">
               Saved for your records. Pulse does not add tax to invoices yet.
@@ -702,8 +702,9 @@ function TaxConfigCard({ org }: { org: Org }) {
         {selected && !selected.taxesServices && (
           <p className="rounded-md border border-caution/30 bg-caution/10 p-3 text-xs text-caution">
             Heads up: {selected.name} generally does <strong>not</strong> tax
-            recording-studio services. Most studios in this state leave the
-            checkbox off. Confirm with your accountant before flipping it on.
+            recording-studio services. This setting is saved for your records
+            only: Pulse does not add tax to any invoice. Confirm with your
+            accountant what to charge.
           </p>
         )}
       </CardContent>
