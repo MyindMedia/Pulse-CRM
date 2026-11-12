@@ -108,9 +108,11 @@ export function requestApproved(f: BookingFacts): Message {
   };
 }
 
-/** To the booker when the request is declined. */
-export function requestDeclined(f: BookingFacts & { reason?: string }): Message {
+/** To the booker when the request is declined. `refundText` is set when the
+    client already paid (e.g. "$60.00"): the studio owes it back, so say so. */
+export function requestDeclined(f: BookingFacts & { reason?: string; refundText?: string }): Message {
   const { date } = whenText(f);
+  const refund = f.refundText ? `Your ${f.refundText} payment will be refunded by the studio.` : "";
   return {
     subject: `About your request at ${f.studioName}`,
     body: [
@@ -118,10 +120,14 @@ export function requestDeclined(f: BookingFacts & { reason?: string }): Message 
       "",
       `Thanks for thinking of ${f.studioName}. Unfortunately we can't take the booking you requested for ${date}.`,
       ...(f.reason ? ["", f.reason] : []),
+      ...(refund ? ["", refund] : []),
       "",
       "We'd love to find another time that works. Reply to this email or send a new request anytime.",
     ].join("\n"),
-    sms: `${f.studioName}: sorry, we can't take your request for ${date}. Reply or send a new request and we'll find another time.`,
+    sms:
+      `${f.studioName}: sorry, we can't take your request for ${date}.` +
+      (refund ? ` ${refund}` : "") +
+      " Reply or send a new request and we'll find another time.",
   };
 }
 
