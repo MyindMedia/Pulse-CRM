@@ -288,8 +288,8 @@ export function ReadOnlyBanner() {
     <div role="status" className="flex items-start gap-3 rounded-lg border border-caution/30 bg-caution/10 px-4 py-3 text-sm text-bone">
       <Lock className="mt-0.5 size-4 shrink-0 text-caution" aria-hidden />
       <p>
-        <strong className="font-semibold">{READ_ONLY_REASON}</strong> It shares the one real Zuops account, so
-        buttons that write are off here. Everything still reads live.
+        <strong className="font-semibold">{READ_ONLY_REASON}</strong> Writes to Zuops are switched off on this
+        deployment, so buttons that change it are off here. Everything still reads live.
       </p>
     </div>
   );

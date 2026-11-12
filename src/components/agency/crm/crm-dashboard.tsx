@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { OP } from "./ops";
 import { useZuRead } from "./use-zu";
 import { NeedsFullAccess, SyncBar, TOUCH, ZuErrorState, dateTime, plural } from "./crm-ui";
+import { useCrm } from "./crm-context";
 import type { HealthScore, LimitsResponse, Overview, SetupStatus, Usage } from "./zu-types";
 
 /* Dashboard: overview tiles against the previous window, how far this window's
@@ -219,6 +220,8 @@ function HealthCard({ data }: { data: HealthScore }) {
 
 function SetupCard({ data }: { data: SetupStatus }) {
   const findings = setupFindings(data);
+  // The note is only true while there is no Full access key on this deployment.
+  const { hasAdminKey } = useCrm();
   return (
     <Card>
       <CardHeader>
@@ -237,7 +240,9 @@ function SetupCard({ data }: { data: SetupStatus }) {
                   <span className="block text-bone">{f.issue}</span>
                   {f.fix && <span className="block text-xs text-steel">{f.fix}</span>}
                 </span>
-                {f.needsAdmin ? <NeedsFullAccess /> : f.inAppOnly ? <span className="text-[0.6875rem] text-caution">Done in the Zuops app</span> : null}
+                {f.needsAdmin && !hasAdminKey ? <NeedsFullAccess />
+                  : f.needsAdmin ? <span className="text-[0.6875rem] text-steel">Fix it in the Settings tab</span>
+                  : f.inAppOnly ? <span className="text-[0.6875rem] text-caution">Done in the Zuops app</span> : null}
               </li>
             ))}
           </ul>

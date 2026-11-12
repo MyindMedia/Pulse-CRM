@@ -87,6 +87,20 @@ describe("Dashboard panel", () => {
   });
 });
 
+describe("Setup checklist and the Full access key", () => {
+  it("shows the Full access note only while there is no Full access key", () => {
+    reads[OP.overview] = { data: OVERVIEW };
+    reads[OP.healthScore] = { data: HEALTH };
+    reads[OP.setupStatus] = { data: SETUP };
+    expect(html()).toContain("Needs a Full access key");
+    queries["crm:status"] = { keyConfigured: true, writesOn: true, adminKey: true, webhookConfigured: true };
+    const out = html();
+    expect(out).not.toContain("Needs a Full access key");
+    expect(out).toContain("Fix it in the Settings tab");
+    expect(out).toContain("Done in the Zuops app");
+  });
+});
+
 describe("Dashboard logic", () => {
   it("deltas, speed and reach", () => {
     expect(deltaOf(10, 2)).toBe(4);
