@@ -18,7 +18,7 @@ import { OutreachWorkspace, PROSPECTING_SECTIONS } from "./outreach-workspace";
 
 beforeEach(() => { for (const k of Object.keys(fixtures)) delete fixtures[k]; });
 
-const SECTIONS = ["Overview", "Discover", "Prospects", "DMs", "Review queue", "Communications", "Meetings", "Links &amp; calendars", "Activity", "Settings"];
+const SECTIONS = ["Overview", "Discover", "Contacts", "DMs", "Review queue", "Communications", "Meetings", "Links &amp; calendars", "Activity", "Settings"];
 
 describe("OutreachWorkspace", () => {
   it("mounts the ten prospecting sections, in the old order, under its own label", () => {
@@ -30,9 +30,20 @@ describe("OutreachWorkspace", () => {
     expect(PROSPECTING_SECTIONS.map(([id]) => id)).toEqual(
       ["overview", "discover", "prospects", "dms", "drafts", "communications", "meetings", "links", "activity", "settings"],
     );
-    // The first section renders (loading until the queries answer).
-    expect(out).toMatch(/Loading/i);
+    // No inner tab is called Prospects any more (it was CRM > Prospects > Prospects).
+    expect(out).not.toContain(">Prospects</button>");
+    expect(PROSPECTING_SECTIONS.find(([id]) => id === "prospects")?.[1]).toBe("Contacts");
     expect(out).not.toContain("<h1");
+  });
+
+  it("opens on Contacts (the prospects inbox), not Overview (owner report 2026-11-11)", () => {
+    const out = renderToStaticMarkup(<OutreachWorkspace />);
+    const trigger = (label: string) => out.match(new RegExp(`<button[^>]*>${label}</button>`))?.[0] ?? "";
+    expect(trigger("Contacts")).toContain('data-state="active"');
+    expect(trigger("Overview")).toContain('data-state="inactive"');
+    // Only the active panel has content: the contacts inbox; Overview is an empty, hidden shell.
+    expect(out).toMatch(/<div[^>]*data-state="active"[^>]*id="[^"]*-content-prospects"/);
+    expect(out).toMatch(/<div[^>]*data-state="inactive"[^>]*id="[^"]*-content-overview"[^>]*><\/div>/);
   });
 
   it("shows the test-only banner from the outreach overview, as the old page did", () => {
