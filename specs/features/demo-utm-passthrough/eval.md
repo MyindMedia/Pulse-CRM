@@ -41,6 +41,7 @@ pass-through depends on.
 | R-02 | UI lab gate unchanged | same file, "UI lab gate" | PASS | |
 | R-03 | Lint and types | `npx eslint src/middleware.ts src/middleware.test.ts`, `npx tsc --noEmit` | PASS | both exit 0 |
 | R-04 | Full suite has no new failures | `npx vitest run` | PASS | 3462 pass, 3 fail; the same 3 fail on an untouched `origin/develop` (f1053f0), see note 2 |
+| S-01 | Security review of the diff (open redirect, header injection, data sent to the form host, auth gate, test strength) | fresh-context security reviewer, read-only, against commit 0a04256 | PASS | no Critical, High or Medium findings; one Low and two Info, see note 5 |
 | P-01 | Production: the live `/demo` forwards the query string | `curl -s -o /dev/null -w "%{redirect_url}" "https://studiopulse.tech/demo?utm_source=instagram&utm_medium=social&utm_campaign=ig-tour"` | PENDING | needs the staging deploy, then the `develop` → `main` promotion. Lawrence's call. |
 | P-02 | A tagged link's source lands on the Zuops lead record | submit the form once from a tagged link | NOT RUN | a real booking fires live owner alerts and a confirmation call; not done here on purpose |
 
@@ -57,3 +58,10 @@ pass-through depends on.
    form was already the destination.
 4. `/demo` is not served from a hosted staging build yet; U-06 ran against a local dev server (webpack,
    because Turbopack refuses this worktree's shared `node_modules` symlink).
+5. Security review findings left open for Lawrence, none blocking. Low: the forward is the whole query
+   string, so a future link that put an email or a token on a `/demo` URL would send it to the form host.
+   Nothing in the repo does that today (the in-repo `/demo` links carry no query). An allow-list
+   (`utm_*`, `fbclid`, `gclid`, …) would close it at the cost of dropping click ids not on the list.
+   Info: a query of several KB is forwarded as is and could exceed a header limit, failing only that
+   visitor's own redirect. Info: Clerk is mocked in the test, so "runs ahead of Clerk" is covered only by
+   the 302 assertions.
