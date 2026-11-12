@@ -79,6 +79,18 @@ export const access = query({
       // Demo path (no Clerk identity) returns true to keep the existing UX
       const identity = await ctx.auth.getUserIdentity();
       if (!identity) return { allowed: true, demo: true };
+      // Someone resolveViewer declined to treat as agency staff must not get
+      // the console shell back through the email allowlist below: a row for
+      // this user in the Pulse agency that is not active (any active row was
+      // resolved above) means they were invited or suspended there.
+      const pulse = await platformAgencyId(ctx);
+      if (pulse) {
+        const rows = await ctx.db
+          .query("agencyMembers")
+          .withIndex("by_clerk", (q) => q.eq("clerkUserId", identity.subject))
+          .collect();
+        if (rows.some((m) => m.agencyId === pulse)) return { allowed: false, demo: false };
+      }
       // Backwards-compat: email allowlist for projects that still use it
       const allow = (process.env.AGENCY_ADMIN_EMAILS ?? "")
         .split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
