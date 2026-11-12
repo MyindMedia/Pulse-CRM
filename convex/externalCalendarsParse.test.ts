@@ -49,3 +49,69 @@ describe("parseIcal: what counts as busy", () => {
     expect(out[0].startTime).toBe(Date.parse("2026-11-23T03:00:00Z"));
   });
 });
+
+/* Review 2026-11-12 R25, R26: a recurring series blocked only its first
+   occurrence. */
+describe("parseIcal: recurring events", () => {
+  const now = Date.parse("2026-11-10T12:00:00Z");
+  const rehearsal = [
+    vevent([
+      "UID:rehearsal",
+      "DTSTART;TZID=America/Los_Angeles:20260901T180000",
+      "DTEND;TZID=America/Los_Angeles:20260901T210000",
+      "RRULE:FREQ=WEEKLY;BYDAY=TU",
+      "EXDATE;TZID=America/Los_Angeles:20261117T180000",
+      "SUMMARY:Band rehearsal",
+    ]),
+    vevent([
+      "UID:rehearsal",
+      "RECURRENCE-ID;TZID=America/Los_Angeles:20261124T180000",
+      "DTSTART;TZID=America/Los_Angeles:20261124T190000",
+      "DTEND;TZID=America/Los_Angeles:20261124T220000",
+      "SUMMARY:Band rehearsal (late)",
+    ]),
+    vevent([
+      "UID:rehearsal",
+      "RECURRENCE-ID;TZID=America/Los_Angeles:20261201T180000",
+      "DTSTART;TZID=America/Los_Angeles:20261201T180000",
+      "DTEND;TZID=America/Los_Angeles:20261201T210000",
+      "STATUS:CANCELLED",
+      "SUMMARY:Band rehearsal",
+    ]),
+  ];
+
+  it("every Tuesday in the window is stored, with EXDATE skipped and overrides applied", () => {
+    const out = parseIcal(ics(...rehearsal), { tz: LA, now });
+    const starts = out.map((e) => new Date(e.startTime).toISOString());
+    // Before the window (Sept, Oct) is not stored.
+    expect(starts.some((s) => s.startsWith("2026-09") || s.startsWith("2026-10"))).toBe(false);
+    // Nov 10 6pm PT = Nov 11 02:00Z is in the window; Nov 17 is excluded.
+    expect(starts).toContain("2026-11-11T02:00:00.000Z");
+    expect(starts).not.toContain("2026-11-18T02:00:00.000Z");
+    // Nov 24 moved to 7pm; Dec 1 cancelled; Dec 8 still there.
+    expect(starts).toContain("2026-11-25T03:00:00.000Z");
+    expect(starts).not.toContain("2026-11-25T02:00:00.000Z");
+    expect(starts).not.toContain("2026-12-02T02:00:00.000Z");
+    expect(starts).toContain("2026-12-09T02:00:00.000Z");
+    // Roughly 26 weeks ahead, nothing beyond 180 days.
+    expect(out.length).toBeGreaterThan(20);
+    expect(out.every((e) => e.startTime <= now + 180 * 86_400_000)).toBe(true);
+    // One uid per occurrence.
+    const late = out.find((e) => e.title === "Band rehearsal (late)")!;
+    expect(late.uid).toBe(`rehearsal:${Date.parse("2026-11-25T03:00:00Z")}`);
+    expect(new Set(out.map((e) => e.uid)).size).toBe(out.length);
+  });
+
+  it("a weekly all-day series is expanded on the studio's own days", () => {
+    const out = parseIcal(
+      ics(vevent(["UID:closed-weekly", "DTSTART;VALUE=DATE:20261108", "DTEND;VALUE=DATE:20261109", "RRULE:FREQ=WEEKLY;COUNT=3", "SUMMARY:Closed Sundays"])),
+      { tz: LA, now },
+    );
+    expect(out.map((e) => new Date(e.startTime).toISOString())).toEqual([
+      "2026-11-08T08:00:00.000Z",
+      "2026-11-15T08:00:00.000Z",
+      "2026-11-22T08:00:00.000Z",
+    ]);
+    expect(out.every((e) => e.allDay && e.endTime - e.startTime === 86_400_000)).toBe(true);
+  });
+});

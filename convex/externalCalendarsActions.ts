@@ -15,6 +15,7 @@ import { lookup as dnsLookup } from "node:dns";
 import type { LookupFunction } from "node:net";
 import { fetchFeed, lookupRefusal, type IcalHop } from "./lib/icalGuard";
 import { zonedMidnight } from "./lib/tz";
+import type { VEvent } from "node-ical";
 
 type ParsedEvent = {
   uid: string;
@@ -84,6 +85,7 @@ type IcalEvent = {
   datetype?: string;
   status?: string;
   transparency?: string;
+  rrule?: unknown;
 };
 
 /** Does this event hold time? A cancelled event, or one marked Free
@@ -101,29 +103,57 @@ function dayStartIn(d: Date, tz: string): number {
   return zonedMidnight(d.getFullYear(), d.getMonth(), d.getDate(), tz);
 }
 
+const DAY_MS = 86_400_000;
+/** Recurring series are expanded over this window around now. */
+export const FEED_WINDOW_PAST_MS = DAY_MS;
+export const FEED_WINDOW_FUTURE_MS = 180 * DAY_MS;
+/** A runaway rule (every minute, forever) cannot flood the store. */
+const MAX_OCCURRENCES_PER_SERIES = 500;
+
+/** One stored event from a VEVENT (or one occurrence of it), or null when it
+ *  does not hold time. */
+function toParsed(ev: IcalEvent, start: unknown, end: unknown, allDay: boolean, uid: string, tz: string): ParsedEvent | null {
+  if (!holdsTime(ev) || !(start instanceof Date) || !(end instanceof Date)) return null;
+  const startTime = allDay ? dayStartIn(start, tz) : start.getTime();
+  const endTime = allDay ? dayStartIn(end, tz) : end.getTime();
+  if (!(endTime > startTime)) return null;
+  return {
+    uid,
+    title: String(ev.summary ?? "(untitled)"),
+    startTime,
+    endTime,
+    allDay,
+    location: ev.location ? String(ev.location) : undefined,
+    description: ev.description ? String(ev.description).slice(0, 1000) : undefined,
+  };
+}
+
 /** Pure: an .ics body -> the busy events Pulse stores. `tz` is the studio's
- *  zone, used for all-day events. */
-export function parseIcal(raw: string, opts: { tz: string }): ParsedEvent[] {
+ *  zone, used for all-day events. A recurring series (RRULE) becomes one event
+ *  per occurrence in [now - 1 day, now + 180 days], honouring EXDATE and
+ *  RECURRENCE-ID overrides, each with the uid `${uid}:${occurrenceStartMs}`. */
+export function parseIcal(raw: string, opts: { tz: string; now?: number }): ParsedEvent[] {
+  const now = opts.now ?? Date.now();
   const parsed = ical.sync.parseICS(raw) as Record<string, IcalEvent | undefined>;
   const out: ParsedEvent[] = [];
   for (const key of Object.keys(parsed)) {
     const ev = parsed[key];
     if (!ev || ev.type !== "VEVENT" || !holdsTime(ev)) continue;
     const uid = String(ev.uid ?? key);
-    if (!(ev.start instanceof Date) || !(ev.end instanceof Date)) continue;
-    const allDay = ev.datetype === "date";
-    const startTime = allDay ? dayStartIn(ev.start, opts.tz) : ev.start.getTime();
-    const endTime = allDay ? dayStartIn(ev.end, opts.tz) : ev.end.getTime();
-    if (!(endTime > startTime)) continue;
-    out.push({
-      uid,
-      title: String(ev.summary ?? "(untitled)"),
-      startTime,
-      endTime,
-      allDay,
-      location: ev.location ? String(ev.location) : undefined,
-      description: ev.description ? String(ev.description).slice(0, 1000) : undefined,
-    });
+    if (ev.rrule) {
+      const instances = ical.expandRecurringEvent(ev as unknown as VEvent, {
+        from: new Date(now - FEED_WINDOW_PAST_MS),
+        to: new Date(now + FEED_WINDOW_FUTURE_MS),
+        expandOngoing: true,
+      });
+      for (const inst of instances.slice(0, MAX_OCCURRENCES_PER_SERIES)) {
+        const one = toParsed(inst.event as unknown as IcalEvent, inst.start, inst.end, inst.isFullDay, "", opts.tz);
+        if (one) out.push({ ...one, uid: `${uid}:${one.startTime}` });
+      }
+      continue;
+    }
+    const one = toParsed(ev, ev.start, ev.end, ev.datetype === "date", uid, opts.tz);
+    if (one) out.push(one);
   }
   return out;
 }
