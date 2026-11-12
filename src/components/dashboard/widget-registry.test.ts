@@ -12,8 +12,11 @@ describe("default dashboard", () => {
     expect(fresh).toContain("today");
   });
 
-  it("shows the studio health score (sold on every plan)", () => {
-    expect(fresh).toContain("health");
+  it("keeps the studio health score in the tray, not on the default screen", () => {
+    // It runs a heavier query, so it loads only for people who add it.
+    expect(WIDGET_KEYS).toContain("health");
+    expect(DEFAULT_HIDDEN).toContain("health");
+    expect(fresh).not.toContain("health");
   });
 
   it("shows the Projects card", () => {

@@ -200,6 +200,9 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
     titled: false, // the panel carries its own label
     // Every plan includes the health score; it reads leadership numbers.
     capability: "insights.read",
+    // Off the default home screen: it is one click away in the tray, so the
+    // score only runs for people who chose it.
+    defaultHidden: true,
     render: () => <HealthPanel />,
   },
   /* ── Everything else: one click away in the Add widget tray ── */
