@@ -63,3 +63,25 @@ describe("hold message", () => {
     expect(mail?.body).toContain("/book/hold/checkout/");
   });
 });
+
+/* client-messages-engineer-finalized: the engineer email said "The booking is
+   finalized once you confirm", but the deposit is what confirms a public
+   booking. */
+describe("engineer request email", () => {
+  it("does not tell the engineer their answer finalizes the booking", async () => {
+    const t = convexTest(schema);
+    const room = await studio(t, {});
+    const eng = await t.run((ctx) =>
+      ctx.db.insert("members", { orgId: ORG, name: "Eve Engineer", role: "engineer", email: "eng@h.test", clerkUserId: "u_eng", skills: [] } as never),
+    );
+    await t.mutation(api.booking.createBooking, {
+      roomId: room, clientName: "Nova Client", clientEmail: "nova@x.test", startTime: Date.now() + 7 * DAY, durationHours: 2, engineerId: eng,
+    } as never);
+    const mail = await t.run(async (ctx) =>
+      (await ctx.db.query("notifications").collect()).find((n) => n.kind === "booking.engineer_requested"),
+    );
+    expect(mail?.body).toBeDefined();
+    expect(mail?.body).not.toContain("finalized once you confirm");
+    expect(mail?.body).toContain("Confirm so the studio knows you can take it.");
+  });
+});

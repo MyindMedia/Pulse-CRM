@@ -1222,8 +1222,9 @@ export const createBooking = mutation({
         sessionId,
       });
     }
-    // Personally notify the requested engineer - their confirmation is what
-    // finalizes the booking (managers can override from the session sheet).
+    // Personally notify the requested engineer. Their answer tells the studio
+    // they can take it; the deposit is what confirms a public booking
+    // (payments.ts), so the email does not say their answer finalizes it.
     if (engineerId) {
       await ctx.db.insert("activity", {
         orgId,
@@ -1244,7 +1245,7 @@ export const createBooking = mutation({
         subject: `Action needed: ${args.clientName} requested you - ${room.name}`,
         body: `${args.clientName} requested you for a ${args.durationHours}-hour session in ${room.name} on ${new Date(args.startTime).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}.
 
-${asRequest ? "It is a booking request: the studio still has to approve it, and your confirmation lets them know you can take it." : "The booking is finalized once you confirm."} Review it here: ${appUrl}/schedule`,
+${asRequest ? "It is a booking request: the studio still has to approve it, and your confirmation lets them know you can take it." : "Confirm so the studio knows you can take it."} Review it here: ${appUrl}/schedule`,
         kind: "booking.engineer_requested",
         sessionId,
       });
