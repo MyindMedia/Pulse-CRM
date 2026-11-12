@@ -167,8 +167,9 @@ export async function proposeWaitlistFill(ctx: MutationCtx, session: Doc<"sessio
     },
   };
 
+  // The entry stays "waiting" until the offer email actually goes out:
+  // opsActions.finalize marks it "notified" when the approved email is sent.
   await upsertProposed(ctx, session.orgId, [candidate]);
-  await ctx.db.patch(winner._id as Id<"waitlistEntries">, { status: "notified", lastNotifiedAt: Date.now() });
   return true;
 }
 

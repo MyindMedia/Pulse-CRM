@@ -467,6 +467,22 @@ export const finalize = internalMutation({
           });
         }
       }
+      // A waitlist offer: only now has the client been told, so only now is
+      // their entry "notified" (waitlist.proposeWaitlistFill leaves it waiting).
+      if (action.type === "waitlist_fill" && emailStatus !== "failed" && p.to) {
+        const to = p.to.trim().toLowerCase();
+        const waiting = await ctx.db
+          .query("waitlistEntries")
+          .withIndex("by_org_status", (q) => q.eq("orgId", action.orgId).eq("status", "waiting"))
+          .collect();
+        for (const e of waiting) {
+          const a = await ctx.db.get(e.artistId);
+          if (a?.email?.trim().toLowerCase() === to) {
+            await ctx.db.patch(e._id, { status: "notified", lastNotifiedAt: Date.now() });
+            break;
+          }
+        }
+      }
       result = `email ${emailStatus ?? "simulated"} to ${p.to ?? "n/a"}`;
     } else if (p.kind === "session_status") {
       const session = await ctx.db.get(p.sessionId);

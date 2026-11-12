@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { scoreEntry, rankWaitlist, bestFit, type RankableEntry, type FreedSlot } from "./waitlist";
 
 const ORG = "pulse-demo"; // demo viewer resolves to this org with owner caps
@@ -98,7 +98,42 @@ describe("waitlist smart-fill (integration)", () => {
     expect(res.actions[0].entityId).toBe(sessionId);
     expect(res.actions[0].payload.kind).toBe("email");
     expect(res.actions[0].payload.kind === "email" && res.actions[0].payload.to).toBe("nova@x.com");
-    expect(res.entry?.status).toBe("notified");
+    // Proposed is not sent: the client has not been told yet.
+    expect(res.entry?.status).toBe("waiting");
+
+    // Once the offer email is executed, the entry is notified.
+    await t.mutation(internal.opsActions.finalize, { id: res.actions[0]._id, emailStatus: "sent" });
+    const after = await t.run((ctx) => ctx.db.get(entryId));
+    expect(after?.status).toBe("notified");
+    expect(after?.lastNotifiedAt).toBeDefined();
+  });
+
+  it("a failed offer email leaves the entry waiting", async () => {
+    const { sessionId, entryId } = await t.run(async (ctx) => {
+      const waitingArtist = await ctx.db.insert("artists", {
+        orgId: ORG, name: "Nova", type: "artist", email: "nova@x.com", genres: [], tags: [],
+        status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
+      });
+      const bookedArtist = await ctx.db.insert("artists", {
+        orgId: ORG, name: "Booked", type: "artist", email: "b@x.com", genres: [], tags: [],
+        status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
+      });
+      const sessionId = await ctx.db.insert("sessions", {
+        orgId: ORG, title: "Tracking day", artistId: bookedArtist, serviceType: "recording",
+        startTime: Date.now() + DAY, endTime: Date.now() + DAY + 7_200_000,
+        status: "confirmed", rateCents: 20000, depositCents: 5000, depositPaid: true, intakeCompleted: false,
+      });
+      const entryId = await ctx.db.insert("waitlistEntries", {
+        orgId: ORG, artistId: waitingArtist, priority: "standard", status: "waiting", createdAt: Date.now(),
+      });
+      return { sessionId, entryId };
+    });
+    await t.mutation(api.sessions.setStatus, { id: sessionId, status: "cancelled" });
+    const action = await t.run(async (ctx) =>
+      (await ctx.db.query("opsActions").collect()).find((a) => a.orgId === ORG && a.type === "waitlist_fill"),
+    );
+    await t.mutation(internal.opsActions.finalize, { id: action!._id, emailStatus: "failed" });
+    expect((await t.run((ctx) => ctx.db.get(entryId)))?.status).toBe("waiting");
   });
 
   it("does not propose a fill when the waitlist is empty", async () => {
