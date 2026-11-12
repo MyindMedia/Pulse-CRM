@@ -176,7 +176,11 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
           channel: "email",
           recipient: email,
           subject: `Balance due - ${s.title}`,
-          body: `Your ${money(s.rateCents - paid)} balance is due before your session. Pay in full at least 2 hours before your start time to keep the booking.${payLink}`,
+          body: `Your ${money(s.rateCents - paid)} balance is due before your session. ${
+            s.source === "public_booking"
+              ? "Pay in full at least 2 hours before your start time to keep the booking."
+              : "Please pay before your session."
+          }${payLink}`,
           kind: "booking.balance_reminder",
           sessionId: s._id,
         });
@@ -396,7 +400,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
       await ctx.db.insert("activity", {
         orgId: s.orgId,
         kind: "session.completed",
-        summary: `${s.title} completed${invoiceId ? " - balance invoiced automatically" : ""}`,
+        summary: `${s.title} completed${invoiceId ? " - balance invoice drafted, send it from Invoices" : ""}`,
         entityType: "session",
         entityId: s._id,
         accent: "positive",

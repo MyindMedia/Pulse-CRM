@@ -29,12 +29,20 @@ export type RequestBooking = {
 };
 
 function copyFor(b: RequestBooking) {
-  if (b.requestStatus === "declined" || b.status === "cancelled") {
+  if (b.requestStatus === "declined") {
     return {
       Icon: XCircle,
       tone: "border-critical/30 bg-critical/10 text-critical",
       title: "The studio couldn't take this request",
-      body: "We sent you an email and a text. Send a new request anytime and we'll find another time.",
+      body: "We sent you the details. Send a new request anytime and we'll find another time.",
+    };
+  }
+  if (b.status === "cancelled") {
+    return {
+      Icon: XCircle,
+      tone: "border-critical/30 bg-critical/10 text-critical",
+      title: "This booking was cancelled",
+      body: "We sent you the details. Send a new request anytime and we'll find another time.",
     };
   }
   if (b.requestStatus === "approved" || b.status === "confirmed") {
@@ -42,7 +50,7 @@ function copyFor(b: RequestBooking) {
       Icon: CheckCircle,
       tone: "border-positive/30 bg-positive/10 text-positive",
       title: "You're confirmed",
-      body: "The studio approved your request. Your confirmation with the address is in your email and texts.",
+      body: "The studio approved your request. We sent you the details.",
     };
   }
   return {

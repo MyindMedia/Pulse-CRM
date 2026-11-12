@@ -646,7 +646,7 @@ async function assessNoShowShield(
         subject: `${nice} - ${s.title}`,
         body: `Hi ${artist.name},\n\nPer our booking policy, a ${label} of ${money(
           fee,
-        )} applies to your ${status === "no_show" ? "missed" : "late-cancelled"} session "${s.title}".${depositLine} We have sent an invoice for the ${money(
+        )} applies to your ${status === "no_show" ? "missed" : "late-cancelled"} session "${s.title}".${depositLine} The studio will send you an invoice for the ${money(
           additionalCents,
         )} balance. Reply here with any questions - we would love to get you rebooked.`,
         kind: `session.${feeKind}`,
@@ -784,7 +784,7 @@ export async function applyStatus(
       });
       await ctx.db.insert("activity", {
         orgId, kind: "session.completed",
-        summary: `${s.title} completed${invoiceId ? " - balance invoiced automatically" : " - paid in full, nothing left to invoice"}`,
+        summary: `${s.title} completed${invoiceId ? " - balance invoice drafted, send it from Invoices" : " - paid in full, nothing left to invoice"}`,
         entityType: "session", entityId: id, accent: "positive",
       });
     }

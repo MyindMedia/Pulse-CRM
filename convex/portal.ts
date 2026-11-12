@@ -220,7 +220,7 @@ function fallbackAnswer(c: NonNullable<Awaited<ReturnType<typeof gatherContext>>
     `You have ${c.songs.length} song${c.songs.length === 1 ? "" : "s"} in progress with ${c.studioName}.`,
     next ? `Your next session is "${next.title}" on ${fmtDate(next.startTime)}.` : "You have no upcoming sessions booked.",
     unpaid.length > 0 ? `You have ${unpaid.length} open invoice${unpaid.length === 1 ? "" : "s"} totaling $${(owed / 100).toFixed(2)}.` : "Your invoices are all settled.",
-    "For anything else, I will pass your question to the studio.",
+    "For anything else, send the studio a message below.",
   ];
   return parts.join(" ");
 }
@@ -250,7 +250,7 @@ export const ask = action({
     if (detectInjection(question)) {
       console.warn(`[portal.ask] injection attempt blocked studio="${c.studioName}" artist="${c.artistName}"`);
       return {
-        answer: `I can only help with your songs, sessions, and invoices at ${c.studioName}. I'll pass anything else along to the studio.`,
+        answer: `I can only help with your songs, sessions, and invoices at ${c.studioName}. For anything else, send the studio a message below.`,
         source: "blocked",
       };
     }
@@ -274,7 +274,7 @@ export const ask = action({
           `You are the client concierge for ${c.studioName}, helping the artist ${c.artistName}.`,
           tenantGuard(c.studioName),
           "Answer ONLY from the facts provided about this artist's songs, sessions, and invoices.",
-          "If the question is outside that, say you will pass it along to the studio. Never invent sessions, dates, or amounts.",
+          "If the question is outside that, tell them to send the studio a message below. Never invent sessions, dates, or amounts.",
         ].join(" "),
         maxOutputTokens: 300,
       },

@@ -38,7 +38,7 @@ export default function AgentPage() {
       <PageHeader
         overline="Studio intelligence"
         title="Pulse Agent"
-        description="Your AI studio operations manager. It reads this studio's data, flags what matters, and prepares actions for your approval - it never sends anything on its own."
+        description="Your AI studio operations manager. It reads this studio's data, flags what matters, and prepares actions for your approval. It never sends anything on its own unless you raise its autonomy."
         actions={
           <Button variant="outline" onClick={() => setInfoOpen(true)}>
             <Info className="size-4" />
