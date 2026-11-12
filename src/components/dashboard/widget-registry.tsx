@@ -178,16 +178,17 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
     capability: "invoices.read",
     render: () => <DepositsFeed />,
   },
-  /* ── Everything else: one click away in the Add widget tray ── */
   {
     key: "today",
     title: "Today board",
     blurb: "Live counters, rooms right now, timeline, arrivals, balances, on shift",
     span: "full",
     titled: false, // carries its own "Right now" / "Today's sessions" sections
-    defaultHidden: true,
+    // On by default: this is the "today screen" the plans sell (arrivals,
+    // balances, who is on, rooms busy until, tomorrow). /today lands here.
     render: () => <TodayBoard />,
   },
+  /* ── Everything else: one click away in the Add widget tray ── */
   {
     key: "wrapup",
     title: "Wrap-up & studio refresh",
