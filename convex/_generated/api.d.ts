@@ -399,6 +399,7 @@ import type * as splitSignatures from "../splitSignatures.js";
 import type * as stageDemo from "../stageDemo.js";
 import type * as stripeConnect from "../stripeConnect.js";
 import type * as stripeLedger from "../stripeLedger.js";
+import type * as strayPayments from "../strayPayments.js";
 import type * as studioBrain from "../studioBrain.js";
 import type * as studioImport from "../studioImport.js";
 import type * as studioManager from "../studioManager.js";
@@ -813,6 +814,7 @@ declare const fullApi: ApiFromModules<{
   stageDemo: typeof stageDemo;
   stripeConnect: typeof stripeConnect;
   stripeLedger: typeof stripeLedger;
+  strayPayments: typeof strayPayments;
   studioBrain: typeof studioBrain;
   studioImport: typeof studioImport;
   studioManager: typeof studioManager;

@@ -1687,6 +1687,44 @@ export default defineSchema({
     .index("by_org_paidAt", ["orgId", "paidAt"])
     .index("by_session", ["sessionId"]),
 
+  // ── Stray payments - money Stripe took on a studio's connected account
+  //    that Pulse could not apply: a booking released before the payment
+  //    landed, a cancelled (void) or unsent (draft) invoice, or a settle that
+  //    failed (for example a booking already paid in full). Kept apart from
+  //    `payments` so it never counts as revenue. A released booking or a
+  //    void/draft invoice is refunded automatically (strayPayments.refund);
+  //    anything else waits for the studio. One row per Stripe payment. ──
+  strayPayments: defineTable({
+    orgId: v.string(),
+    reason: v.union(
+      v.literal("released_booking"),
+      v.literal("void_invoice"),
+      v.literal("draft_invoice"),
+      v.literal("unmatched"),
+    ),
+    sessionId: v.optional(v.id("sessions")),
+    invoiceId: v.optional(v.id("invoices")),
+    eventId: v.string(), // the Stripe event that brought it in
+    paymentIntent: v.optional(v.string()),
+    checkoutSessionId: v.optional(v.string()),
+    stripeAccountId: v.string(),
+    amountCents: v.number(),
+    note: v.optional(v.string()),
+    status: v.union(
+      v.literal("refund_pending"),
+      v.literal("refunded"),
+      v.literal("refund_failed"),
+      v.literal("needs_review"),
+    ),
+    refundId: v.optional(v.string()),
+    error: v.optional(v.string()),
+    createdAt: v.number(),
+    resolvedAt: v.optional(v.number()),
+  })
+    .index("by_org", ["orgId"])
+    .index("by_event", ["eventId"])
+    .index("by_payment_intent", ["paymentIntent"]),
+
   // ── Notifications - confirmation / reminder messages. The notify() seam
   //    logs them here; real email/SMS delivery drops in behind it later. ──
   notifications: defineTable({

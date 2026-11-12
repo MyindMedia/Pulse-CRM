@@ -7,6 +7,8 @@ import { tierForPriceId } from "./lib/stripe";
 import { tierForPlan } from "./lib/tier";
 import { settlePayment } from "./payments";
 import { settleInvoice } from "./invoicePay";
+import { recordStrayPayment } from "./strayPayments";
+import { money } from "./lib/money";
 import { applyPackagePurchase } from "./packages";
 import { internal } from "./_generated/api";
 import { normalizeEmail } from "./lib/emailKey";
@@ -109,6 +111,17 @@ async function applyAgencySubscription(ctx: MutationCtx, ag: Doc<"agencies">, st
   if (ag.status === "paused" && ag.billingPausedOrgIds?.length) await unlockAgencyStudios(ctx, ag);
 }
 
+/** The Stripe facts a stray payment needs, read from a Checkout session. */
+function strayFields(eventId: string, stripeAccountId: string, obj: Record<string, unknown>) {
+  return {
+    eventId,
+    stripeAccountId,
+    paymentIntent: typeof obj.payment_intent === "string" && obj.payment_intent ? obj.payment_intent : undefined,
+    checkoutSessionId: typeof obj.id === "string" ? obj.id : undefined,
+    amountCents: typeof obj.amount_total === "number" ? obj.amount_total : 0,
+  };
+}
+
 async function connectedAccountOwnsOrg(ctx: MutationCtx, stripeAccountId: string | undefined, orgId: string): Promise<boolean> {
   if (!stripeAccountId) return false;
   const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
@@ -159,16 +172,44 @@ export const handle = internalMutation({
           return { ok: true };
         }
         const kind = (meta.kind as "deposit" | "balance" | "full") ?? "deposit";
+        const stray = strayFields(event.id, event.account!, obj);
+        // The booking was released (hold expired, forfeited or declined)
+        // before the money landed: the client owes nothing, so refund it in
+        // full and tell them and the team. Decided at the moment the webhook
+        // runs, so a booking the studio re-opened by hand is not refunded.
+        if (session.status === "cancelled") {
+          await recordStrayPayment(ctx, { orgId: session.orgId, reason: "released_booking", sessionId: session._id, ...stray });
+          await markProcessed(ctx, event.id, `${e.type}.released`);
+          return { ok: true };
+        }
         try {
-          await settlePayment(ctx, {
+          const settled = await settlePayment(ctx, {
             sessionId: session._id,
             kind,
             provider: "stripe",
-            reference: (obj.payment_intent as string) ?? (obj.id as string),
+            reference: stray.paymentIntent ?? stray.checkoutSessionId,
           });
+          // A Checkout opened before an earlier payment landed charges the
+          // old amount; Pulse applies only what was still owed. The rest is
+          // the client's money: flag it for the studio, never drop it.
+          const applied = settled.paidTotal - (session.amountPaidCents ?? 0);
+          if (stray.amountCents > applied) {
+            await recordStrayPayment(ctx, {
+              orgId: session.orgId,
+              reason: "unmatched",
+              sessionId: session._id,
+              ...stray,
+              amountCents: stray.amountCents - applied,
+              note: `the client paid ${money(stray.amountCents)} and only ${money(applied)} was still owed`,
+            });
+          }
         } catch (err) {
-          // Already-paid / released bookings settle to a no-op; don't 500 the webhook.
-          console.error("[webhook] settlePayment skipped:", (err as Error).message);
+          // Money came in that could not be applied (for example the booking
+          // is already paid in full): never drop it silently. The team is
+          // told to review it; nothing is refunded automatically.
+          const note = (err as Error).message;
+          console.error("[webhook] settlePayment skipped:", note);
+          await recordStrayPayment(ctx, { orgId: session.orgId, reason: "unmatched", sessionId: session._id, note, ...stray });
         }
         // Mark processed so a Stripe retry of this event can't double-record the
         // payment (settlePayment is not idempotent per-event).
