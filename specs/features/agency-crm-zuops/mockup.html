@@ -1,0 +1,504 @@
+<title>Pulse Agency CRM Mockup</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Anton&family=IBM+Plex+Mono:wght@400;500&family=Inter:wght@400;500;600;700&display=swap">
+<style>
+/* Layout: the agency console bar, one CRM header with sync state, a tab strip, and one working panel per tab.
+   Single dark look on purpose: this mirrors the Pulse hardware UI (docs/design/pulse-ui-kit/tokens.json). */
+:root{
+  color-scheme:dark;
+  --void:#0f0f11; --well:#161618; --side:#242427; --face:#2b2b2e; --raised:#343438; --high:#4a4a4e;
+  --edge:#3d3d41; --control:#7a7a80; --ink:#ffffff; --muted:#c9c9ce; --subtle:#a8a8ae;
+  --yellow:#ffc900; --yellow-ink:#241900; --positive:#3ddc91; --caution:#fbbf24; --critical:#ff5d5d; --info:#5db4ff;
+  --sans:"Inter",ui-sans-serif,system-ui,-apple-system,sans-serif;
+  --meta:"IBM Plex Mono",ui-monospace,"SF Mono",monospace;
+  --chrome:"Anton","Arial Narrow",Impact,sans-serif;
+  --r:10px;
+}
+*{box-sizing:border-box}
+html,body{background:var(--void)}
+body{color:var(--ink);font:14px/1.45 var(--sans);-webkit-font-smoothing:antialiased}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+:focus-visible{outline:2px solid var(--yellow);outline-offset:2px}
+.wrap{max-width:1180px;margin:0 auto;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.meta{font:500 10.5px/1.2 var(--meta);letter-spacing:.14em;text-transform:uppercase;color:var(--subtle)}
+.num{font-variant-numeric:tabular-nums}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.grow{flex:1 1 0;min-width:0}
+.scroll-x{overflow-x:auto}
+
+/* console bar */
+.bar{background:var(--well);border-bottom:1px solid var(--edge)}
+.bar .wrap{display:flex;align-items:center;gap:16px;height:56px}
+.mark{display:flex;align-items:center;gap:10px;flex:none}
+.mark b{font:400 20px/1 var(--chrome);letter-spacing:.04em;color:var(--yellow)}
+.mark span{border-left:1px solid var(--edge);padding-left:10px;font-weight:700}
+.nav{display:flex;gap:16px;overflow-x:auto;white-space:nowrap;font-size:12px;font-weight:500;color:var(--subtle);scrollbar-width:none;min-width:0}
+.nav::-webkit-scrollbar{display:none}
+.nav .on{color:var(--ink);box-shadow:inset 0 -2px 0 var(--yellow);padding-block:19px}
+.note{background:var(--side);border-bottom:1px solid var(--edge);color:var(--muted);font-size:12.5px}
+.note .wrap{padding-block:8px}
+
+/* header */
+.head{padding-block:22px 14px;display:flex;gap:14px;align-items:flex-end;flex-wrap:wrap}
+h1{font:400 30px/1 var(--chrome);letter-spacing:.03em;margin:0;text-wrap:balance}
+h2{font:600 15px/1.3 var(--sans);margin:0}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--edge);background:var(--side);border-radius:99px;padding:4px 10px;font-size:12px;color:var(--muted);white-space:nowrap}
+.dot{width:7px;height:7px;border-radius:50%;background:var(--subtle);flex:none}
+.ok .dot{background:var(--positive)} .warn .dot{background:var(--caution)} .bad .dot{background:var(--critical)} .inf .dot{background:var(--info)}
+.btn{min-height:36px;padding:0 14px;border-radius:8px;border:1px solid var(--control);background:var(--raised);font-weight:600;font-size:13px;display:inline-flex;align-items:center;gap:6px}
+.btn:hover{background:var(--high)}
+.btn.pri{background:var(--yellow);border-color:var(--yellow);color:var(--yellow-ink)}
+.btn.pri:hover{filter:brightness(1.08)}
+.btn.sm{min-height:30px;padding:0 10px;font-size:12px}
+.btn[disabled]{opacity:.5;cursor:not-allowed}
+.need{font-size:11.5px;color:var(--caution)}
+
+/* tabs */
+.tabs{display:flex;gap:2px;border-bottom:1px solid var(--edge)}
+.tab{min-height:44px;padding:0 13px;background:none;border:0;border-bottom:2px solid transparent;color:var(--subtle);font-weight:600;font-size:13px;white-space:nowrap}
+.tab[aria-selected="true"]{color:var(--ink);border-bottom-color:var(--yellow)}
+.tab .ct{font:500 10.5px var(--meta);background:var(--raised);border-radius:99px;padding:1px 6px;margin-left:5px;color:var(--muted)}
+.panel{padding-block:18px 56px;display:grid;gap:16px}
+
+/* surfaces */
+.card{background:var(--face);border:1px solid var(--edge);border-radius:var(--r);padding:16px;min-width:0}
+.well{background:var(--well);border:1px solid var(--edge);border-radius:var(--r);min-width:0}
+.tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px}
+.tile{background:var(--well);border:1px solid var(--edge);border-radius:var(--r);padding:12px 14px}
+.tile .v{font:400 28px/1.1 var(--chrome);letter-spacing:.02em;margin-top:8px}
+.tile .d{font-size:12px;color:var(--muted);margin-top:4px}
+.up{color:var(--positive)} .down{color:var(--critical)}
+.two{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:16px}
+.bars{display:grid;gap:9px;margin-top:14px}
+.bar-row{display:grid;grid-template-columns:86px minmax(0,1fr) 44px;gap:10px;align-items:center;font-size:12.5px}
+.track{height:10px;background:var(--well);border-radius:99px;overflow:hidden;border:1px solid var(--edge)}
+.fill{height:100%;background:var(--yellow);border-radius:99px}
+.list{display:grid;gap:0;margin:12px 0 0;padding:0;list-style:none}
+.list li{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--edge);font-size:13px}
+.list li:first-child{border-top:0}
+.sev{font:500 10px var(--meta);letter-spacing:.1em;text-transform:uppercase;border:1px solid currentColor;border-radius:4px;padding:2px 5px;flex:none;margin-top:1px}
+
+/* table */
+table{border-collapse:collapse;width:100%;min-width:760px;font-size:13px}
+th{font:500 10.5px var(--meta);letter-spacing:.12em;text-transform:uppercase;color:var(--subtle);text-align:left;padding:10px 12px;border-bottom:1px solid var(--edge);white-space:nowrap}
+td{padding:11px 12px;border-bottom:1px solid var(--edge);vertical-align:middle}
+tbody tr{cursor:pointer}
+tbody tr:hover,tbody tr:focus-visible{background:var(--side)}
+td small{display:block;color:var(--subtle);font-size:12px}
+.tag{display:inline-block;background:var(--raised);border-radius:4px;padding:1px 6px;font-size:11.5px;color:var(--muted);margin-right:4px}
+.stage{display:inline-flex;align-items:center;gap:6px;font-size:12px;font-weight:600;white-space:nowrap}
+.field{background:var(--well);border:1px solid var(--control);border-radius:8px;min-height:36px;padding:0 10px;min-width:0}
+textarea.field{padding:9px 10px;min-height:76px;width:100%;resize:vertical}
+label.f{display:grid;gap:5px;font-size:12px;color:var(--muted)}
+
+/* pipeline */
+.board{display:grid;grid-template-columns:repeat(5,minmax(200px,1fr));gap:10px;min-width:1040px}
+.col{background:var(--well);border:1px solid var(--edge);border-radius:var(--r);padding:10px;display:grid;gap:8px;align-content:start;min-height:260px}
+.col.over{border-color:var(--yellow)}
+.col header{display:flex;justify-content:space-between;align-items:center;font-weight:600;font-size:13px}
+.deal{background:var(--face);border:1px solid var(--edge);border-radius:8px;padding:10px;display:grid;gap:6px;cursor:grab}
+.deal small{color:var(--subtle);font-size:12px}
+.deal select{background:var(--well);border:1px solid var(--edge);border-radius:6px;min-height:28px;font-size:12px;padding:0 4px;width:100%}
+
+/* inbox */
+.inbox{display:grid;grid-template-columns:170px minmax(0,300px) minmax(0,1fr);min-height:520px;overflow:hidden}
+.inbox>*{min-width:0;border-right:1px solid var(--edge)}
+.inbox>*:last-child{border-right:0}
+.rail{padding:10px;display:grid;gap:2px;align-content:start}
+.rail button{display:flex;justify-content:space-between;align-items:center;min-height:36px;padding:0 10px;border:0;border-radius:7px;background:none;color:var(--muted);font-size:13px;text-align:left}
+.rail button.on{background:var(--raised);color:var(--ink);font-weight:600}
+.convs{overflow-y:auto;max-height:620px}
+.conv{display:grid;gap:3px;padding:11px 12px;border:0;border-bottom:1px solid var(--edge);background:none;width:100%;text-align:left}
+.conv.on{background:var(--side);box-shadow:inset 3px 0 0 var(--yellow)}
+.conv .top{display:flex;justify-content:space-between;gap:8px;font-size:13px}
+.conv .top b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conv p{margin:0;color:var(--subtle);font-size:12.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conv.unread .top b::before{content:"";display:inline-block;width:7px;height:7px;border-radius:50%;background:var(--yellow);margin-right:6px}
+.thread{display:grid;grid-template-rows:auto minmax(0,1fr) auto}
+.thread-head{padding:12px 14px;border-bottom:1px solid var(--edge);display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.msgs{padding:14px;display:grid;gap:10px;align-content:start;overflow-y:auto;max-height:340px}
+.msg{max-width:78%;padding:9px 12px;border-radius:12px;font-size:13.5px;background:var(--raised);justify-self:start}
+.msg.out{justify-self:end;background:var(--side);border:1px solid var(--edge)}
+.msg.sched{border-style:dashed;border-color:var(--control)}
+.msg i{display:block;font:500 10px var(--meta);letter-spacing:.08em;text-transform:uppercase;color:var(--subtle);font-style:normal;margin-bottom:3px}
+.suggest{margin:0 14px 10px;border:1px solid var(--info);border-radius:10px;padding:10px 12px;font-size:13px;display:grid;gap:8px}
+.compose{border-top:1px solid var(--edge);padding:12px 14px;display:grid;gap:8px}
+.seg{display:inline-flex;border:1px solid var(--control);border-radius:8px;overflow:hidden}
+.seg button{min-height:32px;padding:0 12px;border:0;background:none;font-size:12.5px;font-weight:600;color:var(--muted)}
+.seg button.on{background:var(--yellow);color:var(--yellow-ink)}
+.back{display:none}
+
+/* calendar */
+.day{display:grid;gap:8px}
+.appt{display:grid;grid-template-columns:86px minmax(0,1fr) auto;gap:12px;align-items:center;background:var(--well);border:1px solid var(--edge);border-radius:8px;padding:10px 12px}
+.slots{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+.slot{min-height:34px;padding:0 10px;border-radius:7px;border:1px solid var(--control);background:var(--well);font-size:12.5px}
+.slot.on{background:var(--yellow);border-color:var(--yellow);color:var(--yellow-ink);font-weight:700}
+
+/* switches */
+.sw{width:42px;height:24px;border-radius:99px;border:1px solid var(--control);background:var(--well);position:relative;flex:none;padding:0}
+.sw::after{content:"";position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--subtle);transition:transform .15s}
+.sw[aria-checked="true"]{background:var(--yellow);border-color:var(--yellow)}
+.sw[aria-checked="true"]::after{transform:translateX(18px);background:var(--yellow-ink)}
+.auto{display:grid;grid-template-columns:auto minmax(0,1fr) auto;gap:12px;align-items:center;padding:12px 0;border-top:1px solid var(--edge)}
+.auto:first-of-type{border-top:0}
+.auto small{color:var(--subtle);display:block;font-size:12px}
+
+/* states */
+.states{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+.state{background:var(--well);border:1px dashed var(--edge);border-radius:var(--r);padding:22px 16px;text-align:center;display:grid;gap:8px;justify-items:center}
+.state p{margin:0;color:var(--muted);font-size:13px;max-width:30ch}
+.sk{height:12px;border-radius:6px;background:linear-gradient(90deg,var(--raised),var(--high),var(--raised));background-size:200% 100%;animation:sh 1.4s linear infinite;width:100%}
+@keyframes sh{to{background-position:-200% 0}}
+
+/* sheet + dialog */
+.scrim{position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:40}
+.sheet{position:fixed;top:0;right:0;bottom:0;width:min(460px,100%);background:var(--face);border-left:1px solid var(--edge);z-index:41;overflow-y:auto;padding:calc(18px + env(safe-area-inset-top,0px)) max(18px,env(safe-area-inset-right,0px)) 24px 18px;display:grid;gap:14px;align-content:start}
+.dialog{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);width:min(440px,calc(100% - 32px));background:var(--face);border:1px solid var(--edge);border-radius:14px;z-index:41;padding:20px;display:grid;gap:12px}
+.kv{display:grid;grid-template-columns:110px minmax(0,1fr);gap:8px 12px;font-size:13px}
+.kv dt{color:var(--subtle)} .kv dd{margin:0;overflow-wrap:anywhere}
+.tl{display:grid;gap:8px;margin:0;padding:0;list-style:none;font-size:12.5px;color:var(--muted)}
+.tl li{border-left:2px solid var(--edge);padding-left:10px}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom,0px));transform:translateX(-50%);background:var(--ink);color:#111;border-radius:99px;padding:9px 16px;font-weight:600;font-size:13px;z-index:50;max-width:calc(100% - 32px)}
+
+@media (max-width:820px){
+  .two{grid-template-columns:minmax(0,1fr)}
+  .inbox{grid-template-columns:minmax(0,1fr)}
+  .inbox>*{border-right:0}
+  .rail{grid-auto-flow:column;grid-auto-columns:max-content;overflow-x:auto;border-bottom:1px solid var(--edge)}
+  .inbox.open .rail,.inbox.open .convs{display:none}
+  .inbox:not(.open) .thread{display:none}
+  .back{display:inline-flex}
+  .appt{grid-template-columns:minmax(0,1fr)}
+  .msg{max-width:92%}
+}
+@media (prefers-reduced-motion:reduce){.sk{animation:none}.sw::after{transition:none}}
+</style>
+
+<div class="bar"><div class="wrap">
+  <div class="mark"><b>PULSE</b><span>Agency</span></div>
+  <div class="nav" aria-label="Agency console (mock)">
+    <span>Sub-accounts</span><span>Plans</span><span>Agents</span><span>Autopilot</span><span>Outreach</span><span class="on">CRM</span><span>Email</span><span>Requests</span><span>Staff</span><span>Settings</span>
+  </div>
+</div></div>
+<div class="note"><div class="wrap">Design mockup for approval. The people and studios are invented examples. The counts, stages, calendar and automation names are what your Zuops account returned on Nov 11.</div></div>
+
+<div class="wrap">
+  <div class="head">
+    <div class="grow">
+      <div class="meta">Agency command center</div>
+      <h1>CRM</h1>
+    </div>
+    <div class="row">
+      <span class="chip ok"><span class="dot"></span>Zuops connected</span>
+      <span class="chip warn"><span class="dot"></span>Checks every minute</span>
+      <span class="chip"><span class="dot"></span><span id="synced">Synced 12 s ago</span></span>
+      <button class="btn sm" id="refresh" type="button">Refresh</button>
+    </div>
+  </div>
+
+  <div class="scroll-x"><div class="tabs" role="tablist" id="tabs"></div></div>
+
+  <!-- DASHBOARD -->
+  <section class="panel" id="p-dashboard" role="tabpanel">
+    <div class="tiles">
+      <div class="tile"><div class="meta">New leads · 30 d</div><div class="v num">10</div><div class="d"><span class="up">▲ 8</span> vs prior 30 d</div></div>
+      <div class="tile"><div class="meta">Not yet worked</div><div class="v num">6</div><div class="d">Status New</div></div>
+      <div class="tile"><div class="meta">Appointments</div><div class="v num">1</div><div class="d"><span class="up">▲ 1</span> vs prior 30 d</div></div>
+      <div class="tile"><div class="meta">Speed to lead</div><div class="v num">5 s</div><div class="d">Median first reply</div></div>
+      <div class="tile"><div class="meta">Won</div><div class="v num">0</div><div class="d">$0 sold</div></div>
+      <div class="tile"><div class="meta">Text slots today</div><div class="v num">300</div><div class="d">of 300 contacts left</div></div>
+    </div>
+    <div class="two">
+      <div class="card">
+        <h2>How far this month's leads got</h2>
+        <div class="bars" id="reach"></div>
+      </div>
+      <div class="card">
+        <div class="row"><h2 class="grow">Health score</h2><span class="chip warn"><span class="dot"></span>Needs attention</span></div>
+        <div class="tile" style="margin-top:12px;border:0;padding:0;background:none"><div class="v num">58<span style="font:500 14px var(--sans);color:var(--subtle)"> / 100</span></div></div>
+        <div class="bars" id="health"></div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="row"><h2 class="grow">Setup checklist</h2><span class="meta">From Zuops setup status</span></div>
+      <ul class="list">
+        <li><span class="sev" style="color:var(--caution)">Medium</span><span class="grow">The AI agent has no FAQ or business description, so it hands off most questions.</span><button class="btn sm" type="button" data-go="setup">Add FAQ</button></li>
+        <li><span class="sev" style="color:var(--subtle)">Low</span><span class="grow">Missed-call text-back is off.</span><button class="btn sm" type="button" data-go="setup">Turn on</button></li>
+        <li><span class="sev" style="color:var(--subtle)">Low</span><span class="grow">No website widget is enabled.</span><span class="need">Done in the Zuops app</span></li>
+        <li><span class="sev" style="color:var(--subtle)">Low</span><span class="grow">No client user has been invited.</span><span class="need">Needs a Full access key</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- LEADS -->
+  <section class="panel" id="p-leads" role="tabpanel" hidden>
+    <div class="row">
+      <input class="field grow" id="lead-search" type="search" placeholder="Search name, email, phone, notes" aria-label="Search leads">
+      <select class="field" id="lead-status" aria-label="Status"><option value="">Any status</option><option>new</option><option>contacted</option><option>booked</option><option>won</option><option>lost</option><option>partial</option></select>
+      <select class="field" id="lead-source" aria-label="Source"><option value="">Any source</option><option>instagram</option><option>api</option><option>smart form</option></select>
+      <button class="btn pri" type="button" id="new-lead">New lead</button>
+    </div>
+    <div class="well scroll-x">
+      <table>
+        <thead><tr><th>Lead</th><th>Contact</th><th>Stage</th><th>Source</th><th>Tags</th><th>Deal</th><th>Last activity</th></tr></thead>
+        <tbody id="lead-rows"></tbody>
+      </table>
+    </div>
+    <div class="row"><span class="meta grow" id="lead-count"></span><button class="btn sm" type="button" disabled>Previous</button><button class="btn sm" type="button" disabled>Next</button></div>
+  </section>
+
+  <!-- PIPELINE -->
+  <section class="panel" id="p-pipeline" role="tabpanel" hidden>
+    <div class="row"><span class="grow" style="color:var(--muted);font-size:13px">Drag a card, or use its Move menu. Zuops is updated first; a refusal puts the card back.</span><button class="btn sm" type="button" data-toast="Add stage: name, color, position">Add stage</button></div>
+    <div class="scroll-x"><div class="board" id="board"></div></div>
+  </section>
+
+  <!-- INBOX -->
+  <section class="panel" id="p-inbox" role="tabpanel" hidden>
+    <div class="well inbox" id="inbox">
+      <div class="rail" id="rail">
+        <button class="on" type="button">Inbox <span class="num">15</span></button>
+        <button type="button">Unread <span class="num">2</span></button>
+        <button type="button">Unassigned <span class="num">9</span></button>
+        <button type="button">Scheduled <span class="num">1</span></button>
+        <button type="button">AI suggested <span class="num">1</span></button>
+        <button type="button">Archived</button>
+      </div>
+      <div class="convs" id="convs"></div>
+      <div class="thread">
+        <div class="thread-head">
+          <button class="btn sm back" type="button" id="inbox-back">Back</button>
+          <div class="grow"><b id="t-name"></b><div style="color:var(--subtle);font-size:12px" id="t-sub"></div></div>
+          <span class="chip inf" id="ai-chip"><span class="dot"></span>AI on</span>
+          <button class="btn sm" type="button" id="ai-toggle">Pause AI</button>
+          <button class="btn sm" type="button" data-toast="Archived. Follow-up texts for this lead are off.">Archive</button>
+        </div>
+        <div class="msgs" id="msgs"></div>
+        <div>
+          <div class="suggest" id="suggest">
+            <div><span class="meta" style="color:var(--info)">AI suggested reply</span><div style="margin-top:4px">Thursday at 2 works. I'll send the invite now, and you can move it from the link if anything changes.</div></div>
+            <div class="row"><button class="btn sm pri" type="button" id="sg-send">Send this</button><button class="btn sm" type="button" id="sg-edit">Edit first</button><button class="btn sm" type="button" id="sg-no">Dismiss</button></div>
+          </div>
+          <div class="compose">
+            <div class="row">
+              <div class="seg" role="group" aria-label="Channel"><button class="on" type="button" data-ch="sms">Text</button><button type="button" data-ch="email">Email</button></div>
+              <span class="meta grow" id="from">From (213) 267-6846</span>
+              <span class="meta num">300 of 300 contacts left today</span>
+            </div>
+            <input class="field" id="subject" type="text" placeholder="Subject" aria-label="Email subject" hidden>
+            <textarea class="field" id="draft" placeholder="Write a message. {first_name} fills in the lead's name." aria-label="Message"></textarea>
+            <div class="row"><span class="grow" style="font-size:12px;color:var(--subtle)">Nothing is sent until you press Send.</span><button class="btn" type="button" id="schedule">Schedule</button><button class="btn pri" type="button" id="send">Send</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CALENDAR -->
+  <section class="panel" id="p-calendar" role="tabpanel" hidden>
+    <div class="two">
+      <div class="card">
+        <div class="row"><h2 class="grow">Appointments</h2><div class="seg"><button class="on" type="button">Agenda</button><button type="button">Week</button></div></div>
+        <div class="day" style="margin-top:14px">
+          <div class="meta">Thu, Nov 12</div>
+          <div class="appt"><div class="num"><b>2:00 PM</b><div style="color:var(--subtle);font-size:12px">30 min</div></div><div><b>Pulse demo · Northline Sound</b><div style="color:var(--subtle);font-size:12px">#1004 · Video call · Host Lawrence</div></div><div class="row"><span class="stage" style="color:var(--positive)">● Confirmed</span><button class="btn sm" type="button" data-appt>Open</button></div></div>
+          <div class="meta" style="margin-top:8px">Mon, Nov 16</div>
+          <div class="appt"><div class="num"><b>10:30 AM</b><div style="color:var(--subtle);font-size:12px">30 min</div></div><div><b>Pulse demo · Cedar Room Audio</b><div style="color:var(--subtle);font-size:12px">#1005 · Video call · Host Lawrence</div></div><div class="row"><span class="stage" style="color:var(--positive)">● Confirmed</span><button class="btn sm" type="button" data-appt>Open</button></div></div>
+          <div class="meta" style="margin-top:8px">Past</div>
+          <div class="appt"><div class="num"><b>Nov 6</b><div style="color:var(--subtle);font-size:12px">11:00 AM</div></div><div><b>Pulse demo · Low Tide Studios</b><div style="color:var(--subtle);font-size:12px">#1003 · Outcome not recorded</div></div><div class="row"><button class="btn sm" type="button" data-toast="Marked completed in Zuops">Completed</button><button class="btn sm" type="button" data-toast="Marked no-show in Zuops">No show</button></div></div>
+        </div>
+      </div>
+      <div class="card">
+        <h2>Book an appointment</h2>
+        <div style="display:grid;gap:10px;margin-top:12px">
+          <label class="f">Lead<select class="field" id="bk-lead"></select></label>
+          <label class="f">Calendar<select class="field" id="bk-cal"><option>Pulse | 30-minute demo</option></select></label>
+          <div><div class="meta">Open slots · Fri, Nov 13 · Pacific</div><div class="slots" id="slots"></div></div>
+          <label class="row" style="font-size:13px;color:var(--muted)"><input type="checkbox" id="bk-notify" checked> Send the lead the confirmation and reminders</label>
+          <button class="btn pri" type="button" id="book">Book</button>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CAMPAIGNS -->
+  <section class="panel" id="p-campaigns" role="tabpanel" hidden>
+    <div class="well scroll-x"><table>
+      <thead><tr><th>Campaign</th><th>Status</th><th>Recipients</th><th>Opened</th><th>Clicked</th><th>Replies</th><th></th></tr></thead>
+      <tbody>
+        <tr><td><b>Studio owners: what a missed booking costs</b><small>Draft · edited Nov 9</small></td><td><span class="stage" style="color:var(--subtle)">○ Draft</span></td><td class="num">18</td><td>–</td><td>–</td><td>–</td><td><button class="btn sm pri" type="button" data-confirm="Send this campaign to 18 leads?|It emails 18 real people from info@studiopulse.tech and uses credits. Opted-out leads are skipped by Zuops.|Send to 18 leads">Send</button></td></tr>
+        <tr><td><b>Demo follow-up: the 3-tap brief</b><small>Sent Oct 28</small></td><td><span class="stage" style="color:var(--positive)">● Sent</span></td><td class="num">12</td><td class="num">58%</td><td class="num">17%</td><td class="num">2</td><td><button class="btn sm" type="button" data-toast="Copied as a new draft">Duplicate</button></td></tr>
+      </tbody></table></div>
+  </section>
+
+  <!-- AUTOMATIONS -->
+  <section class="panel" id="p-automations" role="tabpanel" hidden>
+    <div class="card" id="autos"></div>
+    <p style="margin:0;color:var(--subtle);font-size:12.5px">Steps are built in the Zuops app. Here you switch an automation, see who is inside it, and add or remove leads.</p>
+  </section>
+
+  <!-- FORMS -->
+  <section class="panel" id="p-forms" role="tabpanel" hidden>
+    <div class="card">
+      <div class="row"><div class="grow"><h2>Pulse demo intake</h2><div style="color:var(--subtle);font-size:12.5px">studiopulse.tech/demo · books into Pulse | 30-minute demo</div></div><span class="chip ok"><span class="dot"></span>Published</span></div>
+      <div class="tiles" style="margin-top:12px"><div class="tile"><div class="meta">Views</div><div class="v num">214</div></div><div class="tile"><div class="meta">Submissions</div><div class="v num">11</div></div><div class="tile"><div class="meta">Completion</div><div class="v num">5.1%</div></div></div>
+    </div>
+    <div class="well scroll-x"><table>
+      <thead><tr><th>Submitted</th><th>Lead</th><th>Text consent</th><th>Call consent</th><th>Email consent</th><th>Booked</th></tr></thead>
+      <tbody>
+        <tr><td class="num">Nov 10, 4:12 PM</td><td>Maya Okafor<small>Northline Sound</small></td><td>Yes</td><td>Yes</td><td>Yes</td><td>Nov 12, 2:00 PM</td></tr>
+        <tr><td class="num">Nov 9, 9:40 AM</td><td>Dev Raman<small>Cedar Room Audio</small></td><td>No</td><td>Yes</td><td>Yes</td><td>Nov 16, 10:30 AM</td></tr>
+        <tr><td class="num">Nov 7, 1:05 PM</td><td>Unfinished<small>Left at step 2</small></td><td>–</td><td>–</td><td>–</td><td>–</td></tr>
+      </tbody></table></div>
+  </section>
+
+  <!-- CALLS -->
+  <section class="panel" id="p-calls" role="tabpanel" hidden>
+    <div class="state" style="padding-block:44px"><div class="meta">Calls</div><h2>No calls on your Zuops numbers yet</h2><p>Inbound, outbound, AI receptionist and AI campaign calls list here with the outcome, summary, transcript and recording.</p></div>
+    <p style="margin:0;color:var(--subtle);font-size:12.5px">Demo confirmation calls placed by Pulse stay under Outreach, Meetings.</p>
+  </section>
+
+  <!-- SETTINGS -->
+  <section class="panel" id="p-setup" role="tabpanel" hidden>
+    <div class="states" id="setup"></div>
+  </section>
+
+  <!-- STATES -->
+  <section class="panel" id="p-states" role="tabpanel" hidden>
+    <p style="margin:0;color:var(--muted)">Every tab shares these states.</p>
+    <div class="states">
+      <div class="state"><div class="meta">Loading</div><div class="sk"></div><div class="sk" style="width:70%"></div><div class="sk" style="width:85%"></div></div>
+      <div class="state"><div class="meta">Empty</div><h2>No leads match</h2><p>Clear the filters, or add a lead.</p><button class="btn sm" type="button">Clear filters</button></div>
+      <div class="state"><div class="meta" style="color:var(--critical)">Zuops refused</div><h2>That time was just taken</h2><p>Nothing was booked. Pick another slot.</p><button class="btn sm" type="button">See open slots</button></div>
+      <div class="state"><div class="meta" style="color:var(--caution)">Read only</div><h2>Staging cannot change Zuops</h2><p>Staging shares your real account, so buttons that write are off here.</p></div>
+      <div class="state"><div class="meta" style="color:var(--caution)">Not connected</div><h2>Zuops key missing</h2><p>Set ZUOPS_CRM_API_KEY on this deployment.</p></div>
+      <div class="state"><div class="meta" style="color:var(--critical)">No access</div><h2>Owner and admins only</h2><p>The CRM is limited to Pulse agency owners and admins.</p></div>
+    </div>
+  </section>
+</div>
+
+<div id="layer"></div>
+
+<script>
+(function(){
+  var $=function(s,r){return (r||document).querySelector(s)}, $$=function(s,r){return [].slice.call((r||document).querySelectorAll(s))};
+  var esc=function(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})};
+  var STAGES=[["new","New","var(--info)"],["contacted","Contacted","var(--caution)"],["booked","Booked","var(--yellow)"],["won","Won","var(--positive)"],["lost","Lost","var(--subtle)"]];
+  var LEADS=[
+    {id:1,n:"Maya Okafor",c:"Northline Sound",e:"maya@northline.example",p:"(213) 555-0142",st:"booked",src:"smart form",tags:["Demo booked"],deal:"$1,188",last:"2 h ago",city:"Los Angeles, CA"},
+    {id:2,n:"Dev Raman",c:"Cedar Room Audio",e:"dev@cedarroom.example",p:"(323) 555-0177",st:"booked",src:"smart form",tags:["Demo booked"],deal:"–",last:"Yesterday",city:"Glendale, CA"},
+    {id:3,n:"Priya Shah",c:"Low Tide Studios",e:"priya@lowtide.example",p:"(310) 555-0109",st:"contacted",src:"instagram",tags:["Studio"],deal:"–",last:"Nov 6",city:"Venice, CA"},
+    {id:4,n:"Marcus Bell",c:"Bell & Tape",e:"marcus@belltape.example",p:"(818) 555-0164",st:"contacted",src:"instagram",tags:[],deal:"–",last:"Nov 5",city:"Burbank, CA"},
+    {id:5,n:"Ana Souza",c:"Room 9 Recording",e:"ana@room9.example",p:"(562) 555-0121",st:"new",src:"api",tags:["Trial started"],deal:"$588",last:"Nov 4",city:"Long Beach, CA"},
+    {id:6,n:"Tom Whitaker",c:"Whitaker Mastering",e:"tom@whitaker.example",p:"",st:"new",src:"api",tags:["Trial started"],deal:"–",last:"Nov 3",city:"Pasadena, CA"},
+    {id:7,n:"Jules Ferrand",c:"Echo Park Tracking",e:"",p:"(213) 555-0198",st:"new",src:"instagram",tags:[],deal:"–",last:"Nov 1",city:"Los Angeles, CA"},
+    {id:8,n:"Sam Ortiz",c:"Ortiz Audio Lab",e:"sam@ortizaudio.example",p:"(626) 555-0133",st:"lost",src:"instagram",tags:["Not a fit"],deal:"–",last:"Oct 22",city:"Alhambra, CA"}
+  ];
+  var TABS=[["dashboard","Dashboard"],["leads","Leads",22],["pipeline","Pipeline"],["inbox","Inbox",2],["calendar","Calendar"],["campaigns","Campaigns"],["automations","Automations"],["forms","Forms"],["calls","Calls"],["setup","Settings"],["states","States"]];
+  var stage=function(k){for(var i=0;i<STAGES.length;i++)if(STAGES[i][0]===k)return STAGES[i];return STAGES[0]};
+  var layer=$("#layer");
+
+  function toast(t){var el=document.createElement("div");el.className="toast";el.setAttribute("role","status");el.textContent=t;document.body.appendChild(el);setTimeout(function(){el.remove()},2600)}
+  function close(){layer.innerHTML=""}
+  function open(html,cls){layer.innerHTML='<div class="scrim" data-close></div><div class="'+cls+'" role="dialog" aria-modal="true">'+html+'</div>';var f=$("button,input,select,textarea",layer.lastChild);if(f)f.focus()}
+  layer.addEventListener("click",function(e){if(e.target.closest("[data-close]"))close()});
+  document.addEventListener("keydown",function(e){if(e.key==="Escape")close()});
+  function confirmBox(title,body,cta,done){open('<h2>'+esc(title)+'</h2><p style="margin:0;color:var(--muted)">'+esc(body)+'</p><div class="row" style="justify-content:flex-end"><button class="btn" type="button" data-close>Cancel</button><button class="btn pri" type="button" id="cf-ok">'+esc(cta)+'</button></div>',"dialog");$("#cf-ok").onclick=function(){close();done()}}
+
+  /* tabs */
+  var tabs=$("#tabs");
+  tabs.innerHTML=TABS.map(function(t){return '<button class="tab" role="tab" type="button" id="t-'+t[0]+'" data-tab="'+t[0]+'" aria-selected="false">'+t[1]+(t[2]?'<span class="ct num">'+t[2]+'</span>':'')+'</button>'}).join("");
+  function show(k){if(!$("#p-"+k))k="dashboard";$$(".tab").forEach(function(b){b.setAttribute("aria-selected",b.dataset.tab===k?"true":"false")});$$(".panel").forEach(function(p){p.hidden=p.id!=="p-"+k})}
+  tabs.addEventListener("click",function(e){var b=e.target.closest(".tab");if(!b)return;try{location.hash=b.dataset.tab}catch(x){}show(b.dataset.tab)});
+  window.addEventListener("hashchange",function(){show(location.hash.slice(1))});
+  show(location.hash.slice(1)||"dashboard");
+  document.addEventListener("click",function(e){
+    var g=e.target.closest("[data-go]");if(g){show(g.dataset.go);return}
+    var t=e.target.closest("[data-toast]");if(t){toast(t.dataset.toast);return}
+    var c=e.target.closest("[data-confirm]");if(c){var p=c.dataset.confirm.split("|");confirmBox(p[0],p[1],p[2],function(){toast("Sent to Zuops")});return}
+    if(e.target.closest("[data-appt]"))open('<div class="row"><h2 class="grow">Pulse demo · Northline Sound</h2><button class="btn sm" type="button" data-close>Close</button></div><dl class="kv"><dt>When</dt><dd>Thu, Nov 12 · 2:00 to 2:30 PM Pacific</dd><dt>Number</dt><dd>#1004</dd><dt>Lead</dt><dd>Maya Okafor</dd><dt>Host</dt><dd>Lawrence</dd><dt>Where</dt><dd>Video call</dd><dt>Reminders</dt><dd>24 h and 1 h texts on</dd></dl><div class="row"><button class="btn" type="button" data-toast="Pick a new slot">Reschedule</button><button class="btn" type="button" data-toast="Cancelled in Zuops">Cancel appointment</button><button class="btn" type="button" data-toast="Marked completed">Completed</button><button class="btn" type="button" data-toast="Marked no-show">No show</button></div>',"sheet");
+  });
+  $("#refresh").onclick=function(){$("#synced").textContent="Synced just now";toast("Re-read from Zuops")};
+
+  /* dashboard bars */
+  $("#reach").innerHTML=[["New",10,10],["Contacted",4,10],["Booked",1,10],["Won",0,10]].map(function(r){return '<div class="bar-row"><span>'+r[0]+'</span><div class="track"><div class="fill" style="width:'+(r[1]/r[2]*100)+'%"></div></div><span class="num" style="text-align:right">'+r[1]+'</span></div>'}).join("");
+  $("#health").innerHTML=[["Speed to lead",25,25],["Lead flow",14,20],["Booking rate",6,25],["Answered",9,15],["Recency",4,15]].map(function(r){return '<div class="bar-row"><span>'+r[0]+'</span><div class="track"><div class="fill" style="width:'+(r[1]/r[2]*100)+'%"></div></div><span class="num" style="text-align:right">'+r[1]+'/'+r[2]+'</span></div>'}).join("");
+
+  /* leads */
+  function stageHtml(k){var s=stage(k);return '<span class="stage" style="color:'+s[2]+'">● <span style="color:var(--ink)">'+s[1]+'</span></span>'}
+  function drawLeads(){
+    var q=$("#lead-search").value.toLowerCase(),st=$("#lead-status").value,src=$("#lead-source").value;
+    var rows=LEADS.filter(function(l){return (!q||(l.n+l.c+l.e+l.p).toLowerCase().indexOf(q)>-1)&&(!st||l.st===st)&&(!src||l.src===src)});
+    $("#lead-rows").innerHTML=rows.map(function(l){return '<tr tabindex="0" data-lead="'+l.id+'"><td><b>'+esc(l.n)+'</b><small>'+esc(l.c)+'</small></td><td>'+esc(l.e||"No email")+'<small class="num">'+esc(l.p||"No phone")+'</small></td><td>'+stageHtml(l.st)+'</td><td>'+esc(l.src)+'</td><td>'+(l.tags.map(function(t){return '<span class="tag">'+esc(t)+'</span>'}).join("")||"–")+'</td><td class="num">'+l.deal+'</td><td>'+l.last+'</td></tr>'}).join("")||'<tr><td colspan="7" style="text-align:center;color:var(--muted);padding:28px">No leads match. Clear the filters, or add a lead.</td></tr>';
+    $("#lead-count").textContent=rows.length+" shown of 22 in Zuops";
+  }
+  ["input","change"].forEach(function(ev){$("#p-leads").addEventListener(ev,drawLeads)});
+  function leadSheet(l){
+    open('<div class="row"><div class="grow"><div class="meta">Lead</div><h2 style="font-size:18px">'+esc(l.n)+'</h2><div style="color:var(--subtle);font-size:12.5px">'+esc(l.c)+'</div></div><button class="btn sm" type="button" data-close>Close</button></div>'+
+      '<div class="row"><button class="btn sm pri" type="button" data-open-thread="'+l.id+'">Message</button><button class="btn sm" type="button" data-go="calendar" data-close>Book</button><button class="btn sm" type="button" data-toast="Marked won. Add the deal value.">Won</button><button class="btn sm" type="button" data-toast="Marked lost">Lost</button></div>'+
+      '<dl class="kv"><dt>Email</dt><dd>'+esc(l.e||"None")+'</dd><dt>Phone</dt><dd class="num">'+esc(l.p||"None")+'</dd><dt>City</dt><dd>'+esc(l.city)+'</dd><dt>Source</dt><dd>'+esc(l.src)+'</dd><dt>Deal</dt><dd class="num">'+l.deal+'</dd><dt>Text consent</dt><dd>Yes, from the demo form</dd></dl>'+
+      '<label class="f">Stage<select class="field" id="ls-stage">'+STAGES.map(function(s){return '<option value="'+s[0]+'"'+(s[0]===l.st?" selected":"")+'>'+s[1]+'</option>'}).join("")+'</select></label>'+
+      '<label class="f">Tags<input class="field" id="ls-tags" type="text" value="'+esc(l.tags.join(", "))+'"></label>'+
+      '<label class="f">Add a note<textarea class="field" id="ls-note" placeholder="@Name tags a teammate"></textarea></label>'+
+      '<div class="row" style="justify-content:flex-end"><button class="btn pri" type="button" id="ls-save">Save to Zuops</button></div>'+
+      '<div><div class="meta" style="margin-bottom:8px">Timeline</div><ul class="tl"><li>Stage moved to '+stage(l.st)[1]+' · '+l.last+'</li><li>Text sent by Lawrence · Nov 3</li><li>Lead created from '+esc(l.src)+' · Nov 1</li></ul></div>',"sheet");
+    $("#ls-save").onclick=function(){l.st=$("#ls-stage").value;l.tags=$("#ls-tags").value.split(",").map(function(t){return t.trim()}).filter(Boolean);close();drawLeads();drawBoard();toast("Saved in Zuops")};
+  }
+  $("#lead-rows").addEventListener("click",function(e){var r=e.target.closest("[data-lead]");if(r)leadSheet(LEADS[r.dataset.lead-1])});
+  $("#lead-rows").addEventListener("keydown",function(e){if(e.key==="Enter"){var r=e.target.closest("[data-lead]");if(r)leadSheet(LEADS[r.dataset.lead-1])}});
+  $("#new-lead").onclick=function(){open('<div class="row"><h2 class="grow">New lead</h2><button class="btn sm" type="button" data-close>Close</button></div><label class="f">Name<input class="field" id="nl-name" type="text"></label><label class="f">Email<input class="field" id="nl-email" type="email"></label><label class="f">Phone<input class="field" id="nl-phone" type="tel"></label><label class="f">Asked about<input class="field" id="nl-inq" type="text"></label><label class="row" style="font-size:13px;color:var(--muted)"><input type="checkbox" id="nl-intake"> Work it like a form lead (first text, follow-ups, team alert)</label><p style="margin:0;font-size:12px;color:var(--subtle)">Left unchecked, nothing is sent to the lead.</p><div class="row" style="justify-content:flex-end"><button class="btn pri" type="button" data-close data-toast="Lead created in Zuops">Create lead</button></div>',"sheet")};
+  layer.addEventListener("click",function(e){var b=e.target.closest("[data-open-thread]");if(b){close();show("inbox");pick(0)}});
+
+  /* pipeline */
+  function drawBoard(){
+    $("#board").innerHTML=STAGES.map(function(s){var ls=LEADS.filter(function(l){return l.st===s[0]});return '<div class="col" data-col="'+s[0]+'"><header><span style="color:'+s[2]+'">● <span style="color:var(--ink)">'+s[1]+'</span></span><span class="meta num">'+ls.length+'</span></header>'+ls.map(function(l){return '<div class="deal" draggable="true" data-id="'+l.id+'"><b>'+esc(l.n)+'</b><small>'+esc(l.c)+' · '+l.deal+'</small><select aria-label="Move '+esc(l.n)+'">'+STAGES.map(function(x){return '<option value="'+x[0]+'"'+(x[0]===l.st?" selected":"")+'>'+(x[0]===l.st?"In ":"Move to ")+x[1]+'</option>'}).join("")+'</select></div>'}).join("")+'</div>'}).join("");
+  }
+  function move(id,to){var l=LEADS[id-1];if(l.st===to)return;l.st=to;drawBoard();drawLeads();toast(l.n+" moved to "+stage(to)[1])}
+  var board=$("#board"),dragId=null;
+  board.addEventListener("dragstart",function(e){var d=e.target.closest(".deal");if(d){dragId=+d.dataset.id;e.dataTransfer.effectAllowed="move"}});
+  board.addEventListener("dragover",function(e){var c=e.target.closest(".col");if(c){e.preventDefault();$$(".col").forEach(function(x){x.classList.toggle("over",x===c)})}});
+  board.addEventListener("drop",function(e){var c=e.target.closest(".col");$$(".col").forEach(function(x){x.classList.remove("over")});if(c&&dragId){e.preventDefault();move(dragId,c.dataset.col);dragId=null}});
+  board.addEventListener("change",function(e){var d=e.target.closest(".deal");if(d)move(+d.dataset.id,e.target.value)});
+
+  /* inbox */
+  var CONVS=[
+    {l:0,unread:1,ch:"Text",t:"9:41 AM",m:[["in","Text","Hi, is Thursday at 2 still open for the demo?"]]},
+    {l:1,unread:1,ch:"Email",t:"Yesterday",m:[["out","Email · Lawrence","Dev, here is the 3-tap brief before Monday."],["in","Email","Got it. Can my engineer join the call too?"]]},
+    {l:2,unread:0,ch:"Text",t:"Nov 6",m:[["out","Text · Lawrence","Thanks for the time today, Priya. Sending the recap now."],["sched","Scheduled · Nov 13, 9:00 AM","Hi Priya, checking in on the recap. Any questions?"]]},
+    {l:4,unread:0,ch:"Text",t:"Nov 4",m:[["in","Text","Started the trial, where do I add my rooms?"],["out","Text · Sarah (AI)","Settings, then Rooms. I can walk you through it on a call if you like."]]}
+  ];
+  var cur=0,aiOn=true,chan="sms";
+  function drawConvs(){$("#convs").innerHTML=CONVS.map(function(c,i){var l=LEADS[c.l];return '<button class="conv'+(c.unread?" unread":"")+(i===cur?" on":"")+'" type="button" data-conv="'+i+'"><span class="top"><b>'+esc(l.n)+'</b><span class="meta">'+c.t+'</span></span><p>'+esc(c.m[c.m.length-1][2])+'</p><span class="meta">'+c.ch+' · '+stage(l.st)[1]+'</span></button>'}).join("")}
+  function drawThread(){var c=CONVS[cur],l=LEADS[c.l];$("#t-name").textContent=l.n;$("#t-sub").textContent=l.c+" · "+(l.p||l.e);$("#msgs").innerHTML=c.m.map(function(m){return '<div class="msg'+(m[0]==="in"?"":" out")+(m[0]==="sched"?" sched":"")+'"><i>'+esc(m[1])+'</i>'+esc(m[2])+'</div>'}).join("");$("#suggest").hidden=cur!==0;var box=$("#msgs");box.scrollTop=box.scrollHeight}
+  function pick(i){cur=i;CONVS[i].unread=0;drawConvs();drawThread();$("#inbox").classList.add("open")}
+  $("#convs").addEventListener("click",function(e){var b=e.target.closest("[data-conv]");if(b)pick(+b.dataset.conv)});
+  $("#inbox-back").onclick=function(){$("#inbox").classList.remove("open")};
+  $("#rail").addEventListener("click",function(e){var b=e.target.closest("button");if(!b)return;$$("#rail button").forEach(function(x){x.classList.toggle("on",x===b)})});
+  $("#ai-toggle").onclick=function(){aiOn=!aiOn;$("#ai-chip").className="chip "+(aiOn?"inf":"warn");$("#ai-chip").lastChild.textContent=aiOn?"AI on":"AI paused";this.textContent=aiOn?"Pause AI":"Resume AI";toast(aiOn?"AI replies back on for this lead":"AI paused for this lead")};
+  $$(".seg [data-ch]").forEach(function(b){b.onclick=function(){chan=b.dataset.ch;$$(".seg [data-ch]").forEach(function(x){x.classList.toggle("on",x===b)});$("#subject").hidden=chan!=="email";$("#from").textContent=chan==="email"?"From info@studiopulse.tech":"From (213) 267-6846"}});
+  function push(kind,label,text){CONVS[cur].m.push([kind,label,text]);drawThread();drawConvs()}
+  $("#send").onclick=function(){var v=$("#draft").value.trim();if(!v){toast("Write a message first");return}if(chan==="email"&&!$("#subject").value.trim()){toast("An email needs a subject");return}push("out",(chan==="email"?"Email":"Text")+" · Lawrence",v);$("#draft").value="";toast("Sent through Zuops")};
+  $("#schedule").onclick=function(){var v=$("#draft").value.trim();if(!v){toast("Write a message first");return}push("sched","Scheduled · tomorrow, 9:00 AM",v);$("#draft").value="";toast("Scheduled. Edit or cancel it from the thread.")};
+  $("#sg-send").onclick=function(){push("out","Text · Lawrence","Thursday at 2 works. I'll send the invite now, and you can move it from the link if anything changes.");$("#suggest").hidden=true;toast("Suggested reply sent")};
+  $("#sg-edit").onclick=function(){$("#draft").value="Thursday at 2 works. I'll send the invite now.";$("#suggest").hidden=true;$("#draft").focus()};
+  $("#sg-no").onclick=function(){$("#suggest").hidden=true;toast("Dismissed")};
+
+  /* calendar */
+  $("#bk-lead").innerHTML=LEADS.map(function(l){return '<option>'+esc(l.n)+' · '+esc(l.c)+'</option>'}).join("");
+  $("#slots").innerHTML=["9:00 AM","9:30 AM","11:00 AM","1:30 PM","2:00 PM","3:30 PM","4:00 PM"].map(function(s,i){return '<button class="slot'+(i===2?" on":"")+'" type="button">'+s+'</button>'}).join("");
+  $("#slots").addEventListener("click",function(e){var b=e.target.closest(".slot");if(b)$$(".slot").forEach(function(x){x.classList.toggle("on",x===b)})});
+  $("#book").onclick=function(){var s=$(".slot.on");toast("Booked Fri, Nov 13 at "+(s?s.textContent:"")+($("#bk-notify").checked?". Confirmation sent.":". Booked quietly."))};
+
+  /* automations */
+  var AUTOS=[["Pulse | Demo booked - pipeline and brief",true,"Appointment booked · 4 runs"],["Pulse | Won customer - onboarding handoff",true,"Lead won · 0 runs"],["Pulse | Lost lead - stop outreach",true,"Lead lost · 1 run"],["Pulse | Demo day-before reminder",false,"Before appointment · sends a text"],["Pulse | Demo no-show - review and rebook",false,"No show · sends a text"],["Pulse | Reply received - human handoff",false,"Message received · alerts the team"]];
+  $("#autos").innerHTML='<div class="row"><h2 class="grow">Automations</h2><span class="meta">3 on · 14 total</span></div>'+AUTOS.map(function(a,i){return '<div class="auto"><button class="sw" type="button" role="switch" aria-checked="'+a[1]+'" aria-label="'+esc(a[0])+'" data-auto="'+i+'"></button><div><b>'+esc(a[0])+'</b><small>'+esc(a[2])+'</small></div><div class="row"><button class="btn sm" type="button" data-toast="2 leads are inside this automation">Who is inside</button><button class="btn sm" type="button" data-confirm="Enroll 3 selected leads?|This automation can text and email them. They start within today\'s contact limit.|Enroll 3 leads">Enroll</button></div></div>'}).join("");
+  $("#autos").addEventListener("click",function(e){var s=e.target.closest(".sw");if(!s)return;var on=s.getAttribute("aria-checked")==="true";if(on){s.setAttribute("aria-checked","false");toast("Switched off in Zuops");return}confirmBox("Switch this automation on?",AUTOS[s.dataset.auto][0]+" will run for real leads, including any texts or emails in its steps.","Switch on",function(){s.setAttribute("aria-checked","true");toast("Switched on in Zuops")})});
+
+  /* settings */
+  $("#setup").innerHTML=[["Business profile","Name, hours, timezone, address","Edit",1],["Phone numbers","2 numbers · texting registration ready","View",1],["AI texting","Sarah · auto-greet on · 7 auto replies","Edit",1],["AI receptionist","Alex · off","Edit",1],["Knowledge base","Empty · the AI hands off most questions","Add FAQ",1],["Follow-up sequence","Text off · email on","Edit",1],["Appointment emails","Confirmed, moved, cancelled","Edit",1],["Tags","3 tags","Manage",1],["Custom fields","3 consent fields","Manage",1],["Lead sources","Links that tag where a lead came from","Manage",1],["Lead routing","Round robin off","Edit",1],["Team","1 owner","Invite",0],["Alert recipients","2 recipients","Add",0],["Webhooks","1 off · live updates not registered","Register",0]].map(function(s){return '<div class="card" style="display:grid;gap:8px;align-content:start"><h2>'+s[0]+'</h2><div style="color:var(--muted);font-size:13px">'+s[1]+'</div><div class="row"><button class="btn sm" type="button"'+(s[3]?' data-toast="Opens the '+s[0]+' editor"':" disabled")+'>'+s[2]+'</button>'+(s[3]?"":'<span class="need">Needs a Full access key</span>')+'</div></div>'}).join("");
+
+  drawLeads();drawBoard();drawConvs();drawThread();$("#inbox").classList.remove("open");
+})();
+</script>
