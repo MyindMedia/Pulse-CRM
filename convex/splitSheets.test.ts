@@ -113,7 +113,7 @@ describe("split sheet spotlight (payments page)", () => {
       await ctx.db.insert("splitSheets", {
         orgId: ORG, songId: sent, status: "sent", updatedAt: Date.now() - 60_000,
         contributors: [
-          { name: "Nova Vega", role: "Artist, writer", masterPct: 40, publishingPct: 40, signed: true, email: "nova@x.com" },
+          { name: "Nova Vega", role: "Artist, writer", masterPct: 40, publishingPct: 40, signed: true, signedAt: 1, signature: "Nova Vega", email: "nova@x.com" },
           { name: "K. Ade", role: "Co-writer", masterPct: 60, publishingPct: 60, signed: false, email: "k@x.com" },
         ],
       });

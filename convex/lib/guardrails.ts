@@ -23,6 +23,8 @@
    human approval).
    ============================================================ */
 
+import { isSheetExecuted } from "./splitSigning";
+
 const DAY = 86_400_000;
 
 export type RiskCategory = "pipeline" | "songs" | "splitsheets" | "studio_scheduling" | "staff_scheduling" | "finance";
@@ -58,7 +60,7 @@ const NEAR_RELEASE = new Set(["mastering", "delivered", "released"]);
  *  Songs before mastering are not yet gated. Use to block release actions. */
 export function isReleasable(stage: string, splitStatus: string | undefined): boolean {
   if (!NEAR_RELEASE.has(stage)) return true;
-  return splitStatus === "fully_executed";
+  return isSheetExecuted(splitStatus);
 }
 
 export type SongLite = { id: string; title: string; stage: string; splitStatus?: string; updatedAt: number; deadline?: number };

@@ -155,7 +155,7 @@ describe("split-sheet e-signature", () => {
       return ctx.db.insert("splitSheets", {
         orgId: ORG, songId, status: "sent", updatedAt: Date.now(),
         contributors: [
-          { name: "Already", role: "Writer", masterPct: 50, publishingPct: 50, email: "a@x.com", signed: true },
+          { name: "Already", role: "Writer", masterPct: 50, publishingPct: 50, email: "a@x.com", signed: true, signedAt: 1, signature: "Already", signatureKind: "typed" },
           { name: "Last One", role: "Producer", masterPct: 50, publishingPct: 50, email: "last@x.com", signed: false },
         ],
       });

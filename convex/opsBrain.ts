@@ -18,6 +18,7 @@ import type { MutationCtx } from "./_generated/server";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { invoicePayUrl } from "./lib/links";
+import { isSheetExecuted } from "./lib/splitSigning";
 import {
   leadCandidates,
   prepCandidates,
@@ -345,7 +346,7 @@ export async function gatherSignals(ctx: MutationCtx, orgId: string): Promise<Si
   const sheetBySong = new Map(splitSheets.map((sh) => [sh.songId, sh] as const));
   const NEAR_DELIVERY = new Set(["mixing", "mastering", "delivered"]);
   const splitSheetChase = songs
-    .filter((song) => NEAR_DELIVERY.has(song.stage) && sheetBySong.get(song._id)?.status !== "fully_executed")
+    .filter((song) => NEAR_DELIVERY.has(song.stage) && !isSheetExecuted(sheetBySong.get(song._id)?.status))
     .slice(0, 10)
     .map((song) => ({ id: song._id, title: song.title }));
 
@@ -425,7 +426,7 @@ export async function gatherSignals(ctx: MutationCtx, orgId: string): Promise<Si
       const missing: string[] = [];
       if (!song.isrc) missing.push("ISRC");
       if (!song.iswc) missing.push("ISWC");
-      if (sheetBySong.get(song._id)?.status !== "fully_executed") missing.push("an executed split sheet");
+      if (!isSheetExecuted(sheetBySong.get(song._id)?.status)) missing.push("an executed split sheet");
       return { id: song._id, title: song.title, missing };
     })
     .filter((g) => g.missing.length > 0)

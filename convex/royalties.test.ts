@@ -32,6 +32,8 @@ async function setup(tier: TierKey = "max", enabled = true) {
     });
     const c = (name: string, email: string, masterPct: number, signed: boolean) => ({
       name, email, role: "Writer", masterPct, publishingPct: masterPct, signed,
+      // A real signature carries its record (only the signing link sets these).
+      ...(signed ? { signedAt: 1, signature: name, signatureKind: "typed" as const } : {}),
     });
     const sheetId = await ctx.db.insert("splitSheets", {
       orgId: "o1", songId, status: "sent", updatedAt: 0,
@@ -113,7 +115,13 @@ describe("statements", () => {
     ]);
     expect(await t.run((ctx) => ctx.db.query("royaltyShares").collect())).toHaveLength(0);
 
-    await as("u_owner").mutation(api.splitSheets.setStatus, { id: sheetId, status: "fully_executed" });
+    // Two people have not signed, so the sheet cannot be called fully
+    // executed; the owner records the paper signatures instead.
+    await expect(
+      as("u_owner").mutation(api.splitSheets.setStatus, { id: sheetId, status: "fully_executed" }),
+    ).rejects.toMatchObject({ data: { code: "SPLIT_NOT_SIGNED" } });
+    expect(await t.run((ctx) => ctx.db.query("royaltyShares").collect())).toHaveLength(0);
+    await as("u_owner").mutation(api.splitSheets.markSignedOutsidePulse, { id: sheetId, note: "Paper sheet signed 3 May, in the studio safe" });
     const shares = await t.run((ctx) => ctx.db.query("royaltyShares").collect());
     expect(shares.map((s) => [s.contributorKey, s.amountCents])).toEqual([
       ["ana@x.com", 20600],

@@ -241,6 +241,7 @@ import type * as lib_smsTemplates from "../lib/smsTemplates.js";
 import type * as lib_softwareCatalog from "../lib/softwareCatalog.js";
 import type * as lib_songEnrich from "../lib/songEnrich.js";
 import type * as lib_specLookup from "../lib/specLookup.js";
+import type * as lib_splitSigning from "../lib/splitSigning.js";
 import type * as lib_starter from "../lib/starter.js";
 import type * as lib_statements from "../lib/statements.js";
 import type * as lib_stripe from "../lib/stripe.js";
@@ -655,6 +656,7 @@ declare const fullApi: ApiFromModules<{
   "lib/softwareCatalog": typeof lib_softwareCatalog;
   "lib/songEnrich": typeof lib_songEnrich;
   "lib/specLookup": typeof lib_specLookup;
+  "lib/splitSigning": typeof lib_splitSigning;
   "lib/starter": typeof lib_starter;
   "lib/statements": typeof lib_statements;
   "lib/stripe": typeof lib_stripe;
