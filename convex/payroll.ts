@@ -1,9 +1,11 @@
 import { query } from "./_generated/server";
-import type { QueryCtx } from "./_generated/server";
+import type { MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
+import type { Id } from "./_generated/dataModel";
 import { currentOrgWithCapability } from "./lib/tenant";
-import { memberPay, hoursBetween } from "./lib/payroll";
+import { memberPay, hoursBetween, payableEntries, needsClockOut } from "./lib/payroll";
+import { orgTz, whenLabel } from "./lib/tz";
 
 /* ============================================================
    Payroll - the admin side of the time clock. Per-staff hours +
@@ -56,7 +58,9 @@ export const setSchedule = mutation({
   },
 });
 
-/** Per-staff hours + pay for a window, plus totals. */
+/** Per-staff hours + pay for a window, plus totals. Voided entries count for
+ *  nothing; an entry left open more than 12 hours is a forgotten clock-out,
+ *  left out of pay and counted in `needsClockOutCount` until a manager fixes it. */
 export const summary = query({
   args: { start: v.number(), end: v.number() },
   handler: async (ctx, { start, end }) => {
@@ -73,6 +77,7 @@ export const summary = query({
 
     const byMember = new Map<string, typeof entries>();
     for (const e of entries) {
+      if (e.voidedAt) continue;
       const a = byMember.get(e.memberId) ?? [];
       a.push(e);
       byMember.set(e.memberId, a);
@@ -81,8 +86,9 @@ export const summary = query({
     const rows = members
       .map((m) => {
         const es = byMember.get(m._id) ?? [];
+        const { payable, needsClockOut } = payableEntries(es, now);
         const { hours, payCents } = memberPay(
-          es.map((e) => ({ clockInAt: e.clockInAt, clockOutAt: e.clockOutAt, rateCentsSnapshot: e.rateCentsSnapshot })),
+          payable.map((e) => ({ clockInAt: e.clockInAt, clockOutAt: e.clockOutAt, rateCentsSnapshot: e.rateCentsSnapshot })),
           { payType: m.payType, payRateCents: m.payRateCents },
           now,
           end - start,
@@ -96,7 +102,8 @@ export const summary = query({
           hours,
           payCents,
           entryCount: es.length,
-          openCount: es.filter((e) => !e.clockOutAt).length,
+          openCount: payable.filter((e) => !e.clockOutAt).length,
+          needsClockOutCount: needsClockOut.length,
         };
       })
       .filter((r) => r.entryCount > 0 || r.payType)
@@ -106,12 +113,14 @@ export const summary = query({
       rows,
       totalPayCents: rows.reduce((s, r) => s + r.payCents, 0),
       totalHours: rows.reduce((s, r) => s + r.hours, 0),
+      needsClockOutCount: rows.reduce((s, r) => s + r.needsClockOutCount, 0),
     };
   },
 });
 
 /** Raw time entries in a window (newest first), hydrated with member name +
- *  computed hours, for the admin timesheet / corrections view. */
+ *  computed hours, for the admin timesheet / corrections view. Voided entries
+ *  are included, marked, with 0 hours, so the record of a removal stays visible. */
 export const listEntries = query({
   args: { start: v.number(), end: v.number(), memberId: v.optional(v.id("members")) },
   handler: async (ctx, { start, end, memberId }) => {
@@ -123,18 +132,37 @@ export const listEntries = query({
       .collect();
     if (memberId) rows = rows.filter((r) => r.memberId === memberId);
     rows.sort((a, b) => b.clockInAt - a.clockInAt);
-    return await Promise.all(
-      rows.map(async (r) => {
-        const m = await ctx.db.get(r.memberId);
-        return {
-          ...r,
-          memberName: m?.name ?? "Unknown",
-          hours: hoursBetween(r.clockInAt, r.clockOutAt ?? now),
-        };
-      }),
-    );
+    const names = new Map<string, string>();
+    const out = [];
+    for (const r of rows) {
+      if (!names.has(r.memberId)) names.set(r.memberId, (await ctx.db.get(r.memberId))?.name ?? "Unknown");
+      out.push({
+        ...r,
+        memberName: names.get(r.memberId)!,
+        voided: Boolean(r.voidedAt),
+        needsClockOut: needsClockOut(r, now),
+        hours: r.voidedAt ? 0 : hoursBetween(r.clockInAt, r.clockOutAt ?? now),
+      });
+    }
+    return out;
   },
 });
+
+/** Who made a timesheet change, for the log. */
+async function actorName(ctx: MutationCtx): Promise<{ name: string; subject: string | null }> {
+  const identity = await ctx.auth.getUserIdentity();
+  return { name: identity?.name ?? identity?.email ?? "A manager", subject: identity?.subject ?? null };
+}
+
+async function studioTz(ctx: MutationCtx, orgId: string): Promise<string> {
+  const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+  return orgTz(org);
+}
+
+const at = (ts: number | undefined, tz: string) => (ts === undefined ? "no clock-out" : whenLabel(ts, tz));
+
+/** A clock-out can be now or earlier, never later: nobody is paid for time not yet worked. */
+const FUTURE_SLACK_MS = 5 * 60_000;
 
 /** Manually add a completed entry (e.g. someone forgot to clock in). */
 export const addManualEntry = mutation({
@@ -149,7 +177,9 @@ export const addManualEntry = mutation({
     const member = await ctx.db.get(memberId);
     if (!member || member.orgId !== orgId) throw new Error("That team member isn't in this studio.");
     if (clockOutAt <= clockInAt) throw new Error("Clock-out must be after clock-in.");
-    return await ctx.db.insert("timeEntries", {
+    if (clockOutAt > Date.now() + FUTURE_SLACK_MS) throw new Error("Clock-out can't be in the future.");
+    const who = await actorName(ctx);
+    const id = await ctx.db.insert("timeEntries", {
       orgId,
       memberId,
       clockInAt,
@@ -158,11 +188,23 @@ export const addManualEntry = mutation({
       rateCentsSnapshot: member.payType === "hourly" ? member.payRateCents : undefined,
       source: "manual",
       note,
+      editedBy: who.subject ?? undefined,
     });
+    const tz = await studioTz(ctx, orgId);
+    await ctx.db.insert("activity", {
+      orgId,
+      kind: "timesheet.added",
+      summary: `${who.name} added a time entry for ${member.name}: ${at(clockInAt, tz)} to ${at(clockOutAt, tz)}`,
+      actorName: who.name,
+      entityType: "timeEntry",
+      entityId: id,
+      accent: "info",
+    });
+    return id;
   },
 });
 
-/** Correct an entry's in/out times or note (admin). */
+/** Correct an entry's in/out times or note (admin). Logged with before and after. */
 export const adjustEntry = mutation({
   args: {
     entryId: v.id("timeEntries"),
@@ -174,6 +216,7 @@ export const adjustEntry = mutation({
     const orgId = await currentOrgWithCapability(ctx, "schedule.manage");
     const entry = await ctx.db.get(entryId);
     if (!entry || entry.orgId !== orgId) throw new Error("Time entry not found.");
+    if (entry.voidedAt) throw new Error("This entry was removed. Add a new one instead.");
     const fields: Record<string, unknown> = {};
     if (clockInAt !== undefined) fields.clockInAt = clockInAt;
     if (clockOutAt !== undefined) {
@@ -182,19 +225,73 @@ export const adjustEntry = mutation({
     }
     if (note !== undefined) fields.note = note;
     const inAt = (fields.clockInAt as number) ?? entry.clockInAt;
-    const outAt = (fields.clockOutAt as number | undefined) ?? entry.clockOutAt;
+    const outAt = clockOutAt === undefined ? entry.clockOutAt : clockOutAt ?? undefined;
     if (outAt !== undefined && outAt <= inAt) throw new Error("Clock-out must be after clock-in.");
+    if (outAt !== undefined && outAt > Date.now() + FUTURE_SLACK_MS) throw new Error("Clock-out can't be in the future.");
+    if (clockOutAt === null && entry.status !== "active") {
+      // Re-opening must not leave the teammate with two running clocks.
+      const running = await ctx.db
+        .query("timeEntries")
+        .withIndex("by_member_status", (q) => q.eq("memberId", entry.memberId).eq("status", "active"))
+        .first();
+      if (running && running._id !== entryId) throw new Error("This teammate already has an open clock.");
+    }
+    const who = await actorName(ctx);
+    fields.editedBy = who.subject ?? undefined;
     await ctx.db.patch(entryId, fields);
+
+    const tz = await studioTz(ctx, orgId);
+    const changes: string[] = [];
+    if (inAt !== entry.clockInAt) changes.push(`in ${at(entry.clockInAt, tz)} -> ${at(inAt, tz)}`);
+    if (outAt !== entry.clockOutAt) changes.push(`out ${at(entry.clockOutAt, tz)} -> ${at(outAt, tz)}`);
+    if (note !== undefined && note !== (entry.note ?? "")) changes.push("note changed");
+    if (changes.length > 0) {
+      const member = await ctx.db.get(entry.memberId);
+      await ctx.db.insert("activity", {
+        orgId,
+        kind: "timesheet.adjusted",
+        summary: `${who.name} changed ${member?.name ?? "a teammate"}'s time entry: ${changes.join("; ")}`,
+        actorName: who.name,
+        entityType: "timeEntry",
+        entityId: entryId,
+        accent: "info",
+      });
+    }
   },
 });
 
+/** Remove an entry from pay. It is voided, not deleted, so the record of what
+ *  was punched, and who removed it and why, is never lost. A second call on
+ *  the same entry does nothing. */
 export const removeEntry = mutation({
-  args: { entryId: v.id("timeEntries") },
-  handler: async (ctx, { entryId }) => {
+  args: { entryId: v.id("timeEntries"), reason: v.optional(v.string()) },
+  handler: async (ctx, { entryId, reason }) => {
     const orgId = await currentOrgWithCapability(ctx, "schedule.manage");
     const entry = await ctx.db.get(entryId);
     if (!entry || entry.orgId !== orgId) throw new Error("Time entry not found.");
-    await ctx.db.delete(entryId);
+    if (entry.voidedAt) return;
+    const who = await actorName(ctx);
+    const why = reason?.trim().slice(0, 300) || undefined;
+    await ctx.db.patch(entryId, {
+      voidedAt: Date.now(),
+      voidedBy: who.subject ?? who.name,
+      voidReason: why,
+      // A voided clock is no longer running: it must not block the next
+      // clock-in or be swept by the overtime and intern checks.
+      status: "completed",
+      editedBy: who.subject ?? undefined,
+    });
+    const tz = await studioTz(ctx, orgId);
+    const member = await ctx.db.get(entry.memberId);
+    await ctx.db.insert("activity", {
+      orgId,
+      kind: "timesheet.voided",
+      summary: `${who.name} removed ${member?.name ?? "a teammate"}'s time entry ${at(entry.clockInAt, tz)} to ${at(entry.clockOutAt, tz)}${why ? ` (${why})` : ""}`,
+      actorName: who.name,
+      entityType: "timeEntry",
+      entityId: entryId,
+      accent: "critical",
+    });
   },
 });
 
@@ -247,6 +344,7 @@ export const postToExpenses = mutation({
       .collect();
     const byMember = new Map<string, typeof entries>();
     for (const e of entries) {
+      if (e.voidedAt) continue;
       const a = byMember.get(e.memberId) ?? [];
       a.push(e);
       byMember.set(e.memberId, a);
@@ -257,9 +355,17 @@ export const postToExpenses = mutation({
     let created = 0;
     let skipped = 0;
     let totalCents = 0;
+    // Teammates held back because an entry needs a clock-out time. Their
+    // period posts once a manager fixes it.
+    const blocked: { memberId: Id<"members">; name: string }[] = [];
     for (const m of members) {
-      const es = byMember.get(m._id) ?? [];
-      if (!m.payType && es.length === 0) continue;
+      const all = byMember.get(m._id) ?? [];
+      if (!m.payType && all.length === 0) continue;
+      const { payable: es, needsClockOut: stale } = payableEntries(all, now);
+      if (stale.length > 0) {
+        if (m.payType) blocked.push({ memberId: m._id, name: m.name });
+        continue;
+      }
       const { payCents } = memberPay(
         es.map((e) => ({ clockInAt: e.clockInAt, clockOutAt: e.clockOutAt, rateCentsSnapshot: e.rateCentsSnapshot })),
         { payType: m.payType, payRateCents: m.payRateCents },
@@ -285,6 +391,6 @@ export const postToExpenses = mutation({
       created += 1;
       totalCents += payCents;
     }
-    return { created, skipped, totalCents };
+    return { created, skipped, totalCents, blocked };
   },
 });

@@ -50,9 +50,9 @@ describe("posting a pay period once", () => {
     const t = newT();
     await studio(t);
     const first = await as(t, "own").mutation(api.payroll.postToExpenses, { start: START, end: END });
-    expect(first).toEqual({ created: 1, skipped: 0, totalCents: 20_000 });
+    expect(first).toEqual({ created: 1, skipped: 0, totalCents: 20_000, blocked: [] });
     const second = await as(t, "own").mutation(api.payroll.postToExpenses, { start: START, end: END });
-    expect(second).toEqual({ created: 0, skipped: 1, totalCents: 0 });
+    expect(second).toEqual({ created: 0, skipped: 1, totalCents: 0, blocked: [] });
     const rows = await payrollRows(t);
     expect(rows).toHaveLength(1);
     expect(rows[0].payrollPeriod).toBe("2026-10-01_2026-11-01");
@@ -96,7 +96,7 @@ describe("posting a pay period once", () => {
       }),
     );
     const res = await as(t, "own").mutation(api.payroll.postToExpenses, { start: END, end: NEXT_END });
-    expect(res).toEqual({ created: 1, skipped: 0, totalCents: 10_000 });
+    expect(res).toEqual({ created: 1, skipped: 0, totalCents: 10_000, blocked: [] });
     expect((await payrollRows(t)).map((r) => r.payrollPeriod).sort()).toEqual([
       "2026-10-01_2026-11-01",
       "2026-11-01_2026-12-01",
@@ -167,5 +167,185 @@ describe("report-only checks for past payroll (no writes)", () => {
     expect(res.rows.map((r) => r.status).sort()).toEqual(["approved", "paid", "queued"]);
     const statuses = await t.run(async (ctx) => (await ctx.db.query("payouts").collect()).map((p) => p.status).sort());
     expect(statuses).toEqual(["approved", "paid", "queued", "void"]);
+  });
+});
+
+describe("timesheet corrections", () => {
+  it("U-07 an open entry older than 12h is flagged, left out of pay, and holds back that teammate's post", async () => {
+    const t = newT();
+    const { orgId, engId } = await studio(t);
+    const now = Date.now();
+    const PSTART = now - 10 * DAY;
+    const PEND = now + DAY;
+    const staleId = await t.run(async (ctx) => {
+      await ctx.db.insert("timeEntries", {
+        orgId, memberId: engId, clockInAt: now - 5 * DAY, clockOutAt: now - 5 * DAY + 3 * HOUR, status: "completed",
+        rateCentsSnapshot: 5_000, source: "self",
+      });
+      return await ctx.db.insert("timeEntries", {
+        orgId, memberId: engId, clockInAt: now - 30 * HOUR, status: "active", rateCentsSnapshot: 5_000, source: "self",
+      });
+    });
+    const sum = await as(t, "own").query(api.payroll.summary, { start: PSTART, end: PEND });
+    const eli = sum.rows.find((r) => r.name === "Eli")!;
+    expect(eli.needsClockOutCount).toBe(1);
+    expect(sum.needsClockOutCount).toBe(1);
+    expect(eli.hours).toBeCloseTo(3, 5); // the forgotten 30h are not counted
+    expect(eli.payCents).toBe(15_000);
+    const list = await as(t, "own").query(api.payroll.listEntries, { start: PSTART, end: PEND });
+    expect(list.find((e) => e._id === staleId)?.needsClockOut).toBe(true);
+
+    const blocked = await as(t, "own").mutation(api.payroll.postToExpenses, { start: PSTART, end: PEND });
+    expect(blocked).toMatchObject({ created: 0, blocked: [{ memberId: engId, name: "Eli" }] });
+    expect(await payrollRows(t)).toHaveLength(0);
+
+    // The manager sets the clock-out; now the period posts, once.
+    await as(t, "mgr").mutation(api.payroll.adjustEntry, { entryId: staleId, clockOutAt: now - 22 * HOUR });
+    const posted = await as(t, "own").mutation(api.payroll.postToExpenses, { start: PSTART, end: PEND });
+    expect(posted).toMatchObject({ created: 1, totalCents: 15_000 + 40_000, blocked: [] });
+  });
+
+  it("an open entry under 12h old is still counted (someone working now)", async () => {
+    const t = newT();
+    const { orgId, engId } = await studio(t);
+    const now = Date.now();
+    await t.run((ctx) =>
+      ctx.db.insert("timeEntries", { orgId, memberId: engId, clockInAt: now - 2 * HOUR, status: "active", rateCentsSnapshot: 5_000, source: "self" }),
+    );
+    const sum = await as(t, "own").query(api.payroll.summary, { start: now - DAY, end: now + DAY });
+    const eli = sum.rows.find((r) => r.name === "Eli")!;
+    expect(eli.needsClockOutCount).toBe(0);
+    expect(eli.openCount).toBe(1);
+    expect(eli.hours).toBeCloseTo(2, 2);
+  });
+
+  it("U-08 a manager fixes a clock-out time and the change is logged with before and after", async () => {
+    const t = newT();
+    const { entryId } = await studio(t);
+    await as(t, "mgr").mutation(api.payroll.adjustEntry, { entryId, clockOutAt: START + DAY + 5 * HOUR });
+    const e = await t.run((ctx) => ctx.db.get(entryId));
+    expect(e!.clockOutAt).toBe(START + DAY + 5 * HOUR);
+    expect(e!.editedBy).toBe("u_mgr_org_p");
+    const acts = await t.run(async (ctx) => (await ctx.db.query("activity").collect()).filter((a) => a.kind === "timesheet.adjusted"));
+    expect(acts).toHaveLength(1);
+    expect(acts[0].actorName).toBe("Mia");
+    expect(acts[0].entityId).toBe(entryId);
+    expect(acts[0].summary).toContain("Eli's time entry");
+    expect(acts[0].summary).toMatch(/out .+ -> .+/);
+    // The built-in change log has the before and after values as well.
+    const audit = await t.run(async (ctx) =>
+      (await ctx.db.query("changeAudit").collect()).filter((a) => a.tableName === "timeEntries" && a.op === "update"),
+    );
+    expect(audit.at(-1)?.before).toMatchObject({ clockOutAt: START + DAY + 4 * HOUR });
+    expect(audit.at(-1)?.after).toMatchObject({ clockOutAt: START + DAY + 5 * HOUR });
+  });
+
+  it("U-08b a clock-out in the future or before clock-in is refused, and nothing is logged", async () => {
+    const t = newT();
+    const { entryId } = await studio(t);
+    await expect(as(t, "mgr").mutation(api.payroll.adjustEntry, { entryId, clockOutAt: Date.now() + DAY })).rejects.toThrow(/future/);
+    await expect(as(t, "mgr").mutation(api.payroll.adjustEntry, { entryId, clockOutAt: START })).rejects.toThrow(/after clock-in/);
+    const acts = await t.run(async (ctx) => (await ctx.db.query("activity").collect()).filter((a) => a.kind.startsWith("timesheet.")));
+    expect(acts).toHaveLength(0);
+  });
+
+  it("U-09 an engineer cannot add, adjust or remove entries, their own or anyone's", async () => {
+    const t = newT();
+    const { engId, entryId } = await studio(t);
+    const eng = as(t, "eng");
+    await expect(eng.mutation(api.payroll.adjustEntry, { entryId, clockOutAt: START + DAY + 9 * HOUR })).rejects.toThrow();
+    await expect(eng.mutation(api.payroll.removeEntry, { entryId })).rejects.toThrow();
+    await expect(eng.mutation(api.payroll.addManualEntry, {
+      memberId: engId, clockInAt: START + 2 * DAY, clockOutAt: START + 2 * DAY + 8 * HOUR,
+    })).rejects.toThrow();
+    await expect(eng.query(api.payroll.listEntries, { start: START, end: END })).rejects.toThrow();
+    const e = await t.run((ctx) => ctx.db.get(entryId));
+    expect(e!.clockOutAt).toBe(START + DAY + 4 * HOUR);
+    expect(e!.voidedAt).toBeUndefined();
+  });
+
+  it("U-10 a signed-out caller cannot read or change entries", async () => {
+    const t = newT();
+    const { entryId } = await studio(t);
+    clerkOn();
+    await expect(t.query(api.payroll.listEntries, { start: START, end: END })).rejects.toThrow();
+    await expect(t.query(api.payroll.summary, { start: START, end: END })).rejects.toThrow();
+    await expect(t.mutation(api.payroll.adjustEntry, { entryId, clockOutAt: START + DAY + 9 * HOUR })).rejects.toThrow();
+    await expect(t.mutation(api.payroll.removeEntry, { entryId })).rejects.toThrow();
+    expect((await t.run((ctx) => ctx.db.get(entryId)))!.clockOutAt).toBe(START + DAY + 4 * HOUR);
+  });
+
+  it("U-11 another studio's entry id is refused", async () => {
+    const t = newT();
+    const { entryId, engId } = await studio(t);
+    await studio(t, "org_q");
+    const otherMgr = as(t, "mgr", "org_q");
+    await expect(otherMgr.mutation(api.payroll.adjustEntry, { entryId, clockOutAt: START + DAY + 9 * HOUR }))
+      .rejects.toThrow("Time entry not found.");
+    await expect(otherMgr.mutation(api.payroll.removeEntry, { entryId })).rejects.toThrow("Time entry not found.");
+    await expect(otherMgr.mutation(api.payroll.addManualEntry, {
+      memberId: engId, clockInAt: START + 2 * DAY, clockOutAt: START + 2 * DAY + HOUR,
+    })).rejects.toThrow("isn't in this studio");
+    const list = await as(t, "own", "org_q").query(api.payroll.listEntries, { start: START, end: END });
+    expect(list.some((e) => e._id === entryId)).toBe(false);
+  });
+
+  it("U-12 removing an entry voids it: kept on record, logged, out of pay, and a second remove does nothing", async () => {
+    const t = newT();
+    const { entryId } = await studio(t);
+    await as(t, "mgr").mutation(api.payroll.removeEntry, { entryId, reason: "Punched in by mistake" });
+    await as(t, "mgr").mutation(api.payroll.removeEntry, { entryId, reason: "again" });
+    const e = (await t.run((ctx) => ctx.db.get(entryId)))!;
+    expect(e).toBeTruthy(); // not deleted
+    expect(e.voidedAt).toBeTypeOf("number");
+    expect(e.voidedBy).toBe("u_mgr_org_p");
+    expect(e.voidReason).toBe("Punched in by mistake");
+    expect(e.clockInAt).toBe(START + DAY);
+    expect(e.clockOutAt).toBe(START + DAY + 4 * HOUR);
+    const acts = await t.run(async (ctx) => (await ctx.db.query("activity").collect()).filter((a) => a.kind === "timesheet.voided"));
+    expect(acts).toHaveLength(1);
+    expect(acts[0].summary).toContain("Punched in by mistake");
+    const sum = await as(t, "own").query(api.payroll.summary, { start: START, end: END });
+    expect(sum.totalPayCents).toBe(0);
+    const list = await as(t, "own").query(api.payroll.listEntries, { start: START, end: END });
+    expect(list.find((x) => x._id === entryId)).toMatchObject({ voided: true, hours: 0 });
+    await expect(as(t, "mgr").mutation(api.payroll.adjustEntry, { entryId, clockOutAt: START + DAY + HOUR })).rejects.toThrow(/removed/);
+    expect((await as(t, "own").mutation(api.payroll.postToExpenses, { start: START, end: END })).created).toBe(0);
+  });
+
+  it("U-12b voiding a running clock stops it, so the teammate can clock in again", async () => {
+    const t = newT();
+    const { orgId, engId } = await studio(t);
+    const now = Date.now();
+    const openId = await t.run((ctx) =>
+      ctx.db.insert("timeEntries", { orgId, memberId: engId, clockInAt: now - HOUR, status: "active", rateCentsSnapshot: 5_000, source: "self" }),
+    );
+    await as(t, "mgr").mutation(api.payroll.removeEntry, { entryId: openId });
+    expect((await t.run((ctx) => ctx.db.get(openId)))!.status).toBe("completed");
+    const st = await as(t, "eng").query(api.timeclock.myStatus, {});
+    expect(st.active).toBeNull();
+    const newId = await as(t, "eng").mutation(api.timeclock.clockIn, {});
+    expect(newId).not.toBe(openId);
+  });
+
+  it("a manager adds a missed entry; it is logged and paid", async () => {
+    const t = newT();
+    const { engId } = await studio(t);
+    const id = await as(t, "mgr").mutation(api.payroll.addManualEntry, {
+      memberId: engId, clockInAt: START + 2 * DAY, clockOutAt: START + 2 * DAY + 2 * HOUR, note: "Forgot to punch",
+    });
+    const acts = await t.run(async (ctx) => (await ctx.db.query("activity").collect()).filter((a) => a.kind === "timesheet.added"));
+    expect(acts[0]).toMatchObject({ entityId: id, actorName: "Mia" });
+    const sum = await as(t, "own").query(api.payroll.summary, { start: START, end: END });
+    expect(sum.totalPayCents).toBe(30_000);
+  });
+
+  it("re-opening an entry is refused while the teammate already has a clock running", async () => {
+    const t = newT();
+    const { orgId, engId, entryId } = await studio(t);
+    await t.run((ctx) =>
+      ctx.db.insert("timeEntries", { orgId, memberId: engId, clockInAt: Date.now() - HOUR, status: "active", source: "self" }),
+    );
+    await expect(as(t, "mgr").mutation(api.payroll.adjustEntry, { entryId, clockOutAt: null })).rejects.toThrow(/open clock/);
   });
 });

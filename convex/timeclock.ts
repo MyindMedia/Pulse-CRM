@@ -119,7 +119,7 @@ export const myStatus = query({
           .query("timeEntries")
           .withIndex("by_member_status", (q) => q.eq("memberId", member._id).eq("status", "completed"))
           .collect();
-        const covered = completed.some((e) => e.shiftId === windowOpen._id);
+        const covered = completed.some((e) => e.shiftId === windowOpen._id && !e.voidedAt);
         if (!covered) {
           prompt = {
             type: "clock_in",
@@ -155,7 +155,7 @@ export const myStatus = query({
         : null,
       prompt,
       shifts: near.map((s) => ({ _id: s._id, startTime: s.startTime, endTime: s.endTime })),
-      coveredShiftIds: completedAll.map((e) => e.shiftId).filter(Boolean) as string[],
+      coveredShiftIds: completedAll.filter((e) => !e.voidedAt).map((e) => e.shiftId).filter(Boolean) as string[],
     };
   },
 });

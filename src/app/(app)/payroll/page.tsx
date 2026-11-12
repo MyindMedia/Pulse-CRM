@@ -23,6 +23,7 @@ import {
 import { money } from "@/lib/format";
 import { SetPayDialog, type PayTarget } from "@/components/payroll/set-pay-dialog";
 import { PayoutsPanel } from "@/components/payroll/payouts-panel";
+import { TimesheetPanel } from "@/components/payroll/timesheet-panel";
 import { useCapabilities } from "@/lib/use-capabilities";
 import { payPeriodFor, defaultAnchorDate, type PaySchedule } from "@/lib/pay-period";
 
@@ -104,8 +105,15 @@ export default function PayrollPage() {
       const already = res.skipped > 0
         ? ` ${res.skipped} ${res.skipped === 1 ? "teammate was" : "teammates were"} already posted for this period and left as they were.`
         : "";
-      if (res.created === 0) toast.info(res.skipped > 0 ? `This period is already posted.${already}` : "Nothing to post for this period.");
-      else toast.success(`Posted ${res.created} payroll ${res.created === 1 ? "entry" : "entries"} (${money(res.totalCents)}) to Expenses.${already}`);
+      const held = res.blocked.length > 0
+        ? ` Not posted yet: ${res.blocked.map((b) => b.name).join(", ")} (an entry needs a clock-out time; fix it in the timesheet below, then post again).`
+        : "";
+      if (res.created === 0) {
+        if (held) toast.warning(`Nothing posted.${held}${already}`);
+        else toast.info(res.skipped > 0 ? `This period is already posted.${already}` : "Nothing to post for this period.");
+      } else {
+        toast.success(`Posted ${res.created} payroll ${res.created === 1 ? "entry" : "entries"} (${money(res.totalCents)}) to Expenses.${already}${held}`);
+      }
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not post to expenses.");
     } finally {
@@ -190,6 +198,7 @@ export default function PayrollPage() {
                   </EntityLink>
                   <span className="ml-2 text-xs capitalize text-steel/70">{r.role.replace(/_/g, " ")}</span>
                   {r.openCount > 0 && <span className="ml-2 rounded-full border border-gold/40 px-1.5 py-0.5 text-[0.625rem] uppercase tracking-wide text-gold">on the clock</span>}
+                  {r.needsClockOutCount > 0 && <span className="ml-2 rounded-full border border-gold/40 px-1.5 py-0.5 text-[0.625rem] uppercase tracking-wide text-gold">needs a clock-out time</span>}
                 </TD>
                 <TD className="font-meta text-steel">{payLabel(r.payType, r.payRateCents)}</TD>
                 <TD className="text-right font-meta text-steel">{r.hours.toFixed(1)}h</TD>
@@ -204,6 +213,19 @@ export default function PayrollPage() {
           )}
         </TBody>
       </Table>
+
+      {data && data.needsClockOutCount > 0 && (
+        <p role="status" className="text-xs text-gold">
+          {data.needsClockOutCount === 1 ? "1 entry is" : `${data.needsClockOutCount} entries are`} still open after 12 hours and left out of these totals until a clock-out time is set.
+        </p>
+      )}
+
+      <TimesheetPanel
+        start={start}
+        end={end}
+        canEdit={can("schedule.manage")}
+        members={(data?.rows ?? []).map((r) => ({ memberId: r.memberId, name: r.name }))}
+      />
 
       <SetPayDialog target={payTarget} open={payOpen} onOpenChange={(o) => { setPayOpen(o); if (!o) setPayTarget(undefined); }} />
     </div>

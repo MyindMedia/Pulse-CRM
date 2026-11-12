@@ -30,6 +30,7 @@ export const reportPastInternTimeouts = internalQuery({
       .paginate(paginationOpts);
     const rows = [];
     for (const e of page.page) {
+      if (e.voidedAt) continue;
       if (e.autoClosedReason !== "intern_timeout" || e.clockOutAt !== e.clockInAt + INTERN_AFTER) continue;
       const prompts = await ctx.db
         .query("smsPrompts")

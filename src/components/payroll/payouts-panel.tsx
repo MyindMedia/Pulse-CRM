@@ -66,7 +66,7 @@ export function PayoutsPanel() {
             <div>
               <p className="font-grotesk text-sm font-semibold text-bone">Engineer payouts</p>
               <p className="text-xs text-steel">
-                Queued when a session completes. Nothing pays itself.
+                Queued when a session completes, for commission and points engineers. Hourly staff are paid through payroll. Nothing pays itself.
               </p>
             </div>
           </div>

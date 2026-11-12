@@ -3170,6 +3170,11 @@ export default defineSchema({
       ),
     ),
     autoClosedReason: v.optional(v.string()), // e.g. "ot_declined" | "intern_timeout"
+    // A manager removed this entry. It is kept (pay history is never lost)
+    // but counts for nothing: no hours, no pay, no open clock.
+    voidedAt: v.optional(v.number()),
+    voidedBy: v.optional(v.string()),
+    voidReason: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
     .index("by_org_member", ["orgId", "memberId"])
