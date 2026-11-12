@@ -147,6 +147,81 @@ describe("waitlist smart-fill (integration)", () => {
     expect((await t.run((ctx) => ctx.db.get(entryId)))?.status).toBe("waiting");
   });
 
+  // R03/R04/R34: the winner stays "waiting" until the offer is sent, so a
+  // second slot freed before approval must go to the next-best match, and the
+  // offer must name (and finalize must mark) that exact entry.
+  async function seedTwoFreedSlots() {
+    return t.run(async (ctx) => {
+      const roomId = await ctx.db.insert("rooms", {
+        orgId: ORG, name: "Studio A", roomType: "Live room", status: "available", hourlyRateCents: 10000,
+      });
+      const mk = (name: string, email: string) => ctx.db.insert("artists", {
+        orgId: ORG, name, type: "artist", email, genres: [], tags: [],
+        status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
+      });
+      const top = await mk("Nova", "nova@x.com");
+      const next = await mk("Kai", "kai@x.com");
+      const booked = await mk("Booked", "b@x.com");
+      const session = (offset: number) => ctx.db.insert("sessions", {
+        orgId: ORG, title: "Tracking day", artistId: booked, serviceType: "recording", roomId,
+        startTime: Date.now() + offset, endTime: Date.now() + offset + 7_200_000,
+        status: "confirmed", rateCents: 20000, depositCents: 0, depositPaid: false, intakeCompleted: false,
+      });
+      const s1 = await session(DAY);
+      const s2 = await session(2 * DAY);
+      const topEntry = await ctx.db.insert("waitlistEntries", {
+        orgId: ORG, artistId: top, roomId, serviceType: "recording", priority: "high", status: "waiting", createdAt: Date.now(),
+      });
+      const nextEntry = await ctx.db.insert("waitlistEntries", {
+        orgId: ORG, artistId: next, roomId, serviceType: "recording", priority: "standard", status: "waiting", createdAt: Date.now(),
+      });
+      return { s1, s2, topEntry, nextEntry };
+    });
+  }
+  const fills = () => t.run(async (ctx) =>
+    (await ctx.db.query("opsActions").collect()).filter((a) => a.orgId === ORG && a.type === "waitlist_fill"));
+
+  it("two slots freed before approval go to two different people, each offer naming its entry", async () => {
+    const { s1, s2, topEntry, nextEntry } = await seedTwoFreedSlots();
+    await t.mutation(api.sessions.setStatus, { id: s1, status: "cancelled" });
+    await t.mutation(api.sessions.setStatus, { id: s2, status: "cancelled" });
+    const actions = await fills();
+    expect(actions).toHaveLength(2);
+    const byEntity = new Map(actions.map((a) => [a.entityId, a.payload.kind === "email" ? a.payload : null]));
+    expect(byEntity.get(s1)).toMatchObject({ to: "nova@x.com", waitlistEntryId: topEntry });
+    expect(byEntity.get(s2)).toMatchObject({ to: "kai@x.com", waitlistEntryId: nextEntry });
+  });
+
+  it("a dismissed offer frees the person for the next slot", async () => {
+    const { s1, s2, topEntry } = await seedTwoFreedSlots();
+    await t.mutation(api.sessions.setStatus, { id: s1, status: "cancelled" });
+    const [first] = await fills();
+    await t.run((ctx) => ctx.db.patch(first._id, { status: "dismissed" }));
+    await t.mutation(api.sessions.setStatus, { id: s2, status: "cancelled" });
+    const second = (await fills()).find((a) => a.entityId === s2);
+    expect(second?.payload).toMatchObject({ waitlistEntryId: topEntry });
+  });
+
+  it("finalize marks the offered entry, not another entry with the same email", async () => {
+    const { s1, topEntry } = await seedTwoFreedSlots();
+    // Same client, a second (older) waiting entry for another room.
+    const otherEntry = await t.run(async (ctx) => {
+      const top = (await ctx.db.get(topEntry))!;
+      const roomB = await ctx.db.insert("rooms", {
+        orgId: ORG, name: "Studio B", roomType: "Booth", status: "available", hourlyRateCents: 10000,
+      });
+      return ctx.db.insert("waitlistEntries", {
+        orgId: ORG, artistId: top.artistId, roomId: roomB, priority: "standard", status: "waiting", createdAt: 1,
+      });
+    });
+    await t.mutation(api.sessions.setStatus, { id: s1, status: "cancelled" });
+    const [action] = await fills();
+    await t.mutation(internal.opsActions.finalize, { id: action._id, emailStatus: "sent" });
+    const [offered, other] = await t.run(async (ctx) => [await ctx.db.get(topEntry), await ctx.db.get(otherEntry)]);
+    expect(offered?.status).toBe("notified");
+    expect(other?.status).toBe("waiting");
+  });
+
   it("does not propose a fill when the waitlist is empty", async () => {
     const sessionId = await t.run(async (ctx) => {
       const artistId = await ctx.db.insert("artists", {

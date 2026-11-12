@@ -114,14 +114,46 @@ function formatSlot(startTime: number): string {
  * graduation work exactly like every other ops action. Safe no-op when the
  * waitlist is empty or no one fits.
  */
+/** Open (not yet sent or dropped) ops-action statuses. */
+const OPEN_OFFER_STATUSES = ["proposed", "approved", "snoozed", "executing"] as const;
+/** Bound per status: an org never has this many open inbox items. */
+const OPEN_OFFER_SCAN = 500;
+
+/**
+ * Waitlist entries already named by an open waitlist_fill offer. Until that
+ * offer is sent the entry stays "waiting", so without this the same person
+ * would be proposed for every slot freed before the owner approves, and the
+ * next-best match would never get one.
+ */
+async function entriesWithOpenOffer(ctx: MutationCtx, orgId: string): Promise<Set<string>> {
+  const out = new Set<string>();
+  for (const status of OPEN_OFFER_STATUSES) {
+    const rows = await ctx.db
+      .query("opsActions")
+      .withIndex("by_org_status", (q) => q.eq("orgId", orgId).eq("status", status))
+      .order("desc")
+      .take(OPEN_OFFER_SCAN);
+    for (const r of rows) {
+      if (r.type === "waitlist_fill" && r.payload.kind === "email" && r.payload.waitlistEntryId) {
+        out.add(r.payload.waitlistEntryId);
+      }
+    }
+  }
+  return out;
+}
+
 export async function proposeWaitlistFill(ctx: MutationCtx, session: Doc<"sessions">): Promise<boolean> {
   // Never offer a slot that has already started - it is not fillable.
   if (session.startTime < Date.now()) return false;
 
-  const waiting = await ctx.db
+  const allWaiting = await ctx.db
     .query("waitlistEntries")
     .withIndex("by_org_status", (q) => q.eq("orgId", session.orgId).eq("status", "waiting"))
     .collect();
+  if (allWaiting.length === 0) return false;
+  // Someone with an offer already pending is not offered a second slot.
+  const offered = await entriesWithOpenOffer(ctx, session.orgId);
+  const waiting = allWaiting.filter((e) => !offered.has(e._id));
   if (waiting.length === 0) return false;
 
   const slot: FreedSlot = {
