@@ -695,6 +695,7 @@ export default function StudioDetailPage() {
                             serialNumber: item.serialNumber,
                             condition: item.condition,
                             notes: item.notes,
+                            barcode: item.barcode ?? null,
                           })
                         }
                       >
