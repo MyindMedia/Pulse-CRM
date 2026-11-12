@@ -58,6 +58,7 @@ const AGENT_SCHEMA = {
 import { tenantGuard, fenceUntrusted } from "./lib/aiGuard";
 import { sendEmail } from "./lib/email";
 import { sendSms } from "./lib/sms";
+import { manualStepFor } from "./lib/agentActions";
 import { studioHealthFor } from "./agentHealth";
 import { sameEmail } from "./lib/emailKey";
 import { businessActivity, formatActivity } from "./lib/agentActivity";
@@ -739,9 +740,11 @@ export const executeApproval = internalAction({
         const created = await ctx.runMutation(internal.agentAutomations._fromApproval, { orgId: ap.orgId, payload: ap.proposedPayload });
         ok = created; result = created ? "automation created" : "automation payload missing a prompt";
       } else {
-        // Other action types are recorded as approved but executed by their own
-        // modules / a future executor; mark executed with a note.
-        ok = true; result = "approved (no auto-executor for this action type yet)";
+        // No executor for this type (lib/agentActions.ts). Record the approval
+        // and what is still to be done; never mark it executed, because nothing
+        // was created.
+        await ctx.runMutation(internal.agent._markNotDone, { id, result: `Approved, not done by Pulse. ${manualStepFor(ap.actionType)}` });
+        return;
       }
     } catch (err) {
       ok = false; result = err instanceof Error ? err.message : "execution error";
@@ -753,6 +756,17 @@ export const executeApproval = internalAction({
 export const _approvalForExec = internalQuery({
   args: { id: v.id("agentApprovals") },
   handler: async (ctx, { id }) => await ctx.db.get(id),
+});
+
+export const _markNotDone = internalMutation({
+  args: { id: v.id("agentApprovals"), result: v.string() },
+  handler: async (ctx, { id, result }) => {
+    const ap = await ctx.db.get(id);
+    if (!ap) return;
+    // Status stays "approved": the person said yes, nothing was carried out.
+    await ctx.db.patch(id, { result });
+    await ctx.db.insert("agentAuditLogs", { orgId: ap.orgId, runId: ap.runId, event: "approval.not_executed", detail: result, at: Date.now() });
+  },
 });
 
 export const _markExecuted = internalMutation({

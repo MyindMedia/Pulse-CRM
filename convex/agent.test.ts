@@ -124,6 +124,22 @@ describe("Pulse Agent", () => {
     expect(due2.some((a) => a._id === autoId)).toBe(true);
   });
 
+  it("approving an action Pulse cannot carry out does not mark it executed", async () => {
+    const id = await t.run(async (ctx) => ctx.db.insert("agentApprovals", {
+      orgId: ORG, actionType: "create_invoice", title: "Bill Nova for the mix", explanation: "Session done.",
+      proposedPayload: { amountCents: 50000 }, riskLevel: "medium", status: "pending", createdAt: Date.now(),
+    }));
+    await t.mutation(api.agent.approveRequest, { id });
+    await drain(t);
+    const ap = await t.run(async (ctx) => ctx.db.get(id));
+    expect(ap?.status).toBe("approved");
+    expect(ap?.status).not.toBe("executed");
+    expect(ap?.result).toMatch(/not done by Pulse/);
+    expect(ap?.result).toMatch(/Payments/);
+    const invoices = await t.run(async (ctx) => ctx.db.query("invoices").collect());
+    expect(invoices).toHaveLength(0);
+  });
+
   it("studioHealth returns six weighted components + an overall band", async () => {
     const h = await t.query(api.agentHealth.studioHealth, {});
     expect(h.overall).toBeGreaterThanOrEqual(0);
