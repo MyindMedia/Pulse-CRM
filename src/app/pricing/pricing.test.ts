@@ -352,4 +352,11 @@ describe("Max is not sold on many studios or a web address", () => {
     clean("structured data", `${SOFTWARE_DESCRIPTION} ${SITE_KEYWORDS.join(" ")}`);
     expect(SITE_KEYWORDS).not.toContain("multi-studio management");
   });
+
+  it("the agency branding screen does not say a custom domain comes with the plan", () => {
+    const page = read("src/app/agency/branding/page.tsx");
+    expect(page).not.toMatch(/custom domain comes with/i);
+    expect(page).not.toMatch(/Available on the Agency tier/);
+    expect(page).toMatch(/not available yet/);
+  });
 });
