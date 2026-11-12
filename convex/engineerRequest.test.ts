@@ -32,7 +32,10 @@ describe("engineer request lifecycle (public bookings)", () => {
     }));
   });
 
-  it("the requested engineer sees the pending request and accepting finalizes", async () => {
+  it("the requested engineer sees the pending request and accepting finalizes a paid hold", async () => {
+    // The deposit confirms a public booking; once it is paid, the engineer's
+    // accept is the last step and finalizes it.
+    await t.run((ctx) => ctx.db.patch(sessionId as never, { depositPaid: true, amountPaidCents: 9000 } as never));
     const asEng = t.withIdentity({ subject: "u_eng", orgId: org });
     const reqs = await asEng.query(api.sessions.myEngineerRequests, {});
     expect(reqs.length).toBe(1);
@@ -48,6 +51,26 @@ describe("engineer request lifecycle (public bookings)", () => {
     expect(shift?.kind).toBe("session");
     // no longer pending
     expect((await asEng.query(api.sessions.myEngineerRequests, {})).length).toBe(0);
+  });
+
+  it("accepting an unpaid public hold books the shift but leaves it tentative", async () => {
+    const asEng = t.withIdentity({ subject: "u_eng", orgId: org });
+    await asEng.mutation(api.sessions.respondToEngineerRequest, { sessionId: sessionId as never, accept: true });
+    const session = await t.run((ctx) => ctx.db.get(sessionId as never));
+    expect(session!.status).toBe("tentative");
+    expect(session!.engineerRequestStatus).toBe("confirmed");
+    const shift = await t.run(async (ctx) =>
+      (await ctx.db.query("shifts").collect()).find((sh) => sh.memberId === engId));
+    expect(shift?.kind).toBe("session");
+    expect((await asEng.query(api.sessions.myEngineerRequests, {})).length).toBe(0);
+  });
+
+  it("accepting an internal (non-public) booking still finalizes it", async () => {
+    await t.run((ctx) => ctx.db.patch(sessionId as never, { source: "internal" } as never));
+    const asEng = t.withIdentity({ subject: "u_eng", orgId: org });
+    await asEng.mutation(api.sessions.respondToEngineerRequest, { sessionId: sessionId as never, accept: true });
+    const session = await t.run((ctx) => ctx.db.get(sessionId as never));
+    expect(session!.status).toBe("confirmed");
   });
 
   it("declining clears the assignment and leaves the session tentative", async () => {

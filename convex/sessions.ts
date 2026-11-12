@@ -1186,9 +1186,11 @@ export const myEngineerRequests = query({
   },
 });
 
-/** The requested engineer accepts or declines. Accepting finalizes the
- *  booking (session -> confirmed + auto-shift); declining clears the
- *  assignment so managers can restaff (session stays tentative). */
+/** The requested engineer accepts or declines. Accepting books the shift and
+ *  finalizes the booking (session -> confirmed), except an unpaid public hold:
+ *  there the deposit is what confirms it (payments.settlePayment), so the
+ *  session stays tentative. Declining clears the assignment so managers can
+ *  restaff (session stays tentative). */
 export const respondToEngineerRequest = mutation({
   args: { sessionId: v.id("sessions"), accept: v.boolean() },
   handler: async (ctx, { sessionId, accept }) => {
@@ -1204,6 +1206,7 @@ export const respondToEngineerRequest = mutation({
     }
     const me = await ctx.db.get(viewer.memberId);
     const name = me?.name ?? "Engineer";
+    let finalized = false;
     if (accept && session.requestStatus === "pending") {
       // A booking request: the engineer can take it, but only an owner or
       // manager confirms the booking (bookingRequests.approve books the shift).
@@ -1218,9 +1221,13 @@ export const respondToEngineerRequest = mutation({
         accent: "gold",
       });
     } else if (accept) {
+      // An unpaid public hold is confirmed by its deposit, not by the engineer.
+      const depositPaid =
+        session.depositPaid || (session.amountPaidCents ?? 0) >= session.depositCents;
+      finalized = session.source !== "public_booking" || depositPaid;
       await ctx.db.patch(sessionId, {
         engineerRequestStatus: "confirmed",
-        status: "confirmed",
+        ...(finalized ? { status: "confirmed" as const } : {}),
       });
       await ensureSessionShift(ctx, {
         _id: sessionId,
@@ -1233,11 +1240,13 @@ export const respondToEngineerRequest = mutation({
       await ctx.db.insert("activity", {
         orgId: session.orgId,
         kind: "engineer.confirmed",
-        summary: `${name} confirmed ${session.title} - booking finalized`,
+        summary: finalized
+          ? `${name} confirmed ${session.title} - booking finalized`
+          : `${name} can take ${session.title} - booking still waiting on the deposit`,
         actorName: name,
         entityType: "session",
         entityId: sessionId,
-        accent: "positive",
+        accent: finalized ? "positive" : "gold",
       });
     } else {
       await ctx.db.patch(sessionId, {
@@ -1254,7 +1263,7 @@ export const respondToEngineerRequest = mutation({
         accent: "critical",
       });
     }
-    return { ok: true };
+    return { ok: true, finalized };
   },
 });
 
