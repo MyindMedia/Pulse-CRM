@@ -38,6 +38,7 @@ import {
   type BookingFacts,
 } from "./lib/bookingMessages";
 import { recomputeRoomStatus } from "./lib/roomStatus";
+import { dropPreChecklistFor } from "./checklists";
 import { ensureSessionShift } from "./shifts";
 import { currentMemberId } from "./sessions";
 
@@ -358,6 +359,9 @@ export const decline = mutation({
       ...(decidedBy ? { requestDecidedBy: decidedBy } : {}),
       ...(declineReason ? { declineReason } : {}),
     });
+    // A declined request will not run: drop its unused pre-session list, as
+    // a staff cancel does (sessions.applyStatus).
+    await dropPreChecklistFor(ctx, sessionId);
     if (session.roomId) await recomputeRoomStatus(ctx, session.roomId);
 
     const facts = await requestFacts(ctx, session, org);

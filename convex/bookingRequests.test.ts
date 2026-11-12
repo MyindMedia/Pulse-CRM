@@ -223,6 +223,22 @@ describe("booking requests: requireApproval", () => {
     expect(await asMgr.query(api.bookingRequests.pending, {})).toHaveLength(1);
   });
 
+  /* R24: a declined request kept the pre-session checklist createBooking
+     staged for it. */
+  it("declining drops the request's pre-session checklist", async () => {
+    const t = convexTest(schema);
+    const { room } = await studio(t, { requireApproval: true });
+    const res = await book(t, room);
+    const kinds = async () =>
+      (await t.run((ctx) => ctx.db.query("sessionChecklists").collect()))
+        .filter((l) => l.sessionId === res.sessionId)
+        .map((l) => l.kind)
+        .sort();
+    expect(await kinds()).toEqual(["post", "pre"]);
+    await t.withIdentity({ subject: "u_mgr", orgId: ORG }).mutation(api.bookingRequests.decline, { sessionId: res.sessionId });
+    expect(await kinds()).toEqual(["post"]);
+  });
+
   it("declining after a paid deposit reports the refund the studio owes", async () => {
     const t = convexTest(schema);
     const { room } = await studio(t, { requireApproval: true });

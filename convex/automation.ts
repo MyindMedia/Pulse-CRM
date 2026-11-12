@@ -9,6 +9,7 @@ import { proposeWaitlistFill } from "./waitlist";
 import { createCompletionInvoice } from "./sessions";
 import { normalizePhone } from "./lib/phone";
 import { renderSms, BALANCE_DUE_SMS } from "./lib/smsTemplates";
+import { dropPreChecklistFor } from "./checklists";
 
 /* ============================================================
    Booking automation - runs on a 15-minute cron (see crons.ts)
@@ -110,6 +111,9 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
         await ctx.db.patch(s._id, { status: "no_show", autoResolved: "auto_no_show" });
       } else {
         await ctx.db.patch(s._id, { status: "cancelled", autoResolved: "expired_hold" });
+        // Same as a staff cancel (sessions.applyStatus): no pre-session list
+        // for a session that will not run.
+        await dropPreChecklistFor(ctx, s._id);
       }
       out.staleResolved++;
       continue;
@@ -320,6 +324,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     // 3. Hold expiry - an unpaid hold past its window is released.
     if (!pendingRequest && s.status === "tentative" && paid === 0 && s.holdExpiresAt && s.holdExpiresAt < now) {
       await ctx.db.patch(s._id, { status: "cancelled" });
+      await dropPreChecklistFor(ctx, s._id);
       await ctx.db.insert("activity", {
         orgId: s.orgId,
         kind: "booking.hold_released",
@@ -359,6 +364,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
       now < s.startTime
     ) {
       await ctx.db.patch(s._id, { status: "cancelled" });
+      await dropPreChecklistFor(ctx, s._id);
       await ctx.db.insert("activity", {
         orgId: s.orgId,
         kind: "booking.forfeited",
