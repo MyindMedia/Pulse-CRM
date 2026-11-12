@@ -13,6 +13,10 @@
   SECRETS_SCAN_OMIT_KEYS = "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,NEXT_PUBLIC_CONVEX_URL,NEXT_PUBLIC_CONVEX_SITE_URL,NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY"
 
 # Public Pulse product demo intake. Preserve /book for studio room bookings.
+# src/middleware.ts answers /demo first and forwards the query string (UTM
+# tags, fbclid, gclid) itself; this rule is the fallback. Netlify passes the
+# query string through a 302 on its own, so keep the rule plain: no query
+# string on `to` and no `query` condition. src/middleware.test.ts checks it.
 [[redirects]]
   from = "/demo"
   to = "https://zuops.com/f/pulse-30-minute-demo-intake-draft-fbib"

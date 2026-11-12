@@ -196,6 +196,23 @@ export function isProductionUiLab(pathname: string, staging: boolean): boolean {
   return !staging && (pathname === "/ui-lab" || pathname.startsWith("/ui-lab/"));
 }
 
+/** The public demo intake form. netlify.toml carries the same address. */
+export const DEMO_FORM_URL = "https://zuops.com/f/pulse-30-minute-demo-intake-draft-fbib";
+
+/*
+ * Where /demo sends a visitor: the intake form, with the query string they
+ * arrived with. /demo is the link in outreach emails, ads and social posts,
+ * and the UTM tags and click ids (fbclid, gclid) on it are how a lead gets
+ * its source. This middleware answers /demo before Netlify's own redirect
+ * rule is reached, so a bare redirect here dropped all of it. `search` is
+ * the request's query as Next hands it over ("" or "?a=b"), appended as is;
+ * the host and path are fixed, so nothing in it can change where the visitor
+ * lands.
+ */
+export function demoRedirectUrl(search: string): string {
+  return search.length > 1 ? `${DEMO_FORM_URL}${search}` : DEMO_FORM_URL;
+}
+
 export default async function middleware(req: NextRequest, event: NextFetchEvent) {
   // The page's own notFound() runs after Next has begun streaming, so it can
   // only render "not found" under a 200. The status has to be set here.
@@ -207,9 +224,7 @@ export default async function middleware(req: NextRequest, event: NextFetchEvent
   }
   // Public product-demo redirect must run before Clerk protects app routes.
   if (req.nextUrl.pathname === "/demo") {
-    return expireStaleClientCookie(req, NextResponse.redirect(
-      "https://zuops.com/f/pulse-30-minute-demo-intake-draft-fbib", 302,
-    ));
+    return expireStaleClientCookie(req, NextResponse.redirect(demoRedirectUrl(req.nextUrl.search), 302));
   }
   const res = await handler(req, event);
   return expireStaleClientCookie(req, res);
