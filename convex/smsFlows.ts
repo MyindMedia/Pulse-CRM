@@ -286,12 +286,20 @@ async function applyPromptAnswer(
     const session = prompt.sessionId ? await ctx.db.get(prompt.sessionId) : null;
     if (!session) return false;
     if (intent === "yes") {
-      // A pending booking request is confirmed by an owner or manager only.
-      if (session.status === "tentative" && session.requestStatus !== "pending") {
-        await ctx.db.patch(session._id, { status: "confirmed" });
-      }
+      // A text YES never confirms a booking: approval is the studio's call and
+      // an unpaid hold is confirmed by its deposit. Only a booking that is
+      // already confirmed hears "You are confirmed"; anything else (an old
+      // question for a booking that changed since) goes to the studio.
       await answerPrompt(ctx, prompt, "yes");
-      queueSend(ctx, phone, renderSms(CLIENT_CONFIRM_ACK, { title: session.title, studio }));
+      if (session.status === "confirmed") {
+        queueSend(ctx, phone, renderSms(CLIENT_CONFIRM_ACK, { title: session.title, studio }));
+      } else {
+        await alertManagers(
+          ctx,
+          prompt.orgId,
+          `client replied YES for "${session.title}", but the booking is not confirmed yet. Please follow up.`,
+        );
+      }
       return true;
     }
     if (intent === "no") {

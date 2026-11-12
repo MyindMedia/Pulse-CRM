@@ -212,11 +212,15 @@ export const _dueReminders = internalQuery({
 
       const clientPhone = artist?.phone ? normalizePhone(artist.phone) : null;
       if (clientPhone) {
+        // Only a confirmed booking gets the YES/NO question: a YES is answered
+        // "You are confirmed", which is false for a pending request or an
+        // unpaid hold. Those get the plain reminder.
+        const askConfirm = kind === "2h" && s.status === "confirmed";
         recipients.push({
           phone: clientPhone,
           isClient: true,
-          promptKind: kind === "2h" ? ("booking_confirm" as const) : undefined,
-          body: renderSms(kind === "2h" ? CLIENT_CONFIRM_2H : CLIENT_REMINDER, {
+          promptKind: askConfirm ? ("booking_confirm" as const) : undefined,
+          body: renderSms(askConfirm ? CLIENT_CONFIRM_2H : CLIENT_REMINDER, {
             studio,
             title: s.title,
             soon,
