@@ -1694,7 +1694,8 @@ export default defineSchema({
     body: v.string(),
     kind: v.string(), // booking.confirmed, balance.reminder, hold.released...
     sessionId: v.optional(v.id("sessions")),
-    status: v.union(v.literal("simulated"), v.literal("sent"), v.literal("failed")),
+    // "skipped": a text to a number that replied STOP; never handed to the provider.
+    status: v.union(v.literal("simulated"), v.literal("sent"), v.literal("failed"), v.literal("skipped")),
   })
     .index("by_org", ["orgId"])
     .index("by_session", ["sessionId"]),
