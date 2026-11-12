@@ -9,10 +9,10 @@ import { cn } from "@/lib/utils";
 import { useCrm } from "./crm-context";
 import { ConfirmDialog, TOUCH, WriteButton, dateTime, phone, type ConfirmGrant } from "./crm-ui";
 import { useZuWrite, type ZuLimits } from "./use-zu";
-import { useNow } from "./inbox-clock";
+import { currentTime, useNow } from "./inbox-clock";
 import { INBOX_OP } from "./inbox-ops";
 import {
-  MAX_SCHEDULE_DAYS, draftProblem, sendRequest, toLocalInput, validateSchedule,
+  MAX_SCHEDULE_DAYS, SCHEDULE_PASSED, ScheduleExpiredError, TEXT_OPT_OUT_NOTE, draftProblem, sendRequest, toLocalInput, validateSchedule,
   type ChannelOption, type ComposerDraft,
 } from "./inbox-logic";
 import type { ReplyIdea, ReplyIdeasResponse } from "./inbox-types";
@@ -51,6 +51,11 @@ export function senderLine(channel: ComposerDraft["channel"], fromNumber: string
 }
 
 const NOUN: Record<ComposerDraft["channel"], string> = { sms: "text", email: "email", instagram: "Instagram reply", messenger: "Messenger reply" };
+
+/** "a text", "an email", "an Instagram reply". */
+export function withArticle(noun: string): string {
+  return `${/^[aeiou]/i.test(noun) ? "an" : "a"} ${noun}`;
+}
 
 export function InboxComposer({
   to,
@@ -99,7 +104,15 @@ export function InboxComposer({
 
   /** Runs only from ConfirmDialog's onConfirm, with the grant it made. */
   const sendWithGrant = async (grant: ConfirmGrant) => {
-    const req = sendRequest(draft, to.leadId, grant, now);
+    let req: ReturnType<typeof sendRequest>;
+    try {
+      // The time at the moment of confirming, not the last render's (F-U1).
+      req = sendRequest(draft, to.leadId, grant, currentTime());
+    } catch (e) {
+      // The draft stays as it is; nothing was sent.
+      setError(e instanceof ScheduleExpiredError ? SCHEDULE_PASSED : "This message could not be prepared. Nothing was sent.");
+      return;
+    }
     const res = await run(req.op, req.args, { invalidate: INBOX_INVALIDATE });
     if (res.limits) onLimits?.(res.limits);
     if (res.ok) {
@@ -109,8 +122,11 @@ export function InboxComposer({
       onSent();
       return;
     }
-    // The same key is kept, so pressing Send again is a safe retry.
-    setError(res.reason ?? "Zuops refused the message.");
+    // Nothing is retried automatically. The draft and its key stay, so a person
+    // pressing Send again after fixing the cause is a safe retry (F-U2).
+    setError(res.status === 400 || res.status === 422
+      ? `Zuops refused this message: ${res.reason ?? "no reason given"}. Nothing was sent.`
+      : res.reason ?? "Zuops refused the message. Nothing was sent.");
   };
 
   const askForConfirm = () => {
@@ -144,10 +160,13 @@ export function InboxComposer({
       <p>
         {draft.suggestionId
           ? <>Zuops sends your edited version of the AI reply to {recipientLine(draft.channel, to)}, and makes any booking or cancellation it suggested.</>
-          : draft.sendAt && when?.ok
-            ? <>Zuops sends it to {recipientLine(draft.channel, to)} {senderLine(draft.channel, fromNumber)} on {dateTime(when.ms)}. You can edit or cancel it until then.</>
+          : draft.sendAt
+            ? when?.ok
+              ? <>Zuops sends it to {recipientLine(draft.channel, to)} {senderLine(draft.channel, fromNumber)} on {dateTime(when.ms)}. You can edit or cancel it until then.</>
+              : <>{SCHEDULE_PASSED} Confirming sends nothing.</>
             : <>Send this {noun} to {recipientLine(draft.channel, to)} {senderLine(draft.channel, fromNumber)}?</>}
       </p>
+      {draft.channel === "sms" && <p className="text-xs">{TEXT_OPT_OUT_NOTE}</p>}
       <p className="line-clamp-4 whitespace-pre-wrap break-words rounded-md border border-graphite/50 bg-coal/40 p-2 text-bone">{draft.text.trim()}</p>
       <p className="text-xs">It reaches a real person. It counts against today&apos;s contact limit and uses credits, except Instagram and Messenger replies.</p>
     </div>
@@ -159,8 +178,8 @@ export function InboxComposer({
 
   return (
     <section aria-label={`Write to ${to.name}`} className="space-y-3 rounded-lg border border-graphite/50 bg-coal/40 p-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <div role="group" aria-label="Channel" className="flex flex-wrap gap-1">
+      <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+        <div role="group" aria-label="Channel" className="flex min-w-0 flex-wrap gap-1">
           {options.map((o) => (
             <Button
               key={o.channel} type="button" size="sm" variant={o.channel === draft.channel ? "primary" : "secondary"}
@@ -173,8 +192,8 @@ export function InboxComposer({
             </Button>
           ))}
         </div>
-        <span className="min-w-0 flex-1 text-xs text-steel">{senderLine(draft.channel, fromNumber).replace(/^./, (c) => c.toUpperCase())}</span>
-        {slotLine && <span className="text-xs tabular-nums text-steel">{slotLine}</span>}
+        <span className="min-w-0 basis-full break-words text-xs text-steel">{senderLine(draft.channel, fromNumber).replace(/^./, (c) => c.toUpperCase())}</span>
+        {slotLine && <span className="min-w-0 basis-full text-xs tabular-nums text-steel">{slotLine}</span>}
       </div>
 
       {option && !option.available && (
@@ -200,21 +219,22 @@ export function InboxComposer({
       <div className="space-y-1">
         <Label htmlFor={ids.text}>Message</Label>
         <Textarea
-          id={ids.text} value={draft.text} rows={3} placeholder={`Write a ${noun}`}
+          id={ids.text} value={draft.text} rows={3} placeholder={`Write ${withArticle(noun)}`}
           aria-describedby={shown || error ? ids.err : undefined}
           onChange={(e) => edit({ text: e.target.value })}
         />
         <p className="text-[0.6875rem] text-steel/80">
           Variables: {"{first_name}"}, {"{full_name}"}, {"{business_name}"}. Zuops fills them in for this lead. Nothing is sent until you confirm.
         </p>
+        {draft.channel === "sms" && <p className="text-[0.6875rem] text-steel/80">{TEXT_OPT_OUT_NOTE}</p>}
       </div>
 
       {scheduling && (
         <div className="flex flex-wrap items-end gap-2">
-          <div className="min-w-0 space-y-1">
+          <div className="min-w-0 max-w-full space-y-1">
             <Label htmlFor={ids.at}>Send at (your time)</Label>
             <Input
-              id={ids.at} type="datetime-local" className={cn("w-auto", TOUCH)} value={draft.sendAt}
+              id={ids.at} type="datetime-local" className={cn("w-auto max-w-full", TOUCH)} value={draft.sendAt}
               min={toLocalInput(now + 120_000)} max={toLocalInput(now + MAX_SCHEDULE_DAYS * 86_400_000)}
               onChange={(e) => edit({ sendAt: e.target.value })}
             />
@@ -225,7 +245,9 @@ export function InboxComposer({
         </div>
       )}
 
-      {(shown || error) && <p id={ids.err} role="alert" className="text-sm text-critical">{error ?? shown}</p>}
+      {(shown || error) && (
+        <p id={ids.err} role="alert" className="break-words rounded-md border border-critical/40 bg-critical/10 p-2 text-sm font-medium text-critical">{error ?? shown}</p>
+      )}
 
       {ideas && ideas.length > 0 && (
         <div className="space-y-2">

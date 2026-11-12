@@ -237,6 +237,9 @@ export type ChannelOption = { channel: Channel; label: string; available: boolea
 
 export const SOCIAL_WINDOW_MS = 24 * 60 * 60 * 1000;
 
+/** Shown under the Text composer and in the Text confirm dialog (F-U2). */
+export const TEXT_OPT_OUT_NOTE = "Pulse cannot see text opt-outs. Zuops blocks a text to anyone who replied STOP or is marked do not contact.";
+
 function flag(lead: Lead | null | undefined, ...keys: string[]): boolean {
   const rec = (lead ?? {}) as Record<string, unknown>;
   return keys.some((k) => rec[k] === true);
@@ -250,27 +253,26 @@ export function socialWindowEnds(items: ThreadItem[], channel: "instagram" | "me
   return last ? last + SOCIAL_WINDOW_MS : null;
 }
 
-/** Text needs a phone, email an email; both are off when the lead opted out or
- *  the address is marked invalid (eval X-05). Instagram and Messenger show only
- *  when the person wrote there, and only inside the 24 hour reply window. */
+/** Text needs a phone Zuops has not marked invalid; email needs an address that
+ *  is not opted out, invalid or paused (eval X-05). A Zuops lead has no text
+ *  opt-out or do-not-contact field, so Pulse cannot see those: Zuops itself
+ *  refuses a text to anyone who replied STOP (see TEXT_OPT_OUT_NOTE). Instagram
+ *  and Messenger show only when the person wrote there, and only inside the 24
+ *  hour reply window. */
 export function channelOptions(
   lead: Lead | null | undefined,
   conversationChannel: string | null | undefined,
   items: ThreadItem[],
   now: number,
 ): ChannelOption[] {
-  const dnc = flag(lead, "do_not_contact", "dnc");
   const sms: ChannelOption = { channel: "sms", label: "Text", available: false, reason: null };
-  if (dnc) sms.reason = "This lead is marked do not contact.";
-  else if (flag(lead, "sms_opt_out", "sms_opted_out", "opted_out")) sms.reason = "This lead opted out of texts.";
-  else if (!lead?.phone) sms.reason = "No phone number on this lead.";
+  if (!lead?.phone) sms.reason = "No phone number on this lead.";
   else if (lead.phone_invalid) sms.reason = "Zuops marked this phone number invalid.";
   else sms.available = true;
 
   const email: ChannelOption = { channel: "email", label: "Email", available: false, reason: null };
-  if (dnc) email.reason = "This lead is marked do not contact.";
-  else if (lead?.email_opt_out) email.reason = "This lead opted out of email.";
-  else if (!lead?.email) email.reason = "No email address on this lead.";
+  if (!lead?.email) email.reason = "No email address on this lead.";
+  else if (lead.email_opt_out) email.reason = "This lead opted out of email.";
   else if (lead.email_invalid) email.reason = "Zuops marked this email address invalid.";
   else if (flag(lead, "email_paused")) email.reason = "Email to this lead is paused in Zuops.";
   else email.available = true;
@@ -370,19 +372,33 @@ export type SendRequest = {
   args: { path?: Record<string, string>; body: Record<string, unknown>; idem: string } & ConfirmGrant;
 };
 
+export const SCHEDULE_PASSED = "That time has passed. Pick a new time.";
+
+/** Thrown by sendRequest when a scheduled draft's time no longer validates. */
+export class ScheduleExpiredError extends Error {
+  constructor(readonly detail: string) {
+    super(SCHEDULE_PASSED);
+    this.name = "ScheduleExpiredError";
+  }
+}
+
 /** The write for a confirmed send. It needs the grant ConfirmDialog hands to its
  *  onConfirm, so a send cannot be built anywhere else. */
 export function sendRequest(draft: ComposerDraft, leadId: string, grant: ConfirmGrant, now: number): SendRequest {
   if (grant?.confirm !== true) throw new Error("A send needs a confirm grant.");
   const text = draft.text.trim();
   if (draft.suggestionId) {
+    if (draft.sendAt) throw new ScheduleExpiredError("An AI suggestion is sent now. Clear the time to send it.");
     return { op: INBOX_OP.approveSuggestion, args: { path: { suggestion_id: draft.suggestionId }, body: { body: text }, idem: draft.idem, ...grant } };
   }
   const body: Record<string, unknown> = { lead_id: leadId, channel: draft.channel, body: text };
   if (draft.channel === "email") body.subject = draft.subject.trim();
   if (draft.sendAt) {
+    // A scheduled draft never becomes an immediate send (F-U1): a time that no
+    // longer validates refuses the whole send instead of dropping send_at.
     const s = validateSchedule(draft.sendAt, now);
-    if (s.ok) body.send_at = s.iso;
+    if (!s.ok) throw new ScheduleExpiredError(s.reason);
+    body.send_at = s.iso;
   }
   return { op: INBOX_OP.send, args: { body, idem: draft.idem, ...grant } };
 }

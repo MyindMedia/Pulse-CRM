@@ -3,8 +3,13 @@
    never part of the agency shell or the first CRM paint (eval P-04). */
 
 import { ZU_OPS } from "@convex/crm/ops.generated";
-import { confirmKind, level } from "@convex/crm/policy";
-import type { CatalogEntry } from "./functions-catalog";
+import { BODY_RULES, confirmKind, level, type ConfirmKind } from "@convex/crm/policy";
+import type { CatalogEntry, CatalogKind } from "./functions-catalog";
+
+/* The catalog's kind list must match the server's, both ways. */
+type Same<A, B> = [A] extends [B] ? ([B] extends [A] ? true : never) : never;
+const KINDS_AGREE: Same<CatalogKind, ConfirmKind> = true;
+void KINDS_AGREE;
 
 export const CATALOG: CatalogEntry[] = Object.values(ZU_OPS).map((op) => ({
   id: op.id,
@@ -15,4 +20,5 @@ export const CATALOG: CatalogEntry[] = Object.values(ZU_OPS).map((op) => ({
   scope: op.scope,
   level: level(op),
   kind: confirmKind(op),
+  dependsOnBody: Object.prototype.hasOwnProperty.call(BODY_RULES, op.id),
 }));

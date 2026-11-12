@@ -10,7 +10,7 @@ import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHea
 import { Checkbox } from "@/components/ui/toggle";
 import { cn } from "@/lib/utils";
 import { TOUCH, WriteButton, dateTime, money, phone } from "./crm-ui";
-import { newIdem, useZuRead, useZuWrite } from "./use-zu";
+import { useIdemFor, useZuRead, useZuWrite } from "./use-zu";
 import { CAL_OP } from "./calendar-ops";
 import { SlotPicker } from "./calendar-parts";
 import { bookBody, calendarOptions, lengthWord, type BookForm } from "./calendar-logic";
@@ -82,7 +82,7 @@ function BookBody({
   const search = useDebounced(term.trim(), 300);
   const [error, setError] = React.useState<string | null>(null);
   const [reload, setReload] = React.useState(0);
-  const [sent, setSent] = React.useState<{ sig: string; idem: string } | null>(null);
+  const [round, setRound] = React.useState(0);
   const { run, pending } = useZuWrite();
 
   const set = (patch: Partial<BookForm>) => { setForm((f) => ({ ...f, ...patch })); setError(null); };
@@ -95,18 +95,17 @@ function BookBody({
   const results = useZuRead<LeadsResponse>(CAL_OP.leads, { query: { search, limit: 8 } }, { enabled: !form.leadId && search.length >= 2, pollMs: 0, keepPrevious: true });
 
   const built = bookBody(form, calendar);
+  // One key per distinct booking; retrying the same booking reuses it, and a new
+  // one starts after a booking succeeds (F-U9).
+  const idem = useIdemFor(`book:${round}:${"body" in built ? JSON.stringify(built.body) : "incomplete"}`);
   const book = async () => {
     if ("error" in built) { setError(built.error); return; }
-    // One key per distinct booking; retrying the same booking reuses it.
-    const sig = JSON.stringify(built.body);
-    const idem = sent && sent.sig === sig ? sent.idem : newIdem();
-    setSent({ sig, idem });
     const res = await run(CAL_OP.book, { body: built.body, idem }, { invalidate: INVALIDATE });
     if (res.ok) {
       const warning = (res.data as BookingResponse | undefined)?.warning;
       toast.success(`Booked ${shownName ?? "the lead"} for ${dateTime(form.slot, calendar?.timezone)}.${form.notify ? " Zuops is sending the confirmation." : " Booked quietly: nothing was sent."}`);
       if (warning) toast.warning(warning);
-      setSent(null);
+      setRound((r) => r + 1);
       onDone();
       return;
     }
@@ -214,6 +213,7 @@ function BookBody({
           <section aria-labelledby="bk-slots-h" className="space-y-2">
             <h3 id="bk-slots-h" className="overline">Open times</h3>
             <SlotPicker
+              key={`${calendar.id}|${form.optionId ?? ""}|${form.addonIds.join(",")}`}
               idPrefix="bk" calendarId={calendar.id} optionId={form.optionId} addonIds={form.addonIds}
               value={form.slot} onChange={(slot) => set({ slot })} reload={reload}
             />

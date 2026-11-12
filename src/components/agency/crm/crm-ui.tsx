@@ -234,6 +234,22 @@ export function UnauthorizedState({ reason }: { reason?: "signed_out" | "forbidd
 
 /* ---------- confirm ---------- */
 
+/** The kinds of consequence the server asks a person to confirm. */
+export type ConfirmKind = "reaches" | "changes_sending" | "spends" | "exposes" | "delete";
+
+const CONFIRM_COPY: Record<ConfirmKind, string> = {
+  reaches: "This reaches real people.",
+  changes_sending: "This changes what is sent automatically to real people.",
+  spends: "This uses credits or starts paid work.",
+  exposes: "This sends lead data outside the account or changes who can access it.",
+  delete: "This deletes something.",
+};
+
+/** The one-line consequence to put in a ConfirmDialog body for each kind. */
+export function confirmCopy(kind: ConfirmKind): string {
+  return CONFIRM_COPY[kind];
+}
+
 /** Proof that a person pressed the confirm button of a ConfirmDialog. Spread it
  *  into a write: `run(op, { path, ...grant })`. */
 export type ConfirmGrant = { readonly confirm: true };

@@ -4,19 +4,23 @@ import { getFunctionName } from "convex/server";
 
 /* Leads panel states, server-rendered against fixture reads. The read hook is
    mocked by operation id; Convex queries feed the CRM status. */
-type Read = { data?: unknown; error?: { reason: string; code?: string; status: number } | null; loading?: boolean };
+type Read = { data?: unknown; error?: { reason: string; code?: string; status: number } | null; loading?: boolean; held?: boolean };
 const reads: Record<string, Read> = {};
 const queries: Record<string, unknown> = {};
+const lastArgs: Record<string, unknown> = {};
 
 vi.mock("convex/react", () => ({
   useQuery: (ref: never, args?: unknown) => (args === "skip" ? undefined : queries[getFunctionName(ref)]),
   useAction: () => async () => ({ ok: true, status: 200, json: null, limits: {} }),
 }));
 vi.mock("./use-zu", () => ({
-  useZuRead: (op: string | null) => {
+  useZuRead: (op: string | null, args?: unknown) => {
+    if (op) lastArgs[op] = args;
     const r = (op && reads[op]) || { loading: true };
-    return { data: r.data, error: r.error ?? null, loading: r.loading ?? (r.data === undefined && !r.error), refreshing: false, fetchedAt: r.data ? Date.now() - 12_000 : null, refresh: () => undefined };
+    return { data: r.data, error: r.error ?? null, loading: r.loading ?? (r.data === undefined && !r.error), refreshing: !!r.held, held: !!r.held, fetchedAt: r.data ? Date.now() - 12_000 : null, startedAt: null, refresh: () => undefined };
   },
+  useIdemFor: (fp: string) => `idem-${fp.length}`,
+  stableStringify: (v: unknown) => JSON.stringify(v),
   useZuWrite: () => ({ run: async () => ({ ok: true, status: 200, limits: {} }), pending: false }),
   useZuFetch: () => async () => ({ data: undefined, error: null }),
   newIdem: () => "idem-test",
@@ -24,7 +28,7 @@ vi.mock("./use-zu", () => ({
 }));
 
 import { CrmProvider } from "./crm-context";
-import { CrmLeads, bySource, isFiltering, leadsQuery, newLeadBody, EMPTY_FILTERS } from "./crm-leads";
+import { CrmLeads, bySource, filtersForJump, isFiltering, leadsQuery, newLeadBody, showingRange, EMPTY_FILTERS } from "./crm-leads";
 import { leadPatch, dollarsToCents } from "./crm-lead-sheet";
 import { OP } from "./ops";
 import { DEV, MAYA, STAGES } from "./crm-test-fixtures";
@@ -74,6 +78,29 @@ describe("Leads panel", () => {
     expect(out).toMatch(/Previous<\/button>/);
     expect(out).toContain("New lead");
     expect(out).not.toContain("—");
+  });
+
+  it("F-U17: while the next page loads, the held rows are dimmed and busy, not labeled as the new page", () => {
+    reads[OP.leadsList] = { data: { leads: [MAYA, DEV], has_more: true, next_offset: 50 }, held: true };
+    const out = html();
+    expect(out).toContain('aria-busy="true"');
+    expect(out).toContain("opacity-50");
+    expect(out).toContain("Loading leads from Zuops");
+    // Next is off until the new page is in.
+    expect(out).toMatch(/disabled=""[^>]*>Next/);
+    expect(showingRange(0, 2)).toBe("Showing 1 to 2");
+    expect(showingRange(50, 13)).toBe("Showing 51 to 63");
+    expect(showingRange(50, 0)).toBe("No leads on this page");
+  });
+
+  it("F-V6: a jump from the Pipeline opens Leads filtered to the unstaged leads' status", () => {
+    expect(filtersForJump({ status: "partial" })).toEqual({ ...EMPTY_FILTERS, status: "partial" });
+    expect(filtersForJump({ status: "made-up" })).toEqual(EMPTY_FILTERS);
+    expect(filtersForJump(undefined)).toEqual(EMPTY_FILTERS);
+    reads[OP.leadsList] = { data: { leads: [MAYA], has_more: false, next_offset: null } };
+    const out = renderToStaticMarkup(<CrmProvider><CrmLeads jump={{ status: "partial" }} jumpNonce={1} /></CrmProvider>);
+    expect(out).toContain("Leads");
+    expect(lastArgs[OP.leadsList]).toEqual({ query: { limit: 50, status: "partial" } });
   });
 
   it("read only: New lead is off and says why", () => {

@@ -11,7 +11,7 @@ import { TOUCH, ZuErrorState, money } from "./crm-ui";
 import { useZuRead } from "./use-zu";
 import { useNow } from "./inbox-clock";
 import { CAL_OP } from "./calendar-ops";
-import { slotDays, statusInfo, todayKey, zoneName, type StatusIcon } from "./calendar-logic";
+import { slotDays, statusInfo, todayKey, zoneName, type SlotDay, type StatusIcon } from "./calendar-logic";
 import type { AvailabilityResponse } from "./calendar-types";
 
 /* Small pieces the Calendar screens share: the status badge (a word and an icon,
@@ -32,6 +32,13 @@ export function BookingStatusBadge({ status }: { status: string | null | undefin
 }
 
 const DAY_CHOICES = [7, 14, 28, 42] as const;
+
+/** The picked slot when it is one of the open times on show, else null. A slot
+ *  from an earlier calendar, option, add-on set or date range never counts. */
+export function currentSlot(value: string | null, days: SlotDay[]): string | null {
+  if (!value) return null;
+  return days.some((d) => d.slots.some((s) => s.iso === value)) ? value : null;
+}
 
 /** Open slots from GET /v1/calendars/{id}/availability, by day in the calendar's
  *  zone. `reload` bumps to refetch (after a slot_full refusal). */
@@ -58,7 +65,9 @@ export function SlotPicker({
   const avail = useZuRead<AvailabilityResponse>(
     CAL_OP.availability,
     { path: { calendar_id: calendarId }, query: { from, days, option_id: optionId ?? undefined, addon_ids: addonIds?.length ? addonIds.join(",") : undefined } },
-    { kinds: ["booking"], pollMs: 120_000, keepPrevious: true },
+    // No keepPrevious: after the calendar, option, add-ons or dates change, the
+    // old times must not stay on screen or clickable (F-U10).
+    { kinds: ["booking"], pollMs: 300_000 },
   );
   const refresh = avail.refresh;
   const lastReload = React.useRef(reload);
@@ -69,7 +78,13 @@ export function SlotPicker({
   }, [reload, refresh]);
 
   const tz = avail.data?.calendar?.timezone ?? null;
-  const grouped = slotDays(avail.data?.slots, avail.data?.days, tz);
+  const grouped = React.useMemo(() => slotDays(avail.data?.slots, avail.data?.days, tz), [avail.data, tz]);
+  // A chosen time that is not in the list on show (still loading, or gone after
+  // a refetch) is cleared, so the action button cannot use it.
+  const stillThere = currentSlot(value, grouped);
+  React.useEffect(() => {
+    if (value && !stillThere) onChange(null);
+  }, [value, stillThere, onChange]);
   const quote = avail.data?.quote;
   const zone = zoneName(now, tz);
 
@@ -80,7 +95,7 @@ export function SlotPicker({
           <Label htmlFor={`${idPrefix}-from`}>From</Label>
           <Input id={`${idPrefix}-from`} type="date" className={cn("w-auto", TOUCH)} value={from} onChange={(e) => { if (e.target.value) { setFrom(e.target.value); onChange(null); } }} />
         </div>
-        <div className="w-36 space-y-1">
+        <div className="w-36 max-w-full space-y-1">
           <Label htmlFor={`${idPrefix}-days`}>Show</Label>
           <Select value={String(days)} onValueChange={(v) => { setDays(Number(v)); onChange(null); }}>
             <SelectTrigger id={`${idPrefix}-days`} className={TOUCH}><SelectValue /></SelectTrigger>

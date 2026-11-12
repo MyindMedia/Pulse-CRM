@@ -54,6 +54,34 @@ export function isSecretKey(key: string): boolean {
   return /secret|token|password|prefix|api_?key|signing|hash/i.test(key);
 }
 
+/** A copy of an answer with every secret-looking text value replaced by
+ *  "hidden", at any depth. Numbers and yes/no values stay (token counts,
+ *  has_password). `keep` names keys shown as they are (the one-time signing
+ *  secret in the create-webhook answer). */
+export function redactSecrets(data: unknown, keep: readonly string[] = [], depth = 0): unknown {
+  if (depth > 40) return "hidden";
+  if (Array.isArray(data)) return data.map((v) => redactSecrets(v, keep, depth + 1));
+  if (!isObj(data)) return data;
+  const out: Obj = {};
+  for (const [k, v] of Object.entries(data)) {
+    const secret = isSecretKey(k) && !keep.includes(k);
+    if (secret && typeof v === "string" && v !== "") out[k] = "hidden";
+    else if (secret && Array.isArray(v) && v.some((x) => typeof x === "string")) out[k] = v.map((x) => (typeof x === "string" ? "hidden" : redactSecrets(x, keep, depth + 1)));
+    else out[k] = redactSecrets(v, keep, depth + 1);
+  }
+  return out;
+}
+
+/** Is there a value to show (not missing, null or empty text)? */
+export const present = (v: unknown) => v !== undefined && v !== null && v !== "";
+
+/** The columns worth drawing: the first always (it opens the row), the rest
+ *  only when at least one row has a value there, so a guessed key that Zuops
+ *  does not send shows nothing rather than a column of dashes. */
+export function visibleColumns<C extends { key: string }>(columns: readonly C[], rows: readonly Obj[]): C[] {
+  return columns.filter((c, i) => i === 0 || rows.some((r) => present(getPath(r, c.key))));
+}
+
 /** The first value under one of `keys`, searched at any depth (a webhook's
  *  signing secret in the create answer). */
 export function findDeep(data: unknown, keys: readonly string[], depth = 0): string | null {
@@ -117,14 +145,55 @@ export function statusWord(value: unknown): string {
 
 /* ---------- confirm text ---------- */
 
-/** Fill `{count}`, `{name}` and any `{field}` from the dialog's values. */
-export function fillTemplate(text: string, vars: { count?: number | null; name?: string | null; values?: Record<string, string> }): string {
+
+/** Fill `{count}`, `{name}`, `{email_audience}` and any `{field}` from the dialog's values. */
+export function fillTemplate(text: string, vars: { count?: number | null; name?: string | null; email_audience?: string; values?: Record<string, string> }): string {
   return text.replace(/\{([a-z_]+)\}/g, (_, k: string) => {
     if (k === "count") return vars.count === null || vars.count === undefined ? "an uncounted number of" : vars.count.toLocaleString("en-US");
     if (k === "name") return vars.name || "this item";
+    if (k === "email_audience" && vars.email_audience) return vars.email_audience;
     const v = vars.values?.[k];
     return v !== undefined && v !== "" ? v : k.replace(/_/g, " ");
   });
+}
+
+const UUIDISH = /^[0-9a-f]{8}-[0-9a-f]{4}-|^uuid$/i;
+const joinWords = (xs: string[]) => (xs.length <= 1 ? xs.join("") : `${xs.slice(0, -1).join(", ")} and ${xs[xs.length - 1]}`);
+const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string" && x.trim() !== "") : []);
+
+/** Who an email campaign goes to, in words and never as a number: Zuops only
+ *  counts recipients when it sends. The audience picked in the form wins over
+ *  the campaign's saved one. */
+export function audienceText(values: FormValues, source?: Obj | null): string {
+  const picked = (values["body:audience"] ?? "").trim();
+  const audience = picked || (typeof source?.audience === "string" ? source.audience : "");
+  const tags = picked ? splitList(values["body:tags"] ?? "") : strings(source?.tags);
+  const stages = picked ? splitList(values["body:stages"] ?? "") : strings(source?.stages);
+  const notBooked = picked ? values["body:not_booked"] === "yes" : source?.not_booked === true;
+  const named = (xs: string[]) => xs.length > 0 && xs.every((x) => !UUIDISH.test(x));
+  switch (audience) {
+    case "everyone": return "everyone with an email address";
+    case "not_booked": return "everyone with an email address who has not booked";
+    case "stages": return named(stages) ? `everyone in the stages ${joinWords(stages)}` : "everyone in the campaign's chosen stages";
+    case "tags": {
+      const who = named(tags) ? `everyone tagged ${joinWords(tags)}` : "everyone with the campaign's chosen tags";
+      return notBooked ? `${who} who has not booked` : who;
+    }
+    default: return "everyone in the campaign's saved audience";
+  }
+}
+
+/* ---------- idempotency ---------- */
+
+/** A stable text for a form's values, keys sorted, so the same values always
+ *  give the same fingerprint (fed to useIdemFor). */
+export function fingerprint(x: unknown): string {
+  const norm = (v: unknown): unknown => {
+    if (Array.isArray(v)) return v.map(norm);
+    if (isObj(v)) return Object.fromEntries(Object.keys(v).sort().map((k) => [k, norm(v[k])]));
+    return v;
+  };
+  return JSON.stringify(norm(x)) ?? "";
 }
 
 /* ---------- forms ---------- */

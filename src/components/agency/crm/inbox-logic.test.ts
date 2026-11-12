@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyDraftChange, channelOptions, classifyEvent, contactSlots, conversationsQuery, defaultChannel, draftProblem, emptyDraft,
   filterCount, htmlToText, mergeConversations, previewText, safeUrl, searchTerm, sendRequest, socialWindowEnds, threadItems,
-  validateSchedule, type ComposerDraft,
+  validateSchedule, SCHEDULE_PASSED, ScheduleExpiredError, TEXT_OPT_OUT_NOTE, type ComposerDraft,
 } from "./inbox-logic";
 import { INBOX_OP } from "./inbox-ops";
 import type { Conversation, ThreadEvent } from "./inbox-types";
@@ -82,11 +82,21 @@ describe("channels a lead can receive (X-05)", () => {
     expect(defaultChannel(opts, "sms")).toBe("sms");
   });
 
-  it("opt-out and do not contact turn channels off with a reason", () => {
-    const optedOut = channelOptions({ ...MAYA, sms_opt_out: true } as typeof MAYA, "sms", [], NOW);
-    expect(optedOut.find((o) => o.channel === "sms")).toMatchObject({ available: false, reason: "This lead opted out of texts." });
-    const dnc = channelOptions({ ...MAYA, do_not_contact: true } as typeof MAYA, "sms", [], NOW);
-    expect(dnc.every((o) => !o.available)).toBe(true);
+  it("F-U2: only real Zuops fields turn channels off; guessed opt-out fields are ignored", () => {
+    const guessed = { ...MAYA, sms_opt_out: true, do_not_contact: true, dnc: true, opted_out: true, sms_opted_out: true } as typeof MAYA;
+    // Pulse cannot see text opt-outs; Zuops refuses those sends itself.
+    expect(channelOptions(guessed, "sms", [], NOW).find((o) => o.channel === "sms")?.available).toBe(true);
+    expect(TEXT_OPT_OUT_NOTE).toBe("Pulse cannot see text opt-outs. Zuops blocks a text to anyone who replied STOP or is marked do not contact.");
+    const sms = (l: typeof MAYA) => channelOptions(l, "sms", [], NOW).find((o) => o.channel === "sms");
+    const email = (l: typeof MAYA) => channelOptions(l, "sms", [], NOW).find((o) => o.channel === "email");
+    expect(sms({ ...MAYA, phone_invalid: true })).toMatchObject({ available: false, reason: "Zuops marked this phone number invalid." });
+    expect(sms({ ...MAYA, phone: null })).toMatchObject({ available: false, reason: "No phone number on this lead." });
+    expect(email({ ...MAYA, email_opt_out: true })).toMatchObject({ available: false, reason: "This lead opted out of email." });
+    expect(email({ ...MAYA, email_invalid: true } as typeof MAYA)).toMatchObject({ available: false, reason: "Zuops marked this email address invalid." });
+    expect(email({ ...MAYA, email_paused: true } as typeof MAYA)).toMatchObject({ available: false, reason: "Email to this lead is paused in Zuops." });
+  });
+
+  it("missing addresses turn channels off with a reason", () => {
     const noEmail = channelOptions({ ...MAYA, email: null }, "sms", [], NOW);
     expect(noEmail.find((o) => o.channel === "email")?.reason).toBe("No email address on this lead.");
   });
@@ -140,6 +150,24 @@ describe("composer draft and idempotency (X-02)", () => {
     expect(() => sendRequest(d, "lead-maya", {} as ConfirmGrant, NOW)).toThrow();
   });
 
+  it("F-U1: a scheduled draft whose time passed is refused, never sent now (moving clock)", () => {
+    const at = NOW + 10 * 60_000; // ten minutes ahead when written
+    const local = (() => { const d = new Date(at); const p = (n: number) => String(n).padStart(2, "0"); return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}T${p(d.getHours())}:${p(d.getMinutes())}`; })();
+    const d: ComposerDraft = { ...emptyDraft("sms", mk), text: "Reminder", sendAt: local };
+    expect(sendRequest(d, "lead-maya", grant, NOW).args.body.send_at).toBeTypeOf("string");
+    // The dialog sat open; the clock moved past the time.
+    for (const later of [NOW + 9.5 * 60_000, NOW + 11 * 60_000, NOW + 86_400_000]) {
+      expect(() => sendRequest(d, "lead-maya", grant, later)).toThrow(ScheduleExpiredError);
+      try { sendRequest(d, "lead-maya", grant, later); } catch (e) { expect((e as Error).message).toBe(SCHEDULE_PASSED); }
+    }
+    expect(SCHEDULE_PASSED).toBe("That time has passed. Pick a new time.");
+  });
+
+  it("F-U1: an AI suggestion with a time is refused rather than sent now", () => {
+    const d: ComposerDraft = { ...emptyDraft("sms", mk), text: "Edited", suggestionId: "sg1", sendAt: "2026-11-20T09:00" };
+    expect(() => sendRequest(d, "lead-maya", grant, NOW)).toThrow(ScheduleExpiredError);
+  });
+
   it("a confirmed send carries confirm, the draft key and send_at when scheduled", () => {
     const d: ComposerDraft = { ...emptyDraft("sms", mk), text: " Hi ", sendAt: "2026-11-20T09:00" };
     const r = sendRequest(d, "lead-maya", grant, NOW);
@@ -164,5 +192,14 @@ describe("contact slots", () => {
     expect(contactSlots({ daily_unique_contact_cap: 50, unique_contacts_remaining: 40 }, null)).toEqual({ remaining: 40, cap: 50 });
     expect(contactSlots({ daily_unique_contact_cap: 50, unique_contacts_remaining: 40 }, { contactsRemaining: 39, contactsLimit: 50 })).toEqual({ remaining: 39, cap: 50 });
     expect(contactSlots(null, null)).toBeNull();
+  });
+});
+
+describe("F-U14: the reply window closes as the clock moves", () => {
+  it("open now, closed a day later, with the same thread", () => {
+    const items = threadItems([{ id: "m1", event_type: "messenger_inbound", body: "hi", created_at: "2026-11-11T17:00:00Z" } as ThreadEvent]);
+    const at = (t: number) => channelOptions(DEV, "messenger", items, t).find((o) => o.channel === "messenger")?.available;
+    expect(at(NOW)).toBe(true);
+    expect(at(Date.parse("2026-11-12T17:00:01Z"))).toBe(false);
   });
 });

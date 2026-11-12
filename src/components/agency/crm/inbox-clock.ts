@@ -13,3 +13,9 @@ export function useNow(everyMs = 30_000): number {
   }, [everyMs]);
   return now;
 }
+
+/** The time right now, for event handlers (a confirm, a retry). Render code uses
+ *  useNow instead, so a render stays pure. */
+export function currentTime(): number {
+  return Date.now();
+}

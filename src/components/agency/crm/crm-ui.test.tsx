@@ -13,7 +13,7 @@ vi.mock("convex/react", () => ({
 import { CrmProvider } from "./crm-context";
 import {
   ConfirmDialog, ReadOnlyBanner, StageBadge, WriteButton, ZuErrorState, dateTime, money, phone, refreshGate, relTime,
-  stageTone, syncedAgo, writeBlock, READ_ONLY_REASON, NEEDS_ADMIN_REASON, SyncBar,
+  stageTone, syncedAgo, writeBlock, READ_ONLY_REASON, NEEDS_ADMIN_REASON, SyncBar, confirmCopy,
 } from "./crm-ui";
 
 const html = (el: React.ReactElement) => renderToStaticMarkup(el);
@@ -148,5 +148,15 @@ describe("states", () => {
     expect(out).toContain("Open");
     expect(out).not.toContain("Gone for good.");
     expect(onConfirm).not.toHaveBeenCalled();
+  });
+});
+
+describe("confirmCopy", () => {
+  it("one plain consequence line per kind the server confirms", () => {
+    expect(confirmCopy("reaches")).toBe("This reaches real people.");
+    expect(confirmCopy("changes_sending")).toBe("This changes what is sent automatically to real people.");
+    expect(confirmCopy("spends")).toBe("This uses credits or starts paid work.");
+    expect(confirmCopy("exposes")).toBe("This sends lead data outside the account or changes who can access it.");
+    expect(confirmCopy("delete")).toBe("This deletes something.");
   });
 });

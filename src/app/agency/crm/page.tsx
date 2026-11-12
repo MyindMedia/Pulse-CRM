@@ -4,15 +4,16 @@ import * as React from "react";
 import dynamic from "next/dynamic";
 import { useQuery } from "convex/react";
 import { api } from "@convex/_generated/api";
-import { CheckCircle2, Clock, KeyRound, Lock, Radio, XCircle } from "lucide-react";
+import { CheckCircle2, Clock, FlaskConical, KeyRound, Lock, Radio, XCircle } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { EmptyState, LoadingPanel } from "@/components/ui/feedback";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
-  CrmNavProvider, CrmPanelActive, CrmProvider, useCrm, type CrmNav,
+  CrmNavProvider, CrmPanelActive, CrmProvider, useCrm, type CrmNav, type LeadsJump,
 } from "@/components/agency/crm/crm-context";
 import { ReadOnlyBanner, TOUCH, UnauthorizedState } from "@/components/agency/crm/crm-ui";
 import { clearZuCache } from "@/components/agency/crm/use-zu";
+import { useOptionalUser } from "@/lib/use-optional-clerk";
 
 /* /agency/crm: the agency CRM on Zuops. Pulse agency owner and admin only (design
    D1); anyone else gets the Unauthorized state and nothing below it renders or
@@ -68,19 +69,38 @@ function useHashTab(): [TabId, (t: TabId) => void] {
   return [tab, go];
 }
 
+/** Holds the Zuops cache for one signed-in person. When it unmounts (leaving the
+ *  CRM, losing access, signing out, or a different user: it is keyed by user id)
+ *  every cached answer is dropped, and answers still in flight are thrown away
+ *  (F-U8). React runs this cleanup before the next tree's effects, so the new
+ *  tree's first reads are not wiped. */
+function ZuCacheScope({ children }: { children: React.ReactNode }) {
+  React.useEffect(() => () => clearZuCache(), []);
+  return <>{children}</>;
+}
+
 export default function CrmPage() {
   const access = useQuery(api.crm.access, {});
-  React.useEffect(() => {
-    if (access && !access.allowed) clearZuCache();
-  }, [access]);
-
-  if (access === undefined) return <LoadingPanel label="Checking CRM access" />;
-  if (!access.allowed) return <UnauthorizedState reason={access.reason} />;
+  const { user } = useOptionalUser();
+  // Clerk's user is undefined while it loads (wait, so the first reads are not
+  // made twice), null when signed out, and always null in demo mode (no Clerk).
+  if (access === undefined || user === undefined) return <LoadingPanel label="Checking CRM access" />;
+  const userKey = user?.id ?? "no-user";
+  if (!access.allowed) return <LostAccess reason={access.reason} />;
   return (
-    <CrmProvider>
-      <CrmConsole />
-    </CrmProvider>
+    <ZuCacheScope key={userKey}>
+      <CrmProvider>
+        <CrmConsole />
+      </CrmProvider>
+    </ZuCacheScope>
   );
+}
+
+function LostAccess({ reason }: { reason?: string }) {
+  React.useEffect(() => {
+    clearZuCache();
+  }, []);
+  return <UnauthorizedState reason={reason} />;
 }
 
 function Header({ children }: { children?: React.ReactNode }) {
@@ -100,12 +120,15 @@ function CrmConsole() {
   const [tab, go] = useHashTab();
   const [visited, setVisited] = React.useState<TabId[]>([]);
   if (!visited.includes(tab)) setVisited([...visited, tab]);
-  const [inboxLead, setInboxLead] = React.useState<string | null>(null);
-  const [bookLead, setBookLead] = React.useState<string | null>(null);
+  // Each jump bumps a nonce, so opening the same lead twice still reacts (F-U15).
+  const [inbox, setInbox] = React.useState<{ id: string | null; nonce: number }>({ id: null, nonce: 0 });
+  const [book, setBook] = React.useState<{ id: string | null; nonce: number }>({ id: null, nonce: 0 });
+  const [leadsJump, setLeadsJump] = React.useState<{ filter: LeadsJump; nonce: number }>({ filter: {}, nonce: 0 });
 
   const nav = React.useMemo<CrmNav>(() => ({
-    openInbox: (id) => { setInboxLead(id); go("inbox"); },
-    openCalendar: (id) => { setBookLead(id); go("calendar"); },
+    openInbox: (id) => { setInbox((s) => ({ id, nonce: s.nonce + 1 })); go("inbox"); },
+    openCalendar: (id) => { setBook((s) => ({ id, nonce: s.nonce + 1 })); go("calendar"); },
+    openLeads: (filter) => { setLeadsJump((s) => ({ filter, nonce: s.nonce + 1 })); go("leads"); },
   }), [go]);
 
   if (status === undefined) return <LoadingPanel label="Checking the Zuops connection" />;
@@ -128,10 +151,10 @@ function CrmConsole() {
   const panel = (id: TabId): React.ReactNode => {
     switch (id) {
       case "dashboard": return <CrmDashboard />;
-      case "leads": return <CrmLeads />;
+      case "leads": return <CrmLeads jump={leadsJump.filter} jumpNonce={leadsJump.nonce} />;
       case "pipeline": return <CrmPipeline />;
-      case "inbox": return <CrmInbox openLeadId={inboxLead} />;
-      case "calendar": return <CrmCalendar bookLeadId={bookLead} />;
+      case "inbox": return <CrmInbox openLeadId={inbox.id} openNonce={inbox.nonce} />;
+      case "calendar": return <CrmCalendar bookLeadId={book.id} bookNonce={book.nonce} />;
       case "social": return <CrmSocial />;
       case "functions": return <CrmFunctions />;
       default: return <CrmResources group={id} />;
@@ -142,7 +165,9 @@ function CrmConsole() {
     <CrmNavProvider value={nav}>
       <div className="space-y-6">
         <Header>
-          <Badge tone="positive"><CheckCircle2 className="size-3" aria-hidden />Zuops connected</Badge>
+          {status.mock
+            ? <Badge tone="caution"><FlaskConical className="size-3" aria-hidden />Mock data</Badge>
+            : <Badge tone="positive"><CheckCircle2 className="size-3" aria-hidden />Zuops connected</Badge>}
           {status.webhookConfigured
             ? <Badge tone="positive"><Radio className="size-3" aria-hidden />Live updates</Badge>
             : <Badge tone="caution"><Clock className="size-3" aria-hidden />Checks every minute</Badge>}

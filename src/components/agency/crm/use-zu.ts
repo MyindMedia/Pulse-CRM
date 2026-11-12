@@ -5,7 +5,7 @@ import { useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { useCrm, usePanelActive, type CrmSignalKind } from "./crm-context";
 import {
-  createZuStore, newIdem, zuKey, DEFAULT_POLL_MS,
+  createZuStore, newIdem, stableStringify, zuKey, EMPTY_SNAPSHOT, PAGED_POLL_MS,
   type ZuCaller, type ZuError, type ZuLimits, type ZuPages, type ZuPaged, type ZuReadArgs, type ZuSnapshot,
   type ZuWriteArgs, type ZuWriteResult,
 } from "./zu-store";
@@ -13,11 +13,11 @@ import {
 /* React hooks over the pure store in zu-store.ts. One store per browser tab, in
    memory only: nothing from Zuops is put in localStorage or sessionStorage. */
 
-export { newIdem };
+export { newIdem, stableStringify, PAGED_POLL_MS };
 export type { ZuError, ZuLimits, ZuPages, ZuPaged, ZuReadArgs, ZuWriteArgs, ZuWriteResult };
 
 const store = createZuStore();
-const EMPTY: ZuSnapshot = { data: undefined, error: null, fetchedAt: null, inflight: false };
+const EMPTY: ZuSnapshot = EMPTY_SNAPSHOT;
 const noSubscribe = () => () => undefined;
 
 let attached = false;
@@ -38,19 +38,52 @@ function useCaller() {
   }, [call]);
 }
 
-/** Drop every cached Zuops answer (on lost access or sign-out). */
+/** Drop every cached Zuops answer (on lost access, sign-out, a different signed-in
+ *  user, or leaving the CRM). Requests still in flight cannot write back. */
 export function clearZuCache() {
   store.clear();
+}
+
+/** An Idempotency-Key for a form (F-U9, F-U11). The same fingerprint always gets
+ *  the same key for the life of the component, so an identical retry after a
+ *  failure reuses it, and any change to the values gets a different key.
+ *  `valuesFingerprint` is a string of everything the request sends (for example
+ *  `stableStringify(body)`); fold a counter you bump after each success into it,
+ *  so the next submit after a success gets a fresh key:
+ *    const [round, setRound] = useState(0);
+ *    const idem = useIdemFor(`${round}|${stableStringify(body)}`);
+ *    ... on success: setRound((n) => n + 1) */
+export function useIdemFor(valuesFingerprint: string): string {
+  const [state, setState] = React.useState<IdemState>(() => idemStep(null, valuesFingerprint, newIdem));
+  if (state.fp !== valuesFingerprint) {
+    // Render-time adjustment (React's documented pattern for derived state).
+    const next = idemStep(state, valuesFingerprint, newIdem);
+    setState(next);
+    return next.keys[valuesFingerprint];
+  }
+  return state.keys[valuesFingerprint];
+}
+
+export type IdemState = { fp: string; keys: Readonly<Record<string, string>> };
+
+/** The pure step behind useIdemFor: a known fingerprint keeps its key, a new one
+ *  gets `make()`. */
+export function idemStep(state: IdemState | null, fp: string, make: () => string): IdemState {
+  if (state && state.fp === fp) return state;
+  const keys = state?.keys ?? {};
+  return { fp, keys: fp in keys ? keys : { ...keys, [fp]: make() } };
 }
 
 export type ZuReadOptions = {
   /** Refetch when the newest webhook pulse of one of these kinds moves. */
   kinds?: CrmSignalKind[];
-  /** Background refresh while the page is visible. Default 60 s; 0 turns it off. */
+  /** Background refresh while the page is visible. Default 60 s (300 s with
+   *  `pages`); 0 turns it off. */
   pollMs?: number;
   enabled?: boolean;
-  /** Walk an offset-paged list into `{ items, truncated }`. Counts as one request
-   *  for the throttle. */
+  /** An offset-paged list as ZuPaged: page 1 first, then the rest while
+   *  `has_more`. Polls and signals re-read page 1 only and merge by id; Refresh
+   *  walks every page again. Every page counts toward the request budget. */
   pages?: ZuPages;
   /** Keep showing the previous arguments' data while new arguments load
    *  (pagination, search). */
@@ -64,7 +97,12 @@ export type ZuRead<T> = {
   loading: boolean;
   /** Showing data while a newer copy loads. */
   refreshing: boolean;
+  /** `data` belongs to the previous arguments (keepPrevious) while the new ones
+   *  load: do not label it as the new page. */
+  held: boolean;
   fetchedAt: number | null;
+  /** When the fetch behind `data` started (compare optimistic edits to this). */
+  startedAt: number | null;
   refresh: () => void;
 };
 
@@ -74,7 +112,7 @@ export function useZuRead<T>(op: string | null, args?: ZuReadArgs, opts?: ZuRead
   const { signal } = useCrm();
   const enabled = (opts?.enabled ?? true) && op !== null;
   const key = op ? zuKey(op, args, opts?.pages) : null;
-  const pollMs = opts?.pollMs ?? DEFAULT_POLL_MS;
+  const pollMs = opts?.pollMs;
 
   const subscribe = React.useCallback(
     (fn: () => void) => (key ? store.subscribe(key, fn) : noSubscribe()),
@@ -110,7 +148,9 @@ export function useZuRead<T>(op: string | null, args?: ZuReadArgs, opts?: ZuRead
     error: snap.error,
     loading: enabled && shown.data === undefined && snap.error === null,
     refreshing: (snap.inflight && snap.data !== undefined) || (showHeld && enabled),
+    held: showHeld,
     fetchedAt: shown.fetchedAt,
+    startedAt: shown.startedAt,
     refresh,
   };
 }

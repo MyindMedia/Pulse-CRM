@@ -8,8 +8,8 @@ import { Field, Input, Label, Textarea } from "@/components/ui/field";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Switch } from "@/components/ui/toggle";
-import { TOUCH, WriteButton, dateTime, money } from "./crm-ui";
-import { useZuWrite } from "./use-zu";
+import { ConfirmDialog, TOUCH, WriteButton, confirmCopy, dateTime, money, type ConfirmGrant } from "./crm-ui";
+import { useIdemFor, useZuWrite } from "./use-zu";
 import { safeUrl } from "./inbox-logic";
 import { useNow } from "./inbox-clock";
 import { CAL_OP } from "./calendar-ops";
@@ -74,6 +74,23 @@ function AppointmentBody({
   const [location, setLocation] = React.useState<string | null>(null);
   const [host, setHost] = React.useState<string | null>(null);
   const [error, setError] = React.useState<string | null>(null);
+  const [remindersConfirm, setRemindersConfirm] = React.useState(false);
+  // Bumped after each accepted write: the next action gets a fresh key, a retry
+  // of the same action with the same values reuses its key (F-U9).
+  const [round, setRound] = React.useState(0);
+  const k = (what: string) => `booking:${b.id}:${round}:${what}`;
+  const keys = {
+    remindersOn: useIdemFor(k("reminders-on")),
+    remindersOff: useIdemFor(k("reminders-off")),
+    completed: useIdemFor(k("completed")),
+    noShow: useIdemFor(k("no-show")),
+    confirmed: useIdemFor(k("confirmed")),
+    host: useIdemFor(k(`host:${host ?? ""}`)),
+    location: useIdemFor(k(`location:${location ?? ""}`)),
+    notes: useIdemFor(k(`notes:${notes ?? ""}`)),
+    reschedule: useIdemFor(k(`reschedule:${slot ?? ""}`)),
+    cancel: useIdemFor(k(`cancel:${cancelReason.trim()}`)),
+  };
 
   const path = { booking_id: b.id };
   const name = (b.lead_id && leadName(b.lead_id)) || "the lead";
@@ -91,10 +108,10 @@ function AppointmentBody({
   const manageUrl = safeUrl(b.manage_url);
   const sd = b.service_details;
 
-  const patch = async (body: Record<string, unknown>, done: string) => {
+  const patch = async (body: Record<string, unknown>, idem: string, done: string, grant?: ConfirmGrant) => {
     setError(null);
-    const res = await run(CAL_OP.update, { path, body }, { invalidate: INVALIDATE });
-    if (res.ok) toast.success(done);
+    const res = await run(CAL_OP.update, { path, body, idem, ...grant }, { invalidate: INVALIDATE });
+    if (res.ok) { toast.success(done); setRound((r) => r + 1); }
     else { setError(res.reason ?? "Zuops refused."); toast.error(res.reason ?? "Zuops refused."); }
     return res.ok;
   };
@@ -102,8 +119,9 @@ function AppointmentBody({
   const reschedule = async () => {
     if (!slot) return;
     setError(null);
-    const res = await run(CAL_OP.reschedule, { path, body: { starts_at: slot } }, { invalidate: INVALIDATE });
+    const res = await run(CAL_OP.reschedule, { path, body: { starts_at: slot }, idem: keys.reschedule }, { invalidate: INVALIDATE });
     if (res.ok) {
+      setRound((r) => r + 1);
       toast.success(notifies ? `Moved. ${name} gets the updated invite and their reminders move with it.` : "Moved quietly. The lead was not told.");
       setRescheduling(false);
       setSlot(null);
@@ -116,7 +134,8 @@ function AppointmentBody({
   const cancel = async () => {
     setError(null);
     const body = cancelReason.trim() ? { reason: cancelReason.trim() } : {};
-    const res = await run(CAL_OP.cancel, { path, body }, { invalidate: INVALIDATE });
+    const res = await run(CAL_OP.cancel, { path, body, idem: keys.cancel }, { invalidate: INVALIDATE });
+    if (res.ok) setRound((r) => r + 1);
     if (res.ok) toast.success(notifies ? `Cancelled. ${name} gets the cancellation.` : "Cancelled quietly. The lead was not told.");
     else setError(res.reason ?? "Zuops did not cancel it.");
   };
@@ -125,7 +144,7 @@ function AppointmentBody({
     <>
       <SheetHeader className="space-y-2">
         <p className="overline">Appointment{b.appointment_number ? ` #${b.appointment_number}` : ""}</p>
-        <SheetTitle>{b.title || "Appointment"}</SheetTitle>
+        <SheetTitle className="break-words">{b.title || "Appointment"}</SheetTitle>
         <SheetDescription>{when}</SheetDescription>
         <div className="flex flex-wrap items-center gap-2">
           <BookingStatusBadge status={b.status} />
@@ -135,7 +154,7 @@ function AppointmentBody({
       <SheetBody className="space-y-6">
         {error && <p role="alert" className="rounded-md border border-critical/40 bg-critical/10 p-2 text-sm text-critical">{error}</p>}
 
-        <dl className="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
+        <dl className="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm [&_dd]:min-w-0 [&_dd]:break-words">
           <dt className="text-steel">Lead</dt>
           <dd className="text-bone">
             {b.lead_id ? (
@@ -148,23 +167,36 @@ function AppointmentBody({
           <dt className="text-steel">Calendar</dt><dd className="text-bone">{calendar?.name || "Not on a calendar"}</dd>
           <dt className="text-steel">Host</dt><dd className="text-bone">{b.host_user_id ? memberName(hostMember) : "Nobody"}</dd>
           <dt className="text-steel">Meeting</dt>
-          <dd className="text-bone">
+          <dd className="text-bone [overflow-wrap:anywhere]">
             {[meetingWord(b.meeting_type), b.location || b.meeting_location].filter(Boolean).join(" · ") || "Not set"}
-            {meetingUrl && <> · <a href={meetingUrl} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 underline-offset-2 hover:underline">Join link<ExternalLink className="size-3" aria-hidden /></a></>}
+            {meetingUrl && <> · <a href={meetingUrl} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 underline-offset-2 hover:underline max-sm:min-h-11">Join link<ExternalLink className="size-3" aria-hidden /></a></>}
           </dd>
           {sd && sd.total_cents != null && (
             <><dt className="text-steel">Service</dt><dd className="text-bone">{[typeof sd.option === "string" ? sd.option : sd.option?.name, money(sd.total_cents, sd.currency ?? "USD")].filter(Boolean).join(" · ")}</dd></>
           )}
           <dt className="text-steel">Lead time zone</dt><dd className="text-bone">{b.lead_timezone || b.timezone || "Unknown"}</dd>
           {manageUrl && (
-            <><dt className="text-steel">Lead&apos;s page</dt><dd><a href={manageUrl} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-bone underline-offset-2 hover:underline">Where they move or cancel it<ExternalLink className="size-3" aria-hidden /></a></dd></>
+            <><dt className="text-steel">Lead&apos;s page</dt><dd><a href={manageUrl} target="_blank" rel="noreferrer noopener" className="inline-flex items-center gap-1 text-bone underline-offset-2 hover:underline max-sm:min-h-11">Where they move or cancel it<ExternalLink className="size-3" aria-hidden /></a></dd></>
           )}
         </dl>
 
         <section aria-labelledby="ap-rem" className="flex items-start gap-3 rounded-md border border-graphite/50 p-3">
           <Switch
             id="ap-reminders" checked={notifies} disabled={pending || cancelled} aria-describedby="ap-rem-note"
-            onCheckedChange={(v) => void patch({ notify_lead: v }, v ? "Reminders back on. Upcoming reminders are queued again." : "Reminders off for this appointment.")}
+            onCheckedChange={(v) => {
+              // Turning reminders on restarts automatic texts, so it confirms first;
+              // turning them off is one click (F-U6).
+              if (v) setRemindersConfirm(true);
+              else void patch({ notify_lead: false }, keys.remindersOff, "Reminders off for this appointment.");
+            }}
+          />
+          <ConfirmDialog
+            open={remindersConfirm}
+            onOpenChange={setRemindersConfirm}
+            title={`Turn reminders back on for ${name}?`}
+            body={<>{name} gets the upcoming reminder texts for {when}, and invite updates for any change. {confirmCopy("changes_sending")}</>}
+            confirmLabel="Turn reminders on"
+            onConfirm={(grant) => patch({ notify_lead: true }, keys.remindersOn, "Reminders back on. Upcoming reminders are queued again.", grant)}
           />
           <div>
             <Label id="ap-rem" htmlFor="ap-reminders" className="text-sm text-bone">Lead gets reminders</Label>
@@ -179,15 +211,23 @@ function AppointmentBody({
         <section aria-labelledby="ap-outcome" className="space-y-2">
           <h3 id="ap-outcome" className="overline">Outcome</h3>
           <div className="flex flex-wrap gap-2">
-            <WriteButton type="button" size="sm" variant="secondary" disabled={pending || b.status === "completed"} onClick={() => void patch({ status: "completed" }, "Marked completed")}>
+            <WriteButton type="button" size="sm" variant="secondary" disabled={pending || b.status === "completed"} onClick={() => void patch({ status: "completed" }, keys.completed, "Marked completed")}>
               <CheckCircle2 className="size-4" aria-hidden />Completed
             </WriteButton>
-            <WriteButton type="button" size="sm" variant="secondary" disabled={pending || b.status === "no_show"} onClick={() => void patch({ status: "no_show" }, "Marked no show")}>
+            <WriteButton type="button" size="sm" variant="secondary" disabled={pending || b.status === "no_show"} onClick={() => void patch({ status: "no_show" }, keys.noShow, "Marked no show")}>
               <UserX className="size-4" aria-hidden />No show
             </WriteButton>
-            <WriteButton type="button" size="sm" variant="secondary" disabled={pending || b.status === "confirmed" || b.status === "scheduled"} onClick={() => void patch({ status: "confirmed" }, "Back to confirmed")}>
-              <RotateCcw className="size-4" aria-hidden />Back to confirmed
-            </WriteButton>
+            <ConfirmDialog
+              title={`Put ${name}'s appointment back to confirmed?`}
+              body={<>The remaining reminder texts to {name} for {when} start again. {confirmCopy("changes_sending")}</>}
+              confirmLabel="Back to confirmed"
+              onConfirm={(grant) => patch({ status: "confirmed" }, keys.confirmed, "Back to confirmed", grant)}
+              trigger={
+                <WriteButton type="button" size="sm" variant="secondary" disabled={pending || b.status === "confirmed" || b.status === "scheduled"}>
+                  <RotateCcw className="size-4" aria-hidden />Back to confirmed
+                </WriteButton>
+              }
+            />
           </div>
           <p className="text-xs text-steel">No message goes to the lead. Completed and No show stop the remaining reminder texts; Back to confirmed turns them on again.</p>
         </section>
@@ -220,7 +260,7 @@ function AppointmentBody({
         <section aria-labelledby="ap-edit" className="space-y-4">
           <h3 id="ap-edit" className="overline">Details</h3>
           <Field label="Host" htmlFor="ap-host" hint="No message goes to the lead for a host change.">
-            <div className="flex gap-2">
+            <div className="flex min-w-0 gap-2">
               <Select value={host ?? b.host_user_id ?? NONE} onValueChange={setHost}>
                 <SelectTrigger id="ap-host" className={TOUCH}><SelectValue /></SelectTrigger>
                 <SelectContent>
@@ -229,16 +269,16 @@ function AppointmentBody({
                 </SelectContent>
               </Select>
               <WriteButton type="button" variant="secondary" disabled={pending || host === null || host === (b.host_user_id ?? NONE)}
-                onClick={async () => { if (await patch({ host_user_id: host === NONE ? null : host }, "Host changed")) setHost(null); }}>
+                onClick={async () => { if (await patch({ host_user_id: host === NONE ? null : host }, keys.host, "Host changed")) setHost(null); }}>
                 Save
               </WriteButton>
             </div>
           </Field>
           <Field label="Location" htmlFor="ap-location" hint="No message goes to the lead when you save it.">
-            <div className="flex gap-2">
-              <Input id="ap-location" className={TOUCH} maxLength={300} value={location ?? b.location ?? ""} onChange={(e) => setLocation(e.target.value)} />
+            <div className="flex min-w-0 gap-2">
+              <Input id="ap-location" className={`min-w-0 ${TOUCH}`} maxLength={300} value={location ?? b.location ?? ""} onChange={(e) => setLocation(e.target.value)} />
               <WriteButton type="button" variant="secondary" disabled={pending || location === null || location === (b.location ?? "")}
-                onClick={async () => { if (await patch({ location: location?.trim() ? location.trim() : null }, "Location saved")) setLocation(null); }}>
+                onClick={async () => { if (await patch({ location: location?.trim() ? location.trim() : null }, keys.location, "Location saved")) setLocation(null); }}>
                 Save
               </WriteButton>
             </div>
@@ -249,7 +289,7 @@ function AppointmentBody({
             <div className="flex items-center justify-between gap-2">
               <p className="text-[0.6875rem] text-steel/70">Only your team sees notes.</p>
               <WriteButton type="button" size="sm" variant="secondary" disabled={pending || notes === null || notes === (b.notes ?? "")}
-                onClick={async () => { if (await patch({ notes: notes?.trim() ? notes.trim() : null }, "Notes saved")) setNotes(null); }}>
+                onClick={async () => { if (await patch({ notes: notes?.trim() ? notes.trim() : null }, keys.notes, "Notes saved")) setNotes(null); }}>
                 Save notes
               </WriteButton>
             </div>

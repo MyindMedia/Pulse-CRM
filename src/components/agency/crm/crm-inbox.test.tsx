@@ -6,6 +6,7 @@ import { getFunctionName } from "convex/server";
    runtime has no DOM). The read hook is mocked by operation id. */
 type Read = { data?: unknown; error?: { reason: string; code?: string; status: number } | null; loading?: boolean };
 const reads: Record<string, Read> = {};
+const readOpts: Array<{ op: string; opts?: { kinds?: string[]; pollMs?: number } }> = [];
 const queries: Record<string, unknown> = {};
 
 vi.mock("convex/react", () => ({
@@ -13,13 +14,15 @@ vi.mock("convex/react", () => ({
   useAction: () => async () => ({ ok: true, status: 200, json: null, limits: {} }),
 }));
 vi.mock("./use-zu", () => ({
-  useZuRead: (op: string | null) => {
+  useZuRead: (op: string | null, _args?: unknown, opts?: { kinds?: string[]; pollMs?: number }) => {
+    if (op) readOpts.push({ op, opts });
     const r = (op && reads[op]) || { loading: true };
     return { data: r.data, error: r.error ?? null, loading: r.loading ?? (r.data === undefined && !r.error), refreshing: false, fetchedAt: r.data ? Date.now() - 12_000 : null, refresh: () => undefined };
   },
   useZuWrite: () => ({ run: async () => ({ ok: true, status: 200, limits: {} }), pending: false }),
   useZuFetch: () => async () => ({ data: undefined, error: null }),
   newIdem: () => "idem-test",
+  useIdemFor: (fp: string) => `idem:${fp}`,
   clearZuCache: () => undefined,
 }));
 
@@ -40,6 +43,7 @@ const CONVS = [
 beforeEach(() => {
   for (const k of Object.keys(reads)) delete reads[k];
   for (const k of Object.keys(queries)) delete queries[k];
+  readOpts.length = 0;
   queries["crm:status"] = { keyConfigured: true, writesOn: true, adminKey: false, webhookConfigured: false };
   queries["crm:signal"] = { at: 0, lead: 0, booking: 0, message: 0, call: 0, deal: 0 };
   reads[INBOX_OP.scheduled] = { data: { scheduled_messages: [] } };
@@ -94,6 +98,25 @@ describe("Inbox panel", () => {
     expect(b).toBeGreaterThan(a);
     expect(out).toContain("Mark unread");
     expect(out).toContain("Send");
+  });
+
+  it("F-U3: with a thread open, a message signal refetches only the list and the open thread", () => {
+    reads[INBOX_OP.conversations] = { data: { conversations: CONVS, has_more: false, counts: { open: 2, unread: 1, archived: 0 } } };
+    reads[INBOX_OP.thread] = { data: { messages: [] } };
+    reads[INBOX_OP.lead] = { data: { lead: MAYA } };
+    html(MAYA.id);
+    const onMessage = new Set(readOpts.filter((r) => r.opts?.kinds?.includes("message")).map((r) => r.op));
+    expect(onMessage).toEqual(new Set([INBOX_OP.conversations, INBOX_OP.thread]));
+    for (const op of [INBOX_OP.scheduled, INBOX_OP.suggestions, INBOX_OP.limits]) {
+      for (const r of readOpts.filter((x) => x.op === op)) expect(r.opts?.pollMs).toBeGreaterThanOrEqual(300_000);
+    }
+  });
+
+  it("F-U2: the Text composer says Pulse cannot see text opt-outs", () => {
+    reads[INBOX_OP.conversations] = { data: { conversations: CONVS, has_more: false, counts: { open: 2, unread: 1, archived: 0 } } };
+    reads[INBOX_OP.thread] = { data: { messages: [] } };
+    reads[INBOX_OP.lead] = { data: { lead: MAYA } };
+    expect(html(MAYA.id)).toContain("Pulse cannot see text opt-outs. Zuops blocks a text to anyone who replied STOP or is marked do not contact.");
   });
 
   it("read only: writing buttons are off and say why", () => {

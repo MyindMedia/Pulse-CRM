@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest";
 import {
   addDays, agendaDays, bookBody, buildWeek, busyByMember, busyRange, dateKeyIn, hoursSummary, lengthWord, outcomeMissing, slotDays,
-  statusInfo, timeIn, weekStart,
+  statusInfo, timeIn, viewWindow, weekStart, keyStartMs,
 } from "./calendar-logic";
+import { currentSlot } from "./calendar-parts";
+import { LEAD_NAME_CONCURRENCY, bookingLeadName, nextLeadIds } from "./calendar-lead-names";
+import { leadPlaceholder } from "./crm-calendar";
 import type { Booking, Calendar } from "./calendar-types";
 
 const NOW = Date.parse("2026-11-11T18:00:00Z");
@@ -107,5 +110,51 @@ describe("busy blocks", () => {
   it("a two-person block shows under both", () => {
     const g = busyByMember([{ starts_at: "2026-11-12T09:00:00Z", team_members: [{ id: "u1", name: "Ana" }, { id: "u2", name: "Ben" }] }]);
     expect(g.map((x) => x.name)).toEqual(["Ana", "Ben"]);
+  });
+});
+
+describe("F-U10: only a slot from the list on show counts", () => {
+  const days = slotDays(["2026-11-12T17:00:00Z", "2026-11-12T18:00:00Z"], null, LA);
+  it("keeps a slot that is on show", () => {
+    expect(currentSlot("2026-11-12T17:00:00Z", days)).toBe("2026-11-12T17:00:00Z");
+  });
+  it("drops a slot from an earlier calendar, option or add-on set, and any slot while loading", () => {
+    expect(currentSlot("2026-11-13T17:00:00Z", days)).toBeNull();
+    expect(currentSlot("2026-11-12T17:00:00Z", [])).toBeNull();
+    expect(currentSlot(null, days)).toBeNull();
+  });
+});
+
+describe("F-U3: lead names without the whole lead list", () => {
+  it("a name on the booking wins", () => {
+    expect(bookingLeadName({ lead_name: "Ana", lead: null })).toBe("Ana");
+    expect(bookingLeadName({ lead: { full_name: "Ben" } })).toBe("Ben");
+    expect(bookingLeadName({})).toBeNull();
+  });
+  it("asks for each unnamed lead once, at most 8 at a time", () => {
+    const ids = Array.from({ length: 20 }, (_, i) => `l${i}`);
+    const first = nextLeadIds(ids, new Set(["l0"]), new Set(), 0);
+    expect(first).toHaveLength(LEAD_NAME_CONCURRENCY);
+    expect(first).not.toContain("l0");
+    expect(nextLeadIds(ids, new Set(), new Set(first), 8)).toEqual([]);
+    expect(nextLeadIds(ids, new Set(), new Set(first), 6)).toHaveLength(2);
+    expect(nextLeadIds(["a", "a", "b"], new Set(), new Set(), 0)).toEqual(["a", "b"]);
+  });
+  it("shows Lead and the id's tail until the name is known", () => {
+    expect(leadPlaceholder("lead-abc123")).toBe("Lead abc123");
+  });
+});
+
+describe("F-U14: the window follows the view and the day", () => {
+  it("the agenda reads today minus 7 to plus 60 days", () => {
+    const w = viewWindow("agenda", "2026-11-11", "2026-11-09");
+    expect(Date.parse(w.from)).toBe(keyStartMs("2026-11-04"));
+    expect(Date.parse(w.to)).toBe(keyStartMs("2026-11-11") + 61 * 86_400_000);
+  });
+  it("the week view reads the week on show, also far from today", () => {
+    const w = viewWindow("week", "2026-11-11", "2027-03-01");
+    expect(Date.parse(w.from)).toBeLessThanOrEqual(keyStartMs("2027-03-01"));
+    expect(Date.parse(w.to)).toBeGreaterThanOrEqual(keyStartMs("2027-03-08"));
+    expect(Date.parse(w.to) - Date.parse(w.from)).toBeLessThan(10 * 86_400_000);
   });
 });

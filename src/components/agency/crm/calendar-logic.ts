@@ -234,6 +234,22 @@ export function bookBody(f: BookForm, calendar: Calendar | null | undefined): { 
   return { body };
 }
 
+/** Local midnight (the browser's zone) at the start of a date key. */
+export function keyStartMs(key: string): number {
+  const [y, m, d] = key.split("-").map(Number);
+  return new Date(y, (m || 1) - 1, d || 1).getTime();
+}
+
+/** The bookings to fetch for the view on show: the agenda reads today minus 7
+ *  to plus 60 days; the week view reads exactly its own seven days (F-U14). */
+export function viewWindow(view: "agenda" | "week", todayKeyLocal: string, weekKey: string): { from: string; to: string } {
+  if (view === "week") {
+    const start = keyStartMs(weekKey);
+    return { from: new Date(start - DAY_MS).toISOString(), to: new Date(keyStartMs(addDays(weekKey, 7)) + DAY_MS).toISOString() };
+  }
+  return bookingsWindow(keyStartMs(todayKeyLocal));
+}
+
 /** Today's date key in the browser, for the availability `from`. */
 export function todayKey(now: number): string {
   return dateKeyIn(now);

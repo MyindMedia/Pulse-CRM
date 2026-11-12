@@ -16,8 +16,9 @@ import { Input, Label, Textarea } from "@/components/ui/field";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { useCrm, useCrmNav } from "./crm-context";
-import { ConfirmDialog, TOUCH, WriteButton, ZuErrorState, dateTime, phone, relTime } from "./crm-ui";
-import { newIdem, useZuRead, useZuWrite, type ZuLimits } from "./use-zu";
+import { ConfirmDialog, TOUCH, WriteButton, ZuErrorState, confirmCopy, dateTime, phone, relTime, type ConfirmGrant } from "./crm-ui";
+import { newIdem, useIdemFor, useZuRead, useZuWrite, type ZuLimits } from "./use-zu";
+import { currentTime, useNow } from "./inbox-clock";
 import { INBOX_OP } from "./inbox-ops";
 import { INBOX_INVALIDATE, InboxComposer } from "./inbox-composer";
 import {
@@ -46,6 +47,7 @@ const KIND_ICON: Record<EventKind, React.ComponentType<{ className?: string; "ar
 };
 
 const READ_KINDS: Array<"message"> = ["message"];
+export const SLOW_POLL_MS = 300_000;
 
 export function InboxThread({
   leadId,
@@ -63,10 +65,13 @@ export function InboxThread({
   const { canWrite } = useCrm();
   const nav = useCrmNav();
   const path = { lead_id: leadId };
-  const thread = useZuRead<ThreadResponse>(INBOX_OP.thread, { path, query: { limit: 50 } }, { kinds: READ_KINDS });
-  const leadRead = useZuRead<LeadResponse>(INBOX_OP.lead, { path }, { kinds: ["lead", "message"] });
-  const scheduled = useZuRead<ScheduledResponse>(INBOX_OP.scheduled, { query: { lead_id: leadId, limit: 25 } }, { kinds: READ_KINDS });
-  const limits = useZuRead<LimitsResponse>(INBOX_OP.limits, undefined, { pollMs: 120_000 });
+  // A "message" signal refetches the open thread only (with the list, in the
+  // panel). The rest refresh on a slow poll or after this panel's own writes,
+  // which invalidate them (F-U3).
+  const thread = useZuRead<ThreadResponse>(INBOX_OP.thread, { path, query: { limit: 50 } }, { kinds: READ_KINDS, pollMs: SLOW_POLL_MS });
+  const leadRead = useZuRead<LeadResponse>(INBOX_OP.lead, { path }, { kinds: ["lead"], pollMs: SLOW_POLL_MS });
+  const scheduled = useZuRead<ScheduledResponse>(INBOX_OP.scheduled, { query: { lead_id: leadId, limit: 25 } }, { pollMs: SLOW_POLL_MS });
+  const limits = useZuRead<LimitsResponse>(INBOX_OP.limits, undefined, { pollMs: SLOW_POLL_MS });
   const phones = useZuRead<PhoneNumbersResponse>(INBOX_OP.phoneNumbers, undefined, { pollMs: 600_000 });
   const { run, pending } = useZuWrite();
 
@@ -75,7 +80,8 @@ export function InboxThread({
   const items = React.useMemo(() => threadItems(thread.data?.messages), [thread.data]);
   const name = lead?.full_name || conversation?.name || thread.data?.lead?.full_name || lead?.email || phone(lead?.phone) || "Unnamed lead";
   const convChannel = conversation?.channel ?? null;
-  const [now] = React.useState(() => Date.now());
+  // Moves, so the 24 hour Instagram and Messenger window closes on time (F-U14).
+  const now = useNow(30_000);
   const options = React.useMemo(
     () => channelOptions(lead ?? (thread.data?.lead as Lead | undefined), convChannel, items, now),
     [lead, thread.data, convChannel, items, now],
@@ -118,8 +124,8 @@ export function InboxThread({
   const [pauseOpen, setPauseOpen] = React.useState(false);
   const [cancelled, setCancelled] = React.useState<ScheduledMessage[]>([]);
 
-  const act = async (op: string, body: Record<string, unknown> | undefined, done: string) => {
-    const res = await run(op, { path, body }, { invalidate: [INBOX_OP.conversations, INBOX_OP.lead, INBOX_OP.thread] });
+  const act = async (op: string, body: Record<string, unknown> | undefined, done: string, grant?: ConfirmGrant) => {
+    const res = await run(op, { path, body, ...grant }, { invalidate: [INBOX_OP.conversations, INBOX_OP.lead, INBOX_OP.thread] });
     if (res.ok) toast.success(done);
     else toast.error(res.reason ?? "Zuops refused.");
     return res.ok;
@@ -131,8 +137,8 @@ export function InboxThread({
 
   return (
     <div className="flex min-w-0 flex-col gap-3">
-      <header className="space-y-2 rounded-lg border border-graphite/50 bg-coal/40 p-3">
-        <div className="flex flex-wrap items-start gap-2">
+      <header className="min-w-0 space-y-2 rounded-lg border border-graphite/50 bg-coal/40 p-3">
+        <div className="flex min-w-0 flex-wrap items-start gap-2">
           <Button type="button" variant="secondary" size="sm" className={cn("lg:hidden", TOUCH)} onClick={onBack}>
             <ArrowLeft className="size-4" aria-hidden />Back
           </Button>
@@ -148,16 +154,23 @@ export function InboxThread({
         {conversation?.ai?.handoff_question && (
           <p className="text-xs text-caution">The AI handed this to your team: {conversation.ai.handoff_question}</p>
         )}
-        <div className="flex flex-wrap gap-2">
+        <div className="flex min-w-0 flex-wrap gap-2">
           <WriteButton type="button" variant="secondary" size="sm" disabled={pending}
             onClick={() => void act(INBOX_OP.markUnread, undefined, "Marked unread")}>
             <MailOpen className="size-4" aria-hidden />Mark unread
           </WriteButton>
           {aiPaused ? (
-            <WriteButton type="button" variant="secondary" size="sm" disabled={pending}
-              onClick={() => void act(INBOX_OP.aiPause, { paused: false }, "AI replies are back on for this lead")}>
-              <CirclePlay className="size-4" aria-hidden />Resume AI
-            </WriteButton>
+            <ConfirmDialog
+              title={`Turn the AI back on for ${name}?`}
+              body={<>The AI starts replying to {name} again and their automatic follow-ups pick up where they stopped. {confirmCopy("changes_sending")}</>}
+              confirmLabel="Resume AI"
+              onConfirm={(grant) => act(INBOX_OP.aiPause, { paused: false }, "AI replies are back on for this lead", grant)}
+              trigger={
+                <WriteButton type="button" variant="secondary" size="sm" disabled={pending}>
+                  <CirclePlay className="size-4" aria-hidden />Resume AI
+                </WriteButton>
+              }
+            />
           ) : (
             <WriteButton type="button" variant="secondary" size="sm" disabled={pending} onClick={() => setPauseOpen(true)}>
               <CirclePause className="size-4" aria-hidden />Pause AI
@@ -189,7 +202,7 @@ export function InboxThread({
           <Skeleton className="h-12 w-2/3" /><Skeleton className="ml-auto h-12 w-2/3" /><Skeleton className="h-12 w-1/2" />
         </div>
       ) : (
-        <div ref={scroller} className="max-h-[60vh] min-h-48 overflow-y-auto overscroll-contain rounded-lg border border-graphite/50 bg-obsidian/40 p-3" tabIndex={0} aria-label={`Messages with ${name}`}>
+        <div ref={scroller} className="max-h-[60vh] min-h-48 min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain rounded-lg border border-graphite/50 bg-obsidian/40 p-3" tabIndex={0} aria-label={`Messages with ${name}`}>
           {thread.error && <p role="alert" className="mb-2 text-xs text-caution">Showing the last copy. {thread.error.reason}</p>}
           {items.length === 0 && upcoming.length === 0 && cancelled.length === 0 ? (
             <p className="py-8 text-center text-sm text-steel">No messages with {name} yet.</p>
@@ -255,7 +268,7 @@ function Bubble({ item }: { item: ThreadItem }) {
   return (
     <li
       className={cn(
-        "max-w-[92%] rounded-lg border px-3 py-2 text-sm sm:max-w-[80%]",
+        "min-w-0 max-w-[92%] break-words rounded-lg border px-3 py-2 text-sm sm:max-w-[80%]",
         internal ? "self-center border-dashed border-graphite/60 bg-coal/40" : out ? "self-end border-gold-dim/40 bg-gold/10" : "self-start border-graphite/50 bg-coal-2",
       )}
     >
@@ -281,6 +294,26 @@ function Bubble({ item }: { item: ThreadItem }) {
   );
 }
 
+/** The PATCH body for an edited scheduled message, or why it cannot be saved.
+ *  Null body: nothing changed. */
+export function scheduledEditBody(
+  item: Pick<ScheduledMessage, "body" | "scheduled_at">,
+  text: string,
+  at: string,
+  now: number,
+): { body: Record<string, unknown> | null } | { error: string } {
+  if (!text.trim()) return { error: "Write a message first." };
+  const body: Record<string, unknown> = {};
+  if (text.trim() !== (item.body ?? "").trim()) body.body = text.trim();
+  const origAt = item.scheduled_at ? toLocalInput(Date.parse(item.scheduled_at)) : "";
+  if (at !== origAt) {
+    const v = validateSchedule(at, now);
+    if (!v.ok) return { error: v.reason };
+    body.scheduled_at = v.iso;
+  }
+  return { body: Object.keys(body).length ? body : null };
+}
+
 function ScheduledBubble({
   item, leadName, isCancelled, onCancelled, onRestored,
 }: {
@@ -295,65 +328,95 @@ function ScheduledBubble({
   const [text, setText] = React.useState(item.body ?? "");
   const [at, setAt] = React.useState(() => (item.scheduled_at ? toLocalInput(Date.parse(item.scheduled_at)) : ""));
   const [error, setError] = React.useState<string | null>(null);
+  const [pendingEdit, setPendingEdit] = React.useState<Record<string, unknown> | null>(null);
+  // Bumped after each accepted write, so the next action gets a fresh key while
+  // a retry of the same action reuses its key (F-U9).
+  const [round, setRound] = React.useState(0);
   const path = { scheduled_message_id: item.id };
   const failed = item.status === "failed";
   const word = channelWord(item.channel);
+  const keys = {
+    cancel: useIdemFor(`sched-cancel:${item.id}:${round}`),
+    restore: useIdemFor(`sched-restore:${item.id}:${round}`),
+    edit: useIdemFor(`sched-edit:${item.id}:${round}:${text.trim()}:${at}`),
+    sendNow: useIdemFor(`sched-send-now:${item.id}:${round}`),
+  };
 
-  const patch = async (body: Record<string, unknown>, done: string) => {
+  const patch = async (body: Record<string, unknown>, idem: string, done: string, grant?: ConfirmGrant) => {
     setError(null);
-    const res = await run(INBOX_OP.scheduledUpdate, { path, body }, { invalidate: [INBOX_OP.scheduled] });
-    if (res.ok) toast.success(done);
+    const res = await run(INBOX_OP.scheduledUpdate, { path, body, idem, ...grant }, { invalidate: [INBOX_OP.scheduled] });
+    if (res.ok) { toast.success(done); setRound((r) => r + 1); }
     else setError(res.reason ?? "Zuops refused.");
     return res.ok;
   };
 
-  const save = async () => {
-    const body: Record<string, unknown> = {};
-    if (text.trim() !== (item.body ?? "").trim()) body.body = text.trim();
-    const origAt = item.scheduled_at ? toLocalInput(Date.parse(item.scheduled_at)) : "";
-    if (at !== origAt) {
-      const v = validateSchedule(at, Date.now());
-      if (!v.ok) { setError(v.reason); return; }
-      body.scheduled_at = v.iso;
-    }
-    if (!Object.keys(body).length) { setEditing(false); return; }
-    if (!text.trim()) { setError("Write a message first."); return; }
-    if (await patch(body, "Scheduled message updated")) setEditing(false);
+  const save = () => {
+    const r = scheduledEditBody(item, text, at, currentTime());
+    if ("error" in r) { setError(r.error); return; }
+    if (!r.body) { setEditing(false); return; }
+    setError(null);
+    setPendingEdit(r.body);
   };
 
   return (
-    <li className="max-w-[92%] self-end rounded-lg border border-dashed border-gold-dim/60 bg-coal/40 px-3 py-2 text-sm sm:max-w-[80%]">
+    <li className="min-w-0 max-w-[92%] self-end rounded-lg border border-dashed border-gold-dim/60 bg-coal/40 px-3 py-2 text-sm sm:max-w-[80%]">
       <p className="mb-1 flex flex-wrap items-center gap-1.5 text-[0.6875rem] text-steel">
         <CalendarClock className="size-3" aria-hidden />
         <span>{isCancelled ? `Cancelled ${word.toLowerCase()}` : `Scheduled ${word.toLowerCase()}`} · {dateTime(item.scheduled_at)}</span>
         {failed && <Badge tone="critical">Failed</Badge>}
         {item.status === "sending" && <Badge tone="info">Sending</Badge>}
       </p>
-      {failed && item.last_error && <p className="text-xs text-critical">{item.last_error}</p>}
+      {failed && item.last_error && <p className="break-words text-xs text-critical">{item.last_error}</p>}
       {editing ? (
-        <div className="space-y-2">
+        <div className="min-w-0 space-y-2">
           <Label htmlFor={`sm-text-${item.id}`}>Message</Label>
           <Textarea id={`sm-text-${item.id}`} rows={3} value={text} onChange={(e) => setText(e.target.value)} />
           <Label htmlFor={`sm-at-${item.id}`}>Send at (your time)</Label>
-          <Input id={`sm-at-${item.id}`} type="datetime-local" className={TOUCH} value={at} onChange={(e) => setAt(e.target.value)} />
+          <Input id={`sm-at-${item.id}`} type="datetime-local" className={cn("w-full max-w-full", TOUCH)} value={at} onChange={(e) => setAt(e.target.value)} />
         </div>
       ) : (
         <>
-          {item.subject && <p className="font-semibold text-bone">{item.subject}</p>}
+          {item.subject && <p className="break-words font-semibold text-bone">{item.subject}</p>}
           <p className={cn("whitespace-pre-wrap break-words", isCancelled ? "text-steel line-through" : "text-bone")}>{item.body}</p>
         </>
       )}
-      {error && <p role="alert" className="mt-1 text-xs text-critical">{error}</p>}
-      <div className="mt-2 flex flex-wrap gap-1.5">
+      {error && <p role="alert" className="mt-1 break-words text-xs text-critical">{error}</p>}
+      <div className="mt-2 flex min-w-0 flex-wrap gap-1.5">
         {isCancelled ? (
-          <WriteButton type="button" size="sm" variant="secondary" disabled={pending}
-            onClick={async () => { if (await patch({ status: "pending" }, "Restored. It will go out as scheduled.")) onRestored(); }}>
-            <ArchiveRestore className="size-4" aria-hidden />Restore
-          </WriteButton>
+          <ConfirmDialog
+            title={`Restore this ${word.toLowerCase()} to ${leadName}?`}
+            body={<>Zuops sends it to {leadName} on {dateTime(item.scheduled_at)} as scheduled. {confirmCopy("changes_sending")}</>}
+            confirmLabel="Restore"
+            onConfirm={async (grant) => {
+              if (await patch({ status: "pending" }, keys.restore, "Restored. It will go out as scheduled.", grant)) onRestored();
+            }}
+            trigger={
+              <WriteButton type="button" size="sm" variant="secondary" disabled={pending}>
+                <ArchiveRestore className="size-4" aria-hidden />Restore
+              </WriteButton>
+            }
+          />
         ) : editing ? (
           <>
             <Button type="button" size="sm" variant="ghost" className={TOUCH} onClick={() => { setEditing(false); setText(item.body ?? ""); setError(null); }}>Discard</Button>
             <WriteButton type="button" size="sm" onClick={save} disabled={pending}>Save</WriteButton>
+            <ConfirmDialog
+              open={pendingEdit !== null}
+              onOpenChange={(v) => { if (!v) setPendingEdit(null); }}
+              title={`Save the changes to this scheduled ${word.toLowerCase()}?`}
+              body={
+                <>
+                  Zuops sends the changed message to {leadName}
+                  {typeof pendingEdit?.scheduled_at === "string" ? ` on ${dateTime(pendingEdit.scheduled_at)}` : ` on ${dateTime(item.scheduled_at)}`}. {confirmCopy("changes_sending")}
+                </>
+              }
+              confirmLabel="Save changes"
+              onConfirm={async (grant) => {
+                if (!pendingEdit) return;
+                if (await patch(pendingEdit, keys.edit, "Scheduled message updated", grant)) setEditing(false);
+                setPendingEdit(null);
+              }}
+            />
           </>
         ) : (
           <>
@@ -361,16 +424,16 @@ function ScheduledBubble({
               <Pencil className="size-4" aria-hidden />Edit
             </WriteButton>
             <WriteButton type="button" size="sm" variant="secondary" disabled={pending || item.status === "sending"}
-              onClick={async () => { if (await patch({ status: "cancelled" }, "Cancelled. Restore it from the thread.")) onCancelled(); }}>
+              onClick={async () => { if (await patch({ status: "cancelled" }, keys.cancel, "Cancelled. Restore it from the thread.")) onCancelled(); }}>
               <X className="size-4" aria-hidden />Cancel
             </WriteButton>
             <ConfirmDialog
               title={`Send this ${word.toLowerCase()} now?`}
-              body={<>Zuops sends it to {leadName} right away instead of on {dateTime(item.scheduled_at)}. It reaches a real person and uses credits.</>}
+              body={<>Zuops sends it to {leadName} right away instead of on {dateTime(item.scheduled_at)}. {confirmCopy("reaches")}</>}
               confirmLabel="Send now"
               onConfirm={async (grant) => {
-                const res = await run(INBOX_OP.sendScheduledNow, { path, ...grant }, { invalidate: INBOX_INVALIDATE });
-                if (res.ok) toast.success(res.status === 202 ? "Zuops will retry sending it in a couple of minutes." : `Sent to ${leadName}.`);
+                const res = await run(INBOX_OP.sendScheduledNow, { path, idem: keys.sendNow, ...grant }, { invalidate: INBOX_INVALIDATE });
+                if (res.ok) { setRound((r) => r + 1); toast.success(res.status === 202 ? "Zuops will retry sending it in a couple of minutes." : `Sent to ${leadName}.`); }
                 else toast.error(res.reason ?? "Zuops refused.");
               }}
               trigger={
@@ -395,7 +458,8 @@ export function SuggestionCard({
 }) {
   const { run, pending } = useZuWrite();
   const path = { suggestion_id: suggestion.id };
-  const [idem] = React.useState(() => newIdem());
+  const idem = useIdemFor(`suggestion-approve:${suggestion.id}`);
+  const dismissKey = useIdemFor(`suggestion-dismiss:${suggestion.id}`);
   const plan = suggestion.books
     ? `It also books ${suggestion.books.title || "an appointment"} on ${dateTime(suggestion.books.starts_at, suggestion.books.timezone)}.`
     : suggestion.cancels
@@ -410,7 +474,7 @@ export function SuggestionCard({
       <div className="flex flex-wrap gap-2">
         <ConfirmDialog
           title="Send the AI's reply?"
-          body={<>Zuops sends this reply to {leadName} as the AI.{plan ? ` ${plan}` : ""} It reaches a real person and uses credits.</>}
+          body={<>Zuops sends this reply to {leadName} as the AI.{plan ? ` ${plan}` : ""} {confirmCopy("reaches")}</>}
           confirmLabel="Send this"
           onConfirm={async (grant) => {
             const res = await run(INBOX_OP.approveSuggestion, { path, idem, ...grant }, { invalidate: INBOX_INVALIDATE });
@@ -424,7 +488,7 @@ export function SuggestionCard({
         </Button>
         <WriteButton type="button" size="sm" variant="ghost" disabled={pending}
           onClick={async () => {
-            const res = await run(INBOX_OP.dismissSuggestion, { path }, { invalidate: [INBOX_OP.suggestions] });
+            const res = await run(INBOX_OP.dismissSuggestion, { path, idem: dismissKey }, { invalidate: [INBOX_OP.suggestions] });
             if (res.ok) toast.success("Dismissed. Nothing was sent.");
             else toast.error(res.reason ?? "Zuops refused.");
           }}>
@@ -476,7 +540,7 @@ function PauseDialog({
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!until) { void onPause(null); return; }
-    const v = validateSchedule(until, Date.now());
+    const v = validateSchedule(until, currentTime());
     if (!v.ok) { setError(v.reason); return; }
     void onPause(v.iso);
   };

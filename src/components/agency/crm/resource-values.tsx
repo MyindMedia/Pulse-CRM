@@ -40,7 +40,7 @@ function YesNo({ value }: { value: boolean }) {
 
 export function ExtLink({ href, children }: { href: string; children?: React.ReactNode }) {
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-center gap-1 break-all text-info underline-offset-2 hover:underline">
+    <a href={href} target="_blank" rel="noopener noreferrer" className="inline-flex max-w-full items-center gap-1 break-all rounded-sm text-info underline-offset-2 outline-none hover:underline focus-visible:ring-2 focus-visible:ring-gold/40 max-sm:min-h-11">
       {children ?? href}
       <ExternalLink className="size-3 shrink-0" aria-hidden />
       <span className="sr-only">(opens in a new tab)</span>
@@ -49,7 +49,10 @@ export function ExtLink({ href, children }: { href: string; children?: React.Rea
 }
 
 function compact(v: unknown): string {
-  if (Array.isArray(v)) return `${v.length} ${v.length === 1 ? "item" : "items"}`;
+  if (Array.isArray(v)) {
+    if (v.length > 0 && v.length <= 5 && v.every((x) => typeof x === "string" || typeof x === "number")) return v.join(", ");
+    return `${v.length} ${v.length === 1 ? "item" : "items"}`;
+  }
   if (isObj(v)) {
     const named = getPath(v, "name|label|title|full_name|id");
     return typeof named === "string" ? named : `${Object.keys(v).length} fields`;
@@ -58,7 +61,7 @@ function compact(v: unknown): string {
 }
 
 /** One table cell. Unknown and nested values are shown compactly. */
-export function CellValue({ value, format }: { value: unknown; format?: CellFormat }) {
+export function CellValue({ value, format, noLink }: { value: unknown; format?: CellFormat; noLink?: boolean }) {
   if (value === undefined || value === null || value === "") return DASH;
   switch (format) {
     case "badge":
@@ -88,7 +91,7 @@ export function CellValue({ value, format }: { value: unknown; format?: CellForm
     }
     default:
       if (typeof value === "boolean") return <YesNo value={value} />;
-      if (typeof value === "string" && isUrl(value)) return <ExtLink href={value}><span className="max-w-48 truncate">{value.replace(/^https?:\/\//, "")}</span></ExtLink>;
+      if (typeof value === "string" && isUrl(value) && !noLink) return <ExtLink href={value}><span className="max-w-48 truncate">{value.replace(/^https?:\/\//, "")}</span></ExtLink>;
       return <span className="block max-w-72 truncate" title={typeof value === "string" ? value : undefined}>{compact(value)}</span>;
   }
 }

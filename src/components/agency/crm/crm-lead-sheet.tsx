@@ -3,7 +3,7 @@
 import * as React from "react";
 import { toast } from "sonner";
 import {
-  Ban, CalendarPlus, CheckCircle2, History, MailX, MessageSquare, PhoneOff, Plus, Trophy, X, XCircle,
+  Ban, CalendarPlus, CheckCircle2, CircleHelp, History, MailX, MessageSquare, PauseCircle, PhoneOff, Plus, Trophy, X, XCircle,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,7 @@ import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHea
 import { Skeleton } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/toggle";
 import { OP } from "./ops";
-import { newIdem, useZuRead, useZuWrite } from "./use-zu";
+import { stableStringify, useIdemFor, useZuRead, useZuWrite } from "./use-zu";
 import { useCrmNav } from "./crm-context";
 import {
   ConfirmDialog, StageBadge, TOUCH, WriteButton, ZuErrorState, dateTime, money, phone, relTime,
@@ -46,7 +46,45 @@ export type LeadDraft = {
 };
 
 export function currentStageKey(lead: Lead): string | null {
-  return lead.stage ?? lead.stage_key ?? null;
+  return lead.stage_key ?? lead.stage ?? null;
+}
+
+const pad = (n: number) => String(n).padStart(2, "0");
+
+/** An ISO time -> the value a `datetime-local` input shows, in this browser's
+ *  time zone (F-U16). "" for nothing or an unreadable value. */
+export function isoToLocalInput(iso: unknown): string {
+  if (typeof iso !== "string" || !iso) return "";
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "";
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** A `datetime-local` value (local wall time) -> an ISO time, or null. */
+export function localInputToIso(value: string): string | null {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+export type Reachability = { label: string; state: "bad" | "ok" | "unknown"; word: string; detail?: string };
+
+/** What Zuops reports about reaching this lead: four flags and their reasons.
+ *  Zuops has no text opt-out or do-not-contact field on a lead, so neither is
+ *  shown here (F-U2). A flag missing from the answer reads "Not reported". */
+export function reachability(l: Lead): Reachability[] {
+  const row = (label: string, flag: boolean | null | undefined, bad: string, ok: string, reason?: string | null, at?: string | null): Reachability => {
+    if (flag === undefined || flag === null) return { label, state: "unknown", word: "Not reported" };
+    if (!flag) return { label, state: "ok", word: ok };
+    const parts = [reason?.trim(), at ? `since ${dateTime(at)}` : null].filter(Boolean);
+    return { label, state: "bad", word: bad, detail: parts.length ? parts.join(", ") : undefined };
+  };
+  return [
+    row("Email opt-out", l.email_opt_out, "Opted out of email", "Not opted out", l.email_opt_out_reason, l.email_opt_out_at),
+    row("Email address", l.email_invalid, "Invalid", "No problem reported", l.email_invalid_reason, l.email_invalid_at),
+    row("Email sending", l.email_paused, "Paused", "Not paused"),
+    row("Phone number", l.phone_invalid, "Invalid", "No problem reported", l.phone_invalid_reason, l.phone_invalid_at),
+  ];
 }
 
 /** Dollars as typed -> cents. "" -> null; anything unreadable -> undefined. */
@@ -96,15 +134,29 @@ export function LeadSheet({
   onClose,
   onOpenInbox,
   onBook,
+  returnFocus,
 }: {
   leadId: string | null;
   onClose: () => void;
   onOpenInbox?: (leadId: string) => void;
   onBook?: (leadId: string) => void;
+  /** The row or card control that opened the sheet; focus goes back to it on
+   *  close (Escape, Close, overlay), F-V3. */
+  returnFocus?: HTMLElement | null;
 }) {
   return (
     <Sheet open={!!leadId} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <SheetContent width="lg">
+      <SheetContent
+        width="lg"
+        // The shared Close button is 24 px; on a phone it gets a 44 px target (F-V5).
+        className="max-sm:[&>[aria-label=Close]]:grid max-sm:[&>[aria-label=Close]]:size-11 max-sm:[&>[aria-label=Close]]:place-items-center"
+        onCloseAutoFocus={(e) => {
+          if (returnFocus && returnFocus.isConnected) {
+            e.preventDefault();
+            returnFocus.focus();
+          }
+        }}
+      >
         {leadId && <LeadSheetBody key={leadId} leadId={leadId} onClose={onClose} onOpenInbox={onOpenInbox} onBook={onBook} />}
       </SheetContent>
     </Sheet>
@@ -137,11 +189,19 @@ function LeadSheetBody({
   const [draft, setDraft] = React.useState<LeadDraft>({});
   const [tagInput, setTagInput] = React.useState("");
   const [note, setNote] = React.useState("");
-  const [noteIdem, setNoteIdem] = React.useState(() => newIdem());
   const [wonOpen, setWonOpen] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
+  const [dncDone, setDncDone] = React.useState(false);
 
   const l = lead.data?.lead;
+  // Idempotency-Keys (F-U9): one per distinct request, reused for an identical
+  // retry, new once a request succeeds (the round goes up).
+  const [rounds, setRounds] = React.useState({ note: 0, save: 0, lost: 0 });
+  const bump = (k: keyof typeof rounds) => setRounds((r) => ({ ...r, [k]: r[k] + 1 }));
+  const noteIdem = useIdemFor(`${rounds.note}|${note.trim()}`);
+  const patchNow = l ? leadPatch(l, draft) : {};
+  const saveIdem = useIdemFor(`${rounds.save}|${stableStringify(patchNow)}`);
+  const lostIdem = useIdemFor(`${rounds.lost}|lost`);
   const stageList = React.useMemo(
     () => [...(stages.data?.stages ?? [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0)),
     [stages.data],
@@ -150,7 +210,7 @@ function LeadSheetBody({
   if (lead.error && !l) {
     return (
       <>
-        <SheetHeader><SheetTitle>Lead</SheetTitle></SheetHeader>
+        <SheetHeader className="max-sm:pr-16"><SheetTitle>Lead</SheetTitle></SheetHeader>
         <SheetBody><ZuErrorState error={lead.error} onRetry={lead.refresh} /></SheetBody>
       </>
     );
@@ -158,7 +218,7 @@ function LeadSheetBody({
   if (!l) {
     return (
       <>
-        <SheetHeader><SheetTitle>Loading lead</SheetTitle><SheetDescription>Reading it from Zuops.</SheetDescription></SheetHeader>
+        <SheetHeader className="max-sm:pr-16"><SheetTitle>Loading lead</SheetTitle><SheetDescription>Reading it from Zuops.</SheetDescription></SheetHeader>
         <SheetBody aria-busy="true" className="space-y-3"><Skeleton className="h-6 w-1/2" /><Skeleton className="h-24 w-full" /><Skeleton className="h-40 w-full" /></SheetBody>
       </>
     );
@@ -177,12 +237,13 @@ function LeadSheetBody({
   const events: TimelineEvent[] = (fullTimeline && timeline.data?.events) || lead.data?.events || [];
   const activeFields = (fields.data?.custom_fields ?? []).filter((f) => !f.archived_at).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 
-  const save = async (body: Record<string, unknown>, done: string) => {
+  const save = async (body: Record<string, unknown>, done: string, idem: string, round?: keyof typeof rounds) => {
     setSaveError(null);
-    const res = await run(OP.leadUpdate, { path, body }, { invalidate: INVALIDATE });
+    const res = await run(OP.leadUpdate, { path, body, idem }, { invalidate: INVALIDATE });
     if (res.ok) {
       toast.success(done);
       setDraft({});
+      if (round) bump(round);
       return true;
     }
     setSaveError(res.reason ?? "Zuops refused.");
@@ -202,7 +263,7 @@ function LeadSheetBody({
 
   const markLost = () => {
     const lost = byBehavior("lost");
-    void save(lost ? { stage_key: lost.key } : { status: "lost" }, "Marked lost in Zuops");
+    void save(lost ? { stage_key: lost.key } : { status: "lost" }, "Marked lost in Zuops", lostIdem, "lost");
   };
 
   const addNote = async () => {
@@ -212,7 +273,7 @@ function LeadSheetBody({
     if (res.ok) {
       toast.success("Note added in Zuops");
       setNote("");
-      setNoteIdem(newIdem());
+      bump("note");
     } else {
       toast.error(res.reason ?? "Zuops refused the note.");
     }
@@ -224,7 +285,7 @@ function LeadSheetBody({
 
   return (
     <>
-      <SheetHeader className="space-y-3">
+      <SheetHeader className="space-y-3 max-sm:pr-16">
         <div>
           <p className="overline">Lead</p>
           <SheetTitle>{name}</SheetTitle>
@@ -269,12 +330,25 @@ function LeadSheetBody({
             <dt className="text-steel">Last activity</dt>
             <dd className="text-bone">{relTime(l.last_activity_at) || "None"}</dd>
           </dl>
-          <div className="flex flex-wrap gap-2">
-            {l.email_opt_out && <Badge tone="caution"><MailX className="size-3" aria-hidden />Email opted out</Badge>}
-            {l.email_invalid && <Badge tone="caution"><MailX className="size-3" aria-hidden />Email invalid</Badge>}
-            {l.phone_invalid && <Badge tone="caution"><PhoneOff className="size-3" aria-hidden />Phone invalid</Badge>}
-            {l.existing_customer && <Badge tone="info"><CheckCircle2 className="size-3" aria-hidden />Existing customer</Badge>}
-          </div>
+          {l.existing_customer && <Badge tone="info"><CheckCircle2 className="size-3" aria-hidden />Existing customer</Badge>}
+        </section>
+
+        <section aria-labelledby="ls-reach" className="space-y-2">
+          <h3 id="ls-reach" className="overline">Reaching this lead</h3>
+          <dl className="grid grid-cols-[7rem_minmax(0,1fr)] gap-x-3 gap-y-2 text-sm">
+            {reachability(l).map((r) => {
+              const Icon = r.state === "unknown" ? CircleHelp : r.state === "ok" ? CheckCircle2 : r.label === "Phone number" ? PhoneOff : r.label === "Email sending" ? PauseCircle : MailX;
+              return (
+                <React.Fragment key={r.label}>
+                  <dt className="text-steel">{r.label}</dt>
+                  <dd className={r.state === "bad" ? "text-caution" : r.state === "ok" ? "text-bone" : "text-steel"}>
+                    <span className="inline-flex items-center gap-1.5"><Icon className="size-3.5 shrink-0" aria-hidden />{r.word}</span>
+                    {r.detail && <span className="block text-xs text-steel">{r.detail}</span>}
+                  </dd>
+                </React.Fragment>
+              );
+            })}
+          </dl>
         </section>
 
         <section aria-labelledby="ls-edit" className="space-y-4">
@@ -306,7 +380,7 @@ function LeadSheetBody({
                   <Badge className="pr-1">
                     {t}
                     <button type="button" onClick={() => removeTag(t)} aria-label={`Remove tag ${t}`}
-                      className="grid size-5 place-items-center rounded-sm outline-none hover:bg-coal-3 focus-visible:ring-2 focus-visible:ring-gold/40 max-sm:size-8">
+                      className="grid size-5 place-items-center rounded-sm outline-none hover:bg-coal-3 focus-visible:ring-2 focus-visible:ring-gold/40 max-sm:size-11">
                       <X className="size-3" aria-hidden />
                     </button>
                   </Badge>
@@ -383,11 +457,17 @@ function LeadSheetBody({
             destructive
             onConfirm={async (grant) => {
               const res = await run(OP.leadDoNotContact, { path, ...grant }, { invalidate: INVALIDATE });
-              if (res.ok) toast.success("Marked do not contact in Zuops");
-              else toast.error(res.reason ?? "Zuops refused.");
+              if (res.ok) {
+                setDncDone(true);
+                toast.success("Marked do not contact in Zuops");
+              } else toast.error(res.reason ?? "Zuops refused.");
             }}
             trigger={<WriteButton type="button" variant="danger" size="sm"><Ban className="size-4" aria-hidden />Do not contact</WriteButton>}
           />
+          {dncDone && (
+            <p role="status" className="flex items-center gap-1.5 text-sm text-bone"><CheckCircle2 className="size-4 text-positive" aria-hidden />Marked do not contact in Zuops</p>
+          )}
+          <p className="text-xs text-steel">Zuops does not report this back on the lead, so this screen cannot show whether it is already set.</p>
         </section>
       </SheetBody>
 
@@ -395,7 +475,7 @@ function LeadSheetBody({
         {saveError && <p role="alert" className="mr-auto text-sm text-critical">{saveError}</p>}
         <span className="mr-auto text-xs text-steel" aria-live="polite">{changes ? `${changes} change${changes === 1 ? "" : "s"} not saved` : "No changes"}</span>
         <Button type="button" variant="ghost" className={TOUCH} onClick={() => { setDraft({}); setSaveError(null); }} disabled={!changes}>Discard</Button>
-        <WriteButton type="button" onClick={() => void save(patch, "Saved in Zuops")} disabled={!changes || dealInvalid || pending}>
+        <WriteButton type="button" onClick={() => void save(patch, "Saved in Zuops", saveIdem, "save")} disabled={!changes || dealInvalid || pending}>
           {pending ? "Saving" : "Save to Zuops"}
         </WriteButton>
       </SheetFooter>
@@ -404,10 +484,11 @@ function LeadSheetBody({
         open={wonOpen} onOpenChange={setWonOpen} pending={pending}
         initialDollars={l.deal_value_cents != null ? (l.deal_value_cents / 100).toFixed(l.deal_value_cents % 100 ? 2 : 0) : ""}
         currency={l.deal_currency || "USD"}
-        onSave={async (cents) => {
+        onSave={async (cents, idem) => {
           const won = byBehavior("won");
-          const ok = await save({ ...(won ? { stage_key: won.key } : { status: "won" }), deal_value_cents: cents }, "Marked won in Zuops");
+          const ok = await save({ ...(won ? { stage_key: won.key } : { status: "won" }), deal_value_cents: cents }, "Marked won in Zuops", idem);
           if (ok) setWonOpen(false);
+          return ok;
         }}
       />
     </>
@@ -476,12 +557,12 @@ function CustomFieldInput({ field, value, onChange }: { field: CustomField; valu
   return (
     <Field label={field.label} htmlFor={id} hint={hint}>
       <Input
-        id={id} type={inputType} className={TOUCH} value={type === "datetime" ? shown.slice(0, 16) : shown}
+        id={id} type={inputType} className={TOUCH} value={type === "datetime" ? isoToLocalInput(value) : shown}
         placeholder={field.placeholder ?? undefined}
         onChange={(e) => {
           const raw = e.target.value;
           if (numeric) onChange(raw === "" ? null : Number(raw));
-          else if (type === "datetime") onChange(raw ? new Date(raw).toISOString() : null);
+          else if (type === "datetime") onChange(localInputToIso(raw));
           else onChange(raw);
         }}
       />
@@ -496,16 +577,22 @@ function WonDialog({
   onOpenChange: (v: boolean) => void;
   initialDollars: string;
   currency: string;
-  onSave: (cents: number | null) => void | Promise<void>;
+  onSave: (cents: number | null, idem: string) => Promise<boolean>;
   pending: boolean;
 }) {
   const [amount, setAmount] = React.useState<string | null>(null);
+  const [round, setRound] = React.useState(0);
   const text = amount ?? initialDollars;
   const cents = dollarsToCents(text);
+  const idem = useIdemFor(`${round}|${String(cents)}`);
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setAmount(null); }}>
       <DialogContent size="sm">
-        <form onSubmit={(e) => { e.preventDefault(); if (cents !== undefined) void onSave(cents); }}>
+        <form onSubmit={async (e) => {
+          e.preventDefault();
+          if (cents === undefined) return;
+          if (await onSave(cents, idem)) setRound((n) => n + 1);
+        }}>
           <DialogHeader>
             <DialogTitle>Mark this lead won</DialogTitle>
             <DialogDescription>What did the customer pay? It counts as Sold in the Zuops sales report.</DialogDescription>

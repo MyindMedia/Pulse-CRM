@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { createZuStore, stableStringify, zuKey, type ZuCallArgs, type ZuCallResult } from "./zu-store";
+import { ConvexError } from "convex/values";
+import { createZuStore, stableStringify, thrown, zuKey, type ZuCallArgs, type ZuCallResult, type ZuPaged } from "./zu-store";
+import { idemStep } from "./use-zu";
 
 /* The pure cache and scheduler behind useZuRead / useZuWrite (eval P-02, P-03,
    X-02, X-03). Fake timers drive the clock; the caller is a mock of api.crm.call. */
@@ -288,5 +290,217 @@ describe("writes", () => {
     await flush();
     expect(call).toHaveBeenCalledTimes(3);
     stop();
+  });
+});
+
+/* ---------- fix round 2 ---------- */
+
+const PAGES = { listKey: "leads", limit: 200, max: 1000 };
+const pagedReply = (total: number, label = "v1") => (a: ZuCallArgs) => {
+  const offset = Number(a.query?.offset ?? 0);
+  const n = Math.max(0, Math.min(200, total - offset));
+  const leads = Array.from({ length: n }, (_, i) => ({ id: `l${offset + i}`, v: label }));
+  return ok({ leads, has_more: offset + n < total, next_offset: offset + n < total ? offset + n : null });
+};
+
+describe("F-U3 one request budget for the whole page", () => {
+  it("F-U3: background refetches across all keys, page fetches included, stay at or under 12 a rolling minute; user reads still go and count", async () => {
+    const at: number[] = [];
+    let total = 600; // three pages
+    const { store } = setup({
+      reply: (a) => {
+        at.push(Date.now());
+        return a.op === "list_leads" ? pagedReply(total)(a) : ok({});
+      },
+    });
+    const keys = [zuKey("get_overview"), zuKey("get_health_score"), zuKey("setup_status"), zuKey("list_stages")];
+    const paged = zuKey("list_leads", undefined, PAGES);
+    const stops = [...keys.map((k) => store.watch(k, 20_000)), store.watch(paged, 20_000)];
+    [...keys, paged].forEach((k) => store.signal(k, 0));
+    await flush();
+    expect(at.length).toBe(4 + 3); // first open: four reads plus three pages, never held back
+    for (let s = 1; s <= 240; s++) {
+      await vi.advanceTimersByTimeAsync(1000);
+      store.focus();
+      [...keys, paged].forEach((k) => store.signal(k, s * 1000));
+      if (s === 120) { total = 400; await store.request(paged, "user"); } // Refresh: walks every page, counted
+    }
+    const bg = at.filter((t) => t > at[6]);
+    expect(bg.length).toBeGreaterThan(24); // signals do get through over four minutes
+    const refreshAt = Date.UTC(2026, 10, 11, 12) + 120_000;
+    // Every rolling minute stays at 12, except one that holds the explicit
+    // Refresh, whose pages count but are never held back.
+    const windows = bg.filter((t) => !(t <= refreshAt && t + 60_000 > refreshAt));
+    expect(Math.max(...windows.map((t) => at.filter((u) => u >= t && u < t + 60_000).length))).toBeLessThanOrEqual(12);
+    stops.forEach((x) => x());
+  });
+
+  it("F-U3: a 429 Retry-After on one key pauses background refetches of every key", async () => {
+    const calls: string[] = [];
+    let limited = false;
+    const { store } = setup({
+      reply: (a) => {
+        calls.push(a.op);
+        if (limited && a.op === "get_overview") return { ok: false, status: 429, json: null, reason: "Slow down.", retryAfter: 120, code: "rate_limit_exceeded", limits: {} };
+        return ok({});
+      },
+    });
+    const a = zuKey("get_overview");
+    const b = zuKey("get_health_score");
+    const sa = store.watch(a, 60_000);
+    const sb = store.watch(b, 60_000);
+    await flush();
+    limited = true;
+    await store.request(a, "user");
+    const before = calls.length;
+    await vi.advanceTimersByTimeAsync(110_000); // two polls of b would be due
+    expect(calls.length).toBe(before);
+    limited = false;
+    await vi.advanceTimersByTimeAsync(20_000);
+    expect(calls.length).toBeGreaterThan(before);
+    sa(); sb();
+  });
+
+  it("F-U3: a paged list shows page 1 first, keeps paging while has_more, then polls page 1 only (every 300 s) and merges by id; Refresh walks again", async () => {
+    let label = "v1";
+    const { store, calls } = setup({ reply: (a) => pagedReply(450, label)(a) });
+    const key = zuKey("list_leads", undefined, PAGES);
+    const seen: Array<{ n: number; complete: boolean }> = [];
+    store.subscribe(key, () => {
+      const d = store.snapshot(key).data as ZuPaged<{ id: string; v: string }> | undefined;
+      if (d) seen.push({ n: d.items.length, complete: d.complete });
+    });
+    const stop = store.watch(key); // default poll for paged lists
+    await flush();
+    expect(calls.map((c) => c.query?.offset)).toEqual([0, 200, 400]);
+    expect(seen[0]).toEqual({ n: 200, complete: false }); // page 1 on screen before the rest
+    expect(seen[seen.length - 1]).toEqual({ n: 450, complete: true });
+
+    label = "v2";
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(calls).toHaveLength(3); // no 60 s poll for a paged list
+    await vi.advanceTimersByTimeAsync(240_000);
+    expect(calls.map((c) => c.query?.offset)).toEqual([0, 200, 400, 0]); // page 1 only
+    const d = store.snapshot(key).data as ZuPaged<{ id: string; v: string }>;
+    expect(d.items).toHaveLength(450);
+    expect(d.items[0].v).toBe("v2");
+    expect(d.items[300].v).toBe("v1");
+    expect(d.headIds).toHaveLength(200);
+
+    await store.request(key, "user");
+    expect(calls.map((c) => c.query?.offset)).toEqual([0, 200, 400, 0, 0, 200, 400]);
+    expect((store.snapshot(key).data as ZuPaged<{ v: string }>).items[300].v).toBe("v2");
+    stop();
+  });
+});
+
+describe("F-U4 nothing requests while hidden", () => {
+  it("F-U4: a signal while hidden only marks the read stale; it refetches once visible", async () => {
+    let visible = true;
+    const { store, call } = setup({ visible: () => visible });
+    const key = zuKey("list_leads");
+    const stop = store.watch(key, 0);
+    store.signal(key, 0);
+    await flush();
+    expect(call).toHaveBeenCalledTimes(1);
+    visible = false;
+    await vi.advanceTimersByTimeAsync(20_000);
+    store.signal(key, 5);
+    await vi.advanceTimersByTimeAsync(60_000);
+    expect(call).toHaveBeenCalledTimes(1);
+    visible = true;
+    store.focus();
+    await flush();
+    expect(call).toHaveBeenCalledTimes(2);
+    stop();
+  });
+
+  it("F-U4: a held signal whose timer fires while hidden does not request", async () => {
+    let visible = true;
+    const { store, call } = setup({ visible: () => visible });
+    const key = zuKey("list_leads");
+    const stop = store.watch(key, 0);
+    store.signal(key, 0);
+    await flush();
+    store.signal(key, 5); // too soon: held for the 15 s gap
+    visible = false;
+    await vi.advanceTimersByTimeAsync(30_000);
+    expect(call).toHaveBeenCalledTimes(1);
+    visible = true;
+    store.focus();
+    await flush();
+    expect(call).toHaveBeenCalledTimes(2);
+    stop();
+  });
+});
+
+describe("F-U8 cached personal data never outlives access", () => {
+  it("F-U8: an answer to a request made before clear() is thrown away", async () => {
+    let release!: () => void;
+    const { store } = setup({ reply: () => new Promise((r) => { release = () => r(ok({ name: "Maya Okafor" })); }) });
+    const key = zuKey("get_lead", { path: { lead_id: "l1" } });
+    store.subscribe(key, () => undefined);
+    const p = store.request(key, "mount");
+    store.clear();
+    release();
+    await p;
+    await flush();
+    expect(store.snapshot(key).data).toBeUndefined();
+    expect(store.snapshot(key).inflight).toBe(false);
+  });
+
+  it("F-U8: a read refused for lost access drops the data instead of showing the last copy", async () => {
+    let n = 0;
+    const { store } = setup({
+      reply: () => {
+        if (++n === 1) return ok({ name: "Maya Okafor" });
+        throw new ConvexError({ code: "FORBIDDEN", message: "Only an owner or admin" });
+      },
+    });
+    const key = zuKey("get_lead", { path: { lead_id: "l1" } });
+    await store.load(key);
+    expect(store.snapshot(key).data).toEqual({ name: "Maya Okafor" });
+    await store.request(key, "user");
+    expect(store.snapshot(key)).toMatchObject({ data: undefined, fetchedAt: null, error: { code: "forbidden", status: 403 } });
+  });
+
+  it("F-U19: lost access is read from ConvexError data.code, with the message only as a fallback", () => {
+    expect(thrown(new ConvexError({ code: "FORBIDDEN", message: "x" }))).toMatchObject({ code: "forbidden", status: 403 });
+    expect(thrown(new ConvexError({ code: "UNAUTHENTICATED", message: "Sign in required." }))).toMatchObject({ code: "forbidden" });
+    expect(thrown(new ConvexError({ code: "OTHER", message: "boom" }))).toMatchObject({ code: "unreachable", status: 0 });
+    expect(thrown(new Error("Uncaught AccessError: FORBIDDEN"))).toMatchObject({ code: "forbidden" });
+    expect(thrown(new Error("fetch failed"))).toMatchObject({ code: "unreachable" });
+  });
+});
+
+describe("F-U12 fetch start time", () => {
+  it("F-U12: the snapshot records when the fetch STARTED, not when it answered", async () => {
+    let release!: () => void;
+    const { store } = setup({ reply: () => new Promise((r) => { release = () => r(ok({})); }) });
+    const key = zuKey("list_stages");
+    const start = Date.now();
+    const p = store.request(key, "mount");
+    await vi.advanceTimersByTimeAsync(5_000);
+    release();
+    await p;
+    expect(store.snapshot(key).startedAt).toBe(start);
+    expect(store.snapshot(key).fetchedAt).toBe(start + 5_000);
+  });
+});
+
+describe("F-U9 / F-U11 idempotency key lifetime", () => {
+  it("F-U9: same values keep the key, changed values get a new one, back to the old values gets the old key, a new round is new", () => {
+    let n = 0;
+    const make = () => `k${++n}`;
+    let st = idemStep(null, "0|a", make);
+    expect(st.keys["0|a"]).toBe("k1");
+    st = idemStep(st, "0|a", make);
+    expect(st.keys["0|a"]).toBe("k1"); // identical retry
+    st = idemStep(st, "0|ab", make);
+    expect(st.keys["0|ab"]).toBe("k2"); // a field changed after a failure
+    st = idemStep(st, "0|a", make);
+    expect(st.keys["0|a"]).toBe("k1");
+    st = idemStep(st, "1|a", make);
+    expect(st.keys["1|a"]).toBe("k3"); // after a success the round moves on
   });
 });

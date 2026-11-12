@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  buildArgs, extractRows, fillTemplate, findDeep, getPath, isSecretKey, mergeExtra, nextPage, prefill, prevPage, shows, unwrapSingle, FIRST_PAGE,
+  audienceText, buildArgs, extractRows, fillTemplate, findDeep, fingerprint, getPath, isSecretKey, mergeExtra, nextPage, prefill, prevPage, redactSecrets, shows, unwrapSingle, visibleColumns, FIRST_PAGE,
 } from "./resource-utils";
 import type { FieldDef } from "./resource-config";
 
@@ -100,5 +100,40 @@ describe("paging and conditions", () => {
     expect(shows({ key: "status", in: ["draft"] }, { status: "sent" })).toBe(false);
     expect(shows({ key: "enabled", in: [false, null] }, {})).toBe(true);
     expect(shows(undefined, null)).toBe(true);
+  });
+});
+
+describe("round 2 helpers", () => {
+  it("F-U7: redactSecrets hides secret-looking text at any depth and keeps the named ones", () => {
+    const data = { key: { name: "Pulse OS", key_prefix: "zu-ab12", rate_limit_per_min: 600 }, hooks: [{ secret: "whsec_1", url: "https://x.example" }], token: "", has_token: true };
+    expect(redactSecrets(data)).toEqual({
+      key: { name: "Pulse OS", key_prefix: "hidden", rate_limit_per_min: 600 },
+      hooks: [{ secret: "hidden", url: "https://x.example" }],
+      token: "",
+      has_token: true,
+    });
+    expect(redactSecrets({ secret: "whsec_once", token: "t" }, ["secret"])).toEqual({ secret: "whsec_once", token: "hidden" });
+  });
+
+  it("F-V2: visibleColumns drops a column no row fills, never the first", () => {
+    const cols = [{ key: "name" }, { key: "opened" }, { key: "results.clicked" }];
+    expect(visibleColumns(cols, [{ opened: 3 }, { results: { clicked: null } }]).map((c) => c.key)).toEqual(["name", "opened"]);
+    expect(visibleColumns(cols, [{ results: { clicked: 0 } }]).map((c) => c.key)).toEqual(["name", "results.clicked"]);
+    expect(visibleColumns(cols, []).map((c) => c.key)).toEqual(["name"]);
+  });
+
+  it("F-U5: audienceText describes who in words; the form's choice wins over the saved row", () => {
+    const row = { audience: "tags", tags: ["Studio owner", "Demo booked"], not_booked: true, total_recipients: 18 };
+    expect(audienceText({}, row)).toBe("everyone tagged Studio owner and Demo booked who has not booked");
+    expect(audienceText({ "body:audience": "everyone" }, row)).toBe("everyone with an email address");
+    expect(audienceText({}, { audience: "tags", tags: ["3f1c2a9e-1111-4222-8333-444455556666"] })).toBe("everyone with the campaign's chosen tags");
+    expect(audienceText({}, null)).toBe("everyone in the campaign's saved audience");
+    expect(audienceText({}, row)).not.toMatch(/\d/);
+  });
+
+  it("F-U9: fingerprint is stable under key order and changes with any value", () => {
+    expect(fingerprint({ b: 1, a: { y: 2, x: 1 } })).toBe(fingerprint({ a: { x: 1, y: 2 }, b: 1 }));
+    expect(fingerprint({ a: 1 })).not.toBe(fingerprint({ a: 2 }));
+    expect(fingerprint(undefined)).toBe("");
   });
 });

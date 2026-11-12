@@ -23,30 +23,46 @@ import { useZuRead, useZuWrite, type ZuPaged } from "./use-zu";
 import {
   ConfirmDialog, NeedsFullAccess, STAGE_COLORS, StageBadge, SyncBar, TOUCH, WriteButton, ZuErrorState, money, phone,
 } from "./crm-ui";
-import { useCrm } from "./crm-context";
+import { useCrm, useCrmNav } from "./crm-context";
 import { LeadSheet } from "./crm-lead-sheet";
 import type { Lead, Stage, StageBehavior, StagesResponse } from "./zu-types";
 
 /* Pipeline: one column per visible Zuops stage, in `position` order. Drag a card,
-   or use its "Move to" select (the keyboard path). The card moves at once, Zuops
-   is asked, and a refusal puts it back with Zuops's reason (eval U-03). */
+   or pick a stage in its "Move to" select and press Move (the keyboard path;
+   choosing alone never writes, F-U13). The card moves at once, Zuops is asked,
+   and a refusal puts it back with Zuops's reason (eval U-03). Leads with no
+   stage (unfinished form leads) are counted above the board, not dropped (F-V6). */
 
 export const PAGE_LIMIT = 200;
 export const MAX_LEADS = 1000;
 const LEAD_PAGES = { listKey: "leads", limit: PAGE_LIMIT, max: MAX_LEADS };
 
+/** An optimistic move: the stage, and when the move started. */
 export type Override = { stage: string; at: number };
 
+/** What the paged list says about how fresh its rows are. */
+export type ListFreshness = Pick<ZuPaged<Lead>, "headStartedAt" | "headIds" | "walkStartedAt">;
+
 export function leadStage(l: Lead): string | null {
-  return l.stage ?? l.stage_key ?? null;
+  return l.stage_key ?? l.stage ?? null;
 }
 
-/** Apply optimistic moves that are newer than the data on screen. */
-export function applyOverrides(leads: Lead[], overrides: Record<string, Override>, fetchedAt: number | null): Lead[] {
+/** Is this row's data newer than the move? Only a fetch that STARTED after the
+ *  move counts (F-U12): a poll that began before it may still be answering with
+ *  the old stage. Page-1 refreshes only vouch for the rows they returned. */
+export function overrideSettled(l: Lead, o: Override, fresh: ListFreshness | null): boolean {
+  if (leadStage(l) === o.stage) return true;
+  if (!fresh) return false;
+  if (fresh.walkStartedAt !== null && fresh.walkStartedAt > o.at) return true;
+  return fresh.headStartedAt > o.at && fresh.headIds.includes(l.id);
+}
+
+/** Apply optimistic moves the data on screen has not caught up with. */
+export function applyOverrides(leads: Lead[], overrides: Record<string, Override>, fresh: ListFreshness | null): Lead[] {
   return leads.map((l) => {
     const o = overrides[l.id];
-    if (!o || (fetchedAt !== null && fetchedAt > o.at)) return l;
-    return { ...l, stage: o.stage };
+    if (!o || overrideSettled(l, o, fresh)) return l;
+    return { ...l, stage: o.stage, stage_key: o.stage };
   });
 }
 
@@ -54,15 +70,35 @@ export function visibleStages(stages: Stage[]): Stage[] {
   return stages.filter((s) => !s.hidden).sort((a, b) => (a.position ?? 0) - (b.position ?? 0));
 }
 
-export function groupByStage(leads: Lead[], stages: Stage[]): { columns: Record<string, Lead[]>; elsewhere: number } {
+/** Leads by visible column. `hidden` are in a stage that is hidden; `unstaged`
+ *  are in no stage Zuops lists (no stage yet, or an unfinished form lead). */
+export function groupByStage(
+  leads: Lead[], stages: Stage[], allStages: Stage[] = stages,
+): { columns: Record<string, Lead[]>; hidden: number; unstaged: Lead[] } {
   const columns: Record<string, Lead[]> = Object.fromEntries(stages.map((s) => [s.key, [] as Lead[]]));
-  let elsewhere = 0;
+  const known = new Set(allStages.map((s) => s.key));
+  let hidden = 0;
+  const unstaged: Lead[] = [];
   for (const l of leads) {
     const k = leadStage(l);
     if (k && columns[k]) columns[k].push(l);
-    else elsewhere += 1;
+    else if (k && known.has(k)) hidden += 1;
+    else unstaged.push(l);
   }
-  return { columns, elsewhere };
+  return { columns, hidden, unstaged };
+}
+
+/** The quiet line for leads not in any stage, and the Leads filter that finds
+ *  them (their shared status, when they all have one). */
+export function unstagedNote(unstaged: Lead[]): { text: string; status?: string } | null {
+  if (!unstaged.length) return null;
+  const n = unstaged.length;
+  const statuses = new Set(unstaged.map((l) => l.status ?? ""));
+  const only = statuses.size === 1 ? [...statuses][0] : "";
+  return {
+    text: `${n} lead${n === 1 ? " is" : "s are"} not in a stage (unfinished or not yet staged).`,
+    status: only || undefined,
+  };
 }
 
 function useReducedMotion(): boolean {
@@ -86,8 +122,11 @@ export function CrmPipeline() {
   const [overrides, setOverrides] = React.useState<Record<string, Override>>({});
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const [openId, setOpenId] = React.useState<string | null>(null);
+  const [opener, setOpener] = React.useState<HTMLElement | null>(null);
   const [admin, setAdmin] = React.useState(false);
   const { canWrite } = useCrm();
+  const nav = useCrmNav();
+  const openLead = (id: string, from?: HTMLElement | null) => { setOpener(from ?? null); setOpenId(id); };
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
@@ -97,10 +136,11 @@ export function CrmPipeline() {
   const allStages = React.useMemo(() => [...(stages.data?.stages ?? [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0)), [stages.data]);
   const cols = React.useMemo(() => visibleStages(allStages), [allStages]);
   const shown = React.useMemo(
-    () => applyOverrides(leads.data?.items ?? [], overrides, leads.fetchedAt),
-    [leads.data, overrides, leads.fetchedAt],
+    () => applyOverrides(leads.data?.items ?? [], overrides, leads.data ?? null),
+    [leads.data, overrides],
   );
-  const { columns, elsewhere } = React.useMemo(() => groupByStage(shown, cols), [shown, cols]);
+  const { columns, hidden, unstaged } = React.useMemo(() => groupByStage(shown, cols, allStages), [shown, cols, allStages]);
+  const note = unstagedNote(unstaged);
   const active = activeId ? shown.find((l) => l.id === activeId) ?? null : null;
 
   const move = async (lead: Lead, to: string) => {
@@ -142,6 +182,10 @@ export function CrmPipeline() {
       </div>
       <p className="text-sm text-steel">Drag a card, or use its Move to menu. Zuops is updated first; a refusal puts the card back.</p>
 
+      {leads.data && !leads.data.complete && !leads.error && (
+        <p role="status" className="text-xs text-steel">Loading more leads from Zuops</p>
+      )}
+
       {leads.data?.truncated && (
         <p role="status" className="rounded-md border border-caution/30 bg-caution/10 px-3 py-2 text-sm text-bone">
           Showing the newest {MAX_LEADS.toLocaleString("en-US")} leads. Use the Leads tab to find the rest.
@@ -160,11 +204,22 @@ export function CrmPipeline() {
         <>
           {error && <p role="alert" className="text-sm text-caution">Showing the last copy. {error.reason}</p>}
           {shown.length === 0 && <p className="text-sm text-steel">No leads in Zuops yet. New leads appear in the first column.</p>}
+          {note && (
+            <p className="text-sm text-steel">
+              {note.text}{" "}
+              <button
+                type="button" onClick={() => nav.openLeads({ status: note.status })}
+                className="rounded-sm text-gold-bright underline underline-offset-2 outline-none hover:text-bone focus-visible:ring-2 focus-visible:ring-gold/40 max-sm:inline-flex max-sm:min-h-11 max-sm:items-center"
+              >
+                See them in Leads.
+              </button>
+            </p>
+          )}
           <DndContext sensors={sensors} collisionDetection={closestCorners} onDragStart={onDragStart} onDragEnd={onDragEnd} onDragCancel={() => setActiveId(null)}>
             <div className="-mx-4 overflow-x-auto px-4 pb-2" role="region" aria-label="Pipeline board" tabIndex={0}>
               <div className="flex gap-3">
                 {cols.map((s) => (
-                  <Column key={s.id} stage={s} leads={columns[s.key] ?? []} stages={cols} onOpen={setOpenId} onMove={move} canWrite={canWrite} />
+                  <Column key={s.id} stage={s} leads={columns[s.key] ?? []} stages={cols} onOpen={openLead} onMove={move} canWrite={canWrite} />
                 ))}
               </div>
             </div>
@@ -172,12 +227,12 @@ export function CrmPipeline() {
               {active ? <CardFace lead={active} overlay /> : null}
             </DragOverlay>
           </DndContext>
-          {elsewhere > 0 && <p className="text-xs text-steel">{elsewhere} lead{elsewhere === 1 ? " is" : "s are"} in hidden stages and not shown here.</p>}
+          {hidden > 0 && <p className="text-xs text-steel">{hidden} lead{hidden === 1 ? " is" : "s are"} in hidden stages and not shown here.</p>}
         </>
       )}
 
       {stages.data && <StageAdmin open={admin} onOpenChange={setAdmin} stages={allStages} />}
-      <LeadSheet leadId={openId} onClose={() => setOpenId(null)} />
+      <LeadSheet leadId={openId} onClose={() => setOpenId(null)} returnFocus={opener} />
     </div>
   );
 }
@@ -188,7 +243,7 @@ function Column({
   stage: Stage;
   leads: Lead[];
   stages: Stage[];
-  onOpen: (id: string) => void;
+  onOpen: (id: string, from?: HTMLElement | null) => void;
   onMove: (lead: Lead, to: string) => void;
   canWrite: boolean;
 }) {
@@ -234,29 +289,47 @@ function DraggableCard({
 }: {
   lead: Lead;
   stages: Stage[];
-  onOpen: (id: string) => void;
+  onOpen: (id: string, from?: HTMLElement | null) => void;
   onMove: (lead: Lead, to: string) => void;
   canWrite: boolean;
 }) {
   const { setNodeRef, listeners, isDragging } = useDraggable({ id: lead.id, disabled: !canWrite });
   const current = leadStage(lead) ?? "";
   const name = lead.full_name || lead.email || "lead";
+  // The stage picked in the select. Picking never writes; the Move button does.
+  const [to, setTo] = React.useState(current);
+  const [seen, setSeen] = React.useState(current);
+  if (seen !== current) {
+    setSeen(current);
+    setTo(current);
+  }
+  const toLabel = stages.find((s) => s.key === to)?.label ?? to;
   return (
     <div ref={setNodeRef} className={cn("relative", isDragging && "opacity-40")}>
       <CardFace lead={lead}>
         <div className="mt-2 flex items-center gap-1.5">
-          <Button type="button" variant="ghost" size="sm" className={cn(TOUCH, "px-2")} onClick={() => onOpen(lead.id)} aria-label={`Open ${name}`}>
-            Open
-          </Button>
-          <label className="sr-only" htmlFor={`move-${lead.id}`}>Move {name}</label>
+          <label className="sr-only" htmlFor={`move-${lead.id}`}>Stage for {name}</label>
           <select
-            id={`move-${lead.id}`} value={current} disabled={!canWrite}
-            onChange={(e) => onMove(lead, e.target.value)}
+            id={`move-${lead.id}`} value={to} disabled={!canWrite}
+            onChange={(e) => setTo(e.target.value)}
             className="pl-field h-8 min-w-0 flex-1 rounded-md border border-graphite/60 bg-obsidian px-2 text-xs text-bone outline-none focus-visible:ring-2 focus-visible:ring-gold/30 disabled:opacity-50 max-sm:h-11"
           >
             {!stages.some((s) => s.key === current) && <option value={current}>In {current || "no stage"}</option>}
             {stages.map((s) => <option key={s.id} value={s.key}>{s.key === current ? `In ${s.label}` : `Move to ${s.label}`}</option>)}
           </select>
+          <Button
+            type="button" variant="secondary" size="sm" className={cn(TOUCH, "px-2")}
+            disabled={!canWrite || to === current || !stages.some((s) => s.key === to)}
+            onClick={() => onMove(lead, to)}
+            aria-label={to === current ? `Move ${name}` : `Move ${name} to ${toLabel}`}
+          >
+            Move
+          </Button>
+        </div>
+        <div className="mt-1.5 flex items-center justify-between gap-1.5">
+          <Button type="button" variant="ghost" size="sm" className={cn(TOUCH, "px-2")} onClick={(e) => onOpen(lead.id, e.currentTarget)} aria-label={`Open ${name}`}>
+            Open
+          </Button>
           {canWrite && (
             <span {...listeners} aria-hidden className="grid size-8 shrink-0 cursor-grab touch-none place-items-center rounded text-steel/70 hover:text-bone max-sm:size-11">
               <GripVertical className="size-4" />
@@ -376,8 +449,8 @@ function StageRow({
         {stage.is_system && <Badge>Built in</Badge>}
         {stage.hidden && <Badge tone="caution">Hidden</Badge>}
         <span className="ml-auto flex gap-1">
-          <WriteButton type="button" variant="ghost" size="icon-sm" aria-label={`Move ${stage.label} up`} disabled={index === 0 || pending} onClick={() => onReorder(index, -1)}><ArrowUp className="size-4" aria-hidden /></WriteButton>
-          <WriteButton type="button" variant="ghost" size="icon-sm" aria-label={`Move ${stage.label} down`} disabled={index === count - 1 || pending} onClick={() => onReorder(index, 1)}><ArrowDown className="size-4" aria-hidden /></WriteButton>
+          <WriteButton type="button" variant="ghost" size="icon-sm" className="max-sm:size-11" aria-label={`Move ${stage.label} up`} disabled={index === 0 || pending} onClick={() => onReorder(index, -1)}><ArrowUp className="size-4" aria-hidden /></WriteButton>
+          <WriteButton type="button" variant="ghost" size="icon-sm" className="max-sm:size-11" aria-label={`Move ${stage.label} down`} disabled={index === count - 1 || pending} onClick={() => onReorder(index, 1)}><ArrowDown className="size-4" aria-hidden /></WriteButton>
         </span>
       </div>
       <div className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_8rem_auto_auto] sm:items-end">

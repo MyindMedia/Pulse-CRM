@@ -20,6 +20,7 @@ vi.mock("./use-zu", () => ({
   useZuWrite: () => ({ run: async (op: string, args: Record<string, unknown>) => { runs.push({ op, args }); return { ok: true, status: 200, limits: {} }; }, pending: false }),
   useZuFetch: () => async () => ({ data: undefined, error: null }),
   newIdem: () => "idem-test",
+  useIdemFor: (fp: string) => `idem:${fp}`,
   clearZuCache: () => undefined,
 }));
 vi.mock("./crm-ui", async (orig) => {
@@ -35,7 +36,8 @@ vi.mock("./crm-ui", async (orig) => {
 
 import { ZU_OPS } from "@convex/crm/ops.generated";
 import { CrmProvider } from "./crm-context";
-import { OpForm, opArgs, opFields, runPlan, confirmSentence } from "./crm-op-form";
+import { OpForm, answerText, opArgs, opFields, runPlan, confirmSentence, targetText } from "./crm-op-form";
+import { confirmCopy } from "./crm-ui";
 
 const html = (el: React.ReactElement) => renderToStaticMarkup(<CrmProvider>{el}</CrmProvider>);
 
@@ -113,15 +115,44 @@ describe("run paths", () => {
     expect(confirmSentence(ZU_OPS.create_lead, { run_intake: true })).toBe("This starts the new-lead texts for this person.");
   });
 
-  it("every confirm-gated op renders a ConfirmDialog and its run button is not a direct send", () => {
+  it("F-B1: every non-GET op mounts one ConfirmDialog (its kind is decided from the body at submit); a gated op's button only reviews", () => {
     for (const op of Object.values(ZU_OPS)) {
-      if (runPlan(op) !== "confirm") continue;
       confirms.length = 0;
       const out = html(<OpForm opId={op.id} />);
-      expect(confirms.length, op.id).toBe(1);
-      expect(out, op.id).toContain("Review and confirm");
+      expect(confirms.length, op.id).toBe(op.method === "GET" ? 0 : 1);
+      if (runPlan(op) === "confirm") expect(out, op.id).toContain("Review and confirm");
     }
     expect(runs).toHaveLength(0);
+  });
+
+  it("F-B1: body-dependent kinds follow the body about to be sent", () => {
+    const opt = ZU_OPS.apply_gbp_optimizer;
+    expect(runPlan(opt, { dry_run: true })).toBe("write");
+    expect(runPlan(opt, {})).toBe("confirm");
+    expect(confirmSentence(opt, {})).toBe(confirmCopy("spends"));
+    expect(runPlan(ZU_OPS.create_gbp_post, { approve: true })).toBe("confirm");
+    expect(confirmSentence(ZU_OPS.create_gbp_post, { approve: true })).toBe(confirmCopy("reaches"));
+    expect(runPlan(ZU_OPS.create_gbp_post, {})).toBe("write");
+    const out = html(<OpForm opId="create_gbp_post" />);
+    expect(out).toContain("You confirm before those run.");
+  });
+
+  it("F-B1: the dialog names what the request acts on", () => {
+    expect(targetText(ZU_OPS.delete_tag, { path: { tag_id: "t1" } })).toBe("On tag id t1.");
+    expect(targetText(ZU_OPS.send_message, { path: {} })).toBe("On this sub-account.");
+  });
+
+  it("F-U7: answers hide secrets, except the one-time signing secret from creating an outbound webhook", () => {
+    const leaky = { key: { name: "Pulse OS", key_prefix: "zu-ab12", rate_limit_per_min: 600 }, token: "tok_123", secret: "whsec_1" };
+    const t = answerText("get_key_self", leaky);
+    expect(t).not.toContain("zu-ab12");
+    expect(t).not.toContain("tok_123");
+    expect(t).not.toContain("whsec_1");
+    expect(t).toContain("Pulse OS");
+    expect(t).toContain("600");
+    const hook = answerText("create_outbound_webhook", { id: "h1", url: "https://x.example/hook", secret: "whsec_once" });
+    expect(hook).toContain("whsec_once");
+    expect(answerText("list_tags", undefined)).toBe("");
   });
 
   it("a Full access op is off without the key", () => {

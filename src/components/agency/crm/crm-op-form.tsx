@@ -7,14 +7,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Field, Textarea } from "@/components/ui/field";
 import { ZU_OPS, type ZuField, type ZuOp } from "@convex/crm/ops.generated";
-import { confirmKind, confirmReason, level, CONFIRM_REASONS } from "@convex/crm/policy";
-import { newIdem, useZuWrite } from "./use-zu";
-import { ConfirmDialog, TOUCH, WriteButton, type ConfirmGrant } from "./crm-ui";
+import { BODY_RULES, confirmKind, level, type ConfirmKind } from "@convex/crm/policy";
+import { useIdemFor, useZuWrite } from "./use-zu";
+import { ConfirmDialog, TOUCH, WriteButton, confirmCopy, type ConfirmGrant } from "./crm-ui";
 import type { FieldDef } from "./resource-config";
 import { FieldList } from "./resource-fields";
-import { buildArgs, mergeExtra, type BuiltArgs, type FormValues } from "./resource-utils";
+import { useReturnFocus } from "./resource-focus";
+import { buildArgs, fingerprint, mergeExtra, redactSecrets, type BuiltArgs, type FormValues } from "./resource-utils";
 import { CopyButton } from "./resource-values";
-import { KIND_LABEL, KIND_SENTENCE, LEVEL_LABEL, type CatalogKind } from "./functions-catalog";
+import { KIND_LABEL, LEVEL_LABEL } from "./functions-catalog";
+import { KindIcon } from "./functions-kind";
 
 /* A form for any one of the Zuops operations, built from the registry: path
    params (required), query fields, body fields (text, number, yes/no, a select
@@ -62,17 +64,43 @@ export function opFields(op: ZuOp): FieldDef[] {
 
 export type RunPlan = "read" | "write" | "confirm";
 
-/** How a request with this body is run. */
+/** How a request with this body is run: the server's policy decides, for the
+ *  exact body (create_lead with run_intake, a Google post with approve, an
+ *  optimizer run without dry_run, and so on). */
 export function runPlan(op: ZuOp, body?: unknown): RunPlan {
   if (op.method === "GET") return "read";
-  return confirmReason(op, body) ? "confirm" : "write";
+  return confirmKind(op, body) ? "confirm" : "write";
 }
 
-/** The confirm sentence for this op and body. */
+export const STARTS_INTAKE = "This starts the new-lead texts for this person.";
+
+/** The consequence line for this op and body ("" when none is needed). */
 export function confirmSentence(op: ZuOp, body?: unknown): string {
-  const kind = confirmKind(op);
-  if (kind) return KIND_SENTENCE[kind];
-  return confirmReason(op, body) === CONFIRM_REASONS.starts_intake ? KIND_SENTENCE.starts_intake : KIND_SENTENCE.reaches;
+  const kind = confirmKind(op, body);
+  if (!kind) return "";
+  if (op.id === "create_lead" && kind === "reaches") return STARTS_INTAKE;
+  return confirmCopy(kind);
+}
+
+/** What the request acts on, in words: the ids in its address. */
+export function targetText(op: ZuOp, args: Pick<BuiltArgs, "path">): string {
+  const ids = Object.entries(args.path).map(([k, v]) => `${k.replace(/_/g, " ")} ${v}`);
+  return ids.length ? `On ${ids.join(", ")}.` : "On this sub-account.";
+}
+
+const dependsOnBody = (op: ZuOp) => Object.prototype.hasOwnProperty.call(BODY_RULES, op.id);
+
+/** Answers keep the one-time webhook signing secret (shown once, stored by the
+ *  person); every other secret-looking value is hidden before it is shown. */
+const KEEP_SECRET: Record<string, readonly string[]> = { create_outbound_webhook: ["secret", "signing_secret", "webhook_secret"] };
+
+export function answerText(opId: string, data: unknown): string {
+  if (data === undefined) return "";
+  try {
+    return JSON.stringify(redactSecrets(data, KEEP_SECRET[opId] ?? []), null, 2) ?? "";
+  } catch {
+    return "";
+  }
 }
 
 /** Build the request from the form; path params must be filled, the rest is
@@ -86,7 +114,7 @@ export function opArgs(op: ZuOp, values: FormValues, extra: string): BuiltArgs |
   return { ...built, body: merged.body };
 }
 
-type Result = { ok: boolean; status: number; reason?: string; code?: string; text: string };
+type Result = { opId: string; ok: boolean; status: number; reason?: string; code?: string; text: string };
 
 export type OpFormProps = {
   opId: string;
@@ -103,34 +131,35 @@ export function OpForm({ opId, initial, onDone }: OpFormProps) {
   const [error, setError] = React.useState<string | null>(null);
   const [confirming, setConfirming] = React.useState(false);
   const [result, setResult] = React.useState<Result | null>(null);
-  const [idem, setIdem] = React.useState(() => newIdem());
-  const [staged, setStaged] = React.useState<BuiltArgs | null>(null);
+  const [staged, setStaged] = React.useState<{ args: BuiltArgs; kind: ConfirmKind } | null>(null);
+  // One Idempotency-Key per distinct set of values; `round` moves on after a success.
+  const [round, setRound] = React.useState(0);
+  const idemKey = useIdemFor(`${round}|${fingerprint({ values, extra })}`);
   const preRef = React.useRef<HTMLPreElement | null>(null);
+  const submitRef = React.useRef<HTMLButtonElement | null>(null);
   const idPrefix = React.useId();
+  useReturnFocus(confirming, submitRef);
 
   if (!op) return <p role="alert" className="text-sm text-critical">Zuops has no function called {opId}.</p>;
 
   const lv = level(op);
-  const kind = confirmKind(op) as CatalogKind | null;
+  const kind = confirmKind(op);
+  const varies = dependsOnBody(op);
 
   const send = async (args: BuiltArgs, grant?: ConfirmGrant) => {
+    const isRead = op.method === "GET";
+    const body = isRead || Object.keys(args.body).length === 0 ? undefined : args.body;
     const res = await run(op.id, {
       path: Object.keys(args.path).length ? args.path : undefined,
       query: Object.keys(args.query).length ? args.query : undefined,
-      body: op.method === "GET" || Object.keys(args.body).length === 0 ? undefined : args.body,
-      idem: op.method === "GET" ? undefined : idem,
+      body,
+      idem: isRead ? undefined : idemKey,
       ...grant,
     });
-    let text = "";
-    try {
-      text = res.data === undefined ? "" : JSON.stringify(res.data, null, 2);
-    } catch {
-      text = "";
-    }
-    setResult({ ok: res.ok, status: res.status, reason: res.reason, code: res.code, text });
+    setResult({ opId: op.id, ok: res.ok, status: res.status, reason: res.reason, code: res.code, text: answerText(op.id, res.data) });
     if (res.ok) {
-      setIdem(newIdem()); // a retry of a failed write reuses its key; a new run gets a new one
-      if (op.method !== "GET") toast.success("Done in Zuops.");
+      setRound((n) => n + 1); // after a success the next run is a new request
+      if (!isRead) toast.success("Done in Zuops.");
     }
     onDone?.({ ok: res.ok, status: res.status, data: res.data });
   };
@@ -140,8 +169,10 @@ export function OpForm({ opId, initial, onDone }: OpFormProps) {
     const args = opArgs(op, values, extra);
     if ("error" in args) { setError(args.error); return; }
     setError(null);
-    if (runPlan(op, args.body) === "confirm") {
-      setStaged(args);
+    // The server's policy, for the body about to be sent.
+    const k = op.method === "GET" ? null : confirmKind(op, args.body);
+    if (k) {
+      setStaged({ args, kind: k });
       setConfirming(true);
       return;
     }
@@ -149,7 +180,8 @@ export function OpForm({ opId, initial, onDone }: OpFormProps) {
   };
 
   const plan = runPlan(op);
-  const label = plan === "read" ? "Run" : plan === "confirm" ? "Review and confirm" : "Run";
+  const label = plan === "confirm" ? "Review and confirm" : "Run";
+  const shown = result && result.opId === op.id ? result : null;
 
   return (
     <div className="min-w-0 space-y-5">
@@ -157,7 +189,7 @@ export function OpForm({ opId, initial, onDone }: OpFormProps) {
         <p className="break-all font-mono text-xs text-steel"><span className="font-semibold text-bone">{op.method}</span> {op.path}</p>
         <div className="flex flex-wrap gap-1.5">
           <LevelBadge level={lv} />
-          {kind && <Badge tone="caution"><AlertTriangle className="size-3" aria-hidden />{KIND_LABEL[kind]}</Badge>}
+          {kind && <Badge tone={kind === "delete" ? "critical" : "caution"}><KindIcon kind={kind} />{KIND_LABEL[kind]}</Badge>}
           <Badge>{op.area}</Badge>
         </div>
       </div>
@@ -173,27 +205,43 @@ export function OpForm({ opId, initial, onDone }: OpFormProps) {
         {error && <p role="alert" className="flex items-start gap-2 text-sm text-critical"><AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />{error}</p>}
         <div className="flex flex-wrap items-center gap-2">
           {plan === "read" ? (
-            <Button type="submit" className={TOUCH} disabled={pending}><Play className="size-4" aria-hidden />{pending ? "Running" : label}</Button>
+            <Button ref={submitRef} type="submit" className={TOUCH} disabled={pending}><Play className="size-4" aria-hidden />{pending ? "Running" : label}</Button>
           ) : (
-            <WriteButton type="submit" admin={lv === "admin"} disabled={pending}><Play className="size-4" aria-hidden />{pending ? "Running" : label}</WriteButton>
+            <WriteButton ref={submitRef} type="submit" admin={lv === "admin"} disabled={pending}><Play className="size-4" aria-hidden />{pending ? "Running" : label}</WriteButton>
           )}
-          {kind && <span className="text-xs text-caution">{KIND_SENTENCE[kind]} You confirm before it runs.</span>}
+          {kind ? (
+            <span className="text-xs text-caution">{confirmCopy(kind)} You confirm before it runs.</span>
+          ) : varies ? (
+            <span className="text-xs text-caution">Some values make this reach people, change automatic sending or use credits. You confirm before those run.</span>
+          ) : null}
         </div>
       </form>
 
-      <ConfirmDialog
-        open={confirming}
-        onOpenChange={setConfirming}
-        title={`Run ${op.summary}?`}
-        body={<><span className="font-mono text-xs text-bone">{op.id}</span>. {confirmSentence(op, staged?.body)}</>}
-        confirmLabel="Run it"
-        destructive={kind === "delete"}
-        onConfirm={async (grant) => {
-          if (staged) await send(staged, grant);
-        }}
-      />
+      {op.method !== "GET" && (
+        <ConfirmDialog
+          open={confirming}
+          onOpenChange={setConfirming}
+          title={`Run ${op.summary}?`}
+          body={
+            <span className="block space-y-2">
+              <span className="block"><span className="font-mono text-xs text-bone">{op.id}</span>. {staged ? targetText(op, staged.args) : ""}</span>
+              {(staged?.kind ?? kind) && (
+                <span className="flex items-start gap-2 text-caution">
+                  <AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />
+                  <span>{staged ? confirmSentence(op, staged.args.body) : confirmCopy(kind!)}</span>
+                </span>
+              )}
+            </span>
+          }
+          confirmLabel="Run it"
+          destructive={(staged?.kind ?? kind) === "delete"}
+          onConfirm={async (grant) => {
+            if (staged) await send(staged.args, grant);
+          }}
+        />
+      )}
 
-      {result && <ResultBlock result={result} preRef={preRef} />}
+      {shown && <ResultBlock result={shown} preRef={preRef} />}
     </div>
   );
 }

@@ -19,6 +19,7 @@ vi.mock("./use-zu", () => ({
   useZuWrite: () => ({ run: async () => ({ ok: true, status: 200, limits: {} }), pending: false }),
   useZuFetch: () => async () => ({ data: undefined, error: null }),
   newIdem: () => "idem-test",
+  useIdemFor: (fp: string) => `idem:${fp}`,
   clearZuCache: () => undefined,
 }));
 

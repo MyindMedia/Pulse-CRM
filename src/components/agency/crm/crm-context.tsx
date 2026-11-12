@@ -15,6 +15,8 @@ export type CrmStatus = {
   writesOn: boolean;
   adminKey: boolean;
   webhookConfigured: boolean;
+  /** Every request goes to the local Zuops mock (ZUOPS_CRM_MOCK); nothing is real. */
+  mock?: boolean;
 };
 
 export type CrmSignalKind = "lead" | "booking" | "message" | "call" | "deal";
@@ -68,14 +70,18 @@ export function usePanelActive(): boolean {
 }
 
 /* Cross-tab jumps: "Message" opens the Inbox on a lead, "Book" opens the Calendar
-   with that lead picked. The page provides these; without it they do nothing. */
+   with that lead picked, and the Pipeline can open Leads with a filter. The page
+   provides these; without it they do nothing. */
+export type LeadsJump = { status?: string };
+
 export type CrmNav = {
   openInbox: (leadId: string) => void;
   openCalendar: (leadId: string) => void;
+  openLeads: (filter: LeadsJump) => void;
 };
 
 const noop = () => undefined;
-const CrmNavContext = React.createContext<CrmNav>({ openInbox: noop, openCalendar: noop });
+const CrmNavContext = React.createContext<CrmNav>({ openInbox: noop, openCalendar: noop, openLeads: noop });
 
 export function CrmNavProvider({ value, children }: { value: CrmNav; children: React.ReactNode }) {
   return <CrmNavContext.Provider value={value}>{children}</CrmNavContext.Provider>;

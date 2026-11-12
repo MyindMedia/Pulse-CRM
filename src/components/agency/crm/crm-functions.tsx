@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { AlertTriangle, Eye, KeyRound, PenLine, RefreshCw, Search, SearchX, Trash2, Users, Zap } from "lucide-react";
+import { AlertTriangle, Eye, KeyRound, PenLine, RefreshCw, Search, SearchX, SlidersHorizontal } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { EmptyState, LoadingPanel } from "@/components/ui/feedback";
@@ -11,9 +11,10 @@ import { Sheet, SheetBody, SheetContent, SheetDescription, SheetHeader, SheetTit
 import { cn } from "@/lib/utils";
 import { TOUCH } from "./crm-ui";
 import {
-  ALL, KIND_LABEL, LEVEL_LABEL, areaCounts, catalogStats, filterCatalog, groupByArea,
-  type CatalogEntry, type CatalogFilter, type CatalogKind, type CatalogLevel,
+  ALL, KINDS, KIND_LABEL, LEVEL_LABEL, NO_KIND, areaCounts, catalogStats, filterCatalog, groupByArea,
+  type CatalogEntry, type CatalogFilter, type CatalogLevel,
 } from "./functions-catalog";
+import { KindIcon } from "./functions-kind";
 import type { OpFormProps } from "./crm-op-form";
 
 /* Functions: every Zuops operation, searchable by name, path and area, filtered
@@ -26,9 +27,6 @@ type Loaded = { catalog: CatalogEntry[]; OpForm: React.ComponentType<OpFormProps
 
 const LEVEL_ICON: Record<CatalogLevel, React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>> = {
   read: Eye, write: PenLine, admin: KeyRound,
-};
-const KIND_ICON: Record<CatalogKind, React.ComponentType<{ className?: string; "aria-hidden"?: boolean }>> = {
-  reaches: Users, changes_sending: Zap, delete: Trash2,
 };
 
 function useDebounced<T>(value: T, ms: number): T {
@@ -72,14 +70,15 @@ function Catalog({ catalog, OpForm }: Loaded) {
   const query = useDebounced(q, 150);
   const [area, setArea] = React.useState<string>(ALL);
   const [lv, setLv] = React.useState<CatalogFilter["level"]>(ALL);
+  const [kd, setKd] = React.useState<NonNullable<CatalogFilter["kind"]>>(ALL);
   const [openId, setOpenId] = React.useState<string | null>(null);
 
   const stats = React.useMemo(() => catalogStats(catalog), [catalog]);
   const areas = React.useMemo(() => Object.entries(areaCounts(catalog)).sort(([a], [b]) => a.localeCompare(b)), [catalog]);
-  const shown = React.useMemo(() => filterCatalog(catalog, { q: query, area, level: lv }), [catalog, query, area, lv]);
+  const shown = React.useMemo(() => filterCatalog(catalog, { q: query, area, level: lv, kind: kd }), [catalog, query, area, lv, kd]);
   const groups = React.useMemo(() => groupByArea(shown), [shown]);
   const open = openId ? catalog.find((e) => e.id === openId) ?? null : null;
-  const filtering = query.trim() !== "" || area !== ALL || lv !== ALL;
+  const filtering = query.trim() !== "" || area !== ALL || lv !== ALL || kd !== ALL;
 
   return (
     <section className="space-y-4" aria-label="Zuops functions">
@@ -87,7 +86,7 @@ function Catalog({ catalog, OpForm }: Loaded) {
         <h2 className="font-grotesk text-lg font-semibold text-bone">Functions</h2>
         <p className="text-sm text-steel">
           Every function Zuops offers, {stats.total} in {stats.areas} areas. Each runs through the same checks as the other tabs:
-          writes are off where this deployment is read only, Full access functions need a Full access key, and anything that reaches people, changes automatic sending or deletes asks you first.
+          writes are off where this deployment is read only, Full access functions need a Full access key, and anything that reaches people, changes automatic sending, uses credits, sends data outside the account or deletes asks you first.
         </p>
       </header>
 
@@ -119,6 +118,17 @@ function Catalog({ catalog, OpForm }: Loaded) {
             </SelectContent>
           </Select>
         </div>
+        <div className="min-w-0 space-y-1 sm:w-60">
+          <Label htmlFor="crm-fn-kind">Asks first because it</Label>
+          <Select value={kd} onValueChange={(v) => setKd(v as NonNullable<CatalogFilter["kind"]>)}>
+            <SelectTrigger id="crm-fn-kind" className={TOUCH}><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>Any</SelectItem>
+              {KINDS.map((k) => <SelectItem key={k} value={k}>{KIND_LABEL[k]} ({stats.byKind[k]})</SelectItem>)}
+              <SelectItem value={NO_KIND}>Never asks first ({stats.byKind.none})</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
 
       <p role="status" aria-live="polite" className="font-meta text-xs uppercase tracking-wide text-steel">
@@ -128,7 +138,7 @@ function Catalog({ catalog, OpForm }: Loaded) {
       {groups.length === 0 ? (
         <EmptyState
           icon={SearchX} title="No function matches" description="Try another word, or clear the filters."
-          action={<Button type="button" variant="secondary" size="sm" className={TOUCH} onClick={() => { setQ(""); setArea(ALL); setLv(ALL); }}>Clear filters</Button>}
+          action={<Button type="button" variant="secondary" size="sm" className={TOUCH} onClick={() => { setQ(""); setArea(ALL); setLv(ALL); setKd(ALL); }}>Clear filters</Button>}
         />
       ) : (
         <div className="space-y-6">
@@ -182,10 +192,8 @@ function Row({ entry, onOpen }: { entry: CatalogEntry; onOpen: () => void }) {
           <Badge tone={entry.level === "read" ? "info" : entry.level === "write" ? "positive" : "gold"}>
             <LevelIcon className="size-3" aria-hidden />{LEVEL_LABEL[entry.level]}
           </Badge>
-          {entry.kind && (() => {
-            const KindIcon = KIND_ICON[entry.kind];
-            return <Badge tone={entry.kind === "delete" ? "critical" : "caution"}><KindIcon className="size-3" aria-hidden />{KIND_LABEL[entry.kind]}</Badge>;
-          })()}
+          {entry.kind && <Badge tone={entry.kind === "delete" ? "critical" : "caution"}><KindIcon kind={entry.kind} />{KIND_LABEL[entry.kind]}</Badge>}
+          {!entry.kind && entry.dependsOnBody && <Badge tone="caution"><SlidersHorizontal className="size-3" aria-hidden />Asks first for some values</Badge>}
         </span>
       </button>
     </li>

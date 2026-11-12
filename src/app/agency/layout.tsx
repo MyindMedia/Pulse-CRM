@@ -46,11 +46,11 @@ export default function AgencyLayout({ children }: { children: React.ReactNode }
                 instead of pushing the page sideways (834px was 29px too wide). */}
             <nav className="hidden min-w-0 items-center gap-4 overflow-x-auto whitespace-nowrap text-xs font-medium text-steel [scrollbar-width:none] sm:flex [&::-webkit-scrollbar]:hidden">
               <Link href="/agency" className="hover:text-bone">Sub-accounts</Link>
+              {crm?.allowed && <Link href="/agency/crm" className="hover:text-bone">CRM</Link>}
               <Link href="/agency/plans" className="hover:text-bone">Plans</Link>
               <Link href="/agency/agents" className="hover:text-bone">Agents</Link>
               <Link href="/agency/autopilot" className="hover:text-bone">Autopilot</Link>
               <Link href="/agency/outreach" className="hover:text-bone">Outreach</Link>
-              {crm?.allowed && <Link href="/agency/crm" className="hover:text-bone">CRM</Link>}
               {mail?.allowed && <Link href="/agency/email" className="hover:text-bone">Email</Link>}
               <Link href="/agency/feature-requests" className="hover:text-bone">Requests</Link>
               <Link href="/agency/staff" className="hover:text-bone">Staff</Link>

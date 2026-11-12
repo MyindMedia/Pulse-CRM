@@ -19,6 +19,9 @@ export type ServiceDetails = {
 export type Booking = {
   id: string;
   lead_id?: string | null;
+  /** Not in the documented shape; read when Zuops includes it (F-U3). */
+  lead_name?: string | null;
+  lead?: { id?: string; full_name?: string | null; email?: string | null } | null;
   calendar_id?: string | null;
   appointment_number?: number | null;
   title?: string | null;

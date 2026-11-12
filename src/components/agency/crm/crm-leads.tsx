@@ -16,11 +16,12 @@ import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/toggle";
 import { cn } from "@/lib/utils";
 import { OP } from "./ops";
-import { useZuFetch, useZuRead, useZuWrite } from "./use-zu";
+import { stableStringify, useIdemFor, useZuFetch, useZuRead, useZuWrite } from "./use-zu";
 import {
   ConfirmDialog, StageBadge, SyncBar, TOUCH, WriteButton, ZuErrorState, money, phone, relTime, type ConfirmGrant,
 } from "./crm-ui";
 import { LeadSheet } from "./crm-lead-sheet";
+import type { LeadsJump } from "./crm-context";
 import type { Lead, LeadResponse, LeadsResponse, StagesResponse, TagsResponse } from "./zu-types";
 
 /* Leads: server search (debounced 300 ms) and filters, 50 a page, a row opens the
@@ -131,15 +132,41 @@ function FilterSelect({
   );
 }
 
-export function CrmLeads() {
-  const [filters, setFilters] = React.useState<LeadFilters>(EMPTY_FILTERS);
+/** The filters a jump from another tab (the Pipeline's "not in a stage" line) sets. */
+export function filtersForJump(jump: LeadsJump | undefined): LeadFilters {
+  return { ...EMPTY_FILTERS, status: jump?.status && (LEAD_STATUSES as readonly string[]).includes(jump.status) ? jump.status : ALL };
+}
+
+/** "Showing a to b" for the rows actually on screen (F-U17). */
+export function showingRange(dataOffset: number, count: number): string {
+  return count ? `Showing ${dataOffset + 1} to ${dataOffset + count}` : "No leads on this page";
+}
+
+export function CrmLeads({ jump, jumpNonce = 0 }: { jump?: LeadsJump; jumpNonce?: number } = {}) {
+  const [filters, setFilters] = React.useState<LeadFilters>(() => (jumpNonce ? filtersForJump(jump) : EMPTY_FILTERS));
+  // A new jump (each one bumps the nonce) replaces the filters.
+  const [seenJump, setSeenJump] = React.useState(jumpNonce);
+  if (seenJump !== jumpNonce) {
+    setSeenJump(jumpNonce);
+    setFilters(filtersForJump(jump));
+  }
   const search = useDebounced(filters.search, 300);
   const serverFilters = { ...filters, search };
   const sig = JSON.stringify(leadsQuery(serverFilters, 0));
   const [page, setPage] = React.useState<{ sig: string; offset: number }>({ sig, offset: 0 });
   const offset = page.sig === sig ? page.offset : 0;
   const [openId, setOpenId] = React.useState<string | null>(null);
+  const [opener, setOpener] = React.useState<HTMLElement | null>(null);
   const [creating, setCreating] = React.useState(false);
+  /** Open a lead and remember the row's button, so closing the sheet puts focus
+   *  back on it (F-V3). */
+  const open = (id: string, from?: Element | null) => {
+    const el = from instanceof HTMLElement
+      ? (from.matches("[data-lead-opener]") ? from : from.querySelector<HTMLElement>("[data-lead-opener]"))
+      : null;
+    setOpener(el);
+    setOpenId(id);
+  };
 
   const leads = useZuRead<LeadsResponse>(OP.leadsList, { query: leadsQuery(serverFilters, offset) }, { kinds: ["lead"], keepPrevious: true });
   const stages = useZuRead<StagesResponse>(OP.stagesList, undefined, { pollMs: 300_000 });
@@ -152,8 +179,13 @@ export function CrmLeads() {
   const set = (patch: Partial<LeadFilters>) => setFilters((f) => ({ ...f, ...patch }));
   const rows = bySource(leads.data?.leads ?? [], filters.source);
   const all = leads.data?.leads ?? [];
-  const hasMore = !!leads.data?.has_more && leads.data?.next_offset != null;
+  const hasMore = !leads.held && !!leads.data?.has_more && leads.data?.next_offset != null;
   const filtering = isFiltering(filters);
+  // The offset the rows on screen came from. While the next page loads the old
+  // rows stay up (dimmed), so they keep their own numbers.
+  const [dataOffset, setDataOffset] = React.useState(offset);
+  if (!leads.held && leads.data && dataOffset !== offset) setDataOffset(offset);
+  const rowsOffset = leads.held ? dataOffset : offset;
 
   return (
     <div className="space-y-4">
@@ -208,16 +240,20 @@ export function CrmLeads() {
               <AlertTriangle className="size-4" aria-hidden />Showing the last copy. {leads.error.reason}
             </p>
           )}
-          <Table className="min-w-[760px]" aria-label="Leads" aria-busy={leads.refreshing || undefined}>
+          {leads.held && <p role="status" className="text-sm text-steel">Loading leads from Zuops</p>}
+          <Table
+            className={cn("min-w-[760px] transition-opacity", leads.held && "opacity-50")}
+            aria-label="Leads" aria-busy={leads.refreshing || leads.held || undefined}
+          >
             <THead>
               <tr><TH>Lead</TH><TH>Contact</TH><TH>Stage</TH><TH>Source</TH><TH>Tags</TH><TH>Deal</TH><TH>Last activity</TH></tr>
             </THead>
             <TBody>
               {rows.map((l) => (
-                <TR key={l.id} interactive onClick={() => setOpenId(l.id)}>
+                <TR key={l.id} interactive onClick={(e) => open(l.id, e.currentTarget)}>
                   <TD>
                     <button
-                      type="button" onClick={(e) => { e.stopPropagation(); setOpenId(l.id); }}
+                      type="button" data-lead-opener={l.id} onClick={(e) => { e.stopPropagation(); open(l.id, e.currentTarget); }}
                       className="block max-w-56 truncate rounded-sm text-left font-semibold text-bone outline-none hover:underline focus-visible:ring-2 focus-visible:ring-gold/40 max-sm:min-h-11"
                     >
                       {l.full_name || l.email || phone(l.phone) || "Unnamed lead"}
@@ -248,10 +284,10 @@ export function CrmLeads() {
       {(all.length > 0 || offset > 0) && (
         <nav aria-label="Lead pages" className="flex flex-wrap items-center gap-2">
           <span className="mr-auto font-meta text-xs uppercase tracking-wide text-steel">
-            {all.length ? `Showing ${offset + 1} to ${offset + all.length}` : "No leads on this page"}
+            {showingRange(rowsOffset, all.length)}
             {filters.source !== ALL ? ` · ${rows.length} from this source` : ""}
           </span>
-          <Button type="button" variant="secondary" size="sm" className={TOUCH} disabled={offset === 0}
+          <Button type="button" variant="secondary" size="sm" className={TOUCH} disabled={offset === 0 || leads.held}
             onClick={() => setPage({ sig, offset: Math.max(0, offset - PAGE_SIZE) })}>
             <ChevronLeft className="size-4" aria-hidden />Previous
           </Button>
@@ -264,9 +300,9 @@ export function CrmLeads() {
 
       <NewLeadDialog
         open={creating} onOpenChange={setCreating} stages={stageList.filter((s) => !s.hidden)}
-        onOpenLead={(id) => { setCreating(false); setOpenId(id); }}
+        onOpenLead={(id) => { setCreating(false); open(id, document.querySelector(`[data-lead-opener="${CSS.escape(id)}"]`)); }}
       />
-      <LeadSheet leadId={openId} onClose={() => setOpenId(null)} />
+      <LeadSheet leadId={openId} onClose={() => setOpenId(null)} returnFocus={opener} />
     </div>
   );
 }
@@ -289,15 +325,19 @@ function NewLeadDialog({
   const [finding, setFinding] = React.useState(false);
   const [confirmIntake, setConfirmIntake] = React.useState(false);
   const [dupId, setDupId] = React.useState<string | null>(null);
+  // One Idempotency-Key per distinct form (F-U11): kept for an identical retry,
+  // different once any value changes, and new for each opening of the form.
+  const [round, setRound] = React.useState(0);
+  const idem = useIdemFor(`${round}|${stableStringify(form)}`);
   const set = (patch: Partial<NewLeadForm>) => { setForm((f) => ({ ...f, ...patch })); setError(null); setDuplicate(false); setDupId(null); };
 
   const close = (v: boolean) => {
     onOpenChange(v);
-    if (!v) { setForm(BLANK); setError(null); setDuplicate(false); setDupId(null); }
+    if (!v) { setForm(BLANK); setError(null); setDuplicate(false); setDupId(null); setRound((n) => n + 1); }
   };
 
   const create = async (body: Record<string, unknown>, grant?: ConfirmGrant) => {
-    const res = await run(OP.leadCreate, { body, ...grant }, { invalidate: [OP.leadsList] });
+    const res = await run(OP.leadCreate, { body, idem, ...grant }, { invalidate: [OP.leadsList] });
     if (res.ok) {
       toast.success(body.run_intake ? "Lead created in Zuops. The intake is running." : "Lead created in Zuops. Nothing was sent.");
       const id = (res.data as LeadResponse | undefined)?.lead?.id;

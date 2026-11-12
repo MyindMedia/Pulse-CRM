@@ -26,6 +26,7 @@ vi.mock("./use-zu", () => ({
   useZuWrite: () => ({ run: async (op: string, args: Record<string, unknown>) => { runs.push({ op, args }); return { ok: true, status: 200, limits: {} }; }, pending: false }),
   useZuFetch: () => async () => ({ data: undefined, error: null }),
   newIdem: () => "idem-test",
+  useIdemFor: (fp: string) => `idem:${fp}`,
   clearZuCache: () => undefined,
 }));
 vi.mock("./crm-ui", async (orig) => {
@@ -41,9 +42,9 @@ vi.mock("./crm-ui", async (orig) => {
 
 import { ZU_OPS } from "@convex/crm/ops.generated";
 import { CrmProvider } from "./crm-context";
-import { RESOURCES, type ResourceDef } from "./resource-config";
+import { RESOURCES, type ActionDef, type ResourceDef } from "./resource-config";
 import { READ_ACTION_OPS, ResourcePanel, RowActions } from "./resource-panel";
-import { ResourceAction, actionArgs, confirmText } from "./resource-action";
+import { ResourceAction, actionArgs, actionPlan, confirmText } from "./resource-action";
 import { CrmResources } from "./crm-resources";
 
 const find = (key: string): ResourceDef => Object.values(RESOURCES).flat().find((r) => r.key === key)!;
@@ -56,8 +57,10 @@ const status = (s: Partial<{ writesOn: boolean; adminKey: boolean }> = {}) => {
   queries["crm:signal"] = { at: 0, lead: 0, booking: 0, message: 0, call: 0, deal: 0 };
 };
 
-const DRAFT = { id: "camp-1", name: "Studio owners: what a missed booking costs", status: "draft", recipients: 18, updated_at: "2026-11-09T17:00:00Z" };
-const SENT = { id: "camp-2", name: "Demo follow-up", status: "sent", recipients: 12, results: { opened: 7, clicked: 2, replied: 2 } };
+/* Shapes from the openapi.json example for GET /v1/email-campaigns. */
+const DRAFT = { id: "camp-1", name: "Studio owners: what a missed booking costs", status: "draft", audience: "tags", tags: ["Studio owner", "Demo booked"], not_booked: true, total_recipients: 18, results: null, updated_at: "2026-11-09T17:00:00Z" };
+const SENT = { id: "camp-2", name: "Demo follow-up", status: "sent", audience: "everyone", total_recipients: 12, results: { recipients: 12, opened: 7, clicked: 2, booked: 2 }, updated_at: "2026-11-08T17:00:00Z" };
+const text = (node: React.ReactNode) => renderToStaticMarkup(<>{node}</>).replace(/<[^>]+>/g, " ").replace(/\s+/g, " ");
 
 beforeEach(() => {
   for (const o of [reads, queries]) for (const k of Object.keys(o)) delete o[k];
@@ -95,6 +98,7 @@ describe("list resource (Email campaigns)", () => {
     expect(out).toContain("Sent");
     expect(out).toContain(">18<");
     expect(out).toContain(">7<");
+    expect(out).toContain("Booked");
     expect(out).toContain("New draft");
     expect(out).toContain("Synced");
     expect(out).not.toContain("—");
@@ -127,14 +131,20 @@ describe("single resource (Business profile)", () => {
     expect(out).toContain("Edit");
   });
 
-  it("the API key shows name, access level and rate limit only, never the prefix", () => {
-    reads.key_self = { data: { name: "Pulse OS", access_level: "write", rate_limit_per_min: 600, key_prefix: "zu_live_ab12", scopes: ["leads:read"] } };
+  it("F-V2 (U-06): the API key reads GET /v1/keys/self's `key` object: name, access level and requests per minute, never the prefix", () => {
+    reads.key_self = {
+      data: {
+        key: { id: "k1", key_prefix: "zu-ab12", name: "Pulse OS", is_active: true, access_level: "write", scopes: ["leads:read"], workspace: { id: "w", name: "Northline" }, rate_limit_per_min: 600 },
+        endpoints: { api: "https://api.usezu.com/v1", mcp: "https://api.usezu.com/mcp" },
+      },
+    };
     const out = html(<ResourcePanel def={find("api-key")} />);
     expect(out).toContain("Pulse OS");
     expect(out).toContain("Write");
-    expect(out).toContain("600");
-    expect(out).not.toContain("zu_live_ab12");
+    expect(out).toContain(">600<");
+    expect(out).not.toContain("zu-ab12");
     expect(out).not.toContain("leads:read");
+    expect(out).not.toContain("–");
   });
 
   it("secret-like fields are hidden in every definition list", () => {
@@ -145,32 +155,95 @@ describe("single resource (Business profile)", () => {
   });
 });
 
+describe("columns (F-V1, F-V2)", () => {
+  it("F-V1 (U-14): the first column goes through the same formatter, so a date is a date, not an ISO string", () => {
+    reads.list_activity = { data: { events: [{ id: "e1", occurred_at: "2026-11-09T17:00:00Z", category: "change", description: "Changed the AI texting settings", actor_label: "API key · Zapier" }] } };
+    const out = html(<ResourcePanel def={find("activity")} />);
+    expect(out).not.toContain("2026-11-09T17:00:00Z");
+    expect(out).toMatch(/Nov(ember)? 9/);
+    expect(out).toContain("Changed the AI texting settings");
+  });
+
+  it("F-V2: a column no row has a value for is left out, while the detail keeps every field", () => {
+    reads.list_email_campaigns = { data: { campaigns: [{ id: "c", name: "Only a name", status: "draft" }], has_more: false } };
+    const out = html(<ResourcePanel def={CAMPAIGNS} />);
+    expect(out).toContain("Only a name");
+    expect(out).not.toContain(">Opened<");
+    expect(out).not.toContain(">Recipients<");
+    expect(out).toContain(">Status<");
+  });
+
+  it("F-V2 (c): iMessage lines show the device name and settings.ai_replies, not the row id", () => {
+    reads.list_imessage_lines = { data: { lines: [{ id: "line-uuid-1", number: "+17145550123", label: null, device_name: "Front desk iMac", is_default: true, online: true, settings: { ai_replies: true } }], has_more: false } };
+    const out = html(<ResourcePanel def={find("imessage-lines")} />);
+    expect(out).toContain("Front desk iMac");
+    expect(out).not.toContain("line-uuid-1");
+    expect(out).toContain(">AI replies<");
+  });
+
+  it("F-V2 (b): AI calling campaigns read leads_total and calls_connected", () => {
+    reads.list_call_campaigns = { data: { campaigns: [{ id: "cc", name: "Quote follow-up", status: "running", leads_total: 40, calls_connected: 11 }] } };
+    const out = html(<ResourcePanel def={find("call-campaigns")} />);
+    expect(out).toContain(">40<");
+    expect(out).toContain(">11<");
+  });
+
+  it("F-V2 (d): the sub-account list has no domain column", () => {
+    expect(find("workspace").list!.columns.map((c) => c.label)).not.toContain("Domain");
+  });
+});
+
 describe("actions", () => {
-  it("a row action with a confirm renders through ConfirmDialog, naming the row and its recipient count, and runs nothing by itself", () => {
+  it("F-U5: Send names the audience in words and states no number, even when the row carries one", () => {
     const send = CAMPAIGNS.actions!.find((a) => a.op === "send_email_campaign")!;
     const out = html(<ResourceAction action={send} ctx={{ source: DRAFT, pathValue: DRAFT.id, invalidate: ["list_email_campaigns"] }} />);
     expect(out).toContain("Send or schedule");
     expect(confirms).toHaveLength(1);
     expect(confirms[0].title).toBe("Send Studio owners: what a missed booking costs?");
-    expect(String(confirms[0].body)).toContain("It emails 18 real people");
+    const body = text(confirms[0].body);
+    expect(body).toContain("everyone tagged Studio owner and Demo booked who has not booked");
+    expect(body).not.toMatch(/\b18\b/);
     expect(runs).toHaveLength(0);
+
+    // The Audience picked in the same form wins over the saved one.
+    const t = confirmText(send, { "body:audience": "everyone" }, DRAFT, "reaches");
+    expect(t.body).toContain("It emails everyone with an email address");
+    expect(t.body).not.toMatch(/\d/);
+    expect(t.consequence).toBe("This reaches real people.");
+    expect(confirmText(send, { "body:audience": "stages", "body:stages": "new, contacted" }, DRAFT, "reaches").body).toContain("everyone in the stages new and contacted");
   });
 
-  it("every action with a confirm block in the config renders a ConfirmDialog; others render none", () => {
+  it("F-B1: every write action mounts exactly one ConfirmDialog (closed until the server's kind or the config asks); reads mount none", () => {
     for (const def of Object.values(RESOURCES).flat()) {
       for (const a of def.actions ?? []) {
         confirms.length = 0;
-        html(<ResourceAction action={a} ctx={{ source: { id: "x", name: "X" }, pathValue: "x", invalidate: [] }} />);
-        expect(confirms.length, `${def.key}: ${a.label}`).toBe(a.confirm ? 1 : 0);
+        const isRead = READ_ACTION_OPS.has(a.op);
+        html(<ResourceAction action={a} ctx={{ source: { id: "x", name: "X" }, pathValue: "x", invalidate: [], isRead }} />);
+        expect(confirms.length, `${def.key}: ${a.label}`).toBe(isRead ? 0 : 1);
       }
     }
+    expect(runs).toHaveLength(0);
   });
 
-  it("confirm text states the count of a list field", () => {
+  it("F-B1: the dialog states the kind's consequence and what it acts on; without config words it still says both", () => {
     const enroll = find("automations").actions!.find((a) => a.op === "enroll_automation")!;
-    const t = confirmText(enroll, { "body:lead_ids": "a, b\nc" }, { name: "Demo booked" });
+    const t = confirmText(enroll, { "body:lead_ids": "a, b\nc" }, { name: "Demo booked" }, "reaches");
     expect(t.title).toBe("Enroll 3 leads?");
-    expect(t.body).toContain("Demo booked can text and email these 3 real people");
+    expect(t.body).toContain("Demo booked can text and email the 3 leads you listed");
+    expect(t.consequence).toBe("This reaches real people.");
+    const bare = { label: "Tidy", op: "x", scope: "row" as const };
+    const g = confirmText(bare, {}, { name: "Spring list" }, "spends");
+    expect(g).toEqual({ title: "Tidy?", body: "This acts on Spring list.", consequence: "This uses credits or starts paid work." });
+    expect(confirmText(bare, {}, null, undefined).consequence).toBe("This reaches real people.");
+  });
+
+  it("F-B1: actionPlan runs only when the server says no confirm and the config does not ask", () => {
+    const plain: ActionDef = { label: "Save", op: "x", scope: "panel" };
+    expect(actionPlan(plain, null)).toBe("run");
+    expect(actionPlan(plain, "spends")).toBe("confirm");
+    expect(actionPlan(plain, undefined)).toBe("confirm");
+    expect(actionPlan({ ...plain, confirm: { title: "t", body: "b", label: "l", always: true } }, null)).toBe("confirm");
+    expect(actionPlan(plain, "delete", true)).toBe("read");
   });
 
   it("action arguments carry the row id, a fixed body and row fields", () => {

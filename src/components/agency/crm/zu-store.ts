@@ -1,21 +1,33 @@
 /* The pure core behind useZuRead / useZuWrite: a small in-memory cache and request
-   scheduler for `api.crm.call`. No React and no Convex in here, so it can be unit
-   tested with fake timers (use-zu.test.ts).
+   scheduler for `api.crm.call`. No React in here, so it can be unit tested with
+   fake timers (use-zu.test.ts).
 
    Rules it keeps (design.md Addendum D2, eval P-02, P-03, X-02):
    - A read younger than FRESH_MS (30 s) is served from memory with no call, so
      revisiting a tab inside 30 s costs nothing.
    - One in-flight request per key; everyone asking for the same key shares it.
-   - Stale data stays visible while a refetch runs, and stays after a failed one.
-   - Background refetches (focus, interval, webhook signal) are spaced at least
-     MIN_GAP_MS apart per key, and no key ever makes more than MAX_PER_MINUTE calls
-     in a rolling minute. A screen reads at most three keys, so a screen stays at
-     or under 12 background requests a minute.
-   - The interval does nothing while the page is hidden.
+   - Stale data stays visible while a refetch runs, and after a failed one, except
+     when the failure is lost access: then the data is dropped (F-U8).
+   - One budget for the whole page (F-U3): every Zuops request (each page of a
+     paged list and each write included) counts, and a background refetch (poll,
+     webhook signal, focus) only runs while fewer than MAX_PER_MINUTE requests were
+     made in the last rolling minute. Reads the person asked for (a newly opened
+     view, Refresh, the re-read after a write) are never held back but do count.
+     Background refetches of one key are also spaced MIN_GAP_MS apart.
+   - A 429 Retry-After pauses every background refetch until it passes.
+   - Nothing requests while the page is hidden: a signal or held timer only marks
+     the read stale, and it refetches when the page is visible again (F-U4).
+   - A paged list loads page 1, shows it, then keeps paging while `has_more`.
+     Background refetches and post-write re-reads fetch page 1 only and merge it
+     by id; only Refresh walks every page again.
+   - clear() bumps a generation: an answer to a request made before it is thrown
+     away, so nothing cached outlives lost access (F-U8).
    - A write with the same op and arguments while one is pending returns the same
      promise (a double click is one request), and carries an Idempotency-Key.
    - Nothing is written to localStorage or sessionStorage, and no response body is
      ever logged. */
+
+import { ConvexError } from "convex/values";
 
 export type ZuLimits = {
   contactsLimit?: number;
@@ -57,14 +69,29 @@ export type ZuReadArgs = {
   query?: Record<string, string | number | boolean | null | undefined>;
 };
 
-/** Walk an offset-paged list (`has_more` / `next_offset`) into one result. */
-export type ZuPages = { listKey: string; limit: number; max: number };
-export type ZuPaged<T> = { items: T[]; truncated: boolean };
+/** Walk an offset-paged list (`has_more` / `next_offset`) into one result.
+ *  `idKey` (default "id") is how page-1 refreshes are merged into the list. */
+export type ZuPages = { listKey: string; limit: number; max: number; idKey?: string };
+
+export type ZuPaged<T> = {
+  items: T[];
+  /** More exist than `max`. */
+  truncated: boolean;
+  /** False while later pages are still loading (or a walk stopped on an error). */
+  complete: boolean;
+  /** When the last finished full walk started, or null before one finished. */
+  walkStartedAt: number | null;
+  /** When the fetch that last read page 1 started, and the ids it returned. */
+  headStartedAt: number;
+  headIds: string[];
+};
 
 export type ZuSnapshot = {
   data: unknown;
   error: ZuError | null;
   fetchedAt: number | null;
+  /** When the fetch that produced `data` started (F-U12). */
+  startedAt: number | null;
   inflight: boolean;
 };
 
@@ -92,8 +119,11 @@ export type FetchReason = "mount" | "user" | "focus" | "interval" | "signal" | "
 
 export const FRESH_MS = 30_000;
 export const MIN_GAP_MS = 15_000;
+/** Zuops requests per rolling minute for the whole open CRM page (background cap). */
 export const MAX_PER_MINUTE = 12;
 export const DEFAULT_POLL_MS = 60_000;
+/** Default poll for paged lists: they are the expensive reads. */
+export const PAGED_POLL_MS = 300_000;
 const MINUTE = 60_000;
 const MAX_ENTRIES = 150;
 
@@ -101,15 +131,25 @@ export const UNREACHABLE = "Could not reach Zuops through Pulse. Check your conn
 export const UNREADABLE = "Zuops sent an answer Pulse could not read.";
 export const FORBIDDEN = "The CRM is limited to Pulse agency owners and admins.";
 
-/** The action threw instead of answering: lost access (FORBIDDEN) or no network.
- *  The error text is only matched, never shown or logged. */
-function thrown(err: unknown): ZuError {
+const ACCESS_CODES = new Set([
+  "FORBIDDEN", "UNAUTHENTICATED", "NO_AGENCY_MEMBER", "CAPABILITY_DENIED", "SCOPE_DENIED", "NO_WORKSPACE", "GRANT_EXPIRED",
+]);
+
+/** The action threw instead of answering: lost access or no network. The access
+ *  check throws AccessError, a ConvexError whose data is `{ code, message }`
+ *  (convex/lib/access.ts). The text is only matched, never shown or logged. */
+export function thrown(err: unknown): ZuError {
+  if (err instanceof ConvexError) {
+    const code = (err.data as { code?: unknown } | null | undefined)?.code;
+    if (typeof code === "string" && ACCESS_CODES.has(code)) return { reason: FORBIDDEN, code: "forbidden", status: 403 };
+  }
   const msg = err instanceof Error ? err.message : typeof err === "string" ? err : "";
   if (/FORBIDDEN|UNAUTHENTICATED|Not signed in/i.test(msg)) return { reason: FORBIDDEN, code: "forbidden", status: 403 };
   return { reason: UNREACHABLE, code: "unreachable", status: 0 };
 }
 
-const EMPTY: ZuSnapshot = Object.freeze({ data: undefined, error: null, fetchedAt: null, inflight: false }) as ZuSnapshot;
+const EMPTY: ZuSnapshot = Object.freeze({ data: undefined, error: null, fetchedAt: null, startedAt: null, inflight: false }) as ZuSnapshot;
+export const EMPTY_SNAPSHOT = EMPTY;
 
 /** JSON with sorted keys and no undefined values: equal arguments, equal string. */
 export function stableStringify(value: unknown): string {
@@ -162,6 +202,9 @@ class ZuFailure {
   constructor(readonly error: ZuError, readonly retryAfter?: number) {}
 }
 
+/** A newer clear() happened: drop this answer on the floor. */
+class Superseded {}
+
 function failureOf(res: ZuCallResult): ZuFailure {
   return new ZuFailure(
     { reason: res.reason || `Zuops answered ${res.status}.`, code: res.code, status: res.status },
@@ -178,6 +221,15 @@ function parse(json: string | null): unknown {
   }
 }
 
+function isPaged(v: unknown): v is ZuPaged<unknown> {
+  return !!v && typeof v === "object" && Array.isArray((v as ZuPaged<unknown>).items) && "complete" in (v as object);
+}
+
+function idOf(item: unknown, idKey: string): string | undefined {
+  const v = item && typeof item === "object" ? (item as Record<string, unknown>)[idKey] : undefined;
+  return typeof v === "string" || typeof v === "number" ? String(v) : undefined;
+}
+
 type Entry = {
   key: string;
   parts: KeyParts;
@@ -186,10 +238,9 @@ type Entry = {
   again: FetchReason | null;
   listeners: Set<() => void>;
   watchers: number;
-  calls: number[];
+  lastCall: number | undefined;
   lastSignal: number | undefined;
   stale: boolean;
-  blockedUntil: number;
   trailing: ReturnType<typeof setTimeout> | null;
   touched: number;
 };
@@ -221,6 +272,12 @@ export function createZuStore(opts: ZuStoreOptions = {}) {
   const entries = new Map<string, Entry>();
   const pendingWrites = new Map<string, Promise<ZuWriteResult>>();
   const writeListeners = new Set<() => void>();
+  /** Start times of every Zuops request in the last minute, all keys. */
+  let spent: number[] = [];
+  /** A 429 asked us to wait: no background refetch before this time. */
+  let pausedUntil = 0;
+  /** Bumped by clear(); answers from an older generation are discarded. */
+  let gen = 0;
 
   function entry(key: string): Entry {
     let e = entries.get(key);
@@ -234,10 +291,9 @@ export function createZuStore(opts: ZuStoreOptions = {}) {
         again: null,
         listeners: new Set(),
         watchers: 0,
-        calls: [],
+        lastCall: undefined,
         lastSignal: undefined,
         stale: false,
-        blockedUntil: 0,
         trailing: null,
         touched: now(),
       };
@@ -266,39 +322,125 @@ export function createZuStore(opts: ZuStoreOptions = {}) {
     emit(e);
   }
 
-  async function fetchOnce(parts: KeyParts, query?: ZuQuery): Promise<unknown> {
+  function spentNow(t: number): number {
+    spent = spent.filter((c) => t - c < MINUTE);
+    return spent.length;
+  }
+
+  function spend() {
+    spent.push(now());
+  }
+
+  function pauseFor(retryAfter: number | undefined) {
+    if (retryAfter && retryAfter > 0) pausedUntil = Math.max(pausedUntil, now() + retryAfter * 1000);
+  }
+
+  async function fetchOnce(parts: KeyParts, query: ZuQuery | undefined, myGen: number): Promise<{ data: unknown; raw: Record<string, unknown> | null }> {
     if (!caller) throw new ZuFailure({ reason: UNREACHABLE, code: "no_caller", status: 0 });
+    spend();
     let res: ZuCallResult;
     try {
       res = await caller({ op: parts.op, path: parts.path, query });
     } catch (err) {
+      if (myGen !== gen) throw new Superseded();
       throw new ZuFailure(thrown(err));
     }
+    if (myGen !== gen) throw new Superseded();
     if (!res.ok) throw failureOf(res);
-    return parse(res.json);
+    const data = parse(res.json);
+    return { data, raw: data && typeof data === "object" ? (data as Record<string, unknown>) : null };
   }
 
-  async function fetchPages(parts: KeyParts, pages: ZuPages): Promise<ZuPaged<unknown>> {
-    const items: unknown[] = [];
+  type Page = { list: unknown[]; more: boolean; next: number };
+
+  async function fetchPage(parts: KeyParts, pages: ZuPages, offset: number, myGen: number): Promise<Page> {
+    const { raw } = await fetchOnce(parts, { ...(parts.query ?? {}), limit: pages.limit, offset }, myGen);
+    const list = Array.isArray(raw?.[pages.listKey]) ? (raw![pages.listKey] as unknown[]) : [];
+    const next = raw?.next_offset;
+    const more = raw?.has_more === true && typeof next === "number" && list.length > 0;
+    return { list, more, next: more ? (next as number) : offset };
+  }
+
+  /** Page 1, shown at once, then the rest while `has_more` (first open, Refresh). */
+  async function walk(e: Entry, pages: ZuPages, startedAt: number, myGen: number): Promise<void> {
+    const idKey = pages.idKey ?? "id";
+    const prev = isPaged(e.snap.data) ? e.snap.data : null;
+    let items: unknown[] = [];
+    let headIds: string[] = [];
     let offset = 0;
     let more = true;
+    let first = true;
     while (more && items.length < pages.max) {
-      const data = (await fetchOnce(parts, { ...(parts.query ?? {}), limit: pages.limit, offset })) as Record<string, unknown> | null;
-      const list = Array.isArray(data?.[pages.listKey]) ? (data![pages.listKey] as unknown[]) : [];
-      items.push(...list);
-      const next = data?.next_offset;
-      more = data?.has_more === true && typeof next === "number" && list.length > 0;
-      if (more) offset = next as number;
+      const page = await fetchPage(e.parts, pages, offset, myGen);
+      items.push(...page.list);
+      if (first) headIds = page.list.map((i) => idOf(i, idKey)).filter((x): x is string => !!x);
+      more = page.more;
+      offset = page.next;
+      const done = !more || items.length >= pages.max;
+      if (items.length > pages.max) items = items.slice(0, pages.max);
+      const data: ZuPaged<unknown> = {
+        items: done || !prev ? items : mergeTail(items, prev.items, idKey),
+        truncated: done ? more : false,
+        complete: done,
+        walkStartedAt: done ? startedAt : prev?.walkStartedAt ?? null,
+        headStartedAt: startedAt,
+        headIds,
+      };
+      e.stale = false;
+      e.snap = { data, error: null, fetchedAt: now(), startedAt, inflight: !done };
+      if (!done) emit(e);
+      first = false;
     }
-    return { items: items.slice(0, pages.max), truncated: more || items.length > pages.max };
   }
 
-  function scheduleTrailing(e: Entry, at: number, reason: FetchReason) {
+  /** While a walk is part way, keep showing the rest of the old list. */
+  function mergeTail(fresh: unknown[], old: unknown[], idKey: string): unknown[] {
+    const seen = new Set(fresh.map((i) => idOf(i, idKey)));
+    return [...fresh, ...old.filter((i) => !seen.has(idOf(i, idKey)))];
+  }
+
+  /** Page 1 only, merged by id into what is already loaded (poll, signal, re-read). */
+  async function head(e: Entry, pages: ZuPages, prev: ZuPaged<unknown>, startedAt: number, myGen: number): Promise<void> {
+    const idKey = pages.idKey ?? "id";
+    const page = await fetchPage(e.parts, pages, 0, myGen);
+    const headIds = page.list.map((i) => idOf(i, idKey)).filter((x): x is string => !!x);
+    let items: unknown[];
+    let truncated: boolean;
+    if (!page.more) {
+      items = page.list.slice(0, pages.max);
+      truncated = page.list.length > pages.max;
+    } else {
+      const merged = mergeTail(page.list, prev.items, idKey);
+      items = merged.slice(0, pages.max);
+      truncated = prev.truncated || merged.length > pages.max;
+    }
+    const data: ZuPaged<unknown> = {
+      items, truncated, complete: page.more ? prev.complete : true, walkStartedAt: page.more ? prev.walkStartedAt : startedAt, headStartedAt: startedAt, headIds,
+    };
+    e.stale = false;
+    e.snap = { data, error: null, fetchedAt: now(), startedAt, inflight: false };
+  }
+
+  function scheduleTrailing(e: Entry, at: number) {
     if (e.trailing) return;
     e.trailing = setTimeout(() => {
       e.trailing = null;
-      if (e.watchers > 0 || reason === "invalidate") void request(e.key, reason);
+      if (e.watchers === 0) return;
+      if (!isVisible()) {
+        e.stale = true; // refetched when the page is visible again
+        return;
+      }
+      void request(e.key, "signal");
     }, Math.max(0, at - now()));
+  }
+
+  /** The earliest time a background request may go, or 0 if it may go now. */
+  function backgroundWait(e: Entry, t: number): number {
+    let at = 0;
+    if (t < pausedUntil) at = pausedUntil;
+    if (e.lastCall !== undefined && t - e.lastCall < minGapMs) at = Math.max(at, e.lastCall + minGapMs);
+    if (spentNow(t) >= maxPerMinute) at = Math.max(at, spent[spent.length - maxPerMinute] + MINUTE);
+    return at;
   }
 
   function request(key: string, reason: FetchReason): Promise<void> {
@@ -312,46 +454,69 @@ export function createZuStore(opts: ZuStoreOptions = {}) {
     const t = now();
     const fresh = e.snap.fetchedAt !== null && t - e.snap.fetchedAt < freshMs && !e.stale;
     if (fresh && !FORCED.has(reason)) return Promise.resolve();
-    if (t < e.blockedUntil && reason !== "user") return Promise.resolve();
 
-    e.calls = e.calls.filter((c) => t - c < MINUTE);
-    const last = e.calls[e.calls.length - 1];
-    if (BACKGROUND.has(reason) && last !== undefined && t - last < minGapMs) {
-      // Too soon after the last call. A signal means data really changed, so it
-      // is kept and run once the gap is over; focus and interval are dropped.
-      if (reason === "signal") scheduleTrailing(e, last + minGapMs, reason);
-      return Promise.resolve();
+    if (BACKGROUND.has(reason)) {
+      if (!isVisible()) {
+        e.stale = true;
+        return Promise.resolve();
+      }
+      const wait = backgroundWait(e, t);
+      if (wait > 0) {
+        // Held back. A signal (or a read already marked stale) means the data
+        // really changed, so it runs once the wait is over; focus and interval
+        // on merely old data are dropped.
+        if (reason === "signal" || e.stale) {
+          e.stale = true;
+          scheduleTrailing(e, wait);
+        }
+        return Promise.resolve();
+      }
     }
-    if (e.calls.length >= maxPerMinute) {
-      if (FORCED.has(reason)) scheduleTrailing(e, e.calls[0] + MINUTE, reason);
-      return Promise.resolve();
-    }
-    e.calls.push(t);
+    e.lastCall = t;
     if (e.trailing) {
       clearTimeout(e.trailing);
       e.trailing = null;
     }
 
+    const pages = e.parts.pages;
+    const prev = pages && isPaged(e.snap.data) ? e.snap.data : null;
+    const full = !!pages && (reason === "user" || !prev || (!prev.complete && !BACKGROUND.has(reason)));
+    const myGen = gen;
+    const startedAt = t;
+
     setSnap(e, { ...e.snap, inflight: true });
-    const parts = e.parts;
-    e.inflight = (async () => {
+    const p = (async () => {
       try {
-        const data = parts.pages ? await fetchPages(parts, parts.pages) : await fetchOnce(parts, parts.query);
-        e.stale = false;
-        e.snap = { data, error: null, fetchedAt: now(), inflight: false };
+        if (pages && full) await walk(e, pages, startedAt, myGen);
+        else if (pages && prev) await head(e, pages, prev, startedAt, myGen);
+        else {
+          const { data } = await fetchOnce(e.parts, e.parts.query, myGen);
+          e.stale = false;
+          e.snap = { data, error: null, fetchedAt: now(), startedAt, inflight: false };
+        }
       } catch (err) {
+        if (err instanceof Superseded || myGen !== gen) return;
         const f = err instanceof ZuFailure ? err : new ZuFailure({ reason: UNREACHABLE, status: 0 });
-        if (f.retryAfter && f.retryAfter > 0) e.blockedUntil = now() + f.retryAfter * 1000;
-        e.snap = { ...e.snap, error: f.error, inflight: false };
+        pauseFor(f.retryAfter);
+        if (f.error.code === "forbidden") {
+          // Lost access: nothing from before may stay on screen (F-U8).
+          e.snap = { data: undefined, error: f.error, fetchedAt: null, startedAt: null, inflight: false };
+        } else {
+          const data = isPaged(e.snap.data) ? { ...e.snap.data, complete: false } : e.snap.data;
+          e.snap = { ...e.snap, data, error: f.error, inflight: false };
+        }
       } finally {
-        e.inflight = null;
-        emit(e);
-        const again = e.again;
-        e.again = null;
-        if (again) void request(key, again);
+        if (myGen === gen) {
+          e.inflight = null;
+          emit(e);
+          const again = e.again;
+          e.again = null;
+          if (again) void request(key, again);
+        }
       }
     })();
-    return e.inflight;
+    e.inflight = p;
+    return p;
   }
 
   function invalidate(ops: readonly string[]) {
@@ -395,14 +560,16 @@ export function createZuStore(opts: ZuStoreOptions = {}) {
       return entries.get(key)?.snap ?? EMPTY;
     },
     /** An open screen wants this key kept current: load it now, then poll every
-     *  `pollMs` while the page is visible. Returns the stop function. */
-    watch(key: string, pollMs: number = DEFAULT_POLL_MS): () => void {
+     *  `pollMs` while the page is visible (default 60 s, 300 s for paged lists).
+     *  Returns the stop function. */
+    watch(key: string, pollMs?: number): () => void {
       const e = entry(key);
       e.watchers += 1;
       void request(key, "mount");
-      const timer = pollMs > 0 ? setInterval(() => {
+      const every = pollMs ?? (e.parts.pages ? PAGED_POLL_MS : DEFAULT_POLL_MS);
+      const timer = every > 0 ? setInterval(() => {
         if (isVisible()) void request(key, "interval");
-      }, pollMs) : null;
+      }, every) : null;
       let stopped = false;
       return () => {
         if (stopped) return;
@@ -416,13 +583,14 @@ export function createZuStore(opts: ZuStoreOptions = {}) {
       };
     },
     /** The window came back into focus or became visible: refetch what is open
-     *  and older than 30 s. */
+     *  and either marked stale or older than 30 s, within the budget. */
     focus() {
       if (!isVisible()) return;
       for (const e of entries.values()) if (e.watchers > 0) void request(e.key, "focus");
     },
     /** The newest webhook pulse time for this key's kinds. The first value seen
-     *  is the baseline; a later, larger one means Zuops changed something. */
+     *  is the baseline; a later, larger one means Zuops changed something. While
+     *  the page is hidden this only marks the read stale. */
     signal(key: string, value: number) {
       const e = entry(key);
       if (e.lastSignal === undefined) {
@@ -431,7 +599,7 @@ export function createZuStore(opts: ZuStoreOptions = {}) {
       }
       if (value > e.lastSignal) {
         e.lastSignal = value;
-        if (e.watchers > 0) void request(key, "signal");
+        if (e.watchers > 0 && isVisible()) void request(key, "signal");
         else e.stale = true;
       }
     },
@@ -444,16 +612,20 @@ export function createZuStore(opts: ZuStoreOptions = {}) {
       const existing = pendingWrites.get(dedupe);
       if (existing) return existing;
       const idem = args.idem ?? newIdem();
+      const myGen = gen;
+      const box: { p?: Promise<ZuWriteResult> } = {};
       const p = (async (): Promise<ZuWriteResult> => {
         if (!caller) return { ok: false, status: 0, reason: UNREACHABLE, code: "no_caller", limits: {} };
         let res: ZuCallResult;
+        spend();
         try {
           res = await caller({ op, path: args.path, query: args.query, body: args.body, confirm: args.confirm, idem });
         } catch (err) {
           const e = thrown(err);
           return { ok: false, status: e.status, reason: e.reason, code: e.code, limits: {} };
         }
-        if (o.invalidate) invalidate(o.invalidate);
+        pauseFor(res.retryAfter);
+        if (o.invalidate && myGen === gen) invalidate(o.invalidate);
         let data: unknown;
         try {
           data = res.json === null ? undefined : JSON.parse(res.json);
@@ -470,9 +642,10 @@ export function createZuStore(opts: ZuStoreOptions = {}) {
           limits: res.limits ?? {},
         };
       })().finally(() => {
-        pendingWrites.delete(dedupe);
+        if (pendingWrites.get(dedupe) === box.p) pendingWrites.delete(dedupe);
         emitWrites();
       });
+      box.p = p;
       pendingWrites.set(dedupe, p);
       emitWrites();
       return p;
@@ -486,16 +659,28 @@ export function createZuStore(opts: ZuStoreOptions = {}) {
         writeListeners.delete(fn);
       };
     },
-    /** Forget everything (sign-out, lost access). */
+    /** Requests made in the last rolling minute, all keys (for tests and UI). */
+    spentLastMinute(): number {
+      return spentNow(now());
+    },
+    /** Forget everything (sign-out, lost access, leaving the CRM). Requests still
+     *  in flight keep running but their answers are thrown away. */
     clear() {
+      gen += 1;
+      pendingWrites.clear();
       for (const e of entries.values()) {
         if (e.trailing) clearTimeout(e.trailing);
+        e.trailing = null;
+        e.inflight = null;
+        e.again = null;
         e.snap = EMPTY;
         e.stale = true;
-        e.calls = [];
+        e.lastCall = undefined;
+        e.lastSignal = undefined;
         emit(e);
       }
       for (const [k, e] of entries) if (e.listeners.size === 0 && e.watchers === 0) entries.delete(k);
+      emitWrites();
     },
   };
 }

@@ -15,7 +15,8 @@ import { SyncBar, TOUCH, ZuErrorState } from "./crm-ui";
 import type { ActionDef, ResourceDef } from "./resource-config";
 import { ResourceAction } from "./resource-action";
 import {
-  FIRST_PAGE, extractRows, getPath, isObj, nextPage, pageQuery, prevPage, rowName, shows, unwrapSingle, type Obj, type PageState,
+  FIRST_PAGE, extractRows, getPath, isObj, nextPage, pageQuery, prevPage, present, rowName, shows, unwrapSingle, visibleColumns,
+  type Obj, type PageState,
 } from "./resource-utils";
 import { CellValue, ValueList } from "./resource-values";
 
@@ -80,7 +81,8 @@ export function ResourcePanel({ def }: { def: ResourceDef }) {
 function SingleView({ def }: { def: ResourceDef }) {
   const single = def.single!;
   const read = useZuRead<unknown>(single.op, { query: single.query }, { pollMs: 300_000 });
-  const obj = unwrapSingle(read.data);
+  const picked = single.pick ? getPath(read.data, single.pick) : read.data;
+  const obj = single.pick ? (isObj(picked) ? picked : null) : unwrapSingle(read.data);
   const panelActions = (def.actions ?? []).filter((a) => a.scope === "panel");
   const invalidate = invalidateFor(def);
 
@@ -137,6 +139,7 @@ function ListView({ def }: { def: ResourceDef }) {
 
   const read = useZuRead<unknown>(list.op, { query }, { keepPrevious: true });
   const rows = extractRows(read.data, list.rowsKey);
+  const columns = visibleColumns(list.columns, rows);
   const rowIdKey = list.rowId ?? "id";
   const [openRow, setOpenRow] = React.useState<Obj | null>(null);
   const limit = typeof list.query?.limit === "number" ? list.query.limit : rows.length;
@@ -196,19 +199,21 @@ function ListView({ def }: { def: ResourceDef }) {
           {read.error && <Stale reason={read.error.reason} />}
           <Table className="min-w-[640px]" aria-label={def.title} aria-busy={read.refreshing || undefined}>
             <THead>
-              <tr>{list.columns.map((c) => <TH key={c.key}>{c.label}</TH>)}</tr>
+              <tr>{columns.map((c) => <TH key={c.key}>{c.label}</TH>)}</tr>
             </THead>
             <TBody>
               {rows.map((row, i) => (
                 <TR key={String(row[rowIdKey] ?? i)} interactive onClick={() => setOpenRow(row)}>
-                  {list.columns.map((c, ci) => (
+                  {columns.map((c, ci) => (
                     <TD key={c.key} className={cn(ci === 0 && "font-semibold")}>
                       {ci === 0 ? (
                         <button
                           type="button" onClick={(e) => { e.stopPropagation(); setOpenRow(row); }}
                           className="block max-w-64 truncate rounded-sm text-left text-bone outline-none hover:underline focus-visible:ring-2 focus-visible:ring-gold/40 max-sm:min-h-11"
                         >
-                          {cellText(getPath(row, c.key)) || rowName(row, "Open")}
+                          {present(getPath(row, c.key))
+                            ? <CellValue value={getPath(row, c.key)} format={c.format} noLink />
+                            : rowName(row, "Open")}
                         </button>
                       ) : (
                         <CellValue value={getPath(row, c.key)} format={c.format} />
@@ -241,13 +246,6 @@ function ListView({ def }: { def: ResourceDef }) {
   );
 }
 
-function cellText(v: unknown): string {
-  if (v === null || v === undefined) return "";
-  if (typeof v === "string" || typeof v === "number") return String(v);
-  if (isObj(v)) return rowName(v, "");
-  return "";
-}
-
 /* ---------- one record ---------- */
 
 /** Row actions: `row` (the list row) gives the path value and the show rule,
@@ -266,7 +264,7 @@ export function RowActions({ def, row, record, rowIdKey }: { def: ResourceDef; r
         return (
           <ResourceAction
             key={`${a.op}-${a.label}`} action={a}
-            ctx={{ source, pathValue, invalidate, isRead: read, prefillFrom: read || a.confirm || a.prefill === false || !(a.fields ?? []).length ? null : source }}
+            ctx={{ source, pathValue, invalidate, isRead: read, prefillFrom: read || a.prefill === false || !(a.fields ?? []).length ? null : source }}
           />
         );
       })}

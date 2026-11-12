@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { ZU_OPS } from "@convex/crm/ops.generated";
-import { confirmKind } from "@convex/crm/policy";
-import { CURATED_AREAS, RESOURCES, type ActionDef, type ResourceDef } from "./resource-config";
+import { BODY_RULES, confirmKind } from "@convex/crm/policy";
+import { CURATED_AREAS, RESOURCES, type ActionDef, type FieldDef, type ResourceDef } from "./resource-config";
+import { actionPlan } from "./resource-action";
+import { kindFor } from "./crm-op-form-kind";
 
 /* The resource config against the registry (tests may import it; the screens may
    not). Every op exists, every field is one the op takes, every operation the
@@ -10,6 +12,24 @@ import { CURATED_AREAS, RESOURCES, type ActionDef, type ResourceDef } from "./re
 
 const all: ResourceDef[] = Object.values(RESOURCES).flat();
 const actions: Array<{ res: ResourceDef; a: ActionDef }> = all.flatMap((res) => (res.actions ?? []).map((a) => ({ res, a })));
+/** Bodies an action can send: nothing, its fields all turned on, and all turned
+ *  off (a step-down rule such as dry_run needs the exact value). */
+function bodies(a: ActionDef): Array<Record<string, unknown>> {
+  const fill = (f: FieldDef, on: boolean): unknown => {
+    if (f.type === "boolean") return on;
+    if (f.type === "number") return on ? 1 : 0;
+    if (f.list) return ["x"];
+    if (f.type === "json") return f.jsonShape === "array" ? [{}] : {};
+    if (f.type === "select") return f.options?.[0] ?? "x";
+    return "x";
+  };
+  const make = (on: boolean) => ({
+    ...Object.fromEntries((a.fields ?? []).filter((f) => (f.in ?? "body") === "body").map((f) => [f.name, fill(f, on)])),
+    ...(a.body ?? {}),
+  });
+  return [{ ...(a.body ?? {}) }, make(true), make(false)];
+}
+
 const opsOf = (res: ResourceDef): string[] =>
   [res.list?.op, res.single?.op, res.detail?.op, ...(res.actions ?? []).map((a) => a.op)].filter((x): x is string => !!x);
 
@@ -35,9 +55,46 @@ describe("resource config", () => {
     }
   });
 
-  it("every confirm-gated operation has a confirm block", () => {
-    const missing = actions.filter(({ a }) => confirmKind(ZU_OPS[a.op]) !== null && !a.confirm).map(({ res, a }) => `${res.key}: ${a.label} (${a.op})`);
+  it("F-B1: every action whose operation the server can gate has its own confirm wording (policy.ts is the source of truth)", () => {
+    const missing = actions
+      .filter(({ a }) => ZU_OPS[a.op].method !== "GET" && bodies(a).some((b) => confirmKind(ZU_OPS[a.op], b) !== null) && !a.confirm)
+      .map(({ res, a }) => `${res.key}: ${a.label} (${a.op})`);
     expect(missing).toEqual([]);
+  });
+
+  it("F-B1: no action can run an operation with a confirm kind outside ConfirmDialog, for any body it can send", () => {
+    const leaks: string[] = [];
+    for (const { res, a } of actions) {
+      const isRead = ZU_OPS[a.op].method === "GET";
+      for (const b of bodies(a)) {
+        const kind = kindFor(a.op, b);
+        expect(kind, `${a.op} kind from the lazy module matches policy`).toBe(confirmKind(ZU_OPS[a.op], b));
+        if (kind !== null && actionPlan(a, kind, isRead) !== "confirm") leaks.push(`${res.key}: ${a.label} ${JSON.stringify(b)}`);
+      }
+      // A kind that could not be looked up fails closed.
+      if (!isRead) expect(actionPlan(a, undefined, false), a.op).toBe("confirm");
+    }
+    expect(leaks).toEqual([]);
+  });
+
+  it("F-B1: body-dependent kinds are decided by the body (an apply flag confirms, a preview does not)", () => {
+    expect(kindFor("apply_gbp_optimizer", { dry_run: true })).toBeNull();
+    expect(kindFor("apply_gbp_optimizer", {})).toBe("spends");
+    expect(kindFor("create_email_campaign", { name: "Fall" })).toBeNull();
+    expect(kindFor("create_email_campaign", { brief: "Fall tune-up" })).toBe("spends");
+    expect(kindFor("create_outbound_webhook", { name: "Zap" })).toBe("exposes");
+    expect(kindFor("no_such_op", {})).toBe("reaches");
+    for (const id of Object.keys(BODY_RULES)) expect(ZU_OPS[id], id).toBeDefined();
+  });
+
+  it("confirm templates only name values the dialog has", () => {
+    const wrong: string[] = [];
+    for (const { res, a } of actions) {
+      if (!a.confirm) continue;
+      const known = new Set(["count", "name", "email_audience", ...(a.fields ?? []).map((f) => f.name)]);
+      for (const m of `${a.confirm.title} ${a.confirm.body}`.matchAll(/\{([a-z_]+)\}/g)) if (!known.has(m[1])) wrong.push(`${res.key}: ${a.label} {${m[1]}}`);
+    }
+    expect(wrong).toEqual([]);
   });
 
   it("every :admin operation is marked admin, and only those", () => {
@@ -107,7 +164,7 @@ describe("resource config", () => {
       if (!a.confirm) continue;
       expect(a.confirm.body).not.toMatch(/—/);
       expect(a.confirm.title).not.toMatch(/—/);
-      if (a.confirm.count && "field" in a.confirm.count) {
+      if (a.confirm.count) {
         const field = a.confirm.count.field;
         expect((a.fields ?? []).find((f) => f.name === field)?.list, `${a.op} count field`).toBe(true);
       }

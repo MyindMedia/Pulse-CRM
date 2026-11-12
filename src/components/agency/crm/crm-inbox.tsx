@@ -13,7 +13,7 @@ import { StageBadge, SyncBar, TOUCH, ZuErrorState, dateTime, relTime } from "./c
 import { useZuFetch, useZuRead } from "./use-zu";
 import { LeadSheet } from "./crm-lead-sheet";
 import { INBOX_OP } from "./inbox-ops";
-import { InboxThread } from "./inbox-thread";
+import { InboxThread, SLOW_POLL_MS } from "./inbox-thread";
 import {
   INBOX_FILTERS, channelWord, conversationName, conversationsQuery, filterCount, mergeConversations, previewText,
   type InboxFilter,
@@ -46,14 +46,17 @@ function useDebounced<T>(value: T, ms: number): T {
 
 type MorePages = { sig: string; items: Conversation[]; cursor: string | null; loading: boolean; error: string | null };
 
-export function CrmInbox({ openLeadId }: { openLeadId?: string | null }) {
+export function CrmInbox({ openLeadId, openNonce }: { openLeadId?: string | null; openNonce?: number }) {
   const [filter, setFilter] = React.useState<InboxFilter>("inbox");
   const [searchText, setSearchText] = React.useState("");
   const search = useDebounced(searchText, 300);
   const [selected, setSelected] = React.useState<string | null>(openLeadId ?? null);
-  const [seenOpen, setSeenOpen] = React.useState(openLeadId ?? null);
-  if ((openLeadId ?? null) !== seenOpen) {
-    setSeenOpen(openLeadId ?? null);
+  // Every jump from elsewhere bumps the nonce, so opening the same lead twice
+  // (after Back) opens it again (F-U15).
+  const jump = `${openLeadId ?? ""}|${openNonce ?? 0}`;
+  const [seenJump, setSeenJump] = React.useState(jump);
+  if (jump !== seenJump) {
+    setSeenJump(jump);
     if (openLeadId) setSelected(openLeadId);
   }
   const [sheetLead, setSheetLead] = React.useState<string | null>(null);
@@ -61,16 +64,25 @@ export function CrmInbox({ openLeadId }: { openLeadId?: string | null }) {
   const listFilter: InboxFilter = filter === "scheduled" || filter === "suggested" ? "inbox" : filter;
   const query = conversationsQuery(listFilter, search);
   const sig = JSON.stringify(query);
-  const convs = useZuRead<ConversationsResponse>(INBOX_OP.conversations, { query }, { kinds: ["message"], keepPrevious: true });
-  const scheduled = useZuRead<ScheduledResponse>(INBOX_OP.scheduled, { query: { limit: 100 } }, { kinds: ["message"] });
-  const suggestions = useZuRead<SuggestionsResponse>(INBOX_OP.suggestions, { query: { limit: 100 } }, { kinds: ["message"] });
+  const convs = useZuRead<ConversationsResponse>(INBOX_OP.conversations, { query }, { kinds: ["message"], keepPrevious: true, pollMs: SLOW_POLL_MS });
+  // Not on the "message" signal: they refresh on a slow poll and after this
+  // panel's own writes (F-U3).
+  const scheduled = useZuRead<ScheduledResponse>(INBOX_OP.scheduled, { query: { limit: 100 } }, { pollMs: SLOW_POLL_MS });
+  const suggestions = useZuRead<SuggestionsResponse>(INBOX_OP.suggestions, { query: { limit: 100 } }, { pollMs: SLOW_POLL_MS });
+
+  // Which filter the rows on screen belong to. While another filter loads, its
+  // label must not sit over the old filter's rows (F-U17); a new search under
+  // the same filter keeps the rows, dimmed.
+  const [shownFor, setShownFor] = React.useState<InboxFilter>(listFilter);
+  if (convs.data && !convs.refreshing && shownFor !== listFilter) setShownFor(listFilter);
+  const otherFilter = shownFor !== listFilter;
 
   const fetchZu = useZuFetch();
   const [more, setMore] = React.useState<MorePages | null>(null);
   const extra = more && more.sig === sig ? more : null;
-  const firstItems = convs.data?.conversations ?? [];
+  const firstItems = otherFilter ? [] : convs.data?.conversations ?? [];
   const list = mergeConversations(firstItems, extra?.items ?? []);
-  const nextCursor = extra ? extra.cursor : convs.data?.has_more ? convs.data?.next_cursor ?? null : null;
+  const nextCursor = otherFilter ? null : extra ? extra.cursor : convs.data?.has_more ? convs.data?.next_cursor ?? null : null;
 
   const loadMore = async () => {
     if (!nextCursor) return;
@@ -105,7 +117,7 @@ export function CrmInbox({ openLeadId }: { openLeadId?: string | null }) {
     <div className="space-y-4">
       <SyncBar fetchedAt={convs.fetchedAt} onRefresh={refreshAll} refreshing={convs.refreshing} />
 
-      <div className="grid gap-4 lg:grid-cols-[11rem_minmax(0,20rem)_minmax(0,1fr)]">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[11rem_minmax(0,20rem)_minmax(0,1fr)]">
         <nav aria-label="Inbox filters" className={cn("min-w-0", selected && "max-lg:hidden")}>
           <ul className="flex gap-1 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible">
             {INBOX_FILTERS.map(({ id, label }) => {
@@ -152,7 +164,7 @@ export function CrmInbox({ openLeadId }: { openLeadId?: string | null }) {
               </div>
               {convs.error && !convs.data ? (
                 <ZuErrorState error={convs.error} onRetry={convs.refresh} />
-              ) : convs.loading ? (
+              ) : convs.loading || otherFilter ? (
                 <div aria-busy="true" aria-label="Loading conversations"><SkeletonRows rows={6} /></div>
               ) : list.length === 0 ? (
                 <EmptyState
@@ -165,7 +177,7 @@ export function CrmInbox({ openLeadId }: { openLeadId?: string | null }) {
                   {convs.error && (
                     <p role="alert" className="flex items-center gap-2 text-xs text-caution"><AlertTriangle className="size-3.5" aria-hidden />Showing the last copy. {convs.error.reason}</p>
                   )}
-                  <ul className="divide-y divide-graphite/40 overflow-hidden rounded-lg border border-graphite/50 bg-coal/40" aria-busy={convs.refreshing || undefined}>
+                  <ul aria-busy={convs.refreshing || undefined} className={cn("divide-y divide-graphite/40 overflow-hidden rounded-lg border border-graphite/50 bg-coal/40 transition-opacity", convs.refreshing && "opacity-60")}>
                     {list.map((c) => <ConversationRow key={c.lead_id} c={c} on={c.lead_id === selected} onOpen={() => setSelected(c.lead_id)} />)}
                   </ul>
                   {extra?.error && <p role="alert" className="text-xs text-critical">{extra.error}</p>}

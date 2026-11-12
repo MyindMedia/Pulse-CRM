@@ -15,8 +15,8 @@ import { Skeleton, SkeletonRows } from "@/components/ui/skeleton";
 import { Checkbox } from "@/components/ui/toggle";
 import { cn } from "@/lib/utils";
 import { useCrmNav } from "./crm-context";
-import { SyncBar, TOUCH, WriteButton, ZuErrorState, relTime } from "./crm-ui";
-import { useZuRead, useZuWrite, type ZuError } from "./use-zu";
+import { ConfirmDialog, SyncBar, TOUCH, WriteButton, ZuErrorState, confirmCopy, relTime, type ConfirmGrant } from "./crm-ui";
+import { useIdemFor, useZuRead, useZuWrite, type ZuError } from "./use-zu";
 import { SOCIAL_OP } from "./social-ops";
 import {
   COMMENTS_PAGE, EMPTY_COMMENT_FILTERS, LEAD_MODES, SOCIAL_OFF_REASON, commentsQuery, connectionStatus, dmStatus, isNotEnabled,
@@ -92,7 +92,7 @@ function AccountsSection({ accounts, error, loading, onRetry }: { accounts: Soci
         : loading ? <Skeleton className="h-24 w-full" />
           : accounts.length === 0 ? <EmptyState icon={Camera} title="No accounts connected" description="Connect an Instagram account or Facebook Page in the Zuops app." />
             : (
-              <ul className="grid gap-3 md:grid-cols-2">
+              <ul className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 {accounts.map((a) => {
                   const Icon = PLATFORM_ICON(a.platform);
                   const st = connectionStatus(a);
@@ -128,29 +128,41 @@ function LeadModeSection() {
   const [error, setError] = React.useState<string | null>(null);
   const current = (settings.data?.lead_mode === "everyone" ? "everyone" : "qualified") as LeadMode;
   const picked = choice ?? current;
+  // Bumped after each accepted write: a retry reuses its key, the next action
+  // gets a new one (F-U9).
+  const [round, setRound] = React.useState(0);
+  const keys = {
+    save: useIdemFor(`social-mode:${round}:${picked}`),
+    count: useIdemFor(`social-move-count:${round}`),
+    move: useIdemFor(`social-move-apply:${round}:${count ?? ""}`),
+  };
 
-  const save = async () => {
+  const save = async (grant?: ConfirmGrant) => {
     setError(null);
-    const res = await run(SOCIAL_OP.settingsUpdate, { body: { lead_mode: picked } }, { invalidate: [SOCIAL_OP.settings] });
-    if (res.ok) { toast.success(picked === "everyone" ? "Every new DM person now becomes a lead." : "Only qualified DM people become leads now."); setChoice(null); }
-    else setError(res.reason ?? "Zuops refused.");
+    const res = await run(SOCIAL_OP.settingsUpdate, { body: { lead_mode: picked }, idem: keys.save, ...grant }, { invalidate: [SOCIAL_OP.settings] });
+    if (res.ok) {
+      toast.success(picked === "everyone" ? "Every new DM person now becomes a lead." : "Only qualified DM people become leads now.");
+      setChoice(null);
+      setRound((r) => r + 1);
+    } else setError(res.reason ?? "Zuops refused.");
   };
 
   const countThem = async () => {
     setError(null);
-    const res = await run(SOCIAL_OP.moveDmLeads, { body: { apply: false } });
+    const res = await run(SOCIAL_OP.moveDmLeads, { body: { apply: false }, idem: keys.count });
     if (!res.ok) { setError(res.reason ?? "Zuops could not count them."); return; }
     const d = res.data as MoveDmLeadsResponse | undefined;
     setCount(typeof d?.would_move === "number" ? d.would_move : typeof d?.moved === "number" ? d.moved : 0);
   };
 
-  const moveThem = async () => {
+  const moveThem = async (grant: ConfirmGrant) => {
     setError(null);
-    const res = await run(SOCIAL_OP.moveDmLeads, { body: { apply: true } }, { invalidate: [SOCIAL_OP.settings, "list_leads"] });
+    const res = await run(SOCIAL_OP.moveDmLeads, { body: { apply: true }, idem: keys.move, ...grant }, { invalidate: [SOCIAL_OP.settings, "list_leads"] });
     if (!res.ok) { setError(res.reason ?? "Zuops did not move them."); return; }
     const moved = (res.data as MoveDmLeadsResponse | undefined)?.moved;
     toast.success(`${typeof moved === "number" ? moved : count} moved back to Messages. Nothing was sent to them.`);
     setCount(null);
+    setRound((r) => r + 1);
   };
 
   if (settings.error && !settings.data) return <section aria-label="Who becomes a lead">{errorView(settings.error, settings.refresh)}</section>;
@@ -178,7 +190,17 @@ function LeadModeSection() {
         <div className="flex flex-wrap items-center justify-end gap-2">
           {picked === "everyone" && <p className="mr-auto text-xs text-caution">From now on each new DM person starts your new-lead automations. It applies to people who write from now on.</p>}
           <Button type="button" variant="ghost" size="sm" className={TOUCH} onClick={() => setChoice(null)}>Keep current</Button>
-          <WriteButton type="button" size="sm" onClick={save} disabled={pending}>Save</WriteButton>
+          {picked === "everyone" ? (
+            <ConfirmDialog
+              title="Make everyone who sends a DM a lead?"
+              body={<>From now on each new Instagram and Messenger DM person becomes a lead right away and starts your new-lead automations, webhooks and field-service push. {confirmCopy("changes_sending")}</>}
+              confirmLabel="Make them leads"
+              onConfirm={(grant) => save(grant)}
+              trigger={<WriteButton type="button" size="sm" disabled={pending}>Save</WriteButton>}
+            />
+          ) : (
+            <WriteButton type="button" size="sm" onClick={() => void save()} disabled={pending}>Save</WriteButton>
+          )}
         </div>
       )}
 
@@ -198,9 +220,22 @@ function LeadModeSection() {
             <p role="status" className="mr-auto text-sm text-bone">{moveCountText(count)}</p>
             <Button type="button" size="sm" variant="ghost" className={TOUCH} onClick={() => setCount(null)}>Not now</Button>
             {count > 0 && (
-              <WriteButton type="button" size="sm" onClick={moveThem} disabled={pending}>
-                Move {count.toLocaleString("en-US")} {count === 1 ? "person" : "people"}
-              </WriteButton>
+              <ConfirmDialog
+                title={`Move ${count.toLocaleString("en-US")} ${count === 1 ? "person" : "people"} back to Messages?`}
+                body={
+                  <>
+                    {moveCountText(count)}. They leave Leads and their new-lead automations stop for them; their conversations stay.
+                    Nothing is sent to them. {confirmCopy("changes_sending")}
+                  </>
+                }
+                confirmLabel={`Move ${count.toLocaleString("en-US")}`}
+                onConfirm={moveThem}
+                trigger={
+                  <WriteButton type="button" size="sm" disabled={pending}>
+                    Move {count.toLocaleString("en-US")} {count === 1 ? "person" : "people"}
+                  </WriteButton>
+                }
+              />
             )}
           </div>
         )}

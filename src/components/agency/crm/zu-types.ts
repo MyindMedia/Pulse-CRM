@@ -70,8 +70,15 @@ export type Lead = {
   deal_currency?: string | null;
   deal_won_at?: Iso | null;
   email_opt_out?: boolean | null;
+  email_opt_out_at?: string | null;
+  email_opt_out_reason?: string | null;
   email_invalid?: boolean | null;
+  email_invalid_at?: string | null;
+  email_invalid_reason?: string | null;
+  email_paused?: boolean | null;
   phone_invalid?: boolean | null;
+  phone_invalid_at?: string | null;
+  phone_invalid_reason?: string | null;
   ai_paused?: boolean | null;
   unread?: boolean | null;
   campaign_name?: string | null;
