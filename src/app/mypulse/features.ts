@@ -349,6 +349,8 @@ const DESC: Record<string, string> = {
     "Send an email. They get a sign-up with your branding on it and can take bookings the same day.",
   "Step-by-step setup":
     "Logo, business details, booking words, payments, email, first room. They can stop halfway and finish later.",
+  "Switch off parts of the app you do not use":
+    "Turn off sections of the app the studio does not use, so they leave the menu. Core parts stay on.",
   "Pull details off their website":
     "Take a new studio's details straight from the website they already have, instead of typing them in.",
   "Switch parts off per studio":

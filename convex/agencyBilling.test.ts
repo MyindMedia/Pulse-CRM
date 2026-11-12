@@ -159,14 +159,15 @@ describe("agencyPlans + agencyBilling - integration", () => {
       expect(early.introMonths).toBe(EARLY_ADOPTER_MONTHS);
     }
 
-    /* Owner ladder 2026-10-10: Core $149, Growth $297, Max $699 for unlimited
-       studios. The console must say exactly that. */
+    /* Owner ladder 2026-10-10: Core $149, Growth $297, Max $699. Max no
+       longer sells unlimited studios (owner decision 2026-11-12): every plan
+       runs one studio, so no plan description claims more. */
     const byName = (n: string) => plans.find((p) => p.name === n)!;
     expect(byName("Core").description).toMatch(/^\$149\/mo\./);
     expect(byName("Growth").description).toMatch(/^\$297\/mo\./);
-    expect(byName("Max").description).toMatch(/^\$699\/mo\..*Unlimited studios included\./);
-    expect(byName("Max - Early Adopter").description).toMatch(/then \$699\/mo\..*Unlimited studios included\./);
-    expect(byName("Core").description).not.toMatch(/nlimited studios/);
+    expect(byName("Max").description).toMatch(/^\$699\/mo\./);
+    expect(byName("Max - Early Adopter").description).toMatch(/then \$699\/mo\./);
+    for (const p of plans) expect(p.description ?? "").not.toMatch(/nlimited studios/);
 
     const defaults = plans.filter((p) => p.isDefault);
     expect(defaults.length).toBe(1);

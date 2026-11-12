@@ -105,9 +105,8 @@ const PLAN_FEATURES: Record<OrgPlan, string[]> = {
   ],
   max: [
     "Everything in Growth",
-    "Unlimited studios, one flat price",
-    "Releases, licensing and split sheets",
-    "Your brand on the whole app and your own web address",
+    "Release plans and license records",
+    "Your brand on the whole app",
   ],
 };
 

@@ -66,8 +66,10 @@ export type TierPricing = {
   annualUsd: number;
   monthlyCents: number;
   annualCents: number;
-  /** Max includes unlimited studios at one flat price. There is no per-studio
-   *  charge on any tier, so this is the only studio-count field. */
+  /** Copy-only flag: true would let the public pages sell this tier as
+   *  unlimited studios at one flat price. False on every tier, because running
+   *  several studios from one screen is not open to customers yet. Gates and
+   *  allowances never read it. */
   unlimitedStudios: boolean;
   /** Highlighted card on the pricing page. */
   highlight: boolean;
@@ -113,7 +115,7 @@ export const PRICING: Record<TierKey, TierPricing> = {
     annualUsd: 6990,
     monthlyCents: 69900,
     annualCents: 699000,
-    unlimitedStudios: true,
+    unlimitedStudios: false,
     highlight: false,
   },
 };
@@ -699,7 +701,6 @@ const RAW_FEATURE_GROUPS: RawFeatureGroup[] = [
     items: [
       f("One screen for every studio", "max", "multiStudio", { built: false }),
       f("Invite a studio by email", "max", "multiStudio", { built: false }),
-      f("Step-by-step setup", "max", "multiStudio"),
       f("Pull details off their website", "max", "multiStudio", { built: false }),
       f("Switch parts off per studio", "max", "multiStudio", { built: false }),
       f("Your own price list", "max", "multiStudio", { built: false }),
@@ -724,6 +725,8 @@ const RAW_FEATURE_GROUPS: RawFeatureGroup[] = [
       f("Guest links that expire", "core"),
       f("Allowances counted per plan", "core"),
       f("Use it before setup is finished", "core"),
+      f("Step-by-step setup", "core"),
+      f("Switch off parts of the app you do not use", "core"),
       f("We move your data for free", "core"),
       f("No contract", "core"),
       f("Thousands of automatic checks", "core"),
@@ -1340,6 +1343,10 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
     "A guided setup for a new studio.",
     "It covers the logo, business details, booking words, payments, email and the first room. A studio can stop halfway and finish later.",
   ],
+  "Switch off parts of the app you do not use": [
+    "A shorter menu for your studio.",
+    "Turn off sections of the app your studio does not use, so they leave the menu. Core parts stay on.",
+  ],
   "Pull details off their website": [
     "A way to fill in a new studio's details from its website.",
     "Take the details straight from the website the studio already has, instead of typing them in.",
@@ -1577,7 +1584,6 @@ export const PULSE_APP_CAPABILITIES: Record<TierKey, readonly string[]> = {
     "Engineer payouts, posting payroll, expenses and receipts",
   ],
   max: [
-    "Switch between studios",
     "Release plans and song licenses",
   ],
 };

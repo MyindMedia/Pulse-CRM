@@ -178,8 +178,8 @@ export function faqs(): Faq[] {
       a: `No. There are no per-seat fees. Plans are priced by features, and each one includes team logins (${staff}) plus unlimited guest passes at no extra cost.`,
     },
     {
-      q: "How does Max work with more than one studio?",
-      a: `Max includes unlimited studios at one flat price of ${formatUsd(max.monthlyCents)} a month, or ${formatUsd(max.annualCents)} a year. There is no per-studio charge, allowances are shared across all your studios, and each studio only ever sees its own records.`,
+      q: "Can I run more than one studio on one plan?",
+      a: `Not yet. Every plan, Max included, covers one studio. Max is ${formatUsd(max.monthlyCents)} a month, or ${formatUsd(max.annualCents)} a year. Running several studios from one screen is not open to customers yet.`,
     },
     {
       q: "Is there a free trial?",

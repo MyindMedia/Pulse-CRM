@@ -51,9 +51,11 @@ describe("tiers", () => {
     expect([PRICING.core.name, PRICING.growth.name, PRICING.max.name]).toEqual(["Core", "Growth", "Max"]);
   });
 
-  it("gives Max unlimited studios with no per-studio price", () => {
-    expect(PRICING.max.unlimitedStudios).toBe(true);
-    expect(PRICING.core.unlimitedStudios).toBe(false);
+  it("sells no tier on unlimited studios, and has no per-studio price", () => {
+    // Running several studios from one screen is not open to customers, so the
+    // copy-only flag is off on every tier (owner decision 2026-11-12). The
+    // allowance itself is untouched.
+    for (const t of TIERS) expect(PRICING[t].unlimitedStudios, t).toBe(false);
     expect(ALLOWANCES.max.studios).toBe(UNLIMITED);
     expect(Object.keys(PRICING.max).some((k) => /perStudio|seat/i.test(k))).toBe(false);
   });
@@ -75,15 +77,17 @@ describe("the feature list", () => {
     expect(FEATURE_GROUPS[14].title).toBe("Production, media and gear check-out");
   });
 
-  it("totals Core 80 / Growth 50 / Max 27 over the 157 listed features", () => {
+  it("totals Core 82 / Growth 50 / Max 26 over the 158 listed features", () => {
     const totals = tierTotals(EXISTING_GROUPS);
-    // Actual computed totals, asserted exactly:
-    expect(totals).toEqual({ core: 80, growth: 50, max: 27 });
-    expect(totals.core + totals.growth + totals.max).toBe(157);
+    // Actual computed totals, asserted exactly. Step-by-step setup moved from
+    // the Max multi-studio group to Core (every studio gets the /welcome
+    // wizard), and "Switch off parts of the app you do not use" is a new Core row.
+    expect(totals).toEqual({ core: 82, growth: 50, max: 26 });
+    expect(totals.core + totals.growth + totals.max).toBe(158);
   });
 
   it("keeps the group sizes from the checklist", () => {
-    expect(EXISTING_GROUPS.map((g) => g.items.length)).toEqual([16, 16, 7, 10, 11, 9, 11, 12, 16, 8, 7, 11, 11, 12]);
+    expect(EXISTING_GROUPS.map((g) => g.items.length)).toEqual([16, 16, 7, 10, 11, 9, 11, 12, 16, 8, 7, 11, 10, 14]);
   });
 
   it("marks the twelve moved features", () => {
@@ -157,11 +161,19 @@ describe("the public table", () => {
   it("hides a feature until it is built", () => {
     const unbuilt = ALL_FEATURES.filter((f) => !f.built);
     for (const f of unbuilt) expect(groups.flatMap((g) => g.items).map((x) => x.name)).not.toContain(f.name);
-    // 139 of the 157 existing features are built and public. Hidden until
+    // 140 of the 158 existing features are built and public. Hidden until
     // built: royalty statements, saved card, sales tax, the referral tag,
     // the review referral link, a studio's own web address, and the twelve
     // multi-studio rows no customer can reach yet.
-    expect(groups.filter((g) => g.id !== "production").flatMap((g) => g.items)).toHaveLength(139);
+    expect(groups.filter((g) => g.id !== "production").flatMap((g) => g.items)).toHaveLength(140);
+  });
+
+  it("drops the multi-studio group: every row in it is unbuilt", () => {
+    expect(groups.map((g) => g.id)).not.toContain("agency");
+    expect(text).not.toContain("Running many studios");
+    const platform = groups.find((g) => g.id === "platform")!.items;
+    expect(platform.find((x) => x.name === "Step-by-step setup")?.tier).toBe("core");
+    expect(platform.find((x) => x.name === "Switch off parts of the app you do not use")?.tier).toBe("core");
   });
 
   it("never says CRM, and uses no em dashes, anywhere in the config", () => {

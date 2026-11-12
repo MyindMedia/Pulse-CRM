@@ -243,13 +243,14 @@ function tierBullets(tier: TierKey): string[] {
     ],
     max: [
       "Everything in Growth, plus:",
-      "Your brand on the whole app and your own web address",
-      "Releases, licensing, split sheets",
+      "Your brand on the whole app",
+      "Release plans, license records",
     ],
   };
   return [
     ...lead[tier],
-    [count(a.rooms, "room", "rooms"), count(a.studios, "studio", "studios"), `${a.storageGb.toLocaleString("en-US")} GB`].join(" \u00b7 "),
+    // No studio count: every plan runs one studio today, and none is sold on more.
+    [count(a.rooms, "room", "rooms"), `${a.storageGb.toLocaleString("en-US")} GB`].join(" \u00b7 "),
   ];
 }
 

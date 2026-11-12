@@ -65,13 +65,20 @@ describe("/pricing model", () => {
       expect(c.monthly.price).toBe(formatUsd(PRICING[c.tier].monthlyCents));
       expect(c.annual.price).toBe(formatUsd(PRICING[c.tier].annualCents));
     }
-    expect(cards.find((c) => c.tier === "max")?.unlimitedStudios).toBe(true);
+    // No card sells unlimited studios: multi-studio is not open to customers.
+    for (const c of cards) expect(c.unlimitedStudios, c.tier).toBe(false);
   });
 
   it("the comparison table has the 14 groups and only built features", async () => {
     const { comparisonGroups } = await import("./model");
     const groups = comparisonGroups();
-    for (const g of EXISTING_GROUPS) expect(groups.map((x) => x.id)).toContain(g.id);
+    // Every group with a built row is shown; a group with none (the multi-studio
+    // group, since nothing in it is open to customers) is dropped.
+    for (const g of EXISTING_GROUPS) {
+      if (g.items.some((x) => x.built)) expect(groups.map((x) => x.id)).toContain(g.id);
+      else expect(groups.map((x) => x.id)).not.toContain(g.id);
+    }
+    expect(groups.map((x) => x.id)).not.toContain("agency");
     const builtCount = FEATURE_GROUPS.flatMap((g) => g.items).filter((x) => x.built).length;
     expect(groups.reduce((n, g) => n + g.rows.length, 0)).toBe(builtCount);
     const unbuilt = FEATURE_GROUPS.flatMap((g) => g.items).filter((x) => !x.built);
@@ -108,7 +115,8 @@ describe("/pricing model", () => {
     expect(text).toMatch(/own Stripe account/i);
     expect(text).toMatch(/no booking commission/i);
     expect(text).toMatch(/no per-seat fees/i);
-    expect(text).toMatch(/unlimited studios at one flat price/i);
+    expect(text).toMatch(/every plan, Max included, covers one studio/i);
+    expect(text).not.toMatch(/unlimited studios|one flat price/i);
     expect(text).toMatch(/beta/i);
     expect(text).toContain(formatUsd(PRICING.max.monthlyCents));
   });
@@ -283,5 +291,65 @@ describe("no old plan names in marketing and sales copy", () => {
     for (const s of ["your studio", "Studios cannot see each other", "iPhone 17 Pro on a wooden stand"]) {
       expect(OLD_PLAN_COPY.some((re) => re.test(s)), s).toBe(false);
     }
+  });
+});
+
+/* Owner decision 2026-11-12: Max is not sold on unlimited studios, one flat
+   price for every studio, or its own web address, anywhere a customer reads.
+   Rendered surfaces are checked as rendered; the in-app lists and pages that
+   need a session are checked as source. */
+describe("Max is not sold on many studios or a web address", () => {
+  const MAX_CLAIMS = [
+    /unlimited studios/i,
+    /one flat price/i,
+    /every studio you run/i,
+    /switch between studios/i,
+    /shared across (all your|every) studio/i,
+    /web address/i,
+    /custom domain/i,
+  ];
+  const clean = (label: string, text: string) => {
+    for (const re of MAX_CLAIMS) expect(text, `${label} matches ${re}`).not.toMatch(re);
+  };
+  const read = (p: string) => readFileSync(join(ROOT, p), "utf8");
+
+  it("not on the rendered /pricing page or its meta description", async () => {
+    const html = await renderPage();
+    clean("/pricing", visibleText(html));
+    const { metadata } = await import("./page");
+    clean("meta description", String(metadata.description));
+  });
+
+  it("not in the plan cards, FAQ, access table or app list", async () => {
+    const { planCards, faqs } = await import("./model");
+    const { accessRows } = await import("@/components/marketing/plan-facts");
+    clean("cards", JSON.stringify(planCards()));
+    clean("faq", JSON.stringify(faqs()));
+    const studios = accessRows().find((r) => r.label === "Studios")!;
+    for (const t of TIERS) expect(studios.values[t], t).toBe("One");
+    clean("access", JSON.stringify(accessRows()));
+    clean("app", JSON.stringify(PULSE_APP_CAPABILITIES));
+  });
+
+  it("not in llms.txt", async () => {
+    const { llmsTxt, llmsFullTxt } = await import("@/lib/llms");
+    clean("llms.txt", llmsTxt());
+    clean("llms-full.txt", llmsFullTxt());
+  });
+
+  it("not in the in-app upgrade lists, /mypulse, the beta-ending email or site metadata", async () => {
+    const { PLAN_TIERS } = await import("@/components/settings/types");
+    clean("PLAN_TIERS", JSON.stringify(PLAN_TIERS));
+    expect(JSON.stringify(PLAN_TIERS)).not.toMatch(/split sheets/i);
+    const panel = read("src/components/settings/pricing-panel.tsx");
+    const bullets = panel.slice(panel.indexOf("function tierBullets"), panel.indexOf("function tierPrice"));
+    clean("pricing-panel tierBullets", bullets);
+    expect(bullets).not.toMatch(/split sheets|a\.studios/i);
+    clean("/mypulse", read("src/app/mypulse/page.tsx"));
+    const { betaEndingHtml } = await import("@convex/lib/emailTemplates/betaEnding");
+    clean("beta ending email", betaEndingHtml({ studioName: "B", daysLeft: 3, endsOnLabel: "Oct 1", chooseUrl: "https://x" }));
+    const { SOFTWARE_DESCRIPTION, SITE_KEYWORDS } = await import("@/components/marketing/structured-data");
+    clean("structured data", `${SOFTWARE_DESCRIPTION} ${SITE_KEYWORDS.join(" ")}`);
+    expect(SITE_KEYWORDS).not.toContain("multi-studio management");
   });
 });
