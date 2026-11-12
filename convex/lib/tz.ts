@@ -76,3 +76,12 @@ export function localDayKey(ts: number, tz: string): string {
     return new Date(ts).toISOString().slice(0, 10);
   }
 }
+
+/**
+ * "today" or "tomorrow" for a start time inside the next 24 hours, judged on
+ * the studio's local calendar, not on the reminder window. A session booked
+ * for later today must not be told it is tomorrow.
+ */
+export function dayWord(ts: number, now: number, tz: string): "today" | "tomorrow" {
+  return localDayKey(ts, tz) === localDayKey(now, tz) ? "today" : "tomorrow";
+}

@@ -110,6 +110,41 @@ describe("waitlist smart-fill (integration)", () => {
     const after = await t.run((ctx) => ctx.db.get(entryId));
     expect(after?.status).toBe("notified");
     expect(after?.lastNotifiedAt).toBeTypeOf("number");
+
+    // Once the offer email is executed, the entry is notified (#199: finalize
+    // with a sent email keeps it notified).
+    await t.mutation(internal.opsActions.finalize, { id: res.actions[0]._id, emailStatus: "sent" });
+    const afterFinalize = await t.run((ctx) => ctx.db.get(entryId));
+    expect(afterFinalize?.status).toBe("notified");
+    expect(afterFinalize?.lastNotifiedAt).toBeDefined();
+  });
+
+  it("a failed offer email leaves the entry waiting", async () => {
+    const { sessionId, entryId } = await t.run(async (ctx) => {
+      const waitingArtist = await ctx.db.insert("artists", {
+        orgId: ORG, name: "Nova", type: "artist", email: "nova@x.com", genres: [], tags: [],
+        status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
+      });
+      const bookedArtist = await ctx.db.insert("artists", {
+        orgId: ORG, name: "Booked", type: "artist", email: "b@x.com", genres: [], tags: [],
+        status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
+      });
+      const sessionId = await ctx.db.insert("sessions", {
+        orgId: ORG, title: "Tracking day", artistId: bookedArtist, serviceType: "recording",
+        startTime: Date.now() + DAY, endTime: Date.now() + DAY + 7_200_000,
+        status: "confirmed", rateCents: 20000, depositCents: 5000, depositPaid: true, intakeCompleted: false,
+      });
+      const entryId = await ctx.db.insert("waitlistEntries", {
+        orgId: ORG, artistId: waitingArtist, priority: "standard", status: "waiting", createdAt: Date.now(),
+      });
+      return { sessionId, entryId };
+    });
+    await t.mutation(api.sessions.setStatus, { id: sessionId, status: "cancelled" });
+    const action = await t.run(async (ctx) =>
+      (await ctx.db.query("opsActions").collect()).find((a) => a.orgId === ORG && a.type === "waitlist_fill"),
+    );
+    await t.mutation(internal.opsActions.finalize, { id: action!._id, emailStatus: "failed" });
+    expect((await t.run((ctx) => ctx.db.get(entryId)))?.status).toBe("waiting");
   });
 
   it("does not propose a fill when the waitlist is empty", async () => {

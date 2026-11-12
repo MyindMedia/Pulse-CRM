@@ -1,7 +1,7 @@
 import { internalMutation } from "./functions";
 import { v } from "convex/values";
 import { notify } from "./lib/notify";
-import { orgTz, whenLabel, clockTime } from "./lib/tz";
+import { orgTz, whenLabel, clockTime, dayWord } from "./lib/tz";
 
 /* ============================================================
    Email reminders - the channel that works TODAY (Resend is live;
@@ -42,6 +42,8 @@ export const sweep = internalMutation({
 
       for (const s of sessions) {
         if (s.status !== "tentative" && s.status !== "confirmed") continue;
+        // A pending request is not booked yet: "your session starts" is not true.
+        if (s.requestStatus === "pending") continue;
         const already = s.emailRemindersSent ?? [];
         const ms = s.startTime - now;
         let kind: "24h" | "2h" | null = null;
@@ -49,7 +51,8 @@ export const sweep = internalMutation({
         else if (ms <= DAY && ms > TWO_HOURS && !already.includes("24h")) kind = "24h";
         if (!kind) continue;
 
-        const soon = kind === "2h" ? "in about 2 hours" : "tomorrow";
+        const day = dayWord(s.startTime, now, orgTz(org));
+        const soon = kind === "2h" ? "in about 2 hours" : day;
         const when = whenLabel(s.startTime, orgTz(org));
         const room = s.roomId ? await ctx.db.get(s.roomId) : null;
         const where = room?.name ? ` in ${room.name}` : "";
@@ -60,7 +63,7 @@ export const sweep = internalMutation({
             orgId,
             channel: "email",
             recipient: artist.email,
-            subject: `Reminder: your session at ${studio} ${kind === "2h" ? "starts soon" : "is tomorrow"}`,
+            subject: `Reminder: your session at ${studio} ${kind === "2h" ? "starts soon" : `is ${day}`}`,
             body: `Hi ${artist.name},\n\nThis is a reminder that your session starts ${soon}${where}.\n\n${when}\n\nSee you then! Reply to this email if you need to reschedule.`,
             kind: `session.reminder_${kind}`,
             sessionId: s._id,
@@ -74,7 +77,7 @@ export const sweep = internalMutation({
               orgId,
               channel: "email",
               recipient: eng.email,
-              subject: `Reminder: you're on ${s.title} ${kind === "2h" ? "soon" : "tomorrow"}`,
+              subject: `Reminder: you're on ${s.title} ${kind === "2h" ? "soon" : day}`,
               body: `${eng.name}, you're the engineer on "${s.title}" starting ${soon}${where}.\n\n${when}`,
               kind: `session.reminder_${kind}`,
               sessionId: s._id,
@@ -108,7 +111,7 @@ export const sweep = internalMutation({
           orgId,
           channel: "email",
           recipient: member.email,
-          subject: `Reminder: you're on the ${studio} schedule tomorrow`,
+          subject: `Reminder: you're on the ${studio} schedule ${dayWord(sh.startTime, now, orgTz(org))}`,
           body: `${member.name}, you have a shift coming up${where}.\n\n${whenLabel(sh.startTime, orgTz(org))} to ${clockTime(sh.endTime, orgTz(org))}\n\nSee the full schedule in Pulse.`,
           kind: "shift.reminder_24h",
         });

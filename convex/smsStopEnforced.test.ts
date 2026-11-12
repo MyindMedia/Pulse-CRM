@@ -34,8 +34,13 @@ describe("SMS opt-out is honored everywhere", () => {
         await notify(ctx, { orgId: ORG, channel: "sms", recipient, subject: "Held", body: "Your room is held", kind: "booking.hold" });
       }
     });
+    // Owner decision: a blocked text leaves a "skipped" row so staff can see
+    // why it did not go out, and nothing is scheduled to deliver it.
     const rows = await t.run(async (ctx) => ctx.db.query("notifications").collect());
-    expect(rows).toHaveLength(0);
+    expect(rows).toHaveLength(3);
+    expect(rows.every((r) => r.status === "skipped")).toBe(true);
+    const scheduled = await t.run(async (ctx) => ctx.db.system.query("_scheduled_functions").collect());
+    expect(scheduled).toHaveLength(0);
   });
 
   it("notify() still texts numbers that did not opt out, and still emails", async () => {

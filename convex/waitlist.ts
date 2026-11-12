@@ -168,9 +168,8 @@ export async function proposeWaitlistFill(ctx: MutationCtx, session: Doc<"sessio
     },
   };
 
-  // The entry is marked "notified" when the offer is actually sent
-  // (opsActions.finalize), not here: a proposal waiting for approval must not
-  // hold the best match out of the waitlist text sweep (smsFlows).
+  // The entry stays "waiting" until the offer email actually goes out:
+  // opsActions.finalize marks it "notified" when the approved email is sent.
   await upsertProposed(ctx, session.orgId, [candidate]);
   return true;
 }

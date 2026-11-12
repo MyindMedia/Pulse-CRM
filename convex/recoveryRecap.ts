@@ -26,6 +26,13 @@ const LABELS: Record<string, string> = {
 
 const RECAP_KIND = "recovery.recap";
 
+/** "a", "a and b", "a, b and c", in plain words for the recap sentence. */
+function listKinds(kinds: string[]): string {
+  const words = kinds.map((k) => (LABELS[k] ?? k).toLowerCase());
+  if (words.length <= 1) return words[0] ?? "";
+  return `${words.slice(0, -1).join(", ")} and ${words[words.length - 1]}`;
+}
+
 /** Cents -> "$1,234" (whole dollars, thousands separated). */
 function fmtCents(cents: number): string {
   return `$${Math.round(cents / 100).toLocaleString("en-US")}`;
@@ -59,9 +66,21 @@ export const recapForOrg = internalMutation({
       )
       .collect();
 
+    // A late-cancel or no-show fee is logged when it is assessed, while its
+    // invoice is still a draft. It only counts as recovered once that invoice
+    // is paid; until then it is listed as waiting, because the owner still has
+    // to send it or follow up.
     let totalCents = 0;
+    let pendingCents = 0;
     const byKindMap = new Map<string, number>();
     for (const e of events) {
+      if (e.kind === "no_show_fee" || e.kind === "cancellation_fee") {
+        const inv = e.invoiceId ? await ctx.db.get(e.invoiceId) : null;
+        if (inv?.status !== "paid") {
+          if (inv?.status !== "void") pendingCents += e.amountCents;
+          continue;
+        }
+      }
       totalCents += e.amountCents;
       byKindMap.set(e.kind, (byKindMap.get(e.kind) ?? 0) + e.amountCents);
     }
@@ -90,12 +109,16 @@ export const recapForOrg = internalMutation({
 
 Pulse recovered ${fmtCents(totalCents)} for ${org.name ?? "your studio"} in ${label}.
 
-That is money reclaimed automatically from forfeited deposits, late cancels, no-shows, waitlist backfills and reminder-driven payments - dollars that would otherwise have walked out the door.
+That is money kept or collected from ${listKinds([...byKindMap.keys()])}, dollars that would otherwise have walked out the door.
 
 Breakdown for ${label}:
 ${breakdown}
 
-No action needed. Pulse keeps working in the background so the subscription pays for itself.
+${
+  pendingCents > 0
+    ? `Not collected yet: ${fmtCents(pendingCents)} in late-cancel and no-show fees is on invoices that are not paid. Open Payments in Pulse to send them or follow up.`
+    : "No action needed. Pulse keeps working in the background so the subscription pays for itself."
+}
 
 - The Pulse team`,
     );

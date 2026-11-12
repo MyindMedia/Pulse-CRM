@@ -233,6 +233,32 @@ describe("booking requests: requireApproval", () => {
     expect(out.refundNeededCents).toBe(6000);
   });
 
+  it("declining after a paid deposit tells the client the payment comes back and gives the owner the refund task", async () => {
+    const t = convexTest(schema);
+    const { room } = await studio(t, { requireApproval: true });
+    const res = await book(t, room);
+    const asMgr = t.withIdentity({ subject: "u_mgr", orgId: ORG });
+    await asMgr.mutation(api.payments.record, { sessionId: res.sessionId, kind: "deposit" });
+    await asMgr.mutation(api.bookingRequests.decline, { sessionId: res.sessionId });
+    const rows = await notes(t, res.sessionId);
+    const declined = rows.filter((n) => n.kind === "booking.request_declined");
+    expect(declined.find((n) => n.channel === "email")?.body).toContain("Your $60 payment will be refunded by the studio.");
+    expect(declined.find((n) => n.channel === "sms")?.body).toContain("Your $60 payment will be refunded by the studio.");
+    const task = rows.find((n) => n.kind === "booking.refund_needed");
+    expect(task?.recipient).toBe("owner@hc.test");
+    expect(task?.subject).toContain("$60");
+  });
+
+  it("declining an unpaid request says nothing about a refund", async () => {
+    const t = convexTest(schema);
+    const { room } = await studio(t, { requireApproval: true });
+    const res = await book(t, room);
+    await t.withIdentity({ subject: "u_mgr", orgId: ORG }).mutation(api.bookingRequests.decline, { sessionId: res.sessionId });
+    const rows = await notes(t, res.sessionId);
+    expect(rows.some((n) => n.kind === "booking.refund_needed")).toBe(false);
+    expect(rows.filter((n) => n.kind === "booking.request_declined").every((n) => !/refund/i.test(n.body))).toBe(true);
+  });
+
   it("an engineer saying yes to a pending request does not confirm the booking", async () => {
     const t = convexTest(schema);
     const { room, eng } = await studio(t, { requireApproval: true });

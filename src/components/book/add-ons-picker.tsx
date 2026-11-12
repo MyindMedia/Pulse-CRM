@@ -144,7 +144,7 @@ export function AddOnsPicker({
             <>
               <p className="text-xs text-steel/70">
                 Pick who you want to work with - it&apos;s required so the right person can confirm
-                your session. Your booking is finalized once they accept.
+                your session. They will let the studio know if they can take it.
               </p>
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                 {engineers.map((e) => (

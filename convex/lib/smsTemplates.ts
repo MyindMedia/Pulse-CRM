@@ -87,9 +87,12 @@ export const CLIENT_DECLINE_FOLLOWUP =
   "Pulse: Got it - we have told {studio}. They will contact you about your " +
   "deposit and a new time. Reply REBOOK if you want to book again[[ or book at {link}]].";
 
+/* "{studio} has been notified" style lines are only true when someone was
+   actually told (smsFlows alertManagers returns that). {told} carries the
+   line when it is true and is empty otherwise, so the optional block drops. */
 export const CLIENT_REBOOK_ACK =
   "Pulse: Your deposit at {studio} is on hold for a new booking until {holdDate}." +
-  "[[ Pick a new time: {link}.]] The studio has been notified.";
+  "[[ Pick a new time: {link}.]][[ {told}]]";
 
 /** 2h-before confirm question to the staffer working the session. */
 export const STAFF_CONFIRM_2H =
@@ -151,6 +154,11 @@ export const RESCHEDULE_REPLY =
 /** Ack when a client or staffer texts LATE. */
 export const LATE_ACK = "Pulse: Thanks for the heads up - {studio} has been notified you are running late.";
 
+/** Sent instead of a "has been notified" ack when nobody at the studio could
+ *  be reached (no manager phone, every one opted out, and no owner email). */
+export const NOBODY_TOLD_ACK =
+  "Pulse: Got it, but we could not reach {studio} just now.[[ Please call them at {phone}.]]";
+
 /* ── Revenue recovery + owner awareness (pilot wave 2) ─────────────────── */
 
 /** Freed slot offered to a waitlisted client. */
@@ -170,7 +178,7 @@ export const COVER_OFFER =
   'Pulse: {studio} needs an engineer for "{title}" ({date}). ' +
   "Reply YES to take it - first reply wins.[[ Open: {link}]]";
 
-export const COVER_ACK = 'Pulse: "{title}" ({date}) is yours. {studio} has been notified.';
+export const COVER_ACK = 'Pulse: "{title}" ({date}) is yours.[[ {told}]]';
 
 /** Post-session review request + the two response legs. */
 export const REVIEW_REQUEST =
@@ -185,7 +193,7 @@ export const REVIEW_THANKS =
   "[[ Mind sharing it on Google? {google}]]";
 
 export const REVIEW_LOW_ACK =
-  "Pulse: Sorry the session missed the mark - the owner has been notified personally and will make it right." +
+  "Pulse: Sorry the session missed the mark.[[ {told}]]" +
   "[[ You can also review us on Google: {google}]]";
 
 /* ── Deal texts (marketing; opt-in only, lib/deals.ts) ─────────────────── */
