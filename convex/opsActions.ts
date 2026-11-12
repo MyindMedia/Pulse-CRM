@@ -467,6 +467,13 @@ export const finalize = internalMutation({
           });
         }
       }
+      // A waitlist offer that went out: now the person has been offered it.
+      if (p.waitlistEntryId && emailStatus !== "failed") {
+        const entry = await ctx.db.get(p.waitlistEntryId);
+        if (entry && entry.orgId === action.orgId && (entry.status === "waiting" || entry.status === "notified")) {
+          await ctx.db.patch(entry._id, { status: "notified", lastNotifiedAt: Date.now() });
+        }
+      }
       result = `email ${emailStatus ?? "simulated"} to ${p.to ?? "n/a"}`;
     } else if (p.kind === "session_status") {
       const session = await ctx.db.get(p.sessionId);

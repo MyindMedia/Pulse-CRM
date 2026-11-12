@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import { scoreEntry, rankWaitlist, bestFit, type RankableEntry, type FreedSlot } from "./waitlist";
 
 const ORG = "pulse-demo"; // demo viewer resolves to this org with owner caps
@@ -98,7 +98,18 @@ describe("waitlist smart-fill (integration)", () => {
     expect(res.actions[0].entityId).toBe(sessionId);
     expect(res.actions[0].payload.kind).toBe("email");
     expect(res.actions[0].payload.kind === "email" && res.actions[0].payload.to).toBe("nova@x.com");
-    expect(res.entry?.status).toBe("notified");
+    // Truth audit B3 (bookings-clients-feat-waiting-list): a proposal that is
+    // still waiting for approval has offered nothing yet, so the entry stays
+    // "waiting" and the text sweep (smsFlows) can still reach this person.
+    expect(res.entry?.status).toBe("waiting");
+    expect(res.entry?.lastNotifiedAt).toBeUndefined();
+
+    // Once the offer is approved and sent, the entry is marked notified.
+    await t.run((ctx) => ctx.db.patch(res.actions[0]._id, { status: "approved" }));
+    await t.action(internal.opsActions.execute, { id: res.actions[0]._id });
+    const after = await t.run((ctx) => ctx.db.get(entryId));
+    expect(after?.status).toBe("notified");
+    expect(after?.lastNotifiedAt).toBeTypeOf("number");
   });
 
   it("does not propose a fill when the waitlist is empty", async () => {

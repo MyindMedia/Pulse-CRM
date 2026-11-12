@@ -2748,6 +2748,8 @@ export default defineSchema({
         subject: v.string(),
         body: v.string(),
         notifyKind: v.string(),
+        // waitlist.offer only: the entry to mark "notified" once it is sent.
+        waitlistEntryId: v.optional(v.id("waitlistEntries")),
       }),
       v.object({
         kind: v.literal("session_status"),

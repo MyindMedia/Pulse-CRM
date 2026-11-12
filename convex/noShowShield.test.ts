@@ -203,7 +203,14 @@ describe("No-Show Shield", () => {
     await asOwner.mutation(api.sessions.setStatus, { id, status: "no_show" });
 
     const entry = await t.run((ctx) => ctx.db.get(entryId));
-    expect(entry!.status).toBe("notified"); // proposeWaitlistFill fired
+    // proposeWaitlistFill fired: a waitlist_fill offer for this person waits
+    // for approval. The entry is only marked "notified" once the offer is sent
+    // (truth audit B3, bookings-clients-feat-waiting-list).
+    const fills = await t.run(async (ctx) =>
+      (await ctx.db.query("opsActions").collect()).filter((a) => a.orgId === org && a.type === "waitlist_fill"));
+    expect(fills).toHaveLength(1);
+    expect(fills[0].payload.kind === "email" && fills[0].payload.waitlistEntryId).toBe(entryId);
+    expect(entry!.status).toBe("waiting");
   });
 
   it("is idempotent: re-setting the same status never double-bills or double-records", async () => {
