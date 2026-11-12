@@ -105,6 +105,8 @@ describe("monthly recovery recap across months", () => {
     expect(oct[0].body).toContain("Not collected yet: $150");
 
     vi.setSystemTime(Date.UTC(2026, 10, 3));
+    // The studio sends the fee invoice; a draft cannot be paid by link (truth-void-invoice-payable).
+    await t.run((ctx) => ctx.db.patch(invoiceId, { status: "sent" }));
     await t.run((ctx) => settleInvoice(ctx, invoiceId));
 
     const nov = await recapFor(t, END, NOV_END);
@@ -127,6 +129,8 @@ describe("monthly recovery recap across months", () => {
     expect(oct[0].body).toContain("Not collected yet: $150");
 
     vi.setSystemTime(Date.UTC(2026, 10, 10));
+    // The studio sends the fee invoice; a draft cannot be paid by link (truth-void-invoice-payable).
+    await t.run((ctx) => ctx.db.patch(invoiceId, { status: "sent" }));
     await t.run((ctx) => settleInvoice(ctx, invoiceId));
     const ev = await t.run((ctx) => ctx.db.query("recoveryEvents").collect());
     expect(ev).toHaveLength(1);

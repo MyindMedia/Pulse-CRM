@@ -248,6 +248,31 @@ export const handle = internalMutation({
           await markProcessed(ctx, event.id, `${e.type}.account_mismatch`);
           return { ok: true };
         }
+        const stray = strayFields(event.id, event.account!, obj);
+        // A cancelled (void) or unsent (draft) invoice is not owed: the money
+        // is refunded in full and the invoice keeps its status. A second
+        // payment on a paid invoice is flagged for the studio.
+        if (invoice.status === "void" || invoice.status === "draft") {
+          await recordStrayPayment(ctx, {
+            orgId: invoice.orgId,
+            reason: invoice.status === "void" ? "void_invoice" : "draft_invoice",
+            invoiceId: invoice._id,
+            ...stray,
+          });
+          await markProcessed(ctx, event.id, `${e.type}.${invoice.status}_invoice`);
+          return { ok: true };
+        }
+        if (invoice.status === "paid") {
+          await recordStrayPayment(ctx, {
+            orgId: invoice.orgId,
+            reason: "unmatched",
+            invoiceId: invoice._id,
+            ...stray,
+            note: `invoice ${invoice.number} was already paid`,
+          });
+          await markProcessed(ctx, event.id, e.type);
+          return { ok: true };
+        }
         try {
           await settleInvoice(ctx, invoice._id);
         } catch (err) {

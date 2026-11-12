@@ -21,11 +21,20 @@ function effectiveStatus(status: string, dueDate: number): string {
   return dueDate < Date.now() ? "overdue" : status;
 }
 
-/** Sanitized invoice + studio branding for the public pay page. */
+/** Only an invoice the studio sent and nobody settled or cancelled can be
+ *  paid by link. A draft has not been sent (a no-show fee draft is settled by
+ *  cardOnFile.chargeFee on its own path); a void one was cancelled. */
+export function payableByLink(status: string): boolean {
+  return status === "sent" || status === "viewed" || status === "overdue";
+}
+
+/** Sanitized invoice + studio branding for the public pay page. A malformed
+ *  or other-table id in the URL is "not found", not an error page. */
 export const get = query({
-  args: { invoiceId: v.id("invoices") },
-  handler: async (ctx, { invoiceId }) => {
-    const inv = await ctx.db.get(invoiceId);
+  args: { invoiceId: v.string() },
+  handler: async (ctx, args) => {
+    const invoiceId = ctx.db.normalizeId("invoices", args.invoiceId);
+    const inv = invoiceId ? await ctx.db.get(invoiceId) : null;
     if (!inv) return null;
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", inv.orgId)).first();
     const artist = await ctx.db.get(inv.artistId);
@@ -41,8 +50,15 @@ export const get = query({
       logoUrl: org?.logoId ? await fileUrl(ctx, org.logoId) : null,
       // Whether online card payment is available (studio connected Stripe).
       payable: Boolean(process.env.STRIPE_SECRET_KEY && org?.stripeAccountId && org?.stripeChargesEnabled),
+      // Whether this invoice can be paid at all (not a draft, void or paid).
+      open: payableByLink(inv.status),
     };
   },
+});
+
+export const _normalize = internalQuery({
+  args: { invoiceId: v.string() },
+  handler: async (ctx, { invoiceId }) => ctx.db.normalizeId("invoices", invoiceId),
 });
 
 export const _chargeContext = internalQuery({
@@ -66,11 +82,12 @@ export const _chargeContext = internalQuery({
 /** Start a hosted Checkout to pay the invoice on the studio's connected Stripe.
  *  Returns { url: null } when online payment isn't available. */
 export const payViaStripe = action({
-  args: { invoiceId: v.id("invoices") },
-  handler: async (ctx, { invoiceId }): Promise<{ url: string | null }> => {
-    const c = await ctx.runQuery(internal.invoicePay._chargeContext, { invoiceId });
-    if (!c) throw new ConvexError("Invoice not found.");
-    if (c.status === "paid") return { url: null };
+  args: { invoiceId: v.string() },
+  handler: async (ctx, args): Promise<{ url: string | null }> => {
+    const invoiceId = await ctx.runQuery(internal.invoicePay._normalize, { invoiceId: args.invoiceId });
+    const c = invoiceId ? await ctx.runQuery(internal.invoicePay._chargeContext, { invoiceId }) : null;
+    if (!c || !invoiceId) throw new ConvexError("Invoice not found.");
+    if (!payableByLink(c.status)) return { url: null };
     if (!c.configured || !c.stripeAccountId || !c.chargesEnabled) return { url: null };
     if (c.amountCents <= 0) return { url: null };
 
@@ -99,10 +116,16 @@ export const payViaStripe = action({
 });
 
 /** Mark an invoice paid (called directly from the Stripe webhook mutation).
- *  Idempotent: a no-op if already paid. */
-export async function settleInvoice(ctx: MutationCtx, invoiceId: Id<"invoices">) {
+ *  Idempotent: a no-op if already paid. Never turns a cancelled (void) or
+ *  unsent (draft) invoice into paid: the webhook refunds that money instead
+ *  (strayPayments). Returns what it did. */
+export async function settleInvoice(
+  ctx: MutationCtx,
+  invoiceId: Id<"invoices">,
+): Promise<"settled" | "missing" | "paid" | "void" | "draft"> {
   const inv = await ctx.db.get(invoiceId);
-  if (!inv || inv.status === "paid") return;
+  if (!inv) return "missing";
+  if (inv.status === "paid" || inv.status === "void" || inv.status === "draft") return inv.status;
   await ctx.db.patch(invoiceId, { status: "paid", paidAt: Date.now(), paymentMethod: "card" });
   // Won-back money (a paid fee, or a bill paid after a reminder). Reporting only.
   await recordRecoveryOnPaid(ctx, inv, "card");
@@ -132,4 +155,5 @@ export async function settleInvoice(ctx: MutationCtx, invoiceId: Id<"invoices">)
     body: `${artist?.name ?? "A client"} paid invoice ${inv.number} online via Stripe: ${money(inv.amountCents)}.`,
     kind: "invoice.paid",
   });
+  return "settled";
 }

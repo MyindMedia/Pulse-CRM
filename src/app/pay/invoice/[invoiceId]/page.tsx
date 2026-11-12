@@ -4,7 +4,6 @@ import * as React from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { useQuery, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
-import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import { Loader2, CheckCircle2, CreditCard, ShieldCheck } from "lucide-react";
 import { PulseLoader } from "@/components/brand/pulse-loader";
@@ -14,7 +13,7 @@ const usd = (c: number) => `$${(c / 100).toLocaleString("en-US", { minimumFracti
 export default function InvoicePayPage() {
   const params = useParams<{ invoiceId: string }>();
   const search = useSearchParams();
-  const invoiceId = (params?.invoiceId ?? "") as Id<"invoices">;
+  const invoiceId = params?.invoiceId ?? "";
   const justPaid = search?.get("paid") === "1";
 
   const inv = useQuery(api.invoicePay.get, invoiceId ? { invoiceId } : "skip");
@@ -22,11 +21,12 @@ export default function InvoicePayPage() {
   const [busy, setBusy] = React.useState(false);
 
   async function handlePay() {
+    if (busy) return;
     setBusy(true);
     try {
       const { url } = await pay({ invoiceId });
       if (url) window.location.href = url;
-      else toast.error("Online payment isn't set up for this studio yet. Please reply to your invoice email.");
+      else toast.error("This invoice can't be paid online right now. Please reply to your invoice email.");
     } catch {
       toast.error("Could not start checkout. Try again.");
     } finally {
@@ -35,7 +35,10 @@ export default function InvoicePayPage() {
   }
 
   const accent = inv?.accentColor ?? "#fdb913";
-  const paid = inv?.status === "paid" || justPaid;
+  // A cancelled or unsent invoice is never shown as owed or as paid.
+  const cancelled = inv?.status === "void";
+  const notReady = inv?.status === "draft";
+  const paid = !cancelled && !notReady && (inv?.status === "paid" || justPaid);
 
   return (
     <div className="grid min-h-dvh place-items-center bg-ink p-6">
@@ -69,7 +72,23 @@ export default function InvoicePayPage() {
               </div>
             </div>
 
-            {paid ? (
+            {cancelled ? (
+              <div className="mt-6 rounded-chrome border border-graphite/50 bg-obsidian/60 px-4 py-6 text-center">
+                <p className="font-grotesk text-lg font-semibold text-bone">This invoice was cancelled</p>
+                <p className="mt-1 text-sm text-steel">
+                  You do not owe anything on it.
+                  {justPaid ? " If a payment went through after it was cancelled, it is refunded to your card in full and we email you when it is done." : ""}
+                </p>
+              </div>
+            ) : notReady ? (
+              <div className="mt-6 rounded-chrome border border-graphite/50 bg-obsidian/60 px-4 py-6 text-center">
+                <p className="font-grotesk text-lg font-semibold text-bone">This invoice is not ready yet</p>
+                <p className="mt-1 text-sm text-steel">
+                  The studio will send it when it is ready.
+                  {justPaid ? " If a payment went through before it was sent, it is refunded to your card in full and we email you when it is done." : ""}
+                </p>
+              </div>
+            ) : paid ? (
               <div className="mt-6 rounded-chrome border border-positive/30 bg-positive/[0.06] px-4 py-6 text-center">
                 <CheckCircle2 className="mx-auto size-8 text-positive" />
                 <p className="mt-2 font-grotesk text-lg font-semibold text-bone">
