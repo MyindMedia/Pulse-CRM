@@ -32,6 +32,7 @@ import {
 } from "@/components/studio/constants";
 import { PhotoUploader } from "./photo-uploader";
 import { AssetDocuments } from "./asset-documents";
+import { GearHistory } from "./gear-history";
 import { PhotoUpload } from "@/components/ui/photo-upload";
 import { useCapabilities } from "@/lib/use-capabilities";
 
@@ -52,6 +53,8 @@ export type EditableEquipment = {
   ownerMemberId?: Id<"members"> | null;
   /** Current display photo URL, when one is set. */
   photo?: string | null;
+  /** The label code, when one is assigned. */
+  barcode?: string | null;
 };
 
 type FormState = {
@@ -434,6 +437,7 @@ export function EquipmentDialog({
               <>
                 <PhotoUploader equipmentId={item._id} photo={item.photo} />
                 <AssetDocuments kind="equipment" refId={item._id} />
+                <GearHistory equipmentId={item._id} barcode={item.barcode} />
               </>
             ) : (
               <div className="space-y-1.5">

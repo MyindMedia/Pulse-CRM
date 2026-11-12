@@ -10,6 +10,7 @@ import { requireCapability } from "./lib/access";
 import { teamLink } from "./lib/links";
 import { sendSms, type SmsStatus } from "./lib/sms";
 import { normalizePhone } from "./lib/phone";
+import { isSmsOptedOut } from "./lib/smsOptOut";
 import { recordSmsContact } from "./lib/smsContacts";
 import { routeInboundText } from "./lib/smsRouting";
 import { alertStudioOfClientMessage } from "./lib/messageAlerts";
@@ -37,13 +38,9 @@ const DAY = 24 * 60 * 60 * 1000;
 
 export const _isOptedOut = internalQuery({
   args: { phone: v.string() },
-  handler: async (ctx, { phone }) => {
-    const row = await ctx.db
-      .query("smsOptOuts")
-      .withIndex("by_phone", (q) => q.eq("phone", phone))
-      .first();
-    return row?.optedOut ?? false;
-  },
+  // One STOP check for every path (lib/smsOptOut.ts): notify(), the agent's
+  // send_sms and the text sweeps all normalize the number the same way.
+  handler: async (ctx, { phone }) => isSmsOptedOut(ctx, phone),
 });
 
 export const _recordOptOut = internalMutation({

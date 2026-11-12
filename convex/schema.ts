@@ -830,9 +830,12 @@ export default defineSchema({
     outputTokens: v.optional(v.number()),
     error: v.optional(v.string()),
     completedAt: v.optional(v.number()),
+    // The saved question this run answered, so its answer can be shown with it.
+    automationId: v.optional(v.id("agentAutomations")),
   })
     .index("by_org", ["orgId"])
-    .index("by_org_status", ["orgId", "status"]),
+    .index("by_org_status", ["orgId", "status"])
+    .index("by_automation", ["automationId"]),
 
   agentMessages: defineTable({
     orgId: v.string(),

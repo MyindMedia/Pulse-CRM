@@ -7,6 +7,7 @@ import { FeatureStep } from "@/components/welcome/feature-step";
 import { BetaLinkRecovery } from "@/components/shell/beta-link-recovery";
 import { useRouter } from "next/navigation";
 import { useQuery, useMutation } from "convex/react";
+import { liveScreenCopy } from "./live-copy";
 import type { FunctionReturnType } from "convex/server";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
@@ -470,6 +471,10 @@ function LiveScreen({
   // fall back to the slug the owner just set.
   const fresh = useQuery(api.onboarding.mine, {});
   const finalSlug = fresh?.slug || slug;
+  // Until the server answers, claim nothing either way.
+  const copy = fresh
+    ? liveScreenCopy({ studioName, bookableRooms: fresh.bookableRoomCount, depositsReady: fresh.depositsReady })
+    : null;
 
   const [origin, setOrigin] = React.useState("");
   React.useEffect(() => {
@@ -507,15 +512,13 @@ function LiveScreen({
             <Sparkles className="size-6 text-gold" />
           </span>
           <p className="mt-5 font-meta text-[0.6875rem] uppercase tracking-[0.22em] text-gold">
-            You are live
+            {copy?.eyebrow ?? "Setup saved"}
           </p>
           <h1 className="mt-2 font-grotesk text-3xl font-bold tracking-tight text-bone">
-            {studioName} is taking bookings
+            {copy?.headline ?? studioName}
           </h1>
-          <p className="mt-2 max-w-sm text-sm text-steel">
-            Your booking page is live. Share the link and clients can pick a room, choose a time,
-            and lock it in with a deposit - no back-and-forth.
-          </p>
+          {copy && <p className="mt-2 max-w-sm text-sm text-steel">{copy.body}</p>}
+          {copy?.todo && <p className="mt-1 max-w-sm text-sm text-steel">{copy.todo}</p>}
 
           {/* QR of the booking URL - show a client on the spot. */}
           <div className="mt-8 rounded-chrome border border-graphite/60 bg-bone p-4 shadow-elev-3">

@@ -59,10 +59,11 @@ import { tenantGuard, fenceUntrusted } from "./lib/aiGuard";
 import { sendEmail } from "./lib/email";
 import { sendSms } from "./lib/sms";
 import { normalizePhone } from "./lib/phone";
+import { manualStepFor } from "./lib/agentActions";
 import { studioHealthFor } from "./agentHealth";
 import { sameEmail } from "./lib/emailKey";
 import { businessActivity, formatActivity } from "./lib/agentActivity";
-import { orgTz } from "./lib/tz";
+import { orgTz, utcOffsetMinutes, isValidTimezone } from "./lib/tz";
 
 /* ============================================================
    Pulse Agent - tenant-isolated AI ops manager, one org at a
@@ -92,6 +93,15 @@ const DEFAULT_POLICY = {
 };
 
 // ── Policy ──────────────────────────────────────────────────────────────
+
+export const AGENT_OFF_MESSAGE = "The assistant is turned off for this studio. Turn it on in Agent settings to use it.";
+
+/** The "Agent enabled" switch. Off means the Pulse Agent does not run: no
+ *  chat answers, no saved questions, no scans, no daily summary. */
+export async function agentEnabledFor(ctx: QueryCtx, orgId: string): Promise<boolean> {
+  const row = await ctx.db.query("agentPolicies").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+  return row?.enabled ?? DEFAULT_POLICY.enabled;
+}
 
 export const getPolicy = query({
   args: {},
@@ -195,6 +205,15 @@ export const createRun = mutation({
     const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
     const clerkUserId = "clerkUserId" in viewer ? viewer.clerkUserId : undefined;
 
+    // A money question goes to the Accounting agent, which has its own switch.
+    // Everything else is the Pulse Agent: when the owner has turned it off,
+    // say so instead of quietly running it anyway.
+    const route = routeIntent(prompt);
+    const toAccounting = route?.agent === "accounting" && (await accountingIsOn(ctx, orgId));
+    if (!toAccounting && !(await agentEnabledFor(ctx, orgId))) {
+      throw new ConvexError(AGENT_OFF_MESSAGE);
+    }
+
     const runId = await ctx.db.insert("agentRuns", {
       orgId,
       clerkUserId,
@@ -205,10 +224,8 @@ export const createRun = mutation({
     });
     await ctx.db.insert("agentMessages", { orgId, runId, role: "user", body: prompt });
     await ctx.db.insert("agentAuditLogs", { orgId, runId, event: "run.created", actor: clerkUserId, at: Date.now() });
-    // A money question goes to the Accounting agent, not the general one.
     // The general agent never reads the books (lib/agentScope.ts).
-    const route = routeIntent(prompt);
-    if (route?.agent === "accounting" && (await accountingIsOn(ctx, orgId))) {
+    if (toAccounting && route) {
       await ctx.db.insert("agentAuditLogs", { orgId, runId, event: "run.routed", detail: `accounting: ${route.reason}`, actor: clerkUserId, at: Date.now() });
       await ctx.scheduler.runAfter(0, internal.accountingAgent.answerRun, { runId, orgId, prompt });
       return runId;
@@ -467,8 +484,14 @@ export const runAgentLLM = internalAction({
   args: { runId: v.id("agentRuns"), orgId: v.string(), prompt: v.string(), runType: v.string() },
   handler: async (ctx, { runId, orgId, prompt }) => {
     try {
-      const cx = await ctx.runQuery(internal.agent._context, { orgId });
       const policy = await ctx.runQuery(internal.agent._policyFor, { orgId });
+      // Every path into the model comes through here (chat, saved questions,
+      // scans, the daily summary), so the off switch is enforced here too.
+      if (!policy.enabled) {
+        await ctx.runMutation(internal.agent._finalize, { runId, orgId, status: "failed", error: AGENT_OFF_MESSAGE });
+        return;
+      }
+      const cx = await ctx.runQuery(internal.agent._context, { orgId });
       const tone = policy.defaultTone === "custom" && policy.customToneInstructions
         ? policy.customToneInstructions
         : policy.defaultTone;
@@ -724,9 +747,11 @@ export const executeApproval = internalAction({
         const created = await ctx.runMutation(internal.agentAutomations._fromApproval, { orgId: ap.orgId, payload: ap.proposedPayload });
         ok = created; result = created ? "automation created" : "automation payload missing a prompt";
       } else {
-        // Other action types are recorded as approved but executed by their own
-        // modules / a future executor; mark executed with a note.
-        ok = true; result = "approved (no auto-executor for this action type yet)";
+        // No executor for this type (lib/agentActions.ts). Record the approval
+        // and what is still to be done; never mark it executed, because nothing
+        // was created.
+        await ctx.runMutation(internal.agent._markNotDone, { id, result: `Approved, not done by Pulse. ${manualStepFor(ap.actionType)}` });
+        return;
       }
     } catch (err) {
       ok = false; result = err instanceof Error ? err.message : "execution error";
@@ -738,6 +763,17 @@ export const executeApproval = internalAction({
 export const _approvalForExec = internalQuery({
   args: { id: v.id("agentApprovals") },
   handler: async (ctx, { id }) => await ctx.db.get(id),
+});
+
+export const _markNotDone = internalMutation({
+  args: { id: v.id("agentApprovals"), result: v.string() },
+  handler: async (ctx, { id, result }) => {
+    const ap = await ctx.db.get(id);
+    if (!ap) return;
+    // Status stays "approved": the person said yes, nothing was carried out.
+    await ctx.db.patch(id, { result });
+    await ctx.db.insert("agentAuditLogs", { orgId: ap.orgId, runId: ap.runId, event: "approval.not_executed", detail: result, at: Date.now() });
+  },
 });
 
 export const _markExecuted = internalMutation({
@@ -978,8 +1014,8 @@ const DIGEST_PROMPT =
 /** Start a digest run for one org if it's enabled, the org-local hour matches
  *  the policy's digestHourLocal, and the last digest is >20h old (one per day).
  *  The schedule decision itself is the pure isDigestDue() in
- *  lib/digestSchedule.ts; "org-local" is UTC because orgs carry no timezone
- *  field (documented there). Returns the runId to kick, or null. */
+ *  lib/digestSchedule.ts; the hour is read in the studio's own time zone
+ *  when one is on file, else against UTC. Returns the runId to kick, or null. */
 export const _maybeStartDigest = internalMutation({
   args: { orgId: v.string() },
   handler: async (ctx, { orgId }): Promise<Id<"agentRuns"> | null> => {
@@ -991,10 +1027,15 @@ export const _maybeStartDigest = internalMutation({
     // switch the module off for one studio.
     if (!(await orgHasFeature(ctx, orgId, "dailySummary"))) return null;
     const now = Date.now();
+    // The hour the owner picked is a studio-local hour: read it in the
+    // studio's time zone (set in Workspace, or from a staff phone). A studio
+    // with no zone on file keeps the old UTC reading rather than a guess.
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     const due = isDigestDue({
       now,
       digestHourLocal: policy?.digestHourLocal ?? DEFAULT_POLICY.digestHourLocal,
       lastDigestAt: policy?.lastDigestAt,
+      utcOffsetMinutes: org?.timezone && isValidTimezone(org.timezone) ? utcOffsetMinutes(now, org.timezone) : 0,
     });
     if (!due) return null;
 
