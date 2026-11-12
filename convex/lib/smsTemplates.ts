@@ -81,12 +81,11 @@ export const CLIENT_CONFIRM_2H =
 export const CLIENT_CONFIRM_ACK =
   "Pulse: You are confirmed for \"{title}\" at {studio}. See you soon!";
 
-/** Client said NO: the exact consequence + the 10-day rebooking hold. */
+/** Client said NO: the studio is told and follows up about the deposit.
+ *  Pulse does not hold, apply or forfeit the deposit on its own yet. */
 export const CLIENT_DECLINE_FOLLOWUP =
-  "Pulse: Got it - you will lose this booking window at {studio}. Your deposit " +
-  "will be held for rebooking for 10 days (until {holdDate}). Reply REBOOK to " +
-  "use it toward a new time[[ or book at {link}]]. After {holdDate} the deposit " +
-  "is forfeited.";
+  "Pulse: Got it - we have told {studio}. They will contact you about your " +
+  "deposit and a new time. Reply REBOOK if you want to book again[[ or book at {link}]].";
 
 export const CLIENT_REBOOK_ACK =
   "Pulse: Your deposit at {studio} is on hold for a new booking until {holdDate}." +
@@ -160,7 +159,7 @@ export const WAITLIST_OFFER =
   "Reply CLAIM to take it - first reply wins. Reply STOP to opt out.";
 
 export const WAITLIST_CLAIM_ACK =
-  "Pulse: The {date} slot at {studio} is yours - the studio will confirm shortly." +
+  "Pulse: Thanks - you are first in line for the {date} slot. {studio} will confirm shortly." +
   "[[ Or book instantly: {link}.]]";
 
 export const WAITLIST_TAKEN =

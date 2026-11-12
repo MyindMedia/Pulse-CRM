@@ -117,12 +117,18 @@ export default function CheckoutPage() {
           </span>
           <div className="space-y-1">
             <h1 className="font-grotesk text-2xl font-semibold tracking-tight text-bone">
-              {booking.fullyPaid ? "You're booked" : "Your booking is held"}
+              {booking.requestStatus === "pending"
+                ? "Payment received"
+                : booking.fullyPaid
+                  ? "You're booked"
+                  : "Your booking is held"}
             </h1>
             <p className="text-sm text-steel">
-              {booking.fullyPaid
-                ? "Paid in full. We've emailed your confirmation - see you in the studio."
-                : "Your deposit cleared and the room is held. The balance is due up to 2 hours before your session."}
+              {booking.requestStatus === "pending"
+                ? "Waiting on the studio to approve. We'll let you know once it's confirmed."
+                : booking.fullyPaid
+                  ? "Paid in full. We've emailed your confirmation - see you in the studio."
+                  : "Your deposit cleared and the room is held. The balance is due up to 2 hours before your session."}
             </p>
           </div>
         </motion.div>

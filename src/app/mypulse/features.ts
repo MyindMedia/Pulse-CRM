@@ -84,41 +84,41 @@ const DESC: Record<string, string> = {
   "Money paid up front":
     "The client pays part of the price to hold the time. That part is called the deposit, and it goes into the studio's own payment account.",
   "Extras at checkout":
-    "While booking, the client can also pay for an engineer, extra gear, or extra hours.",
+    "While booking, the client can add rented gear and the extras the studio offers, and request an engineer.",
   "Discount codes":
     "The studio makes codes that take money off the price. The assistant can also suggest a discount code when a room is sitting empty.",
   "Reviews and credits on the page":
     "The booking page can show what past clients said, plus the engineers' names and the records they worked on.",
   "See who sends you clients":
-    "When an artist sends a friend, Pulse remembers who sent them. The studio can see who brings in the most work.",
+    "When a booking comes in through a link with a client's referral code, Pulse records who sent it.",
   "Instant text confirmation":
-    "The client gets a text right away saying the booking worked.",
+    "The client gets a text right after they book, with the link to pay the deposit and lock it in.",
   "Book a returning client in one tap":
     "For someone who has been before, the studio taps once and the form is already filled in from last time.",
   "Waiting list":
     "When someone cancels, Pulse offers those hours to people who asked to be told when time opens up.",
   "Deposit links for staff bookings":
-    "When staff book a session by hand, Pulse still texts the client a link to pay the deposit.",
+    "When staff book a session by hand, Pulse emails the client a link to pay the deposit, and staff can text a pay link in one tap.",
   "The calendar":
     "Every session in one place. Look at a whole month, one week, or just a list of today.",
   "Change a session while it runs":
-    "Add time, add gear, start a timer, write the engineer's notes, mark the client as arrived, or book the next session.",
+    "Add time, add gear, start a timer, write the engineer's notes, start the session, or book the next session.",
   "Checklists before and after":
     "A list of jobs to do before the client arrives and after they leave. Pulse writes the list when the session is booked.",
   "Google Calendar, both ways":
     "Pulse and Google Calendar keep each other up to date. Block time in one and it blocks in the other.",
   "Other calendars mark hours busy":
-    "An outside calendar can gray out hours in Pulse without showing anyone what those hours are for.",
+    "Busy hours from an outside calendar show on the room page, without showing what they are for. They do not block bookings yet.",
   "Their own card-payment account":
     "The studio connects its own Stripe account when it signs up. Client payments land in that account and Stripe pays them out to the studio's bank. Pulse only runs the checkout.",
   "Money paid and money owed":
     "Pulse tracks what has been paid and what is still owed on every session, including part payments along the way.",
   "Saved card":
-    "With the client's permission, their card is kept on file so the studio can charge it later without asking again.",
+    "Not ready yet. Pulse cannot charge a saved card today. Fees for a missed session go out as a bill.",
   "Bills with a pay button":
     "The studio sends a bill. The client taps the button in it and pays.",
   "Bills that write themselves":
-    "When a session ends with money still owed, Pulse writes the bill and sends it, minus what was already paid.",
+    "When a session ends with money still owed, Pulse drafts the bill, minus what was already paid. The studio checks it and sends it in one tap.",
   "Automatic payment reminders":
     "If a bill goes unpaid, Pulse sends a reminder after 3 days, another after 7, and another after 14. Then it flags it for a person.",
   "Take the rest of the money in the room":
@@ -130,27 +130,27 @@ const DESC: Record<string, string> = {
   "Money Pulse won back":
     "Pulse adds up the money the studio would have lost. It counts kept deposits, late fees, canceled hours it resold, and bills paid after a reminder, and it sends the total once a month.",
   "Sales tax":
-    "The studio picks its state and its tax rate. Pulse adds the tax at checkout.",
+    "The studio saves its state and its tax rate. Pulse does not add tax to bills or checkout yet.",
   "Prepaid blocks of hours":
-    "A client buys studio time in advance. Pulse holds it as credit and takes hours off it as they are used.",
+    "The studio sets up prepaid blocks of hours and draws hours down from a client's credit.",
   "Monthly memberships":
-    "Clients pay every month. They get a sign-up page and first pick of the calendar.",
+    "Clients pay every month. They sign up on the studio's own page.",
   "What the studio spends":
     "The studio types in its costs. Pulse takes them off what came in.",
-  "What each room really made":
-    "What each room and each session cleared after costs, rather than what was charged.",
+  "Profit score and profit after costs":
+    "Pulse grades the studio against healthy studio numbers and shows what is left after the costs the studio enters, rather than what was charged.",
   "Your own price list":
     "A company running several studios sets its own prices and resells Pulse to them.",
   "Cancellation rules":
     "The studio decides how late is too late to cancel, and how much of the money it keeps when that happens.",
   "Keep the deposit":
-    "If a client cancels too late or never shows, the studio keeps what was paid. Pulse does it on its own, using the rules the studio set.",
-  "Charge for a missed session":
-    "Pulse charges the card on file for the missed session, following those same rules.",
+    "When staff mark a late cancel or a no-show, the studio keeps the deposit. Pulse follows the rules the studio set.",
+  "Bill for a missed session":
+    "When staff mark a no-show, Pulse keeps the deposit and drafts a bill for the fee at the percentage the studio set. Staff check it and send it.",
   "The awkward message, sent for you":
-    "Somebody has to tell the client they missed the session and are being charged. Pulse sends that message, written in the studio's own words.",
+    "Somebody has to tell the client they missed the session and that a fee applies. Pulse sends a short, polite notice for the studio.",
   "Refill the empty hours":
-    "The freed-up hours go out to the waiting list right away, so someone else can take them.",
+    "When a client cancels, Pulse texts the open hours to the waiting list, so someone else can take them.",
   "Which bookings look shaky":
     "Pulse points out the bookings that look likely to fall through, before they do.",
   "Warnings about money problems":
@@ -158,9 +158,9 @@ const DESC: Record<string, string> = {
   "One list of everyone":
     "Clients, artists, and people who have only asked about a session so far, all in one place.",
   "One person's whole history":
-    "Every message, session, bill and note about one person, in the order it happened.",
+    "One person's sessions, bills, messages and notes, all under their name.",
   "Your own tags":
-    "The studio adds its own tags and its own extra boxes, so the list is sorted the way that studio thinks.",
+    "The studio adds its own tags, so the list is sorted the way that studio thinks.",
   "Bring your list in from a spreadsheet":
     "Upload the client list the studio already keeps and it is in on day one.",
   "A private page for the client":
@@ -170,13 +170,13 @@ const DESC: Record<string, string> = {
   "Ask for a review":
     "A day after the session, Pulse asks the client what they thought. The studio can put those answers on the booking page.",
   "Turn a review into a referral":
-    "The same message carries a link the client can pass to a friend. Pulse tracks who sent who.",
+    "Not ready yet. The review message does not carry a referral link today.",
   "Job board":
     "A row of cards you move along as a job moves: asked about it, serious, quoted, booked, in the room, delivered, bought more.",
   "What each open job is worth":
     "Pulse shows how much each job not yet won is worth, and how likely the client is to say yes.",
   "The week's schedule":
-    "A grid of who works which day, in which room. Change it by typing straight on the grid.",
+    "A grid of who works which day, in which room. Click a day to add a shift, or a shift to change it.",
   "Booking an engineer makes their shift":
     "Put an engineer on a session and their shift appears on the schedule by itself.",
   "Warning when someone is booked twice":
@@ -190,11 +190,11 @@ const DESC: Record<string, string> = {
   "Clock in on a phone":
     "Staff start and end their shift on their own phone. Pulse saves their pay rate at the moment they clock in, so a later raise cannot change old shifts.",
   "Payroll":
-    "Pulse multiplies each person's hours by their pay rate. It spreads salaries across the pay period and adds the engineer's share of each session. What it works out goes into the studio's costs.",
+    "Pulse multiplies each person's hours by their pay rate. It spreads salaries across the pay period. If the studio turns it on, it also queues each engineer's share of a session for approval. What it works out goes into the studio's costs.",
   "Pay periods":
     "Pay people once a month, or every two weeks counting from a date the studio picks.",
   "New staff set themselves up":
-    "A new hire gets an invite with the studio's branding on it, reads what their job can do in the app, adds a photo and their hours. Then they are working.",
+    "A new hire gets an invite from the studio, reads what their job can do in the app, adds a photo and their hours. Then they are working.",
   "Alerts for each person":
     "Each person is only alerted about the things that are their job.",
   "The today screen":
@@ -204,7 +204,7 @@ const DESC: Record<string, string> = {
   "Is the room free":
     "Free or busy, and busy until what time. Worked out from the real bookings, so nobody has to work it out.",
   "Notes on how the session was set up":
-    "The engineer writes down which gear they used, what it was plugged into, and the speed and key of the song. Pulse saves it against the session.",
+    "The engineer writes down the session format, monitoring, tempo and notes. Pulse saves it against the session.",
   "It installs on a phone":
     "Pulse can sit on a phone home screen with its own row of buttons along the bottom. It does not have to come from an app store.",
   "Phone alerts":
@@ -220,9 +220,9 @@ const DESC: Record<string, string> = {
   "A list of every piece of gear":
     "Everything the studio owns, with photos taken on a phone or picked from a library.",
   "What needs servicing":
-    "What is due for a repair or a service, and what has already been done.",
+    "Mark gear as in for repair and see how many pieces are out.",
   "Renting gear out":
-    "Gear lent to other people, tracked and billed like any other charge.",
+    "Gear offered as a paid add-on on bookings. The price is added to the session bill.",
   "Bring the gear list in from a spreadsheet":
     "Upload the gear spreadsheet the studio already keeps.",
   "Software subscriptions":
@@ -234,11 +234,11 @@ const DESC: Record<string, string> = {
   "Look up what a socket does":
     "Check what a socket on a piece of gear is, without looking it up in the manual.",
   "Set up sockets from the maker's sheet":
-    "Upload the maker's specification sheet. Pulse reads it and fills in every input and output on that piece of gear.",
+    "Upload the maker's specification sheet. Pulse reads it and proposes every input and output for the studio to approve.",
   "Notes and history on the cable map":
     "Notes and groups on the map, plus a record of who moved which cable and when.",
   "Finished mixes":
-    "Every version of a mix, saved in order and numbered. The client listens, approves and downloads them here instead of over email.",
+    "Every version of a mix, saved in order and numbered. The studio marks the one the client signs off on, and the client downloads approved versions from their client page.",
   "Notes on one version of a mix":
     "Feedback attached to the exact version it is about, so it stops getting lost in text messages.",
   "Every song in one place":
@@ -250,13 +250,13 @@ const DESC: Record<string, string> = {
   "Who owns what share of a song":
     "The percentage each writer and producer owns, agreed and written down in one form.",
   "Real signatures by link":
-    "Everyone on the song signs the form by clicking a link. It counts as a real signature.",
+    "Pulse makes a one-use signing link for each person. The studio sends it to them, and they sign from their phone.",
   "The form fills itself in":
-    "The people already listed on the song are already on the ownership form.",
+    "Paste a streaming link and the ownership form starts with the song's published writers and producers.",
   "A plan for putting a song out":
     "A list of jobs and dates for a release, tracked from planning until the song is out.",
   "Selling the right to use a song":
-    "The studio can sell permission to use a song in a film, on television, in an ad or in a game. It can also sell a beat, at levels running from a cheap audio file up to an exclusive license.",
+    "Track sync pitches from first send to placement, and keep a record of every beat license sold, with the tier, price and buyer. An exclusive sale retires the beat's other licenses.",
   "Print who owns what":
     "Download the full ownership picture for when a publisher asks for it.",
   "It does not take orders from a client message":
@@ -264,7 +264,7 @@ const DESC: Record<string, string> = {
   "Pulse Agent":
     "An assistant you type at in plain English. It answers from that studio's own records.",
   "It always asks first":
-    "Nothing that reaches a client and nothing involving money happens until a person taps approve.",
+    "By default nothing reaches a client or touches money until a person approves it. The receptionist and Max auto-reminders only run if the studio switches them on.",
   "Daily summary":
     "A short note on what happened and what needs attention, sent at whatever hour the studio picks.",
   "Studio health score":
@@ -272,13 +272,13 @@ const DESC: Record<string, string> = {
   "It remembers":
     "Tell it something once and it still knows later.",
   "A record of what it did":
-    "Every action the assistant took, written down and never edited, plus how much of the plan's allowance it has used.",
+    "Every action the assistant takes is written to a log that cannot be edited.",
   "It answers booking texts day and night":
-    "Someone texts asking about a session at any hour and it replies with the booking link. It never promises a time it cannot actually hold.",
+    "An existing client texts asking about a session at any hour and it replies with the booking link. It never promises a time it cannot actually hold.",
   "The scheduled check (Ops Autopilot)":
     "It looks over the studio on a schedule and puts together a list of things worth doing.",
   "The connection map (Studio Brain)":
-    "A map of how everything connects: which artist made which song, in which room, with which gear and which engineer.",
+    "The assistant knows which artist, room, gear and engineer go with each song.",
   "Guesses from your own history":
     "Forecasts built from this studio's own history.",
   "A short list of what matters":
@@ -300,23 +300,23 @@ const DESC: Record<string, string> = {
   "Reminders before the session":
     "About a day before and again about two hours before the session, so clients remember to show up.",
   "The conversation stays with the client":
-    "Messages are saved under the client's name in the app, where any member of staff can open them.",
+    "Texts, portal messages and emails the team sends are saved under the client's name.",
   "Telling the right staff":
     "When something happens, Pulse tells the people who need to know.",
   "Send from your own Gmail":
-    "Connect Google and client emails go out from the studio's real address.",
+    "Connect Google and the emails staff write to clients go out from the studio's real address. Automatic reminders and receipts still come from Pulse.",
   "One inbox":
-    "Conversations and things waiting for approval in one place instead of five.",
+    "Drafts from the scheduled checks wait here for a person to approve. Client conversations are one tap away under Messages.",
   "How much money came in":
     "The month's total, whether it is going up or down, and where it came from.",
   "The numbers that matter":
-    "Pulse tracks four things: how fast the studio replies to a new inquiry, how many inquiries turn into bookings, how many clients miss sessions, and how many bills are late.",
+    "Pulse tracks three things: late bills, how many inquiries book, and how many clients miss sessions.",
   "Arrange the home screen":
     "The owner drags the boxes around so the first screen matches the way they work.",
   "Charts":
     "Money over time, and how the open jobs are spread across the stages.",
   "What the booking page earned":
-    "How much money the public booking page brought in, and how many of those clients were new.",
+    "How much the public booking page booked, and where those visitors came from.",
   "How much of the plan is used":
     "How much assistant use, storage, texting and email the studio has used against what the plan includes.",
   "Download your numbers":
@@ -334,7 +334,7 @@ const DESC: Record<string, string> = {
   "The app looks like theirs":
     "Their colors, their fonts, how round the corners are, and how much space sits between things.",
   "Their own login screen":
-    "The first screen anyone sees carries their headline, their words and their picture.",
+    "Anyone who opens Pulse with the studio's sign-in link sees their headline, their words and their picture.",
   "Emails in their colors":
     "Automatic emails go out in their colors and sign off in their words.",
   "Their own web address":
@@ -385,7 +385,7 @@ const DESC: Record<string, string> = {
     "Pulse copies the studio's existing information across for them at no charge, and they are running in a day. Rival software often takes months to set up.",
   "No contract":
     "Cancel any month. There is no year-long agreement, and nothing extra to buy for the things other companies charge for on the side.",
-  "955 automatic checks":
+  "Thousands of automatic checks":
     "Automatic tests run on their own over the money, the rule that keeps one studio's records away from another, and what each plan includes.",
   "Post-production project tracking":
     "Each record gets a project with stages from tracking through mixing, mastering and delivery. Tasks, owners, due dates and deliverables sit on cards like the job board and on the today screen, linked to the sessions, songs, rooms, engineers and bills.",

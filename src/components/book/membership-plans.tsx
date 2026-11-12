@@ -5,7 +5,7 @@ import { motion } from "motion/react";
 import { useQuery, useAction } from "convex/react";
 import { api } from "@convex/_generated/api";
 import { toast } from "sonner";
-import { Clock, Percent, Crown, Repeat } from "lucide-react";
+import { Repeat } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogBody, DialogFooter,
@@ -60,9 +60,6 @@ export function MembershipPlans({ slug, accent }: { slug: string; accent: string
             <div className="flex items-center gap-2">
               <Repeat className="size-4" style={{ color: accent }} />
               <h3 className="font-grotesk text-base font-semibold text-bone">{p.name}</h3>
-              {p.priorityBooking && (
-                <Crown className="size-3.5" style={{ color: accent }} aria-label="Priority booking" />
-              )}
             </div>
 
             <p className="mt-3 font-grotesk text-2xl font-bold tabular-nums text-bone">
@@ -72,23 +69,9 @@ export function MembershipPlans({ slug, accent }: { slug: string; accent: string
 
             {p.description && <p className="mt-2 text-xs text-steel">{p.description}</p>}
 
-            <ul className="mt-3 space-y-1.5 text-xs text-steel">
-              {p.bundledHoursPerPeriod ? (
-                <li className="inline-flex items-center gap-1.5">
-                  <Clock className="size-3 text-steel/70" /> {p.bundledHoursPerPeriod}h studio time included
-                </li>
-              ) : null}
-              {p.memberDiscountPct ? (
-                <li className="inline-flex items-center gap-1.5">
-                  <Percent className="size-3 text-steel/70" /> {p.memberDiscountPct}% off every session
-                </li>
-              ) : null}
-              {p.priorityBooking ? (
-                <li className="inline-flex items-center gap-1.5">
-                  <Crown className="size-3 text-steel/70" /> Priority booking
-                </li>
-              ) : null}
-            </ul>
+            {/* Perk lines (discount, bundled hours, priority) stay hidden until
+                booking pricing applies them. Until then the card only shows
+                what the studio wrote in the description. */}
 
             <Button
               className="mt-4 w-full"

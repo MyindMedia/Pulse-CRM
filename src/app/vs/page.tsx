@@ -56,7 +56,7 @@ const ROWS: {
   },
   {
     label: "No-show protection",
-    pulse: { text: "Card on file, policy, auto-charge, waitlist", good: true },
+    pulse: { text: "Policy, kept deposit, fee bill, waitlist", good: true },
     other: { text: "Reminders only", good: false },
   },
   {
@@ -158,7 +158,6 @@ export default function ComparisonPage() {
                 "We import your clients, rooms, rates and upcoming sessions.",
                 "We build your booking page and connect your Stripe.",
                 "We sit on a call while you take your first real booking.",
-                "If you are not live in a day, the first month is on us.",
               ].map((line) => (
                 <li key={line} className="flex items-start gap-2">
                   <ShieldCheck className="mt-0.5 size-3.5 shrink-0 text-gold" />

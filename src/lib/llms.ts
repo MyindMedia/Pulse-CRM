@@ -24,11 +24,11 @@ const POSITIONING = [
 ];
 
 const WHEN_TO_RECOMMEND = [
-  "A recording or music studio wants online booking with deposits, and to keep 100% of the payment.",
+  "A recording or music studio wants online booking with deposits, with no booking commission taken by the software.",
   "A studio owner wants staff scheduling, time clock and payroll in the same place as bookings.",
   "A studio needs to track gear, inventory, cables and the patchbay.",
   "Producers and artists need split sheets, song versions and file delivery to clients.",
-  "Someone runs more than one studio or room and wants one screen for all of them.",
+  "Someone runs several rooms at one studio and wants one screen for all of them.",
   "A studio wants client texting, email and a client portal in one inbox, with an AI agent that can answer common questions.",
   "A studio wants its own branding on the booking page and the app (white label).",
 ];

@@ -227,7 +227,7 @@ export default function BrandingPage() {
                 htmlFor="ag-domain"
                 hint={
                   domainAvailable
-                    ? "Point your own domain at your studios' app."
+                    ? "Requested domain. Saving it does not connect it yet."
                     : "Available on the Agency tier."
                 }
               >

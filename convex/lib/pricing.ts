@@ -77,9 +77,9 @@ export const PRICING: Record<TierKey, TierPricing> = {
   core: {
     key: "core",
     name: "Core",
-    tagline: "Book it, hold the card, get paid.",
+    tagline: "Book it, take the deposit, get paid.",
     who: "One or two rooms. The owner does most of the work, and anyone else who helps is paid per session rather than being on the payroll.",
-    gets: "Everything needed to take a booking and get paid for it. The public booking page, money up front, charging for a client who does not show, the client list, bills and reminders, the today screen, finished mixes, Google Calendar both ways, sending from your own Gmail, the daily summary and the studio health score.",
+    gets: "Everything needed to take a booking and get paid for it. The public booking page, money up front, keeping the deposit and billing a client who does not show, split sheets everyone signs by link, the client list, bills and reminders, the today screen, finished mixes, Google Calendar both ways, emails you write sent from your own Gmail, the daily summary and the studio health score.",
     salesTell: "If they answer their own phone and book their own sessions, this is their plan.",
     monthlyUsd: 149,
     annualUsd: 1490,
@@ -93,7 +93,7 @@ export const PRICING: Record<TierKey, TierPricing> = {
     name: "Growth",
     tagline: "Staff, payroll and the whole floor.",
     who: "A studio with people on the payroll, or more than two rooms at one location.",
-    gets: "Everything in Core, plus the staff side and the thinking side. The staff schedule, clocking in and out, payroll, time off, the gear list, the cable map, software subscriptions, prepaid hours and memberships, what each room really earns, and the assistant.",
+    gets: "Everything in Core, plus the staff side and the thinking side. The staff schedule, clocking in and out, payroll, time off, the gear list, the cable map, software subscriptions, prepaid hour blocks and memberships, a profit score and your profit after costs, and the assistant.",
     salesTell: "The moment they say the word employee, or name an engineer who draws a wage, they are Growth.",
     monthlyUsd: 297,
     annualUsd: 2970,
@@ -105,10 +105,10 @@ export const PRICING: Record<TierKey, TierPricing> = {
   max: {
     key: "max",
     name: "Max",
-    tagline: "Every studio you run, one flat price.",
-    who: "A record company, a production company, or a brand running several studios.",
-    gets: "Everything in Growth, plus song ownership and the multi-studio layer. Split sheets with real signatures, release plans, selling the right to use a song, the whole app in your own brand on your own web address, and one screen above every studio you run. Unlimited studios included.",
-    salesTell: "If they own the songs as well as the rooms, or they run more than one studio, they are Max.",
+    tagline: "Songs, releases and your brand on the whole app.",
+    who: "A record company, a production company, or a studio that wants the whole app in its own brand.",
+    gets: "Everything in Growth, plus release plans, a record of sync pitches and beat licenses, the whole app in your own brand, and the largest allowances.",
+    salesTell: "If they own the songs as well as the rooms, or want the whole app in their own brand, they are Max. Running several studios from one screen is not open to customers yet.",
     monthlyUsd: 699,
     annualUsd: 6990,
     monthlyCents: 69900,
@@ -190,7 +190,7 @@ export const TIER_ROLES: Record<TierKey, readonly RoleKey[]> = {
 export const TIER_ACCESS: Record<TierKey, readonly string[]> = {
   core: [
     "Owner plus engineer and staff logins, no payroll tools",
-    "Unlimited guest passes",
+    "Up to 15 guest links a month",
     "Up to 2 rooms",
   ],
   growth: [
@@ -200,11 +200,10 @@ export const TIER_ACCESS: Record<TierKey, readonly string[]> = {
     "Unlimited rooms at one location",
   ],
   max: [
-    "A group admin layer above every studio",
-    "Staff who see only their studios",
-    "Switch parts off per studio",
-    "One approval queue for all studios",
-    "Unlimited studios, and studios cannot see each other",
+    "All five roles, as on Growth",
+    "Unlimited staff logins",
+    "Unlimited rooms",
+    "Unlimited guest links",
   ],
 };
 
@@ -485,7 +484,7 @@ const RAW_FEATURE_GROUPS: RawFeatureGroup[] = [
       f("Extras at checkout", "core", "bookings"),
       f("Discount codes", "core", "discountCodes"),
       f("Reviews and credits on the page", "core", "reviewsReferrals"),
-      f("See who sends you clients", "core", "reviewsReferrals"),
+      f("See who sends you clients", "core", "reviewsReferrals", { built: false }),
       f("Instant text confirmation", "core", "smsFlows"),
       f("Book a returning client in one tap", "core", "bookings"),
       f("Waiting list", "core", "bookings"),
@@ -504,7 +503,7 @@ const RAW_FEATURE_GROUPS: RawFeatureGroup[] = [
     items: [
       f("Their own card-payment account", "core", "payments"),
       f("Money paid and money owed", "core", "payments"),
-      f("Saved card", "core", "cardOnFile"),
+      f("Saved card", "core", "cardOnFile", { built: false }),
       f("Bills with a pay button", "core", "payments"),
       f("Bills that write themselves", "core", "payments"),
       f("Automatic payment reminders", "core", "dunning"),
@@ -512,22 +511,22 @@ const RAW_FEATURE_GROUPS: RawFeatureGroup[] = [
       f("Every payment recorded", "core", "payments"),
       f("Saved charges", "core", "payments"),
       f("Money Pulse won back", "core", "payments"),
-      f("Sales tax", "core", "payments"),
+      f("Sales tax", "core", "payments", { built: false }),
       f("Prepaid blocks of hours", "growth", "packages"),
       f("Monthly memberships", "growth", "memberships"),
       f("What the studio spends", "growth", "expenses"),
-      f("What each room really made", "growth", "profitability"),
-      f("Your own price list", "max", "multiStudio"),
+      f("Profit score and profit after costs", "growth", "profitability"),
+      f("Your own price list", "max", "multiStudio", { built: false }),
     ],
   },
   {
     id: "noshow",
     title: "People who do not turn up",
-    salesNote: "Start a cold call here. When a client misses a session, the studio usually gets nothing for that time. Pulse charges for it and tries to sell those hours to someone else.",
+    salesNote: "Start a cold call here. When a client misses a session, the studio usually gets nothing for that time. Pulse keeps the deposit, drafts a bill for the fee, and offers canceled hours to the waiting list.",
     items: [
       f("Cancellation rules", "core", "noShowShield"),
       f("Keep the deposit", "core", "noShowShield"),
-      f("Charge for a missed session", "core", "noShowShield"),
+      f("Bill for a missed session", "core", "noShowShield"),
       f("The awkward message, sent for you", "core", "noShowShield"),
       f("Refill the empty hours", "core", "noShowShield"),
       f("Which bookings look shaky", "core", "noShowShield"),
@@ -546,7 +545,7 @@ const RAW_FEATURE_GROUPS: RawFeatureGroup[] = [
       f("A private page for the client", "core", "clientPortal"),
       f("Guest passes", "core"),
       f("Ask for a review", "core", "reviewsReferrals"),
-      f("Turn a review into a referral", "core", "reviewsReferrals"),
+      f("Turn a review into a referral", "core", "reviewsReferrals", { built: false }),
       f("Job board", "growth", "pipeline"),
       f("What each open job is worth", "growth", "pipeline"),
     ],
@@ -643,13 +642,13 @@ const RAW_FEATURE_GROUPS: RawFeatureGroup[] = [
       f("It writes, you send", "growth", "agent"),
       f("Let simple reminders run themselves", "max", "aiAutonomy"),
       f("Ask it the same thing every week", "max", "aiAutonomy"),
-      f("All the assistants on one screen", "max", "multiStudio"),
+      f("All the assistants on one screen", "max", "multiStudio", { built: false }),
     ],
   },
   {
     id: "comms",
     title: "Talking to clients",
-    salesNote: "Emails to clients can go out from Pulse, or from the studio's own Gmail. The studio picks which.",
+    salesNote: "Emails staff write to clients can go out from Pulse, or from the studio's own Gmail. The studio picks which. Automatic emails come from Pulse.",
     items: [
       f("Email that works on day one", "core"),
       f("Text messages", "core", "smsFlows"),
@@ -664,7 +663,7 @@ const RAW_FEATURE_GROUPS: RawFeatureGroup[] = [
   {
     id: "reporting",
     title: "Numbers",
-    salesNote: "Most studio owners cannot tell you which of their rooms makes money. These screens answer that.",
+    salesNote: "See what came in, what went out, and how busy each room is.",
     items: [
       f("How much money came in", "growth", "reports"),
       f("The numbers that matter", "growth", "reports"),
@@ -688,7 +687,7 @@ const RAW_FEATURE_GROUPS: RawFeatureGroup[] = [
       f("The app looks like theirs", "max", "whiteLabelUi"),
       f("Their own login screen", "max", "whiteLabelUi"),
       f("Emails in their colors", "max", "whiteLabelUi"),
-      f("Their own web address", "max", "customDomain"),
+      f("Their own web address", "max", "customDomain", { built: false }),
       f("Colors stay readable", "max", "whiteLabelUi"),
       f("A small Pulse mark", "max", "whiteLabelUi"),
     ],
@@ -698,17 +697,17 @@ const RAW_FEATURE_GROUPS: RawFeatureGroup[] = [
     title: "Running many studios",
     salesNote: "One screen sitting above a group of studios. Each studio only ever sees its own work.",
     items: [
-      f("One screen for every studio", "max", "multiStudio"),
-      f("Invite a studio by email", "max", "multiStudio"),
+      f("One screen for every studio", "max", "multiStudio", { built: false }),
+      f("Invite a studio by email", "max", "multiStudio", { built: false }),
       f("Step-by-step setup", "max", "multiStudio"),
-      f("Pull details off their website", "max", "multiStudio"),
-      f("Switch parts off per studio", "max", "multiStudio"),
-      f("Your own price list", "max", "multiStudio"),
-      f("Staff who see only their studios", "max", "multiStudio"),
-      f("The console under your brand", "max", "multiStudio"),
-      f("One approval queue for all studios", "max", "multiStudio"),
-      f("Who did what, where", "max", "multiStudio"),
-      f("Fake data for a pitch", "max", "multiStudio"),
+      f("Pull details off their website", "max", "multiStudio", { built: false }),
+      f("Switch parts off per studio", "max", "multiStudio", { built: false }),
+      f("Your own price list", "max", "multiStudio", { built: false }),
+      f("Staff who see only their studios", "max", "multiStudio", { built: false }),
+      f("The console under your brand", "max", "multiStudio", { built: false }),
+      f("One approval queue for all studios", "max", "multiStudio", { built: false }),
+      f("Who did what, where", "max", "multiStudio", { built: false }),
+      f("Fake data for a pitch", "max", "multiStudio", { built: false }),
     ],
   },
   {
@@ -727,7 +726,7 @@ const RAW_FEATURE_GROUPS: RawFeatureGroup[] = [
       f("Use it before setup is finished", "core"),
       f("We move your data for free", "core"),
       f("No contract", "core"),
-      f("955 automatic checks", "core"),
+      f("Thousands of automatic checks", "core"),
     ],
   },
   {
@@ -737,9 +736,9 @@ const RAW_FEATURE_GROUPS: RawFeatureGroup[] = [
     isNew: true,
     items: [
       f("Post-production project tracking", "growth", "projects"),
-      f("Projects across every studio", "max", "crossStudioProjects"),
+      f("Projects across every studio", "max", "crossStudioProjects", { built: false }),
       f("Media file management with version control", "growth", "mediaLibrary"),
-      f("One media library shared across studios", "max", "sharedMediaLibrary"),
+      f("One media library shared across studios", "max", "sharedMediaLibrary", { built: false }),
       f("Barcode equipment check-in and check-out", "growth", "gearCheckout"),
     ],
   },
@@ -771,7 +770,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "Extras at checkout": [
     "Add-ons a client can pick while they book.",
-    "While booking, the client can also pay for an engineer, extra gear or extra hours. It all happens in the same checkout, so you do not have to chase a second payment for the extras.",
+    "While booking, the client can add rented gear and the extras you offer, and request an engineer. It all happens in the same checkout, so you do not have to chase a second payment for the extras.",
   ],
   "Discount codes": [
     "Codes you make that take money off a price.",
@@ -782,12 +781,12 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
     "The page can show review answers from earlier clients, plus the engineers' names and the records they worked on. A new visitor sees proof of your work right where they decide to book.",
   ],
   "See who sends you clients": [
-    "A record of which client referred which new client.",
-    "When an artist sends a friend, Pulse remembers who sent them. You can then see which clients bring in the most work and who deserves a thank-you.",
+    "A tag on bookings that came in through a referral link.",
+    "When a booking comes in through a link that carries a client's referral code, Pulse records who sent it.",
   ],
   "Instant text confirmation": [
     "A text message sent to the client right after they book.",
-    "The client gets a text saying the booking worked, so they know it went through without waiting on an email. Clients who replied STOP are not texted.",
+    "The client gets a text right after they book, with the link to pay the deposit and lock it in. Clients who replied STOP are not texted.",
   ],
   "Book a returning client in one tap": [
     "A shortcut for someone who has been to your studio before.",
@@ -799,7 +798,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "Deposit links for staff bookings": [
     "A payment link for the deposit when your team books a session by hand.",
-    "When staff book a client over the phone or in person, Pulse still texts the client a link to pay the deposit. A booking made at the front desk gets the same up-front money as one made on the web page.",
+    "When staff book a client over the phone or in person, Pulse emails the client a link to pay the deposit, and staff can text a pay link in one tap. A booking made at the front desk gets the same up-front money as one made on the web page.",
   ],
   "The calendar": [
     "Every session in one place.",
@@ -807,7 +806,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "Change a session while it runs": [
     "Controls for adjusting a session once it has started.",
-    "Staff can add time, add gear, start a timer, write the engineer's notes, mark the client as arrived, or book the next session. A session that runs long or changes shape is updated on the spot.",
+    "Staff can add time, add gear, start a timer, write the engineer's notes, start the session, or book the next session. A session that runs long or changes shape is updated on the spot.",
   ],
   "Checklists before and after": [
     "A list of jobs to do before the client arrives and after they leave.",
@@ -818,8 +817,8 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
     "The two keep each other up to date. Block time in one and it blocks in the other, so a personal appointment on your own calendar does not turn into a double booking.",
   ],
   "Other calendars mark hours busy": [
-    "A way for an outside calendar to gray out hours in Pulse.",
-    "Hours that are busy on another calendar are shown as unavailable in Pulse, without showing anyone what those hours are for. Clients cannot book a time you are not free.",
+    "A way to see an outside calendar's busy hours in Pulse.",
+    "Busy hours from another calendar show on the room page, without showing anyone what those hours are for. You refresh it by hand, and it does not block bookings yet.",
   ],
 
   /* Money */
@@ -833,7 +832,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "Saved card": [
     "A client's card, kept on file with their permission.",
-    "You can charge it later without asking again, for example for a missed session. Clients are not asked to type the same card in twice.",
+    "Not ready yet. Pulse cannot charge a saved card today. Fees for a missed session go out as a bill.",
   ],
   "Bills with a pay button": [
     "A bill you send that the client can pay straight from.",
@@ -841,7 +840,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "Bills that write themselves": [
     "Bills Pulse creates when a session ends with money still owed.",
-    "Pulse writes the bill and sends it, minus what the client already paid. You do not have to work out the balance by hand after each session.",
+    "Pulse drafts the bill when a session ends with money owed, minus what the client already paid. You check it and send it in one tap.",
   ],
   "Automatic payment reminders": [
     "Reminders Pulse sends when a bill goes unpaid.",
@@ -865,23 +864,23 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "Sales tax": [
     "Tax settings for your studio.",
-    "You pick your state and your tax rate, and Pulse adds the tax at checkout. You do not have to add it to each bill yourself.",
+    "You save your state and your tax rate. Pulse does not add tax to bills or checkout yet.",
   ],
   "Prepaid blocks of hours": [
     "Studio time that a client buys in advance.",
-    "Pulse holds the purchase as credit and takes hours off it as the client uses them. Good for a regular client who wants to pay once and book several sessions.",
+    "Set up prepaid blocks and draw hours down from a client's credit. Good for a regular client who wants to pay once and book several sessions.",
   ],
   "Monthly memberships": [
     "A plan clients pay for every month.",
-    "Members get a sign-up page and first pick of the calendar. It gives the studio a steady monthly payment from clients who come back often.",
+    "Members sign up on their own page and pay every month. It gives the studio a steady monthly payment from clients who come back often.",
   ],
   "What the studio spends": [
     "A place to enter your studio's costs.",
     "You type in what the studio spends. Pulse takes the costs off what came in, so you see what is left and not only what was charged.",
   ],
-  "What each room really made": [
-    "What each room and each session earned after costs.",
-    "You see what was left after costs, not just what was charged. It shows which rooms are paying for themselves.",
+  "Profit score and profit after costs": [
+    "A profit score for the studio and what is left after costs.",
+    "Pulse grades the studio against healthy studio numbers and shows what is left after the costs you enter, not just what was charged.",
   ],
   "Your own price list": [
     "A price list for a company that runs several studios.",
@@ -898,20 +897,20 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
     "You decide the cutoff and how much of the money the studio keeps when a client cancels after it. Pulse then follows your rules every time, so you are not deciding case by case.",
   ],
   "Keep the deposit": [
-    "Pulse keeps the deposit when a client cancels too late or never shows.",
-    "It happens on its own, using the rules you set. You do not have to argue about what was paid.",
+    "Pulse keeps the deposit when you mark a late cancel or a no-show.",
+    "It follows the rules you set. You do not have to argue about what was paid.",
   ],
-  "Charge for a missed session": [
-    "A charge to the card on file when a client misses a session.",
-    "Pulse charges the saved card for the missed session, following the same cancellation rules. The studio is paid for the time it held.",
+  "Bill for a missed session": [
+    "A fee bill when a client misses a session.",
+    "When you mark a no-show, Pulse keeps the deposit and drafts a bill for the fee at the percentage you set. You check it and send it.",
   ],
   "The awkward message, sent for you": [
-    "The message that tells a client they missed the session and are being charged.",
-    "Pulse sends it, written in your studio's own words. You do not have to write that message yourself.",
+    "The message that tells a client they missed the session and that a fee applies.",
+    "Pulse sends a short, polite notice for you. You do not have to write that message yourself.",
   ],
   "Refill the empty hours": [
-    "A way to sell the hours a no-show freed up.",
-    "The freed-up hours go out to the waiting list right away, so someone else can take them. An empty room can turn back into a booking.",
+    "A way to resell hours a client gave up.",
+    "When a client cancels, Pulse texts the open hours to your waiting list, so someone else can take them. An empty room can turn back into a booking.",
   ],
   "Which bookings look shaky": [
     "A flag on bookings that look likely to fall through.",
@@ -928,12 +927,12 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
     "Clients, artists, and people who have only asked about a session so far all sit in one place.",
   ],
   "One person's whole history": [
-    "A timeline for one person.",
-    "Every message, session, bill and note about them is shown in the order it happened. Open one name and you see the whole relationship.",
+    "Everything about one person, under their name.",
+    "Their sessions, bills, messages and notes are all under their name. Open one name and you see the whole relationship.",
   ],
   "Your own tags": [
-    "Tags and extra boxes you add yourself.",
-    "You sort the client list the way your studio thinks about it, with your own labels and extra boxes for details you care about.",
+    "Tags you add yourself.",
+    "You sort the client list the way your studio thinks about it, with your own labels.",
   ],
   "Bring your list in from a spreadsheet": [
     "An upload for the client list you already keep.",
@@ -953,7 +952,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "Turn a review into a referral": [
     "A referral link inside the review message.",
-    "The same message carries a link the client can pass to a friend. Pulse tracks who sent who.",
+    "Not ready yet. The review message does not carry a referral link today.",
   ],
   "Job board": [
     "A row of cards you move along as a job moves.",
@@ -967,7 +966,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   /* Staff and shifts */
   "The week's schedule": [
     "A grid of who works which day, in which room.",
-    "You change it by typing straight on the grid. The whole team can see who is working when.",
+    "Click a day to add a shift, or a shift to change it. The whole team can see who is working when.",
   ],
   "Booking an engineer makes their shift": [
     "A link between session bookings and the staff schedule.",
@@ -995,7 +994,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "Payroll": [
     "Pay worked out from hours and pay rates.",
-    "Pulse multiplies each person's hours by their pay rate, spreads salaries across the pay period and adds the engineer's share of each session. What it works out goes into your studio's costs.",
+    "Pulse multiplies each person's hours by their pay rate and spreads salaries across the pay period. If you turn it on, it also queues each engineer's share of a session for you to approve. What it works out goes into your studio's costs.",
   ],
   "Pay periods": [
     "The schedule you pay people on.",
@@ -1003,7 +1002,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "New staff set themselves up": [
     "A guided start for a new hire.",
-    "A new hire gets an invite with your studio's branding on it, reads what their job can do in the app, and adds a photo and their hours. Then they are working.",
+    "A new hire gets an invite from your studio, reads what their job can do in the app, and adds a photo and their hours. Then they are working.",
   ],
   "Alerts for each person": [
     "Alerts that go only to the people they matter to.",
@@ -1025,7 +1024,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "Notes on how the session was set up": [
     "Notes the engineer writes about a session.",
-    "They record which gear was used, what it was plugged into, and the speed and key of the song. Pulse saves it against the session.",
+    "They record the session format, monitoring, tempo and notes. Pulse saves it against the session.",
   ],
   "It installs on a phone": [
     "Pulse on a phone home screen.",
@@ -1059,12 +1058,12 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
     "Each item has photos taken on a phone or picked from a library. You know what you have and what it looks like.",
   ],
   "What needs servicing": [
-    "A record of repairs and services.",
-    "It shows what is due for a repair or a service, and what has already been done.",
+    "A repair status for each piece of gear.",
+    "Mark gear as in for repair and see how many pieces are out.",
   ],
   "Renting gear out": [
-    "Tracking for gear lent to other people.",
-    "Rentals are tracked and billed like any other charge, so lent gear does not go unpaid or unrecorded.",
+    "Gear as a paid add-on.",
+    "Offer gear as a paid add-on on bookings. The price is added to the session bill.",
   ],
   "Bring the gear list in from a spreadsheet": [
     "An upload for the gear spreadsheet you already keep.",
@@ -1088,7 +1087,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "Set up sockets from the maker's sheet": [
     "An import from the maker's specification sheet.",
-    "Upload the sheet. Pulse reads it and fills in every input and output on that piece of gear, instead of you typing them one by one.",
+    "Upload the sheet. Pulse reads it and proposes every input and output for you to approve, instead of you typing them one by one.",
   ],
   "Notes and history on the cable map": [
     "Notes and groups on the cable map, plus a log of changes.",
@@ -1098,7 +1097,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   /* Songs */
   "Finished mixes": [
     "A home for every version of a mix.",
-    "Versions are saved in order and numbered. The client listens, approves and downloads them in Pulse instead of over email.",
+    "Versions are saved in order and numbered. You mark the one the client signs off on, and they download approved versions from their client page.",
   ],
   "Notes on one version of a mix": [
     "Feedback that is attached to a specific version.",
@@ -1118,19 +1117,19 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "Real signatures by link": [
     "Signing the ownership form with a link.",
-    "Everyone on the song signs by clicking the link they are sent. They do not need to be in the room.",
+    "Pulse makes a one-use signing link for each person. You send it to them, and they sign from their phone. They do not need to be in the room.",
   ],
   "The form fills itself in": [
-    "A form that starts with the people already on the song.",
-    "People already listed on the song are already on the ownership form, so you do not enter them twice.",
+    "A form that starts with the song's published credits.",
+    "Paste a streaming link and the ownership form starts with the song's published writers and producers.",
   ],
   "A plan for putting a song out": [
     "A release plan for a song.",
     "It is a list of jobs and dates, tracked from planning until the song is out.",
   ],
   "Selling the right to use a song": [
-    "Licensing for songs and beats.",
-    "You can sell permission to use a song in a film, on television, in an ad or in a game. You can also sell a beat, at levels running from a cheap audio file up to an exclusive license.",
+    "Records for song and beat licenses.",
+    "Track sync pitches from first send to placement, and keep a record of every beat license you sell, with the tier, price and buyer. An exclusive sale retires the beat's other licenses.",
   ],
   "Pull in your whole catalog with credits": [
     "Bring every song you have released into Pulse at once.",
@@ -1157,7 +1156,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "It always asks first": [
     "An approval step before the assistant acts.",
-    "Nothing that reaches a client and nothing involving money happens until a person taps approve.",
+    "By default nothing reaches a client or touches money until a person approves it. The receptionist and Max auto-reminders only run if you switch them on.",
   ],
   "Daily summary": [
     "A short note on what happened and what needs attention.",
@@ -1173,20 +1172,20 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "A record of what it did": [
     "A log of the assistant's actions.",
-    "Every action it took is written down and never edited. You can also see how much of your plan's assistant allowance has been used.",
+    "Every action it takes is written to a log that cannot be edited.",
     "assistant",
   ],
   "It answers booking texts day and night": [
-    "Automatic replies to booking questions sent by text.",
-    "When someone texts asking about a session at any hour, it replies with your booking link. It never promises a time it cannot actually hold.",
+    "Automatic replies to booking texts from your existing clients.",
+    "When a client texts asking about a session at any hour, it replies with your booking link. It never promises a time it cannot actually hold.",
   ],
   "The scheduled check (Ops Autopilot)": [
     "A check of the studio that runs on a schedule.",
     "It looks over the studio and puts together a list of things worth doing.",
   ],
   "The connection map (Studio Brain)": [
-    "A map of how everything in your studio connects.",
-    "It shows which artist made which song, in which room, with which gear and which engineer.",
+    "What the assistant knows about how your studio connects.",
+    "The assistant knows which artist, room, gear and engineer go with each song.",
   ],
   "Guesses from your own history": [
     "Forecasts built from your studio's own history.",
@@ -1235,7 +1234,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "The conversation stays with the client": [
     "Messages saved under the client's name.",
-    "Any member of staff can open the conversation, so nobody has to ask what was already said.",
+    "Texts, portal messages and emails your team sends are saved under the client's name.",
   ],
   "Telling the right staff": [
     "Notifications to the people who need to know.",
@@ -1243,11 +1242,11 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "Send from your own Gmail": [
     "Client email sent from your studio's own address.",
-    "Connect Google and client emails go out from your real address.",
+    "Connect Google and the emails you write to clients go out from your real address. Automatic reminders and receipts still come from Pulse.",
   ],
   "One inbox": [
-    "One place for conversations and approvals.",
-    "Conversations and things waiting for approval are in one place instead of five.",
+    "One place for drafts waiting on you.",
+    "Drafts from the scheduled checks wait here for a person to approve. Client conversations are one tap away under Messages.",
   ],
 
   /* Numbers */
@@ -1256,8 +1255,8 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
     "It shows the month's total, whether it is going up or down, and where it came from.",
   ],
   "The numbers that matter": [
-    "Four numbers Pulse tracks for you.",
-    "They are how fast you reply to a new inquiry, how many inquiries turn into bookings, how many clients miss sessions, and how many bills are late.",
+    "Three numbers Pulse tracks for you.",
+    "Late bills, how many inquiries book, and how many clients miss sessions.",
   ],
   "Arrange the home screen": [
     "A home screen the owner can rearrange.",
@@ -1269,7 +1268,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "What the booking page earned": [
     "A report on your public booking page.",
-    "It shows how much money the page brought in and how many of those clients were new.",
+    "It shows how much the page booked and where those visitors came from.",
   ],
   "How much of the plan is used": [
     "A meter for what your plan includes.",
@@ -1308,7 +1307,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "Their own login screen": [
     "A login screen in your branding.",
-    "The first screen anyone sees carries your headline, your words and your picture.",
+    "Anyone who opens Pulse with your studio's sign-in link sees your headline, your words and your picture.",
   ],
   "Emails in their colors": [
     "Automatic emails in your studio's look.",
@@ -1355,7 +1354,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "The console under your brand": [
     "Your studio-group screen under your own name.",
-    "Your screen and all its studios appear under your name and your own web address.",
+    "Your screen and all its studios appear under your name.",
   ],
   "One approval queue for all studios": [
     "A single list of what is waiting for a person.",
@@ -1417,7 +1416,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
     "Month to month billing.",
     "Cancel any month. There is no year-long agreement. Paying yearly is optional.",
   ],
-  "955 automatic checks": [
+  "Thousands of automatic checks": [
     "Automatic tests that run on their own.",
     "They cover the money, the rule that keeps one studio's records away from another, and what each plan includes.",
   ],
@@ -1439,7 +1438,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "One media library shared across studios": [
     "A shared library for a company that runs many studios.",
-    "Every studio can draw from one library, while each studio's own files stay its own.",
+    "The group admin can search every studio's files from one place, for studios whose owner shares them.",
     "studios",
   ],
   "Barcode equipment check-in and check-out": [
@@ -1575,7 +1574,7 @@ export const PULSE_APP_CAPABILITIES: Record<TierKey, readonly string[]> = {
     "The gear list",
     "The cable map",
     "Prepaid hours, the job board and the door sign-in",
-    "Payroll, expenses and receipts",
+    "Engineer payouts, posting payroll, expenses and receipts",
   ],
   max: [
     "Switch between studios",

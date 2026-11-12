@@ -58,8 +58,8 @@ export function CardOnFileCard({
             </div>
             <p className="mt-0.5 text-xs text-steel">
               {hasCard
-                ? `${clientName} has a card saved. Late cancels and no-shows can be charged against your policy without chasing them.`
-                : `Hold a card so a no-show becomes a charge instead of a lost night. ${clientName} enters it themselves; you never see the number.`}
+                ? `${clientName} has a card saved. Pulse does not charge saved cards yet, so late-cancel and no-show fees go out as a bill.`
+                : `${clientName} can enter a card themselves, and you never see the number. Pulse does not charge saved cards yet. No-show fees go out as a bill.`}
             </p>
           </div>
         </div>

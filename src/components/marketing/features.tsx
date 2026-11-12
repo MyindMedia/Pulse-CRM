@@ -14,19 +14,19 @@ const FEATURES = [
     icon: Sparkles,
     title: "AI operations manager",
     blurb:
-      "Automates the busywork: chases unpaid deposits, follows up on leads, fills cancellations and flags scheduling and payment risks before they cost you. It only ever sees your studio.",
+      "Suggests the next step and does it when you approve: chasing unpaid deposits, following up on leads, filling cancellations, and flagging scheduling and payment risks. It only ever sees your studio. On Growth and Max.",
   },
   {
     icon: Ticket,
     title: "Bookings and deposits",
     blurb:
-      "Public booking pages take deposits straight to your own Stripe account. You keep 100 percent, with no per-booking fees.",
+      "Public booking pages take deposits straight to your own Stripe account. Pulse takes no cut. Stripe's standard card fees apply.",
   },
   {
     icon: CalendarClock,
     title: "Staffing and scheduling",
     blurb:
-      "Schedule engineers and assistants to rooms and sessions in one calendar. Everyone sees their shifts, and no session runs unstaffed or double-booked.",
+      "Schedule engineers and assistants to rooms and sessions in one calendar. Everyone sees their shifts, and Pulse warns you before a session runs unstaffed or someone is booked twice.",
   },
   {
     icon: Boxes,

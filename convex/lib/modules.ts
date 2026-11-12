@@ -87,27 +87,27 @@ export const MODULES: ModuleDef[] = [
   { key: "discountCodes", label: "Discount codes", area: "bookings", nav: false,
     blurb: "Owner-issued and AI-generated codes at checkout" },
   { key: "calendarSync", label: "Calendar sync", area: "bookings", nav: false,
-    blurb: "Two-way Google and external calendar sync" },
+    blurb: "Two-way Google sync, other calendars shown read-only on the room page" },
 
   // ── Money ──
   { key: "payments", label: "Payments", area: "money", nav: true,
     blurb: "Invoices, payment ledger and cash flow" },
   { key: "cardOnFile", label: "Card on file", area: "money", nav: false,
-    blurb: "Saved payment method and off-session charging" },
+    blurb: "Not ready yet: saving a card Pulse can charge later" },
   { key: "dunning", label: "Dunning ladder", area: "money", nav: false,
     blurb: "Automatic 3, 7 and 14 day invoice chasing" },
   { key: "packages", label: "Hour packages", area: "money", nav: false,
-    blurb: "Prepaid blocks of studio time drawn down as credits" },
+    blurb: "Set up prepaid blocks and draw hours down from a client's credit" },
   { key: "memberships", label: "Memberships", area: "money", nav: false,
     blurb: "Recurring plans with a public subscribe page" },
   { key: "expenses", label: "Expenses", area: "money", nav: false,
     blurb: "Costs recorded against the studio" },
   { key: "profitability", label: "Profitability", area: "money", nav: false,
-    blurb: "What each room and session actually cleared" },
+    blurb: "A profit score for the studio and the levers that would raise it" },
 
   // ── No-show & risk ──
   { key: "noShowShield", label: "No-show shield", area: "risk", nav: false,
-    blurb: "Cancellation policy, deposit forfeit and no-show fees" },
+    blurb: "Cancellation policy, kept deposits and drafted no-show fee bills" },
 
   // ── Clients ──
   { key: "clients", label: "Clients", area: "clients", nav: true,
@@ -117,7 +117,7 @@ export const MODULES: ModuleDef[] = [
   { key: "clientPortal", label: "Client portal", area: "clients", nav: false,
     blurb: "Magic-link portal to rebook, pay and download mixes" },
   { key: "reviewsReferrals", label: "Reviews & referrals", area: "clients", nav: false,
-    blurb: "Post-session review request and the referral loop" },
+    blurb: "Post-session review requests" },
 
   // ── Staff & scheduling ──
   { key: "schedule", label: "Schedule", area: "staff", nav: true,
@@ -125,7 +125,7 @@ export const MODULES: ModuleDef[] = [
   { key: "timeClock", label: "Time clock", area: "staff", nav: false,
     blurb: "Self-service clock in and out from a phone" },
   { key: "payroll", label: "Payroll", area: "staff", nav: false,
-    blurb: "Hours against rates, engineer cuts, pay periods" },
+    blurb: "Hours against rates, pay periods, engineer cuts you approve" },
 
   // ── Floor & front desk ──
   { key: "studio", label: "Studio", area: "floor", nav: true,
@@ -137,9 +137,9 @@ export const MODULES: ModuleDef[] = [
   { key: "inventory", label: "Inventory", area: "gear", nav: true,
     blurb: "Equipment assets with photos" },
   { key: "maintenance", label: "Maintenance", area: "gear", nav: false,
-    blurb: "What needs servicing, and what has been" },
+    blurb: "Mark gear as in for repair and see how many pieces are out" },
   { key: "rentals", label: "Rentals", area: "gear", nav: false,
-    blurb: "Gear rented out, tracked and billed" },
+    blurb: "Gear as a paid add-on on bookings, added to the session bill" },
   { key: "patch", label: "Patch bay", area: "gear", nav: true,
     blurb: "Signal routing, devices, ports and cable management" },
   { key: "software", label: "Software", area: "gear", nav: true,
@@ -147,7 +147,7 @@ export const MODULES: ModuleDef[] = [
   { key: "gearModels", label: "Gear models", area: "gear", nav: false,
     blurb: "Describe a model once; every copy of it uses the same details" },
   { key: "specSheetImport", label: "Maker's sheet import", area: "gear", nav: false,
-    blurb: "Read a spec sheet and fill in every input and output" },
+    blurb: "Read a spec sheet and propose every input and output for you to approve" },
   { key: "patchHistory", label: "Cable map notes and history", area: "gear", nav: false,
     blurb: "Notes, groups and a record of who moved which cable" },
   { key: "gearCheckout", label: "Gear check-out", area: "gear", nav: false,
@@ -155,17 +155,17 @@ export const MODULES: ModuleDef[] = [
 
   // ── Music & catalog ──
   { key: "finishedMixes", label: "Finished mixes", area: "catalog", nav: false,
-    blurb: "Numbered mix versions, notes on a version, client approval" },
+    blurb: "Numbered mix versions, notes on a version, the version the client signed off on" },
   { key: "songs", label: "Songs", area: "catalog", nav: true,
     blurb: "Song catalog, cover art and streaming links" },
   { key: "mediaLibrary", label: "Media library", area: "catalog", nav: true,
     blurb: "Sessions, stems, mixes, masters and artwork, every upload a numbered version with notes and approval" },
   { key: "sharedMediaLibrary", label: "Shared media library", area: "catalog", nav: false,
-    blurb: "See every studio's files in your group from one place" },
+    blurb: "Not open to customers yet: the group admin searching shared studio files" },
   { key: "projects", label: "Projects", area: "catalog", nav: true,
     blurb: "Post-production tracking from tracking through mixing, mastering and delivery, with tasks, owners and due dates" },
   { key: "crossStudioProjects", label: "Projects across every studio", area: "catalog", nav: false,
-    blurb: "Every studio's projects and what is overdue, on one screen for the group" },
+    blurb: "Not open to customers yet: every studio's projects on one screen" },
   { key: "splitSheets", label: "Split sheets", area: "catalog", nav: false,
     blurb: "Ownership splits with real e-signatures" },
   { key: "catalogImport", label: "Catalog import", area: "catalog", nav: false,
@@ -175,15 +175,15 @@ export const MODULES: ModuleDef[] = [
   { key: "releases", label: "Releases", area: "catalog", nav: true,
     blurb: "Rollout campaigns" },
   { key: "licensing", label: "Licensing", area: "catalog", nav: true,
-    blurb: "Sync and beat licenses, rights export" },
+    blurb: "Sync pitches and beat license records" },
 
   // ── The AI layer ──
   { key: "agent", label: "Pulse Agent", area: "ai", nav: true,
     blurb: "The AI studio operations manager" },
   { key: "inbox", label: "Approval inbox", area: "ai", nav: true,
-    blurb: "Everything the agent is waiting on a human for" },
+    blurb: "Drafts from the scheduled checks" },
   { key: "aiReceptionist", label: "AI receptionist", area: "ai", nav: false,
-    blurb: "24/7 auto-reply to inbound booking texts" },
+    blurb: "24/7 auto-reply to booking texts from existing clients" },
   { key: "aiAutonomy", label: "Agent autonomy", area: "ai", nav: false,
     blurb: "Low-risk reminders run without an approval" },
   { key: "dailySummary", label: "Daily summary", area: "ai", nav: false,
@@ -193,9 +193,9 @@ export const MODULES: ModuleDef[] = [
 
   // ── Communication ──
   { key: "smsFlows", label: "SMS & reminders", area: "comms", nav: false,
-    blurb: "Confirmations and the 48h / 24h / 2h reminder ladder" },
+    blurb: "Confirmations and the 24h / 2h reminder ladder" },
   { key: "gmailSend", label: "Send from Gmail", area: "comms", nav: false,
-    blurb: "Client emails from the studio's own Gmail address" },
+    blurb: "Emails you write to clients, from the studio's own Gmail address" },
   { key: "marketing", label: "Marketing", area: "comms", nav: true,
     blurb: "Scheduled social posts, promos and results" },
 
@@ -209,11 +209,11 @@ export const MODULES: ModuleDef[] = [
   { key: "whiteLabelUi", label: "White-label UI", area: "brand", nav: false,
     blurb: "Their logo, palette, fonts and sign-in across the whole app" },
   { key: "customDomain", label: "Custom domain", area: "brand", nav: false,
-    blurb: "The app on the studio's own address" },
+    blurb: "Not ready yet: the app on the studio's own address" },
 
   // ── Agency & multi-studio ──
   { key: "multiStudio", label: "Multi-studio", area: "agency", nav: false,
-    blurb: "Run more than one studio from one console" },
+    blurb: "Not open to customers yet: more than one studio from one console" },
 ];
 
 /* ── Always-on rows ───────────────────────────────────────────
@@ -237,25 +237,25 @@ export type AlwaysOnDef = {
 export const ALWAYS_ON: AlwaysOnDef[] = [
   // ── Agency & multi-studio ──
   { id: "agencyConsole", area: "agency", kind: "plan", tier: "max",
-    label: "Agency console", blurb: "Every studio, its health and its numbers, from one screen" },
+    label: "Agency console", blurb: "Pulse team only for now. Every studio, its health and its numbers, from one screen" },
   { id: "studioInvites", area: "agency", kind: "plan", tier: "max",
-    label: "Studio invites & onboarding", blurb: "Invite by email, branded onboarding, taking bookings the same day" },
+    label: "Studio invites & onboarding", blurb: "Pulse team only for now. Invite by email, branded onboarding, taking bookings the same day" },
   { id: "priceBook", area: "agency", kind: "plan", tier: "max",
-    label: "Price book & rebilling", blurb: "The plans an operator sells on, with trials and per-account pricing" },
+    label: "Price book & rebilling", blurb: "Pulse team only for now. The plans an operator sells on, with trials and per-account pricing" },
   { id: "scopedStaff", area: "agency", kind: "plan", tier: "max",
-    label: "Scoped agency staff", blurb: "Team members who only see the studios they are assigned" },
+    label: "Scoped agency staff", blurb: "Pulse team only for now. Team members who only see the studios they are assigned" },
   { id: "crossApprovals", area: "agency", kind: "plan", tier: "max",
-    label: "Cross-studio approvals", blurb: "Everything waiting on a human across the fleet, in one queue" },
+    label: "Cross-studio approvals", blurb: "Pulse team only for now. Everything waiting on a human across the fleet, in one queue" },
   { id: "siteImport", area: "agency", kind: "plan", tier: "max",
-    label: "Import from their website", blurb: "Pull a new studio's details off the site they already have" },
+    label: "Import from their website", blurb: "Pulse team only for now. Pull a new studio's details off the site they already have" },
   { id: "demoData", area: "agency", kind: "plan", tier: "max",
-    label: "Demo data switch", blurb: "Fill a sub-account with realistic data for a pitch, then clear it" },
+    label: "Demo data switch", blurb: "Pulse team only for now. Fill a sub-account with realistic data for a pitch, then clear it" },
 
   // ── Platform & security ──
   { id: "tenantIsolation", area: "platform", kind: "always",
     label: "Tenant isolation", blurb: "Every query scoped to one studio; cross-studio access denied at the engine" },
   { id: "accessEngine", area: "platform", kind: "always",
-    label: "Access engine", blurb: "One resolver, one permission check, one audit hook, on every function" },
+    label: "Access engine", blurb: "One resolver and one permission check that every write uses" },
   { id: "rbac", area: "platform", kind: "always",
     label: "Role permissions", blurb: "Owner, manager, engineer, staff and guest, each seeing their own surface" },
   { id: "entitlementGate", area: "platform", kind: "always",

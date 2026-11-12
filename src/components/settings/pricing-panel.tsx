@@ -232,7 +232,7 @@ function tierBullets(tier: TierKey): string[] {
     n >= UNLIMITED ? `Unlimited ${many}` : `${n} ${n === 1 ? one : many}`;
   const lead: Record<TierKey, string[]> = {
     core: [
-      "Booking page, deposits, card on file",
+      "Booking page and deposits",
       "No-show rules, bills and the 3/7/14 day reminders",
       "Google Calendar both ways and your own Gmail",
     ],
@@ -690,11 +690,10 @@ function TaxConfigCard({ org }: { org: Org }) {
           />
           <span className="flex-1">
             <span className="block text-sm font-medium text-bone">
-              Apply tax to new invoices automatically
+              Apply tax to new invoices
             </span>
             <span className="block text-xs text-steel">
-              When on, every new invoice adds a tax line item at the effective rate.
-              Existing invoices are not retroactively recalculated.
+              Saved for your records. Pulse does not add tax to invoices yet.
             </span>
           </span>
         </label>
