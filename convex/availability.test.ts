@@ -35,6 +35,20 @@ describe("availability + time-off", () => {
     expect(b.slots[0].weekday).toBe(5);
   });
 
+  it("a time-off request alerts the studio's manager inbox", async () => {
+    await t.run(async (ctx) => {
+      const org = (await ctx.db.query("orgs").collect()).find((o) => o.orgId === "pulse-demo");
+      await ctx.db.patch(org!._id, { ownerEmail: "owner@demo.com" });
+    });
+    const now = Date.now();
+    await t.mutation(api.availability.requestTimeOff, { startTime: now + 86400000, endTime: now + 2 * 86400000, reason: "Trip" });
+    const sent = await t.run(async (ctx) =>
+      (await ctx.db.query("notifications").collect()).filter((n) => n.kind === "timeoff.requested"));
+    expect(sent).toHaveLength(1);
+    expect(sent[0].recipient).toBe("owner@demo.com");
+    expect(sent[0].body).toMatch(/Eng Ellis/);
+  });
+
   it("request → pending → approve flow notifies the staff member", async () => {
     const now = Date.now();
     await t.mutation(api.availability.requestTimeOff, { startTime: now + 86400000, endTime: now + 2 * 86400000, reason: "Trip" });
