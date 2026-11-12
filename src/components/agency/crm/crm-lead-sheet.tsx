@@ -89,7 +89,18 @@ export function withLocalNotes(events: TimelineEvent[], local: TimelineEvent[]):
   const ids = new Set(events.map((e) => e.id));
   const bodies = new Set(events.filter((e) => /note/i.test(e.event_type ?? "")).map((e) => (e.body ?? "").trim()));
   const pending = local.filter((n) => !ids.has(n.id) && !bodies.has((n.body ?? "").trim()));
-  return [...pending, ...events];
+  return newestFirst([...pending, ...events]);
+}
+
+/** The timeline reads newest first (R4-U1), whatever order an answer arrives in,
+ *  so a note added here sits at the top before and after the re-read. The sort
+ *  is stable: events with the same time, or none, keep the order Zuops sent. */
+export function newestFirst(events: TimelineEvent[]): TimelineEvent[] {
+  const at = (e: TimelineEvent) => {
+    const t = e.created_at ? Date.parse(e.created_at) : NaN;
+    return Number.isNaN(t) ? -Infinity : t;
+  };
+  return [...events].sort((a, b) => at(b) - at(a));
 }
 
 /** The timeline entry for a note Zuops just accepted: its answer when it has an

@@ -1,6 +1,6 @@
 // @vitest-environment node
 import { afterEach, describe, expect, it } from "vitest";
-import { isoToLocalInput, localInputToIso, lostBody, noteBody, noteEvent, reachability, wonBody, withLocalNotes } from "./crm-lead-sheet";
+import { isoToLocalInput, localInputToIso, lostBody, newestFirst, noteBody, noteEvent, reachability, wonBody, withLocalNotes } from "./crm-lead-sheet";
 import { MAYA, STAGES } from "./crm-test-fixtures";
 import { stableStringify } from "./zu-store";
 
@@ -49,10 +49,26 @@ describe("R3-U2 a note shows at once", () => {
     expect(local[0]).toMatchObject({ id: "local-note-k1", event_type: "note", body: "Called, wants a Friday demo", actor_label: "You", created_at: "2026-11-11T12:00:00.000Z" });
     expect(withLocalNotes(server, local).map((e) => e.id)).toEqual(["local-note-k1", "e1"]);
     // Once the timeline has it (same body on a note event, or the same id) it is shown once.
-    expect(withLocalNotes([{ id: "n9", event_type: "note_added", body: "Called, wants a Friday demo" }, ...server], local).map((e) => e.id)).toEqual(["n9", "e1"]);
+    expect(withLocalNotes([{ id: "n9", event_type: "note_added", body: "Called, wants a Friday demo", created_at: "2026-11-11T12:00:01Z" }, ...server], local).map((e) => e.id)).toEqual(["n9", "e1"]);
     const fromServer = noteEvent({ note: { id: "n9", body: "Called, wants a Friday demo", created_at: "2026-11-11T12:00:01Z" } }, "x", "k2");
     expect(fromServer.id).toBe("n9");
     expect(withLocalNotes([{ id: "n9", event_type: "lead_note", body: "edited" }], [fromServer]).map((e) => e.id)).toEqual(["n9"]);
+  });
+
+  it("R4-U1: newest first, so the note stays on top before and after the re-read, whatever order the answer uses", () => {
+    const older = [
+      { id: "e1", event_type: "created", created_at: "2026-11-01T17:00:00Z" },
+      { id: "e2", event_type: "sms_outbound", created_at: "2026-11-05T17:00:00Z" },
+    ];
+    const local = [noteEvent(undefined, "Friday demo", "k1", Date.UTC(2026, 10, 11, 12))];
+    const before = withLocalNotes(older, local).map((e) => e.id);
+    expect(before).toEqual(["local-note-k1", "e2", "e1"]);
+    const saved = { id: "n9", event_type: "note", body: "Friday demo", created_at: "2026-11-11T12:00:01Z" };
+    // Oldest-first and newest-first answers both render the same way.
+    expect(withLocalNotes([...older, saved], local).map((e) => e.id)).toEqual(["n9", "e2", "e1"]);
+    expect(withLocalNotes([saved, ...[...older].reverse()], local).map((e) => e.id)).toEqual(["n9", "e2", "e1"]);
+    // Same time or no time: the order Zuops sent is kept.
+    expect(newestFirst([{ id: "a" }, { id: "b" }, { id: "c", created_at: "2026-11-01T00:00:00Z" }]).map((e) => e.id)).toEqual(["c", "a", "b"]);
   });
 });
 

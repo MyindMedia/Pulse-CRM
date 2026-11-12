@@ -89,6 +89,10 @@ function SingleView({ def }: { def: ResourceDef }) {
   const panelActions = (def.actions ?? []).filter((a) => a.scope === "panel");
   const invalidate = invalidateFor(def);
   const headingRef = React.useRef<HTMLHeadingElement | null>(null);
+  // Names for ids from a list that is ALREADY cached (the Calendar tab's
+  // calendars, say). enabled: false reads the cache only and never fetches.
+  const names = useZuRead<unknown>(single.names?.op ?? null, undefined, { enabled: false, pollMs: 0 });
+  const root = single.names && names.data !== undefined ? { answer: read.data, cached: extractRows(names.data, single.names.rowsKey) } : read.data;
 
   return (
     <FocusHome.Provider value={headingRef}>
@@ -111,7 +115,7 @@ function SingleView({ def }: { def: ResourceDef }) {
         <>
           {read.error && <Stale reason={read.error.reason} />}
           <div className="rounded-xl border border-graphite/50 p-4 sm:p-5">
-            <ValueList value={obj} only={single.only} root={read.data} />
+            <ValueList value={obj} only={single.only} root={root} />
           </div>
         </>
       )}
@@ -156,7 +160,13 @@ function ListView({ def }: { def: ResourceDef }) {
   // sheet always shows the CURRENT row from the latest read, so after a write
   // (switching an automation on) its buttons follow the new state (R3-R1).
   const [opened, setOpened] = React.useState<{ id: string | null; snapshot: Obj } | null>(null);
-  const setOpenRow = (row: Obj | null) => setOpened(row ? { id: idOf(row), snapshot: row } : null);
+  // The opener's row id outlives `opened`: closing clears `opened` before the
+  // sheet's focus handler runs, and that handler still needs the row (R4-R1).
+  const lastOpenedId = React.useRef<string | null>(null);
+  const setOpenRow = (row: Obj | null) => {
+    if (row) lastOpenedId.current = idOf(row);
+    setOpened(row ? { id: idOf(row), snapshot: row } : null);
+  };
   const openRow = opened ? (opened.id !== null ? rows.find((r) => idOf(r) === opened.id) : undefined) ?? opened.snapshot : null;
   const headingRef = React.useRef<HTMLHeadingElement | null>(null);
   const sectionRef = React.useRef<HTMLElement | null>(null);
@@ -262,7 +272,7 @@ function ListView({ def }: { def: ResourceDef }) {
 
       <DetailSheet
         def={def} row={openRow} rowIdKey={rowIdKey} onClose={() => setOpenRow(null)}
-        opener={() => rowOpener(sectionRef.current, opened?.id ?? null)}
+        opener={() => rowOpener(sectionRef.current, lastOpenedId.current)}
       />
     </section>
     </FocusHome.Provider>

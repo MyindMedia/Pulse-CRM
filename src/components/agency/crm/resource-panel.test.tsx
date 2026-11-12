@@ -423,3 +423,33 @@ describe("round 3", () => {
     expect(requestFingerprint(actionArgs(move, {}, { source: { id: "a1" } }), {})).toMatch(/^values:/);
   });
 });
+
+describe("round 4", () => {
+  it("R4-R2: counts are pluralized: Enroll 1 lead, Enroll 3 leads", () => {
+    const enroll = find("automations").actions!.find((a) => a.op === "enroll_automation")!;
+    const one = confirmText(enroll, { "body:lead_ids": "a" }, { name: "Demo booked" }, "reaches");
+    expect(one.title).toBe("Enroll 1 lead?");
+    expect(one.body).toContain("the 1 lead you listed");
+    expect(confirmText(enroll, { "body:lead_ids": "a, b" }, { name: "Demo booked" }, "reaches").title).toBe("Enroll 2 leads?");
+    const survey = find("surveys").actions!.find((a) => a.op === "send_survey")!;
+    expect(confirmText(survey, { "body:lead_ids": "a" }, { name: "Check-in" }, "reaches").title).toBe("Send Check-in to 1 lead?");
+  });
+
+  const AVAIL = { availability: { timezone: "America/Los_Angeles", default_calendar_id: "cal-uuid-1", date_overrides: [] }, configured: true };
+
+  it("R4-R4: with no name at hand the id is labelled plainly as a Calendar id, and nothing is fetched for it", () => {
+    reads.get_availability = { data: AVAIL };
+    const out = html(<ResourcePanel def={find("availability")} />);
+    expect(out).toContain("Calendar id </span>cal-uuid-1");
+    expect(out).not.toContain(">id </span>");
+  });
+
+  it("R4-R4: when the calendars list is already cached, the default calendar shows its name", () => {
+    reads.get_availability = { data: AVAIL };
+    reads.list_calendars = { data: { calendars: [{ id: "cal-uuid-1", name: "Studio A" }] } };
+    const out = html(<ResourcePanel def={find("availability")} />);
+    expect(out).toMatch(/>Default calendar<\/dt><dd[^>]*><span>Studio A</);
+    expect(out).not.toContain("cal-uuid-1");
+    expect(find("availability").single!.names).toEqual({ op: "list_calendars", rowsKey: "calendars" });
+  });
+});

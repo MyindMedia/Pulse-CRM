@@ -39,7 +39,7 @@ export type ActionDef = {
   rowBody?: Array<{ field: string; from: string; array?: boolean }>;
   confirm?: {
     title: string;
-    /** What or who it acts on. May use {count}, {name}, {email_audience},
+    /** What or who it acts on. May use {count:noun} ("1 lead", "3 leads"), {name}, {email_audience},
      *  {send_when} ("now" or "at <time>"), {drip} and any {field} of the form. The consequence line for the operation's kind is
      *  added by the dialog, so this does not repeat it. */
     body: string;
@@ -103,6 +103,9 @@ export type ResourceDef = {
     only?: ColumnDef[];
     /** The object sits at this path in the answer (e.g. "key"). */
     pick?: string;
+    /** A list whose rows can name the ids in this object, used ONLY when it is
+     *  already cached (another tab read it). Never fetched for this. */
+    names?: { op: string; rowsKey?: string };
   };
   /** Opens in a Sheet and shows every field. */
   detail?: { op: string; pathParam: string };
@@ -237,7 +240,7 @@ const automations: ResourceDef[] = [
       view("Results per step", "automation_results", "automation_id"),
       rowAct("Enroll leads", "enroll_automation", "automation_id", [LEAD_IDS(), bool("ignore_filters", "Ignore the automation's filters")], {
         prefill: false,
-        confirm: { title: "Enroll {count} leads?", body: "{name} can text and email the {count} leads you listed as its steps run.", label: "Enroll", count: { field: "lead_ids" } },
+        confirm: { title: "Enroll {count:lead}?", body: "{name} can text and email the {count:lead} you listed as its steps run.", label: "Enroll", count: { field: "lead_ids" } },
       }),
       rowAct("Take leads out", "unenroll_automation", "automation_id", [
         list("lead_ids", "Lead ids", { help: "One per line or separated by commas." }), bool("all", "Take everyone out"),
@@ -308,7 +311,7 @@ const forms: ResourceDef[] = [
       ], { confirm: ask("Change when {name} sends itself?", "Who gets {name} automatically, and when, follows these rules.", "Save rules") }),
       rowAct("Send", "send_survey", "form_id", [LEAD_IDS(), pick("channel", "Channel", ["sms", "email", "both"])], {
         prefill: false,
-        confirm: { title: "Send {name} to {count} leads?", body: "Each of the {count} leads you listed gets their own link to {name}.", label: "Send survey", count: { field: "lead_ids" } },
+        confirm: { title: "Send {name} to {count:lead}?", body: "Each lead you listed ({count:lead}) gets their own link to {name}.", label: "Send survey", count: { field: "lead_ids" } },
       }),
       rowAct("Link for one lead", "create_survey_link", "form_id", [text("lead_id", "Lead id", { required: true })], { showResult: true, done: "Link ready. Nothing was sent." }),
       view("Answers", "get_survey_results", "form_id"),
@@ -1257,7 +1260,7 @@ const settings: ResourceDef[] = [
     key: "availability",
     title: "Business hours",
     blurb: "Business hours and booking defaults.",
-    single: { op: "get_availability" },
+    single: { op: "get_availability", names: { op: "list_calendars", rowsKey: "calendars" } },
     actions: [
       make("Edit", "set_availability", [
         text("timezone", "Time zone"), num("slot_minutes", "Slot length (minutes)"), num("buffer_minutes", "Buffer (minutes)"), text("default_calendar_id", "Default calendar id"),

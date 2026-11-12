@@ -37,8 +37,9 @@ vi.mock("./crm-ui", async (orig) => {
 
 import { ZU_OPS } from "@convex/crm/ops.generated";
 import { CrmProvider } from "./crm-context";
-import { OpForm, answerText, opArgs, opFields, opFingerprint, runPlan, confirmSentence, targetText } from "./crm-op-form";
+import { OpForm, answerText, missingField, opArgs, opFields, opFingerprint, runPlan, confirmSentence, targetText } from "./crm-op-form";
 import { confirmCopy } from "./crm-ui";
+import { FieldList } from "./resource-fields";
 
 const html = (el: React.ReactElement) => renderToStaticMarkup(<CrmProvider>{el}</CrmProvider>);
 
@@ -199,5 +200,18 @@ describe("round 3", () => {
     const c = opFingerprint(op, { "path:stage_id": "s1" }, '{"hidden": false, "label": "Won"}');
     expect(a).toBe(b);
     expect(a).not.toBe(c);
+  });
+});
+
+describe("round 4", () => {
+  it("R4-R3: the field that blocks submit gets aria-invalid and points at the message", () => {
+    const op = ZU_OPS.send_message;
+    expect(missingField(op, { "body:body": "Hi" }, "")).toBe("body:channel");
+    expect(missingField(op, { "body:channel": "sms", "body:body": "Hi" }, "")).toBeNull();
+    const out = renderToStaticMarkup(
+      <FieldList fields={opFields(op)} values={{ "body:body": "Hi" }} onChange={() => undefined} idPrefix="t" invalidKey="body:channel" errorId="t-error" />,
+    );
+    expect(out).toMatch(/id="t-body-channel"[^>]*aria-invalid="true"[^>]*aria-describedby="t-error"|aria-invalid="true"[^>]*aria-describedby="t-error"[^>]*id="t-body-channel"|aria-describedby="t-error"[^>]*aria-invalid="true"/);
+    expect(out.match(/aria-invalid="true"/g)).toHaveLength(1);
   });
 });

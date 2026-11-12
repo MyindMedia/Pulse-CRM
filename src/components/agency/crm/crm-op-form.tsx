@@ -13,7 +13,7 @@ import { ConfirmDialog, TOUCH, WriteButton, confirmCopy, type ConfirmGrant } fro
 import type { FieldDef } from "./resource-config";
 import { FieldList } from "./resource-fields";
 import { useFocusHome, useReturnFocus } from "./resource-focus";
-import { buildArgs, mergeExtra, redactSecrets, requiredMessage, type BuiltArgs, type FormValues } from "./resource-utils";
+import { buildArgs, fieldKey, mergeExtra, redactSecrets, requiredMessage, type BuiltArgs, type FormValues } from "./resource-utils";
 import { CopyButton } from "./resource-values";
 import { KIND_LABEL, LEVEL_LABEL } from "./functions-catalog";
 import { KindIcon } from "./functions-kind";
@@ -122,6 +122,29 @@ export function opArgs(op: ZuOp, values: FormValues, extra: string): BuiltArgs |
   return { ...built, body: merged.body };
 }
 
+/** The first required field (fieldKey) the request is missing, or null: the
+ *  one that gets aria-invalid when submit is blocked (R4-R3). */
+export function missingField(op: ZuOp, values: FormValues, extra: string): string | null {
+  let fromJson: Record<string, unknown> = {};
+  if (op.openBody && extra.trim()) {
+    try {
+      const parsed: unknown = JSON.parse(extra);
+      if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) fromJson = parsed as Record<string, unknown>;
+    } catch {
+      // A JSON error is reported on its own; it is not a missing field.
+    }
+  }
+  for (const f of opFields(op)) {
+    if (!f.required) continue;
+    const k = fieldKey(f);
+    if ((values[k] ?? "").trim() !== "") continue;
+    const j = fromJson[f.name];
+    if ((f.in ?? "body") === "body" && op.openBody && j !== undefined && j !== null && j !== "") continue;
+    return k;
+  }
+  return null;
+}
+
 /** What the Idempotency-Key covers: the exact request about to be sent. */
 export function opFingerprint(op: ZuOp | undefined, values: FormValues, extra: string): string {
   if (!op) return "";
@@ -143,7 +166,7 @@ export function OpForm({ opId, initial, onDone }: OpFormProps) {
   const fields = React.useMemo(() => (op ? opFields(op) : []), [op]);
   const [values, setValues] = React.useState<FormValues>(() => ({ ...(initial ?? {}) }));
   const [extra, setExtra] = React.useState("");
-  const [error, setError] = React.useState<string | null>(null);
+  const [error, setError] = React.useState<{ text: string; field: string | null } | null>(null);
   const [confirming, setConfirming] = React.useState(false);
   const [result, setResult] = React.useState<Result | null>(null);
   const [staged, setStaged] = React.useState<{ args: BuiltArgs; kind: ConfirmKind } | null>(null);
@@ -183,7 +206,13 @@ export function OpForm({ opId, initial, onDone }: OpFormProps) {
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     const args = opArgs(op, values, extra);
-    if ("error" in args) { setError(args.error); return; }
+    if ("error" in args) {
+      // Mark the field only when the message is about it being required.
+      const missing = missingField(op, values, extra);
+      const f = missing ? fields.find((x) => fieldKey(x) === missing) : undefined;
+      setError({ text: args.error, field: f && requiredMessage(f) === args.error ? missing : null });
+      return;
+    }
     setError(null);
     // The server's policy, for the body about to be sent.
     const k = op.method === "GET" ? null : confirmKind(op, args.body);
@@ -212,13 +241,16 @@ export function OpForm({ opId, initial, onDone }: OpFormProps) {
 
       <form onSubmit={submit} noValidate className="space-y-4">
         {fields.length === 0 && !op.openBody && <p className="text-sm text-steel">This function takes nothing. Press {label}.</p>}
-        <FieldList fields={fields} values={values} idPrefix={idPrefix} onChange={(k, v) => { setValues((s) => ({ ...s, [k]: v })); setError(null); }} />
+        <FieldList
+          fields={fields} values={values} idPrefix={idPrefix} invalidKey={error?.field} errorId={`${idPrefix}-error`}
+          onChange={(k, v) => { setValues((s) => ({ ...s, [k]: v })); setError(null); }}
+        />
         {op.openBody && (
           <Field label="More fields (JSON object)" htmlFor={`${idPrefix}-extra`} hint="Any other fields Zuops documents for this function, merged into the body.">
             <Textarea id={`${idPrefix}-extra`} value={extra} onChange={(e) => { setExtra(e.target.value); setError(null); }} spellCheck={false} className="min-h-20 font-mono text-xs" />
           </Field>
         )}
-        {error && <p role="alert" className="flex items-start gap-2 text-sm text-critical"><AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />{error}</p>}
+        {error && <p id={`${idPrefix}-error`} role="alert" className="flex items-start gap-2 text-sm text-critical"><AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />{error.text}</p>}
         <div className="flex flex-wrap items-center gap-2">
           {plan === "read" ? (
             <Button ref={submitRef} type="submit" className={TOUCH} disabled={pending}><Play className="size-4" aria-hidden />{pending ? "Running" : label}</Button>

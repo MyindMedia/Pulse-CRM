@@ -3,6 +3,7 @@
    here is plain data in, plain data out, so it is unit tested directly. */
 
 import type { FieldDef } from "./resource-config";
+import { plural } from "./crm-ui";
 
 export type Json = null | boolean | number | string | Json[] | { [k: string]: Json };
 export type Obj = Record<string, unknown>;
@@ -290,11 +291,15 @@ export function statusWord(value: unknown): string {
 /* ---------- confirm text ---------- */
 
 
-/** Fill `{count}`, `{name}`, `{email_audience}`, any `extra` word and any
- *  `{field}` from the dialog's values. */
+/** Fill `{count:noun}` (pluralized: "1 lead", "3 leads"), `{name}`,
+ *  `{email_audience}`, any `extra` word and any `{field}` from the dialog's values. */
 export function fillTemplate(text: string, vars: { count?: number | null; name?: string | null; email_audience?: string; values?: Record<string, string>; extra?: Record<string, string> }): string {
-  return text.replace(/\{([a-z_]+)\}/g, (_, k: string) => {
-    if (k === "count") return vars.count === null || vars.count === undefined ? "an uncounted number of" : vars.count.toLocaleString("en-US");
+  return text.replace(/\{([a-z_]+)(?::([a-z ]+))?\}/g, (_, k: string, noun?: string) => {
+    if (k === "count") {
+      const n = vars.count;
+      if (n === null || n === undefined) return noun ? `an uncounted number of ${noun}s` : "an uncounted number of";
+      return noun ? plural(n, noun) : n.toLocaleString("en-US");
+    }
     if (k === "name") return vars.name || "this item";
     if (k === "email_audience" && vars.email_audience) return vars.email_audience;
     if (vars.extra && Object.prototype.hasOwnProperty.call(vars.extra, k)) return vars.extra[k];
@@ -343,8 +348,8 @@ export function dripText(values: FormValues, source?: Obj | null): string {
   const every = drip.every;
   const minutes = drip.minutes;
   if (typeof every !== "number" || typeof minutes !== "number") return "";
-  const gap = minutes % 60 === 0 ? `${minutes / 60} ${minutes === 60 ? "hour" : "hours"}` : `${minutes} minutes`;
-  return ` A few at a time: ${every.toLocaleString("en-US")} ${every === 1 ? "email" : "emails"} every ${gap}.`;
+  const gap = minutes % 60 === 0 ? plural(minutes / 60, "hour") : plural(minutes, "minute");
+  return ` A few at a time: ${plural(every, "email")} every ${gap}.`;
 }
 
 /** "now", or "at Nov 12, 9:00 AM" when the form sets a time. */

@@ -19,14 +19,17 @@ function label(f: FieldDef): string {
 }
 
 export function FieldInput({
-  field, value, onChange, idPrefix,
+  field, value, onChange, idPrefix, errorId,
 }: {
   field: FieldDef;
   value: string;
   onChange: (v: string) => void;
   idPrefix: string;
+  /** Set when this field failed validation: the id of the message that says why. */
+  errorId?: string;
 }) {
   const id = `${idPrefix}-${(field.in ?? "body")}-${field.name}`;
+  const invalid = errorId ? { "aria-invalid": true as const, "aria-describedby": errorId } : {};
   const hint = field.help ?? (field.list ? "Separate with commas or new lines." : field.type === "json" ? "JSON. Checked before it is sent." : undefined);
 
   if (field.type === "boolean" || field.type === "select") {
@@ -37,7 +40,7 @@ export function FieldInput({
         {/* A required choice has no "Not set" item and starts on the "Choose…"
             placeholder, so nothing is silently left blank (R3-R5); submit names it. */}
         <Select value={value === UNSET ? (requiredChoice ? "" : NOT_SET) : value} onValueChange={(v) => onChange(v === NOT_SET ? UNSET : v)}>
-          <SelectTrigger id={id} className={TOUCH} aria-required={field.required || undefined}><SelectValue placeholder="Choose…" /></SelectTrigger>
+          <SelectTrigger id={id} className={TOUCH} aria-required={field.required || undefined} {...invalid}><SelectValue placeholder="Choose…" /></SelectTrigger>
           <SelectContent>
             {!requiredChoice && <SelectItem value={NOT_SET}>{field.type === "boolean" ? "Leave as is" : "Not set"}</SelectItem>}
             {options.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
@@ -51,7 +54,7 @@ export function FieldInput({
     return (
       <Field label={label(field)} htmlFor={id} hint={hint}>
         <Textarea
-          id={id} value={value} onChange={(e) => onChange(e.target.value)} aria-required={field.required || undefined}
+          id={id} value={value} onChange={(e) => onChange(e.target.value)} aria-required={field.required || undefined} {...invalid}
           spellCheck={field.type !== "json"} className={cn(field.type === "json" && "font-mono text-xs", "min-h-20")}
         />
       </Field>
@@ -63,25 +66,28 @@ export function FieldInput({
     <Field label={label(field)} htmlFor={id} hint={hint}>
       <Input
         id={id} type={type} value={value} onChange={(e) => onChange(e.target.value)} className={TOUCH} autoComplete="off"
-        inputMode={field.type === "number" ? "decimal" : undefined} aria-required={field.required || undefined}
+        inputMode={field.type === "number" ? "decimal" : undefined} aria-required={field.required || undefined} {...invalid}
       />
     </Field>
   );
 }
 
 export function FieldList({
-  fields, values, onChange, idPrefix,
+  fields, values, onChange, idPrefix, invalidKey, errorId,
 }: {
   fields: readonly FieldDef[];
   values: FormValues;
   onChange: (key: string, v: string) => void;
   idPrefix: string;
+  /** The field (fieldKey) that failed validation, and its message's id. */
+  invalidKey?: string | null;
+  errorId?: string;
 }) {
   return (
     <div className="space-y-4">
       {fields.map((f) => {
         const k = fieldKey(f);
-        return <FieldInput key={k} field={f} value={values[k] ?? UNSET} onChange={(v) => onChange(k, v)} idPrefix={idPrefix} />;
+        return <FieldInput key={k} field={f} value={values[k] ?? UNSET} onChange={(v) => onChange(k, v)} idPrefix={idPrefix} errorId={invalidKey === k ? errorId : undefined} />;
       })}
     </div>
   );

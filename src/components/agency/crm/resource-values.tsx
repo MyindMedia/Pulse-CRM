@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TBody, TD, TH, THead, TR } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
-import { TOUCH, dateTime, money } from "./crm-ui";
+import { TOUCH, dateTime, money, plural } from "./crm-ui";
 import type { CellFormat, ColumnDef } from "./resource-config";
 import {
   answerPairs, autoColumns, extractRows, getPath, humanize, isIdKey, isIsoDate, isObj, isSecretKey, isUrl, leadWithMeaning, nameForId,
@@ -52,13 +52,13 @@ export function ExtLink({ href, children }: { href: string; children?: React.Rea
 function compact(v: unknown): string {
   if (Array.isArray(v)) {
     if (v.length > 0 && v.length <= 5 && v.every((x) => typeof x === "string" || typeof x === "number")) return v.join(", ");
-    return `${v.length} ${v.length === 1 ? "item" : "items"}`;
+    return plural(v.length, "item");
   }
   if (isObj(v)) {
     const { title, rest } = summaryParts(v, 2);
     if (title) return title;
     if (rest.length) return rest.map(([k, x]) => `${k}: ${x}`).join(", ");
-    return `${Object.keys(v).length} fields`;
+    return plural(Object.keys(v).length, "field");
   }
   return String(v);
 }
@@ -72,14 +72,20 @@ function Pairs({ value, max = 4 }: { value: unknown; max?: number }) {
       {pairs.slice(0, max).map(([k, v], i) => (
         <span key={i} className="block truncate" title={`${k}: ${v}`}><span className="text-steel">{k}:</span> {v}</span>
       ))}
-      {pairs.length > max && <span className="block text-xs text-steel">And {pairs.length - max} more in the record</span>}
+      {pairs.length > max && <span className="block text-xs text-steel">And {plural(pairs.length - max, "more answer", "more answers")} in the record</span>}
     </span>
   );
 }
 
-/** An id with no name in the same answer: muted, monospaced and labelled. */
-function IdText({ value }: { value: string }) {
-  return <span className="break-all font-mono text-xs text-steel"><span className="font-sans">id </span>{value}</span>;
+/** What an id is, from its key: default_calendar_id -> "Calendar id". */
+export function idLabel(key: string): string {
+  const base = key.replace(/_?ids?$/, "").split("_").filter(Boolean).pop();
+  return base ? `${base[0].toUpperCase()}${base.slice(1)} id` : "Id";
+}
+
+/** An id nothing at hand can name: muted, monospaced and labelled plainly. */
+function IdText({ value, k = "id" }: { value: string; k?: string }) {
+  return <span className="break-all font-mono text-xs text-steel"><span className="font-sans">{idLabel(k)} </span>{value}</span>;
 }
 
 /** One table cell. Unknown and nested values are shown compactly. */
@@ -149,7 +155,7 @@ function SubRows({ items, root, depth }: { items: Obj[]; root: unknown; depth: n
           </li>
         );
       })}
-      {items.length > MAX_ITEMS && <li className="text-steel">And {items.length - MAX_ITEMS} more</li>}
+      {items.length > MAX_ITEMS && <li className="text-steel">And {(items.length - MAX_ITEMS).toLocaleString("en-US")} more</li>}
     </ul>
   );
 }
@@ -166,7 +172,7 @@ function Value({ k, v, depth, root }: { k: string; v: unknown; depth: number; ro
   if (typeof v === "string") {
     if (isIdKey(k)) {
       const name = nameForId(root, k, v);
-      return name ? <span>{name}</span> : <IdText value={v} />;
+      return name ? <span>{name}</span> : <IdText value={v} k={k} />;
     }
     if (isUrl(v)) return <ExtLink href={v} />;
     if (isIsoDate(v) && v.length > 10) return <span className="tabular-nums">{dateTime(v)}</span>;
@@ -176,7 +182,7 @@ function Value({ k, v, depth, root }: { k: string; v: unknown; depth: number; ro
   if (Array.isArray(v)) {
     if (v.length === 0) return <span className="text-steel">None</span>;
     if (isIdKey(k.replace(/s$/, "")) && v.every((x) => typeof x === "string")) {
-      return <span className="flex flex-wrap gap-x-2 gap-y-1">{(v as string[]).map((x, i) => { const n = nameForId(root, "", x); return n ? <span key={i}>{n}{i < v.length - 1 ? "," : ""}</span> : <IdText key={i} value={x} />; })}</span>;
+      return <span className="flex flex-wrap gap-x-2 gap-y-1">{(v as string[]).map((x, i) => { const n = nameForId(root, "", x); return n ? <span key={i}>{n}{i < v.length - 1 ? "," : ""}</span> : <IdText key={i} value={x} k={k} />; })}</span>;
     }
     if (flatList(v)) return <p className="break-words">{v.map((x) => (typeof x === "boolean" ? (x ? "Yes" : "No") : String(x))).join(", ")}</p>;
     if (pairList(v)) return <p className="break-words">{(v as unknown[][]).map((x) => x.map(String).join(" to ")).join(", ")}</p>;
@@ -202,7 +208,7 @@ function Value({ k, v, depth, root }: { k: string; v: unknown; depth: number; ro
     if (n <= OPEN_FIELDS) return <div className="border-l border-graphite/50 pl-3"><ValueList value={v} depth={depth + 1} root={root} /></div>;
     return (
       <details>
-        <summary className={cn("cursor-pointer select-none text-ash hover:text-bone", TOUCH, "max-sm:flex max-sm:items-center")}>Show {n} fields</summary>
+        <summary className={cn("cursor-pointer select-none text-ash hover:text-bone", TOUCH, "max-sm:flex max-sm:items-center")}>Show {plural(n, "field")}</summary>
         <div className="mt-2 border-l border-graphite/50 pl-3"><ValueList value={v} depth={depth + 1} root={root} /></div>
       </details>
     );
