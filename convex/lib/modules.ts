@@ -161,11 +161,11 @@ export const MODULES: ModuleDef[] = [
   { key: "mediaLibrary", label: "Media library", area: "catalog", nav: true,
     blurb: "Sessions, stems, mixes, masters and artwork, every upload a numbered version with notes and approval" },
   { key: "sharedMediaLibrary", label: "Shared media library", area: "catalog", nav: false,
-    blurb: "See every studio's files in your group from one place" },
+    blurb: "Not open to customers yet: the group admin searching shared studio files" },
   { key: "projects", label: "Projects", area: "catalog", nav: true,
     blurb: "Post-production tracking from tracking through mixing, mastering and delivery, with tasks, owners and due dates" },
   { key: "crossStudioProjects", label: "Projects across every studio", area: "catalog", nav: false,
-    blurb: "Every studio's projects and what is overdue, on one screen for the group" },
+    blurb: "Not open to customers yet: every studio's projects on one screen" },
   { key: "splitSheets", label: "Split sheets", area: "catalog", nav: false,
     blurb: "Ownership splits with real e-signatures" },
   { key: "catalogImport", label: "Catalog import", area: "catalog", nav: false,
@@ -213,7 +213,7 @@ export const MODULES: ModuleDef[] = [
 
   // ── Agency & multi-studio ──
   { key: "multiStudio", label: "Multi-studio", area: "agency", nav: false,
-    blurb: "Run more than one studio from one console" },
+    blurb: "Not open to customers yet: more than one studio from one console" },
 ];
 
 /* ── Always-on rows ───────────────────────────────────────────
@@ -237,19 +237,19 @@ export type AlwaysOnDef = {
 export const ALWAYS_ON: AlwaysOnDef[] = [
   // ── Agency & multi-studio ──
   { id: "agencyConsole", area: "agency", kind: "plan", tier: "max",
-    label: "Agency console", blurb: "Every studio, its health and its numbers, from one screen" },
+    label: "Agency console", blurb: "Pulse team only for now. Every studio, its health and its numbers, from one screen" },
   { id: "studioInvites", area: "agency", kind: "plan", tier: "max",
-    label: "Studio invites & onboarding", blurb: "Invite by email, branded onboarding, taking bookings the same day" },
+    label: "Studio invites & onboarding", blurb: "Pulse team only for now. Invite by email, branded onboarding, taking bookings the same day" },
   { id: "priceBook", area: "agency", kind: "plan", tier: "max",
-    label: "Price book & rebilling", blurb: "The plans an operator sells on, with trials and per-account pricing" },
+    label: "Price book & rebilling", blurb: "Pulse team only for now. The plans an operator sells on, with trials and per-account pricing" },
   { id: "scopedStaff", area: "agency", kind: "plan", tier: "max",
-    label: "Scoped agency staff", blurb: "Team members who only see the studios they are assigned" },
+    label: "Scoped agency staff", blurb: "Pulse team only for now. Team members who only see the studios they are assigned" },
   { id: "crossApprovals", area: "agency", kind: "plan", tier: "max",
-    label: "Cross-studio approvals", blurb: "Everything waiting on a human across the fleet, in one queue" },
+    label: "Cross-studio approvals", blurb: "Pulse team only for now. Everything waiting on a human across the fleet, in one queue" },
   { id: "siteImport", area: "agency", kind: "plan", tier: "max",
-    label: "Import from their website", blurb: "Pull a new studio's details off the site they already have" },
+    label: "Import from their website", blurb: "Pulse team only for now. Pull a new studio's details off the site they already have" },
   { id: "demoData", area: "agency", kind: "plan", tier: "max",
-    label: "Demo data switch", blurb: "Fill a sub-account with realistic data for a pitch, then clear it" },
+    label: "Demo data switch", blurb: "Pulse team only for now. Fill a sub-account with realistic data for a pitch, then clear it" },
 
   // ── Platform & security ──
   { id: "tenantIsolation", area: "platform", kind: "always",

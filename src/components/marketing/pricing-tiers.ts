@@ -36,9 +36,8 @@ const HIGHLIGHTS: Record<TierKey, string[]> = {
   ],
   max: [
     "Everything in Growth",
-    "Unlimited studios, one flat price",
-    "Releases, licensing and split sheets",
-    "One screen above every studio",
+    "Release plans and license records",
+    "Unlimited staff and rooms",
     "Your brand on the whole app",
   ],
 };

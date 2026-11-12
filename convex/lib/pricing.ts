@@ -105,10 +105,10 @@ export const PRICING: Record<TierKey, TierPricing> = {
   max: {
     key: "max",
     name: "Max",
-    tagline: "Every studio you run, one flat price.",
-    who: "A record company, a production company, or a brand running several studios.",
-    gets: "Everything in Growth, plus song ownership and the multi-studio layer. Release plans, a record of sync pitches and beat licenses, the whole app in your own brand, and one screen above every studio you run. Unlimited studios included.",
-    salesTell: "If they own the songs as well as the rooms, or they run more than one studio, they are Max.",
+    tagline: "Songs, releases and your brand on the whole app.",
+    who: "A record company, a production company, or a studio that wants the whole app in its own brand.",
+    gets: "Everything in Growth, plus release plans, a record of sync pitches and beat licenses, the whole app in your own brand, and the largest allowances.",
+    salesTell: "If they own the songs as well as the rooms, or want the whole app in their own brand, they are Max. Running several studios from one screen is not open to customers yet.",
     monthlyUsd: 699,
     annualUsd: 6990,
     monthlyCents: 69900,
@@ -200,11 +200,10 @@ export const TIER_ACCESS: Record<TierKey, readonly string[]> = {
     "Unlimited rooms at one location",
   ],
   max: [
-    "A group admin layer above every studio",
-    "Staff who see only their studios",
-    "Switch parts off per studio",
-    "One approval queue for all studios",
-    "Unlimited studios, and studios cannot see each other",
+    "All five roles, as on Growth",
+    "Unlimited staff logins",
+    "Unlimited rooms",
+    "Unlimited guest links",
   ],
 };
 
@@ -517,7 +516,7 @@ const RAW_FEATURE_GROUPS: RawFeatureGroup[] = [
       f("Monthly memberships", "growth", "memberships"),
       f("What the studio spends", "growth", "expenses"),
       f("Profit score and profit after costs", "growth", "profitability"),
-      f("Your own price list", "max", "multiStudio"),
+      f("Your own price list", "max", "multiStudio", { built: false }),
     ],
   },
   {
@@ -643,7 +642,7 @@ const RAW_FEATURE_GROUPS: RawFeatureGroup[] = [
       f("It writes, you send", "growth", "agent"),
       f("Let simple reminders run themselves", "max", "aiAutonomy"),
       f("Ask it the same thing every week", "max", "aiAutonomy"),
-      f("All the assistants on one screen", "max", "multiStudio"),
+      f("All the assistants on one screen", "max", "multiStudio", { built: false }),
     ],
   },
   {
@@ -698,17 +697,17 @@ const RAW_FEATURE_GROUPS: RawFeatureGroup[] = [
     title: "Running many studios",
     salesNote: "One screen sitting above a group of studios. Each studio only ever sees its own work.",
     items: [
-      f("One screen for every studio", "max", "multiStudio"),
-      f("Invite a studio by email", "max", "multiStudio"),
+      f("One screen for every studio", "max", "multiStudio", { built: false }),
+      f("Invite a studio by email", "max", "multiStudio", { built: false }),
       f("Step-by-step setup", "max", "multiStudio"),
-      f("Pull details off their website", "max", "multiStudio"),
-      f("Switch parts off per studio", "max", "multiStudio"),
-      f("Your own price list", "max", "multiStudio"),
-      f("Staff who see only their studios", "max", "multiStudio"),
-      f("The console under your brand", "max", "multiStudio"),
-      f("One approval queue for all studios", "max", "multiStudio"),
-      f("Who did what, where", "max", "multiStudio"),
-      f("Fake data for a pitch", "max", "multiStudio"),
+      f("Pull details off their website", "max", "multiStudio", { built: false }),
+      f("Switch parts off per studio", "max", "multiStudio", { built: false }),
+      f("Your own price list", "max", "multiStudio", { built: false }),
+      f("Staff who see only their studios", "max", "multiStudio", { built: false }),
+      f("The console under your brand", "max", "multiStudio", { built: false }),
+      f("One approval queue for all studios", "max", "multiStudio", { built: false }),
+      f("Who did what, where", "max", "multiStudio", { built: false }),
+      f("Fake data for a pitch", "max", "multiStudio", { built: false }),
     ],
   },
   {
@@ -737,9 +736,9 @@ const RAW_FEATURE_GROUPS: RawFeatureGroup[] = [
     isNew: true,
     items: [
       f("Post-production project tracking", "growth", "projects"),
-      f("Projects across every studio", "max", "crossStudioProjects"),
+      f("Projects across every studio", "max", "crossStudioProjects", { built: false }),
       f("Media file management with version control", "growth", "mediaLibrary"),
-      f("One media library shared across studios", "max", "sharedMediaLibrary"),
+      f("One media library shared across studios", "max", "sharedMediaLibrary", { built: false }),
       f("Barcode equipment check-in and check-out", "growth", "gearCheckout"),
     ],
   },
@@ -1355,7 +1354,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "The console under your brand": [
     "Your studio-group screen under your own name.",
-    "Your screen and all its studios appear under your name and your own web address.",
+    "Your screen and all its studios appear under your name.",
   ],
   "One approval queue for all studios": [
     "A single list of what is waiting for a person.",
@@ -1439,7 +1438,7 @@ const DETAIL_COPY: Record<string, [string, string, LimitKind?]> = {
   ],
   "One media library shared across studios": [
     "A shared library for a company that runs many studios.",
-    "Every studio can draw from one library, while each studio's own files stay its own.",
+    "The group admin can search every studio's files from one place, for studios whose owner shares them.",
     "studios",
   ],
   "Barcode equipment check-in and check-out": [

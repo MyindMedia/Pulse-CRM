@@ -157,10 +157,11 @@ describe("the public table", () => {
   it("hides a feature until it is built", () => {
     const unbuilt = ALL_FEATURES.filter((f) => !f.built);
     for (const f of unbuilt) expect(groups.flatMap((g) => g.items).map((x) => x.name)).not.toContain(f.name);
-    // 151 of the 157 existing features are built and public. Hidden until
+    // 139 of the 157 existing features are built and public. Hidden until
     // built: royalty statements, saved card, sales tax, the referral tag,
-    // the review referral link and a studio's own web address.
-    expect(groups.filter((g) => g.id !== "production").flatMap((g) => g.items)).toHaveLength(151);
+    // the review referral link, a studio's own web address, and the twelve
+    // multi-studio rows no customer can reach yet.
+    expect(groups.filter((g) => g.id !== "production").flatMap((g) => g.items)).toHaveLength(139);
   });
 
   it("never says CRM, and uses no em dashes, anywhere in the config", () => {
