@@ -21,19 +21,20 @@ export type ConfirmKind = Exclude<SendKind, "safe"> | "delete";
  *  - changes_sending: changes what Zuops sends automatically, or what the public sees live.
  *  - spends: uses credits or starts paid or AI work (unsure whether metered = spends).
  *  - exposes: sends lead data outside the account or changes who can access it.
- *  - safe: plain record edits; create, reschedule and cancel booking (D12: single
- *    deliberate actions, still audited). Every DELETE is confirmed by its method.
+ *  - safe: plain record edits. Every DELETE is confirmed by its method.
+ *    Bookings are NOT safe (R3-B4 reverses D12): create, reschedule and cancel
+ *    notify the lead unless the body says otherwise.
  *  Operations whose kind depends on the body are refined by BODY_RULES. */
 export const CLASSIFIED: Readonly<Record<string, readonly [route: string, kind: SendKind]>> = {
   // AI Brain
-  create_ai_lesson: ["POST /v1/ai-lessons", "safe"],
+  create_ai_lesson: ["POST /v1/ai-lessons", "changes_sending"],
   delete_ai_lesson: ["DELETE /v1/ai-lessons/{lesson_id}", "safe"],
   rate_ai_message: ["POST /v1/messages/{message_id}/rating", "safe"],
-  update_ai_lesson: ["PATCH /v1/ai-lessons/{lesson_id}", "safe"],
+  update_ai_lesson: ["PATCH /v1/ai-lessons/{lesson_id}", "changes_sending"],
   // AI agent
   add_brain_photo: ["POST /v1/ai-brain/photos", "spends"],
-  add_brain_prices: ["POST /v1/ai-brain/prices", "safe"],
-  add_knowledge_base: ["POST /v1/knowledge-base", "safe"],
+  add_brain_prices: ["POST /v1/ai-brain/prices", "changes_sending"],
+  add_knowledge_base: ["POST /v1/knowledge-base", "changes_sending"],
   answer_brain_waiting: ["POST /v1/ai-brain/waiting/answer", "changes_sending"],
   clear_nurture: ["DELETE /v1/nurture-sequence", "safe"],
   delete_brain_photo: ["DELETE /v1/ai-brain/photos/{photo_id}", "safe"],
@@ -41,11 +42,11 @@ export const CLASSIFIED: Readonly<Record<string, readonly [route: string, kind: 
   remove_brain_price: ["DELETE /v1/ai-brain/prices/{item_id}", "safe"],
   set_ai_receptionist: ["PUT /v1/ai-receptionist", "changes_sending"],
   set_ai_texting: ["PATCH /v1/ai-texting", "changes_sending"],
-  set_brain_price_note: ["PUT /v1/ai-brain/prices/note", "safe"],
-  set_knowledge_base: ["PUT /v1/knowledge-base", "safe"],
+  set_brain_price_note: ["PUT /v1/ai-brain/prices/note", "changes_sending"],
+  set_knowledge_base: ["PUT /v1/knowledge-base", "changes_sending"],
   set_nurture: ["PUT /v1/nurture-sequence", "changes_sending"],
-  update_brain_photo: ["PATCH /v1/ai-brain/photos/{photo_id}", "safe"],
-  update_brain_price: ["PATCH /v1/ai-brain/prices/{item_id}", "safe"],
+  update_brain_photo: ["PATCH /v1/ai-brain/photos/{photo_id}", "changes_sending"],
+  update_brain_price: ["PATCH /v1/ai-brain/prices/{item_id}", "changes_sending"],
   update_nurture: ["PATCH /v1/nurture-sequence", "changes_sending"],
   // Ads & Google
   apply_gbp_optimizer: ["POST /v1/google-business/optimizer/apply", "spends"],
@@ -84,9 +85,9 @@ export const CLASSIFIED: Readonly<Record<string, readonly [route: string, kind: 
   write_gbp_embed_faq: ["POST /v1/google-business/embeds/{embed_id}/faq", "spends"],
   write_gbp_posts: ["POST /v1/google-business/posts/write", "spends"],
   // Bookings
-  cancel_booking: ["POST /v1/bookings/{booking_id}/cancel", "safe"],
-  create_booking: ["POST /v1/bookings", "safe"],
-  reschedule_booking: ["POST /v1/bookings/{booking_id}/reschedule", "safe"],
+  cancel_booking: ["POST /v1/bookings/{booking_id}/cancel", "reaches"],
+  create_booking: ["POST /v1/bookings", "reaches"],
+  reschedule_booking: ["POST /v1/bookings/{booking_id}/reschedule", "reaches"],
   set_appointment_emails: ["PUT /v1/appointment-emails", "changes_sending"],
   update_booking: ["PATCH /v1/bookings/{booking_id}", "safe"],
   // CRM automations
@@ -102,6 +103,12 @@ export const CLASSIFIED: Readonly<Record<string, readonly [route: string, kind: 
   unenroll_automation: ["POST /v1/workspace-automations/{automation_id}/unenroll", "safe"],
   update_automation: ["PATCH /v1/workspace-automations/{automation_id}", "changes_sending"],
   // CRM leads
+  /* Stage and tag changes (set_lead_stage, update_lead, merge_tags, update_tag, and
+     create_deal / update_deal / update_pipeline_stage below) stay "safe" ON PURPOSE:
+     moving a lead is the CRM's core action, and any automation that fires on a stage
+     or tag is one the owner built to fire on exactly that move. Asking for a confirm
+     on every drag would train people to click through confirms. Reviewed in round 3
+     (R3-B4); do not re-raise without a new fact. */
   create_lead: ["POST /v1/leads", "safe"],
   create_lead_note: ["POST /v1/leads/{lead_id}/notes", "safe"],
   delete_lead: ["DELETE /v1/leads/{lead_id}", "safe"],
@@ -115,7 +122,7 @@ export const CLASSIFIED: Readonly<Record<string, readonly [route: string, kind: 
   update_tag: ["PATCH /v1/tags/{tag_id}", "safe"],
   // Calendars & hours
   copy_calendar_design: ["POST /v1/calendars/{calendar_id}/copy-design", "safe"],
-  create_booking_menu: ["POST /v1/booking-menus", "safe"],
+  create_booking_menu: ["POST /v1/booking-menus", "changes_sending"],
   create_calendar: ["POST /v1/calendars", "changes_sending"],
   create_calendar_route: ["POST /v1/calendar-routes", "safe"],
   delete_booking_menu: ["DELETE /v1/booking-menus/{menu_id}", "safe"],
@@ -147,7 +154,8 @@ export const CLASSIFIED: Readonly<Record<string, readonly [route: string, kind: 
   approve_reply_suggestion: ["POST /v1/reply-suggestions/{suggestion_id}/approve", "reaches"],
   archive_conversation: ["POST /v1/conversations/{lead_id}/archive", "safe"],
   dismiss_reply_suggestion: ["POST /v1/reply-suggestions/{suggestion_id}/dismiss", "safe"],
-  lead_reply_ideas: ["POST /v1/leads/{lead_id}/reply-ideas", "spends"],
+  // R3-B3: Zuops documents it as "Nothing is sent or saved ... Free"; the Inbox calls it without a confirm.
+  lead_reply_ideas: ["POST /v1/leads/{lead_id}/reply-ideas", "safe"],
   mark_conversation_read: ["POST /v1/conversations/{lead_id}/read", "safe"],
   mark_conversation_unread: ["POST /v1/conversations/{lead_id}/unread", "safe"],
   set_lead_ai_pause: ["POST /v1/leads/{lead_id}/ai-pause", "changes_sending"],
@@ -281,19 +289,38 @@ export const CLASSIFIED: Readonly<Record<string, readonly [route: string, kind: 
 /** A body value that turns something on: anything other than absent, null or false. */
 const on = (v: unknown) => v !== undefined && v !== null && v !== false;
 
+/** A pause `until` that keeps the AI paused: absent, or a parseable time in the future. */
+const pauseUntilOk = (until: unknown) =>
+  until === undefined || until === null || (typeof until === "string" && Date.parse(until) > Date.now());
+
 /** Kinds that depend on the (already filtered) body. Escalation reads `on(...)`;
  *  a step down needs an exact value, so an odd value fails closed. */
 export const BODY_RULES: Readonly<Record<string, (b: Record<string, unknown>) => SendKind>> = {
   create_lead: (b) => (on(b.run_intake) ? "reaches" : "safe"),
   create_gbp_post: (b) => (on(b.approve) ? "reaches" : "safe"),
   update_scheduled_message: (b) => (Object.keys(b).length === 1 && b.status === "cancelled" ? "safe" : "changes_sending"),
-  set_lead_ai_pause: (b) => (b.paused === true ? "safe" : "changes_sending"),
-  update_booking: (b) => (on(b.notify_lead) || b.status === "confirmed" ? "changes_sending" : "safe"),
+  // Pausing is safe; resuming (paused false, or an `until` that is not in the future) restarts the AI.
+  set_lead_ai_pause: (b) => (b.paused === true && pauseUntilOk(b.until) ? "safe" : "changes_sending"),
+  // R3-B4: notify_lead defaults to true (confirmation email and reminder texts).
+  create_booking: (b) => (b.notify_lead === false ? "safe" : "reaches"),
+  // Linking a lead (lead_id) starts its reminders.
+  update_booking: (b) => (on(b.notify_lead) || b.status === "confirmed" || on(b.lead_id) ? "changes_sending" : "safe"),
+  // `enabled` states the target; omitted, Zuops flips the current state (a blind toggle).
+  toggle_ws_automation: (b) => (b.enabled === false ? "safe" : "reaches"),
+  set_stripe_payment_tracking: (b) => (on(b.meta_event) ? "exposes" : "safe"),
+  update_support_ticket: (b) => (b.handler === "assistant" ? "changes_sending" : "safe"),
+  create_smart_form: (b) => (on(b.is_published) ? "changes_sending" : "safe"),
+  // is_active defaults to true on create (a live menu), so only an explicit false is safe.
+  create_booking_menu: (b) => (b.is_active === false ? "safe" : "changes_sending"),
+  update_booking_menu: (b) => (on(b.is_active) ? "changes_sending" : "safe"),
+  // A new url re-points links already sent to people.
+  update_short_link: (b) => (b.url !== undefined ? "changes_sending" : "safe"),
   move_dm_leads: (b) => (on(b.apply) ? "changes_sending" : "safe"),
   apply_gbp_optimizer: (b) => (b.dry_run === true ? "safe" : "spends"),
   create_email_campaign: (b) => (on(b.brief) || on(b.pictures) ? "spends" : "safe"),
   update_email_campaign: (b) => (on(b.brief) || on(b.pictures) ? "spends" : "safe"),
-  create_proposal: (b) => (on(b.build) || on(b.rewrite) ? "spends" : "safe"),
+  // R3-B1: with template_id, the AI rewrite runs unless rewrite is exactly false.
+  create_proposal: (b) => (on(b.build) || (on(b.template_id) && b.rewrite !== false) ? "spends" : "safe"),
   update_report: (b) => (on(b.prompt) ? "changes_sending" : "safe"),
   update_reward_game: (b) => (b.status !== undefined && b.status !== null ? "changes_sending" : "safe"),
   update_smart_form: (b) => (on(b.is_published) ? "changes_sending" : "safe"),
@@ -412,30 +439,47 @@ const isPlainObject = (x: unknown): x is Record<string, unknown> => {
 
 const OPEN_KEY = /^[A-Za-z0-9_]{1,64}$/;
 
-/* F-B12: secrets never travel back to the browser. */
-const SECRET_KEY = /(^|_)(secret|token|password|api_key|key_prefix|signing_secret|auth_token|access_token|refresh_token)$/i;
-const SIGNING_SECRET = /^(signing_)?secret$/i;
+/* F-B12, R3-B5: secrets never travel back to the browser. Keys are compared in
+   snake_case, so camelCase names (apiKey, accessToken, signingSecret) match too. */
+const SECRET_KEY =
+  /(^|_)(secret|token|password|api_key|key_prefix|signing_secret|webhook_secret|auth_token|access_token|refresh_token|authorization|private_key|client_secret|client_key|secret_key|credentials|pin)$/;
+const SIGNING_SECRET = /^(signing_|webhook_)?secret$/;
+const KEY_SELF_SECRET = /^(key|prefix|key_prefix)$/;
+const URL_SECRET_PARAM = /([?&](?:token|key|secret|sig|signature|access_token)=)[^&#]*/gi;
 
-/** A copy of a Zuops answer with the value of every secret-looking key replaced by
- *  "hidden", at any depth. key_self also hides `key` and `prefix`. The one exemption
- *  is the signing secret in the answer of create_outbound_webhook: Zuops shows it
- *  once, and the UI must show it to the owner then. */
+const snake = (k: string) => k.replace(/([a-z0-9])([A-Z])/g, "$1_$2").toLowerCase();
+
+/** A string or number value, hidden; anything else (objects, arrays, booleans, null) is left to the walk. */
+const hideLeaf = (v: unknown) => (typeof v === "string" || typeof v === "number" ? "hidden" : v);
+
+/** A copy of a Zuops answer with secret VALUES replaced by "hidden", at any depth.
+ *  An object or array is never replaced wholesale: under a secret-looking key the
+ *  walk goes on and hides every string and number inside it. key_self keeps its
+ *  `key` object (name, access_level, scopes, limits) and hides only `key`, `prefix`
+ *  and `key_prefix` strings. URL strings lose the values of token, key, secret,
+ *  sig, signature and access_token query parameters. The one exemption is the
+ *  signing secret in the answer of create_outbound_webhook: Zuops shows it once,
+ *  and the UI must show it to the owner then. */
 export function redactSecrets(opId: string, data: unknown): unknown {
   const keySelf = opId === "key_self";
   const keepSigning = opId === "create_outbound_webhook";
-  const walk = (x: unknown): unknown => {
-    if (Array.isArray(x)) return x.map(walk);
+  const walk = (x: unknown, secret: boolean): unknown => {
+    if (Array.isArray(x)) return x.map((v) => walk(v, secret));
     if (x && typeof x === "object") {
       const out: Record<string, unknown> = {};
       for (const [k, v] of Object.entries(x as Record<string, unknown>)) {
-        const hide = (SECRET_KEY.test(k) && !(keepSigning && SIGNING_SECRET.test(k))) || (keySelf && (k === "key" || k === "prefix"));
-        out[k] = hide ? "hidden" : walk(v);
+        const name = snake(k);
+        const isSecret =
+          secret || (SECRET_KEY.test(name) && !(keepSigning && SIGNING_SECRET.test(name))) || (keySelf && KEY_SELF_SECRET.test(name) && typeof v === "string");
+        out[k] = v && typeof v === "object" ? walk(v, isSecret) : isSecret ? hideLeaf(v) : walk(v, false);
       }
       return out;
     }
+    if (secret) return hideLeaf(x);
+    if (typeof x === "string" && /^https?:\/\//i.test(x)) return x.replace(URL_SECRET_PARAM, "$1hidden");
     return x;
   };
-  return walk(data);
+  return walk(data, false);
 }
 
 /** A copy without any `workspace_id` key at any depth. */

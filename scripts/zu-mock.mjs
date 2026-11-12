@@ -17,6 +17,10 @@
      changes nothing; the same key with a different body is a 409.
    - Test hooks: a lead whose email starts with "optout" refuses sends with a 400;
      booking the seeded full slot is a 409 slot_full.
+   - Requests whose Host header is not 127.0.0.1:<port> or localhost:<port> get a 403.
+   - Closer to the real API: a duplicate email or phone on POST /v1/leads is a 409
+     naming { lead_id, matched_on }; settings answer as single objects; setup-status
+     has a findings list; notes show in the lead's events; reply-ideas gives three.
    - GET /__requests lists every request (method, path, idempotency key, body);
      DELETE /__requests clears the list. Neither is recorded. */
 
@@ -261,23 +265,90 @@ function listLeads(q) {
   return { leads: page.map(publicLead), has_more: more, next_offset: more ? offset + limit : null };
 }
 
+/** Messages and notes of one lead, oldest first (GET /v1/leads/{id} events and the timeline). */
+function eventsOf(l) {
+  const notes = l.notes.map((n) => ({ id: n.id, event_type: "note", actor_label: n.actor_label, body: n.body, metadata: {}, created_at: n.created_at }));
+  return [...(thread.get(l.id) ?? []).map(asEvent), ...notes].sort((a, b) => a.created_at.localeCompare(b.created_at));
+}
+
+/* Single-object settings, editable through their set_/update_ operations. Field names
+   follow api-shapes.md and the registry's body fields for the matching write. */
+const settings = {
+  business_profile: { id: id(40), name: "Northline Studio (mock)", industry: "Fitness studio", timezone: "America/Los_Angeles", address_line1: "100 Example Way", address_line2: "", city: "Los Angeles", state: "CA", postal_code: "90012", country: null, business_phone: "+12135550100", business_email: "hello@northline.example" },
+  ai_texting: { ai_replies: true, agent_name: "Nova", reply_mode: "auto", goal: "book", business_context: null, booking_link: null, max_replies: 6, reply_delay_minutes: 1, ai_can_cancel: false, handoff_when_unsure: true, pause_ai_on_handoff: true, handoff_resume_days: 2, greet_new_leads: true, first_message: "Hi {first_name}, thanks for reaching out to Northline. When works for a first visit?", smart_first_text: false, smart_first_text_goal: null, greet_delay_minutes: 0, form_greet_delay_minutes: 0, missed_call_text: false, missed_call_message: null, confirmation_text: true, confirmation_message: "You're booked for {when}.", confirmation_email: true, confirmation_email_language: "en", reminder_24h: true, reminder_24h_message: "See you tomorrow at {time}.", reminder_1h: true, reminder_1h_message: "See you in an hour.", reminder_5m: false, reminder_5m_message: "", email_greeting: false, email_greeting_subject: "", email_greeting_body: "", send_window: "daily", send_window_start: "08:00", send_window_end: "20:00", ai_answers_email: false, prompt_characters: 1840, prompt_preview: "You are Nova, the front desk for Northline Studio..." },
+  ai_receptionist: { enabled: false, mode: "after_hours", goal: "book", agent_name: "Nova", voice: "aria", greeting: "Thanks for calling Northline Studio.", after_hours_greeting: "We're closed right now, but I can help.", extra_instructions: "", transfer_enabled: false, transfer_numbers: [], take_messages: true, max_call_seconds: 300, record_calls: false, update_contact_details: true, collect_fields: ["full_name", "email"] },
+  lead_routing: { round_robin_enabled: false, eligible_member_ids: [id(400)], member_weights: {}, notify_assignee_only: false, skip_imported_leads: true, notify_on_reply: true, grab_enabled: false, grab_member_ids: [] },
+  nurture: {
+    workspace_id: WS,
+    sms: { enabled: true, steps: [{ step: 1, day: 1, message: "Still thinking about a first visit? Happy to hold a time." }, { step: 2, day: 3, message: "We have a few intro spots left this week." }] },
+    email: { enabled: false, steps: [{ step: 1, day: 2, subject: "Your intro week", message: "Here is what a first visit looks like." }] },
+    replaced_by_offers: [],
+  },
+  appointment_emails: {
+    workspace_id: WS, enabled: true, language: "en",
+    emails: [
+      { kind: "confirmed", sends: "ours", on: true, subject: null, default_subject: "You're booked: {appointment_title} - {when}", html: null, html_chars: 0 },
+      { kind: "updated", sends: "ours", on: true, subject: null, default_subject: "Updated: {appointment_title} - {when}", html: null, html_chars: 0 },
+      { kind: "cancelled", sends: "ours", on: true, subject: null, default_subject: "Cancelled: {appointment_title} - {date}", html: null, html_chars: 0 },
+    ],
+    variables: ["{first_name}", "{when}", "{date}", "{appointment_title}", "{reschedule_link}"],
+  },
+  knowledge_base: { entries: [{ id: id(45), question: "Do you offer a trial?", answer: "Yes, the first week is $29." }, { id: id(46), question: "Is there parking?", answer: "Free street parking on Example Way." }] },
+  availability: { workspace_id: WS, timezone: calendar.timezone, weekly_hours: calendar.weekly_hours, slot_minutes: 60, buffer_minutes: 15, default_calendar_id: CAL, scheduling_mode: "exact", arrival_window_minutes: 0, date_overrides: [] },
+  social: { workspace_id: WS, lead_mode: "qualified", dm_leads_to_move: 3 },
+};
+
+/* setup-status: the configuration plus a severity-ranked list of findings, each naming
+   the API call and MCP tool that fixes it, or null for both when only the app can. */
+function setupStatus() {
+  const findings = [];
+  if (!settings.ai_receptionist.enabled) findings.push({ key: "receptionist_off", severity: "high", issue: "Calls after hours go to voicemail: the AI receptionist is off.", fix: "Turn the AI receptionist on for after hours.", api: "PUT /v1/ai-receptionist", mcp_tool: "set_ai_receptionist" });
+  if (!settings.ai_texting.missed_call_text) findings.push({ key: "missed_call_text", severity: "medium", issue: "Missed-call text-back is off.", fix: "Set missed_call_text to true.", api: "PATCH /v1/ai-texting", mcp_tool: "set_ai_texting" });
+  if (!settings.nurture.email.enabled) findings.push({ key: "email_follow_ups", severity: "low", issue: "Email follow-ups are off.", fix: "Turn the email steps of the follow-up sequence on.", api: "PUT /v1/nurture-sequence", mcp_tool: "set_nurture" });
+  findings.push({ key: "google_calendar", severity: "info", issue: "No Google or Outlook calendar is connected.", fix: "Connect a calendar in the app (Settings > Calendars). This can only be done in the app.", api: null, mcp_tool: null });
+  return {
+    workspace_id: WS,
+    configuration: {
+      phone_numbers: 1, sms_registration: "approved", ai_texting: { on: settings.ai_texting.ai_replies, reply_mode: settings.ai_texting.reply_mode },
+      receptionist: { on: settings.ai_receptionist.enabled }, calendars: 1, smart_forms: smartForms.length, automations: automations.size,
+      offers: 0, team: 1, lead_sources: 0, integrations: { google_calendar: false, outlook: false, meta: true },
+    },
+    findings,
+  };
+}
+
+function keySelf() {
+  return {
+    key: { id: id(50), key_prefix: "zu-mock", name: "Pulse CRM (mock)", is_active: true, access_level: "write", scopes: ["write"], workspace: null, rate_limit_per_min: 120, credit_budget: null, usage_30d: { requests: requests.length, errors: 0, rate_limited: 0 }, last_used_at: iso(Date.now()), created_at: iso(NOW - 30 * DAY), type: "account" },
+    endpoints: { api: `http://${HOST}:${PORT}/v1`, mcp: `http://${HOST}:${PORT}/mcp` },
+  };
+}
+
 /* GET handlers by operation id. Returning undefined means "no seed": an empty list. */
 const READS = {
   get_overview: () => ok(overview()),
   get_health_score: () => ok(healthScore()),
   get_usage: () => ok({ workspace_id: WS, window: { from: iso(NOW - 30 * DAY), to: iso(NOW), days: 30 }, total_credits: 412, total_events: 96, unpaid_events: 0, by_tool: [{ tool: "sms", label: "Texts", events: 80, credits: 160, unpaid: 0 }, { tool: "ai_reply", label: "AI replies", events: 16, credits: 252, unpaid: 0 }], by_day: [{ date: iso(NOW).slice(0, 10), events: 9, credits: 31 }] }),
   message_limits: () => ok({ limits: LIMITS }),
-  setup_status: () => ok({ workspace_id: WS, steps: [{ key: "phone_number", label: "Get a phone number", done: true }, { key: "calendar", label: "Create a calendar", done: true }, { key: "first_text", label: "Write the first text", done: true }, { key: "follow_ups", label: "Turn on follow-ups", done: false }], complete: false }),
+  setup_status: () => ok(setupStatus()),
+  key_self: () => ok(keySelf()),
+  // Single-object settings: objects, never list envelopes (R3-B6).
+  get_business_profile: () => ok({ business_profile: settings.business_profile }),
+  get_ai_texting: () => ok({ configured: true, ai_texting: settings.ai_texting, has_phone_number: true }),
+  get_ai_receptionist: () => ok({ configured: true, ai_receptionist: settings.ai_receptionist, voices: [{ id: "aria", name: "Aria" }, { id: "miles", name: "Miles" }] }),
+  get_lead_routing: () => ok({ lead_routing: settings.lead_routing }),
+  get_nurture: () => ok(settings.nurture),
+  get_appointment_emails: () => ok(settings.appointment_emails),
+  get_knowledge_base: () => ok(settings.knowledge_base),
   list_leads: ({ q }) => ok(listLeads(q)),
   get_lead: ({ p }) => {
     const l = leads.get(p.lead_id);
-    return l ? ok({ lead: publicLead(l), events: (thread.get(l.id) ?? []).map(asEvent) }) : fail(404, "Lead not found");
+    return l ? ok({ lead: publicLead(l), events: eventsOf(l) }) : fail(404, "Lead not found");
   },
   lead_timeline: ({ p }) => {
     const l = leads.get(p.lead_id);
     if (!l) return fail(404, "Lead not found");
-    const notes = l.notes.map((n) => ({ id: n.id, event_type: "note", actor_label: n.actor_label, body: n.body, metadata: {}, created_at: n.created_at }));
-    return ok({ lead_id: l.id, events: [...(thread.get(l.id) ?? []).map(asEvent), ...notes].sort((a, b) => a.created_at.localeCompare(b.created_at)) });
+    return ok({ lead_id: l.id, events: eventsOf(l) });
   },
   list_stages: () => ok({ stages: STAGES }),
   list_tags: () => ok({ tags: TAGS.map((t) => ({ ...t, lead_count: leadList().filter((l) => l.tags.includes(t.name)).length })) }),
@@ -312,10 +383,10 @@ const READS = {
     const status = q.get("status");
     return ok({ bookings: [...bookings.values()].filter((b) => !status || b.status === status) });
   },
-  get_availability: () => ok({ availability: { workspace_id: WS, timezone: calendar.timezone, weekly_hours: calendar.weekly_hours, slot_minutes: 60, buffer_minutes: 15, default_calendar_id: CAL, scheduling_mode: "exact", arrival_window_minutes: 0, date_overrides: [] }, configured: true }),
+  get_availability: () => ok({ availability: settings.availability, configured: true }),
   list_social_accounts: () => ok({ workspace_id: WS, accounts: [{ id: id(900), platform: "instagram", name: "Northline Studio", page_name: "Northline Studio", username: "northline.studio", enabled: true, ai_replies: true, status: "connected", live: true, last_error: null, last_event_at: iso(NOW - 2 * 3_600_000), connected_at: iso(NOW - 90 * DAY) }] }),
   list_social_comments: () => ok({ workspace_id: WS, comments: [{ id: id(910), account_id: id(900), platform: "instagram", author: "kai.n", text: "How much is the intro month?", reply: "Sent you a DM with the details.", status: "sent", created_at: iso(NOW - 3 * 3_600_000) }], counts: { all: 1, sent: 1, failed: 0, skipped: 0 }, has_more: false, next_offset: null }),
-  get_social_settings: () => ok({ workspace_id: WS, lead_mode: "qualified", dm_leads_to_move: 2 }),
+  get_social_settings: () => ok(settings.social),
   list_email_campaigns: () => ok({ campaigns, has_more: false }),
   get_email_campaign: ({ p }) => { const c = campaigns.find((x) => x.id === p.campaign_id); return c ? ok({ campaign: c }) : fail(404, "Campaign not found"); },
   list_ws_automations: () => ok({ automations: [...automations.values()] }),
@@ -335,6 +406,13 @@ const READS = {
 const lead404 = () => fail(404, "Lead not found");
 const WRITES = {
   create_lead: ({ b }) => {
+    // Zuops refuses a second lead with the same email or phone and names the first one.
+    const email = typeof b.email === "string" ? b.email.trim().toLowerCase() : "";
+    const phone = typeof b.phone === "string" ? b.phone.replace(/[^\d+]/g, "") : "";
+    for (const x of leads.values()) {
+      if (email && x.email && x.email.toLowerCase() === email) return fail(409, "A lead with that email already exists.", { lead_id: x.id, matched_on: "email" });
+      if (phone && x.phone && x.phone === phone) return fail(409, "A lead with that phone already exists.", { lead_id: x.id, matched_on: "phone" });
+    }
     const l = { id: uuid(), workspace_id: WS, full_name: b.full_name ?? "New lead", email: b.email ?? null, phone: b.phone ?? null, source: b.source ?? "api", status: b.status ?? "new", stage_key: b.stage_key ?? "new", stage: b.stage_key ?? "new", deal_currency: "usd", existing_customer: false, created_at: iso(Date.now()), updated_at: iso(Date.now()), last_activity_at: iso(Date.now()), chat_only: false, inquiry: b.inquiry ?? "", custom_fields: b.custom_fields ?? {}, tags: b.tags ?? [], notes: [], ai_paused: false, unread: false, unread_count: 0, inbox_archived: false, email_opt_out: String(b.email ?? "").startsWith("optout") };
     leads.set(l.id, l);
     return ok({ lead: publicLead(l) }, 201);
@@ -465,6 +543,45 @@ const WRITES = {
   unarchive_conversation: ({ p }) => convo(p.lead_id, (l) => (l.inbox_archived = false)),
   mark_conversation_read: ({ p }) => convo(p.lead_id, (l) => { l.unread = false; l.unread_count = 0; }),
   mark_conversation_unread: ({ p }) => convo(p.lead_id, (l) => { l.unread = true; l.unread_count = Math.max(1, l.unread_count); }),
+  // apply false (the default) only counts; apply true moves them.
+  move_dm_leads: ({ b }) => {
+    const n = settings.social.dm_leads_to_move;
+    if (b.apply !== true) return ok({ workspace_id: WS, would_move: n });
+    settings.social.dm_leads_to_move = 0;
+    return ok({ workspace_id: WS, moved: n });
+  },
+  // Nothing is sent or saved: three ready replies, or `text` when polishing a draft.
+  lead_reply_ideas: ({ p, b }) => {
+    const l = leads.get(p.lead_id);
+    if (!l) return lead404();
+    const first = l.full_name.split(" ")[0];
+    const channel = typeof b.channel === "string" ? b.channel : (thread.get(l.id) ?? []).slice(-1)[0]?.channel ?? "sms";
+    if (typeof b.draft === "string" && b.draft.trim()) return ok({ lead_id: l.id, channel, text: b.draft.trim().replace(/\s+/g, " "), subject: null });
+    return ok({
+      lead_id: l.id, channel, kind: "reply", subject: channel === "email" ? "Your first visit" : null,
+      replies: [
+        { label: "Offer a time", text: `Hi ${first}, we have Friday at 4 or Saturday at 10. Which suits you?` },
+        { label: "Share the intro offer", text: `Hi ${first}, the intro week is $29 and includes two classes. Want me to hold a spot?` },
+        { label: "Ask a question", text: `Hi ${first}, what are you hoping to get out of it? That helps me pick the right class.` },
+      ],
+    });
+  },
+  set_business_profile: ({ b }) => ok({ business_profile: Object.assign(settings.business_profile, b) }),
+  set_ai_texting: ({ b }) => ok({ configured: true, ai_texting: Object.assign(settings.ai_texting, b), has_phone_number: true }),
+  set_ai_receptionist: ({ b }) => ok({ configured: true, ai_receptionist: Object.assign(settings.ai_receptionist, b) }),
+  set_lead_routing: ({ b }) => ok({ lead_routing: Object.assign(settings.lead_routing, b) }),
+  set_availability: ({ b }) => ok({ availability: Object.assign(settings.availability, b), configured: true }),
+  update_social_settings: ({ b }) => ok(Object.assign(settings.social, b)),
+  set_knowledge_base: ({ b }) => {
+    if (!Array.isArray(b.entries)) return fail(400, "entries must be an array");
+    settings.knowledge_base.entries = b.entries.map((e) => ({ id: uuid(), ...e }));
+    return ok(settings.knowledge_base);
+  },
+  add_knowledge_base: ({ b }) => {
+    if (!Array.isArray(b.entries)) return fail(400, "entries must be an array");
+    settings.knowledge_base.entries.push(...b.entries.map((e) => ({ id: uuid(), ...e })));
+    return ok(settings.knowledge_base);
+  },
 };
 function convo(leadId, change) {
   const l = leads.get(leadId);
@@ -498,7 +615,12 @@ function send(res, { status, payload }) {
   res.end(text);
 }
 
+/* DNS rebinding guard: a page in a browser can reach 127.0.0.1 through a hostname it
+   controls, but it cannot make the Host header say 127.0.0.1 or localhost. */
+const ALLOWED_HOSTS = new Set([`127.0.0.1:${PORT}`, `localhost:${PORT}`]);
+
 function handle(method, url, headers, body) {
+  if (!ALLOWED_HOSTS.has(String(headers.host ?? "").toLowerCase())) return fail(403, "This mock only answers requests addressed to 127.0.0.1 or localhost.");
   if (url.pathname === "/__requests") {
     if (method === "GET") return ok({ requests });
     if (method === "DELETE") { requests.length = 0; return ok({ cleared: true }); }

@@ -230,7 +230,10 @@ export const _auditStart = internalMutation({
 export const _auditEnd = internalMutation({
   args: { id: v.id("outreachEvents"), ok: v.boolean(), status: v.number() },
   handler: async (ctx, a) => {
-    await ctx.db.patch(a.id, { result: a.ok ? "ok" : "denied", detail: String(a.status) });
+    // R3-B2: "denied" only when we know nothing ran (a 4xx refusal). A timeout or network
+    // failure (status 0) or a Zuops 5xx stays "unknown": the send may have happened.
+    const result = a.ok ? "ok" : a.status === 0 || a.status >= 500 ? "unknown" : "denied";
+    await ctx.db.patch(a.id, { result, detail: String(a.status) });
   },
 });
 

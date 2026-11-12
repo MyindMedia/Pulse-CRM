@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { ZU_OPS, ZU_OPS_GENERATED_FROM } from "./ops.generated";
-import { CLASSIFIED, BODY_RULES, CONFIRM_REASONS, opIdFor, level, needsConfirm, needsConfirmFor, confirmKind, sendKind, gate, buildPath, pickFields, BODY_MAX_BYTES } from "./policy";
+import { CLASSIFIED, BODY_RULES, CONFIRM_REASONS, opIdFor, level, needsConfirm, needsConfirmFor, confirmKind, sendKind, gate, buildPath, pickFields, BODY_MAX_BYTES, redactSecrets } from "./policy";
 
 const ops = Object.values(ZU_OPS);
 const op = (id: string) => {
@@ -64,7 +64,7 @@ describe("F-B1 classification of every write", () => {
     for (const id of ["set_nurture", "update_nurture", "set_ai_texting", "set_ai_receptionist", "set_appointment_emails", "update_survey_rules", "configure_outreach", "set_automated_texts_from", "create_automation", "update_automation", "duplicate_automation", "create_calendar", "update_calendar", "create_offer", "update_offer", "update_imessage_line", "update_website_widget", "save_report_schedule", "save_report_alert", "set_gbp_report_settings"]) expect(kindOf(id), id).toBe("changes_sending");
     for (const id of ["create_outbound_webhook", "update_outbound_webhook", "create_alert_recipient", "update_alert_recipient", "invite_member", "update_member_role", "share_report", "make_gbp_connect_link"]) expect(kindOf(id), id).toBe("exposes");
     for (const id of ["start_listings", "scan_listings", "start_rank_scan", "create_rank_keyword", "setup_ai_visibility", "start_ai_visibility_check", "write_ai_visibility_questions", "ask_website_analytics", "generate_calendar_design", "generate_menu_design", "write_gbp_posts", "draft_gbp_reply", "write_gbp_embed_faq", "refresh_gbp_embed_facts", "try_reward_game", "apply_gbp_optimizer"]) expect(kindOf(id), id).toBe("spends");
-    for (const id of ["create_lead_source", "create_booking", "reschedule_booking", "cancel_booking", "update_lead", "set_lead_stage", "create_lead_note", "archive_conversation", "mark_conversation_read", "unenroll_automation", "dismiss_reply_suggestion"]) expect(kindOf(id), id).toBe("safe");
+    for (const id of ["create_lead_source", "update_lead", "set_lead_stage", "create_lead_note", "archive_conversation", "mark_conversation_read", "unenroll_automation", "dismiss_reply_suggestion"]) expect(kindOf(id), id).toBe("safe");
   });
 
   it("F-B1 body rules read the body; on means anything but absent, null or false", () => {
@@ -95,6 +95,74 @@ describe("F-B1 classification of every write", () => {
     expect(k("update_reward_game", { status: "live" })).toBe("changes_sending");
     expect(k("update_smart_form", { is_published: true })).toBe("changes_sending");
     expect(k("create_proposal", { build: { brief: "x" } })).toBe("spends");
+  });
+
+  it("R3-B1 create_proposal from a template spends unless rewrite is exactly false", () => {
+    const k = (body?: unknown) => confirmKind(op("create_proposal"), body);
+    expect(k({ template_id: "t1" })).toBe("spends");
+    expect(k({ template_id: "t1", rewrite: true })).toBe("spends");
+    expect(k({ template_id: "t1", rewrite: "false" })).toBe("spends");
+    expect(k({ template_id: "t1", rewrite: false })).toBeNull();
+    expect(k({ build: { brief: "x" }, rewrite: false })).toBe("spends");
+    expect(k({ doc: "<p>x</p>" })).toBeNull();
+    expect(k({})).toBeNull();
+  });
+
+  it("R3-B3 lead_reply_ideas is safe (nothing is sent or saved, free)", () => {
+    expect(CLASSIFIED.lead_reply_ideas[1]).toBe("safe");
+    expect(confirmKind(op("lead_reply_ideas"), { channel: "sms" })).toBeNull();
+    expect(gate(op("lead_reply_ideas"), { writesOn: true, adminKey: false }, false, { channel: "sms" })).toEqual({ ok: true });
+  });
+
+  it("R3-B4 bookings reach the lead unless the body says not to notify", () => {
+    const k = (id: string, body?: unknown) => confirmKind(op(id), body);
+    expect(k("create_booking", { starts_at: "2026-11-20T17:00:00Z" })).toBe("reaches");
+    expect(k("create_booking", { starts_at: "2026-11-20T17:00:00Z", notify_lead: true })).toBe("reaches");
+    expect(k("create_booking", { starts_at: "2026-11-20T17:00:00Z", notify_lead: "false" })).toBe("reaches");
+    expect(k("create_booking", { starts_at: "2026-11-20T17:00:00Z", notify_lead: false })).toBeNull();
+    expect(k("reschedule_booking", { starts_at: "2026-11-20T17:00:00Z" })).toBe("reaches");
+    expect(k("cancel_booking", { reason: "sick" })).toBe("reaches");
+    expect(k("update_booking", { lead_id: "l1" })).toBe("changes_sending");
+    expect(k("update_booking", { lead_id: null })).toBeNull();
+    expect(k("update_booking", { notes: "x" })).toBeNull();
+  });
+
+  it("R3-B4 toggle_ws_automation: an explicit enabled false is safe; on or a blind flip reaches", () => {
+    expect(op("toggle_ws_automation").body.map((f) => f.name)).toEqual(["enabled"]);
+    const k = (body?: unknown) => confirmKind(op("toggle_ws_automation"), body);
+    expect(k({ enabled: false })).toBeNull();
+    expect(k({ enabled: true })).toBe("reaches");
+    expect(k({})).toBe("reaches");
+    expect(k(undefined)).toBe("reaches");
+    expect(k({ enabled: "false" })).toBe("reaches");
+  });
+
+  it("R3-B4 body rules for payment tracking, support handler, forms, menus, short links and AI resume", () => {
+    const k = (id: string, body?: unknown) => confirmKind(op(id), body);
+    expect(k("set_stripe_payment_tracking", { on: true })).toBeNull();
+    expect(k("set_stripe_payment_tracking", { on: true, meta_event: "Purchase" })).toBe("exposes");
+    expect(k("set_stripe_payment_tracking", { meta_event: null })).toBeNull();
+    expect(k("update_support_ticket", { handler: "assistant" })).toBe("changes_sending");
+    expect(k("update_support_ticket", { handler: "staff", status: "resolved" })).toBeNull();
+    expect(k("create_smart_form", { name: "x" })).toBeNull();
+    expect(k("create_smart_form", { name: "x", is_published: true })).toBe("changes_sending");
+    expect(k("create_booking_menu", { title: "x" })).toBe("changes_sending"); // is_active defaults to true
+    expect(k("create_booking_menu", { title: "x", is_active: true })).toBe("changes_sending");
+    expect(k("create_booking_menu", { title: "x", is_active: false })).toBeNull();
+    expect(k("update_booking_menu", { title: "x" })).toBeNull();
+    expect(k("update_booking_menu", { is_active: true })).toBe("changes_sending");
+    expect(k("update_short_link", { pinned: true })).toBeNull();
+    expect(k("update_short_link", { url: "https://new.example" })).toBe("changes_sending");
+    expect(k("set_lead_ai_pause", { paused: true, until: new Date(Date.now() + 86_400_000).toISOString() })).toBeNull();
+    expect(k("set_lead_ai_pause", { paused: true, until: "2020-01-01T00:00:00Z" })).toBe("changes_sending");
+    expect(k("set_lead_ai_pause", { paused: true, until: "not a date" })).toBe("changes_sending");
+  });
+
+  it("R3-B4 AI content ops change what is sent; stage and tag moves stay safe on purpose", () => {
+    for (const id of ["create_ai_lesson", "update_ai_lesson", "set_knowledge_base", "add_knowledge_base", "set_brain_price_note", "add_brain_prices", "update_brain_price", "update_brain_photo", "answer_brain_waiting"]) {
+      expect(confirmKind(op(id), {}), id).toBe("changes_sending");
+    }
+    for (const id of ["set_lead_stage", "update_lead", "create_deal", "update_deal", "update_pipeline_stage"]) expect(confirmKind(op(id), {}), id).toBeNull();
   });
 
   it("F-B1 an unclassified or moved write fails closed as reaching people", () => {
@@ -231,5 +299,50 @@ describe("pickFields", () => {
 
   it("caps a body at 64 KB", () => {
     expect(pickFields(create.body, { full_name: "x".repeat(BODY_MAX_BYTES) }, "body").ok).toBe(false);
+  });
+});
+
+describe("redactSecrets", () => {
+  it("R3-B5 key_self keeps the key object and hides only its secret strings", () => {
+    const data = { key: { id: "k1", name: "Pulse CRM", key_prefix: "zu-ab12", prefix: "zu-ab12", key: "zu-ab12secret", access_level: "write", scopes: ["write"], rate_limit_per_min: 120, is_active: true, type: "account", created_at: "2026-11-01T00:00:00Z", workspace: { id: "w1", name: "Acme" } }, endpoints: { api: "https://api.usezu.com/v1", mcp: "https://api.usezu.com/mcp" } };
+    expect(redactSecrets("key_self", data)).toEqual({
+      key: { id: "k1", name: "Pulse CRM", key_prefix: "hidden", prefix: "hidden", key: "hidden", access_level: "write", scopes: ["write"], rate_limit_per_min: 120, is_active: true, type: "account", created_at: "2026-11-01T00:00:00Z", workspace: { id: "w1", name: "Acme" } },
+      endpoints: { api: "https://api.usezu.com/v1", mcp: "https://api.usezu.com/mcp" },
+    });
+  });
+
+  it("R3-B5 never replaces an object or array wholesale; hides the strings inside a secret-looking key", () => {
+    const out = redactSecrets("list_x", { credentials: { username: "u", password: "p", port: 22, tls: true }, tokens: ["a"], secret: ["s1", "s2"] }) as Record<string, unknown>;
+    expect(out).toEqual({ credentials: { username: "hidden", password: "hidden", port: "hidden", tls: true }, tokens: ["a"], secret: ["hidden", "hidden"] });
+  });
+
+  it("R3-B5 the wider pattern, in snake_case and camelCase", () => {
+    const names = ["authorization", "private_key", "client_secret", "client_key", "credentials", "pin", "webhook_secret", "door_pin", "apiKey", "secretKey", "accessToken", "refreshToken", "signingSecret", "privateKey", "clientSecret", "Authorization"];
+    const input = Object.fromEntries(names.map((n) => [n, "v-" + n]));
+    const out = redactSecrets("list_x", input) as Record<string, unknown>;
+    for (const n of names) expect(out[n], n).toBe("hidden");
+    const keep = { name: "x", shipping: "y", key_count: 3, tokens_used: 9, pinned: true, spinner: "z" };
+    expect(redactSecrets("list_x", keep)).toEqual(keep);
+  });
+
+  it("R3-B5 URL strings lose secret query values and keep the rest", () => {
+    const out = redactSecrets("list_x", {
+      a: "https://hooks.example/x?token=abc&keep=1",
+      b: "https://cdn.example/f.png?sig=s1&Signature=s2&w=200#frag",
+      c: "http://x.example/?access_token=t&key=k&secret=s",
+      d: "not a url ?token=abc",
+    });
+    expect(out).toEqual({
+      a: "https://hooks.example/x?token=hidden&keep=1",
+      b: "https://cdn.example/f.png?sig=hidden&Signature=hidden&w=200#frag",
+      c: "http://x.example/?access_token=hidden&key=hidden&secret=hidden",
+      d: "not a url ?token=abc",
+    });
+  });
+
+  it("R3-B5 the outbound webhook secret is shown once on create, nowhere else", () => {
+    const body = { id: "w1", secret: "whsec_1", signing_secret: "whsec_1", signingSecret: "whsec_1", auth_token: "t" };
+    expect(redactSecrets("create_outbound_webhook", body)).toEqual({ id: "w1", secret: "whsec_1", signing_secret: "whsec_1", signingSecret: "whsec_1", auth_token: "hidden" });
+    expect(redactSecrets("list_outbound_webhooks", body)).toEqual({ id: "w1", secret: "hidden", signing_secret: "hidden", signingSecret: "hidden", auth_token: "hidden" });
   });
 });

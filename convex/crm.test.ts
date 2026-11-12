@@ -353,7 +353,7 @@ describe("crm", () => {
   it("X-03 a refused write returns Zuops's reason (409 and 400)", async () => {
     writesOn();
     respond = () => new Response(JSON.stringify({ success: false, data: null, error: "slot_full", details: { code: "slot_full" } }), { status: 409 });
-    const a = await owner().action(api.crm.call, { op: "create_booking", body: { lead_id: "l1", starts_at: "2026-11-12T17:00:00Z" } });
+    const a = await owner().action(api.crm.call, { op: "create_booking", body: { lead_id: "l1", starts_at: "2026-11-12T17:00:00Z" }, confirm: true });
     expect(a).toMatchObject({ ok: false, status: 409, code: "slot_full", reason: "That time is already taken. Pick another slot." });
     expect(JSON.parse(a.json!)).toEqual({ code: "slot_full" });
     respond = () => new Response(JSON.stringify({ success: false, data: null, error: "A lead with that phone already exists.", details: { lead_id: "l_9" } }), { status: 409 });
@@ -451,6 +451,46 @@ describe("crm", () => {
     ]);
     const text = JSON.stringify(rows);
     for (const secret of [BODY_TEXT, MAYA.name, MAYA.email, "hooks.example"]) expect(text).not.toContain(secret);
+  });
+
+  it("R3-B2 a timeout or a Zuops 5xx leaves the audit row unknown; only a 4xx is denied", async () => {
+    writesOn();
+    const send = () => admin().action(api.crm.call, { op: "send_message", body: { lead_id: "l_maya", channel: "sms", body: BODY_TEXT }, confirm: true });
+    respond = () => new Response(JSON.stringify({ success: false, error: "upstream" }), { status: 502 });
+    await send();
+    vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("network down"); }));
+    await send();
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => { calls.push({ url, init }); return respond(url, init); }));
+    respond = () => new Response(JSON.stringify({ success: false, error: "window_closed" }), { status: 409 });
+    await send();
+    const rows = await t.run(async (ctx) => (await ctx.db.query("outreachEvents").collect()).sort((x, y) => x._creationTime - y._creationTime));
+    expect(rows.map((r) => [r.result, r.detail])).toEqual([["unknown", "502"], ["unknown", "0"], ["denied", "409"]]);
+  });
+
+  it("R3-B3 lead_reply_ideas runs without a confirm", async () => {
+    writesOn();
+    respond = () => ok({ lead_id: "l1", channel: "sms", kind: "reply", replies: [{ label: "a", text: "b" }], subject: null });
+    const r = await owner().action(api.crm.call, { op: "lead_reply_ideas", path: { lead_id: "l1" }, body: { channel: "sms" } });
+    expect(r).toMatchObject({ ok: true });
+    expect(calls).toHaveLength(1);
+  });
+
+  it("R3-B4 create_booking needs a confirm unless notify_lead is false", async () => {
+    writesOn();
+    const body = { lead_id: "l1", starts_at: "2026-11-20T17:00:00Z" };
+    expect(await owner().action(api.crm.call, { op: "create_booking", body })).toMatchObject({ ok: false, code: "needs_confirm" });
+    expect(calls).toHaveLength(0);
+    expect(await owner().action(api.crm.call, { op: "create_booking", body: { ...body, notify_lead: false } })).toMatchObject({ ok: true });
+    expect(await owner().action(api.crm.call, { op: "create_booking", body, confirm: true })).toMatchObject({ ok: true });
+    expect(calls).toHaveLength(2);
+  });
+
+  it("R3-B5 key_self through call keeps name, access_level and rate_limit_per_min and hides the prefix", async () => {
+    respond = () => ok({ key: { id: "k1", name: "Pulse CRM", key_prefix: "zu-ab12", access_level: "write", scopes: ["write"], rate_limit_per_min: 120, is_active: true, type: "account", created_at: "2026-11-01T00:00:00Z" }, endpoints: { api: "https://api.usezu.com/v1" } });
+    const r = await owner().action(api.crm.call, { op: "key_self" });
+    const data = JSON.parse(r.json!);
+    expect(data.key).toMatchObject({ name: "Pulse CRM", access_level: "write", rate_limit_per_min: 120, scopes: ["write"], is_active: true, type: "account", key_prefix: "hidden" });
+    expect(r.json).not.toContain("zu-ab12");
   });
 
   it("F-B8 a path value that looks like an email is masked in the audit row", async () => {
