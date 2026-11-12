@@ -53,6 +53,10 @@ const HOUR = 3_600_000;
 const OPEN_HOUR = 9;
 const CLOSE_HOUR = 22;
 const HOLD_MINUTES = 60;
+/* A 0% deposit booking is confirmed outright only when the client still has
+   time to pay the balance before automation.tick step 4 (2h before start,
+   run every 15 minutes) would release it. */
+const NO_DEPOSIT_MIN_LEAD_MS = 2 * HOUR + 15 * 60_000;
 
 const serviceV = v.union(
   v.literal("recording"),
@@ -1037,8 +1041,14 @@ export const createBooking = mutation({
        to hold the slot for: it is booked straight away, and the usual 2h
        balance rule (automation.tick step 4) still applies. A 60-minute hold
        here would ask for a $0 payment the checkout cannot take and then
-       release the slot. */
-    const noDepositDue = !asRequest && depositCents === 0;
+       release the slot.
+       Only when the start is far enough out for that rule to be met: inside
+       2h plus one cron tick (15 min) a confirmed, unpaid booking would be
+       forfeited at the next tick. A short-notice 0% booking keeps the usual
+       60-minute hold instead, and the client pays in full to confirm it. */
+    const shortNoticeNoDeposit =
+      !asRequest && depositCents === 0 && rateCents > 0 && args.startTime - Date.now() <= NO_DEPOSIT_MIN_LEAD_MS;
+    const noDepositDue = !asRequest && depositCents === 0 && !shortNoticeNoDeposit;
     const sessionId = await ctx.db.insert("sessions", {
       orgId,
       title: `${args.clientName.trim()} - ${svc ? svc.name : room.name}`,
@@ -1175,8 +1185,14 @@ export const createBooking = mutation({
       // whole price, so it is a "payment", not a "deposit".
       const appUrl = process.env.APP_URL ?? "http://localhost:3000";
       const payUrl = `${appUrl}/book/${org?.slug ?? ""}/checkout/${sessionId}`;
-      const dueWord = cfg.paymentMode === "full" ? "payment" : "deposit";
-      const payWhat = cfg.paymentMode === "full" ? `Pay ${money(depositCents)}` : `Pay the ${money(depositCents)} deposit`;
+      // A short-notice 0% booking owes the whole price inside the hold.
+      const dueWord = cfg.paymentMode === "full" || shortNoticeNoDeposit ? "payment" : "deposit";
+      const payWhat =
+        cfg.paymentMode === "full"
+          ? `Pay ${money(depositCents)}`
+          : shortNoticeNoDeposit
+            ? `Pay the ${money(rateCents)} in full`
+            : `Pay the ${money(depositCents)} deposit`;
       const held = noDepositDue
         ? {
             subject: `Booked - ${room.name}`,
@@ -1222,7 +1238,7 @@ export const createBooking = mutation({
       await notifyTeam(ctx, {
         orgId,
         subject: `New booking - ${room.name}, ${new Date(args.startTime).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}`,
-        body: `${args.clientName} (${args.clientEmail.trim()}) requested ${args.durationHours}h in ${room.name}. ${noDepositDue ? `No deposit was due, so it is booked; the ${money(rateCents)} balance is due 2 hours before start.` : `The room is held pending the ${money(depositCents)} ${dueWord}.`}${engineerLine}${addOnLine}${requestLine}${discountLine}`,
+        body: `${args.clientName} (${args.clientEmail.trim()}) requested ${args.durationHours}h in ${room.name}. ${noDepositDue ? `No deposit was due, so it is booked; the ${money(rateCents)} balance is due 2 hours before start.` : `The room is held pending the ${money(shortNoticeNoDeposit ? rateCents : depositCents)} ${dueWord}.`}${engineerLine}${addOnLine}${requestLine}${discountLine}`,
         kind: "booking.created",
         sessionId,
       });

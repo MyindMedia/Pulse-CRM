@@ -11,6 +11,7 @@ import type { Id } from "./_generated/dataModel";
    the slot was released after an hour. */
 const ORG = "org_hold";
 const DAY = 86_400_000;
+const HOUR = 3_600_000;
 
 async function studio(t: ReturnType<typeof convexTest>, room: Record<string, unknown>) {
   return await t.run(async (ctx) => {
@@ -24,9 +25,9 @@ async function studio(t: ReturnType<typeof convexTest>, room: Record<string, unk
   });
 }
 
-async function bookEmailOnly(t: ReturnType<typeof convexTest>, roomId: Id<"rooms">) {
+async function bookEmailOnly(t: ReturnType<typeof convexTest>, roomId: Id<"rooms">, startIn = 7 * DAY) {
   const res = await t.mutation(api.booking.createBooking, {
-    roomId, clientName: "Nova Client", clientEmail: "nova@x.test", startTime: Date.now() + 7 * DAY, durationHours: 2,
+    roomId, clientName: "Nova Client", clientEmail: "nova@x.test", startTime: Date.now() + startIn, durationHours: 2,
   } as never);
   const mail = await t.run(async (ctx) =>
     (await ctx.db.query("notifications").collect()).find((n) => n.kind === "booking.held" && n.channel === "email"),
@@ -61,6 +62,29 @@ describe("hold message", () => {
     expect(mail?.body).not.toContain("$0");
     expect(mail?.body).toContain("No deposit is needed");
     expect(mail?.body).toContain("/book/hold/checkout/");
+  });
+
+  /* R01/R02: a 0% booking confirmed inside 2h (+ one 15-minute cron tick) of
+     its start would be forfeited by automation step 4 at the next tick, after
+     telling the client they had until 2h before start. Short notice keeps the
+     60-minute hold and asks for the full price. */
+  it("a 0% deposit room booked under 2h15m before start stays a hold for the full price", async () => {
+    const t = convexTest(schema);
+    const room = await studio(t, { depositPct: 0 });
+    const { mail, session } = await bookEmailOnly(t, room, 2 * HOUR + 10 * 60_000);
+    expect(session?.status).toBe("tentative");
+    expect(session?.holdExpiresAt).toBeGreaterThan(Date.now());
+    expect(mail?.subject).toContain("Hold started");
+    expect(mail?.body).toContain("Pay the $200 in full within 60 minutes");
+    expect(mail?.body).not.toContain("$0");
+  });
+
+  it("a 0% deposit room booked well ahead is confirmed with no hold", async () => {
+    const t = convexTest(schema);
+    const room = await studio(t, { depositPct: 0 });
+    const { session } = await bookEmailOnly(t, room, 2 * HOUR + 20 * 60_000);
+    expect(session?.status).toBe("confirmed");
+    expect(session?.holdExpiresAt).toBeUndefined();
   });
 });
 
