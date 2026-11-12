@@ -30,6 +30,8 @@
     "src/components/agency/outreach-panels.tsx",
     "src/components/agency/outreach-workspace.tsx",
     "src/components/agency/outreach-workspace.test.tsx",
+    "src/components/agency/crm/prospects-zuops.tsx",
+    "src/components/agency/crm/prospects-zuops.test.tsx",
     "convex/outreach.ts",
     "convex/outreachProspects.ts",
     "convex/outreachDrafts.ts",
