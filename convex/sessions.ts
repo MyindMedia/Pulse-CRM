@@ -17,6 +17,7 @@ import {
 } from "./lib/gearRental";
 import { money, redactMoney, redactEach } from "./lib/money";
 import { notify } from "./lib/notify";
+import { isSmsOptedOut } from "./lib/smsOptOut";
 import { stageChecklistsFor, dropPreChecklistFor } from "./checklists";
 import { ensureSessionShift } from "./shifts";
 import { proposeWaitlistFill } from "./waitlist";
@@ -1117,6 +1118,11 @@ export const sendPayLinkSms = mutation({
     if (!s || s.orgId !== orgId) throw new Error("Not found");
     const artist = await ctx.db.get(s.artistId);
     if (!artist?.phone) throw new Error("No phone number on file for this client.");
+    // notify() would skip a STOP number silently; say so instead of letting
+    // staff believe the client has the link.
+    if (await isSmsOptedOut(ctx, artist.phone)) {
+      throw new ConvexError("This client replied STOP to texts. Copy or email the pay link instead.");
+    }
     const org = await ctx.db
       .query("orgs")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
