@@ -457,7 +457,7 @@ describe("access engine - inactive agency members are not members", () => {
     await seed("suspended", "owner");
     const asX = t.withIdentity(agencyToken);
     const r = await asX.mutation(api.testHarness.require_, { cap: "billing.edit", orgId: "org_sub" });
-    expect(r.ok).toBe(false);
+    expect(r).toEqual({ ok: false, code: "NO_AGENCY_MEMBER" });
   });
 
   it("an ACTIVE member with the same claim still resolves (no regression)", async () => {
@@ -486,6 +486,36 @@ describe("access engine - inactive agency members are not members", () => {
     const asOp = t.withIdentity({ subject: "user_op", name: "Op", email: "op@x.com" });
     const result = await asOp.query(api.testHarness.resolve, {});
     expect(result).toMatchObject({ kind: "agency_member", role: "owner" });
+  });
+
+  it("a suspended, allowlisted person who is also a studio member does not get the console shell", async () => {
+    process.env.AGENCY_ADMIN_EMAILS = "x@x.com";
+    process.env.PULSE_AGENCY_ID = "org_ag";
+    await seed("suspended");
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: "org_solo", name: "Solo", slug: "solo", tier: "growth", status: "active" });
+      await ctx.db.insert("members", {
+        orgId: "org_solo", name: "X", role: "manager", clerkUserId: "user_x", skills: [],
+      });
+    });
+    const asX = t.withIdentity({ subject: "user_x", name: "X", email: "x@x.com" });
+    // They are still a studio member…
+    expect((await asX.query(api.testHarness.resolve, {})).kind).toBe("studio_member");
+    // …but the agency console gate refuses them.
+    expect(await asX.query(api.agency.access, {})).toEqual({ allowed: false, demo: false });
+  });
+
+  it("an allowlisted studio member with NO agency row still passes the console gate (unchanged)", async () => {
+    process.env.AGENCY_ADMIN_EMAILS = "y@x.com";
+    delete process.env.PULSE_AGENCY_ID;
+    await t.run(async (ctx) => {
+      await ctx.db.insert("orgs", { orgId: "org_solo", name: "Solo", slug: "solo", tier: "growth", status: "active" });
+      await ctx.db.insert("members", {
+        orgId: "org_solo", name: "Y", role: "manager", clerkUserId: "user_y", skills: [],
+      });
+    });
+    const asY = t.withIdentity({ subject: "user_y", name: "Y", email: "y@x.com" });
+    expect(await asY.query(api.agency.access, {})).toMatchObject({ allowed: true });
   });
 
   it("a row suspended in ANOTHER agency does not block the Pulse allowlist", async () => {
