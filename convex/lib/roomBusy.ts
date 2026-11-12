@@ -52,6 +52,15 @@ async function orgBySlugOrId(ctx: QueryCtx, orgId: string): Promise<Doc<"orgs"> 
     .first();
 }
 
+/** Is this .ics event a copy of something Pulse pushed to Google? Google's
+ *  .ics UID is "<eventId>@google.com"; Pulse writes its events under
+ *  pulseEventId ("pulse" + hex, googleCalendar.ts), and an imported session
+ *  keeps its Google event id. */
+export function isPulseCopy(externalUid: string, sessionEventIds: Set<string | undefined>): boolean {
+  const id = externalUid.replace(/@google\.com$/i, "");
+  return /^pulse[0-9a-f]+$/.test(id) || sessionEventIds.has(id);
+}
+
 /** Every busy interval for a room overlapping [from, to). */
 export async function roomBusyIntervals(
   ctx: QueryCtx,
@@ -102,8 +111,13 @@ export async function roomBusyIntervals(
         q.eq("orgId", orgId).eq("roomId", roomId).gte("startTime", from - 31 * DAY).lt("startTime", to),
       )
       .collect();
+    // A Pulse booking pushed to Google comes back through that calendar's
+    // .ics feed. Pulse already counts its own sessions and blocks (and the
+    // copy of a moved or cancelled one must not hold the slot), so drop them.
+    const sessionEventIds = new Set(sessions.map((s) => s.googleCalendarEventId).filter(Boolean));
     for (const e of feedEvents) {
       if (!activeFeeds.has(e.calendarId)) continue;
+      if (isPulseCopy(e.externalUid, sessionEventIds)) continue;
       if (e.startTime < to && e.endTime > from) out.push({ start: e.startTime, end: e.endTime, kind: "calendar", id: e._id });
     }
   }
