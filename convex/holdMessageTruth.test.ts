@@ -33,7 +33,7 @@ async function bookEmailOnly(t: ReturnType<typeof convexTest>, roomId: Id<"rooms
     (await ctx.db.query("notifications").collect()).find((n) => n.kind === "booking.held" && n.channel === "email"),
   );
   const session = await t.run((ctx) => ctx.db.get(res.sessionId));
-  return { mail, session };
+  return { mail, session, res };
 }
 
 describe("hold message", () => {
@@ -82,8 +82,10 @@ describe("hold message", () => {
   it("a 0% deposit room booked well ahead is confirmed with no hold", async () => {
     const t = convexTest(schema);
     const room = await studio(t, { depositPct: 0 });
-    const { session } = await bookEmailOnly(t, room, 2 * HOUR + 20 * 60_000);
+    const { session, res } = await bookEmailOnly(t, room, 2 * HOUR + 20 * 60_000);
     expect(session?.status).toBe("confirmed");
+    // The booking page picks its toast from this (R23).
+    expect((res as { status?: string }).status).toBe("confirmed");
     expect(session?.holdExpiresAt).toBeUndefined();
   });
 

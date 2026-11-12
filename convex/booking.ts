@@ -1303,6 +1303,8 @@ ${asRequest ? "It is a booking request: the studio still has to approve it, and 
     return {
       sessionId,
       ...(asRequest ? { requestStatus: "pending" as const } : {}),
+      // Booked outright (0% deposit, far enough out) or a hold to pay.
+      status: noDepositDue ? ("confirmed" as const) : ("tentative" as const),
       rateCents,
       depositCents,
       depositPct: cfg.depositPct,
