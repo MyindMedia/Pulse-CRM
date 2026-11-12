@@ -3,6 +3,7 @@ import { query } from "./_generated/server";
 import { resolveViewer } from "./lib/access";
 import { DEMO_ORG } from "./lib/tenant";
 import { isClient } from "./lib/catalogArtists";
+import { collectedRevenueRows, sumCollected } from "./lib/collectedRevenue";
 
 const DAY = 86_400_000;
 
@@ -62,22 +63,23 @@ export const overview = query({
         .collect(),
     ]);
 
-    // ── Revenue (collected, by paidAt) ──
-    const paid = invoices.filter((i) => i.status === "paid" && i.paidAt);
-    const revenueThisMonth = paid
-      .filter((i) => i.paidAt! >= monthStart)
-      .reduce((s, i) => s + i.amountCents, 0);
+    // ── Revenue (collected) ──
+    // Everything that came in, the same way Reports > Financials counts it:
+    // paid invoices, booking payments, packages, memberships and bank income
+    // (lib/collectedRevenue.ts). Read from the start of the 12-month trend.
+    const trendStart = (() => {
+      const d = new Date(monthStart);
+      d.setMonth(d.getMonth() - 11);
+      return d.getTime();
+    })();
+    const collected = canSeeFinancials ? await collectedRevenueRows(ctx, orgId, trendStart, now + 1) : [];
+    const revenueThisMonth = sumCollected(collected, monthStart, now + 1);
     // Like-for-like: compare month-to-date against the SAME elapsed span of
     // last month, not the whole of it. Measuring 3 weeks against a full month
     // makes the delta read negative every day of every month regardless of how
     // the studio is actually doing, which is worse than useless on day 2.
     const elapsedThisMonth = now - monthStart;
-    const revenueLastMonth = paid
-      .filter(
-        (i) =>
-          i.paidAt! >= lastMonthStart && i.paidAt! < lastMonthStart + elapsedThisMonth,
-      )
-      .reduce((s, i) => s + i.amountCents, 0);
+    const revenueLastMonth = sumCollected(collected, lastMonthStart, lastMonthStart + elapsedThisMonth);
     const revenueDelta =
       revenueLastMonth > 0
         ? (revenueThisMonth - revenueLastMonth) / revenueLastMonth
@@ -149,9 +151,9 @@ export const overview = query({
       d.setMonth(d.getMonth() - i);
       trendMap.set(monthKey(d.getTime()), 0);
     }
-    for (const inv of paid) {
-      const k = monthKey(inv.paidAt!);
-      if (trendMap.has(k)) trendMap.set(k, trendMap.get(k)! + inv.amountCents);
+    for (const r of collected) {
+      const k = monthKey(r.at);
+      if (trendMap.has(k)) trendMap.set(k, trendMap.get(k)! + r.cents);
     }
     const revenueTrend = [...trendMap.entries()].map(([key, cents]) => ({
       month: new Date(`${key}-01T00:00:00`).toLocaleDateString("en-US", { month: "short" }),
@@ -212,7 +214,7 @@ export const overview = query({
 
 /* Collected revenue over a range, for the overview's booking revenue chart:
    30 days by day, 90 days by week, the year to date by month. Same source as
-   the Revenue tile (paid invoices by paidAt), so the two always agree.
+   the Revenue tile (lib/collectedRevenue.ts), so the two always agree.
    Money: callers without invoices.read get no points. */
 export const revenueSeries = query({
   args: { range: v.union(v.literal("30d"), v.literal("90d"), v.literal("ytd")) },
@@ -247,16 +249,11 @@ export const revenueSeries = query({
     }
 
     const from = buckets[0].start;
-    const paid = (
-      await ctx.db
-        .query("invoices")
-        .withIndex("by_org_paidAt", (q) => q.eq("orgId", orgId).gte("paidAt", from).lte("paidAt", now))
-        .collect()
-    ).filter((i) => i.status === "paid" && i.paidAt);
+    const collected = await collectedRevenueRows(ctx, orgId, from, now + 1);
     const points: SeriesPoint[] = buckets.map((b) => ({
       label: b.label,
       start: b.start,
-      cents: paid.filter((i) => i.paidAt! >= b.start && i.paidAt! < b.end).reduce((sum, i) => sum + i.amountCents, 0),
+      cents: sumCollected(collected, b.start, b.end),
     }));
     return { range, points };
   },
@@ -295,16 +292,9 @@ export const periodKpis = query({
     if (money) {
       const upTo = Math.min(end, now);
       const elapsed = Math.max(0, upTo - start);
-      const paid = (
-        await ctx.db
-          .query("invoices")
-          .withIndex("by_org_paidAt", (q) => q.eq("orgId", orgId).gte("paidAt", prevStart).lte("paidAt", upTo))
-          .collect()
-      ).filter((i) => i.status === "paid" && i.paidAt);
-      revenueCents = paid.filter((i) => i.paidAt! >= start).reduce((s, i) => s + i.amountCents, 0);
-      const prev = paid
-        .filter((i) => i.paidAt! >= prevStart && i.paidAt! < Math.min(prevEnd, prevStart + elapsed))
-        .reduce((s, i) => s + i.amountCents, 0);
+      const collected = await collectedRevenueRows(ctx, orgId, prevStart, upTo + 1);
+      revenueCents = sumCollected(collected, start, upTo + 1);
+      const prev = sumCollected(collected, prevStart, Math.min(prevEnd, prevStart + elapsed));
       revenueDelta = prev > 0 ? (revenueCents - prev) / prev : null;
     }
 
