@@ -10,7 +10,12 @@ export const crmTables = {
   crmPulses: defineTable({
     agencyId: v.string(),
     event: v.string(),
+    /** What the event is about, for crm.signal. Optional only so a row from before it existed still validates. */
+    kind: v.optional(v.union(v.literal("lead"), v.literal("booking"), v.literal("message"), v.literal("call"), v.literal("deal"))),
+    /** SHA-256 hex of the raw signed body: the de-duplication key (F-B2). */
     deliveryId: v.string(),
+    /** Zuops's X-Webhook-Delivery header, kept for tracing only; never trusted for de-duplication. */
+    deliveryHeader: v.optional(v.string()),
     leadId: v.optional(v.string()),
     bookingId: v.optional(v.string()),
     messageId: v.optional(v.string()),
@@ -18,6 +23,7 @@ export const crmTables = {
     at: v.number(),
   })
     .index("by_agency_at", ["agencyId", "at"])
+    .index("by_agency_kind_at", ["agencyId", "kind", "at"])
     .index("by_delivery", ["deliveryId"])
     .index("by_at", ["at"]),
 };

@@ -7,11 +7,12 @@ import { verifySignature } from "../outreach/zuops";
    Zuops posts lead, appointment, message, call and deal events here, signed with
    HMAC-SHA256 over the raw body (`X-Webhook-Signature: sha256=<hex>`, or the older
    `X-Zuops-Signature`). A valid delivery stores one `crmPulses` row: the event
-   name and up to four ids. Nothing else from the body is kept, so a forged or
+   name, its kind and up to four ids. Only the body is signed, so the event name is
+   read from it when present, and replays are caught on the SHA-256 of the body. Nothing else from the body is kept, so a forged or
    replayed body cannot plant data, and no name, phone, email or message text ever
    lands in Convex. Open CRM screens watch `crm.signal` and re-read Zuops live.
    This route only records; it never calls Zuops and never sends anything.
-   Off (503) until ZUOPS_CRM_WEBHOOK_SECRET is set. */
+   Off (503) until ZUOPS_CRM_WEBHOOK_SECRET and PULSE_AGENCY_ID are set. */
 
 export const CRM_EVENTS: ReadonlySet<string> = new Set([
   "lead.created",
@@ -74,27 +75,45 @@ export function pickIds(event: string, body: unknown): { leadId?: string; bookin
   return out;
 }
 
+/** The event name the signed body carries (`event`, `type` or `event_type`, top level), if any. */
+export function bodyEvent(body: unknown): string | undefined {
+  const top = rec(body);
+  for (const k of ["event", "type", "event_type"]) {
+    const v = top[k];
+    if (typeof v === "string" && v.trim()) return v.trim();
+  }
+  return undefined;
+}
+
 export const zuEvents = httpAction(async (ctx, req) => {
   const secret = process.env.ZUOPS_CRM_WEBHOOK_SECRET;
   if (!secret) return json(503, { error: "Not enabled" });
+  // F-B3: only the pinned agency, never a guessed one.
+  if (!process.env.PULSE_AGENCY_ID?.trim()) return json(503, { error: "Not set up" });
 
-  const declared = Number(req.headers.get("content-length") ?? "0");
-  if (Number.isFinite(declared) && declared > BODY_MAX_BYTES) return json(413, { error: "Body too large" });
+  // F-B11: refuse a declared oversize body before reading it.
+  const declared = req.headers.get("content-length");
+  if (declared !== null && Number(declared) > BODY_MAX_BYTES) return json(413, { error: "Body too large" });
   const raw = await req.text();
   if (new TextEncoder().encode(raw).length > BODY_MAX_BYTES) return json(413, { error: "Body too large" });
 
   const signature = req.headers.get("x-webhook-signature") ?? req.headers.get("x-zuops-signature");
   if (!(await verifySignature(raw, signature, secret))) return json(401, { error: "Bad signature" });
 
-  const event = req.headers.get("x-webhook-event") ?? req.headers.get("x-zuops-event") ?? "";
-  if (!CRM_EVENTS.has(event)) return json(200, { ok: true, ignored: event ? event.slice(0, 64) : "unknown" });
-
   let body: unknown = {};
   try {
     body = JSON.parse(raw);
   } catch {
-    /* signed but not JSON: keep the event, no ids */
+    /* signed but not JSON: no ids, and the event comes from the header */
   }
+
+  // F-B2: the event name comes from the signed body when it carries one. The
+  // headers are not signed, so a header that disagrees with the body is refused.
+  const headerEvent = req.headers.get("x-webhook-event") ?? req.headers.get("x-zuops-event") ?? "";
+  const signedEvent = bodyEvent(body);
+  if (signedEvent && headerEvent && signedEvent !== headerEvent) return json(400, { error: "Event does not match the signed body" });
+  const event = signedEvent ?? headerEvent;
+  if (!CRM_EVENTS.has(event)) return json(200, { ok: true, ignored: event ? event.slice(0, 64) : "unknown" });
 
   const pinned = process.env.ZUOPS_CRM_WORKSPACE_ID?.trim();
   if (pinned) {
@@ -102,10 +121,17 @@ export const zuEvents = httpAction(async (ctx, req) => {
     if (typeof w === "string" && w !== pinned) return json(200, { ok: true, ignored: "workspace" });
   }
 
+  // F-B2: de-duplicate on the signed bytes, never on the unsigned delivery header.
+  const deliveryId = await sha256Hex(raw);
   const header = req.headers.get("x-webhook-delivery");
-  const deliveryId = header && DELIVERY.test(header) ? header : await sha256Hex(raw);
+  const deliveryHeader = header && DELIVERY.test(header) ? header : undefined;
 
-  const result = await ctx.runMutation(internal.crm._pulse, { event, deliveryId, ...pickIds(event, body) });
+  const result = await ctx.runMutation(internal.crm._pulse, {
+    event,
+    deliveryId,
+    ...(deliveryHeader ? { deliveryHeader } : {}),
+    ...pickIds(event, body),
+  });
   if (result === "no_agency") return json(503, { error: "Not set up" });
   if (result === "duplicate") return json(200, { ok: true, duplicate: true });
   if (result === "invalid") return json(400, { error: "Bad delivery" });

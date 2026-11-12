@@ -5,6 +5,18 @@
 
 export const ZU_BASE = "https://api.usezu.com";
 
+/** F-B13: a local mock of Zuops for verifying write flows. Honored only for an exact
+ *  loopback http address with a port; anything else is ignored. */
+export const MOCK_URL = /^http:\/\/127\.0\.0\.1:\d{2,5}$/;
+/** The only Authorization a mock request ever carries; real keys are never read in mock mode. */
+export const MOCK_KEY = "zu-mock";
+
+/** The mock base when ZUOPS_CRM_MOCK_URL is a valid loopback address, else null. Call inside a handler. */
+export function mockBase(): string | null {
+  const raw = process.env.ZUOPS_CRM_MOCK_URL ?? "";
+  return MOCK_URL.test(raw) ? raw : null;
+}
+
 export type ZuLimits = { contactsLimit?: number; contactsUsed?: number; contactsRemaining?: number; rateRemaining?: number };
 
 export type ZuResult =
@@ -129,7 +141,7 @@ function failure(status: number, body: Rec, headers: Headers, limits: ZuLimits):
 }
 
 export async function zuRequest(
-  args: { key: string; method: string; path: string; query?: Record<string, string | number | boolean>; body?: unknown; idempotencyKey?: string },
+  args: { key: string; method: string; path: string; query?: Record<string, string | number | boolean>; body?: unknown; idempotencyKey?: string; base?: string },
   fetchImpl: typeof fetch = fetch,
 ): Promise<ZuResult> {
   const empty: ZuLimits = {};
@@ -139,7 +151,9 @@ export async function zuRequest(
   const qs = new URLSearchParams();
   for (const [k, v] of Object.entries(args.query ?? {})) qs.set(k, String(v));
   const q = qs.toString();
-  const url = `${ZU_BASE}${args.path}${q ? `?${q}` : ""}`;
+  // Only the real host, or a loopback mock that passed MOCK_URL.
+  const base = args.base !== undefined && MOCK_URL.test(args.base) ? args.base : ZU_BASE;
+  const url = `${base}${args.path}${q ? `?${q}` : ""}`;
 
   const headers: Record<string, string> = { Authorization: `Bearer ${args.key}`, Accept: "application/json" };
   const hasBody = args.body !== undefined;

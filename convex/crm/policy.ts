@@ -412,6 +412,32 @@ const isPlainObject = (x: unknown): x is Record<string, unknown> => {
 
 const OPEN_KEY = /^[A-Za-z0-9_]{1,64}$/;
 
+/* F-B12: secrets never travel back to the browser. */
+const SECRET_KEY = /(^|_)(secret|token|password|api_key|key_prefix|signing_secret|auth_token|access_token|refresh_token)$/i;
+const SIGNING_SECRET = /^(signing_)?secret$/i;
+
+/** A copy of a Zuops answer with the value of every secret-looking key replaced by
+ *  "hidden", at any depth. key_self also hides `key` and `prefix`. The one exemption
+ *  is the signing secret in the answer of create_outbound_webhook: Zuops shows it
+ *  once, and the UI must show it to the owner then. */
+export function redactSecrets(opId: string, data: unknown): unknown {
+  const keySelf = opId === "key_self";
+  const keepSigning = opId === "create_outbound_webhook";
+  const walk = (x: unknown): unknown => {
+    if (Array.isArray(x)) return x.map(walk);
+    if (x && typeof x === "object") {
+      const out: Record<string, unknown> = {};
+      for (const [k, v] of Object.entries(x as Record<string, unknown>)) {
+        const hide = (SECRET_KEY.test(k) && !(keepSigning && SIGNING_SECRET.test(k))) || (keySelf && (k === "key" || k === "prefix"));
+        out[k] = hide ? "hidden" : walk(v);
+      }
+      return out;
+    }
+    return x;
+  };
+  return walk(data);
+}
+
 /** A copy without any `workspace_id` key at any depth. */
 function withoutWorkspace(x: unknown): unknown {
   if (Array.isArray(x)) return x.map(withoutWorkspace);
@@ -433,8 +459,9 @@ function withoutWorkspace(x: unknown): unknown {
  *
  *  `open` is for a body the spec does not list but Zuops documents in prose
  *  (`openBody` in the registry: field-less PATCH and PUT, and every DELETE). Any
- *  plain-object keys of a simple shape are accepted, `workspace_id` is removed at
- *  every depth, and the 64 KB cap still applies. Queries are always strict. */
+ *  plain-object keys of a simple shape are accepted and the 64 KB cap still
+ *  applies. Queries are always strict. In every body `workspace_id` is removed at
+ *  every depth. */
 export function pickFields(
   fields: ZuField[],
   input: unknown,
@@ -458,7 +485,7 @@ export function pickFields(
       const okType = typeof v === "string" || typeof v === "boolean" || (typeof v === "number" && Number.isFinite(v));
       if (!okType) return { ok: false, reason: `"${k}" must be text, a number or true/false.` };
     }
-    out[k] = isOpen ? withoutWorkspace(v) : v;
+    out[k] = withoutWorkspace(v); // F-B9: workspace_id never leaves Pulse, at any depth
   }
   if (kind === "body") {
     let size: number;

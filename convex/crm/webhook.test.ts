@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "../schema";
 import { api } from "../_generated/api";
-import { pickIds, signalKind } from "./webhook";
+import { bodyEvent, pickIds, signalKind } from "./webhook";
 
 /* POST /zu/events: the CRM signal. Test ids carry the eval ids. */
 
@@ -79,7 +79,8 @@ describe("POST /zu/events", () => {
     expect(await res.json()).toEqual({ ok: true });
     const rows = await pulses();
     expect(rows).toHaveLength(1);
-    expect(rows[0]).toMatchObject({ agencyId: PULSE, event: "lead.created", deliveryId: "dlv_1", leadId: "l_maya" });
+    expect(rows[0]).toMatchObject({ agencyId: PULSE, event: "lead.created", kind: "lead", deliveryHeader: "dlv_1", leadId: "l_maya" });
+    expect(rows[0].deliveryId).toMatch(/^[0-9a-f]{64}$/);
     expect(rows[0].bookingId).toBeUndefined();
     const after = (await owner().query(api.crm.signal, {}))!;
     expect(after.lead).toBe(rows[0].at);
@@ -93,7 +94,7 @@ describe("POST /zu/events", () => {
     const sig = (await owner().query(api.crm.signal, {}))!;
     expect(sig.booking).toBeGreaterThan(0);
     expect(sig.call).toBeGreaterThan(0);
-    const byDelivery = Object.fromEntries((await pulses()).map((r) => [r.deliveryId, r]));
+    const byDelivery = Object.fromEntries((await pulses()).map((r) => [r.deliveryHeader, r]));
     expect(byDelivery.dlv_2).toMatchObject({ bookingId: "bk_1", leadId: "l_maya" });
     expect(byDelivery.dlv_3).toMatchObject({ callId: "c_1" });
     expect(byDelivery.dlv_3.leadId).toBeUndefined();
@@ -102,10 +103,10 @@ describe("POST /zu/events", () => {
 
   it("accepts the older X-Zuops-Signature and X-Zuops-Event headers", async () => {
     vi.stubEnv("ZUOPS_CRM_WEBHOOK_SECRET", SECRET);
-    const body = leadBody();
+    const body = JSON.stringify({ data: { id: "l_maya" } }); // no event name in the body: the header is used
     const res = await post(body, { "x-zuops-signature": await sign(body), "x-zuops-event": "lead.updated", "x-webhook-delivery": "legacy_1" });
     expect(res.status).toBe(202);
-    expect((await pulses())[0]).toMatchObject({ event: "lead.updated", deliveryId: "legacy_1" });
+    expect((await pulses())[0]).toMatchObject({ event: "lead.updated", kind: "lead", deliveryHeader: "legacy_1" });
   });
 
   it("W-04 a replayed delivery id: 200 duplicate, no second row; without the header the body hash de-duplicates", async () => {
@@ -144,7 +145,7 @@ describe("POST /zu/events", () => {
       expect(Object.keys(r).filter((k) => !k.startsWith("_")).sort()).toEqual(
         expect.arrayContaining(["agencyId", "at", "deliveryId", "event"]),
       );
-      for (const k of Object.keys(r)) expect(["_id", "_creationTime", "agencyId", "event", "deliveryId", "leadId", "bookingId", "messageId", "callId", "at"]).toContain(k);
+      for (const k of Object.keys(r)) expect(["_id", "_creationTime", "agencyId", "event", "kind", "deliveryId", "deliveryHeader", "leadId", "bookingId", "messageId", "callId", "at"]).toContain(k);
     }
   });
 
@@ -158,12 +159,15 @@ describe("POST /zu/events", () => {
 
   it("an event outside the eleven is ignored with 200 and no row", async () => {
     vi.stubEnv("ZUOPS_CRM_WEBHOOK_SECRET", SECRET);
-    const body = leadBody();
+    const body = JSON.stringify({ data: { id: "l_1" } });
     for (const event of ["lead.deleted", "invoice.paid", ""]) {
       const res = await signed(body, event, `d_${event || "none"}`);
       expect(res.status).toBe(200);
       expect((await res.json()).ignored).toBeTruthy();
     }
+    // An unknown event named by the signed body is ignored the same way.
+    const named = JSON.stringify({ event: "invoice.paid", data: { id: "l_1" } });
+    expect(await (await signed(named, "", "d_named")).json()).toEqual({ ok: true, ignored: "invoice.paid" });
     expect(await pulses()).toHaveLength(0);
   });
 
@@ -175,17 +179,73 @@ describe("POST /zu/events", () => {
     expect(await (await signed(foreign, "lead.created", "w1")).json()).toEqual({ ok: true, ignored: "workspace" });
     expect(await (await signed(nested, "lead.created", "w2")).json()).toEqual({ ok: true, ignored: "workspace" });
     expect((await signed(leadBody(), "lead.created", "w3")).status).toBe(202);
-    expect((await pulses()).map((r) => r.deliveryId)).toEqual(["w3"]);
+    expect((await pulses()).map((r) => r.deliveryHeader)).toEqual(["w3"]);
   });
 
-  it("no platform agency: 503, nothing stored", async () => {
+  it("F-B3 no pinned PULSE_AGENCY_ID: 503, nothing stored, even when one agency could be guessed", async () => {
     vi.stubEnv("ZUOPS_CRM_WEBHOOK_SECRET", SECRET);
     vi.stubEnv("PULSE_AGENCY_ID", "");
-    await t.run(async (ctx) => {
-      await ctx.db.insert("agencies", { agencyId: "org_b", name: "b", slug: "b", plan: "max", status: "active", ownerClerkUserId: "u_b", ownerEmail: "b@x.example" });
-    });
+    // org_pulse is the only agency without a subscription, so platformAgencyId would guess it.
     expect((await signed(leadBody(), "lead.created", "na")).status).toBe(503);
     expect(await pulses()).toHaveLength(0);
+  });
+
+  it("F-B2 a replay with a new delivery header is still a duplicate: one row", async () => {
+    vi.stubEnv("ZUOPS_CRM_WEBHOOK_SECRET", SECRET);
+    const body = leadBody();
+    expect((await signed(body, "lead.created", "dlv_first")).status).toBe(202);
+    for (const header of ["dlv_second", "dlv_third", undefined]) {
+      const again = await signed(body, "lead.created", header);
+      expect(again.status).toBe(200);
+      expect(await again.json()).toEqual({ ok: true, duplicate: true });
+    }
+    const rows = await pulses();
+    expect(rows).toHaveLength(1);
+    expect(rows[0].deliveryHeader).toBe("dlv_first");
+  });
+
+  it("F-B2 the event name comes from the signed body; a header that disagrees is refused 400 with no row", async () => {
+    vi.stubEnv("ZUOPS_CRM_WEBHOOK_SECRET", SECRET);
+    const body = leadBody(); // carries event: "lead.created"
+    const res = await signed(body, "message.received", "dlv_mismatch");
+    expect(res.status).toBe(400);
+    expect(await pulses()).toHaveLength(0);
+    for (const k of ["type", "event_type"]) {
+      const b = JSON.stringify({ [k]: "call.completed", call_id: `c_${k}` });
+      expect((await signed(b, "deal.updated", `x_${k}`)).status).toBe(400);
+      expect((await signed(b, "call.completed", `y_${k}`)).status).toBe(202);
+    }
+    // No header at all: the body's name is used.
+    const noHeader = JSON.stringify({ event: "appointment.cancelled", data: { booking_id: "bk_9" } });
+    expect((await post(noHeader, { "x-webhook-signature": await sign(noHeader) })).status).toBe(202);
+    const rows = await pulses();
+    expect(rows.map((r) => r.event).sort()).toEqual(["appointment.cancelled", "call.completed", "call.completed"]);
+    expect(bodyEvent({ event: " lead.created " })).toBe("lead.created");
+    expect(bodyEvent({ data: { event: "lead.created" } })).toBeUndefined();
+  });
+
+  it("F-B11 a declared Content-Length over 256 KB is refused 413 before the body is read", async () => {
+    vi.stubEnv("ZUOPS_CRM_WEBHOOK_SECRET", SECRET);
+    const body = leadBody();
+    const res = await post(body, { "x-webhook-signature": await sign(body), "x-webhook-event": "lead.created", "content-length": String(300 * 1024) });
+    expect(res.status).toBe(413);
+    expect(await pulses()).toHaveLength(0);
+  });
+
+  it("F-B10 signal keeps each kind's newest time even after many pulses of another kind", async () => {
+    vi.stubEnv("ZUOPS_CRM_WEBHOOK_SECRET", SECRET);
+    const call = JSON.stringify({ event: "call.completed", call_id: "c_old" });
+    expect((await signed(call, "call.completed")).status).toBe(202);
+    const callAt = (await owner().query(api.crm.signal, {}))!.call;
+    expect(callAt).toBeGreaterThan(0);
+    for (let i = 0; i < 60; i++) {
+      const m = JSON.stringify({ event: "message.received", data: { message_id: `m_${i}` } });
+      expect((await signed(m, "message.received")).status).toBe(202);
+    }
+    const sig = (await owner().query(api.crm.signal, {}))!;
+    expect(sig.call).toBe(callAt);
+    expect(sig.message).toBeGreaterThanOrEqual(callAt);
+    expect(sig.at).toBe(Math.max(sig.call, sig.message));
   });
 
   it("ids that do not match the strict pattern are dropped, not stored", () => {
