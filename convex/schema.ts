@@ -875,6 +875,9 @@ export default defineSchema({
     decidedBy: v.optional(v.string()),
     decidedAt: v.optional(v.number()),
     executedAt: v.optional(v.number()),
+    // Set by the one executeApproval call that claimed this row, so a
+    // second call never sends the same message again.
+    executingAt: v.optional(v.number()),
     result: v.optional(v.string()),
     createdAt: v.number(),
   })

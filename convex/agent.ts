@@ -8,6 +8,7 @@ import { currentOrg, currentActor } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { tierForOrg } from "./lib/tier";
 import { orgHasFeature } from "./lib/entitlements";
+import { autoSendDecision, AUTO_REMINDER_KINDS } from "./lib/agentAutoSend";
 import { completeJSON, SMART_MODEL } from "./lib/openai";
 import { summarizeGraph } from "./lib/studioGraph";
 import { escapeHtml, stripEmDashes } from "./lib/text";
@@ -94,6 +95,12 @@ const DEFAULT_POLICY = {
 
 // ── Policy ──────────────────────────────────────────────────────────────
 
+/** "Auto low-risk" was never different from Suggest and is no longer
+ *  offered; a stored auto_low row behaves, and reads, as suggest. */
+export function effectiveAutonomy(stored: string | undefined): "suggest" | "auto_trusted" {
+  return stored === "auto_trusted" ? "auto_trusted" : "suggest";
+}
+
 export const AGENT_OFF_MESSAGE = "The assistant is turned off for this studio. Turn it on in Agent settings to use it.";
 
 /** The "Agent enabled" switch. Off means the Pulse Agent does not run: no
@@ -112,7 +119,7 @@ export const getPolicy = query({
       enabled: row?.enabled ?? DEFAULT_POLICY.enabled,
       defaultTone: row?.defaultTone ?? DEFAULT_POLICY.defaultTone,
       customToneInstructions: row?.customToneInstructions,
-      autonomy: row?.autonomy ?? DEFAULT_POLICY.autonomy,
+      autonomy: effectiveAutonomy(row?.autonomy),
       digestEnabled: row?.digestEnabled ?? DEFAULT_POLICY.digestEnabled,
       digestHourLocal: row?.digestHourLocal ?? DEFAULT_POLICY.digestHourLocal,
     };
@@ -142,6 +149,7 @@ export const updatePolicy = mutation({
     const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
     const existing = await ctx.db.query("agentPolicies").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     const clean = Object.fromEntries(Object.entries(patch).filter(([, val]) => val !== undefined));
+    if (clean.autonomy !== undefined) clean.autonomy = effectiveAutonomy(clean.autonomy as string);
     if (existing) await ctx.db.patch(existing._id, { ...clean, updatedAt: Date.now() });
     else await ctx.db.insert("agentPolicies", { orgId, ...DEFAULT_POLICY, ...clean, updatedAt: Date.now() });
   },
@@ -424,12 +432,14 @@ export const _finalize = internalMutation({
       await ctx.db.insert("agentAuditLogs", { orgId: a.orgId, runId: a.runId, event: "insight.created", detail: f.title, at: now });
     }
     const validTypes = new Set(["send_email", "send_sms", "create_invoice", "update_invoice", "schedule_session", "enable_automation", "deliver_files", "update_client_record"]);
-    // Controlled autonomy: only "auto_trusted" auto-runs, and only low-risk
-    // client reminders (send_email/send_sms). Everything else always waits.
-    const autoOk = new Set(["send_email", "send_sms"]);
+    // Controlled autonomy: only "auto_trusted" on a plan that includes it
+    // right now, and only a named, low-risk reminder to one of this studio's
+    // own clients (lib/agentAutoSend.ts). Everything else always waits.
     for (const ap of a.approvals ?? []) {
       if (!validTypes.has(ap.actionType)) continue;
-      const auto = a.autonomy === "auto_trusted" && ap.riskLevel === "low" && autoOk.has(ap.actionType);
+      const auto = (await autoSendDecision(ctx, a.orgId, {
+        autonomy: a.autonomy, actionType: ap.actionType, riskLevel: ap.riskLevel, proposedPayload: ap.proposedPayload,
+      })).auto;
       const approvalId = await ctx.db.insert("agentApprovals", {
         orgId: a.orgId, runId: a.runId, actionType: ap.actionType as never,
         title: ap.title, explanation: ap.explanation, proposedPayload: ap.proposedPayload,
@@ -510,6 +520,7 @@ export const runAgentLLM = internalAction({
         "Be specific and concise. No filler.",
         "Respond with ONLY a JSON object matching: { summary: string, findings: [{title, severity: info|opportunity|warning|critical, explanation}], recommendedActions: [{title, actionType, riskLevel: low|medium|high|critical, approvalRequired: boolean, explanation, proposedPayload}], draft?: string }",
         "actionType must be one of: send_email, send_sms, create_invoice, update_invoice, schedule_session, enable_automation, deliver_files, update_client_record.",
+        `For send_email and send_sms the proposedPayload is { to, subject?, body, reminderKind? }. Set reminderKind only when the message is purely one of: ${AUTO_REMINDER_KINDS.join(", ")}.`,
       ].join("\n");
 
       const s = cx.summary;
@@ -666,7 +677,7 @@ export const _policyFor = internalQuery({
       enabled: row?.enabled ?? DEFAULT_POLICY.enabled,
       defaultTone: row?.defaultTone ?? DEFAULT_POLICY.defaultTone,
       customToneInstructions: row?.customToneInstructions,
-      autonomy: row?.autonomy ?? DEFAULT_POLICY.autonomy,
+      autonomy: effectiveAutonomy(row?.autonomy),
       digestEnabled: row?.digestEnabled ?? DEFAULT_POLICY.digestEnabled,
     };
   },
@@ -725,8 +736,10 @@ export const dismissInsight = mutation({
 export const executeApproval = internalAction({
   args: { id: v.id("agentApprovals") },
   handler: async (ctx, { id }) => {
-    const ap = await ctx.runQuery(internal.agent._approvalForExec, { id });
-    if (!ap || ap.status !== "approved") return;
+    // Claim the row in one mutation so a second call (retry, double click,
+    // duplicate schedule) finds it already claimed and sends nothing.
+    const ap = await ctx.runMutation(internal.agent._claimForExec, { id });
+    if (!ap) return;
     let ok = false;
     let result = "";
     try {
@@ -768,6 +781,18 @@ export const executeApproval = internalAction({
 export const _approvalForExec = internalQuery({
   args: { id: v.id("agentApprovals") },
   handler: async (ctx, { id }) => await ctx.db.get(id),
+});
+
+/** Returns the approval only to the first caller that finds it approved and
+ *  not yet being carried out. Mutations are serialized, so exactly one wins. */
+export const _claimForExec = internalMutation({
+  args: { id: v.id("agentApprovals") },
+  handler: async (ctx, { id }) => {
+    const ap = await ctx.db.get(id);
+    if (!ap || ap.status !== "approved" || ap.executingAt !== undefined) return null;
+    await ctx.db.patch(id, { executingAt: Date.now() });
+    return ap;
+  },
 });
 
 export const _markNotDone = internalMutation({
@@ -1091,8 +1116,9 @@ function weakestAreas(components: { label: string; score: number }[]): string {
   return sorted.map((c) => c.label.toLowerCase()).join(" and ") || "none";
 }
 
-function normalizeRisk(r?: string): "low" | "medium" | "high" | "critical" {
-  return r === "medium" || r === "high" || r === "critical" ? r : "low";
+/** A missing or unknown risk is medium: it never auto-sends. */
+export function normalizeRisk(r?: string): "low" | "medium" | "high" | "critical" {
+  return r === "low" || r === "high" || r === "critical" ? r : "medium";
 }
 function normalizeSeverity(s?: string): "info" | "opportunity" | "warning" | "critical" {
   return s === "opportunity" || s === "warning" || s === "critical" ? s : "info";

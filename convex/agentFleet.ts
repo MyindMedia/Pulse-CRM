@@ -63,7 +63,7 @@ export const fleet = query({
           name: o.name,
           slug: o.slug,
           enabled: policy?.enabled ?? true,
-          autonomy: policy?.autonomy ?? "suggest",
+          autonomy: policy?.autonomy === "auto_trusted" ? "auto_trusted" : "suggest",
           digestEnabled: policy?.digestEnabled ?? true,
           pendingApprovals: pending.length,
           activeInsights: insights.length,
@@ -135,6 +135,13 @@ export const setAutonomy = mutation({
   args: { orgId: v.string(), autonomy: AUTONOMY },
   handler: async (ctx, { orgId, autonomy }) => {
     await assertSub(ctx, orgId);
+    // Auto-send is the studio owner's switch (price list: "The owner can turn
+    // it on"). An agency may turn it OFF for a sub-account, never on.
+    // "auto_low" is no longer offered and is stored as suggest.
+    if (autonomy === "auto_trusted") {
+      throw new ConvexError("Only the studio's owner can let the assistant send without approval. They can turn it on in Agent settings.");
+    }
+    autonomy = "suggest";
     await upsertPolicy(ctx, orgId, { autonomy });
     await ctx.db.insert("agentAuditLogs", { orgId, event: "agent.autonomy", detail: autonomy, at: Date.now() });
   },
