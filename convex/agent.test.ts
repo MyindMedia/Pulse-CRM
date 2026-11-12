@@ -157,6 +157,17 @@ describe("Pulse Agent", () => {
     spy.mockRestore();
   });
 
+  it("a saved question's answer is shown with it", async () => {
+    const id = await t.mutation(api.agentAutomations.create, { name: "Collections", prompt: "Who owes us money?", cadence: "weekly" });
+    const runId = await t.mutation(internal.agentAutomations._startRun, { id });
+    expect(runId).toBeTruthy();
+    await t.action(internal.agent.runAgentLLM, { runId: runId!, orgId: ORG, prompt: "Who owes us money?", runType: "automation_recommendation" });
+    const list = await t.query(api.agentAutomations.list, {});
+    const row = list.find((a) => a._id === id)!;
+    expect(row.lastAnswer?.status).toBe("completed");
+    expect(row.lastAnswer?.body).toMatch(/snapshot/);
+  });
+
   it("studioHealth returns six weighted components + an overall band", async () => {
     const h = await t.query(api.agentHealth.studioHealth, {});
     expect(h.overall).toBeGreaterThanOrEqual(0);

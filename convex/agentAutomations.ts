@@ -20,7 +20,24 @@ export const list = query({
   args: {},
   handler: async (ctx) => {
     const orgId = await currentOrg(ctx);
-    return await ctx.db.query("agentAutomations").withIndex("by_org", (q) => q.eq("orgId", orgId)).order("desc").take(50);
+    const rows = await ctx.db.query("agentAutomations").withIndex("by_org", (q) => q.eq("orgId", orgId)).order("desc").take(50);
+    // Each saved question with the answer from its latest run, so the owner
+    // actually sees what the assistant said.
+    return await Promise.all(rows.map(async (a) => {
+      const run = await ctx.db.query("agentRuns").withIndex("by_automation", (q) => q.eq("automationId", a._id)).order("desc").first();
+      if (!run || run.orgId !== orgId) return { ...a, lastAnswer: null };
+      const messages = await ctx.db.query("agentMessages").withIndex("by_run", (q) => q.eq("runId", run._id)).collect();
+      const reply = messages.filter((m) => m.role === "assistant").sort((x, y) => y._creationTime - x._creationTime)[0];
+      return {
+        ...a,
+        lastAnswer: {
+          runId: run._id,
+          at: run.completedAt ?? run._creationTime,
+          status: run.status,
+          body: reply?.body ?? (run.status === "failed" ? (run.error ?? "This run failed.") : null),
+        },
+      };
+    }));
   },
 });
 
@@ -124,7 +141,7 @@ export const _startRun = internalMutation({
     const now = Date.now();
     const runId = await ctx.db.insert("agentRuns", {
       orgId: a.orgId, initiatedBy: "automation", runType: "automation_recommendation",
-      status: "queued", prompt: a.prompt,
+      status: "queued", prompt: a.prompt, automationId: id,
     });
     await ctx.db.patch(id, { lastRunAt: now, runCount: a.runCount + 1 });
     await ctx.db.insert("agentAuditLogs", { orgId: a.orgId, runId, event: "run.created", detail: `automation: ${a.name}`, at: now });

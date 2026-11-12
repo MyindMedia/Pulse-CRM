@@ -153,15 +153,27 @@ function AutomationsPanel() {
           <p className="py-2 text-xs text-steel/70">No automations yet.</p>
         ) : (
           list.map((a) => (
-            <div key={a._id} className="flex items-center justify-between gap-2 rounded-md border border-graphite/50 bg-coal-2 px-3 py-2">
-              <div className="min-w-0">
-                <p className="truncate font-grotesk text-sm font-semibold text-bone">{a.name}</p>
-                <p className="text-[0.625rem] text-steel/70">{a.cadence} · {a.runCount} run{a.runCount === 1 ? "" : "s"}</p>
+            <div key={a._id} className="rounded-md border border-graphite/50 bg-coal-2 px-3 py-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="min-w-0">
+                  <p className="truncate font-grotesk text-sm font-semibold text-bone">{a.name}</p>
+                  <p className="text-[0.625rem] text-steel/70">{a.cadence} · {a.runCount} run{a.runCount === 1 ? "" : "s"}</p>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <Switch checked={a.enabled} onCheckedChange={(v) => toggle({ id: a._id, enabled: v })} aria-label="Toggle automation" />
+                  <button onClick={() => remove({ id: a._id })} aria-label="Delete" className="text-steel/70 hover:text-critical"><Trash2 className="size-3.5" /></button>
+                </div>
               </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <Switch checked={a.enabled} onCheckedChange={(v) => toggle({ id: a._id, enabled: v })} aria-label="Toggle automation" />
-                <button onClick={() => remove({ id: a._id })} aria-label="Delete" className="text-steel/70 hover:text-critical"><Trash2 className="size-3.5" /></button>
-              </div>
+              {a.lastAnswer && (
+                <div className="mt-2 border-t border-graphite/40 pt-2">
+                  <p className="text-[0.625rem] uppercase tracking-wide text-steel/60">
+                    Latest answer · {new Date(a.lastAnswer.at).toLocaleString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}
+                  </p>
+                  <p className="mt-1 whitespace-pre-wrap text-xs text-steel">
+                    {a.lastAnswer.body ?? (a.lastAnswer.status === "queued" || a.lastAnswer.status === "running" ? "Working on it..." : "No answer was written.")}
+                  </p>
+                </div>
+              )}
             </div>
           ))
         )}
