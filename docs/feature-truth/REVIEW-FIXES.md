@@ -10,7 +10,7 @@ Every finding in `REVIEW-2026-11-12.md` was fixed on `integration/truth-fixes`. 
 
 **Checks on the final commit:**
 - `npx tsc --noEmit`: clean.
-- `npx vitest run`: 4,056 tests, 4,053 passed and 3 failed. The 3 failures are the known ones: `convex/lib/agentScope.test.ts`, `convex/marketing/results.test.ts`, and the live-call case in `convex/outreachCalls.test.ts`.
+- `npx vitest run`: 4,057 tests, 4,054 passed and 3 failed (380 files, 377 passed). The 3 failures are the known ones: `convex/lib/agentScope.test.ts`, `convex/marketing/results.test.ts`, and the live-call case in `convex/outreachCalls.test.ts`.
 - `npm run lint`: 164 problems (53 errors, 111 warnings), exactly the same as before these commits. None is in a file these commits touch.
 
 Every new test was run against the old code and seen to fail, except where the table says it was not.
@@ -34,7 +34,7 @@ Every new test was run against the old code and seen to fail, except where the t
 | R15 | minor | fixed | The checkout page treats `depositCents === 0` as pay-in-full and shows "booked, balance due" for a confirmed booking (`src/lib/checkout-view.ts`). The booking toast is chosen from the createBooking result. | `src/lib/checkout-view.test.ts` |
 | R16 | minor | fixed | `clientPolicyText(org, room?)` words the policy for full-pay and 0% rooms. The studio-wide text no longer depends on the room. | `convex/forfeitTruth.test.ts` "booking page policy line per room" |
 | R17 | minor | duplicate of R16 | same commit | same |
-| R18 | minor | fixed | When an engineer accepts an unpaid public hold, the engineer is booked but the session stays tentative. Paid or internal sessions are still confirmed. The old "accepting finalizes" test now pays the deposit first, so it keeps its meaning. | `convex/engineerRequest.test.ts` "accepting an unpaid public hold books the shift but leaves it tentative" |
+| R18 | minor | fixed | When an engineer accepts an unpaid public hold, the engineer is booked but the session stays tentative. Paid or internal sessions are still confirmed. "Paid" now needs money actually received, so a short-notice 0% hold (deposit 0) is not treated as paid; the review of these fixes caught that case. The old "accepting finalizes" test now pays the deposit first, so it keeps its meaning. | `convex/engineerRequest.test.ts` "accepting an unpaid public hold books the shift but leaves it tentative", "accepting a short-notice 0% public hold (nothing paid) leaves it tentative" |
 | R19 | minor | fixed | The no-show email promises a card charge only when `canAutoCharge && invoiceId`, the same condition that schedules the charge. | `convex/noShowShield.test.ts` "does not promise a card charge when no charge is scheduled" |
 | R20 | minor | duplicate of R18 | same commit | same |
 | R21 | minor | fixed | `sendPayLinkSms` throws "This client replied STOP to texts. Copy or email the pay link instead." for an opted-out number, and the session sheet shows that message. | `convex/refusalReasons.test.ts` "a pay link to a client who replied STOP says so instead of reporting it texted" |
@@ -61,6 +61,18 @@ Every new test was run against the old code and seen to fail, except where the t
 | R42 | minor | duplicate of R41 | same commit | same |
 | R43 | minor | fixed | The "Make one" button now works on gear that has no label. | `gear-history.test.tsx` "lets an editor make a code for gear with no label yet" |
 | R44 | minor | fixed | When the assistant is off, the Daily summary switch shows off and disabled, with a line saying the summary is paused. | `src/components/settings/daily-summary-panel.test.tsx` |
+
+## Review of these fixes
+
+A separate reviewer read the whole diff. It found one defect that the fixes themselves introduced: an engineer accepting a short-notice 0% hold confirmed it unpaid, because R01 and R18 interacted (`0 >= 0`). That is fixed in its own commit, with a test that fails without the fix. It also pointed out that the "hold expiring" text still asked a 0% short-notice hold to "pay the deposit"; it now says "Pay in full". That is wording only and has no test. Everything else it checked held up:
+- the hold payment and release path
+- the waitlist exclusion and the blocked-email check
+- recovery dating and de-duplication
+- the calendar diffing and the feed refresh fan-out
+- that every index the changes use exists
+- the assistant send with no recipient
+
+One note, not fixed: the health score reads at most 1,200 payments for the month, so a very busy studio's revenue part of the score can be undercounted.
 
 ## Behaviour changes worth knowing before staging
 
