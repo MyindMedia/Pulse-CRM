@@ -115,7 +115,7 @@ export default function BrandingPage() {
       <PageHeader
         overline="Agency"
         title="Branding"
-        description="Your white-label logo, accent color, and app name carry through every studio you run. A custom domain comes with the Agency tier."
+        description="Your white-label logo, accent color, and app name carry through every studio you run. Connecting your own domain is not available yet."
       />
 
       <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
@@ -227,8 +227,8 @@ export default function BrandingPage() {
                 htmlFor="ag-domain"
                 hint={
                   domainAvailable
-                    ? "Point your own domain at your studios' app."
-                    : "Available on the Agency tier."
+                    ? "Requested domain. Saving it does not connect it yet."
+                    : "Connecting your own domain is not available yet."
                 }
               >
                 <div className="flex items-center gap-2">

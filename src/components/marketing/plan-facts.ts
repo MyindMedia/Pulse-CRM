@@ -59,18 +59,16 @@ export function accessRows(): FactRow[] {
   return [
     {
       label: "Studios",
-      values: byTier((t) =>
-        PRICING[t].unlimitedStudios || ALLOWANCES[t].studios >= UNLIMITED
-          ? "Unlimited, one flat price"
-          : countLabel(ALLOWANCES[t].studios),
-      ),
+      // Every plan runs one studio today. Running several studios from one
+      // screen is not open to customers, so no tier is sold on a studio count.
+      values: byTier((t) => (PRICING[t].unlimitedStudios ? "Unlimited" : "One")),
     },
     {
       label: "Rooms",
       values: byTier((t) => {
         const a = ALLOWANCES[t];
         if (a.rooms < UNLIMITED) return `Up to ${a.rooms}`;
-        return a.studios >= UNLIMITED ? "Unlimited" : "Unlimited at one location";
+        return PRICING[t].unlimitedStudios ? "Unlimited" : "Unlimited at one location";
       }),
     },
     {

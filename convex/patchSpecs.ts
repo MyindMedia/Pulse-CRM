@@ -570,13 +570,40 @@ export const applyProposal = mutation({
     }
 
     // A person read a manual and agreed with it. That outranks any later
-    // guess, so the profile stops being a candidate for re-lookup.
-    await ctx.db.patch(device.profileId, {
-      specSource: "manual",
-      specVerifiedAt: Date.now(),
-      specVerifiedBy: actor,
-      specNote: sourceLabel ? `Configured from ${sourceLabel}` : undefined,
-    });
+    // guess, so the model stops being a candidate for re-lookup, and the
+    // model's ports become what was just applied, so the next copy placed
+    // starts from the corrected list rather than the old one marked verified.
+    // Only this studio's own model is written: a global model is shared by
+    // every studio and one studio's spec sheet must not rewrite it (the same
+    // rule setPorts and verifySpec follow).
+    const profile = await ctx.db.get(device.profileId);
+    if (profile && profile.scope === "studio" && profile.orgId === orgId) {
+      const ports = await ctx.db
+        .query("ports")
+        .withIndex("by_device", (q) => q.eq("deviceInstanceId", deviceInstanceId))
+        .collect();
+      await ctx.db.patch(device.profileId, {
+        ...(ports.length > 0
+          ? {
+              portTemplate: ports.map((p) => ({
+                label: p.label,
+                direction: p.direction,
+                signalLevel: p.signalLevel,
+                connector: p.connector,
+                gender: p.gender,
+                channelIndex: p.channelIndex,
+                capabilities: p.capabilities,
+                bayRow: p.bayRow,
+                bayColumn: p.bayColumn,
+              })),
+            }
+          : {}),
+        specSource: "manual",
+        specVerifiedAt: Date.now(),
+        specVerifiedBy: actor,
+        specNote: sourceLabel ? `Configured from ${sourceLabel}` : undefined,
+      });
+    }
 
     await logPatch(ctx, actor, {
       orgId,

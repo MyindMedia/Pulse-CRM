@@ -94,7 +94,7 @@ const PLAN_FEATURES: Record<OrgPlan, string[]> = {
   core: [
     "Online booking with deposits",
     "Clients, bills, payments and reminders",
-    "Card on file and no-show protection",
+    "Kept deposits and no-show fee bills",
     "Google Calendar both ways and your own Gmail",
   ],
   growth: [
@@ -105,9 +105,8 @@ const PLAN_FEATURES: Record<OrgPlan, string[]> = {
   ],
   max: [
     "Everything in Growth",
-    "Unlimited studios, one flat price",
-    "Releases, licensing and split sheets",
-    "Your brand on the whole app and your own web address",
+    "Release plans and license records",
+    "Your brand on the whole app",
   ],
 };
 

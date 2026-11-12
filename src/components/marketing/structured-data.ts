@@ -22,13 +22,12 @@ export const SITE_KEYWORDS = [
   "studio staff scheduling and payroll",
   "studio gear and patchbay management",
   "split sheets",
-  "multi-studio management",
   "white-label studio software",
   "iOS studio app",
 ];
 
 export const SOFTWARE_DESCRIPTION =
-  "Pulse OS is the studio operating system for recording and music studios: online booking with deposits to your own Stripe account, staff scheduling and payroll, gear and cable maps, song splits, and one screen for every studio you run.";
+  "Pulse OS is the studio operating system for recording and music studios: online booking with deposits to your own Stripe account, staff scheduling and payroll, gear and cable maps, song splits, and release plans.";
 
 /** schema.org SoftwareApplication for the web product, one Offer per tier,
  *  monthly, in USD. */

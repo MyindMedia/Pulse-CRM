@@ -72,8 +72,13 @@ export default function InvoicePayPage() {
             {paid ? (
               <div className="mt-6 rounded-chrome border border-positive/30 bg-positive/[0.06] px-4 py-6 text-center">
                 <CheckCircle2 className="mx-auto size-8 text-positive" />
-                <p className="mt-2 font-grotesk text-lg font-semibold text-bone">Paid in full</p>
-                <p className="mt-1 text-sm text-steel">Thank you{inv.clientName ? `, ${inv.clientName.split(" ")[0]}` : ""}. {usd(inv.amountCents)} received.</p>
+                <p className="mt-2 font-grotesk text-lg font-semibold text-bone">
+                  {inv.status === "paid" ? "Paid in full" : "Payment submitted"}
+                </p>
+                <p className="mt-1 text-sm text-steel">
+                  Thank you{inv.clientName ? `, ${inv.clientName.split(" ")[0]}` : ""}.{" "}
+                  {inv.status === "paid" ? `${usd(inv.amountCents)} received.` : "We are confirming your payment now."}
+                </p>
               </div>
             ) : (
               <>

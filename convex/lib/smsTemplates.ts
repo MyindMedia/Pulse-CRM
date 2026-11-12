@@ -81,16 +81,20 @@ export const CLIENT_CONFIRM_2H =
 export const CLIENT_CONFIRM_ACK =
   "Pulse: You are confirmed for \"{title}\" at {studio}. See you soon!";
 
-/** Client said NO: the exact consequence + the 10-day rebooking hold. */
-export const CLIENT_DECLINE_FOLLOWUP =
-  "Pulse: Got it - you will lose this booking window at {studio}. Your deposit " +
-  "will be held for rebooking for 10 days (until {holdDate}). Reply REBOOK to " +
-  "use it toward a new time[[ or book at {link}]]. After {holdDate} the deposit " +
-  "is forfeited.";
+/** Client said YES to a booking that is not confirmed: the studio was told. */
+export const CLIENT_PASSED_ON_ACK = "Pulse: Thanks, we have passed this to {studio}.";
 
+/** Client said NO: the studio is told and follows up about the deposit.
+ *  Pulse does not hold, apply or forfeit the deposit on its own yet. */
+export const CLIENT_DECLINE_FOLLOWUP =
+  "Pulse: Got it - we have told {studio}. They will contact you about your " +
+  "deposit and a new time. Reply REBOOK if you want to book again[[ or book at {link}]].";
+
+/** Client replied REBOOK after a NO. Pulse does not hold, credit or forfeit
+ *  the deposit on its own, so this only says the studio will follow up. */
 export const CLIENT_REBOOK_ACK =
-  "Pulse: Your deposit at {studio} is on hold for a new booking until {holdDate}." +
-  "[[ Pick a new time: {link}.]] The studio has been notified.";
+  "Pulse: Thanks - we have let {studio} know you want a new time. " +
+  "They will reach out about your deposit.[[ Pick a new time: {link}.]]";
 
 /** 2h-before confirm question to the staffer working the session. */
 export const STAFF_CONFIRM_2H =
@@ -152,6 +156,11 @@ export const RESCHEDULE_REPLY =
 /** Ack when a client or staffer texts LATE. */
 export const LATE_ACK = "Pulse: Thanks for the heads up - {studio} has been notified you are running late.";
 
+/** Sent instead of a "has been notified" ack when nobody at the studio could
+ *  be reached (no manager phone, every one opted out, and no owner email). */
+export const NOBODY_TOLD_ACK =
+  "Pulse: Got it, but we could not reach {studio} just now.[[ Please call them at {phone}.]]";
+
 /* ── Revenue recovery + owner awareness (pilot wave 2) ─────────────────── */
 
 /** Freed slot offered to a waitlisted client. */
@@ -160,7 +169,7 @@ export const WAITLIST_OFFER =
   "Reply CLAIM to take it - first reply wins. Reply STOP to opt out.";
 
 export const WAITLIST_CLAIM_ACK =
-  "Pulse: The {date} slot at {studio} is yours - the studio will confirm shortly." +
+  "Pulse: Thanks - you are first in line for the {date} slot. {studio} will confirm shortly." +
   "[[ Or book instantly: {link}.]]";
 
 export const WAITLIST_TAKEN =
@@ -171,7 +180,7 @@ export const COVER_OFFER =
   'Pulse: {studio} needs an engineer for "{title}" ({date}). ' +
   "Reply YES to take it - first reply wins.[[ Open: {link}]]";
 
-export const COVER_ACK = 'Pulse: "{title}" ({date}) is yours. {studio} has been notified.';
+export const COVER_ACK = 'Pulse: "{title}" ({date}) is yours.[[ {told}]]';
 
 /** Post-session review request + the two response legs. */
 export const REVIEW_REQUEST =
@@ -186,7 +195,7 @@ export const REVIEW_THANKS =
   "[[ Mind sharing it on Google? {google}]]";
 
 export const REVIEW_LOW_ACK =
-  "Pulse: Sorry the session missed the mark - the owner has been notified personally and will make it right." +
+  "Pulse: Sorry the session missed the mark.[[ {told}]]" +
   "[[ You can also review us on Google: {google}]]";
 
 /* ── Deal texts (marketing; opt-in only, lib/deals.ts) ─────────────────── */

@@ -101,6 +101,105 @@ describe("Pulse Agent", () => {
     expect(got?.messages.some((m) => m.role === "assistant")).toBe(true);
   });
 
+  it("agent off switch: createRun refuses, queued runs do not reach the model, saved questions are not due", async () => {
+    // A run queued while the agent was on...
+    const queued = await t.mutation(api.agent.createRun, { prompt: "How is my studio doing?" });
+    const autoId = await t.mutation(api.agentAutomations.create, { name: "Daily sweep", prompt: "Find overdue invoices.", cadence: "daily" });
+    // ...then the owner turns it off.
+    await t.mutation(api.agent.updatePolicy, { enabled: false });
+
+    await expect(t.mutation(api.agent.createRun, { prompt: "Who owes me money?" })).rejects.toThrow(/turned off/);
+    await drain(t);
+    const got = await t.query(api.agent.getRun, { id: queued });
+    expect(got?.run.status).toBe("failed");
+    expect(got?.run.error).toMatch(/turned off/);
+    expect(got?.messages.some((m) => m.role === "assistant")).toBe(false);
+
+    const due = await t.query(internal.agentAutomations._due, { orgId: ORG });
+    expect(due.some((a) => a._id === autoId)).toBe(false);
+
+    // Back on: it works again.
+    await t.mutation(api.agent.updatePolicy, { enabled: true });
+    const due2 = await t.query(internal.agentAutomations._due, { orgId: ORG });
+    expect(due2.some((a) => a._id === autoId)).toBe(true);
+  });
+
+  it("approving an action Pulse cannot carry out does not mark it executed", async () => {
+    const id = await t.run(async (ctx) => ctx.db.insert("agentApprovals", {
+      orgId: ORG, actionType: "create_invoice", title: "Bill Nova for the mix", explanation: "Session done.",
+      proposedPayload: { amountCents: 50000 }, riskLevel: "medium", status: "pending", createdAt: Date.now(),
+    }));
+    await t.mutation(api.agent.approveRequest, { id });
+    await drain(t);
+    const ap = await t.run(async (ctx) => ctx.db.get(id));
+    expect(ap?.status).toBe("approved");
+    expect(ap?.status).not.toBe("executed");
+    expect(ap?.result).toMatch(/not done by Pulse/);
+    expect(ap?.result).toMatch(/Payments/);
+    const invoices = await t.run(async (ctx) => ctx.db.query("invoices").collect());
+    expect(invoices).toHaveLength(0);
+  });
+
+  it("an approved email or text with no recipient is recorded as failed, never 'null'", async () => {
+    const email = await import("./lib/email");
+    const sms = await import("./lib/sms");
+    const sendEmailSpy = vi.spyOn(email, "sendEmail");
+    const sendSmsSpy = vi.spyOn(sms, "sendSms");
+    for (const actionType of ["send_email", "send_sms"] as const) {
+      const id = await t.run(async (ctx) => ctx.db.insert("agentApprovals", {
+        orgId: ORG, actionType, title: "Follow up", explanation: "Standing rule.",
+        proposedPayload: { body: "Thanks for coming in" }, riskLevel: "low", status: "pending", createdAt: Date.now(),
+      }));
+      await t.mutation(api.agent.approveRequest, { id });
+      await drain(t);
+      const ap = await t.run(async (ctx) => ctx.db.get(id));
+      expect(ap?.status, actionType).toBe("failed");
+      expect(ap?.result, actionType).toBe("not sent: no recipient");
+      expect(ap?.result ?? "").not.toMatch(/null/);
+    }
+    expect(sendEmailSpy).not.toHaveBeenCalled();
+    expect(sendSmsSpy).not.toHaveBeenCalled();
+    sendEmailSpy.mockRestore();
+    sendSmsSpy.mockRestore();
+  });
+
+  it("the approve button needs a recipient and a message for a send", async () => {
+    const { canApproveSend } = await import("./lib/agentActions");
+    expect(canApproveSend("send_email", "", "Hi")).toBe(false);
+    expect(canApproveSend("send_sms", "   ", "Hi")).toBe(false);
+    expect(canApproveSend("send_email", "a@b.co", "  ")).toBe(false);
+    expect(canApproveSend("send_email", "a@b.co", "Hi")).toBe(true);
+    expect(canApproveSend("create_invoice", "", "")).toBe(true);
+  });
+
+  it("an approved assistant text to a number that replied STOP is not sent", async () => {
+    const sms = await import("./lib/sms");
+    const spy = vi.spyOn(sms, "sendSms");
+    await t.run(async (ctx) => { await ctx.db.insert("smsOptOuts", { phone: "+15551234567", optedOut: true, updatedAt: Date.now() }); });
+    const id = await t.run(async (ctx) => ctx.db.insert("agentApprovals", {
+      orgId: ORG, actionType: "send_sms", title: "Remind Nova", explanation: "Session tomorrow.",
+      proposedPayload: { to: "(555) 123-4567", body: "See you tomorrow" }, riskLevel: "low", status: "pending", createdAt: Date.now(),
+    }));
+    await t.mutation(api.agent.approveRequest, { id });
+    await drain(t);
+    const ap = await t.run(async (ctx) => ctx.db.get(id));
+    expect(ap?.status).toBe("failed");
+    expect(ap?.result).toMatch(/STOP/);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
+  it("a saved question's answer is shown with it", async () => {
+    const id = await t.mutation(api.agentAutomations.create, { name: "Collections", prompt: "Who owes us money?", cadence: "weekly" });
+    const runId = await t.mutation(internal.agentAutomations._startRun, { id });
+    expect(runId).toBeTruthy();
+    await t.action(internal.agent.runAgentLLM, { runId: runId!, orgId: ORG, prompt: "Who owes us money?", runType: "automation_recommendation" });
+    const list = await t.query(api.agentAutomations.list, {});
+    const row = list.find((a) => a._id === id)!;
+    expect(row.lastAnswer?.status).toBe("completed");
+    expect(row.lastAnswer?.body).toMatch(/snapshot/);
+  });
+
   it("studioHealth returns six weighted components + an overall band", async () => {
     const h = await t.query(api.agentHealth.studioHealth, {});
     expect(h.overall).toBeGreaterThanOrEqual(0);

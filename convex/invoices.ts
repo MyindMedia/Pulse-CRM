@@ -1,11 +1,11 @@
 import { query } from "./_generated/server";
 import { mutation } from "./functions";
 import { v, ConvexError } from "convex/values";
-import { internal } from "./_generated/api";
 import { currentOrgWithCapability } from "./lib/tenant";
 import { AccessError } from "./lib/access";
 import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
+import { recordRecoveryOnPaid } from "./lib/recoveryOnPaid";
 
 const statusV = v.union(
   v.literal("draft"),
@@ -247,18 +247,9 @@ export const setStatus = mutation({
           date: Date.now(),
         });
       }
-      // Attribute reminder-driven collections: if the dunning ladder (or a
-      // manual reminder) had already gone out, credit the recovery ledger -
-      // but only on the transition INTO paid, so a re-save never double-counts.
-      if (inv.status !== "paid" && (inv.reminderStage ?? 0) > 0) {
-        await ctx.runMutation(internal.recovery.record, {
-          orgId,
-          kind: "reminder_collected",
-          amountCents: inv.amountCents,
-          invoiceId: id,
-          note: `Invoice ${inv.number} paid after reminder stage ${inv.reminderStage}`,
-        });
-      }
+      // Won-back money: a paid No-Show Shield fee, or an invoice paid after a
+      // reminder went out. Only on the transition INTO paid, once per invoice.
+      await recordRecoveryOnPaid(ctx, inv, paymentMethod);
       const methodLabel = paymentMethod ? METHOD_LABELS[paymentMethod] : null;
       await ctx.db.insert("activity", {
         orgId,

@@ -38,6 +38,7 @@ import {
   type BookingFacts,
 } from "./lib/bookingMessages";
 import { recomputeRoomStatus } from "./lib/roomStatus";
+import { dropPreChecklistFor } from "./checklists";
 import { ensureSessionShift } from "./shifts";
 import { currentMemberId } from "./sessions";
 
@@ -358,10 +359,17 @@ export const decline = mutation({
       ...(decidedBy ? { requestDecidedBy: decidedBy } : {}),
       ...(declineReason ? { declineReason } : {}),
     });
+    // A declined request will not run: drop its unused pre-session list, as
+    // a staff cancel does (sessions.applyStatus).
+    await dropPreChecklistFor(ctx, sessionId);
     if (session.roomId) await recomputeRoomStatus(ctx, session.roomId);
 
     const facts = await requestFacts(ctx, session, org);
-    const msg = requestDeclined({ ...facts, reason: declineReason });
+    const msg = requestDeclined({
+      ...facts,
+      reason: declineReason,
+      ...(paid > 0 ? { refundText: money(paid) } : {}),
+    });
     if (facts.clientEmail) {
       await notify(ctx, {
         orgId,
@@ -396,6 +404,20 @@ export const decline = mutation({
       entityId: sessionId,
       accent: "critical",
     });
+    // Nothing refunds automatically, but the client was just told the studio
+    // will refund them, so the owner gets the task by email.
+    if (paid > 0) {
+      await notifyTeam(ctx, {
+        orgId,
+        subject: `Refund ${money(paid)} to ${facts.clientName}`,
+        body:
+          `You declined ${facts.clientName}'s request "${session.title}". ` +
+          `They already paid ${money(paid)}, and we told them the studio will refund it. ` +
+          `Pulse does not refund automatically, so please send it back the way they paid.`,
+        kind: "booking.refund_needed",
+        sessionId,
+      });
+    }
     // Refunds are out of scope: tell the caller so the UI can say so.
     return { refundNeededCents: paid };
   },

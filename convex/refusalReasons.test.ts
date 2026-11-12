@@ -57,4 +57,18 @@ describe("refusal reasons reach the app", () => {
     expect(err).toBeInstanceOf(ConvexError);
     expect((err as ConvexError<string>).data).toBe("No phone number on file for this client.");
   });
+
+  it("a pay link to a client who replied STOP says so instead of reporting it texted", async () => {
+    const { t, owner, sessionId } = await studio();
+    await t.run(async (ctx) => {
+      const s = await ctx.db.get(sessionId);
+      await ctx.db.patch(s!.artistId, { phone: "(555) 123-4567" });
+      await ctx.db.insert("smsOptOuts", { phone: "+15551234567", optedOut: true, updatedAt: Date.now() });
+    });
+    const err = await refusal(owner.mutation(api.sessions.sendPayLinkSms, { id: sessionId }));
+    expect(err).toBeInstanceOf(ConvexError);
+    expect((err as ConvexError<string>).data).toBe(
+      "This client replied STOP to texts. Copy or email the pay link instead.",
+    );
+  });
 });

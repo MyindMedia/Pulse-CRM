@@ -5,6 +5,7 @@ import { v } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Doc, Id } from "./_generated/dataModel";
 import { sendSms } from "./lib/sms";
+import { notify } from "./lib/notify";
 import { normalizePhone } from "./lib/phone";
 import { parseSmsIntent, parseRating } from "./lib/smsKeywords";
 import { appUrl, teamLink } from "./lib/links";
@@ -13,6 +14,7 @@ import {
   renderSms,
   displayPhone,
   CLIENT_CONFIRM_ACK,
+  CLIENT_PASSED_ON_ACK,
   CLIENT_DECLINE_FOLLOWUP,
   CLIENT_REBOOK_ACK,
   STAFF_CONFIRM_ACK,
@@ -31,6 +33,7 @@ import {
   HELP_REPLY,
   RESCHEDULE_REPLY,
   LATE_ACK,
+  NOBODY_TOLD_ACK,
   WAITLIST_OFFER,
   WAITLIST_CLAIM_ACK,
   WAITLIST_TAKEN,
@@ -104,12 +107,31 @@ function queueSend(ctx: MutationCtx, to: string, body: string) {
   void ctx.scheduler.runAfter(0, internal.smsFlows._send, { to, body });
 }
 
-async function alertManagers(ctx: MutationCtx, orgId: string, body: string) {
+/** Tell the studio's owners and managers. Texts each one with a phone who has
+ *  not opted out; when that reaches nobody, emails the owner instead. Returns
+ *  whether anyone was told, so a reply never says "the studio has been
+ *  notified" when nobody was. */
+async function alertManagers(ctx: MutationCtx, orgId: string, body: string): Promise<boolean> {
   const org = await orgOf(ctx, orgId);
   const text = renderSms(MGR_ALERT, { studio: studioName(org), body });
+  let texted = 0;
   for (const m of await managerPhones(ctx, orgId)) {
-    if (!(await isOptedOut(ctx, m.phone))) queueSend(ctx, m.phone, text);
+    if (!(await isOptedOut(ctx, m.phone))) {
+      queueSend(ctx, m.phone, text);
+      texted++;
+    }
   }
+  if (texted > 0) return true;
+  if (!org?.ownerEmail) return false;
+  await notify(ctx, {
+    orgId,
+    channel: "email",
+    recipient: org.ownerEmail,
+    subject: `Text alert from ${studioName(org)}`,
+    body: `${studioName(org)}: ${body}\n\nNo owner or manager has a cell phone on file for text alerts, so this came by email.`,
+    kind: "sms.manager_alert",
+  });
+  return true;
 }
 
 export const _send = internalAction({
@@ -286,17 +308,32 @@ async function applyPromptAnswer(
     const session = prompt.sessionId ? await ctx.db.get(prompt.sessionId) : null;
     if (!session) return false;
     if (intent === "yes") {
-      // A pending booking request is confirmed by an owner or manager only.
-      if (session.status === "tentative" && session.requestStatus !== "pending") {
-        await ctx.db.patch(session._id, { status: "confirmed" });
-      }
+      // A text YES never confirms a booking: approval is the studio's call and
+      // an unpaid hold is confirmed by its deposit. Only a booking that is
+      // already confirmed (or has since started or finished) hears "You are
+      // confirmed"; anything else (an old question for a booking that changed
+      // since) goes to the studio, and the client hears it was passed on.
       await answerPrompt(ctx, prompt, "yes");
-      queueSend(ctx, phone, renderSms(CLIENT_CONFIRM_ACK, { title: session.title, studio }));
+      if (session.status === "confirmed" || session.status === "in_progress" || session.status === "completed") {
+        queueSend(ctx, phone, renderSms(CLIENT_CONFIRM_ACK, { title: session.title, studio }));
+      } else {
+        const told = await alertManagers(
+          ctx,
+          prompt.orgId,
+          `client replied YES for "${session.title}", but the booking is not confirmed yet. Please follow up.`,
+        );
+        queueSend(
+          ctx,
+          phone,
+          told
+            ? renderSms(CLIENT_PASSED_ON_ACK, { studio })
+            : renderSms(NOBODY_TOLD_ACK, { studio, phone: displayPhone(org?.contact?.phone) }),
+        );
+      }
       return true;
     }
     if (intent === "no") {
       const holdUntil = Date.now() + REBOOK_HOLD;
-      const holdDate = dateLabel(holdUntil, orgTz(org));
       await ctx.db.patch(session._id, { clientDeclinedAt: Date.now(), rebookHoldUntil: holdUntil });
       await answerPrompt(ctx, prompt, "no");
       await openPrompt(ctx, {
@@ -309,12 +346,12 @@ async function applyPromptAnswer(
       queueSend(
         ctx,
         phone,
-        renderSms(CLIENT_DECLINE_FOLLOWUP, { studio, holdDate, link: bookingLink(org) }),
+        renderSms(CLIENT_DECLINE_FOLLOWUP, { studio, link: bookingLink(org) }),
       );
       await alertManagers(
         ctx,
         prompt.orgId,
-        `client declined "${session.title}" via the pre-session confirm text. Deposit held for rebooking until ${holdDate}.`,
+        `client declined "${session.title}" via the pre-session confirm text - follow up with them about the deposit.`,
       );
       return true;
     }
@@ -324,10 +361,15 @@ async function applyPromptAnswer(
   if (prompt.kind === "rebook_offer") {
     if (intent !== "rebook" && intent !== "yes") return false;
     const session = prompt.sessionId ? await ctx.db.get(prompt.sessionId) : null;
-    const holdDate = dateLabel(session?.rebookHoldUntil ?? prompt.expiresAt, orgTz(org));
     await answerPrompt(ctx, prompt, "rebook");
-    queueSend(ctx, phone, renderSms(CLIENT_REBOOK_ACK, { studio, holdDate, link: bookingLink(org) }));
-    await alertManagers(ctx, prompt.orgId, `client wants to REBOOK "${session?.title ?? "a session"}" - reach out to reschedule.`);
+    const told = await alertManagers(ctx, prompt.orgId, `client wants to REBOOK "${session?.title ?? "a session"}" - reach out to reschedule.`);
+    queueSend(
+      ctx,
+      phone,
+      told
+        ? renderSms(CLIENT_REBOOK_ACK, { studio, link: bookingLink(org) })
+        : renderSms(NOBODY_TOLD_ACK, { studio, phone: displayPhone(org?.contact?.phone) }),
+    );
     return true;
   }
 
@@ -356,11 +398,17 @@ async function applyPromptAnswer(
     if (intent === "no") {
       await answerPrompt(ctx, prompt, "no");
       const who = prompt.memberId ? (await ctx.db.get(prompt.memberId))?.name : null;
-      queueSend(ctx, phone, renderSms(STAFF_DECLINE_ACK, { studio }));
-      await alertManagers(
+      const told = await alertManagers(
         ctx,
         prompt.orgId,
         `${who ?? "a staffer"} cannot work "${session.title}" - find cover or reassign.`,
+      );
+      queueSend(
+        ctx,
+        phone,
+        told
+          ? renderSms(STAFF_DECLINE_ACK, { studio })
+          : renderSms(NOBODY_TOLD_ACK, { studio, phone: displayPhone(org?.contact?.phone) }),
       );
       await broadcastCover(ctx, session, prompt.memberId ?? null, org);
       return true;
@@ -379,9 +427,13 @@ async function applyPromptAnswer(
       await answerPrompt(ctx, prompt, "yes");
       await retireSiblingPrompts(ctx, session._id, "cover_offer");
       const dateStr = dateLabel(session.startTime, orgTz(org));
-      queueSend(ctx, phone, renderSms(COVER_ACK, { title: session.title, date: dateStr, studio }));
       const eng = await ctx.db.get(prompt.memberId);
-      await alertManagers(ctx, prompt.orgId, `${eng?.name ?? "an engineer"} took "${session.title}" (${dateStr}).`);
+      const told = await alertManagers(ctx, prompt.orgId, `${eng?.name ?? "an engineer"} took "${session.title}" (${dateStr}).`);
+      queueSend(
+        ctx,
+        phone,
+        renderSms(COVER_ACK, { title: session.title, date: dateStr, told: told ? `${studio} has been notified.` : "" }),
+      );
       return true;
     }
     if (intent === "no") {
@@ -434,11 +486,18 @@ async function applyPromptAnswer(
     if (rating >= 4) {
       queueSend(ctx, phone, renderSms(REVIEW_THANKS, { studio, google: org?.googleReviewUrl }));
     } else {
-      queueSend(ctx, phone, renderSms(REVIEW_LOW_ACK, { google: org?.googleReviewUrl }));
-      await alertManagers(
+      const told = await alertManagers(
         ctx,
         prompt.orgId,
         `${artist?.name ?? "a client"} rated "${session?.title ?? "a session"}" ${rating}/5 - reach out personally.`,
+      );
+      queueSend(
+        ctx,
+        phone,
+        renderSms(REVIEW_LOW_ACK, {
+          told: told ? "We have passed this to the studio owner." : "",
+          google: org?.googleReviewUrl,
+        }),
       );
     }
     return true;
@@ -543,12 +602,14 @@ async function handleStandaloneKeyword(
   if (intent !== "help" && intent !== "reschedule" && intent !== "late" && intent !== "claim")
     return false;
 
-  // Best-effort org context: an artist or member with this cell.
-  const artists = await ctx.db.query("artists").collect();
-  const artist = artists.find((a) => a.phone && normalizePhone(a.phone) === phone);
+  // Org context: the client's studio by the same routing as replies
+  // (lib/smsRouting.ts), so a client of two studios is not answered under the
+  // wrong one. A text held for the agency has no studio yet.
+  const route = await routeInboundText(ctx, phone);
+  const artist = route.kind === "routed" ? route.artist : null;
   let orgId = artist?.orgId ?? null;
   let memberName: string | null = null;
-  if (!orgId) {
+  if (!orgId && route.kind === "none") {
     const members = await ctx.db.query("members").collect();
     const member = members.find((m) => m.phone && normalizePhone(m.phone) === phone);
     orgId = member?.orgId ?? null;
@@ -581,8 +642,12 @@ async function handleStandaloneKeyword(
   // late
   if (orgId) {
     const who = artist?.name ?? memberName ?? "someone";
-    await alertManagers(ctx, orgId, `${who} texted that they are running LATE.`);
-    queueSend(ctx, phone, renderSms(LATE_ACK, { studio }));
+    const told = await alertManagers(ctx, orgId, `${who} texted that they are running LATE.`);
+    queueSend(
+      ctx,
+      phone,
+      told ? renderSms(LATE_ACK, { studio }) : renderSms(NOBODY_TOLD_ACK, { studio, phone: phoneDisplay }),
+    );
     return true;
   }
   return false;
@@ -821,6 +886,8 @@ export const _lifecycleDue = internalQuery({
     }[] = [];
     for (const s of recent) {
       if (s.status !== "completed") continue;
+      // Auto-closed or declined by the client: it may never have happened.
+      if (s.autoResolved || s.clientDeclinedAt) continue;
       if (s.endTime > now - HOUR || s.endTime < now - 24 * HOUR) continue;
       if ((s.smsRemindersSent ?? []).includes(REVIEW_MARK)) continue;
       const artist = await ctx.db.get(s.artistId);

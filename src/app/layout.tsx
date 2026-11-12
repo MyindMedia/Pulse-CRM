@@ -83,7 +83,7 @@ const SHARE_TITLE = "Pulse. The studio operating system.";
 // pricing section stopped charging. It sat at "$49/mo" for months after the
 // ladder moved.
 const SITE_DESCRIPTION =
-  "Recording studio management software with a built-in AI manager: online booking with deposits to your own Stripe (keep 100%), staff scheduling, inventory tracking, song splits and rights, and invoicing, all in one place. " +
+  "Recording studio management software with a built-in AI manager: online booking with deposits to your own Stripe (Pulse takes no cut), staff scheduling, inventory tracking, song splits and rights, and invoicing, all in one place. " +
   `${fromPriceLabel()}.`;
 
 export const metadata: Metadata = {

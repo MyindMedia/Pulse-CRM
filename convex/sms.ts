@@ -1,6 +1,6 @@
 import { action, query, internalQuery, internalAction } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
-import { orgTz, dateLabel } from "./lib/tz";
+import { orgTz, dateLabel, dayWord } from "./lib/tz";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -10,6 +10,7 @@ import { requireCapability } from "./lib/access";
 import { teamLink } from "./lib/links";
 import { sendSms, type SmsStatus } from "./lib/sms";
 import { normalizePhone } from "./lib/phone";
+import { isSmsOptedOut } from "./lib/smsOptOut";
 import { recordSmsContact } from "./lib/smsContacts";
 import { routeInboundText } from "./lib/smsRouting";
 import { alertStudioOfClientMessage } from "./lib/messageAlerts";
@@ -37,13 +38,9 @@ const DAY = 24 * 60 * 60 * 1000;
 
 export const _isOptedOut = internalQuery({
   args: { phone: v.string() },
-  handler: async (ctx, { phone }) => {
-    const row = await ctx.db
-      .query("smsOptOuts")
-      .withIndex("by_phone", (q) => q.eq("phone", phone))
-      .first();
-    return row?.optedOut ?? false;
-  },
+  // One STOP check for every path (lib/smsOptOut.ts): notify(), the agent's
+  // send_sms and the text sweeps all normalize the number the same way.
+  handler: async (ctx, { phone }) => isSmsOptedOut(ctx, phone),
 });
 
 export const _recordOptOut = internalMutation({
@@ -197,6 +194,8 @@ export const _dueReminders = internalQuery({
 
     for (const s of upcoming) {
       if (s.status !== "tentative" && s.status !== "confirmed") continue;
+      // A pending request is not booked yet: no reminder for it.
+      if (s.requestStatus === "pending") continue;
       const sent = s.smsRemindersSent ?? [];
       const ms = s.startTime - now;
       let kind: "24h" | "2h" | null = null;
@@ -205,18 +204,22 @@ export const _dueReminders = internalQuery({
       if (!kind) continue;
 
       const dateStr = dateLabel(s.startTime, orgTz(org));
-      const soon = kind === "2h" ? "in about 2 hours" : "in about a day";
+      const soon = kind === "2h" ? "in about 2 hours" : dayWord(s.startTime, now, orgTz(org));
 
       const artist = await ctx.db.get(s.artistId);
       const recipients: (typeof out)[number]["recipients"] = [];
 
       const clientPhone = artist?.phone ? normalizePhone(artist.phone) : null;
       if (clientPhone) {
+        // Only a confirmed booking gets the YES/NO question: a YES is answered
+        // "You are confirmed", which is false for a pending request or an
+        // unpaid hold. Those get the plain reminder.
+        const askConfirm = kind === "2h" && s.status === "confirmed";
         recipients.push({
           phone: clientPhone,
           isClient: true,
-          promptKind: kind === "2h" ? ("booking_confirm" as const) : undefined,
-          body: renderSms(kind === "2h" ? CLIENT_CONFIRM_2H : CLIENT_REMINDER, {
+          promptKind: askConfirm ? ("booking_confirm" as const) : undefined,
+          body: renderSms(askConfirm ? CLIENT_CONFIRM_2H : CLIENT_REMINDER, {
             studio,
             title: s.title,
             soon,

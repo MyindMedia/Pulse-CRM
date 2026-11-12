@@ -67,6 +67,14 @@ export type NotificationRow = {
   _creationTime: number;
 };
 
+/** What to tell staff about a logged message that did not go out, or null
+    when it was handed to the provider. A text blocked by STOP is logged as
+    "skipped" (lib/notify.ts) and must never read as sent. */
+export function notificationNotSentNote(row: Pick<NotificationRow, "status">): string | null {
+  if (row.status === "skipped") return "Not sent: this number replied STOP";
+  return null;
+}
+
 /** Settled money math for one booking. Treats undefined paid as 0. */
 export type BookingMoney = {
   paid: number;

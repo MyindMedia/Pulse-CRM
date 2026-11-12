@@ -17,6 +17,7 @@ import {
 } from "./lib/gearRental";
 import { money, redactMoney, redactEach } from "./lib/money";
 import { notify } from "./lib/notify";
+import { isSmsOptedOut } from "./lib/smsOptOut";
 import { stageChecklistsFor, dropPreChecklistFor } from "./checklists";
 import { ensureSessionShift } from "./shifts";
 import { proposeWaitlistFill } from "./waitlist";
@@ -603,17 +604,10 @@ async function assessNoShowShield(
   }
 
   if (additionalCents > 0) {
-    // The shield always ships fully functional through invoices: bill the fee,
-    // log the recovery, and notify the client.
+    // The shield always ships fully functional through invoices: bill the fee
+    // and notify the client. The fee counts as won back when the invoice is
+    // paid, not now (lib/recoveryOnPaid.ts), so unpaid fees are never claimed.
     const invoiceId = await createCancellationFeeInvoice(ctx, s, additionalCents, label);
-    await ctx.runMutation(internal.recovery.record, {
-      orgId: s.orgId,
-      kind: feeKind,
-      amountCents: additionalCents,
-      sessionId: s._id,
-      invoiceId: invoiceId ?? undefined,
-      note: `${s.title} - ${label}`,
-    });
 
     // Best-effort auto-charge when a card is on file for this client on the
     // studio's connected Stripe account. Off-session charge runs in an action;
@@ -646,9 +640,14 @@ async function assessNoShowShield(
         subject: `${nice} - ${s.title}`,
         body: `Hi ${artist.name},\n\nPer our booking policy, a ${label} of ${money(
           fee,
-        )} applies to your ${status === "no_show" ? "missed" : "late-cancelled"} session "${s.title}".${depositLine} We have sent an invoice for the ${money(
-          additionalCents,
-        )} balance. Reply here with any questions - we would love to get you rebooked.`,
+        )} applies to your ${status === "no_show" ? "missed" : "late-cancelled"} session "${s.title}".${depositLine} ${
+          // The fee invoice is a draft until the studio sends it, so do not
+          // say it was sent. Promise a card charge only when one was
+          // scheduled above (same condition).
+          canAutoCharge && invoiceId
+            ? `The ${money(additionalCents)} balance will be charged to your card on file.`
+            : `The studio will send you an invoice for the ${money(additionalCents)} balance.`
+        } Reply here with any questions - we would love to get you rebooked.`,
         kind: `session.${feeKind}`,
         sessionId: s._id,
       });
@@ -784,7 +783,7 @@ export async function applyStatus(
       });
       await ctx.db.insert("activity", {
         orgId, kind: "session.completed",
-        summary: `${s.title} completed${invoiceId ? " - balance invoiced automatically" : " - paid in full, nothing left to invoice"}`,
+        summary: `${s.title} completed${invoiceId ? " - balance invoice drafted, send it from Invoices" : " - paid in full, nothing left to invoice"}`,
         entityType: "session", entityId: id, accent: "positive",
       });
     }
@@ -1119,6 +1118,11 @@ export const sendPayLinkSms = mutation({
     if (!s || s.orgId !== orgId) throw new Error("Not found");
     const artist = await ctx.db.get(s.artistId);
     if (!artist?.phone) throw new Error("No phone number on file for this client.");
+    // notify() would skip a STOP number silently; say so instead of letting
+    // staff believe the client has the link.
+    if (await isSmsOptedOut(ctx, artist.phone)) {
+      throw new ConvexError("This client replied STOP to texts. Copy or email the pay link instead.");
+    }
     const org = await ctx.db
       .query("orgs")
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
@@ -1189,9 +1193,11 @@ export const myEngineerRequests = query({
   },
 });
 
-/** The requested engineer accepts or declines. Accepting finalizes the
- *  booking (session -> confirmed + auto-shift); declining clears the
- *  assignment so managers can restaff (session stays tentative). */
+/** The requested engineer accepts or declines. Accepting books the shift and
+ *  finalizes the booking (session -> confirmed), except an unpaid public hold:
+ *  there the deposit is what confirms it (payments.settlePayment), so the
+ *  session stays tentative. Declining clears the assignment so managers can
+ *  restaff (session stays tentative). */
 export const respondToEngineerRequest = mutation({
   args: { sessionId: v.id("sessions"), accept: v.boolean() },
   handler: async (ctx, { sessionId, accept }) => {
@@ -1207,6 +1213,7 @@ export const respondToEngineerRequest = mutation({
     }
     const me = await ctx.db.get(viewer.memberId);
     const name = me?.name ?? "Engineer";
+    let finalized = false;
     if (accept && session.requestStatus === "pending") {
       // A booking request: the engineer can take it, but only an owner or
       // manager confirms the booking (bookingRequests.approve books the shift).
@@ -1221,9 +1228,16 @@ export const respondToEngineerRequest = mutation({
         accent: "gold",
       });
     } else if (accept) {
+      // An unpaid public hold is confirmed by its deposit, not by the engineer.
+      // Money must actually have come in: a short-notice 0% hold has
+      // depositCents 0 and owes the full price, so 0 >= 0 is not "paid".
+      const paidCents = session.amountPaidCents ?? 0;
+      const depositPaid =
+        session.depositPaid || (paidCents > 0 && paidCents >= session.depositCents);
+      finalized = session.source !== "public_booking" || depositPaid;
       await ctx.db.patch(sessionId, {
         engineerRequestStatus: "confirmed",
-        status: "confirmed",
+        ...(finalized ? { status: "confirmed" as const } : {}),
       });
       await ensureSessionShift(ctx, {
         _id: sessionId,
@@ -1236,11 +1250,13 @@ export const respondToEngineerRequest = mutation({
       await ctx.db.insert("activity", {
         orgId: session.orgId,
         kind: "engineer.confirmed",
-        summary: `${name} confirmed ${session.title} - booking finalized`,
+        summary: finalized
+          ? `${name} confirmed ${session.title} - booking finalized`
+          : `${name} can take ${session.title} - booking still waiting on the deposit`,
         actorName: name,
         entityType: "session",
         entityId: sessionId,
-        accent: "positive",
+        accent: finalized ? "positive" : "gold",
       });
     } else {
       await ctx.db.patch(sessionId, {
@@ -1257,7 +1273,7 @@ export const respondToEngineerRequest = mutation({
         accent: "critical",
       });
     }
-    return { ok: true };
+    return { ok: true, finalized };
   },
 });
 

@@ -22,7 +22,7 @@ import { formatUsd } from "@convex/lib/pricing";
 const HIGHLIGHTS: Record<TierKey, string[]> = {
   core: [
     "Online booking with deposits",
-    "Card on file and no-show protection",
+    "Kept deposits and no-show fee bills",
     "Clients, bills, payments and reminders",
     "Google Calendar both ways and your own Gmail",
     "Money to your own Stripe, no cut",
@@ -36,10 +36,9 @@ const HIGHLIGHTS: Record<TierKey, string[]> = {
   ],
   max: [
     "Everything in Growth",
-    "Unlimited studios, one flat price",
-    "Releases, licensing and split sheets",
-    "One screen above every studio",
-    "Your brand on the app, your own web address",
+    "Release plans and license records",
+    "Unlimited staff and rooms",
+    "Your brand on the whole app",
   ],
 };
 
@@ -94,12 +93,14 @@ export function marketingTiers(): MarketingTier[] {
   });
 }
 
-/** "From $74.50/mo" - the entry price for metadata and share cards, so the
- *  number a search result promises is the number the page shows. */
+/** "From $74.50/mo for 3 months, then $149" - the entry price for metadata
+ *  and share cards, so the number a search result promises is the number the
+ *  page shows. An intro price always carries its step-up. */
 export function fromPriceLabel(): string {
   const entry = SELLABLE_TIERS[0];
-  const cents = earlyAdopterApplies(entry, "month")
-    ? earlyAdopterPriceCents(entry)
-    : PLAN_LIMITS[entry].priceCents;
-  return `From ${money(cents)}/mo`;
+  const full = PLAN_LIMITS[entry].priceCents;
+  if (earlyAdopterApplies(entry, "month")) {
+    return `From ${money(earlyAdopterPriceCents(entry))}/mo for ${EARLY_ADOPTER_MONTHS} months, then ${money(full)}`;
+  }
+  return `From ${money(full)}/mo`;
 }

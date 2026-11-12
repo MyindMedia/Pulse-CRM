@@ -50,6 +50,10 @@ export const mine = query({
       contact: org.contact ?? null,
       logoUrl: org.logoId ? await fileUrl(ctx, org.logoId) : null,
       roomCount: rooms.length,
+      // What the finish screen may claim: a room clients can book, and a
+      // Stripe account that can take a deposit (both steps are optional).
+      bookableRoomCount: rooms.filter((r) => r.status !== "retired" && r.bookable !== false).length,
+      depositsReady: Boolean(org.stripeAccountId && org.stripeChargesEnabled),
       onboardingCompletedAt: org.onboardingCompletedAt ?? null,
       termsAcceptedAt: org.termsAcceptedAt ?? null,
       termsVersion: org.termsVersion ?? null,

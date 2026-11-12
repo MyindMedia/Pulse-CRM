@@ -22,6 +22,27 @@ export function orgTz(org: { timezone?: string } | null | undefined): string {
   return DEFAULT_TZ;
 }
 
+/** Minutes the zone is ahead of UTC at that moment (DST-aware). New York in
+ *  winter is -300. */
+export function utcOffsetMinutes(ts: number, tz: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+  }).formatToParts(ts);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"));
+  return Math.round((asUtc - Math.floor(ts / 60_000) * 60_000) / 60_000);
+}
+
+/** The instant a calendar day starts (00:00) in the zone. `month` is 0-based,
+ *  like Date. Checked twice so a day that starts near a DST change lands on
+ *  the zone's real midnight. */
+export function zonedMidnight(year: number, month: number, day: number, tz: string): number {
+  const asUtc = Date.UTC(year, month, day);
+  const first = asUtc - utcOffsetMinutes(asUtc, tz) * 60_000;
+  return asUtc - utcOffsetMinutes(first, tz) * 60_000;
+}
+
 /** "2:30 PM" in the studio's zone. */
 export function clockTime(ts: number, tz: string): string {
   return new Date(ts).toLocaleTimeString("en-US", {
@@ -75,4 +96,13 @@ export function localDayKey(ts: number, tz: string): string {
     // An invalid stored timezone must not take a public page down.
     return new Date(ts).toISOString().slice(0, 10);
   }
+}
+
+/**
+ * "today" or "tomorrow" for a start time inside the next 24 hours, judged on
+ * the studio's local calendar, not on the reminder window. A session booked
+ * for later today must not be told it is tomorrow.
+ */
+export function dayWord(ts: number, now: number, tz: string): "today" | "tomorrow" {
+  return localDayKey(ts, tz) === localDayKey(now, tz) ? "today" : "tomorrow";
 }

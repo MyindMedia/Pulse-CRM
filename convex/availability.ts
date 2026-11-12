@@ -5,7 +5,8 @@ import { v } from "convex/values";
 import { Doc } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
 import { requireCapability, resolveViewer, AccessError } from "./lib/access";
-import { notify } from "./lib/notify";
+import { notify, notifyTeam } from "./lib/notify";
+import { dateLabel, orgTz } from "./lib/tz";
 
 /* Staff self-service: weekly availability + time-off requests. */
 
@@ -91,14 +92,30 @@ export const requestTimeOff = mutation({
     const me = await myMember(ctx);
     if (!me) throw new Error("Only team members can request time off.");
     if (args.endTime <= args.startTime) throw new Error("End must be after start.");
-    return await ctx.db.insert("timeOff", {
+    const reason = args.reason?.trim() || undefined;
+    const id = await ctx.db.insert("timeOff", {
       orgId: me.orgId,
       memberId: me._id,
       startTime: args.startTime,
       endTime: args.endTime,
-      reason: args.reason?.trim() || undefined,
+      reason,
       status: "pending",
     });
+    // "Managers get the request": tell the studio (owner's inbox) so it does
+    // not sit unseen until someone happens to open the Schedule page.
+    // Dates in the studio's own zone: the server runs in UTC, and the form
+    // sends the last day as local 23:59, which is already the next UTC day
+    // for every US studio.
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", me.orgId)).first();
+    const tz = orgTz(org);
+    const fmt = (ms: number) => dateLabel(ms, tz);
+    await notifyTeam(ctx, {
+      orgId: me.orgId,
+      subject: `Time off request from ${me.name}`,
+      body: `${me.name} asked for time off from ${fmt(args.startTime)} to ${fmt(args.endTime)}${reason ? ` (${reason})` : ""}. Approve or deny it on the Schedule page.`,
+      kind: "timeoff.requested",
+    });
+    return id;
   },
 });
 

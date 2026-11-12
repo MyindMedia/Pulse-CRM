@@ -6,6 +6,7 @@ import { currentOrg } from "./lib/tenant";
 import { orgGate } from "./lib/tier";
 import { PLAN_LIMITS, priceLabel, type CapabilityKey } from "./lib/plans";
 import { capabilitiesForTier } from "./lib/entitlements";
+import { royaltiesSwitchOn } from "./lib/royaltiesGate";
 import {
   moduleBoard,
   moduleFor,
@@ -45,11 +46,15 @@ export const board = query({
 
     const { tier, disabled } = await orgGate(ctx, orgId);
     const owned = capabilitiesForTier(tier);
+    // Royalties ship dark behind the agency switch (lib/royaltiesGate.ts).
+    // While it is off the row is left out, so the board neither says it is on
+    // nor offers it as an upgrade.
+    const royaltiesOn = await royaltiesSwitchOn(ctx, orgId);
 
     const areas = moduleBoard().map((group) => ({
       area: group.area,
       label: group.label,
-      modules: group.modules.map((m) => {
+      modules: group.modules.filter((m) => royaltiesOn || m.key !== "royalties").map((m) => {
         const isOwned = owned.has(m.key);
         const switchable = !m.core && isOwned;
         const off = isToggleable(m.key) && disabled.has(m.key);

@@ -30,6 +30,10 @@ const ProjectsTodayCard = dynamic(
   () => import("@/components/projects/today-card").then((m) => m.ProjectsTodayCard),
   { loading: () => <ChunkPlaceholder /> },
 );
+const HealthPanel = dynamic(
+  () => import("@/components/agent/health-panel").then((m) => m.HealthPanel),
+  { loading: () => <ChunkPlaceholder /> },
+);
 const WrapUpCard = dynamic(
   () => import("@/components/dashboard/wrapup-card").then((m) => m.WrapUpCard),
   { loading: () => <ChunkPlaceholder /> },
@@ -178,16 +182,30 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
     capability: "invoices.read",
     render: () => <DepositsFeed />,
   },
-  /* ── Everything else: one click away in the Add widget tray ── */
   {
     key: "today",
     title: "Today board",
     blurb: "Live counters, rooms right now, timeline, arrivals, balances, on shift",
     span: "full",
     titled: false, // carries its own "Right now" / "Today's sessions" sections
-    defaultHidden: true,
+    // On by default: this is the "today screen" the plans sell (arrivals,
+    // balances, who is on, rooms busy until, tomorrow). /today lands here.
     render: () => <TodayBoard />,
   },
+  {
+    key: "health",
+    title: "Studio health",
+    blurb: "One score from six fixed parts, the same way every week",
+    span: "full",
+    titled: false, // the panel carries its own label
+    // Every plan includes the health score; it reads leadership numbers.
+    capability: "insights.read",
+    // Off the default home screen: it is one click away in the tray, so the
+    // score only runs for people who chose it.
+    defaultHidden: true,
+    render: () => <HealthPanel />,
+  },
+  /* ── Everything else: one click away in the Add widget tray ── */
   {
     key: "wrapup",
     title: "Wrap-up & studio refresh",
@@ -202,7 +220,7 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
     blurb: "Post-production work that is late or due soonest",
     span: "half",
     titled: false, // carries its own title so a studio without projects shows nothing
-    defaultHidden: true,
+    // On by default: project cards are sold as sitting on the home screen.
     render: () => <ProjectsTodayCard />,
   },
   {

@@ -9,6 +9,7 @@ import { proposeWaitlistFill } from "./waitlist";
 import { createCompletionInvoice } from "./sessions";
 import { normalizePhone } from "./lib/phone";
 import { renderSms, BALANCE_DUE_SMS } from "./lib/smsTemplates";
+import { dropPreChecklistFor } from "./checklists";
 
 /* ============================================================
    Booking automation - runs on a 15-minute cron (see crons.ts)
@@ -110,6 +111,9 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
         await ctx.db.patch(s._id, { status: "no_show", autoResolved: "auto_no_show" });
       } else {
         await ctx.db.patch(s._id, { status: "cancelled", autoResolved: "expired_hold" });
+        // Same as a staff cancel (sessions.applyStatus): no pre-session list
+        // for a session that will not run.
+        await dropPreChecklistFor(ctx, s._id);
       }
       out.staleResolved++;
       continue;
@@ -176,7 +180,11 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
           channel: "email",
           recipient: email,
           subject: `Balance due - ${s.title}`,
-          body: `Your ${money(s.rateCents - paid)} balance is due before your session. Pay in full at least 2 hours before your start time to keep the booking.${payLink}`,
+          body: `Your ${money(s.rateCents - paid)} balance is due before your session. ${
+            s.source === "public_booking"
+              ? "Pay in full at least 2 hours before your start time to keep the booking."
+              : "Please pay before your session."
+          }${payLink}`,
           kind: "booking.balance_reminder",
           sessionId: s._id,
         });
@@ -219,8 +227,13 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     //     (deduped via the notifications log, kind "review.request"). Only fires
     //     for recent completions so a fresh deploy never backfill-spams months of
     //     historical sessions.
+    //     A session closed out by the stale sweep (autoResolved) or one the
+    //     client said NO to by text may never have happened, so it gets no
+    //     "Thanks for recording" email.
     if (
       s.status === "completed" &&
+      !s.autoResolved &&
+      !s.clientDeclinedAt &&
       now - s.endTime >= DAY &&
       now - s.endTime <= 8 * DAY
     ) {
@@ -297,7 +310,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
                 channel: "sms",
                 recipient: phone,
                 subject: "Studio hold expiring",
-                body: `${org.name ?? "Studio"}: your hold on "${s.title}" expires soon. Pay the deposit to keep it: ${payUrl}`,
+                body: `${org.name ?? "Studio"}: your hold on "${s.title}" expires soon. ${s.depositCents > 0 ? "Pay the deposit" : "Pay in full"} to keep it: ${payUrl}`,
                 kind: "booking.hold_nudge",
                 sessionId: s._id,
               });
@@ -311,6 +324,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     // 3. Hold expiry - an unpaid hold past its window is released.
     if (!pendingRequest && s.status === "tentative" && paid === 0 && s.holdExpiresAt && s.holdExpiresAt < now) {
       await ctx.db.patch(s._id, { status: "cancelled" });
+      await dropPreChecklistFor(ctx, s._id);
       await ctx.db.insert("activity", {
         orgId: s.orgId,
         kind: "booking.hold_released",
@@ -350,6 +364,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
       now < s.startTime
     ) {
       await ctx.db.patch(s._id, { status: "cancelled" });
+      await dropPreChecklistFor(ctx, s._id);
       await ctx.db.insert("activity", {
         orgId: s.orgId,
         kind: "booking.forfeited",
@@ -364,7 +379,10 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
           channel: "email",
           recipient: email,
           subject: `Booking cancelled - ${s.title}`,
-          body: "The balance was not paid in full 2 hours before the session, so the booking was released. The deposit is non-refundable per the booking terms.",
+          // Only mention money when some was paid: there may be no deposit.
+          body:
+            "The balance was not paid in full 2 hours before the session, so the booking was released." +
+            (paid > 0 ? ` The ${money(paid)} you paid is kept by the studio.` : ""),
           kind: "booking.forfeited",
           sessionId: s._id,
         });
@@ -372,7 +390,9 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
       await notifyTeam(ctx, {
         orgId: s.orgId,
         subject: `Booking forfeited - ${s.title}`,
-        body: `"${s.title}" was released: the balance was not paid in full 2 hours before start. The deposit is retained per booking terms.`,
+        body:
+          `"${s.title}" was released: the balance was not paid in full 2 hours before start.` +
+          (paid > 0 ? ` The ${money(paid)} paid is kept.` : " Nothing was paid."),
         kind: "booking.forfeited",
         sessionId: s._id,
       });
@@ -396,7 +416,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
       await ctx.db.insert("activity", {
         orgId: s.orgId,
         kind: "session.completed",
-        summary: `${s.title} completed${invoiceId ? " - balance invoiced automatically" : ""}`,
+        summary: `${s.title} completed${invoiceId ? " - balance invoice drafted, send it from Invoices" : ""}`,
         entityType: "session",
         entityId: s._id,
         accent: "positive",

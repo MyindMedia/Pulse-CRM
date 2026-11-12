@@ -94,7 +94,7 @@ export function betaEndingHtml(args: {
       <tr><td style="padding:4px 28px 0 28px;">
         <table role="presentation" width="100%" cellpadding="0" cellspacing="0">${rows}</table>
         <p style="margin:10px 0 0 0;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:12px;color:${FAINT};">
-          Paying yearly gets ${ANNUAL_MONTHS_FREE} months free. Max includes unlimited studios at one flat price.
+          Paying yearly gets ${ANNUAL_MONTHS_FREE} months free.
         </p>
       </td></tr>
 

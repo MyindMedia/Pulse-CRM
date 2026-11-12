@@ -12,6 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Field, Input, Textarea } from "@/components/ui/field";
+import { canApproveSend, manualStepFor } from "@convex/lib/agentActions";
 
 const RISK_TONE = { low: "neutral", medium: "caution", high: "critical", critical: "critical" } as const;
 
@@ -44,6 +45,8 @@ function Inner({ item, onClose }: { item: ApprovalItem; onClose: () => void }) {
 
   const payload = (item.proposedPayload ?? {}) as Record<string, unknown>;
   const structured = item.actionType === "send_email" || item.actionType === "send_sms";
+  // Pulse cannot carry this one out: approving records the decision only.
+  const manualStep = manualStepFor(item.actionType);
   const [to, setTo] = React.useState(String(payload.to ?? ""));
   const [subject, setSubject] = React.useState(String(payload.subject ?? ""));
   const [body, setBody] = React.useState(String(payload.body ?? ""));
@@ -55,7 +58,8 @@ function Inner({ item, onClose }: { item: ApprovalItem; onClose: () => void }) {
         ? { ...payload, to: to.trim(), ...(item.actionType === "send_email" ? { subject: subject.trim() } : {}), body: body.trim() }
         : undefined;
       await approve({ id: item._id, editedPayload });
-      toast.success("Approved.");
+      if (manualStep) toast.success(`Approved. Pulse did not do this for you: ${manualStep}`);
+      else toast.success("Approved.");
       onClose();
     } catch {
       toast.error("Could not approve.");
@@ -109,19 +113,26 @@ function Inner({ item, onClose }: { item: ApprovalItem; onClose: () => void }) {
             </Field>
           </>
         ) : (
+          <>
+          {manualStep && (
+            <p className="rounded-md border border-caution/40 bg-caution/10 px-3 py-2 text-sm text-steel">
+              Pulse does not do this step for you yet. Approving records your decision; nothing is created. {manualStep}
+            </p>
+          )}
           <Field label="Proposed details">
             <pre className="max-h-48 overflow-auto rounded-md border border-graphite/50 bg-coal-2 p-3 text-xs text-steel">
               {JSON.stringify(payload, null, 2)}
             </pre>
           </Field>
+          </>
         )}
       </DialogBody>
 
       <DialogFooter>
         <Button variant="ghost" onClick={doReject} disabled={busy}><X className="size-4" />Reject</Button>
-        <Button onClick={doApprove} disabled={busy || (structured && !body.trim())}>
+        <Button onClick={doApprove} disabled={busy || !canApproveSend(item.actionType, to, body)}>
           {busy ? <Loader2 className="size-4 animate-spin" /> : <Check className="size-4" />}
-          {structured ? "Approve & send" : "Approve"}
+          {structured ? "Approve & send" : manualStep ? "Approve (I will do it)" : "Approve"}
         </Button>
       </DialogFooter>
     </>

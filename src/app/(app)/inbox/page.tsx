@@ -204,7 +204,7 @@ export default function InboxPage() {
       <PageHeader
         overline="AI Agents"
         title="Approval Inbox"
-        description="Every AI agent drops its drafts here. Click an item to review and edit the details, then approve to send - or dismiss / snooze."
+        description="Drafts from the scheduled checks wait here. Pulse Agent approvals are on the Pulse Agent page. Click an item to review and edit the details, then approve to send - or dismiss / snooze."
         actions={
           counts ? (
             <Badge tone={counts.high ? "critical" : "gold"}>

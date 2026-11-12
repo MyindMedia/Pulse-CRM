@@ -93,7 +93,7 @@ export type ActionType =
 export type Priority = "low" | "medium" | "high";
 
 export type Payload =
-  | { kind: "email"; to?: string; subject: string; body: string; notifyKind: string }
+  | { kind: "email"; to?: string; subject: string; body: string; notifyKind: string; waitlistEntryId?: Id<"waitlistEntries"> }
   | { kind: "session_status"; sessionId: Id<"sessions">; newStatus: "confirmed" | "cancelled" }
   | { kind: "note_only" }
   // Accounting agent payloads. Only convex/agents/accounting.ts emits them.
