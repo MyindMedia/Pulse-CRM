@@ -12,6 +12,7 @@ const STATUS: Record<string, string> = {
   sent: "Out for signature",
   draft: "Draft",
   fully_executed: "Fully signed",
+  marked_by_studio: "Marked signed by studio",
 };
 
 /* Split sheet (kit "Invoices and splits"): the sheet that needs attention,
@@ -82,7 +83,9 @@ export function SplitSpotlight() {
                     <span className="font-mono text-xs text-bone" title={`Master ${c.masterPct}% · publishing ${c.publishingPct}%`}>
                       {c.masterPct}%
                     </span>
-                    <Badge tone={c.signed ? "positive" : "gold"}>{c.signed ? "Signed" : "Awaiting"}</Badge>
+                    <Badge tone={c.signed ? "positive" : c.signedBy === "studio" ? "neutral" : "gold"}>
+                      {c.signed ? "Signed" : c.signedBy === "studio" ? "Marked by studio" : "Awaiting"}
+                    </Badge>
                   </span>
                 </div>
                 <Groove value={c.masterPct / 100} tone={c.signed ? "yellow" : "metal"} />
