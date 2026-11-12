@@ -31,6 +31,7 @@ const CrmCalendar = dynamic(() => import("@/components/agency/crm/crm-calendar")
 const CrmSocial = dynamic(() => import("@/components/agency/crm/crm-social").then((m) => m.CrmSocial), { ssr: false, loading: panelLoading });
 const CrmResources = dynamic(() => import("@/components/agency/crm/crm-resources").then((m) => m.CrmResources), { ssr: false, loading: panelLoading });
 const OutreachWorkspace = dynamic(() => import("@/components/agency/outreach-workspace").then((m) => m.OutreachWorkspace), { ssr: false, loading: panelLoading });
+const EmailInbox = dynamic(() => import("@/components/agency/email/email-inbox").then((m) => m.EmailInbox), { ssr: false, loading: panelLoading });
 const CrmFunctions = dynamic(() => import("@/components/agency/crm/crm-functions").then((m) => m.CrmFunctions), { ssr: false, loading: panelLoading });
 
 const TABS = CRM_TABS;
@@ -97,7 +98,7 @@ function Header({ children }: { children?: React.ReactNode }) {
     <header className="flex flex-wrap items-end gap-3">
       <div className="min-w-0 flex-1 space-y-1">
         <h1 className="chrome-display text-2xl leading-[0.95] text-bone">CRM</h1>
-        <p className="text-sm text-steel">Prospects, leads, pipeline, inbox and bookings. Everything but Prospects is read live from Zuops.</p>
+        <p className="text-sm text-steel">Prospects, leads, pipeline, inbox, email and bookings. Everything but Prospects and Email is read live from Zuops.</p>
       </div>
       {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
     </header>
@@ -107,12 +108,14 @@ function Header({ children }: { children?: React.ReactNode }) {
 const PROSPECTS_NOTE =
   "Studios you are prospecting, before they become leads in Zuops. Emails go out from Lawrence or MaxB with their own signatures, and each one still needs your approval.";
 
+const EMAIL_NOTE = "The shared studiopulse.tech inboxes. Replies to outreach land here.";
+
 function ZuopsMissing() {
   return (
     <EmptyState
       icon={KeyRound}
       title="Zuops key missing"
-      description="Set ZUOPS_CRM_API_KEY in this deployment's Convex environment. Until then this section has nothing to read. Prospects works without it."
+      description="Set ZUOPS_CRM_API_KEY in this deployment's Convex environment. Until then this section has nothing to read. Prospects and Email work without it."
     />
   );
 }
@@ -140,13 +143,23 @@ function CrmConsole() {
   const zuopsTab = !NO_ZUOPS_TABS.includes(tab);
 
   const panel = (id: TabId): React.ReactNode => {
-    // Prospects is Convex only and works with or without Zuops (owner request
-    // 2026-11-11); every other tab needs the Zuops key.
+    // Prospects and Email are Convex only and work with or without Zuops (owner
+    // requests 2026-11-11); every other tab needs the Zuops key.
     if (id === "prospects") {
       return (
         <div className="space-y-4">
           <p className="text-sm text-steel">{PROSPECTS_NOTE}</p>
           <OutreachWorkspace />
+        </div>
+      );
+    }
+    if (id === "email") {
+      // The same shared inbox /agency/email used to render. It checks
+      // api.mail.access itself and shows its own state when mail is not allowed.
+      return (
+        <div className="space-y-4">
+          <p className="text-sm text-steel">{EMAIL_NOTE}</p>
+          <EmailInbox />
         </div>
       );
     }
@@ -177,7 +190,7 @@ function CrmConsole() {
             : <Badge tone="caution"><Clock className="size-3" aria-hidden />Checks every minute</Badge>)}
           {connected && !status.writesOn && <Badge tone="caution"><Lock className="size-3" aria-hidden />Read only</Badge>}
         </Header>
-        {/* Read only is about Zuops writes; Prospects has its own approvals. */}
+        {/* Read only is about Zuops writes; Prospects and Email are not Zuops. */}
         {connected && zuopsTab && <ReadOnlyBanner />}
         <Tabs value={tab} onValueChange={(v) => go(v as TabId)} className="space-y-4">
           <TabsList aria-label="CRM sections" className="w-full justify-start">

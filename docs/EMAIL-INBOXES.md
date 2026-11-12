@@ -1,6 +1,6 @@
 # Email inboxes (Agency > Email)
 
-A shared inbox for studiopulse.tech inside the Agency Command Center, at `/agency/email`.
+A shared inbox for studiopulse.tech inside the Agency Command Center, as the CRM's Email tab at `/agency/crm#email` (the old `/agency/email` redirects there).
 
 - Receive: Resend Receiving (MX on studiopulse.tech) posts `email.received` to Convex at `POST /resend/inbound`.
 - Store: Convex tables `mailboxes`, `mailThreads`, `mailMessages`. Attachment bytes go to R2 (shared private bucket, `agency:<id>` scope), never to Convex storage.
@@ -35,7 +35,7 @@ Mail to any other `@studiopulse.tech` address is kept in **Unrouted**. Open it t
    - `RESEND_WEBHOOK_SECRET` = the `whsec_...` secret from step 3. Until it is set the route answers 503 and stores nothing.
    - `MAIL_AGENCY_ID` = the Pulse agency id (the Clerk org id the agency console runs under). If `OUTREACH_INTAKE_AGENCY_ID` is already set to the same id you can skip this.
    - `RESEND_API_KEY` is already set (it sends today). Receiving needs it too: the webhook carries metadata only and the body is fetched with this key. Check the key has full access, not sending-only.
-5. **Test.** Open `/agency/email` once (creates the three inboxes), then send a mail from Gmail to `support@studiopulse.tech`. It should appear within seconds. Reply from the tab and check it threads in Gmail.
+5. **Test.** Open CRM > Email (`/agency/crm#email`) once (creates the three inboxes), then send a mail from Gmail to `support@studiopulse.tech`. It should appear within seconds. Reply from the tab and check it threads in Gmail.
 
 ## REST API
 
