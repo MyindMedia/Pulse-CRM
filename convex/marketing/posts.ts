@@ -14,6 +14,7 @@ import { ghlFromEnv, createScheduledPost, deletePost, listPosts, type GhlPostInp
 import { complete } from "../lib/openai";
 import { appUrl } from "../lib/links";
 import { brandCardPath } from "../lib/brandCardUrl";
+import { activateWaitingPromo } from "../promos";
 
 /** Public origin for the two links a post puts on the open internet: the
  *  tracked booking link in the caption, and the brand-card image URL that GHL
@@ -173,6 +174,10 @@ export async function approvePost(ctx: MutationCtx, orgId: string, id: Id<"socia
   // period, so it must not burn the cap again. A post approved again in a
   // later period (its status looped back to draft/failed and enough time
   // passed) correctly meters again, since it now occupies a slot that period.
+  // A suggested (sweep) promo goes live only now, when a person approves the
+  // post that advertises it. Owner promos are already live; a promo the owner
+  // switched off or declined is left off.
+  if (post.promoId) await activateWaitingPromo(ctx, orgId, post.promoId, actor);
   const period = periodFor("social_posts");
   const alreadyMetered = post.meteredPeriod === period;
   if (!alreadyMetered) await assertWithinLimit(ctx, orgId, "social_posts", 1);

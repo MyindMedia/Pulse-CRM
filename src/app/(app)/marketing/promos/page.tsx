@@ -29,6 +29,8 @@ export default function PromosPage() {
   const rooms = useQuery(api.rooms.list, {});
   const org = useQuery(api.orgs.current, {});
   const deactivate = useMutation(api.promos.deactivate);
+  const activate = useMutation(api.promos.activate);
+  const setQuietHourDeals = useMutation(api.orgs.setQuietHourDeals);
   // Backend gate for promos.create/update/deactivate is marketing.approve,
   // not marketing.edit as an earlier plan assumed (verified against
   // convex/promos.ts:58,75,89 and the role fixtures in
@@ -67,6 +69,15 @@ export default function PromosPage() {
     }
   }
 
+  async function handleApprove(id: Id<"promos">) {
+    try {
+      await activate({ id });
+      toast.success("Promo approved. The code works at checkout now.");
+    } catch (err) {
+      toast.error(errorMessage(err, "Could not approve that promo. Try again."));
+    }
+  }
+
   return (
     <div className="space-y-6">
       <Section
@@ -80,6 +91,24 @@ export default function PromosPage() {
           ) : undefined
         }
       >
+        {canManage && org && (
+          <div className="mb-4 flex items-center justify-between gap-3 rounded-md border border-hairline p-3">
+            <div className="text-sm">
+              <div className="text-bone">Suggest quiet-hour deals</div>
+              <div className="text-xs text-steel">
+                Each week Pulse drafts a promo for a room window that is under 40% booked. A suggested code works at checkout only after you approve it.
+              </div>
+            </div>
+            <Switch
+              checked={org.quietHourDeals === true}
+              onCheckedChange={(enabled) =>
+                setQuietHourDeals({ enabled }).catch((err) => toast.error(errorMessage(err, "Could not change that. Try again.")))
+              }
+              aria-label="Suggest quiet-hour deals"
+            />
+          </div>
+        )}
+
         {!canManage && loaded && (
           <p className="text-sm text-steel">
             You can view promo codes here. Ask a studio owner or manager to create, edit, or deactivate one.
@@ -146,6 +175,15 @@ export default function PromosPage() {
                     </Badge>
                   </TD>
                   <TD>
+                    {p.awaitingApproval ? (
+                      canManage ? (
+                        <Button size="sm" variant="outline" onClick={() => void handleApprove(p._id)}>
+                          Approve
+                        </Button>
+                      ) : (
+                        <Badge tone="caution">Waiting</Badge>
+                      )
+                    ) : (
                     <Switch
                       checked={p.active}
                       disabled={!canManage || !p.active}
@@ -154,6 +192,7 @@ export default function PromosPage() {
                       }}
                       aria-label={p.active ? `Deactivate ${p.code}` : `${p.code} is inactive`}
                     />
+                    )}
                   </TD>
                   <TD>
                     <Button asChild variant="outline" size="sm">

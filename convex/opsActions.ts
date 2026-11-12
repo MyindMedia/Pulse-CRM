@@ -20,6 +20,7 @@ import { sendEmail, studioReplyTo } from "./lib/email";
 import { studioEmailHtml } from "./lib/emailTemplates/layout";
 import { recordApprovalLearning, recordDismissLearning } from "./predictions";
 import { approvePost } from "./marketing/posts";
+import { declineWaitingPromo } from "./promos";
 import { deliverGapDeal } from "./gapDeals";
 import { isAccountingType } from "./lib/agentScope";
 import { roomBusyIntervals, sessionHoldsSlot } from "./lib/roomBusy";
@@ -392,6 +393,11 @@ export const dismiss = mutation({
     if (isAccountingType(action.type)) return await dismissAccountingAction(ctx, id);
     const actor = await currentActor(ctx);
     await ctx.db.patch(id, { status: "dismissed", decidedAt: Date.now(), decidedBy: actor });
+    // Declining a suggested promo post declines its promo too: it stays off.
+    if (action.payload.kind === "social_post") {
+      const post = await ctx.db.get(action.payload.postId);
+      if (post?.promoId && post.orgId === action.orgId) await declineWaitingPromo(ctx, action.orgId, post.promoId);
+    }
     await bumpTrust(ctx, action.orgId, action.type, "dismissed");
     await recordDismissLearning(ctx, action);
   },

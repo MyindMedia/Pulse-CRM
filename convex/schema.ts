@@ -421,6 +421,9 @@ export default defineSchema({
     // an underused window. When unset the recommender uses its rule-based
     // default (15% / 20%).
     defaultRateCutPct: v.optional(v.number()),
+    // "Suggest quiet-hour deals": the weekly sweep drafts promos for
+    // underused windows only when this is on. Off when absent.
+    quietHourDeals: v.optional(v.boolean()),
     // Marketing: which GHL location this org publishes through. Absent means
     // the platform default (GHL_LOCATION_ID + GHL_API_KEY). tokenRef names an
     // env var; the token itself is never stored in the database.
@@ -3383,6 +3386,11 @@ export default defineSchema({
     redemptions: v.number(),
     source: v.union(v.literal("owner"), v.literal("rate_cut")),
     active: v.boolean(),
+    // A sweep suggestion created switched off, waiting for a person to
+    // approve it (its draft post, or Approve on the Promos screen).
+    awaitingApproval: v.optional(v.boolean()),
+    approvedBy: v.optional(v.string()),
+    approvedAt: v.optional(v.number()),
     createdBy: v.string(),
     createdAt: v.number(),
   })

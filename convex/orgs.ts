@@ -1,7 +1,7 @@
 import { fileRefV } from "./lib/fileRef";
 import { claimFile, fileUrl, retireFile } from "./lib/media";
 import { query, internalQuery, QueryCtx } from "./_generated/server";
-import { mutation, internalMutation } from "./functions";
+import { mutation } from "./functions";
 import { internal } from "./_generated/api";
 import { Doc } from "./_generated/dataModel";
 import { v } from "convex/values";
@@ -30,6 +30,31 @@ export const listActiveOrgIds = internalQuery({
     return orgs
       .filter((o) => (o.status ?? "active") === "active" && o.orgId !== "pulse-demo")
       .map((o) => o.orgId);
+  },
+});
+
+/** Studios the weekly quiet-hour sweep runs for: active, and the studio
+ *  turned "Suggest quiet-hour deals" on (truth-discount-codes, decision 3). */
+export const listQuietHourDealOrgIds = internalQuery({
+  args: {},
+  handler: async (ctx) => {
+    const orgs = await ctx.db.query("orgs").collect();
+    return orgs
+      .filter((o) => (o.status ?? "active") === "active" && o.orgId !== "pulse-demo" && o.quietHourDeals === true)
+      .map((o) => o.orgId);
+  },
+});
+
+/** "Suggest quiet-hour deals": lets the weekly sweep draft a promo for an
+ *  underused room window. A suggestion never works at checkout until a
+ *  person approves it. Off unless the studio turns it on. */
+export const setQuietHourDeals = mutation({
+  args: { enabled: v.boolean() },
+  handler: async (ctx, { enabled }) => {
+    const orgId = await currentOrgWithCapability(ctx, "marketing.approve");
+    const org = await ensureOrg(ctx, orgId);
+    if (!org) throw new Error("Org not found");
+    await ctx.db.patch(org._id, { quietHourDeals: enabled });
   },
 });
 
@@ -131,6 +156,7 @@ async function brandOf(ctx: QueryCtx, org: Doc<"orgs"> | null, orgId: string) {
     // Booking-page social proof the studio curates.
     testimonials: org?.testimonials ?? [],
     defaultRateCutPct: org?.defaultRateCutPct ?? null,
+    quietHourDeals: org?.quietHourDeals === true,
     taxState: org?.taxState ?? null,
     taxRate: org?.taxRate ?? null,
     taxApply: org?.taxApply ?? false,
@@ -398,24 +424,6 @@ export const setTestimonials = mutation({
       // A testimonial with no author or no quote is not proof of anything.
       .filter((t) => t.author.length > 0 && t.quote.length > 0);
     await ctx.db.patch(org._id, { testimonials: clean });
-  },
-});
-
-/** Internal: register (or refresh) a single discount code on an org, so a code
- *  the AI rate-cut recommender generates and emails to clients is actually
- *  redeemable at checkout. Idempotent: upserts by normalized code. */
-export const ensureDiscountCode = internalMutation({
-  args: { orgId: v.string(), code: v.string(), pct: v.number(), label: v.optional(v.string()) },
-  handler: async (ctx, { orgId, code, pct, label }) => {
-    const normalized = code.trim().toUpperCase();
-    if (!normalized) return;
-    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
-    if (!org) return;
-    const clampedPct = Math.max(1, Math.min(90, Math.round(pct)));
-    const existing = org.discountCodes ?? [];
-    const rest = existing.filter((c) => c.code.trim().toUpperCase() !== normalized);
-    rest.push({ code: normalized, pct: clampedPct, label, active: true });
-    await ctx.db.patch(org._id, { discountCodes: rest });
   },
 });
 

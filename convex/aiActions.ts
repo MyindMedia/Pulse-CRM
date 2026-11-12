@@ -21,6 +21,8 @@ import type { WeeklyBriefingData, RateCutData } from "./aiContext";
 import { complete, DEFAULT_MODEL } from "./lib/openai";
 import { verifyDraft } from "./lib/aiVerify";
 import { tenantGuard, fenceUntrusted } from "./lib/aiGuard";
+import { appUrl } from "./lib/links";
+import { sweepPromoCode } from "./lib/rateCutCodes";
 
 /** Format a Date for human-readable display. */
 function fmt(ts: number): string {
@@ -393,38 +395,32 @@ async function writeRateCutPromos(ctx: ActionCtx, data: NonNullable<RateCutData>
     // Booking-link helper: studios have a public slug at /book/<slug>.
     // We build a real URL with the discount code pre-applied so the
     // recipient lands on a discounted booking flow.
-    const baseBookingUrl =
-      data.orgSlug
-        ? `https://pulse-dash-kit.netlify.app/book/${data.orgSlug}`
-        : "https://pulse-dash-kit.netlify.app/book";
+    const baseBookingUrl = data.orgSlug ? `${appUrl()}/book/${data.orgSlug}` : `${appUrl()}/book`;
 
-    for (const rec of data.recommendations) {
-      // Register the generated code on the org so the ?code= link actually
-      // applies a discount at checkout (otherwise the promo is a dead link).
-      await ctx.runMutation(internal.orgs.ensureDiscountCode, {
-        orgId: data.orgId,
-        code: rec.discountCode,
-        pct: rec.cutPct,
-        label: `${rec.roomName} ${rec.windowLabel}`,
-      });
-
-      // Marketing: the same recommendation as a time-boxed Promo plus a Draft
-      // post in the approval inbox. Window = the next four weeks of that slot.
+    for (const baseRec of data.recommendations) {
+      // No permanent code is written any more (truth-discount-codes): the
+      // suggestion lives only as a promo row that is switched OFF until the
+      // owner approves its draft post (or approves it on the Promos screen),
+      // and its code carries a random part so nobody can guess it.
+      //
       // Skip when a still-open row (proposed, approved, snoozed or executing)
-      // already exists for this room+code, so a second weekly sweep does not
-      // leave a duplicate promo and a duplicate draft post orphaned behind an
-      // owner who already approved (but has not yet had it execute) the first.
-      const draftDedupeKey = `social_post_draft:${rec.roomId}:${rec.discountCode}`;
+      // already exists for this room+window: the earlier suggestion, its
+      // promo and its email draft stand, and no duplicate is made. The dedupe
+      // key keeps the old room+window code so drafts made before this change
+      // are still recognised.
+      const draftDedupeKey = `social_post_draft:${baseRec.roomId}:${baseRec.discountCode}`;
       const alreadyDrafted = await ctx.runQuery(internal.opsActions.openDedupeExists, {
         orgId: data.orgId,
         dedupeKey: draftDedupeKey,
       });
-      if (!alreadyDrafted) {
+      if (alreadyDrafted) continue;
+      const rec = { ...baseRec, discountCode: sweepPromoCode(baseRec.discountCode) };
+      {
         const startsAt = Date.now();
         const endsAt = startsAt + 28 * 86_400_000;
         const promoId = await ctx.runMutation(internal.promos.createInternal, {
           orgId: data.orgId, code: rec.discountCode, pct: rec.cutPct, label: `${rec.roomName} ${rec.windowLabel}`,
-          startsAt, endsAt, roomId: rec.roomId, source: "rate_cut",
+          startsAt, endsAt, roomId: rec.roomId, source: "rate_cut", awaitingApproval: true,
         });
         const caption = `${rec.windowLabel} in ${rec.roomName} is open. Book it for ${rec.cutPct}% off with code ${rec.discountCode}: ${fmtCents(rec.newRateCents)}/hr instead of ${fmtCents(rec.currentRateCents)}/hr. Link in bio or tap the link.`;
         const postId = await ctx.runMutation(internal.marketing.posts.createInternal, {
@@ -435,7 +431,7 @@ async function writeRateCutPromos(ctx: ActionCtx, data: NonNullable<RateCutData>
         await ctx.runMutation(internal.opsActions.insertInternal, {
           orgId: data.orgId, type: "social_post_draft", priority: "low",
           title: `Post: ${rec.cutPct}% off ${rec.roomName}, ${rec.windowLabel}`,
-          rationale: `${rec.roomName} runs ${rec.lowUtilHours}h under 40% utilization in that window. Post a promo with code ${rec.discountCode} to fill it?`,
+          rationale: `${rec.roomName} runs ${rec.lowUtilHours}h under 40% utilization in that window. Post a promo with code ${rec.discountCode} to fill it? The code works at checkout only after you approve.`,
           entityType: "socialPost", entityId: postId,
           payload: { kind: "social_post", postId }, dedupeKey: draftDedupeKey,
         });
@@ -535,11 +531,12 @@ export const generateRateCutPromosForOrg = internalAction({
   },
 });
 
-/** Internal: fan the rate-cut sweep across every active subaccount. */
+/** Internal: fan the rate-cut sweep across every active subaccount that
+ *  turned "Suggest quiet-hour deals" on (off unless the studio opts in). */
 export const runRateCutForAllOrgs = internalAction({
   args: {},
   handler: async (ctx): Promise<{ scheduled: number }> => {
-    const ids: string[] = await ctx.runQuery(internal.orgs.listActiveOrgIds, {});
+    const ids: string[] = await ctx.runQuery(internal.orgs.listQuietHourDealOrgIds, {});
     for (const orgId of ids) {
       await ctx.scheduler.runAfter(0, internal.aiActions.generateRateCutPromosForOrg, { orgId });
     }
