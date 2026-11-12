@@ -58,6 +58,7 @@ const AGENT_SCHEMA = {
 import { tenantGuard, fenceUntrusted } from "./lib/aiGuard";
 import { sendEmail } from "./lib/email";
 import { sendSms } from "./lib/sms";
+import { normalizePhone } from "./lib/phone";
 import { studioHealthFor } from "./agentHealth";
 import { sameEmail } from "./lib/emailKey";
 import { businessActivity, formatActivity } from "./lib/agentActivity";
@@ -711,8 +712,14 @@ export const executeApproval = internalAction({
         const status = await sendEmail({ to: p.to, subject: p.subject ?? "A note from the studio", html: `<div>${escapeHtml(p.body ?? "").replace(/\n/g, "<br/>")}</div>` });
         ok = status !== "failed"; result = `email ${status}`;
       } else if (ap.actionType === "send_sms" && p.to) {
-        const status = await sendSms({ to: p.to, body: p.body ?? "" });
-        ok = status !== "failed"; result = `sms ${status}`;
+        // STOP is final: never text a number that opted out, even on approval.
+        const phone = normalizePhone(p.to);
+        if (phone && (await ctx.runQuery(internal.sms._isOptedOut, { phone }))) {
+          ok = false; result = "sms skipped: recipient replied STOP";
+        } else {
+          const status = await sendSms({ to: p.to, body: p.body ?? "" });
+          ok = status !== "failed"; result = `sms ${status}`;
+        }
       } else if (ap.actionType === "enable_automation") {
         const created = await ctx.runMutation(internal.agentAutomations._fromApproval, { orgId: ap.orgId, payload: ap.proposedPayload });
         ok = created; result = created ? "automation created" : "automation payload missing a prompt";
