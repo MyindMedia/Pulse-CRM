@@ -51,6 +51,17 @@ describe("GearHistory", () => {
     expect(render()).not.toContain("Label code");
   });
 
+  it("lets an editor make a code for gear with no label yet", () => {
+    state.locked = []; state.canEdit = true;
+    const html = renderToStaticMarkup(<GearHistory equipmentId={"e1" as never} barcode={null} />);
+    const button = html.match(/<button[^>]*>[^<]*Make one[^<]*<\/button>/)?.[0] ?? "";
+    expect(button).not.toBe("");
+    expect(button).not.toMatch(/\sdisabled=""/);
+    // An item that already has this code has nothing to save.
+    const same = render().match(/<button[^>]*>[^<]*Assign[^<]*<\/button>/)?.[0] ?? "";
+    expect(same).toMatch(/\sdisabled=""/);
+  });
+
   it("renders nothing without gear check-out on the plan", () => {
     state.locked = ["gearCheckout"];
     expect(render()).toBe("");

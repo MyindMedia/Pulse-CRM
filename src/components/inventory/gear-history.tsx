@@ -57,7 +57,7 @@ export function GearHistory({ equipmentId, barcode }: { equipmentId: Id<"equipme
               placeholder="Scan or type the code on its label, or leave empty to make one"
               aria-label="Label code"
             />
-            <Button type="button" size="sm" variant="secondary" disabled={busy || code.trim() === (barcode ?? "")} onClick={saveCode}>
+            <Button type="button" size="sm" variant="secondary" disabled={busy || (barcode ? code.trim() === barcode : false)} onClick={saveCode}>
               {code.trim() ? "Assign" : "Make one"}
             </Button>
           </div>
