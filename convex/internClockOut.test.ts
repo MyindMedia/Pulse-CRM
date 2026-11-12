@@ -24,7 +24,8 @@ const T0 = Date.UTC(2026, 10, 12, 15, 0, 0); // 10:00 AM in New York
 const INTERN = "+14045550101";
 const MGR = "+14045550199";
 
-type T = ReturnType<typeof convexTest>;
+const newT = () => convexTest(schema);
+type T = ReturnType<typeof newT>;
 
 async function setup(t: T, opts: { managerPhone?: boolean; orgId?: string; internPhone?: string } = {}) {
   const orgId = opts.orgId ?? "org_i";
