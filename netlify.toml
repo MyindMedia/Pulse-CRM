@@ -15,7 +15,7 @@
 # Public Pulse product demo intake. Preserve /book for studio room bookings.
 [[redirects]]
   from = "/demo"
-  to = "https://zuops.com/f/pulse-30-minute-demo-intake-draft-fbib"
+  to = "https://go.studiopulse.tech/demo"
   status = 302
   force = true
 
