@@ -63,7 +63,7 @@ import { manualStepFor } from "./lib/agentActions";
 import { studioHealthFor } from "./agentHealth";
 import { sameEmail } from "./lib/emailKey";
 import { businessActivity, formatActivity } from "./lib/agentActivity";
-import { orgTz } from "./lib/tz";
+import { orgTz, utcOffsetMinutes, isValidTimezone } from "./lib/tz";
 
 /* ============================================================
    Pulse Agent - tenant-isolated AI ops manager, one org at a
@@ -1015,8 +1015,8 @@ const DIGEST_PROMPT =
 /** Start a digest run for one org if it's enabled, the org-local hour matches
  *  the policy's digestHourLocal, and the last digest is >20h old (one per day).
  *  The schedule decision itself is the pure isDigestDue() in
- *  lib/digestSchedule.ts; "org-local" is UTC because orgs carry no timezone
- *  field (documented there). Returns the runId to kick, or null. */
+ *  lib/digestSchedule.ts; the hour is read in the studio's own time zone
+ *  when one is on file, else against UTC. Returns the runId to kick, or null. */
 export const _maybeStartDigest = internalMutation({
   args: { orgId: v.string() },
   handler: async (ctx, { orgId }): Promise<Id<"agentRuns"> | null> => {
@@ -1028,10 +1028,15 @@ export const _maybeStartDigest = internalMutation({
     // switch the module off for one studio.
     if (!(await orgHasFeature(ctx, orgId, "dailySummary"))) return null;
     const now = Date.now();
+    // The hour the owner picked is a studio-local hour: read it in the
+    // studio's time zone (set in Workspace, or from a staff phone). A studio
+    // with no zone on file keeps the old UTC reading rather than a guess.
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     const due = isDigestDue({
       now,
       digestHourLocal: policy?.digestHourLocal ?? DEFAULT_POLICY.digestHourLocal,
       lastDigestAt: policy?.lastDigestAt,
+      utcOffsetMinutes: org?.timezone && isValidTimezone(org.timezone) ? utcOffsetMinutes(now, org.timezone) : 0,
     });
     if (!due) return null;
 

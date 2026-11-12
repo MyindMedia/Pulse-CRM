@@ -22,6 +22,18 @@ export function orgTz(org: { timezone?: string } | null | undefined): string {
   return DEFAULT_TZ;
 }
 
+/** Minutes the zone is ahead of UTC at that moment (DST-aware). New York in
+ *  winter is -300. */
+export function utcOffsetMinutes(ts: number, tz: string): number {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, hourCycle: "h23",
+    year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+  }).formatToParts(ts);
+  const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+  const asUtc = Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"));
+  return Math.round((asUtc - Math.floor(ts / 60_000) * 60_000) / 60_000);
+}
+
 /** "2:30 PM" in the studio's zone. */
 export function clockTime(ts: number, tz: string): string {
   return new Date(ts).toLocaleTimeString("en-US", {

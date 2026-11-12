@@ -10,6 +10,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { WorkspacePanel } from "@/components/settings/workspace-panel";
+import { DailySummaryPanel } from "@/components/settings/daily-summary-panel";
 import { TeamPanel } from "@/components/settings/team-panel";
 import { BillingPanel } from "@/components/settings/billing-panel";
 import { IntegrationsPanel } from "@/components/settings/integrations-panel";
@@ -125,7 +126,9 @@ function SettingsView() {
           </TabsList>
 
           <TabsContent value="workspace">
+            <div className="space-y-5">
             <WorkspacePanel org={org} />
+            <DailySummaryPanel timezone={org.timezone} />
             <Card>
               <CardContent className="space-y-4 pt-5">
                 <div>
@@ -138,6 +141,7 @@ function SettingsView() {
                 <ModuleSwitchboard />
               </CardContent>
             </Card>
+            </div>
           </TabsContent>
           <TabsContent value="branding">
             {/* Preview first on a phone, a sticky column beside the controls on wide screens.
