@@ -2016,12 +2016,16 @@ export default defineSchema({
     // The receipt record and bank line this expense is reconciled with.
     receiptDocId: v.optional(v.id("receipts")),
     bankTransactionId: v.optional(v.id("bankTransactions")),
+    // Payroll rows only: the pay period they cover ("2026-11-01_2026-12-01"),
+    // so the same teammate's period is never posted twice.
+    payrollPeriod: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
     .index("by_org_date", ["orgId", "date"])
     .index("by_org_category_date", ["orgId", "category", "date"])
     .index("by_org_member", ["orgId", "memberId"])
-    .index("by_bank_transaction", ["bankTransactionId"]),
+    .index("by_bank_transaction", ["bankTransactionId"])
+    .index("by_org_payroll_period", ["orgId", "payrollPeriod"]),
 
   // ── Banking (Plaid) - openspec/changes/add-bank-sync-receipts ─────────────
   // One Plaid Item per institution login. The access token is sealed with

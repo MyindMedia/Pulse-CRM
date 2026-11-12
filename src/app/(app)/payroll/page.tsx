@@ -101,8 +101,11 @@ export default function PayrollPage() {
     setPosting(true);
     try {
       const res = await postToExpenses({ start, end });
-      if (res.created === 0) toast.info("Nothing to post for this period.");
-      else toast.success(`Posted ${res.created} payroll ${res.created === 1 ? "entry" : "entries"} (${money(res.totalCents)}) to Expenses.`);
+      const already = res.skipped > 0
+        ? ` ${res.skipped} ${res.skipped === 1 ? "teammate was" : "teammates were"} already posted for this period and left as they were.`
+        : "";
+      if (res.created === 0) toast.info(res.skipped > 0 ? `This period is already posted.${already}` : "Nothing to post for this period.");
+      else toast.success(`Posted ${res.created} payroll ${res.created === 1 ? "entry" : "entries"} (${money(res.totalCents)}) to Expenses.${already}`);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Could not post to expenses.");
     } finally {

@@ -1,4 +1,5 @@
 import { query } from "./_generated/server";
+import type { QueryCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { v } from "convex/values";
 import { currentOrgWithCapability } from "./lib/tenant";
@@ -197,15 +198,47 @@ export const removeEntry = mutation({
   },
 });
 
+/** The period key a payroll expense is filed under. */
+export function payrollPeriodKey(start: number, end: number): string {
+  return `${new Date(start).toISOString().slice(0, 10)}_${new Date(end).toISOString().slice(0, 10)}`;
+}
+
+/** Teammates whose pay for this exact period is already in the ledger. Reads
+ *  the `payrollPeriod` field, and for rows posted before it existed, the old
+ *  "[payroll ...]" tag on rows dated the last moment of the period. */
+async function alreadyPosted(
+  ctx: QueryCtx,
+  orgId: string,
+  start: number,
+  end: number,
+): Promise<Set<string>> {
+  const key = payrollPeriodKey(start, end);
+  const tagged = await ctx.db
+    .query("expenses")
+    .withIndex("by_org_payroll_period", (q) => q.eq("orgId", orgId).eq("payrollPeriod", key))
+    .collect();
+  const legacy = await ctx.db
+    .query("expenses")
+    .withIndex("by_org_category_date", (q) => q.eq("orgId", orgId).eq("category", "payroll").eq("date", end - 1))
+    .collect();
+  const ids = new Set<string>();
+  for (const x of tagged) if (x.memberId && x.category === "payroll") ids.add(x.memberId);
+  for (const x of legacy) if (x.memberId && x.notes === `[payroll ${key}]`) ids.add(x.memberId);
+  return ids;
+}
+
 /**
  * Post the window's computed labor cost into the Expenses ledger (one "payroll"
  * expense per paid teammate), so it flows into the P&L. Returns how many rows
- * were created + the total.
+ * were created + the total, and how many teammates were skipped because this
+ * period was already posted for them. Safe to call twice: a double click, or a
+ * post from web and another from the phone, adds nothing the second time.
  */
 export const postToExpenses = mutation({
   args: { start: v.number(), end: v.number() },
   handler: async (ctx, { start, end }) => {
     const orgId = await currentOrgWithCapability(ctx, "invoices.send");
+    if (!(end > start)) throw new Error("The pay period must end after it starts.");
     const now = Date.now();
     const members = await ctx.db.query("members").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect();
     const entries = await ctx.db
@@ -218,8 +251,11 @@ export const postToExpenses = mutation({
       a.push(e);
       byMember.set(e.memberId, a);
     }
-    const periodTag = `[payroll ${new Date(start).toISOString().slice(0, 10)}_${new Date(end).toISOString().slice(0, 10)}]`;
+    const payrollPeriod = payrollPeriodKey(start, end);
+    const periodTag = `[payroll ${payrollPeriod}]`;
+    const posted = await alreadyPosted(ctx, orgId, start, end);
     let created = 0;
+    let skipped = 0;
     let totalCents = 0;
     for (const m of members) {
       const es = byMember.get(m._id) ?? [];
@@ -231,6 +267,10 @@ export const postToExpenses = mutation({
         end - start,
       );
       if (payCents <= 0) continue;
+      if (posted.has(m._id)) {
+        skipped += 1;
+        continue;
+      }
       await ctx.db.insert("expenses", {
         orgId,
         category: "payroll",
@@ -240,10 +280,11 @@ export const postToExpenses = mutation({
         date: end - 1,
         memberId: m._id,
         notes: periodTag,
+        payrollPeriod,
       });
       created += 1;
       totalCents += payCents;
     }
-    return { created, totalCents };
+    return { created, skipped, totalCents };
   },
 });
