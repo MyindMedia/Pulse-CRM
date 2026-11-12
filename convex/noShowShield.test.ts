@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { convexTest } from "convex-test";
 import schema from "./schema";
 import { api } from "./_generated/api";
@@ -256,6 +256,42 @@ describe("No-Show Shield", () => {
     await payFeeInvoice(t, asOwner, org);
     await payFeeInvoice(t, asOwner, org);
     expect(await recoveryFor(t, org)).toHaveLength(2); // one deposit_forfeited + one fee
+  });
+
+  it("does not promise a card charge when no charge is scheduled (fee invoice already exists)", async () => {
+    vi.stubEnv("STRIPE_SECRET_KEY", "sk_test_dummy");
+    try {
+      const t = convexTest(schema);
+      const org = "shield_nocharge";
+      const asOwner = await seedStudio(t, org, { windowHours: 24, feePct: 50 });
+      await t.run(async (ctx) => {
+        const o = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", org)).first();
+        await ctx.db.patch(o!._id, { stripeAccountId: "acct_test", stripeChargesEnabled: true } as never);
+      });
+      const artistId = await makeArtist(t, org, { stripeCustomerId: "cus_test", defaultPaymentMethodId: "pm_test" });
+      const id = await makeSession(t, org, artistId);
+      // A live fee invoice already exists, so createCancellationFeeInvoice
+      // returns null and no card charge is scheduled.
+      await t.run((ctx) =>
+        ctx.db.insert("invoices", {
+          orgId: org, number: "PLS-000001", artistId, sessionId: id, status: "draft",
+          lineItems: [{ label: "Client - Studio A - no-show fee", amountCents: 10_000 }],
+          amountCents: 10_000, dueDate: Date.now() + 14 * 86_400_000,
+        }),
+      );
+
+      await asOwner.mutation(api.sessions.setStatus, { id, status: "no_show" });
+
+      const scheduled = await t.run((ctx) => ctx.db.system.query("_scheduled_functions").collect());
+      expect(scheduled.some((f) => f.name.includes("chargeFee"))).toBe(false);
+      const emails = await t.run((ctx) =>
+        ctx.db.query("notifications").collect().then((rows) => rows.filter((n) => n.kind === "session.no_show_fee")),
+      );
+      expect(emails).toHaveLength(1);
+      expect(emails[0].body).not.toMatch(/charged to your card/);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 
   it("policy setter is gated: owner can set, engineer cannot", async () => {

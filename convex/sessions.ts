@@ -641,8 +641,9 @@ async function assessNoShowShield(
           fee,
         )} applies to your ${status === "no_show" ? "missed" : "late-cancelled"} session "${s.title}".${depositLine} ${
           // The fee invoice is a draft until the studio sends it, so do not
-          // say it was sent.
-          canAutoCharge
+          // say it was sent. Promise a card charge only when one was
+          // scheduled above (same condition).
+          canAutoCharge && invoiceId
             ? `The ${money(additionalCents)} balance will be charged to your card on file.`
             : `The studio will send you an invoice for the ${money(additionalCents)} balance.`
         } Reply here with any questions - we would love to get you rebooked.`,
