@@ -4,7 +4,7 @@ import schema from "./schema";
 import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { normalizeRisk, effectiveAutonomy } from "./agent";
-import { normalizeEmail } from "./lib/agentAutoSend";
+import { normalizeEmail, CLIENT_SCAN_LIMIT } from "./lib/agentAutoSend";
 import { normalizePhone } from "./lib/phone";
 import * as emailLib from "./lib/email";
 import * as smsLib from "./lib/sms";
@@ -163,6 +163,18 @@ describe("assistant auto-send", () => {
     ]);
     expect(rows.map((r) => r.status)).toEqual(["pending", "pending", "executed", "executed", "pending"]);
   });
+
+  it("past the client scan limit a recipient that was not read waits (fails closed), and one scan serves the run", async () => {
+    const { t } = await setup();
+    await t.run(async (ctx) => {
+      for (let i = 0; i < CLIENT_SCAN_LIMIT; i++) {
+        await ctx.db.insert("artists", { orgId: A, name: `C${i}`, type: "artist", email: `c${i}@example.com`, genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
+      }
+      await ctx.db.insert("artists", { orgId: A, name: "Late", type: "artist", email: "late@example.com", genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid" });
+    });
+    const rows = await finalize(t, [reminder(), reminder({ payload: { to: "late@example.com" } }), reminder({ payload: { to: "c5@example.com" } })]);
+    expect(rows.map((r) => r.status)).toEqual(["executed", "pending", "executed"]);
+  }, 30_000);
 
   it("an erased client is not a valid auto-send recipient", async () => {
     const { t } = await setup();

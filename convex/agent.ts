@@ -435,11 +435,12 @@ export const _finalize = internalMutation({
     // Controlled autonomy: only "auto_trusted" on a plan that includes it
     // right now, and only a named, low-risk reminder to one of this studio's
     // own clients (lib/agentAutoSend.ts). Everything else always waits.
+    const autoCache = {};
     for (const ap of a.approvals ?? []) {
       if (!validTypes.has(ap.actionType)) continue;
       const auto = (await autoSendDecision(ctx, a.orgId, {
         autonomy: a.autonomy, actionType: ap.actionType, riskLevel: ap.riskLevel, proposedPayload: ap.proposedPayload,
-      })).auto;
+      }, autoCache)).auto;
       const approvalId = await ctx.db.insert("agentApprovals", {
         orgId: a.orgId, runId: a.runId, actionType: ap.actionType as never,
         title: ap.title, explanation: ap.explanation, proposedPayload: ap.proposedPayload,

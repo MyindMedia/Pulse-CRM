@@ -30,7 +30,24 @@ export type AutoReminderKind = (typeof AUTO_REMINDER_KINDS)[number];
 /** How many of a studio's clients we look through for a recipient match
  *  before giving up (and leaving the message for a person). Bounded so a
  *  run never reads an unbounded table; a miss only means "wait". */
-export const CLIENT_SCAN_LIMIT = 5000;
+export const CLIENT_SCAN_LIMIT = 3000;
+
+/** One scan per run, shared by every proposal in it. */
+export type ClientIndex = { emails: Set<string>; phones: Set<string>; complete: boolean };
+
+export async function loadClientIndex(ctx: QueryCtx | MutationCtx, orgId: string): Promise<ClientIndex> {
+  const idx: ClientIndex = { emails: new Set(), phones: new Set(), complete: true };
+  let seen = 0;
+  for await (const a of ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId))) {
+    if (++seen > CLIENT_SCAN_LIMIT) { idx.complete = false; break; }
+    if (a.erasedAt || a.catalogOnly) continue;
+    const e = normalizeEmail(a.email);
+    if (e) idx.emails.add(e);
+    const p = a.phone ? normalizePhone(a.phone) : null;
+    if (p) idx.phones.add(p);
+  }
+  return idx;
+}
 
 export function normalizeEmail(raw: string | undefined | null): string | null {
   const e = (raw ?? "").trim().toLowerCase();
@@ -47,30 +64,23 @@ export type AutoSendInput = {
 
 export type AutoSendDecision = { auto: true } | { auto: false; reason: string };
 
-/** Does the recipient belong to one of this studio's (live) clients? */
-export async function isClientOfOrg(
-  ctx: QueryCtx | MutationCtx,
-  orgId: string,
-  channel: "email" | "sms",
-  to: string,
-): Promise<boolean> {
-  const wantEmail = channel === "email" ? normalizeEmail(to) : null;
-  const wantPhone = channel === "sms" ? normalizePhone(to) : null;
-  if (!wantEmail && !wantPhone) return false;
-  let seen = 0;
-  for await (const a of ctx.db.query("artists").withIndex("by_org", (q) => q.eq("orgId", orgId))) {
-    if (++seen > CLIENT_SCAN_LIMIT) return false;
-    if (a.erasedAt || a.catalogOnly) continue;
-    if (wantEmail && normalizeEmail(a.email) === wantEmail) return true;
-    if (wantPhone && a.phone && normalizePhone(a.phone) === wantPhone) return true;
+/** Does the recipient belong to one of this studio's (live) clients? A
+ *  studio past the scan limit only matches within what was read: a miss
+ *  means "wait for a person", never "send". */
+export function isClientIn(idx: ClientIndex, channel: "email" | "sms", to: string): boolean {
+  if (channel === "email") {
+    const e = normalizeEmail(to);
+    return !!e && idx.emails.has(e);
   }
-  return false;
+  const p = normalizePhone(to);
+  return !!p && idx.phones.has(p);
 }
 
 export async function autoSendDecision(
   ctx: QueryCtx | MutationCtx,
   orgId: string,
   input: AutoSendInput,
+  cache?: { clients?: ClientIndex },
 ): Promise<AutoSendDecision> {
   if (input.autonomy !== "auto_trusted") return { auto: false, reason: "autonomy is not auto_trusted" };
   if (input.actionType !== "send_email" && input.actionType !== "send_sms") return { auto: false, reason: "not a message" };
@@ -82,7 +92,9 @@ export async function autoSendDecision(
   }
   if (typeof p.to !== "string" || !p.to.trim()) return { auto: false, reason: "no recipient" };
   const channel = input.actionType === "send_email" ? "email" : "sms";
-  if (!(await isClientOfOrg(ctx, orgId, channel, p.to))) return { auto: false, reason: "recipient is not a client of this studio" };
+  const clients = cache?.clients ?? (await loadClientIndex(ctx, orgId));
+  if (cache) cache.clients = clients;
+  if (!isClientIn(clients, channel, p.to)) return { auto: false, reason: "recipient is not a client of this studio" };
   if (channel === "sms" && (await isSmsOptedOut(ctx, p.to))) return { auto: false, reason: "number replied STOP" };
   return { auto: true };
 }
