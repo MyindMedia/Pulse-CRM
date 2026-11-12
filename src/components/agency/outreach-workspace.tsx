@@ -23,7 +23,7 @@ import { ProspectsToZuops } from "@/components/agency/crm/prospects-zuops";
 export const PROSPECTING_SECTIONS = [
   ["overview", "Overview"],
   ["discover", "Discover"],
-  ["prospects", "Prospects"],
+  ["prospects", "Contacts"],
   ["dms", "DMs"],
   ["drafts", "Review queue"],
   ["communications", "Communications"],
@@ -35,7 +35,8 @@ export const PROSPECTING_SECTIONS = [
 
 export function OutreachWorkspace() {
   const overview = useQuery(api.outreach.overview, {});
-  const [tab, setTab] = React.useState("overview");
+  // Opens on the contacts (owner report 2026-11-11: Overview first hid them).
+  const [tab, setTab] = React.useState("prospects");
   // The studio open in the Prospects inbox survives a trip to the Review queue.
   const [prospect, setProspect] = React.useState<Id<"outreachProspects"> | null>(null);
   return (

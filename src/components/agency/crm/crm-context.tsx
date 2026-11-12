@@ -19,15 +19,16 @@ export type CrmStatus = {
   mock?: boolean;
 };
 
-/** The CRM page's tabs, in order; the id is the URL hash. Prospects is the
- *  prospecting workspace (Convex only, works without a Zuops key); every other
- *  tab reads Zuops. */
+/** The CRM page's tabs, in order; the id is the URL hash. Prospects (the
+ *  prospecting workspace) and Email (the shared studiopulse.tech inboxes) are
+ *  Convex only and work without a Zuops key; every other tab reads Zuops. */
 export const CRM_TABS = [
   ["dashboard", "Dashboard"],
   ["leads", "Leads"],
   ["prospects", "Prospects"],
   ["pipeline", "Pipeline"],
   ["inbox", "Inbox"],
+  ["email", "Email"],
   ["calendar", "Calendar"],
   ["social", "Social"],
   ["campaigns", "Campaigns"],
@@ -42,7 +43,7 @@ export const CRM_TABS = [
 export type CrmTabId = (typeof CRM_TABS)[number][0];
 
 /** Tabs that do not need Zuops. */
-export const NO_ZUOPS_TABS: readonly CrmTabId[] = ["prospects"];
+export const NO_ZUOPS_TABS: readonly CrmTabId[] = ["prospects", "email"];
 
 export type CrmSignalKind = "lead" | "booking" | "message" | "call" | "deal";
 export type CrmSignal = { at: number } & Record<CrmSignalKind, number>;

@@ -207,14 +207,26 @@ describe("R3-U1 focus return", () => {
 // no Clerk in the test (as in demo mode).
 vi.mock("next/dynamic", () => ({ default: () => function Lazy() { return <p>Loading this section</p>; } }));
 vi.mock("@/lib/use-optional-clerk", () => ({ useOptionalUser: () => ({ user: null }) }));
+// A server render always reads the hash as "" (the server snapshot). To open a
+// tab other than the fallback, the page's own hash store (subscribeHash) is given
+// a hash here; every other external store reads as usual.
+const hashFor = vi.hoisted(() => ({ value: null as string | null }));
+vi.mock("react", async (orig) => {
+  const actual = await orig<typeof import("react")>();
+  const useSyncExternalStore: typeof actual.useSyncExternalStore = (subscribe, get, server) =>
+    subscribe.name === "subscribeHash" && hashFor.value !== null
+      ? (hashFor.value as ReturnType<typeof get>)
+      : actual.useSyncExternalStore(subscribe, get, server);
+  return { ...actual, default: { ...actual, useSyncExternalStore }, useSyncExternalStore };
+});
 
 describe("Prospects tab (owner request 2026-11-11)", () => {
-  it("the CRM tab list has Prospects right after Leads, and only Prospects works without Zuops", async () => {
+  it("the CRM tab list has Prospects right after Leads, and only Prospects and Email work without Zuops", async () => {
     const { CRM_TABS, NO_ZUOPS_TABS } = await import("./crm-context");
     const ids = CRM_TABS.map(([id]) => id);
     expect(ids.indexOf("prospects")).toBe(ids.indexOf("leads") + 1);
     expect(CRM_TABS.find(([id]) => id === "prospects")?.[1]).toBe("Prospects");
-    expect(NO_ZUOPS_TABS).toEqual(["prospects"]);
+    expect(NO_ZUOPS_TABS).toEqual(["prospects", "email"]);
   });
 
   it("without a Zuops key the page still opens, on Prospects, with its note, and the header says Zuops is not connected", async () => {
@@ -234,5 +246,40 @@ describe("Prospects tab (owner request 2026-11-11)", () => {
     const out = html(<CrmPage />);
     expect(out).not.toContain("Studios you are prospecting");
     expect(out).not.toMatch(/>Prospects<\/button>/);
+  });
+});
+
+describe("Email tab (owner request 2026-11-11)", () => {
+  beforeEach(() => { hashFor.value = null; });
+
+  it("the CRM tab list has Email right after Inbox", async () => {
+    const { CRM_TABS } = await import("./crm-context");
+    const ids = CRM_TABS.map(([id]) => id);
+    expect(ids.indexOf("email")).toBe(ids.indexOf("inbox") + 1);
+    expect(CRM_TABS.find(([id]) => id === "email")?.[1]).toBe("Email");
+  });
+
+  it("without a Zuops key #email still renders the shared inbox with its note, not the Zuops key message", async () => {
+    fixtures["crm:access"] = { allowed: true };
+    status({ keyConfigured: false, writesOn: false, adminKey: false });
+    hashFor.value = "email";
+    const { default: CrmPage } = await import("@/app/agency/crm/page");
+    const out = html(<CrmPage />);
+    expect(out).toMatch(/>Email<\/button>/);
+    expect(out).toContain("The shared studiopulse.tech inboxes. Replies to outreach land here.");
+    expect(out).toContain("Loading this section"); // the lazy EmailInbox chunk (stubbed here)
+    expect(out).not.toContain("Zuops key missing");
+    expect(out).not.toContain("Read only here.");
+    expect(out).toContain("Zuops not connected");
+  });
+
+  it("a Zuops tab without a key still shows the Zuops key message (the hash store override works)", async () => {
+    fixtures["crm:access"] = { allowed: true };
+    status({ keyConfigured: false, writesOn: false, adminKey: false });
+    hashFor.value = "inbox";
+    const { default: CrmPage } = await import("@/app/agency/crm/page");
+    const out = html(<CrmPage />);
+    expect(out).toContain("Zuops key missing");
+    expect(out).not.toContain("The shared studiopulse.tech inboxes.");
   });
 });
