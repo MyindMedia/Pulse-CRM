@@ -20,6 +20,7 @@ vi.mock("./use-zu", () => ({
   useZuWrite: () => ({ run: async (op: string, args: Record<string, unknown>) => { runs.push({ op, args }); return { ok: true, status: 200, limits: {} }; }, pending: false }),
   useZuFetch: () => async () => ({ data: undefined, error: null }),
   newIdem: () => "idem-test",
+  stableStringify: (x: unknown) => JSON.stringify(x, (_k, v) => (v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, v[k]])) : v)),
   useIdemFor: (fp: string) => `idem:${fp}`,
   clearZuCache: () => undefined,
 }));
@@ -36,7 +37,7 @@ vi.mock("./crm-ui", async (orig) => {
 
 import { ZU_OPS } from "@convex/crm/ops.generated";
 import { CrmProvider } from "./crm-context";
-import { OpForm, answerText, opArgs, opFields, runPlan, confirmSentence, targetText } from "./crm-op-form";
+import { OpForm, answerText, opArgs, opFields, opFingerprint, runPlan, confirmSentence, targetText } from "./crm-op-form";
 import { confirmCopy } from "./crm-ui";
 
 const html = (el: React.ReactElement) => renderToStaticMarkup(<CrmProvider>{el}</CrmProvider>);
@@ -169,5 +170,34 @@ describe("run paths", () => {
 
   it("an unknown op says so", () => {
     expect(html(<OpForm opId="nope" />)).toContain("Zuops has no function called nope.");
+  });
+});
+
+describe("round 3", () => {
+  it("R3-R5: a required choice starts on Choose…, and every required field is checked before any confirm opens", () => {
+    const op = ZU_OPS.send_message;
+    expect(opArgs(op, { "body:body": "Hi" }, "")).toEqual({ error: "Choose a value for channel." });
+    expect(opArgs(op, { "body:channel": "sms" }, "")).toEqual({ error: "body is required." });
+    const out = html(<OpForm opId="send_message" />);
+    expect(out).toContain("Choose…");
+    expect(out).not.toContain(">Not set<");
+    expect(runs).toHaveLength(0);
+  });
+
+  it("R3-R5: for an op that takes more JSON fields, a required body field may come from that JSON", () => {
+    const op = Object.values(ZU_OPS).find((o) => o.openBody && (o.suggest ?? []).some((f) => f.required) && o.pathParams.length === 0);
+    if (!op) return;
+    const req = (op.suggest ?? []).find((f) => f.required)!;
+    expect("error" in opArgs(op, {}, "")).toBe(true);
+    expect("error" in opArgs(op, {}, JSON.stringify({ [req.name]: "x" }))).toBe(false);
+  });
+
+  it("R3-R6: the retry key is the exact request: the More fields JSON counts, key order does not", () => {
+    const op = ZU_OPS.update_stage;
+    const a = opFingerprint(op, { "path:stage_id": "s1" }, '{"label": "Won", "hidden": true}');
+    const b = opFingerprint(op, { "path:stage_id": "s1" }, '{"hidden": true, "label": "Won"}');
+    const c = opFingerprint(op, { "path:stage_id": "s1" }, '{"hidden": false, "label": "Won"}');
+    expect(a).toBe(b);
+    expect(a).not.toBe(c);
   });
 });

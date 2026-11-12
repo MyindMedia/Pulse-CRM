@@ -24,6 +24,88 @@ import type { ZuError } from "./zu-store";
 /** Phone touch target: 44 px under 640 px, the normal compact size above. */
 export const TOUCH = "max-sm:min-h-11";
 
+/** "1 lead", "2 leads", "0 leads". */
+export function plural(n: number, one: string, many: string = `${one}s`): string {
+  return `${n.toLocaleString("en-US")} ${n === 1 ? one : many}`;
+}
+
+/* ---------- focus return (U-10) ----------
+   Every Sheet, Dialog and ConfirmDialog in the CRM sends focus back to the
+   control that opened it when it closes, by Escape, Cancel, overlay or success.
+   Safari does not focus a button on click, so the opener is the last control
+   the person pressed or focused, recorded here. If that control is gone when the
+   overlay closes (a row re-rendered, a card moved column), the control with the
+   same `data-focus-key` is found again; failing that, the nearest stable place:
+   the dialog or tab panel it sat in. */
+
+export type Opener = { el: HTMLElement | null; key: string | null; anchor: HTMLElement | null };
+
+const FOCUSABLE = "button, a[href], input, select, textarea, [tabindex], [role=button]";
+let lastPressed: HTMLElement | null = null;
+if (typeof document !== "undefined") {
+  document.addEventListener("pointerdown", (e) => {
+    const t = e.target instanceof Element ? e.target.closest<HTMLElement>(FOCUSABLE) : null;
+    if (t) lastPressed = t;
+  }, true);
+  document.addEventListener("focusin", (e) => {
+    if (e.target instanceof HTMLElement && e.target !== document.body) lastPressed = e.target;
+  }, true);
+}
+
+/** The control that is opening something right now. */
+export function rememberOpener(from?: HTMLElement | null): Opener {
+  if (typeof document === "undefined") return { el: null, key: null, anchor: null };
+  const active = document.activeElement instanceof HTMLElement && document.activeElement !== document.body ? document.activeElement : null;
+  const el = from ?? (lastPressed?.isConnected ? lastPressed : null) ?? active;
+  return {
+    el,
+    key: el?.closest<HTMLElement>("[data-focus-key]")?.dataset.focusKey ?? null,
+    anchor: el?.parentElement?.closest<HTMLElement>("[role=dialog], [role=tabpanel]") ?? null,
+  };
+}
+
+function usable(el: HTMLElement | null | undefined): el is HTMLElement {
+  return !!el && el.isConnected && el.getClientRects().length > 0 && !el.closest("[inert]") && !(el as HTMLButtonElement).disabled;
+}
+
+/** Focus the element with this `data-focus-key` (or a focusable child of it). */
+export function focusByKey(key: string): boolean {
+  if (typeof document === "undefined") return false;
+  const host = document.querySelector<HTMLElement>(`[data-focus-key="${CSS.escape(key)}"]`);
+  const target = host && (host.matches(FOCUSABLE) ? host : host.querySelector<HTMLElement>(FOCUSABLE));
+  if (!usable(target)) return false;
+  target.focus();
+  return true;
+}
+
+/** Put focus back on the opener, its re-rendered twin, or the nearest stable place. */
+export function restoreFocus(opener: Opener | null, fallback?: () => HTMLElement | null): boolean {
+  if (!opener) return false;
+  if (usable(opener.el)) { opener.el.focus(); return true; }
+  if (opener.key && focusByKey(opener.key)) return true;
+  const fb = fallback?.();
+  if (usable(fb)) { fb.focus(); return true; }
+  if (opener.anchor?.isConnected) { opener.anchor.focus(); return true; }
+  return false;
+}
+
+/** For a controlled Sheet or Dialog: remembers the opener when `open` turns on,
+ *  and returns the `onCloseAutoFocus` handler that sends focus back to it.
+ *  `returnTo` overrides the opener (for a sheet opened by code, not a click). */
+export function useReturnFocus(
+  open: boolean,
+  opts: { returnTo?: HTMLElement | null; fallback?: () => HTMLElement | null } = {},
+): (e: Event) => void {
+  const [state, setState] = React.useState<{ open: boolean; opener: Opener | null }>({ open, opener: null });
+  if (state.open !== open) setState({ open, opener: open ? rememberOpener() : state.opener });
+  const { returnTo, fallback } = opts;
+  const opener = state.opener;
+  return React.useCallback((e: Event) => {
+    const target = returnTo ? rememberOpener(returnTo) : opener;
+    if (restoreFocus(target, fallback)) e.preventDefault();
+  }, [returnTo, opener, fallback]);
+}
+
 /* ---------- formatters ---------- */
 
 export function money(cents: number | null | undefined, currency: string | null = "USD"): string {
@@ -279,6 +361,9 @@ export function ConfirmDialog({
   const [inner, setInner] = React.useState(false);
   const [pending, setPending] = React.useState(false);
   const isOpen = open ?? inner;
+  // Focus goes back to whatever opened the dialog, on Cancel, Escape, the
+  // overlay and after the confirm button's work finishes.
+  const onCloseAutoFocus = useReturnFocus(isOpen);
   const setOpen = (v: boolean) => {
     if (open === undefined) setInner(v);
     onOpenChange?.(v);
@@ -300,7 +385,7 @@ export function ConfirmDialog({
   return (
     <Dialog open={isOpen} onOpenChange={(v) => { if (!pending) setOpen(v); }}>
       {trigger && <DialogTrigger asChild>{trigger}</DialogTrigger>}
-      <DialogContent size="sm">
+      <DialogContent size="sm" onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle>{title}</DialogTitle>
           <DialogDescription asChild>

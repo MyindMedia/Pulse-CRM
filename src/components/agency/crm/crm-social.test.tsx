@@ -5,6 +5,7 @@ import { getFunctionName } from "convex/server";
 /* Social panel states, server-rendered against fixture reads. */
 type Read = { data?: unknown; error?: { reason: string; code?: string; status: number } | null; loading?: boolean };
 const reads: Record<string, Read> = {};
+const readOps: string[] = [];
 const queries: Record<string, unknown> = {};
 
 vi.mock("convex/react", () => ({
@@ -12,7 +13,8 @@ vi.mock("convex/react", () => ({
   useAction: () => async () => ({ ok: true, status: 200, json: null, limits: {} }),
 }));
 vi.mock("./use-zu", () => ({
-  useZuRead: (op: string | null) => {
+  useZuRead: (op: string | null, _args?: unknown, opts?: { enabled?: boolean }) => {
+    if (op && opts?.enabled !== false) readOps.push(op);
     const r = (op && reads[op]) || { loading: true };
     return { data: r.data, error: r.error ?? null, loading: r.loading ?? (r.data === undefined && !r.error), refreshing: false, fetchedAt: r.data ? Date.now() - 12_000 : null, refresh: () => undefined };
   },
@@ -33,6 +35,7 @@ const html = () => renderToStaticMarkup(<CrmProvider><CrmSocial /></CrmProvider>
 beforeEach(() => {
   for (const k of Object.keys(reads)) delete reads[k];
   for (const k of Object.keys(queries)) delete queries[k];
+  readOps.length = 0;
   queries["crm:status"] = { keyConfigured: true, writesOn: true, adminKey: false, webhookConfigured: false };
   queries["crm:signal"] = { at: 0, lead: 0, booking: 0, message: 0, call: 0, deal: 0 };
 });
@@ -85,6 +88,13 @@ describe("Social panel", () => {
     expect(out).toContain("Zuops counts 3 right now.");
     expect(out).toContain("Count them");
     expect(out).not.toContain("—");
+  });
+
+  it("R3-I3: first open costs 2 requests: accounts and settings", () => {
+    reads[SOCIAL_OP.accounts] = { data: { accounts: [] } };
+    reads[SOCIAL_OP.settings] = { data: { lead_mode: "qualified" } };
+    html();
+    expect([...readOps].sort()).toEqual([SOCIAL_OP.accounts, SOCIAL_OP.settings].sort());
   });
 
   it("read only: settings writes are off and say why", () => {

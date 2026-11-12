@@ -47,7 +47,7 @@ vi.mock("./use-zu", () => ({
 vi.mock("sonner", () => ({ toast: Object.assign(() => undefined, { success: () => undefined, error: () => undefined, info: () => undefined, warning: () => undefined }) }));
 vi.mock("@/components/ui/sheet", () => {
   const Pass = ({ children }: { children?: React.ReactNode }) => <div>{children}</div>;
-  return { Sheet: Pass, SheetBody: Pass, SheetContent: Pass, SheetDescription: Pass, SheetHeader: Pass, SheetTitle: Pass };
+  return { Sheet: Pass, SheetBody: Pass, SheetContent: Pass, SheetDescription: Pass, SheetFooter: Pass, SheetHeader: Pass, SheetTitle: Pass };
 });
 vi.mock("@/components/ui/toggle", () => ({
   Switch: (p: Props) => { captured.switches.push(p); return <span data-switch="" />; },
@@ -56,6 +56,7 @@ vi.mock("@/components/ui/toggle", () => ({
 
 import { InboxThread } from "./inbox-thread";
 import { AppointmentSheet } from "./calendar-appointment-sheet";
+import { BookSheet } from "./calendar-book-sheet";
 import { INBOX_OP } from "./inbox-ops";
 import { CAL_OP } from "./calendar-ops";
 import { MAYA } from "./crm-test-fixtures";
@@ -143,5 +144,25 @@ describe("F-U6 appointment sheet", () => {
     await Promise.resolve();
     expect(callsOf(CAL_OP.update)[0]).toMatchObject({ body: { notify_lead: false } });
     expect(callsOf(CAL_OP.update)[0].confirm).toBeUndefined();
+  });
+
+  it("R3-I1: Cancel appointment only through ConfirmDialog, naming the lead and the cancellation", async () => {
+    sheet("scheduled", true);
+    await pressAll();
+    expect(callsOf(CAL_OP.cancel)).toHaveLength(0);
+    const d = dialog(/Cancel Maya Okafor's appointment/);
+    expect(d).toBeTruthy();
+    expect(renderToStaticMarkup(<>{d!.body as React.ReactNode}</>)).toContain("Maya Okafor gets a cancellation");
+    await (d!.onConfirm as (g: ConfirmGrant) => Promise<unknown>)(GRANT);
+    expect(callsOf(CAL_OP.cancel)[0]).toMatchObject({ confirm: true, idem: expect.stringMatching(/^idem:/) });
+  });
+
+  it("R3-I1: Book with notify on is a ConfirmDialog; no write button books directly", async () => {
+    renderToStaticMarkup(<BookSheet open onOpenChange={() => undefined} initialLeadId={MAYA.id} calendars={[]} leadName={() => MAYA.full_name ?? null} />);
+    await pressAll();
+    expect(callsOf(CAL_OP.book)).toHaveLength(0);
+    const d = dialog(/^Book Maya Okafor/);
+    expect(d).toBeTruthy();
+    expect(renderToStaticMarkup(<>{d!.body as React.ReactNode}</>)).toContain("Maya Okafor gets a confirmation text and email with the calendar invite");
   });
 });

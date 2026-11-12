@@ -15,18 +15,46 @@ function stripComments(src: string): string {
   return src.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'])\/\/.*$/gm, "$1");
 }
 
-const dir = path.resolve(__dirname);
-const files = (readdirSync(dir, { recursive: true }) as string[])
+/* The CRM components and the CRM route (R3-U5). */
+const dirs = [path.resolve(__dirname), path.resolve(__dirname, "../../../app/agency/crm")];
+const files = dirs.flatMap((dir) => (readdirSync(dir, { recursive: true }) as string[])
   .filter((f) => /\.(ts|tsx)$/.test(f) && !/\.test\.tsx?$/.test(f))
-  .map((f) => ({ name: path.basename(f), src: stripComments(readFileSync(path.join(dir, f), "utf8")) }));
+  .map((f) => ({ name: path.basename(f), dir, src: stripComments(readFileSync(path.join(dir, f), "utf8")) })));
+
+/** Every way found so far to make a confirm flag that is true: the literal, a
+ *  truthy shorthand, a computed key, and building it with Object.fromEntries or
+ *  Object.assign. */
+const TRUTHY = String.raw`(?:true|!0|!!\s*[\w"'\[(]|1\b)`;
+const CONFIRM_FLAG = [
+  new RegExp(String.raw`\bconfirm\s*:\s*` + TRUTHY),
+  new RegExp(String.raw`["'\x60]confirm["'\x60]\s*:\s*` + TRUTHY),
+  new RegExp(String.raw`\bconfirm\s*=\s*\{?\s*` + TRUTHY),
+  /\[\s*["'\x60]confirm["'\x60]\s*\]\s*(?:=(?!=)|:)/, // obj["confirm"] = x, { ["confirm"]: x } (not the type T["confirm"])
+  /\[\s*["'\x60]confirm["'\x60]\s*,/,
+  /Object\s*\.\s*(fromEntries|assign|defineProperty)\s*\([^;]*["'\x60]confirm["'\x60]/,
+  /Reflect\s*\.\s*set\s*\([^;]*["'\x60]confirm["'\x60]/,
+];
+const makesConfirm = (src: string) => CONFIRM_FLAG.some((re) => re.test(src));
 
 describe("CRM source guards", () => {
-  it("finds the CRM files", () => {
-    expect(files.map((f) => f.name)).toEqual(expect.arrayContaining(["crm-ui.tsx", "use-zu.ts", "ops.ts"]));
+  it("finds the CRM files and the CRM route", () => {
+    expect(files.map((f) => f.name)).toEqual(expect.arrayContaining(["crm-ui.tsx", "use-zu.ts", "ops.ts", "page.tsx"]));
   });
 
-  it("confirm: true appears only in crm-ui.tsx", () => {
-    const offenders = files.filter((f) => f.name !== "crm-ui.tsx" && /confirm\s*:\s*true|["']confirm["']\s*:\s*true|confirm\s*=\s*\{?\s*true/.test(f.src));
+  it("R3-U5: the confirm-flag detector catches the known evasions and passes ordinary code", () => {
+    for (const bad of [
+      "run(op, { confirm: true })", "({ confirm : !0 })", "{ confirm: !!grant }", "{ confirm: 1 }", "{ 'confirm': true }",
+      'args["confirm"] = x', "{ ['confirm']: ok }", "Object.fromEntries([[\"confirm\", ok]])",
+      "Object.assign(args, { [k]: 1 }, 'confirm')", "Object.assign({}, { \"confirm\": v })", "args.confirm = true", "Reflect.set(a, 'confirm', v)",
+    ]) expect(makesConfirm(bad), bad).toBe(true);
+    for (const ok of [
+      "run(op, { path, ...grant })", "const confirm = useConfirm()", "confirm: { title: 'x' }", "needsConfirm: false", "{ confirm: false }",
+      'type C = NonNullable<ActionDef["confirm"]>',
+    ]) expect(makesConfirm(ok), ok).toBe(false);
+  });
+
+  it("a confirm flag is made only in crm-ui.tsx (ConfirmDialog), in the components and the route", () => {
+    const offenders = files.filter((f) => f.name !== "crm-ui.tsx" && makesConfirm(f.src));
     expect(offenders.map((f) => f.name)).toEqual([]);
     expect(files.find((f) => f.name === "crm-ui.tsx")!.src).toMatch(/confirm:\s*true/);
   });

@@ -44,6 +44,12 @@ export function clearZuCache() {
   store.clear();
 }
 
+/** Name the signed-in user the cache belongs to. Call it during render, before
+ *  any CRM read: when it changes, every read after it starts empty (R3-U4). */
+export function setZuOwner(owner: string) {
+  store.setOwner(owner);
+}
+
 /** An Idempotency-Key for a form (F-U9, F-U11). The same fingerprint always gets
  *  the same key for the life of the component, so an identical retry after a
  *  failure reuses it, and any change to the values gets a different key.

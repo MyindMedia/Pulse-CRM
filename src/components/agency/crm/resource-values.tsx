@@ -10,7 +10,8 @@ import { cn } from "@/lib/utils";
 import { TOUCH, dateTime, money } from "./crm-ui";
 import type { CellFormat, ColumnDef } from "./resource-config";
 import {
-  extractRows, getPath, humanize, isIsoDate, isObj, isSecretKey, isUrl, statusTone, statusWord, type Obj,
+  answerPairs, autoColumns, extractRows, getPath, humanize, isIdKey, isIsoDate, isObj, isSecretKey, isUrl, leadWithMeaning, nameForId,
+  statusTone, statusWord, summaryParts, weeklyHours, type Obj,
 } from "./resource-utils";
 
 /* How Zuops values look on screen: table cells, a definition list for one
@@ -54,10 +55,31 @@ function compact(v: unknown): string {
     return `${v.length} ${v.length === 1 ? "item" : "items"}`;
   }
   if (isObj(v)) {
-    const named = getPath(v, "name|label|title|full_name|id");
-    return typeof named === "string" ? named : `${Object.keys(v).length} fields`;
+    const { title, rest } = summaryParts(v, 2);
+    if (title) return title;
+    if (rest.length) return rest.map(([k, x]) => `${k}: ${x}`).join(", ");
+    return `${Object.keys(v).length} fields`;
   }
   return String(v);
+}
+
+/** Answers as compact "label: value" pairs (form submissions). */
+function Pairs({ value, max = 4 }: { value: unknown; max?: number }) {
+  const pairs = answerPairs(value);
+  if (pairs.length === 0) return DASH;
+  return (
+    <span className="block max-w-96 space-y-0.5">
+      {pairs.slice(0, max).map(([k, v], i) => (
+        <span key={i} className="block truncate" title={`${k}: ${v}`}><span className="text-steel">{k}:</span> {v}</span>
+      ))}
+      {pairs.length > max && <span className="block text-xs text-steel">And {pairs.length - max} more in the record</span>}
+    </span>
+  );
+}
+
+/** An id with no name in the same answer: muted, monospaced and labelled. */
+function IdText({ value }: { value: string }) {
+  return <span className="break-all font-mono text-xs text-steel"><span className="font-sans">id </span>{value}</span>;
 }
 
 /** One table cell. Unknown and nested values are shown compactly. */
@@ -77,6 +99,8 @@ export function CellValue({ value, format, noLink }: { value: unknown; format?: 
       const pct = value <= 1 ? value * 100 : value;
       return <span className="tabular-nums">{`${Math.round(pct * 10) / 10}%`}</span>;
     }
+    case "pairs":
+      return <Pairs value={value} />;
     case "count":
       return <span className="tabular-nums">{Array.isArray(value) ? value.length : typeof value === "number" ? value : isObj(value) ? Object.keys(value).length : 1}</span>;
     case "date":
@@ -98,15 +122,52 @@ export function CellValue({ value, format, noLink }: { value: unknown; format?: 
 
 const MAX_ITEMS = 50;
 
-/** A value inside a definition list. */
-function Value({ k, v, depth }: { k: string; v: unknown; depth: number }) {
-  if (isSecretKey(k) && v !== null && v !== undefined && v !== "") {
+/** Nested objects up to this many keys are shown open; bigger ones fold. */
+const OPEN_FIELDS = 12;
+
+const flatList = (v: unknown[]) => v.every((x) => x === null || typeof x !== "object");
+const pairList = (v: unknown[]) => v.every((x) => Array.isArray(x) && flatList(x));
+
+/** A list of records as compact sub-rows: name first, then a few plain values. */
+function SubRows({ items, root, depth }: { items: Obj[]; root: unknown; depth: number }) {
+  return (
+    <ul className="space-y-1.5">
+      {items.slice(0, MAX_ITEMS).map((item, i) => {
+        const { title, rest } = summaryParts(item, 3);
+        const nested = Object.entries(item).some(([, x]) => x !== null && typeof x === "object");
+        return (
+          <li key={i} className="min-w-0 break-words border-l border-graphite/50 pl-3">
+            {title && <span className="font-semibold text-bone">{title}</span>}
+            {rest.length > 0 && <span className="text-ash">{title ? ". " : ""}{rest.map(([k, x]) => `${k}: ${x}`).join(". ")}</span>}
+            {!title && rest.length === 0 && <span className="text-steel">Nothing to show</span>}
+            {nested && depth < 3 && (
+              <details className="mt-1">
+                <summary className={cn("cursor-pointer select-none text-xs text-steel hover:text-bone", TOUCH, "max-sm:flex max-sm:items-center")}>Everything in it</summary>
+                <div className="mt-2"><ValueList value={item} depth={depth + 1} root={root} /></div>
+              </details>
+            )}
+          </li>
+        );
+      })}
+      {items.length > MAX_ITEMS && <li className="text-steel">And {items.length - MAX_ITEMS} more</li>}
+    </ul>
+  );
+}
+
+/** A value inside a definition list. `root` is the whole answer, used to put a
+ *  name on an id when the answer carries one. */
+function Value({ k, v, depth, root }: { k: string; v: unknown; depth: number; root: unknown }) {
+  if (isSecretKey(k) && v !== null && v !== undefined && v !== "" && typeof v !== "object") {
     return <span className="inline-flex items-center gap-1 text-steel"><EyeOff className="size-3.5" aria-hidden />Hidden</span>;
   }
   if (v === undefined || v === null || v === "") return DASH;
   if (typeof v === "boolean") return <YesNo value={v} />;
   if (typeof v === "number") return <span className="tabular-nums">{v.toLocaleString("en-US")}</span>;
   if (typeof v === "string") {
+    if (isIdKey(k)) {
+      const name = nameForId(root, k, v);
+      return name ? <span>{name}</span> : <IdText value={v} />;
+    }
     if (isUrl(v)) return <ExtLink href={v} />;
     if (isIsoDate(v) && v.length > 10) return <span className="tabular-nums">{dateTime(v)}</span>;
     if (/status|state|outcome/i.test(k) && v.length < 32) return <StatusBadge value={v} />;
@@ -114,26 +175,35 @@ function Value({ k, v, depth }: { k: string; v: unknown; depth: number }) {
   }
   if (Array.isArray(v)) {
     if (v.length === 0) return <span className="text-steel">None</span>;
-    if (v.every((x) => x === null || typeof x !== "object")) return <p className="break-words">{v.map((x) => String(x)).join(", ")}</p>;
-    return (
-      <details className="group">
-        <summary className={cn("cursor-pointer select-none text-ash hover:text-bone", TOUCH, "max-sm:flex max-sm:items-center")}>{v.length} {v.length === 1 ? "item" : "items"}</summary>
-        <ol className="mt-2 space-y-3 border-l border-graphite/50 pl-3">
-          {v.slice(0, MAX_ITEMS).map((item, i) => (
-            <li key={i}>{isObj(item) ? <ValueList value={item} depth={depth + 1} /> : String(item)}</li>
-          ))}
-          {v.length > MAX_ITEMS && <li className="text-steel">And {v.length - MAX_ITEMS} more</li>}
-        </ol>
-      </details>
-    );
+    if (isIdKey(k.replace(/s$/, "")) && v.every((x) => typeof x === "string")) {
+      return <span className="flex flex-wrap gap-x-2 gap-y-1">{(v as string[]).map((x, i) => { const n = nameForId(root, "", x); return n ? <span key={i}>{n}{i < v.length - 1 ? "," : ""}</span> : <IdText key={i} value={x} />; })}</span>;
+    }
+    if (flatList(v)) return <p className="break-words">{v.map((x) => (typeof x === "boolean" ? (x ? "Yes" : "No") : String(x))).join(", ")}</p>;
+    if (pairList(v)) return <p className="break-words">{(v as unknown[][]).map((x) => x.map(String).join(" to ")).join(", ")}</p>;
+    if (v.every(isObj)) return <SubRows items={v as Obj[]} root={root} depth={depth} />;
+    return <p className="break-words">{v.map((x) => compact(x)).join(", ")}</p>;
   }
   if (isObj(v)) {
     const n = Object.keys(v).length;
     if (n === 0) return <span className="text-steel">None</span>;
+    const hours = weeklyHours(v);
+    if (hours) {
+      return (
+        <dl className="grid grid-cols-[3rem_minmax(0,1fr)] gap-x-3 gap-y-1">
+          {hours.map(([day, text]) => (
+            <React.Fragment key={day}>
+              <dt className="text-steel">{day}</dt>
+              <dd className={cn("tabular-nums", text === "Closed" && "text-steel")}>{text}</dd>
+            </React.Fragment>
+          ))}
+        </dl>
+      );
+    }
+    if (n <= OPEN_FIELDS) return <div className="border-l border-graphite/50 pl-3"><ValueList value={v} depth={depth + 1} root={root} /></div>;
     return (
       <details>
-        <summary className={cn("cursor-pointer select-none text-ash hover:text-bone", TOUCH, "max-sm:flex max-sm:items-center")}>{compact(v)}</summary>
-        <div className="mt-2 border-l border-graphite/50 pl-3"><ValueList value={v} depth={depth + 1} /></div>
+        <summary className={cn("cursor-pointer select-none text-ash hover:text-bone", TOUCH, "max-sm:flex max-sm:items-center")}>Show {n} fields</summary>
+        <div className="mt-2 border-l border-graphite/50 pl-3"><ValueList value={v} depth={depth + 1} root={root} /></div>
       </details>
     );
   }
@@ -141,11 +211,15 @@ function Value({ k, v, depth }: { k: string; v: unknown; depth: number }) {
 }
 
 /** Every field of one record as a definition list. */
-export function ValueList({ value, depth = 0, only }: { value: Obj; depth?: number; only?: ColumnDef[] }) {
+export function ValueList({ value, depth = 0, only, root }: { value: Obj; depth?: number; only?: ColumnDef[]; root?: unknown }) {
   if (depth > 4) return <pre className="overflow-x-auto whitespace-pre-wrap break-words text-xs">{JSON.stringify(value, null, 2)}</pre>;
+  const all = root ?? value;
   const entries: Array<[string, string, unknown]> = only
     ? only.map((c) => [c.key, c.label, getPath(value, c.key)])
-    : Object.entries(value).filter(([k]) => k !== "workspace_id").map(([k, v]) => [k, humanize(k), v]);
+    : [
+        ...Object.entries(value).filter(([k]) => k !== "workspace_id" && !isIdKey(k)),
+        ...Object.entries(value).filter(([k]) => k !== "workspace_id" && isIdKey(k)),
+      ].map(([k, v]) => [k, isIdKey(k) && k !== "id" ? humanize(k.replace(/_id$/, "")) : humanize(k), v]);
   if (entries.length === 0) return <p className="text-sm text-steel">Nothing here.</p>;
   return (
     <dl className="grid min-w-0 gap-x-4 gap-y-2.5 text-sm sm:grid-cols-[minmax(7rem,13rem)_minmax(0,1fr)]">
@@ -155,7 +229,7 @@ export function ValueList({ value, depth = 0, only }: { value: Obj; depth?: numb
           <dd className="min-w-0 text-bone">
             {only?.find((c) => c.key === k)?.format && v !== undefined && v !== null
               ? <CellValue value={v} format={only.find((c) => c.key === k)!.format} />
-              : <Value k={k.split("|")[0]} v={v} depth={depth} />}
+              : <Value k={k.split("|")[0]} v={v} depth={depth} root={all} />}
           </dd>
         </React.Fragment>
       ))}
@@ -163,23 +237,24 @@ export function ValueList({ value, depth = 0, only }: { value: Obj; depth?: numb
   );
 }
 
-/** A read answer shown in a dialog: a table when it is a list of records, else
- *  the definition list. */
-export function ResultView({ data }: { data: unknown }) {
+/** A read answer shown in a dialog: a table when it is a list of records
+ *  (the config's columns when it names them, else the rows' plain values with
+ *  ids left out), else the definition list. */
+export function ResultView({ data, columns }: { data: unknown; columns?: ColumnDef[] }) {
   const rows = extractRows(data);
   if (rows.length > 0) {
-    const keys = [...new Set(rows.slice(0, 20).flatMap((r) => Object.keys(r)))]
-      .filter((k) => k !== "workspace_id" && !isSecretKey(k) && rows.some((r) => r[k] !== null && typeof r[k] !== "object"))
-      .slice(0, 6);
+    const cols: ColumnDef[] = columns
+      ? leadWithMeaning(columns).filter((c, i) => i === 0 || rows.some((r) => { const x = getPath(r, c.key); return x !== undefined && x !== null && x !== ""; }))
+      : autoColumns(rows).map((k) => ({ key: k, label: humanize(k), format: /status|state|outcome/i.test(k) ? "badge" : /_at$/.test(k) ? "datetime" : undefined }));
     const rest = isObj(data) ? Object.fromEntries(Object.entries(data).filter(([, v]) => !Array.isArray(v))) : {};
     return (
       <div className="space-y-3">
         {Object.keys(rest).length > 0 && <ValueList value={rest} />}
         <Table className="min-w-[480px]" aria-label="Answer">
-          <THead><tr>{keys.map((k) => <TH key={k}>{humanize(k)}</TH>)}</tr></THead>
+          <THead><tr>{cols.map((c) => <TH key={c.key}>{c.label}</TH>)}</tr></THead>
           <TBody>
             {rows.slice(0, 100).map((r, i) => (
-              <TR key={i}>{keys.map((k) => <TD key={k}><CellValue value={r[k]} format={/status|state|outcome/i.test(k) ? "badge" : /_at$/.test(k) ? "datetime" : undefined} /></TD>)}</TR>
+              <TR key={i}>{cols.map((c) => <TD key={c.key} className="align-top"><CellValue value={getPath(r, c.key)} format={c.format} /></TD>)}</TR>
             ))}
           </TBody>
         </Table>

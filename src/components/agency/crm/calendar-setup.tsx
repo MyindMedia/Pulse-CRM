@@ -14,6 +14,8 @@ import { newIdem, useIdemFor, useZuRead, useZuWrite, type ZuError } from "./use-
 import { CAL_OP } from "./calendar-ops";
 import { bookingsWindow, busyByMember, busyRange, hoursSummary, keyStartMs, lengthWord, timeIn, todayKey } from "./calendar-logic";
 import { useNow } from "./inbox-clock";
+import { focusSoon } from "./inbox-focus";
+import { writeFingerprint } from "./inbox-logic";
 import type { BusyBlock, BusyBlocksResponse, Calendar, HoursResponse } from "./calendar-types";
 import type { Member } from "./zu-types";
 import { memberName } from "./calendar-appointment-sheet";
@@ -90,6 +92,16 @@ export function BusinessHoursSection() {
   );
 }
 
+/** The PUT body for a busy block, or null until the form is complete. */
+export function busyBody(f: { member: string; start: string; end: string; title: string }): Record<string, unknown> | null {
+  if (!f.member) return null;
+  const r = busyRange(f.start, f.end);
+  if (!r.ok) return null;
+  const body: Record<string, unknown> = { team_member: f.member, starts_at: r.starts_at, ends_at: r.ends_at };
+  if (f.title.trim()) body.title = f.title.trim();
+  return body;
+}
+
 export function BusyBlocksSection({ members }: { members: Member[] }) {
   // The window moves with the day (F-U14), but only once a day, so the query
   // does not change on every tick.
@@ -106,7 +118,10 @@ export function BusyBlocksSection({ members }: { members: Member[] }) {
   const [externalId, setExternalId] = React.useState<string | null>(null);
   const adding = externalId !== null;
   const [form, setForm] = React.useState({ member: "", start: "", end: "", title: "" });
-  const putKey = useIdemFor(`busy-put:${externalId ?? ""}:${form.member}|${form.start}|${form.end}|${form.title.trim()}`);
+  const draftBody = busyBody(form);
+  // Key from the exact path and body (R3-I6); the external id is new for each
+  // block, so a counter is not needed.
+  const putKey = useIdemFor(writeFingerprint(CAL_OP.busyPut, { external_id: externalId ?? "" }, draftBody, 0));
   const [error, setError] = React.useState<string | null>(null);
   const list = blocks.data?.busy_blocks ?? [];
   const groups = busyByMember(list);
@@ -117,15 +132,15 @@ export function BusyBlocksSection({ members }: { members: Member[] }) {
     if (!form.member) { setError("Pick the team member."); return; }
     const r = busyRange(form.start, form.end);
     if (!r.ok) { setError(r.reason); return; }
-    const body: Record<string, unknown> = { team_member: form.member, starts_at: r.starts_at, ends_at: r.ends_at };
-    if (form.title.trim()) body.title = form.title.trim();
-    if (!externalId) return;
+    const body = draftBody;
+    if (!externalId || !body) return;
     const res = await run(CAL_OP.busyPut, { path: { external_id: externalId }, body, idem: putKey }, { invalidate: [CAL_OP.busyBlocks, CAL_OP.availability] });
     if (res.ok) {
       toast.success("Busy time added. Booking pages, the AI and round robin skip it.");
       setForm({ member: "", start: "", end: "", title: "" });
       setExternalId(null);
       setError(null);
+      focusSoon("cal-busy-add", "cal-busy-h");
     } else setError(res.reason ?? "Zuops refused.");
   };
 
@@ -133,8 +148,8 @@ export function BusyBlocksSection({ members }: { members: Member[] }) {
   return (
     <section aria-labelledby="cal-busy-h" className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 id="cal-busy-h" className="font-grotesk text-base font-semibold text-bone">Team busy times</h2>
-        {!adding && <WriteButton type="button" size="sm" variant="secondary" onClick={() => setExternalId(newIdem())}><Plus className="size-4" aria-hidden />Add busy time</WriteButton>}
+        <h2 id="cal-busy-h" tabIndex={-1} className="outline-none font-grotesk text-base font-semibold text-bone">Team busy times</h2>
+        {!adding && <WriteButton type="button" size="sm" variant="secondary" id="cal-busy-add" onClick={() => setExternalId(newIdem())}><Plus className="size-4" aria-hidden />Add busy time</WriteButton>}
       </div>
       <p className="text-xs text-steel">Times a team member is away or on another job. Leads never see the note.</p>
 
@@ -191,10 +206,10 @@ export function BusyBlocksSection({ members }: { members: Member[] }) {
 
 function BusyRow({ block: b }: { block: BusyBlock }) {
   const { run } = useZuWrite();
-  const idem = useIdemFor(`busy-delete:${b.external_id}`);
+  const idem = useIdemFor(writeFingerprint(CAL_OP.busyDelete, { external_id: b.external_id }, undefined, 0));
   const remove = async (grant: ConfirmGrant) => {
     const res = await run(CAL_OP.busyDelete, { path: { external_id: b.external_id }, idem, ...grant }, { invalidate: [CAL_OP.busyBlocks, CAL_OP.availability] });
-    if (res.ok) toast.success("Busy time removed. That time can be booked again.");
+    if (res.ok) { toast.success("Busy time removed. That time can be booked again."); focusSoon("cal-busy-add", "cal-busy-h"); }
     else toast.error(res.reason ?? "Zuops refused.");
   };
   return (

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  audienceText, buildArgs, extractRows, fillTemplate, findDeep, fingerprint, getPath, isSecretKey, mergeExtra, nextPage, prefill, prevPage, redactSecrets, shows, unwrapSingle, visibleColumns, FIRST_PAGE,
+  answerPairs, audienceText, autoColumns, buildArgs, dripText, isIdKey, leadWithMeaning, nameForId, sendWhen, summaryParts, weeklyHours, extractRows, fillTemplate, findDeep, fingerprint, getPath, isSecretKey, mergeExtra, nextPage, prefill, prevPage, redactSecrets, shows, unwrapSingle, visibleColumns, FIRST_PAGE,
 } from "./resource-utils";
 import type { FieldDef } from "./resource-config";
 
@@ -135,5 +135,49 @@ describe("round 2 helpers", () => {
     expect(fingerprint({ b: 1, a: { y: 2, x: 1 } })).toBe(fingerprint({ a: { x: 1, y: 2 }, b: 1 }));
     expect(fingerprint({ a: 1 })).not.toBe(fingerprint({ a: 2 }));
     expect(fingerprint(undefined)).toBe("");
+  });
+});
+
+describe("round 3 helpers", () => {
+  it("R3-R3: id keys never lead and are left out of picked columns", () => {
+    expect(isIdKey("id")).toBe(true);
+    expect(isIdKey("lead_id")).toBe(true);
+    expect(isIdKey("results.lead_id")).toBe(true);
+    expect(isIdKey("valid_days")).toBe(false);
+    expect(leadWithMeaning([{ key: "id" }, { key: "name" }, { key: "lead_id" }]).map((c) => c.key)).toEqual(["name", "id", "lead_id"]);
+    expect(autoColumns([{ id: "1", lead_id: "2", name: "A", status: "sent", meta: {} }])).toEqual(["name", "status"]);
+    expect(getPath({ first_name: "Maya", last_name: "Lopez" }, "first_name+last_name|name")).toBe("Maya Lopez");
+    expect(getPath({ name: "Kai" }, "first_name+last_name|name")).toBe("Kai");
+  });
+
+  it("R3-R3: answers as label: value pairs", () => {
+    expect(answerPairs([{ question: "Studio", value: "Northline" }, { key: "sms_ok", value: true }, { question: "Empty", value: "" }]))
+      .toEqual([["Studio", "Northline"], ["sms ok", "Yes"]]);
+    expect(answerPairs({ budget: 300, lead_id: "x", note: "Mixing" })).toEqual([["Budget", "300"], ["Note", "Mixing"]]);
+  });
+
+  it("R3-R4: weekly hours, names for ids, one-line summaries", () => {
+    expect(weeklyHours({ sun: [], mon: [["09:00", "17:00"]], tue: ["10:00", "14:00"], wed: [{ start: "08:00", end: "12:00" }] }))
+      .toEqual([["Mon", "09:00 to 17:00"], ["Tue", "10:00 to 14:00"], ["Wed", "08:00 to 12:00"], ["Sun", "Closed"]]);
+    expect(weeklyHours({ timezone: "x" })).toBeNull();
+    expect(nameForId({ calendar_id: "c1", calendar_name: "Studio A" }, "calendar_id", "c1")).toBe("Studio A");
+    expect(nameForId({ items: [{ id: "c1", title: "B room" }] }, "x_id", "c1")).toBe("B room");
+    expect(nameForId({ calendar_id: "c1" }, "calendar_id", "c1")).toBeNull();
+    expect(summaryParts({ id: "1", name: "Mix", price: 300, on: true })).toEqual({ title: "Mix", rest: [["Price", "300"], ["On", "Yes"]] });
+  });
+
+  it("R3-R2: when and how a send goes, in words", () => {
+    expect(sendWhen({})).toBe("now");
+    expect(sendWhen({ "body:schedule_at": "2026-11-20T09:30" })).toMatch(/^at .*Nov 20/);
+    expect(dripText({}, { drip: { every: 50, minutes: 90 } })).toBe(" A few at a time: 50 emails every 90 minutes.");
+    expect(dripText({ "body:drip": "{bad" }, { drip: { every: 5, minutes: 60 } })).toBe("");
+    expect(dripText({}, null)).toBe("");
+    expect(audienceText({ "body:audience": "stages", "body:stages": "new", "body:not_booked": "yes" }, null)).toBe("everyone in the stages new who has not booked");
+  });
+
+  it("R3 secrets: redaction blanks key strings only, never a whole object", () => {
+    expect(redactSecrets({ key: { name: "Pulse OS", access_level: "write", rate_limit_per_min: 600, key_prefix: "zu-ab" } }))
+      .toEqual({ key: { name: "Pulse OS", access_level: "write", rate_limit_per_min: 600, key_prefix: "hidden" } });
+    expect(redactSecrets({ api_key: { name: "Zap", token: "t" } })).toEqual({ api_key: { name: "Zap", token: "hidden" } });
   });
 });

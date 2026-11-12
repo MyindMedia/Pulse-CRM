@@ -110,7 +110,7 @@ export type ReplySuggestion = {
 export type SuggestionsResponse = { reply_mode?: string | null; suggestions?: ReplySuggestion[]; has_more?: boolean };
 
 export type ReplyIdea = { label?: string | null; text?: string | null };
-export type ReplyIdeasResponse = { kind?: string | null; replies?: ReplyIdea[]; subject?: string | null; channel?: string | null };
+export type ReplyIdeasResponse = { kind?: string | null; replies?: ReplyIdea[]; subject?: string | null; channel?: string | null; text?: string | null };
 
 export type PhoneNumber = {
   id: string;

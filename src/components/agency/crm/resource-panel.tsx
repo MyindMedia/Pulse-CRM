@@ -14,8 +14,9 @@ import { useZuRead } from "./use-zu";
 import { SyncBar, TOUCH, ZuErrorState } from "./crm-ui";
 import type { ActionDef, ResourceDef } from "./resource-config";
 import { ResourceAction } from "./resource-action";
+import { FocusHome, focusOnClose, rowOpener } from "./resource-focus";
 import {
-  FIRST_PAGE, extractRows, getPath, isObj, nextPage, pageQuery, prevPage, present, rowName, shows, unwrapSingle, visibleColumns,
+  FIRST_PAGE, extractRows, getPath, isObj, leadWithMeaning, nextPage, pageQuery, prevPage, present, rowName, shows, unwrapSingle, visibleColumns,
   type Obj, type PageState,
 } from "./resource-utils";
 import { CellValue, ValueList } from "./resource-values";
@@ -50,14 +51,16 @@ function invalidateFor(def: ResourceDef): string[] {
   return [def.list?.op, def.single?.op, def.detail?.op].filter((x): x is string => !!x);
 }
 
-function Header({ def, fetchedAt, onRefresh, refreshing, children }: {
-  def: ResourceDef; fetchedAt: number | null; onRefresh: () => void; refreshing: boolean; children?: React.ReactNode;
+function Header({ def, fetchedAt, onRefresh, refreshing, headingRef, children }: {
+  def: ResourceDef; fetchedAt: number | null; onRefresh: () => void; refreshing: boolean;
+  headingRef: React.RefObject<HTMLHeadingElement | null>; children?: React.ReactNode;
 }) {
   return (
     <header className="space-y-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0 space-y-1">
-          <h2 className="font-grotesk text-lg font-semibold text-bone">{def.title}</h2>
+          {/* tabIndex -1: where focus lands when the button that opened a dialog is gone (U-10). */}
+          <h2 ref={headingRef} tabIndex={-1} className="rounded-sm font-grotesk text-lg font-semibold text-bone outline-none focus-visible:ring-2 focus-visible:ring-gold/40">{def.title}</h2>
           <p className="text-sm text-steel">{def.blurb}</p>
         </div>
         {children && <div className="flex flex-wrap items-center gap-2">{children}</div>}
@@ -85,10 +88,12 @@ function SingleView({ def }: { def: ResourceDef }) {
   const obj = single.pick ? (isObj(picked) ? picked : null) : unwrapSingle(read.data);
   const panelActions = (def.actions ?? []).filter((a) => a.scope === "panel");
   const invalidate = invalidateFor(def);
+  const headingRef = React.useRef<HTMLHeadingElement | null>(null);
 
   return (
+    <FocusHome.Provider value={headingRef}>
     <section className="space-y-4" aria-label={def.title}>
-      <Header def={def} fetchedAt={read.fetchedAt} onRefresh={read.refresh} refreshing={read.refreshing}>
+      <Header def={def} fetchedAt={read.fetchedAt} onRefresh={read.refresh} refreshing={read.refreshing} headingRef={headingRef}>
         {panelActions.map((a) => (
           <ResourceAction
             key={`${a.op}-${a.label}`} action={a}
@@ -106,11 +111,12 @@ function SingleView({ def }: { def: ResourceDef }) {
         <>
           {read.error && <Stale reason={read.error.reason} />}
           <div className="rounded-xl border border-graphite/50 p-4 sm:p-5">
-            <ValueList value={obj} only={single.only} />
+            <ValueList value={obj} only={single.only} root={read.data} />
           </div>
         </>
       )}
     </section>
+    </FocusHome.Provider>
   );
 }
 
@@ -139,9 +145,21 @@ function ListView({ def }: { def: ResourceDef }) {
 
   const read = useZuRead<unknown>(list.op, { query }, { keepPrevious: true });
   const rows = extractRows(read.data, list.rowsKey);
-  const columns = visibleColumns(list.columns, rows);
+  // Columns no row fills drop out; an id column never leads (R3-R3).
+  const columns = visibleColumns(leadWithMeaning(list.columns), rows);
   const rowIdKey = list.rowId ?? "id";
-  const [openRow, setOpenRow] = React.useState<Obj | null>(null);
+  const idOf = (row: Obj): string | null => {
+    const raw = getPath(row, rowIdKey);
+    return typeof raw === "string" || typeof raw === "number" ? String(raw) : null;
+  };
+  // The open record is kept as its id plus the copy it was opened from; the
+  // sheet always shows the CURRENT row from the latest read, so after a write
+  // (switching an automation on) its buttons follow the new state (R3-R1).
+  const [opened, setOpened] = React.useState<{ id: string | null; snapshot: Obj } | null>(null);
+  const setOpenRow = (row: Obj | null) => setOpened(row ? { id: idOf(row), snapshot: row } : null);
+  const openRow = opened ? (opened.id !== null ? rows.find((r) => idOf(r) === opened.id) : undefined) ?? opened.snapshot : null;
+  const headingRef = React.useRef<HTMLHeadingElement | null>(null);
+  const sectionRef = React.useRef<HTMLElement | null>(null);
   const limit = typeof list.query?.limit === "number" ? list.query.limit : rows.length;
   const next = nextPage(list.paging, at, read.data, rows.length, limit);
   const prev = prevPage(list.paging, at, limit);
@@ -150,8 +168,9 @@ function ListView({ def }: { def: ResourceDef }) {
   const invalidate = invalidateFor(def);
 
   return (
-    <section className="space-y-4" aria-label={def.title}>
-      <Header def={def} fetchedAt={read.fetchedAt} onRefresh={read.refresh} refreshing={read.refreshing}>
+    <FocusHome.Provider value={headingRef}>
+    <section ref={sectionRef} className="space-y-4" aria-label={def.title}>
+      <Header def={def} fetchedAt={read.fetchedAt} onRefresh={read.refresh} refreshing={read.refreshing} headingRef={headingRef}>
         {panelActions.map((a) => <ResourceAction key={`${a.op}-${a.label}`} action={a} ctx={{ invalidate, isRead: actionIsRead(a) }} size="md" />)}
       </Header>
 
@@ -208,7 +227,7 @@ function ListView({ def }: { def: ResourceDef }) {
                     <TD key={c.key} className={cn(ci === 0 && "font-semibold")}>
                       {ci === 0 ? (
                         <button
-                          type="button" onClick={(e) => { e.stopPropagation(); setOpenRow(row); }}
+                          type="button" data-row-open={idOf(row) ?? `row-${i}`} onClick={(e) => { e.stopPropagation(); setOpenRow(row); }}
                           className="block max-w-64 truncate rounded-sm text-left text-bone outline-none hover:underline focus-visible:ring-2 focus-visible:ring-gold/40 max-sm:min-h-11"
                         >
                           {present(getPath(row, c.key))
@@ -241,8 +260,12 @@ function ListView({ def }: { def: ResourceDef }) {
         </nav>
       )}
 
-      <DetailSheet def={def} row={openRow} rowIdKey={rowIdKey} onClose={() => setOpenRow(null)} />
+      <DetailSheet
+        def={def} row={openRow} rowIdKey={rowIdKey} onClose={() => setOpenRow(null)}
+        opener={() => rowOpener(sectionRef.current, opened?.id ?? null)}
+      />
     </section>
+    </FocusHome.Provider>
   );
 }
 
@@ -252,18 +275,28 @@ function ListView({ def }: { def: ResourceDef }) {
  *  `record` (the full detail when loaded) names it and prefills edits. */
 export function RowActions({ def, row, record, rowIdKey }: { def: ResourceDef; row: Obj; record?: Obj | null; rowIdKey: string }) {
   const source = record ?? row;
-  const actions = (def.actions ?? []).filter((a) => a.scope === "row" && shows(a.show, row));
+  // The show rule reads the freshest copy: the full record over the list row.
+  const state = record ? { ...row, ...record } : row;
+  const actions = (def.actions ?? []).filter((a) => a.scope === "row" && shows(a.show, state));
   if (actions.length === 0) return null;
   const invalidate = invalidateFor(def);
+  // Keyed by operation, so when a write swaps "Switch on" for "Switch off"
+  // (same operation) React keeps the same button and focus stays on it.
+  const seen = new Map<string, number>();
+  const keyed = actions.map((a) => {
+    const n = seen.get(a.op) ?? 0;
+    seen.set(a.op, n + 1);
+    return { a, key: `${a.op}#${n}` };
+  });
   return (
     <div className="flex flex-wrap gap-2" role="group" aria-label="Actions">
-      {actions.map((a) => {
+      {keyed.map(({ a, key }) => {
         const raw = getPath(row, a.pathFrom ?? rowIdKey);
         const pathValue = typeof raw === "string" || typeof raw === "number" ? String(raw) : null;
         const read = actionIsRead(a);
         return (
           <ResourceAction
-            key={`${a.op}-${a.label}`} action={a}
+            key={key} action={a}
             ctx={{ source, pathValue, invalidate, isRead: read, prefillFrom: read || a.prefill === false || !(a.fields ?? []).length ? null : source }}
           />
         );
@@ -272,7 +305,11 @@ export function RowActions({ def, row, record, rowIdKey }: { def: ResourceDef; r
   );
 }
 
-function DetailSheet({ def, row, rowIdKey, onClose }: { def: ResourceDef; row: Obj | null; rowIdKey: string; onClose: () => void }) {
+function DetailSheet({ def, row, rowIdKey, onClose, opener }: {
+  def: ResourceDef; row: Obj | null; rowIdKey: string; onClose: () => void; opener: () => HTMLElement | null;
+}) {
+  const home = React.useContext(FocusHome);
+  const titleRef = React.useRef<HTMLDivElement | null>(null);
   const raw = row ? getPath(row, rowIdKey) : undefined;
   const id = typeof raw === "string" || typeof raw === "number" ? String(raw) : null;
   const detailOp = def.detail && row && id ? def.detail.op : null;
@@ -281,21 +318,26 @@ function DetailSheet({ def, row, rowIdKey, onClose }: { def: ResourceDef; row: O
 
   return (
     <Sheet open={!!row} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <SheetContent width="lg">
+      {/* Closing returns focus to the row's open button, found again by id after a re-read; else the panel heading. */}
+      <SheetContent width="lg" onCloseAutoFocus={(e) => focusOnClose(e, opener, home)}>
+        <FocusHome.Provider value={titleRef}>
         <SheetHeader>
-          <SheetTitle className="break-words">{rowName(row, def.title)}</SheetTitle>
+          <div ref={titleRef} tabIndex={-1} className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-gold/40">
+            <SheetTitle className="break-words">{rowName(row, def.title)}</SheetTitle>
+          </div>
           <SheetDescription>{def.title}. Every field Zuops has for it.</SheetDescription>
         </SheetHeader>
         <SheetBody className="min-w-0 space-y-4">
           {detailOp && detail.error && <p role="alert" className="flex items-start gap-2 text-sm text-caution"><AlertTriangle className="mt-0.5 size-4 shrink-0" aria-hidden />Showing the list copy. {detail.error.reason}</p>}
           {detailOp && detail.loading && <p role="status" className="text-sm text-steel">Loading the full record from Zuops.</p>}
-          {record && <ValueList value={record} />}
+          {record && <ValueList value={record} root={detailOp ? detail.data ?? record : record} />}
         </SheetBody>
         {row && (def.actions ?? []).some((a) => a.scope === "row") && (
           <SheetFooter className="flex-wrap">
-            <RowActions def={def} row={row} record={record} rowIdKey={rowIdKey} />
+            <RowActions def={def} row={row} record={detailOp ? unwrapSingle(detail.data) : null} rowIdKey={rowIdKey} />
           </SheetFooter>
         )}
+        </FocusHome.Provider>
       </SheetContent>
     </Sheet>
   );

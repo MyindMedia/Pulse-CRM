@@ -22,6 +22,9 @@
      by id; only Refresh walks every page again.
    - clear() bumps a generation: an answer to a request made before it is thrown
      away, so nothing cached outlives lost access (F-U8).
+   - The cache has an owner (the signed-in user). setOwner() with a different
+     owner makes the next read, of any key, start from nothing: a new user's
+     first render can never see the previous user's answers (R3-U4).
    - A write with the same op and arguments while one is pending returns the same
      promise (a double click is one request), and carries an Idempotency-Key.
    - Nothing is written to localStorage or sessionStorage, and no response body is
@@ -278,6 +281,31 @@ export function createZuStore(opts: ZuStoreOptions = {}) {
   let pausedUntil = 0;
   /** Bumped by clear(); answers from an older generation are discarded. */
   let gen = 0;
+  /** Whose answers are cached, and whose the next read is for. */
+  let owner: string | null = null;
+  let wantedOwner: string | null = null;
+
+  /** Reset for a new owner without telling anyone: this runs inside a render
+   *  (a read), where notifying other components is not allowed. Everything they
+   *  read from now on is empty. */
+  function syncOwner() {
+    if (wantedOwner === owner) return;
+    const had = owner !== null;
+    owner = wantedOwner;
+    if (!had) return;
+    gen += 1;
+    pendingWrites.clear();
+    for (const e of entries.values()) {
+      if (e.trailing) clearTimeout(e.trailing);
+      e.trailing = null;
+      e.inflight = null;
+      e.again = null;
+      e.snap = EMPTY;
+      e.stale = true;
+      e.lastCall = undefined;
+      e.lastSignal = undefined;
+    }
+  }
 
   function entry(key: string): Entry {
     let e = entries.get(key);
@@ -444,6 +472,7 @@ export function createZuStore(opts: ZuStoreOptions = {}) {
   }
 
   function request(key: string, reason: FetchReason): Promise<void> {
+    syncOwner();
     const e = entry(key);
     e.touched = now();
     if (e.inflight) {
@@ -540,10 +569,17 @@ export function createZuStore(opts: ZuStoreOptions = {}) {
     hasCaller() {
       return caller !== undefined;
     },
+    /** Who the cached answers belong to (the signed-in user's id). Safe to call
+     *  during render: a change only takes effect, silently, at the next read. */
+    setOwner(next: string) {
+      wantedOwner = next;
+    },
     snapshot(key: string): ZuSnapshot {
+      syncOwner();
       return entries.get(key)?.snap ?? EMPTY;
     },
     subscribe(key: string, fn: () => void): () => void {
+      syncOwner();
       const e = entry(key);
       e.listeners.add(fn);
       return () => {
@@ -608,6 +644,7 @@ export function createZuStore(opts: ZuStoreOptions = {}) {
      *  same promise. `invalidate` lists op ids whose cached reads are dropped once
      *  Zuops has answered, refused or not, so the screen shows the true state. */
     run(op: string, args: ZuWriteArgs = {}, o: { invalidate?: readonly string[] } = {}): Promise<ZuWriteResult> {
+      syncOwner();
       const dedupe = stableStringify({ op, path: args.path, query: args.query, body: args.body, confirm: args.confirm });
       const existing = pendingWrites.get(dedupe);
       if (existing) return existing;

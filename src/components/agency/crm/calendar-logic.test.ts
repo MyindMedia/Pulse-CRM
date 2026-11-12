@@ -4,7 +4,9 @@ import {
   statusInfo, timeIn, viewWindow, weekStart, keyStartMs,
 } from "./calendar-logic";
 import { currentSlot } from "./calendar-parts";
-import { LEAD_NAME_CONCURRENCY, bookingLeadName, nextLeadIds } from "./calendar-lead-names";
+import { LEAD_NAME_PAGE, bookingLeadName, leadNameMap } from "./calendar-lead-names";
+import { cancelNotice, rescheduleNotice } from "./calendar-appointment-sheet";
+import { bookNotice } from "./calendar-book-sheet";
 import { leadPlaceholder } from "./crm-calendar";
 import type { Booking, Calendar } from "./calendar-types";
 
@@ -131,14 +133,13 @@ describe("F-U3: lead names without the whole lead list", () => {
     expect(bookingLeadName({ lead: { full_name: "Ben" } })).toBe("Ben");
     expect(bookingLeadName({})).toBeNull();
   });
-  it("asks for each unnamed lead once, at most 8 at a time", () => {
-    const ids = Array.from({ length: 20 }, (_, i) => `l${i}`);
-    const first = nextLeadIds(ids, new Set(["l0"]), new Set(), 0);
-    expect(first).toHaveLength(LEAD_NAME_CONCURRENCY);
-    expect(first).not.toContain("l0");
-    expect(nextLeadIds(ids, new Set(), new Set(first), 8)).toEqual([]);
-    expect(nextLeadIds(ids, new Set(), new Set(first), 6)).toHaveLength(2);
-    expect(nextLeadIds(["a", "a", "b"], new Set(), new Set(), 0)).toEqual(["a", "b"]);
+  it("R3-I3: one page of leads (limit 200) plus the bookings' own names make the map", () => {
+    expect(LEAD_NAME_PAGE).toBe(200);
+    const m = leadNameMap([{ id: "l1", full_name: "Ana Torres" }, { id: "l2", full_name: null, email: "ben@studio.example" }], [{ lead_id: "l3", lead_name: "Cy Moss" }, { lead_id: "l9" }]);
+    expect(m.get("l1")).toBe("Ana Torres");
+    expect(m.get("l2")).toBe("ben@studio.example");
+    expect(m.get("l3")).toBe("Cy Moss");
+    expect(m.has("l9")).toBe(false);
   });
   it("shows Lead and the id's tail until the name is known", () => {
     expect(leadPlaceholder("lead-abc123")).toBe("Lead abc123");
@@ -156,5 +157,15 @@ describe("F-U14: the window follows the view and the day", () => {
     expect(Date.parse(w.from)).toBeLessThanOrEqual(keyStartMs("2027-03-01"));
     expect(Date.parse(w.to)).toBeGreaterThanOrEqual(keyStartMs("2027-03-08"));
     expect(Date.parse(w.to) - Date.parse(w.from)).toBeLessThan(10 * 86_400_000);
+  });
+});
+
+describe("R3-I1: every lead-facing calendar confirm names the lead and what they get", () => {
+  it("book, reschedule and cancel", () => {
+    expect(bookNotice("Maya Okafor")).toMatch(/^Maya Okafor gets a confirmation text and email with the calendar invite/);
+    expect(rescheduleNotice("Maya Okafor", true)).toMatch(/^Maya Okafor gets the new time/);
+    expect(cancelNotice("Maya Okafor", true)).toMatch(/^Maya Okafor gets a cancellation/);
+    expect(rescheduleNotice("Maya Okafor", false)).toContain("is not told");
+    expect(cancelNotice("Maya Okafor", false)).toContain("is not told");
   });
 });

@@ -15,7 +15,7 @@ import { StatTile } from "@/components/ui/stat-tile";
 import { cn } from "@/lib/utils";
 import { OP } from "./ops";
 import { useZuRead } from "./use-zu";
-import { NeedsFullAccess, SyncBar, TOUCH, ZuErrorState, dateTime } from "./crm-ui";
+import { NeedsFullAccess, SyncBar, TOUCH, ZuErrorState, dateTime, plural } from "./crm-ui";
 import type { HealthScore, LimitsResponse, Overview, SetupStatus, Usage } from "./zu-types";
 
 /* Dashboard: overview tiles against the previous window, how far this window's
@@ -118,7 +118,7 @@ function CardSkeleton() {
 function OverviewTiles({ data }: { data: Overview }) {
   const s = data.stats ?? {};
   const days = data.window?.days ?? WINDOW_DAYS;
-  const prior = (n: number | undefined) => (n == null ? undefined : `Prior ${days} days: ${n}`);
+  const prior = (n: number | undefined) => (n == null ? undefined : `Prior ${plural(days, "day")}: ${n}`);
   return (
     <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
       <StatTile label={`New leads · ${days} d`} value={s.leads ?? 0} icon={UserPlus} delta={deltaOf(s.leads, s.prev_leads)} hint={prior(s.prev_leads)} accent />
@@ -137,7 +137,7 @@ function ReachCard({ data }: { data: Overview }) {
     <Card>
       <CardHeader>
         <CardTitle>How far this window&apos;s leads got</CardTitle>
-        <CardDescription>Of {data.stats?.stage_reach?.total ?? 0} leads in the last {data.window?.days ?? WINDOW_DAYS} days, how many reached each stage.</CardDescription>
+        <CardDescription>Of {plural(data.stats?.stage_reach?.total ?? 0, "lead")} in the last {plural(data.window?.days ?? WINDOW_DAYS, "day")}, how many reached each stage.</CardDescription>
       </CardHeader>
       <CardContent>
         {rows.length === 0
@@ -206,7 +206,7 @@ function HealthCard({ data }: { data: HealthScore }) {
                     <span className="block text-bone">{a.title}</span>
                     {a.why && <span className="block text-xs text-steel">{a.why}</span>}
                   </span>
-                  {a.gain ? <span className="shrink-0 font-meta text-xs text-positive">+{a.gain} points</span> : null}
+                  {a.gain ? <span className="shrink-0 font-meta text-xs text-positive">+{plural(a.gain, "point")}</span> : null}
                 </li>
               ))}
             </ul>
@@ -266,10 +266,10 @@ function UsageAndLimits() {
             : (
               <div className="space-y-3 text-sm">
                 <p className="font-grotesk text-2xl font-bold tabular-nums text-bone">
-                  {l.unique_contacts_remaining ?? 0}<span className="text-sm font-medium text-steel"> of {l.daily_unique_contact_cap ?? 0} contacts left</span>
+                  {l.unique_contacts_remaining ?? 0}<span className="text-sm font-medium text-steel"> of {plural(l.daily_unique_contact_cap ?? 0, "contact")} left</span>
                 </p>
                 <Progress value={l.unique_contacts_used ?? 0} max={l.daily_unique_contact_cap ?? 1} tone="info" />
-                <p className="text-xs text-steel">{l.messages_sent_today ?? 0} messages sent today{l.resets_at ? `. Resets ${dateTime(l.resets_at)}` : ""}.</p>
+                <p className="text-xs text-steel">{plural(l.messages_sent_today ?? 0, "message")} sent today{l.resets_at ? `. Resets ${dateTime(l.resets_at)}` : ""}.</p>
                 {l.frozen && (
                   <Badge tone="critical"><Snowflake className="size-3" aria-hidden />Sending frozen{l.frozen_reason ? `: ${l.frozen_reason}` : ""}</Badge>
                 )}
@@ -280,7 +280,7 @@ function UsageAndLimits() {
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2"><Gauge className="size-4 text-steel" aria-hidden />Credits used by tool</CardTitle>
-          <CardDescription>Last {usage.data?.window?.days ?? WINDOW_DAYS} days{usage.data?.total_credits != null ? `: ${usage.data.total_credits} credits across ${usage.data.total_events ?? 0} events` : ""}.</CardDescription>
+          <CardDescription>Last {plural(usage.data?.window?.days ?? WINDOW_DAYS, "day")}{usage.data?.total_credits != null ? `: ${plural(usage.data.total_credits, "credit")} across ${plural(usage.data.total_events ?? 0, "event")}` : ""}.</CardDescription>
         </CardHeader>
         <CardContent>
           {usage.error ? <ZuErrorState error={usage.error} onRetry={usage.refresh} />

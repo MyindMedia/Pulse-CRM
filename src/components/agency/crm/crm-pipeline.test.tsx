@@ -75,6 +75,25 @@ describe("F-U13 Move to never writes on change", () => {
   });
 });
 
+describe("R3-U6 pipeline copy", () => {
+  it("R3-U6: counts are plural only when they should be, and the automation note is shown", () => {
+    reads[OP.leadsList] = { data: paged([MAYA, DEV]) };
+    const out = renderToStaticMarkup(<CrmProvider><CrmPipeline /></CrmProvider>);
+    expect(out).toContain("1 lead · $1,188");
+    expect(out).toContain("0 leads · $0");
+    expect(out).not.toMatch(/\b1 leads\b/);
+    expect(out).toContain("Moving a lead can start any automation you set on that stage in Zuops.");
+    expect(unstagedNote(PARTIAL.slice(0, 1))?.text).toBe("1 lead is not in a stage (unfinished or not yet staged).");
+  });
+
+  it("R3-U1: the card's controls carry focus keys, so focus can follow a card into its new column", () => {
+    reads[OP.leadsList] = { data: paged([MAYA]) };
+    const out = renderToStaticMarkup(<CrmProvider><CrmPipeline /></CrmProvider>);
+    expect(out).toContain('data-focus-key="card-move:lead-maya"');
+    expect(out).toContain('data-focus-key="card-open:lead-maya"');
+  });
+});
+
 describe("F-U12 optimistic moves", () => {
   const o = { stage: "won", at: 1_000 };
   it("F-U12: a poll that STARTED before the move cannot put the card back", () => {

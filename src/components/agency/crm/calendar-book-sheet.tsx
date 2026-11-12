@@ -9,7 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Sheet, SheetBody, SheetContent, SheetDescription, SheetFooter, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Checkbox } from "@/components/ui/toggle";
 import { cn } from "@/lib/utils";
-import { TOUCH, WriteButton, dateTime, money, phone } from "./crm-ui";
+import { ConfirmDialog, TOUCH, WriteButton, confirmCopy, dateTime, money, phone, type ConfirmGrant } from "./crm-ui";
+import { writeFingerprint } from "./inbox-logic";
 import { useIdemFor, useZuRead, useZuWrite } from "./use-zu";
 import { CAL_OP } from "./calendar-ops";
 import { SlotPicker } from "./calendar-parts";
@@ -19,8 +20,9 @@ import type { LeadResponse, LeadsResponse } from "./zu-types";
 
 /* Book an appointment: lead, calendar (with its option and add-ons when priced),
    an open time from availability, and whether the lead gets the confirmation and
-   reminders. Booking notifies the lead by design (D12): one deliberate click,
-   and the button says plainly what will happen. */
+   reminders. Booking with notify on reaches the lead, so it goes through one
+   ConfirmDialog naming them and what they get (R3-I1); booking quietly is one
+   click. */
 
 const INVALIDATE = [CAL_OP.bookings, CAL_OP.availability, CAL_OP.leads] as const;
 
@@ -31,6 +33,11 @@ function useDebounced<T>(value: T, ms: number): T {
     return () => clearTimeout(t);
   }, [value, ms]);
   return v;
+}
+
+/** What the lead receives when booked with notify on. */
+export function bookNotice(name: string): string {
+  return `${name} gets a confirmation text and email with the calendar invite, then the reminder texts.`;
 }
 
 export function BookSheet({
@@ -97,10 +104,10 @@ function BookBody({
   const built = bookBody(form, calendar);
   // One key per distinct booking; retrying the same booking reuses it, and a new
   // one starts after a booking succeeds (F-U9).
-  const idem = useIdemFor(`book:${round}:${"body" in built ? JSON.stringify(built.body) : "incomplete"}`);
-  const book = async () => {
+  const idem = useIdemFor(writeFingerprint(CAL_OP.book, undefined, "body" in built ? built.body : null, round));
+  const book = async (grant?: ConfirmGrant) => {
     if ("error" in built) { setError(built.error); return; }
-    const res = await run(CAL_OP.book, { body: built.body, idem }, { invalidate: INVALIDATE });
+    const res = await run(CAL_OP.book, { body: built.body, idem, ...grant }, { invalidate: INVALIDATE });
     if (res.ok) {
       const warning = (res.data as BookingResponse | undefined)?.warning;
       toast.success(`Booked ${shownName ?? "the lead"} for ${dateTime(form.slot, calendar?.timezone)}.${form.notify ? " Zuops is sending the confirmation." : " Booked quietly: nothing was sent."}`);
@@ -237,13 +244,27 @@ function BookBody({
         {"error" in built && <p role="status" className="mr-auto text-xs text-steel">{built.error}</p>}
         {"body" in built && form.slot && calendar && (
           <p className="mr-auto text-xs text-steel">
-            {shownName ?? "The lead"} on {dateTime(form.slot, calendar.timezone)}.{form.notify ? " The lead will be notified." : " The lead will not be notified."}
+            {shownName ?? "The lead"} on {dateTime(form.slot, calendar.timezone)}.{form.notify ? " The lead will be notified." : " Books quietly. The lead is not told."}
           </p>
         )}
         <Button type="button" variant="ghost" className={TOUCH} onClick={onDone}>Cancel</Button>
-        <WriteButton type="button" onClick={book} disabled={pending || "error" in built}>
-          <CalendarPlus className="size-4" aria-hidden />{pending ? "Booking" : form.notify ? "Book and notify the lead" : "Book quietly"}
-        </WriteButton>
+        {form.notify ? (
+          <ConfirmDialog
+            title={`Book ${shownName ?? "the lead"}${form.slot ? ` for ${dateTime(form.slot, calendar?.timezone)}` : ""}?`}
+            body={<>{bookNotice(shownName ?? "The lead")} {confirmCopy("reaches")}</>}
+            confirmLabel="Book and notify"
+            onConfirm={(grant) => book(grant)}
+            trigger={
+              <WriteButton type="button" disabled={pending || "error" in built}>
+                <CalendarPlus className="size-4" aria-hidden />{pending ? "Booking" : "Book and notify the lead"}
+              </WriteButton>
+            }
+          />
+        ) : (
+          <WriteButton type="button" onClick={() => void book()} disabled={pending || "error" in built}>
+            <CalendarPlus className="size-4" aria-hidden />{pending ? "Booking" : "Book quietly"}
+          </WriteButton>
+        )}
       </SheetFooter>
     </>
   );

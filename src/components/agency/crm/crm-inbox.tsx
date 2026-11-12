@@ -14,6 +14,7 @@ import { useZuFetch, useZuRead } from "./use-zu";
 import { LeadSheet } from "./crm-lead-sheet";
 import { INBOX_OP } from "./inbox-ops";
 import { InboxThread, SLOW_POLL_MS } from "./inbox-thread";
+import { focusSoon } from "./inbox-focus";
 import {
   INBOX_FILTERS, channelWord, conversationName, conversationsQuery, filterCount, mergeConversations, previewText,
   type InboxFilter,
@@ -199,7 +200,7 @@ export function CrmInbox({ openLeadId, openNonce }: { openLeadId?: string | null
               leadId={selected}
               conversation={selectedConv}
               suggestions={suggestionList}
-              onBack={() => setSelected(null)}
+              onBack={() => { const prev = selected; setSelected(null); focusSoon(`conv-${prev}`, "crm-inbox-search"); }}
               onOpenLead={setSheetLead}
             />
           ) : (
@@ -210,7 +211,11 @@ export function CrmInbox({ openLeadId, openNonce }: { openLeadId?: string | null
         </section>
       </div>
 
-      <LeadSheet leadId={sheetLead} onClose={() => setSheetLead(null)} onOpenInbox={(id) => setSelected(id)} />
+      <LeadSheet
+        leadId={sheetLead}
+        onClose={() => { const id = sheetLead; setSheetLead(null); if (id) focusSoon(`th-lead-${id}`, `th-name-${id}`); }}
+        onOpenInbox={(id) => setSelected(id)}
+      />
     </div>
   );
 }
@@ -222,7 +227,7 @@ function ConversationRow({ c, on, onOpen }: { c: Conversation; on: boolean; onOp
   return (
     <li>
       <button
-        type="button" onClick={onOpen} aria-current={on || undefined}
+        id={`conv-${c.lead_id}`} type="button" onClick={onOpen} aria-current={on || undefined}
         className={cn(
           "block w-full space-y-1 px-3 py-2.5 text-left outline-none transition-colors hover:bg-coal-2/60 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gold/40",
           on && "bg-coal-2",

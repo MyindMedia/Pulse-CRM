@@ -2,17 +2,19 @@
 
 import * as React from "react";
 import { toast } from "sonner";
-import { CalendarClock, Lightbulb, Send, X } from "lucide-react";
+import { CalendarClock, Lightbulb, Send, Wand2, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input, Label, Textarea } from "@/components/ui/field";
 import { cn } from "@/lib/utils";
 import { useCrm } from "./crm-context";
 import { ConfirmDialog, TOUCH, WriteButton, dateTime, phone, type ConfirmGrant } from "./crm-ui";
-import { useZuWrite, type ZuLimits } from "./use-zu";
+import { useIdemFor, useZuWrite, type ZuLimits } from "./use-zu";
+import { focusSoon } from "./inbox-focus";
 import { currentTime, useNow } from "./inbox-clock";
 import { INBOX_OP } from "./inbox-ops";
 import {
-  MAX_SCHEDULE_DAYS, SCHEDULE_PASSED, ScheduleExpiredError, TEXT_OPT_OUT_NOTE, draftProblem, sendRequest, toLocalInput, validateSchedule,
+  MAX_SCHEDULE_DAYS, SCHEDULE_PASSED, ScheduleExpiredError, TEXT_OPT_OUT_NOTE, draftProblem, parsePolished, parseReplyIdeas,
+  replyIdeasBody, sendRequest, toLocalInput, validateSchedule, writeFingerprint,
   type ChannelOption, type ComposerDraft,
 } from "./inbox-logic";
 import type { ReplyIdea, ReplyIdeasResponse } from "./inbox-types";
@@ -48,6 +50,11 @@ export function senderLine(channel: ComposerDraft["channel"], fromNumber: string
     case "instagram": return "through your connected Instagram account";
     case "messenger": return "through your connected Facebook Page";
   }
+}
+
+/** The composer's message box id, for returning focus to it. */
+export function composerTextId(leadId: string): string {
+  return `cmp-text-${leadId}`;
 }
 
 const NOUN: Record<ComposerDraft["channel"], string> = { sms: "text", email: "email", instagram: "Instagram reply", messenger: "Messenger reply" };
@@ -87,6 +94,14 @@ export function InboxComposer({
   const [shown, setShown] = React.useState<string | null>(null);
   const [ideas, setIdeas] = React.useState<ReplyIdea[] | null>(null);
   const [ideasBusy, setIdeasBusy] = React.useState(false);
+  // Advanced after each accepted reply-ideas call, so asking again gets new ideas
+  // while a retry after a failure reuses its key (R3-I6).
+  const [ideasRound, setIdeasRound] = React.useState(0);
+  const ideasPath = { lead_id: to.leadId };
+  const newIdeasBody = replyIdeasBody(draft.channel);
+  const polishBody = replyIdeasBody(draft.channel, draft.text, "improve");
+  const ideasKey = useIdemFor(writeFingerprint(INBOX_OP.replyIdeas, ideasPath, newIdeasBody, ideasRound));
+  const polishKey = useIdemFor(writeFingerprint(INBOX_OP.replyIdeas, ideasPath, polishBody, ideasRound));
 
   const option = options.find((o) => o.channel === draft.channel);
   const now = useNow(5_000);
@@ -94,7 +109,7 @@ export function InboxComposer({
   const anyAvailable = options.some((o) => o.available);
   const noun = NOUN[draft.channel];
   const when = draft.sendAt ? validateSchedule(draft.sendAt, now) : null;
-  const ids = { text: `cmp-text-${to.leadId}`, subject: `cmp-subject-${to.leadId}`, at: `cmp-at-${to.leadId}`, err: `cmp-err-${to.leadId}` };
+  const ids = { text: composerTextId(to.leadId), subject: `cmp-subject-${to.leadId}`, at: `cmp-at-${to.leadId}`, err: `cmp-err-${to.leadId}` };
 
   const edit = (patch: Partial<Omit<ComposerDraft, "idem">>) => {
     setError(null);
@@ -120,6 +135,7 @@ export function InboxComposer({
       setScheduling(false);
       setIdeas(null);
       onSent();
+      focusSoon(ids.text);
       return;
     }
     // Nothing is retried automatically. The draft and its key stay, so a person
@@ -137,19 +153,37 @@ export function InboxComposer({
     setConfirmOpen(true);
   };
 
+  // Free and sends nothing, so no confirm (R3-I2). A refusal still shows its
+  // reason in the composer.
   const loadIdeas = async () => {
     setIdeasBusy(true);
     setError(null);
-    const res = await run(INBOX_OP.replyIdeas, { path: { lead_id: to.leadId }, body: { channel: draft.channel } });
+    const res = await run(INBOX_OP.replyIdeas, { path: ideasPath, body: newIdeasBody, idem: ideasKey });
     setIdeasBusy(false);
     if (!res.ok) {
-      setError(res.reason ?? "Zuops could not write reply ideas.");
+      setError(`Reply ideas did not load: ${res.reason ?? "Zuops refused."}`);
       return;
     }
-    const data = res.data as ReplyIdeasResponse | undefined;
-    const list = (data?.replies ?? []).filter((r) => r.text);
+    setIdeasRound((r) => r + 1);
+    const list = parseReplyIdeas(res.data as ReplyIdeasResponse | undefined);
     setIdeas(list);
     if (!list.length) toast.info("Zuops had no reply ideas for this conversation.");
+  };
+
+  const polish = async () => {
+    if (!draft.text.trim()) return;
+    setIdeasBusy(true);
+    setError(null);
+    const res = await run(INBOX_OP.replyIdeas, { path: ideasPath, body: polishBody, idem: polishKey });
+    setIdeasBusy(false);
+    if (!res.ok) {
+      setError(`Polishing did not work: ${res.reason ?? "Zuops refused."}`);
+      return;
+    }
+    setIdeasRound((r) => r + 1);
+    const text = parsePolished(res.data as ReplyIdeasResponse | undefined);
+    if (text) { edit({ text }); focusSoon(ids.text); }
+    else toast.info("Zuops returned no polished text. Your draft is unchanged.");
   };
 
   const title = draft.suggestionId
@@ -259,7 +293,7 @@ export function InboxComposer({
                   {idea.label && <span className="block text-xs font-semibold text-bone">{idea.label}</span>}
                   <span className="block whitespace-pre-wrap break-words text-steel">{idea.text}</span>
                 </span>
-                <Button type="button" size="sm" variant="secondary" className={TOUCH} onClick={() => { edit({ text: idea.text ?? "" }); setIdeas(null); }}>
+                <Button type="button" size="sm" variant="secondary" className={TOUCH} onClick={() => { edit({ text: idea.text ?? "" }); setIdeas(null); focusSoon(ids.text); }}>
                   Use this
                 </Button>
               </li>
@@ -272,6 +306,11 @@ export function InboxComposer({
         <WriteButton type="button" variant="ghost" size="sm" onClick={loadIdeas} disabled={ideasBusy || pending}>
           <Lightbulb className="size-4" aria-hidden />{ideasBusy ? "Thinking" : "Reply ideas"}
         </WriteButton>
+        {draft.text.trim() !== "" && (
+          <WriteButton type="button" variant="ghost" size="sm" onClick={polish} disabled={ideasBusy || pending}>
+            <Wand2 className="size-4" aria-hidden />Polish
+          </WriteButton>
+        )}
         {!scheduling && draft.channel !== "instagram" && draft.channel !== "messenger" && !draft.suggestionId && (
           <WriteButton type="button" variant="secondary" size="sm" onClick={() => setScheduling(true)} disabled={!anyAvailable}>
             <CalendarClock className="size-4" aria-hidden />Schedule
@@ -284,7 +323,12 @@ export function InboxComposer({
 
       <ConfirmDialog
         open={confirmOpen}
-        onOpenChange={setConfirmOpen}
+        onOpenChange={(v) => {
+          setConfirmOpen(v);
+          // Cancel or send: the opener may have changed label, so focus goes
+          // back to the message box (R3-I4).
+          if (!v) focusSoon(ids.text);
+        }}
         title={title}
         body={confirmBody}
         confirmLabel={draft.sendAt ? `Schedule ${noun}` : `Send ${noun}`}

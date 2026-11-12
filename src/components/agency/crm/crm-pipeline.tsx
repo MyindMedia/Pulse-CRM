@@ -21,7 +21,8 @@ import { cn } from "@/lib/utils";
 import { OP } from "./ops";
 import { useZuRead, useZuWrite, type ZuPaged } from "./use-zu";
 import {
-  ConfirmDialog, NeedsFullAccess, STAGE_COLORS, StageBadge, SyncBar, TOUCH, WriteButton, ZuErrorState, money, phone,
+  ConfirmDialog, NeedsFullAccess, STAGE_COLORS, StageBadge, SyncBar, TOUCH, WriteButton, ZuErrorState, focusByKey, money, phone,
+  plural, useReturnFocus,
 } from "./crm-ui";
 import { useCrm, useCrmNav } from "./crm-context";
 import { LeadSheet } from "./crm-lead-sheet";
@@ -96,9 +97,15 @@ export function unstagedNote(unstaged: Lead[]): { text: string; status?: string 
   const statuses = new Set(unstaged.map((l) => l.status ?? ""));
   const only = statuses.size === 1 ? [...statuses][0] : "";
   return {
-    text: `${n} lead${n === 1 ? " is" : "s are"} not in a stage (unfinished or not yet staged).`,
+    text: `${plural(n, "lead")} ${n === 1 ? "is" : "are"} not in a stage (unfinished or not yet staged).`,
     status: only || undefined,
   };
+}
+
+/** Focus a control once React has drawn it (two frames: the commit, then paint). */
+function focusSoon(key: string) {
+  if (typeof requestAnimationFrame === "undefined") return;
+  requestAnimationFrame(() => requestAnimationFrame(() => { focusByKey(key); }));
 }
 
 function useReducedMotion(): boolean {
@@ -143,10 +150,14 @@ export function CrmPipeline() {
   const note = unstagedNote(unstaged);
   const active = activeId ? shown.find((l) => l.id === activeId) ?? null : null;
 
-  const move = async (lead: Lead, to: string) => {
+  /** Moving re-renders the card in another column, so its controls are new
+   *  elements: when the move came from the card's own Move button, focus follows
+   *  the card to its stage select (U-10), there and back again on a refusal. */
+  const move = async (lead: Lead, to: string, followFocus = false) => {
     if (!canWrite || leadStage(lead) === to) return;
     const label = allStages.find((s) => s.key === to)?.label ?? to;
     setOverrides((o) => ({ ...o, [lead.id]: { stage: to, at: Date.now() } }));
+    if (followFocus) focusSoon(`card-move:${lead.id}`);
     const res = await run(OP.leadSetStage, { path: { lead_id: lead.id }, body: { stage_key: to } }, { invalidate: [OP.leadsList, OP.leadGet] });
     if (res.ok) {
       toast.success(`${lead.full_name || "Lead"} moved to ${label}`);
@@ -157,6 +168,7 @@ export function CrmPipeline() {
       delete next[lead.id];
       return next;
     });
+    if (followFocus) focusSoon(`card-move:${lead.id}`);
     toast.error(`Not moved. ${res.reason ?? "Zuops refused."}`);
   };
 
@@ -180,7 +192,8 @@ export function CrmPipeline() {
           <Settings2 className="size-4" aria-hidden />Stages
         </Button>
       </div>
-      <p className="text-sm text-steel">Drag a card, or use its Move to menu. Zuops is updated first; a refusal puts the card back.</p>
+      <p className="text-sm text-steel">Drag a card, or pick a stage on the card and press Move. Zuops is updated first; a refusal puts the card back.</p>
+      <p className="text-xs text-steel">Moving a lead can start any automation you set on that stage in Zuops.</p>
 
       {leads.data && !leads.data.complete && !leads.error && (
         <p role="status" className="text-xs text-steel">Loading more leads from Zuops</p>
@@ -188,7 +201,7 @@ export function CrmPipeline() {
 
       {leads.data?.truncated && (
         <p role="status" className="rounded-md border border-caution/30 bg-caution/10 px-3 py-2 text-sm text-bone">
-          Showing the newest {MAX_LEADS.toLocaleString("en-US")} leads. Use the Leads tab to find the rest.
+          Showing the newest {plural(MAX_LEADS, "lead")}. Use the Leads tab to find the rest.
         </p>
       )}
 
@@ -227,7 +240,7 @@ export function CrmPipeline() {
               {active ? <CardFace lead={active} overlay /> : null}
             </DragOverlay>
           </DndContext>
-          {hidden > 0 && <p className="text-xs text-steel">{hidden} lead{hidden === 1 ? " is" : "s are"} in hidden stages and not shown here.</p>}
+          {hidden > 0 && <p className="text-xs text-steel">{plural(hidden, "lead")} {hidden === 1 ? "is" : "are"} in hidden stages and not shown here.</p>}
         </>
       )}
 
@@ -244,16 +257,16 @@ function Column({
   leads: Lead[];
   stages: Stage[];
   onOpen: (id: string, from?: HTMLElement | null) => void;
-  onMove: (lead: Lead, to: string) => void;
+  onMove: (lead: Lead, to: string, followFocus?: boolean) => void;
   canWrite: boolean;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.key, data: { stage: stage.key }, disabled: !canWrite });
   const total = leads.reduce((sum, l) => sum + (l.deal_value_cents ?? 0), 0);
   return (
-    <section aria-label={`${stage.label}, ${leads.length} leads`} className="flex w-64 min-w-64 shrink-0 flex-col">
+    <section aria-label={`${stage.label}, ${plural(leads.length, "lead")}`} className="flex w-64 min-w-64 shrink-0 flex-col">
       <header className="mb-2 flex items-center justify-between gap-2 px-0.5">
         <StageBadge stage={stage} />
-        <span className="font-meta text-[0.6875rem] text-steel">{leads.length} · {money(total)}</span>
+        <span className="font-meta text-[0.6875rem] text-steel">{plural(leads.length, "lead")} · {money(total)}</span>
       </header>
       <ul
         ref={setNodeRef}
@@ -290,7 +303,7 @@ function DraggableCard({
   lead: Lead;
   stages: Stage[];
   onOpen: (id: string, from?: HTMLElement | null) => void;
-  onMove: (lead: Lead, to: string) => void;
+  onMove: (lead: Lead, to: string, followFocus?: boolean) => void;
   canWrite: boolean;
 }) {
   const { setNodeRef, listeners, isDragging } = useDraggable({ id: lead.id, disabled: !canWrite });
@@ -310,7 +323,7 @@ function DraggableCard({
         <div className="mt-2 flex items-center gap-1.5">
           <label className="sr-only" htmlFor={`move-${lead.id}`}>Stage for {name}</label>
           <select
-            id={`move-${lead.id}`} value={to} disabled={!canWrite}
+            id={`move-${lead.id}`} data-focus-key={`card-move:${lead.id}`} value={to} disabled={!canWrite}
             onChange={(e) => setTo(e.target.value)}
             className="pl-field h-8 min-w-0 flex-1 rounded-md border border-graphite/60 bg-obsidian px-2 text-xs text-bone outline-none focus-visible:ring-2 focus-visible:ring-gold/30 disabled:opacity-50 max-sm:h-11"
           >
@@ -320,14 +333,14 @@ function DraggableCard({
           <Button
             type="button" variant="secondary" size="sm" className={cn(TOUCH, "px-2")}
             disabled={!canWrite || to === current || !stages.some((s) => s.key === to)}
-            onClick={() => onMove(lead, to)}
+            onClick={() => onMove(lead, to, true)}
             aria-label={to === current ? `Move ${name}` : `Move ${name} to ${toLabel}`}
           >
             Move
           </Button>
         </div>
         <div className="mt-1.5 flex items-center justify-between gap-1.5">
-          <Button type="button" variant="ghost" size="sm" className={cn(TOUCH, "px-2")} onClick={(e) => onOpen(lead.id, e.currentTarget)} aria-label={`Open ${name}`}>
+          <Button type="button" variant="ghost" size="sm" className={cn(TOUCH, "px-2")} data-focus-key={`card-open:${lead.id}`} onClick={(e) => onOpen(lead.id, e.currentTarget)} aria-label={`Open ${name}`}>
             Open
           </Button>
           {canWrite && (
@@ -357,6 +370,7 @@ function StageAdmin({ open, onOpenChange, stages }: { open: boolean; onOpenChang
   const [newBehavior, setNewBehavior] = React.useState<StageBehavior>("contacted");
   const [newColor, setNewColor] = React.useState<string>("blue");
   const inv = [OP.stagesList, OP.leadsList];
+  const onCloseAutoFocus = useReturnFocus(open);
 
   const reorder = async (index: number, dir: -1 | 1) => {
     const order = moveInOrder(stages, index, dir).map((s) => s.id);
@@ -374,7 +388,7 @@ function StageAdmin({ open, onOpenChange, stages }: { open: boolean; onOpenChang
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent size="lg">
+      <DialogContent size="lg" onCloseAutoFocus={onCloseAutoFocus}>
         <DialogHeader>
           <DialogTitle>Pipeline stages</DialogTitle>
           <DialogDescription>Rename, recolor, hide or reorder. The five built-in stages can only change name, color and hidden. Deleting a stage needs a Full access key.</DialogDescription>

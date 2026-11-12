@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   applyDraftChange, channelOptions, classifyEvent, contactSlots, conversationsQuery, defaultChannel, draftProblem, emptyDraft,
   filterCount, htmlToText, mergeConversations, previewText, safeUrl, searchTerm, sendRequest, socialWindowEnds, threadItems,
-  validateSchedule, SCHEDULE_PASSED, ScheduleExpiredError, TEXT_OPT_OUT_NOTE, type ComposerDraft,
+  validateSchedule, parsePolished, parseReplyIdeas, replyIdeasBody, writeFingerprint, SCHEDULE_PASSED, ScheduleExpiredError, TEXT_OPT_OUT_NOTE, type ComposerDraft,
 } from "./inbox-logic";
 import { INBOX_OP } from "./inbox-ops";
 import type { Conversation, ThreadEvent } from "./inbox-types";
@@ -201,5 +201,39 @@ describe("F-U14: the reply window closes as the clock moves", () => {
     const at = (t: number) => channelOptions(DEV, "messenger", items, t).find((o) => o.channel === "messenger")?.available;
     expect(at(NOW)).toBe(true);
     expect(at(Date.parse("2026-11-12T17:00:01Z"))).toBe(false);
+  });
+});
+
+describe("R3-I6: keys come from the exact body", () => {
+  it("same op, path, body and round give the same fingerprint, key order ignored", () => {
+    const a = writeFingerprint("update_scheduled_message", { scheduled_message_id: "s1" }, { body: "Hi", scheduled_at: "2027-01-01T10:00:00.000Z" }, 0);
+    const b = writeFingerprint("update_scheduled_message", { scheduled_message_id: "s1" }, { scheduled_at: "2027-01-01T10:00:00.000Z", body: "Hi" }, 0);
+    expect(a).toBe(b);
+  });
+  it("any change to the body, path, op or round gives a new one", () => {
+    const base = writeFingerprint("update_booking", { booking_id: "b1" }, { status: "completed" }, 0);
+    expect(writeFingerprint("update_booking", { booking_id: "b1" }, { status: "no_show" }, 0)).not.toBe(base);
+    expect(writeFingerprint("update_booking", { booking_id: "b2" }, { status: "completed" }, 0)).not.toBe(base);
+    expect(writeFingerprint("update_booking", { booking_id: "b1" }, { status: "completed" }, 1)).not.toBe(base);
+    expect(writeFingerprint("cancel_booking", { booking_id: "b1" }, { status: "completed" }, 0)).not.toBe(base);
+  });
+});
+
+describe("R3-I2: reply ideas and polish", () => {
+  it("new ideas send only the channel; polish sends the draft and how", () => {
+    expect(replyIdeasBody("sms")).toEqual({ channel: "sms" });
+    expect(replyIdeasBody("sms", "   ")).toEqual({ channel: "sms" });
+    expect(replyIdeasBody("email", " hi there ", "shorter")).toEqual({ channel: "email", draft: "hi there", how: "shorter" });
+    expect(replyIdeasBody("sms", "x".repeat(5000)).draft).toHaveLength(4000);
+  });
+  it("three ideas come back usable; empty ones are dropped", () => {
+    const ideas = parseReplyIdeas({ kind: "reply", replies: [{ text: "Thursday works." }, { label: "Warm", text: "Happy to help!" }, { text: "" }, { text: "Can I call you?" }, { text: "A fourth" }] });
+    expect(ideas.map((i) => i.text)).toEqual(["Thursday works.", "Happy to help!", "Can I call you?"]);
+    expect(parseReplyIdeas(undefined)).toEqual([]);
+  });
+  it("the polished text is read from text", () => {
+    expect(parsePolished({ text: "Thursday at 2 works great." })).toBe("Thursday at 2 works great.");
+    expect(parsePolished({ text: " " })).toBeNull();
+    expect(parsePolished({})).toBeNull();
   });
 });

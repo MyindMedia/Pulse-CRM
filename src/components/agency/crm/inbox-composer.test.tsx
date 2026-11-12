@@ -140,4 +140,38 @@ describe("composer confirm gate", () => {
     expect(withArticle("text")).toBe("a text");
     expect(withArticle("Messenger reply")).toBe("a Messenger reply");
   });
+
+  it("R3-I2: Reply ideas runs with no confirm, only the channel and a key, and three ideas come back", async () => {
+    nextResult = { ok: true, status: 200, limits: {}, data: { kind: "reply", replies: [{ text: "Thursday works." }, { text: "Happy to help!" }, { text: "Can I call you?" }] } };
+    render({ ...draft, text: "" });
+    const ideasButton = captured.buttons.find((b) => String((b as { children?: unknown }).children).includes("Reply ideas") || JSON.stringify(b.children ?? "").includes("Reply ideas"));
+    expect(ideasButton).toBeTruthy();
+    await (ideasButton!.onClick as () => Promise<unknown>)();
+    const calls = run.mock.calls.filter(([op]) => op === INBOX_OP.replyIdeas);
+    expect(calls).toHaveLength(1);
+    const args = calls[0][1] as { body: unknown; confirm?: boolean; idem?: string; path: unknown };
+    expect(args.body).toEqual({ channel: "sms" });
+    expect(args.path).toEqual({ lead_id: "lead-maya" });
+    expect(args.confirm).toBeUndefined();
+    expect(args.idem).toMatch(/^idem:/);
+  });
+
+  it("R3-I2: Polish sends the draft with how improve, no confirm", async () => {
+    nextResult = { ok: true, status: 200, limits: {}, data: { text: "Hi Maya, see you Thursday!" } };
+    render(draft);
+    const polish = captured.buttons.find((b) => JSON.stringify(b.children ?? "").includes("Polish"));
+    expect(polish).toBeTruthy();
+    await (polish!.onClick as () => Promise<unknown>)();
+    const calls = run.mock.calls.filter(([op]) => op === INBOX_OP.replyIdeas);
+    expect(calls[0][1]).toMatchObject({ body: { channel: "sms", draft: "Hi Maya, your demo is Thursday.", how: "improve" } });
+    expect((calls[0][1] as { confirm?: boolean }).confirm).toBeUndefined();
+  });
+
+  it("R3-I2: a refused reply-ideas call is not retried", async () => {
+    nextResult = { ok: false, status: 403, limits: {}, reason: "Confirm before this runs" };
+    render(draft);
+    const ideasButton = captured.buttons.find((b) => JSON.stringify(b.children ?? "").includes("Reply ideas"));
+    await (ideasButton!.onClick as () => Promise<unknown>)();
+    expect(run.mock.calls.filter(([op]) => op === INBOX_OP.replyIdeas)).toHaveLength(1);
+  });
 });

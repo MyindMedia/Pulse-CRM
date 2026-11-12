@@ -26,6 +26,7 @@ vi.mock("./use-zu", () => ({
   useZuWrite: () => ({ run: async (op: string, args: Record<string, unknown>) => { runs.push({ op, args }); return { ok: true, status: 200, limits: {} }; }, pending: false }),
   useZuFetch: () => async () => ({ data: undefined, error: null }),
   newIdem: () => "idem-test",
+  stableStringify: (x: unknown) => JSON.stringify(x, (_k, v) => (v && typeof v === "object" && !Array.isArray(v) ? Object.fromEntries(Object.keys(v).sort().map((k) => [k, v[k]])) : v)),
   useIdemFor: (fp: string) => `idem:${fp}`,
   clearZuCache: () => undefined,
 }));
@@ -44,7 +45,9 @@ import { ZU_OPS } from "@convex/crm/ops.generated";
 import { CrmProvider } from "./crm-context";
 import { RESOURCES, type ActionDef, type ResourceDef } from "./resource-config";
 import { READ_ACTION_OPS, ResourcePanel, RowActions } from "./resource-panel";
-import { ResourceAction, actionArgs, actionPlan, confirmText } from "./resource-action";
+import { ResourceAction, actionArgs, actionPlan, confirmText, doneText, requestFingerprint } from "./resource-action";
+import { kindFor } from "./crm-op-form-kind";
+import { ResultView, ValueList } from "./resource-values";
 import { CrmResources } from "./crm-resources";
 
 const find = (key: string): ResourceDef => Object.values(RESOURCES).flat().find((r) => r.key === key)!;
@@ -177,7 +180,7 @@ describe("columns (F-V1, F-V2)", () => {
     reads.list_imessage_lines = { data: { lines: [{ id: "line-uuid-1", number: "+17145550123", label: null, device_name: "Front desk iMac", is_default: true, online: true, settings: { ai_replies: true } }], has_more: false } };
     const out = html(<ResourcePanel def={find("imessage-lines")} />);
     expect(out).toContain("Front desk iMac");
-    expect(out).not.toContain("line-uuid-1");
+    expect(out).not.toContain(">line-uuid-1<"); // only as the open button's data-row-open, never shown
     expect(out).toContain(">AI replies<");
   });
 
@@ -287,5 +290,136 @@ describe("actions", () => {
   it("the read actions set matches the GET operations the config uses as actions", () => {
     const gets = new Set(Object.values(RESOURCES).flat().flatMap((r) => r.actions ?? []).filter((a) => ZU_OPS[a.op].method === "GET").map((a) => a.op));
     expect([...READ_ACTION_OPS].sort()).toEqual([...gets].sort());
+  });
+});
+
+describe("round 3", () => {
+  const AUTOS = () => find("automations");
+  const switchOn = () => AUTOS().actions!.find((a) => a.label === "Switch on")!;
+  const switchOff = () => AUTOS().actions!.find((a) => a.label === "Switch off")!;
+
+  it("R3-R1: switching off is one click (the policy's kind for {enabled:false} is none); switching on confirms that it reaches real leads", () => {
+    expect(kindFor("toggle_ws_automation", switchOff().body)).toBeNull();
+    expect(actionPlan(switchOff(), kindFor("toggle_ws_automation", switchOff().body))).toBe("run");
+    const onKind = kindFor("toggle_ws_automation", switchOn().body);
+    expect(onKind).toBe("reaches");
+    expect(actionPlan(switchOn(), onKind)).toBe("confirm");
+    const t = confirmText(switchOn(), {}, { name: "Demo booked" }, onKind);
+    expect(t.body).toContain("Demo booked will run for real leads");
+    expect(t.consequence).toBe("This reaches real people.");
+  });
+
+  it("R3-R1: the sheet's button follows the CURRENT state: the re-read record wins over the list copy", () => {
+    const row = { id: "a1", name: "Demo booked", enabled: false };
+    const before = html(<RowActions def={AUTOS()} row={row} rowIdKey="id" />);
+    expect(before).toContain(">Switch on<");
+    expect(before).not.toContain(">Switch off<");
+    const after = html(<RowActions def={AUTOS()} row={row} record={{ id: "a1", name: "Demo booked", enabled: true }} rowIdKey="id" />);
+    expect(after).toContain(">Switch off<");
+    expect(after).not.toContain(">Switch on<");
+  });
+
+  it("R3-R2: the toast says what was done: sent now, or scheduled for the time", () => {
+    const send = CAMPAIGNS.actions!.find((a) => a.op === "send_email_campaign")!;
+    expect(doneText(send, {}, { scheduled: false, recipients: 12 })).toBe("Zuops is sending it now.");
+    expect(doneText(send, {}, undefined)).toBe("Zuops is sending it now.");
+    const at = doneText(send, { "body:schedule_at": "2026-11-20T09:30" }, { scheduled: true, campaign: { scheduled_at: "2026-11-20T17:30:00Z" } });
+    expect(at).toMatch(/^Scheduled in Zuops for .*Nov 20/);
+    expect(at).not.toContain("as scheduled");
+    expect(doneText({ done: "Saved." }, { "body:schedule_at": "2026-11-20T09:30" }, null)).toBe("Saved.");
+  });
+
+  it("R3-R2: the send confirm names the whole audience, filters included, and when", () => {
+    const send = CAMPAIGNS.actions!.find((a) => a.op === "send_email_campaign")!;
+    const saved = confirmText(send, {}, DRAFT, "reaches").body;
+    expect(saved).toContain("everyone tagged Studio owner and Demo booked who has not booked");
+    expect(saved).toContain("sender now.");
+    const form = confirmText(send, { "body:audience": "everyone", "body:not_booked": "yes", "body:schedule_at": "2026-11-20T09:30", "body:drip": '{"every": 50, "minutes": 60}' }, DRAFT, "reaches").body;
+    expect(form).toContain("everyone with an email address who has not booked");
+    expect(form).toMatch(/sender at .*Nov 20/);
+    expect(form).toContain("A few at a time: 50 emails every 1 hour.");
+    expect(confirmText(send, { "body:not_booked": "no" }, DRAFT, "reaches").body).not.toContain("who has not booked");
+    expect(send.fields!.map((f) => f.name)).toEqual(expect.arrayContaining(["not_booked", "drip"]));
+  });
+
+  it("R3-R3: form submissions lead with when and who, then the answers as label: value; no id columns", () => {
+    const view = find("smart-forms").actions!.find((a) => a.op === "list_form_submissions")!;
+    const data = {
+      submissions: [{
+        id: "sub-uuid-1", lead_id: "lead-uuid-1", booking_id: "bk-uuid-1", first_name: "Maya", last_name: "Lopez", phone: "+13105550100", email: "maya@example.com",
+        notes: "", status: "complete", created_at: "2026-11-09T17:00:00Z",
+        custom_fields: { raw_answers: {}, custom_answers: [{ key: "pulse_studio_name", value: "Northline Studio", question: "Studio name", field_type: "text" }, { key: "pulse_sms_marketing_consent", value: true, question: "Texts OK", field_type: "boolean" }] },
+      }],
+    };
+    const out = renderToStaticMarkup(<ResultView data={data} columns={view.resultColumns} />);
+    const heads = [...out.matchAll(/<th[^>]*>([^<]*)<\/th>/g)].map((m) => m[1]);
+    expect(heads[0]).toBe("Submitted");
+    expect(heads).toEqual(expect.arrayContaining(["Name", "Contact", "Answers"]));
+    expect(heads.some((h) => /\bid\b/i.test(h))).toBe(false);
+    expect(out).toContain("Maya Lopez");
+    expect(out).toContain("Studio name:</span> Northline Studio");
+    expect(out).toContain("Texts OK:</span> Yes");
+    expect(out).not.toContain("sub-uuid-1");
+    expect(out).not.toContain("lead-uuid-1");
+    // Without config columns, ids still never show as columns.
+    const auto = renderToStaticMarkup(<ResultView data={{ rows: [{ id: "x-1", lead_id: "l-1", name: "Spring", status: "sent" }] }} />);
+    expect(auto).toContain(">Name<");
+    expect(auto).not.toContain(">Id<");
+    expect(auto).not.toContain(">Lead id<");
+  });
+
+  it("R3-R4: Business hours read as day rows, the calendar id is muted and labelled, settings are Yes/No", () => {
+    const data = {
+      availability: {
+        workspace_id: "ws-1", timezone: "America/Los_Angeles",
+        weekly_hours: { mon: [["09:00", "17:00"]], tue: [["09:00", "12:00"], ["13:00", "17:00"]], wed: [["09:00", "17:00"]], thu: [["09:00", "17:00"]], fri: [["09:00", "15:00"]], sat: [], sun: [] },
+        slot_minutes: 30, buffer_minutes: 10, default_calendar_id: "cal-uuid-1", scheduling_mode: "exact", arrival_window_minutes: 0, date_overrides: [],
+      },
+      configured: true,
+    };
+    reads.get_availability = { data };
+    const out = html(<ResourcePanel def={find("availability")} />);
+    expect(out).not.toMatch(/\d+ fields/);
+    expect(out).toContain(">Mon<");
+    expect(out).toContain("09:00 to 17:00");
+    expect(out).toContain("09:00 to 12:00, 13:00 to 17:00");
+    expect(out).toMatch(/>Sat<\/dt><dd[^>]*>Closed</);
+    expect(out).toContain("font-mono text-xs text-steel");
+    expect(out).toContain("cal-uuid-1");
+    expect(out).toContain(">Default calendar<");
+    expect(out).toContain(">Yes<");
+    expect(out).not.toContain("ws-1");
+  });
+
+  it("R3-R4: an id is named when the same answer carries the name; lists of records are sub-rows, primitives comma lists", () => {
+    const value = { default_calendar_id: "c1", calendars: [{ id: "c1", name: "Studio A", slot_minutes: 30 }], tags: ["vip", "studio"], ai_replies: false };
+    const out = renderToStaticMarkup(<ValueList value={value} />);
+    expect(out).toMatch(/>Default calendar<\/dt><dd[^>]*><span>Studio A</);
+    expect(out).toContain("vip, studio");
+    expect(out).toContain("Studio A</span><span class=\"text-ash\">. Slot minutes: 30");
+    expect(out).toContain(">No<");
+    expect(out).not.toContain("items</summary>");
+  });
+
+  it("R3-R4: the API key keeps name, access level and rate limit when key strings are hidden", () => {
+    reads.key_self = { data: { key: { name: "Pulse OS", access_level: "write", rate_limit_per_min: 600, key_prefix: "hidden" }, endpoints: {} } };
+    const out = html(<ResourcePanel def={find("api-key")} />);
+    expect(out).toContain("Pulse OS");
+    expect(out).toContain(">600<");
+  });
+
+  it("R3-R6: the retry key covers the exact body, row data and changed-fields diff included", () => {
+    const move = AUTOS().actions!.find((a) => a.op === "move_automations")!;
+    const v = { "body:folder_id": "f1" };
+    const a = requestFingerprint(actionArgs(move, v, { source: { id: "a1" } }), v);
+    const b = requestFingerprint(actionArgs(move, v, { source: { id: "a2" } }), v);
+    expect(a).not.toBe(b); // same form values, different row: a different request
+    expect(a).toContain("automation_ids");
+    const edit = CAMPAIGNS.actions!.find((x) => x.op === "update_email_campaign")!;
+    const vals = { "body:name": "New name" };
+    const one = requestFingerprint(actionArgs(edit, vals, { source: DRAFT, pathValue: "camp-1", prefillFrom: { name: "Old" } }), vals);
+    const two = requestFingerprint(actionArgs(edit, vals, { source: DRAFT, pathValue: "camp-1", prefillFrom: { name: "New name" } }), vals);
+    expect(one).not.toBe(two);
+    expect(requestFingerprint(actionArgs(move, {}, { source: { id: "a1" } }), {})).toMatch(/^values:/);
   });
 });

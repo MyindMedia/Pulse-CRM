@@ -504,3 +504,35 @@ describe("F-U9 / F-U11 idempotency key lifetime", () => {
     expect(st.keys["1|a"]).toBe("k3"); // after a success the round moves on
   });
 });
+
+describe("R3-U4 cache owner", () => {
+  it("R3-U4: once the owner changes, a read never returns the previous owner's data, and their late answers are dropped", async () => {
+    let release!: () => void;
+    let n = 0;
+    const { store } = setup({
+      reply: () => {
+        n += 1;
+        if (n === 2) return new Promise((r) => { release = () => r(ok({ name: "Maya Okafor (owner A)" })); });
+        return ok({ name: n === 1 ? "Maya Okafor (owner A)" : "owner B" });
+      },
+    });
+    const lead = zuKey("get_lead", { path: { lead_id: "l1" } });
+    const other = zuKey("list_stages");
+    store.setOwner("user-a");
+    await store.load(lead);
+    const late = store.request(other, "mount"); // owner A's request still in flight
+    expect(store.snapshot(lead).data).toEqual({ name: "Maya Okafor (owner A)" });
+
+    store.setOwner("user-b"); // as the page does during render
+    expect(store.snapshot(lead).data).toBeUndefined(); // the very first read under B
+    release();
+    await late;
+    await flush();
+    expect(store.snapshot(other).data).toBeUndefined();
+    await store.load(lead);
+    expect(store.snapshot(lead).data).toEqual({ name: "owner B" });
+
+    store.setOwner("user-b"); // same owner again: nothing is dropped
+    expect(store.snapshot(lead).data).toEqual({ name: "owner B" });
+  });
+});

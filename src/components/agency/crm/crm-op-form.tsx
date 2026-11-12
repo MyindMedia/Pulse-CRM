@@ -8,12 +8,12 @@ import { Button } from "@/components/ui/button";
 import { Field, Textarea } from "@/components/ui/field";
 import { ZU_OPS, type ZuField, type ZuOp } from "@convex/crm/ops.generated";
 import { BODY_RULES, confirmKind, level, type ConfirmKind } from "@convex/crm/policy";
-import { useIdemFor, useZuWrite } from "./use-zu";
+import { stableStringify, useIdemFor, useZuWrite } from "./use-zu";
 import { ConfirmDialog, TOUCH, WriteButton, confirmCopy, type ConfirmGrant } from "./crm-ui";
 import type { FieldDef } from "./resource-config";
 import { FieldList } from "./resource-fields";
-import { useReturnFocus } from "./resource-focus";
-import { buildArgs, fingerprint, mergeExtra, redactSecrets, type BuiltArgs, type FormValues } from "./resource-utils";
+import { useFocusHome, useReturnFocus } from "./resource-focus";
+import { buildArgs, mergeExtra, redactSecrets, requiredMessage, type BuiltArgs, type FormValues } from "./resource-utils";
 import { CopyButton } from "./resource-values";
 import { KIND_LABEL, LEVEL_LABEL } from "./functions-catalog";
 import { KindIcon } from "./functions-kind";
@@ -103,15 +103,30 @@ export function answerText(opId: string, data: unknown): string {
   }
 }
 
-/** Build the request from the form; path params must be filled, the rest is
- *  left to Zuops (it names a missing field better than we can). */
+/** Build the request from the form. Every required field (path, query and
+ *  body; a required choice included) must be filled BEFORE anything is sent or
+ *  a confirm opens. For operations that take more fields as JSON, a required
+ *  body field may come from that JSON instead. */
 export function opArgs(op: ZuOp, values: FormValues, extra: string): BuiltArgs | { error: string } {
-  const built = buildArgs(opFields(op), values, { enforceRequired: (f) => f.in === "path" });
+  const fields = opFields(op);
+  const built = buildArgs(fields, values, { enforceRequired: (f) => !(op.openBody && (f.in ?? "body") === "body") });
   if ("error" in built) return built;
   if (!op.openBody) return built;
   const merged = mergeExtra(built.body, extra);
   if ("error" in merged) return merged;
+  for (const f of fields) {
+    if (!f.required || (f.in ?? "body") !== "body") continue;
+    const v = merged.body[f.name];
+    if (v === undefined || v === null || v === "") return { error: requiredMessage(f) };
+  }
   return { ...built, body: merged.body };
+}
+
+/** What the Idempotency-Key covers: the exact request about to be sent. */
+export function opFingerprint(op: ZuOp | undefined, values: FormValues, extra: string): string {
+  if (!op) return "";
+  const args = opArgs(op, values, extra);
+  return "error" in args ? `values:${stableStringify({ values, extra })}` : stableStringify({ path: args.path, query: args.query, body: args.body });
 }
 
 type Result = { opId: string; ok: boolean; status: number; reason?: string; code?: string; text: string };
@@ -134,11 +149,12 @@ export function OpForm({ opId, initial, onDone }: OpFormProps) {
   const [staged, setStaged] = React.useState<{ args: BuiltArgs; kind: ConfirmKind } | null>(null);
   // One Idempotency-Key per distinct set of values; `round` moves on after a success.
   const [round, setRound] = React.useState(0);
-  const idemKey = useIdemFor(`${round}|${fingerprint({ values, extra })}`);
+  const idemKey = useIdemFor(`${round}|${opFingerprint(op, values, extra)}`);
   const preRef = React.useRef<HTMLPreElement | null>(null);
   const submitRef = React.useRef<HTMLButtonElement | null>(null);
+  const home = useFocusHome();
   const idPrefix = React.useId();
-  useReturnFocus(confirming, submitRef);
+  useReturnFocus(confirming, submitRef, home);
 
   if (!op) return <p role="alert" className="text-sm text-critical">Zuops has no function called {opId}.</p>;
 

@@ -133,8 +133,26 @@ export function commentsQuery(f: CommentFilters, offset: number): Record<string,
 
 /** "3 people would move back to Messages". */
 export function moveCountText(n: number): string {
-  return n === 0 ? "Nobody needs to move: Leads has no Instagram or Messenger people who only chatted."
+  return n === 0 ? "Nobody needs to move."
     : `${n.toLocaleString("en-US")} ${n === 1 ? "person" : "people"} would move back to Messages`;
+}
+
+export const COUNT_MISSING = "Zuops did not return a count. Try again.";
+
+/** A count field from move_dm_leads: `would_move` (apply false) or `moved`
+ *  (apply true). Only a whole number of zero or more counts; anything else is
+ *  missing, never zero (R3-I5). */
+export function readMoveCount(data: MoveDmLeadsResponse | null | undefined, field: "would_move" | "moved"): number | null {
+  const v = data?.[field];
+  return typeof v === "number" && Number.isInteger(v) && v >= 0 ? v : null;
+}
+
+export type CountOutcome = { kind: "missing"; text: string } | { kind: "none"; text: string } | { kind: "some"; n: number; text: string };
+
+export function countOutcome(n: number | null): CountOutcome {
+  if (n === null) return { kind: "missing", text: COUNT_MISSING };
+  if (n === 0) return { kind: "none", text: moveCountText(0) };
+  return { kind: "some", n, text: moveCountText(n) };
 }
 
 /** The newest first, Instagram and Messenger together. */

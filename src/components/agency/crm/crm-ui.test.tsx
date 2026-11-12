@@ -13,7 +13,7 @@ vi.mock("convex/react", () => ({
 import { CrmProvider } from "./crm-context";
 import {
   ConfirmDialog, ReadOnlyBanner, StageBadge, WriteButton, ZuErrorState, dateTime, money, phone, refreshGate, relTime,
-  stageTone, syncedAgo, writeBlock, READ_ONLY_REASON, NEEDS_ADMIN_REASON, SyncBar, confirmCopy,
+  stageTone, syncedAgo, writeBlock, READ_ONLY_REASON, NEEDS_ADMIN_REASON, SyncBar, confirmCopy, plural, restoreFocus, type Opener,
 } from "./crm-ui";
 
 const html = (el: React.ReactElement) => renderToStaticMarkup(el);
@@ -158,5 +158,47 @@ describe("confirmCopy", () => {
     expect(confirmCopy("spends")).toBe("This uses credits or starts paid work.");
     expect(confirmCopy("exposes")).toBe("This sends lead data outside the account or changes who can access it.");
     expect(confirmCopy("delete")).toBe("This deletes something.");
+  });
+});
+
+describe("R3-U6 counts", () => {
+  it("R3-U6: one lead, two leads, no leads", () => {
+    expect(plural(1, "lead")).toBe("1 lead");
+    expect(plural(0, "lead")).toBe("0 leads");
+    expect(plural(1000, "lead")).toBe("1,000 leads");
+    expect(plural(2, "person", "people")).toBe("2 people");
+  });
+});
+
+describe("R3-U1 focus return", () => {
+  type Stub = HTMLElement & { focused: number };
+  const el = (o: { connected?: boolean; visible?: boolean; disabled?: boolean } = {}): Stub => {
+    const s = {
+      focused: 0,
+      isConnected: o.connected ?? true,
+      disabled: o.disabled ?? false,
+      getClientRects: () => (o.visible === false ? [] : [{}]),
+      closest: () => null,
+      focus() { s.focused += 1; },
+    };
+    return s as unknown as Stub;
+  };
+
+  it("R3-U1: focus goes to the opener; if it is gone, to the fallback; then to the dialog or panel it sat in", () => {
+    const opener = el();
+    expect(restoreFocus({ el: opener, key: null, anchor: null })).toBe(true);
+    expect(opener.focused).toBe(1);
+
+    const gone = el({ connected: false });
+    const fallback = el();
+    const anchor = el();
+    const o: Opener = { el: gone, key: "card-move:lead-maya", anchor };
+    expect(restoreFocus(o, () => fallback)).toBe(true);
+    expect(gone.focused).toBe(0);
+    expect(fallback.focused).toBe(1);
+
+    expect(restoreFocus({ el: el({ disabled: true }), key: null, anchor }, () => null)).toBe(true);
+    expect(anchor.focused).toBe(1);
+    expect(restoreFocus({ el: null, key: null, anchor: null })).toBe(false);
   });
 });

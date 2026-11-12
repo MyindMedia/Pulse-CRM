@@ -100,6 +100,12 @@ describe("Inbox panel", () => {
     expect(out).toContain("Send");
   });
 
+  it("R3-I3: first open costs 3 requests: conversations, scheduled and suggestions", () => {
+    reads[INBOX_OP.conversations] = { data: { conversations: CONVS, has_more: false, counts: { open: 2, unread: 1, archived: 0 } } };
+    html();
+    expect(readOpts.map((r) => r.op).sort()).toEqual([INBOX_OP.conversations, INBOX_OP.scheduled, INBOX_OP.suggestions].sort());
+  });
+
   it("F-U3: with a thread open, a message signal refetches only the list and the open thread", () => {
     reads[INBOX_OP.conversations] = { data: { conversations: CONVS, has_more: false, counts: { open: 2, unread: 1, archived: 0 } } };
     reads[INBOX_OP.thread] = { data: { messages: [] } };

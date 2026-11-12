@@ -19,11 +19,12 @@ import { useCrm, useCrmNav } from "./crm-context";
 import { ConfirmDialog, TOUCH, WriteButton, ZuErrorState, confirmCopy, dateTime, phone, relTime, type ConfirmGrant } from "./crm-ui";
 import { newIdem, useIdemFor, useZuRead, useZuWrite, type ZuLimits } from "./use-zu";
 import { currentTime, useNow } from "./inbox-clock";
+import { focusSoon } from "./inbox-focus";
 import { INBOX_OP } from "./inbox-ops";
-import { INBOX_INVALIDATE, InboxComposer } from "./inbox-composer";
+import { INBOX_INVALIDATE, InboxComposer, composerTextId } from "./inbox-composer";
 import {
   applyDraftChange, channelOptions, channelWord, contactSlots, defaultChannel, emptyDraft, threadItems,
-  toLocalInput, validateSchedule, type ComposerDraft, type EventKind, type ThreadItem,
+  toLocalInput, validateSchedule, writeFingerprint, type ComposerDraft, type EventKind, type ThreadItem,
 } from "./inbox-logic";
 import type {
   Conversation, PhoneNumbersResponse, ReplySuggestion, ScheduledMessage, ScheduledResponse, ThreadResponse,
@@ -124,9 +125,22 @@ export function InboxThread({
   const [pauseOpen, setPauseOpen] = React.useState(false);
   const [cancelled, setCancelled] = React.useState<ScheduledMessage[]>([]);
 
-  const act = async (op: string, body: Record<string, unknown> | undefined, done: string, grant?: ConfirmGrant) => {
-    const res = await run(op, { path, body, ...grant }, { invalidate: [INBOX_OP.conversations, INBOX_OP.lead, INBOX_OP.thread] });
-    if (res.ok) toast.success(done);
+  // Keys from the exact body, path and a counter advanced on success (R3-I6).
+  const [round, setRound] = React.useState(0);
+  const keyOf = (op: string, body: Record<string, unknown> | undefined) => writeFingerprint(op, path, body, round);
+  const keys = {
+    markUnread: useIdemFor(keyOf(INBOX_OP.markUnread, undefined)),
+    resume: useIdemFor(keyOf(INBOX_OP.aiPause, { paused: false })),
+    archive: useIdemFor(keyOf(INBOX_OP.archive, undefined)),
+    unarchive: useIdemFor(keyOf(INBOX_OP.unarchive, undefined)),
+  };
+  // Header buttons swap (Pause/Resume, Archive/Move to Inbox); focus follows
+  // the swapped-in button rather than falling to the page (R3-I4).
+  const ids = { ai: `th-ai-${leadId}`, archive: `th-archive-${leadId}`, lead: `th-lead-${leadId}`, heading: `th-name-${leadId}` };
+
+  const act = async (op: string, body: Record<string, unknown> | undefined, done: string, idem: string, grant?: ConfirmGrant) => {
+    const res = await run(op, { path, body, idem, ...grant }, { invalidate: [INBOX_OP.conversations, INBOX_OP.lead, INBOX_OP.thread] });
+    if (res.ok) { toast.success(done); setRound((r) => r + 1); }
     else toast.error(res.reason ?? "Zuops refused.");
     return res.ok;
   };
@@ -143,7 +157,7 @@ export function InboxThread({
             <ArrowLeft className="size-4" aria-hidden />Back
           </Button>
           <div className="min-w-0 flex-1">
-            <h2 className="truncate font-grotesk text-base font-semibold text-bone">{name}</h2>
+            <h2 id={ids.heading} tabIndex={-1} className="truncate font-grotesk outline-none text-base font-semibold text-bone">{name}</h2>
             <p className="truncate text-xs text-steel">{sub || "Conversation"}</p>
           </div>
           {aiPaused
@@ -156,7 +170,7 @@ export function InboxThread({
         )}
         <div className="flex min-w-0 flex-wrap gap-2">
           <WriteButton type="button" variant="secondary" size="sm" disabled={pending}
-            onClick={() => void act(INBOX_OP.markUnread, undefined, "Marked unread")}>
+            onClick={() => void act(INBOX_OP.markUnread, undefined, "Marked unread", keys.markUnread)}>
             <MailOpen className="size-4" aria-hidden />Mark unread
           </WriteButton>
           {aiPaused ? (
@@ -164,29 +178,30 @@ export function InboxThread({
               title={`Turn the AI back on for ${name}?`}
               body={<>The AI starts replying to {name} again and their automatic follow-ups pick up where they stopped. {confirmCopy("changes_sending")}</>}
               confirmLabel="Resume AI"
-              onConfirm={(grant) => act(INBOX_OP.aiPause, { paused: false }, "AI replies are back on for this lead", grant)}
+              onConfirm={async (grant) => { if (await act(INBOX_OP.aiPause, { paused: false }, "AI replies are back on for this lead", keys.resume, grant)) focusSoon(ids.ai, ids.heading); }}
+              onOpenChange={(v) => { if (!v) focusSoon(ids.ai, ids.heading); }}
               trigger={
-                <WriteButton type="button" variant="secondary" size="sm" disabled={pending}>
+                <WriteButton id={ids.ai} type="button" variant="secondary" size="sm" disabled={pending}>
                   <CirclePlay className="size-4" aria-hidden />Resume AI
                 </WriteButton>
               }
             />
           ) : (
-            <WriteButton type="button" variant="secondary" size="sm" disabled={pending} onClick={() => setPauseOpen(true)}>
+            <WriteButton id={ids.ai} type="button" variant="secondary" size="sm" disabled={pending} onClick={() => setPauseOpen(true)}>
               <CirclePause className="size-4" aria-hidden />Pause AI
             </WriteButton>
           )}
           {archived ? (
-            <WriteButton type="button" variant="secondary" size="sm" disabled={pending}
-              onClick={() => void act(INBOX_OP.unarchive, undefined, "Back in the Inbox. Follow-ups switched off by archiving stay off.")}>
+            <WriteButton id={ids.archive} type="button" variant="secondary" size="sm" disabled={pending}
+              onClick={async () => { if (await act(INBOX_OP.unarchive, undefined, "Back in the Inbox. Follow-ups switched off by archiving stay off.", keys.unarchive)) focusSoon(ids.archive, ids.heading); }}>
               <ArchiveRestore className="size-4" aria-hidden />Move to Inbox
             </WriteButton>
           ) : (
-            <WriteButton type="button" variant="secondary" size="sm" disabled={pending} onClick={() => setArchiveOpen(true)}>
+            <WriteButton id={ids.archive} type="button" variant="secondary" size="sm" disabled={pending} onClick={() => setArchiveOpen(true)}>
               <Archive className="size-4" aria-hidden />Archive
             </WriteButton>
           )}
-          <Button type="button" variant="secondary" size="sm" className={TOUCH} onClick={() => onOpenLead(leadId)}>
+          <Button id={ids.lead} type="button" variant="secondary" size="sm" className={TOUCH} onClick={() => onOpenLead(leadId)}>
             <UserRound className="size-4" aria-hidden />Lead
           </Button>
           <Button type="button" variant="secondary" size="sm" className={TOUCH} onClick={() => nav.openCalendar(leadId)}>
@@ -202,7 +217,7 @@ export function InboxThread({
           <Skeleton className="h-12 w-2/3" /><Skeleton className="ml-auto h-12 w-2/3" /><Skeleton className="h-12 w-1/2" />
         </div>
       ) : (
-        <div ref={scroller} className="max-h-[60vh] min-h-48 min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain rounded-lg border border-graphite/50 bg-obsidian/40 p-3" tabIndex={0} aria-label={`Messages with ${name}`}>
+        <div ref={scroller} id={`th-msgs-${leadId}`} className="max-h-[60vh] min-h-48 min-w-0 overflow-y-auto overflow-x-hidden overscroll-contain rounded-lg border border-graphite/50 bg-obsidian/40 p-3" tabIndex={0} aria-label={`Messages with ${name}`}>
           {thread.error && <p role="alert" className="mb-2 text-xs text-caution">Showing the last copy. {thread.error.reason}</p>}
           {items.length === 0 && upcoming.length === 0 && cancelled.length === 0 ? (
             <p className="py-8 text-center text-sm text-steel">No messages with {name} yet.</p>
@@ -211,7 +226,7 @@ export function InboxThread({
               {items.map((it) => <Bubble key={it.id} item={it} />)}
               {[...upcoming, ...cancelled].map((m) => (
                 <ScheduledBubble
-                  key={m.id} item={m} leadName={name}
+                  key={m.id} item={m} leadName={name} fallbackFocus={`th-msgs-${leadId}`}
                   isCancelled={cancelled.some((c) => c.id === m.id)}
                   onCancelled={() => setCancelled((list) => [...list.filter((c) => c.id !== m.id), { ...m, status: "cancelled" }])}
                   onRestored={() => setCancelled((list) => list.filter((c) => c.id !== m.id))}
@@ -224,8 +239,8 @@ export function InboxThread({
 
       {leadSuggestions.map((s) => (
         <SuggestionCard
-          key={s.id} suggestion={s} leadName={name}
-          onEditFirst={() => onDraft({ text: s.body ?? "", suggestionId: s.id, channel: (["sms", "email", "instagram", "messenger"].includes(s.channel ?? "") ? s.channel : shownDraft.channel) as ComposerDraft["channel"], sendAt: "" })}
+          key={s.id} suggestion={s} leadName={name} focusAfter={composerTextId(leadId)}
+          onEditFirst={() => { onDraft({ text: s.body ?? "", suggestionId: s.id, channel: (["sms", "email", "instagram", "messenger"].includes(s.channel ?? "") ? s.channel : shownDraft.channel) as ComposerDraft["channel"], sendAt: "" }); focusSoon(composerTextId(leadId)); }}
         />
       ))}
 
@@ -248,13 +263,15 @@ export function InboxThread({
       )}
 
       <ArchiveDialog
-        open={archiveOpen} onOpenChange={setArchiveOpen} name={name} pending={pending}
-        onArchive={async () => { if (await act(INBOX_OP.archive, undefined, "Archived. Follow-up texts for this lead are off.")) setArchiveOpen(false); }}
+        open={archiveOpen} onOpenChange={(v) => { setArchiveOpen(v); if (!v) focusSoon(ids.archive, ids.heading); }} name={name} pending={pending}
+        onArchive={async () => { if (await act(INBOX_OP.archive, undefined, "Archived. Follow-up texts for this lead are off.", keys.archive)) { setArchiveOpen(false); focusSoon(ids.archive, ids.heading); } }}
       />
       <PauseDialog
-        open={pauseOpen} onOpenChange={setPauseOpen} name={name} pending={pending}
-        onPause={async (until) => {
-          if (await act(INBOX_OP.aiPause, until ? { paused: true, until } : { paused: true }, until ? `AI paused until ${dateTime(until)}` : "AI paused for this lead")) setPauseOpen(false);
+        open={pauseOpen} onOpenChange={(v) => { setPauseOpen(v); if (!v) focusSoon(ids.ai, ids.heading); }} name={name} pending={pending}
+        keyFor={(body) => writeFingerprint(INBOX_OP.aiPause, path, body, round)}
+        onPause={async (body, idem) => {
+          const until = typeof body.until === "string" ? body.until : null;
+          if (await act(INBOX_OP.aiPause, body, until ? `AI paused until ${dateTime(until)}` : "AI paused for this lead", idem)) { setPauseOpen(false); focusSoon(ids.ai, ids.heading); }
         }}
       />
     </div>
@@ -294,6 +311,9 @@ function Bubble({ item }: { item: ThreadItem }) {
   );
 }
 
+export const CANCEL_BODY = { status: "cancelled" } as const;
+export const RESTORE_BODY = { status: "pending" } as const;
+
 /** The PATCH body for an edited scheduled message, or why it cannot be saved.
  *  Null body: nothing changed. */
 export function scheduledEditBody(
@@ -315,10 +335,11 @@ export function scheduledEditBody(
 }
 
 function ScheduledBubble({
-  item, leadName, isCancelled, onCancelled, onRestored,
+  item, leadName, isCancelled, onCancelled, onRestored, fallbackFocus,
 }: {
   item: ScheduledMessage;
   leadName: string;
+  fallbackFocus: string;
   isCancelled: boolean;
   onCancelled: () => void;
   onRestored: () => void;
@@ -335,12 +356,16 @@ function ScheduledBubble({
   const path = { scheduled_message_id: item.id };
   const failed = item.status === "failed";
   const word = channelWord(item.channel);
+  // Each key comes from the exact body about to be sent (R3-I6); the edit's is
+  // the diff body being confirmed.
+  const fp = (op: string, body: unknown) => writeFingerprint(op, path, body, round);
   const keys = {
-    cancel: useIdemFor(`sched-cancel:${item.id}:${round}`),
-    restore: useIdemFor(`sched-restore:${item.id}:${round}`),
-    edit: useIdemFor(`sched-edit:${item.id}:${round}:${text.trim()}:${at}`),
-    sendNow: useIdemFor(`sched-send-now:${item.id}:${round}`),
+    cancel: useIdemFor(fp(INBOX_OP.scheduledUpdate, CANCEL_BODY)),
+    restore: useIdemFor(fp(INBOX_OP.scheduledUpdate, RESTORE_BODY)),
+    edit: useIdemFor(fp(INBOX_OP.scheduledUpdate, pendingEdit)),
+    sendNow: useIdemFor(fp(INBOX_OP.sendScheduledNow, undefined)),
   };
+  const selfId = `sm-${item.id}`;
 
   const patch = async (body: Record<string, unknown>, idem: string, done: string, grant?: ConfirmGrant) => {
     setError(null);
@@ -359,7 +384,7 @@ function ScheduledBubble({
   };
 
   return (
-    <li className="min-w-0 max-w-[92%] self-end rounded-lg border border-dashed border-gold-dim/60 bg-coal/40 px-3 py-2 text-sm sm:max-w-[80%]">
+    <li id={selfId} tabIndex={-1} className="min-w-0 max-w-[92%] self-end rounded-lg border border-dashed outline-none focus-visible:ring-2 focus-visible:ring-gold/40 border-gold-dim/60 bg-coal/40 px-3 py-2 text-sm sm:max-w-[80%]">
       <p className="mb-1 flex flex-wrap items-center gap-1.5 text-[0.6875rem] text-steel">
         <CalendarClock className="size-3" aria-hidden />
         <span>{isCancelled ? `Cancelled ${word.toLowerCase()}` : `Scheduled ${word.toLowerCase()}`} · {dateTime(item.scheduled_at)}</span>
@@ -388,7 +413,8 @@ function ScheduledBubble({
             body={<>Zuops sends it to {leadName} on {dateTime(item.scheduled_at)} as scheduled. {confirmCopy("changes_sending")}</>}
             confirmLabel="Restore"
             onConfirm={async (grant) => {
-              if (await patch({ status: "pending" }, keys.restore, "Restored. It will go out as scheduled.", grant)) onRestored();
+              if (await patch(RESTORE_BODY, keys.restore, "Restored. It will go out as scheduled.", grant)) onRestored();
+              focusSoon(selfId, fallbackFocus);
             }}
             trigger={
               <WriteButton type="button" size="sm" variant="secondary" disabled={pending}>
@@ -415,6 +441,7 @@ function ScheduledBubble({
                 if (!pendingEdit) return;
                 if (await patch(pendingEdit, keys.edit, "Scheduled message updated", grant)) setEditing(false);
                 setPendingEdit(null);
+                focusSoon(selfId, fallbackFocus);
               }}
             />
           </>
@@ -424,7 +451,7 @@ function ScheduledBubble({
               <Pencil className="size-4" aria-hidden />Edit
             </WriteButton>
             <WriteButton type="button" size="sm" variant="secondary" disabled={pending || item.status === "sending"}
-              onClick={async () => { if (await patch({ status: "cancelled" }, keys.cancel, "Cancelled. Restore it from the thread.")) onCancelled(); }}>
+              onClick={async () => { if (await patch(CANCEL_BODY, keys.cancel, "Cancelled. Restore it from the thread.")) { onCancelled(); focusSoon(selfId, fallbackFocus); } }}>
               <X className="size-4" aria-hidden />Cancel
             </WriteButton>
             <ConfirmDialog
@@ -433,7 +460,7 @@ function ScheduledBubble({
               confirmLabel="Send now"
               onConfirm={async (grant) => {
                 const res = await run(INBOX_OP.sendScheduledNow, { path, idem: keys.sendNow, ...grant }, { invalidate: INBOX_INVALIDATE });
-                if (res.ok) { setRound((r) => r + 1); toast.success(res.status === 202 ? "Zuops will retry sending it in a couple of minutes." : `Sent to ${leadName}.`); }
+                if (res.ok) { setRound((r) => r + 1); focusSoon(fallbackFocus); toast.success(res.status === 202 ? "Zuops will retry sending it in a couple of minutes." : `Sent to ${leadName}.`); }
                 else toast.error(res.reason ?? "Zuops refused.");
               }}
               trigger={
@@ -450,16 +477,19 @@ function ScheduledBubble({
 }
 
 export function SuggestionCard({
-  suggestion, leadName, onEditFirst,
+  suggestion, leadName, onEditFirst, focusAfter,
 }: {
   suggestion: ReplySuggestion;
   leadName: string;
   onEditFirst: () => void;
+  /** Where focus goes once the card is gone (sent or dismissed). */
+  focusAfter?: string;
 }) {
   const { run, pending } = useZuWrite();
   const path = { suggestion_id: suggestion.id };
-  const idem = useIdemFor(`suggestion-approve:${suggestion.id}`);
-  const dismissKey = useIdemFor(`suggestion-dismiss:${suggestion.id}`);
+  // The card is gone after either succeeds, so no counter is needed (R3-I6).
+  const idem = useIdemFor(writeFingerprint(INBOX_OP.approveSuggestion, path, undefined, 0));
+  const dismissKey = useIdemFor(writeFingerprint(INBOX_OP.dismissSuggestion, path, undefined, 0));
   const plan = suggestion.books
     ? `It also books ${suggestion.books.title || "an appointment"} on ${dateTime(suggestion.books.starts_at, suggestion.books.timezone)}.`
     : suggestion.cancels
@@ -478,7 +508,7 @@ export function SuggestionCard({
           confirmLabel="Send this"
           onConfirm={async (grant) => {
             const res = await run(INBOX_OP.approveSuggestion, { path, idem, ...grant }, { invalidate: INBOX_INVALIDATE });
-            if (res.ok) toast.success(`Suggested reply sent to ${leadName}.`);
+            if (res.ok) { toast.success(`Suggested reply sent to ${leadName}.`); focusSoon(focusAfter); }
             else toast.error(res.reason ?? "Zuops did not send it.");
           }}
           trigger={<WriteButton type="button" size="sm" disabled={pending}><Send className="size-4" aria-hidden />Send this</WriteButton>}
@@ -489,7 +519,7 @@ export function SuggestionCard({
         <WriteButton type="button" size="sm" variant="ghost" disabled={pending}
           onClick={async () => {
             const res = await run(INBOX_OP.dismissSuggestion, { path, idem: dismissKey }, { invalidate: [INBOX_OP.suggestions] });
-            if (res.ok) toast.success("Dismissed. Nothing was sent.");
+            if (res.ok) { toast.success("Dismissed. Nothing was sent."); focusSoon(focusAfter); }
             else toast.error(res.reason ?? "Zuops refused.");
           }}>
           <X className="size-4" aria-hidden />Dismiss
@@ -526,23 +556,33 @@ function ArchiveDialog({
   );
 }
 
+/** The body for pausing the AI: until a time (datetime-local), or open-ended. */
+export function pauseBody(untilLocal: string): Record<string, unknown> {
+  const ms = untilLocal ? new Date(untilLocal).getTime() : NaN;
+  return Number.isFinite(ms) ? { paused: true, until: new Date(ms).toISOString() } : { paused: true };
+}
+
 function PauseDialog({
-  open, onOpenChange, name, onPause, pending,
+  open, onOpenChange, name, onPause, pending, keyFor,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   name: string;
-  onPause: (untilIso: string | null) => void | Promise<void>;
+  onPause: (body: Record<string, unknown>, idem: string) => void | Promise<void>;
   pending: boolean;
+  keyFor: (body: Record<string, unknown>) => string;
 }) {
   const [until, setUntil] = React.useState("");
   const [error, setError] = React.useState<string | null>(null);
+  const body = pauseBody(until);
+  const idem = useIdemFor(keyFor(body));
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!until) { void onPause(null); return; }
-    const v = validateSchedule(until, currentTime());
-    if (!v.ok) { setError(v.reason); return; }
-    void onPause(v.iso);
+    if (until) {
+      const v = validateSchedule(until, currentTime());
+      if (!v.ok) { setError(v.reason); return; }
+    }
+    void onPause(body, idem);
   };
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) { setUntil(""); setError(null); } }}>

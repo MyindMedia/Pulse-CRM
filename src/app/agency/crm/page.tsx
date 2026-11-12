@@ -12,7 +12,7 @@ import {
   CrmNavProvider, CrmPanelActive, CrmProvider, useCrm, type CrmNav, type LeadsJump,
 } from "@/components/agency/crm/crm-context";
 import { ReadOnlyBanner, TOUCH, UnauthorizedState } from "@/components/agency/crm/crm-ui";
-import { clearZuCache } from "@/components/agency/crm/use-zu";
+import { clearZuCache, setZuOwner } from "@/components/agency/crm/use-zu";
 import { useOptionalUser } from "@/lib/use-optional-clerk";
 
 /* /agency/crm: the agency CRM on Zuops. Pulse agency owner and admin only (design
@@ -86,6 +86,9 @@ export default function CrmPage() {
   // made twice), null when signed out, and always null in demo mode (no Clerk).
   if (access === undefined || user === undefined) return <LoadingPanel label="Checking CRM access" />;
   const userKey = user?.id ?? "no-user";
+  // Before any panel reads: a different user's first render starts from an
+  // empty cache, not one frame of the previous user's answers (R3-U4).
+  setZuOwner(userKey);
   if (!access.allowed) return <LostAccess reason={access.reason} />;
   return (
     <ZuCacheScope key={userKey}>

@@ -10,7 +10,9 @@ import { cn } from "@/lib/utils";
 import { SyncBar, TOUCH, WriteButton, ZuErrorState, money } from "./crm-ui";
 import { useIdemFor, useZuRead, useZuWrite } from "./use-zu";
 import { useNow } from "./inbox-clock";
-import { useLeadNames } from "./calendar-lead-names";
+import { LEAD_NAME_PAGE, leadNameMap } from "./calendar-lead-names";
+import { focusSoon } from "./inbox-focus";
+import { writeFingerprint } from "./inbox-logic";
 import { LeadSheet } from "./crm-lead-sheet";
 import { CAL_OP } from "./calendar-ops";
 import { BookingStatusBadge } from "./calendar-parts";
@@ -22,12 +24,13 @@ import {
   outcomeMissing, timeIn, todayKey, viewWindow, weekStart,
 } from "./calendar-logic";
 import type { Booking, BookingsResponse, CalendarsResponse } from "./calendar-types";
-import type { Member, MembersResponse } from "./zu-types";
+import type { LeadsResponse, Member, MembersResponse } from "./zu-types";
 
 /* Calendar: appointments as an agenda by day or a week grid (agenda on phones),
    an appointment sheet, booking, and the calendars, busy times and hours behind
-   them. Opening it reads two things: appointments and the team. Lead names come
-   from the booking, or one get_lead per lead in view (F-U3). */
+   them. First open reads three things (R3-I3): appointments, one page of leads
+   (only as an id to name map) and the team. A lead outside that page shows
+   "Lead" and its id tail until its appointment is opened. */
 
 /** "Lead" plus the id's tail, until the name is known. */
 export function leadPlaceholder(id: string): string {
@@ -47,7 +50,13 @@ export function CrmCalendar({ bookLeadId, bookNonce }: { bookLeadId?: string | n
   const [weekKey, setWeekKey] = React.useState(() => weekStart(todayKey(Date.now())));
   // The agenda reads today -7..+60 days; the week view reads the week on show.
   const win = React.useMemo(() => viewWindow(view, today, weekKey), [view, today, weekKey]);
-  const [openId, setOpenId] = React.useState<string | null>(null);
+  const [openId, setOpenIdRaw] = React.useState<string | null>(null);
+  // What opened a sheet, so focus goes back there when it closes (R3-I4), or to
+  // the row by id, or the heading when the row is gone (after a cancel).
+  const opener = React.useRef<HTMLElement | null>(null);
+  const remember = () => { opener.current = typeof document !== "undefined" ? (document.activeElement as HTMLElement | null) : null; };
+  const setOpenId = (id: string | null) => { if (id) remember(); setOpenIdRaw(id); };
+  const returnFocus = (rowId?: string | null) => focusSoon(opener.current, rowId ? `appt-${rowId}` : null, rowId ? `appt-w-${rowId}` : null, "cal-appts-h");
   const [sheetLead, setSheetLead] = React.useState<string | null>(null);
   const [bookOpen, setBookOpen] = React.useState(!!bookLeadId);
   const [bookLead, setBookLead] = React.useState<string | null>(bookLeadId ?? null);
@@ -65,8 +74,10 @@ export function CrmCalendar({ bookLeadId, bookNonce }: { bookLeadId?: string | n
   const needCalendars = bookOpen || section === "setup" || openId !== null;
   const calendars = useZuRead<CalendarsResponse>(CAL_OP.calendars, undefined, { pollMs: 300_000, enabled: needCalendars });
 
+  const leads = useZuRead<LeadsResponse>(CAL_OP.leads, { query: { limit: LEAD_NAME_PAGE } }, { kinds: ["lead"], pollMs: 600_000 });
   const list = bookings.data?.bookings ?? EMPTY_BOOKINGS;
-  const leadName = useLeadNames(list);
+  const names = React.useMemo(() => leadNameMap(leads.data?.leads, list), [leads.data, list]);
+  const leadName = React.useCallback((id: string) => names.get(id) ?? null, [names]);
   const memberList: Member[] = members.data?.members ?? [];
   const hostName = (id: string | null | undefined) => (id ? memberName(memberList.find((m) => m.user_id === id)) : null);
 
@@ -74,8 +85,8 @@ export function CrmCalendar({ bookLeadId, bookNonce }: { bookLeadId?: string | n
   const calendarList = calendars.data?.calendars ?? [];
   const tz = list.find((b) => b.timezone)?.timezone ?? calendarList[0]?.timezone ?? null;
 
-  const refreshAll = () => { bookings.refresh(); members.refresh(); if (needCalendars) calendars.refresh(); };
-  const openBook = () => { setBookLead(null); setBookOpen(true); };
+  const refreshAll = () => { bookings.refresh(); leads.refresh(); members.refresh(); if (needCalendars) calendars.refresh(); };
+  const openBook = () => { remember(); setBookLead(null); setBookOpen(true); };
   const empty = (
     <EmptyState
       icon={CalendarDays} title="No appointments in this window" description="Bookings from your calendars, smart forms and the AI show up here."
@@ -87,7 +98,7 @@ export function CrmCalendar({ bookLeadId, bookNonce }: { bookLeadId?: string | n
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <SyncBar fetchedAt={bookings.fetchedAt} onRefresh={refreshAll} refreshing={bookings.refreshing} />
-        <WriteButton type="button" onClick={openBook}><CalendarPlus className="size-4" aria-hidden />Book</WriteButton>
+        <WriteButton id="cal-book-btn" type="button" onClick={openBook}><CalendarPlus className="size-4" aria-hidden />Book</WriteButton>
       </div>
 
       <div role="group" aria-label="Calendar sections" className="flex flex-wrap gap-1">
@@ -107,7 +118,7 @@ export function CrmCalendar({ bookLeadId, bookNonce }: { bookLeadId?: string | n
       ) : (
         <section aria-labelledby="cal-appts-h" className="space-y-3">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 id="cal-appts-h" className="mr-auto font-grotesk text-base font-semibold text-bone">Appointments</h2>
+            <h2 id="cal-appts-h" tabIndex={-1} className="mr-auto font-grotesk outline-none text-base font-semibold text-bone">Appointments</h2>
             <div role="group" aria-label="View" className="hidden gap-1 md:flex">
               <Button type="button" size="sm" variant={view === "agenda" ? "primary" : "secondary"} aria-pressed={view === "agenda"} onClick={() => setView("agenda")}>
                 <List className="size-4" aria-hidden />Agenda
@@ -146,15 +157,15 @@ export function CrmCalendar({ bookLeadId, bookNonce }: { bookLeadId?: string | n
       )}
 
       <AppointmentSheet
-        booking={open} onClose={() => setOpenId(null)} leadName={leadName} members={memberList} calendars={calendarList}
-        onOpenLead={(id) => { setOpenId(null); setSheetLead(id); }}
+        booking={open} onClose={() => { const id = openId; setOpenIdRaw(null); returnFocus(id); }} leadName={leadName} members={memberList} calendars={calendarList}
+        onOpenLead={(id) => { setOpenIdRaw(null); setSheetLead(id); }}
       />
       <BookSheet
-        open={bookOpen} onOpenChange={setBookOpen} initialLeadId={bookLead} calendars={calendarList}
+        open={bookOpen} onOpenChange={(v) => { setBookOpen(v); if (!v) focusSoon(opener.current, "cal-book-btn", "cal-appts-h"); }} initialLeadId={bookLead} calendars={calendarList}
         calendarsError={calendars.error && !calendars.data ? calendars.error.reason : null}
         leadName={leadName}
       />
-      <LeadSheet leadId={sheetLead} onClose={() => setSheetLead(null)} onBook={(id) => { setBookLead(id); setBookOpen(true); }} />
+      <LeadSheet leadId={sheetLead} onClose={() => { setSheetLead(null); returnFocus(null); }} onBook={(id) => { setBookLead(id); setBookOpen(true); }} />
     </div>
   );
 }
@@ -196,7 +207,7 @@ function Agenda({
                   </div>
                   <div className="min-w-0">
                     <button
-                      type="button" onClick={() => onOpen(b.id)}
+                      id={`appt-${b.id}`} type="button" onClick={() => onOpen(b.id)}
                       className="block max-w-full truncate rounded-sm text-left text-sm font-semibold text-bone outline-none hover:underline focus-visible:ring-2 focus-visible:ring-gold/40 max-sm:min-h-11"
                     >
                       {b.title || "Appointment"}
@@ -220,9 +231,16 @@ function Agenda({
 
 function OutcomeButtons({ booking: b }: { booking: Booking }) {
   const { run, pending } = useZuWrite();
-  const keys = { completed: useIdemFor(`outcome:${b.id}:completed`), no_show: useIdemFor(`outcome:${b.id}:no_show`) };
+  // Keys from the exact body and path, plus a counter advanced on success (R3-I6).
+  const [round, setRound] = React.useState(0);
+  const path = { booking_id: b.id };
+  const keys = {
+    completed: useIdemFor(writeFingerprint(CAL_OP.update, path, { status: "completed" }, round)),
+    no_show: useIdemFor(writeFingerprint(CAL_OP.update, path, { status: "no_show" }, round)),
+  };
   const outcome = async (status: "completed" | "no_show") => {
-    const res = await run(CAL_OP.update, { path: { booking_id: b.id }, body: { status }, idem: keys[status] }, { invalidate: [CAL_OP.bookings] });
+    const res = await run(CAL_OP.update, { path, body: { status }, idem: keys[status] }, { invalidate: [CAL_OP.bookings] });
+    if (res.ok) { setRound((r) => r + 1); focusSoon(`appt-${b.id}`, "cal-appts-h"); }
     if (res.ok) toast.success(status === "completed" ? "Marked completed. No message went to the lead." : "Marked no show. No message went to the lead.");
     else toast.error(res.reason ?? "Zuops refused.");
   };
@@ -265,7 +283,7 @@ function WeekGrid({
             <h3 className="text-xs font-semibold text-steel">{c.label}</h3>
             {c.items.length === 0 ? <p className="text-[0.6875rem] text-steel/60">Nothing</p> : c.items.map((b) => (
               <button
-                key={b.id} type="button" onClick={() => onOpen(b.id)}
+                id={`appt-w-${b.id}`} key={b.id} type="button" onClick={() => onOpen(b.id)}
                 className="block w-full space-y-0.5 rounded-md border border-graphite/60 bg-coal-2 p-1.5 text-left text-xs outline-none hover:border-gold-dim focus-visible:ring-2 focus-visible:ring-gold/40"
               >
                 <span className="block font-semibold tabular-nums text-bone">{timeIn(Date.parse(b.starts_at ?? ""), b.timezone)}</span>

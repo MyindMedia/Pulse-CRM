@@ -19,7 +19,7 @@ import { OP } from "./ops";
 import { stableStringify, useIdemFor, useZuRead, useZuWrite } from "./use-zu";
 import { useCrmNav } from "./crm-context";
 import {
-  ConfirmDialog, StageBadge, TOUCH, WriteButton, ZuErrorState, dateTime, money, phone, relTime,
+  ConfirmDialog, StageBadge, TOUCH, WriteButton, ZuErrorState, dateTime, money, phone, relTime, useReturnFocus,
 } from "./crm-ui";
 import type {
   CustomField, CustomFieldsResponse, Lead, LeadResponse, Stage, StagesResponse, TimelineEvent, TimelineResponse,
@@ -65,6 +65,47 @@ export function localInputToIso(value: string): string | null {
   if (!value) return null;
   const d = new Date(value);
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** The exact bodies the sheet sends; each Idempotency-Key is derived from the
+ *  body about to go out (R3-U3), so a retry only reuses a key for the same body. */
+export function lostBody(stages: Stage[]): Record<string, unknown> {
+  const lost = stages.find((s) => (s.behavior ?? s.key) === "lost");
+  return lost ? { stage_key: lost.key } : { status: "lost" };
+}
+
+export function wonBody(stages: Stage[], cents: number | null): Record<string, unknown> {
+  const won = stages.find((s) => (s.behavior ?? s.key) === "won");
+  return { ...(won ? { stage_key: won.key } : { status: "won" }), deal_value_cents: cents };
+}
+
+export function noteBody(text: string): { body: string } {
+  return { body: text.trim() };
+}
+
+/** Notes added in this sheet, shown at the top of the timeline at once (R3-U2)
+ *  until the refetched timeline carries them. */
+export function withLocalNotes(events: TimelineEvent[], local: TimelineEvent[]): TimelineEvent[] {
+  const ids = new Set(events.map((e) => e.id));
+  const bodies = new Set(events.filter((e) => /note/i.test(e.event_type ?? "")).map((e) => (e.body ?? "").trim()));
+  const pending = local.filter((n) => !ids.has(n.id) && !bodies.has((n.body ?? "").trim()));
+  return [...pending, ...events];
+}
+
+/** The timeline entry for a note Zuops just accepted: its answer when it has an
+ *  id, otherwise what was sent. */
+export function noteEvent(answer: unknown, text: string, idem: string, now: number = Date.now()): TimelineEvent {
+  const a = (answer && typeof answer === "object" ? answer : {}) as Record<string, unknown>;
+  const inner = [a.note, a.event, a.data, a].find((x) => x && typeof x === "object" && typeof (x as { id?: unknown }).id === "string") as
+    | (TimelineEvent & Record<string, unknown>)
+    | undefined;
+  return {
+    id: inner?.id ?? `local-note-${idem}`,
+    event_type: (typeof inner?.event_type === "string" && inner.event_type) || "note",
+    actor_label: (typeof inner?.actor_label === "string" && inner.actor_label) || "You",
+    body: (typeof inner?.body === "string" && inner.body) || text.trim(),
+    created_at: (typeof inner?.created_at === "string" && inner.created_at) || new Date(now).toISOString(),
+  };
 }
 
 export type Reachability = { label: string; state: "bad" | "ok" | "unknown"; word: string; detail?: string };
@@ -144,18 +185,16 @@ export function LeadSheet({
    *  close (Escape, Close, overlay), F-V3. */
   returnFocus?: HTMLElement | null;
 }) {
+  // Escape, Close, overlay: focus goes back to the opener, or to its re-rendered
+  // twin (same data-focus-key), or the tab panel (U-10).
+  const onCloseAutoFocus = useReturnFocus(!!leadId, { returnTo: returnFocus });
   return (
     <Sheet open={!!leadId} onOpenChange={(v) => { if (!v) onClose(); }}>
       <SheetContent
         width="lg"
         // The shared Close button is 24 px; on a phone it gets a 44 px target (F-V5).
         className="max-sm:[&>[aria-label=Close]]:grid max-sm:[&>[aria-label=Close]]:size-11 max-sm:[&>[aria-label=Close]]:place-items-center"
-        onCloseAutoFocus={(e) => {
-          if (returnFocus && returnFocus.isConnected) {
-            e.preventDefault();
-            returnFocus.focus();
-          }
-        }}
+        onCloseAutoFocus={onCloseAutoFocus}
       >
         {leadId && <LeadSheetBody key={leadId} leadId={leadId} onClose={onClose} onOpenInbox={onOpenInbox} onBook={onBook} />}
       </SheetContent>
@@ -192,20 +231,23 @@ function LeadSheetBody({
   const [wonOpen, setWonOpen] = React.useState(false);
   const [saveError, setSaveError] = React.useState<string | null>(null);
   const [dncDone, setDncDone] = React.useState(false);
+  const [localNotes, setLocalNotes] = React.useState<TimelineEvent[]>([]);
 
   const l = lead.data?.lead;
-  // Idempotency-Keys (F-U9): one per distinct request, reused for an identical
-  // retry, new once a request succeeds (the round goes up).
-  const [rounds, setRounds] = React.useState({ note: 0, save: 0, lost: 0 });
-  const bump = (k: keyof typeof rounds) => setRounds((r) => ({ ...r, [k]: r[k] + 1 }));
-  const noteIdem = useIdemFor(`${rounds.note}|${note.trim()}`);
-  const patchNow = l ? leadPatch(l, draft) : {};
-  const saveIdem = useIdemFor(`${rounds.save}|${stableStringify(patchNow)}`);
-  const lostIdem = useIdemFor(`${rounds.lost}|lost`);
   const stageList = React.useMemo(
     () => [...(stages.data?.stages ?? [])].sort((a, b) => (a.position ?? 0) - (b.position ?? 0)),
     [stages.data],
   );
+  // Idempotency-Keys (F-U9, R3-U3): derived from the exact body about to be
+  // sent, so an identical retry reuses its key and any other body gets another;
+  // the round goes up after a success.
+  const [rounds, setRounds] = React.useState({ note: 0, save: 0, lost: 0 });
+  const bump = (k: keyof typeof rounds) => setRounds((r) => ({ ...r, [k]: r[k] + 1 }));
+  const noteIdem = useIdemFor(`${rounds.note}|${stableStringify(noteBody(note))}`);
+  const patchNow = l ? leadPatch(l, draft) : {};
+  const saveIdem = useIdemFor(`${rounds.save}|${stableStringify(patchNow)}`);
+  const lostNow = lostBody(stageList);
+  const lostIdem = useIdemFor(`${rounds.lost}|${stableStringify(lostNow)}`);
 
   if (lead.error && !l) {
     return (
@@ -233,8 +275,7 @@ function LeadSheetBody({
     ...(draft.addTags ?? []).filter((t) => !(l.tags ?? []).some((x) => x.toLowerCase() === t.toLowerCase())),
   ];
   const stageKey = draft.stage_key ?? currentStageKey(l) ?? "";
-  const byBehavior = (b: string): Stage | undefined => stageList.find((s) => (s.behavior ?? s.key) === b);
-  const events: TimelineEvent[] = (fullTimeline && timeline.data?.events) || lead.data?.events || [];
+  const events: TimelineEvent[] = withLocalNotes((fullTimeline && timeline.data?.events) || lead.data?.events || [], localNotes);
   const activeFields = (fields.data?.custom_fields ?? []).filter((f) => !f.archived_at).sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
 
   const save = async (body: Record<string, unknown>, done: string, idem: string, round?: keyof typeof rounds) => {
@@ -262,15 +303,17 @@ function LeadSheetBody({
   };
 
   const markLost = () => {
-    const lost = byBehavior("lost");
-    void save(lost ? { stage_key: lost.key } : { status: "lost" }, "Marked lost in Zuops", lostIdem, "lost");
+    void save(lostNow, "Marked lost in Zuops", lostIdem, "lost");
   };
 
   const addNote = async () => {
-    const text = note.trim();
-    if (!text) return;
-    const res = await run(OP.leadNote, { path, body: { body: text }, idem: noteIdem }, { invalidate: [OP.leadGet, OP.leadTimeline] });
+    const body = noteBody(note);
+    if (!body.body) return;
+    const idem = noteIdem;
+    const res = await run(OP.leadNote, { path, body, idem }, { invalidate: [OP.leadGet, OP.leadTimeline] });
     if (res.ok) {
+      // On screen at once; the re-read of the lead and timeline replaces it.
+      setLocalNotes((n) => [noteEvent(res.data, body.body, idem), ...n]);
       toast.success("Note added in Zuops");
       setNote("");
       bump("note");
@@ -484,9 +527,9 @@ function LeadSheetBody({
         open={wonOpen} onOpenChange={setWonOpen} pending={pending}
         initialDollars={l.deal_value_cents != null ? (l.deal_value_cents / 100).toFixed(l.deal_value_cents % 100 ? 2 : 0) : ""}
         currency={l.deal_currency || "USD"}
-        onSave={async (cents, idem) => {
-          const won = byBehavior("won");
-          const ok = await save({ ...(won ? { stage_key: won.key } : { status: "won" }), deal_value_cents: cents }, "Marked won in Zuops", idem);
+        bodyFor={(cents) => wonBody(stageList, cents)}
+        onSave={async (body, idem) => {
+          const ok = await save(body, "Marked won in Zuops", idem);
           if (ok) setWonOpen(false);
           return ok;
         }}
@@ -571,27 +614,30 @@ function CustomFieldInput({ field, value, onChange }: { field: CustomField; valu
 }
 
 function WonDialog({
-  open, onOpenChange, initialDollars, currency, onSave, pending,
+  open, onOpenChange, initialDollars, currency, bodyFor, onSave, pending,
 }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
   initialDollars: string;
   currency: string;
-  onSave: (cents: number | null, idem: string) => Promise<boolean>;
+  bodyFor: (cents: number | null) => Record<string, unknown>;
+  onSave: (body: Record<string, unknown>, idem: string) => Promise<boolean>;
   pending: boolean;
 }) {
   const [amount, setAmount] = React.useState<string | null>(null);
   const [round, setRound] = React.useState(0);
   const text = amount ?? initialDollars;
   const cents = dollarsToCents(text);
-  const idem = useIdemFor(`${round}|${String(cents)}`);
+  const body = cents === undefined ? null : bodyFor(cents);
+  const idem = useIdemFor(`${round}|${stableStringify(body)}`);
+  const onCloseAutoFocus = useReturnFocus(open);
   return (
     <Dialog open={open} onOpenChange={(v) => { onOpenChange(v); if (!v) setAmount(null); }}>
-      <DialogContent size="sm">
+      <DialogContent size="sm" onCloseAutoFocus={onCloseAutoFocus}>
         <form onSubmit={async (e) => {
           e.preventDefault();
-          if (cents === undefined) return;
-          if (await onSave(cents, idem)) setRound((n) => n + 1);
+          if (!body) return;
+          if (await onSave(body, idem)) setRound((n) => n + 1);
         }}>
           <DialogHeader>
             <DialogTitle>Mark this lead won</DialogTitle>

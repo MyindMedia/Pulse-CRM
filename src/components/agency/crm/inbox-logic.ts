@@ -6,7 +6,39 @@
 import type { ConfirmGrant } from "./crm-ui";
 import type { Lead } from "./zu-types";
 import { INBOX_OP } from "./inbox-ops";
-import type { Channel, Conversation, ConversationCounts, ThreadEvent } from "./inbox-types";
+import type { Channel, Conversation, ConversationCounts, ReplyIdea, ReplyIdeasResponse, ThreadEvent } from "./inbox-types";
+import { stableStringify } from "./zu-store";
+
+/* ---------- idempotency ---------- */
+
+/** What an Idempotency-Key is derived from (R3-I6): the exact body about to be
+ *  sent, its path values, the operation and a counter the caller advances after
+ *  each success. Same values, same key (a safe retry); anything else, a new one. */
+export function writeFingerprint(op: string, path: Record<string, unknown> | null | undefined, body: unknown, round: number): string {
+  return `${round}|${op}|${stableStringify(path ?? {})}|${stableStringify(body ?? null)}`;
+}
+
+/* ---------- reply assistant ---------- */
+
+export type PolishHow = "improve" | "grammar" | "shorter" | "friendly" | "professional";
+
+/** Body for POST /v1/leads/{id}/reply-ideas: new ideas, or a polish of a draft.
+ *  Free and sends nothing, so it needs no confirm (R3-I2). */
+export function replyIdeasBody(channel: Channel, draft?: string, how?: PolishHow): Record<string, unknown> {
+  const text = draft?.trim();
+  return text ? { channel, draft: text.slice(0, 4000), how: how ?? "improve" } : { channel };
+}
+
+/** Up to three usable ideas from the answer. */
+export function parseReplyIdeas(data: ReplyIdeasResponse | null | undefined): ReplyIdea[] {
+  return (data?.replies ?? []).filter((r) => typeof r?.text === "string" && r.text.trim() !== "").slice(0, 3);
+}
+
+/** The polished text from a draft answer, or null. */
+export function parsePolished(data: ReplyIdeasResponse | null | undefined): string | null {
+  const t = data?.text;
+  return typeof t === "string" && t.trim() ? t : null;
+}
 
 /* ---------- list filters ---------- */
 

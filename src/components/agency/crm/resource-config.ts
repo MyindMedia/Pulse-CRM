@@ -7,7 +7,7 @@
    stays out of these chunks: eval P-04). Anything not surfaced here is still
    reachable in the Functions tab. */
 
-export type CellFormat = "text" | "date" | "datetime" | "money" | "number" | "percent" | "bool" | "badge" | "count";
+export type CellFormat = "text" | "date" | "datetime" | "money" | "number" | "percent" | "bool" | "badge" | "count" | "pairs";
 
 export type FieldDef = {
   name: string;
@@ -39,8 +39,8 @@ export type ActionDef = {
   rowBody?: Array<{ field: string; from: string; array?: boolean }>;
   confirm?: {
     title: string;
-    /** What or who it acts on. May use {count}, {name}, {audience} and any
-     *  {field} of the form. The consequence line for the operation's kind is
+    /** What or who it acts on. May use {count}, {name}, {email_audience},
+     *  {send_when} ("now" or "at <time>"), {drip} and any {field} of the form. The consequence line for the operation's kind is
      *  added by the dialog, so this does not repeat it. */
     body: string;
     label: string;
@@ -65,6 +65,12 @@ export type ActionDef = {
   sendAll?: boolean;
   /** Sentence for the success toast. */
   done?: string;
+  /** Toast when the request was scheduled rather than done now (the answer
+   *  says `scheduled: true`, or the form set `schedule_at`). {when} is the time. */
+  doneScheduled?: string;
+  /** Columns for a list shown in the answer dialog (showResult). Without them
+   *  the dialog picks the rows' plain values and leaves ids out. */
+  resultColumns?: ColumnDef[];
   /** false: never prefill from the row or settings object (adds, not edits). */
   prefill?: false;
 };
@@ -179,15 +185,18 @@ const campaigns: ResourceDef[] = [
         when("schedule_at", "Send at", { help: "Leave empty to send now. 2 minutes to 90 days ahead." }),
         pick("audience", "Audience", ["everyone", "not_booked", "stages", "tags"], { help: "Leave as is to use the saved audience." }),
         list("tags", "Tags (when the audience is tags)"), list("stages", "Stage keys (when the audience is stages)"),
+        bool("not_booked", "Only people who have not booked", { help: "Leave as is to keep the campaign's setting." }),
+        json("drip", "A few at a time", { jsonShape: "object", help: 'For example {"every": 50, "minutes": 60}. Leave empty to send all at once.' }),
       ], {
         show: { key: "status", in: ["draft"] },
         prefill: false,
         confirm: ask(
           "Send {name}?",
-          "It emails {email_audience} from your Zuops sender, now or at the time you set. Zuops leaves out leads with no email address and anyone who unsubscribed, bounced or marked it spam, and counts the recipients only when it sends.",
+          "It emails {email_audience} from your Zuops sender {send_when}.{drip} Zuops leaves out leads with no email address and anyone who unsubscribed, bounced or marked it spam, and counts the recipients only when it sends.",
           "Send campaign",
         ),
-        done: "Sent to Zuops. It goes out as scheduled.",
+        done: "Zuops is sending it now.",
+        doneScheduled: "Scheduled in Zuops for {when}.",
       }),
       rowAct("Cancel send", "cancel_email_campaign", "campaign_id", [], { show: { key: "status", in: ["scheduled", "sending"] }, done: "Stopped in Zuops." }),
       rowAct("Send the rest now", "send_email_campaign_rest", "campaign_id", [], {
@@ -269,12 +278,22 @@ const forms: ResourceDef[] = [
         text("name", "Name", { required: true }), text("headline", "Headline"),
         pick("layout_mode", "Layout", ["single_step", "multi_step", "conversational", "funnel"]),
         bool("booking_enabled", "Books an appointment"), bool("is_published", "Published"),
-      ]),
+      ], { confirm: ask("Publish {name}?", "With Published on, {name} goes live on the website for anyone who opens it.", "Create form") }),
       rowAct("Update or publish", "update_smart_form", "form_id", [
         bool("is_published", "Published"), pick("layout_mode", "Layout", ["single_step", "multi_step", "conversational", "funnel"]),
         bool("qualifier_enabled", "Screening questions on"), bool("calendar_routing", "Calendar routing on"),
       ], { confirm: ask("Update {name}?", "With Published on, {name} is live on the website for anyone who opens it.", "Save form") }),
-      view("Submissions", "list_form_submissions", "form_id"),
+      view("Submissions", "list_form_submissions", "form_id", {
+        // GET /v1/smart-forms/{form_id}/submissions (api-shapes.md): who and when first, then the answers; ids stay in the record.
+        resultColumns: [
+          col("created_at", "Submitted", "datetime"),
+          col("first_name+last_name|name|full_name", "Name"),
+          col("email|phone", "Contact"),
+          col("custom_fields.custom_answers|custom_fields.raw_answers|answers", "Answers", "pairs"),
+          col("notes", "Notes"),
+          col("status", "Status", "badge"),
+        ],
+      }),
     ],
   },
   {
@@ -343,11 +362,13 @@ const calls: ResourceDef[] = [
       filters: [{ param: "kind", label: "Kind", options: opt("good", "avoid", "rule") }],
     },
     actions: [
-      make("Add a rule", "create_ai_lesson", [area("note", "What the AI should do", { required: true }), pick("channel", "Channel", ["sms", "email", "voice", "all"]), bool("active", "On")]),
+      make("Add a rule", "create_ai_lesson", [area("note", "What the AI should do", { required: true }), pick("channel", "Channel", ["sms", "email", "voice", "all"]), bool("active", "On")], {
+        confirm: ask("Add this rule for the AI?", "The AI follows this rule in the replies it sends to your leads.", "Add rule"),
+      }),
       rowAct("Edit", "update_ai_lesson", "lesson_id", [
         area("note", "Lesson"), pick("channel", "Channel", ["sms", "email", "voice", "all"]), bool("active", "On"),
         area("better_reply", "A better reply"), bool("never_again", "Never send anything like it again"),
-      ]),
+      ], { confirm: ask("Change this AI lesson?", "The AI uses the changed lesson in the replies it sends to your leads.", "Save lesson") }),
       remove("delete_ai_lesson", "lesson_id", "lesson"),
     ],
   },
@@ -422,7 +443,7 @@ const more: ResourceDef[] = [
     actions: [
       make("Payment tracking", "set_stripe_payment_tracking", [
         bool("on", "Track payments"), text("stage_key", "Move paying leads to stage"), pick("meta_event", "Event sent to Meta", ["Purchase", "Schedule"]),
-      ]),
+      ], { confirm: ask("Send payments to Meta?", "With an event set, each tracked payment is reported to Meta as {meta_event}.", "Save tracking") }),
     ],
   },
   {
@@ -590,7 +611,9 @@ const more: ResourceDef[] = [
       ], { showResult: true }),
       make("Make many", "bulk_create_short_links", [json("links", "Links", { required: true, jsonShape: "array", help: 'Up to 100, like [{"url": "https://..."}].' })], { showResult: true }),
       make("Check links work", "check_short_links", [list("ids", "Link ids", { help: "Leave empty to check every link." })], { showResult: true }),
-      rowAct("Edit", "update_short_link", "link_id", [text("url", "Long link"), bool("archived", "Archived"), bool("pinned", "Pinned")]),
+      rowAct("Edit", "update_short_link", "link_id", [text("url", "Long link"), bool("archived", "Archived"), bool("pinned", "Pinned")], {
+        confirm: ask("Point {name} somewhere else?", "Everyone who opens {name} from now on, including links already sent, lands on the new long link.", "Save link"),
+      }),
       view("Numbers", "short_link_stats", "link_id"),
       view("Latest clicks", "list_short_link_clicks", "link_id"),
       remove("delete_short_link", "link_id", "short link"),
@@ -678,7 +701,9 @@ const more: ResourceDef[] = [
       make("Add a photo", "add_brain_photo", [text("image_url", "Public image link", { required: true }), text("caption", "Caption"), text("service", "Service"), bool("active", "On")], {
         confirm: ask("Add this photo to the AI Brain?", "When it is on, the AI may text this photo to customers who ask to see work.", "Add photo"),
       }),
-      rowAct("Edit", "update_brain_photo", "photo_id", [text("caption", "Caption"), text("service", "Service"), bool("active", "On")]),
+      rowAct("Edit", "update_brain_photo", "photo_id", [text("caption", "Caption"), text("service", "Service"), bool("active", "On")], {
+        confirm: ask("Change this AI Brain photo?", "When it is on, the AI may text this photo to customers who ask to see work.", "Save photo"),
+      }),
       remove("delete_brain_photo", "photo_id", "photo"),
     ],
   },
@@ -694,12 +719,14 @@ const more: ResourceDef[] = [
       make("Add a price", "add_brain_prices", [
         text("name", "Name", { required: true }), pick("kind", "Kind", ["service", "product"]), text("category", "Category"), area("description", "What is included"),
         pick("price_type", "Price type", ["fixed", "from", "range", "quote"]), num("unit_price_cents", "Price in cents"), num("price_max_cents", "Top of range in cents"), text("price_unit", "Unit"),
-      ]),
-      make("What the AI says with prices", "set_brain_price_note", [area("note", "Note", { required: true })]),
+      ], { confirm: ask("Let the AI quote {name}?", "The AI may quote this price to your leads in its replies.", "Add price") }),
+      make("What the AI says with prices", "set_brain_price_note", [area("note", "Note", { required: true })], {
+        confirm: ask("Change what the AI says with prices?", "The AI adds this note when it quotes prices to your leads.", "Save note"),
+      }),
       rowAct("Edit", "update_brain_price", "item_id", [
         text("name", "Name"), text("category", "Category"), area("description", "What is included"), num("unit_price_cents", "Price in cents"),
         text("price_unit", "Unit"), bool("ai_enabled", "The AI may quote it"),
-      ]),
+      ], { confirm: ask("Change {name}?", "The AI quotes the changed price to your leads in its replies.", "Save price") }),
       remove("remove_brain_price", "item_id", "price", { label: "Stop quoting", confirm: { title: "Stop the AI quoting {name}?", body: "The price is removed from the AI Brain.", label: "Stop quoting", destructive: true } }),
     ],
   },
@@ -1187,7 +1214,10 @@ const settings: ResourceDef[] = [
     blurb: "The FAQ the AI answers from.",
     single: { op: "get_knowledge_base" },
     actions: [
-      make("Add entries", "add_knowledge_base", [json("entries", "Entries", { required: true, jsonShape: "array", help: 'Like [{"question": "Do you mix?", "answer": "Yes, from $300."}].' })], { prefill: false }),
+      make("Add entries", "add_knowledge_base", [json("entries", "Entries", { required: true, jsonShape: "array", help: 'Like [{"question": "Do you mix?", "answer": "Yes, from $300."}].' })], {
+        prefill: false,
+        confirm: ask("Add these to the FAQ?", "The AI answers your leads from these entries as well as the current ones.", "Add entries"),
+      }),
       make("Replace all", "set_knowledge_base", [json("entries", "Entries", { required: true, jsonShape: "array" })], {
         confirm: { title: "Replace the whole FAQ?", body: "Every current entry is replaced by these.", label: "Replace", destructive: true, always: true },
       }),
@@ -1259,8 +1289,12 @@ const settings: ResourceDef[] = [
     blurb: "One booking link that lists several calendars as services.",
     list: { op: "list_booking_menus", paging: "none", columns: [col("title|name", "Menu"), col("public_path", "Link"), col("is_active", "On", "bool")] },
     actions: [
-      make("New menu", "create_booking_menu", [text("title", "Title"), text("name", "Name"), area("description", "Description"), text("slug", "Link name"), bool("is_active", "On"), json("sections", "Sections", { jsonShape: "array" })]),
-      rowAct("Edit", "update_booking_menu", "menu_id", [text("title", "Title"), text("name", "Name"), area("description", "Description"), text("slug", "Link name"), bool("is_active", "On")]),
+      make("New menu", "create_booking_menu", [text("title", "Title"), text("name", "Name"), area("description", "Description"), text("slug", "Link name"), bool("is_active", "On"), json("sections", "Sections", { jsonShape: "array" })], {
+        confirm: ask("Put this booking menu live?", "Unless On is set to No, anyone with its link can book from it.", "Create menu"),
+      }),
+      rowAct("Edit", "update_booking_menu", "menu_id", [text("title", "Title"), text("name", "Name"), area("description", "Description"), text("slug", "Link name"), bool("is_active", "On")], {
+        confirm: ask("Switch {name} on?", "With On, anyone with its link can book from {name}.", "Save menu"),
+      }),
       remove("delete_booking_menu", "menu_id", "menu"),
     ],
   },

@@ -12,9 +12,15 @@ export const isObj = (x: unknown): x is Obj => x !== null && typeof x === "objec
 /* ---------- reading answers ---------- */
 
 /** A value at a dotted path. `a|b` tries each alternative in turn and returns the
- *  first one that is present (Zuops names a few fields differently per area). */
+ *  first one that is present (Zuops names a few fields differently per area).
+ *  `a+b` joins the text of both with a space (first_name+last_name). */
 export function getPath(source: unknown, key: string): unknown {
   for (const alt of key.split("|")) {
+    if (alt.includes("+")) {
+      const parts = alt.split("+").map((k) => getPath(source, k)).filter((v) => typeof v === "string" || typeof v === "number").map(String).filter((v) => v.trim() !== "");
+      if (parts.length) return parts.join(" ");
+      continue;
+    }
     let cur: unknown = source;
     for (const part of alt.split(".")) {
       if (!isObj(cur)) { cur = undefined; break; }
@@ -23,6 +29,144 @@ export function getPath(source: unknown, key: string): unknown {
     if (cur !== undefined && cur !== null) return cur;
   }
   return undefined;
+}
+
+/** `id` or `something_id`: a key that holds an id, not something to read. */
+export const isIdKey = (key: string) => {
+  const k = key.split("|")[0].split(".").pop() ?? key;
+  return k === "id" || k.endsWith("_id") || k === "uuid";
+};
+
+/** Columns in reading order: an id column never leads the table (it moves
+ *  last), even when the config names it. */
+export function leadWithMeaning<C extends { key: string }>(columns: readonly C[]): C[] {
+  if (columns.length < 2 || !isIdKey(columns[0].key)) return [...columns];
+  const firstReal = columns.findIndex((c) => !isIdKey(c.key));
+  if (firstReal < 0) return [...columns];
+  return [...columns.filter((c) => !isIdKey(c.key)), ...columns.filter((c) => isIdKey(c.key))];
+}
+
+/** Columns for an answer no config describes: the plain values of its rows,
+ *  never id keys (those stay in the record), never secrets. */
+export function autoColumns(rows: readonly Obj[], max = 6): string[] {
+  return [...new Set(rows.slice(0, 20).flatMap((r) => Object.keys(r)))]
+    .filter((k) => k !== "workspace_id" && !isIdKey(k) && !isSecretKey(k) && rows.some((r) => r[k] !== null && r[k] !== undefined && typeof r[k] !== "object"))
+    .slice(0, max);
+}
+
+const DAYS: ReadonlyArray<readonly [string, string, string]> = [
+  ["mon", "monday", "Mon"], ["tue", "tuesday", "Tue"], ["wed", "wednesday", "Wed"], ["thu", "thursday", "Thu"],
+  ["fri", "friday", "Fri"], ["sat", "saturday", "Sat"], ["sun", "sunday", "Sun"],
+];
+
+function rangeText(r: unknown): string | null {
+  if (Array.isArray(r) && r.length === 2 && r.every((x) => typeof x === "string")) return `${r[0]} to ${r[1]}`;
+  if (isObj(r)) {
+    const a = getPath(r, "start|from|open|opens");
+    const b = getPath(r, "end|to|close|closes");
+    if (typeof a === "string" && typeof b === "string") return `${a} to ${b}`;
+  }
+  if (typeof r === "string" && r.trim()) return r.replace(/\s*[-–]\s*/, " to ");
+  return null;
+}
+
+/** A day -> time ranges map (weekly business hours) as rows, Monday first:
+ *  [["Mon", "09:00 to 17:00"], ["Sat", "Closed"]]. Null when the value is not
+ *  that shape. */
+export function weeklyHours(v: unknown): Array<[string, string]> | null {
+  if (!isObj(v)) return null;
+  const keys = Object.keys(v).map((k) => k.toLowerCase());
+  if (keys.length === 0) return null;
+  const known = (k: string) => DAYS.some(([a, b]) => k === a || k === b);
+  if (!keys.every(known)) return null;
+  const out: Array<[string, string]> = [];
+  for (const [short, long, word] of DAYS) {
+    const key = Object.keys(v).find((k) => k.toLowerCase() === short || k.toLowerCase() === long);
+    if (key === undefined) continue;
+    const day = v[key];
+    const ranges = Array.isArray(day)
+      ? (day.length === 2 && day.every((x) => typeof x === "string" && !/[-–]/.test(x)) ? [day] : day)
+      : day === null || day === undefined || day === false || day === "" ? [] : [day];
+    const parts = ranges.map(rangeText);
+    if (parts.some((x) => x === null)) return null;
+    out.push([word, parts.length ? (parts as string[]).join(", ") : "Closed"]);
+  }
+  return out;
+}
+
+const NAME_KEYS = "name|label|title|full_name|question|key|keyword|email|phone_number";
+
+/** The name of the record with this id, when the same answer carries it
+ *  (a sibling `x_name`, an embedded `{ id, name }`). Null otherwise. */
+export function nameForId(root: unknown, key: string, id: string): string | null {
+  if (isObj(root) && key.endsWith("_id")) {
+    const base = key.slice(0, -3);
+    for (const k of [`${base}_name`, `${base}_label`, `${base}_title`]) {
+      const v = root[k];
+      if (typeof v === "string" && v.trim()) return v;
+    }
+  }
+  let found: string | null = null;
+  const walk = (x: unknown, depth: number) => {
+    if (found || depth > 6) return;
+    if (Array.isArray(x)) { for (const y of x) walk(y, depth + 1); return; }
+    if (!isObj(x)) return;
+    if (x.id === id) {
+      const n = getPath(x, NAME_KEYS);
+      if (typeof n === "string" && n.trim()) { found = n; return; }
+    }
+    for (const y of Object.values(x)) walk(y, depth + 1);
+  };
+  walk(root, 0);
+  return found;
+}
+
+const plainText = (v: unknown): string | null => {
+  if (v === null || v === undefined || v === "") return null;
+  if (typeof v === "boolean") return v ? "Yes" : "No";
+  if (typeof v === "number") return v.toLocaleString("en-US");
+  if (typeof v === "string") return v;
+  if (Array.isArray(v) && v.every((x) => x === null || typeof x !== "object")) return v.filter((x) => x !== null && x !== "").map((x) => plainText(x)).join(", ");
+  return null;
+};
+
+/** Answers as "label: value" pairs: a list of `{ question|label|key, value }`,
+ *  or an object of plain values. Ids, empty answers and nested blobs are left
+ *  out. */
+export function answerPairs(v: unknown): Array<[string, string]> {
+  const out: Array<[string, string]> = [];
+  if (Array.isArray(v)) {
+    for (const item of v) {
+      if (!isObj(item)) continue;
+      const label = getPath(item, "question|label|title|name|key");
+      const value = plainText(getPath(item, "value|answer|response"));
+      if (typeof label === "string" && value !== null && value !== "") out.push([label.replace(/_/g, " "), value]);
+    }
+    return out;
+  }
+  if (isObj(v)) {
+    for (const [k, x] of Object.entries(v)) {
+      if (isIdKey(k) || isSecretKey(k)) continue;
+      const value = plainText(x);
+      if (value !== null && value !== "") out.push([humanize(k), value]);
+    }
+  }
+  return out;
+}
+
+/** The parts of an object worth a one-line summary: its name first, then up
+ *  to `max` other plain values as "Label: value". Ids are left out. */
+export function summaryParts(o: Obj, max = 3): { title: string | null; rest: Array<[string, string]> } {
+  const titleKey = NAME_KEYS.split("|").find((k) => typeof o[k] === "string" && (o[k] as string).trim() !== "");
+  const rest: Array<[string, string]> = [];
+  for (const [k, v] of Object.entries(o)) {
+    if (k === titleKey || isIdKey(k) || isSecretKey(k) || k === "workspace_id") continue;
+    const t = plainText(v);
+    if (t === null || t === "") continue;
+    rest.push([humanize(k), t.length > 80 ? `${t.slice(0, 79)}…` : t]);
+    if (rest.length >= max) break;
+  }
+  return { title: titleKey ? String(o[titleKey]) : null, rest };
 }
 
 /** The rows of a list answer: `data[rowsKey]`, else the first array in it. */
@@ -146,12 +290,14 @@ export function statusWord(value: unknown): string {
 /* ---------- confirm text ---------- */
 
 
-/** Fill `{count}`, `{name}`, `{email_audience}` and any `{field}` from the dialog's values. */
-export function fillTemplate(text: string, vars: { count?: number | null; name?: string | null; email_audience?: string; values?: Record<string, string> }): string {
+/** Fill `{count}`, `{name}`, `{email_audience}`, any `extra` word and any
+ *  `{field}` from the dialog's values. */
+export function fillTemplate(text: string, vars: { count?: number | null; name?: string | null; email_audience?: string; values?: Record<string, string>; extra?: Record<string, string> }): string {
   return text.replace(/\{([a-z_]+)\}/g, (_, k: string) => {
     if (k === "count") return vars.count === null || vars.count === undefined ? "an uncounted number of" : vars.count.toLocaleString("en-US");
     if (k === "name") return vars.name || "this item";
     if (k === "email_audience" && vars.email_audience) return vars.email_audience;
+    if (vars.extra && Object.prototype.hasOwnProperty.call(vars.extra, k)) return vars.extra[k];
     const v = vars.values?.[k];
     return v !== undefined && v !== "" ? v : k.replace(/_/g, " ");
   });
@@ -167,20 +313,50 @@ const strings = (v: unknown): string[] => (Array.isArray(v) ? v.filter((x): x is
 export function audienceText(values: FormValues, source?: Obj | null): string {
   const picked = (values["body:audience"] ?? "").trim();
   const audience = picked || (typeof source?.audience === "string" ? source.audience : "");
-  const tags = picked ? splitList(values["body:tags"] ?? "") : strings(source?.tags);
-  const stages = picked ? splitList(values["body:stages"] ?? "") : strings(source?.stages);
-  const notBooked = picked ? values["body:not_booked"] === "yes" : source?.not_booked === true;
+  // Each filter: what the form says when it says something, else what the campaign carries.
+  const formTags = splitList(values["body:tags"] ?? "");
+  const formStages = splitList(values["body:stages"] ?? "");
+  const tags = formTags.length || picked ? formTags : strings(source?.tags);
+  const stages = formStages.length || picked ? formStages : strings(source?.stages);
+  const nb = values["body:not_booked"] ?? "";
+  const notBooked = nb === "yes" ? true : nb === "no" ? false : picked ? false : source?.not_booked === true;
   const named = (xs: string[]) => xs.length > 0 && xs.every((x) => !UUIDISH.test(x));
+  const booked = notBooked ? " who has not booked" : "";
   switch (audience) {
-    case "everyone": return "everyone with an email address";
+    case "everyone": return `everyone with an email address${booked}`;
     case "not_booked": return "everyone with an email address who has not booked";
-    case "stages": return named(stages) ? `everyone in the stages ${joinWords(stages)}` : "everyone in the campaign's chosen stages";
-    case "tags": {
-      const who = named(tags) ? `everyone tagged ${joinWords(tags)}` : "everyone with the campaign's chosen tags";
-      return notBooked ? `${who} who has not booked` : who;
-    }
-    default: return "everyone in the campaign's saved audience";
+    case "stages": return `${named(stages) ? `everyone in the stages ${joinWords(stages)}` : "everyone in the campaign's chosen stages"}${booked}`;
+    case "tags": return `${named(tags) ? `everyone tagged ${joinWords(tags)}` : "everyone with the campaign's chosen tags"}${booked}`;
+    default: return `everyone in the campaign's saved audience${booked}`;
   }
+}
+
+/** How a send is paced, in words ("" when it all goes at once): the drip in
+ *  the form, else the campaign's. */
+export function dripText(values: FormValues, source?: Obj | null): string {
+  let drip: unknown = source?.drip;
+  const raw = (values["body:drip"] ?? "").trim();
+  if (raw) {
+    try { drip = JSON.parse(raw); } catch { drip = null; }
+  }
+  if (!isObj(drip)) return "";
+  const every = drip.every;
+  const minutes = drip.minutes;
+  if (typeof every !== "number" || typeof minutes !== "number") return "";
+  const gap = minutes % 60 === 0 ? `${minutes / 60} ${minutes === 60 ? "hour" : "hours"}` : `${minutes} minutes`;
+  return ` A few at a time: ${every.toLocaleString("en-US")} ${every === 1 ? "email" : "emails"} every ${gap}.`;
+}
+
+/** "now", or "at Nov 12, 9:00 AM" when the form sets a time. */
+export function sendWhen(values: FormValues, field = "schedule_at"): string {
+  const raw = (values[`body:${field}`] ?? "").trim();
+  if (!raw) return "now";
+  const ms = Date.parse(raw);
+  return Number.isFinite(ms) ? `at ${whenWords(ms)}` : "at the time you set";
+}
+
+export function whenWords(ms: number): string {
+  return new Date(ms).toLocaleString("en-US", { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
 }
 
 /* ---------- idempotency ---------- */
@@ -297,7 +473,7 @@ export function buildArgs(
     const parsed = parseField(f, raw);
     if ("error" in parsed) return parsed;
     if ("skip" in parsed) {
-      if (f.required && enforce(f)) return { error: `${f.label} is required.` };
+      if (f.required && enforce(f)) return { error: requiredMessage(f) };
       // Clearing a prefilled text field is a real change: send null.
       if (opts.initial && where === "body" && (opts.initial[k] ?? UNSET) !== UNSET && f.type !== "boolean") {
         out.body[f.name] = null;
@@ -323,6 +499,11 @@ export function buildArgs(
   }
   if (opts.initial && changed === 0 && fields.length > 0) return { error: "Nothing changed." };
   return out;
+}
+
+/** The inline message for a required field left empty. */
+export function requiredMessage(f: Pick<FieldDef, "label" | "type">): string {
+  return f.type === "select" ? `Choose a value for ${f.label}.` : `${f.label} is required.`;
 }
 
 /** Merge a free JSON object into the body (Functions: operations that accept

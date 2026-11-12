@@ -8,13 +8,13 @@ import {
   Dialog, DialogBody, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/field";
-import { useIdemFor, useZuWrite } from "./use-zu";
+import { stableStringify, useIdemFor, useZuWrite } from "./use-zu";
 import { ConfirmDialog, TOUCH, WriteButton, confirmCopy, type ConfirmGrant, type ConfirmKind } from "./crm-ui";
 import type { ActionDef } from "./resource-config";
 import { FieldList } from "./resource-fields";
-import { focusOnClose, useReturnFocus } from "./resource-focus";
+import { focusOnClose, useFocusHome, useReturnFocus } from "./resource-focus";
 import {
-  audienceText, buildArgs, fillTemplate, findDeep, fingerprint, getPath, prefill, rowName, splitList,
+  audienceText, buildArgs, dripText, fillTemplate, findDeep, getPath, isObj, prefill, rowName, sendWhen, splitList, whenWords,
   type BuiltArgs, type FormValues, type Obj,
 } from "./resource-utils";
 import { CopyButton, ResultView } from "./resource-values";
@@ -31,10 +31,14 @@ import { CopyButton, ResultView } from "./resource-values";
    or an `apply` flag asks first and a harmless variant does not). That module
    carries the operations registry, so it is loaded with import() when an action
    starts, never in the first paint. A config confirm block only words the
-   dialog, and can add a confirm, never remove one.
+   dialog; it adds a confirm only with `always` (voiding, replacing a whole
+   list), and never removes one. So switching an automation off, which the
+   policy says needs no confirm, is one click, and switching it on asks.
 
-   Idempotency-Key: one per distinct set of values (useIdemFor). An identical
-   retry after a failure reuses it; any change gets another; a success moves on. */
+   Idempotency-Key: one per distinct request (useIdemFor over the exact path,
+   query and body about to be sent, row data and changed-fields diff included).
+   An identical retry after a failure reuses it; any change gets another; a
+   success moves on. */
 
 type Stage = "idle" | "fields" | "confirm" | "result";
 
@@ -66,12 +70,35 @@ export type ActionContext = {
 };
 
 /** How an action runs: a read runs; a write runs directly only when the server
- *  says it needs no confirm AND the config does not ask for one; otherwise it
- *  goes through ConfirmDialog. A kind that could not be looked up confirms. */
+ *  says this body needs no confirm AND the config does not insist (`always`);
+ *  otherwise it goes through ConfirmDialog. A kind that could not be looked up
+ *  confirms. */
 export function actionPlan(action: Pick<ActionDef, "confirm">, kind: KindLookup, isRead?: boolean): "read" | "run" | "confirm" {
   if (isRead) return "read";
-  if (kind === undefined || kind !== null || action.confirm) return "confirm";
+  if (kind === undefined || kind !== null || action.confirm?.always) return "confirm";
   return "run";
+}
+
+/** The success toast for what was actually done: scheduled (the answer says
+ *  so, or the form set a time) or done now. */
+export function doneText(action: Pick<ActionDef, "done" | "doneScheduled">, values: FormValues, data: unknown, fallback = "Saved in Zuops."): string {
+  if (action.doneScheduled) {
+    const answer = isObj(data) ? data : {};
+    const formAt = (values["body:schedule_at"] ?? "").trim();
+    const scheduled = answer.scheduled === true || (answer.scheduled !== false && formAt !== "");
+    if (scheduled) {
+      const at = getPath(answer, "campaign.scheduled_at|scheduled_at|campaign.next_batch_at");
+      const ms = typeof at === "string" ? Date.parse(at) : formAt ? Date.parse(formAt) : NaN;
+      return fillTemplate(action.doneScheduled, { extra: { when: Number.isFinite(ms) ? whenWords(ms) : "the time you set" } });
+    }
+  }
+  return action.done ?? fallback;
+}
+
+/** What the Idempotency-Key covers: the exact request, or the values while
+ *  they cannot be built into one yet. */
+export function requestFingerprint(args: BuiltArgs | { error: string }, values: FormValues): string {
+  return "error" in args ? `values:${stableStringify(values)}` : stableStringify({ path: args.path, query: args.query, body: args.body });
 }
 
 /** The count a confirm states. Only the length of a list the person typed in
@@ -85,7 +112,10 @@ export function confirmCount(action: ActionDef, values: FormValues): number | nu
 /** Title, what it acts on, and the consequence line for this kind. */
 export function confirmText(action: ActionDef, values: FormValues, source?: Obj | null, kind?: KindLookup): { title: string; body: string; consequence: string } {
   const name = rowName(source, "this");
-  const vars = { count: confirmCount(action, values), name, email_audience: audienceText(values, source), values: plainValues(values) };
+  const vars = {
+    count: confirmCount(action, values), name, email_audience: audienceText(values, source), values: plainValues(values),
+    extra: { send_when: sendWhen(values), drip: dripText(values, source) },
+  };
   const consequence = kind ? confirmCopy(kind) : kind === undefined ? confirmCopy("reaches") : "";
   if (action.confirm) {
     return { title: fillTemplate(action.confirm.title, vars), body: fillTemplate(action.confirm.body, vars), consequence };
@@ -134,11 +164,12 @@ export function ResourceAction({ action, ctx, size = "sm" }: { action: ActionDef
   // One Idempotency-Key per distinct set of values: an identical retry after a
   // failure reuses it, any change gets another, and `round` moves on after a success.
   const [round, setRound] = React.useState(0);
-  const idemKey = useIdemFor(`${round}|${fingerprint({ values, path: ctx.pathValue ?? null })}`);
+  const idemKey = useIdemFor(`${round}|${requestFingerprint(actionArgs(action, values, ctx), values)}`);
   const triggerRef = React.useRef<HTMLButtonElement | null>(null);
   const secretRef = React.useRef<HTMLInputElement | null>(null);
+  const home = useFocusHome();
   const idPrefix = React.useId();
-  useReturnFocus(stage !== "idle", triggerRef);
+  useReturnFocus(stage !== "idle", triggerRef, home);
 
   const reset = () => {
     setStage("idle");
@@ -183,10 +214,10 @@ export function ResourceAction({ action, ctx, size = "sm" }: { action: ActionDef
     if (action.showResult) {
       setResult({ data: res.data });
       setStage("result");
-      if (!ctx.isRead) toast.success(action.done ?? "Done in Zuops.");
+      if (!ctx.isRead) toast.success(doneText(action, values, res.data, "Done in Zuops."));
       return;
     }
-    toast.success(action.done ?? "Saved in Zuops.");
+    toast.success(doneText(action, values, res.data));
     reset();
   };
 
@@ -235,7 +266,7 @@ export function ResourceAction({ action, ctx, size = "sm" }: { action: ActionDef
   const Trigger = ctx.isRead ? Button : WriteButton;
   const destructive = !!action.confirm?.destructive || kind === "delete";
   const busy = pending || checking;
-  const returnFocus = (e: Event) => focusOnClose(e, triggerRef);
+  const returnFocus = (e: Event) => focusOnClose(e, triggerRef, home);
 
   return (
     <>
@@ -319,7 +350,7 @@ export function ResourceAction({ action, ctx, size = "sm" }: { action: ActionDef
                 <p role="status" className="text-sm text-caution">Zuops did not send a signing secret back. Open the webhook in the Zuops app to get one.</p>
               )
             ) : (
-              <ResultView data={result?.data} />
+              <ResultView data={result?.data} columns={action.resultColumns} />
             )}
           </DialogBody>
           <DialogFooter>

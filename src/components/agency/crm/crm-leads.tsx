@@ -18,7 +18,7 @@ import { cn } from "@/lib/utils";
 import { OP } from "./ops";
 import { stableStringify, useIdemFor, useZuFetch, useZuRead, useZuWrite } from "./use-zu";
 import {
-  ConfirmDialog, StageBadge, SyncBar, TOUCH, WriteButton, ZuErrorState, money, phone, relTime, type ConfirmGrant,
+  ConfirmDialog, StageBadge, SyncBar, TOUCH, WriteButton, ZuErrorState, money, phone, relTime, useReturnFocus, type ConfirmGrant,
 } from "./crm-ui";
 import { LeadSheet } from "./crm-lead-sheet";
 import type { LeadsJump } from "./crm-context";
@@ -158,15 +158,14 @@ export function CrmLeads({ jump, jumpNonce = 0 }: { jump?: LeadsJump; jumpNonce?
   const [openId, setOpenId] = React.useState<string | null>(null);
   const [opener, setOpener] = React.useState<HTMLElement | null>(null);
   const [creating, setCreating] = React.useState(false);
-  /** Open a lead and remember the row's button, so closing the sheet puts focus
-   *  back on it (F-V3). */
-  const open = (id: string, from?: Element | null) => {
-    const el = from instanceof HTMLElement
-      ? (from.matches("[data-lead-opener]") ? from : from.querySelector<HTMLElement>("[data-lead-opener]"))
-      : null;
-    setOpener(el);
+  const newLeadRef = React.useRef<HTMLButtonElement>(null);
+  /** Open a lead and remember where focus goes back when the sheet closes (U-10):
+   *  the row's button, or for a lead just created, the New lead button. */
+  const open = (id: string, returnTo: HTMLElement | null) => {
+    setOpener(returnTo);
     setOpenId(id);
   };
+  const rowButton = (row: Element) => row.querySelector<HTMLElement>("[data-lead-opener]");
 
   const leads = useZuRead<LeadsResponse>(OP.leadsList, { query: leadsQuery(serverFilters, offset) }, { kinds: ["lead"], keepPrevious: true });
   const stages = useZuRead<StagesResponse>(OP.stagesList, undefined, { pollMs: 300_000 });
@@ -191,7 +190,7 @@ export function CrmLeads({ jump, jumpNonce = 0 }: { jump?: LeadsJump; jumpNonce?
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <SyncBar fetchedAt={leads.fetchedAt} onRefresh={() => { leads.refresh(); stages.refresh(); tags.refresh(); }} refreshing={leads.refreshing} />
-        <WriteButton type="button" onClick={() => setCreating(true)}>
+        <WriteButton type="button" ref={newLeadRef} data-focus-key="leads:new" onClick={() => setCreating(true)}>
           <Plus className="size-4" aria-hidden />
           New lead
         </WriteButton>
@@ -250,10 +249,11 @@ export function CrmLeads({ jump, jumpNonce = 0 }: { jump?: LeadsJump; jumpNonce?
             </THead>
             <TBody>
               {rows.map((l) => (
-                <TR key={l.id} interactive onClick={(e) => open(l.id, e.currentTarget)}>
+                <TR key={l.id} interactive onClick={(e) => open(l.id, rowButton(e.currentTarget))}>
                   <TD>
                     <button
-                      type="button" data-lead-opener={l.id} onClick={(e) => { e.stopPropagation(); open(l.id, e.currentTarget); }}
+                      type="button" data-lead-opener={l.id} data-focus-key={`lead-row:${l.id}`}
+                      onClick={(e) => { e.stopPropagation(); open(l.id, e.currentTarget); }}
                       className="block max-w-56 truncate rounded-sm text-left font-semibold text-bone outline-none hover:underline focus-visible:ring-2 focus-visible:ring-gold/40 max-sm:min-h-11"
                     >
                       {l.full_name || l.email || phone(l.phone) || "Unnamed lead"}
@@ -300,7 +300,7 @@ export function CrmLeads({ jump, jumpNonce = 0 }: { jump?: LeadsJump; jumpNonce?
 
       <NewLeadDialog
         open={creating} onOpenChange={setCreating} stages={stageList.filter((s) => !s.hidden)}
-        onOpenLead={(id) => { setCreating(false); open(id, document.querySelector(`[data-lead-opener="${CSS.escape(id)}"]`)); }}
+        onOpenLead={(id) => { setCreating(false); open(id, newLeadRef.current); }}
       />
       <LeadSheet leadId={openId} onClose={() => setOpenId(null)} returnFocus={opener} />
     </div>
@@ -328,7 +328,9 @@ function NewLeadDialog({
   // One Idempotency-Key per distinct form (F-U11): kept for an identical retry,
   // different once any value changes, and new for each opening of the form.
   const [round, setRound] = React.useState(0);
-  const idem = useIdemFor(`${round}|${stableStringify(form)}`);
+  const bodyNow = newLeadBody(form);
+  const idem = useIdemFor(`${round}|${"body" in bodyNow ? stableStringify(bodyNow.body) : "invalid"}`);
+  const onCloseAutoFocus = useReturnFocus(open);
   const set = (patch: Partial<NewLeadForm>) => { setForm((f) => ({ ...f, ...patch })); setError(null); setDuplicate(false); setDupId(null); };
 
   const close = (v: boolean) => {
@@ -377,7 +379,7 @@ function NewLeadDialog({
 
   return (
     <Dialog open={open} onOpenChange={close}>
-      <DialogContent size="md">
+      <DialogContent size="md" onCloseAutoFocus={onCloseAutoFocus}>
         <form onSubmit={submit} noValidate>
           <DialogHeader>
             <DialogTitle>New lead</DialogTitle>

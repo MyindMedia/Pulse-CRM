@@ -5,7 +5,7 @@ import { getFunctionName } from "convex/server";
 /* Calendar panel states, server-rendered against fixture reads. */
 type Read = { data?: unknown; error?: { reason: string; code?: string; status: number } | null; loading?: boolean };
 const reads: Record<string, Read> = {};
-const readOpts: Array<{ op: string; opts?: { kinds?: string[]; pollMs?: number; enabled?: boolean } }> = [];
+const readOpts: Array<{ op: string; args?: { query?: Record<string, unknown> }; opts?: { kinds?: string[]; pollMs?: number; enabled?: boolean } }> = [];
 const queries: Record<string, unknown> = {};
 
 vi.mock("convex/react", () => ({
@@ -13,8 +13,8 @@ vi.mock("convex/react", () => ({
   useAction: () => async () => ({ ok: true, status: 200, json: null, limits: {} }),
 }));
 vi.mock("./use-zu", () => ({
-  useZuRead: (op: string | null, _args?: unknown, opts?: { kinds?: string[]; pollMs?: number; enabled?: boolean }) => {
-    if (op) readOpts.push({ op, opts });
+  useZuRead: (op: string | null, args?: { query?: Record<string, unknown> }, opts?: { kinds?: string[]; pollMs?: number; enabled?: boolean }) => {
+    if (op) readOpts.push({ op, args, opts });
     const r = (op && reads[op]) || { loading: true };
     return { data: r.data, error: r.error ?? null, loading: r.loading ?? (r.data === undefined && !r.error), refreshing: false, fetchedAt: r.data ? Date.now() - 12_000 : null, refresh: () => undefined };
   },
@@ -65,16 +65,22 @@ describe("Calendar panel", () => {
     expect(out).toContain("Book one");
   });
 
-  it("F-U3: first paint reads appointments and the team only, never the lead list; polls are 300 s or slower", () => {
-    reads[CAL_OP.bookings] = { data: { bookings: [] } };
-    html();
-    const ops = new Set(readOpts.filter((r) => r.opts?.enabled !== false).map((r) => r.op));
-    expect(ops).toEqual(new Set([CAL_OP.bookings, CAL_OP.members]));
-    expect(readOpts.some((r) => r.op === CAL_OP.leads)).toBe(false);
+  it("R3-I3: first open costs 3 requests: bookings, ONE leads page (limit 200) and members; no per-lead reads", () => {
+    reads[CAL_OP.bookings] = { data: { bookings: [
+      { id: "b1", lead_id: "lead-outside-page", title: "Mix review", starts_at: at(1), status: "scheduled" },
+    ] } };
+    reads[CAL_OP.leads] = { data: { leads: [MAYA], has_more: true } };
+    const out = html();
+    const live = readOpts.filter((r) => r.opts?.enabled !== false);
+    expect(new Set(live.map((r) => r.op))).toEqual(new Set([CAL_OP.bookings, CAL_OP.leads, CAL_OP.members]));
+    expect(live.find((r) => r.op === CAL_OP.leads)?.args?.query).toEqual({ limit: 200 });
+    expect(live.some((r) => r.op === CAL_OP.lead)).toBe(false);
+    expect(out).toContain("Lead e-page");
     for (const r of readOpts) expect(r.opts?.pollMs ?? 300_000).toBeGreaterThanOrEqual(300_000);
   });
 
-  it("data: lead names, status words, past ones ask for an outcome (F-U3: name from the booking, else a placeholder)", () => {
+  it("data: lead names, status words, past ones ask for an outcome (names from the leads page or the booking, else a placeholder)", () => {
+    reads[CAL_OP.leads] = { data: { leads: [], has_more: false } };
     reads[CAL_OP.bookings] = { data: { bookings: [
       { id: "b1", lead_id: MAYA.id, lead_name: MAYA.full_name, title: "Mix review", starts_at: at(1), ends_at: at(1.0417), status: "scheduled", timezone: "America/Los_Angeles" },
       { id: "b2", lead_id: DEV.id, title: "Studio tour", starts_at: at(-2), ends_at: at(-1.97), status: "scheduled" },

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
-  EMPTY_COMMENT_FILTERS, commentsQuery, connectionStatus, dmStatus, isNotEnabled, mergeDms, moveCountText, platformWord,
+  COUNT_MISSING, EMPTY_COMMENT_FILTERS, commentsQuery, countOutcome, readMoveCount, connectionStatus, dmStatus, isNotEnabled, mergeDms, moveCountText, platformWord,
   type SocialMessage,
 } from "./social-logic";
 
@@ -30,7 +30,7 @@ describe("social logic", () => {
   });
 
   it("move count text", () => {
-    expect(moveCountText(0)).toMatch(/^Nobody needs to move/);
+    expect(moveCountText(0)).toBe("Nobody needs to move.");
     expect(moveCountText(1)).toBe("1 person would move back to Messages");
     expect(moveCountText(1200)).toBe("1,200 people would move back to Messages");
   });
@@ -39,5 +39,19 @@ describe("social logic", () => {
     const a = [{ id: "a", created_at: "2026-11-10T10:00:00Z" }] as SocialMessage[];
     const b = [{ id: "b", created_at: "2026-11-11T10:00:00Z" }] as SocialMessage[];
     expect(mergeDms(a, b).map((m) => m.id)).toEqual(["b", "a"]);
+  });
+
+  it("R3-I5: a missing count is not zero", () => {
+    expect(readMoveCount({ would_move: 0 }, "would_move")).toBe(0);
+    expect(readMoveCount({ would_move: 4 }, "would_move")).toBe(4);
+    expect(readMoveCount({}, "would_move")).toBeNull();
+    expect(readMoveCount(undefined, "would_move")).toBeNull();
+    expect(readMoveCount({ moved: 3 }, "would_move")).toBeNull();
+    expect(readMoveCount({ would_move: null }, "would_move")).toBeNull();
+    expect(readMoveCount({ moved: 3 }, "moved")).toBe(3);
+    expect(countOutcome(null)).toEqual({ kind: "missing", text: COUNT_MISSING });
+    expect(COUNT_MISSING).toBe("Zuops did not return a count. Try again.");
+    expect(countOutcome(0)).toEqual({ kind: "none", text: "Nobody needs to move." });
+    expect(countOutcome(2)).toMatchObject({ kind: "some", n: 2 });
   });
 });

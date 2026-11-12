@@ -16,6 +16,7 @@ import {
 } from "./functions-catalog";
 import { KindIcon } from "./functions-kind";
 import type { OpFormProps } from "./crm-op-form";
+import { FocusHome, focusOnClose, rowOpener } from "./resource-focus";
 
 /* Functions: every Zuops operation, searchable by name, path and area, filtered
    by area and access level, grouped by area with counts. Selecting one opens its
@@ -72,6 +73,12 @@ function Catalog({ catalog, OpForm }: Loaded) {
   const [lv, setLv] = React.useState<CatalogFilter["level"]>(ALL);
   const [kd, setKd] = React.useState<NonNullable<CatalogFilter["kind"]>>(ALL);
   const [openId, setOpenId] = React.useState<string | null>(null);
+  // Focus goes back to the row that opened the form when it closes (U-10), or
+  // to the heading when filtering since has removed that row.
+  const lastOpened = React.useRef<string | null>(null);
+  const sectionRef = React.useRef<HTMLElement | null>(null);
+  const headingRef = React.useRef<HTMLHeadingElement | null>(null);
+  const titleRef = React.useRef<HTMLDivElement | null>(null);
 
   const stats = React.useMemo(() => catalogStats(catalog), [catalog]);
   const areas = React.useMemo(() => Object.entries(areaCounts(catalog)).sort(([a], [b]) => a.localeCompare(b)), [catalog]);
@@ -81,9 +88,9 @@ function Catalog({ catalog, OpForm }: Loaded) {
   const filtering = query.trim() !== "" || area !== ALL || lv !== ALL || kd !== ALL;
 
   return (
-    <section className="space-y-4" aria-label="Zuops functions">
+    <section ref={sectionRef} className="space-y-4" aria-label="Zuops functions">
       <header className="space-y-1">
-        <h2 className="font-grotesk text-lg font-semibold text-bone">Functions</h2>
+        <h2 ref={headingRef} tabIndex={-1} className="rounded-sm font-grotesk text-lg font-semibold text-bone outline-none focus-visible:ring-2 focus-visible:ring-gold/40">Functions</h2>
         <p className="text-sm text-steel">
           Every function Zuops offers, {stats.total} in {stats.areas} areas. Each runs through the same checks as the other tabs:
           writes are off where this deployment is read only, Full access functions need a Full access key, and anything that reaches people, changes automatic sending, uses credits, sends data outside the account or deletes asks you first.
@@ -148,7 +155,7 @@ function Catalog({ catalog, OpForm }: Loaded) {
                 {g.area} <span className="text-steel">({g.entries.length})</span>
               </h3>
               <ul className="divide-y divide-hairline overflow-hidden rounded-xl border border-graphite/50">
-                {g.entries.map((e) => <Row key={e.id} entry={e} onOpen={() => setOpenId(e.id)} />)}
+                {g.entries.map((e) => <Row key={e.id} entry={e} onOpen={() => { lastOpened.current = e.id; setOpenId(e.id); }} />)}
               </ul>
             </section>
           ))}
@@ -156,17 +163,19 @@ function Catalog({ catalog, OpForm }: Loaded) {
       )}
 
       <Sheet open={!!open} onOpenChange={(v) => { if (!v) setOpenId(null); }}>
-        <SheetContent width="lg">
+        <SheetContent width="lg" onCloseAutoFocus={(e) => focusOnClose(e, () => rowOpener(sectionRef.current, lastOpened.current), headingRef)}>
           {open && (
-            <>
+            <FocusHome.Provider value={titleRef}>
               <SheetHeader>
-                <SheetTitle className="break-words">{open.summary}</SheetTitle>
+                <div ref={titleRef} tabIndex={-1} className="rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-gold/40">
+                  <SheetTitle className="break-words">{open.summary}</SheetTitle>
+                </div>
                 <SheetDescription className="break-all font-mono text-xs">{open.id}</SheetDescription>
               </SheetHeader>
               <SheetBody className="min-w-0">
                 <OpForm key={open.id} opId={open.id} />
               </SheetBody>
-            </>
+            </FocusHome.Provider>
           )}
         </SheetContent>
       </Sheet>
@@ -181,7 +190,7 @@ function Row({ entry, onOpen }: { entry: CatalogEntry; onOpen: () => void }) {
   return (
     <li>
       <button
-        type="button" onClick={onOpen}
+        type="button" onClick={onOpen} data-row-open={entry.id}
         className="flex w-full min-w-0 flex-col gap-1.5 px-4 py-3 text-left outline-none transition-colors hover:bg-coal-2 focus-visible:bg-coal-2 focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-gold/40 sm:flex-row sm:items-center sm:gap-3"
       >
         <span className="min-w-0 flex-1">

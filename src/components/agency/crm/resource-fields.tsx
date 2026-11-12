@@ -30,13 +30,16 @@ export function FieldInput({
   const hint = field.help ?? (field.list ? "Separate with commas or new lines." : field.type === "json" ? "JSON. Checked before it is sent." : undefined);
 
   if (field.type === "boolean" || field.type === "select") {
+    const requiredChoice = !!field.required && field.type === "select";
     const options = field.type === "boolean" ? [["yes", "Yes"], ["no", "No"]] : (field.options ?? []).map((o) => [o, o.replace(/_/g, " ")]);
     return (
       <Field label={label(field)} htmlFor={id} hint={hint}>
-        <Select value={value === UNSET ? NOT_SET : value} onValueChange={(v) => onChange(v === NOT_SET ? UNSET : v)}>
-          <SelectTrigger id={id} className={TOUCH} aria-required={field.required || undefined}><SelectValue /></SelectTrigger>
+        {/* A required choice has no "Not set" item and starts on the "Choose…"
+            placeholder, so nothing is silently left blank (R3-R5); submit names it. */}
+        <Select value={value === UNSET ? (requiredChoice ? "" : NOT_SET) : value} onValueChange={(v) => onChange(v === NOT_SET ? UNSET : v)}>
+          <SelectTrigger id={id} className={TOUCH} aria-required={field.required || undefined}><SelectValue placeholder="Choose…" /></SelectTrigger>
           <SelectContent>
-            {!(field.required && field.type === "select") && <SelectItem value={NOT_SET}>{field.type === "boolean" ? "Leave as is" : "Not set"}</SelectItem>}
+            {!requiredChoice && <SelectItem value={NOT_SET}>{field.type === "boolean" ? "Leave as is" : "Not set"}</SelectItem>}
             {options.map(([v, l]) => <SelectItem key={v} value={v}>{l}</SelectItem>)}
           </SelectContent>
         </Select>

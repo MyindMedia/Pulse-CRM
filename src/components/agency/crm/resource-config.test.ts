@@ -91,7 +91,7 @@ describe("resource config", () => {
     const wrong: string[] = [];
     for (const { res, a } of actions) {
       if (!a.confirm) continue;
-      const known = new Set(["count", "name", "email_audience", ...(a.fields ?? []).map((f) => f.name)]);
+      const known = new Set(["count", "name", "email_audience", "send_when", "drip", ...(a.fields ?? []).map((f) => f.name)]);
       for (const m of `${a.confirm.title} ${a.confirm.body}`.matchAll(/\{([a-z_]+)\}/g)) if (!known.has(m[1])) wrong.push(`${res.key}: ${a.label} {${m[1]}}`);
     }
     expect(wrong).toEqual([]);
