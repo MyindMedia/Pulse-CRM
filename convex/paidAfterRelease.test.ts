@@ -148,6 +148,27 @@ describe("Checkout for a held booking closes with the hold", () => {
     expect((fake.creates[0].params.expires_at as number) * 1000).toBeGreaterThan(Date.now() + 30 * 60 * 1000);
   });
 
+  it("re-opening Checkout cannot keep extending a hold: capped at the original hold plus one Checkout window", async () => {
+    const t = convexTest(schema);
+    vi.useFakeTimers();
+    try {
+      const id = await seed(t, { holdExpiresAt: Date.now() + 60 * 60 * 1000 });
+      const created = (await t.run((ctx) => ctx.db.get(id)))!._creationTime;
+      // 50 minutes in: 10 minutes left, extended once to now + 31 min.
+      vi.setSystemTime(created + 50 * 60 * 1000);
+      await t.action(api.booking.payViaStripe, { sessionId: id, kind: "deposit" });
+      const first = (await t.run((ctx) => ctx.db.get(id)))!.holdExpiresAt!;
+      expect(Math.abs(first - (created + 81 * 60 * 1000))).toBeLessThan(5);
+      // 75 minutes in: only 6 minutes left and the cap (91 min) leaves 16: refused, not extended.
+      vi.setSystemTime(created + 75 * 60 * 1000);
+      await expect(t.action(api.booking.payViaStripe, { sessionId: id, kind: "deposit" })).rejects.toThrow(/about to expire/);
+      expect((await t.run((ctx) => ctx.db.get(id)))!.holdExpiresAt).toBe(first);
+      expect(fake.creates).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("a hold already past its end (not yet swept) cannot start a Checkout and is not revived", async () => {
     const t = convexTest(schema);
     const past = Date.now() - 60_000;

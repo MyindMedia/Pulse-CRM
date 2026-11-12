@@ -1358,16 +1358,21 @@ export const _chargeContext = internalQuery({
 /** Stripe Checkout must stay open at least 30 minutes. A client who starts
  *  paying with less than that left on the hold gets the hold extended to
  *  cover it (they are actively paying). Only an unexpired tentative hold is
- *  ever extended, never shortened. Returns the hold's new end, or null when
- *  the hold is gone (released, expired or already confirmed). */
+ *  ever extended, never shortened, and never past the original hold plus one
+ *  Checkout window, so re-opening Checkout cannot keep a slot held forever.
+ *  Returns the hold's end, "gone" when the hold is gone (released, expired or
+ *  confirmed), or "too_short" when too little hold is left to pay in. */
 export const CHECKOUT_MIN_MS = 31 * 60 * 1000;
+const STRIPE_MIN_EXPIRY_MS = 30 * 60 * 1000 + 30_000;
 export const _extendHoldForCheckout = internalMutation({
   args: { sessionId: v.id("sessions") },
-  handler: async (ctx, { sessionId }): Promise<number | null> => {
+  handler: async (ctx, { sessionId }): Promise<number | "gone" | "too_short"> => {
     const s = await ctx.db.get(sessionId);
     const now = Date.now();
-    if (!s || s.status !== "tentative" || !s.holdExpiresAt || s.holdExpiresAt <= now) return null;
-    const until = Math.max(s.holdExpiresAt, now + CHECKOUT_MIN_MS);
+    if (!s || s.status !== "tentative" || !s.holdExpiresAt || s.holdExpiresAt <= now) return "gone";
+    const cap = s._creationTime + HOLD_MINUTES * 60_000 + CHECKOUT_MIN_MS;
+    const until = Math.max(s.holdExpiresAt, Math.min(now + CHECKOUT_MIN_MS, cap));
+    if (until - now < STRIPE_MIN_EXPIRY_MS) return "too_short";
     if (until !== s.holdExpiresAt) await ctx.db.patch(sessionId, { holdExpiresAt: until });
     return until;
   },
@@ -1396,7 +1401,8 @@ export const payViaStripe = action({
     let expiresAt: number | undefined;
     if (c.status === "tentative" && c.holdExpiresAt !== null) {
       const until = await ctx.runMutation(internal.booking._extendHoldForCheckout, { sessionId });
-      if (until === null) throw new ConvexError("This hold expired. Start a new booking from the studio front.");
+      if (until === "gone") throw new ConvexError("This hold expired. Start a new booking from the studio front.");
+      if (until === "too_short") throw new ConvexError("Your hold is about to expire, so it can no longer be paid. Start a new booking from the studio front.");
       expiresAt = Math.floor(Math.min(until, Date.now() + 23 * 60 * 60 * 1000) / 1000);
     }
 
