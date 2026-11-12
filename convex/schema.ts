@@ -430,6 +430,11 @@ export default defineSchema({
     // and/or assesses `cancellationFeePct` of the booking rate.
     cancellationWindowHours: v.optional(v.number()),
     cancellationFeePct: v.optional(v.number()), // 0-100
+    // Charge a no-show / late-cancel fee to the card the client saved at
+    // checkout (and agreed could be charged). OFF unless the owner turns it on
+    // (sessions.setNoShowAutoCharge). Off: checkout does not save cards and a
+    // fee is only ever drafted as an invoice, as before.
+    noShowAutoCharge: v.optional(v.boolean()),
     // AI receptionist: opt-in auto-reply to inbound SMS booking inquiries.
     aiReceptionistEnabled: v.optional(v.boolean()),
     // Whether managers see money. Unset means yes. Only an owner may turn it
@@ -1140,6 +1145,15 @@ export default defineSchema({
     // the studio's connected account, so a no-show fee can be auto-charged.
     stripeCustomerId: v.optional(v.string()),
     defaultPaymentMethodId: v.optional(v.string()),
+    // Written only by the Stripe webhook (billingWebhooks) once Stripe says the
+    // card was saved; never from the browser. Brand / last 4 are display only.
+    cardBrand: v.optional(v.string()),
+    cardLast4: v.optional(v.string()),
+    cardSavedAt: v.optional(v.number()),
+    cardSavedVia: v.optional(v.union(v.literal("checkout"), v.literal("staff"))),
+    // Staff removed the card. A save event Stripe created before this time is
+    // ignored, so a late webhook cannot put a removed card back.
+    cardRemovedAt: v.optional(v.number()),
     // GDPR erasure: set when this client's personal data was erased (right to
     // be forgotten). Identifying fields are anonymized; financial/operational
     // records are retained under the accounting legitimate-interest basis.
@@ -1623,6 +1637,21 @@ export default defineSchema({
     // No-Show Shield outcomes on a cancelled / no-show session.
     cancellationFeeCents: v.optional(v.number()),
     depositForfeited: v.optional(v.boolean()),
+    // What the client agreed to at checkout before their card was saved: the
+    // exact sentence shown, the policy it stated and when they agreed. The
+    // payment method is filled in by the webhook once Stripe saved the card.
+    // No record here means the fee is never charged automatically.
+    cardConsent: v.optional(
+      v.object({
+        text: v.string(),
+        feePct: v.number(),
+        windowHours: v.number(),
+        maxFeeCents: v.number(),
+        agreedAt: v.number(),
+        paymentMethodId: v.optional(v.string()),
+        savedAt: v.optional(v.number()),
+      }),
+    ),
     // SMS confirm flow: client replied NO to the pre-session confirm text.
     // Their deposit is held for rebooking until rebookHoldUntil (10 days);
     // after that staff/automation may forfeit it.
@@ -1905,6 +1934,25 @@ export default defineSchema({
     ),
     overdueNotifiedAt: v.optional(v.number()),
     reminderStage: v.optional(v.number()), // dunning ladder step already sent (0/1/2/3)
+    // A No-Show Shield fee charged to the client's saved card. "pending" is
+    // set when the charge is scheduled; the charge runs only from pending, so
+    // a second run is a no-op. "failed" / "needs_client" leave the invoice as
+    // a draft and staff are told to send it.
+    autoCharge: v.optional(
+      v.object({
+        status: v.union(
+          v.literal("pending"),
+          v.literal("charging"),
+          v.literal("succeeded"),
+          v.literal("failed"),
+          v.literal("needs_client"),
+          v.literal("skipped"),
+        ),
+        at: v.number(),
+        reference: v.optional(v.string()),
+        message: v.optional(v.string()),
+      }),
+    ),
   })
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])

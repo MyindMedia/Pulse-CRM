@@ -243,11 +243,7 @@ export default function ArtistDetailPage() {
       </div>
 
       {/* Card on file - the No-Show Shield's teeth. */}
-      <CardOnFileCard
-        artistId={artistId}
-        hasCard={Boolean(data.defaultPaymentMethodId)}
-        clientName={data.name}
-      />
+      <CardOnFileCard artistId={artistId} clientName={data.name} />
 
       {/* Stat tiles */}
       <div className="rise-stagger grid grid-cols-2 gap-3 lg:grid-cols-4">

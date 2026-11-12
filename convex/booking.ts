@@ -11,7 +11,9 @@ import {
 } from "./lib/roomBusy";
 import { announceRequest } from "./bookingRequests";
 import { query, action, internalQuery, QueryCtx } from "./_generated/server";
-import { mutation } from "./functions";
+import { mutation, internalMutation } from "./functions";
+import { cardConsentText, cardSaveOffered, feeCentsFor, normalizedPolicy } from "./lib/cardConsent";
+import { ensureCustomer } from "./cardOnFile";
 import { recordBooked } from "./bookingFunnel";
 import { fireRules } from "./agentRules";
 import { Doc, Id } from "./_generated/dataModel";
@@ -700,11 +702,42 @@ export const booking = query({
         addOns: (session.addOns ?? []).map((a) => ({ equipmentId: a.equipmentId, name: a.name })),
         serviceAddOns: (session.serviceAddOns ?? []).map((a) => ({ feeId: a.feeId, label: a.label })),
         stripeCheckout: false,
+        cardSave: null,
+        cardSaved: false,
       };
     }
+    // The consent record holds a Stripe payment method id: never public.
+    const { cardConsent, ...publicSession } = session;
+    const stripeCheckout = Boolean(
+      process.env.STRIPE_SECRET_KEY && org?.stripeAccountId && org?.stripeChargesEnabled,
+    );
+    const policy = normalizedPolicy(org);
+    /* Studios that switched card charging on save the card the client pays
+       with, after the client agrees to this exact sentence. Asked once per
+       booking: not again once a card was saved for it. */
+    const cardSave =
+      !cardConsent?.paymentMethodId &&
+      session.status !== "cancelled" &&
+      cardSaveOffered({
+        switchOn: org?.noShowAutoCharge === true,
+        stripeReady: stripeCheckout,
+        feePct: policy.feePct,
+        rateCents: session.rateCents,
+      })
+        ? {
+            text: cardConsentText({
+              studioName: org?.name ?? "The studio",
+              feePct: policy.feePct,
+              windowHours: policy.windowHours,
+              rateCents: session.rateCents,
+            }),
+          }
+        : null;
     return {
-      ...session,
+      ...publicSession,
       ...people,
+      cardSave,
+      cardSaved: Boolean(cardConsent?.paymentMethodId),
       pricingHidden: false as const,
       addOns: session.addOns ?? [],
       serviceAddOns: session.serviceAddOns ?? [],
@@ -717,9 +750,7 @@ export const booking = query({
       // True when this studio collects real card payments on its own
       // connected Stripe account - the checkout page then routes through
       // hosted Stripe Checkout and never shows the simulated card form.
-      stripeCheckout: Boolean(
-        process.env.STRIPE_SECRET_KEY && org?.stripeAccountId && org?.stripeChargesEnabled,
-      ),
+      stripeCheckout,
     };
   },
 });
@@ -1338,7 +1369,41 @@ export const _chargeContext = internalQuery({
       .withIndex("by_org", (q) => q.eq("orgId", session.orgId))
       .first();
     const paid = session.amountPaidCents ?? 0;
+    const artist = await ctx.db.get(session.artistId);
+    const policy = normalizedPolicy(org);
+    const stripeReady = Boolean(process.env.STRIPE_SECRET_KEY && org?.stripeAccountId && org?.stripeChargesEnabled);
+    const offered =
+      artist !== null &&
+      artist.orgId === session.orgId &&
+      session.status !== "cancelled" &&
+      cardSaveOffered({
+        switchOn: org?.noShowAutoCharge === true,
+        stripeReady,
+        feePct: policy.feePct,
+        rateCents: session.rateCents,
+      });
     return {
+      orgId: session.orgId,
+      // Saving the card at checkout: what the client must agree to, or null
+      // when this studio does not save cards (the switch is off).
+      cardSave:
+        offered && artist && !session.cardConsent?.paymentMethodId
+          ? {
+              artistId: artist._id,
+              name: artist.name,
+              email: artist.email ?? null,
+              stripeCustomerId: artist.stripeCustomerId ?? null,
+              text: cardConsentText({
+                studioName: org?.name ?? "The studio",
+                feePct: policy.feePct,
+                windowHours: policy.windowHours,
+                rateCents: session.rateCents,
+              }),
+              feePct: policy.feePct,
+              windowHours: policy.windowHours,
+              maxFeeCents: feeCentsFor(session.rateCents, policy.feePct),
+            }
+          : null,
       title: session.title,
       slug: org?.slug ?? "",
       depositCents: session.depositCents,
@@ -1353,12 +1418,34 @@ export const _chargeContext = internalQuery({
   },
 });
 
+/** Record that the client agreed, at checkout, to the sentence shown. Only the
+ *  server-built sentence is stored; the page's copy must match it exactly. */
+export const _recordCardConsent = internalMutation({
+  args: {
+    sessionId: v.id("sessions"),
+    text: v.string(),
+    feePct: v.number(),
+    windowHours: v.number(),
+    maxFeeCents: v.number(),
+  },
+  handler: async (ctx, { sessionId, ...terms }) => {
+    const session = await ctx.db.get(sessionId);
+    if (!session) throw new ConvexError("Booking not found.");
+    // A card already saved for this booking keeps the agreement it was saved under.
+    if (session.cardConsent?.paymentMethodId) return;
+    await ctx.db.patch(sessionId, { cardConsent: { ...terms, agreedAt: Date.now() } });
+  },
+});
+
 export const payViaStripe = action({
   args: {
     sessionId: v.id("sessions"),
     kind: v.union(v.literal("deposit"), v.literal("balance"), v.literal("full")),
+    // The card-saving sentence the page showed and the client ticked. Needed
+    // only when the studio saves cards at checkout (booking.cardSave).
+    cardConsentText: v.optional(v.string()),
   },
-  handler: async (ctx, { sessionId, kind }): Promise<{ url: string | null }> => {
+  handler: async (ctx, { sessionId, kind, cardConsentText: agreedText }): Promise<{ url: string | null }> => {
     const c = await ctx.runQuery(internal.booking._chargeContext, { sessionId });
     if (!c) throw new ConvexError("Booking not found.");
     if (c.pricingHidden) throw new ConvexError("The studio will follow up about payment for this booking.");
@@ -1368,6 +1455,34 @@ export const payViaStripe = action({
 
     const amount = kind === "deposit" ? Math.min(c.depositCents, c.balanceCents) : c.balanceCents;
     if (amount <= 0) return { url: null };
+
+    /* A studio that saves cards: the client must have agreed to the exact
+       sentence the server builds from the studio's policy right now. */
+    let saveCard: { customer: string; artistId: string } | null = null;
+    if (c.cardSave) {
+      if (!agreedText) {
+        throw new ConvexError("Please tick the box to agree to how the studio may use your card.");
+      }
+      if (agreedText !== c.cardSave.text) {
+        throw new ConvexError("The studio's cancellation terms changed. Reload the page to see the new terms.");
+      }
+      await ctx.runMutation(internal.booking._recordCardConsent, {
+        sessionId,
+        text: c.cardSave.text,
+        feePct: c.cardSave.feePct,
+        windowHours: c.cardSave.windowHours,
+        maxFeeCents: c.cardSave.maxFeeCents,
+      });
+      const customer = await ensureCustomer(ctx, {
+        artistId: c.cardSave.artistId,
+        orgId: c.orgId,
+        name: c.cardSave.name,
+        email: c.cardSave.email,
+        stripeCustomerId: c.cardSave.stripeCustomerId,
+        stripeAccountId: c.stripeAccountId,
+      });
+      saveCard = { customer, artistId: c.cardSave.artistId };
+    }
 
     const appUrl = process.env.APP_URL ?? "http://localhost:3000";
     const back = `${appUrl}/book/${c.slug}/checkout/${sessionId}`;
@@ -1387,6 +1502,17 @@ export const payViaStripe = action({
         success_url: `${back}?paid=1`,
         cancel_url: back,
         metadata: { sessionId, kind },
+        // Save the card for later fees, on the client's own customer. The
+        // webhook records it (payment_intent.succeeded, kind booking_card).
+        ...(saveCard
+          ? {
+              customer: saveCard.customer,
+              payment_intent_data: {
+                setup_future_usage: "off_session" as const,
+                metadata: { kind: "booking_card", sessionId, artistId: saveCard.artistId, orgId: c.orgId },
+              },
+            }
+          : {}),
       },
       { stripeAccount: c.stripeAccountId }, // charge on the studio's own account
     );

@@ -17,6 +17,7 @@ import {
 } from "./lib/gearRental";
 import { money, redactMoney, redactEach } from "./lib/money";
 import { notify } from "./lib/notify";
+import { autoChargeDecision, feeEmailBody } from "./lib/cardConsent";
 import { isSmsOptedOut } from "./lib/smsOptOut";
 import { stageChecklistsFor, dropPreChecklistFor } from "./checklists";
 import { ensureSessionShift } from "./shifts";
@@ -609,45 +610,52 @@ async function assessNoShowShield(
     // paid, not now (lib/recoveryOnPaid.ts), so unpaid fees are never claimed.
     const invoiceId = await createCancellationFeeInvoice(ctx, s, additionalCents, label);
 
-    // Best-effort auto-charge when a card is on file for this client on the
-    // studio's connected Stripe account. Off-session charge runs in an action;
-    // on success it settles the fee invoice. Falls back to the invoice + notice
-    // above when no card is saved (the common case until card capture ships).
-    const canAutoCharge =
-      Boolean(process.env.STRIPE_SECRET_KEY) &&
-      Boolean(org?.stripeAccountId) &&
-      Boolean(org?.stripeChargesEnabled) &&
-      Boolean(artist?.stripeCustomerId) &&
-      Boolean(artist?.defaultPaymentMethodId);
-    if (canAutoCharge && invoiceId) {
-      await ctx.scheduler.runAfter(0, internal.cardOnFile.chargeFee, {
-        sessionId: s._id,
-        invoiceId,
-        amountCents: additionalCents,
-      });
+    // Charge the client's saved card only when the studio switched it on, the
+    // client agreed at checkout and that same card is still on file
+    // (lib/cardConsent.ts). Otherwise the fee stays a draft invoice, as before.
+    const decision = autoChargeDecision({
+      stripeConfigured: Boolean(process.env.STRIPE_SECRET_KEY),
+      switchOn: org?.noShowAutoCharge === true,
+      stripeAccountId: org?.stripeAccountId,
+      chargesEnabled: Boolean(org?.stripeChargesEnabled),
+      stripeCustomerId: artist?.stripeCustomerId,
+      defaultPaymentMethodId: artist?.defaultPaymentMethodId,
+      consent: s.cardConsent,
+      status,
+      feeCents: fee,
+      chargeCents: additionalCents,
+      startTime: s.startTime,
+      now: Date.now(),
+    });
+    const autoCharge = decision.charge && invoiceId !== null;
+    if (autoCharge && invoiceId) {
+      // "pending" is the one state chargeFee runs from, so a second schedule
+      // or a retry can never charge twice.
+      await ctx.db.patch(invoiceId, { autoCharge: { status: "pending", at: Date.now() } });
+      await ctx.scheduler.runAfter(0, internal.cardOnFile.chargeFee, { invoiceId });
     }
 
-    if (artist?.email) {
+    // With a charge scheduled, the client is told once the result is known
+    // (cardOnFile._feeChargeOutcome), so the email says what really happened.
+    if (artist?.email && !autoCharge) {
       const nice = `${label[0].toUpperCase()}${label.slice(1)}`;
-      const depositLine =
-        depositForfeitCents > 0
-          ? ` Your ${money(depositForfeitCents)} deposit has been applied toward it.`
-          : "";
       await notify(ctx, {
         orgId: s.orgId,
         channel: "email",
         recipient: artist.email,
         subject: `${nice} - ${s.title}`,
-        body: `Hi ${artist.name},\n\nPer our booking policy, a ${label} of ${money(
-          fee,
-        )} applies to your ${status === "no_show" ? "missed" : "late-cancelled"} session "${s.title}".${depositLine} ${
-          // The fee invoice is a draft until the studio sends it, so do not
-          // say it was sent. Promise a card charge only when one was
-          // scheduled above (same condition).
-          canAutoCharge && invoiceId
-            ? `The ${money(additionalCents)} balance will be charged to your card on file.`
-            : `The studio will send you an invoice for the ${money(additionalCents)} balance.`
-        } Reply here with any questions - we would love to get you rebooked.`,
+        // The fee invoice is a draft until the studio sends it, so it is never
+        // described as sent.
+        body: feeEmailBody({
+          clientName: artist.name,
+          label,
+          status,
+          title: s.title,
+          feeCents: fee,
+          depositForfeitCents,
+          balanceCents: additionalCents,
+          outcome: "invoice_to_follow",
+        }),
         kind: `session.${feeKind}`,
         sessionId: s._id,
       });
@@ -1048,7 +1056,43 @@ export const getCancellationPolicy = query({
     return {
       cancellationWindowHours: org?.cancellationWindowHours ?? null,
       cancellationFeePct: org?.cancellationFeePct ?? null,
+      noShowAutoCharge: org?.noShowAutoCharge === true,
+      // Charging needs the studio's own Stripe account taking card payments.
+      stripeReady: Boolean(org?.stripeAccountId && org?.stripeChargesEnabled),
     };
+  },
+});
+
+/** Turn on (or off) charging a no-show / late-cancel fee to the card a client
+ *  saved at checkout. OFF by default. Owner only: it moves clients' money.
+ *  Off, checkout does not save cards and fees are drafted as invoices. */
+export const setNoShowAutoCharge = mutation({
+  args: { enabled: v.boolean() },
+  handler: async (ctx, { enabled }) => {
+    const orgId = await currentOrg(ctx);
+    const viewer = await resolveViewer(ctx);
+    const role = "role" in viewer ? viewer.role : undefined;
+    if (role !== "owner") {
+      throw new ConvexError("Only the studio owner can turn card charging on or off.");
+    }
+    const org = await ctx.db
+      .query("orgs")
+      .withIndex("by_org", (q) => q.eq("orgId", orgId))
+      .first();
+    if (!org) throw new Error("No workspace to configure.");
+    if ((org.noShowAutoCharge === true) === enabled) return { ok: true };
+    await ctx.db.patch(org._id, { noShowAutoCharge: enabled });
+    await ctx.db.insert("activity", {
+      orgId,
+      kind: "settings.no_show_auto_charge",
+      summary: enabled
+        ? "No-show fees will be charged to cards clients saved and agreed to at checkout"
+        : "No-show fees will be billed by invoice only; saved cards are not charged",
+      entityType: "org",
+      entityId: org._id,
+      accent: "info",
+    });
+    return { ok: true };
   },
 });
 

@@ -47,8 +47,9 @@ export const MONEY_FIELDS: Readonly<Record<string, readonly string[]>> = {
   sessions: [
     "rateCents", "depositCents", "depositPaid", "depositForfeited",
     "amountPaidCents", "cancellationFeeCents", "listValueCents", "balanceRemindedAt",
+    "cardConsent",
   ],
-  artists: ["lifetimeValueCents", "stripeCustomerId", "defaultPaymentMethodId"],
+  artists: ["lifetimeValueCents", "stripeCustomerId", "defaultPaymentMethodId", "cardBrand", "cardLast4"],
   rooms: ["hourlyRateCents", "depositPct", "paymentMode"],
   bookableServices: ["priceCents", "depositPct"],
   equipment: ["currentValueCents", "purchaseCents", "rentalPriceCents"],
@@ -68,6 +69,10 @@ export const BOOKS_FIELDS: Readonly<Record<string, readonly string[]>> = {
  *  their role: a device needs what was paid, never the processor's key to it. */
 export const PROCESSOR_FIELDS: Readonly<Record<string, readonly string[]>> = {
   artists: ["stripeCustomerId", "defaultPaymentMethodId"],
+  // Holds the saved card's Stripe payment method id.
+  sessions: ["cardConsent"],
+  // Holds the Stripe PaymentIntent id of an automatic fee charge.
+  invoices: ["autoCharge"],
 };
 
 /* What a device is sent in place of a figure it may not see.

@@ -12,9 +12,10 @@ import { Button } from "@/components/ui/button";
 
 /* In-page card capture.
 
-   The saved-card path and off-session charging already shipped; this is the
-   form that puts a card on file in one step instead of sending an invoice and
-   waiting.
+   Staff "Add a card". Pulse records the card from Stripe's webhook
+   (setup_intent.succeeded), never from this page, so a 3-D Secure redirect
+   saves it too. A card added here is shown on the profile but is not charged
+   automatically: only a card the client agreed to at checkout is.
 
    Two things this file is careful about:
 
@@ -153,7 +154,10 @@ function CardForm({ onSaved, returnUrl }: { onSaved?: () => void; returnUrl?: st
       return;
     }
 
-    toast.success("Card sent to Stripe. Pulse does not charge saved cards yet, so fees still go out as a bill.");
+    // Pulse records the card only when Stripe's webhook confirms it, so the
+    // profile flips to "Saved" a moment later. A card added here is never
+    // charged automatically: only a card the client agreed to at checkout is.
+    toast.success("Card sent to Stripe. It shows as saved here in a few seconds.");
     setSaving(false);
     onSaved?.();
   }
