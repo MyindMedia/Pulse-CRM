@@ -6,6 +6,7 @@ import { Doc } from "./_generated/dataModel";
 import { currentOrg } from "./lib/tenant";
 import { requireCapability, resolveViewer, AccessError } from "./lib/access";
 import { notify, notifyTeam } from "./lib/notify";
+import { dateLabel, orgTz } from "./lib/tz";
 
 /* Staff self-service: weekly availability + time-off requests. */
 
@@ -102,7 +103,12 @@ export const requestTimeOff = mutation({
     });
     // "Managers get the request": tell the studio (owner's inbox) so it does
     // not sit unseen until someone happens to open the Schedule page.
-    const fmt = (ms: number) => new Date(ms).toLocaleDateString("en-US", { month: "short", day: "numeric" });
+    // Dates in the studio's own zone: the server runs in UTC, and the form
+    // sends the last day as local 23:59, which is already the next UTC day
+    // for every US studio.
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", me.orgId)).first();
+    const tz = orgTz(org);
+    const fmt = (ms: number) => dateLabel(ms, tz);
     await notifyTeam(ctx, {
       orgId: me.orgId,
       subject: `Time off request from ${me.name}`,
