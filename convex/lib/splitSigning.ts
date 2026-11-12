@@ -73,6 +73,9 @@ export type MergeResult = {
   termsChanged: boolean;
   /** Signature records that no longer cover the sheet (cleared from the rows). */
   cleared: SplitContributor[];
+  /** Signed rows whose email changed (the signature was kept). Royalty shares
+   *  are keyed by email, so callers log these. */
+  signedEmailChanges: { name: string; from: string; to: string }[];
 };
 
 const norm = (s: string) => s.trim().replace(/\s+/g, " ").toLowerCase();
@@ -145,10 +148,17 @@ export function mergeContributors(stored: SplitContributor[], incoming: Incoming
       }
       return { ...fields(c), ...carried, signed: s.signed } as SplitContributor;
     });
-    return { contributors, termsChanged: false, cleared: [] };
+    const signedEmailChanges = incoming.flatMap((c, i) => {
+      const st = stored[match[i]!];
+      if (!(st.signed || signedByPerson(st))) return [];
+      const from = st.email ?? "";
+      const to = c.email ?? "";
+      return sameEmail(from, to) || (!from && !to) ? [] : [{ name: c.name, from, to }];
+    });
+    return { contributors, termsChanged: false, cleared: [], signedEmailChanges };
   }
 
   const cleared = stored.filter((s) => s.signed || signedByPerson(s));
   const contributors = incoming.map((c) => blankSignature(fields(c)));
-  return { contributors, termsChanged: true, cleared };
+  return { contributors, termsChanged: true, cleared, signedEmailChanges: [] };
 }

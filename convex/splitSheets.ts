@@ -220,6 +220,20 @@ export const upsert = mutation({
           accent: "gold",
         });
       }
+      if (merged.signedEmailChanges.length > 0) {
+        // The signature stays (an email fix is not a new term), but royalty
+        // shares follow the email, so the change is on the record.
+        await ctx.db.insert("activity", {
+          orgId,
+          kind: "split.signer_email_changed",
+          summary:
+            `Email changed after signing on "${song.title}" by ${actor}: ` +
+            merged.signedEmailChanges.map((e) => `${e.name} ${e.from || "(none)"} -> ${e.to || "(none)"}`).join("; "),
+          entityType: "song",
+          entityId: songId,
+          accent: "gold",
+        });
+      }
       if (reopened) {
         await ctx.db.insert("activity", {
           orgId,

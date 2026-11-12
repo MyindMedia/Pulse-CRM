@@ -180,6 +180,11 @@ describe("H5 split sheet signatures", () => {
     expect(sheet.contributors[0]).toMatchObject({ email: "alice.new@x.com", signed: true, signedAt, signatureFont: "caveat" });
     expect(sheet.contributors[1].signed).toBe(false);
     expect(await activity(t, "split.reopened")).toHaveLength(0);
+    // Royalty shares follow the email, so a signed person's email change is on the record.
+    const emailLog = await activity(t, "split.signer_email_changed");
+    expect(emailLog).toHaveLength(1);
+    expect(emailLog[0].summary).toContain("Alice alice@x.com -> alice.new@x.com");
+    expect(emailLog[0].summary).not.toContain("BOB@x.com");
     expect(await t.run((ctx) => ctx.db.query("splitSignatureHistory").collect())).toHaveLength(0);
   });
 
