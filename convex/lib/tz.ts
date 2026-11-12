@@ -34,6 +34,15 @@ export function utcOffsetMinutes(ts: number, tz: string): number {
   return Math.round((asUtc - Math.floor(ts / 60_000) * 60_000) / 60_000);
 }
 
+/** The instant a calendar day starts (00:00) in the zone. `month` is 0-based,
+ *  like Date. Checked twice so a day that starts near a DST change lands on
+ *  the zone's real midnight. */
+export function zonedMidnight(year: number, month: number, day: number, tz: string): number {
+  const asUtc = Date.UTC(year, month, day);
+  const first = asUtc - utcOffsetMinutes(asUtc, tz) * 60_000;
+  return asUtc - utcOffsetMinutes(first, tz) * 60_000;
+}
+
 /** "2:30 PM" in the studio's zone. */
 export function clockTime(ts: number, tz: string): string {
   return new Date(ts).toLocaleTimeString("en-US", {

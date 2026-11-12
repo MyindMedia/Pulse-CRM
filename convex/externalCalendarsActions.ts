@@ -14,6 +14,7 @@ import https from "node:https";
 import { lookup as dnsLookup } from "node:dns";
 import type { LookupFunction } from "node:net";
 import { fetchFeed, lookupRefusal, type IcalHop } from "./lib/icalGuard";
+import { zonedMidnight } from "./lib/tz";
 
 type ParsedEvent = {
   uid: string;
@@ -72,22 +73,53 @@ async function fetchIcal(url: string): Promise<string> {
   return fetchFeed(url, getOnce);
 }
 
-function parseIcal(raw: string): ParsedEvent[] {
-  const parsed = ical.parseICS(raw);
+type IcalEvent = {
+  type?: string;
+  uid?: unknown;
+  summary?: unknown;
+  location?: unknown;
+  description?: unknown;
+  start?: unknown;
+  end?: unknown;
+  datetype?: string;
+  status?: string;
+  transparency?: string;
+};
+
+/** Does this event hold time? A cancelled event, or one marked Free
+ *  (TRANSP:TRANSPARENT, Google's default for all-day events), never blocks. */
+function holdsTime(ev: IcalEvent): boolean {
+  if (String(ev.status ?? "").toUpperCase() === "CANCELLED") return false;
+  if (String(ev.transparency ?? "").toUpperCase() === "TRANSPARENT") return false;
+  return true;
+}
+
+/** An all-day (VALUE=DATE) value as the studio's own midnight. node-ical builds
+ *  a date-only value as midnight in the process zone (UTC on Convex), so the
+ *  calendar date is read back with the local getters and rebuilt in `tz`. */
+function dayStartIn(d: Date, tz: string): number {
+  return zonedMidnight(d.getFullYear(), d.getMonth(), d.getDate(), tz);
+}
+
+/** Pure: an .ics body -> the busy events Pulse stores. `tz` is the studio's
+ *  zone, used for all-day events. */
+export function parseIcal(raw: string, opts: { tz: string }): ParsedEvent[] {
+  const parsed = ical.sync.parseICS(raw) as Record<string, IcalEvent | undefined>;
   const out: ParsedEvent[] = [];
   for (const key of Object.keys(parsed)) {
     const ev = parsed[key];
-    if (!ev || ev.type !== "VEVENT") continue;
+    if (!ev || ev.type !== "VEVENT" || !holdsTime(ev)) continue;
     const uid = String(ev.uid ?? key);
-    const start = ev.start instanceof Date ? ev.start.getTime() : undefined;
-    const end = ev.end instanceof Date ? ev.end.getTime() : undefined;
-    if (start === undefined || end === undefined) continue;
-    const allDay = (ev as { datetype?: string }).datetype === "date";
+    if (!(ev.start instanceof Date) || !(ev.end instanceof Date)) continue;
+    const allDay = ev.datetype === "date";
+    const startTime = allDay ? dayStartIn(ev.start, opts.tz) : ev.start.getTime();
+    const endTime = allDay ? dayStartIn(ev.end, opts.tz) : ev.end.getTime();
+    if (!(endTime > startTime)) continue;
     out.push({
       uid,
       title: String(ev.summary ?? "(untitled)"),
-      startTime: start,
-      endTime: end,
+      startTime,
+      endTime,
       allDay,
       location: ev.location ? String(ev.location) : undefined,
       description: ev.description ? String(ev.description).slice(0, 1000) : undefined,
@@ -108,7 +140,7 @@ export const sync = action({
     const cal: Doc<"externalCalendars"> | null = await ctx.runQuery(internal.externalCalendars.getForCaller, { id });
     if (!cal) throw new Error("Calendar not found.");
     if (!cal.active) return { ok: false, reason: "inactive" } as const;
-    return await syncFeed(ctx, id, cal.icalUrl);
+    return await syncFeed(ctx, cal);
   },
 });
 
@@ -123,7 +155,7 @@ export const refreshDue = internalAction({
     const due: Doc<"externalCalendars">[] = await ctx.runQuery(internal.externalCalendars.dueForRefresh, { limit: REFRESH_BATCH });
     let ok = 0;
     for (const cal of due) {
-      const r = await syncFeed(ctx, cal._id, cal.icalUrl);
+      const r = await syncFeed(ctx, cal);
       if (r.ok) ok++;
     }
     return { refreshed: due.length, ok };
@@ -131,10 +163,12 @@ export const refreshDue = internalAction({
 });
 
 /** Fetch, parse and store one feed; a failure is recorded on the feed. */
-async function syncFeed(ctx: ActionCtx, id: Id<"externalCalendars">, icalUrl: string): Promise<SyncResult> {
+async function syncFeed(ctx: ActionCtx, cal: Doc<"externalCalendars">): Promise<SyncResult> {
+  const id = cal._id;
   try {
-    const raw = await fetchIcal(icalUrl);
-    const events = parseIcal(raw);
+    const raw = await fetchIcal(cal.icalUrl);
+    const tz: string = await ctx.runQuery(internal.externalCalendars.orgTimezone, { orgId: cal.orgId });
+    const events = parseIcal(raw, { tz });
     await ctx.runMutation(internal.externalCalendars.upsertEvents, {
       calendarId: id,
       events,

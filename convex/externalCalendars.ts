@@ -13,6 +13,7 @@ import { v } from "convex/values";
 import { query, internalQuery } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { currentOrg } from "./lib/tenant";
+import { orgTz } from "./lib/tz";
 
 /** Guess the source from an iCal URL host. */
 function detectSource(url: string): "google" | "ical" | "outlook" | "apple" | "other" {
@@ -197,6 +198,15 @@ export const listActiveInternal = internalQuery({
       .withIndex("by_org", (q) => q.eq("orgId", orgId))
       .collect();
     return rows.filter((r) => r.active);
+  },
+});
+
+/** The studio's time zone, for reading a feed's all-day events. */
+export const orgTimezone = internalQuery({
+  args: { orgId: v.string() },
+  handler: async (ctx, { orgId }) => {
+    const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+    return orgTz(org);
   },
 });
 
