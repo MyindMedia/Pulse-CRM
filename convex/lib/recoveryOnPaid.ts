@@ -12,10 +12,13 @@ import type { Doc } from "../_generated/dataModel";
      records no_show_fee / cancellation_fee.
    - Any other invoice paid after a reminder went out records
      reminder_collected.
-   One event per invoice: an invoice that already has one (including fee
-   events recorded at billing time before this change) is never counted
-   again.
+   One event per invoice, dated when the money came in (so the monthly recap
+   counts it in the month it was paid). A fee event written at billing time
+   before this change is moved to the paid time instead of being added again.
    ============================================================ */
+
+/** Note suffix on an event written at payment time. */
+const PAID_SUFFIX = " - paid";
 
 const FEE_LABELS: { suffix: string; kind: "no_show_fee" | "cancellation_fee" }[] = [
   { suffix: "- no-show fee", kind: "no_show_fee" },
@@ -36,9 +39,23 @@ export async function recordRecoveryOnPaid(ctx: MutationCtx, inv: Doc<"invoices"
     .query("recoveryEvents")
     .withIndex("by_invoice", (q) => q.eq("invoiceId", inv._id))
     .first();
-  if (already) return;
-
   const feeKind = feeKindOf(inv);
+  if (already) {
+    // A fee logged when it was billed (before fees were counted on payment):
+    // re-date it to now so it lands in the month it was actually collected.
+    // Once re-dated it carries the paid suffix and is never moved again.
+    const legacyFee =
+      (already.kind === "no_show_fee" || already.kind === "cancellation_fee") &&
+      !(already.note ?? "").endsWith(PAID_SUFFIX);
+    if (legacyFee) {
+      await ctx.db.patch(already._id, {
+        at: Date.now(),
+        note: `${already.note ?? inv.lineItems[0]?.label ?? "Fee"}${PAID_SUFFIX}`,
+      });
+    }
+    return;
+  }
+
   if (feeKind) {
     await ctx.db.insert("recoveryEvents", {
       orgId: inv.orgId,
@@ -47,7 +64,7 @@ export async function recordRecoveryOnPaid(ctx: MutationCtx, inv: Doc<"invoices"
       at: Date.now(),
       sessionId: inv.sessionId,
       invoiceId: inv._id,
-      note: `${inv.lineItems[0].label} - paid`,
+      note: `${inv.lineItems[0].label}${PAID_SUFFIX}`,
     });
     return;
   }
