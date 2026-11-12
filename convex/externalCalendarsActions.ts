@@ -5,9 +5,9 @@
    Node's native deps and Convex's default V8 runtime can't run it.
    ============================================================ */
 import { v } from "convex/values";
-import { action } from "./_generated/server";
+import { action, internalAction, type ActionCtx } from "./_generated/server";
 import { api, internal } from "./_generated/api";
-import type { Id } from "./_generated/dataModel";
+import type { Doc, Id } from "./_generated/dataModel";
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const ical = require("node-ical") as typeof import("node-ical");
 import https from "node:https";
@@ -96,31 +96,59 @@ function parseIcal(raw: string): ParsedEvent[] {
   return out;
 }
 
+type SyncResult =
+  | { readonly ok: true; readonly count: number; readonly error?: undefined; readonly reason?: undefined }
+  | { readonly ok: false; readonly error: string; readonly reason?: undefined }
+  | { readonly ok: false; readonly reason: "inactive"; readonly error?: undefined };
+
 /** Fetch + parse + upsert one feed. Idempotent. */
 export const sync = action({
   args: { id: v.id("externalCalendars") },
-  handler: async (ctx, { id }) => {
-    const cal = await ctx.runQuery(internal.externalCalendars.getForCaller, { id });
+  handler: async (ctx, { id }): Promise<SyncResult> => {
+    const cal: Doc<"externalCalendars"> | null = await ctx.runQuery(internal.externalCalendars.getForCaller, { id });
     if (!cal) throw new Error("Calendar not found.");
     if (!cal.active) return { ok: false, reason: "inactive" } as const;
-    try {
-      const raw = await fetchIcal(cal.icalUrl);
-      const events = parseIcal(raw);
-      await ctx.runMutation(internal.externalCalendars.upsertEvents, {
-        calendarId: id,
-        events,
-      });
-      return { ok: true, count: events.length } as const;
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : "Unknown error";
-      await ctx.runMutation(internal.externalCalendars.recordError, {
-        id,
-        error: msg,
-      });
-      return { ok: false, error: msg } as const;
-    }
+    return await syncFeed(ctx, id, cal.icalUrl);
   },
 });
+
+/** Feeds refreshed per cron run. Each is one guarded GET + parse. */
+const REFRESH_BATCH = 25;
+
+/** Cron: refresh the stalest active feeds across every studio, so outside
+ *  calendar busy time keeps blocking bookings without anyone pressing sync. */
+export const refreshDue = internalAction({
+  args: {},
+  handler: async (ctx): Promise<{ refreshed: number; ok: number }> => {
+    const due: Doc<"externalCalendars">[] = await ctx.runQuery(internal.externalCalendars.dueForRefresh, { limit: REFRESH_BATCH });
+    let ok = 0;
+    for (const cal of due) {
+      const r = await syncFeed(ctx, cal._id, cal.icalUrl);
+      if (r.ok) ok++;
+    }
+    return { refreshed: due.length, ok };
+  },
+});
+
+/** Fetch, parse and store one feed; a failure is recorded on the feed. */
+async function syncFeed(ctx: ActionCtx, id: Id<"externalCalendars">, icalUrl: string): Promise<SyncResult> {
+  try {
+    const raw = await fetchIcal(icalUrl);
+    const events = parseIcal(raw);
+    await ctx.runMutation(internal.externalCalendars.upsertEvents, {
+      calendarId: id,
+      events,
+    });
+    return { ok: true, count: events.length } as const;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Unknown error";
+    await ctx.runMutation(internal.externalCalendars.recordError, {
+      id,
+      error: msg,
+    });
+    return { ok: false, error: msg } as const;
+  }
+}
 
 /** Sync every active feed in the org. Useful for a scheduled refresh. */
 export const syncAll = action({

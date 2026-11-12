@@ -6,9 +6,11 @@ import type { Doc, Id } from "../_generated/dataModel";
    public booking page, createBooking, internal create + reschedule,
    room blocks and the directory (docs/plans/hardcover-booking.md).
 
-   Room busy time comes from three places:
+   Room busy time comes from four places:
    - sessions in the room (not cancelled / no-show / declined request)
    - room blocks (bookingFeatures.roomBlocks)
+   - events on the room's active outside calendar feeds (.ics: Apple,
+     Outlook, Calendly...; externalCalendars), refreshed by a cron
    - the studio's Google Calendar busy time, when the studio syncs
      Google -> Pulse (direction two_way or pull). Decision 2026-10-14:
      Google busy time BLOCKS bookings for the whole studio.
@@ -18,7 +20,7 @@ import type { Doc, Id } from "../_generated/dataModel";
 
 const DAY = 24 * 60 * 60 * 1000;
 
-export type BusyKind = "session" | "block" | "google" | "personal";
+export type BusyKind = "session" | "block" | "google" | "calendar" | "personal";
 export type BusyInterval = { start: number; end: number; kind: BusyKind; id: string };
 
 /** A session still occupies its slot unless it was cancelled, a no-show, or
@@ -85,6 +87,27 @@ export async function roomBusyIntervals(
     if (b.startTime < to && b.endTime > from) out.push({ start: b.startTime, end: b.endTime, kind: "block", id: b._id });
   }
 
+  // The room's outside calendar feeds (.ics). A paused feed keeps its events
+  // but no longer blocks, matching the staff grid. Events can be multi-day
+  // (an all-day block for a week), so scan from well before `from`.
+  const feeds = await ctx.db
+    .query("externalCalendars")
+    .withIndex("by_room", (q) => q.eq("roomId", roomId))
+    .collect();
+  const activeFeeds = new Set(feeds.filter((f) => f.active && f.orgId === orgId).map((f) => f._id));
+  if (activeFeeds.size > 0) {
+    const feedEvents = await ctx.db
+      .query("externalCalendarEvents")
+      .withIndex("by_org_room_start", (q) =>
+        q.eq("orgId", orgId).eq("roomId", roomId).gte("startTime", from - 31 * DAY).lt("startTime", to),
+      )
+      .collect();
+    for (const e of feedEvents) {
+      if (!activeFeeds.has(e.calendarId)) continue;
+      if (e.startTime < to && e.endTime > from) out.push({ start: e.startTime, end: e.endTime, kind: "calendar", id: e._id });
+    }
+  }
+
   // Studio Google busy time blocks every room.
   const org = await orgBySlugOrId(ctx, orgId);
   if (studioPullsGoogle(org)) {
@@ -133,7 +156,7 @@ export async function roomConflict(
  *  (never a client name or a Google event title). */
 export function conflictMessage(b: BusyInterval): string {
   if (b.kind === "block") return "That room is blocked for those dates. Pick another time or room.";
-  if (b.kind === "google") return "The studio is unavailable at that time. Pick another slot.";
+  if (b.kind === "google" || b.kind === "calendar") return "The studio is unavailable at that time. Pick another slot.";
   return "That time was just taken. Pick another slot.";
 }
 

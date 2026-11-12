@@ -164,11 +164,14 @@ export async function proposeWaitlistFill(ctx: MutationCtx, session: Doc<"sessio
       subject: `A studio slot just opened up - ${when}`,
       body: `Hi ${artist.name},\n\nA session slot just opened up at ${studioName}${where} on ${when}. You are on our waitlist, so you get first pick.\n\nWant it? Reply to this email and we will lock it in.`,
       notifyKind: "waitlist.offer",
+      waitlistEntryId: winner._id as Id<"waitlistEntries">,
     },
   };
 
+  // The entry is marked "notified" when the offer is actually sent
+  // (opsActions.finalize), not here: a proposal waiting for approval must not
+  // hold the best match out of the waitlist text sweep (smsFlows).
   await upsertProposed(ctx, session.orgId, [candidate]);
-  await ctx.db.patch(winner._id as Id<"waitlistEntries">, { status: "notified", lastNotifiedAt: Date.now() });
   return true;
 }
 

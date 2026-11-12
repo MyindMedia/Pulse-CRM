@@ -2,6 +2,7 @@ import { MutationCtx } from "../_generated/server";
 import { Id } from "../_generated/dataModel";
 import { internal } from "../_generated/api";
 import { recordSmsContact } from "./smsContacts";
+import { isSmsOptedOut } from "./smsOptOut";
 
 /* ============================================================
    notify() - the messaging seam.
@@ -24,6 +25,9 @@ export async function notify(
     sessionId?: Id<"sessions">;
   },
 ): Promise<void> {
+  // STOP is final: a number that replied STOP gets no text from any path that
+  // goes through here (booking hold, booking requests, staff pay links...).
+  if (args.channel === "sms" && (await isSmsOptedOut(ctx, args.recipient))) return;
   const id = await ctx.db.insert("notifications", { ...args, status: "simulated" });
   // Which studio last texted this phone, for routing its reply (lib/smsRouting.ts).
   if (args.channel === "sms") await recordSmsContact(ctx, args.orgId, args.recipient);

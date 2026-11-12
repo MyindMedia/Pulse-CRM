@@ -86,6 +86,12 @@ const recoveryFor = (t: TestConvex, org: string) =>
   t.run((ctx) =>
     ctx.db.query("recoveryEvents").withIndex("by_org", (q) => q.eq("orgId", org)).collect(),
   );
+/* Truth audit B3 (money-reporting-money-won-back): a fee counts as won back
+   when its invoice is PAID, not when it is billed. Staff record the payment. */
+async function payFeeInvoice(t: TestConvex, asOwner: ReturnType<TestConvex["withIdentity"]>, org: string) {
+  const [inv] = await invoicesFor(t, org);
+  await asOwner.mutation(api.invoices.setStatus, { id: inv._id, status: "paid", paymentMethod: "cash" });
+}
 const invoicesFor = (t: TestConvex, org: string) =>
   t.run((ctx) =>
     ctx.db.query("invoices").withIndex("by_org", (q) => q.eq("orgId", org)).collect(),
@@ -109,6 +115,10 @@ describe("No-Show Shield", () => {
     expect(inv).toHaveLength(1);
     expect(inv[0].amountCents).toBe(10_000);
 
+    // Billed, not collected: nothing won back yet.
+    expect(await recoveryFor(t, org)).toHaveLength(0);
+
+    await payFeeInvoice(t, asOwner, org);
     const rec = await recoveryFor(t, org);
     expect(rec).toHaveLength(1);
     expect(rec[0].kind).toBe("cancellation_fee");
@@ -144,6 +154,12 @@ describe("No-Show Shield", () => {
     expect(s!.cancellationFeeCents).toBe(10_000);
     expect(s!.depositForfeited).toBe(true);
 
+    // The kept deposit is in hand now; the remaining fee is not, yet.
+    const before = Object.fromEntries((await recoveryFor(t, org)).map((r) => [r.kind, r.amountCents]));
+    expect(before.deposit_forfeited).toBe(6_000);
+    expect(before.cancellation_fee).toBeUndefined();
+
+    await payFeeInvoice(t, asOwner, org);
     const rec = await recoveryFor(t, org);
     const byKind = Object.fromEntries(rec.map((r) => [r.kind, r.amountCents]));
     expect(byKind.deposit_forfeited).toBe(6_000);
@@ -173,6 +189,9 @@ describe("No-Show Shield", () => {
     expect(s!.cancellationFeeCents).toBe(20_000); // 100% of rate
     expect(s!.depositForfeited).toBe(true);
 
+    expect((await recoveryFor(t, org)).map((r) => r.kind)).toEqual(["deposit_forfeited"]);
+
+    await payFeeInvoice(t, asOwner, org);
     const rec = await recoveryFor(t, org);
     const byKind = Object.fromEntries(rec.map((r) => [r.kind, r.amountCents]));
     expect(byKind.deposit_forfeited).toBe(5_000);
@@ -203,7 +222,14 @@ describe("No-Show Shield", () => {
     await asOwner.mutation(api.sessions.setStatus, { id, status: "no_show" });
 
     const entry = await t.run((ctx) => ctx.db.get(entryId));
-    expect(entry!.status).toBe("notified"); // proposeWaitlistFill fired
+    // proposeWaitlistFill fired: a waitlist_fill offer for this person waits
+    // for approval. The entry is only marked "notified" once the offer is sent
+    // (truth audit B3, bookings-clients-feat-waiting-list).
+    const fills = await t.run(async (ctx) =>
+      (await ctx.db.query("opsActions").collect()).filter((a) => a.orgId === org && a.type === "waitlist_fill"));
+    expect(fills).toHaveLength(1);
+    expect(fills[0].payload.kind === "email" && fills[0].payload.waitlistEntryId).toBe(entryId);
+    expect(entry!.status).toBe("waiting");
   });
 
   it("is idempotent: re-setting the same status never double-bills or double-records", async () => {
@@ -217,6 +243,11 @@ describe("No-Show Shield", () => {
     await asOwner.mutation(api.sessions.setStatus, { id, status: "cancelled" });
 
     expect(await invoicesFor(t, org)).toHaveLength(1);
+    expect(await recoveryFor(t, org)).toHaveLength(1); // the deposit_forfeited; the fee is unpaid
+
+    // Paying, then re-saving it as paid, records the fee exactly once.
+    await payFeeInvoice(t, asOwner, org);
+    await payFeeInvoice(t, asOwner, org);
     expect(await recoveryFor(t, org)).toHaveLength(2); // one deposit_forfeited + one fee
   });
 

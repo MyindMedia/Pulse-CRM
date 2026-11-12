@@ -200,6 +200,17 @@ export const listActiveInternal = internalQuery({
   },
 });
 
+/** Cron: the active feeds that have gone longest without a refresh (never
+ *  synced first), across every studio. Bounded by `limit`. */
+export const dueForRefresh = internalQuery({
+  args: { limit: v.number() },
+  handler: async (ctx, { limit }) =>
+    await ctx.db
+      .query("externalCalendars")
+      .withIndex("by_active_sync", (q) => q.eq("active", true))
+      .take(limit),
+});
+
 export const upsertEvents = internalMutation({
   args: {
     calendarId: v.id("externalCalendars"),

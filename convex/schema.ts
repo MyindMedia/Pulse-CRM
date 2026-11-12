@@ -1985,7 +1985,9 @@ export default defineSchema({
     note: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])
-    .index("by_org_at", ["orgId", "at"]),
+    .index("by_org_at", ["orgId", "at"])
+    // One fee / reminder recovery per invoice (lib/recoveryOnPaid.ts).
+    .index("by_invoice", ["invoiceId"]),
 
   // ── Expenses - money OUT. The other half of the books: rent, utilities,
   //    subscriptions, gear, repairs, contractor/engineer payouts, marketing,
@@ -2526,7 +2528,9 @@ export default defineSchema({
     active: v.boolean(),
   })
     .index("by_org", ["orgId"])
-    .index("by_room", ["roomId"]),
+    .index("by_room", ["roomId"])
+    // The refresh cron takes the stalest active feeds first.
+    .index("by_active_sync", ["active", "lastSyncAt"]),
 
   // ── Imported external events. Block times so the studio doesn't get
   //    double-booked against an outside calendar. Idempotent on externalUid. ──
@@ -2748,6 +2752,8 @@ export default defineSchema({
         subject: v.string(),
         body: v.string(),
         notifyKind: v.string(),
+        // waitlist.offer only: the entry to mark "notified" once it is sent.
+        waitlistEntryId: v.optional(v.id("waitlistEntries")),
       }),
       v.object({
         kind: v.literal("session_status"),

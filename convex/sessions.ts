@@ -603,17 +603,10 @@ async function assessNoShowShield(
   }
 
   if (additionalCents > 0) {
-    // The shield always ships fully functional through invoices: bill the fee,
-    // log the recovery, and notify the client.
+    // The shield always ships fully functional through invoices: bill the fee
+    // and notify the client. The fee counts as won back when the invoice is
+    // paid, not now (lib/recoveryOnPaid.ts), so unpaid fees are never claimed.
     const invoiceId = await createCancellationFeeInvoice(ctx, s, additionalCents, label);
-    await ctx.runMutation(internal.recovery.record, {
-      orgId: s.orgId,
-      kind: feeKind,
-      amountCents: additionalCents,
-      sessionId: s._id,
-      invoiceId: invoiceId ?? undefined,
-      note: `${s.title} - ${label}`,
-    });
 
     // Best-effort auto-charge when a card is on file for this client on the
     // studio's connected Stripe account. Off-session charge runs in an action;

@@ -15,6 +15,11 @@ const crons = cronJobs();
 // forfeit, session progression. Already all-org safe.
 crons.interval("booking-automation", { minutes: 15 }, internal.automation.tick);
 
+// Outside calendar feeds (.ics) a studio added to a room. Their events block
+// bookings (lib/roomBusy.ts), so keep them fresh without a manual sync: each
+// run refreshes the stalest active feeds, a bounded batch.
+crons.interval("external-calendars-refresh", { minutes: 30 }, internal.externalCalendarsActions.refreshDue, {});
+
 // The native clients' change feed is append-only. Two weeks of history is more
 // than any device is realistically away; past that a client re-snapshots rather
 // than pulling a feed with a hole in it. One run is batched, and drains itself
