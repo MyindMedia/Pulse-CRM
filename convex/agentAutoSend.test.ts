@@ -204,6 +204,19 @@ describe("assistant auto-send", () => {
     expect(pols.map((p) => p.autonomy).sort()).toEqual(["suggest", "suggest"]);
   });
 
+  it("U-08b: an agency member acting inside the studio cannot turn auto-send on there either", async () => {
+    const t = convexTest(schema);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencies", { agencyId: "ag", name: "AG", slug: "ag", plan: "max", status: "active", ownerClerkUserId: "u_ag", ownerEmail: "o@x.com" });
+      await ctx.db.insert("agencyMembers", { agencyId: "ag", clerkUserId: "u_ag", email: "o@x.com", name: "Owner", role: "owner", status: "active", invitedAt: 0 });
+      await ctx.db.insert("orgs", { orgId: "sub_max", name: "Max", slug: "m", tier: "max", status: "active", agencyId: "ag" });
+    });
+    const agency = t.withIdentity({ subject: "u_ag", name: "Owner", orgId: "ag", orgType: "agency" });
+    await expect(agency.mutation(api.agent.updatePolicy, { autonomy: "auto_trusted" })).rejects.toThrow(/owner/);
+    const pol = await t.run(async (ctx) => ctx.db.query("agentPolicies").withIndex("by_org", (q) => q.eq("orgId", "sub_max")).first());
+    expect(pol?.autonomy ?? "suggest").toBe("suggest");
+  });
+
   it("U-09: a non-owner cannot change autonomy; the owner on Max can", async () => {
     const { eng, owner } = await setup();
     await expect(eng.mutation(api.agent.updatePolicy, { autonomy: "auto_trusted" })).rejects.toThrow();

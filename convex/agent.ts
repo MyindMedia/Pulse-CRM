@@ -146,6 +146,12 @@ export const updatePolicy = mutation({
         ? "dailySummary"
         : "agent";
     const viewer = await requireCapability(ctx, "ops.autonomy.manage", { entitlement });
+    // Sending without approval is the studio owner's switch (decision 3 of
+    // truth-assistant-auto-send). An agency member acting as the studio may
+    // turn it off, never on.
+    if (patch.autonomy === "auto_trusted" && viewer.kind !== "studio_member") {
+      throw new ConvexError("Only the studio's owner can let the assistant send without approval.");
+    }
     const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
     const existing = await ctx.db.query("agentPolicies").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
     const clean = Object.fromEntries(Object.entries(patch).filter(([, val]) => val !== undefined));
