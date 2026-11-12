@@ -399,3 +399,108 @@ describe("access engine - requireCapability", () => {
     expect(denied).toEqual({ ok: false, code: "SCOPE_DENIED" });
   });
 });
+
+// ── Agency membership must be ACTIVE on every path ───────────────
+// The schema allows "invited" and "suspended" rows. Only the first agency path
+// checked status; the org-claim path and the operator allowlist did not, so a
+// suspended member was still treated as a member.
+describe("access engine - inactive agency members are not members", () => {
+  let t: ReturnType<typeof convexTest>;
+  const prevEnv = process.env.AGENCY_ADMIN_EMAILS;
+  const prevPinned = process.env.PULSE_AGENCY_ID;
+  beforeEach(() => { t = convexTest(schema); });
+  afterEach(() => {
+    if (prevEnv === undefined) delete process.env.AGENCY_ADMIN_EMAILS;
+    else process.env.AGENCY_ADMIN_EMAILS = prevEnv;
+    if (prevPinned === undefined) delete process.env.PULSE_AGENCY_ID;
+    else process.env.PULSE_AGENCY_ID = prevPinned;
+  });
+
+  async function seed(status: "active" | "invited" | "suspended", role: "owner" | "admin" | "staff" = "admin") {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencies", {
+        agencyId: "org_ag", name: "AcmeMG", slug: "acme",
+        plan: "max", status: "active",
+        ownerClerkUserId: "user_owner", ownerEmail: "o@x.com",
+      });
+      await ctx.db.insert("orgs", {
+        orgId: "org_sub", name: "Sub", slug: "sub", tier: "growth",
+        status: "active", agencyId: "org_ag",
+      });
+      await ctx.db.insert("agencyMembers", {
+        agencyId: "org_ag", clerkUserId: "user_x", email: "x@x.com",
+        name: "X", role, status, invitedAt: 0,
+      });
+    });
+  }
+  const agencyToken = { subject: "user_x", name: "X", email: "x@x.com", orgId: "org_ag", orgType: "agency" } as
+    { subject: string; name: string; email: string; orgId: string; orgType: string };
+
+  it("a SUSPENDED member with an agency org claim is refused", async () => {
+    process.env.AGENCY_ADMIN_EMAILS = "";
+    await seed("suspended");
+    const asX = t.withIdentity(agencyToken);
+    await expect(asX.query(api.testHarness.resolve, {})).rejects.toThrow();
+    const r = await asX.mutation(api.testHarness.require_, { cap: "sessions.read", orgId: "org_sub" });
+    expect(r).toEqual({ ok: false, code: "NO_AGENCY_MEMBER" });
+  });
+
+  it("an INVITED row that carries a real user id is refused with an agency org claim", async () => {
+    process.env.AGENCY_ADMIN_EMAILS = "";
+    await seed("invited");
+    const asX = t.withIdentity(agencyToken);
+    await expect(asX.query(api.testHarness.resolve, {})).rejects.toThrow();
+  });
+
+  it("a suspended OWNER keeps no owner capabilities", async () => {
+    process.env.AGENCY_ADMIN_EMAILS = "";
+    await seed("suspended", "owner");
+    const asX = t.withIdentity(agencyToken);
+    const r = await asX.mutation(api.testHarness.require_, { cap: "billing.edit", orgId: "org_sub" });
+    expect(r.ok).toBe(false);
+  });
+
+  it("an ACTIVE member with the same claim still resolves (no regression)", async () => {
+    process.env.AGENCY_ADMIN_EMAILS = "";
+    await seed("active");
+    const result = await t.withIdentity(agencyToken).query(api.testHarness.resolve, {});
+    expect(result.kind).toBe("agency_member");
+    expect(result.role).toBe("admin");
+  });
+
+  it("a suspended member is NOT lifted back to owner by the operator allowlist", async () => {
+    process.env.AGENCY_ADMIN_EMAILS = "x@x.com";
+    process.env.PULSE_AGENCY_ID = "org_ag";
+    await seed("suspended");
+    // No org claim, so only the allowlist could admit them.
+    const asX = t.withIdentity({ subject: "user_x", name: "X", email: "x@x.com" });
+    await expect(asX.query(api.testHarness.resolve, {})).rejects.toThrow();
+    const r = await asX.mutation(api.testHarness.require_, { cap: "sessions.read", orgId: "org_sub" });
+    expect(r.ok).toBe(false);
+  });
+
+  it("the allowlist still admits an operator who has no member row at all", async () => {
+    process.env.AGENCY_ADMIN_EMAILS = "op@x.com";
+    process.env.PULSE_AGENCY_ID = "org_ag";
+    await seed("suspended"); // someone else's suspended row must not matter
+    const asOp = t.withIdentity({ subject: "user_op", name: "Op", email: "op@x.com" });
+    const result = await asOp.query(api.testHarness.resolve, {});
+    expect(result).toMatchObject({ kind: "agency_member", role: "owner" });
+  });
+
+  it("a row suspended in ANOTHER agency does not block the Pulse allowlist", async () => {
+    process.env.AGENCY_ADMIN_EMAILS = "x@x.com";
+    process.env.PULSE_AGENCY_ID = "org_pulse";
+    await seed("suspended"); // suspended in org_ag, which is not the Pulse agency
+    await t.run(async (ctx) => {
+      await ctx.db.insert("agencies", {
+        agencyId: "org_pulse", name: "Pulse", slug: "pulse",
+        plan: "max", status: "active",
+        ownerClerkUserId: "someone", ownerEmail: "s@x.com",
+      });
+    });
+    const asX = t.withIdentity({ subject: "user_x", name: "X", email: "x@x.com" });
+    const result = await asX.query(api.testHarness.resolve, {});
+    expect(result).toMatchObject({ kind: "agency_member", role: "owner" });
+  });
+});
