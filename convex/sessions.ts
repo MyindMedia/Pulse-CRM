@@ -1229,8 +1229,11 @@ export const respondToEngineerRequest = mutation({
       });
     } else if (accept) {
       // An unpaid public hold is confirmed by its deposit, not by the engineer.
+      // Money must actually have come in: a short-notice 0% hold has
+      // depositCents 0 and owes the full price, so 0 >= 0 is not "paid".
+      const paidCents = session.amountPaidCents ?? 0;
       const depositPaid =
-        session.depositPaid || (session.amountPaidCents ?? 0) >= session.depositCents;
+        session.depositPaid || (paidCents > 0 && paidCents >= session.depositCents);
       finalized = session.source !== "public_booking" || depositPaid;
       await ctx.db.patch(sessionId, {
         engineerRequestStatus: "confirmed",

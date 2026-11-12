@@ -65,6 +65,15 @@ describe("engineer request lifecycle (public bookings)", () => {
     expect((await asEng.query(api.sessions.myEngineerRequests, {})).length).toBe(0);
   });
 
+  it("accepting a short-notice 0% public hold (nothing paid) leaves it tentative", async () => {
+    await t.run((ctx) => ctx.db.patch(sessionId as never, { depositCents: 0, amountPaidCents: 0, depositPaid: false } as never));
+    const asEng = t.withIdentity({ subject: "u_eng", orgId: org });
+    await asEng.mutation(api.sessions.respondToEngineerRequest, { sessionId: sessionId as never, accept: true });
+    const session = await t.run((ctx) => ctx.db.get(sessionId as never));
+    expect(session!.status).toBe("tentative");
+    expect(session!.engineerRequestStatus).toBe("confirmed");
+  });
+
   it("accepting an internal (non-public) booking still finalizes it", async () => {
     await t.run((ctx) => ctx.db.patch(sessionId as never, { source: "internal" } as never));
     const asEng = t.withIdentity({ subject: "u_eng", orgId: org });
