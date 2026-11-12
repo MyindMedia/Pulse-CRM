@@ -77,24 +77,13 @@ export function payoutForSession(input: PayoutInput): PayoutResult | null {
     };
   }
 
-  if (input.payType === "hourly") {
-    const hours = input.hours ?? 0;
-    const perHour = Math.max(0, Math.round(input.payRateCents ?? 0));
-    if (hours <= 0 || perHour <= 0) return null;
-    const amount = Math.round(hours * perHour);
-    return {
-      basis: "hourly",
-      amountCents: amount,
-      explanation: `${round2(hours)} hour${hours === 1 ? "" : "s"} at ${money(perHour)}/hr`,
-      snapshot: { sessionRateCents: rate, hours: round2(hours) },
-    };
-  }
+  // Hourly staff are paid for every clocked hour through payroll
+  // (convex/lib/payroll.ts). A per-session hourly payout on top paid the same
+  // hours twice, so payroll is the one place clocked hours are paid. The
+  // "hourly" basis stays in the type for rows queued before this change.
+  if (input.payType === "hourly") return null;
 
   return null;
-}
-
-function round2(n: number): number {
-  return Math.round(n * 100) / 100;
 }
 
 /** Totals for a set of payouts, split by where each one has got to. */
