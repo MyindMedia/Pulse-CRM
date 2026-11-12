@@ -75,7 +75,7 @@ afterEach(() => vi.useRealTimers());
 
 describe("intern clock-out: what Pulse texts", () => {
   it("U-01 EXTEND gets the 'clock out now' text, never 'stay clocked in'", async () => {
-    const t = convexTest(schema);
+    const t = newT();
     const { entryId } = await setup(t);
     await sweepAt(t, T0 + 4 * HOUR + MIN); // 4h prompt goes out
     expect(sent.find((s) => s.to === INTERN)?.body).toContain("Reply EXTEND");
@@ -92,7 +92,7 @@ describe("intern clock-out: what Pulse texts", () => {
   });
 
   it("U-02 no manager with a phone: the intern is told to ask in person", async () => {
-    const t = convexTest(schema);
+    const t = newT();
     await setup(t, { managerPhone: false });
     await sweepAt(t, T0 + 4 * HOUR + MIN);
     vi.setSystemTime(T0 + 4 * HOUR + 5 * MIN);
@@ -105,7 +105,7 @@ describe("intern clock-out: what Pulse texts", () => {
   });
 
   it("U-03 manager approves in time: entry stays open and the intern is told", async () => {
-    const t = convexTest(schema);
+    const t = newT();
     const { entryId } = await setup(t);
     await sweepAt(t, T0 + 4 * HOUR + MIN);
     vi.setSystemTime(T0 + 4 * HOUR + 5 * MIN);
@@ -124,7 +124,7 @@ describe("intern clock-out: what Pulse texts", () => {
   });
 
   it("U-03b approval after the intern clocked out (as told) says they can clock back in", async () => {
-    const t = convexTest(schema);
+    const t = newT();
     const { orgId, entryId } = await setup(t);
     await sweepAt(t, T0 + 4 * HOUR + MIN);
     vi.setSystemTime(T0 + 4 * HOUR + 5 * MIN);
@@ -140,7 +140,7 @@ describe("intern clock-out: what Pulse texts", () => {
   });
 
   it("U-04 manager denies: intern texted to clock out, entry unchanged until they do", async () => {
-    const t = convexTest(schema);
+    const t = newT();
     const { orgId, entryId } = await setup(t);
     await sweepAt(t, T0 + 4 * HOUR + MIN);
     vi.setSystemTime(T0 + 4 * HOUR + 5 * MIN);
@@ -167,7 +167,7 @@ describe("intern clock-out: what Pulse texts", () => {
 
 describe("intern clock-out: the timeout", () => {
   it("U-05 closes the entry at the approval window end, not clock-in + 4h", async () => {
-    const t = convexTest(schema);
+    const t = newT();
     const { entryId } = await setup(t);
     await sweepAt(t, T0 + 4 * HOUR + MIN);
     vi.setSystemTime(T0 + 4 * HOUR + 5 * MIN);
@@ -199,7 +199,7 @@ describe("intern clock-out: the timeout", () => {
   });
 
   it("U-06b a prompt with a late expiry keeps the entry open until it lapses, and is never stamped ahead of now", async () => {
-    const t = convexTest(schema);
+    const t = newT();
     const { orgId, entryId } = await setup(t);
     await t.run(async (ctx) => {
       await ctx.db.patch(entryId, { internPromptSentAt: T0 + 4 * HOUR, internExtension: "requested" });
@@ -215,7 +215,7 @@ describe("intern clock-out: the timeout", () => {
   });
 
   it("U-07 a second sweep (or a duplicate run) changes nothing and texts nobody again", async () => {
-    const t = convexTest(schema);
+    const t = newT();
     const { entryId } = await setup(t);
     await sweepAt(t, T0 + 4 * HOUR + MIN);
     vi.setSystemTime(T0 + 4 * HOUR + 5 * MIN);
@@ -232,7 +232,7 @@ describe("intern clock-out: the timeout", () => {
   });
 
   it("U-07b an approval landing between the sweep's read and its write wins", async () => {
-    const t = convexTest(schema);
+    const t = newT();
     const { entryId } = await setup(t);
     await t.run((ctx) => ctx.db.patch(entryId, { internPromptSentAt: T0 + 4 * HOUR, internExtension: "approved" }));
     vi.setSystemTime(T0 + 6 * HOUR);
@@ -241,7 +241,7 @@ describe("intern clock-out: the timeout", () => {
   });
 
   it("U-08 an intern who clocked out themselves before the timeout is untouched", async () => {
-    const t = convexTest(schema);
+    const t = newT();
     const { orgId, entryId } = await setup(t);
     await sweepAt(t, T0 + 4 * HOUR + MIN);
     vi.setSystemTime(T0 + 4 * HOUR + 5 * MIN);
@@ -259,7 +259,7 @@ describe("intern clock-out: the timeout", () => {
   });
 
   it("U-09 EXTEND from a stranger, or from another studio's intern, changes nothing", async () => {
-    const t = convexTest(schema);
+    const t = newT();
     const a = await setup(t);
     const b = await setup(t, { orgId: "org_other", internPhone: "+14045550303" });
     await sweepAt(t, T0 + 4 * HOUR + MIN);
@@ -277,7 +277,7 @@ describe("intern clock-out: the timeout", () => {
   });
 
   it("U-10 the payroll summary pays the time up to the new clock-out", async () => {
-    const t = convexTest(schema);
+    const t = newT();
     const { orgId, entryId } = await setup(t);
     await sweepAt(t, T0 + 4 * HOUR + MIN);
     vi.setSystemTime(T0 + 4 * HOUR + 5 * MIN);
@@ -297,7 +297,7 @@ describe("intern clock-out: the timeout", () => {
 
 describe("intern clock-out: report on past entries (no writes)", () => {
   it("lists entries the old rule cut at 4h, with the time left unpaid, and changes nothing", async () => {
-    const t = convexTest(schema);
+    const t = newT();
     const { orgId, entryId, internId } = await setup(t);
     // An entry closed the old way: EXTEND at 4h05, manager window to 5h05, cut at 4h.
     await t.run(async (ctx) => {
