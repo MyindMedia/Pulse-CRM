@@ -101,6 +101,29 @@ describe("Pulse Agent", () => {
     expect(got?.messages.some((m) => m.role === "assistant")).toBe(true);
   });
 
+  it("agent off switch: createRun refuses, queued runs do not reach the model, saved questions are not due", async () => {
+    // A run queued while the agent was on...
+    const queued = await t.mutation(api.agent.createRun, { prompt: "How is my studio doing?" });
+    const autoId = await t.mutation(api.agentAutomations.create, { name: "Daily sweep", prompt: "Find overdue invoices.", cadence: "daily" });
+    // ...then the owner turns it off.
+    await t.mutation(api.agent.updatePolicy, { enabled: false });
+
+    await expect(t.mutation(api.agent.createRun, { prompt: "Who owes me money?" })).rejects.toThrow(/turned off/);
+    await drain(t);
+    const got = await t.query(api.agent.getRun, { id: queued });
+    expect(got?.run.status).toBe("failed");
+    expect(got?.run.error).toMatch(/turned off/);
+    expect(got?.messages.some((m) => m.role === "assistant")).toBe(false);
+
+    const due = await t.query(internal.agentAutomations._due, { orgId: ORG });
+    expect(due.some((a) => a._id === autoId)).toBe(false);
+
+    // Back on: it works again.
+    await t.mutation(api.agent.updatePolicy, { enabled: true });
+    const due2 = await t.query(internal.agentAutomations._due, { orgId: ORG });
+    expect(due2.some((a) => a._id === autoId)).toBe(true);
+  });
+
   it("studioHealth returns six weighted components + an overall band", async () => {
     const h = await t.query(api.agentHealth.studioHealth, {});
     expect(h.overall).toBeGreaterThanOrEqual(0);

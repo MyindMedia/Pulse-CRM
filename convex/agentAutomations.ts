@@ -4,6 +4,7 @@ import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import { currentOrg } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
+import { agentEnabledFor } from "./agent";
 
 /* ============================================================
    Agent automations - recurring agent tasks (spec 12). A saved
@@ -68,6 +69,8 @@ export const remove = mutation({
 export const _due = internalQuery({
   args: { orgId: v.string() },
   handler: async (ctx, { orgId }) => {
+    // Saved questions are the assistant: when its switch is off, none are due.
+    if (!(await agentEnabledFor(ctx, orgId))) return [];
     const now = Date.now();
     const rows = await ctx.db
       .query("agentAutomations")

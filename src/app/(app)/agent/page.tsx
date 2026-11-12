@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { useQuery, useMutation } from "convex/react";
+import { ConvexError } from "convex/values";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
@@ -240,8 +241,9 @@ function CommandBar() {
       const id = await createRun({ prompt: q });
       setRunId(id);
       setPrompt("");
-    } catch {
-      toast.error("Could not reach the agent.");
+    } catch (err) {
+      const msg = err instanceof ConvexError && typeof err.data === "string" ? err.data : "Could not reach the agent.";
+      toast.error(msg);
     } finally {
       setBusy(false);
     }

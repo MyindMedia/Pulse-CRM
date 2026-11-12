@@ -92,6 +92,15 @@ const DEFAULT_POLICY = {
 
 // ── Policy ──────────────────────────────────────────────────────────────
 
+export const AGENT_OFF_MESSAGE = "The assistant is turned off for this studio. Turn it on in Agent settings to use it.";
+
+/** The "Agent enabled" switch. Off means the Pulse Agent does not run: no
+ *  chat answers, no saved questions, no scans, no daily summary. */
+export async function agentEnabledFor(ctx: QueryCtx, orgId: string): Promise<boolean> {
+  const row = await ctx.db.query("agentPolicies").withIndex("by_org", (q) => q.eq("orgId", orgId)).first();
+  return row?.enabled ?? DEFAULT_POLICY.enabled;
+}
+
 export const getPolicy = query({
   args: {},
   handler: async (ctx) => {
@@ -194,6 +203,15 @@ export const createRun = mutation({
     const orgId = ("orgId" in viewer && viewer.orgId) ? viewer.orgId : await currentOrg(ctx);
     const clerkUserId = "clerkUserId" in viewer ? viewer.clerkUserId : undefined;
 
+    // A money question goes to the Accounting agent, which has its own switch.
+    // Everything else is the Pulse Agent: when the owner has turned it off,
+    // say so instead of quietly running it anyway.
+    const route = routeIntent(prompt);
+    const toAccounting = route?.agent === "accounting" && (await accountingIsOn(ctx, orgId));
+    if (!toAccounting && !(await agentEnabledFor(ctx, orgId))) {
+      throw new ConvexError(AGENT_OFF_MESSAGE);
+    }
+
     const runId = await ctx.db.insert("agentRuns", {
       orgId,
       clerkUserId,
@@ -204,10 +222,8 @@ export const createRun = mutation({
     });
     await ctx.db.insert("agentMessages", { orgId, runId, role: "user", body: prompt });
     await ctx.db.insert("agentAuditLogs", { orgId, runId, event: "run.created", actor: clerkUserId, at: Date.now() });
-    // A money question goes to the Accounting agent, not the general one.
     // The general agent never reads the books (lib/agentScope.ts).
-    const route = routeIntent(prompt);
-    if (route?.agent === "accounting" && (await accountingIsOn(ctx, orgId))) {
+    if (toAccounting && route) {
       await ctx.db.insert("agentAuditLogs", { orgId, runId, event: "run.routed", detail: `accounting: ${route.reason}`, actor: clerkUserId, at: Date.now() });
       await ctx.scheduler.runAfter(0, internal.accountingAgent.answerRun, { runId, orgId, prompt });
       return runId;
@@ -466,8 +482,14 @@ export const runAgentLLM = internalAction({
   args: { runId: v.id("agentRuns"), orgId: v.string(), prompt: v.string(), runType: v.string() },
   handler: async (ctx, { runId, orgId, prompt }) => {
     try {
-      const cx = await ctx.runQuery(internal.agent._context, { orgId });
       const policy = await ctx.runQuery(internal.agent._policyFor, { orgId });
+      // Every path into the model comes through here (chat, saved questions,
+      // scans, the daily summary), so the off switch is enforced here too.
+      if (!policy.enabled) {
+        await ctx.runMutation(internal.agent._finalize, { runId, orgId, status: "failed", error: AGENT_OFF_MESSAGE });
+        return;
+      }
+      const cx = await ctx.runQuery(internal.agent._context, { orgId });
       const tone = policy.defaultTone === "custom" && policy.customToneInstructions
         ? policy.customToneInstructions
         : policy.defaultTone;
