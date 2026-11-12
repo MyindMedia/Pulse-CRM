@@ -11,4 +11,8 @@ describe("default dashboard", () => {
   it("shows the Today board", () => {
     expect(fresh).toContain("today");
   });
+
+  it("shows the Projects card", () => {
+    expect(fresh).toContain("projects");
+  });
 });

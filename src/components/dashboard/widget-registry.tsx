@@ -203,7 +203,7 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
     blurb: "Post-production work that is late or due soonest",
     span: "half",
     titled: false, // carries its own title so a studio without projects shows nothing
-    defaultHidden: true,
+    // On by default: project cards are sold as sitting on the home screen.
     render: () => <ProjectsTodayCard />,
   },
   {
