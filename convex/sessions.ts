@@ -646,9 +646,13 @@ async function assessNoShowShield(
         subject: `${nice} - ${s.title}`,
         body: `Hi ${artist.name},\n\nPer our booking policy, a ${label} of ${money(
           fee,
-        )} applies to your ${status === "no_show" ? "missed" : "late-cancelled"} session "${s.title}".${depositLine} We have sent an invoice for the ${money(
-          additionalCents,
-        )} balance. Reply here with any questions - we would love to get you rebooked.`,
+        )} applies to your ${status === "no_show" ? "missed" : "late-cancelled"} session "${s.title}".${depositLine} ${
+          // The fee invoice is a draft until the studio sends it, so do not
+          // say it was sent.
+          canAutoCharge
+            ? `The ${money(additionalCents)} balance will be charged to your card on file.`
+            : `The studio will send you an invoice for the ${money(additionalCents)} balance.`
+        } Reply here with any questions - we would love to get you rebooked.`,
         kind: `session.${feeKind}`,
         sessionId: s._id,
       });

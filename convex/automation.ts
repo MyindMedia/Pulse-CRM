@@ -364,7 +364,10 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
           channel: "email",
           recipient: email,
           subject: `Booking cancelled - ${s.title}`,
-          body: "The balance was not paid in full 2 hours before the session, so the booking was released. The deposit is non-refundable per the booking terms.",
+          // Only mention money when some was paid: there may be no deposit.
+          body:
+            "The balance was not paid in full 2 hours before the session, so the booking was released." +
+            (paid > 0 ? ` The ${money(paid)} you paid is kept by the studio.` : ""),
           kind: "booking.forfeited",
           sessionId: s._id,
         });
@@ -372,7 +375,9 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
       await notifyTeam(ctx, {
         orgId: s.orgId,
         subject: `Booking forfeited - ${s.title}`,
-        body: `"${s.title}" was released: the balance was not paid in full 2 hours before start. The deposit is retained per booking terms.`,
+        body:
+          `"${s.title}" was released: the balance was not paid in full 2 hours before start.` +
+          (paid > 0 ? ` The ${money(paid)} paid is kept.` : " Nothing was paid."),
         kind: "booking.forfeited",
         sessionId: s._id,
       });

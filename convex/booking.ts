@@ -1,4 +1,5 @@
 import { fileUrl } from "./lib/media";
+import { clientPolicyText } from "./lib/clientPolicy";
 import { publicCredits } from "./lib/importedCreditLabels";
 import { brandSecondaryOf } from "./lib/brandPresets";
 import {
@@ -132,7 +133,7 @@ async function brand(ctx: QueryCtx, org: Doc<"orgs"> | null) {
     headline: org?.bookingHeadline ?? null,
     intro: publicIntro(org),
     // No deposit talk on a link that takes no payment.
-    depositPolicy: bookingFeatures(org).hidePricing ? null : org?.depositPolicyText ?? null,
+    depositPolicy: bookingFeatures(org).hidePricing ? null : clientPolicyText(org),
   };
 }
 
@@ -407,7 +408,7 @@ export const service = query({
       roomId: svc.roomId,
       roomName: room.name,
       studioName: org?.name ?? "Pulse Studio",
-      depositPolicy: hidePricing ? null : (org?.depositPolicyText ?? null),
+      depositPolicy: hidePricing ? null : clientPolicyText(org),
       openHour: OPEN_HOUR,
       closeHour: CLOSE_HOUR,
       showGear,
@@ -476,7 +477,7 @@ export const room = query({
       openHour: OPEN_HOUR,
       closeHour: CLOSE_HOUR,
       studioName: org?.name ?? "Pulse Studio",
-      depositPolicy: hidePricing ? null : (org?.depositPolicyText ?? null),
+      depositPolicy: hidePricing ? null : clientPolicyText(org),
       showGear,
       pricingHidden: hidePricing,
       requiresApproval: hidePricing || features.requireApproval,
