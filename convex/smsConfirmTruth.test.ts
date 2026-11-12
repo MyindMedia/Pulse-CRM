@@ -94,6 +94,36 @@ describe("2h confirm text tells the truth", () => {
     expect((await queuedTexts(t)).some((b) => /You are confirmed/.test(b))).toBe(true);
   });
 
+  for (const status of ["in_progress", "completed"] as const) {
+    it(`YES after the confirmed session moved on (${status}) gets the confirmed ack and no false alert`, async () => {
+      const { t, sessionId } = await setup(status, {}, { managerPhone: MANAGER });
+      await openConfirmPrompt(t, sessionId);
+      await t.mutation(internal.sms._handleInbound, { from: "+14045550101", body: "YES" });
+      const sends = await queuedSends(t);
+      expect(sends.some((x) => x.to === "+14045550101" && /You are confirmed/.test(x.body))).toBe(true);
+      expect(sends.some((x) => x.to === MANAGER && /not confirmed/.test(x.body))).toBe(false);
+    });
+  }
+
+  it("YES on an unconfirmed booking answers the client and alerts the managers", async () => {
+    const { t, sessionId } = await setup("tentative", {}, { managerPhone: MANAGER });
+    await openConfirmPrompt(t, sessionId);
+    await t.mutation(internal.sms._handleInbound, { from: "+14045550101", body: "YES" });
+    const sends = await queuedSends(t);
+    const toClient = sends.filter((x) => x.to === "+14045550101").map((x) => x.body);
+    expect(toClient).toEqual(["Pulse: Thanks, we have passed this to Skyline."]);
+    expect(sends.some((x) => x.to === MANAGER && /not confirmed yet/.test(x.body))).toBe(true);
+  });
+
+  it("YES on an unconfirmed booking with nobody to tell does not claim it was passed on", async () => {
+    const { t, sessionId } = await setup("tentative");
+    await openConfirmPrompt(t, sessionId);
+    await t.mutation(internal.sms._handleInbound, { from: "+14045550101", body: "YES" });
+    const toClient = (await queuedSends(t)).filter((x) => x.to === "+14045550101").map((x) => x.body);
+    expect(toClient).toHaveLength(1);
+    expect(toClient[0]).toMatch(/could not reach Skyline/);
+  });
+
   it("NO then REBOOK never promises a held deposit, to the client or the managers", async () => {
     const { t, sessionId } = await setup("confirmed", {}, { managerPhone: MANAGER });
     await openConfirmPrompt(t, sessionId);

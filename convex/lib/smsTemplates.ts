@@ -81,6 +81,9 @@ export const CLIENT_CONFIRM_2H =
 export const CLIENT_CONFIRM_ACK =
   "Pulse: You are confirmed for \"{title}\" at {studio}. See you soon!";
 
+/** Client said YES to a booking that is not confirmed: the studio was told. */
+export const CLIENT_PASSED_ON_ACK = "Pulse: Thanks, we have passed this to {studio}.";
+
 /** Client said NO: the studio is told and follows up about the deposit.
  *  Pulse does not hold, apply or forfeit the deposit on its own yet. */
 export const CLIENT_DECLINE_FOLLOWUP =

@@ -14,6 +14,7 @@ import {
   renderSms,
   displayPhone,
   CLIENT_CONFIRM_ACK,
+  CLIENT_PASSED_ON_ACK,
   CLIENT_DECLINE_FOLLOWUP,
   CLIENT_REBOOK_ACK,
   STAFF_CONFIRM_ACK,
@@ -309,16 +310,24 @@ async function applyPromptAnswer(
     if (intent === "yes") {
       // A text YES never confirms a booking: approval is the studio's call and
       // an unpaid hold is confirmed by its deposit. Only a booking that is
-      // already confirmed hears "You are confirmed"; anything else (an old
-      // question for a booking that changed since) goes to the studio.
+      // already confirmed (or has since started or finished) hears "You are
+      // confirmed"; anything else (an old question for a booking that changed
+      // since) goes to the studio, and the client hears it was passed on.
       await answerPrompt(ctx, prompt, "yes");
-      if (session.status === "confirmed") {
+      if (session.status === "confirmed" || session.status === "in_progress" || session.status === "completed") {
         queueSend(ctx, phone, renderSms(CLIENT_CONFIRM_ACK, { title: session.title, studio }));
       } else {
-        await alertManagers(
+        const told = await alertManagers(
           ctx,
           prompt.orgId,
           `client replied YES for "${session.title}", but the booking is not confirmed yet. Please follow up.`,
+        );
+        queueSend(
+          ctx,
+          phone,
+          told
+            ? renderSms(CLIENT_PASSED_ON_ACK, { studio })
+            : renderSms(NOBODY_TOLD_ACK, { studio, phone: displayPhone(org?.contact?.phone) }),
         );
       }
       return true;
