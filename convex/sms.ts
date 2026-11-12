@@ -1,6 +1,6 @@
 import { action, query, internalQuery, internalAction } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
-import { orgTz, dateLabel } from "./lib/tz";
+import { orgTz, dateLabel, dayWord } from "./lib/tz";
 import { v, ConvexError } from "convex/values";
 import { internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
@@ -197,6 +197,8 @@ export const _dueReminders = internalQuery({
 
     for (const s of upcoming) {
       if (s.status !== "tentative" && s.status !== "confirmed") continue;
+      // A pending request is not booked yet: no reminder for it.
+      if (s.requestStatus === "pending") continue;
       const sent = s.smsRemindersSent ?? [];
       const ms = s.startTime - now;
       let kind: "24h" | "2h" | null = null;
@@ -205,7 +207,7 @@ export const _dueReminders = internalQuery({
       if (!kind) continue;
 
       const dateStr = dateLabel(s.startTime, orgTz(org));
-      const soon = kind === "2h" ? "in about 2 hours" : "in about a day";
+      const soon = kind === "2h" ? "in about 2 hours" : dayWord(s.startTime, now, orgTz(org));
 
       const artist = await ctx.db.get(s.artistId);
       const recipients: (typeof out)[number]["recipients"] = [];

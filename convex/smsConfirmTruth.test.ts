@@ -49,12 +49,17 @@ describe("2h confirm text tells the truth", () => {
     expect(due[0].recipients[0].promptKind).toBe("booking_confirm");
   });
 
-  it("sends a pending request the plain reminder, not the YES/NO question", async () => {
-    const { t } = await setup("tentative", { requestStatus: "pending" });
+  it("sends an unpaid hold the plain reminder, not the YES/NO question", async () => {
+    const { t } = await setup("tentative");
     const due = await t.query(internal.sms._dueReminders, { orgId: ORG });
     expect(due[0].recipients[0].promptKind).toBeUndefined();
     expect(due[0].recipients[0].body).toMatch(/Reminder/);
     expect(due[0].recipients[0].body).not.toMatch(/Reply YES/);
+  });
+
+  it("sends a pending request no reminder text at all", async () => {
+    const { t } = await setup("tentative", { requestStatus: "pending" });
+    expect(await t.query(internal.sms._dueReminders, { orgId: ORG })).toEqual([]);
   });
 
   it("YES on an unpaid hold does not confirm it and does not say confirmed", async () => {
