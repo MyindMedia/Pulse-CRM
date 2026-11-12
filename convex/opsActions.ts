@@ -22,6 +22,7 @@ import { recordApprovalLearning, recordDismissLearning } from "./predictions";
 import { approvePost } from "./marketing/posts";
 import { deliverGapDeal } from "./gapDeals";
 import { isAccountingType } from "./lib/agentScope";
+import { roomBusyIntervals, sessionHoldsSlot } from "./lib/roomBusy";
 import {
   approveAccountingAction,
   dismissAccountingAction,
@@ -408,12 +409,62 @@ export const snooze = mutation({
   },
 });
 
+/** Internal: why an approved waitlist offer email should NOT go out now, or
+ * null when it still should. Between proposal and approval the client may
+ * have been texted about the same slot (smsFlows waitlist sweep), someone may
+ * have claimed it, or it may have been rebooked; an email offering it then
+ * would be wrong. */
+export const waitlistOfferBlocker = internalQuery({
+  args: { id: v.id("opsActions") },
+  handler: async (ctx, { id }): Promise<string | null> => {
+    const action = await ctx.db.get(id);
+    if (!action || action.payload.kind !== "email" || !action.payload.waitlistEntryId) return null;
+    const entry = await ctx.db.get(action.payload.waitlistEntryId);
+    if (!entry || entry.orgId !== action.orgId) return "waitlist entry is gone";
+    if (entry.status !== "waiting" && entry.status !== "notified") {
+      return `waitlist entry is ${entry.status}`;
+    }
+    const sessionId = action.entityId ? ctx.db.normalizeId("sessions", action.entityId) : null;
+    const session = sessionId ? await ctx.db.get(sessionId) : null;
+    if (!session || session.orgId !== action.orgId) return "the slot no longer exists";
+    if (session.startTime < Date.now()) return "the slot has already started";
+    if (sessionHoldsSlot(session)) return "the session is back on the calendar";
+    const prompts = await ctx.db
+      .query("smsPrompts")
+      .withIndex("by_session", (q) => q.eq("sessionId", session._id))
+      .take(100);
+    const claims = prompts.filter((p) => p.kind === "waitlist_claim");
+    if (claims.some((p) => p.status === "answered")) return "the slot was already claimed by text";
+    if (claims.some((p) => p.artistId === entry.artistId)) return "the client was already offered this slot by text";
+    if (session.roomId) {
+      const busy = await roomBusyIntervals(ctx, {
+        orgId: action.orgId,
+        roomId: session.roomId,
+        from: session.startTime,
+        to: session.endTime,
+        excludeSessionId: session._id,
+      });
+      if (busy.some((b) => b.kind === "session")) return "the slot was booked by someone else";
+    }
+    return null;
+  },
+});
+
 /** Internal: execute an approved action. Idempotent; fully audited. */
 export const execute = internalAction({
   args: { id: v.id("opsActions") },
   handler: async (ctx, { id }) => {
     const action = await ctx.runQuery(internal.opsActions.getInternal, { id });
     if (!action || action.status === "executed") return;
+    // A waitlist offer whose slot was claimed, texted or rebooked meanwhile is
+    // closed as noted instead of sending a stale "slot just opened" email.
+    if (action.payload.kind === "email" && action.payload.waitlistEntryId) {
+      const blocker = await ctx.runQuery(internal.opsActions.waitlistOfferBlocker, { id });
+      if (blocker) {
+        await ctx.runMutation(internal.opsActions.finalize, { id, skippedReason: blocker });
+        return;
+      }
+    }
     let emailStatus: "sent" | "failed" | "simulated" | undefined;
     if (action.payload.kind === "email" && action.payload.to) {
       emailStatus = await sendEmail({
@@ -434,14 +485,19 @@ export const finalize = internalMutation({
   args: {
     id: v.id("opsActions"),
     emailStatus: v.optional(v.union(v.literal("sent"), v.literal("failed"), v.literal("simulated"))),
+    // Set when execute chose not to send (see waitlistOfferBlocker).
+    skippedReason: v.optional(v.string()),
   },
-  handler: async (ctx, { id, emailStatus }) => {
+  handler: async (ctx, { id, emailStatus, skippedReason }) => {
     const action = await ctx.db.get(id);
     if (!action || action.status === "executed") return;
 
     let result = "noted";
     const p = action.payload;
-    if (p.kind === "email") {
+    if (skippedReason) {
+      // Nothing was sent: no notifications row, no entry change.
+      result = `noted: not sent, ${skippedReason}`;
+    } else if (p.kind === "email") {
       await ctx.db.insert("notifications", {
         orgId: action.orgId,
         channel: "email",
@@ -505,7 +561,7 @@ export const finalize = internalMutation({
     await ctx.db.insert("activity", {
       orgId: action.orgId,
       kind: `ops.${action.type}`,
-      summary: `Autopilot: ${action.title}`,
+      summary: skippedReason ? `Not sent (${skippedReason}): ${action.title}` : `Autopilot: ${action.title}`,
       actorName: action.decidedBy ?? "Autopilot",
       entityType: action.entityType,
       entityId: action.entityId,

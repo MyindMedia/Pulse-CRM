@@ -222,6 +222,74 @@ describe("waitlist smart-fill (integration)", () => {
     expect(other?.status).toBe("waiting");
   });
 
+  // R32: the winner stays reachable by the SMS sweep, so by the time the owner
+  // approves the email the slot may be texted, claimed or rebooked.
+  async function approvedOfferThen(change: (ctx: Parameters<Parameters<typeof t.run>[0]>[0], ids: Awaited<ReturnType<typeof seedTwoFreedSlots>>) => Promise<unknown>) {
+    const ids = await seedTwoFreedSlots();
+    await t.mutation(api.sessions.setStatus, { id: ids.s1, status: "cancelled" });
+    const [action] = await fills();
+    await t.run((ctx) => ctx.db.patch(action._id, { status: "approved" }));
+    await t.run((ctx) => change(ctx, ids));
+    await t.action(internal.opsActions.execute, { id: action._id });
+    return t.run(async (ctx) => ({
+      action: await ctx.db.get(action._id),
+      mails: (await ctx.db.query("notifications").collect()).filter((n) => n.kind === "waitlist.offer"),
+      entry: await ctx.db.get(ids.topEntry),
+    }));
+  }
+
+  it("does not email an offer for a slot the same client was already texted about", async () => {
+    const out = await approvedOfferThen(async (ctx, { s1, topEntry }) => {
+      const e = (await ctx.db.get(topEntry))!;
+      await ctx.db.insert("smsPrompts", {
+        orgId: ORG, phone: "+15550001111", kind: "waitlist_claim", sessionId: s1, artistId: e.artistId,
+        status: "open", sentAt: Date.now(), expiresAt: Date.now() + DAY,
+      });
+    });
+    expect(out.mails).toHaveLength(0);
+    expect(out.action?.status).toBe("executed");
+    expect(out.action?.result).toMatch(/^noted: not sent/);
+    expect(out.entry?.status).toBe("waiting");
+  });
+
+  it("does not email an offer for a slot someone already claimed by text", async () => {
+    const out = await approvedOfferThen(async (ctx, { s1, nextEntry }) => {
+      const e = (await ctx.db.get(nextEntry))!;
+      await ctx.db.insert("smsPrompts", {
+        orgId: ORG, phone: "+15550002222", kind: "waitlist_claim", sessionId: s1, artistId: e.artistId,
+        status: "answered", answer: "claim", sentAt: Date.now(), expiresAt: Date.now() + DAY, answeredAt: Date.now(),
+      });
+    });
+    expect(out.mails).toHaveLength(0);
+    expect(out.action?.result).toMatch(/claimed/);
+  });
+
+  it("does not email an offer once the room is rebooked for that time", async () => {
+    const out = await approvedOfferThen(async (ctx, { s1, nextEntry }) => {
+      const s = (await ctx.db.get(s1))!;
+      const e = (await ctx.db.get(nextEntry))!;
+      await ctx.db.insert("sessions", {
+        orgId: ORG, title: "Rebooked", artistId: e.artistId, serviceType: "recording", roomId: s.roomId,
+        startTime: s.startTime, endTime: s.endTime, status: "confirmed",
+        rateCents: 20000, depositCents: 0, depositPaid: false, intakeCompleted: false,
+      });
+    });
+    expect(out.mails).toHaveLength(0);
+    expect(out.action?.result).toMatch(/booked by someone else/);
+  });
+
+  it("does not email an offer once the client's entry is booked", async () => {
+    const out = await approvedOfferThen((ctx, { topEntry }) => ctx.db.patch(topEntry, { status: "booked" }));
+    expect(out.mails).toHaveLength(0);
+    expect(out.entry?.status).toBe("booked");
+  });
+
+  it("still emails the offer when the slot is open and untouched", async () => {
+    const out = await approvedOfferThen(async () => null);
+    expect(out.mails).toHaveLength(1);
+    expect(out.entry?.status).toBe("notified");
+  });
+
   it("does not propose a fill when the waitlist is empty", async () => {
     const sessionId = await t.run(async (ctx) => {
       const artistId = await ctx.db.insert("artists", {
