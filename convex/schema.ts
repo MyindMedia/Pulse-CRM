@@ -4,6 +4,7 @@ import { v } from "convex/values";
 import { pulseWalkthroughTables } from "./pulseWalkthrough/tables";
 import { outreachTables } from "./outreach/tables";
 import { mailTables } from "./mail/tables";
+import { crmTables } from "./crm/tables";
 import { projectTables } from "./projectsTables";
 import { mediaLibraryTables } from "./mediaLibraryTables";
 import { catalogTables } from "./catalogTables";
@@ -205,6 +206,7 @@ export default defineSchema({
   ...pulseWalkthroughTables,
   ...outreachTables,
   ...mailTables,
+  ...crmTables,
   ...projectTables,
   ...mediaLibraryTables,
   ...catalogTables,

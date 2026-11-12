@@ -190,12 +190,11 @@ export async function resolveViewer(ctx: Ctx, opts?: ResolveOptions): Promise<Vi
     // row, they ARE an agency member - even when the token doesn't carry orgType
     // (e.g. no custom JWT template configured). This is the source of truth for
     // agency membership; the orgType check below is a legacy fast-path.
-    const agMembership = (
-      await ctx.db
-        .query("agencyMembers")
-        .withIndex("by_clerk", (q) => q.eq("clerkUserId", clerkUserId))
-        .collect()
-    ).find((m) => m.status === "active");
+    const agRows = await ctx.db
+      .query("agencyMembers")
+      .withIndex("by_clerk", (q) => q.eq("clerkUserId", clerkUserId))
+      .collect();
+    const agMembership = agRows.find((m) => m.status === "active");
     if (agMembership) {
       let scoped: string[] | "all" = "all";
       if (agMembership.role === "staff") {
@@ -220,33 +219,17 @@ export async function resolveViewer(ctx: Ctx, opts?: ResolveOptions): Promise<Vi
       };
     }
 
-    // Agency-tier Clerk org (legacy fast-path; requires orgType in the JWT)
+    // Agency-tier Clerk org claim (requires orgType in the JWT).
+    // Any ACTIVE row for this user was returned above, so a row found here is
+    // "invited" or "suspended": not a member. This branch used to read the row
+    // without looking at its status, which let a suspended member back in for
+    // as long as their token carried the agency org claim.
     if (orgId && orgType === "agency") {
-      const member = await ctx.db
-        .query("agencyMembers")
-        .withIndex("by_agency_clerk", (q) =>
-          q.eq("agencyId", orgId).eq("clerkUserId", clerkUserId))
-        .first();
-      if (!member) throw new AccessError("NO_AGENCY_MEMBER", "No agencyMembers row for caller");
-      let scoped: string[] | "all" = "all";
-      if (member.role === "staff") {
-        const scopes = await ctx.db
-          .query("agencyMemberScopes")
-          .withIndex("by_member", (q) => q.eq("agencyMemberId", member._id))
-          .collect();
-        scoped = scopes.map((s) => s.subAccountOrgId);
-      }
-      const selectedOrgId = await selectedAgencyOrgId(ctx, orgId, clerkUserId, scoped);
-      return {
-        kind: "agency_member",
-        agencyId: orgId,
-        agencyMemberId: member._id,
-        clerkUserId,
-        role: member.role,
-        scopedSubAccountOrgIds: scoped,
-        capabilities: buildAgencyCaps(member.role, member.capabilityOverrides),
-        orgId: selectedOrgId,
-      };
+      const inactive = agRows.some((m) => m.agencyId === orgId);
+      throw new AccessError(
+        "NO_AGENCY_MEMBER",
+        inactive ? "Agency membership is not active" : "No agencyMembers row for caller",
+      );
     }
 
     // Operator allowlist (AGENCY_ADMIN_EMAILS) - converge with agency.access.
@@ -265,7 +248,12 @@ export async function resolveViewer(ctx: Ctx, opts?: ResolveOptions): Promise<Vi
       // The Pulse agency, not "the sole agency": a second agency row (a buyer
       // agency from the old checkout flow) used to switch this path off.
       const pulseAgencyId = await platformAgencyId(ctx);
-      if (pulseAgencyId) {
+      // The allowlist is for operators with no row. Someone who HAS a row in
+      // the Pulse agency that is not active was invited or suspended there on
+      // purpose, and the allowlist must not lift them back to owner.
+      const inactiveInPulse =
+        !!pulseAgencyId && agRows.some((m) => m.agencyId === pulseAgencyId);
+      if (pulseAgencyId && !inactiveInPulse) {
         const selectedOrgId = await selectedAgencyOrgId(
           ctx, pulseAgencyId, clerkUserId, "all",
         );

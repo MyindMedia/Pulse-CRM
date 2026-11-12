@@ -1,0 +1,194 @@
+#!/usr/bin/env node
+/**
+ * Build the Zuops operation registry the agency CRM runs through.
+ *
+ *   node scripts/zu-ops.mjs           writes convex/crm/ops.generated.ts
+ *   node scripts/zu-ops.mjs --check   regenerates in memory, compares with the file,
+ *                                     prints missing / extra / changed operation ids
+ *                                     and exits 1 on any difference
+ *
+ * Reads two public documents (no key needed):
+ *   https://api.usezu.com/openapi.json  operations, parameters, request bodies
+ *   https://api.usezu.com/llms.txt      the scope of each operation (only listed there)
+ *
+ * Header parameters (Idempotency-Key) are dropped: the client sets them. Every
+ * `workspace_id` query or body field is dropped too: the key is locked to one
+ * sub-account and Pulse never sends one. A `{workspace_id}` segment inside a path
+ * is kept as a path parameter. Output is sorted by operation id, fields keep the
+ * spec's order, so a rerun against an unchanged spec produces no diff.
+ */
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const OPENAPI_URL = "https://api.usezu.com/openapi.json";
+const LLMS_URL = "https://api.usezu.com/llms.txt";
+const OUT = join(dirname(fileURLToPath(import.meta.url)), "..", "convex", "crm", "ops.generated.ts");
+const METHODS = ["get", "post", "put", "patch", "delete"];
+const SCOPE_LINE = /^- `(GET|POST|PUT|PATCH|DELETE) (\/v1\/[^`]+)` — .*?\(scope ([a-z_:]+)/gm;
+const DESC_MAX = 140;
+
+async function get(url) {
+  const res = await fetch(url, { signal: AbortSignal.timeout(30_000), headers: { Accept: "*/*" } });
+  if (!res.ok) throw new Error(`${url} answered ${res.status}`);
+  return res.text();
+}
+
+const oneLine = (s) => String(s ?? "").replace(/\s+/g, " ").trim();
+const short = (s) => {
+  const t = oneLine(s);
+  return t.length > DESC_MAX ? `${t.slice(0, DESC_MAX - 3).trimEnd()}...` : t;
+};
+
+function typeOf(schema) {
+  let t = schema?.type;
+  if (Array.isArray(t)) t = t.find((x) => x !== "null") ?? t[0];
+  if (t === "integer") return "number";
+  if (["string", "number", "boolean", "array", "object"].includes(t)) return t;
+  return "string";
+}
+
+function field(name, schema, required, desc) {
+  const f = { name, type: typeOf(schema) };
+  if (required) f.required = true;
+  const en = Array.isArray(schema?.enum) ? schema.enum.filter((x) => typeof x === "string") : [];
+  if (en.length) f.enum = en;
+  const d = short(desc ?? schema?.description);
+  if (d) f.desc = d;
+  return f;
+}
+
+export function build(spec, llms) {
+  const scopes = new Map();
+  for (const m of llms.matchAll(SCOPE_LINE)) scopes.set(`${m[1]} ${m[2]}`, m[3]);
+  const ops = {};
+  const problems = [];
+  for (const [path, item] of Object.entries(spec.paths ?? {})) {
+    for (const method of METHODS) {
+      const op = item[method];
+      if (!op) continue;
+      const id = op.operationId;
+      const M = method.toUpperCase();
+      if (!id) { problems.push(`${M} ${path}: no operationId`); continue; }
+      if (ops[id]) { problems.push(`${id}: duplicate operationId`); continue; }
+      const scope = scopes.get(`${M} ${path}`);
+      if (!scope) problems.push(`${id} (${M} ${path}): no scope in llms.txt`);
+      const params = [...(item.parameters ?? []), ...(op.parameters ?? [])];
+      const query = params
+        .filter((p) => p.in === "query" && p.name !== "workspace_id")
+        .map((p) => field(p.name, p.schema, p.required === true, p.description));
+      const bodySchema = op.requestBody?.content?.["application/json"]?.schema;
+      const required = new Set(bodySchema?.required ?? []);
+      const body = Object.entries(bodySchema?.properties ?? {})
+        .filter(([name]) => name !== "workspace_id")
+        .map(([name, s]) => field(name, s, required.has(name), s?.description));
+      ops[id] = {
+        id,
+        method: M,
+        path,
+        area: oneLine(op.tags?.[0] ?? "Other"),
+        summary: oneLine(op.summary ?? id),
+        scope: scope ?? "",
+        pathParams: [...path.matchAll(/\{([^}]+)\}/g)].map((m) => m[1]),
+        query,
+        body,
+      };
+      // The spec gives some edits and every delete no requestBody, yet Zuops documents
+      // fields for them in prose (PATCH /v1/stages/{id}: label, color, hidden; DELETE
+      // /v1/stages/{id}: move_to). Those take an open body: any plain-object keys,
+      // still size capped and without workspace_id. POSTs with no fields stay strict:
+      // they are pure actions (archive, read, send-now).
+      if (M === "DELETE" || ((M === "PATCH" || M === "PUT") && body.length === 0)) ops[id].openBody = true;
+    }
+  }
+  // Advisory form fields for an open PATCH or PUT: the create (POST) on the same
+  // collection, e.g. PATCH /v1/stages/{stage_id} -> POST /v1/stages. Never used to validate.
+  const posts = new Map(Object.values(ops).filter((o) => o.method === "POST").map((o) => [o.path, o]));
+  for (const o of Object.values(ops)) {
+    if (!o.openBody || o.method === "DELETE") continue;
+    const collection = /\/\{[^}]+\}$/.test(o.path) ? o.path.replace(/\/\{[^}]+\}$/, "") : o.path;
+    const create = posts.get(collection);
+    // `required` is dropped: an edit is partial, so nothing in it is required.
+    if (create && create.body.length) o.suggest = create.body.map((f) => {
+      const copy = { ...f };
+      delete copy.required;
+      return copy;
+    });
+  }
+  return { ops, problems };
+}
+
+const HEADER = `/* GENERATED by scripts/zu-ops.mjs from ${OPENAPI_URL} and ${LLMS_URL}.
+   Do not edit by hand: run \`npm run zu:ops\`. \`npm run zu:ops:check\` fails when Zuops
+   adds, removes or changes an operation. workspace_id fields are left out on purpose:
+   the key is locked to one sub-account and Pulse never sends one. */
+
+export type ZuField = { name: string; type: string; required?: boolean; enum?: string[]; desc?: string };
+export type ZuOp = {
+  id: string; method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"; path: string; area: string; summary: string; scope: string;
+  pathParams: string[]; query: ZuField[]; body: ZuField[];
+  /** The spec lists no body fields, but Zuops takes some (documented in prose): any plain-object keys are allowed. */
+  openBody?: true;
+  /** Advisory form fields for an openBody PATCH or PUT, copied from the create on the same collection. Never used to validate. */
+  suggest?: ZuField[];
+};
+`;
+
+export function render(ops) {
+  const ids = Object.keys(ops).sort();
+  const lines = ids.map((id) => `  ${JSON.stringify(id)}: ${JSON.stringify(ops[id])},`);
+  return `${HEADER}
+export const ZU_OPS: Record<string, ZuOp> = {
+${lines.join("\n")}
+};
+
+export const ZU_OPS_GENERATED_FROM = { openapi: ${JSON.stringify(OPENAPI_URL)}, count: ${ids.length} };
+`;
+}
+
+/** The operations in a generated file, keyed by id, as their JSON lines. */
+function parseFile(text) {
+  const out = new Map();
+  for (const m of text.matchAll(/^ {2}("[^"]+"): (\{.*\}),$/gm)) out.set(JSON.parse(m[1]), m[2]);
+  return out;
+}
+
+async function main() {
+  const check = process.argv.includes("--check");
+  const [specText, llms] = await Promise.all([get(OPENAPI_URL), get(LLMS_URL)]);
+  const { ops, problems } = build(JSON.parse(specText), llms);
+  const text = render(ops);
+  const count = Object.keys(ops).length;
+  const missingScope = Object.values(ops).filter((o) => !o.scope).length;
+
+  if (!check) {
+    writeFileSync(OUT, text);
+    console.log(`Wrote ${OUT}: ${count} operations, ${(Buffer.byteLength(text) / 1024).toFixed(0)} KB, ${missingScope} without a scope.`);
+    for (const p of problems) console.log(`  warning: ${p}`);
+    process.exit(problems.length ? 1 : 0);
+  }
+
+  const onDisk = existsSync(OUT) ? readFileSync(OUT, "utf8") : "";
+  const fresh = parseFile(text);
+  const old = parseFile(onDisk);
+  const missing = [...fresh.keys()].filter((id) => !old.has(id));
+  const extra = [...old.keys()].filter((id) => !fresh.has(id));
+  const changed = [...fresh.keys()].filter((id) => old.has(id) && old.get(id) !== fresh.get(id));
+  console.log(`Live spec: ${count} operations. Registry file: ${old.size}.`);
+  console.log(`Missing from the file: ${missing.length}${missing.length ? ` (${missing.join(", ")})` : ""}`);
+  console.log(`Extra in the file: ${extra.length}${extra.length ? ` (${extra.join(", ")})` : ""}`);
+  console.log(`Changed: ${changed.length}${changed.length ? ` (${changed.join(", ")})` : ""}`);
+  for (const p of problems) console.log(`  warning: ${p}`);
+  const same = onDisk === text;
+  if (!same && !missing.length && !extra.length && !changed.length) console.log("The file differs outside the operations (header or footer).");
+  if (!same || problems.length) {
+    console.log("Out of date: run `npm run zu:ops` and commit the result.");
+    process.exit(1);
+  }
+  console.log("Registry matches the live spec.");
+}
+
+main().catch((err) => {
+  console.error(`zu-ops failed: ${err instanceof Error ? err.message : String(err)}`);
+  process.exit(1);
+});
