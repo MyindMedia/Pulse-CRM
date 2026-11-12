@@ -140,6 +140,23 @@ describe("Pulse Agent", () => {
     expect(invoices).toHaveLength(0);
   });
 
+  it("an approved assistant text to a number that replied STOP is not sent", async () => {
+    const sms = await import("./lib/sms");
+    const spy = vi.spyOn(sms, "sendSms");
+    await t.run(async (ctx) => { await ctx.db.insert("smsOptOuts", { phone: "+15551234567", optedOut: true, updatedAt: Date.now() }); });
+    const id = await t.run(async (ctx) => ctx.db.insert("agentApprovals", {
+      orgId: ORG, actionType: "send_sms", title: "Remind Nova", explanation: "Session tomorrow.",
+      proposedPayload: { to: "(555) 123-4567", body: "See you tomorrow" }, riskLevel: "low", status: "pending", createdAt: Date.now(),
+    }));
+    await t.mutation(api.agent.approveRequest, { id });
+    await drain(t);
+    const ap = await t.run(async (ctx) => ctx.db.get(id));
+    expect(ap?.status).toBe("failed");
+    expect(ap?.result).toMatch(/STOP/);
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+
   it("studioHealth returns six weighted components + an overall band", async () => {
     const h = await t.query(api.agentHealth.studioHealth, {});
     expect(h.overall).toBeGreaterThanOrEqual(0);
