@@ -219,8 +219,13 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
     //     (deduped via the notifications log, kind "review.request"). Only fires
     //     for recent completions so a fresh deploy never backfill-spams months of
     //     historical sessions.
+    //     A session closed out by the stale sweep (autoResolved) or one the
+    //     client said NO to by text may never have happened, so it gets no
+    //     "Thanks for recording" email.
     if (
       s.status === "completed" &&
+      !s.autoResolved &&
+      !s.clientDeclinedAt &&
       now - s.endTime >= DAY &&
       now - s.endTime <= 8 * DAY
     ) {

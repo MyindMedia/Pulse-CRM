@@ -877,6 +877,8 @@ export const _lifecycleDue = internalQuery({
     }[] = [];
     for (const s of recent) {
       if (s.status !== "completed") continue;
+      // Auto-closed or declined by the client: it may never have happened.
+      if (s.autoResolved || s.clientDeclinedAt) continue;
       if (s.endTime > now - HOUR || s.endTime < now - 24 * HOUR) continue;
       if ((s.smsRemindersSent ?? []).includes(REVIEW_MARK)) continue;
       const artist = await ctx.db.get(s.artistId);
