@@ -336,6 +336,7 @@ import type * as patchSpecs from "../patchSpecs.js";
 import type * as payments from "../payments.js";
 import type * as payouts from "../payouts.js";
 import type * as payroll from "../payroll.js";
+import type * as payrollCorrections from "../payrollCorrections.js";
 import type * as platformBilling from "../platformBilling.js";
 import type * as portal from "../portal.js";
 import type * as predictions from "../predictions.js";
@@ -750,6 +751,7 @@ declare const fullApi: ApiFromModules<{
   payments: typeof payments;
   payouts: typeof payouts;
   payroll: typeof payroll;
+  payrollCorrections: typeof payrollCorrections;
   platformBilling: typeof platformBilling;
   portal: typeof portal;
   predictions: typeof predictions;

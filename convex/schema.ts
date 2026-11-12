@@ -3149,7 +3149,9 @@ export default defineSchema({
     // SMS timeclock checks. Overtime: at 8h the member is texted; YES marks
     // the OT approved, NO caps the entry at 8h, silence flags it for payroll
     // review. Interns: at 4h they must request permission via EXTEND, which a
-    // manager APPROVEs or DENYs by text; timeout caps the entry at 4h.
+    // manager APPROVEs or DENYs by text; with no answer the entry is closed
+    // when the approval window ran out (never at a time the intern was told
+    // to keep working). A denial leaves the entry open until they clock out.
     otPromptSentAt: v.optional(v.number()),
     otStatus: v.optional(
       v.union(v.literal("confirmed"), v.literal("declined"), v.literal("unconfirmed")),

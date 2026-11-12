@@ -9,7 +9,7 @@ import { notify } from "./lib/notify";
 import { normalizePhone } from "./lib/phone";
 import { parseSmsIntent, parseRating } from "./lib/smsKeywords";
 import { appUrl, teamLink } from "./lib/links";
-import { orgTz, dateLabel } from "./lib/tz";
+import { orgTz, dateLabel, clockTime } from "./lib/tz";
 import {
   renderSms,
   displayPhone,
@@ -24,6 +24,9 @@ import {
   OT_NO_ACK,
   INTERN_PROMPT,
   INTERN_EXTEND_ACK,
+  INTERN_EXTEND_NO_MANAGER,
+  INTERN_APPROVED_RETURN,
+  INTERN_DENIED_DONE,
   INTERN_APPROVED,
   INTERN_DENIED,
   INTERN_TIMEOUT,
@@ -532,9 +535,11 @@ async function applyPromptAnswer(
     if (!entry || entry.status !== "active") return false;
     await ctx.db.patch(entry._id, { internExtension: "requested" });
     await answerPrompt(ctx, prompt, "extend");
-    queueSend(ctx, phone, renderSms(INTERN_EXTEND_ACK, {}));
     const intern = prompt.memberId ? await ctx.db.get(prompt.memberId) : null;
     const mgrs = await managerPhones(ctx, prompt.orgId);
+    // Never tell the intern to keep working while they wait, and never say a
+    // manager is reviewing when no manager can be reached by text.
+    queueSend(ctx, phone, renderSms(mgrs.length > 0 ? INTERN_EXTEND_ACK : INTERN_EXTEND_NO_MANAGER, {}));
     for (const m of mgrs) {
       await openPrompt(ctx, {
         orgId: prompt.orgId,
@@ -571,18 +576,17 @@ async function applyPromptAnswer(
         }
       }
     }
-    if (entry && entry.status === "active") {
-      if (intent === "approve") {
-        await ctx.db.patch(entry._id, { internExtension: "approved" });
-        if (internPhone) queueSend(ctx, internPhone, renderSms(INTERN_APPROVED, { studio }));
-      } else {
-        await ctx.db.patch(entry._id, {
-          internExtension: "denied",
-          clockOutAt: Date.now(),
-          status: "completed",
-          autoClosedReason: "intern_denied",
-        });
-        if (internPhone) queueSend(ctx, internPhone, renderSms(INTERN_DENIED, { studio }));
+    if (entry && entry.orgId === prompt.orgId) {
+      const stillOn = entry.status === "active";
+      // A denial records the decision but does not stop the clock: the intern
+      // is texted to clock out, and the time is theirs until they do.
+      await ctx.db.patch(entry._id, { internExtension: intent === "approve" ? "approved" : "denied" });
+      if (internPhone) {
+        const template =
+          intent === "approve"
+            ? stillOn ? INTERN_APPROVED : INTERN_APPROVED_RETURN
+            : stillOn ? INTERN_DENIED : INTERN_DENIED_DONE;
+        queueSend(ctx, internPhone, renderSms(template, { studio }));
       }
     }
     queueSend(ctx, phone, renderSms(MGR_APPROVAL_ACK, { name: intern?.name ?? "The intern" }));
@@ -736,7 +740,7 @@ export const _timeclockDue = internalQuery({
         }
       }
     }
-    return { studio, otPrompts, internPrompts, otExpired, internTimeouts };
+    return { studio, tz: orgTz(org), otPrompts, internPrompts, otExpired, internTimeouts };
   },
 });
 
@@ -774,25 +778,51 @@ export const _markOtUnconfirmed = internalMutation({
   },
 });
 
+/** Where a timed-out intern entry is closed: the moment the last question on
+ *  it (the intern's check-in, or the managers' approval window) ran out, never
+ *  in the future and never before the 4-hour mark. Pure, for the tests and
+ *  the report on past entries. */
+export function internTimeoutClockOut(
+  clockInAt: number,
+  promptExpiries: number[],
+  now: number,
+): number {
+  const windowEnd = promptExpiries.length > 0 ? Math.max(...promptExpiries) : clockInAt + INTERN_AFTER;
+  return Math.max(clockInAt + INTERN_AFTER, Math.min(windowEnd, now));
+}
+
+/** Close an intern entry nobody approved. Returns the clock-out time when it
+ *  closed the entry, or null when there was nothing to do (already closed by
+ *  the intern, a manager, or an earlier sweep), so the sweep texts only once. */
 export const _capInternEntry = internalMutation({
   args: { entryId: v.id("timeEntries") },
-  handler: async (ctx, { entryId }) => {
+  handler: async (ctx, { entryId }): Promise<number | null> => {
     const e = await ctx.db.get(entryId);
-    if (!e || e.status !== "active") return;
+    if (!e || e.status !== "active") return null;
+    // An approval that landed between the sweep's read and this write wins.
+    if (e.internExtension !== undefined && e.internExtension !== "requested") return null;
+    const prompts = await ctx.db
+      .query("smsPrompts")
+      .withIndex("by_entry", (q) => q.eq("entryId", entryId))
+      .collect();
+    const now = Date.now();
+    if (prompts.some((p) => p.status === "open" && p.expiresAt > now)) return null;
+    const clockOutAt = internTimeoutClockOut(
+      e.clockInAt,
+      prompts.map((p) => p.expiresAt),
+      now,
+    );
     await ctx.db.patch(entryId, {
-      clockOutAt: e.clockInAt + INTERN_AFTER,
+      clockOutAt,
       status: "completed",
       internExtension: "timeout",
       autoClosedReason: "intern_timeout",
     });
     // Retire whatever prompts were still open on this entry.
-    const prompts = await ctx.db
-      .query("smsPrompts")
-      .withIndex("by_entry", (q) => q.eq("entryId", entryId))
-      .collect();
     for (const p of prompts) {
       if (p.status === "open") await ctx.db.patch(p._id, { status: "expired" });
     }
+    return clockOutAt;
   },
 });
 
@@ -1119,14 +1149,17 @@ export const sweepTimeclock = internalAction({
       }
 
       for (const t of due.internTimeouts) {
-        await ctx.runMutation(internal.smsFlows._capInternEntry, { entryId: t.entryId });
-        if (t.phone) await sendSms({ to: t.phone, body: renderSms(INTERN_TIMEOUT, { studio: due.studio }) });
+        const closedAt: number | null = await ctx.runMutation(internal.smsFlows._capInternEntry, { entryId: t.entryId });
+        // Another sweep (or the intern, or a manager) got there first.
+        if (closedAt === null) continue;
+        const time = clockTime(closedAt, due.tz);
+        if (t.phone) await sendSms({ to: t.phone, body: renderSms(INTERN_TIMEOUT, { studio: due.studio, time }) });
         for (const m of managers) {
           await sendSms({
             to: m,
             body: renderSms(MGR_ALERT, {
               studio: due.studio,
-              body: `intern ${t.name} hit 4 hours without an approval - clocked out and capped at 4 hours.`,
+              body: `intern ${t.name} passed 4 hours and no approval came through - clocked out as of ${time}.`,
             }),
           });
         }
