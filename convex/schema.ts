@@ -2526,7 +2526,9 @@ export default defineSchema({
     active: v.boolean(),
   })
     .index("by_org", ["orgId"])
-    .index("by_room", ["roomId"]),
+    .index("by_room", ["roomId"])
+    // The refresh cron takes the stalest active feeds first.
+    .index("by_active_sync", ["active", "lastSyncAt"]),
 
   // ── Imported external events. Block times so the studio doesn't get
   //    double-booked against an outside calendar. Idempotent on externalUid. ──
