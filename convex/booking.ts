@@ -22,6 +22,7 @@ import { normalizePhone } from "./lib/phone";
 import { money } from "./lib/money";
 import { stripeClient } from "./lib/stripe";
 import { ensureInquiryFromBooking } from "./opportunities";
+import { stageChecklistsFor } from "./checklists";
 import { whitelabelFor } from "./usage";
 import {
   bookedUnits,
@@ -1075,6 +1076,10 @@ export const createBooking = mutation({
         : {}),
       ...(priced.applied === "off_peak" ? { offPeakCents: priced.offPeakSavingsCents } : {}),
     });
+
+    // Same as a staff booking (sessions.insertSession): stage the pre + post
+    // checklists the moment the session is booked.
+    await stageChecklistsFor(ctx, { orgId, sessionId, roomId });
 
     // Close the booking-page funnel: this visitor got all the way through.
     // Written here rather than from the client so the booked count can never
