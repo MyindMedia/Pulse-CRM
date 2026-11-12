@@ -22,6 +22,9 @@ export async function sendEmail(args: {
   raw?: boolean;
   /** Extra mail headers, e.g. List-Unsubscribe on reminder mail. */
   headers?: Record<string, string>;
+  /** Where a reply goes. Studio mail to clients sets the studio's own address,
+   *  so "Reply to this email" reaches the studio, not Pulse's inbox. */
+  replyTo?: string;
 }): Promise<EmailStatus> {
   const key = process.env.RESEND_API_KEY;
   if (!key) return "simulated";
@@ -40,10 +43,24 @@ export async function sendEmail(args: {
         subject,
         html,
         ...(args.headers ? { headers: args.headers } : {}),
+        ...(args.replyTo ? { reply_to: args.replyTo } : {}),
       }),
     });
     return res.ok ? "sent" : "failed";
   } catch {
     return "failed";
   }
+}
+
+/** The address a studio's clients should reach when they hit Reply: the
+ *  studio's contact email, else the owner's. Undefined when neither looks like
+ *  an address, so the mail falls back to the sender. */
+export function studioReplyTo(
+  org: { contact?: { contactEmail?: string }; ownerEmail?: string } | null | undefined,
+): string | undefined {
+  for (const raw of [org?.contact?.contactEmail, org?.ownerEmail]) {
+    const v = raw?.trim();
+    if (v && /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(v)) return v;
+  }
+  return undefined;
 }

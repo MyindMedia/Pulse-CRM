@@ -16,7 +16,7 @@ import type { Id } from "./_generated/dataModel";
 import { internal } from "./_generated/api";
 import { currentOrg, currentActor } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
-import { sendEmail } from "./lib/email";
+import { sendEmail, studioReplyTo } from "./lib/email";
 import { studioEmailHtml } from "./lib/emailTemplates/layout";
 import { recordApprovalLearning, recordDismissLearning } from "./predictions";
 import { approvePost } from "./marketing/posts";
@@ -89,7 +89,7 @@ export const getInternal = internalQuery({
     const action = await ctx.db.get(id);
     if (!action) return null;
     const org = await ctx.db.query("orgs").withIndex("by_org", (q) => q.eq("orgId", action.orgId)).first();
-    return { ...action, orgName: org?.name ?? "Your studio" };
+    return { ...action, orgName: org?.name ?? "Your studio", replyTo: studioReplyTo(org) };
   },
 });
 
@@ -421,6 +421,8 @@ export const execute = internalAction({
         subject: action.payload.subject,
         // Branded studio-framed layout (escapes + linkifies internally).
         html: studioEmailHtml({ studioName: action.orgName, bodyText: action.payload.body }),
+        // "Reply to this email and we will lock it in" must reach the studio.
+        replyTo: action.replyTo,
       });
     }
     await ctx.runMutation(internal.opsActions.finalize, { id, emailStatus });
