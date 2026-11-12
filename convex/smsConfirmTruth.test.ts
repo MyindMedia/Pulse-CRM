@@ -10,10 +10,19 @@ import type { Id } from "./_generated/dataModel";
 const ORG = "pulse-demo";
 const HOUR = 3_600_000;
 
-async function setup(status: "tentative" | "confirmed", extra: Record<string, unknown> = {}) {
+const MANAGER = "+14045550100";
+
+async function setup(
+  status: "tentative" | "confirmed" | "in_progress" | "completed",
+  extra: Record<string, unknown> = {},
+  opts: { managerPhone?: string } = {},
+) {
   const t = convexTest(schema);
   const sessionId = await t.run(async (ctx) => {
     await ctx.db.insert("orgs", { orgId: ORG, name: "Skyline", slug: "demo", tier: "growth", status: "active" });
+    if (opts.managerPhone) {
+      await ctx.db.insert("members", { orgId: ORG, name: "Mgr", role: "manager", skills: [], phone: opts.managerPhone } as never);
+    }
     const artistId = await ctx.db.insert("artists", {
       orgId: ORG, name: "Nova", type: "artist", phone: "404-555-0101",
       genres: [], tags: [], status: "active", lifetimeValueCents: 0, sessionCount: 0, reliability: "solid",
@@ -21,7 +30,7 @@ async function setup(status: "tentative" | "confirmed", extra: Record<string, un
     return await ctx.db.insert("sessions", {
       orgId: ORG, title: "Mix", artistId, serviceType: "mixing",
       startTime: Date.now() + HOUR, endTime: Date.now() + 2 * HOUR,
-      status, rateCents: 20000, depositCents: 6000, depositPaid: status === "confirmed", intakeCompleted: true,
+      status, rateCents: 20000, depositCents: 6000, depositPaid: status !== "tentative", intakeCompleted: true,
       ...extra,
     } as never);
   });
@@ -31,6 +40,13 @@ async function setup(status: "tentative" | "confirmed", extra: Record<string, un
 async function queuedTexts(t: ReturnType<typeof convexTest>) {
   const rows = await t.run(async (ctx) => ctx.db.system.query("_scheduled_functions").collect());
   return rows.map((r) => (r.args[0] as { body?: string })?.body ?? "");
+}
+
+async function queuedSends(t: ReturnType<typeof convexTest>) {
+  const rows = await t.run(async (ctx) => ctx.db.system.query("_scheduled_functions").collect());
+  return rows
+    .map((r) => r.args[0] as { to?: string; body?: string })
+    .filter((a) => a?.to && a?.body) as { to: string; body: string }[];
 }
 
 async function openConfirmPrompt(t: ReturnType<typeof convexTest>, sessionId: Id<"sessions">) {
@@ -76,5 +92,20 @@ describe("2h confirm text tells the truth", () => {
     await openConfirmPrompt(t, sessionId);
     await t.mutation(internal.sms._handleInbound, { from: "+14045550101", body: "YES" });
     expect((await queuedTexts(t)).some((b) => /You are confirmed/.test(b))).toBe(true);
+  });
+
+  it("NO then REBOOK never promises a held deposit, to the client or the managers", async () => {
+    const { t, sessionId } = await setup("confirmed", {}, { managerPhone: MANAGER });
+    await openConfirmPrompt(t, sessionId);
+    await t.mutation(internal.sms._handleInbound, { from: "+14045550101", body: "NO" });
+    await t.mutation(internal.sms._handleInbound, { from: "+14045550101", body: "REBOOK" });
+    const sends = await queuedSends(t);
+    for (const x of sends) {
+      expect(x.body).not.toMatch(/on hold|held for rebooking/i);
+    }
+    const toClient = sends.filter((x) => x.to === "+14045550101").map((x) => x.body);
+    expect(toClient.some((b) => /Thanks - we have let Skyline know you want a new time\. They will reach out about your deposit\./.test(b))).toBe(true);
+    const toMgr = sends.filter((x) => x.to === MANAGER).map((x) => x.body);
+    expect(toMgr.some((b) => /follow up with them about the deposit/.test(b))).toBe(true);
   });
 });

@@ -325,7 +325,6 @@ async function applyPromptAnswer(
     }
     if (intent === "no") {
       const holdUntil = Date.now() + REBOOK_HOLD;
-      const holdDate = dateLabel(holdUntil, orgTz(org));
       await ctx.db.patch(session._id, { clientDeclinedAt: Date.now(), rebookHoldUntil: holdUntil });
       await answerPrompt(ctx, prompt, "no");
       await openPrompt(ctx, {
@@ -338,12 +337,12 @@ async function applyPromptAnswer(
       queueSend(
         ctx,
         phone,
-        renderSms(CLIENT_DECLINE_FOLLOWUP, { studio, holdDate, link: bookingLink(org) }),
+        renderSms(CLIENT_DECLINE_FOLLOWUP, { studio, link: bookingLink(org) }),
       );
       await alertManagers(
         ctx,
         prompt.orgId,
-        `client declined "${session.title}" via the pre-session confirm text. Deposit held for rebooking until ${holdDate}.`,
+        `client declined "${session.title}" via the pre-session confirm text - follow up with them about the deposit.`,
       );
       return true;
     }
@@ -353,13 +352,14 @@ async function applyPromptAnswer(
   if (prompt.kind === "rebook_offer") {
     if (intent !== "rebook" && intent !== "yes") return false;
     const session = prompt.sessionId ? await ctx.db.get(prompt.sessionId) : null;
-    const holdDate = dateLabel(session?.rebookHoldUntil ?? prompt.expiresAt, orgTz(org));
     await answerPrompt(ctx, prompt, "rebook");
     const told = await alertManagers(ctx, prompt.orgId, `client wants to REBOOK "${session?.title ?? "a session"}" - reach out to reschedule.`);
     queueSend(
       ctx,
       phone,
-      renderSms(CLIENT_REBOOK_ACK, { studio, holdDate, link: bookingLink(org), told: told ? "The studio has been notified." : "" }),
+      told
+        ? renderSms(CLIENT_REBOOK_ACK, { studio, link: bookingLink(org) })
+        : renderSms(NOBODY_TOLD_ACK, { studio, phone: displayPhone(org?.contact?.phone) }),
     );
     return true;
   }

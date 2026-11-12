@@ -87,12 +87,11 @@ export const CLIENT_DECLINE_FOLLOWUP =
   "Pulse: Got it - we have told {studio}. They will contact you about your " +
   "deposit and a new time. Reply REBOOK if you want to book again[[ or book at {link}]].";
 
-/* "{studio} has been notified" style lines are only true when someone was
-   actually told (smsFlows alertManagers returns that). {told} carries the
-   line when it is true and is empty otherwise, so the optional block drops. */
+/** Client replied REBOOK after a NO. Pulse does not hold, credit or forfeit
+ *  the deposit on its own, so this only says the studio will follow up. */
 export const CLIENT_REBOOK_ACK =
-  "Pulse: Your deposit at {studio} is on hold for a new booking until {holdDate}." +
-  "[[ Pick a new time: {link}.]][[ {told}]]";
+  "Pulse: Thanks - we have let {studio} know you want a new time. " +
+  "They will reach out about your deposit.[[ Pick a new time: {link}.]]";
 
 /** 2h-before confirm question to the staffer working the session. */
 export const STAFF_CONFIRM_2H =
