@@ -163,6 +163,7 @@ const at = (ts: number | undefined, tz: string) => (ts === undefined ? "no clock
 
 /** A clock-out can be now or earlier, never later: nobody is paid for time not yet worked. */
 const FUTURE_SLACK_MS = 5 * 60_000;
+const NOTE_MAX = 500;
 
 /** Manually add a completed entry (e.g. someone forgot to clock in). */
 export const addManualEntry = mutation({
@@ -178,6 +179,7 @@ export const addManualEntry = mutation({
     if (!member || member.orgId !== orgId) throw new Error("That team member isn't in this studio.");
     if (clockOutAt <= clockInAt) throw new Error("Clock-out must be after clock-in.");
     if (clockOutAt > Date.now() + FUTURE_SLACK_MS) throw new Error("Clock-out can't be in the future.");
+    if (note !== undefined && note.length > NOTE_MAX) throw new Error("Keep the note under 500 characters.");
     const who = await actorName(ctx);
     const id = await ctx.db.insert("timeEntries", {
       orgId,
@@ -217,6 +219,7 @@ export const adjustEntry = mutation({
     const entry = await ctx.db.get(entryId);
     if (!entry || entry.orgId !== orgId) throw new Error("Time entry not found.");
     if (entry.voidedAt) throw new Error("This entry was removed. Add a new one instead.");
+    if (note !== undefined && note.length > NOTE_MAX) throw new Error("Keep the note under 500 characters.");
     const fields: Record<string, unknown> = {};
     if (clockInAt !== undefined) fields.clockInAt = clockInAt;
     if (clockOutAt !== undefined) {
