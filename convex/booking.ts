@@ -12,6 +12,7 @@ import { announceRequest } from "./bookingRequests";
 import { query, action, internalQuery, QueryCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { recordBooked } from "./bookingFunnel";
+import { stageChecklistsFor } from "./checklists";
 import { fireRules } from "./agentRules";
 import { Doc, Id } from "./_generated/dataModel";
 import { v, ConvexError } from "convex/values";
@@ -1075,6 +1076,9 @@ export const createBooking = mutation({
         : {}),
       ...(priced.applied === "off_peak" ? { offPeakCents: priced.offPeakSavingsCents } : {}),
     });
+    // Same as a staff booking (sessions.insertSession): Pulse writes the
+    // before and after checklists the moment the session is booked.
+    await stageChecklistsFor(ctx, { orgId, sessionId, roomId });
 
     // Close the booking-page funnel: this visitor got all the way through.
     // Written here rather than from the client so the booked count can never

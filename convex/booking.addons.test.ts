@@ -57,6 +57,16 @@ describe("booking add-ons: engineer + conflict-aware gear", () => {
     expect(session?.addOns?.[0]?.priceCents).toBe(7500);
   });
 
+  it("an online booking gets its before and after checklists", async () => {
+    const res = await t.mutation(api.booking.createBooking, {
+      roomId: roomA, clientName: "Nova", clientEmail: "nova@x.com", startTime: start, durationHours: 2,
+    });
+    const lists = await t.run((ctx) =>
+      ctx.db.query("sessionChecklists").collect()).then((rows) => rows.filter((r) => r.sessionId === res.sessionId));
+    expect(lists.map((l) => l.kind).sort()).toEqual(["post", "pre"]);
+    expect(lists.every((l) => l.items.length > 0 && l.roomId === roomA)).toBe(true);
+  });
+
   it("shows the mic unavailable for an overlapping window once it's booked", async () => {
     await t.mutation(api.booking.createBooking, {
       roomId: roomA, clientName: "Nova", clientEmail: "nova@x.com",
