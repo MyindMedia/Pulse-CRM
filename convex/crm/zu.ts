@@ -17,7 +17,21 @@ export function mockBase(): string | null {
   return MOCK_URL.test(raw) ? raw : null;
 }
 
-export type ZuLimits = { contactsLimit?: number; contactsUsed?: number; contactsRemaining?: number; rateRemaining?: number };
+/** Which base and keys a request uses, read from the environment (call inside a handler).
+ *  Mock mode: the loopback base and MOCK_KEY for both keys; the real keys are never read.
+ *  Otherwise: no base override, and the keys as set ("" when unset). */
+export function zuTarget(): { mock: string | null; apiKey: string; adminKey: string } {
+  const mock = mockBase();
+  if (mock) return { mock, apiKey: MOCK_KEY, adminKey: MOCK_KEY };
+  return { mock: null, apiKey: process.env.ZUOPS_CRM_API_KEY ?? "", adminKey: process.env.ZUOPS_CRM_ADMIN_KEY ?? "" };
+}
+
+/** ZUOPS_CRM_WRITES is exactly "on". Call inside a handler. */
+export function zuWritesOn(): boolean {
+  return process.env.ZUOPS_CRM_WRITES === "on";
+}
+
+export type ZuLimits ={ contactsLimit?: number; contactsUsed?: number; contactsRemaining?: number; rateRemaining?: number };
 
 export type ZuResult =
   | { ok: true; status: number; data: unknown; limits: ZuLimits }

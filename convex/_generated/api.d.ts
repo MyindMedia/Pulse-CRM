@@ -65,6 +65,7 @@ import type * as crm_policy from "../crm/policy.js";
 import type * as crm_tables from "../crm/tables.js";
 import type * as crm_webhook from "../crm/webhook.js";
 import type * as crm_zu from "../crm/zu.js";
+import type * as crmProspects from "../crmProspects.js";
 import type * as crons from "../crons.js";
 import type * as dashboard from "../dashboard.js";
 import type * as dataRights from "../dataRights.js";
@@ -477,6 +478,7 @@ declare const fullApi: ApiFromModules<{
   "crm/tables": typeof crm_tables;
   "crm/webhook": typeof crm_webhook;
   "crm/zu": typeof crm_zu;
+  crmProspects: typeof crmProspects;
   crons: typeof crons;
   dashboard: typeof dashboard;
   dataRights: typeof dataRights;

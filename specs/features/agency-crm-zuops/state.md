@@ -33,7 +33,13 @@ UI
 - Small follow-ups `5a05ce4` (timeline order, focus back to the row, plural counts, aria on blocked fields): unit tested, NOT browser verified.
 - Rounds used: 3 of 5. Final gates: 437 tests in the CRM and agency folders, tsc 0, eslint 0, registry matches the live spec (352), Outreach suite 293 and Zuops booking-sync 15 still pass.
 
-## Eval status: 49 PASS, 8 NOT RUN, 0 FAIL
+## Round 4: Outreach prospects into Zuops (U-17, cloud run 2026-11-12)
+- Built from `handoff-prospects-to-zuops.md`: backend `286fc9b` (shared `zuTarget`/`zuWritesOn` in `crm/zu.ts`, `crmProspectLinks`, `crmProspects.plan`, `push`, `syncStatuses` and its 15 minute cron), tests `492d8a0`, Prospects card `dd2ec6b`.
+- Gates: vitest 480 (CRM, crmProspects, agency), 303 (outreach config), tsc 0 (root and `tsconfig.outreach.json`), eslint 0 on touched files, registry matches the live spec (352).
+- Status tags: `bookedAt` set is booked; status `replied` or `repliedAt` set is replied; a follow-up sequence exists (Lawrence's first email was accepted) is email sent; anything else is not emailed. Opted out = status `suppressed`, `replyIntent.optedOut`, or any published address on the opt-out list. There is no "removed" status: a removed prospect is deleted, so it is never pushed and its link is left alone.
+- NOT verified: no browser run; no real Zuops write (no key in the cloud; every request in tests is a mocked fetch).
+
+## Eval status: 50 PASS (U-17 unit only), 8 NOT RUN, 0 FAIL
 NOT RUN, with the reason:
 - A-07, P-01, P-04: need a production build. Not run locally (the laptop was under heavy load); the staging build covers them. P-04 has static evidence only: the registry is reached solely through `import()` from `crm-functions.tsx`, enforced by `crm-guard.test.ts`.
 - U-12: cross-browser run needs a deployed URL.
@@ -54,7 +60,7 @@ NOT RUN, with the reason:
 
 ## Before production (owner)
 1. `PULSE_AGENCY_ID` must be set on the production Convex deployment (the CRM refuses without it).
-2. `ZUOPS_CRM_API_KEY` on staging (reads only) and production; `ZUOPS_CRM_WRITES=on` on production only.
+2. `ZUOPS_CRM_API_KEY` on staging (reads only) and production; `ZUOPS_CRM_WRITES=on` on production only. The prospects push and its sync do nothing without it.
 3. Full access key -> `ZUOPS_CRM_ADMIN_KEY`, then register the outbound webhook to `https://<convex site>/zu/events` and set `ZUOPS_CRM_WEBHOOK_SECRET` (the Webhooks screen shows the secret once).
 4. Legal review flag stays on: High tier, adds a way to text and email leads.
 
