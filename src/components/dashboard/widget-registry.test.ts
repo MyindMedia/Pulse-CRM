@@ -12,6 +12,10 @@ describe("default dashboard", () => {
     expect(fresh).toContain("today");
   });
 
+  it("shows the studio health score (sold on every plan)", () => {
+    expect(fresh).toContain("health");
+  });
+
   it("shows the Projects card", () => {
     expect(fresh).toContain("projects");
   });

@@ -6,7 +6,7 @@ import { ConvexError } from "convex/values";
 import { api } from "@convex/_generated/api";
 import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
-import { Sparkles, Send, Loader2, X, Lightbulb, ShieldCheck, Gauge, Brain, Trash2, Plus, Repeat, Info } from "lucide-react";
+import { Sparkles, Send, Loader2, X, Lightbulb, ShieldCheck, Brain, Trash2, Plus, Repeat, Info } from "lucide-react";
 import { PageHeader } from "@/components/ui/page";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -18,11 +18,10 @@ import {
 } from "@/components/ui/select";
 import { ApprovalEditDialog, type ApprovalItem } from "@/components/agent/approval-edit-dialog";
 import { AgentInfoModal } from "@/components/agent/agent-info-modal";
-import { cn } from "@/lib/utils";
+import { HealthPanel } from "@/components/agent/health-panel";
 
 const SEV_TONE = { info: "neutral", opportunity: "positive", warning: "caution", critical: "critical" } as const;
 const RISK_TONE = { low: "neutral", medium: "caution", high: "critical", critical: "critical" } as const;
-const BAND_TONE = { strong: "positive", steady: "info", watch: "caution", "at risk": "critical" } as const;
 const MEMORY_TYPES = ["studio_profile", "tone_preferences", "business_rules", "client_patterns", "risk_notes", "automation_history"] as const;
 
 const SUGGESTED = [
@@ -62,44 +61,6 @@ export default function AgentPage() {
         </div>
       </div>
     </div>
-  );
-}
-
-function HealthPanel() {
-  const health = useQuery(api.agentHealth.studioHealth, {});
-  if (health === undefined) return null;
-  return (
-    <Card>
-      <CardContent className="pt-5">
-        <div className="flex flex-wrap items-center gap-5">
-          <div className="flex items-center gap-3">
-            <span className="grid size-12 place-items-center rounded-chrome bg-gold/12 text-gold"><Gauge className="size-6" /></span>
-            <div>
-              <div className="flex items-baseline gap-2">
-                <span className="font-grotesk text-3xl font-bold text-bone">{health.overall}</span>
-                <span className="text-sm text-steel/70">/100</span>
-                <Badge tone={BAND_TONE[health.band as keyof typeof BAND_TONE]}>{health.band}</Badge>
-              </div>
-              <p className="text-xs text-steel/70">Studio health</p>
-            </div>
-          </div>
-          <div className="grid flex-1 gap-x-6 gap-y-2 sm:grid-cols-2 lg:grid-cols-3">
-            {health.components.map((c) => (
-              <div key={c.key}>
-                <div className="flex items-center justify-between text-xs">
-                  <span className="text-steel">{c.label}</span>
-                  <span className="font-meta text-steel/70">{c.score}</span>
-                </div>
-                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-coal-3">
-                  <div className={cn("h-full rounded-full", c.score >= 70 ? "bg-positive" : c.score >= 45 ? "bg-gold" : "bg-critical")} style={{ width: `${c.score}%` }} />
-                </div>
-                <p className="mt-0.5 text-[0.625rem] text-steel/70">{c.signal}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 

@@ -30,6 +30,10 @@ const ProjectsTodayCard = dynamic(
   () => import("@/components/projects/today-card").then((m) => m.ProjectsTodayCard),
   { loading: () => <ChunkPlaceholder /> },
 );
+const HealthPanel = dynamic(
+  () => import("@/components/agent/health-panel").then((m) => m.HealthPanel),
+  { loading: () => <ChunkPlaceholder /> },
+);
 const WrapUpCard = dynamic(
   () => import("@/components/dashboard/wrapup-card").then((m) => m.WrapUpCard),
   { loading: () => <ChunkPlaceholder /> },
@@ -187,6 +191,16 @@ export const DASHBOARD_WIDGETS: DashboardWidgetDef[] = [
     // On by default: this is the "today screen" the plans sell (arrivals,
     // balances, who is on, rooms busy until, tomorrow). /today lands here.
     render: () => <TodayBoard />,
+  },
+  {
+    key: "health",
+    title: "Studio health",
+    blurb: "One score from six fixed parts, the same way every week",
+    span: "full",
+    titled: false, // the panel carries its own label
+    // Every plan includes the health score; it reads leadership numbers.
+    capability: "insights.read",
+    render: () => <HealthPanel />,
   },
   /* ── Everything else: one click away in the Add widget tray ── */
   {
