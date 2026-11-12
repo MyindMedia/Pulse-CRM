@@ -310,7 +310,7 @@ export async function runAutomation(ctx: MutationCtx): Promise<Outcome> {
                 channel: "sms",
                 recipient: phone,
                 subject: "Studio hold expiring",
-                body: `${org.name ?? "Studio"}: your hold on "${s.title}" expires soon. Pay the deposit to keep it: ${payUrl}`,
+                body: `${org.name ?? "Studio"}: your hold on "${s.title}" expires soon. ${s.depositCents > 0 ? "Pay the deposit" : "Pay in full"} to keep it: ${payUrl}`,
                 kind: "booking.hold_nudge",
                 sessionId: s._id,
               });
