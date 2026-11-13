@@ -136,3 +136,22 @@ RD: ./rd.md · Mockup: ./mockup.html · Branch: feat/session-file-delivery
 - R-01, R-02: there were no existing tests for session files or `settlePayment`. The builder writes them first.
 - E-05 and the mockup note said the email could go through the studio's Gmail. Booking emails all go through "Studio via Pulse" (Resend) with replies to the studio; this one does the same.
 - Expired page: A-01 requires expired links to look exactly like unknown ones, so the expired page shows no studio name or logo. The mockup's expired state was changed to match.
+
+## Added after round 1 (2026-11-13; new checks from review findings, none replaces an approved one)
+| ID | Check | How to verify | Result | Evidence |
+|---|---|---|---|---|
+| G-15 | Ready first, then the balance invoice is paid online: released, one "files ready" email, no separate invoice receipt | convex-test through `settleInvoice` | PENDING | |
+| G-16 | Balance invoice paid first, then Ready: released at once, no "pay to unlock" email | convex-test | PENDING | |
+| G-17 | Marking the invoice paid by hand, or charging a saved card, releases the same way | convex-test | PENDING | |
+| G-18 | A paid invoice smaller than what is owed, a void invoice and a draft invoice do not release | convex-test | PENDING | |
+| G-19 | The locked page's Pay button goes to the open invoice when one exists, otherwise to checkout | convex-test on `page.payUrl` | PENDING | |
+| G-20 | A non-finite or negative rate never releases | convex-test with NaN, Infinity, -1 | PENDING | |
+| A-16 | Erasing a client turns their link off and the old link answers like an unknown one | convex-test | PENDING | |
+| A-17 | A Final file moved to another booking is no longer Final | convex-test | PENDING | |
+| A-18 | Resend within 2 minutes is refused | convex-test with fake timers | PENDING | |
+| U-09 | Closing the session panel mid-upload: running and queued uploads all finish, and reopening shows them | unit tests on the upload store; browser on staging | PENDING | |
+| C-13 | The date on the page matches the date in the email for a late-night session | convex-test: 11 PM Pacific | PENDING | |
+
+- A-08 names `copyLink`; the function is `link`. Same check.
+- R-05: `npm run check` already exits non-zero on `develop` (53 lint errors, 3 failing tests, one of them not in `docs/ENVIRONMENTS.md`). The bar for this branch is no new failure.
+- E-05: booking emails come from "Pulse", not "Studio via Pulse" as the first correction said. The delivery emails are being changed to "Studio via Pulse" to match the approved mockup; other booking emails keep their sender.

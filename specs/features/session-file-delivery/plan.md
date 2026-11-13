@@ -243,3 +243,61 @@ Nobody runs the app in this round (no `convex dev`, no `next dev`): a separate v
 
 ### Change to Task 6
 The client page calls `api.sessionDelivery.refresh({ token })` once when it first renders in the locked state (B-02), and `opened` once when it first renders unlocked.
+
+---
+
+## Addendum 2: round 2 fix list (2026-11-13, from the verifier, the code review and the security review)
+
+Round 1 result: 58 PASS, 3 FAIL, 9 NOT RUN (need staging), 3 PENDING. Two agents fix in parallel with separate ownership: the **backend** agent owns `convex/**`; the **frontend** agent owns `src/**`. Same git rules as Addendum 1 (`git add <paths>` only, no stash, retry on `index.lock`, never edit the other side's files, never edit `eval.md`). The untracked `.env.local`, `convex/tsconfig.json` and `.convex/` belong to the verifier's local backend: do not commit, edit or delete them. Nobody runs the app. Each finding names a class: fix every instance of it. One commit per finding or small group, message `Session delivery: <what> (<ids>)`.
+
+### Interface changes both sides code against
+```ts
+// convex/sessionDelivery.ts
+page: adds  booking.dateLabel: string   // "November 11, 2026", in the studio's time zone
+            expiresLabel: string         // "Dec 13, 2026", in the studio's time zone
+      balanceCents / payUrl: now net of paid invoices; payUrl is the open invoice's pay link when one exists (F2-01)
+fileUrl: args add  purpose: v.optional(v.union(v.literal("play"), v.literal("download")))   // default "download"
+status: adds  cancelled: boolean          // the booking is cancelled, so nothing can be delivered
+markReady: unchanged, returns { state: "awaiting_payment" | "released" }
+// shared formatting, so the email, card and page agree
+convex/lib/money.ts:  export function moneyExact(cents: number): string   // always two decimals: "$180.00"
+src/lib/format-bytes.ts: export function formatBytes(n: number): string  // decimal units, same rules and outputs as the backend's formatBytes
+```
+
+### Backend fixes (`convex/**`)
+| ID | From | Class | Fix |
+|---|---|---|---|
+| F2-01 | R-01, Critical | a second payment ledger the gate ignores | Paying the balance by invoice never unlocks. Add index `by_session` on `invoices`. One helper `owedOnBooking(ctx, session): Promise<number>` = `max(0, rateCents - amountPaidCents - sum of amountCents of invoices with this sessionId and status "paid")`, used by `owed`, `status`, `page`, `markReady`, `resend`, `refresh` and `onBalanceSettled`. Call the guarded settle helper (F2-03) from `settleInvoice` (`invoicePay.ts`), the manual paid status change in `invoices.ts`, and the card-on-file charge in `cardOnFile.ts`. In `settleInvoice`, skip the "Payment received - invoice" client email when the delivery released and the files email went (one email, not two). `payUrl`: when the booking has an invoice with status `sent`, `viewed` or `overdue`, use `<appUrl>/pay/invoice/<id>`; otherwise the checkout link. Tests: ready then invoice paid online; invoice paid then ready; manual mark paid; a paid invoice smaller than what is owed does not release; a void or draft invoice counts for nothing; `payUrl` picks the open invoice. |
+| F2-02 | S-01, R-06 | erasure leaves a live credential | `eraseArtist` sets each of the client's deliveries to `status: "off"`, `offAt: now`, and replaces `token` with a fresh random one. Test: after erasure `page` and `fileUrl` answer like an unknown link for the old token. |
+| F2-03 | S-03, S-04 | unguarded side effect inside a money mutation | One exported `settleDeliveryQuietly(ctx, sessionId, opts?): Promise<boolean>` that wraps `onBalanceSettled` in try/catch (logs the message only). Every caller outside `sessionDelivery.ts` uses it (`settlePayment`, `setComp`, `payDeposit`, `applyReschedule`, `packages.redeem`, and the three in F2-01). In `release`, queue the email before patching the row, so a failed insert leaves nothing changed. |
+| F2-04 | S-05 | non-finite number passes a comparison | `owedOnBooking` treats a non-finite or negative `rateCents` as still owed (never releases on it). `setComp` rejects non-finite `listValueCents` and `chargedCents`. Tests for `NaN`, `Infinity`, negative. |
+| F2-05 | S-07, R-07 | flag follows a row to a new owner | `mediaLibrary.updateAsset` clears `clientFinal` whenever `sessionId` changes. Test. |
+| F2-06 | S-08 | unbounded client email | `resend` refuses within 2 minutes of `lastSentAt` with `Sent a moment ago. Try again in a couple of minutes.` Test with fake timers. |
+| F2-07 | S-10 | read cap applied before the filter | Index `by_org_session_final` (`orgId`, `sessionId`, `clientFinal`) on `mediaAssets`; `finalFiles` reads Final rows through it. Test: a booking with 205 working files and 3 Final files lists all 3. |
+| F2-08 | S-11, R-05 | new table missing from cleanup lists | Add `sessionDeliveries` to `ORG_TABLES` in `subaccountDeletion.ts`, and delete the delivery row wherever a booking row is deleted. Extend the "every org-owned table is listed" test to cover it. |
+| F2-09 | R-08 | a play counted as a download | `fileUrl` takes `purpose`; only `download` increments `downloadCount`. Every mint still counts toward the rate limit. Test. |
+| F2-10 | R-12 | two clocks | `page` returns `booking.dateLabel` and `expiresLabel` formatted in the studio's time zone (reuse the zone helper the email already uses). Test: a session at 11 PM Pacific gives the same date in the email and in `page`. |
+| F2-11 | E-05 FAIL | sender name | Emails of kind `delivery.ready` and `delivery.pay` are sent with `from: "<studio name> via Pulse <support@studiopulse.tech>"` (same form as `clientEmail.ts`). Strip quotes, angle brackets, commas and control characters from the studio name before it goes into the header. Other notification kinds keep today's sender. Tests, including a hostile studio name. |
+| F2-12 | E-01 FAIL | fixed brightness cutoff | `readableEmailInk` picks the ink with the higher WCAG contrast ratio against the accent. Extend the E-04 test with `#ff6b4a` (dark ink) and `#0f8f6f`, asserting at least 4.5:1 for each. Existing layout tests must still pass or be updated only where the old ink was below 4.5:1 (list any you change). |
+| F2-13 | R-13 | copy | Delivery emails use `moneyExact` (`Pay $180.00 and unlock`, `Payment received: $180.00.`). A cancelled booking's errors say `This booking was cancelled.` in `sessionDelivery.ts` only. `status` returns `cancelled`. Move the misplaced `sessionNotes` comment in `schema.ts` back above its table. |
+| F2-14 | verifier | tests that do not fully prove their check | A-07 with a studio that has a logo (assert the logo URL is the public media host and nothing from the private bucket appears). G-04 through the real webhook handler if the test harness can reach it; if not, say why in the test's comment. |
+
+### Frontend fixes (`src/**`)
+| ID | From | Class | Fix |
+|---|---|---|---|
+| F2-20 | R-02, Major | work owned by a component that unmounts | Closing the session panel drops queued uploads. Move the queue into a module-level store (`src/lib/upload-manager.ts`, read with `useSyncExternalStore`) keyed by `sessionId`: each entry captures its `sessionId` and job when added, uploads keep running and keep starting after the panel closes, reopening the panel shows that booking's rows, and the `beforeunload` guard stays while anything is active. Unit tests for the store (add, start order, cap of 2, cancel, panel closed and reopened, two bookings at once). |
+| F2-21 | R-03, Major | chained top-level navigations | Never navigate the page to download. Each download loads its signed URL in its own hidden `iframe` (removed after 2 minutes). "Download all" does them in turn, 600 ms apart. On iPhone and iPad Safari, replace the "Download all" button with the line `Tap a file to download it.` A failed mint shows its message on that row. |
+| F2-22 | R-04, Major | user gesture lost across an await | "Copy link": call `navigator.clipboard.write([new ClipboardItem({ "text/plain": <promise of a Blob> })])` synchronously in the click, falling back to `writeText` where `ClipboardItem` is missing. On failure show `Could not copy. Select the link and copy it.` with the link in a read-only field, never a raw browser error. |
+| F2-23 | U-07 FAIL | a global rule beats the component's size | In the Files section at phone width, every control (Play, Download, Delete, Dismiss, Cancel, Final, Ready to deliver, Resend, Copy link, Turn off link, Send now anyway, Link a song, Upload as new song) is at least 44 x 44 px. The global `.pl-key[data-size="icon-sm"]` rule in the hardware UI kit forces 26 px: beat it locally for these controls, do not change it globally. |
+| F2-24 | R-09 | cancel after the point of no return | Once `attach` has started, cancel is ignored and the row ends as Uploaded. Check for cancel after `createSong` and before `attach`. |
+| F2-25 | R-10 | a folder treated as a file | Refuse a dropped folder on its own row: `Folders cannot be uploaded. Zip it first.` |
+| F2-26 | R-11 | noisy live regions | No `aria-live` on the upload list or the whole card. One small `role="status"` node announces started, uploaded, failed, canceled. Failed rows are announced once. Hidden file inputs are not exposed as buttons to assistive tech. |
+| F2-27 | R-13 + verifier | copy and formatting | Amounts through a two-decimal formatter (`$180.00`). File sizes through `formatBytes` (decimal) in the staff list and queue. Card: the waiting state with nothing owed says `Nothing is owed now. Tap Resend to send the files.` and nothing else; no email state says `No email on file. Add one for <first name> to deliver.`; a cancelled booking shows `This booking was cancelled, so there is nothing to deliver.` with the button disabled. Toasts: `Sent to <email>` when released, `Pay link sent. The files unlock when the balance is paid.` when waiting. "Opened" shows the date when it is not today. Zips use an archive icon. `2 GB` and `100 MB` never break across lines. A long refusal message wraps at 390 px. |
+| F2-28 | F2-09, F2-10 | use the new fields | Play calls `fileUrl` with `purpose: "play"`. The page shows `booking.dateLabel` and `expiresLabel` from the server, not browser-zone dates. |
+| F2-29 | A-11 | proof without an engineer sign-in | Move the card's state-to-copy logic into a pure function `deliveryCardView(status)` in `src/lib/delivery-card-view.ts` and unit test it: with `balanceCents: null` no string contains `$` or a digit followed by `.00`, and neither `Send now anyway` nor `Turn off link` is offered when `canRelease` / `canTurnOff` are false. |
+
+### Not fixing in this round (on purpose)
+- S-09: the 120 per hour download limit is the approved number.
+- S-06: the pay link carries the booking id, as every existing pay email does.
+- S-02: whether the sign-in script ever sees the page address is checked on staging with a network log.
+- Client page light theme, uppercase button labels, file order: the app's own conventions.

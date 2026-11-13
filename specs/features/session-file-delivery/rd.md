@@ -18,6 +18,9 @@ reach the client the moment two things are true: the team says the files are fin
 - Session files are staff only. Downloads are 10 minute signed links behind a staff check.
 - `settlePayment` in `convex/payments.ts` is the one place a booking's paid amount changes. On paid in full
   it emails the client a plain "Paid in full" note.
+- Correction (round 1 review): that is only half of it. A balance can also be paid through an invoice
+  (`invoicePay.ts`, `invoices.ts`, `cardOnFile.ts`), which never changes the booking's paid amount. A paid
+  invoice tied to the booking counts toward "nothing owed" and triggers the release (plan Addendum 2, F2-01).
 - Separate and untouched by this work: song Deliverables with a payment gate and the client portal
   (`convex/files.ts`, `convex/portal.ts`), and single-file library guest links (`/files/<token>`).
 
