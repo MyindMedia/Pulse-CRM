@@ -53,6 +53,7 @@ import { sessionFileTask } from "@/lib/session-upload-task";
 import { formatBytes } from "@/lib/format-bytes";
 import { money, relativeTime, shortDate } from "@/lib/format";
 import targetStyles from "@/components/calendar/session-files.module.css";
+import safe from "@/components/delivery/text-safe.module.css";
 import { meta, INVOICE_STATUS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
 import type { NotificationRow } from "@/components/bookings/types";
@@ -334,7 +335,7 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
 
   if (data === null) return null;
   return (
-    <section className={cn("space-y-4", targetStyles.targets)} aria-label="Files and songs">
+    <section className={cn("space-y-4", targetStyles.targets, safe.safeText)} aria-label="Files and songs">
       {/* Songs */}
       <div className={SECTION}>
         <SectionTitle
@@ -344,7 +345,7 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
               <button
                 type="button"
                 onClick={() => setPicking((p) => !p)}
-                className="inline-flex items-center gap-1 text-[0.6875rem] font-medium text-steel transition-colors hover:text-gold"
+                className="inline-flex items-center gap-1 text-[0.6875rem] font-medium text-steel transition-colors hover:text-[color:var(--gold-text)]"
               >
                 <Link2 className="size-3" />
                 Link a song
@@ -371,18 +372,18 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
           <ul className={cn(ROW, "divide-y divide-hairline")} data-testid="session-songs">
             {data.songs.map((s) => (
               <li key={s.songId} className="flex items-center justify-between gap-3 px-3 py-2">
-                <EntityLink type="song" id={s.songId} className="flex min-w-0 items-center gap-2 text-sm text-bone hover:text-gold">
-                  <Music2 className="size-3.5 shrink-0 text-gold" />
+                <EntityLink type="song" id={s.songId} className="flex min-w-0 items-center gap-2 text-sm text-bone hover:text-[color:var(--gold-text)]">
+                  <Music2 className="size-3.5 shrink-0 text-[color:var(--gold-text)]" />
                   <span className="truncate">{s.title}</span>
                   {s.artistName && <span className="hidden truncate text-xs text-steel/70 sm:inline">{s.artistName}</span>}
                 </EntityLink>
                 <span className="flex shrink-0 items-center gap-2">
-                  {s.primary && <Badge tone="gold">Main</Badge>}
+                  {s.primary && <Badge tone="gold" className="text-[color:var(--gold-text)]">Main</Badge>}
                   {!s.primary && s.linkId && data.canEditSongs && (
                     <button
                       type="button"
                       aria-label={`Unlink ${s.title}`}
-                      className="rounded-sm p-0.5 text-steel/70 hover:text-critical"
+                      className="rounded-sm p-0.5 text-steel/70 hover:text-[color:var(--bad-text)]"
                       onClick={() =>
                         void unlinkSong({ linkId: s.linkId! }).catch((err) => toast.error(errorText(err, "Could not unlink.")))
                       }
@@ -467,7 +468,7 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
               return (
                 <li key={f.assetId} className={cn(ROW, "p-2.5")}>
                   <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
-                    <span className="grid size-9 shrink-0 place-items-center rounded-md bg-coal-3 text-gold-dim">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-md bg-coal-3 text-[color:var(--gold-text)]">
                       <Icon className="size-4" />
                     </span>
                     <div className="min-w-0 flex-1 basis-32">
@@ -486,7 +487,7 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
                           onClick={() => void toggleFinal(f.assetId, !f.clientFinal)}
                           className={cn(
                             "mr-1 inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[0.75rem] font-semibold transition-colors",
-                            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold disabled:opacity-60 max-sm:min-h-11",
+                            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--gold-text)] disabled:opacity-60 max-sm:min-h-11",
                             f.clientFinal
                               ? "border-transparent bg-gold text-gold-ink"
                               : "border-graphite/70 bg-transparent text-steel hover:border-gold-dim hover:text-bone",
@@ -496,7 +497,7 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
                           Final
                         </button>
                       )}
-                      {!data.canUpload && f.clientFinal && <Badge tone="gold">Final</Badge>}
+                      {!data.canUpload && f.clientFinal && <Badge tone="gold" className="text-[color:var(--gold-text)]">Final</Badge>}
                       {audio && (
                         <Button size="icon-sm" variant="ghost" className="size-9 max-sm:size-11" aria-label={isPlaying ? `Stop ${f.name}` : `Play ${f.name}`} onClick={() => void play(f.versionId)}>
                           {isPlaying ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
@@ -695,7 +696,7 @@ export function MessageLog({ sessionId }: { sessionId: Id<"sessions"> }) {
   const messages = useQuery(api.notifications.forSession, { sessionId }) as NotificationRow[] | undefined;
 
   return (
-    <section className={SECTION} aria-label="Message log">
+    <section className={cn(SECTION, safe.safeText)} aria-label="Message log">
       <SectionTitle icon={Mail}>Message log</SectionTitle>
       {messages === undefined ? (
         <div className="space-y-1.5">
@@ -725,7 +726,7 @@ export function MessageLog({ sessionId }: { sessionId: Id<"sessions"> }) {
                 {msg.channel} · {msg.recipient}
               </p>
               {notificationNotSentNote(msg) && (
-                <p className="mt-1 text-[0.625rem] font-medium text-gold">{notificationNotSentNote(msg)}</p>
+                <p className="mt-1 text-[0.625rem] font-medium text-[color:var(--gold-text)]">{notificationNotSentNote(msg)}</p>
               )}
             </li>
           ))}

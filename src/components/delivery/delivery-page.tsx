@@ -18,6 +18,7 @@ import {
   usd,
 } from "./format";
 import { downloadInFrame, isTouchApple } from "./platform";
+import safe from "./text-safe.module.css";
 
 /* The client's download page, /delivery/<token>. No login: the token in the
    URL is the only credential, so it is never logged, never put in an error
@@ -116,7 +117,7 @@ export function DeliveryPage({ token }: { token: string }) {
   return (
     <main
       style={style}
-      className="@container min-h-dvh bg-ink text-[0.9375rem] leading-normal text-bone [-webkit-font-smoothing:antialiased]"
+      className={`${safe.safeText} @container min-h-dvh bg-ink text-[0.9375rem] leading-normal text-bone [-webkit-font-smoothing:antialiased]`}
     >
       <div
         className="mx-auto grid max-w-[42.5rem] gap-[1.375rem] pt-[max(1.75rem,env(safe-area-inset-top))] pb-[max(1.375rem,env(safe-area-inset-bottom))] pl-[max(1.25rem,env(safe-area-inset-left))] pr-[max(1.25rem,env(safe-area-inset-right))] @max-[30rem]:pt-[max(1.375rem,env(safe-area-inset-top))] @max-[30rem]:pb-[max(1.125rem,env(safe-area-inset-bottom))] @max-[30rem]:pl-[max(1rem,env(safe-area-inset-left))] @max-[30rem]:pr-[max(1rem,env(safe-area-inset-right))]"
@@ -381,7 +382,7 @@ function Delivery({ page, token }: { page: PageData; token: string }) {
 
       {locked ? (
         <section aria-labelledby="lock-title" className="grid gap-3 rounded-lg border border-hairline bg-coal px-4 py-[1.125rem]">
-          <span className="inline-flex h-6 items-center gap-1.5 justify-self-start rounded-full border border-hairline bg-coal-2 px-2.5 text-[0.75rem] font-semibold text-gold">
+          <span className="inline-flex h-6 items-center gap-1.5 justify-self-start rounded-full border border-hairline bg-coal-2 px-2.5 text-[0.75rem] font-semibold text-[color:var(--gold-text)]">
             <Lock className="size-3" strokeWidth={1.75} aria-hidden />
             Balance due
           </span>

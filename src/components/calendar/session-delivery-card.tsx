@@ -9,6 +9,7 @@ import { Check, Link2, Lock, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import safe from "@/components/delivery/text-safe.module.css";
 import {
   PAY_LINK_TOAST,
   deliveryCardView,
@@ -47,8 +48,8 @@ function StatePill({ pill }: { pill: CardPill }) {
     <span
       className={cn(
         "inline-flex h-6 shrink-0 items-center gap-1.5 rounded-full border border-graphite/60 bg-coal-2 px-2.5 text-[0.75rem] font-semibold",
-        pill.tone === "ok" && "text-positive",
-        pill.tone === "wait" && "text-gold",
+        pill.tone === "ok" && "text-[color:var(--ok-text)]",
+        pill.tone === "wait" && "text-[color:var(--gold-text)]",
         pill.tone === "off" && "text-steel",
       )}
     >
@@ -196,7 +197,7 @@ export function SessionDeliveryCard({ sessionId, canUpload }: { sessionId: Id<"s
       aria-label="Deliver to client"
       data-testid="session-delivery"
       data-state={status.state}
-      className="grid gap-2.5 rounded-lg border border-graphite/50 bg-coal-2 p-3.5"
+      className={cn("grid gap-2.5 rounded-lg border border-graphite/50 bg-coal-2 p-3.5", safe.safeText)}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h3 className="text-sm font-bold text-bone">Deliver to client</h3>
@@ -204,7 +205,7 @@ export function SessionDeliveryCard({ sessionId, canUpload }: { sessionId: Id<"s
       </div>
       <div className="space-y-1.5 text-[0.8125rem] leading-relaxed text-steel">
         {view.lines.map((l, i) => (
-          <p key={i} className={cn(l.tone === "mono" && "font-meta text-[0.75rem]", l.tone === "caution" && "text-caution")}>
+          <p key={i} className={cn(l.tone === "mono" && "font-meta text-[0.75rem]", l.tone === "caution" && "text-[color:var(--warn-text)]")}>
             {l.parts.map((p, j) =>
               p.strong ? (
                 <b key={j} className="font-semibold text-bone">
@@ -220,7 +221,7 @@ export function SessionDeliveryCard({ sessionId, canUpload }: { sessionId: Id<"s
       {view.actions.length > 0 && <div className="flex flex-wrap gap-2">{view.actions.map(actionButton)}</div>}
       {manualLink && (
         <div className="grid gap-1.5">
-          <p className="text-[0.8125rem] text-caution">Could not copy. Select the link and copy it.</p>
+          <p className="text-[0.8125rem] text-[color:var(--warn-text)]">Could not copy. Select the link and copy it.</p>
           <input
             ref={manualField}
             readOnly

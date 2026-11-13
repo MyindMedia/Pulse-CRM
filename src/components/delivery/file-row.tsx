@@ -61,7 +61,7 @@ export function FileRow({
   return (
     <li className="grid gap-2.5 px-3.5 py-3">
       <div className="flex min-w-0 items-center gap-3">
-        <span className="grid size-9 flex-none place-items-center rounded-md bg-coal-3 text-gold">
+        <span className="grid size-9 flex-none place-items-center rounded-md bg-coal-3 text-[color:var(--gold-text)]">
           <Icon className="size-4" strokeWidth={1.75} aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
@@ -112,7 +112,7 @@ export function FileRow({
       </div>
       {audio && !locked && <Waveform seedKey={file.name} progress={progress} />}
       {message && (
-        <p role="status" aria-live="polite" className="text-right text-[0.8125rem] text-critical">
+        <p role="status" aria-live="polite" className="text-right text-[0.8125rem] text-[color:var(--bad-text)]">
           {message}
         </p>
       )}

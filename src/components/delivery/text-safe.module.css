@@ -1,0 +1,47 @@
+/* Text-safe colors for the delivery surfaces (V3-05): the client page
+   (/delivery/<token>) and the session Files section with its "Deliver to
+   client" card.
+
+   The brand gold and the signal colors are bright. They read well on the dark
+   surfaces, but on the light theme's white and cream they fall far under
+   4.5:1 (#e3a200 on #f3f1ea is 1.97:1). So nothing here uses them as text or
+   as a focus ring directly. Text uses these variables instead, and the focus
+   ring follows --gold-text:
+     --gold-text   gold words and icons
+     --ok-text     "Sent" and similar
+     --bad-text    a failed row's reason
+     --warn-text   a caution line
+   Dark themes keep today's tokens (the studio accent is already guarded to
+   4.5:1 on the darkest raised face). The light theme gets fixed dark shades,
+   unless the hardware UI kit is on: it is dark only and remaps every surface
+   to dark even under data-theme="light", so the light values must not apply
+   there. A studio accent is a fill only (buttons, logo tile), never text.
+
+   Every value here is checked by text-safe.test.ts against the surfaces it
+   sits on. Change one only with that test. */
+
+.safeText {
+  --gold-text: var(--color-gold);
+  --ok-text: var(--color-positive);
+  --bad-text: var(--color-critical);
+  --warn-text: var(--color-caution);
+}
+
+/* The hardware kit's red (#ff6b6f) is 4.48:1 on its raised face (#343438). */
+:global(:root:has(.pulse-hw)) .safeText {
+  --bad-text: #ff8085;
+}
+
+:global(html[data-theme="light"]:not(:has(.pulse-hw))) .safeText {
+  --gold-text: #7a5600;
+  --ok-text: #0b6b40;
+  --bad-text: #b3261e;
+  --warn-text: #8a4b00;
+}
+
+/* The focus ring. The global ring is var(--color-gold), 2.2:1 on white in the
+   light theme. This selector outranks it, the hardware kit's ring and any
+   focus-visible:outline-* utility on a control inside. */
+:global(html[data-theme="light"]:not(:has(.pulse-hw))) .safeText :is(a, button, input, select, textarea, summary, [tabindex], [role="button"]):focus-visible {
+  outline-color: var(--gold-text);
+}

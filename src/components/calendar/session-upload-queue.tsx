@@ -90,14 +90,14 @@ export function SessionDropZone({
         over && "border-gold bg-gold/5",
       )}
     >
-      <Upload className="size-5 text-gold" aria-hidden />
+      <Upload className="size-5 text-[color:var(--gold-text)]" aria-hidden />
       <p className="text-sm font-semibold text-bone">
         Drop files here or{" "}
         <button
           type="button"
           onClick={onBrowse}
           disabled={disabled}
-          className="inline-flex min-h-9 items-center rounded-sm px-1 font-semibold text-gold underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-gold max-sm:min-h-11"
+          className="inline-flex min-h-9 items-center rounded-sm px-1 font-semibold text-[color:var(--gold-text)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-[color:var(--gold-text)] max-sm:min-h-11"
         >
           browse
         </button>
@@ -167,7 +167,7 @@ export function UploadQueueList({
             <span
               className={cn(
                 "grid size-9 shrink-0 place-items-center rounded-md bg-coal-3",
-                item.status === "done" ? "text-positive" : failed ? "text-critical" : "text-gold-dim",
+                item.status === "done" ? "text-[color:var(--ok-text)]" : failed ? "text-[color:var(--bad-text)]" : "text-[color:var(--gold-text)]",
               )}
             >
               {item.status === "done" ? (
@@ -190,7 +190,7 @@ export function UploadQueueList({
               <p
                 className={cn(
                   "font-meta text-[0.75rem]",
-                  failed ? "text-critical [overflow-wrap:anywhere]" : "truncate text-steel",
+                  failed ? "text-[color:var(--bad-text)] [overflow-wrap:anywhere]" : "truncate text-steel",
                 )}
               >
                 {sub}
