@@ -1,0 +1,353 @@
+<title>Session File Delivery</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one column. A view switcher on top, then one mocked screen at a time, each with its own
+   state controls sitting outside the mock. Pulse tokens (ink, coal, bone, gold) from src/app/globals.css. */
+:root {
+  --bg: #08080a; --surface: #141417; --surface-2: #1a1a1f; --surface-3: #232329; --line: #2b2b32;
+  --text: #f6f6f5; --muted: #a2a2a2; --accent: #fdb913; --accent-ink: #241900; --accent-text: #fdb913;
+  --ok: #3ddc91; --bad: #ff5d5d; --shadow: 0 24px 60px rgba(0,0,0,.5);
+  --studio: #fdb913; --studio-ink: #241900;
+  --mail-page: #ececea; --mail-card: #ffffff; --mail-head: #111114; --mail-head-ink: #ffffff; --mail-text: #1c1b18; --mail-muted: #6a675f; --mail-line: #e2dfd8;
+  --sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
+  --r-sm: 6px; --r-md: 10px; --r-lg: 14px; --r-xl: 20px;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+  --bg: #e8e6df; --surface: #ffffff; --surface-2: #f3f1ea; --surface-3: #e7e3da; --line: #d7d2c6;
+  --text: #16140e; --muted: #5d594f; --accent: #e3a200; --accent-ink: #241900; --accent-text: #7a5600;
+  --ok: #0f7a4a; --bad: #b3261e; --shadow: 0 18px 44px rgba(40,34,16,.16); color-scheme: light } }
+:root[data-theme="light"] {
+  --bg: #e8e6df; --surface: #ffffff; --surface-2: #f3f1ea; --surface-3: #e7e3da; --line: #d7d2c6;
+  --text: #16140e; --muted: #5d594f; --accent: #e3a200; --accent-ink: #241900; --accent-text: #7a5600;
+  --ok: #0f7a4a; --bad: #b3261e; --shadow: 0 18px 44px rgba(40,34,16,.16); color-scheme: light }
+
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+body { background: var(--bg); color: var(--text); font-family: var(--sans); font-size: 15px; line-height: 1.5; -webkit-font-smoothing: antialiased }
+.wrap { max-width: 1120px; margin: 0 auto; padding-block: 28px 56px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); display: grid; gap: 24px }
+h1, h2, h3, p { margin: 0 }
+h1 { font-size: 28px; line-height: 1.2; font-weight: 700; letter-spacing: -.01em; text-wrap: balance }
+.lede { color: var(--muted); max-width: 62ch }
+.mono { font-family: var(--mono); font-size: 12px; letter-spacing: .01em }
+.eyebrow { font-family: var(--mono); font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted) }
+svg.i { width: 16px; height: 16px; flex: none; stroke: currentColor; fill: none; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round }
+button { font: inherit; color: inherit; cursor: pointer }
+:focus-visible { outline: 2px solid var(--accent-text); outline-offset: 2px }
+
+/* mock controls (not part of the product) */
+.seg { display: inline-flex; flex-wrap: wrap; gap: 2px; padding: 3px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 12px }
+.seg button { border: 0; background: transparent; min-height: 36px; padding: 0 14px; border-radius: 9px; font-size: 13px; font-weight: 600; color: var(--muted) }
+.seg button[aria-pressed="true"] { background: var(--surface-3); color: var(--text) }
+.views button { min-height: 44px; font-size: 14px }
+.ctl { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 18px; padding: 12px 14px; border: 1px dashed var(--line); border-radius: var(--r-lg) }
+.ctl > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px }
+.sw { width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--line); padding: 0 }
+.sw[aria-pressed="true"] { border-color: var(--text) }
+.note { color: var(--muted); font-size: 13px; max-width: 70ch }
+.stage { display: grid; gap: 14px; justify-items: center }
+.stage > .ctl { width: 100% }
+
+/* shared product bits */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 36px; padding: 0 14px; border-radius: var(--r-md); border: 1px solid var(--line); background: var(--surface-2); font-size: 13px; font-weight: 600 }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: transparent }
+.btn.ghost { background: transparent }
+.btn[disabled] { opacity: .45; cursor: not-allowed }
+.pill { display: inline-flex; align-items: center; gap: 6px; height: 24px; padding: 0 10px; border-radius: 999px; font-size: 12px; font-weight: 600; border: 1px solid var(--line); background: var(--surface-2) }
+.pill.ok { color: var(--ok) } .pill.wait { color: var(--accent-text) } .pill.off { color: var(--muted) }
+.tile { display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-md); background: var(--surface-3); color: var(--accent-text); flex: none }
+
+/* 1. staff panel */
+.sheet { width: min(100%, 460px); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-xl); box-shadow: var(--shadow); overflow: hidden }
+.sheet header { padding: 18px 18px 14px; border-bottom: 1px solid var(--line); display: grid; gap: 4px }
+.sheet header h2 { font-size: 17px; font-weight: 700 }
+.sheet .body { padding: 16px 18px 18px; display: grid; gap: 14px }
+.sec-title { display: flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted) }
+.drop { display: grid; justify-items: center; gap: 6px; padding: 18px 12px; border: 1.5px dashed var(--line); border-radius: var(--r-lg); background: var(--surface-2); text-align: center }
+.drop b { font-size: 14px } .drop span { font-size: 12px; color: var(--muted) }
+.rows { display: grid; gap: 8px; list-style: none; margin: 0; padding: 0 }
+.row { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface-2); min-width: 0 }
+.row .meta { min-width: 0; flex: 1 }
+.row .name { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.row .sub { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.bar { height: 4px; margin-top: 6px; border-radius: 4px; background: var(--surface-3); overflow: hidden }
+.bar i { display: block; height: 100%; width: var(--p, 40%); background: var(--accent); border-radius: 4px }
+.icon-btn { display: grid; place-items: center; width: 36px; height: 36px; border-radius: var(--r-md); border: 0; background: transparent; color: var(--muted); flex: none }
+.icon-btn:hover { background: var(--surface-3); color: var(--text) }
+.final { display: inline-flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; border-radius: 999px; border: 1px solid var(--line); background: transparent; font-size: 12px; font-weight: 600; color: var(--muted); flex: none }
+.final[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: transparent }
+.final svg { display: none } .final[aria-pressed="true"] svg { display: block; width: 13px; height: 13px; stroke-width: 2.5 }
+.deliver { display: grid; gap: 10px; padding: 14px; border-radius: var(--r-lg); border: 1px solid var(--line); background: var(--surface-2) }
+.deliver .top { display: flex; align-items: center; justify-content: space-between; gap: 10px }
+.deliver h3 { font-size: 14px; font-weight: 700 }
+.deliver p { font-size: 13px; color: var(--muted) } .deliver p b { color: var(--text); font-weight: 600 }
+.acts { display: flex; flex-wrap: wrap; gap: 8px }
+
+/* 2. email */
+.mail { width: min(100%, 640px); background: var(--mail-page); border-radius: var(--r-xl); padding: 22px 12px; box-shadow: var(--shadow) }
+.mail .subj { max-width: 600px; margin: 0 auto 12px; color: var(--mail-muted); font-size: 13px }
+.mail .subj b { color: var(--mail-text) }
+.mail .card { max-width: 600px; margin: 0 auto; background: var(--mail-card); border: 1px solid var(--mail-line); border-radius: 14px; overflow: hidden; color: var(--mail-text) }
+.mail .head { background: var(--mail-head); border-bottom: 3px solid var(--studio); padding: 22px 24px; text-align: center; color: var(--mail-head-ink); font-weight: 800; font-size: 17px; letter-spacing: .02em }
+.mail .inner { padding: 28px 28px 22px; display: grid; gap: 14px; font-size: 15px; line-height: 1.6 }
+.mail .inner h2 { font-size: 22px; line-height: 1.25; font-weight: 700; text-wrap: balance }
+.mail ul { list-style: none; margin: 0; padding: 0; border: 1px solid var(--mail-line); border-radius: 10px }
+.mail li { display: flex; justify-content: space-between; gap: 12px; padding: 10px 14px; font-size: 14px }
+.mail li + li { border-top: 1px solid var(--mail-line) }
+.mail li span:last-child { color: var(--mail-muted); font-family: var(--mono); font-size: 12px; white-space: nowrap }
+.mail .cta { justify-self: center; display: inline-block; padding: 13px 30px; border-radius: 11px; background: var(--studio); color: var(--studio-ink); font-weight: 700; font-size: 15px; text-decoration: none }
+.mail .small { font-size: 13px; color: var(--mail-muted) }
+.mail .foot { border-top: 1px solid var(--mail-line); padding: 14px 24px 20px; text-align: center; font-size: 12px; color: var(--mail-muted) }
+
+/* 3. client page */
+.frame { width: 100%; max-width: 920px; border: 1px solid var(--line); border-radius: var(--r-xl); overflow: hidden; background: var(--bg); box-shadow: var(--shadow); container-type: inline-size }
+.frame.phone { max-width: 390px }
+.chrome { display: flex; align-items: center; gap: 10px; padding: 9px 12px; background: var(--surface); border-bottom: 1px solid var(--line) }
+.chrome .url { flex: 1; min-width: 0; height: 28px; display: flex; align-items: center; gap: 6px; padding: 0 10px; border-radius: 8px; background: var(--surface-2); color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis }
+.cp { padding: 28px 20px 22px; display: grid; gap: 22px; max-width: 680px; margin: 0 auto }
+.cp .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px }
+.cp .logo { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 10px; background: var(--studio); color: var(--studio-ink); font-weight: 800; font-size: 14px }
+.cp h2 { font-size: 28px; line-height: 1.2; font-weight: 700; letter-spacing: -.01em; text-wrap: balance }
+.cp .when { color: var(--muted); margin-top: 6px }
+.cp .sum { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 16px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface) }
+.cp .big { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 20px; border-radius: 12px; border: 0; background: var(--studio); color: var(--studio-ink); font-weight: 700; font-size: 15px }
+.cp .files { list-style: none; margin: 0; padding: 0; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface); overflow: hidden }
+.cp .files li { padding: 12px 14px; display: grid; gap: 10px }
+.cp .files li + li { border-top: 1px solid var(--line) }
+.cp .f { display: flex; align-items: center; gap: 12px; min-width: 0 }
+.cp .f .meta { flex: 1; min-width: 0 }
+.cp .f .name { font-weight: 600; overflow-wrap: anywhere }
+.cp .round { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; border: 1px solid var(--line); background: var(--surface-2); flex: none }
+.cp .round:hover { border-color: var(--text) }
+.wave { display: flex; align-items: center; gap: 2px; height: 28px }
+.wave i { flex: 1; min-width: 1px; background: var(--muted); opacity: .45; border-radius: 1px }
+.wave i.on { background: var(--studio); opacity: 1 }
+.lock { display: grid; gap: 12px; padding: 18px 16px; border: 1px solid var(--line); border-radius: var(--r-lg); background: var(--surface) }
+.lock h3 { font-size: 20px; line-height: 1.25; font-weight: 700 }
+.gone { text-align: center; display: grid; gap: 8px; padding: 56px 8px }
+.cp footer { display: flex; flex-wrap: wrap; gap: 6px 16px; justify-content: space-between; font-size: 12px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 14px }
+.cp footer a { color: inherit }
+@container (max-width: 480px) { .cp { padding: 22px 16px 18px } .cp h2 { font-size: 24px } .cp .big { width: 100% } }
+@media (prefers-reduced-motion: no-preference) { .bar i.live { animation: fill 3.2s ease-out infinite } }
+@keyframes fill { from { width: 8% } to { width: 96% } }
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-up" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></symbol>
+  <symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v12M7 11l5 5 5-5M4 20h16"/></symbol>
+  <symbol id="i-music" viewBox="0 0 24 24"><path d="M9 18V5l11-2v13"/><circle cx="6.5" cy="18" r="2.5"/><circle cx="17.5" cy="16" r="2.5"/></symbol>
+  <symbol id="i-zip" viewBox="0 0 24 24"><path d="M4 7h16v12a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1zM4 7l2-3h12l2 3M12 7v3M12 12v2"/></symbol>
+  <symbol id="i-doc" viewBox="0 0 24 24"><path d="M6 3h8l4 4v13a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1zM14 3v4h4M9 13h6M9 17h6"/></symbol>
+  <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  <symbol id="i-x" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+  <symbol id="i-lock" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></symbol>
+  <symbol id="i-play" viewBox="0 0 24 24"><path d="M8 5.5v13l10-6.5z"/></symbol>
+  <symbol id="i-pause" viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></symbol>
+  <symbol id="i-link" viewBox="0 0 24 24"><path d="M10 14a4 4 0 0 0 5.7 0l3-3a4 4 0 0 0-5.7-5.7l-1 1M14 10a4 4 0 0 0-5.7 0l-3 3a4 4 0 0 0 5.7 5.7l1-1"/></symbol>
+  <symbol id="i-clip" viewBox="0 0 24 24"><path d="M20 11.5l-8.5 8.5a5 5 0 0 1-7-7L13 4.5a3.5 3.5 0 0 1 5 5L9.5 18a2 2 0 0 1-3-3L14 7.5"/></symbol>
+  <symbol id="i-send" viewBox="0 0 24 24"><path d="M21 3L10 14M21 3l-7 18-4-7-7-4z"/></symbol>
+</svg>
+
+<div class="wrap">
+  <div style="display:grid;gap:8px">
+    <p class="eyebrow">Pulse · mockup for approval · 2026-11-13</p>
+    <h1>Final session files, delivered when the booking is paid</h1>
+    <p class="lede">Three screens. The team marks files Final and taps Ready to deliver. The client gets a branded email and a download page that unlocks when the balance is zero. Dashed boxes are mockup controls, not part of the product.</p>
+  </div>
+
+  <div class="seg views" role="group" aria-label="Screen">
+    <button data-view="staff" aria-pressed="true">1. Team: session panel</button>
+    <button data-view="email" aria-pressed="false">2. Client: email</button>
+    <button data-view="client" aria-pressed="false">3. Client: download page</button>
+  </div>
+
+  <!-- 1. STAFF -->
+  <section class="stage" id="v-staff">
+    <div class="ctl">
+      <div><span class="eyebrow">Delivery state</span>
+        <div class="seg" role="group" aria-label="Delivery state" data-group="dstate">
+          <button data-v="none" aria-pressed="true">Not sent</button><button data-v="wait" aria-pressed="false">Waiting for payment</button><button data-v="sent" aria-pressed="false">Sent</button><button data-v="off" aria-pressed="false">Link off</button>
+        </div></div>
+      <div><span class="eyebrow">Signed in as</span>
+        <div class="seg" role="group" aria-label="Role" data-group="role">
+          <button data-v="owner" aria-pressed="true">Owner or manager</button><button data-v="eng" aria-pressed="false">Engineer</button>
+        </div></div>
+    </div>
+
+    <div class="sheet" aria-label="Session panel">
+      <header>
+        <h2>Vocal tracking</h2>
+        <p class="mono" style="color:var(--muted)">Tue Nov 11 · 2:00 to 6:00 PM · Room A · Jordan Ellis</p>
+      </header>
+      <div class="body">
+        <div class="sec-title"><svg class="i"><use href="#i-clip"/></svg>Files</div>
+        <div class="drop">
+          <svg class="i" style="width:22px;height:22px;color:var(--accent-text)"><use href="#i-up"/></svg>
+          <b>Drop files here or browse</b>
+          <span>Audio, video, stems and session zips up to 2 GB. PDFs and images up to 100 MB.</span>
+        </div>
+        <ul class="rows" aria-label="Uploading">
+          <li class="row"><span class="tile"><svg class="i"><use href="#i-zip"/></svg></span>
+            <div class="meta"><div class="name">Midnight Drive - Alt Takes.zip</div><div class="sub mono">612 MB of 1.08 GB · about 2 min left</div><div class="bar"><i class="live" style="--p:57%"></i></div></div>
+            <button class="icon-btn" aria-label="Cancel upload of Midnight Drive - Alt Takes.zip"><svg class="i"><use href="#i-x"/></svg></button></li>
+        </ul>
+        <ul class="rows" id="staff-files" aria-label="Files on this session"></ul>
+
+        <div class="deliver" id="deliver" aria-live="polite"></div>
+      </div>
+    </div>
+    <p class="note" id="staff-note"></p>
+  </section>
+
+  <!-- 2. EMAIL -->
+  <section class="stage" id="v-email" hidden>
+    <div class="ctl">
+      <div><span class="eyebrow">Email</span>
+        <div class="seg" role="group" aria-label="Email" data-group="mail">
+          <button data-v="ready" aria-pressed="true">Files ready</button><button data-v="pay" aria-pressed="false">Pay to unlock</button>
+        </div></div>
+      <div><span class="eyebrow">Studio color</span><span data-swatches></span></div>
+    </div>
+    <div class="mail">
+      <p class="subj">From <b>Myind Sound via Pulse</b> · To jordan.ellis@example.com<br>Subject: <b id="mail-subj"></b></p>
+      <div class="card">
+        <div class="head">Myind Sound</div>
+        <div class="inner" id="mail-body"></div>
+        <div class="foot">Sent with Pulse · the studio operating system</div>
+      </div>
+    </div>
+    <p class="note">Sent to the email on the booking, through the studio's own channel (their Gmail, or "Studio via Pulse"). The header bar and button take the studio's color; the button text flips between dark and light so it stays readable.</p>
+  </section>
+
+  <!-- 3. CLIENT -->
+  <section class="stage" id="v-client" hidden>
+    <div class="ctl">
+      <div><span class="eyebrow">Page state</span>
+        <div class="seg" role="group" aria-label="Page state" data-group="cstate">
+          <button data-v="open" aria-pressed="true">Unlocked</button><button data-v="locked" aria-pressed="false">Balance due</button><button data-v="gone" aria-pressed="false">Expired</button>
+        </div></div>
+      <div><span class="eyebrow">Width</span>
+        <div class="seg" role="group" aria-label="Width" data-group="width">
+          <button data-v="desk" aria-pressed="true">Desktop</button><button data-v="phone" aria-pressed="false">Phone</button>
+        </div></div>
+      <div><span class="eyebrow">Studio color</span><span data-swatches></span></div>
+    </div>
+    <div class="frame" id="frame">
+      <div class="chrome"><div class="url mono"><svg class="i" style="width:12px;height:12px"><use href="#i-lock"/></svg>studiopulse.tech/delivery/9f2c…e41a</div></div>
+      <div class="cp" id="cp"></div>
+    </div>
+    <p class="note">No login. The link works for 30 days and only ever shows files marked Final. If the client pays in another tab, this page unlocks by itself.</p>
+  </section>
+</div>
+
+<script>
+(function () {
+  var $ = function (s, r) { return (r || document).querySelector(s) }, $$ = function (s, r) { return Array.prototype.slice.call((r || document).querySelectorAll(s)) };
+  var icon = function (n, extra) { return '<svg class="i"' + (extra || '') + '><use href="#i-' + n + '"/></svg>' };
+  var FILES = [
+    { n: 'Midnight Drive - Final Mix.wav', t: 'WAV · 24-bit', s: '58.2 MB', k: 'music', by: 'Dre', final: true },
+    { n: 'Midnight Drive - Master.wav', t: 'WAV · 24-bit', s: '61.4 MB', k: 'music', by: 'Dre', final: true },
+    { n: 'Midnight Drive - Stems.zip', t: 'ZIP · 14 stems', s: '1.42 GB', k: 'zip', by: 'Dre', final: true },
+    { n: 'Session Notes.pdf', t: 'PDF', s: '212 KB', k: 'doc', by: 'Maya', final: true },
+    { n: 'rough_bounce_03.mp3', t: 'MP3', s: '7.9 MB', k: 'music', by: 'Dre', final: false },
+    { n: 'Pro Tools Session Backup.zip', t: 'ZIP', s: '1.86 GB', k: 'zip', by: 'Dre', final: false }
+  ];
+  var st = { view: 'staff', dstate: 'none', role: 'owner', mail: 'ready', cstate: 'open', width: 'desk', playing: -1 };
+  var finals = function () { return FILES.filter(function (f) { return f.final }) };
+
+  function staffFiles() {
+    $('#staff-files').innerHTML = FILES.map(function (f, i) {
+      return '<li class="row"><span class="tile">' + icon(f.k) + '</span><div class="meta"><div class="name">' + f.n + '</div><div class="sub mono">' + f.s + ' · ' + f.by + ' · Nov 13</div></div>' +
+        '<button class="final" data-i="' + i + '" aria-pressed="' + f.final + '" aria-label="Final: ' + f.n + '">' + icon('check') + 'Final</button>' +
+        '<button class="icon-btn" aria-label="Download ' + f.n + '">' + icon('down') + '</button></li>';
+    }).join('');
+  }
+  function deliver() {
+    var n = finals().length, owner = st.role === 'owner', h = '';
+    var acts = function (a) { return '<div class="acts">' + a.join('') + '</div>' };
+    if (st.dstate === 'none') {
+      h = '<div class="top"><h3>Deliver to client</h3></div>' +
+        (n ? '<p><b>' + n + ' file' + (n > 1 ? 's' : '') + ' marked Final.</b> Jordan gets a download link by email once the booking is paid.</p>' : '<p>Mark at least one file Final to deliver.</p>') +
+        acts(['<button class="btn primary"' + (n ? '' : ' disabled') + '>' + icon('send') + 'Ready to deliver</button>']);
+    } else if (st.dstate === 'wait') {
+      h = '<div class="top"><h3>Deliver to client</h3><span class="pill wait">' + icon('lock', ' style="width:12px;height:12px"') + 'Waiting for payment</span></div>' +
+        '<p>Jordan was emailed a pay link today at 2:41 PM. ' + (owner ? '<b>$180.00 is still owed.</b> ' : '<b>A balance is still owed.</b> ') + 'The download link sends by itself when it is paid.</p>' +
+        acts((owner ? ['<button class="btn">Send now anyway</button>'] : []).concat(['<button class="btn ghost">' + icon('link') + 'Copy link</button>'], owner ? ['<button class="btn ghost">Turn off link</button>'] : []));
+    } else if (st.dstate === 'sent') {
+      h = '<div class="top"><h3>Deliver to client</h3><span class="pill ok">' + icon('check', ' style="width:12px;height:12px"') + 'Sent</span></div>' +
+        '<p><b>Sent to jordan.ellis@example.com</b> today at 2:41 PM.</p><p class="mono">Opened 3:02 PM · 3 downloads · link works until Dec 13</p>' +
+        acts(['<button class="btn">Resend</button>', '<button class="btn ghost">' + icon('link') + 'Copy link</button>'].concat(owner ? ['<button class="btn ghost">Turn off link</button>'] : []));
+    } else {
+      h = '<div class="top"><h3>Deliver to client</h3><span class="pill off">Link off</span></div>' +
+        '<p>The link was turned off on Nov 14. Jordan can no longer download.</p>' +
+        acts(['<button class="btn primary"' + (n ? '' : ' disabled') + '>' + icon('send') + 'Ready to deliver</button>']);
+    }
+    $('#deliver').innerHTML = h;
+    $('#staff-note').textContent = owner
+      ? 'Owners and managers see the amount and can send without waiting for payment. Files without Final stay private to the team.'
+      : 'Engineers can upload, mark Final and tap Ready to deliver. They never see a dollar amount and cannot skip the payment wait.';
+  }
+  function mail() {
+    var list = '<ul>' + finals().map(function (f) { return '<li><span>' + f.n + '</span><span>' + f.s + '</span></li>' }).join('') + '</ul>';
+    if (st.mail === 'ready') {
+      $('#mail-subj').textContent = 'Your files from Vocal tracking are ready';
+      $('#mail-body').innerHTML = '<h2>Your files are ready, Jordan</h2><p>Everything from your Vocal tracking session on November 11 is ready to download. Payment received: $180.00. Thank you.</p>' + list +
+        '<a class="cta" href="#client">Download your files</a><p class="small">The link works until December 13, 2026. If it stops working, reply to this email for a new one.</p>';
+    } else {
+      $('#mail-subj').textContent = 'Your files are ready. One step left';
+      $('#mail-body').innerHTML = '<h2>Your files are finished, Jordan</h2><p>Your Vocal tracking session from November 11 is finished and waiting. There is a $180.00 balance on this booking. Once it is paid, your download link arrives right away.</p>' + list +
+        '<a class="cta" href="#client">Pay $180.00 and unlock</a><p class="small">Already paid? Reply to this email and the studio will sort it out.</p>';
+    }
+  }
+  function wave(seed, on) {
+    var h = '', x = seed * 9301 + 49297;
+    for (var i = 0; i < 64; i++) { x = (x * 9301 + 49297) % 233280; var v = 18 + Math.round((x / 233280) * 82 * (0.55 + 0.45 * Math.sin(i / 9 + seed))); h += '<i' + (on && i < 22 ? ' class="on"' : '') + ' style="height:' + Math.max(12, Math.min(100, v)) + '%"></i>'; }
+    return '<div class="wave" aria-hidden="true">' + h + '</div>';
+  }
+  function client() {
+    var top = '<div class="brand"><span class="logo">MS</span>Myind Sound</div>', foot = '<footer><span>Delivered with Pulse</span><span><a href="#client">Privacy</a> · <a href="#client">Terms</a></span></footer>';
+    if (st.cstate === 'gone') { $('#cp').innerHTML = top + '<div class="gone"><h2>This link has expired</h2><p class="when">Ask Myind Sound to send a new one. Your files are still safe with the studio.</p></div>' + foot; return; }
+    var locked = st.cstate === 'locked', fs = finals();
+    var head = '<div><h2>' + (locked ? 'Your files are finished, Jordan' : 'Your files are ready, Jordan') + '</h2><p class="when">Vocal tracking · Room A · November 11, 2026</p></div>';
+    var mid = locked
+      ? '<div class="lock"><span class="pill wait" style="justify-self:start">' + icon('lock', ' style="width:12px;height:12px"') + 'Balance due</span><h3>Pay $180.00 to unlock your files</h3><p class="when" style="margin:0">Downloads open on this page as soon as the payment goes through.</p><button class="big" style="justify-self:start">Pay and unlock</button></div>'
+      : '<div class="sum"><div><b>' + fs.length + ' files · 1.54 GB</b><div class="mono" style="color:var(--muted)">Link works until Dec 13, 2026</div></div><button class="big">' + icon('down') + 'Download all</button></div>';
+    var rows = '<ul class="files">' + fs.map(function (f, i) {
+      var audio = f.k === 'music', on = st.playing === i && !locked;
+      return '<li><div class="f"><span class="tile">' + icon(f.k) + '</span><div class="meta"><div class="name">' + f.n + '</div><div class="mono" style="color:var(--muted)">' + f.t + ' · ' + f.s + '</div></div>' +
+        (locked ? '<span class="round" aria-label="Locked" role="img" style="color:var(--muted)">' + icon('lock') + '</span>'
+          : (audio ? '<button class="round" data-play="' + i + '" aria-label="' + (on ? 'Pause ' : 'Play ') + f.n + '">' + icon(on ? 'pause' : 'play') + '</button>' : '') +
+            '<button class="round" aria-label="Download ' + f.n + '">' + icon('down') + '</button>') +
+        '</div>' + (audio && !locked ? wave(i + 3, on) : '') + '</li>';
+    }).join('') + '</ul>';
+    $('#cp').innerHTML = top + head + mid + rows + foot;
+  }
+  function render() {
+    ['staff', 'email', 'client'].forEach(function (v) { $('#v-' + v).hidden = st.view !== v });
+    $$('.views button').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.view === st.view) });
+    $$('[data-group]').forEach(function (g) { $$('button', g).forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.v === st[g.dataset.group]) }) });
+    $('#frame').classList.toggle('phone', st.width === 'phone');
+    staffFiles(); deliver(); mail(); client();
+  }
+  var SW = [['#fdb913', '#241900', 'Gold'], ['#3b63e6', '#ffffff', 'Cobalt'], ['#ff6b4a', '#2a0a00', 'Coral'], ['#0f8f6f', '#ffffff', 'Pine']];
+  $$('[data-swatches]').forEach(function (el) {
+    el.style.display = 'inline-flex'; el.style.gap = '8px';
+    el.innerHTML = SW.map(function (s, i) { return '<button class="sw" data-sw="' + i + '" aria-pressed="' + (i === 0) + '" aria-label="' + s[2] + '" style="background:' + s[0] + '"></button>' }).join('');
+  });
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('button, a'); if (!b) return;
+    if (b.dataset.view) { st.view = b.dataset.view; try { history.replaceState(null, '', '#' + st.view) } catch (_) {} }
+    else if (b.dataset.v && b.parentNode.dataset.group) st[b.parentNode.dataset.group] = b.dataset.v;
+    else if (b.dataset.sw) { var s = SW[+b.dataset.sw]; document.documentElement.style.setProperty('--studio', s[0]); document.documentElement.style.setProperty('--studio-ink', s[1]); $$('.sw').forEach(function (x) { x.setAttribute('aria-pressed', x.dataset.sw === b.dataset.sw) }); return; }
+    else if (b.classList.contains('final')) FILES[+b.dataset.i].final = !FILES[+b.dataset.i].final;
+    else if (b.dataset.play) st.playing = st.playing === +b.dataset.play ? -1 : +b.dataset.play;
+    else if (b.classList.contains('cta')) { e.preventDefault(); st.view = 'client'; st.cstate = st.mail === 'pay' ? 'locked' : 'open'; }
+    else return;
+    render();
+  });
+  function fromHash() { var h = (location.hash || '').slice(1); if (h === 'staff' || h === 'email' || h === 'client') st.view = h; render(); }
+  window.addEventListener('hashchange', fromHash); fromHash();
+})();
+</script>
