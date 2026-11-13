@@ -197,6 +197,47 @@ describe("hourly staff are paid once (truth-payroll-double-count)", () => {
   });
 });
 
+describe("hourly payouts queued before payroll took over (H208-01)", () => {
+  async function hourlyRow(t: ReturnType<typeof convexTest>, status: "queued" | "approved") {
+    const ids = await studio(t);
+    await t.run((ctx) => ctx.db.patch(ids.eng, { payType: "hourly", payRateCents: 4_000, commissionPct: undefined }));
+    const id = await t.run((ctx) =>
+      ctx.db.insert("payouts", {
+        orgId: "org1", memberId: ids.eng, basis: "hourly", amountCents: 16_000,
+        explanation: "4 hours at $40.00/hr", status, createdAt: Date.now(),
+      } as never),
+    );
+    return { id: id as Id<"payouts">, asOwner: t.withIdentity({ subject: OWNER, orgId: "org1" }) };
+  }
+
+  it("a queued hourly payout cannot be approved: payroll pays those hours", async () => {
+    const t = convexTest(schema);
+    const { id, asOwner } = await hourlyRow(t, "queued");
+    await expect(asOwner.mutation(api.payouts.approve, { id })).rejects.toMatchObject({
+      data: { code: "PAYOUT_STATE", message: expect.stringMatching(/Payroll pays these hours/) },
+    });
+    expect((await t.run((ctx) => ctx.db.get(id)))!.status).toBe("queued");
+  });
+
+  it("an approved hourly payout cannot be marked paid, and nothing reaches the P&L", async () => {
+    const t = convexTest(schema);
+    const { id, asOwner } = await hourlyRow(t, "approved");
+    await expect(asOwner.mutation(api.payouts.markPaid, { id })).rejects.toMatchObject({
+      data: { code: "PAYOUT_STATE" },
+    });
+    expect(await t.run((ctx) => ctx.db.query("expenses").collect())).toHaveLength(0);
+    expect((await t.run((ctx) => ctx.db.get(id)))!.status).toBe("approved");
+  });
+
+  it("it can still be voided, which clears it from what is owed", async () => {
+    const t = convexTest(schema);
+    const { id, asOwner } = await hourlyRow(t, "approved");
+    await asOwner.mutation(api.payouts.voidPayout, { id, reason: "Payroll pays these hours" });
+    const { totals } = await asOwner.query(api.payouts.list, {});
+    expect(totals.owedCents).toBe(0);
+  });
+});
+
 describe("nothing pays itself", () => {
   async function queued(t: ReturnType<typeof convexTest>) {
     const ids = await studio(t);

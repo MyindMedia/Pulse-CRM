@@ -153,6 +153,17 @@ async function mineOrThrow(ctx: MutationCtx, id: Id<"payouts">, orgId: string) {
   return p;
 }
 
+/** Payroll pays every clocked hour, so an hourly-basis payout queued before
+ *  that change would pay the same hours twice. It can only be voided. */
+function refuseHourly(p: { basis: string }) {
+  if (p.basis === "hourly") {
+    throw new ConvexError({
+      code: "PAYOUT_STATE",
+      message: "Payroll pays these hours. Void this payout instead.",
+    });
+  }
+}
+
 /** Approve a queued payout. Approving is not paying. */
 export const approve = mutation({
   args: { id: v.id("payouts") },
@@ -163,6 +174,7 @@ export const approve = mutation({
     if (p.status !== "queued") {
       throw new ConvexError({ code: "PAYOUT_STATE", message: `That payout is already ${p.status}.` });
     }
+    refuseHourly(p);
     await ctx.db.patch(id, {
       status: "approved",
       approvedAt: Date.now(),
@@ -184,6 +196,7 @@ export const markPaid = mutation({
         message: "Approve the payout before marking it paid.",
       });
     }
+    refuseHourly(p);
     const member = await ctx.db.get(p.memberId);
     // Post it into the P&L the same way payroll does, so labor cost is one
     // number wherever you read it from.

@@ -110,6 +110,9 @@ export function PayoutsPanel() {
                       {p.memberName}
                     </EntityLink>
                     <Badge tone={TONE[p.status]}>{p.status}</Badge>
+                    {p.basis === "hourly" && (p.status === "queued" || p.status === "approved") && (
+                      <Badge tone="caution">Payroll pays these hours: void it</Badge>
+                    )}
                   </span>
                   {/* The working, not just the answer. */}
                   <span className="mt-0.5 block text-xs text-steel/70">{p.explanation}</span>
@@ -123,7 +126,7 @@ export function PayoutsPanel() {
                   {money(p.amountCents)}
                 </span>
                 <span className="flex shrink-0 gap-1.5">
-                  {p.status === "queued" && (
+                  {p.status === "queued" && p.basis !== "hourly" && (
                     <Button
                       size="sm"
                       variant="ghost"
@@ -136,7 +139,7 @@ export function PayoutsPanel() {
                       Approve
                     </Button>
                   )}
-                  {p.status === "approved" && (
+                  {p.status === "approved" && p.basis !== "hourly" && (
                     <Button
                       size="sm"
                       disabled={busy === p._id}
