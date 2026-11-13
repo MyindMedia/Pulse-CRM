@@ -2,7 +2,7 @@ import { query, MutationCtx } from "./_generated/server";
 import { mutation } from "./functions";
 import { Doc, Id } from "./_generated/dataModel";
 import { v } from "convex/values";
-import { currentOrg } from "./lib/tenant";
+import { currentOrgWithCapability } from "./lib/tenant";
 import { recomputeRoomStatus } from "./lib/roomStatus";
 import { sameEmail } from "./lib/emailKey";
 import { gatedFeatureOn, requireGatedFeature } from "./lib/planGates";
@@ -12,7 +12,7 @@ import { gatedFeatureOn, requireGatedFeature } from "./lib/planGates";
    `register` is PUBLIC (the /visit/<slug> QR page): the org is
    derived from the slug, never from the caller, mirroring the
    public booking backend. Everything else requires a signed-in
-   studio viewer via currentOrg.
+   studio member with artists.read (no guest or portal viewer).
    Every visit also upserts the contact into `artists` (deduped
    by lowercased email) so walk-ins land in the Clients directory
    as leads - the outreach database - without a parallel CRM.
@@ -319,7 +319,7 @@ export const register = mutation({
 export const registerManual = mutation({
   args: registerFields,
   handler: async (ctx, args) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "artists.read");
     await requireGatedFeature(ctx, orgId, "visitors");
     return recordVisit(ctx, orgId, args, "front_desk");
   },
@@ -329,7 +329,7 @@ export const registerManual = mutation({
 export const checkOut = mutation({
   args: { id: v.id("visitors") },
   handler: async (ctx, { id }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "artists.read");
     await requireGatedFeature(ctx, orgId, "visitors");
     const visit = await ctx.db.get(id);
     if (!visit || visit.orgId !== orgId) throw new Error("Not found");
@@ -343,7 +343,7 @@ export const checkOut = mutation({
 export const list = query({
   args: { from: v.optional(v.number()), to: v.optional(v.number()) },
   handler: async (ctx, { from, to }) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "artists.read");
     await requireGatedFeature(ctx, orgId, "visitors");
     const visits = await ctx.db
       .query("visitors")
@@ -376,7 +376,7 @@ export const list = query({
 export const directory = query({
   args: {},
   handler: async (ctx) => {
-    const orgId = await currentOrg(ctx);
+    const orgId = await currentOrgWithCapability(ctx, "artists.read");
     await requireGatedFeature(ctx, orgId, "visitors");
     const visits = await ctx.db
       .query("visitors")

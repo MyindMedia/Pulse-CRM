@@ -401,4 +401,20 @@ describe("visitors - e-check-in against booked sessions", () => {
     const visit = await t.run(async (ctx) => ctx.db.get(result.visitId));
     expect(visit!.sessionId).toEqual(sessionId);
   });
+
+  it("H210-R2-04: the visitor log needs a studio role that can read clients", async () => {
+    await t.run(async (ctx) => {
+      await ctx.db.insert("members", { orgId: ORG, name: "No clients", role: "intern", skills: [], clerkUserId: "u_nocl", capabilityOverrides: ["-artists.read"] });
+      await ctx.db.insert("members", { orgId: ORG, name: "Intern", role: "intern", skills: [], clerkUserId: "u_int" });
+    });
+    const { visitId } = await t.mutation(api.visitors.register, { slug: SLUG, termsAccepted: true, name: "Ray", email: "ray@example.com" });
+    const denied = t.withIdentity({ subject: "u_nocl", orgId: ORG, name: "No clients" });
+    await expect(denied.query(api.visitors.list, {})).rejects.toThrow();
+    await expect(denied.query(api.visitors.directory, {})).rejects.toThrow();
+    await expect(denied.mutation(api.visitors.checkOut, { id: visitId })).rejects.toThrow();
+    await expect(denied.mutation(api.visitors.registerManual, { name: "X", email: "x@example.com" })).rejects.toThrow();
+    // Front-desk staff keep working as before.
+    const intern = t.withIdentity({ subject: "u_int", orgId: ORG, name: "Intern" });
+    expect(await intern.query(api.visitors.list, {})).toHaveLength(1);
+  });
 });
