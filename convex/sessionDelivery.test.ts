@@ -1235,6 +1235,49 @@ describe("session delivery: erasure (F2-02)", () => {
   });
 });
 
+describe("session delivery: erasure reads grants through bounded indexes (V3-04)", () => {
+  let s: S;
+  beforeEach(async () => { r2Env(); s = await setupStudios(); });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
+
+  it("V3-04 eraseArtist never collects collaboratorGrants; every grant read is an index narrowed to this client with a bound", () => {
+    const raw = import.meta.glob("./dataRights.ts", { query: "?raw", import: "default", eager: true }) as Record<string, string>;
+    const src = raw["./dataRights.ts"];
+    const reads = src.split('query("collaboratorGrants")').slice(1).map((rest) => rest.slice(0, rest.search(/\)\s*;|\)\s*,|\)\s*\]/) + 1));
+    expect(reads.length).toBeGreaterThan(0);
+    for (const r of reads) {
+      expect(r, r).not.toContain(".collect()");
+      expect(r, r).toMatch(/\.take\(/);
+      expect(r, r).toMatch(/withIndex\("by_(entity|org_email)"/);
+    }
+  });
+
+  it("V3-04 erasure revokes every grant of the client, past the first page, and no one else's", async () => {
+    const base = { orgId: "studio_a", capabilities: ["songs.read"], expiresAt: Date.now() + 86_400_000, invitedBy: "u_owner", useCount: 0, name: "x" };
+    const ids = await s.t.run(async (ctx) => {
+      const mine: Id<"collaboratorGrants">[] = [];
+      const others: Id<"collaboratorGrants">[] = [];
+      // 130 portal links on the client (more than one page of reads).
+      for (let i = 0; i < 130; i++) mine.push(await ctx.db.insert("collaboratorGrants", { ...base, email: "jordan.ellis@example.com", scope: "artist_portal", entityId: s.A.artistId, token: `p${i}` }));
+      // Addressed to the client's email on someone else's song, exact and padded.
+      mine.push(await ctx.db.insert("collaboratorGrants", { ...base, email: "jordan.ellis@example.com", scope: "song", entityId: "song_of_someone_else", token: "e1" }));
+      // Any letter case, on the client's own booking.
+      mine.push(await ctx.db.insert("collaboratorGrants", { ...base, email: "JORDAN.Ellis@example.com ", scope: "session", entityId: s.A.otherSessionId, token: "e2" }));
+      // 150 grants for other people in the studio, and one in another studio.
+      for (let i = 0; i < 150; i++) others.push(await ctx.db.insert("collaboratorGrants", { ...base, email: `guest${i}@example.com`, scope: "session", entityId: s.A.sessionId, token: `o${i}` }));
+      others.push(await ctx.db.insert("collaboratorGrants", { ...base, orgId: "studio_b", email: "jordan.ellis@example.com", scope: "session", entityId: s.B.sessionId, token: "b1" }));
+      return { mine, others };
+    });
+    await s.as(s.A.owner).mutation(api.dataRights.eraseArtist, { artistId: s.A.artistId });
+    const after = await s.t.run(async (ctx) => ({
+      mine: await Promise.all(ids.mine.map((id) => ctx.db.get(id))),
+      others: await Promise.all(ids.others.map((id) => ctx.db.get(id))),
+    }));
+    expect(after.mine.filter((g) => g!.revoked !== true)).toEqual([]);
+    expect(after.others.filter((g) => g!.revoked === true)).toEqual([]);
+  });
+});
+
 /* ── F2-05: the Final flag does not follow a file to another booking ── */
 
 describe("session delivery: moving a file (F2-05)", () => {

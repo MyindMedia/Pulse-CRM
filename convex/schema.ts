@@ -734,7 +734,9 @@ export default defineSchema({
   })
     .index("by_org", ["orgId"])
     .index("by_token", ["token"])
-    .index("by_entity", ["entityId"]),
+    .index("by_entity", ["entityId"])
+    // Erasure finds the grants addressed to a client's email (dataRights.ts).
+    .index("by_org_email", ["orgId", "email"]),
 
   // ── Invites - beta studio-owner invitation flow. One row per outbound
   //    invite. Token-backed, time-bounded, single-use. The invite email

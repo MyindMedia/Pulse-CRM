@@ -18,6 +18,7 @@
    ============================================================ */
 import { v } from "convex/values";
 import { query } from "./_generated/server";
+import type { Doc } from "./_generated/dataModel";
 import { mutation } from "./functions";
 import { currentOrgWithCapability, currentActor } from "./lib/tenant";
 import { redactText, piiTerms } from "./lib/redact";
@@ -78,6 +79,31 @@ export const exportArtist = query({
   },
 });
 
+/** Grants read per page during erasure. */
+const GRANT_PAGE = 100;
+
+/** Visit every grant a bounded, index-narrowed read returns, a page at a time
+ *  in creation order, until a page comes back short. `read(after)` returns up
+ *  to GRANT_PAGE grants created at or after `after`; a grant seen on an earlier
+ *  page is skipped, and a page with nothing new ends the walk. */
+async function eachGrantPage(
+  read: (after: number) => Promise<Doc<"collaboratorGrants">[]>,
+  visit: (g: Doc<"collaboratorGrants">) => Promise<void>,
+): Promise<void> {
+  const seen = new Set<string>();
+  let after = 0;
+  for (;;) {
+    const page = await read(after);
+    const fresh = page.filter((g) => !seen.has(g._id));
+    for (const g of fresh) {
+      seen.add(g._id);
+      await visit(g);
+    }
+    if (page.length < GRANT_PAGE || fresh.length === 0) return;
+    after = page[page.length - 1]._creationTime;
+  }
+}
+
 /** ERASURE: anonymize the client and scrub their identity from free text +
  *  outbound records. Destructive, so gated by `members.remove` (owner/manager).
  *  Returns a count of records scrubbed; writes an audit event. */
@@ -128,18 +154,32 @@ export const eraseArtist = mutation({
 
     // 2b. Every other link the client holds at this studio: their portal
     //     (entityId = the client) and any grant addressed to their email.
-    const grants = [
-      ...(await ctx.db.query("collaboratorGrants").withIndex("by_entity", (q) => q.eq("entityId", artistId)).collect()),
-      ...(oldEmail ? await ctx.db.query("collaboratorGrants").withIndex("by_org", (q) => q.eq("orgId", orgId)).collect() : []),
-    ];
+    //     Read only through indexes narrowed to this client, a page at a time:
+    //     grants on the client (their portal) or on one of their bookings, and
+    //     grants addressed to their email as stored, trimmed or lowercased.
+    //     A grant on someone else's entity whose email differs from the
+    //     client's only in letter case (other than all lowercase) is not found.
     const revoked = new Set<string>();
-    for (const g of grants) {
-      if (g.orgId !== orgId || g.revoked || revoked.has(g._id)) continue;
+    const revokeIfTheirs = async (g: Doc<"collaboratorGrants">) => {
+      if (g.orgId !== orgId || g.revoked || revoked.has(g._id)) return;
       const theirs = g.entityId === artistId || (!!oldEmail && g.email?.trim().toLowerCase() === oldEmail);
-      if (!theirs) continue;
+      if (!theirs) return;
       await ctx.db.patch(g._id, { revoked: true });
       revoked.add(g._id);
       scrubbed++;
+    };
+    for (const entityId of [artistId as string, ...sessions.map((x) => x._id as string)]) {
+      await eachGrantPage(
+        (after) => ctx.db.query("collaboratorGrants").withIndex("by_entity", (q) => q.eq("entityId", entityId).gte("_creationTime", after)).take(GRANT_PAGE),
+        revokeIfTheirs,
+      );
+    }
+    const stored = artist.email ?? "";
+    for (const email of new Set([stored, stored.trim(), oldEmail ?? ""].filter((e) => e.length > 0))) {
+      await eachGrantPage(
+        (after) => ctx.db.query("collaboratorGrants").withIndex("by_org_email", (q) => q.eq("orgId", orgId).eq("email", email).gte("_creationTime", after)).take(GRANT_PAGE),
+        revokeIfTheirs,
+      );
     }
 
     // 3. Redact the client message history (their communications).
