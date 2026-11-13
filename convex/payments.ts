@@ -106,12 +106,16 @@ function outstanding(session: {
  */
 export async function settlePayment(
   ctx: MutationCtx,
-  { sessionId, kind, payerName, provider, reference }: {
+  { sessionId, kind, payerName, provider, reference, collectedCents }: {
     sessionId: Id<"sessions">;
     kind: "deposit" | "balance" | "full";
     payerName?: string;
     provider?: "simulated" | "stripe";
     reference?: string;
+    /** What Stripe actually collected (Checkout amount_total). When given,
+     *  never record more than this: a Checkout opened before the price went
+     *  up must not mark the booking paid with money that never arrived. */
+    collectedCents?: number;
   },
 ) {
   const session = await ctx.db.get(sessionId);
@@ -120,8 +124,12 @@ export async function settlePayment(
   if (session.status === "cancelled") throw new Error("This booking was released.");
 
   const o = outstanding(session);
-  const amountCents = kind === "deposit" ? Math.min(session.depositCents, o.balance) : o.balance;
-  if (amountCents <= 0) throw new Error("This booking is already paid in full.");
+  const owedCents = kind === "deposit" ? Math.min(session.depositCents, o.balance) : o.balance;
+  if (owedCents <= 0) throw new Error("This booking is already paid in full.");
+  if (collectedCents !== undefined && collectedCents <= 0) throw new Error("Stripe reported no money collected for this payment.");
+  const amountCents = collectedCents === undefined ? owedCents : Math.min(owedCents, collectedCents);
+  // Money still owed because the Checkout charged an older, lower amount.
+  const shortCents = owedCents - amountCents;
 
   const paymentId = await ctx.db.insert("payments", {
     orgId,
@@ -171,12 +179,14 @@ export async function settlePayment(
       orgId,
       channel: "email",
       recipient: artist.email,
-      subject: fullyPaid ? `Paid in full - ${session.title}` : `Deposit received - ${session.title}`,
+      subject: fullyPaid ? `Paid in full - ${session.title}` : kind === "deposit" ? `Deposit received - ${session.title}` : `Payment received - ${session.title}`,
       body: awaitingApproval
         ? `We received your ${money(amountCents)} payment. Your request is with the studio for approval, and we'll let you know as soon as it's reviewed.`
         : fullyPaid
           ? `We received ${money(amountCents)}. Your session is fully paid and locked in. See you in the studio.`
-          : `We received your ${money(amountCents)} deposit. Your session is held. The ${money(
+          : kind !== "deposit"
+            ? `We received your ${money(amountCents)} payment. ${money(session.rateCents - paidTotal)} is still due on this session; the studio will be in touch about it.`
+            : `We received your ${money(amountCents)} deposit. Your session is held. The ${money(
             session.rateCents - paidTotal,
           )} balance is due up to 2 hours before your start time.`,
       kind: fullyPaid ? "payment.full" : "payment.deposit",
@@ -184,7 +194,7 @@ export async function settlePayment(
     });
   }
 
-  return { paymentId, paidTotal, fullyPaid, balance: Math.max(0, session.rateCents - paidTotal) };
+  return { paymentId, paidTotal, fullyPaid, balance: Math.max(0, session.rateCents - paidTotal), amountCents, shortCents };
 }
 
 export const record = mutation({

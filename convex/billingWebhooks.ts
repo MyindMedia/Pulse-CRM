@@ -8,6 +8,7 @@ import { tierForPlan } from "./lib/tier";
 import { settlePayment } from "./payments";
 import { settleInvoice } from "./invoicePay";
 import { recordStrayPayment } from "./strayPayments";
+import { notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
 import { applyPackagePurchase } from "./packages";
 import { internal } from "./_generated/api";
@@ -219,7 +220,28 @@ export const handle = internalMutation({
             kind,
             provider: "stripe",
             reference: stray.paymentIntent ?? stray.checkoutSessionId,
+            // Record what Stripe actually took, never more (H206-02).
+            ...(typeof obj.amount_total === "number" ? { collectedCents: obj.amount_total } : {}),
           });
+          if (settled.shortCents > 0) {
+            // The Checkout was opened at an older, lower price. Only the money
+            // that arrived is recorded; the rest stays due and the team is told.
+            await ctx.db.insert("activity", {
+              orgId: session.orgId,
+              kind: "payment.short",
+              summary: `${money(settled.amountCents)} paid on "${session.title}" - ${money(settled.shortCents)} less than owed, still due`,
+              entityType: "session",
+              entityId: session._id,
+              accent: "critical",
+            });
+            await notifyTeam(ctx, {
+              orgId: session.orgId,
+              subject: `Payment short - ${session.title} (${money(settled.shortCents)} still due)`,
+              body: `The client paid ${money(settled.amountCents)} on "${session.title}" through a Stripe Checkout opened before the price went up, so ${money(settled.shortCents)} of that payment is still owed. Pulse recorded only the ${money(settled.amountCents)} that arrived; ${money(settled.balance)} remains due on the booking.`,
+              kind: "payment.short",
+              sessionId: session._id,
+            });
+          }
           // A Checkout opened before an earlier payment landed charges the
           // old amount; Pulse applies only what was still owed. The rest is
           // the client's money: flag it for the studio, never drop it.
@@ -307,6 +329,30 @@ export const handle = internalMutation({
           });
           await markProcessed(ctx, event.id, e.type);
           return { ok: true };
+        }
+        // Same rule as bookings: never record more than Stripe collected.
+        // An invoice is paid in one amount, so a short payment leaves it open
+        // and goes to the studio to review; an overpayment flags the extra.
+        if (typeof obj.amount_total === "number" && obj.amount_total < invoice.amountCents) {
+          await recordStrayPayment(ctx, {
+            orgId: invoice.orgId,
+            reason: "unmatched",
+            invoiceId: invoice._id,
+            ...stray,
+            note: `the client paid ${money(stray.amountCents)} but invoice ${invoice.number} is for ${money(invoice.amountCents)}, so it was not marked paid`,
+          });
+          await markProcessed(ctx, event.id, `${e.type}.short`);
+          return { ok: true };
+        }
+        if (typeof obj.amount_total === "number" && obj.amount_total > invoice.amountCents) {
+          await recordStrayPayment(ctx, {
+            orgId: invoice.orgId,
+            reason: "unmatched",
+            invoiceId: invoice._id,
+            ...stray,
+            amountCents: obj.amount_total - invoice.amountCents,
+            note: `the client paid ${money(stray.amountCents)} and invoice ${invoice.number} is for ${money(invoice.amountCents)}`,
+          });
         }
         try {
           await settleInvoice(ctx, invoice._id);

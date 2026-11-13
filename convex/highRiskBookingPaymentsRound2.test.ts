@@ -245,3 +245,124 @@ describe("H206-01: a payment on a deleted invoice or booking is never dropped", 
     expect(await t.run((ctx) => ctx.db.get(id))).not.toBeNull();
   });
 });
+
+describe("H206-02/03: a booking payment records what Stripe collected, never more", () => {
+  it("a balance Checkout opened at an older price: only the money that arrived is recorded, the rest stays due, the team is told", async () => {
+    const t = convexTest(schema);
+    // $300 booking, $100 deposit paid; the client opened a $200 balance
+    // Checkout, then staff added $100 of extras (rate now $400).
+    const { sessionId } = await seed(t, { rateCents: 40_000 });
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: checkoutEvent({ sessionId, kind: "balance" }, { amount: 20_000 }),
+    });
+    const s = await t.run((ctx) => ctx.db.get(sessionId));
+    expect(s?.amountPaidCents).toBe(30_000);
+    const pays = await t.run(async (ctx) => (await ctx.db.query("payments").collect()).filter((p) => p.sessionId === sessionId));
+    expect(pays).toHaveLength(1);
+    expect(pays[0].amountCents).toBe(20_000);
+    const short = await notes(t, "payment.short");
+    expect(short.length).toBeGreaterThan(0);
+    expect(short.every((n) => n.recipient !== "nova@r2.test")).toBe(true);
+    expect(short[0].body).toContain("$100 remains due");
+    // The client is not told they are paid in full.
+    const full = await notes(t, "payment.full");
+    expect(full).toHaveLength(0);
+    const client = (await t.run((ctx) => ctx.db.query("notifications").collect())).find((n) => n.recipient === "nova@r2.test");
+    expect(client?.body).toContain("$100 is still due");
+    expect(client?.body).not.toContain("fully paid");
+    expect(await strays(t)).toHaveLength(0);
+  });
+
+  it("a full-price Checkout on a tentative hold that was repriced upward does not confirm on a deposit shortfall", async () => {
+    const t = convexTest(schema);
+    // Deposit went from $100 to $150 after the client opened a $100 deposit Checkout.
+    const { sessionId } = await seed(t, {
+      status: "tentative", holdExpiresAt: Date.now() + HOUR, depositCents: 15_000, depositPaid: false, amountPaidCents: 0,
+    });
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: checkoutEvent({ sessionId, kind: "deposit" }, { amount: 10_000 }),
+    });
+    const s = await t.run((ctx) => ctx.db.get(sessionId));
+    expect(s?.amountPaidCents).toBe(10_000);
+    expect(s?.status).toBe("tentative");
+    expect(s?.depositPaid).toBe(false);
+    expect((await notes(t, "payment.short")).length).toBeGreaterThan(0);
+  });
+
+  it("an exact payment records the full amount with no shortfall alert (unchanged)", async () => {
+    const t = convexTest(schema);
+    const { sessionId } = await seed(t);
+    await t.mutation(internal.billingWebhooks.handle, { event: checkoutEvent({ sessionId, kind: "balance" }, { amount: 20_000 }) });
+    const s = await t.run((ctx) => ctx.db.get(sessionId));
+    expect(s?.amountPaidCents).toBe(30_000);
+    expect(await notes(t, "payment.short")).toHaveLength(0);
+    expect((await notes(t, "payment.full")).length).toBe(1);
+  });
+
+  it("an overpayment still records only what was owed and flags the extra (unchanged)", async () => {
+    const t = convexTest(schema);
+    const { sessionId } = await seed(t);
+    await t.mutation(internal.billingWebhooks.handle, { event: checkoutEvent({ sessionId, kind: "full" }, { amount: 30_000 }) });
+    const s = await t.run((ctx) => ctx.db.get(sessionId));
+    expect(s?.amountPaidCents).toBe(30_000);
+    const [row] = await strays(t);
+    expect(row).toMatchObject({ reason: "unmatched", amountCents: 10_000, status: "needs_review" });
+  });
+
+  it("a Stripe event with no amount_total keeps the old behavior (applies what is owed)", async () => {
+    const t = convexTest(schema);
+    const { sessionId } = await seed(t);
+    await t.mutation(internal.billingWebhooks.handle, { event: checkoutEvent({ sessionId, kind: "balance" }, { amount: null }) });
+    expect((await t.run((ctx) => ctx.db.get(sessionId)))?.amountPaidCents).toBe(30_000);
+  });
+
+  it("a zero collected amount records no payment and flags it for review", async () => {
+    const t = convexTest(schema);
+    const { sessionId } = await seed(t);
+    await t.mutation(internal.billingWebhooks.handle, { event: checkoutEvent({ sessionId, kind: "balance" }, { amount: 0 }) });
+    expect((await t.run((ctx) => ctx.db.get(sessionId)))?.amountPaidCents).toBe(10_000);
+    const [row] = await strays(t);
+    expect(row).toMatchObject({ reason: "unmatched", status: "needs_review" });
+  });
+
+  it("the staff 'record payment' path (no Stripe amount) is unchanged", async () => {
+    const t = convexTest(schema);
+    const { sessionId } = await seed(t);
+    const owner = t.withIdentity({ subject: "u_own", name: "Olive" });
+    await owner.mutation(api.payments.record, { sessionId, kind: "balance" });
+    expect((await t.run((ctx) => ctx.db.get(sessionId)))?.amountPaidCents).toBe(30_000);
+  });
+});
+
+describe("same class (invoice side): an invoice is marked paid only when Stripe collected its amount", () => {
+  it("a short invoice payment leaves the invoice open and goes to the studio to review", async () => {
+    const t = convexTest(schema);
+    const { invoice } = await seed(t);
+    const id = await invoice("sent");
+    await t.mutation(internal.billingWebhooks.handle, { event: checkoutEvent({ invoiceId: id }, { amount: 30_000 }) });
+    expect((await t.run((ctx) => ctx.db.get(id)))?.status).toBe("sent");
+    const [row] = await strays(t);
+    expect(row).toMatchObject({ reason: "unmatched", status: "needs_review", invoiceId: id, amountCents: 30_000 });
+    expect(row.note).toContain("not marked paid");
+    expect(fake.refundCalls).toHaveLength(0);
+  });
+
+  it("an exact invoice payment settles it with no stray row (unchanged)", async () => {
+    const t = convexTest(schema);
+    const { invoice } = await seed(t);
+    const id = await invoice("sent");
+    await t.mutation(internal.billingWebhooks.handle, { event: checkoutEvent({ invoiceId: id }, { amount: 50_000 }) });
+    expect((await t.run((ctx) => ctx.db.get(id)))?.status).toBe("paid");
+    expect(await strays(t)).toHaveLength(0);
+  });
+
+  it("an invoice overpayment settles it and flags the extra", async () => {
+    const t = convexTest(schema);
+    const { invoice } = await seed(t);
+    const id = await invoice("overdue");
+    await t.mutation(internal.billingWebhooks.handle, { event: checkoutEvent({ invoiceId: id }, { amount: 55_000 }) });
+    expect((await t.run((ctx) => ctx.db.get(id)))?.status).toBe("paid");
+    const [row] = await strays(t);
+    expect(row).toMatchObject({ reason: "unmatched", status: "needs_review", amountCents: 5_000 });
+  });
+});
