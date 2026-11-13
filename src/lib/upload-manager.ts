@@ -16,7 +16,8 @@ import { MAX_PARALLEL, queueReducer, type QueueAction, type QueueItem } from "./
    - A finished row clears after DONE_LINGER_MS; failed and canceled rows stay
      until dismissed.
    - One short announcement per booking (for a role="status" node) says what
-     just happened: started, uploaded, failed, canceled. */
+     just happened: started, uploaded, failed, canceled, plus whatever the
+     section's other controls pass to say(). */
 
 export const DONE_LINGER_MS = 4000;
 const PROGRESS_EVERY_MS = 120;
@@ -255,6 +256,16 @@ export function createUploadManager(opts: UploadManagerOptions = {}) {
       if (w?.controller) w.controller.abort();
       else work.delete(id); // never started: nothing to stop
       pump();
+      emit();
+    },
+
+    /** A result from another control in the same Files section (the Final
+     *  toggle, the delivery card), read out by the section's one
+     *  role="status" node alongside the upload events. */
+    say(sessionId: string, text: string) {
+      const line = text.trim();
+      if (!line) return;
+      announce(sessionId, line);
       emit();
     },
 

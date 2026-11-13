@@ -245,6 +245,37 @@ describe("upload manager", () => {
   });
 });
 
+describe("upload manager: the Files section's status line (V3-01)", () => {
+  it("say() puts another control's result on the same line, per booking", () => {
+    const m = createUploadManager({ newId, unloadTarget: null });
+    const seen = vi.fn();
+    m.subscribe(seen);
+    m.say("s1", "Final: Mix v3.wav");
+    expect(m.announcement("s1")).toBe("Final: Mix v3.wav");
+    expect(m.announcement("s2")).toBe("");
+    expect(seen).toHaveBeenCalled();
+    vi.advanceTimersByTime(5000);
+    m.say("s1", "Not final: Mix v3.wav");
+    expect(m.announcement("s1")).toBe("Not final: Mix v3.wav");
+  });
+
+  it("joins with an upload event that lands at the same moment", async () => {
+    const m = createUploadManager({ newId, unloadTarget: null });
+    const a = fakeTask("a.wav");
+    m.add("s1", [a.task]);
+    await flush();
+    m.say("s1", "Final: b.wav");
+    expect(m.announcement("s1")).toBe("Uploading a.wav. Final: b.wav");
+  });
+
+  it("ignores an empty line", () => {
+    const m = createUploadManager({ newId, unloadTarget: null });
+    m.say("s1", "Final: a.wav");
+    m.say("s1", "   ");
+    expect(m.announcement("s1")).toBe("Final: a.wav");
+  });
+});
+
 describe("isFolderDrop", () => {
   it("is true only for a directory entry", () => {
     expect(isFolderDrop({ webkitGetAsEntry: () => ({ isDirectory: true }) })).toBe(true);

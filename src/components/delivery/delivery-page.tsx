@@ -19,6 +19,7 @@ import {
 } from "./format";
 import { downloadInFrame, isTouchApple } from "./platform";
 import safe from "./text-safe.module.css";
+import { createPressGuard } from "@/lib/press-guard";
 
 /* The client's download page, /delivery/<token>. No login: the token in the
    URL is the only credential, so it is never logged, never put in an error
@@ -84,7 +85,7 @@ function useTouchApple(): boolean {
 }
 
 const BIG =
-  "inline-flex min-h-11 items-center justify-center gap-2 rounded-[12px] bg-[var(--studio)] px-5 text-[0.9375rem] font-bold text-[var(--studio-ink)] disabled:cursor-wait @max-[30rem]:w-full";
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-[12px] bg-[var(--studio)] px-5 text-[0.9375rem] font-bold text-[var(--studio-ink)] aria-busy:cursor-wait @max-[30rem]:w-full";
 
 export function DeliveryPage({ token }: { token: string }) {
   const page = useQuery(api.sessionDelivery.page, token ? { token } : "skip");
@@ -245,17 +246,23 @@ function Delivery({ page, token }: { page: PageData; token: string }) {
       return next;
     });
 
+  // V3-01: Download stays focusable while its link is fetched; a repeat
+  // press is refused here instead of by `disabled` (which drops focus).
+  const [guard] = React.useState(createPressGuard);
+
   async function download(versionId: VersionId) {
-    setMessage(versionId, null);
-    setBusy((b) => ({ ...b, [versionId]: true }));
-    try {
-      const { url } = await fileUrl({ token, versionId, purpose: "download" });
-      if (!startDownload(url)) setMessage(versionId, "That file is not available.");
-    } catch (err) {
-      setMessage(versionId, serverMessage(err, "That file is not available."));
-    } finally {
-      setBusy((b) => ({ ...b, [versionId]: false }));
-    }
+    await guard.run(`download:${versionId}`, async () => {
+      setMessage(versionId, null);
+      setBusy((b) => ({ ...b, [versionId]: true }));
+      try {
+        const { url } = await fileUrl({ token, versionId, purpose: "download" });
+        if (!startDownload(url)) setMessage(versionId, "That file is not available.");
+      } catch (err) {
+        setMessage(versionId, serverMessage(err, "That file is not available."));
+      } finally {
+        setBusy((b) => ({ ...b, [versionId]: false }));
+      }
+    });
   }
 
   const [step, setStep] = React.useState<{ at: number; of: number } | null>(null);
@@ -408,7 +415,7 @@ function Delivery({ page, token }: { page: PageData; token: string }) {
             <p className="text-[0.8125rem] text-steel">Tap a file to download it.</p>
           ) : (
             <div className="grid gap-1.5 @max-[30rem]:w-full">
-              <button type="button" className={BIG} onClick={downloadAll} disabled={step !== null}>
+              <button type="button" className={BIG} onClick={downloadAll} aria-busy={step !== null || undefined}>
                 {step ? (
                   <LoaderCircle className="size-4 motion-safe:animate-spin" strokeWidth={1.75} aria-hidden />
                 ) : (

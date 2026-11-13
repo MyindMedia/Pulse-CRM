@@ -50,6 +50,7 @@ import {
 import { fileKind } from "@/components/delivery/format";
 import { uploads } from "@/lib/upload-manager";
 import { sessionFileTask } from "@/lib/session-upload-task";
+import { createPressGuard } from "@/lib/press-guard";
 import { formatBytes } from "@/lib/format-bytes";
 import { money, relativeTime, shortDate } from "@/lib/format";
 import targetStyles from "@/components/calendar/session-files.module.css";
@@ -164,19 +165,24 @@ export function SessionNotesPanel({ sessionId }: { sessionId: Id<"sessions"> }) 
   const remove = useMutation(api.sessionNotes.remove);
   const [draft, setDraft] = useState("");
   const [saving, setSaving] = useState(false);
+  // V3-01: Add note stays focusable while it saves (and once the box is
+  // empty again); a repeat press is refused here, not by `disabled`.
+  const [guard] = useState(createPressGuard);
 
   async function submit() {
     const body = draft.trim();
     if (!body) return;
-    setSaving(true);
-    try {
-      await add({ sessionId, body });
-      setDraft("");
-    } catch (err) {
-      toast.error(errorText(err, "Could not save the note."));
-    } finally {
-      setSaving(false);
-    }
+    await guard.run("add", async () => {
+      setSaving(true);
+      try {
+        await add({ sessionId, body });
+        setDraft("");
+      } catch (err) {
+        toast.error(errorText(err, "Could not save the note."));
+      } finally {
+        setSaving(false);
+      }
+    });
   }
 
   if (notes === null) return null;
@@ -201,7 +207,14 @@ export function SessionNotesPanel({ sessionId }: { sessionId: Id<"sessions"> }) 
           maxLength={4000}
         />
         <div className="flex justify-end">
-          <Button size="sm" variant="secondary" disabled={saving || !draft.trim()} onClick={() => void submit()}>
+          <Button
+            size="sm"
+            variant="secondary"
+            className="aria-disabled:opacity-40"
+            aria-disabled={saving || !draft.trim() || undefined}
+            aria-busy={saving || undefined}
+            onClick={() => void submit()}
+          >
             <Plus className="size-3.5" />
             {saving ? "Saving..." : "Add note"}
           </Button>
@@ -266,6 +279,10 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
   const [picking, setPicking] = useState(false);
   const [playing, setPlaying] = useState<{ versionId: string; url: string } | null>(null);
   const [finalBusy, setFinalBusy] = useState<ReadonlySet<string>>(new Set());
+  // V3-01: the Final toggle keeps focus while it saves. A repeat press is
+  // refused by this guard (not by `disabled`, which drops keyboard focus to
+  // the dialog), and the new state is read out by the section's status node.
+  const [guard] = useState(createPressGuard);
 
   // Uploads live in a module-level store, not in this component: closing the
   // panel leaves them running, and reopening it shows this booking's rows.
@@ -285,19 +302,24 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
     );
   }
 
-  async function toggleFinal(assetId: Id<"mediaAssets">, next: boolean) {
-    setFinalBusy((prev) => new Set(prev).add(assetId));
-    try {
-      await setFinal({ assetId, final: next });
-    } catch (err) {
-      toast.error(errorText(err, "Could not change Final."));
-    } finally {
-      setFinalBusy((prev) => {
-        const out = new Set(prev);
-        out.delete(assetId);
-        return out;
-      });
-    }
+  async function toggleFinal(assetId: Id<"mediaAssets">, name: string, next: boolean) {
+    await guard.run(`final:${assetId}`, async () => {
+      setFinalBusy((prev) => new Set(prev).add(assetId));
+      try {
+        await setFinal({ assetId, final: next });
+        uploads.say(sessionId, `${next ? "Final" : "Not final"}: ${name}`);
+      } catch (err) {
+        const msg = errorText(err, "Could not change Final.");
+        toast.error(msg);
+        uploads.say(sessionId, msg);
+      } finally {
+        setFinalBusy((prev) => {
+          const out = new Set(prev);
+          out.delete(assetId);
+          return out;
+        });
+      }
+    });
   }
 
   async function urlFor(versionId: Id<"mediaVersions">) {
@@ -450,7 +472,9 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
           </div>
         )}
         <UploadQueueList items={queue.items} onCancel={uploads.cancel} onDismiss={uploads.dismiss} />
-        {data?.canUpload && (
+        {/* The section's one live node: upload events, the Final toggle and
+            the delivery card's results (uploads.say). */}
+        {data && (
           <p role="status" className="sr-only">
             {queue.announcement}
           </p>
@@ -483,11 +507,11 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
                           type="button"
                           aria-pressed={f.clientFinal}
                           aria-label={`Final: ${f.name}`}
-                          disabled={finalBusy.has(f.assetId)}
-                          onClick={() => void toggleFinal(f.assetId, !f.clientFinal)}
+                          aria-busy={finalBusy.has(f.assetId) || undefined}
+                          onClick={() => void toggleFinal(f.assetId, f.name, !f.clientFinal)}
                           className={cn(
                             "mr-1 inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[0.75rem] font-semibold transition-colors",
-                            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--gold-text)] disabled:opacity-60 max-sm:min-h-11",
+                            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--gold-text)] aria-busy:cursor-wait aria-busy:opacity-60 max-sm:min-h-11",
                             f.clientFinal
                               ? "border-transparent bg-gold text-gold-ink"
                               : "border-graphite/70 bg-transparent text-steel hover:border-gold-dim hover:text-bone",

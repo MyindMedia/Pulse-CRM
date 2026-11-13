@@ -29,7 +29,7 @@ const KIND_ICON: Record<FileKind, React.ComponentType<{ className?: string; stro
 /* 44 px round controls, as in the mockup's .round. Focus ring is the global
    :focus-visible outline; rounded-full keeps it round. */
 const ROUND =
-  "grid size-11 flex-none place-items-center rounded-full border border-hairline bg-coal-2 text-bone hover:border-bone disabled:cursor-wait motion-safe:transition-colors";
+  "grid size-11 flex-none place-items-center rounded-full border border-hairline bg-coal-2 text-bone hover:border-bone aria-busy:cursor-wait motion-safe:transition-colors";
 
 /* V3-03: the name never gets squeezed by the controls. The row is a size
    container; when it is too narrow for the icon, a 12rem name and the
@@ -111,7 +111,6 @@ export function FileRow({
                 type="button"
                 className={ROUND}
                 onClick={onDownload}
-                disabled={downloadBusy}
                 aria-label={`Download ${file.name}`}
                 aria-busy={downloadBusy || undefined}
               >

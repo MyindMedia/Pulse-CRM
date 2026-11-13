@@ -9,6 +9,8 @@ import { Check, Link2, Lock, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
+import { createPressGuard } from "@/lib/press-guard";
+import { uploads } from "@/lib/upload-manager";
 import safe from "@/components/delivery/text-safe.module.css";
 import {
   PAY_LINK_TOAST,
@@ -26,8 +28,19 @@ import {
    in src/lib/delivery-card-view.test.ts); the dollar amount arrives only for
    callers with money sight (balanceCents is null for everyone else).
 
-   No live region on the card: a state change is announced by the toast that
-   the action raises, not by re-reading the whole card. */
+   No live region on the card: a result is read out once by the Files
+   section's role="status" node (uploads.say), not by re-reading the card.
+
+   V3-01: no button sets `disabled` while its own request runs (that drops
+   keyboard focus to the dialog). One request runs at a time, guarded by
+   createPressGuard; the others stay focusable and a press on them is
+   refused. When the pressed button goes away because the state moved on
+   (Ready to deliver becomes Send now anyway, Turn off link becomes Ready),
+   focus moves to the card's first action, or its heading, instead of being
+   lost. */
+
+/** How long after a request focus may still be moved back into the card. */
+const REFOCUS_MS = 5000;
 
 const BTN = "h-9 max-sm:h-11";
 
@@ -68,10 +81,37 @@ export function SessionDeliveryCard({ sessionId, canUpload }: { sessionId: Id<"s
   const turnOff = useMutation(api.sessionDelivery.turnOff);
   const resend = useMutation(api.sessionDelivery.resend);
   const [busy, setBusy] = useState<CardActionKey | null>(null);
+  const [guard] = useState(createPressGuard);
+  const cardRef = useRef<HTMLElement>(null);
+  const headingRef = useRef<HTMLHeadingElement>(null);
+  // Set after a request that started with focus in the card: until then, if
+  // focus falls to the page (the pressed button unmounted), put it back.
+  const refocusUntil = useRef(0);
   const [loadedAt] = useState(() => Date.now());
   // Set when the clipboard refused: the link in a read-only field to copy by hand.
   const [manualLink, setManualLink] = useState<string | null>(null);
   const manualField = useRef<HTMLInputElement>(null);
+
+  // Every render: the state change that removes the pressed button is a render.
+  useEffect(() => {
+    if (!refocusUntil.current) return;
+    if (Date.now() > refocusUntil.current) {
+      refocusUntil.current = 0;
+      return;
+    }
+    const card = cardRef.current;
+    const el = document.activeElement;
+    if (!card) return;
+    const lost = !el || el === document.body;
+    if (!lost) {
+      // Still on a control in the card (it may yet unmount), or moved on by the user.
+      if (!card.contains(el)) refocusUntil.current = 0;
+      return;
+    }
+    refocusUntil.current = 0;
+    const target = card.querySelector<HTMLElement>("[data-card-action]:not([disabled])") ?? headingRef.current;
+    target?.focus();
+  });
 
   useEffect(() => {
     if (!manualLink) return;
@@ -87,16 +127,37 @@ export function SessionDeliveryCard({ sessionId, canUpload }: { sessionId: Id<"s
   // Waiting with nothing owed, Resend releases; otherwise it sends the current email again.
   const resendReleases = status.state === "released" || !status.balanceDue;
 
-  async function act(key: CardActionKey, fn: () => Promise<string>) {
-    setManualLink(null);
-    setBusy(key);
-    try {
-      toast.success(await fn());
-    } catch (err) {
-      toast.error(errorText(err, "That did not work. Try again."));
-    } finally {
-      setBusy(null);
-    }
+  /** Shows and reads out a result once: a toast, and the section's status line. */
+  function tell(ok: boolean, text: string) {
+    if (ok) toast.success(text);
+    else toast.error(text);
+    uploads.say(sessionId, text);
+  }
+
+  /** Runs one card request unless another is in flight. */
+  function guarded(key: CardActionKey, fn: () => Promise<void>) {
+    if (guard.anyBusy()) return;
+    const hadFocus = !!cardRef.current?.contains(document.activeElement);
+    void guard.run("card", async () => {
+      setBusy(key);
+      try {
+        await fn();
+      } finally {
+        setBusy(null);
+        if (hadFocus) refocusUntil.current = Date.now() + REFOCUS_MS;
+      }
+    });
+  }
+
+  function act(key: CardActionKey, fn: () => Promise<string>) {
+    guarded(key, async () => {
+      setManualLink(null);
+      try {
+        tell(true, await fn());
+      } catch (err) {
+        tell(false, errorText(err, "That did not work. Try again."));
+      }
+    });
   }
 
   /* Copy link. Safari and Firefox only let a page write to the clipboard while
@@ -105,7 +166,7 @@ export function SessionDeliveryCard({ sessionId, canUpload }: { sessionId: Id<"s
      ClipboardItem whose text is a promise of the link; the browser waits for
      the promise itself. Where ClipboardItem is missing, writeText after the
      fetch (still inside the activation window in those browsers). */
-  function copyLink() {
+  function copyLink(): Promise<void> {
     setManualLink(null);
     const url: Promise<string> = convex.query(api.sessionDelivery.link, { sessionId }).then((res) => {
       if (!res) throw new NoLinkYet();
@@ -126,51 +187,51 @@ export function SessionDeliveryCard({ sessionId, canUpload }: { sessionId: Id<"s
           ? url.then((u) => clip.writeText(u))
           : url.then(() => Promise.reject(new Error("no clipboard")));
     }
-    setBusy("copy");
-    void written
-      .then(
-        () => {
-          toast.success("Link copied");
-        },
-        async () => {
-          // Find out whether there was a link at all before blaming the clipboard.
-          let link: string;
-          try {
-            link = await url;
-          } catch (err) {
-            toast.error(err instanceof NoLinkYet ? "There is no link to copy yet." : errorText(err, "Could not copy the link."));
-            return;
-          }
-          setManualLink(link);
-        },
-      )
-      .finally(() => setBusy(null));
+    return written.then(
+      () => {
+        tell(true, "Link copied");
+      },
+      async () => {
+        // Find out whether there was a link at all before blaming the clipboard.
+        let link: string;
+        try {
+          link = await url;
+        } catch (err) {
+          tell(false, err instanceof NoLinkYet ? "There is no link to copy yet." : errorText(err, "Could not copy the link."));
+          return;
+        }
+        uploads.say(sessionId, "Could not copy. Select the link and copy it.");
+        setManualLink(link);
+      },
+    );
   }
 
   function run(key: CardActionKey) {
     switch (key) {
       case "ready":
-        return void act("ready", async () => {
+        return act("ready", async () => {
           const res = await markReady({ sessionId });
           return res.state === "released" ? sentToast(email) : PAY_LINK_TOAST;
         });
       case "release":
-        return void act("release", async () => {
+        return act("release", async () => {
           await releaseNow({ sessionId });
           return sentToast(email);
         });
       case "resend":
-        return void act("resend", async () => {
+        return act("resend", async () => {
           await resend({ sessionId });
           return resendReleases ? sentToast(email) : PAY_LINK_TOAST;
         });
       case "off":
-        return void act("off", async () => {
+        return act("off", async () => {
           await turnOff({ sessionId });
           return "Link turned off";
         });
       case "copy":
-        return copyLink();
+        // The clipboard write starts inside guard.run's first synchronous
+        // step, so it still runs within the click.
+        return guarded("copy", copyLink);
     }
   }
 
@@ -180,9 +241,11 @@ export function SessionDeliveryCard({ sessionId, canUpload }: { sessionId: Id<"s
         key={a.key}
         size="sm"
         variant={a.variant}
-        className={BTN}
-        disabled={a.disabled || busy !== null}
+        className={cn(BTN, "aria-disabled:opacity-40 aria-busy:cursor-wait")}
+        data-card-action={a.key}
+        disabled={a.disabled}
         aria-busy={busy === a.key || undefined}
+        aria-disabled={(busy !== null && busy !== a.key) || undefined}
         onClick={() => run(a.key)}
       >
         {a.key === "ready" && <Send className="size-3.5" aria-hidden />}
@@ -194,13 +257,16 @@ export function SessionDeliveryCard({ sessionId, canUpload }: { sessionId: Id<"s
 
   return (
     <section
+      ref={cardRef}
       aria-label="Deliver to client"
       data-testid="session-delivery"
       data-state={status.state}
       className={cn("grid gap-2.5 rounded-lg border border-graphite/50 bg-coal-2 p-3.5", safe.safeText)}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-bold text-bone">Deliver to client</h3>
+        <h3 ref={headingRef} tabIndex={-1} className="text-sm font-bold text-bone">
+          Deliver to client
+        </h3>
         {view.pill && <StatePill pill={view.pill} />}
       </div>
       <div className="space-y-1.5 text-[0.8125rem] leading-relaxed text-steel">
