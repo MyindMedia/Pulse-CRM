@@ -1005,13 +1005,18 @@ export const returnHours = mutation({
   },
 });
 
-/** Value of prepaid hours currently applied to a session. The session's rate
- *  is cut by this much, so the session's full price is rateCents + this (used
- *  for an engineer's percentage pay and the client's lifetime value). */
+/** Value of prepaid hours taken off on COMPLETION for a session. The rate is
+ *  cut by this much, so the session's full price is rateCents + this (used for
+ *  an engineer's percentage pay and the client's lifetime value). Hours applied
+ *  by hand ("Apply", kind "manual") are left out on purpose: before prepaid
+ *  draw-down existed those sessions paid the engineer on the reduced rate, and
+ *  changing that would change wages without a setting. */
 export async function prepaidValueForSession(ctx: MutationCtx, sessionId: Id<"sessions">): Promise<number> {
   const rows = await ctx.db
     .query("packageDrawdowns")
     .withIndex("by_session", (q) => q.eq("sessionId", sessionId))
     .collect();
-  return rows.filter((r) => r.status === "applied").reduce((sum, r) => sum + r.valueCents, 0);
+  return rows
+    .filter((r) => r.status === "applied" && r.kind === "completion")
+    .reduce((sum, r) => sum + r.valueCents, 0);
 }

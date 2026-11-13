@@ -764,3 +764,19 @@ describe("Round 2: voiding a completed session charges no fee (H207-13)", () => 
     expect(acts.some((a) => /cancellation fee/i.test(a.summary))).toBe(false);
   });
 });
+
+describe("Round 2: hand-applied hours do not change engineer pay or lifetime value (H207-14)", () => {
+  it("a session paid partly by 'Apply' counts at the reduced price, as before this feature", async () => {
+    const t = convexTest(schema);
+    const owner = await studio(t, "org_a", "u_a");
+    const productId = await product(t, "org_a", 10, 100000);
+    const artistId = await artist(t, "org_a");
+    const { creditId } = await sell(owner, productId, artistId);
+    const sessionId = await session(t, "org_a", artistId, { rateCents: 30000, hours: 2 });
+    await owner.mutation(api.packages.redeem, { sessionId, creditId, hours: 1 });
+    await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "completed" });
+    const s = await getSession(t, sessionId);
+    const a = await t.run(async (ctx) => ctx.db.get(artistId));
+    expect(a?.lifetimeValueCents).toBe(s?.rateCents);
+  });
+});
