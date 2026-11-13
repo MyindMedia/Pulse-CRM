@@ -356,6 +356,31 @@ describe("H5 split sheet signatures", () => {
     expect(view!.allSigned).toBe(false);
   });
 
+  it("H209-03: a hand-ticked person gets a signing link, needs an email, and their real signature executes the sheet", async () => {
+    await seedLine(t, songId);
+    const sheetId = await t.run((ctx) => ctx.db.insert("splitSheets", {
+      orgId: "o1", songId, status: "sent", updatedAt: 0,
+      contributors: [
+        { name: "Ticked", role: "Writer", masterPct: 50, publishingPct: 50, signed: true },
+        { name: "Bob", role: "Producer", masterPct: 50, publishingPct: 50, email: "bob@x.com", signed: false },
+      ],
+    }));
+    // The ticked row has no email: sending names them instead of skipping them.
+    await expect(as("u_owner").mutation(api.splitSignatures.issue, { splitSheetId: sheetId })).rejects.toMatchObject({
+      data: { code: "SPLIT_EMAIL_REQUIRED", names: ["Ticked"] },
+    });
+    expect((await as("u_owner").query(api.splitSheets.list, {}))[0].missingEmail).toBe(1);
+    await t.run(async (ctx) => {
+      const s = (await ctx.db.get(sheetId))!;
+      await ctx.db.patch(sheetId, { contributors: s.contributors.map((c, i) => (i === 0 ? { ...c, email: "tick@x.com" } : c)) });
+    });
+    const links = await as("u_owner").mutation(api.splitSignatures.issue, { splitSheetId: sheetId });
+    expect(links.map((l) => l.email).sort()).toEqual(["bob@x.com", "tick@x.com"]);
+    await signAs(t, as, sheetId, ["tick@x.com", "bob@x.com"]);
+    expect((await sheetOf(t, songId)).status).toBe("fully_executed");
+    expect((await shares(t)).length).toBeGreaterThan(0);
+  });
+
   it("U-06: upsert with status fully_executed is refused the same way, new or existing", async () => {
     await expect(
       as("u_owner").mutation(api.splitSheets.upsert, { songId, contributors: two(), status: "fully_executed" }),

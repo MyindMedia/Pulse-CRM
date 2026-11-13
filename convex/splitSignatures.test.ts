@@ -19,10 +19,12 @@ async function seedSheet(t: ReturnType<typeof convexTest>) {
     const splitSheetId = await ctx.db.insert("splitSheets", {
       orgId: ORG, songId, status: "draft", updatedAt: Date.now(),
       contributors: [
-        { name: "Already Signed", role: "Writer", masterPct: 50, publishingPct: 50, email: "signed@x.com", signed: true },
+        { name: "Already Signed", role: "Writer", masterPct: 50, publishingPct: 50, email: "signed@x.com", signed: true, signedAt: 1, signature: "Already Signed" },
         { name: "Needs To Sign", role: "Producer", masterPct: 50, publishingPct: 50, email: "needs@x.com", signed: false },
-        // Signed on paper before Pulse: no email needed, no link issued.
-        { name: "Signed Offline", role: "Engineer", masterPct: 0, publishingPct: 0, signed: true },
+        // Signed by link earlier, then the email was dropped: no link needed.
+        // (A bare `signed: true` with no signature record is a hand tick and
+        // now gets a link like anyone unsigned: H209-03.)
+        { name: "Signed Offline", role: "Engineer", masterPct: 0, publishingPct: 0, signed: true, signedAt: 1, signature: "Signed Offline" },
       ],
     });
     return { splitSheetId };

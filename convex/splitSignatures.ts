@@ -52,7 +52,7 @@ export const issue = mutation({
     const actor = await currentActor(ctx);
 
     const missing = sheet.contributors
-      .filter((c) => !c.signed && !validEmail(c.email))
+      .filter((c) => !signedByPerson(c) && !validEmail(c.email))
       .map((c) => c.name.trim() || "Unnamed contributor");
     if (missing.length > 0) {
       throw new ConvexError({
@@ -72,7 +72,9 @@ export const issue = mutation({
 
     for (let i = 0; i < sheet.contributors.length; i++) {
       const c = sheet.contributors[i];
-      if (c.signed) continue;
+      // A hand tick from before signatures were enforced is not a signature:
+      // that person gets a link like anyone else still to sign.
+      if (signedByPerson(c)) continue;
       if (!c.email) continue; // unreachable: checked above
 
       // Revoke any prior unused signing grants for this sheet+email so a

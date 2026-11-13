@@ -518,7 +518,7 @@ export const list = query({
         updatedAt: s.updatedAt,
         signed: s.contributors.filter(signedByPerson).length,
         total: s.contributors.length,
-        missingEmail: s.contributors.filter((c) => !c.signed && !validEmail(c.email)).length,
+        missingEmail: s.contributors.filter((c) => !signedByPerson(c) && !validEmail(c.email)).length,
       });
     }
     return out;
