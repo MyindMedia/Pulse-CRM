@@ -373,6 +373,12 @@ export const remove = mutation({
     if (inv.status === "sent" || inv.status === "viewed" || inv.status === "overdue") {
       throw new Error("This invoice was sent to the client. Void it instead of deleting it.");
     }
+    // A void invoice stays too: a pay link opened before the void can still
+    // be paid, and only a void row that exists lets the webhook refund that
+    // payment and tell the client (H206-R2-04).
+    if (inv.status === "void") {
+      throw new Error("A void invoice is kept so a late payment on it is refunded automatically. It cannot be deleted.");
+    }
     await ctx.db.delete(id);
   },
 });

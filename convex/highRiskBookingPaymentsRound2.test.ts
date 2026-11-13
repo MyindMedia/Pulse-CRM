@@ -220,7 +220,7 @@ describe("H206-01: a payment on a deleted invoice or booking is never dropped", 
     expect(row.stripeAccountId).toBe("acct_x");
   });
 
-  it("a sent, viewed or overdue invoice cannot be deleted (void it instead); draft, void and paid still can", async () => {
+  it("a sent, viewed or overdue invoice cannot be deleted (void it instead); a void one is kept (H206-R2-04); draft and paid still can", async () => {
     const t = convexTest(schema);
     const { invoice } = await seed(t);
     const ids: Record<string, Id<"invoices">> = {};
@@ -232,7 +232,9 @@ describe("H206-01: a payment on a deleted invoice or booking is never dropped", 
       await expect(owner.mutation(api.invoices.remove, { id: ids[s] })).rejects.toThrow(/Void it instead/);
       expect(await t.run((ctx) => ctx.db.get(ids[s]))).not.toBeNull();
     }
-    for (const s of ["draft", "void", "paid"]) {
+    await expect(owner.mutation(api.invoices.remove, { id: ids.void })).rejects.toThrow(/cannot be deleted/);
+    expect(await t.run((ctx) => ctx.db.get(ids.void))).not.toBeNull();
+    for (const s of ["draft", "paid"]) {
       await owner.mutation(api.invoices.remove, { id: ids[s] });
       expect(await t.run((ctx) => ctx.db.get(ids[s]))).toBeNull();
     }
@@ -714,5 +716,20 @@ describe("H206-R2-03: a refund that fails after Stripe reported it succeeded is 
     await t.mutation(internal.billingWebhooks.handle, { event: refundEvent(strayId, { id: "s2", refundId: "re_done" }) });
     expect((await strays(t))[0].status).toBe("refunded");
     expect((await notes(t, "payment.late_refunded")).length).toBe(before);
+  });
+});
+
+describe("H206-R2-04: voiding then deleting an invoice cannot turn a late payment's refund into a silent hold", () => {
+  it("a void invoice cannot be deleted, so a payment on its old pay link is still refunded as void_invoice and the client told", async () => {
+    const t = convexTest(schema);
+    const { invoice } = await seed(t);
+    const id = await invoice("void");
+    const owner = t.withIdentity({ subject: "u_own", name: "Olive" });
+    await expect(owner.mutation(api.invoices.remove, { id })).rejects.toThrow(/cannot be deleted/);
+    await t.mutation(internal.billingWebhooks.handle, {
+      event: checkoutEvent({ invoiceId: id }, { id: "evt_void_pay", amount: 50_000 }),
+    });
+    const [row] = await strays(t);
+    expect(row).toMatchObject({ reason: "void_invoice", status: "refund_pending", invoiceId: id });
   });
 });

@@ -202,8 +202,8 @@ export function InvoiceTable({ rows }: { rows: InvoiceRow[] }) {
                         Void
                       </DropdownMenuItem>
                     )}
-                    {/* A sent invoice is voided, not deleted (invoices.remove). */}
-                    {(row.status === "draft" || row.status === "void" || row.status === "paid") && (
+                    {/* A sent invoice is voided, not deleted; a void one is kept (invoices.remove). */}
+                    {(row.status === "draft" || row.status === "paid") && (
                       <>
                         <DropdownMenuSeparator />
                         <DropdownMenuItem

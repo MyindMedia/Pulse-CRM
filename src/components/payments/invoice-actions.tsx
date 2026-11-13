@@ -165,8 +165,8 @@ export function InvoiceActions({
           </Button>
         )}
 
-        {/* A sent invoice is voided, not deleted (invoices.remove). */}
-        {(status === "draft" || status === "void" || status === "paid") && (
+        {/* A sent invoice is voided, not deleted; a void one is kept (invoices.remove). */}
+        {(status === "draft" || status === "paid") && (
           <Button
             variant="danger"
             className="w-full justify-start"
