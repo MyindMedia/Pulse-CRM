@@ -32,23 +32,15 @@ export const _setStatus = internalMutation({
   },
 });
 
-/** The HTML a queued email row is sent as. A row with a designed body (`html`)
- *  gets it inside the studio layout with its button and the studio's accent;
- *  every other row renders exactly as before, from the plain `body`. */
-export function notificationEmailHtml(n: {
-  orgName: string;
-  body: string;
-  html?: string;
-  ctaLabel?: string;
-  ctaUrl?: string;
-  accent?: string;
-}): string {
+/** The HTML a queued email row is sent as. A row with a designed body (`html`,
+ *  which carries its own button) gets it inside the studio layout with the
+ *  studio's accent on the header bar; every other row renders exactly as
+ *  before, from the plain `body`. */
+export function notificationEmailHtml(n: { orgName: string; body: string; html?: string; accent?: string }): string {
   if (!n.html) return studioEmailHtml({ studioName: n.orgName, bodyText: n.body });
   return studioEmailHtml({
     studioName: n.orgName,
     bodyHtml: n.html,
-    ctaLabel: n.ctaLabel,
-    ctaUrl: n.ctaUrl,
     accent: n.accent,
     accentInk: n.accent ? readableEmailInk(n.accent) : undefined,
   });
@@ -75,16 +67,14 @@ export const deliver = internalAction({
   },
 });
 
-/** A notification row as the app may see it. The designed email (`html`) and
- *  its button link are for sending only: they can hold the client's delivery
- *  link and a dollar amount, and these rows reach every member of the studio,
- *  including staff without money sight. */
-export function forStaff<T extends { html?: string; ctaLabel?: string; ctaUrl?: string }>(n: T): Omit<T, "html" | "ctaLabel" | "ctaUrl"> {
+/** A notification row as the app may see it. The designed email (`html`) is
+ *  for sending only: its button holds the client's delivery link and its copy
+ *  a dollar amount, and these rows reach every member of the studio, including
+ *  staff without money sight. */
+export function forStaff<T extends { html?: string }>(n: T): Omit<T, "html"> {
   const out: Partial<T> = { ...n };
   delete out.html;
-  delete out.ctaLabel;
-  delete out.ctaUrl;
-  return out as Omit<T, "html" | "ctaLabel" | "ctaUrl">;
+  return out as Omit<T, "html">;
 }
 
 export const recent = query({

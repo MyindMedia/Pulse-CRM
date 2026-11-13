@@ -161,6 +161,7 @@ function emailFor(
     sessionDate: sessionDay(f.session.startTime, tz),
     files: f.files.map((x) => ({ name: x.asset.name, size: x.version.size })),
     url: deliveryUrl(delivery.token),
+    accent: f.org?.accentColor,
   };
   const m =
     kind === "ready"
@@ -175,8 +176,6 @@ function emailFor(
     kind: kind === "ready" ? "delivery.ready" : "delivery.pay",
     sessionId: delivery.sessionId,
     html: m.html,
-    ctaLabel: m.ctaLabel,
-    ctaUrl: m.ctaUrl,
     accent: f.org?.accentColor,
   };
 }

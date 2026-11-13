@@ -115,9 +115,15 @@ describe("session delivery: staff side and the payment trigger", () => {
     expect(mails).toHaveLength(1);
     expect(mails[0]).toMatchObject({
       kind: "delivery.ready", subject: "Your files from Vocal tracking are ready", recipient: "jordan.ellis@example.com",
-      ctaLabel: "Download your files", ctaUrl: `${APP_URL}/delivery/${row.token}`, accent: "#3b63e6", sessionId: s.A.sessionId,
+      accent: "#3b63e6", sessionId: s.A.sessionId,
     });
+    expect(mails[0]).not.toHaveProperty("ctaLabel");
+    expect(mails[0]).not.toHaveProperty("ctaUrl");
     expect(mails[0].html).toContain("Lead vocal.wav");
+    // The button is in the body, in the studio's accent, linking to the client's page.
+    expect(mails[0].html).toContain(`href="${APP_URL}/delivery/${row.token}"`);
+    expect(mails[0].html).toContain("background-color:#3b63e6");
+    expect(mails[0].html).toContain("color:#ffffff;text-decoration:none;\">Download your files</a>");
   });
 
   it("G-02 Ready first, then paid: one pay to unlock email, then one files ready email when the payment settles", async () => {
@@ -125,7 +131,9 @@ describe("session delivery: staff side and the payment trigger", () => {
     expect(await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId })).toEqual({ state: "awaiting_payment" });
     let mails = await deliveryEmails(s, s.A.sessionId);
     expect(mails.map((m) => m.kind)).toEqual(["delivery.pay"]);
-    expect(mails[0]).toMatchObject({ subject: "Your files are ready. One step left", ctaLabel: "Pay $180 and unlock" });
+    expect(mails[0]).toMatchObject({ subject: "Your files are ready. One step left" });
+    expect(mails[0].html).toContain("\">Pay $180 and unlock</a>");
+    expect(mails[0].html).toContain("background-color:#3b63e6");
     await settle(s, s.A.sessionId, "balance");
     mails = await deliveryEmails(s, s.A.sessionId);
     expect(mails.map((m) => m.kind)).toEqual(["delivery.pay", "delivery.ready"]);

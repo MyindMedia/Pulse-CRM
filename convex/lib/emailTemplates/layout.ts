@@ -49,6 +49,17 @@ export function textToEmailHtml(text: string): string {
     .join("");
 }
 
+/** The button every studio email uses: the accent (Pulse gold when it is not
+ *  a plain hex) with its ink (the gold's own ink when not a plain hex). A
+ *  template that wants text under its button puts this in its own body. */
+export function emailButtonHtml(args: { label: string; url: string; accent?: string; accentInk?: string }): string {
+  const ACCENT = isHex(args.accent) ? args.accent! : GOLD;
+  const ACCENT_INK = isHex(args.accentInk) ? args.accentInk! : GOLD_INK;
+  return `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px auto 4px auto;"><tr><td align="center" style="background-color:${ACCENT};border-radius:11px;">
+<a href="${escapeEmailHtml(args.url)}" style="display:inline-block;padding:12px 30px;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:14px;font-weight:700;color:${ACCENT_INK};text-decoration:none;">${escapeEmailHtml(args.label)}</a>
+</td></tr></table>`;
+}
+
 /** The studio-framed wrapper. Pass bodyHtml (already safe) OR bodyText
  *  (escaped + linkified here). Optional gold CTA button. */
 export function studioEmailHtml(args: {
@@ -66,13 +77,10 @@ export function studioEmailHtml(args: {
 }): string {
   const studio = escapeEmailHtml(args.studioName);
   const ACCENT = isHex(args.accent) ? args.accent! : GOLD;
-  const ACCENT_INK = isHex(args.accentInk) ? args.accentInk! : GOLD_INK;
   const content = args.bodyHtml ?? textToEmailHtml(args.bodyText ?? "");
   const cta =
     args.ctaLabel && args.ctaUrl
-      ? `<table role="presentation" cellpadding="0" cellspacing="0" style="margin:8px auto 4px auto;"><tr><td align="center" style="background-color:${ACCENT};border-radius:11px;">
-<a href="${escapeEmailHtml(args.ctaUrl)}" style="display:inline-block;padding:12px 30px;font-family:Inter,Segoe UI,Arial,sans-serif;font-size:14px;font-weight:700;color:${ACCENT_INK};text-decoration:none;">${escapeEmailHtml(args.ctaLabel)}</a>
-</td></tr></table>`
+      ? emailButtonHtml({ label: args.ctaLabel, url: args.ctaUrl, accent: args.accent, accentInk: args.accentInk })
       : "";
   return `<!DOCTYPE html>
 <html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width, initial-scale=1"/><meta name="pulse-tenant-layout" content="1"/></head>

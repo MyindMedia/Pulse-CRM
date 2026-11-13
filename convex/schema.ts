@@ -1729,11 +1729,10 @@ export default defineSchema({
     // "skipped": a text to a number that replied STOP; never handed to the provider.
     status: v.union(v.literal("simulated"), v.literal("sent"), v.literal("failed"), v.literal("skipped")),
     // A designed email (session file delivery). `html` is the inner body only,
-    // already escaped by its template; `deliver` wraps it in the studio layout
-    // with the button and the studio's accent. Absent = the plain `body` path.
+    // button included, already escaped by its template; `deliver` wraps it in
+    // the studio layout with the studio's accent on the header bar. Absent =
+    // the plain `body` path. Never returned to the app (notifications.forStaff).
     html: v.optional(v.string()),
-    ctaLabel: v.optional(v.string()),
-    ctaUrl: v.optional(v.string()),
     accent: v.optional(v.string()),
   })
     .index("by_org", ["orgId"])

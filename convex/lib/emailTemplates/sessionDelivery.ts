@@ -1,9 +1,11 @@
 /* Client emails for session file delivery (convex/sessionDelivery.ts).
 
    Each template returns the INNER body only (`html`: heading, paragraphs, the
-   file list, small print) plus the button. notifications.deliver wraps it in
-   the studio layout (studioEmailHtml) with the studio's accent and a readable
-   button ink. `text` is the plain version kept in notifications.body for the
+   file list, the button, then the small print under it, as in the mockup).
+   The button is the layout's own (emailButtonHtml) in the studio's accent with
+   a readable ink. notifications.deliver wraps the body in the studio layout
+   (studioEmailHtml), which adds the header bar in the same accent and no
+   second button. `text` is the plain version kept in notifications.body for the
    booking's message log; it leaves out the link (the log never shows the
    delivery token; staff copy it from the delivery card instead) and every
    dollar amount (staff without money sight read the log). The amount lives
@@ -13,12 +15,12 @@
    file names) is escaped here. Email-safe markup only: tables and inline
    styles, no classes. */
 
-import { escapeEmailHtml as esc } from "./layout";
+import { escapeEmailHtml as esc, emailButtonHtml, readableEmailInk } from "./layout";
 import { money } from "../money";
 
 export type DeliveryFile = { name: string; size: number };
 
-type Rendered = { subject: string; text: string; html: string; ctaLabel: string; ctaUrl: string };
+type Rendered = { subject: string; text: string; html: string };
 
 const FONT = "Inter,Segoe UI,Arial,sans-serif";
 const MONO = "ui-monospace,SFMono-Regular,Menlo,Consolas,monospace";
@@ -59,8 +61,15 @@ function para(text: string): string {
   return `<p style="margin:0 0 16px 0;font-family:${FONT};font-size:15px;line-height:1.6;color:${TEXT};">${esc(text)}</p>`;
 }
 
+/** The small print, under the button. */
 function small(text: string): string {
-  return `<p style="margin:0 0 14px 0;font-family:${FONT};font-size:13px;line-height:1.6;color:${MUTED};">${esc(text)}</p>`;
+  return `<p style="margin:14px 0 0 0;font-family:${FONT};font-size:13px;line-height:1.6;color:${MUTED};">${esc(text)}</p>`;
+}
+
+/** The studio's button: its accent (Pulse gold when there is none) and
+ *  whichever ink reads on it. */
+function button(label: string, url: string, accent: string | undefined): string {
+  return emailButtonHtml({ label, url, accent, accentInk: readableEmailInk(accent) });
 }
 
 /** The bordered file list: name left, size right in a monospace stack. */
@@ -88,6 +97,8 @@ export function filesReadyEmail(a: {
   url: string;
   expiresOn: string;
   paidCents?: number;
+  /** The studio's accent (hex) for the button. */
+  accent?: string;
 }): Rendered {
   const name = cleanName(a.firstName);
   const subject = `Your files from ${a.title} are ready`;
@@ -98,10 +109,9 @@ export function filesReadyEmail(a: {
   // The message log copy: staff without money sight read it, so no amount.
   const logBody = paidNow ? `${lead} Payment received. Thank you.` : lead;
   const fine = `The link works until ${a.expiresOn}. If it stops working, reply to this email for a new one.`;
-  const ctaLabel = "Download your files";
-  const html = heading(head) + para(body) + fileTable(a.files) + small(fine);
+  const html = heading(head) + para(body) + fileTable(a.files) + button("Download your files", a.url, a.accent) + small(fine);
   const text = `${head}\n\n${logBody}\n\n${fileLines(a.files)}\n\n${fine}`;
-  return { subject, text, html, ctaLabel, ctaUrl: a.url };
+  return { subject, text, html };
 }
 
 /** "Pay and unlock" when the files are ready and a balance is still owed. */
@@ -112,6 +122,8 @@ export function payToUnlockEmail(a: {
   files: DeliveryFile[];
   url: string;
   balanceCents: number;
+  /** The studio's accent (hex) for the button. */
+  accent?: string;
 }): Rendered {
   const name = cleanName(a.firstName);
   const amount = money(a.balanceCents);
@@ -123,8 +135,7 @@ export function payToUnlockEmail(a: {
   // The message log copy: staff without money sight read it, so no amount.
   const logBody = `${opening} There is a balance on this booking. ${closing}`;
   const fine = "Already paid? Reply to this email and the studio will sort it out.";
-  const ctaLabel = `Pay ${amount} and unlock`;
-  const html = heading(head) + para(body) + fileTable(a.files) + small(fine);
+  const html = heading(head) + para(body) + fileTable(a.files) + button(`Pay ${amount} and unlock`, a.url, a.accent) + small(fine);
   const text = `${head}\n\n${logBody}\n\n${fileLines(a.files)}\n\n${fine}`;
-  return { subject, text, html, ctaLabel, ctaUrl: a.url };
+  return { subject, text, html };
 }

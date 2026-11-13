@@ -23,13 +23,11 @@ export async function notify(
     body: string;
     kind: string;
     sessionId?: Id<"sessions">;
-    /** A designed email body (inner HTML, already escaped by its template).
-     *  Email only; `body` stays the plain copy for the message log. */
+    /** A designed email body (inner HTML, already escaped by its template,
+     *  including any button). Email only; `body` stays the plain copy for the
+     *  message log. */
     html?: string;
-    /** Button under the body, email only. */
-    ctaLabel?: string;
-    ctaUrl?: string;
-    /** The studio's accent for the header bar and button (hex). */
+    /** The studio's accent for the header bar (hex). */
     accent?: string;
   },
 ): Promise<void> {
