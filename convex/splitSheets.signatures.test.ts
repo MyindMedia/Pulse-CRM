@@ -5,6 +5,7 @@ import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { isReleasable } from "./lib/guardrails";
 import { buildRightsPacket } from "./rightsExport";
+import { allocateSongLines } from "./lib/royaltyAllocate";
 
 /* H5: a split sheet is signed only when people signed it.
    Each test names the eval.md check it proves (specs/features/truth-split-signatures). */
@@ -166,26 +167,127 @@ describe("H5 split sheet signatures", () => {
     expect(await t.run((ctx) => ctx.db.query("splitSignatureHistory").collect())).toHaveLength(2);
   });
 
-  it("U-04: fixing an email, PRO or IPI does not clear a signature", async () => {
+  it("U-04: fixing a PRO or IPI does not clear a signature; an email change clears only that person's (owner only)", async () => {
+    // Changed in round 2 (H209-01, owner decision): the old version asserted
+    // an email change on a signed row kept the signature. Royalty shares
+    // follow the email, so the person at a new address must sign again.
     await as("u_owner").mutation(api.splitSheets.upsert, { songId, contributors: two() });
     const sheetId = (await sheetOf(t, songId))._id;
-    await signAs(t, as, sheetId, ["alice@x.com"]);
-    const signedAt = (await sheetOf(t, songId)).contributors[0].signedAt;
+    await signAs(t, as, sheetId, ["alice@x.com", "bob@x.com"]);
+    const signed = await sheetOf(t, songId);
+    expect(signed.status).toBe("fully_executed");
 
+    // PRO and IPI fixes keep every signature and the status.
+    await as("u_owner").mutation(api.splitSheets.upsert, {
+      songId, contributors: two().map((c, i) => ({ ...c, fromIndex: i, pro: "ASCAP", ipi: "123" })),
+    });
+    let sheet = await sheetOf(t, songId);
+    expect(sheet.status).toBe("fully_executed");
+    expect(sheet.contributors.map((c) => c.signedAt)).toEqual(signed.contributors.map((c) => c.signedAt));
+
+    // The owner changes Alice's email (and only re-cases Bob's).
     const fixed = two().map((c, i) => ({
       ...c, fromIndex: i, email: i === 0 ? "alice.new@x.com" : "BOB@x.com", pro: "ASCAP", ipi: "123",
     }));
     await as("u_owner").mutation(api.splitSheets.upsert, { songId, contributors: fixed });
-    const sheet = await sheetOf(t, songId);
-    expect(sheet.contributors[0]).toMatchObject({ email: "alice.new@x.com", signed: true, signedAt, signatureFont: "caveat" });
-    expect(sheet.contributors[1].signed).toBe(false);
-    expect(await activity(t, "split.reopened")).toHaveLength(0);
-    // Royalty shares follow the email, so a signed person's email change is on the record.
+    sheet = await sheetOf(t, songId);
+    expect(sheet.contributors[0]).toMatchObject({ email: "alice.new@x.com", signed: false });
+    expect(sheet.contributors[0].signedAt).toBeUndefined();
+    expect(sheet.contributors[0].signature).toBeUndefined();
+    expect(sheet.contributors[1]).toMatchObject({ signed: true, signedAt: signed.contributors[1].signedAt });
+    expect(sheet.status).toBe("sent");
+    const view = await as("u_owner").query(api.splitSheets.forSong, { songId });
+    expect(view!.allSigned).toBe(false);
+    expect(view!.displayStatus).toBe("sent");
     const emailLog = await activity(t, "split.signer_email_changed");
     expect(emailLog).toHaveLength(1);
     expect(emailLog[0].summary).toContain("Alice alice@x.com -> alice.new@x.com");
     expect(emailLog[0].summary).not.toContain("BOB@x.com");
-    expect(await t.run((ctx) => ctx.db.query("splitSignatureHistory").collect())).toHaveLength(0);
+    const history = await t.run((ctx) => ctx.db.query("splitSignatureHistory").collect());
+    expect(history).toHaveLength(1);
+    expect(history[0]).toMatchObject({ name: "Alice", email: "alice@x.com", signedByPerson: true, reason: "email_changed" });
+
+    // Only the new address gets a link.
+    const links = await as("u_owner").mutation(api.splitSignatures.issue, { splitSheetId: sheetId });
+    expect(links.map((l) => l.email)).toEqual(["alice.new@x.com"]);
+  });
+
+  it("H209-01: a non-owner cannot change a signed sheet's emails or shares, and royalties never follow an unsigned address", async () => {
+    await as("u_owner").mutation(api.splitSheets.upsert, { songId, contributors: two() });
+    const sheetId = (await sheetOf(t, songId))._id;
+    await signAs(t, as, sheetId, ["alice@x.com", "bob@x.com"]);
+    const before = await sheetOf(t, songId);
+    expect(before.status).toBe("fully_executed");
+
+    const redirect = two().map((c, i) => ({ ...c, fromIndex: i, email: i === 0 ? "producer@x.com" : c.email }));
+    await expect(
+      as("u_mgr").mutation(api.splitSheets.upsert, { songId, contributors: redirect }),
+    ).rejects.toMatchObject({ data: { code: "CAPABILITY_DENIED" } });
+    await expect(
+      as("u_mgr").mutation(api.splitSheets.upsert, { songId, contributors: two(60).map((c, i) => ({ ...c, fromIndex: i })) }),
+    ).rejects.toMatchObject({ data: { code: "CAPABILITY_DENIED" } });
+    // Adding someone changes who is paid, so it is a share change too.
+    await expect(
+      as("u_mgr").mutation(api.splitSheets.upsert, {
+        songId,
+        contributors: [...two().map((c, i) => ({ ...c, fromIndex: i })), { name: "Zed", role: "Writer", masterPct: 0, publishingPct: 0, email: "z@x.com" }],
+      }),
+    ).rejects.toMatchObject({ data: { code: "CAPABILITY_DENIED" } });
+    expect(await sheetOf(t, songId)).toEqual(before);
+
+    // A manager may still fix a PRO or IPI.
+    await as("u_mgr").mutation(api.splitSheets.upsert, {
+      songId, contributors: two().map((c, i) => ({ ...c, fromIndex: i, ipi: "999" })),
+    });
+    expect((await sheetOf(t, songId)).status).toBe("fully_executed");
+
+    // The owner's change reopens the sheet; a new statement line is held, not
+    // credited to the new address under Alice's old signature.
+    await as("u_owner").mutation(api.splitSheets.upsert, { songId, contributors: redirect });
+    expect((await sheetOf(t, songId)).status).toBe("sent");
+    const lineId = await seedLine(t, songId);
+    await t.run(async (ctx) => { await allocateSongLines(ctx, "o1", songId); });
+    expect((await t.run((ctx) => ctx.db.get(lineId)))!.state).toBe("unallocated");
+    expect((await shares(t)).filter((s) => s.lineId === lineId)).toHaveLength(0);
+  });
+
+  it("H209-01: before anyone signs, a manager can still change emails and shares", async () => {
+    await as("u_owner").mutation(api.splitSheets.upsert, { songId, contributors: two() });
+    await as("u_mgr").mutation(api.splitSheets.upsert, {
+      songId, contributors: two(70).map((c, i) => ({ ...c, fromIndex: i, email: i === 0 ? "a2@x.com" : c.email })),
+    });
+    const sheet = await sheetOf(t, songId);
+    expect(sheet.contributors[0]).toMatchObject({ email: "a2@x.com", masterPct: 70 });
+    expect(sheet.status).toBe("draft");
+  });
+
+  it("H209-01: an email change on a sheet the owner marked signed reopens it", async () => {
+    await as("u_owner").mutation(api.splitSheets.upsert, { songId, contributors: two() });
+    const sheetId = (await sheetOf(t, songId))._id;
+    await as("u_owner").mutation(api.splitSheets.markSignedOutsidePulse, { id: sheetId, note: "Paper copy in the safe" });
+    const redirect = two().map((c, i) => ({ ...c, fromIndex: i, email: i === 0 ? "new@x.com" : c.email }));
+    await expect(as("u_mgr").mutation(api.splitSheets.upsert, { songId, contributors: redirect })).rejects.toMatchObject({
+      data: { code: "CAPABILITY_DENIED" },
+    });
+    await as("u_owner").mutation(api.splitSheets.upsert, { songId, contributors: redirect });
+    expect((await sheetOf(t, songId)).status).toBe("sent");
+  });
+
+  it("H209-01: an unused signing link for an address that left the sheet is revoked", async () => {
+    await as("u_owner").mutation(api.splitSheets.upsert, { songId, contributors: two() });
+    const sheetId = (await sheetOf(t, songId))._id;
+    const links = await as("u_owner").mutation(api.splitSignatures.issue, { splitSheetId: sheetId });
+    const bobOld = links.find((l) => l.email === "bob@x.com")!;
+    await as("u_owner").mutation(api.splitSheets.upsert, {
+      songId, contributors: two().map((c, i) => ({ ...c, fromIndex: i, email: i === 1 ? "bob2@x.com" : c.email })),
+    });
+    const grants = await t.run(async (ctx) => (await ctx.db.query("collaboratorGrants").collect()).filter((g) => !g.revoked));
+    expect(grants.map((g) => g.email)).toEqual(["alice@x.com"]);
+    // Even if the old address comes back on another row, the old link is dead.
+    await as("u_owner").mutation(api.splitSheets.upsert, {
+      songId, contributors: two().map((c, i) => ({ ...c, fromIndex: i, email: i === 1 ? "bob@x.com" : c.email })),
+    });
+    await expect(t.mutation(api.splitSignatures.sign, { token: bobOld.token, signature: "Bob" })).rejects.toThrow(/no longer valid/);
   });
 
   it("U-05: setStatus(fully_executed) is refused while anyone has not signed, and allocates nothing", async () => {

@@ -71,10 +71,16 @@ export type MergeResult = {
   /** A term every signer agreed to changed: a name, role or share, or a
    *  contributor was added or removed. */
   termsChanged: boolean;
+  /** A master or publishing share changed, or a contributor was added or
+   *  removed. Once anyone has signed, only the owner may do this. */
+  sharesChanged: boolean;
+  /** A contributor's email changed. Royalty shares are keyed by email, so
+   *  once anyone has signed, only the owner may do this. */
+  emailChanged: boolean;
   /** Signature records that no longer cover the sheet (cleared from the rows). */
   cleared: SplitContributor[];
-  /** Signed rows whose email changed (the signature was kept). Royalty shares
-   *  are keyed by email, so callers log these. */
+  /** Signed rows whose email changed. Their signature was cleared (it is in
+   *  `cleared`): the person at the new address has to sign again. */
   signedEmailChanges: { name: string; from: string; to: string }[];
 };
 
@@ -98,7 +104,10 @@ function blankSignature(row: Omit<SplitContributor, typeof SIGNATURE_FIELDS[numb
  *
  * - Signature fields always come from the stored row (matched by email, then
  *   by `fromIndex`). The browser cannot add, alter or drop them.
- * - Email, PRO and IPI corrections never clear a signature.
+ * - PRO and IPI corrections never clear a signature.
+ * - An email change on a signed row clears that row's signature (returned in
+ *   `cleared`): royalty shares follow the email, and the person at the new
+ *   address never signed. Other rows keep theirs.
  * - If any agreed term changed (a name, role, master % or publishing %, or a
  *   contributor added or removed), every signature on the sheet stops
  *   covering it: each signature is cleared from its row and returned in
@@ -139,26 +148,39 @@ export function mergeContributors(stored: SplitContributor[], incoming: Incoming
     email: c.email,
   });
 
+  const emailDiffers = (from: string | undefined, to: string | undefined) =>
+    !(sameEmail(from, to) || (!from?.trim() && !to?.trim()));
+  const sharesChanged =
+    incoming.length !== stored.length ||
+    used.size !== stored.length ||
+    incoming.some(
+      (c, i) =>
+        match[i] === null ||
+        stored[match[i]!].masterPct !== c.masterPct ||
+        stored[match[i]!].publishingPct !== c.publishingPct,
+    );
+  const emailChanged = incoming.some((c, i) => match[i] !== null && emailDiffers(stored[match[i]!].email, c.email));
+
   if (!termsChanged) {
+    const cleared: SplitContributor[] = [];
+    const signedEmailChanges: MergeResult["signedEmailChanges"] = [];
     const contributors = incoming.map((c, i) => {
       const s = stored[match[i]!];
+      if ((s.signed || signedByPerson(s)) && emailDiffers(s.email, c.email)) {
+        cleared.push(s);
+        signedEmailChanges.push({ name: c.name, from: s.email ?? "", to: c.email ?? "" });
+        return blankSignature(fields(c));
+      }
       const carried: Partial<SplitContributor> = {};
       for (const f of SIGNATURE_FIELDS) {
         if (s[f] !== undefined) (carried as Record<string, unknown>)[f] = s[f];
       }
       return { ...fields(c), ...carried, signed: s.signed } as SplitContributor;
     });
-    const signedEmailChanges = incoming.flatMap((c, i) => {
-      const st = stored[match[i]!];
-      if (!(st.signed || signedByPerson(st))) return [];
-      const from = st.email ?? "";
-      const to = c.email ?? "";
-      return sameEmail(from, to) || (!from && !to) ? [] : [{ name: c.name, from, to }];
-    });
-    return { contributors, termsChanged: false, cleared: [], signedEmailChanges };
+    return { contributors, termsChanged: false, sharesChanged, emailChanged, cleared, signedEmailChanges };
   }
 
   const cleared = stored.filter((s) => s.signed || signedByPerson(s));
   const contributors = incoming.map((c) => blankSignature(fields(c)));
-  return { contributors, termsChanged: true, cleared, signedEmailChanges: [] };
+  return { contributors, termsChanged: true, sharesChanged, emailChanged, cleared, signedEmailChanges: [] };
 }

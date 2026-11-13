@@ -338,7 +338,9 @@ export function SplitsTab({ songId }: { songId: Id<"songs"> }) {
           {anySignature && (
             <p className="text-xs text-steel/80">
               Changing a name, role or share, or adding or removing someone, clears the signatures
-              and everyone signs again. Fixing an email, PRO or IPI keeps them.
+              and everyone signs again. Changing someone&rsquo;s email clears their signature and they sign
+              again from the new address. Once anyone has signed, only the studio owner can change an
+              email or a share. Fixing a PRO or IPI keeps every signature.
             </p>
           )}
           {split?.marked && (

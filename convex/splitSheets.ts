@@ -5,7 +5,7 @@ import { ConvexError, v } from "convex/values";
 import type { Doc } from "./_generated/dataModel";
 import { currentOrg, assertOrg, currentOrgWithCapability, currentActor } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
-import { validEmail } from "./lib/emailKey";
+import { sameEmail, validEmail } from "./lib/emailKey";
 import { allocateSongLines } from "./lib/royaltyAllocate";
 import {
   displayStatus,
@@ -104,6 +104,25 @@ async function keepClearedSignatures(
   }
 }
 
+/** A signing link is tied to an email. When that email is no longer on the
+ *  sheet, its unused link is revoked so it cannot sign for someone else's row
+ *  if the address comes back. Bounded: one sheet's links. */
+async function revokeStaleSigningLinks(
+  ctx: MutationCtx,
+  sheetId: Doc<"splitSheets">["_id"],
+  contributors: SplitContributor[],
+) {
+  const grants = await ctx.db
+    .query("collaboratorGrants")
+    .withIndex("by_entity", (q) => q.eq("entityId", sheetId))
+    .take(500);
+  for (const g of grants) {
+    if (g.scope !== "splitsheet" || g.revoked) continue;
+    if (contributors.some((c) => sameEmail(c.email, g.email))) continue;
+    await ctx.db.patch(g._id, { revoked: true });
+  }
+}
+
 function notSignedError(contributors: SplitContributor[]) {
   const waiting = contributors.filter((c) => !signedByPerson(c)).map((c) => c.name.trim() || "Unnamed contributor");
   return new ConvexError({
@@ -189,8 +208,26 @@ export const upsert = mutation({
     if (existing && existing.orgId !== orgId) throw new Error("Not found");
     if (existing) {
       const merged = mergeContributors(existing.contributors, contributors);
+      // Once anyone has signed (or the owner marked the sheet signed), only
+      // the owner may change who a share is paid to or how big it is.
+      const anyoneSigned =
+        isSheetExecuted(existing.status) || existing.contributors.some((c) => c.signed || signedByPerson(c));
+      if (anyoneSigned && (merged.emailChanged || merged.sharesChanged)) {
+        const viewer = await requireCapability(ctx, "splitsheet.edit", { orgId });
+        if (viewer.kind !== "studio_member" || viewer.role !== "owner") {
+          throw new ConvexError({
+            code: "CAPABILITY_DENIED",
+            message:
+              "Someone has already signed this split sheet. Only the studio owner can change a contributor's email or share now.",
+          });
+        }
+      }
+      // A cleared signature (a term change, or a signed person's email
+      // changed) or any such change to an executed sheet means it is no
+      // longer signed by everyone: it goes back out for signature.
       const reopened =
-        merged.termsChanged && (merged.cleared.length > 0 || isSheetExecuted(existing.status));
+        (merged.termsChanged || merged.emailChanged) &&
+        (merged.cleared.length > 0 || isSheetExecuted(existing.status));
       let nextStatus = existing.status;
       if (reopened) nextStatus = existing.status === "draft" ? "draft" : "sent";
       if (status !== undefined) nextStatus = status;
@@ -201,7 +238,9 @@ export const upsert = mutation({
       const changed = contributorsChanged(existing.contributors, merged.contributors);
       const actor = await currentActor(ctx);
       if (merged.cleared.length > 0) {
-        await keepClearedSignatures(ctx, existing, merged.cleared, actor, "terms_changed");
+        await keepClearedSignatures(
+          ctx, existing, merged.cleared, actor, merged.termsChanged ? "terms_changed" : "email_changed",
+        );
       }
       await ctx.db.patch(existing._id, {
         contributors: merged.contributors,
@@ -221,18 +260,21 @@ export const upsert = mutation({
         });
       }
       if (merged.signedEmailChanges.length > 0) {
-        // The signature stays (an email fix is not a new term), but royalty
-        // shares follow the email, so the change is on the record.
+        // Royalty shares follow the email, so a signature never carries over
+        // to a new address: it was cleared (and kept in the history above).
         await ctx.db.insert("activity", {
           orgId,
           kind: "split.signer_email_changed",
           summary:
-            `Email changed after signing on "${song.title}" by ${actor}: ` +
+            `Email changed after signing on "${song.title}" by ${actor}, so the signature was cleared: ` +
             merged.signedEmailChanges.map((e) => `${e.name} ${e.from || "(none)"} -> ${e.to || "(none)"}`).join("; "),
           entityType: "song",
           entityId: songId,
           accent: "gold",
         });
+      }
+      if (merged.emailChanged || merged.termsChanged) {
+        await revokeStaleSigningLinks(ctx, existing._id, merged.contributors);
       }
       if (reopened) {
         await ctx.db.insert("activity", {
