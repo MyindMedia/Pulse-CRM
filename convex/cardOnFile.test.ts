@@ -1343,3 +1343,59 @@ describe("H205-R2-01 / R2-02: a matching reference alone does not make a charge 
   });
 });
 
+
+describe("H205-R2-05: money paid on the session's invoices counts as paid", () => {
+  it("a completed session paid by invoice, then re-marked a no-show, is not charged again", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true, feePct: 100 });
+    await agreeAndSave(t, ids);
+    await t.run((ctx) => ctx.db.patch(ids.session, {
+      cardConsent: { text: "agreed", feePct: 100, windowHours: 24, maxFeeCents: 20_000, agreedAt: Date.now(), paymentMethodId: "pm_checkout" },
+    }));
+    await startedConfirmed(t, ids.session, { depositPaid: true, amountPaidCents: 6_000 });
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "completed" });
+    const [completion] = await invoicesA(t);
+    expect(completion.amountCents).toBe(14_000);
+    await t.run((ctx) => ctx.db.patch(completion._id, { status: "paid", paidAt: Date.now(), paymentMethod: "card" }));
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    expect(await scheduled(t, "chargeFee")).toHaveLength(0);
+    expect(await invoicesA(t)).toHaveLength(1);
+    expect(fake.pi).toHaveLength(0);
+  });
+
+  it("partly paid by invoice: only the rest of the fee is charged", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await startedConfirmed(t, ids.session);
+    await t.run((ctx) => ctx.db.insert("invoices", {
+      orgId: ORG_A, number: "PLS-PART", artistId: ids.a, sessionId: ids.session, status: "paid", paidAt: Date.now(),
+      lineItems: [{ label: "Nova - Studio A - balance", amountCents: 3_000 }], amountCents: 3_000, dueDate: Date.now(),
+    }));
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    const fee = (await invoicesA(t)).find((i) => i.number !== "PLS-PART")!;
+    expect(fee.amountCents).toBe(7_000);
+    await runCharge(t, fee._id);
+    expect(fake.pi[0].params.amount).toBe(7_000);
+  });
+
+  it("an unpaid or another session's invoice is not counted", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await startedConfirmed(t, ids.session);
+    await t.run(async (ctx) => {
+      await ctx.db.insert("invoices", {
+        orgId: ORG_A, number: "PLS-OPEN", artistId: ids.a, sessionId: ids.session, status: "sent",
+        lineItems: [{ label: "x", amountCents: 5_000 }], amountCents: 5_000, dueDate: Date.now(),
+      });
+      await ctx.db.insert("invoices", {
+        orgId: ORG_A, number: "PLS-OTHER", artistId: ids.a, status: "paid", paidAt: Date.now(),
+        lineItems: [{ label: "x", amountCents: 5_000 }], amountCents: 5_000, dueDate: Date.now(),
+      });
+    });
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    const fee = (await invoicesA(t)).find((i) => i.lineItems[0].label.includes("no-show fee"))!;
+    expect(fee.amountCents).toBe(10_000);
+  });
+});

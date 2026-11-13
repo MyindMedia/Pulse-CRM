@@ -9,8 +9,9 @@ import { currentOrg } from "./lib/tenant";
 import { requireCapability } from "./lib/access";
 import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
-import { autoChargeDecision, feeEmailBody, NO_SHOW_CHARGE_DELAY_MS, paidTowardSession } from "./lib/cardConsent";
+import { autoChargeDecision, feeEmailBody, NO_SHOW_CHARGE_DELAY_MS } from "./lib/cardConsent";
 import { flagFeeChargeToCheck, isOurFeeCharge, markFeeInvoicePaid } from "./lib/cardOnFileWebhook";
+import { paidTowardSessionAll } from "./lib/sessionPaid";
 
 /* ============================================================
    Card on file - the No-Show Shield's auto-charge path.
@@ -387,9 +388,9 @@ export const _claimFeeCharge = internalMutation({
       status: session.status,
       feeCents: session.cancellationFeeCents ?? inv.amountCents,
       chargeCents: inv.amountCents,
-      // What the client has paid toward the session as it stands now: a
-      // payment made since the fee was assessed is never charged again.
-      paidCents: paidTowardSession(session),
+      // What the client has paid toward the session as it stands now (its
+      // own total plus paid invoices for it): never charged again.
+      paidCents: await paidTowardSessionAll(ctx, session, inv._id),
       startTime: session.startTime,
       // When the fee was assessed, not when this ran.
       now: inv.autoCharge.at,
@@ -489,7 +490,7 @@ async function clientFeeEmail(
       title: session.title,
       feeCents: fee,
       depositForfeitCents: session.depositForfeited ? session.depositCents : 0,
-      paidAppliedCents: Math.min(paidTowardSession(session), fee),
+      paidAppliedCents: Math.min(await paidTowardSessionAll(ctx, session, inv._id), fee),
       balanceCents: inv.amountCents,
       outcome,
       cardLast4: artist.cardLast4,

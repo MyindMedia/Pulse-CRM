@@ -22,8 +22,8 @@ import {
   feeEmailBody,
   feeStillOwedCents,
   NO_SHOW_CHARGE_DELAY_MS,
-  paidTowardSession,
 } from "./lib/cardConsent";
+import { paidTowardSessionAll } from "./lib/sessionPaid";
 import { isSmsOptedOut } from "./lib/smsOptOut";
 import { stageChecklistsFor, dropPreChecklistFor } from "./checklists";
 import { ensureSessionShift } from "./shifts";
@@ -588,7 +588,10 @@ async function assessNoShowShield(
   // Everything already in hand for this session (the deposit, or more when
   // the client paid in full) is applied toward the fee; only the remainder
   // needs collecting. A client who paid at least the fee owes nothing more.
-  const paidCents = paidTowardSession(s);
+  // Paid invoices for the session count too (paying an invoice never updates
+  // amountPaidCents), so a completed session paid by invoice and then marked
+  // a no-show is not charged again.
+  const paidCents = await paidTowardSessionAll(ctx, s);
   const additionalCents = feeStillOwedCents(fee, paidCents);
 
   await ctx.db.patch(s._id, {
