@@ -13,7 +13,7 @@ import { autoChargeDecision, cardConsentText, feeEmailBody, type AutoChargeInput
    test names the eval.md check it proves. */
 
 /* ── A fake Stripe ─────────────────────────────────────────────────── */
-type PiMode = "succeed" | "decline" | "auth" | "requires_action" | "network";
+type PiMode = "succeed" | "decline" | "auth" | "requires_action" | "network" | "processing";
 const fake: {
   pi: { params: Record<string, unknown>; opts: Record<string, unknown> }[];
   piMode: PiMode;
@@ -81,6 +81,7 @@ vi.mock("./lib/stripe", async (orig) => {
           }
           if (fake.piMode === "network") throw new Error("socket hang up");
           if (fake.piMode === "requires_action") return { id: `pi_${n}`, status: "requires_action" };
+          if (fake.piMode === "processing") return { id: `pi_${n}`, status: "processing" };
           return { id: `pi_${n}`, status: "succeeded" };
         },
         list: async (params: Record<string, unknown>, opts: Record<string, unknown>) => {
@@ -1270,3 +1271,75 @@ describe("H205-10 / H205-11: a late fee-charge webhook on an invoice settled ano
     expect(await checks(t)).toHaveLength(0);
   });
 });
+
+/* ── Round 3 re-review items (HIGH-RISK-REREVIEW-2026-11-12) ───────────── */
+
+const insightsA = (t: T) => t.run((ctx) => ctx.db.query("insights").withIndex("by_org", (q) => q.eq("orgId", ORG_A)).collect());
+
+describe("H205-R2-01 / R2-02: a matching reference alone does not make a charge ours", () => {
+  const feeEvent = (invoiceId: string, id: string) =>
+    evt("payment_intent.succeeded", { id, status: "succeeded", amount: 10_000, metadata: { kind: "no_show_fee", invoiceId } }, "acct_A");
+
+  async function processingCharge(t: T) {
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await confirmedStarted(t, ids.session);
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    fake.piMode = "processing";
+    const [inv] = await invoicesA(t);
+    await runCharge(t, inv._id);
+    const after = (await invoicesA(t))[0];
+    expect(after.autoCharge).toMatchObject({ status: "failed", reference: "pi_1" });
+    return { ids, inv };
+  }
+
+  it("processing outcome, then the client pays the invoice by link, then the charge succeeds: a 'Check charge' alert is raised", async () => {
+    const t = newT();
+    const { inv } = await processingCharge(t);
+    await t.run((ctx) => ctx.db.patch(inv._id, { status: "paid", paidAt: Date.now(), paymentMethod: "card" }));
+    await t.mutation(internal.billingWebhooks.handle, { event: feeEvent(inv._id, "pi_1") });
+    const found = (await insightsA(t)).filter((i) => i.title.startsWith("Check charge pi_1"));
+    expect(found).toHaveLength(1);
+    expect(await emails(t, "invoice.fee_charge_check")).toHaveLength(1);
+    expect(await stripeEventTypes(t)).toContain("payment_intent.succeeded.already_settled");
+  });
+
+  it("processing outcome, then staff void the invoice, then the charge succeeds: a 'Check charge' alert is raised", async () => {
+    const t = newT();
+    const { inv } = await processingCharge(t);
+    await t.run((ctx) => ctx.db.patch(inv._id, { status: "void" }));
+    await t.mutation(internal.billingWebhooks.handle, { event: feeEvent(inv._id, "pi_1") });
+    expect((await insightsA(t)).filter((i) => i.title.startsWith("Check charge pi_1"))).toHaveLength(1);
+    expect((await invoicesA(t))[0].status).toBe("void");
+  });
+
+  it("processing outcome and the invoice still open: the later success settles it, with no alert", async () => {
+    const t = newT();
+    const { inv } = await processingCharge(t);
+    await t.mutation(internal.billingWebhooks.handle, { event: feeEvent(inv._id, "pi_1") });
+    expect((await invoicesA(t))[0]).toMatchObject({ status: "paid", autoCharge: { status: "succeeded", reference: "pi_1" } });
+    expect((await insightsA(t)).filter((i) => i.title.startsWith("Check charge"))).toHaveLength(0);
+  });
+
+  it("a charge outcome reported after the webhook already settled the invoice never asks staff to send it", async () => {
+    const t = newT();
+    const ids = await seed(t, { autoCharge: true });
+    await agreeAndSave(t, ids);
+    await confirmedStarted(t, ids.session);
+    await owner(t).mutation(api.sessions.setStatus, { id: ids.session, status: "no_show" });
+    const [inv] = await invoicesA(t);
+    await t.run(async (ctx) => {
+      const row = await ctx.db.get(inv._id);
+      await ctx.db.patch(inv._id, { autoCharge: { ...row!.autoCharge!, at: row!.autoCharge!.at - 16 * 60_000 } });
+    });
+    await t.mutation(internal.cardOnFile._claimFeeCharge, { invoiceId: inv._id });
+    // The webhook settles it while the action is still waiting on Stripe...
+    await t.mutation(internal.billingWebhooks.handle, { event: feeEvent(inv._id, "pi_x") });
+    // ...and the action then loses the response (network error).
+    await t.mutation(internal.cardOnFile._feeChargeOutcome, { invoiceId: inv._id, outcome: "failed", message: "Stripe did not confirm" });
+    expect((await invoicesA(t))[0]).toMatchObject({ status: "paid", autoCharge: { status: "succeeded", reference: "pi_x" } });
+    expect((await insightsA(t)).some((i) => i.title.includes("Send invoice"))).toBe(false);
+    expect(await emails(t, "invoice.auto_charge_failed")).toHaveLength(0);
+  });
+});
+

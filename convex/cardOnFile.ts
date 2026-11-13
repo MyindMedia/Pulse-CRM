@@ -10,7 +10,7 @@ import { requireCapability } from "./lib/access";
 import { notify, notifyTeam } from "./lib/notify";
 import { money } from "./lib/money";
 import { autoChargeDecision, feeEmailBody, NO_SHOW_CHARGE_DELAY_MS, paidTowardSession } from "./lib/cardConsent";
-import { flagFeeChargeToCheck, markFeeInvoicePaid } from "./lib/cardOnFileWebhook";
+import { flagFeeChargeToCheck, isOurFeeCharge, markFeeInvoicePaid } from "./lib/cardOnFileWebhook";
 
 /* ============================================================
    Card on file - the No-Show Shield's auto-charge path.
@@ -512,7 +512,7 @@ export const _feeChargeOutcome = internalMutation({
     const inv = await ctx.db.get(invoiceId);
     if (!inv || inv.autoCharge?.status !== "charging") return;
     if (outcome === "succeeded" && reference) {
-      const ours = inv.status === "paid" && inv.autoCharge.reference === reference;
+      const ours = inv.status === "paid" && isOurFeeCharge(inv, reference);
       if (!ours && (inv.status === "paid" || inv.status === "void")) {
         // Money came in for an invoice someone already settled or cancelled
         // while the charge ran. Never keep it silently.
@@ -534,6 +534,18 @@ export const _feeChargeOutcome = internalMutation({
     }
     const status = outcome === "succeeded" ? "failed" : outcome;
     const text = message ?? (outcome === "needs_client" ? "needs the client to confirm" : "charge failed");
+    if (inv.status === "paid" || inv.status === "void") {
+      // Settled or cancelled while the charge ran: never ask anyone to send
+      // it. If the webhook already settled it with this very charge, the
+      // charge succeeded whatever the action saw afterwards.
+      const settledByUs = inv.status === "paid" && inv.autoCharge.reference !== undefined && (reference === undefined || reference === inv.autoCharge.reference);
+      await ctx.db.patch(invoiceId, {
+        autoCharge: settledByUs
+          ? { status: "succeeded", at: Date.now(), reference: inv.autoCharge.reference }
+          : { status, at: Date.now(), reference, message: text },
+      });
+      return;
+    }
     await ctx.db.patch(invoiceId, { autoCharge: { status, at: Date.now(), reference, message: text } });
     await feeFallback(ctx, inv, status, text);
   },

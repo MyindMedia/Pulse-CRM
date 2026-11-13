@@ -178,9 +178,10 @@ async function settleFee(ctx: MutationCtx, account: string, pi: Obj, meta: Recor
     );
     return ".amount_mismatch";
   }
-  if ((inv.status === "paid" || inv.status === "void") && inv.autoCharge?.reference !== reference) {
+  if ((inv.status === "paid" || inv.status === "void") && !isOurFeeCharge(inv, reference)) {
     // The invoice was settled or cancelled another way (for example the
-    // client paid the invoice link after the card charge reported failure).
+    // client paid the invoice link after the card charge reported failure or
+    // "processing", which stored this same PaymentIntent id).
     await flagFeeChargeToCheck(
       ctx,
       inv,
@@ -191,6 +192,15 @@ async function settleFee(ctx: MutationCtx, account: string, pi: Obj, meta: Recor
   }
   await markFeeInvoicePaid(ctx, inv, reference);
   return "";
+}
+
+/** Whether a charge with this reference is the one that settled the invoice:
+ *  the stored reference matches AND the charge is recorded as succeeded or
+ *  still charging. A failed or "processing" outcome also stores the
+ *  PaymentIntent id, so a matching reference alone proves nothing. */
+export function isOurFeeCharge(inv: Doc<"invoices">, reference: string): boolean {
+  const ac = inv.autoCharge;
+  return Boolean(ac && ac.reference === reference && (ac.status === "succeeded" || ac.status === "charging"));
 }
 
 /** A fee charge that needs a person: an insight and a team email. Shared by
