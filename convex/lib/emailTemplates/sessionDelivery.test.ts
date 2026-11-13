@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { filesReadyEmail, payToUnlockEmail, formatBytes, type DeliveryFile } from "./sessionDelivery";
 import { readableEmailInk, studioEmailHtml, emailButtonHtml } from "./layout";
+import { contrastRatio } from "../themeSpec";
 
 const files: DeliveryFile[] = [
   { name: "Lead vocal comp.wav", size: 58_200_000 },
@@ -105,6 +106,15 @@ describe("session delivery emails", () => {
     expect(readableEmailInk("#fdb913")).toBe("#1a1a1f");
     expect(readableEmailInk("#ffffff")).toBe("#1a1a1f");
     expect(readableEmailInk("#0a0a0a")).toBe("#ffffff");
+    // F2-12: the ink with the higher WCAG contrast wins, and it is never under
+    // 4.5:1. A coral the old brightness cutoff gave white ink (2.8:1) gets the
+    // dark ink; a green neither standard ink clears 4.5:1 on gets black.
+    expect(readableEmailInk("#ff6b4a")).toBe("#1a1a1f");
+    expect(readableEmailInk("#0f8f6f")).toBe("#000000");
+    expect(readableEmailInk("#3b63e6")).toBe("#ffffff");
+    for (const accent of ["#ff6b4a", "#0f8f6f", "#3b63e6", "#fdb913", "#ffffff", "#0a0a0a", "#808080", "#767676", "#ff0000", "#00ff00", "#0000ff"]) {
+      expect(contrastRatio(accent, readableEmailInk(accent))).toBeGreaterThanOrEqual(4.5);
+    }
   });
 
   it("E-06 no em dash in any output", () => {

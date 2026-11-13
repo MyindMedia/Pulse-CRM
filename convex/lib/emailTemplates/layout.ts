@@ -5,6 +5,8 @@
    every client; gold accents match the brand. Email-safe tables + inline
    styles only. */
 
+import { contrastRatio, MIN_TEXT_CONTRAST } from "../themeSpec";
+
 const GOLD = "#fdb913";
 
 /** Guard the injected colour: it lands inside a style attribute, so anything
@@ -109,14 +111,15 @@ ${
 }
 
 
-/** Black or white, whichever is readable on an accent. A CTA button nobody
- *  can read is the classic white-label email failure. */
+/** The ink for text on an accent: whichever of the usual dark ink and white
+ *  has the higher WCAG contrast ratio against it. When even that is under
+ *  4.5:1 (a mid-tone green such as #0f8f6f), pure black or pure white,
+ *  whichever is higher; one of the two always clears 4.5:1. A CTA button
+ *  nobody can read is the classic white-label email failure. */
 export function readableEmailInk(hex: string | undefined): string {
   if (!isHex(hex)) return GOLD_INK;
-  let h = hex!.trim().replace("#", "");
-  if (h.length === 3) h = h.split("").map((c) => c + c).join("");
-  const [r, g, b] = [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
-  const f = (c: number) => (c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
-  const lum = 0.2126 * f(r) + 0.7152 * f(g) + 0.0722 * f(b);
-  return lum > 0.45 ? "#1a1a1f" : "#ffffff";
+  const accent = hex!.trim();
+  const better = (a: string, b: string) => (contrastRatio(accent, a) >= contrastRatio(accent, b) ? a : b);
+  const ink = better("#ffffff", "#1a1a1f");
+  return contrastRatio(accent, ink) >= MIN_TEXT_CONTRAST ? ink : better("#ffffff", "#000000");
 }
