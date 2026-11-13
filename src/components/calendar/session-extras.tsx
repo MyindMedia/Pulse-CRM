@@ -7,6 +7,7 @@ import type { Id } from "@convex/_generated/dataModel";
 import { toast } from "sonner";
 import {
   AudioLines,
+  Check,
   ClipboardList,
   Download,
   FileText,
@@ -24,7 +25,6 @@ import {
   Receipt,
   Sparkles,
   Trash2,
-  Upload,
   X,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -39,7 +39,9 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { EntityLink, InvoiceLink } from "@/components/shell/entity-link";
-import { putToR2 } from "@/lib/r2-upload";
+import { putToR2WithProgress } from "@/lib/r2-upload";
+import { SessionDeliveryCard } from "@/components/calendar/session-delivery-card";
+import { SessionDropZone, UploadQueueList, useUploadQueue } from "@/components/calendar/session-upload-queue";
 import { money, relativeTime, shortDate } from "@/lib/format";
 import { meta, INVOICE_STATUS } from "@/lib/labels";
 import { cn } from "@/lib/utils";
@@ -261,31 +263,53 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
   const linkSong = useMutation(api.sessionFiles.linkSong);
   const unlinkSong = useMutation(api.sessionFiles.unlinkSong);
 
+  const setFinal = useMutation(api.sessionDelivery.setFinal);
+
   const fileInput = useRef<HTMLInputElement>(null);
   const songInput = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState<string | null>(null);
   const [picking, setPicking] = useState(false);
   const [playing, setPlaying] = useState<{ versionId: string; url: string } | null>(null);
+  const [finalBusy, setFinalBusy] = useState<ReadonlySet<string>>(new Set());
 
-  async function upload(file: File, opts?: { asSong?: boolean }) {
-    setUploading(file.name);
-    try {
+  const queue = useUploadQueue<{ asSong?: boolean }>(
+    async (file, { signal, onProgress }, meta) => {
+      const mimeType = file.type || "application/octet-stream";
+      const prep = await prepare({ sessionId, fileName: file.name || "upload", mimeType, size: file.size });
+      await putToR2WithProgress(file, prep, onProgress, signal);
+      const mediaId = prep.mediaId as Id<"mediaFiles">;
+      // A cancel that lands after the bytes are in leaves an unconfirmed upload,
+      // which the pending-upload sweep clears; nothing is attached.
+      if (signal.aborted) throw new DOMException("Upload canceled.", "AbortError");
+      await confirm({ mediaId });
+      if (signal.aborted) throw new DOMException("Upload canceled.", "AbortError");
       let songId: Id<"songs"> | undefined;
-      if (opts?.asSong) {
+      if (meta?.asSong) {
         const title = file.name.replace(/\.[a-z0-9]{1,8}$/i, "").trim() || "Untitled";
         songId = (await createSong({ title, artistId, kind: "single" })) as Id<"songs">;
       }
-      const mimeType = file.type || "application/octet-stream";
-      const prep = await prepare({ sessionId, fileName: file.name || "upload", mimeType, size: file.size });
-      await putToR2(file, prep);
-      await confirm({ mediaId: prep.mediaId as Id<"mediaFiles"> });
-      await attach({ sessionId, mediaId: prep.mediaId as Id<"mediaFiles">, songId });
-      toast.success(opts?.asSong ? `Added "${file.name}" as a new song` : `Uploaded ${file.name}`);
-    } catch (err) {
+      await attach({ sessionId, mediaId, songId });
+    },
+    (err) => {
       const msg = errorText(err, "Upload failed.");
-      toast.error(/R2 is not configured/i.test(msg) ? "File storage is not set up on this deployment yet." : msg);
+      return /R2 is not configured/i.test(msg) ? "File storage is not set up on this deployment yet." : msg;
+    },
+    (file, meta) => {
+      if (meta?.asSong) toast.success(`Added "${file.name}" as a new song`);
+    },
+  );
+
+  async function toggleFinal(assetId: Id<"mediaAssets">, next: boolean) {
+    setFinalBusy((prev) => new Set(prev).add(assetId));
+    try {
+      await setFinal({ assetId, final: next });
+    } catch (err) {
+      toast.error(errorText(err, "Could not change Final."));
     } finally {
-      setUploading(null);
+      setFinalBusy((prev) => {
+        const out = new Set(prev);
+        out.delete(assetId);
+        return out;
+      });
     }
   }
 
@@ -384,17 +408,19 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
       <div className={SECTION}>
         <SectionTitle icon={Paperclip}>Files</SectionTitle>
         {data?.canUpload && (
-          <div className="flex flex-wrap gap-2">
+          <div className="space-y-2">
             <input
               ref={fileInput}
               type="file"
+              multiple
               className="sr-only"
-              aria-label="Upload a file to this session"
+              tabIndex={-1}
+              aria-label="Upload files to this session"
               data-testid="session-file-input"
               onChange={(e) => {
-                const f = e.target.files?.[0];
+                const picked = Array.from(e.target.files ?? []);
                 e.target.value = "";
-                if (f) void upload(f);
+                queue.add(picked);
               }}
             />
             <input
@@ -402,30 +428,26 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
               type="file"
               accept="audio/*"
               className="sr-only"
+              tabIndex={-1}
               aria-label="Upload audio as a new song"
               onChange={(e) => {
                 const f = e.target.files?.[0];
                 e.target.value = "";
-                if (f) void upload(f, { asSong: true });
+                if (f) queue.add([f], { asSong: true });
               }}
             />
-            <Button size="sm" variant="secondary" disabled={uploading !== null} onClick={() => fileInput.current?.click()}>
-              <Upload className="size-3.5" />
-              Upload file
-            </Button>
+            <SessionDropZone onFiles={(list) => queue.add(list)} onBrowse={() => fileInput.current?.click()} />
             {data.canCreateSong && (
-              <Button size="sm" variant="outline" disabled={uploading !== null} onClick={() => songInput.current?.click()}>
-                <Music2 className="size-3.5" />
-                Upload as new song
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button size="sm" variant="outline" className="h-9 max-sm:h-11" onClick={() => songInput.current?.click()}>
+                  <Music2 className="size-3.5" />
+                  Upload as new song
+                </Button>
+              </div>
             )}
           </div>
         )}
-        {uploading && (
-          <p className="text-xs text-steel" role="status">
-            Uploading {uploading}...
-          </p>
-        )}
+        <UploadQueueList items={queue.items} onCancel={queue.cancel} onDismiss={queue.remove} />
         {data === undefined ? (
           <Skeleton className="h-12 w-full" />
         ) : data.files.length === 0 ? (
@@ -438,29 +460,50 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
               const isPlaying = playing?.versionId === f.versionId;
               return (
                 <li key={f.assetId} className={cn(ROW, "p-2.5")}>
-                  <div className="flex items-center gap-2.5">
-                    <span className="grid size-8 shrink-0 place-items-center rounded-md bg-coal-3 text-gold-dim">
+                  <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
+                    <span className="grid size-9 shrink-0 place-items-center rounded-md bg-coal-3 text-gold-dim">
                       <Icon className="size-4" />
                     </span>
-                    <div className="min-w-0 flex-1">
+                    <div className="min-w-0 flex-1 basis-32">
                       <p className="truncate text-sm font-medium text-bone" title={f.fileName}>{f.name}</p>
                       <p className="truncate text-[0.6875rem] text-steel/70">
                         {bytes(f.size)} · {f.uploadedBy} · {shortDate(f.uploadedAt)}
                       </p>
                     </div>
-                    <div className="flex shrink-0 items-center gap-0.5">
+                    <div className="ml-auto flex shrink-0 flex-wrap items-center gap-0.5">
+                      {data.canUpload && (
+                        <button
+                          type="button"
+                          aria-pressed={f.clientFinal}
+                          aria-label={`Final: ${f.name}`}
+                          disabled={finalBusy.has(f.assetId)}
+                          onClick={() => void toggleFinal(f.assetId, !f.clientFinal)}
+                          className={cn(
+                            "mr-1 inline-flex min-h-9 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[0.75rem] font-semibold transition-colors",
+                            "focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-gold disabled:opacity-60 max-sm:min-h-11",
+                            f.clientFinal
+                              ? "border-transparent bg-gold text-gold-ink"
+                              : "border-graphite/70 bg-transparent text-steel hover:border-gold-dim hover:text-bone",
+                          )}
+                        >
+                          {f.clientFinal && <Check className="size-3.5" strokeWidth={2.5} aria-hidden />}
+                          Final
+                        </button>
+                      )}
+                      {!data.canUpload && f.clientFinal && <Badge tone="gold">Final</Badge>}
                       {audio && (
-                        <Button size="icon-sm" variant="ghost" aria-label={isPlaying ? `Stop ${f.name}` : `Play ${f.name}`} onClick={() => void play(f.versionId)}>
+                        <Button size="icon-sm" variant="ghost" className="size-9 max-sm:size-11" aria-label={isPlaying ? `Stop ${f.name}` : `Play ${f.name}`} onClick={() => void play(f.versionId)}>
                           {isPlaying ? <Pause className="size-3.5" /> : <Play className="size-3.5" />}
                         </Button>
                       )}
-                      <Button size="icon-sm" variant="ghost" aria-label={`Download ${f.name}`} onClick={() => void download(f.versionId)}>
+                      <Button size="icon-sm" variant="ghost" className="size-9 max-sm:size-11" aria-label={`Download ${f.name}`} onClick={() => void download(f.versionId)}>
                         <Download className="size-3.5" />
                       </Button>
                       {f.canDelete && (
                         <Button
                           size="icon-sm"
                           variant="ghost"
+                          className="size-9 max-sm:size-11"
                           aria-label={`Delete ${f.name}`}
                           onClick={() =>
                             void removeFile({ assetId: f.assetId })
@@ -481,6 +524,7 @@ export function SessionFilesPanel({ sessionId, artistId }: { sessionId: Id<"sess
             })}
           </ul>
         )}
+        <SessionDeliveryCard sessionId={sessionId} canUpload={data?.canUpload === true} />
       </div>
     </section>
   );
