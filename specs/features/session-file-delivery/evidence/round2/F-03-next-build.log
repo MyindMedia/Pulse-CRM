@@ -1,0 +1,151 @@
+▲ Next.js 16.2.6 (Turbopack)
+- Environments: .env.local
+
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+✓ Compiled successfully in 7.8s
+  Running TypeScript ...
+  Finished TypeScript in 33.0s ...
+  Collecting page data using 9 workers ...
+  Generating static pages using 9 workers (0/95) ...
+  Generating static pages using 9 workers (23/95) 
+  Generating static pages using 9 workers (47/95) 
+  Generating static pages using 9 workers (71/95) 
+✓ Generating static pages using 9 workers (95/95) in 958ms
+  Finalizing page optimization ...
+
+Route (app)                                    Revalidate  Expire
+┌ ƒ /
+├ ƒ /_not-found
+├ ƒ /.well-known/apple-app-site-association
+├ ƒ /agency
+├ ƒ /agency/[orgId]
+├ ƒ /agency/agents
+├ ƒ /agency/audit
+├ ƒ /agency/autopilot
+├ ƒ /agency/beta
+├ ƒ /agency/branding
+├ ƒ /agency/crm
+├ ƒ /agency/email
+├ ƒ /agency/feature-requests
+├ ƒ /agency/outreach
+├ ƒ /agency/plans
+├ ƒ /agency/settings
+├ ƒ /agency/signups
+├ ƒ /agency/staff
+├ ƒ /agency/staff/[id]
+├ ƒ /agency/unrouted
+├ ƒ /agent
+├ ƒ /api/agency/email/inboxes
+├ ƒ /api/brand-card/[postId]/[kind]/[version]
+├ ƒ /api/geo
+├ ƒ /banking
+├ ƒ /billing
+├ ƒ /billing/added
+├ ƒ /book
+├ ƒ /book/[slug]
+├ ƒ /book/[slug]/[roomId]
+├ ƒ /book/[slug]/checkout/[sessionId]
+├ ƒ /book/[slug]/s/[serviceId]
+├ ƒ /booked
+├ ƒ /bookings
+├ ƒ /brief/[sessionId]
+├ ƒ /calendar
+├ ƒ /changes
+├ ƒ /clock
+├ ƒ /dashboard
+├ ƒ /delivery/[token]
+├ ƒ /expenses
+├ ƒ /feature-requests
+├ ƒ /files/[token]
+├ ƒ /google/callback
+├ ○ /icon.svg
+├ ƒ /inbox
+├ ƒ /inventory
+├ ƒ /inventory/labels
+├ ƒ /invite/[token]
+├ ƒ /kiosk
+├ ƒ /library
+├ ƒ /licensing
+├ ○ /llms-full.txt                                     1h      1y
+├ ○ /llms.txt                                          1h      1y
+├ ○ /manifest.webmanifest
+├ ƒ /marketing
+├ ƒ /marketing/accounts
+├ ƒ /marketing/compose
+├ ƒ /marketing/promos
+├ ƒ /marketing/results
+├ ƒ /messages
+├ ƒ /mixes
+├ ƒ /mobile
+├ ƒ /mypulse
+├ ○ /mypulse/opengraph-image
+├ ○ /mypulse/twitter-image
+├ ƒ /onboard
+├ ƒ /onboard/done
+├ ○ /opengraph-image
+├ ƒ /packages
+├ ƒ /patch
+├ ƒ /patch/[id]
+├ ƒ /pay/invoice/[invoiceId]
+├ ƒ /payments
+├ ƒ /payments/[id]
+├ ƒ /payroll
+├ ƒ /pipeline
+├ ƒ /plaid/oauth
+├ ƒ /portal/[token]
+├ ƒ /preview
+├ ƒ /preview/books
+├ ƒ /preview/claim
+├ ƒ /pricing
+├ ○ /pricing/opengraph-image
+├ ○ /pricing/twitter-image
+├ ○ /privacy
+├ ƒ /projects
+├ ƒ /projects/[id]
+├ ƒ /releases
+├ ƒ /rentals
+├ ƒ /reports
+├ ƒ /reports/books
+├ ƒ /review/[token]
+├ ○ /robots.txt
+├ ƒ /roster
+├ ƒ /roster/[id]
+├ ƒ /royalties
+├ ƒ /royalty/[token]
+├ ƒ /schedule
+├ ƒ /settings
+├ ƒ /sign-in/[[...sign-in]]
+├ ƒ /sign-up/[[...sign-up]]
+├ ƒ /sign/[token]
+├ ○ /sitemap.xml                                       1h      1y
+├ ƒ /software
+├ ƒ /songs
+├ ƒ /songs/[id]
+├ ƒ /splits
+├ ƒ /splits/[songId]
+├ ƒ /start/[token]
+├ ƒ /studio
+├ ƒ /studio/[id]
+├ ƒ /studios
+├ ƒ /studios/[slug]
+├ ƒ /studios/in/[city]
+├ ○ /support
+├ ○ /terms
+├ ƒ /today
+├ ○ /twitter-image
+├ ƒ /ui-lab
+├ ƒ /unsubscribe/[token]
+├ ƒ /visit/[slug]
+├ ƒ /visitors
+├ ƒ /vs
+├ ƒ /welcome
+├ ƒ /welcome-team
+└ ƒ /welcome/activate
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+
