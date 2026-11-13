@@ -1,4 +1,8 @@
 import { R2 } from "@convex-dev/r2";
+// The S3 client and presigner the R2 component itself is built on (installed
+// with @convex-dev/r2). Used only to sign a GET with a download file name.
+import { GetObjectCommand } from "@aws-sdk/client-s3";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 import { components, internal } from "../_generated/api";
 import type { QueryCtx, MutationCtx } from "../_generated/server";
 import type { Doc, Id } from "../_generated/dataModel";
@@ -144,6 +148,44 @@ export async function fileUrl(ctx: Reader, ref: FileRef | null | undefined, opts
     return await r2For("private", bucket).getUrl(row.key, { expiresIn: opts.expiresIn ?? 3600 });
   }
   return await ctx.storage.getUrl(ref as Id<"_storage">);
+}
+
+/** RFC 5987 percent-encoding for a `filename*` value. */
+function rfc5987(s: string): string {
+  return encodeURIComponent(s).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+}
+
+/** A Content-Disposition value that saves the download as `fileName`. The
+ *  caller passes a name already made safe (no quotes, slashes, backslashes or
+ *  control characters); the quoted fallback is ASCII only and the real name
+ *  rides in `filename*` (RFC 5987), so non-ASCII letters survive. */
+export function attachmentDisposition(fileName: string): string {
+  const ascii = fileName.replace(/[^\x20-\x7e]/g, "_").replace(/["\\]/g, "_") || "download";
+  return `attachment; filename="${ascii}"; filename*=UTF-8''${rfc5987(fileName)}`;
+}
+
+/** A signed GET for a PRIVATE R2 file that downloads under `fileName`. The R2
+ *  component's getUrl cannot set the response file name, so this signs the
+ *  GetObject directly with the component's own S3 client (same bucket, same
+ *  credentials). The caller must have passed its own gate. Null when the file
+ *  is gone, unfinished, or not a private-bucket file. */
+export async function signedDownloadUrl(
+  ctx: Reader,
+  mediaId: Id<"mediaFiles">,
+  opts: { expiresIn: number; fileName: string },
+): Promise<string | null> {
+  const row = await ctx.db.get(mediaId);
+  if (!row || row.status !== "ready" || row.bucket !== "private") return null;
+  const r2 = r2For("private", rowBucket(row));
+  return await getSignedUrl(
+    r2.client,
+    new GetObjectCommand({
+      Bucket: r2.config.bucket,
+      Key: row.key,
+      ResponseContentDisposition: attachmentDisposition(opts.fileName),
+    }),
+    { expiresIn: opts.expiresIn },
+  );
 }
 
 /** Size in bytes of a stored file, whichever store holds it (0 if unknown). */

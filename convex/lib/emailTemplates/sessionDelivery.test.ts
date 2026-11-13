@@ -93,7 +93,7 @@ describe("session delivery emails", () => {
 
   it("E-06 no em dash in any output", () => {
     for (const m of [ready(), ready({ paidCents: 100 }), ready({ firstName: "" }), pay(), pay({ firstName: "" })]) {
-      for (const s of [m.subject, m.text, m.html, m.ctaLabel]) expect(s).not.toContain("—");
+      for (const s of [m.subject, m.text, m.html, m.ctaLabel]) expect(s).not.toContain("\u2014");
     }
   });
 

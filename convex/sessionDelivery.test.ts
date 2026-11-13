@@ -1,9 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { api } from "./_generated/api";
+import { api, internal } from "./_generated/api";
 import type { Id } from "./_generated/dataModel";
 import { settlePayment } from "./payments";
-import { onBalanceSettled, LINK_TTL_MS } from "./sessionDelivery";
-import { r2Env, setupStudios, uploadSessionFile, clientEmails, APP_URL } from "./testing/sessionDelivery.fixture";
+import { onBalanceSettled, LINK_TTL_MS, URL_RATE_WINDOW_MS, safeDownloadName } from "./sessionDelivery";
+import { r2Env, setupStudios, uploadSessionFile, clientEmails, APP_URL, R2_KEY_PREFIX } from "./testing/sessionDelivery.fixture";
 
 /* Session file delivery. Test names start with the eval id they prove
    (specs/features/session-file-delivery/eval.md) or the plan's Review Focus
@@ -345,5 +345,302 @@ describe("session delivery: staff side and the payment trigger", () => {
     await settle(s, s.A.sessionId, "balance");
     const [row] = await deliveryRow(s, s.A.sessionId);
     for (const m of await deliveryEmails(s, s.A.sessionId)) expect(m.body).not.toContain(row.token);
+  });
+});
+
+/* ── Public side: the token page and signed downloads ───────── */
+
+const NOT_AVAILABLE = "That file is not available.";
+
+/** A released delivery with two Final files and one working file. */
+async function released(s: S) {
+  const a = await finalFile(s, s.A.sessionId, "Lead vocal.wav");
+  const b = await uploadSessionFile(s.t, s.as(s.A.engineer), s.A.sessionId, "Stems.zip", "application/zip", 80_000_000);
+  await s.as(s.A.engineer).mutation(api.sessionDelivery.setFinal, { assetId: b.assetId, final: true });
+  const working = await uploadSessionFile(s.t, s.as(s.A.engineer), s.A.sessionId, "Rough idea.wav");
+  await settle(s, s.A.sessionId, "balance");
+  await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+  const [row] = await deliveryRow(s, s.A.sessionId);
+  return { a, b, working, token: row.token, row };
+}
+
+/** A delivery waiting for payment with one Final file. */
+async function waiting(s: S) {
+  const a = await finalFile(s, s.A.sessionId, "Lead vocal.wav");
+  await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+  const [row] = await deliveryRow(s, s.A.sessionId);
+  return { a, token: row.token, row };
+}
+
+describe("session delivery: public page and downloads", () => {
+  let s: S;
+  beforeEach(async () => { r2Env(); s = await setupStudios(); });
+  afterEach(() => { vi.useRealTimers(); vi.unstubAllEnvs(); });
+
+  it("page: an unlocked delivery lists the Final files only, newest first, with the studio's brand", async () => {
+    const { a, b, token } = await released(s);
+    const p = await s.t.query(api.sessionDelivery.page, { token });
+    expect(p).toMatchObject({
+      studio: { name: "Studio A", logoUrl: null, accent: "#3b63e6" },
+      booking: { title: "Vocal tracking", startTime: s.start, roomName: null },
+      clientFirstName: "Jordan",
+      state: "unlocked",
+      balanceCents: null,
+      payUrl: null,
+      totalBytes: 85_000_000,
+    });
+    expect(p!.files.map((f) => [f.versionId, f.name, f.size, f.mimeType])).toEqual([
+      [b.versionId, "Stems.zip", 80_000_000, "application/zip"],
+      [a.versionId, "Lead vocal.wav", 5_000_000, "audio/wav"],
+    ]);
+    expect(p!.expiresAt).toBeGreaterThan(Date.now());
+    const dl = await s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: a.versionId });
+    expect(dl.url).toContain("X-Amz-Signature");
+    expect(dl.fileName).toBe("Lead vocal.wav");
+    // Saves under the original name, with a ten minute signature.
+    const u = new URL(dl.url);
+    expect(u.searchParams.get("response-content-disposition")).toContain('filename="Lead vocal.wav"');
+    expect(u.searchParams.get("X-Amz-Expires")).toBe("600");
+    expect((await deliveryRow(s, s.A.sessionId))[0].downloadCount).toBe(1);
+  });
+
+  it("page: a waiting delivery is locked with the balance and the booking's checkout", async () => {
+    const { token } = await waiting(s);
+    const p = await s.t.query(api.sessionDelivery.page, { token });
+    expect(p).toMatchObject({
+      state: "locked",
+      balanceCents: 18000,
+      payUrl: `${APP_URL}/book/studio-a/checkout/${s.A.sessionId}`,
+    });
+    expect(p!.files.map((f) => f.name)).toEqual(["Lead vocal.wav"]);
+  });
+
+  it("A-01 unknown, malformed, off and expired tokens all get the same null from page", async () => {
+    const { token } = await released(s);
+    const unknown = "a".repeat(64);
+    const malformed = "not-a-token";
+    const results = [await s.t.query(api.sessionDelivery.page, { token: unknown }), await s.t.query(api.sessionDelivery.page, { token: malformed })];
+    await s.as(s.A.owner).mutation(api.sessionDelivery.turnOff, { sessionId: s.A.sessionId });
+    results.push(await s.t.query(api.sessionDelivery.page, { token }));
+    // A second booking's delivery, expired.
+    await finalFile(s, s.A.otherSessionId);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.otherSessionId });
+    const [other] = await deliveryRow(s, s.A.otherSessionId);
+    await s.t.run(async (ctx) => { await ctx.db.patch(other._id, { expiresAt: Date.now() - 1 }); });
+    results.push(await s.t.query(api.sessionDelivery.page, { token: other.token }));
+    expect(results).toEqual([null, null, null, null]);
+  });
+
+  it("A-02 fileUrl refuses while the delivery is waiting for payment", async () => {
+    const { a, token } = await waiting(s);
+    await expect(s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: a.versionId })).rejects.toThrow(NOT_AVAILABLE);
+    expect((await deliveryRow(s, s.A.sessionId))[0].downloadCount).toBe(0);
+  });
+
+  it("A-03 fileUrl refuses a file that is not marked Final", async () => {
+    const { working, token } = await released(s);
+    await expect(s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: working.versionId })).rejects.toThrow(NOT_AVAILABLE);
+    const p = await s.t.query(api.sessionDelivery.page, { token });
+    expect(p!.files.map((f) => f.name)).not.toContain("Rough idea.wav");
+  });
+
+  it("A-04 fileUrl refuses a Final file from another booking of the same studio", async () => {
+    const { token } = await released(s);
+    const other = await finalFile(s, s.A.otherSessionId, "Other booking.wav");
+    await expect(s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: other.versionId })).rejects.toThrow(NOT_AVAILABLE);
+  });
+
+  it("A-05 fileUrl refuses a file from another studio", async () => {
+    const { token } = await released(s);
+    const theirs = await uploadSessionFile(s.t, s.as(s.B.owner), s.B.sessionId, "B master.wav");
+    await s.as(s.B.owner).mutation(api.sessionDelivery.setFinal, { assetId: theirs.assetId, final: true });
+    await expect(s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: theirs.versionId })).rejects.toThrow(NOT_AVAILABLE);
+  });
+
+  it("A-06 fileUrl refuses after Turn off link and after expiry", async () => {
+    const { a, token } = await released(s);
+    await s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: a.versionId });
+    await s.as(s.A.owner).mutation(api.sessionDelivery.turnOff, { sessionId: s.A.sessionId });
+    await expect(s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: a.versionId })).rejects.toThrow(NOT_AVAILABLE);
+
+    // A fresh link, then let it run out.
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    const [row] = await deliveryRow(s, s.A.sessionId);
+    await s.t.mutation(api.sessionDelivery.fileUrl, { token: row.token, versionId: a.versionId });
+    await s.t.run(async (ctx) => { await ctx.db.patch(row._id, { expiresAt: Date.now() - 1 }); });
+    await expect(s.t.mutation(api.sessionDelivery.fileUrl, { token: row.token, versionId: a.versionId })).rejects.toThrow(NOT_AVAILABLE);
+  });
+
+  it("A-07 page never returns a file URL, an R2 key or the token", async () => {
+    for (const { token } of [await released(s)]) {
+      const p = await s.t.query(api.sessionDelivery.page, { token });
+      const json = JSON.stringify(p);
+      const keys = await s.t.run(async (ctx) => (await ctx.db.query("mediaFiles").take(50)).map((m) => m.key));
+      expect(json).not.toContain("http");
+      expect(json).not.toContain("r2.cloudflarestorage.com");
+      expect(json).not.toContain("X-Amz");
+      expect(json).not.toContain(`${R2_KEY_PREFIX}/`);
+      for (const k of keys) expect(json).not.toContain(k);
+      expect(json).not.toContain(token);
+    }
+    // Locked too.
+    s = await setupStudios();
+    const w = await waiting(s);
+    const json = JSON.stringify(await s.t.query(api.sessionDelivery.page, { token: w.token }));
+    expect(json).toContain("/checkout/"); // the pay link is the only URL, and it is the app's own
+    expect(json).not.toContain("r2.cloudflarestorage.com");
+    // Storage keys look like "<prefix>/<studio>/deliverable/<name>-<uuid>.<ext>".
+    expect(json).not.toContain(`${R2_KEY_PREFIX}/studio_`);
+    for (const k of await s.t.run(async (ctx) => (await ctx.db.query("mediaFiles").take(50)).map((m) => m.key))) expect(json).not.toContain(k);
+    expect(json).not.toContain(w.token);
+  });
+
+  it("A-12 unmarking Final removes the file from the page and from fileUrl at once", async () => {
+    const { a, b, token } = await released(s);
+    await s.as(s.A.engineer).mutation(api.sessionDelivery.setFinal, { assetId: a.assetId, final: false });
+    const p = await s.t.query(api.sessionDelivery.page, { token });
+    expect(p!.files.map((f) => f.versionId)).toEqual([b.versionId]);
+    await expect(s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: a.versionId })).rejects.toThrow(NOT_AVAILABLE);
+  });
+
+  it("A-13 deleting a Final file removes it from the client page", async () => {
+    const { a, b, token } = await released(s);
+    await s.as(s.A.owner).mutation(api.sessionFiles.remove, { assetId: a.assetId });
+    const p = await s.t.query(api.sessionDelivery.page, { token });
+    expect(p!.files.map((f) => f.versionId)).toEqual([b.versionId]);
+  });
+
+  it("A-14 fileUrl is rate limited: 120 an hour, the 121st refused, the next window allowed", async () => {
+    const { a, token } = await released(s);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(Date.now());
+    for (let i = 0; i < 120; i++) await s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: a.versionId });
+    await expect(s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: a.versionId })).rejects.toThrow(
+      "Too many downloads. Try again in an hour.",
+    );
+    expect((await deliveryRow(s, s.A.sessionId))[0].downloadCount).toBe(120);
+    vi.setSystemTime(Date.now() + URL_RATE_WINDOW_MS + 1000);
+    const dl = await s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: a.versionId });
+    expect(dl.url).toContain("X-Amz-Signature");
+  });
+
+  it("A-15 public results carry no token", async () => {
+    const { a, token } = await released(s);
+    const dl = await s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: a.versionId });
+    expect(JSON.stringify(dl)).not.toContain(token);
+    expect(await s.t.mutation(api.sessionDelivery.opened, { token })).toBeNull();
+    expect(JSON.stringify(await s.t.query(api.sessionDelivery.page, { token }))).not.toContain(token);
+  });
+
+  it("G-11 a released delivery stays released after the rate is raised", async () => {
+    const { token } = await released(s);
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.sessionId, { rateCents: 99_000 }); });
+    const p = await s.t.query(api.sessionDelivery.page, { token });
+    expect(p).toMatchObject({ state: "unlocked", balanceCents: null, payUrl: null });
+  });
+
+  it("G-13 the old link stays dead after a new Ready to deliver", async () => {
+    const { a, token } = await released(s);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.turnOff, { sessionId: s.A.sessionId });
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    const [row] = await deliveryRow(s, s.A.sessionId);
+    expect(await s.t.query(api.sessionDelivery.page, { token })).toBeNull();
+    await expect(s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: a.versionId })).rejects.toThrow(NOT_AVAILABLE);
+    expect((await s.t.query(api.sessionDelivery.page, { token: row.token }))!.state).toBe("unlocked");
+  });
+
+  it("opened stamps first and last opened at most once a minute, and never throws", async () => {
+    const { token } = await released(s);
+    vi.useFakeTimers({ toFake: ["Date"] });
+    const t0 = Date.now();
+    vi.setSystemTime(t0);
+    await s.t.mutation(api.sessionDelivery.opened, { token });
+    vi.setSystemTime(t0 + 30_000);
+    await s.t.mutation(api.sessionDelivery.opened, { token });
+    let [row] = await deliveryRow(s, s.A.sessionId);
+    expect(row.firstOpenedAt).toBe(t0);
+    expect(row.lastOpenedAt).toBe(t0);
+    vi.setSystemTime(t0 + 61_000);
+    await s.t.mutation(api.sessionDelivery.opened, { token });
+    [row] = await deliveryRow(s, s.A.sessionId);
+    expect(row).toMatchObject({ firstOpenedAt: t0, lastOpenedAt: t0 + 61_000 });
+    expect(await s.t.mutation(api.sessionDelivery.opened, { token: "nope" })).toBeNull();
+    expect(await s.t.mutation(api.sessionDelivery.opened, { token: "b".repeat(64) })).toBeNull();
+    const st = await s.as(s.A.engineer).query(api.sessionDelivery.status, { sessionId: s.A.sessionId });
+    expect(st!.firstOpenedAt).toBe(t0);
+  });
+
+  it("RF-1 safeDownloadName: quotes, slashes, backslashes and newlines are gone, letters stay", () => {
+    const out = safeDownloadName('a"b/c\\d\n.wav');
+    for (const ch of ['"', "/", "\\", "\n", "\r"]) expect(out).not.toContain(ch);
+    expect(out).toContain(".wav");
+    expect(safeDownloadName('""""')).toBe("download");
+    expect(safeDownloadName("   ")).toBe("download");
+    expect(safeDownloadName("Ünïcode ✓.wav")).toBe("Ünïcode ✓.wav");
+    expect(safeDownloadName("x\u0000y\u001fz\u007f.wav")).toBe("xyz.wav");
+    const long = safeDownloadName(`${"n".repeat(400)}.wav`);
+    expect(long.length).toBeLessThanOrEqual(150);
+    expect(long.endsWith(".wav")).toBe(true);
+  });
+
+  it("RF-1 a hostile file name downloads under a safe name and the header stays whole", async () => {
+    const f = await uploadSessionFile(s.t, s.as(s.A.engineer), s.A.sessionId, 'Mix "final"/v2\\x\r\nSet-Cookie: a=b.wav');
+    await s.as(s.A.engineer).mutation(api.sessionDelivery.setFinal, { assetId: f.assetId, final: true });
+    const u = await uploadSessionFile(s.t, s.as(s.A.engineer), s.A.sessionId, "Ünïcode ✓.wav");
+    await s.as(s.A.engineer).mutation(api.sessionDelivery.setFinal, { assetId: u.assetId, final: true });
+    await settle(s, s.A.sessionId, "balance");
+    await s.as(s.A.owner).mutation(api.sessionDelivery.markReady, { sessionId: s.A.sessionId });
+    const [row] = await deliveryRow(s, s.A.sessionId);
+
+    const dl = await s.t.mutation(api.sessionDelivery.fileUrl, { token: row.token, versionId: f.versionId });
+    const cd = new URL(dl.url).searchParams.get("response-content-disposition")!;
+    for (const ch of ["\r", "\n", "\\"]) expect(cd).not.toContain(ch);
+    // Exactly one quoted name: no quote inside it can end it early.
+    expect(cd.match(/"/g)).toHaveLength(2);
+    expect(dl.fileName).not.toMatch(/["/\\\r\n]/);
+
+    const uni = await s.t.mutation(api.sessionDelivery.fileUrl, { token: row.token, versionId: u.versionId });
+    const ucd = new URL(uni.url).searchParams.get("response-content-disposition")!;
+    expect(uni.fileName).toBe("Ünïcode ✓.wav");
+    expect(ucd).toContain("filename*=UTF-8''%C3%9Cn%C3%AFcode%20%E2%9C%93.wav");
+    // The plain fallback is ASCII only.
+    expect(/filename="([^"]*)"/.exec(ucd)![1]).toMatch(/^[\x20-\x7e]+$/);
+  });
+
+  it("RF-2 a Final file with a newer version: the page lists and serves only the latest", async () => {
+    const { a, token } = await released(s);
+    const prep = await s.as(s.A.owner).mutation(api.mediaLibrary.prepareUpload, { fileName: "Lead vocal v2.wav", mimeType: "audio/wav", size: 6_000_000 });
+    await s.t.mutation(internal.media._markReady, { mediaId: prep.mediaId, size: 6_000_000 });
+    const v2 = await s.as(s.A.owner).mutation(api.mediaLibrary.addVersion, { mediaId: prep.mediaId, assetId: a.assetId });
+    const p = await s.t.query(api.sessionDelivery.page, { token });
+    const entry = p!.files.find((f) => f.name === "Lead vocal.wav")!;
+    expect(entry.versionId).toBe(v2.versionId);
+    expect(entry.size).toBe(6_000_000);
+    expect(p!.files.some((f) => f.versionId === a.versionId)).toBe(false);
+    await expect(s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: a.versionId })).rejects.toThrow(NOT_AVAILABLE);
+    const dl = await s.t.mutation(api.sessionDelivery.fileUrl, { token, versionId: v2.versionId });
+    expect(dl.fileName).toBe("Lead vocal v2.wav");
+  });
+
+  it("RF-5 every Final file unmarked, or deleted, or the booking cancelled: the page answers like an unknown link", async () => {
+    const unknown = await s.t.query(api.sessionDelivery.page, { token: "c".repeat(64) });
+    expect(unknown).toBeNull();
+
+    let r = await released(s);
+    await s.as(s.A.owner).mutation(api.sessionDelivery.setFinal, { assetId: r.a.assetId, final: false });
+    await s.as(s.A.owner).mutation(api.sessionDelivery.setFinal, { assetId: r.b.assetId, final: false });
+    expect(await s.t.query(api.sessionDelivery.page, { token: r.token })).toEqual(unknown);
+
+    s = await setupStudios();
+    r = await released(s);
+    await s.as(s.A.owner).mutation(api.sessionFiles.remove, { assetId: r.a.assetId });
+    await s.as(s.A.owner).mutation(api.sessionFiles.remove, { assetId: r.b.assetId });
+    expect(await s.t.query(api.sessionDelivery.page, { token: r.token })).toEqual(unknown);
+
+    s = await setupStudios();
+    r = await released(s);
+    await s.t.run(async (ctx) => { await ctx.db.patch(s.A.sessionId, { status: "cancelled" }); });
+    expect(await s.t.query(api.sessionDelivery.page, { token: r.token })).toEqual(unknown);
+    await expect(s.t.mutation(api.sessionDelivery.fileUrl, { token: r.token, versionId: r.a.versionId })).rejects.toThrow(NOT_AVAILABLE);
   });
 });

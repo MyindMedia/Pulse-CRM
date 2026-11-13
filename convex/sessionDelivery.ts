@@ -8,6 +8,7 @@ import { currentMoneySight } from "./lib/tenant";
 import { notify } from "./lib/notify";
 import { appUrl } from "./lib/links";
 import { orgTz } from "./lib/tz";
+import { fileUrl as storedFileUrl, signedDownloadUrl } from "./lib/media";
 import { filesReadyEmail, payToUnlockEmail } from "./lib/emailTemplates/sessionDelivery";
 
 /* ============================================================
@@ -29,6 +30,14 @@ import { filesReadyEmail, payToUnlockEmail } from "./lib/emailTemplates/sessionD
      setFinal, markReady, resend, link   deliverables.upload (owner, manager, engineers)
      releaseNow, turnOff                 schedule.manage (owners, managers)
      status                              sessions.read; the amount only with money sight
+
+   Public, token only (the /delivery/<token> page):
+     page      what the client sees; never a file URL, a storage key or the token
+     fileUrl   one ten minute signed GET per click, only when released, only
+               for the latest version of a Final file of THIS booking
+     opened    stamps when the page was opened
+   Every way a link can be dead (malformed, unknown, off, expired, cancelled
+   booking, no Final file left) answers exactly like an unknown link.
    ============================================================ */
 
 export const LINK_TTL_MS = 30 * 24 * 60 * 60 * 1000;
@@ -390,5 +399,151 @@ export const link = query({
     const delivery = await deliveryFor(ctx, sessionId);
     if (!delivery || delivery.orgId !== access.orgId || delivery.status === "off") return null;
     return { url: deliveryUrl(delivery.token) };
+  },
+});
+
+/* ── Public (token only) ───────────────────────────────────── */
+
+const TOKEN_RE = /^[0-9a-f]{64}$/;
+const NOT_AVAILABLE = "That file is not available.";
+const HEX_RE = /^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/;
+
+/** A file name that is safe in a download header: no control characters,
+ *  quotes, slashes or backslashes; at most 150 characters (the extension
+ *  kept); "download" when nothing is left. */
+export function safeDownloadName(name: string): string {
+  let out = (name ?? "")
+    .replace(/[\u0000-\u001f\u007f-\u009f\u2028\u2029]/g, "")
+    .replace(/["'`/\\]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^\.+/, "");
+  const chars = Array.from(out);
+  if (chars.length > 150) {
+    const ext = /\.[^.\s]{1,10}$/.exec(out)?.[0] ?? "";
+    out = Array.from(out.slice(0, out.length - ext.length)).slice(0, 150 - ext.length).join("").trim() + ext;
+  }
+  return out || "download";
+}
+
+/** The live delivery for a token, with its booking, or null for every way a
+ *  link can be dead. Never says which. */
+async function liveDelivery(ctx: Ctx, token: string): Promise<{ delivery: Delivery; session: Doc<"sessions"> } | null> {
+  if (typeof token !== "string" || !TOKEN_RE.test(token)) return null;
+  const delivery = await ctx.db
+    .query("sessionDeliveries")
+    .withIndex("by_token", (q) => q.eq("token", token))
+    .first();
+  if (!delivery || delivery.token !== token) return null;
+  if (delivery.status === "off" || delivery.expiresAt <= Date.now()) return null;
+  const session = await ctx.db.get(delivery.sessionId);
+  if (!session || session.orgId !== delivery.orgId || session.status === "cancelled") return null;
+  return { delivery, session };
+}
+
+/** The client download page. Null (the same null) for any dead link. */
+export const page = query({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const live = await liveDelivery(ctx, token);
+    if (!live) return null;
+    const { delivery, session } = live;
+    const files = await finalFiles(ctx, delivery.orgId, delivery.sessionId);
+    if (files.length === 0) return null;
+    const [org, artist, room] = await Promise.all([
+      orgRow(ctx, delivery.orgId),
+      ctx.db.get(session.artistId),
+      session.roomId ? ctx.db.get(session.roomId) : null,
+    ]);
+    const locked = delivery.status !== "released";
+    const accent = org?.accentColor?.trim();
+    return {
+      studio: {
+        name: org?.name ?? "Your studio",
+        logoUrl: org?.logoId ? await storedFileUrl(ctx, org.logoId) : null,
+        accent: accent && HEX_RE.test(accent) ? accent : null,
+      },
+      booking: {
+        title: session.title,
+        startTime: session.startTime,
+        roomName: room && room.orgId === delivery.orgId ? room.name : null,
+      },
+      clientFirstName: firstName(artist && artist.orgId === delivery.orgId ? artist.name : undefined),
+      state: locked ? ("locked" as const) : ("unlocked" as const),
+      files: files.map((f) => ({
+        versionId: f.version._id,
+        name: f.asset.name,
+        size: f.version.size,
+        mimeType: f.version.mimeType,
+      })),
+      totalBytes: files.reduce((sum, f) => sum + f.version.size, 0),
+      balanceCents: locked ? owed(session) : null,
+      payUrl: locked && org?.slug ? `${appUrl().replace(/\/$/, "")}/book/${org.slug}/checkout/${session._id}` : null,
+      expiresAt: delivery.expiresAt,
+    };
+  },
+});
+
+/** One signed download for one file, minted on click. Re-checks everything
+ *  `page` checks, requires the delivery to be released and the version to be
+ *  the latest of a Final file on this booking in this studio. Counts the
+ *  download; at most URL_RATE_MAX an hour per delivery. */
+export const fileUrl = mutation({
+  args: { token: v.string(), versionId: v.id("mediaVersions") },
+  handler: async (ctx, { token, versionId }): Promise<{ url: string; fileName: string }> => {
+    const live = await liveDelivery(ctx, token);
+    if (!live || live.delivery.status !== "released") throw new ConvexError(NOT_AVAILABLE);
+    const { delivery } = live;
+
+    const version = await ctx.db.get(versionId);
+    if (!version || version.orgId !== delivery.orgId) throw new ConvexError(NOT_AVAILABLE);
+    const asset = await ctx.db.get(version.assetId);
+    if (
+      !asset ||
+      asset.orgId !== delivery.orgId ||
+      asset.sessionId !== delivery.sessionId ||
+      asset.clientFinal !== true
+    ) {
+      throw new ConvexError(NOT_AVAILABLE);
+    }
+    const latest = await ctx.db
+      .query("mediaVersions")
+      .withIndex("by_asset", (q) => q.eq("assetId", asset._id))
+      .order("desc")
+      .first();
+    if (!latest || latest._id !== version._id) throw new ConvexError(NOT_AVAILABLE);
+
+    const now = Date.now();
+    const fresh = !delivery.urlWindowStart || now - delivery.urlWindowStart >= URL_RATE_WINDOW_MS;
+    const windowStart = fresh ? now : delivery.urlWindowStart!;
+    const count = fresh ? 0 : (delivery.urlCount ?? 0);
+    if (count >= URL_RATE_MAX) throw new ConvexError("Too many downloads. Try again in an hour.");
+
+    const fileName = safeDownloadName(version.fileName);
+    const url = await signedDownloadUrl(ctx, version.mediaId, { expiresIn: URL_TTL_S, fileName });
+    if (!url) throw new ConvexError(NOT_AVAILABLE);
+    await ctx.db.patch(delivery._id, {
+      urlWindowStart: windowStart,
+      urlCount: count + 1,
+      downloadCount: delivery.downloadCount + 1,
+    });
+    return { url, fileName };
+  },
+});
+
+/** The client opened the page. First and last opened, the last at most once a
+ *  minute. Never throws, whatever the token. */
+export const opened = mutation({
+  args: { token: v.string() },
+  handler: async (ctx, { token }) => {
+    const live = await liveDelivery(ctx, token);
+    if (!live) return null;
+    const { delivery } = live;
+    const now = Date.now();
+    const patch: Partial<Pick<Delivery, "firstOpenedAt" | "lastOpenedAt">> = {};
+    if (!delivery.firstOpenedAt) patch.firstOpenedAt = now;
+    if (!delivery.lastOpenedAt || now - delivery.lastOpenedAt >= OPENED_MIN_GAP_MS) patch.lastOpenedAt = now;
+    if (Object.keys(patch).length > 0) await ctx.db.patch(delivery._id, patch);
+    return null;
   },
 });
