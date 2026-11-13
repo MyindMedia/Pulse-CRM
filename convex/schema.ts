@@ -1633,7 +1633,11 @@ export default defineSchema({
     // Prepaid block chosen to pay for this session. Hours come off it when the
     // session is completed (convex/packages.ts drawDownOnCompletion).
     packageCreditId: v.optional(v.id("packageCredits")),
+    // When the cron last asked staff to close a session paid from prepaid
+    // hours (it never completes or no-shows one by itself). Sent once.
+    prepaidCloseNudgedAt: v.optional(v.number()),
   })
+    .index("by_package_credit", ["packageCreditId"])
     .index("by_org", ["orgId"])
     .index("by_org_status", ["orgId", "status"])
     .index("by_org_start", ["orgId", "startTime"])
@@ -1982,6 +1986,10 @@ export default defineSchema({
     returnedAt: v.optional(v.number()),
     returnedByName: v.optional(v.string()),
     returnReason: v.optional(v.string()),
+    // A voided draw leaves the session's price cut (putting hours back never
+    // raises a price). Set when the session is completed again and the cut is
+    // undone so it can be billed or drawn in full.
+    repricedAt: v.optional(v.number()),
   })
     .index("by_session", ["sessionId"])
     .index("by_credit", ["creditId"]),

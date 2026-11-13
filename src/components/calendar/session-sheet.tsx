@@ -333,9 +333,12 @@ export function SessionSheet({
                       <Row label="Paid / balance">
                         <span className="inline-flex flex-wrap items-center justify-end gap-2 font-meta">
                           <span className="text-steel">{money(detail.amountPaidCents ?? 0)} paid</span>
-                          <Badge tone={detail.rateCents - (detail.amountPaidCents ?? 0) > 0 ? "caution" : "positive"}>
-                            {detail.rateCents - (detail.amountPaidCents ?? 0) > 0
-                              ? `${money(detail.rateCents - (detail.amountPaidCents ?? 0))} due`
+                          {(detail.prepaidCoverCents ?? 0) > 0 && (
+                            <span className="text-steel">{money(detail.prepaidCoverCents ?? 0)} prepaid hours</span>
+                          )}
+                          <Badge tone={sessionBalanceCents(detail) > 0 ? "caution" : "positive"}>
+                            {sessionBalanceCents(detail) > 0
+                              ? `${money(sessionBalanceCents(detail))} due`
                               : "Paid in full"}
                           </Badge>
                         </span>
@@ -402,10 +405,7 @@ export function SessionSheet({
                   {/* Collect balance on the spot - pay link + QR / copy / text */}
                   <CollectBalancePanel
                     sessionId={detail._id}
-                    balanceCents={Math.max(
-                      0,
-                      detail.rateCents - (detail.amountPaidCents ?? 0),
-                    )}
+                    balanceCents={sessionBalanceCents(detail)}
                   />
 
                   <SessionHistoryPanel sessionId={detail._id} />
@@ -516,6 +516,12 @@ export function SessionSheet({
  * "Text the link" that reuses the studio's SMS seam. Mobile-friendly so staff
  * can settle up at the desk.
  */
+/** What the client still owes on a session: price, less cash paid, less what
+ *  the prepaid block chosen for it pays (worked out on the server). */
+function sessionBalanceCents(d: { rateCents?: number; amountPaidCents?: number; prepaidCoverCents?: number }): number {
+  return Math.max(0, (d.rateCents ?? 0) - (d.amountPaidCents ?? 0) - (d.prepaidCoverCents ?? 0));
+}
+
 function CollectBalancePanel({
   sessionId,
   balanceCents,
@@ -734,7 +740,7 @@ function ApplyPackagePanel({
             <SelectContent>
               {credits.map((c) => (
                 <SelectItem key={c._id} value={c._id}>
-                  {c.name} · {c.hoursRemaining}h left{c.perHourCents !== null ? ` · ${money(c.perHourCents)}/hr` : ""}
+                  {c.name} · {c.hoursRemaining}h left
                 </SelectItem>
               ))}
             </SelectContent>

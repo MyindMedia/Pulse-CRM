@@ -320,17 +320,18 @@ describe("H6 drawing hours down on completion", () => {
     expect((await getCredit(t, creditId))?.hoursRemaining).toBe(10);
     await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "completed" });
     expect((await getCredit(t, creditId))?.hoursRemaining).toBe(8);
-    expect((await getSession(t, sessionId))?.rateCents).toBe(10000); // $300 - 2h x $100
+    // Round 2 (H207-06/H207-10): one prepaid hour pays one session hour at the
+    // session's price, whatever the block cost. Before, this asserted 10000
+    // left and a $100 balance invoice for hours the client had prepaid.
+    expect((await getSession(t, sessionId))?.rateCents).toBe(0);
     // Completing again (a re-set) takes nothing more.
     await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "completed" });
     expect((await getCredit(t, creditId))?.hoursRemaining).toBe(8);
     const view = await owner.query(api.packages.forSession, { sessionId });
     expect(view?.draws).toHaveLength(1);
-    expect(view?.draws[0]).toMatchObject({ hours: 2, valueCents: 20000, kind: "completion", status: "applied" });
-    // The balance invoice covers only what the block did not.
-    const invoices = await t.run(async (ctx) => ctx.db.query("invoices").collect());
-    expect(invoices).toHaveLength(1);
-    expect(invoices[0].amountCents).toBe(10000);
+    expect(view?.draws[0]).toMatchObject({ hours: 2, valueCents: 30000, kind: "completion", status: "applied" });
+    // Nothing is left to bill.
+    expect(await t.run(async (ctx) => ctx.db.query("invoices").collect())).toHaveLength(0);
   });
 
   it("a session fully covered by the block gets no balance invoice; the engineer's percentage uses the full price", async () => {
@@ -364,7 +365,11 @@ describe("H6 drawing hours down on completion", () => {
     await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "completed" });
     const c = await getCredit(t, creditId);
     expect(c).toMatchObject({ hoursRemaining: 0, status: "depleted" });
-    expect((await getSession(t, sessionId))?.rateCents).toBe(100000);
+    // 10 of 12 hours at the session's own $166.67/h; only the last 2h are
+    // billed (was 100000, valued at the block's $100/h: H207-06).
+    expect((await getSession(t, sessionId))?.rateCents).toBe(33333);
+    const [inv] = await t.run(async (ctx) => ctx.db.query("invoices").collect());
+    expect(inv.amountCents).toBe(33333);
   });
 
   it("hours applied by hand before completion are not taken twice", async () => {
@@ -375,7 +380,9 @@ describe("H6 drawing hours down on completion", () => {
     expect((await getCredit(t, creditId))?.hoursRemaining).toBe(8);
   });
 
-  it("both automation cron completion paths take the hours off too, once", async () => {
+  it("H207-03 the automation cron never takes hours off: it leaves the session open and asks staff once", async () => {
+    // Round 2 owner decision: hours come off only when staff complete the
+    // session. This test used to assert that both cron paths drew hours.
     // Public booking, in progress, past its end: the cron's progression step.
     const start = Date.now() - 3 * 3_600_000;
     const live = await t.run(async (ctx) =>
@@ -386,23 +393,34 @@ describe("H6 drawing hours down on completion", () => {
         packageCreditId: creditId,
       }),
     );
-    // Internal session never closed out, ended over a day ago: stale resolution.
+    // Sessions never closed out, ended over a day ago: stale resolution. One
+    // in progress, one confirmed with a deposit paid, one confirmed with none.
     const old = Date.now() - 3 * 86_400_000;
-    const stale = await t.run(async (ctx) =>
-      ctx.db.insert("sessions", {
-        orgId: "org_a", title: "Stale", artistId, serviceType: "recording",
-        startTime: old, endTime: old + 3_600_000, status: "in_progress",
-        rateCents: 30000, depositCents: 0, depositPaid: false, intakeCompleted: true,
-        packageCreditId: creditId,
-      }),
-    );
+    const stale = (status: "in_progress" | "confirmed", depositPaid: boolean) =>
+      t.run(async (ctx) =>
+        ctx.db.insert("sessions", {
+          orgId: "org_a", title: `Stale ${status} ${depositPaid}`, artistId, serviceType: "recording",
+          startTime: old, endTime: old + 3_600_000, status,
+          rateCents: 30000, depositCents: 6000, depositPaid, amountPaidCents: depositPaid ? 6000 : undefined,
+          intakeCompleted: true, packageCreditId: creditId,
+        }),
+      );
+    const s1 = await stale("in_progress", false);
+    const s2 = await stale("confirmed", true);
+    const s3 = await stale("confirmed", false);
     await t.mutation(internal.automation.tick, {});
-    expect((await getSession(t, live))?.status).toBe("completed");
-    expect((await getSession(t, stale))?.status).toBe("completed");
-    expect((await getCredit(t, creditId))?.hoursRemaining).toBe(7); // 2h + 1h
-    expect((await getSession(t, live))?.rateCents).toBe(10000);
     await t.mutation(internal.automation.tick, {});
-    expect((await getCredit(t, creditId))?.hoursRemaining).toBe(7);
+    expect((await getSession(t, live))?.status).toBe("in_progress");
+    expect((await getSession(t, s1))?.status).toBe("in_progress");
+    expect((await getSession(t, s2))?.status).toBe("confirmed");
+    expect((await getSession(t, s3))?.status).toBe("confirmed"); // not auto_no_show
+    expect((await getCredit(t, creditId))?.hoursRemaining).toBe(10);
+    expect((await getSession(t, live))?.rateCents).toBe(30000);
+    const asks = await t.run(async (ctx) => ctx.db.query("activity").collect());
+    expect(asks.filter((a) => a.kind === "session.package.close_needed")).toHaveLength(4); // once each
+    // Staff complete one: now the hours come off.
+    await owner.mutation(api.sessions.setStatus, { id: s2, status: "completed" });
+    expect((await getCredit(t, creditId))?.hoursRemaining).toBe(9.2); // 0.8h: $60 of $300 for 1h was paid in cash
   });
 
   it("voiding a completed session (completed -> cancelled) puts the hours back, once", async () => {
@@ -523,5 +541,150 @@ describe("H6 what the client and staff can see", () => {
     });
     const sum = await t.query(api.portal.summary, { token: "tok_portal" });
     expect(sum?.prepaidHours).toEqual([{ name: "10h block", hoursTotal: 10, hoursRemaining: 10 }]);
+  });
+});
+
+describe("Round 2: a session paid from prepaid hours is paid (H207-01, H207-02, H207-07)", () => {
+  let t: T;
+  let owner: ReturnType<T["withIdentity"]>;
+  let artistId: Id<"artists">;
+  let creditId: Id<"packageCredits">;
+  beforeEach(async () => {
+    t = convexTest(schema);
+    owner = await studio(t, "org_a", "u_a");
+    const productId = await product(t, "org_a", 10, 100000); // $100/h block
+    artistId = await artist(t, "org_a");
+    await t.run(async (ctx) => ctx.db.patch(artistId, { email: "nova@example.com", phone: "+15555550123" }));
+    creditId = (await sell(owner, productId, artistId)).creditId;
+  });
+
+  /** Public booking, $300 for 2h, $60 deposit paid, starting `inMs` from now. */
+  async function publicBooking(inMs: number) {
+    const start = Date.now() + inMs;
+    return t.run(async (ctx) =>
+      ctx.db.insert("sessions", {
+        orgId: "org_a", title: "Public", artistId, serviceType: "recording", source: "public_booking",
+        startTime: start, endTime: start + 2 * 3_600_000, status: "confirmed",
+        rateCents: 30000, depositCents: 6000, depositPaid: true, amountPaidCents: 6000, intakeCompleted: true,
+      }),
+    );
+  }
+  const notes = (id: Id<"sessions">) =>
+    t.run(async (ctx) => (await ctx.db.query("notifications").collect()).filter((n) => n.sessionId === id));
+
+  it("the cron sends no balance-due email or text inside the reminder window", async () => {
+    const sessionId = await publicBooking(3 * 3_600_000);
+    await owner.mutation(api.packages.chooseForSession, { sessionId, creditId });
+    await t.mutation(internal.automation.tick, {});
+    expect((await notes(sessionId)).filter((n) => n.kind === "booking.balance_reminder")).toHaveLength(0);
+    expect((await getSession(t, sessionId))?.balanceRemindedAt).toBeUndefined();
+  });
+
+  it("control: without the block the same booking is chased (the test can see a reminder)", async () => {
+    const sessionId = await publicBooking(3 * 3_600_000);
+    await t.mutation(internal.automation.tick, {});
+    expect((await notes(sessionId)).some((n) => n.kind === "booking.balance_reminder")).toBe(true);
+  });
+
+  it("the cron does not forfeit the booking 2h before start or keep the deposit", async () => {
+    const sessionId = await publicBooking(90 * 60_000);
+    await owner.mutation(api.packages.chooseForSession, { sessionId, creditId });
+    await t.mutation(internal.automation.tick, {});
+    expect((await getSession(t, sessionId))?.status).toBe("confirmed");
+    expect((await notes(sessionId)).some((n) => n.kind === "booking.forfeited")).toBe(false);
+  });
+
+  it("a block that covers only part of the session: the rest is still chased, for the rest only", async () => {
+    await t.run(async (ctx) => ctx.db.patch(creditId, { hoursRemaining: 1 }));
+    const sessionId = await publicBooking(3 * 3_600_000);
+    await owner.mutation(api.packages.chooseForSession, { sessionId, creditId });
+    await t.mutation(internal.automation.tick, {});
+    const [reminder] = (await notes(sessionId)).filter((n) => n.kind === "booking.balance_reminder" && n.channel === "email");
+    // $300 - $60 deposit - 1h x $150 = $90.
+    expect(reminder.body).toContain("$90");
+  });
+
+  it("an unpaid public hold paid from hours is not released or nudged by the cron", async () => {
+    const start = Date.now() + 86_400_000;
+    const sessionId = await t.run(async (ctx) =>
+      ctx.db.insert("sessions", {
+        orgId: "org_a", title: "Hold", artistId, serviceType: "recording", source: "public_booking",
+        startTime: start, endTime: start + 2 * 3_600_000, status: "tentative", holdExpiresAt: Date.now() - 60_000,
+        rateCents: 30000, depositCents: 6000, depositPaid: false, intakeCompleted: false,
+      }),
+    );
+    await owner.mutation(api.packages.chooseForSession, { sessionId, creditId });
+    await t.mutation(internal.automation.tick, {});
+    expect((await getSession(t, sessionId))?.status).toBe("tentative");
+  });
+
+  it("an internal booking fully paid from hours gets no deposit pay link", async () => {
+    const sessionId = await session(t, "org_a", artistId, { rateCents: 30000, hours: 2 });
+    await owner.mutation(api.packages.chooseForSession, { sessionId, creditId });
+    await t.mutation(internal.automation.tick, {});
+    expect((await notes(sessionId)).some((n) => n.kind === "booking.deposit_link")).toBe(false);
+  });
+
+  it("the session sheet, pay link and public checkout show nothing owed", async () => {
+    const sessionId = await publicBooking(3 * 3_600_000);
+    await owner.mutation(api.packages.chooseForSession, { sessionId, creditId });
+    const detail = await owner.query(api.sessions.get, { id: sessionId });
+    expect(detail?.prepaidCoverCents).toBe(24000);
+    expect((await owner.query(api.sessions.payLink, { id: sessionId }))?.balanceCents).toBe(0);
+    await expect(owner.mutation(api.sessions.sendPayLinkSms, { id: sessionId })).rejects.toThrow(/Nothing is owed/);
+    const pub = await t.query(api.booking.booking, { sessionId });
+    expect(pub).toMatchObject({ balanceCents: 0, fullyPaid: true });
+    // The public page does not get the studio's internal block id.
+    expect(pub && "packageCreditId" in pub).toBe(false);
+    const charge = await t.query(internal.booking._chargeContext, { sessionId });
+    expect(charge?.balanceCents).toBe(0);
+    // Nothing comes off until staff complete it: 1.6h (the deposit paid 0.4h).
+    expect((await getCredit(t, creditId))?.hoursRemaining).toBe(10);
+    await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "completed" });
+    expect((await getCredit(t, creditId))?.hoursRemaining).toBe(8.4);
+    expect((await getSession(t, sessionId))?.rateCents).toBe(6000);
+    expect(await t.run(async (ctx) => ctx.db.query("invoices").collect())).toHaveLength(0);
+  });
+
+  it("a block chosen for two sessions never covers the same hour twice", async () => {
+    await t.run(async (ctx) => ctx.db.patch(creditId, { hoursRemaining: 3 }));
+    const first = await session(t, "org_a", artistId, { rateCents: 30000, hours: 2 });
+    const second = await t.run(async (ctx) => {
+      const s = await ctx.db.get(first);
+      return ctx.db.insert("sessions", { ...s!, _id: undefined, _creationTime: undefined, startTime: s!.startTime + 86_400_000, endTime: s!.endTime + 86_400_000 } as never);
+    });
+    await owner.mutation(api.packages.chooseForSession, { sessionId: first, creditId });
+    await owner.mutation(api.packages.chooseForSession, { sessionId: second, creditId });
+    expect((await owner.query(api.sessions.get, { id: first }))?.prepaidCoverCents).toBe(30000);
+    expect((await owner.query(api.sessions.get, { id: second }))?.prepaidCoverCents).toBe(15000);
+    expect((await owner.query(api.sessions.payLink, { id: second }))?.balanceCents).toBe(15000);
+  });
+
+  it("H207-07 a session invoiced and paid up front takes no hours on completion, and staff are told", async () => {
+    const sessionId = await session(t, "org_a", artistId, { rateCents: 30000, hours: 2 });
+    await t.run(async (ctx) =>
+      ctx.db.insert("invoices", {
+        orgId: "org_a", artistId, sessionId, number: "PLS-1", status: "paid", amountCents: 30000,
+        dueDate: Date.now(), lineItems: [{ label: "Tracking", amountCents: 30000 }],
+      }),
+    );
+    await owner.mutation(api.packages.chooseForSession, { sessionId, creditId });
+    await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "completed" });
+    expect((await getCredit(t, creditId))?.hoursRemaining).toBe(10);
+    const acts = await t.run(async (ctx) => ctx.db.query("activity").collect());
+    expect(acts.some((a) => a.kind === "session.package.skipped" && /already invoiced/.test(a.summary))).toBe(true);
+  });
+
+  it("H207-07 an invoice for part of the session is subtracted before hours are drawn", async () => {
+    const sessionId = await session(t, "org_a", artistId, { rateCents: 30000, hours: 2 });
+    await t.run(async (ctx) =>
+      ctx.db.insert("invoices", {
+        orgId: "org_a", artistId, sessionId, number: "PLS-2", status: "sent", amountCents: 15000,
+        dueDate: Date.now(), lineItems: [{ label: "Half up front", amountCents: 15000 }],
+      }),
+    );
+    await owner.mutation(api.packages.chooseForSession, { sessionId, creditId });
+    await owner.mutation(api.sessions.setStatus, { id: sessionId, status: "completed" });
+    expect((await getCredit(t, creditId))?.hoursRemaining).toBe(9);
   });
 });

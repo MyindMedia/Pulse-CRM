@@ -1,4 +1,4 @@
-import { query, action, internalQuery, MutationCtx } from "./_generated/server";
+import { query, action, internalQuery, MutationCtx, QueryCtx } from "./_generated/server";
 import { mutation, internalMutation } from "./functions";
 import { v, ConvexError } from "convex/values";
 import { Doc, Id } from "./_generated/dataModel";
@@ -32,9 +32,12 @@ import { money } from "./lib/money";
    studio that downgrades must not trap money its clients prepaid.
 
    Draw-down: staff choose a block for a session ("Pay with prepaid
-   hours"). Nothing comes off until the session is completed; then the
-   session's hours come off the block, capped at what is still owed,
-   once per session. Voiding a completed session (completed ->
+   hours"). From then on the session counts as paid for the hours the
+   block covers (prepaidCoverForSession): no background job chases,
+   bills, releases or forfeits it for them. One prepaid hour pays one
+   session hour at the session's price. Nothing comes off until STAFF
+   complete the session (never the cron); then exactly the covered
+   hours come off, once. Voiding a completed session (completed ->
    cancelled) or refunding it puts the hours back.
    ============================================================ */
 
@@ -229,7 +232,8 @@ export const creditsForArtist = query({
         name: c.name,
         hoursTotal: c.hoursTotal,
         hoursRemaining: c.hoursRemaining,
-        // Per-hour value the studio credits back when hours are applied.
+        // What the block cost per hour (reporting only: an hour of the block
+        // pays an hour of the session at the session's price).
         perHourCents: !sight.money ? null : c.hoursTotal > 0 ? Math.round(c.priceCents / c.hoursTotal) : 0,
       }));
   },
@@ -684,28 +688,182 @@ export const forSession = query({
   },
 });
 
+// ── What a chosen block covers ─────────────────────────────
+
+type DbCtx = { db: QueryCtx["db"] };
+
+/** Statuses a session can still be paid, chased or completed in. */
+function isOpenSession(s: Doc<"sessions">): boolean {
+  return s.status === "tentative" || s.status === "confirmed" || s.status === "in_progress";
+}
+
+/** Cash already in for a session. max() not sum: ledger deposits set BOTH
+ *  amountPaidCents and depositPaid (same rule as automation.ts). */
+function cashPaidCents(s: Doc<"sessions">): number {
+  return Math.max(s.amountPaidCents ?? 0, s.depositPaid ? s.depositCents : 0);
+}
+
+export type PrepaidCover = {
+  creditId: Id<"packageCredits">;
+  creditName: string;
+  /** Hours the block will give up when staff complete the session. */
+  hours: number;
+  /** What those hours are worth at the session's own price. */
+  valueCents: number;
+  /** Amount of invoices already raised for this session (subtracted). */
+  invoicedCents: number;
+};
+
 /**
- * Take the session's hours off the block chosen for it. Called on every path
- * that completes a session (sessions.applyStatus and the automation cron).
- * Safe to call twice: a session is drawn once. Never takes more hours than the
- * block holds or more value than the session still owes (a session already
- * paid by deposit costs the client no hours). Returns the session as it is
- * after the draw so the caller bills only what is left.
+ * Hours of a chosen block already promised to OTHER open sessions that start
+ * earlier (or at the same time with a lower id). Those are drawn first, so a
+ * block chosen for two sessions never covers the same hour twice.
+ */
+async function hoursPromisedElsewhere(
+  ctx: DbCtx,
+  credit: Doc<"packageCredits">,
+  s: Doc<"sessions">,
+): Promise<number> {
+  const others = await ctx.db
+    .query("sessions")
+    .withIndex("by_package_credit", (q) => q.eq("packageCreditId", credit._id))
+    .take(200);
+  let promised = 0;
+  for (const o of others) {
+    if (o._id === s._id || o.orgId !== s.orgId || !isOpenSession(o)) continue;
+    const earlier = o.startTime < s.startTime || (o.startTime === s.startTime && o._id < s._id);
+    if (!earlier) continue;
+    const hours = Math.max(0, o.endTime - o.startTime) / 3_600_000;
+    if (hours <= 0 || o.rateCents <= 0) continue;
+    const owed = Math.max(0, o.rateCents - cashPaidCents(o));
+    // Hours applied by hand already cut o.rateCents, so this is conservative
+    // (it may promise a little more than o will take, never less).
+    promised += Math.min(hours, owed / (o.rateCents / hours));
+  }
+  return promised;
+}
+
+/**
+ * What the block chosen for a session pays for, worked out the same way for
+ * every reader: the automation cron, the session sheet, pay links, the public
+ * checkout and the completion draw. One prepaid hour pays for one hour of the
+ * session at the session's own price, whatever the block cost. Cash already
+ * paid and invoices already raised for the session are subtracted first, so a
+ * session is never paid twice. Pure read: nothing comes off the block here.
+ * Returns null when the block covers nothing.
+ */
+async function computeCover(ctx: DbCtx, s: Doc<"sessions">): Promise<PrepaidCover | null> {
+  if (!s.packageCreditId) return null;
+  const credit = await ctx.db.get(s.packageCreditId);
+  if (
+    !credit ||
+    credit.orgId !== s.orgId ||
+    credit.artistId !== s.artistId ||
+    credit.status !== "active" ||
+    credit.hoursRemaining <= 0
+  ) {
+    return null;
+  }
+  const rows = (
+    await ctx.db
+      .query("packageDrawdowns")
+      .withIndex("by_session", (q) => q.eq("sessionId", s._id))
+      .collect()
+  ).filter((r) => r.orgId === s.orgId);
+  // Drawn already, or refunded while completed: the block pays nothing more.
+  if (rows.some((r) => r.kind === "completion" && (r.status === "applied" || r.returnReason === "refunded"))) {
+    return null;
+  }
+  const applied = rows.filter((r) => r.status === "applied");
+  const appliedHours = applied.reduce((sum, r) => sum + r.hours, 0);
+  const appliedValue = applied.reduce((sum, r) => sum + r.valueCents, 0);
+  // A voided draw left the price cut (putting hours back never raises a
+  // price); count it back so a re-completed session is priced in full.
+  const voidedValue = rows
+    .filter((r) => r.status === "returned" && r.returnReason === "voided" && !r.repricedAt)
+    .reduce((sum, r) => sum + r.valueCents, 0);
+  const rateCents = s.rateCents + voidedValue;
+
+  const sessionHours = Math.max(0, s.endTime - s.startTime) / 3_600_000;
+  const need = sessionHours - appliedHours;
+  const fullRate = rateCents + appliedValue;
+  if (sessionHours <= 0 || need <= 0.004 || fullRate <= 0) return null;
+  const perHour = fullRate / sessionHours;
+
+  let invoicedCents = 0;
+  const invoices = await ctx.db
+    .query("invoices")
+    .withIndex("by_artist", (q) => q.eq("artistId", s.artistId))
+    .collect();
+  for (const inv of invoices) {
+    if (inv.sessionId === s._id && inv.orgId === s.orgId && inv.status !== "void") invoicedCents += inv.amountCents;
+  }
+  const owed = Math.max(0, rateCents - cashPaidCents(s) - invoicedCents);
+  if (owed <= 0) return null;
+
+  const available = credit.hoursRemaining - (await hoursPromisedElsewhere(ctx, credit, s));
+  if (available <= 0.004) return null;
+  const owedHours = owed / perHour;
+  const exact = Math.min(need, available, owedHours);
+  // Every hour still owed is covered: the block pays the whole remainder, so
+  // rounding never leaves a few cents for a job to chase.
+  const coversAll = exact >= Math.min(need, owedHours) - 1e-9;
+  const hours = Math.min(roundHours(exact), roundHours(credit.hoursRemaining));
+  if (hours <= 0) return null;
+  const valueCents = coversAll ? owed : Math.min(owed, Math.round(perHour * exact));
+  return { creditId: credit._id, creditName: credit.name, hours, valueCents, invoicedCents };
+}
+
+/**
+ * The prepaid cover of an OPEN session (tentative, confirmed, in progress).
+ * Readers add `valueCents` to what the client has paid: a session paid from
+ * prepaid hours is paid, so nothing chases, bills or cancels it for the hours
+ * covered. A closed session has no cover here (its draw, if any, already cut
+ * its rateCents).
+ */
+export async function prepaidCoverForSession(ctx: DbCtx, s: Doc<"sessions">): Promise<PrepaidCover | null> {
+  if (!s.packageCreditId || !isOpenSession(s)) return null;
+  return computeCover(ctx, s);
+}
+
+/** Just the cents, for readers that only need the number. */
+export async function prepaidCoverCents(ctx: DbCtx, s: Doc<"sessions">): Promise<number> {
+  return (await prepaidCoverForSession(ctx, s))?.valueCents ?? 0;
+}
+
+/**
+ * Take the session's hours off the block chosen for it. Called ONLY when staff
+ * complete the session (sessions.applyStatus): a background job never draws
+ * hours. Takes exactly what computeCover says the block covers, so what the
+ * cron and the sheet treated as paid is what comes off. Safe to call twice: a
+ * session is drawn once. Returns the session as it is after the draw so the
+ * caller bills only what is left. `s` is the session as it was before it was
+ * marked completed.
  */
 export async function drawDownOnCompletion(
   ctx: MutationCtx,
   s: Doc<"sessions">,
 ): Promise<Doc<"sessions">> {
-  if (!s.packageCreditId) return s;
-  const credit = await ctx.db.get(s.packageCreditId);
+  const chosenId = s.packageCreditId;
+  if (!chosenId) return s;
   const rows = await ctx.db
     .query("packageDrawdowns")
     .withIndex("by_session", (q) => q.eq("sessionId", s._id))
     .collect();
-  // Drawn already, or refunded while completed: do not draw again.
   if (rows.some((r) => r.kind === "completion" && (r.status === "applied" || r.returnReason === "refunded"))) {
     return s;
   }
+  // A voided draw left the price cut; the session is real again, so its price
+  // comes back before the block is drawn and the rest is billed.
+  const voided = rows.filter((r) => r.orgId === s.orgId && r.status === "returned" && r.returnReason === "voided" && !r.repricedAt);
+  if (voided.length > 0) {
+    const now = Date.now();
+    for (const r of voided) await ctx.db.patch(r._id, { repricedAt: now });
+    const back = voided.reduce((sum, r) => sum + r.valueCents, 0);
+    await ctx.db.patch(s._id, { rateCents: s.rateCents + back });
+    s = { ...s, rateCents: s.rateCents + back };
+  }
+  const credit = await ctx.db.get(chosenId);
   if (
     !credit ||
     credit.orgId !== s.orgId ||
@@ -723,18 +881,32 @@ export async function drawDownOnCompletion(
     });
     return s;
   }
-  const alreadyHours = rows.filter((r) => r.status === "applied").reduce((sum, r) => sum + r.hours, 0);
-  const sessionHours = roundHours(Math.max(0, s.endTime - s.startTime) / 3_600_000);
-  const need = roundHours(sessionHours - alreadyHours);
-  const perHour = credit.hoursTotal > 0 ? credit.priceCents / credit.hoursTotal : 0;
-  const paid = Math.max(s.amountPaidCents ?? 0, s.depositPaid ? s.depositCents : 0);
-  const owed = Math.max(0, s.rateCents - paid);
-  const coverable = perHour > 0 ? Math.floor((owed / perHour) * 100) / 100 : 0;
-  const hours = roundHours(Math.min(need, credit.hoursRemaining, coverable));
-  if (hours <= 0) return s;
-  const valueCents = Math.min(owed, Math.round(perHour * hours));
+  // The same rule every reader used, so what was shown as paid is what comes
+  // off (including hours promised to an earlier session on the same block).
+  const cover = await computeCover(ctx, s);
+  if (!cover) {
+    if (rows.length === 0) {
+      const invoiced = await ctx.db
+        .query("invoices")
+        .withIndex("by_artist", (q) => q.eq("artistId", s.artistId))
+        .collect();
+      if (invoiced.some((inv) => inv.sessionId === s._id && inv.status !== "void")) {
+        await ctx.db.insert("activity", {
+          orgId: s.orgId,
+          kind: "session.package.skipped",
+          summary: `"${s.title}" completed - no prepaid hours taken: the session was already invoiced or paid`,
+          entityType: "session",
+          entityId: s._id,
+          accent: "caution",
+        });
+      }
+    }
+    return s;
+  }
 
-  const hoursRemaining = roundHours(Math.max(0, credit.hoursRemaining - hours));
+  const fresh = (await ctx.db.get(credit._id)) ?? credit;
+  const hours = Math.min(cover.hours, fresh.hoursRemaining);
+  const hoursRemaining = roundHours(Math.max(0, fresh.hoursRemaining - hours));
   await ctx.db.patch(credit._id, {
     hoursRemaining,
     status: hoursRemaining <= 0 ? "depleted" : "active",
@@ -745,16 +917,17 @@ export async function drawDownOnCompletion(
     sessionId: s._id,
     artistId: s.artistId,
     hours,
-    valueCents,
+    valueCents: cover.valueCents,
     kind: "completion",
     status: "applied",
     appliedAt: Date.now(),
   });
-  await ctx.db.patch(s._id, { rateCents: Math.max(0, s.rateCents - valueCents) });
+  await ctx.db.patch(s._id, { rateCents: Math.max(0, s.rateCents - cover.valueCents) });
   await ctx.db.insert("activity", {
     orgId: s.orgId,
     kind: "session.package.redeemed",
-    summary: `${hours}h taken off "${credit.name}" for "${s.title}" - ${money(valueCents)} covered, ${hoursRemaining}h left`,
+    summary: `${hours}h taken off "${credit.name}" for "${s.title}" - ${money(cover.valueCents)} covered, ${hoursRemaining}h left` +
+      (cover.invoicedCents > 0 ? ` (after ${money(cover.invoicedCents)} already invoiced)` : ""),
     entityType: "session",
     entityId: s._id,
     accent: "positive",

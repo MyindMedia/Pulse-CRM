@@ -5,7 +5,7 @@ import { queuePayoutForSession } from "./payouts";
 import { Doc, Id } from "./_generated/dataModel";
 import { v, ConvexError } from "convex/values";
 import { currentOrg, currentOrgWithCapability, currentMoneySight, currentActor } from "./lib/tenant";
-import { drawDownOnCompletion, returnHoursForSession, prepaidValueForSession } from "./packages";
+import { drawDownOnCompletion, returnHoursForSession, prepaidValueForSession, prepaidCoverCents } from "./packages";
 import { resolveViewer } from "./lib/access";
 import {
   assertNoBufferConflict,
@@ -113,7 +113,14 @@ export const get = query({
     const s = await ctx.db.get(id);
     if (!s || s.orgId !== orgId) return null;
     const log = await ctx.db.query("engineeringLogs").withIndex("by_session", (q) => q.eq("sessionId", id)).first();
-    return { ...redactMoney("sessions", await hydrate(ctx, s), await currentMoneySight(ctx)), engineeringLog: log };
+    const sight = await currentMoneySight(ctx);
+    return {
+      ...redactMoney("sessions", await hydrate(ctx, s), sight),
+      engineeringLog: log,
+      // What the prepaid block chosen for this session pays (counts as paid on
+      // the sheet's balance and Collect balance panel). Money-sighted only.
+      prepaidCoverCents: sight.money ? await prepaidCoverCents(ctx, s) : undefined,
+    };
   },
 });
 
@@ -1110,7 +1117,7 @@ export const payLink = query({
       process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const slug = org?.slug ?? "";
     const url = slug ? `${base}/book/${slug}/checkout/${id}` : null;
-    const paid = s.amountPaidCents ?? 0;
+    const paid = (s.amountPaidCents ?? 0) + (await prepaidCoverCents(ctx, s));
     return {
       url,
       balanceCents: Math.max(0, s.rateCents - paid),
@@ -1142,8 +1149,10 @@ export const sendPayLinkSms = mutation({
     const base =
       process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
     const url = `${base}/book/${org?.slug ?? ""}/checkout/${id}`;
-    const paid = s.amountPaidCents ?? 0;
+    // Hours from a chosen prepaid block are paid, not owed.
+    const paid = (s.amountPaidCents ?? 0) + (await prepaidCoverCents(ctx, s));
     const balance = Math.max(0, s.rateCents - paid);
+    if (balance <= 0) throw new ConvexError("Nothing is owed on this session.");
     await notify(ctx, {
       orgId,
       channel: "sms",

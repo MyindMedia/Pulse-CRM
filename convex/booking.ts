@@ -24,6 +24,7 @@ import { money } from "./lib/money";
 import { stripeClient } from "./lib/stripe";
 import { ensureInquiryFromBooking } from "./opportunities";
 import { stageChecklistsFor } from "./checklists";
+import { prepaidCoverCents } from "./packages";
 import { whitelabelFor } from "./usage";
 import {
   bookedUnits,
@@ -659,7 +660,9 @@ export const booking = query({
         .first(),
       session.engineerId ? ctx.db.get(session.engineerId) : null,
     ]);
-    const paid = session.amountPaidCents ?? 0;
+    // Hours from a prepaid block the studio chose for this session count as
+    // paid, so the checkout never asks the client to pay for them again.
+    const paid = (session.amountPaidCents ?? 0) + (await prepaidCoverCents(ctx, session));
     const people = {
       roomName: room?.name ?? "Studio",
       clientName: artist?.name ?? "Guest",
@@ -702,8 +705,12 @@ export const booking = query({
         stripeCheckout: false,
       };
     }
+    // Internal bookkeeping the public page does not need.
+    const { packageCreditId: _block, prepaidCloseNudgedAt: _nudged, ...publicSession } = session;
+    void _block;
+    void _nudged;
     return {
-      ...session,
+      ...publicSession,
       ...people,
       pricingHidden: false as const,
       addOns: session.addOns ?? [],
@@ -1337,7 +1344,7 @@ export const _chargeContext = internalQuery({
       .query("orgs")
       .withIndex("by_org", (q) => q.eq("orgId", session.orgId))
       .first();
-    const paid = session.amountPaidCents ?? 0;
+    const paid = (session.amountPaidCents ?? 0) + (await prepaidCoverCents(ctx, session));
     return {
       title: session.title,
       slug: org?.slug ?? "",
