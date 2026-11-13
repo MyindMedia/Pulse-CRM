@@ -46,7 +46,9 @@ export const issue = mutation({
   args: { splitSheetId: v.id("splitSheets") },
   handler: async (ctx, { splitSheetId }) => {
     const orgId = await currentOrg(ctx);
-    await requireCapability(ctx, "sessions.edit", { orgId });
+    // The same permission as editing the sheet: sending it out for signature
+    // is a sheet action, not a session one.
+    await requireCapability(ctx, "splitsheet.edit", { orgId });
     const sheet = await ctx.db.get(splitSheetId);
     if (!sheet || sheet.orgId !== orgId) throw new Error("Split sheet not found");
     const actor = await currentActor(ctx);

@@ -588,6 +588,19 @@ describe("H5 split sheet signatures", () => {
     expect(await t.query(api.splitSignatures.lookup, { token: "dead" })).toBeNull();
   });
 
+  it("round 2: sending signing links needs the split-sheet edit permission, like editing the sheet", async () => {
+    await as("u_owner").mutation(api.splitSheets.upsert, { songId, contributors: two() });
+    const sheetId = (await sheetOf(t, songId))._id;
+    await t.run((ctx) => ctx.db.insert("members", { orgId: "o1", name: "AE", role: "assistant_engineer", skills: [], clerkUserId: "u_ae" }));
+    for (const who of ["u_eng", "u_ae"]) {
+      await expect(as(who).mutation(api.splitSignatures.issue, { splitSheetId: sheetId })).rejects.toThrow();
+    }
+    expect((await sheetOf(t, songId)).status).toBe("draft");
+    expect(await t.run((ctx) => ctx.db.query("collaboratorGrants").collect())).toHaveLength(0);
+    const links = await as("u_mgr").mutation(api.splitSignatures.issue, { splitSheetId: sheetId });
+    expect(links).toHaveLength(2);
+  });
+
   it("H209-04: the public signing lookup never returns another signer's signature, email or browser", async () => {
     await as("u_owner").mutation(api.splitSheets.upsert, {
       songId, contributors: two().map((c) => ({ ...c, ipi: "00012345678", pro: "BMI" })),
