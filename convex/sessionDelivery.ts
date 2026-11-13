@@ -287,20 +287,21 @@ export function decidePayTarget(x: PayTargetInput): PayTarget {
   return { kind: "none", reason: "amount_mismatch" };
 }
 
-type PayFacts = { owed: number; target: PayTarget; invoices: Array<Doc<"invoices">> };
+type PayFacts = { owed: number; target: PayTarget; invoices: Array<Doc<"invoices">>; cardsOn: boolean };
 
 async function payFacts(ctx: Ctx, session: Doc<"sessions">, org: Doc<"orgs"> | null): Promise<PayFacts> {
   const [ledger, room] = await Promise.all([bookingLedger(ctx, session), session.roomId ? ctx.db.get(session.roomId) : null]);
+  const cardsOn = !!org && org.orgId === session.orgId && onlineCardPayments(org);
   const target = decidePayTarget({
     session,
     invoices: ledger.invoices,
     owed: ledger.owed,
     paymentMode: checkoutPaymentMode(room && room.orgId === session.orgId ? room : null),
-    cardsOn: !!org && org.orgId === session.orgId && onlineCardPayments(org),
+    cardsOn,
     orgSlug: org?.slug ?? null,
     base: appUrl().replace(/\/$/, ""),
   });
-  return { owed: ledger.owed, target, invoices: ledger.invoices };
+  return { owed: ledger.owed, target, invoices: ledger.invoices, cardsOn };
 }
 
 /** Whether any of the booking's invoices is sent, viewed or overdue: the
@@ -309,12 +310,32 @@ function hasOpenInvoice(invoices: Array<Pick<Doc<"invoices">, "status">>): boole
   return invoices.some((inv) => OPEN_INVOICE.has(inv.status));
 }
 
-/** The open invoice the status card names: the first one that is sent, viewed
- *  or overdue and is not for what is owed, else the first open one. Null when
- *  none is open. */
-function openInvoiceOf(invoices: Array<Doc<"invoices">>, owed: number): Doc<"invoices"> | null {
-  const open = invoices.filter((inv) => OPEN_INVOICE.has(inv.status));
-  return open.find((inv) => inv.amountCents !== owed) ?? open[0] ?? null;
+/** How many open invoices the status card lists by number and amount. */
+const LISTED_OPEN_INVOICES = 5;
+
+/** The facts the team card states about paying (R5-01): the open invoices
+ *  (sent, viewed or overdue; oldest first, at most five listed, the real count
+ *  beside them), the drafts, hidden prices and whether the studio takes cards
+ *  online. Money: the status query returns it only to callers with money
+ *  sight. `invoices` is this booking's in this studio (bookingLedger reads the
+ *  by_session index, oldest first, bounded). */
+export type CardPayFacts = {
+  openInvoices: Array<{ number: string; cents: number }>;
+  openInvoiceCount: number;
+  draftInvoices: number;
+  pricesHidden: boolean;
+  cardsOn: boolean;
+};
+
+function cardPayFacts(session: Pick<Doc<"sessions">, "pricingHidden">, pay: PayFacts): CardPayFacts {
+  const open = pay.invoices.filter((inv) => OPEN_INVOICE.has(inv.status));
+  return {
+    openInvoices: open.slice(0, LISTED_OPEN_INVOICES).map((inv) => ({ number: inv.number, cents: inv.amountCents })),
+    openInvoiceCount: open.length,
+    draftInvoices: pay.invoices.filter((inv) => inv.status === "draft").length,
+    pricesHidden: session.pricingHidden === true,
+    cardsOn: pay.cardsOn,
+  };
 }
 
 /** Where the client can pay this booking online for exactly what is owed, or
@@ -609,7 +630,6 @@ export const status = query({
     const cancelled = session.status === "cancelled";
     const noShow = session.status === "no_show";
     const closed = isClosed(session);
-    const openInv = openInvoiceOf(pay.invoices, balance);
     return {
       state,
       finalCount: files.length,
@@ -630,13 +650,13 @@ export const status = query({
       canTurnOff: manage && (state === "awaiting_payment" || state === "released"),
       cancelled,
       noShow,
-      // Where the client can pay online for exactly what is owed, so the card
-      // can tell the team what to do when there is nowhere (payTargetFor).
+      // Where the client can pay online for exactly what is owed (payTargetFor).
       onlinePay: pay.target.kind,
       onlinePayReason: pay.target.kind === "none" ? pay.target.reason : null,
-      // The open invoice, so the card can say which one to void or correct.
-      // Its amount is money: the whole field only with money sight.
-      openInvoice: sight.money && openInv ? { number: openInv.number, cents: openInv.amountCents } : null,
+      // R5-01: the facts the card states (open invoices with their amounts,
+      // drafts, hidden prices, cards on). Invoice numbers, amounts and counts
+      // are money: the whole field is null without money sight.
+      payFacts: sight.money ? cardPayFacts(session, pay) : null,
     };
   },
 });
@@ -847,10 +867,11 @@ export const page = query({
     // (payTargetFor); the amount itself never for a booking with hidden prices.
     const payUrl = pay && pay.target.kind !== "none" ? pay.target.url : null;
     const balanceCents = pay && session.pricingHidden !== true ? shownCents(pay.owed) : null;
-    // P4-02: locked, whether the client already holds an open invoice, so the
-    // page says to pay it. A yes or no only: never its number or amount, and
-    // fine for hidden prices (it reveals no price). False once unlocked.
-    const invoiceOpen = !!pay && hasOpenInvoice(pay.invoices);
+    // R5-01, R5-03: locked and nothing owed (the delivery just has not
+    // released yet), so the page says payment was received. Reveals no amount,
+    // so it holds for hidden prices too. False once unlocked, and false for a
+    // broken rate (owed is Infinity). The page says nothing about invoices.
+    const nothingOwed = !!pay && pay.owed === 0;
     const accent = org?.accentColor?.trim();
     // Dates are formatted here, in the studio's zone, the same zone the email
     // uses, so the page and the email never disagree about the day.
@@ -880,7 +901,7 @@ export const page = query({
       totalBytes: files.reduce((sum, f) => sum + f.version.size, 0),
       balanceCents,
       payUrl,
-      invoiceOpen,
+      nothingOwed,
       expiresAt: delivery.expiresAt,
       expiresLabel: shortDate(delivery.expiresAt, tz),
     };
